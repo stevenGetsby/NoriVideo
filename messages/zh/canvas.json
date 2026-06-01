@@ -1,0 +1,17 @@
+{
+  "listTitle": "无限画布",
+  "newCanvasButton": "新建画布",
+  "newCanvasPlaceholder": "画布名称（留空使用默认名）",
+  "defaultCanvasName": "未命名画布",
+  "emptyState": "还没有画布。新建一个开始探索。",
+  "confirmDelete": "确定删除画布「{title}」吗？",
+  "backToWorkspace": "返回工作区",
+  "backToList": "返回画布列表",
+  "canvasIdLabel": "画布",
+  "missingParams": "缺少项目或画布参数",
+  "hintDoubleClick": "双击空白处创建便签节点",
+  "hintProduction": "生产画布会同步当前项目的剧集、分镜、图片和视频结果",
+  "productionTitle": "生产画布",
+  "productionDescription": "把当前项目的剧集、分镜组、分镜图和已生成视频同步成可拖拽的无限画布节点。",
+  "openProduction": "打开生产画布"
+}

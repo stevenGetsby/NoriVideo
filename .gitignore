@@ -1,0 +1,37 @@
+# Dependencies
+node_modules/
+.npm-cache/
+
+# Environment and local secrets
+.env
+.env.*
+!.env.example
+!*.example
+
+# Next.js and build output
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Logs and runtime artifacts
+logs/
+docker-logs/
+*.log
+downloads/
+data/
+
+# Local debug artifacts
+.DS_Store
+.tmp_check_task.ts
+debug-request.json
+final-check-*.png
+*.bundle
+
+# Editor state
+.vscode/
+
+# External reference checkouts kept locally only
+reference/

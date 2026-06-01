@@ -1,0 +1,131 @@
+services:
+  # ==================== MySQL ====================
+  mysql:
+    image: mysql:8.0
+    container_name: nori-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: nori123
+      MYSQL_DATABASE: nori
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - "--default-authentication-plugin=mysql_native_password"
+      - "--sql_mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -pnori123"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+
+  # ==================== Redis ====================
+  redis:
+    image: redis:7-alpine
+    container_name: nori-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  # ==================== App (Next.js + Workers) ====================
+  app:
+    image: nori:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nori-app
+    restart: unless-stopped
+    env_file:
+      - .env
+      - .env.local
+    environment:
+      # 数据库（指向容器内部 MySQL，用服务名 mysql 而非 localhost）
+      DATABASE_URL: "mysql://root:nori123@mysql:3306/nori"
+      # Redis（指向容器内部 Redis，用服务名 redis）
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ""
+      REDIS_TLS: ""
+      # 存储配置由同目录 .env / .env.local 提供，默认使用火山引擎 TOS
+      # 外部访问地址（浏览器实际访问）
+      NEXTAUTH_URL: "http://localhost:13000"
+      # 容器内自调用地址（服务端 fetch 自己的 API / 文件）
+      INTERNAL_APP_URL: "http://127.0.0.1:3000"
+      NEXTAUTH_SECRET: "nori-default-secret-2026"
+      # 内部密钥
+      CRON_SECRET: "nori-docker-cron-secret"
+      INTERNAL_TASK_TOKEN: "nori-docker-task-token"
+      API_ENCRYPTION_KEY: "nori-private-fixed-key-2026"
+      # Worker 配置
+      WATCHDOG_INTERVAL_MS: "30000"
+      TASK_HEARTBEAT_TIMEOUT_MS: "90000"
+      QUEUE_CONCURRENCY_IMAGE: "50"
+      QUEUE_CONCURRENCY_VIDEO: "50"
+      QUEUE_CONCURRENCY_VOICE: "20"
+      QUEUE_CONCURRENCY_TEXT: "50"
+      # Bull Board
+      BULL_BOARD_HOST: "0.0.0.0"
+      BULL_BOARD_PORT: "3010"
+      BULL_BOARD_BASE_PATH: "/admin/queues"
+      BULL_BOARD_USER: ""
+      BULL_BOARD_PASSWORD: ""
+      # 日志
+      LOG_UNIFIED_ENABLED: "true"
+      LOG_LEVEL: "INFO"
+      LOG_FORMAT: "json"
+      LOG_DEBUG_ENABLED: "false"
+      LOG_AUDIT_ENABLED: "true"
+      LOG_SERVICE: "nori"
+      LOG_REDACT_KEYS: "password,token,apiKey,apikey,authorization,cookie,secret,access_token,refresh_token"
+      # 计费
+      BILLING_MODE: "OFF"
+      # 流式
+      LLM_STREAM_EPHEMERAL_ENABLED: "true"
+      # 视频增强批量下载：容器路径会映射到当前目录 ./downloads
+      VIDEO_ENHANCE_DEFAULT_DOWNLOAD_DIR: "/app/downloads"
+    ports:
+      - "13000:3000"
+      - "13010:3010"
+    volumes:
+      - ./data:/app/data
+      - ./downloads:/app/downloads
+      - ./docker-logs:/app/logs
+      - ./.env.local:/app/.env.local
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "
+        npx prisma db push --skip-generate &&
+        (sleep 5 && echo '' &&
+        echo '╔══════════════════════════════════════════════════╗' &&
+        echo '║            Nori is ready!                    ║' &&
+        echo '║                                                  ║' &&
+        echo '║  HTTP:  http://localhost:13000                    ║' &&
+        echo '║                                                  ║' &&
+        echo '║  For HTTPS, run Caddy on host:                   ║' &&
+        echo '║  caddy run --config Caddyfile                    ║' &&
+        echo '║  Then open: https://localhost:1443                ║' &&
+        echo '╚══════════════════════════════════════════════════╝' &&
+        echo '') &
+        ./docker-start.sh
+      "
+
+volumes:
+  mysql_data:
+  redis_data:

@@ -1,0 +1,17 @@
+{
+  "listTitle": "Infinite Canvases",
+  "newCanvasButton": "New canvas",
+  "newCanvasPlaceholder": "Canvas title (leave empty for default)",
+  "defaultCanvasName": "Untitled canvas",
+  "emptyState": "No canvases yet. Create one to start exploring.",
+  "confirmDelete": "Delete canvas \"{title}\"?",
+  "backToWorkspace": "Back to workspace",
+  "backToList": "Back to canvas list",
+  "canvasIdLabel": "Canvas",
+  "missingParams": "Missing project or canvas parameter",
+  "hintDoubleClick": "Double-click empty area to create a note",
+  "hintProduction": "The production canvas syncs episodes, storyboards, images, and videos from this project",
+  "productionTitle": "Production Canvas",
+  "productionDescription": "Sync this project's episodes, storyboard groups, panel images, and generated videos into draggable infinite-canvas nodes.",
+  "openProduction": "Open production canvas"
+}
