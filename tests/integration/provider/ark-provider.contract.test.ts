@@ -1,6 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { arkCreateVideoTask } from '@/lib/ark-api'
 import { querySeedanceVideoStatus } from '@/lib/async-task-utils'
+import { ArkVideoGenerator } from '@/lib/generators/ark'
+
+vi.mock('@/lib/api-config', () => ({
+  getProviderConfig: vi.fn(async () => ({ apiKey: 'ark-key' })),
+}))
+
+vi.mock('@/lib/media/outbound-image', () => ({
+  normalizeToBase64ForGeneration: vi.fn(async (input: string) => `data:image/png;base64,normalized:${input}`),
+}))
 
 describe('provider contract - ark seedance', () => {
   beforeEach(() => {
@@ -64,6 +73,162 @@ describe('provider contract - ark seedance', () => {
       generate_audio: true,
       watermark: true,
       tools: [{ type: 'web_search' }],
+    })
+  })
+
+  it('ArkVideoGenerator injects the panel image and Seedance 2.0 options into content-generation tasks', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'cgt-task-agent-1' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch)
+
+    const generator = new ArkVideoGenerator()
+    const result = await generator.generate({
+      userId: 'user-1',
+      imageUrl: 'https://assets.example/panel-1.png',
+      prompt: 'Ava turns toward Dr. Grayson and says, "I need the truth." Camera slowly pushes in.',
+      options: {
+        modelId: 'doubao-seedance-2-0-260128',
+        resolution: '720p',
+        duration: 7,
+        aspectRatio: '9:16',
+        generateAudio: true,
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      async: true,
+      requestId: 'cgt-task-agent-1',
+      externalId: 'ARK:VIDEO:cgt-task-agent-1',
+    })
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'doubao-seedance-2-0-260128',
+      content: [
+        { type: 'text', text: 'Ava turns toward Dr. Grayson and says, "I need the truth." Camera slowly pushes in.' },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,normalized:https://assets.example/panel-1.png' },
+        },
+      ],
+      resolution: '720p',
+      ratio: '9:16',
+      duration: 7,
+      generate_audio: true,
+    })
+  })
+
+  it('ArkVideoGenerator can submit Seedance 2.0 text plus asset reference images without a panel image', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'cgt-task-agent-refs' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch)
+
+    const generator = new ArkVideoGenerator()
+    const result = await generator.generate({
+      userId: 'user-1',
+      imageUrl: '',
+      prompt: '场景：现代美国私立医院。剧情片段：Ava 请求 Dr. Grayson 帮外婆安排手术。',
+      options: {
+        modelId: 'doubao-seedance-2-0-260128',
+        resolution: '720p',
+        duration: 8,
+        aspectRatio: '9:16',
+        generateAudio: true,
+        referenceImages: [
+          'https://assets.example/ava.png',
+          'https://assets.example/grayson.png',
+          'https://assets.example/hospital.png',
+        ],
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      async: true,
+      requestId: 'cgt-task-agent-refs',
+      externalId: 'ARK:VIDEO:cgt-task-agent-refs',
+    })
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'doubao-seedance-2-0-260128',
+      content: [
+        { type: 'text', text: '场景：现代美国私立医院。剧情片段：Ava 请求 Dr. Grayson 帮外婆安排手术。' },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,normalized:https://assets.example/ava.png' },
+          role: 'reference_image',
+        },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,normalized:https://assets.example/grayson.png' },
+          role: 'reference_image',
+        },
+        {
+          type: 'image_url',
+          image_url: { url: 'data:image/png;base64,normalized:https://assets.example/hospital.png' },
+          role: 'reference_image',
+        },
+      ],
+      resolution: '720p',
+      ratio: '9:16',
+      duration: 8,
+      generate_audio: true,
+    })
+  })
+
+  it('ArkVideoGenerator supports Seedance 2.0 auto duration and 1080p on the standard model', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ id: 'cgt-task-agent-auto' }), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    vi.stubGlobal('fetch', fetchMock as unknown as typeof fetch)
+
+    const generator = new ArkVideoGenerator()
+    await generator.generate({
+      userId: 'user-1',
+      imageUrl: 'https://assets.example/panel-1.png',
+      prompt: 'Ava enters the operating corridor and looks toward Dr. Grayson.',
+      options: {
+        modelId: 'doubao-seedance-2-0-260128',
+        resolution: '1080p',
+        duration: -1,
+        aspectRatio: '9:16',
+        generateAudio: false,
+      },
+    })
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit]
+    expect(JSON.parse(String(init.body))).toMatchObject({
+      model: 'doubao-seedance-2-0-260128',
+      resolution: '1080p',
+      ratio: '9:16',
+      duration: -1,
+      generate_audio: false,
+    })
+  })
+
+  it('ArkVideoGenerator rejects 1080p for Seedance 2.0 Fast', async () => {
+    const generator = new ArkVideoGenerator()
+
+    const result = await generator.generate({
+      userId: 'user-1',
+      imageUrl: 'https://assets.example/panel-1.png',
+      prompt: 'Ava enters the operating corridor.',
+      options: {
+        modelId: 'doubao-seedance-2-0-fast-260128',
+        resolution: '1080p',
+        duration: -1,
+        aspectRatio: '9:16',
+      },
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: 'ARK_VIDEO_OPTION_VALUE_UNSUPPORTED: resolution=1080p',
     })
   })
 

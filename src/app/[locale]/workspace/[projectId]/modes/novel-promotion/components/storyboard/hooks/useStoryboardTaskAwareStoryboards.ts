@@ -136,13 +136,18 @@ export function useStoryboardTaskAwareStoryboards({
         isRunningPhase(storyboardTextStates.getTaskState(`episode:${storyboard.episodeId}`)?.phase),
       panels: (storyboard.panels || []).map((panel) => {
         const panelImageTaskState = panelImageStates.getTaskState(`panel-image:${panel.id}`)
-        const panelImageRunning = isRunningPhase(panelImageTaskState?.phase)
+        const shouldShowPanelImageTaskState = !panel.imageUrl || panelImageTaskState?.hasOutputAtStart === true
+        const panelImageRunning = shouldShowPanelImageTaskState && isRunningPhase(panelImageTaskState?.phase)
+        const panelVideoTaskState = panelVideoStates.getTaskState(`panel-video:${panel.id}`)
+        const shouldShowPanelVideoTaskState = !panel.videoUrl || panelVideoTaskState?.hasOutputAtStart === true
+        const panelLipSyncTaskState = panelLipSyncStates.getTaskState(`panel-lip:${panel.id}`)
+        const shouldShowPanelLipSyncTaskState = !panel.lipSyncVideoUrl || panelLipSyncTaskState?.hasOutputAtStart === true
         return {
           ...panel,
           imageTaskRunning: panelImageRunning,
           imageTaskIntent: panelImageTaskState?.intent,
-          videoTaskRunning: isRunningPhase(panelVideoStates.getTaskState(`panel-video:${panel.id}`)?.phase),
-          lipSyncTaskRunning: isRunningPhase(panelLipSyncStates.getTaskState(`panel-lip:${panel.id}`)?.phase),
+          videoTaskRunning: shouldShowPanelVideoTaskState && isRunningPhase(panelVideoTaskState?.phase),
+          lipSyncTaskRunning: shouldShowPanelLipSyncTaskState && isRunningPhase(panelLipSyncTaskState?.phase),
         }
       }),
     }))

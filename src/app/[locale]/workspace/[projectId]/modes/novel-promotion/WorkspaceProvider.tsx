@@ -42,6 +42,7 @@ export function WorkspaceProvider({ projectId, episodeId, children }: WorkspaceP
 
     if (!scope || scope === 'all' || scope === 'project') {
       promises.push(queryClient.refetchQueries({ queryKey: queryKeys.projectData(projectId) }))
+      promises.push(queryClient.refetchQueries({ queryKey: queryKeys.workflowState(projectId, episodeId) }))
     }
 
     if (!scope || scope === 'all' || scope === 'assets') {
@@ -50,6 +51,7 @@ export function WorkspaceProvider({ projectId, episodeId, children }: WorkspaceP
 
     if (episodeId) {
       promises.push(queryClient.refetchQueries({ queryKey: queryKeys.episodeData(projectId, episodeId) }))
+      promises.push(queryClient.refetchQueries({ queryKey: queryKeys.workflowState(projectId, episodeId) }))
       promises.push(queryClient.refetchQueries({ queryKey: queryKeys.storyboards.all(episodeId) }))
       promises.push(queryClient.refetchQueries({ queryKey: queryKeys.voiceLines.all(episodeId) }))
     }

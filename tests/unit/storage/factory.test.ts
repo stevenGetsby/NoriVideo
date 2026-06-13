@@ -1,10 +1,25 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import { createStorageProvider } from '@/lib/storage/factory'
 import { StorageConfigError, StorageProviderNotImplementedError } from '@/lib/storage/errors'
 
 describe('storage factory', () => {
+  afterEach(() => {
+    delete process.env.NORI_TEST_MODE
+    delete process.env.NEXT_PUBLIC_NORI_TEST_MODE
+    delete process.env.STORAGE_TYPE
+  })
+
   it('creates local provider when STORAGE_TYPE=local', () => {
     const provider = createStorageProvider({ storageType: 'local' })
+    expect(provider.kind).toBe('local')
+  })
+
+  it('uses local storage by default in test mode', () => {
+    process.env.NORI_TEST_MODE = 'true'
+    process.env.STORAGE_TYPE = 'cos'
+
+    const provider = createStorageProvider()
+
     expect(provider.kind).toBe('local')
   })
 

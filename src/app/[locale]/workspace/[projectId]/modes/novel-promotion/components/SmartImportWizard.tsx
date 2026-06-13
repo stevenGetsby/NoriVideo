@@ -12,12 +12,13 @@ import type { SplitEpisode } from './smart-import/types'
 export type { SplitEpisode } from './smart-import/types'
 
 interface SmartImportWizardProps {
-  onManualCreate: () => void
+  onManualCreate: (rawContent?: string) => void
   onImportComplete: (episodes: SplitEpisode[], triggerGlobalAnalysis?: boolean) => void
   projectId: string
   importStatus?: string | null
   /** 预填文本：传入后自动跳过选择页，直接开始分析 */
   initialRawContent?: string
+  autoAnalyzeInitialContent?: boolean
 }
 
 export default function SmartImportWizard({
@@ -26,9 +27,17 @@ export default function SmartImportWizard({
   projectId,
   importStatus,
   initialRawContent,
+  autoAnalyzeInitialContent,
 }: SmartImportWizardProps) {
   const t = useTranslations('smartImport')
-  const wizard = useWizardState({ projectId, importStatus, onImportComplete, t, initialRawContent })
+  const wizard = useWizardState({
+    projectId,
+    importStatus,
+    onImportComplete,
+    t,
+    initialRawContent,
+    autoAnalyzeInitialContent,
+  })
 
   const savingTaskState = wizard.saving
     ? resolveTaskPresentationState({

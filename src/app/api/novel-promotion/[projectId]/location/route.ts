@@ -121,9 +121,10 @@ export const PATCH = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
-  const { locationId, imageIndex, description, name } = body
+  const { locationId, propId, imageIndex, description, name } = body
+  const targetLocationId = locationId || propId
 
-  if (!locationId) {
+  if (!targetLocationId) {
     throw new ApiError('INVALID_PARAMS')
   }
 
@@ -134,7 +135,7 @@ export const PATCH = apiHandler(async (
     if (body.summary !== undefined) updateData.summary = body.summary?.trim() || null
 
     const location = await prisma.novelPromotionLocation.update({
-      where: { id: locationId },
+      where: { id: targetLocationId },
       data: updateData
     })
     return NextResponse.json({ success: true, location })
@@ -145,7 +146,7 @@ export const PATCH = apiHandler(async (
     const cleanDescription = removeLocationPromptSuffix(description.trim())
     const image = await prisma.locationImage.update({
       where: {
-        locationId_imageIndex: { locationId, imageIndex }
+        locationId_imageIndex: { locationId: targetLocationId, imageIndex }
       },
       data: {
         description: cleanDescription,

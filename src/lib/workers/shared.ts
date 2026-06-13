@@ -656,7 +656,10 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
 export async function reportTaskProgress(job: Job<TaskJobData>, progress: number, payload?: Record<string, unknown>) {
   const value = Math.max(0, Math.min(99, Math.floor(progress)))
   const logger = buildWorkerLogger(job.data, job.queueName)
-  const nextPayload: Record<string, unknown> = withFlowFields(job.data, payload)
+  const nextPayload: Record<string, unknown> = withFlowFields(job.data, {
+    ...toObject(job.data.payload),
+    ...(payload || {}),
+  })
   const stage = typeof nextPayload.stage === 'string' ? nextPayload.stage : null
   if (stage && typeof nextPayload.stageLabel !== 'string') {
     nextPayload.stageLabel = getTaskStageLabel(stage)

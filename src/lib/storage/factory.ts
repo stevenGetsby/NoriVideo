@@ -4,6 +4,7 @@ import { MinioStorageProvider } from '@/lib/storage/providers/minio'
 import { CosStorageProvider } from '@/lib/storage/providers/cos'
 import { TosStorageProvider } from '@/lib/storage/providers/tos'
 import type { StorageFactoryOptions, StorageProvider, StorageType } from '@/lib/storage/types'
+import { isTestModeEnabled } from '@/lib/test-mode'
 
 function normalizeStorageType(rawType: string | undefined): StorageType {
   const normalized = (rawType || 'minio').trim().toLowerCase()
@@ -14,7 +15,8 @@ function normalizeStorageType(rawType: string | undefined): StorageType {
 }
 
 export function createStorageProvider(options: StorageFactoryOptions = {}): StorageProvider {
-  const type = normalizeStorageType(options.storageType || process.env.STORAGE_TYPE)
+  const defaultStorageType = process.env.STORAGE_TYPE || (isTestModeEnabled() ? 'local' : undefined)
+  const type = normalizeStorageType(options.storageType || defaultStorageType)
 
   if (type === 'minio') {
     return new MinioStorageProvider()

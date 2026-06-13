@@ -12,6 +12,7 @@ import { withPrismaRetry } from '@/lib/prisma-retry'
 import { extractModelKey } from '@/lib/config-service'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { getLogContext, setLogContext } from '@/lib/logging/context'
+import { getOrCreateTestModeSession, isTestModeEnabled } from '@/lib/test-mode'
 
 // ============================================================
 // 类型定义
@@ -32,6 +33,21 @@ function bindAuthLogContext(session: AuthSession, projectId?: string) {
         userId: session.user.id,
         ...(projectId ? { projectId } : {}),
     })
+}
+
+async function sessionUserExists(session: AuthSession): Promise<boolean> {
+    const user = await withPrismaRetry(() =>
+        prisma.user.findUnique({
+            where: { id: session.user.id },
+            select: { id: true },
+        })
+    )
+    return !!user
+}
+
+async function rejectMissingSessionUser(session: AuthSession): Promise<NextResponse | null> {
+    if (await sessionUserExists(session)) return null
+    return unauthorized('Session user no longer exists. Please sign in again.')
 }
 
 async function getInternalTaskSession(): Promise<AuthSession | null> {
@@ -173,6 +189,7 @@ export function serverError(message = 'Internal server error') {
 export async function getAuthSession(): Promise<AuthSession | null> {
     const internalSession = await getInternalTaskSession()
     if (internalSession) return internalSession
+    if (isTestModeEnabled()) return await getOrCreateTestModeSession()
     const session = await getServerSession(authOptions)
     return session as AuthSession | null
 }
@@ -185,6 +202,10 @@ export async function requireAuth(): Promise<AuthSession> {
     const session = await getAuthSession()
     if (!session?.user?.id) {
         throw { response: unauthorized() }
+    }
+    const missingUserResponse = await rejectMissingSessionUser(session)
+    if (missingUserResponse) {
+        throw { response: missingUserResponse }
     }
     bindAuthLogContext(session)
     return session
@@ -220,6 +241,8 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
     if (!session?.user?.id) {
         return unauthorized()
     }
+    const missingUserResponse = await rejectMissingSessionUser(session)
+    if (missingUserResponse) return missingUserResponse
     bindAuthLogContext(session, projectId)
 
     // 2. 构建动态 include 对象
@@ -308,6 +331,8 @@ export async function requireUserAuth(): Promise<{ session: AuthSession } | Next
     if (!session?.user?.id) {
         return unauthorized()
     }
+    const missingUserResponse = await rejectMissingSessionUser(session)
+    if (missingUserResponse) return missingUserResponse
     bindAuthLogContext(session)
     return { session }
 }
@@ -323,6 +348,8 @@ export async function requireProjectAuthLight(
     if (!session?.user?.id) {
         return unauthorized()
     }
+    const missingUserResponse = await rejectMissingSessionUser(session)
+    if (missingUserResponse) return missingUserResponse
     bindAuthLogContext(session, projectId)
 
     const project = await withPrismaRetry(() =>

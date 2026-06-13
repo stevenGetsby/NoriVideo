@@ -26,6 +26,15 @@ const prismaMock = vi.hoisted(() => ({
     })),
   },
   userPreference: {
+    findUnique: vi.fn(async () => ({
+      analysisModel: 'llm::analysis',
+      characterModel: 'img::character',
+      locationModel: 'img::location',
+      storyboardModel: 'img::storyboard',
+      editModel: 'img::edit',
+      videoModel: 'video::model',
+      audioModel: 'audio::model',
+    })),
     upsert: vi.fn(async () => ({ userId: 'user-1', artStyle: 'realistic' })),
   },
 }))
@@ -40,6 +49,7 @@ const logMock = vi.hoisted(() => ({
 
 const modelConfigContractMock = vi.hoisted(() => ({
   parseModelKeyStrict: vi.fn(() => ({ provider: 'mock', modelId: 'mock-model' })),
+  composeModelKey: vi.fn((provider: string, modelId: string) => `${provider}::${modelId}`),
 }))
 
 const capabilityLookupMock = vi.hoisted(() => ({
@@ -118,5 +128,44 @@ describe('api specific - novel promotion project art style validation', () => {
       }),
     )
     expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
+  })
+
+  it('accepts workflowMode agent', async () => {
+    const mod = await import('@/app/api/novel-promotion/[projectId]/route')
+    const req = buildMockRequest({
+      path: '/api/novel-promotion/project-1',
+      method: 'PATCH',
+      body: {
+        workflowMode: 'agent',
+      },
+    })
+
+    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
+    expect(res.status).toBe(200)
+    expect(prismaMock.novelPromotionProject.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workflowMode: 'agent',
+        }),
+      }),
+    )
+  })
+
+  it('rejects invalid workflowMode', async () => {
+    const mod = await import('@/app/api/novel-promotion/[projectId]/route')
+    const req = buildMockRequest({
+      path: '/api/novel-promotion/project-1',
+      method: 'PATCH',
+      body: {
+        workflowMode: 'manual',
+      },
+    })
+
+    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
+    const body = await res.json()
+    expect(res.status).toBe(400)
+    expect(body.error.code).toBe('INVALID_PARAMS')
+    expect(body.error.details.code).toBe('WORKFLOW_MODE_INVALID')
+    expect(prismaMock.novelPromotionProject.update).not.toHaveBeenCalled()
   })
 })

@@ -49,6 +49,7 @@ const VOICE_TYPES = new Set<TaskType>([
 const SINGLE_ATTEMPT_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.STORY_TO_SCRIPT_RUN,
   TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
+  TASK_TYPE.SUPER_AGENT_EXECUTE,
 ])
 
 export function getQueueTypeByTaskType(type: TaskType): QueueType {

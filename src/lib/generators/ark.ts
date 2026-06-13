@@ -42,6 +42,7 @@ interface ArkVideoOptions {
     duration?: number
     frames?: number
     aspectRatio?: string
+    referenceImages?: string[]
     generateAudio?: boolean
     lastFrameImageUrl?: string
     serviceTier?: 'default' | 'flex'
@@ -76,6 +77,7 @@ type ArkVideoContentItem =
 interface ArkSeedanceModelSpec {
     durationMin: number
     durationMax: number
+    supportsAutoDuration: boolean
     supportsFirstLastFrame: boolean
     supportsGenerateAudio: boolean
     supportsDraft: boolean
@@ -87,6 +89,7 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
     'doubao-seedance-1-0-pro-fast-251015': {
         durationMin: 2,
         durationMax: 12,
+        supportsAutoDuration: false,
         supportsFirstLastFrame: false,
         supportsGenerateAudio: false,
         supportsDraft: false,
@@ -96,6 +99,7 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
     'doubao-seedance-1-0-pro-250528': {
         durationMin: 2,
         durationMax: 12,
+        supportsAutoDuration: false,
         supportsFirstLastFrame: true,
         supportsGenerateAudio: false,
         supportsDraft: false,
@@ -105,6 +109,7 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
     'doubao-seedance-1-0-lite-i2v-250428': {
         durationMin: 2,
         durationMax: 12,
+        supportsAutoDuration: false,
         supportsFirstLastFrame: true,
         supportsGenerateAudio: false,
         supportsDraft: false,
@@ -114,6 +119,7 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
     'doubao-seedance-1-5-pro-251215': {
         durationMin: 4,
         durationMax: 12,
+        supportsAutoDuration: true,
         supportsFirstLastFrame: true,
         supportsGenerateAudio: true,
         supportsDraft: true,
@@ -123,15 +129,17 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
     'doubao-seedance-2-0-260128': {
         durationMin: 4,
         durationMax: 15,
+        supportsAutoDuration: true,
         supportsFirstLastFrame: true,
         supportsGenerateAudio: true,
         supportsDraft: false,
         supportsFrames: false,
-        resolutionOptions: ['480p', '720p'],
+        resolutionOptions: ['480p', '720p', '1080p'],
     },
     'doubao-seedance-2-0-fast-260128': {
         durationMin: 4,
         durationMax: 15,
+        supportsAutoDuration: true,
         supportsFirstLastFrame: true,
         supportsGenerateAudio: true,
         supportsDraft: false,
@@ -315,6 +323,7 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             duration,
             frames,
             aspectRatio,
+            referenceImages = [],
             generateAudio,
             lastFrameImageUrl,  // 首尾帧模式的尾帧图片
             serviceTier,
@@ -334,6 +343,7 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             'duration',
             'frames',
             'aspectRatio',
+            'referenceImages',
             'generateAudio',
             'lastFrameImageUrl',
             'serviceTier',
@@ -370,8 +380,8 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             if (durationOutOfRange) {
                 throw new Error(`ARK_VIDEO_OPTION_VALUE_UNSUPPORTED: duration=${duration}`)
             }
-            if (duration === -1 && realModel !== 'doubao-seedance-1-5-pro-251215') {
-                throw new Error('ARK_VIDEO_OPTION_VALUE_UNSUPPORTED: duration=-1 only supported by Seedance 1.5 Pro')
+            if (duration === -1 && !modelSpec.supportsAutoDuration) {
+                throw new Error(`ARK_VIDEO_OPTION_VALUE_UNSUPPORTED: duration=-1 for ${realModel}`)
             }
         }
         if (frames !== undefined) {
@@ -430,8 +440,8 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
 
         _ulogInfo(`[ARK Video] 模型: ${realModel}, 批量: ${isBatchMode}, 分辨率: ${resolution || '(默认)'}, 时长: ${duration ?? '(默认)'}`)
 
-        // 转换图片为 base64
-        const imageBase64 = await normalizeToBase64ForGeneration(imageUrl)
+        const hasInputImage = typeof imageUrl === 'string' && imageUrl.trim().length > 0
+        const imageBase64 = hasInputImage ? await normalizeToBase64ForGeneration(imageUrl) : null
 
         // 构建请求体 content
         const content: ArkVideoContentItem[] = []
@@ -440,6 +450,9 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
         }
 
         if (lastFrameImageUrl) {
+            if (!imageBase64) {
+                throw new Error('ARK_VIDEO_FIRST_FRAME_REQUIRED: first/last frame mode requires imageUrl')
+            }
             // 首尾帧模式
             const lastImageBase64 = await normalizeToBase64ForGeneration(lastFrameImageUrl)
             content.push({
@@ -453,11 +466,25 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
                 role: 'last_frame'
             })
             _ulogInfo(`[ARK Video] 首尾帧模式`)
-        } else {
+        } else if (imageBase64) {
             content.push({
                 type: 'image_url',
                 image_url: { url: imageBase64 }
             })
+        }
+
+        const maxReferenceImages = imageBase64 || lastFrameImageUrl ? 8 : 9
+        for (const referenceImage of referenceImages.slice(0, maxReferenceImages)) {
+            try {
+                const referenceImageBase64 = await normalizeToBase64ForGeneration(referenceImage)
+                content.push({
+                    type: 'image_url',
+                    image_url: { url: referenceImageBase64 },
+                    role: 'reference_image',
+                })
+            } catch {
+                _ulogInfo(`[ARK Video] 参考图片转换失败: ${referenceImage}`)
+            }
         }
 
         const requestBody: {
@@ -523,7 +550,7 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             _ulogInfo('[ARK Video] 批量模式: service_tier=flex')
         }
 
-        // 音频生成（仅 Seedance 1.5 Pro）
+        // 音频生成（Seedance 1.5 Pro / Seedance 2.0 系列）
         if (generateAudio !== undefined) {
             requestBody.generate_audio = generateAudio
         }

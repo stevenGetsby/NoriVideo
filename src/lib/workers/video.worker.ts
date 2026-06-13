@@ -13,17 +13,39 @@ import {
   resolveVideoSourceFromGeneration,
   toSignedUrlIfCos,
   uploadVideoSourceToCos,
+  waitExternalResult,
 } from './utils'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
+import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
+import { extractStorageKey, getSignedObjectUrl } from '@/lib/storage'
+import { ensureStorageObjectAvailable } from '@/lib/storage/ensure-object'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
+import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
+import { arkCreateVideoTask } from '@/lib/ark-api'
+import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from '@/lib/hfsy-fixed-models'
+import {
+  buildPanelSeedanceReferenceAssets,
+  readPanelSeedanceReferenceAssetsFromActingNotes,
+} from '@/lib/novel-promotion/seedance-reference-assets'
+import { ensureProjectAssetImagesOnStorage } from '@/lib/novel-promotion/asset-storage-sync'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
 type VideoOptionMap = Record<string, VideoOptionValue>
 type VideoGenerationMode = 'normal' | 'firstlastframe'
 type PanelRecord = NonNullable<Awaited<ReturnType<typeof prisma.novelPromotionPanel.findUnique>>>
+type GeneratedVideoSource = {
+  url: string
+  actualVideoTokens?: number
+  downloadHeaders?: Record<string, string>
+  fallbackMode?: 'ark_text_only_after_input_image_moderation'
+}
+type PanelVideoInputImage = {
+  sourceImageBase64?: string
+  sourceImageUrl?: string
+}
 
 function toDurationMs(value: number | null | undefined): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined
@@ -44,6 +66,73 @@ function extractGenerationOptions(payload: AnyObj): VideoOptionMap {
     }
   }
   return next
+}
+
+function isArkInputImageModerationError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /InputImageSensitiveContentDetected|PrivacyInformation|输入图片审核未通过|input image/i.test(message)
+}
+
+function isArkVideoModel(modelKey: string): boolean {
+  return /^ark::/i.test(modelKey) || /doubao-seedance/i.test(modelKey)
+}
+
+function isHfsyVideoModel(modelKey: string): boolean {
+  const parsed = parseModelKeyStrict(modelKey)
+  return parsed?.provider === HFSY_PROVIDER_ID && parsed.modelId === HFSY_VIDEO_MODEL_ID
+}
+
+function readArkModelId(modelKey: string): string {
+  if (modelKey.startsWith('ark::')) return modelKey.slice('ark::'.length)
+  return modelKey
+}
+
+function normalizeHfsyDuration(value: VideoOptionValue | undefined): number {
+  const parsed = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(parsed)) return 6
+  return Math.max(4, Math.min(15, Math.round(parsed)))
+}
+
+function resolveHfsyOrientation(ratio: string | null | undefined): 'landscape' | 'portrait' {
+  return ratio === '16:9' || ratio === '21:9' || ratio === '4:3' ? 'landscape' : 'portrait'
+}
+
+function extractStorageKeyFromPossiblySignedRoute(value: string): string | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.startsWith('/api/storage/sign')) {
+    try {
+      const params = new URLSearchParams(trimmed.split('?')[1] || '')
+      return params.get('key')?.trim() || null
+    } catch {
+      return null
+    }
+  }
+  return extractStorageKey(trimmed)
+}
+
+async function toProviderFetchablePublicUrl(value: string | null | undefined): Promise<string | null> {
+  const trimmed = (value || '').trim()
+  if (!trimmed || /^asset:\/\//i.test(trimmed) || /^data:/i.test(trimmed) || /^blob:/i.test(trimmed)) return null
+  if (/^https?:\/\//i.test(trimmed) && !/\/api\/storage\/sign\b/.test(trimmed)) return trimmed
+
+  const key = extractStorageKeyFromPossiblySignedRoute(trimmed)
+  if (!key) return null
+  const availableKey = await ensureStorageObjectAvailable(key)
+  return availableKey ? await getSignedObjectUrl(availableKey, 3600) : null
+}
+
+function readVideoResolution(value: VideoOptionValue | undefined): '480p' | '720p' | '1080p' | undefined {
+  return value === '480p' || value === '720p' || value === '1080p' ? value : undefined
+}
+
+function buildArkTextOnlyFallbackPrompt(prompt: string): string {
+  return [
+    '【重要】上游视频模型拒绝使用输入分镜图，为了继续完成 Agent 成片流程，改用纯文本视频生成。',
+    '必须严格保持原 panel 的角色资产、服装、场景、道具、人物站位、镜头语言、按秒动作/对白和负面要求。',
+    '不要新增无关角色，不要改变剧情，不要改变角色关系，不要改变地域/语言语境。',
+    prompt,
+  ].join('\n')
 }
 
 async function fetchPanelByStoryboardIndex(storyboardId: string, panelIndex: number) {
@@ -77,6 +166,144 @@ async function getPanelForVideoTask(job: Job<TaskJobData>) {
   return panel
 }
 
+async function resolvePanelImageInput(panel: PanelRecord): Promise<string | null> {
+  const mediaRef = await resolveMediaRef(panel.imageMediaId, panel.imageUrl)
+  return mediaUrlFromRef(mediaRef, panel.imageUrl)
+}
+
+async function resolvePanelVideoInputImage(panel: PanelRecord): Promise<PanelVideoInputImage> {
+  const panelImageInput = await resolvePanelImageInput(panel)
+  if (!panelImageInput) return {}
+  const sourceImageUrl = toSignedUrlIfCos(panelImageInput, 3600)
+  if (!sourceImageUrl) return {}
+  return {
+    sourceImageUrl,
+    sourceImageBase64: await normalizeToBase64ForGeneration(sourceImageUrl),
+  }
+}
+
+async function resolvePanelAssetReferenceImagesForVideo(
+  projectId: string,
+  panel: PanelRecord,
+  options?: { publicFetchableUrls?: boolean },
+): Promise<string[]> {
+  const projectModel = (prisma as unknown as {
+    novelPromotionProject?: typeof prisma.novelPromotionProject
+  }).novelPromotionProject
+  if (!projectModel) return []
+
+  const projectAssets = await projectModel.findUnique({
+    where: { projectId },
+    include: {
+      characters: {
+        include: {
+          appearances: { orderBy: { appearanceIndex: 'asc' } },
+        },
+      },
+      locations: {
+        include: {
+          selectedImage: true,
+          images: { orderBy: { imageIndex: 'asc' } },
+        },
+      },
+    },
+  })
+  if (!projectAssets) return []
+
+  const persistedReferences = readPanelSeedanceReferenceAssetsFromActingNotes(panel.actingNotes)
+  const references = persistedReferences.length > 0 ? persistedReferences : buildPanelSeedanceReferenceAssets({
+    panel: {
+      characters: panel.characters,
+      location: panel.location,
+      props: panel.props,
+      videoPrompt: panel.videoPrompt,
+    },
+    characterAssets: projectAssets.characters,
+    locationAssets: projectAssets.locations,
+  })
+
+  const seen = new Set<string>()
+  const panelImage = panel.imageUrl?.trim()
+  const urls: string[] = []
+  for (const reference of references) {
+    const resolvedUrl = options?.publicFetchableUrls
+      ? await toProviderFetchablePublicUrl(reference.imageUrl)
+      : toSignedUrlIfCos(reference.imageUrl, 3600) || reference.imageUrl
+    const trimmed = (resolvedUrl || '').trim()
+    if (!trimmed || trimmed === panelImage || seen.has(trimmed)) continue
+    seen.add(trimmed)
+    urls.push(trimmed)
+  }
+  return urls
+}
+
+function normalizeAssetNameForMatch(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[\s"'“”‘’`·。、，,;；:：()（）[\]【】\-_/|]/g, '')
+}
+
+function panelReferenceNames(panel: PanelRecord): string[] {
+  const names = new Set<string>()
+  for (const reference of readPanelSeedanceReferenceAssetsFromActingNotes(panel.actingNotes)) {
+    if (reference.kind === 'character' && reference.name.trim()) names.add(reference.name.trim())
+  }
+  if (typeof panel.characters === 'string') {
+    try {
+      const parsed = JSON.parse(panel.characters)
+      if (Array.isArray(parsed)) {
+        parsed.forEach((item) => {
+          if (typeof item === 'string' && item.trim()) names.add(item.trim())
+        })
+      }
+    } catch {
+      panel.characters.split(/[、,，/]/).forEach((item) => {
+        if (item.trim()) names.add(item.trim())
+      })
+    }
+  }
+  return Array.from(names)
+}
+
+async function resolvePanelAudioReferencesForVideo(projectId: string, panel: PanelRecord): Promise<string[]> {
+  const names = panelReferenceNames(panel)
+  if (names.length === 0) return []
+  const normalizedNames = names.map(normalizeAssetNameForMatch).filter(Boolean)
+  if (normalizedNames.length === 0) return []
+
+  const projectModel = (prisma as unknown as {
+    novelPromotionProject?: typeof prisma.novelPromotionProject
+  }).novelPromotionProject
+  if (!projectModel) return []
+
+  const projectAssets = await projectModel.findUnique({
+    where: { projectId },
+    include: {
+      characters: true,
+    },
+  })
+  const characters = projectAssets?.characters || []
+  const urls: string[] = []
+  const seen = new Set<string>()
+
+  for (const character of characters) {
+    const characterName = normalizeAssetNameForMatch(character.name)
+    const matched = normalizedNames.some((name) => (
+      name === characterName
+      || (name.length >= 4 && characterName.includes(name))
+      || (characterName.length >= 4 && name.includes(characterName))
+    ))
+    if (!matched || !character.customVoiceUrl) continue
+    const url = await toProviderFetchablePublicUrl(character.customVoiceUrl)
+    if (!url || seen.has(url)) continue
+    seen.add(url)
+    urls.push(url)
+    if (urls.length >= 3) break
+  }
+
+  return urls
+}
+
 async function generateVideoForPanel(
   job: Job<TaskJobData>,
   panel: PanelRecord,
@@ -84,11 +311,12 @@ async function generateVideoForPanel(
   modelId: string,
   projectVideoRatio: string | null | undefined,
   generationOptions: VideoOptionMap,
-): Promise<{ cosKey: string; generationMode: VideoGenerationMode; actualVideoTokens?: number }> {
-  if (!panel.imageUrl) {
-    throw new Error(`Panel ${panel.id} has no imageUrl`)
-  }
-
+): Promise<{
+  cosKey: string
+  generationMode: VideoGenerationMode
+  actualVideoTokens?: number
+  fallbackMode?: 'ark_text_only_after_input_image_moderation'
+}> {
   const firstLastFramePayload =
     typeof payload.firstLastFrame === 'object' && payload.firstLastFrame !== null
       ? (payload.firstLastFrame as AnyObj)
@@ -101,17 +329,8 @@ async function generateVideoForPanel(
     throw new Error(`Panel ${panel.id} has no video prompt`)
   }
 
-  const sourceImageUrl = toSignedUrlIfCos(panel.imageUrl, 3600)
-  if (!sourceImageUrl) {
-    throw new Error(`Panel ${panel.id} image url invalid`)
-  }
-  const sourceImageBase64 = await normalizeToBase64ForGeneration(sourceImageUrl)
-
   let lastFrameImageBase64: string | undefined
   const generationMode: VideoGenerationMode = firstLastFramePayload ? 'firstlastframe' : 'normal'
-  const requestedGenerateAudio = typeof generationOptions.generateAudio === 'boolean'
-    ? generationOptions.generateAudio
-    : undefined
   let model = modelId
 
   if (firstLastFramePayload) {
@@ -140,20 +359,116 @@ async function generateVideoForPanel(
       }
     }
   }
+  const isArkModel = isArkVideoModel(model)
+  const isHfsyModel = isHfsyVideoModel(model)
+  const inputImage = isHfsyModel && generationMode === 'normal'
+    ? {}
+    : await resolvePanelVideoInputImage(panel)
+  if (!inputImage.sourceImageBase64 && !isArkModel && !isHfsyModel) {
+    throw new Error(`Panel ${panel.id} has no imageUrl`)
+  }
+  if (generationMode === 'firstlastframe' && !inputImage.sourceImageBase64) {
+    throw new Error(`Panel ${panel.id} has no first frame image for first/last frame generation`)
+  }
 
-  const generatedVideo = await resolveVideoSourceFromGeneration(job, {
-    userId: job.data.userId,
-    modelId: model,
-    imageUrl: sourceImageBase64,
-    options: {
-      prompt,
-      ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
-      ...generationOptions,
-      generationMode,
-      ...(typeof requestedGenerateAudio === 'boolean' ? { generateAudio: requestedGenerateAudio } : {}),
-      ...(lastFrameImageBase64 ? { lastFrameImageUrl: lastFrameImageBase64 } : {}),
-    },
-  })
+  const selectedCapabilities = resolveBuiltinCapabilitiesByModelKey('video', model)
+  const durationOptions = selectedCapabilities?.video?.durationOptions
+  const recommendedGenerationOptions = withRecommendedVideoDurationOptions({
+    duration: panel.duration,
+    description: panel.description,
+    videoPrompt: panel.videoPrompt,
+    firstLastFramePrompt: panel.firstLastFramePrompt,
+    srtSegment: panel.srtSegment,
+    shotType: panel.shotType,
+    cameraMove: panel.cameraMove,
+  }, generationOptions, durationOptions)
+  if (isHfsyVideoModel(model)) {
+    await ensureProjectAssetImagesOnStorage(job.data.projectId)
+  }
+  const shouldAttachPanelReferenceAssets = isArkVideoModel(model) || isHfsyVideoModel(model)
+  const panelReferenceImages = shouldAttachPanelReferenceAssets
+    ? await resolvePanelAssetReferenceImagesForVideo(job.data.projectId, panel, {
+      publicFetchableUrls: isHfsyVideoModel(model),
+    })
+    : []
+  const panelAudioReferences = isHfsyVideoModel(model)
+    ? await resolvePanelAudioReferencesForVideo(job.data.projectId, panel)
+    : []
+  const hfsyDuration = isHfsyVideoModel(model)
+    ? normalizeHfsyDuration(recommendedGenerationOptions.duration)
+    : undefined
+  if (isHfsyVideoModel(model) && panelReferenceImages.length === 0) {
+    throw new Error(`Panel ${panel.id} has no public reference assets for HFSY video generation`)
+  }
+
+  const videoRequestOptions = {
+    prompt,
+    ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
+    ...recommendedGenerationOptions,
+    ...(hfsyDuration ? { duration: hfsyDuration } : {}),
+    generationMode,
+    ...(panelReferenceImages.length > 0 ? { referenceImages: panelReferenceImages } : {}),
+    ...(panelAudioReferences.length > 0 ? { audios: panelAudioReferences } : {}),
+    ...(isHfsyVideoModel(model) ? {
+      orientation: resolveHfsyOrientation(projectVideoRatio),
+      ratio: projectVideoRatio || '9:16',
+      size: 'large',
+      watermark: false,
+    } : {}),
+    ...(lastFrameImageBase64 ? { lastFrameImageUrl: lastFrameImageBase64 } : {}),
+  }
+
+  let generatedVideo: GeneratedVideoSource
+  try {
+    generatedVideo = await resolveVideoSourceFromGeneration(job, {
+      userId: job.data.userId,
+      modelId: model,
+      imageUrl: inputImage.sourceImageBase64 || panelReferenceImages[0] || '',
+      options: videoRequestOptions,
+    })
+  } catch (error) {
+    if (!isArkVideoModel(model) || generationMode !== 'normal' || !isArkInputImageModerationError(error)) {
+      throw error
+    }
+    await reportTaskProgress(job, 35, {
+      stage: 'ark_text_only_fallback',
+      panelId: panel.id,
+      reason: 'input_image_moderation',
+    })
+    const { apiKey } = await getProviderConfig(job.data.userId, 'ark')
+    const fallbackTask = await arkCreateVideoTask({
+      model: readArkModelId(model),
+      content: [
+        {
+          type: 'text',
+          text: buildArkTextOnlyFallbackPrompt(prompt),
+        },
+      ],
+      ...(readVideoResolution(recommendedGenerationOptions.resolution) ? { resolution: readVideoResolution(recommendedGenerationOptions.resolution) } : {}),
+      ...(projectVideoRatio ? { ratio: projectVideoRatio } : {}),
+      ...(typeof recommendedGenerationOptions.duration === 'number' ? { duration: recommendedGenerationOptions.duration } : {}),
+      ...(typeof recommendedGenerationOptions.generateAudio === 'boolean' ? { generate_audio: recommendedGenerationOptions.generateAudio } : {}),
+      ...(typeof recommendedGenerationOptions.seed === 'number' ? { seed: recommendedGenerationOptions.seed } : {}),
+      ...(typeof recommendedGenerationOptions.cameraFixed === 'boolean' ? { camera_fixed: recommendedGenerationOptions.cameraFixed } : {}),
+      ...(typeof recommendedGenerationOptions.watermark === 'boolean' ? { watermark: recommendedGenerationOptions.watermark } : {}),
+    }, {
+      apiKey,
+      logPrefix: '[ARK Video Fallback]',
+    })
+    if (!fallbackTask.id) {
+      throw new Error('ARK text-only fallback did not return task id')
+    }
+    const polled = await waitExternalResult(job, `ARK:VIDEO:${fallbackTask.id}`, job.data.userId, {
+      progressStart: 45,
+      progressEnd: 94,
+    })
+    generatedVideo = {
+      url: polled.url,
+      fallbackMode: 'ark_text_only_after_input_image_moderation',
+      ...(typeof polled.actualVideoTokens === 'number' ? { actualVideoTokens: polled.actualVideoTokens } : {}),
+      ...(polled.downloadHeaders ? { downloadHeaders: polled.downloadHeaders } : {}),
+    }
+  }
 
   let downloadHeaders: Record<string, string> | undefined
   const videoSource = generatedVideo.url
@@ -174,6 +489,7 @@ async function generateVideoForPanel(
   return {
     cosKey,
     generationMode,
+    ...(generatedVideo.fallbackMode ? { fallbackMode: generatedVideo.fallbackMode } : {}),
     ...(typeof generatedVideo.actualVideoTokens === 'number'
       ? { actualVideoTokens: generatedVideo.actualVideoTokens }
       : {}),
@@ -196,7 +512,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     panelId: panel.id,
   })
 
-  const { cosKey, generationMode, actualVideoTokens } = await generateVideoForPanel(
+  const { cosKey, generationMode, actualVideoTokens, fallbackMode } = await generateVideoForPanel(
     job,
     panel,
     payload,
@@ -217,6 +533,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   return {
     panelId: panel.id,
     videoUrl: cosKey,
+    ...(fallbackMode ? { fallbackMode } : {}),
     ...(typeof actualVideoTokens === 'number' ? { actualVideoTokens } : {}),
   }
 }

@@ -1,13 +1,14 @@
 'use client'
 import { logError as _ulogError } from '@/lib/logging/core'
 import { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { signOut, useSession } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
-import Navbar from '@/components/Navbar'
+import { useSearchParams } from 'next/navigation'
 import ConfirmDialog from '@/components/ConfirmDialog'
 import TaskStatusInline from '@/components/task/TaskStatusInline'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
-import { AppIcon, IconGradientDefs } from '@/components/ui/icons'
+import { AppIcon } from '@/components/ui/icons'
+import { FrameWorkbenchShell } from '@/components/workspace/FrameWorkbenchShell'
 import { shouldGuideToModelSetup } from '@/lib/workspace/model-setup'
 import { Link, useRouter } from '@/i18n/navigation'
 import { apiFetch } from '@/lib/api-fetch'
@@ -41,6 +42,15 @@ interface Pagination {
 
 const PAGE_SIZE = 7 // 加上新建项目按钮正好8个，4列布局下2行
 const DEFAULT_BILLING_CURRENCY = 'CNY'
+const TEST_MODE_ENABLED = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
+const DEFAULT_CREATION_SETUP = {
+  projectLevel: 'efficient',
+  contentType: 'shortDrama',
+  resolution: '1080p',
+  aspectRatio: '9:16',
+  language: 'zh-CN',
+  sourceType: 'text',
+}
 
 function formatProjectCost(amount: number, currency = DEFAULT_BILLING_CURRENCY): string {
   if (currency === 'USD') return `$${amount.toFixed(2)}`
@@ -65,9 +75,36 @@ function toProjectValidationMessage(
   return null
 }
 
+function readCreatedProjectId(payload: unknown): string | null {
+  if (!payload || typeof payload !== 'object') return null
+  const project = (payload as { project?: unknown }).project
+  if (!project || typeof project !== 'object') return null
+  const id = (project as { id?: unknown }).id
+  return typeof id === 'string' && id.trim() ? id : null
+}
+
+function readPageParam(value: string | null): number {
+  const page = Number.parseInt(value || '1', 10)
+  return Number.isFinite(page) && page > 0 ? page : 1
+}
+
+function sanitizeProjectPreview(value?: string | null): string {
+  const text = value || ''
+  if (/agent/i.test(text)) return ''
+  return text
+    .replace(/\[[^\]]*agent[^\]]*\]/gi, '')
+    .replace(/【[^】]*agent[^】]*】/gi, '')
+    .replace(/\{[^{}]*agent[^{}]*\}/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 export default function WorkspacePage() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const urlSearchParams = useSearchParams()
+  const initialSearch = urlSearchParams?.get('search') || ''
+  const initialPage = readPageParam(urlSearchParams?.get('page') || null)
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -77,6 +114,7 @@ export default function WorkspacePage() {
     name: '',
     description: ''
   })
+  const [creationSetup, setCreationSetup] = useState(DEFAULT_CREATION_SETUP)
   const [editingProject, setEditingProject] = useState<Project | null>(null)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
@@ -89,22 +127,42 @@ export default function WorkspacePage() {
   const [projectToDelete, setProjectToDelete] = useState<Project | null>(null)
 
   // 分页和搜索状态
-  const [pagination, setPagination] = useState<Pagination>({ page: 1, pageSize: PAGE_SIZE, total: 0, totalPages: 0 })
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchInput, setSearchInput] = useState('')
+  const [pagination, setPagination] = useState<Pagination>({ page: initialPage, pageSize: PAGE_SIZE, total: 0, totalPages: 0 })
+  const [searchQuery, setSearchQuery] = useState(initialSearch)
+  const [searchInput, setSearchInput] = useState(initialSearch)
   const [modelNotConfigured, setModelNotConfigured] = useState(false)
 
   const t = useTranslations('workspace')
   const tc = useTranslations('common')
 
+  const syncListUrl = useCallback((page: number, search: string) => {
+    const params = new URLSearchParams()
+    const trimmedSearch = search.trim()
+    if (trimmedSearch) params.set('search', trimmedSearch)
+    if (page > 1) params.set('page', String(page))
+    const query = params.toString()
+    router.replace(query ? `/workspace?${query}` : '/workspace')
+  }, [router])
+
   // 检查用户是否已登录
   useEffect(() => {
     if (status === 'loading') return
-    if (!session) {
+    if (!session && !TEST_MODE_ENABLED) {
       router.push({ pathname: '/auth/signin' })
       return
     }
   }, [session, status, router])
+
+  useEffect(() => {
+    if (!urlSearchParams) return
+    const nextSearch = urlSearchParams.get('search') || ''
+    const nextPage = readPageParam(urlSearchParams.get('page'))
+    setSearchInput(nextSearch)
+    setSearchQuery(nextSearch)
+    setPagination(prev => (
+      prev.page === nextPage ? prev : { ...prev, page: nextPage }
+    ))
+  }, [urlSearchParams])
 
   // 获取项目列表
   const fetchProjects = useCallback(async (page: number = 1, search: string = '') => {
@@ -133,15 +191,18 @@ export default function WorkspacePage() {
 
   // 初始加载和搜索/分页变化时重新获取
   useEffect(() => {
-    if (session) {
+    if (session || TEST_MODE_ENABLED) {
       fetchProjects(pagination.page, searchQuery)
     }
   }, [session, pagination.page, searchQuery, fetchProjects])
 
   // 搜索处理
   const handleSearch = () => {
-    setSearchQuery(searchInput)
+    const nextSearch = searchInput.trim()
+    setSearchInput(nextSearch)
+    setSearchQuery(nextSearch)
     setPagination(prev => ({ ...prev, page: 1 }))
+    syncListUrl(1, nextSearch)
   }
 
   // 打开新建项目弹窗并检测模型配置
@@ -165,6 +226,7 @@ export default function WorkspacePage() {
   // 分页处理
   const handlePageChange = (newPage: number) => {
     setPagination(prev => ({ ...prev, page: newPage }))
+    syncListUrl(newPage, searchQuery)
   }
 
   const handleCreateProject = async (e: React.FormEvent) => {
@@ -187,27 +249,22 @@ export default function WorkspacePage() {
       })
 
       if (response.ok) {
-        let shouldOpenModelSetup = true
-        const preferenceResponse = await apiFetch('/api/user-preference')
-        if (preferenceResponse.ok) {
-          const preferencePayload: unknown = await preferenceResponse.json()
-          shouldOpenModelSetup = shouldGuideToModelSetup(preferencePayload)
-        } else {
-          _ulogError('获取用户偏好失败:', { status: preferenceResponse.status })
+        const payload: unknown = await response.json()
+        const createdProjectId = readCreatedProjectId(payload)
+        if (!createdProjectId) {
+          throw new Error(t('createFailed'))
         }
 
-        // 创建成功后刷新第一页
         setSearchQuery('')
         setSearchInput('')
         setPagination(prev => ({ ...prev, page: 1 }))
-        void fetchProjects(1, '')
+        syncListUrl(1, '')
         setShowCreateModal(false)
         setFormData({ name: '', description: '' })
-
-        if (shouldOpenModelSetup) {
-          alert(t('analysisModelRequiredAfterCreate'))
-          router.push({ pathname: '/profile' })
-        }
+        router.push({ pathname: `/workspace/${createdProjectId}` })
+      } else if (response.status === 401 && !TEST_MODE_ENABLED) {
+        await signOut({ redirect: false })
+        router.push({ pathname: '/auth/signin' })
       } else {
         setCreateError(await readApiErrorMessage(response, t('createFailed')))
       }
@@ -319,7 +376,82 @@ export default function WorkspacePage() {
     setShowEditModal(true)
   }
 
-  if (status === 'loading' || !session) {
+  const creationSections = [
+    { key: 'script', label: t('createModal.pipeline.script'), icon: 'fileText' },
+    { key: 'assets', label: t('createModal.pipeline.assets'), icon: 'folderHeart' },
+    { key: 'storyboard', label: t('createModal.pipeline.storyboard'), icon: 'clapperboard' },
+    { key: 'delivery', label: t('createModal.pipeline.delivery'), icon: 'download' },
+  ] as const
+  const projectLevelOptions = [
+    { value: 'efficient', label: t('createModal.levels.efficient'), hint: t('createModal.levelHints.efficient') },
+    { value: 'premium', label: t('createModal.levels.premium'), hint: t('createModal.levelHints.premium') },
+    { value: 'premium2', label: t('createModal.levels.premium2'), hint: t('createModal.levelHints.premium2') },
+  ] as const
+  const sourceTypeOptions = [
+    { value: 'text', label: t('createModal.sourceTypes.text'), icon: 'fileText' },
+    { value: 'upload', label: t('createModal.sourceTypes.upload'), icon: 'cloudUpload' },
+  ] as const
+  const compactSelects = [
+    {
+      key: 'contentType',
+      label: t('createModal.contentType'),
+      options: [
+        { value: 'shortDrama', label: t('createModal.contentTypes.shortDrama') },
+        { value: 'animation', label: t('createModal.contentTypes.animation') },
+      ],
+    },
+    {
+      key: 'resolution',
+      label: t('createModal.resolution'),
+      options: [
+        { value: '1080p', label: '1080p' },
+        { value: '720p', label: '720p' },
+        { value: '4k', label: '4K' },
+      ],
+    },
+    {
+      key: 'aspectRatio',
+      label: t('createModal.aspectRatio'),
+      options: [
+        { value: '9:16', label: '9:16' },
+        { value: '16:9', label: '16:9' },
+        { value: '1:1', label: '1:1' },
+      ],
+    },
+    {
+      key: 'language',
+      label: t('createModal.language'),
+      options: [
+        { value: 'zh-CN', label: t('createModal.languages.zh') },
+        { value: 'en-US', label: t('createModal.languages.en') },
+      ],
+    },
+  ] as const
+
+  const productionRows = [
+    {
+      key: 'draft',
+      count: projects.filter(project => !project.stats || ((project.stats.episodes || 0) === 0 && (project.stats.panels || 0) === 0 && (project.stats.videos || 0) === 0)).length,
+      ready: false,
+    },
+    {
+      key: 'script',
+      count: projects.filter(project => (project.stats?.episodes || 0) > 0).length,
+      ready: projects.some(project => (project.stats?.episodes || 0) > 0),
+    },
+    {
+      key: 'storyboard',
+      count: projects.filter(project => (project.stats?.panels || 0) > 0).length,
+      ready: projects.some(project => (project.stats?.panels || 0) > 0),
+    },
+    {
+      key: 'delivery',
+      count: projects.filter(project => (project.stats?.videos || 0) > 0).length,
+      ready: projects.some(project => (project.stats?.videos || 0) > 0),
+    },
+  ] as const
+
+  if (status === 'loading' || (!session && !TEST_MODE_ENABLED)) {
     return (
       <div className="glass-page min-h-screen flex items-center justify-center">
         <div className="text-[var(--glass-text-secondary)]">{tc('loading')}</div>
@@ -328,199 +460,246 @@ export default function WorkspacePage() {
   }
 
   return (
-    <div className="glass-page min-h-screen">
-      {/* Header - 统一导航栏 */}
-      <Navbar />
+    <FrameWorkbenchShell activeKey="projects">
+          <section className="mb-6 rounded-lg border border-white/10 bg-[#171922] p-5 shadow-[0_18px_50px_rgba(0,0,0,.20)]">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white/62">
+                  <AppIcon name="monitor" className="h-3.5 w-3.5" />
+                  {t('workbenchEyebrow')}
+                </div>
+                <h1 className="text-2xl font-bold text-white md:text-3xl">{t('title')}</h1>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-white/58">{t('subtitle')}</p>
+              </div>
 
-      {/* Main Content */}
-      <main className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-10 py-8">
-        <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-[var(--glass-text-primary)] mb-2">{t('title')}</h1>
-            <p className="text-[var(--glass-text-secondary)]">{t('subtitle')}</p>
-          </div>
+              {/* 搜索框 */}
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="text"
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  placeholder={t('searchPlaceholder')}
+                  className="h-10 w-full rounded-md border border-white/10 bg-[#0f1117] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/32 focus:border-[#2c6ef2] sm:w-72"
+                />
+                <button
+                  onClick={handleSearch}
+                  className="h-10 rounded-md bg-[#2c6ef2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
+                >
+                  {t('searchButton')}
+                </button>
+                {searchQuery && (
+                  <button
+                    onClick={() => {
+                      setSearchInput('')
+                      setSearchQuery('')
+                      setPagination(prev => ({ ...prev, page: 1 }))
+                      syncListUrl(1, '')
+                    }}
+                    className="h-10 rounded-md border border-white/10 px-4 text-sm font-semibold text-white/72 transition-colors hover:bg-white/7 hover:text-white"
+                  >
+                    {t('clearButton')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </section>
 
-          {/* 搜索框 */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              placeholder={t('searchPlaceholder')}
-              className="glass-input-base w-64 px-3 py-2"
-            />
-            <button
-              onClick={handleSearch}
-              className="glass-btn-base glass-btn-primary px-4 py-2"
-            >
-              {t('searchButton')}
-            </button>
-            {searchQuery && (
-              <button
-                onClick={() => {
-                  setSearchInput('')
-                  setSearchQuery('')
-                  setPagination(prev => ({ ...prev, page: 1 }))
-                }}
-                className="glass-btn-base glass-btn-secondary px-4 py-2"
-              >
-                {t('clearButton')}
-              </button>
-            )}
-          </div>
-        </div>
+          <section className="mb-6 overflow-hidden rounded-lg border border-white/10 bg-[#151820] shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+            <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-4 py-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
+                  <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#9bc3ff]" />
+                  {t('productionOverview.title')}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-white/40">{t('productionOverview.subtitle')}</p>
+              </div>
+              <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
+                {t('productionOverview.local')}
+              </span>
+            </div>
+            <div className="grid grid-cols-[.75fr_.55fr_.65fr_1fr] gap-2 border-b border-white/10 bg-[#10131b] px-4 py-2 text-[11px] font-medium text-white/42">
+              <div>{t('productionOverview.columns.stage')}</div>
+              <div>{t('productionOverview.columns.projects')}</div>
+              <div>{t('productionOverview.columns.status')}</div>
+              <div>{t('productionOverview.columns.next')}</div>
+            </div>
+            <div className="divide-y divide-white/8">
+              {productionRows.map(row => (
+                <div key={row.key} className="grid grid-cols-[.75fr_.55fr_.65fr_1fr] gap-2 px-4 py-3 text-xs">
+                  <div className="truncate font-medium text-white/74">{t(`productionOverview.stages.${row.key}.title`)}</div>
+                  <div className="text-white/56">{row.count}</div>
+                  <div>
+                    <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
+                      row.ready
+                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                        : row.key === 'draft'
+                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          : 'border-white/10 bg-white/5 text-white/38'
+                    }`}>
+                      {row.ready ? t('productionOverview.ready') : row.key === 'draft' ? t('productionOverview.pending') : t('productionOverview.waiting')}
+                    </span>
+                  </div>
+                  <div className="truncate text-white/42">{t(`productionOverview.stages.${row.key}.hint`)}</div>
+                </div>
+              ))}
+            </div>
+          </section>
 
         {/* Projects Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {/* New Project Card */}
-          <div
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
             onClick={() => openCreateModal()}
-            className="glass-surface p-6 cursor-pointer group flex items-center justify-center bg-gradient-to-br from-blue-500/5 via-cyan-500/5 to-blue-600/5 hover:from-blue-500/10 hover:via-cyan-500/10 hover:to-blue-600/10 transition-all duration-300"
+            className="group flex min-h-[282px] flex-col overflow-hidden rounded-lg border border-dashed border-[#2c6ef2]/55 bg-[#141821] text-left transition-all duration-300 hover:border-[#63a4ff] hover:bg-[#182033] hover:shadow-[0_18px_50px_rgba(44,110,242,.18)]"
           >
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-blue-500/20 group-hover:shadow-blue-500/40 group-hover:scale-110 transition-all duration-300">
-                <AppIcon name="plus" className="w-6 h-6 text-white" />
+            <div className="flex h-36 items-center justify-center border-b border-white/8 bg-[#0f121a]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#2c6ef2] text-white shadow-[0_14px_36px_rgba(44,110,242,.35)] transition-transform group-hover:scale-105">
+                <AppIcon name="plus" className="h-7 w-7" />
               </div>
-              <span className="text-sm font-medium text-[var(--glass-text-secondary)] group-hover:text-[var(--glass-text-primary)] transition-colors">{t('newProject')}</span>
             </div>
-          </div>
+            <div className="flex flex-1 flex-col justify-between p-4">
+              <div>
+                <div className="text-base font-semibold text-white">{t('newProject')}</div>
+                <p className="mt-2 text-sm leading-6 text-white/52">{t('newProjectDesc')}</p>
+              </div>
+              <div className="mt-5 flex flex-wrap gap-2">
+                {[t('featureChips.script'), t('featureChips.assets'), t('featureChips.storyboard')].map((chip) => (
+                  <span key={chip} className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/58">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </button>
 
-          {/* Project Cards */}
           {loading ? (
-            // Loading skeleton
             Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="glass-surface p-6 animate-pulse">
-                <div className="h-4 bg-[var(--glass-bg-muted)] rounded mb-3"></div>
-                <div className="h-3 bg-[var(--glass-bg-muted)] rounded mb-2"></div>
-                <div className="h-3 bg-[var(--glass-bg-muted)] rounded w-2/3"></div>
+              <div key={index} className="min-h-[282px] animate-pulse rounded-lg border border-white/10 bg-[#151820]">
+                <div className="h-36 border-b border-white/8 bg-white/5" />
+                <div className="space-y-3 p-4">
+                  <div className="h-4 rounded bg-white/8" />
+                  <div className="h-3 rounded bg-white/8" />
+                  <div className="h-3 w-2/3 rounded bg-white/8" />
+                </div>
               </div>
             ))
           ) : (
-            projects.map((project) => (
-              <Link
-                key={project.id}
-                href={{ pathname: `/workspace/${project.id}` }}
-                className="glass-surface cursor-pointer relative group block hover:border-[var(--glass-tone-info-fg)]/40 transition-all duration-300 overflow-hidden"
-              >
-                {/* 悬停光效 */}
-                <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            projects.map((project) => {
+              const hasContent = Boolean(project.stats && (project.stats.episodes > 0 || project.stats.images > 0 || project.stats.videos > 0 || project.stats.panels > 0))
+              const previewText = sanitizeProjectPreview(project.description) || sanitizeProjectPreview(project.stats?.firstEpisodePreview) || t('noContent')
 
-                <div className="p-5 relative z-10">
-                  {/* 操作按钮 */}
-                  <div className="absolute top-3 right-3 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-                    <button
-                      onClick={(e) => openEditModal(project, e)}
-                      className="glass-btn-base glass-btn-secondary p-2 rounded-lg transition-colors"
-                      title={t('editProject')}
-                    >
-                      <AppIcon name="editSquare" className="w-4 h-4 text-[var(--glass-tone-info-fg)]" />
-                    </button>
-                    <button
-                      onClick={(e) => openDeleteConfirm(project, e)}
-                      className="glass-btn-base glass-btn-secondary p-2 rounded-lg transition-colors"
-                      title={t('deleteProject')}
-                      disabled={deletingProjectId === project.id}
-                    >
-                      {deletingProjectId === project.id ? (
-                        <TaskStatusInline
-                          state={resolveTaskPresentationState({
-                            phase: 'processing',
-                            intent: 'process',
-                            resource: 'text',
-                            hasOutput: true,
-                          })}
-                          className="[&>span]:sr-only"
-                        />
-                      ) : (
-                        <AppIcon name="trash" className="w-4 h-4 text-[var(--glass-tone-danger-fg)]" />
-                      )}
-                    </button>
+              return (
+                <Link
+                  key={project.id}
+                  href={{ pathname: `/workspace/${project.id}` }}
+                  className="group block min-h-[282px] overflow-hidden rounded-lg border border-white/10 bg-[#151820] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2c6ef2]/70 hover:bg-[#181d28] hover:shadow-[0_18px_50px_rgba(0,0,0,.28)]"
+                >
+                  <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-white/8 bg-[#0d1017]">
+                    <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(44,110,242,.22),transparent_45%,rgba(20,184,166,.12))]" />
+                    <div className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white/80">
+                      <AppIcon name={hasContent ? 'film' : 'folderOpen'} className="h-7 w-7" />
+                    </div>
+                    <span className="absolute left-3 top-3 rounded bg-[#2c6ef2]/90 px-2 py-1 text-[11px] font-semibold text-white">
+                      {hasContent ? t('projectBadge.active') : t('projectBadge.draft')}
+                    </span>
+                    <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <button
+                        onClick={(e) => openEditModal(project, e)}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-black/35 text-white/72 backdrop-blur hover:bg-white/12 hover:text-white"
+                        title={t('editProject')}
+                      >
+                        <AppIcon name="editSquare" className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={(e) => openDeleteConfirm(project, e)}
+                        className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-black/35 text-white/72 backdrop-blur hover:bg-red-500/18 hover:text-red-200"
+                        title={t('deleteProject')}
+                        disabled={deletingProjectId === project.id}
+                      >
+                        {deletingProjectId === project.id ? (
+                          <TaskStatusInline
+                            state={resolveTaskPresentationState({
+                              phase: 'processing',
+                              intent: 'process',
+                              resource: 'text',
+                              hasOutput: true,
+                            })}
+                            className="[&>span]:sr-only"
+                          />
+                        ) : (
+                          <AppIcon name="trash" className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* 标题 */}
-                  <h3 className="text-lg font-bold text-[var(--glass-text-primary)] mb-2 line-clamp-2 pr-20 group-hover:text-[var(--glass-tone-info-fg)] transition-colors">
-                    {project.name}
-                  </h3>
+                  <div className="flex min-h-[146px] flex-col p-4">
+                    <h3 className="line-clamp-1 text-base font-semibold text-white transition-colors group-hover:text-[#7eb0ff]">
+                      {project.name}
+                    </h3>
+                    <p className="mt-2 line-clamp-2 min-h-[44px] text-sm leading-6 text-white/55">
+                      {previewText}
+                    </p>
 
-                  {/* 描述：优先用户描述，fallback 到第一集故事 */}
-                  {(project.description || project.stats?.firstEpisodePreview) && (
-                    <div className="flex items-start gap-2 mb-4">
-                      <AppIcon name="fileText" className="w-4 h-4 text-[var(--glass-text-tertiary)] mt-0.5 flex-shrink-0" />
-                      <p className="text-sm text-[var(--glass-text-secondary)] line-clamp-2 leading-relaxed">
-                        {project.description || project.stats?.firstEpisodePreview}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* 统计信息 - 整行统一渐变 */}
-                  {project.stats && (project.stats.episodes > 0 || project.stats.images > 0 || project.stats.videos > 0) ? (
-                    <div className="flex items-center gap-2 mb-3">
-                      {/* 共享渐变定义 */}
-                      <IconGradientDefs className="w-0 h-0 absolute" aria-hidden="true" />
-                      <AppIcon name="statsBarGradient" className="w-4 h-4 flex-shrink-0" />
-                      <div className="flex items-center gap-3 text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
-                        {project.stats.episodes > 0 && (
-                          <span className="flex items-center gap-1" title={t('statsEpisodes')}>
-                            <AppIcon name="statsEpisodeGradient" className="w-3.5 h-3.5" />
-                            {project.stats.episodes}
-                          </span>
-                        )}
-                        {project.stats.images > 0 && (
-                          <span className="flex items-center gap-1" title={t('statsImages')}>
-                            <AppIcon name="statsImageGradient" className="w-3.5 h-3.5" />
-                            {project.stats.images}
-                          </span>
-                        )}
-                        {project.stats.videos > 0 && (
-                          <span className="flex items-center gap-1" title={t('statsVideos')}>
-                            <AppIcon name="statsVideoGradient" className="w-3.5 h-3.5" />
-                            {project.stats.videos}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <AppIcon name="statsBar" className="w-4 h-4 text-[var(--glass-text-tertiary)] flex-shrink-0" />
-                      <span className="text-xs text-[var(--glass-text-tertiary)]">{t('noContent')}</span>
-                    </div>
-                  )}
-
-                  {/* 底部信息 */}
-                  <div className="flex items-center justify-between text-[11px] text-[var(--glass-text-tertiary)]">
-                    <div className="flex items-center gap-1">
-                      <AppIcon name="clock" className="w-3 h-3" />
-                      {formatDate(project.updatedAt)}
-                    </div>
-                    {project.totalCost !== undefined && project.totalCost > 0 && (
-                      <span className="text-[11px] font-mono font-medium text-[var(--glass-text-secondary)]">
-                        {formatProjectCost(project.totalCost)}
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/58">
+                        <AppIcon name="fileText" className="h-3 w-3" />
+                        {project.stats?.episodes || 0} {t('statsEpisodes')}
                       </span>
-                    )}
+                      <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/58">
+                        <AppIcon name="clapperboard" className="h-3 w-3" />
+                        {project.stats?.panels || 0}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/58">
+                        <AppIcon name="video" className="h-3 w-3" />
+                        {project.stats?.videos || 0}
+                      </span>
+                    </div>
+
+                    <div className="mt-auto flex items-center justify-between pt-4 text-[11px] text-white/38">
+                      <div className="flex min-w-0 items-center gap-1">
+                        <AppIcon name="clock" className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{formatDate(project.updatedAt)}</span>
+                      </div>
+                      {project.totalCost !== undefined && project.totalCost > 0 && (
+                        <span className="shrink-0 font-mono font-medium text-white/62">
+                          {formatProjectCost(project.totalCost)}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))
+                </Link>
+              )
+            })
           )}
         </div>
 
         {/* Empty State */}
         {!loading && projects.length === 0 && (
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-[var(--glass-bg-muted)] rounded-xl flex items-center justify-center mx-auto mb-4">
-              <AppIcon name="folderCards" className="w-8 h-8 text-[var(--glass-text-tertiary)]" />
+          <div className="mt-8 rounded-lg border border-white/10 bg-[#151820] px-6 py-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg bg-[#0f121a]">
+              <AppIcon name="clapperboard" className="h-8 w-8 text-white/45" />
             </div>
-            <h3 className="text-lg font-medium text-[var(--glass-text-primary)] mb-2">
+            <h3 className="mb-2 text-lg font-semibold text-white">
               {searchQuery ? t('noResults') : t('noProjects')}
             </h3>
-            <p className="text-[var(--glass-text-secondary)] mb-6">
+            <p className="mx-auto mb-5 max-w-lg text-sm leading-6 text-white/55">
               {searchQuery ? t('noResultsDesc') : t('noProjectsDesc')}
             </p>
             {!searchQuery && (
+              <div className="mb-6 flex flex-wrap justify-center gap-2">
+                {[t('featureChips.script'), t('featureChips.assets'), t('featureChips.storyboard')].map((chip) => (
+                  <span key={chip} className="rounded border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white/58">
+                    {chip}
+                  </span>
+                ))}
+              </div>
+            )}
+            {!searchQuery && (
               <button
                 onClick={() => openCreateModal()}
-                className="glass-btn-base glass-btn-primary px-6 py-3"
+                className="rounded-md bg-[#2c6ef2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
               >
                 {t('newProject')}
               </button>
@@ -578,15 +757,33 @@ export default function WorkspacePage() {
             </span>
           </div>
         )}
-      </main>
 
-      {/* Create Project Modal - 简化版，只有名称和描述 */}
+
+      {/* Create Project Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50 backdrop-blur-sm">
-          <div className="glass-surface-modal p-6 w-full max-w-md mx-4">
-            <h2 className="text-xl font-bold text-[var(--glass-text-primary)] mb-4">{t('createProject')}</h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-[#151820] shadow-[0_24px_80px_rgba(0,0,0,.45)]">
+            <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h2 className="text-xl font-bold text-white">{t('createProject')}</h2>
+                <p className="mt-1 text-sm text-white/48">{t('createModal.subtitle')}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCreateModal(false)
+                  setCreateError(null)
+                  setFormData({ name: '', description: '' })
+                  setCreationSetup(DEFAULT_CREATION_SETUP)
+                }}
+                className="flex h-8 w-8 items-center justify-center rounded-md text-white/48 hover:bg-white/8 hover:text-white"
+                disabled={createLoading}
+              >
+                <AppIcon name="close" className="h-4 w-4" />
+              </button>
+            </div>
             {modelNotConfigured && (
-              <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
+              <div className="mx-5 mt-4 flex items-start gap-2 rounded-md border border-amber-400/20 bg-amber-400/10 px-3 py-2.5 text-amber-200">
                 <AppIcon name="alert" className="w-4 h-4 shrink-0 mt-0.5" />
                 <span className="text-[12px] leading-relaxed">
                   {t('modelNotConfigured.before')}
@@ -601,72 +798,189 @@ export default function WorkspacePage() {
                 </span>
               </div>
             )}
-            <form onSubmit={handleCreateProject}>
-              <div className="mb-4">
-                <label htmlFor="name" className="glass-field-label block mb-2">
-                  {t('projectName')} *
-                </label>
-                <input
-                  id="name"
-                  type="text"
-                  value={formData.name}
-                  onChange={(e) => {
-                    setFormData({ ...formData, name: e.target.value })
-                    if (createError) {
-                      setCreateError(null)
-                    }
-                  }}
-                  className="glass-input-base w-full px-3 py-2"
-                  placeholder={t('projectNamePlaceholder')}
-                  maxLength={100}
-                  required
-                  autoFocus
-                />
-              </div>
-              <div className="mb-6">
-                <label htmlFor="description" className="glass-field-label block mb-2">
-                  {t('projectDescription')}
-                </label>
-                <textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => {
-                    setFormData({ ...formData, description: e.target.value })
-                    if (createError) {
-                      setCreateError(null)
-                    }
-                  }}
-                  className="glass-textarea-base w-full px-3 py-2"
-                  placeholder={t('projectDescriptionPlaceholder')}
-                  rows={3}
-                  maxLength={500}
-                />
+            <form onSubmit={handleCreateProject} className="max-h-[calc(92vh-73px)] overflow-y-auto">
+              <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_.85fr]">
+                <div className="space-y-5">
+                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                      <AppIcon name="fileText" className="h-4 w-4 text-[#7eb0ff]" />
+                      {t('createModal.basicInfo')}
+                    </div>
+                    <div className="space-y-4">
+                      <div>
+                        <label htmlFor="name" className="mb-2 block text-xs font-semibold text-white/62">
+                          {t('projectName')} *
+                        </label>
+                        <input
+                          id="name"
+                          type="text"
+                          value={formData.name}
+                          onChange={(e) => {
+                            setFormData({ ...formData, name: e.target.value })
+                            if (createError) {
+                              setCreateError(null)
+                            }
+                          }}
+                          className="h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          placeholder={t('projectNamePlaceholder')}
+                          maxLength={100}
+                          required
+                          autoFocus
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="description" className="mb-2 block text-xs font-semibold text-white/62">
+                          {t('projectDescription')}
+                        </label>
+                        <textarea
+                          id="description"
+                          value={formData.description}
+                          onChange={(e) => {
+                            setFormData({ ...formData, description: e.target.value })
+                            if (createError) {
+                              setCreateError(null)
+                            }
+                          }}
+                          className="min-h-[104px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          placeholder={t('projectDescriptionPlaceholder')}
+                          rows={4}
+                          maxLength={500}
+                        />
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                      <AppIcon name="monitor" className="h-4 w-4 text-[#7eb0ff]" />
+                      {t('createModal.productionSetup')}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {compactSelects.map((select) => (
+                        <label key={select.key} className="block">
+                          <span className="mb-2 block text-xs font-semibold text-white/62">{select.label}</span>
+                          <select
+                            value={creationSetup[select.key]}
+                            onChange={(e) => setCreationSetup(prev => ({ ...prev, [select.key]: e.target.value }))}
+                            className="h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none focus:border-[#2c6ef2]"
+                          >
+                            {select.options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                    <div className="mb-4 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                        <AppIcon name="cloudUpload" className="h-4 w-4 text-[#7eb0ff]" />
+                        {t('createModal.source')}
+                      </div>
+                      <span className="text-xs text-white/38">{t('createModal.sourceHint')}</span>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {sourceTypeOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setCreationSetup(prev => ({ ...prev, sourceType: option.value }))}
+                          className={`flex items-center gap-3 rounded-md border px-3 py-3 text-left text-sm transition-colors ${
+                            creationSetup.sourceType === option.value
+                              ? 'border-[#2c6ef2] bg-[#2c6ef2]/14 text-white'
+                              : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
+                          }`}
+                        >
+                          <AppIcon name={option.icon} className="h-4 w-4" />
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </div>
+
+                <aside className="space-y-5">
+                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                      <AppIcon name="diamond" className="h-4 w-4 text-[#7eb0ff]" />
+                      {t('createModal.projectLevel')}
+                    </div>
+                    <div className="space-y-2">
+                      {projectLevelOptions.map((option) => (
+                        <button
+                          key={option.value}
+                          type="button"
+                          onClick={() => setCreationSetup(prev => ({ ...prev, projectLevel: option.value }))}
+                          className={`w-full rounded-md border px-3 py-3 text-left transition-colors ${
+                            creationSetup.projectLevel === option.value
+                              ? 'border-[#2c6ef2] bg-[#2c6ef2]/14'
+                              : 'border-white/10 bg-white/4 hover:bg-white/7'
+                          }`}
+                        >
+                          <div className="text-sm font-semibold text-white">{option.label}</div>
+                          <div className="mt-1 text-xs leading-5 text-white/45">{option.hint}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
+                      <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#7eb0ff]" />
+                      {t('createModal.pipelineTitle')}
+                    </div>
+                    <div className="space-y-3">
+                      {creationSections.map((section, index) => (
+                        <div key={section.key} className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-white/62">
+                            <AppIcon name={section.icon} className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-white/76">{section.label}</div>
+                            <div className="text-xs text-white/34">{t('createModal.step', { index: index + 1 })}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </aside>
               </div>
               {createError && (
-                <p className="mb-4 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-600">
+                <p className="mx-5 mb-4 rounded-md border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                   {createError}
                 </p>
               )}
-              <div className="flex justify-end space-x-3">
+              <div className="flex flex-col gap-3 border-t border-white/10 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <p className="text-xs leading-5 text-white/38">{t('createModal.persistenceNote')}</p>
+                  <p className="text-xs leading-5 text-white/30">{t('createModal.workflowBoundaryNote')}</p>
+                </div>
+                <div className="flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={() => {
                     setShowCreateModal(false)
                     setCreateError(null)
                     setFormData({ name: '', description: '' })
+                    setCreationSetup(DEFAULT_CREATION_SETUP)
                   }}
-                  className="glass-btn-base glass-btn-secondary px-4 py-2"
+                  className="rounded-md border border-white/10 px-4 py-2 text-sm font-semibold text-white/68 transition-colors hover:bg-white/8 hover:text-white"
                   disabled={createLoading}
                 >
                   {tc('cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="glass-btn-base glass-btn-primary px-4 py-2 disabled:opacity-50"
+                  className="rounded-md bg-[#2c6ef2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
                   disabled={createLoading || !formData.name.trim()}
                 >
                   {createLoading ? t('creating') : t('createProject')}
                 </button>
+                </div>
               </div>
             </form>
           </div>
@@ -761,6 +1075,6 @@ export default function WorkspacePage() {
         onConfirm={handleDeleteProject}
         onCancel={cancelDelete}
       />
-    </div>
+    </FrameWorkbenchShell>
   )
 }

@@ -51,6 +51,7 @@ interface StoryboardCanvasProps {
   onOpenLocationPicker: (panelId: string) => void
   onRemoveCharacter: (panel: StoryboardPanel, index: number, storyboardId: string) => void
   onRemoveLocation: (panel: StoryboardPanel, storyboardId: string) => void
+  onConfirmPanelAssetUsage: (panel: StoryboardPanel, actingNotes: string | null) => Promise<void>
   onRetryPanelSave: (panelId: string) => void
   onRegeneratePanelImage: (panelId: string, count?: number, force?: boolean) => void
   onOpenEditModal: (storyboardId: string, panelIndex: number) => void
@@ -109,6 +110,7 @@ export default function StoryboardCanvas({
   onOpenLocationPicker,
   onRemoveCharacter,
   onRemoveLocation,
+  onConfirmPanelAssetUsage,
   onRetryPanelSave,
   onRegeneratePanelImage,
   onOpenEditModal,
@@ -182,6 +184,7 @@ export default function StoryboardCanvas({
               onOpenLocationPicker={onOpenLocationPicker}
               onRemoveCharacter={(panel, index) => onRemoveCharacter(panel, index, storyboard.id)}
               onRemoveLocation={(panel) => onRemoveLocation(panel, storyboard.id)}
+              onConfirmPanelAssetUsage={onConfirmPanelAssetUsage}
               onRetryPanelSave={onRetryPanelSave}
               onRegeneratePanelImage={onRegeneratePanelImage}
               onOpenEditModal={(panelIndex) => onOpenEditModal(storyboard.id, panelIndex)}

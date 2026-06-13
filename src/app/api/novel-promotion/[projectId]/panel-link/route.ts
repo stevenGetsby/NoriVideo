@@ -15,10 +15,83 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
-  const { storyboardId, panelIndex, linked } = body
+  const {
+    storyboardId,
+    panelIndex,
+    linked,
+    nextStoryboardId,
+    nextPanelIndex,
+  } = body
 
   if (!storyboardId || panelIndex === undefined || linked === undefined) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  if (typeof linked !== 'boolean') {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
+  const currentPanel = await prisma.novelPromotionPanel.findUnique({
+    where: {
+      storyboardId_panelIndex: {
+        storyboardId,
+        panelIndex: Number(panelIndex),
+      },
+    },
+    select: {
+      id: true,
+      storyboard: {
+        select: {
+          episode: {
+            select: {
+              novelPromotionProject: {
+                select: {
+                  projectId: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  })
+
+  if (!currentPanel || currentPanel.storyboard.episode.novelPromotionProject.projectId !== projectId) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  if (linked) {
+    if (!nextStoryboardId || nextPanelIndex === undefined) {
+      throw new ApiError('INVALID_PARAMS')
+    }
+
+    const nextPanel = await prisma.novelPromotionPanel.findUnique({
+      where: {
+        storyboardId_panelIndex: {
+          storyboardId: nextStoryboardId,
+          panelIndex: Number(nextPanelIndex),
+        },
+      },
+      select: {
+        id: true,
+        storyboard: {
+          select: {
+            episode: {
+              select: {
+                novelPromotionProject: {
+                  select: {
+                    projectId: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    })
+
+    if (!nextPanel || nextPanel.storyboard.episode.novelPromotionProject.projectId !== projectId) {
+      throw new ApiError('NOT_FOUND')
+    }
   }
 
   // 更新 panel 的链接状态
@@ -26,7 +99,7 @@ export const POST = apiHandler(async (
     where: {
       storyboardId_panelIndex: {
         storyboardId,
-        panelIndex
+        panelIndex: Number(panelIndex),
       }
     },
     data: {

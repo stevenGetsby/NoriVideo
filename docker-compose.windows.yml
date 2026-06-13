@@ -1,0 +1,200 @@
+name: nori-video
+
+x-nori-env: &nori-env
+  DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-nori123}@mysql:3306/${MYSQL_DATABASE:-nori}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_USERNAME: ""
+  REDIS_PASSWORD: ""
+  REDIS_TLS: ""
+
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:13000}
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-nori-docker-secret-change-me}
+  INTERNAL_APP_URL: ${INTERNAL_APP_URL:-http://web:3000}
+  API_ENCRYPTION_KEY: ${API_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+  CRON_SECRET: ${CRON_SECRET:-nori-docker-cron-secret-change-me}
+  INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-nori-docker-task-token-change-me}
+
+  STORAGE_TYPE: ${NORI_STORAGE_TYPE:-minio}
+  UPLOAD_DIR: /app/data/uploads
+
+  MINIO_ENDPOINT: http://minio:9000
+  MINIO_PUBLIC_ENDPOINT: ${MINIO_PUBLIC_ENDPOINT:-http://localhost:19000}
+  MINIO_REGION: ${MINIO_REGION:-us-east-1}
+  MINIO_BUCKET: ${MINIO_BUCKET:-nori}
+  MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-noriadmin}
+  MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-noriadmin123}
+  MINIO_FORCE_PATH_STYLE: ${MINIO_FORCE_PATH_STYLE:-true}
+
+  TOS_ENDPOINT: ${TOS_ENDPOINT:-https://tos-cn-beijing.volces.com}
+  TOS_PUBLIC_ENDPOINT: ${TOS_PUBLIC_ENDPOINT:-https://tos-cn-beijing.volces.com}
+  TOS_REGION: ${TOS_REGION:-cn-beijing}
+  TOS_BUCKET: ${TOS_BUCKET:-}
+  TOS_ACCESS_KEY: ${TOS_ACCESS_KEY:-}
+  TOS_SECRET_KEY: ${TOS_SECRET_KEY:-}
+  VOLCENGINE_MEDIAKIT_API_KEY: ${VOLCENGINE_MEDIAKIT_API_KEY:-}
+
+  WATCHDOG_INTERVAL_MS: "30000"
+  TASK_HEARTBEAT_TIMEOUT_MS: "90000"
+  QUEUE_CONCURRENCY_IMAGE: ${QUEUE_CONCURRENCY_IMAGE:-8}
+  QUEUE_CONCURRENCY_VIDEO: ${QUEUE_CONCURRENCY_VIDEO:-4}
+  QUEUE_CONCURRENCY_VOICE: ${QUEUE_CONCURRENCY_VOICE:-4}
+  QUEUE_CONCURRENCY_TEXT: ${QUEUE_CONCURRENCY_TEXT:-8}
+
+  BULL_BOARD_HOST: 0.0.0.0
+  BULL_BOARD_PORT: "3010"
+  BULL_BOARD_BASE_PATH: /admin/queues
+  BULL_BOARD_USER: ${BULL_BOARD_USER:-}
+  BULL_BOARD_PASSWORD: ${BULL_BOARD_PASSWORD:-}
+
+  LOG_UNIFIED_ENABLED: "true"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: json
+  LOG_DEBUG_ENABLED: "false"
+  LOG_AUDIT_ENABLED: "true"
+  LOG_SERVICE: nori
+  LOG_REDACT_KEYS: password,token,apiKey,apikey,authorization,cookie,secret,access_token,refresh_token
+  BILLING_MODE: ${BILLING_MODE:-OFF}
+  LLM_STREAM_EPHEMERAL_ENABLED: "true"
+  VIDEO_ENHANCE_DEFAULT_DOWNLOAD_DIR: /app/downloads
+
+x-app-base: &app-base
+  image: nori-video:windows
+  platform: ${NORI_DOCKER_PLATFORM:-linux/amd64}
+  env_file:
+    - path: .env.docker
+      required: false
+  environment: *nori-env
+  volumes:
+    - ./docker-data:/app/data
+    - ./downloads:/app/downloads
+    - ./docker-logs:/app/logs
+  depends_on:
+    mysql:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    minio:
+      condition: service_started
+  restart: unless-stopped
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nori-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nori123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nori}
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - "--default-authentication-plugin=mysql_native_password"
+      - "--sql_mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: nori-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  minio:
+    image: minio/minio:RELEASE.2025-05-24T17-08-30Z
+    container_name: nori-minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-noriadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-noriadmin123}
+    ports:
+      - "19000:9000"
+      - "19001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+
+  migrate:
+    <<: *app-base
+    container_name: nori-migrate
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NODE_IMAGE: ${NORI_NODE_IMAGE:-node:22-bookworm-slim}
+    restart: "no"
+    command: sh -c "npx prisma db push --skip-generate"
+
+  web:
+    <<: *app-base
+    container_name: nori-web
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: web
+    ports:
+      - "13000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  worker:
+    <<: *app-base
+    container_name: nori-worker
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  watchdog:
+    <<: *app-base
+    container_name: nori-watchdog
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: watchdog
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  bull-board:
+    <<: *app-base
+    container_name: nori-bull-board
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: board
+    ports:
+      - "13010:3010"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  redis_data:
+  minio_data:

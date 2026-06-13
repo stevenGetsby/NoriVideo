@@ -6,6 +6,7 @@
  */
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useSession } from 'next-auth/react'
+import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import Navbar from '@/components/Navbar'
 import { AppIcon, IconGradientDefs } from '@/components/ui/icons'
@@ -22,8 +23,6 @@ import { HOME_QUICK_START_MIN_ROWS } from '@/lib/ui/textarea-height'
 import AiWriteModal from '@/components/home/AiWriteModal'
 import { useCustomArtStyles } from '@/lib/query/hooks/useCustomArtStyles'
 import { CustomArtStyleModal } from '@/components/selectors/CustomArtStyleModal'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
-import { SuperInputBox } from '@/components/super-agent/SuperInputBox'
 
 interface ProjectStats {
   episodes: number
@@ -43,6 +42,7 @@ interface Project {
 }
 
 const RECENT_COUNT = 5
+const TEST_MODE_ENABLED = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
 
 export default function HomePage() {
   const { data: session, status } = useSession()
@@ -62,14 +62,13 @@ export default function HomePage() {
   const [aiWriteLoading, setAiWriteLoading] = useState(false)
   const [customStyleModalOpen, setCustomStyleModalOpen] = useState(false)
   const [editingCustomStyleId, setEditingCustomStyleId] = useState<string | null>(null)
-  const [creationMode, setCreationMode] = useState<'manual' | 'agent'>('manual')
 
   const { customStyles, addStyle, updateStyle, deleteStyle } = useCustomArtStyles()
 
   // 鉴权
   useEffect(() => {
     if (status === 'loading') return
-    if (!session) {
+    if (!session && !TEST_MODE_ENABLED) {
       router.push({ pathname: '/auth/signin' })
     }
   }, [session, status, router])
@@ -95,7 +94,7 @@ export default function HomePage() {
   }, [])
 
   useEffect(() => {
-    if (session) {
+    if (session || TEST_MODE_ENABLED) {
       void fetchRecentProjects()
     }
   }, [session, fetchRecentProjects])
@@ -122,6 +121,7 @@ export default function HomePage() {
         episodeName: `${tc('episode')} 1`,
       })
 
+      window.sessionStorage.setItem(`nori:home-draft:${result.projectId}`, storyText)
       router.push(result.target)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('createFailed')
@@ -215,7 +215,7 @@ export default function HomePage() {
     return t('ago.daysAgo', { n: diffDays })
   }
 
-  if (status === 'loading' || !session) {
+  if (status === 'loading' || (!session && !TEST_MODE_ENABLED)) {
     return (
       <div className="glass-page min-h-screen flex items-center justify-center">
         <div className="text-[var(--glass-text-secondary)]">{tc('loading')}</div>
@@ -224,8 +224,13 @@ export default function HomePage() {
   }
 
   return (
-    <div className="glass-page min-h-screen">
+    <div className="min-h-screen bg-[#ECF1F4] text-[#0e0e2c]">
       <Navbar />
+      {TEST_MODE_ENABLED && (
+        <div className="fixed left-4 top-20 z-50 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+          Test mode
+        </div>
+      )}
 
       {/* 自定义呼吸动画 */}
       <style>{`
@@ -253,10 +258,10 @@ export default function HomePage() {
         }
       `}</style>
 
-      <main className="flex flex-col items-center pt-[13vh] pb-12 px-4 max-w-5xl mx-auto w-full">
+      <main className="flex flex-col items-center pt-[11vh] pb-12 px-4 max-w-5xl mx-auto w-full">
 
         {/* ─── 取景器整体包裹：标题 + 输入框 ─── */}
-        <div className="w-full relative p-5">
+        <div className="w-full relative rounded-[28px] border border-[rgba(14,14,44,.08)] bg-[#fafcfe]/85 p-5 shadow-[0_22px_54px_rgba(14,14,44,.095),0_4px_12px_rgba(14,14,44,.055)] backdrop-blur-xl">
           {/* 四角校准线 */}
           <span className="absolute top-0 left-0 w-5 h-5 border-t border-l border-[var(--glass-text-primary)] pointer-events-none z-10" style={{ animation: 'bracket-breathe 8s ease-in-out infinite' }} />
           <span className="absolute top-0 right-0 w-5 h-5 border-t border-r border-[var(--glass-text-primary)] pointer-events-none z-10" style={{ animation: 'bracket-breathe 8s ease-in-out infinite' }} />
@@ -273,49 +278,28 @@ export default function HomePage() {
           </span>
 
           {/* 标题区 */}
+          <div className="mb-5 flex justify-center">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,44,.08)] bg-white/80 px-3 py-2 shadow-[0_1px_2px_rgba(14,14,44,.035),0_1px_5px_rgba(14,14,44,.025)]">
+              <Image
+                src="/nori-view/nori-onion-logo.png"
+                alt="Nori"
+                width={28}
+                height={28}
+                className="h-7 w-7 rounded-lg object-contain"
+                priority
+              />
+              <span className="text-sm font-semibold text-[#0e0e2c]">Nori</span>
+              {TEST_MODE_ENABLED && (
+                <span className="rounded bg-[#D6FF00]/80 px-1.5 py-0.5 text-[10px] font-bold text-[#0e0e2c]">
+                  TEST
+                </span>
+              )}
+            </div>
+          </div>
           <TypewriterHero title={t('title')} subtitle={t('subtitle')} />
 
-          {/* 模式切换器 */}
-          <div className="flex justify-center mb-6 mt-2">
-            <SegmentedControl
-              layout="compact"
-              value={creationMode}
-              onChange={setCreationMode}
-              options={[
-                { value: 'manual', label: t('mode.manual') },
-                { value: 'agent', label: t('mode.agent') },
-              ]}
-            />
-          </div>
-
           {/* 呼吸光晕 + 输入区域 */}
-          <div className="w-full relative group">
-            <div
-              className="absolute -inset-10 rounded-[48px] pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 80% 60% at 30% 40%, rgba(6, 182, 212, 0.4), transparent 70%)',
-                animation: 'breathe-drift-1 8s ease-in-out infinite',
-                filter: 'blur(30px)',
-              }}
-            />
-            <div
-              className="absolute -inset-10 rounded-[48px] pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 70% 80% at 70% 60%, rgba(139, 92, 246, 0.35), transparent 70%)',
-                animation: 'breathe-drift-2 10s ease-in-out infinite',
-                filter: 'blur(35px)',
-              }}
-            />
-            <div
-              className="absolute -inset-12 rounded-[56px] pointer-events-none"
-              style={{
-                background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(59, 130, 246, 0.3), transparent 70%)',
-                animation: 'breathe-drift-3 12s ease-in-out infinite',
-                filter: 'blur(40px)',
-              }}
-            />
-
-            {creationMode === 'manual' ? (
+          <div className="w-full relative rounded-[22px] border border-[rgba(14,14,44,.08)] bg-white/90 p-2 shadow-[0_12px_28px_rgba(14,14,44,.075),0_2px_5px_rgba(14,14,44,.045)]">
             <StoryInputComposer
               value={inputValue}
               onValueChange={(nextValue) => {
@@ -344,7 +328,13 @@ export default function HomePage() {
                 <button
                   onClick={() => void handleCreate()}
                   disabled={!inputValue.trim() || createLoading}
-                  className="glass-btn-base glass-btn-primary h-10 flex-shrink-0 px-5 text-sm disabled:opacity-50"
+                  className="glass-btn-base h-10 flex-shrink-0 px-5 text-sm disabled:opacity-50"
+                  style={{
+                    background: '#D6FF00',
+                    color: '#0e0e2c',
+                    border: '1px solid rgba(14,14,44,.12)',
+                    boxShadow: '0 7px 18px rgba(14,14,44,.08), inset 0 -1px 0 rgba(14,14,44,.10)',
+                  }}
                 >
                   {createLoading ? tc('loading') : t('startCreation')}
                   <AppIcon name="arrowRight" className="w-4 h-4" />
@@ -375,12 +365,6 @@ export default function HomePage() {
                 </p>
               ) : null}
             />
-            ) : (
-            <SuperInputBox
-              locale="zh"
-              placeholder={t('agent.placeholder')}
-            />
-            )}
           </div>
         </div>
         {/* AI 帮我写模态框 */}

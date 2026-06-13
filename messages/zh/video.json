@@ -70,7 +70,7 @@
     "cancel": "取消"
   },
   "toolbar": {
-    "title": "成片生成",
+    "title": "分镜视频生成",
     "filter": "筛选",
     "viewAll": "查看全部",
     "showGenerated": "已生成",
@@ -183,6 +183,102 @@
         "fade": "淡入淡出",
         "slide": "滑动"
       }
+    }
+  },
+  "exportDelivery": {
+    "eyebrow": "导出交付",
+    "title": "导出交付",
+    "subtitle": "整理「{episode}」的成片、资产包和剪辑草稿，交付前检查缺失镜头。",
+    "episodeFallback": "当前剧集",
+    "stats": {
+      "scenes": "场次",
+      "shots": "镜头",
+      "videos": "视频"
+    },
+    "cards": {
+      "finalVideo": {
+        "title": "成片",
+        "description": "汇总已生成镜头，作为最终成片导出的入口。",
+        "primary": "导出成片",
+        "meta": "已生成 {count} 个视频镜头"
+      },
+      "assetPackage": {
+        "title": "资产包",
+        "description": "打包分镜图、视频、提示词和可复核的制作素材。",
+        "primary": "下载资产包",
+        "meta": "覆盖 {count} 个镜头素材"
+      },
+      "jianyingDraft": {
+        "title": "剪辑草稿",
+        "description": "导出可继续精修的剪辑工程清单和素材目录。",
+        "primary": "下载清单",
+        "meta": "基于 {count} 个场次组装"
+      }
+    },
+    "actions": {
+      "downloading": "下载中...",
+      "downloadReady": "下载已开始，请在浏览器下载列表中查看。",
+      "downloadFailed": "下载失败",
+      "recordFailed": "下载已开始，但导出历史写入失败。",
+      "noEpisode": "请先选择一个剧集再导出。"
+    },
+    "readiness": {
+      "title": "交付检查",
+      "videoCoverage": "视频覆盖",
+      "missingVideos": "还有 {count} 个镜头缺少视频，请先回到镜头制作补齐。",
+      "ready": "当前剧集视频已齐备，可以进入交付整理。",
+      "backToShots": "返回镜头制作"
+    },
+    "queue": {
+      "title": "导出任务队列",
+      "description": "按 FrameOS 交付方式汇总成片、资产包和剪辑草稿的可执行状态。",
+      "count": "{count} 个交付项",
+      "enqueue": "加入队列",
+      "enqueueing": "加入中...",
+      "enqueued": "已加入后台导出队列。",
+      "enqueueFailed": "加入导出队列失败",
+      "status": {
+        "ready": "可执行",
+        "blocked": "待补齐",
+        "available": "可生成清单"
+      },
+      "backendStatus": {
+        "idle": "未入队",
+        "queued": "后台队列中",
+        "ready": "队列就绪",
+        "blocked": "队列阻塞"
+      },
+      "blockers": {
+        "ready": "当前素材满足交付条件。",
+        "missingVideos": "仍缺 {count} 个视频镜头。",
+        "noImages": "暂无可打包的分镜图。",
+        "noPanels": "暂无镜头，无法生成交付清单。",
+        "manifestOnly": "当前先生成可复核清单，后续接剪辑工程包。"
+      },
+      "items": {
+        "finalVideo": {
+          "title": "成片导出任务",
+          "description": "等待所有视频镜头齐备后导出成片压缩包。"
+        },
+        "assetPackage": {
+          "title": "资产包任务",
+          "description": "打包分镜图、参考图、视频和提示词素材。"
+        },
+        "editingDraft": {
+          "title": "剪辑草稿任务",
+          "description": "生成剪辑工程清单和可复核的镜头素材目录。"
+        }
+      }
+    },
+    "history": {
+      "title": "导出历史记录",
+      "emptyBadge": "暂无记录",
+      "countBadge": "{count} 条记录",
+      "available": "可交付",
+      "completed": "已完成",
+      "stats": "{clips} 场 · {panels} 镜 · {videos} 视频",
+      "emptyTitle": "还没有导出任务",
+      "emptyDescription": "完成一次成片、资产包或剪辑草稿导出后会显示在这里。"
     }
   },
   "errors": {

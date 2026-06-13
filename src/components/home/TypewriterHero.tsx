@@ -67,37 +67,45 @@ export default function TypewriterHero({ title, subtitle }: TypewriterHeroProps)
           0%, 100% { opacity: 1; }
           50% { opacity: 0; }
         }
+        @media (max-width: 639px) {
+          .twh-title {
+            animation: none !important;
+            filter: none !important;
+          }
+        }
       `}</style>
 
       {/* 标题 — 带对焦动画 */}
       <h1
-        className="text-3xl font-bold text-[var(--glass-text-primary)] tracking-[0.08em] mb-2"
+        className="twh-title text-3xl font-bold text-[var(--glass-text-primary)] tracking-[0.08em] mb-2"
         style={{ animation: 'twh-focus-pull 8s ease-in-out infinite' }}
       >
         {title}
       </h1>
 
       {/* 终端打字机副标题 */}
-      <p className="font-mono text-sm h-6 flex items-center justify-center" style={{ color: 'var(--glass-text-tertiary)' }}>
-        <span className="mr-1.5 opacity-50">&gt;_</span>
-        {text.split('').map((char, i) => (
-          <span
-            key={i}
-            style={{
-              display: 'inline-block',
-              animationName: isNewChar(i) ? 'twh-charIn' : 'twh-hover',
-              animationDuration: isNewChar(i) ? '0.25s' : '3s',
-              animationTimingFunction: isNewChar(i) ? 'ease-out' : 'ease-in-out',
-              animationIterationCount: isNewChar(i) ? 1 : 'infinite',
-              animationFillMode: isNewChar(i) ? 'forwards' : 'none',
-              animationDelay: isNewChar(i) ? '0s' : `${i * 0.08}s`,
-            }}
-          >
-            {char === ' ' ? '\u00A0' : char}
-          </span>
-        ))}
+      <p className="mx-auto flex min-h-6 max-w-full items-start justify-center gap-1.5 px-1 font-mono text-sm leading-relaxed" style={{ color: 'var(--glass-text-tertiary)' }}>
+        <span className="shrink-0 opacity-50">&gt;_</span>
+        <span className="min-w-0 whitespace-normal break-words text-left sm:text-center">
+          {text.split('').map((char, i) => (
+            <span
+              key={i}
+              style={{
+                display: 'inline-block',
+                animationName: isNewChar(i) ? 'twh-charIn' : 'twh-hover',
+                animationDuration: isNewChar(i) ? '0.25s' : '3s',
+                animationTimingFunction: isNewChar(i) ? 'ease-out' : 'ease-in-out',
+                animationIterationCount: isNewChar(i) ? 1 : 'infinite',
+                animationFillMode: isNewChar(i) ? 'forwards' : 'none',
+                animationDelay: isNewChar(i) ? '0s' : `${i * 0.08}s`,
+              }}
+            >
+              {char === ' ' ? '\u00A0' : char}
+            </span>
+          ))}
+        </span>
         <span
-          className="inline-block w-2 h-4 ml-0.5 bg-[var(--glass-text-tertiary)] align-middle rounded-[1px]"
+          className="mt-0.5 inline-block h-4 w-2 shrink-0 rounded-[1px] bg-[var(--glass-text-tertiary)]"
           style={{ animation: 'twh-blink 1s step-end infinite' }}
         />
       </p>

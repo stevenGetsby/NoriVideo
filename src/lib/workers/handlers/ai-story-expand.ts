@@ -1,7 +1,6 @@
 import type { Job } from 'bullmq'
-import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
-import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { executeAiStoryExpansion } from '@/lib/novel-promotion/ai-story-expand'
 import type { TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
@@ -23,14 +22,6 @@ export async function handleAiStoryExpandTask(job: Job<TaskJobData>) {
     throw new Error('analysisModel is required')
   }
 
-  const prompt = buildPrompt({
-    promptId: PROMPT_IDS.NP_AI_STORY_EXPAND,
-    locale: job.data.locale,
-    variables: {
-      input: promptInput,
-    },
-  })
-
   await reportTaskProgress(job, 25, {
     stage: 'ai_story_expand_prepare',
     stageLabel: '准备故事扩写参数',
@@ -44,28 +35,21 @@ export async function handleAiStoryExpandTask(job: Job<TaskJobData>) {
   const completion = await withInternalLLMStreamCallbacks(
     streamCallbacks,
     async () =>
-      await executeAiTextStep({
+      await executeAiStoryExpansion({
         userId: job.data.userId,
         model: analysisModel,
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.7,
+        prompt: promptInput,
+        locale: job.data.locale,
         projectId: job.data.projectId || 'home-ai-write',
         action: 'ai_story_expand',
-        meta: {
-          stepId: 'ai_story_expand',
-          stepTitle: '故事扩写',
-          stepIndex: 1,
-          stepTotal: 1,
-        },
+        stepId: 'ai_story_expand',
+        stepTitle: '故事扩写',
+        stepIndex: 1,
+        stepTotal: 1,
       }),
   )
   await streamCallbacks.flush()
   await assertTaskActive(job, 'ai_story_expand_persist')
-
-  const expandedText = completion.text.trim()
-  if (!expandedText) {
-    throw new Error('AI story expand response is empty')
-  }
 
   await reportTaskProgress(job, 96, {
     stage: 'ai_story_expand_done',
@@ -74,6 +58,6 @@ export async function handleAiStoryExpandTask(job: Job<TaskJobData>) {
   })
 
   return {
-    expandedText,
+    expandedText: completion.expandedText,
   }
 }

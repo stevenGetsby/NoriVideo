@@ -6,7 +6,13 @@ import { useWorkspaceEpisodeStageData } from '../hooks/useWorkspaceEpisodeStageD
 import type { Clip as VideoClip } from './video'
 import { useWorkspaceProvider } from '../WorkspaceProvider'
 
-export default function VideoStageRoute() {
+interface VideoStageRouteProps {
+  viewMode?: 'storyboard' | 'final'
+}
+
+export default function VideoStageRoute({
+  viewMode = 'storyboard',
+}: VideoStageRouteProps) {
   const runtime = useWorkspaceStageRuntime()
   const { projectId, episodeId } = useWorkspaceProvider()
   const { clips, storyboards } = useWorkspaceEpisodeStageData()
@@ -21,6 +27,7 @@ export default function VideoStageRoute() {
 
   return (
     <VideoStage
+      viewMode={viewMode}
       projectId={projectId}
       episodeId={episodeId}
       storyboards={storyboards}

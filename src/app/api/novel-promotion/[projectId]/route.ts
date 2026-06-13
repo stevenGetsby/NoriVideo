@@ -5,6 +5,7 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isArtStyleValue, isCustomArtStyleValue, parseCustomArtStyles, resolveCustomArtStylePrompt } from '@/lib/constants'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
+import { extractModelKey } from '@/lib/config-service'
 import {
   parseModelKeyStrict,
   type CapabilitySelections,
@@ -36,6 +37,18 @@ const MODEL_FIELD_TO_TYPE: Record<typeof MODEL_FIELDS[number], UnifiedModelType>
 }
 
 const CAPABILITY_MODEL_TYPES: readonly UnifiedModelType[] = ['image', 'video', 'llm', 'audio', 'lipsync']
+const WORKFLOW_MODES = ['srt', 'agent'] as const
+const USER_MODEL_DEFAULT_SELECT = {
+  analysisModel: true,
+  characterModel: true,
+  locationModel: true,
+  storyboardModel: true,
+  editModel: true,
+  videoModel: true,
+  audioModel: true,
+} as const
+
+type ProjectModelFields = Record<typeof MODEL_FIELDS[number], string | null | undefined>
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -130,6 +143,32 @@ function validateArtStyleField(value: unknown): string {
     })
   }
   return artStyle
+}
+
+function validateWorkflowModeField(value: unknown): typeof WORKFLOW_MODES[number] {
+  if (typeof value !== 'string' || !WORKFLOW_MODES.includes(value as typeof WORKFLOW_MODES[number])) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'WORKFLOW_MODE_INVALID',
+      field: 'workflowMode',
+      message: 'workflowMode must be srt or agent',
+    })
+  }
+  return value as typeof WORKFLOW_MODES[number]
+}
+
+function resolveEffectiveModelFields(
+  projectConfig: ProjectModelFields,
+  userDefaults: ProjectModelFields | null | undefined,
+): Record<typeof MODEL_FIELDS[number], string | null> {
+  return {
+    analysisModel: extractModelKey(projectConfig.analysisModel) || extractModelKey(userDefaults?.analysisModel) || null,
+    characterModel: extractModelKey(projectConfig.characterModel) || extractModelKey(userDefaults?.characterModel) || null,
+    locationModel: extractModelKey(projectConfig.locationModel) || extractModelKey(userDefaults?.locationModel) || null,
+    storyboardModel: extractModelKey(projectConfig.storyboardModel) || extractModelKey(userDefaults?.storyboardModel) || null,
+    editModel: extractModelKey(projectConfig.editModel) || extractModelKey(userDefaults?.editModel) || null,
+    videoModel: extractModelKey(projectConfig.videoModel) || extractModelKey(userDefaults?.videoModel) || null,
+    audioModel: extractModelKey(projectConfig.audioModel) || extractModelKey(userDefaults?.audioModel) || null,
+  }
 }
 
 function getNextProjectModelMap(
@@ -243,18 +282,17 @@ export const GET = apiHandler(async (
       videoModel: true,
       audioModel: true,
     }})
+  const userPreference = await prisma.userPreference.findUnique({
+    where: { userId: authResult.session.user.id },
+    select: USER_MODEL_DEFAULT_SELECT,
+  })
 
   const storedOverrides = parseStoredCapabilitySelections(projectData?.capabilityOverrides)
+  const effectiveModelFields = projectData
+    ? resolveEffectiveModelFields(projectData, userPreference)
+    : null
   const modelContextMap = projectData
-    ? getNextProjectModelMap({
-      analysisModel: projectData.analysisModel,
-      characterModel: projectData.characterModel,
-      locationModel: projectData.locationModel,
-      storyboardModel: projectData.storyboardModel,
-      editModel: projectData.editModel,
-      videoModel: projectData.videoModel,
-      audioModel: projectData.audioModel,
-    }, {})
+    ? getNextProjectModelMap(effectiveModelFields!, {})
     : {}
   const cleanedOverrides = sanitizeCapabilityOverrides(storedOverrides, modelContextMap)
 
@@ -290,11 +328,16 @@ export const PATCH = apiHandler(async (
   if (!currentProjectConfig) {
     throw new ApiError('NOT_FOUND')
   }
+  const userPreference = await prisma.userPreference.findUnique({
+    where: { userId: session.user.id },
+    select: USER_MODEL_DEFAULT_SELECT,
+  })
+  const effectiveCurrentProjectConfig = resolveEffectiveModelFields(currentProjectConfig, userPreference)
 
   const allowedProjectFields = [
     'analysisModel', 'characterModel', 'locationModel', 'storyboardModel',
     'editModel', 'videoModel', 'audioModel', 'videoRatio', 'artStyle', 'artStylePrompt',
-    'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides',
+    'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides', 'workflowMode',
   ] as const
 
   const updateData: Record<string, unknown> = {}
@@ -325,9 +368,14 @@ export const PATCH = apiHandler(async (
       continue
     }
 
+    if (field === 'workflowMode') {
+      updateData.workflowMode = validateWorkflowModeField(body[field])
+      continue
+    }
+
     if (field === 'capabilityOverrides') {
       const overrides = normalizeCapabilitySelectionsInput(body.capabilityOverrides)
-      const modelContextMap = getNextProjectModelMap(currentProjectConfig, body as Record<string, unknown>)
+      const modelContextMap = getNextProjectModelMap(effectiveCurrentProjectConfig, body as Record<string, unknown>)
       const cleanedOverrides = sanitizeCapabilityOverrides(overrides, modelContextMap)
       validateCapabilityOverrides(cleanedOverrides, modelContextMap)
       updateData.capabilityOverrides = serializeCapabilitySelections(cleanedOverrides)

@@ -49,6 +49,67 @@ function extractJsonSubstring(input: string): string {
     return input
 }
 
+function extractBalancedSubstring(input: string, openChar: '{' | '[', closeChar: '}' | ']'): string {
+    const start = input.indexOf(openChar)
+    if (start === -1) return input
+
+    let depth = 0
+    let inString = false
+    let escaped = false
+    for (let i = start; i < input.length; i++) {
+        const ch = input[i]
+        if (escaped) { escaped = false; continue }
+        if (ch === '\\') { escaped = true; continue }
+        if (ch === '"') { inString = !inString; continue }
+        if (inString) continue
+        if (ch === openChar) depth++
+        else if (ch === closeChar) {
+            depth--
+            if (depth === 0) {
+                return input.slice(start, i + 1)
+            }
+        }
+    }
+    return input
+}
+
+function extractBalancedSubstrings(input: string, openChar: '{' | '[', closeChar: '}' | ']'): string[] {
+    const results: string[] = []
+    let depth = 0
+    let start = -1
+    let inString = false
+    let escaped = false
+
+    for (let i = 0; i < input.length; i++) {
+        const ch = input[i]
+        if (escaped) { escaped = false; continue }
+        if (ch === '\\') { escaped = true; continue }
+        if (ch === '"') { inString = !inString; continue }
+        if (inString) continue
+
+        if (ch === openChar) {
+            if (depth === 0) start = i
+            depth++
+        } else if (ch === closeChar && depth > 0) {
+            depth--
+            if (depth === 0 && start >= 0) {
+                results.push(input.slice(start, i + 1))
+                start = -1
+            }
+        }
+    }
+
+    return results
+}
+
+function parseJsonCandidate(input: string): unknown {
+    try {
+        return JSON.parse(input)
+    } catch {
+        return JSON.parse(jsonrepair(input))
+    }
+}
+
 /**
  * Safely parse JSON text from LLM output.
  * First attempts a direct JSON.parse; on failure, tries to extract a JSON
@@ -77,7 +138,26 @@ export function safeParseJson(input: string): unknown {
  * Throws if the result is not a plain object.
  */
 export function safeParseJsonObject(input: string): Record<string, unknown> {
-    const result = safeParseJson(input)
+    const cleaned = stripMarkdownFence(input.trim())
+    let result: unknown
+
+    try {
+        result = JSON.parse(cleaned)
+    } catch {
+        const candidates = extractBalancedSubstrings(cleaned, '{', '}')
+        for (let index = candidates.length - 1; index >= 0; index--) {
+            try {
+                result = parseJsonCandidate(candidates[index])
+                if (result && typeof result === 'object' && !Array.isArray(result)) {
+                    return result as Record<string, unknown>
+                }
+            } catch {
+                // continue trying earlier object candidates
+            }
+        }
+        result = parseJsonCandidate(extractBalancedSubstring(cleaned, '{', '}'))
+    }
+
     if (result && typeof result === 'object' && !Array.isArray(result)) {
         return result as Record<string, unknown>
     }
@@ -92,7 +172,59 @@ export function safeParseJsonArray(
     input: string,
     fallbackKey?: string,
 ): Record<string, unknown>[] {
-    const result = safeParseJson(input)
+    const cleaned = stripMarkdownFence(input.trim())
+    let result: unknown
+
+    try {
+        result = JSON.parse(cleaned)
+    } catch {
+        if (fallbackKey) {
+            const objectCandidates = extractBalancedSubstrings(cleaned, '{', '}')
+            for (let index = objectCandidates.length - 1; index >= 0; index--) {
+                try {
+                    const candidate = parseJsonCandidate(objectCandidates[index])
+                    if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)) {
+                        const value = (candidate as Record<string, unknown>)[fallbackKey]
+                        if (Array.isArray(value)) {
+                            return value.filter(
+                                (item): item is Record<string, unknown> => !!item && typeof item === 'object',
+                            )
+                        }
+                    }
+                } catch {
+                    // continue trying earlier object candidates
+                }
+            }
+        }
+
+        const arrayCandidates = extractBalancedSubstrings(cleaned, '[', ']')
+        for (let index = arrayCandidates.length - 1; index >= 0; index--) {
+            try {
+                result = parseJsonCandidate(arrayCandidates[index])
+                if (Array.isArray(result)) {
+                    return result.filter(
+                        (item): item is Record<string, unknown> => !!item && typeof item === 'object',
+                    )
+                }
+            } catch {
+                // continue trying earlier array candidates
+            }
+        }
+
+        const objectCandidates = extractBalancedSubstrings(cleaned, '{', '}')
+        for (let index = objectCandidates.length - 1; index >= 0; index--) {
+            try {
+                result = parseJsonCandidate(objectCandidates[index])
+                break
+            } catch {
+                // continue trying earlier object candidates
+            }
+        }
+
+        if (result === undefined) {
+            result = safeParseJson(cleaned)
+        }
+    }
 
     if (Array.isArray(result)) {
         return result.filter(

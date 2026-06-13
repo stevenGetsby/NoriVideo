@@ -7,8 +7,10 @@ import { SelectedAsset } from './useImageGeneration'
 import { StoryboardPanel } from './useStoryboardState'
 import { buildDefaultAssetsForClip } from './storyboard-panel-asset-utils'
 import { useStoryboardBatchPanelGeneration } from './useStoryboardBatchPanelGeneration'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface UseStoryboardPanelAssetActionsProps {
+  projectId: string
   clips: NovelPromotionClip[]
   characters: Character[]
   locations: Location[]
@@ -59,6 +61,7 @@ interface UseStoryboardPanelAssetActionsProps {
 }
 
 export function useStoryboardPanelAssetActions({
+  projectId,
   clips,
   characters,
   locations,
@@ -166,6 +169,32 @@ export function useStoryboardPanelAssetActions({
     },
     [setPanelLocation, updatePanelEdit],
   )
+
+  const handleConfirmPanelAssetUsage = useCallback(
+    async (panel: StoryboardPanel, actingNotes: string | null) => {
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/panel`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          panelId: panel.id,
+          actingNotes,
+        }),
+      })
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}))
+        const message =
+          typeof error?.message === 'string'
+            ? error.message
+            : typeof error?.error?.message === 'string'
+              ? error.error.message
+              : '确认资产失败'
+        throw new Error(message)
+      }
+      updatePanelEdit(panel.id, panel, { actingNotes })
+    },
+    [projectId, updatePanelEdit],
+  )
+
   const { runningCount, pendingPanelCount, handleGenerateAllPanels } =
     useStoryboardBatchPanelGeneration({
       sortedStoryboards,
@@ -183,6 +212,7 @@ export function useStoryboardPanelAssetActions({
     handleSetLocation,
     handleRemoveCharacter,
     handleRemoveLocation,
+    handleConfirmPanelAssetUsage,
     runningCount,
     pendingPanelCount,
     handleGenerateAllPanels,

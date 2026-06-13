@@ -27,11 +27,17 @@ Output format (JSON array only):
 
 Rules:
 1. Keep clips contiguous, ordered, and fully covering the source text.
-2. Prefer natural scene/drama boundaries.
-3. Minimize over-splitting.
-4. location, characters, and props should prefer exact names from libraries when possible.
-5. Return JSON only, no markdown or extra text.
-6. ⚠️ JSON SAFETY: All quotation marks in dialogue (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values—they break JSON structure.
+2. Segment by directing beats, not by raw length. First understand the whole story arc, then split at changes in dramatic function.
+3. For generic story videos, fairy tales, narrative shorts, and story ads, prefer 4-8 clips: world setup, inciting event, action/help, emotional reaction, magical/object payoff, time passage, thematic ending. Very short stories should still be split into at least 3 beats unless they contain only one simple action.
+4. Do not collapse a complete story into one giant clip. Do not over-split one sentence into beatless fragments.
+5. Each clip must contain a complete director task: action goal, emotional state, and result. Good summaries should name that function, such as "night forest setup and rabbit introduction" or "firefly falls into puddle and triggers rescue".
+6. Prefer boundaries at time jumps, location changes, new character/prop entrances, goal changes, conflict/incident, emotional turns, and before theme statements.
+7. location, characters, and props should prefer exact names from libraries when possible and include only assets visible or used in that clip.
+8. In ordinary stories or fairy tales, props are story objects, such as a leaf, moon lamp, puddle, key, or letter. Do not turn them into product selling points.
+9. Only product, brand, platform, or ad prompts should treat props as merchandise or commercial display objects.
+10. If the prop library is empty but the story contains a visible recurring object, use the stable source-text name for that object. If no visible prop appears, return [].
+11. Return JSON only, no markdown or extra text.
+12. ⚠️ JSON SAFETY: All quotation marks in dialogue (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values—they break JSON structure.
 
 Prop library:
 {props_lib_name}

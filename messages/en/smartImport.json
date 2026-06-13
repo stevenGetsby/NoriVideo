@@ -1,10 +1,16 @@
 {
-  "title": "Start Your Creative Journey",
-  "subtitle": "First, choose your creation method",
+  "title": "Project Workflow",
+  "subtitle": "Start from script import or episode one, then move through script parsing, asset setup, storyboard design, and shot production.",
   "manualCreate": {
-    "title": "Create from Episode 1",
-    "description": "Start from episode 1, suitable for episodic creation or single short videos",
+    "title": "Start From Episode One",
+    "description": "Enter the project workspace, prepare episode one, then continue through script, storyboard, voice, and video steps.",
     "button": "Start Creating"
+  },
+  "backToSelect": "Back to project workflow",
+  "sourceDraft": {
+    "title": "Creation Source",
+    "description": "This text becomes the source material for the project workflow.",
+    "placeholder": "Enter a story, product brief, short video request, or narration script..."
   },
   "manualDesc": "Start from the first episode, suitable for serialized or single short video production",
   "startCreate": "Start Creating",

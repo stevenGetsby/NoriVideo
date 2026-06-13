@@ -21,7 +21,7 @@ type PresetProviderType = 'ark' | 'google' | 'openrouter' | 'minimax' | 'fal' | 
   | 'bailian'
   | 'mediakit'
   | 'siliconflow'
-type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible'
+type CompatibleProviderType = 'openai-compatible' | 'gemini-compatible' | 'anthropic-compatible'
 
 type TestProviderPayload = {
   apiType: CompatibleProviderType | PresetProviderType
@@ -330,6 +330,86 @@ async function testCompatibleProvider(baseUrl: string, apiKey: string, llmModel?
   return {
     success: llmStep.status === 'pass',
     steps,
+  }
+}
+
+function normalizeAnthropicBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+}
+
+function extractAnthropicText(payload: unknown): string {
+  if (!isRecord(payload) || !Array.isArray(payload.content)) return ''
+  return payload.content
+    .map((part) => {
+      if (typeof part === 'string') return part
+      if (isRecord(part) && typeof part.text === 'string') return part.text
+      return ''
+    })
+    .join('')
+    .trim()
+}
+
+async function testAnthropicCompatibleProvider(baseUrl: string, apiKey: string, llmModel?: string): Promise<TestProviderResult> {
+  const model = typeof llmModel === 'string' && llmModel.trim()
+    ? llmModel.trim()
+    : 'claude-sonnet-4-6'
+  const steps: TestStep[] = []
+
+  try {
+    const response = await fetch(`${normalizeAnthropicBaseUrl(baseUrl)}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        Authorization: `Bearer ${apiKey}`,
+        'x-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: 20,
+        temperature: 0,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+      signal: AbortSignal.timeout(30_000),
+    })
+
+    const bodyText = await response.text().catch(() => '')
+    if (!response.ok) {
+      const fail = classifyProbeFailure(response.status)
+      steps.push({
+        name: 'textGen',
+        status: fail.status,
+        model,
+        message: fail.message,
+        detail: bodyText.slice(0, 500),
+      })
+      return { success: false, steps }
+    }
+
+    let parsed: unknown = null
+    try {
+      parsed = bodyText ? JSON.parse(bodyText) as unknown : null
+    } catch {
+      parsed = null
+    }
+    const answer = extractAnthropicText(parsed)
+    steps.push({
+      name: 'textGen',
+      status: 'pass',
+      model,
+      message: answer ? `Response: ${answer.slice(0, 80)}` : 'Anthropic-compatible messages endpoint reachable',
+    })
+    return { success: true, steps }
+  } catch (error) {
+    steps.push({
+      name: 'textGen',
+      status: 'fail',
+      model,
+      message: toNetworkErrorMessage(error),
+    })
+    return { success: false, steps }
   }
 }
 
@@ -900,7 +980,7 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
   }
 
   // Compatible providers require baseUrl
-  if ((apiType === 'openai-compatible' || apiType === 'gemini-compatible') && !baseUrl) {
+  if ((apiType === 'openai-compatible' || apiType === 'gemini-compatible' || apiType === 'anthropic-compatible') && !baseUrl) {
     return {
       success: false,
       steps: [{ name: 'models', status: 'fail', message: 'Missing baseUrl' }],
@@ -912,6 +992,8 @@ export async function testProviderConnection(payload: TestProviderPayload): Prom
       return testCompatibleProvider(baseUrl!, apiKey, llmModel)
     case 'gemini-compatible':
       return testCompatibleProvider(baseUrl!, apiKey, llmModel)
+    case 'anthropic-compatible':
+      return testAnthropicCompatibleProvider(baseUrl!, apiKey, llmModel)
     case 'ark':
       return testArkProvider(apiKey)
     case 'google':

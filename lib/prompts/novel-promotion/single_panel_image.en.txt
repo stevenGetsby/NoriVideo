@@ -24,7 +24,9 @@ Execution rules:
 2. If storyboard data contains `slot`, treat it as a preferred placement anchor for consistency, not as an absolute restriction.
 3. If location data contains `available_slots`, treat them as typical anchor references rather than a complete map of all valid positions.
 4. When the panel description, source text, action flow, or scene nature implies movement, entry/exit, path traversal, transition space, temporary space, empty space, or abstract/non-literal space, do not force the character to remain inside an existing slot.
-5. Use reference images for style/identity consistency only.
-6. Repaint the background according to shot type and angle.
-7. If storyboard conflicts with source text, keep narrative logic from source text.
-8. Keep final visual style consistent with provided references.
+5. Use character references to preserve identity, costume, face, body shape, and style.
+6. Use location references to preserve environment style, layout logic, lighting, and atmosphere, while repainting the background according to shot type and angle.
+7. Use prop/product references only when `props` or the panel description clearly includes that prop; preserve its appearance, material, color, scale, and structure.
+8. Decide required references from `characters`, `location`, and `props` in the storyboard data. Keep all referenced assets globally consistent.
+9. If storyboard conflicts with source text, keep narrative logic from source text.
+10. Keep final visual style consistent with provided references.

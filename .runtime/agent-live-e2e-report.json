@@ -1,0 +1,157 @@
+{
+  "ok": true,
+  "createdAt": "2026-06-09T18:49:51.428Z",
+  "progress": [
+    {
+      "stage": "项目初始化",
+      "percent": 10,
+      "at": "2026-06-09T18:49:51.852Z"
+    },
+    {
+      "stage": "故事扩写与剧本生成",
+      "percent": 30,
+      "at": "2026-06-09T18:49:51.901Z"
+    },
+    {
+      "stage": "资产一致性核对",
+      "percent": 50,
+      "at": "2026-06-09T18:49:53.962Z"
+    },
+    {
+      "stage": "资产图生成",
+      "percent": 62,
+      "at": "2026-06-09T18:49:54.001Z"
+    },
+    {
+      "stage": "精简分镜生成",
+      "percent": 74,
+      "at": "2026-06-09T18:54:45.443Z"
+    },
+    {
+      "stage": "分镜图生成",
+      "percent": 86,
+      "at": "2026-06-09T18:54:55.536Z"
+    },
+    {
+      "stage": "视频生成",
+      "percent": 94,
+      "at": "2026-06-09T18:56:37.803Z"
+    },
+    {
+      "stage": "完成",
+      "percent": 100,
+      "at": "2026-06-09T19:01:26.272Z"
+    }
+  ],
+  "errors": [],
+  "userId": "00000000-0000-4000-8000-000000000001",
+  "projectId": "74899e98-64b8-401a-9176-c4aaa635c3aa",
+  "episodeId": "5b33355f-fbc9-45c4-b711-847397520fda",
+  "workspaceUrl": "/zh/workspace/74899e98-64b8-401a-9176-c4aaa635c3aa?episode=5b33355f-fbc9-45c4-b711-847397520fda&stage=videos",
+  "status": "completed",
+  "stageResults": {
+    "stage1": {
+      "projectId": "74899e98-64b8-401a-9176-c4aaa635c3aa",
+      "episodeId": "5b33355f-fbc9-45c4-b711-847397520fda",
+      "hasStory": true
+    },
+    "stage2": {
+      "characterCount": 2,
+      "locationCount": 1,
+      "clipCount": 1,
+      "hasScript": true
+    },
+    "assetConsistency": {
+      "characterCount": 2,
+      "locationCount": 1,
+      "propCount": 0,
+      "clipCount": 1,
+      "hasConsistencyBrief": true,
+      "characterAppearanceCount": 2,
+      "locationImageSlotCount": 1,
+      "propImageSlotCount": 0
+    },
+    "assetImageGeneration": {
+      "characterAppearanceCount": 2,
+      "locationImageCount": 1,
+      "propImageCount": 0,
+      "skippedExistingImageCount": 0,
+      "submittedTaskCount": 3,
+      "completedTaskCount": 3,
+      "failedTaskCount": 0,
+      "hasAssetImages": true,
+      "taskIds": [
+        "8ee489c3-f4af-48f4-b8c8-589fbf56fde0",
+        "7910026d-cd91-4605-80ed-bcccd1fda49d",
+        "eca0be39-f1ef-4db4-baba-e81322e8cdfc"
+      ]
+    },
+    "stage3": {
+      "storyboardCount": 1,
+      "panelCount": 4,
+      "voiceLineCount": 2,
+      "hasStoryboard": true
+    },
+    "imageGeneration": {
+      "panelCount": 4,
+      "skippedExistingImageCount": 0,
+      "submittedTaskCount": 4,
+      "completedTaskCount": 4,
+      "failedTaskCount": 0,
+      "hasImages": true,
+      "taskIds": [
+        "bc399684-3874-4e66-9cbf-dee408f81cc8",
+        "b465e8b9-8096-496c-9071-05e5aa763d4d",
+        "d0b47d36-11f0-4964-820c-0437d39d240e",
+        "9b567b25-5c8c-4241-b3af-5a0f6cebd530"
+      ]
+    },
+    "videoGeneration": {
+      "panelCount": 4,
+      "skippedMissingImageCount": 0,
+      "skippedExistingVideoCount": 0,
+      "submittedTaskCount": 4,
+      "completedTaskCount": 4,
+      "failedTaskCount": 0,
+      "hasVideos": true,
+      "taskIds": [
+        "eddaefd1-a8df-4c54-b5a5-a713393fb23f",
+        "93a5b660-8b68-4768-8f0e-979f68b8bb3a",
+        "0b3c9482-1a26-4330-9193-2a7158b68037",
+        "ce832b85-35b2-4e8e-b32a-08c2565d13c5"
+      ]
+    }
+  },
+  "counts": {
+    "clips": 1,
+    "storyboards": 1,
+    "panels": 4,
+    "panelsWithImages": 4,
+    "panelsWithVideos": 4,
+    "characters": 2,
+    "locations": 1,
+    "props": 0,
+    "workflowStages": 52
+  },
+  "assetConsistency": {
+    "hasGlobalAssetBrief": true,
+    "hasRegionCritic": true
+  },
+  "videoTasks": {
+    "total": 4,
+    "completed": 4,
+    "failed": 0,
+    "fallbackCount": 4,
+    "errors": []
+  },
+  "firstPanel": {
+    "id": "b916b733-f8a2-4344-9173-44489abb6a19",
+    "hasImage": true,
+    "hasVideo": true,
+    "duration": 2,
+    "videoPromptPreview": "【Agent 视频分镜提示词】\n【片段内分镜1｜推荐时长：2秒】\n场景：现代美国私立医院走廊或手术区，白色墙面配浅蓝色导视线，冷白 LED 顶灯，英文门牌、手术室门、等待区椅子和金属扶手保持一致。\n禁止生成背景音乐，但可以根据画面生成对应音效。\n生成一支 9:16 欧美医疗短剧，真实真人质感，现代美国私立医院环境，冷白顶灯，英文导视标识，情绪强烈但表演不过度夸张。所有角色说英文，英文口型同步准确。不要生成中文字幕，不要生成大段字幕，不要生成乱码文字。\n剧情片段：Ava 在现代美国私立医院走廊拦住 Dr. Grayson，用英文口型同步说 Please help my grandma. Dr. Grayson 看向她，低声回答 I will handle it. 只生成 1 个剧情片段和 1 个视频分镜。\n【本分镜负面要求】 不要中文文字，不要中文口型，不要乱码字幕，不要改变角色资产，不要让服装发型漂移，不要新增无关人物，不要塑料皮肤，不要过度美颜，不要动画风，不要血腥，不要把场景变成亚洲医院。结尾必须形成清楚的情绪落点或悬念收束。\n【短剧角色资产保持不变】\nAva：年轻美国女性，24-",
+    "promptHasTimedActionLine": true,
+    "promptHasAgentMarker": true,
+    "promptHasAssetUsage": true
+  }
+}

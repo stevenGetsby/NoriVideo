@@ -4,6 +4,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { getProviderKey, isPresetComingSoonModel, type CustomModel } from '../types'
+import {
+  getLuminaAnthropicCompatibleModelGroup,
+} from '@/lib/lumina-anthropic-compatible-models'
 import type { UseProviderCardStateResult } from './hooks/useProviderCardState'
 import type {
   ProviderCardModelType,
@@ -64,6 +67,7 @@ const MODEL_TYPES: readonly ProviderCardModelType[] = ['llm', 'image', 'video', 
 
 export function getAddableModelTypesForProvider(providerId: string): ProviderCardModelType[] {
   const providerKey = getProviderKey(providerId)
+  if (providerKey === 'anthropic-compatible') return ['llm']
   if (providerKey === 'openai-compatible') return ['llm', 'image', 'video']
   return ['llm', 'image', 'video', 'audio']
 }
@@ -77,7 +81,7 @@ export function shouldShowOpenAICompatVideoHint(
 
 function shouldShowDefaultTabs(providerId: string): boolean {
   const providerKey = getProviderKey(providerId)
-  return providerKey === 'openai-compatible' || providerKey === 'gemini-compatible'
+  return providerKey === 'openai-compatible' || providerKey === 'gemini-compatible' || providerKey === 'anthropic-compatible'
 }
 
 export function getVisibleModelTypesForProvider(
@@ -155,14 +159,26 @@ export function ProviderAdvancedFields({
   }, [activeType, activeTypeSignature, visibleTypes])
 
   const currentType = activeType ?? visibleTypes[0] ?? null
-  const currentModels = currentType ? (state.groupedModels[currentType] ?? []) : []
+  const currentModels = useMemo(
+    () => currentType ? (state.groupedModels[currentType] ?? []) : [],
+    [currentType, state.groupedModels],
+  )
+  const luminaGroupedModels = useMemo(() => {
+    const grouped: Record<'text' | 'vision', CustomModel[]> = { text: [], vision: [] }
+    for (const model of currentModels) {
+      grouped[getLuminaAnthropicCompatibleModelGroup(model.modelId)].push(model)
+    }
+    return grouped
+  }, [currentModels])
   const shouldShowAddButton =
     !!currentType
     && addableModelTypes.has(currentType)
     && state.showAddForm !== currentType
-  const defaultAddType: ProviderCardModelType = providerKey === 'openrouter' ? 'llm' : 'image'
+  const defaultAddType: ProviderCardModelType =
+    providerKey === 'openrouter' || providerKey === 'anthropic-compatible' ? 'llm' : 'image'
   const useTabbedLayout = state.hasModels || shouldShowDefaultTabs(provider.id)
   const shouldShowVideoHint = shouldShowOpenAICompatVideoHint(provider.id, currentType)
+  const shouldGroupLuminaLlmModels = providerKey === 'anthropic-compatible' && currentType === 'llm'
 
   if (providerKey === 'mediakit') {
     return (
@@ -275,18 +291,47 @@ export function ProviderAdvancedFields({
           className="app-scrollbar h-[280px] overflow-y-auto pr-1"
         >
           <div className="space-y-2">
-            {currentModels.map((model, index) => (
-              <ModelRow
-                key={`${model.modelKey}-${index}`}
-                model={model}
-                t={t}
-                state={state}
-                onToggleModel={onToggleModel}
-                onDeleteModel={onDeleteModel}
-                onUpdateModel={onUpdateModel}
-                hasApiKey={!!provider.hasApiKey}
-              />
-            ))}
+            {shouldGroupLuminaLlmModels ? (
+              <>
+                {luminaGroupedModels.text.length > 0 && (
+                  <ModelGroup
+                    label={t('anthropicTextModels')}
+                    models={luminaGroupedModels.text}
+                    t={t}
+                    state={state}
+                    onToggleModel={onToggleModel}
+                    onDeleteModel={onDeleteModel}
+                    onUpdateModel={onUpdateModel}
+                    hasApiKey={!!provider.hasApiKey}
+                  />
+                )}
+                {luminaGroupedModels.vision.length > 0 && (
+                  <ModelGroup
+                    label={t('anthropicVisionModels')}
+                    models={luminaGroupedModels.vision}
+                    t={t}
+                    state={state}
+                    onToggleModel={onToggleModel}
+                    onDeleteModel={onDeleteModel}
+                    onUpdateModel={onUpdateModel}
+                    hasApiKey={!!provider.hasApiKey}
+                  />
+                )}
+              </>
+            ) : (
+              currentModels.map((model, index) => (
+                <ModelRow
+                  key={`${model.modelKey}-${index}`}
+                  model={model}
+                  t={t}
+                  state={state}
+                  onToggleModel={onToggleModel}
+                  onDeleteModel={onDeleteModel}
+                  onUpdateModel={onUpdateModel}
+                  hasApiKey={!!provider.hasApiKey}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -348,6 +393,53 @@ export function ProviderAdvancedFields({
           )}
         </div>
       )}
+    </div>
+  )
+}
+
+interface ModelGroupProps {
+  label: string
+  models: CustomModel[]
+  t: ProviderCardTranslator
+  state: UseProviderCardStateResult
+  onToggleModel: ProviderCardProps['onToggleModel']
+  onDeleteModel: ProviderCardProps['onDeleteModel']
+  onUpdateModel: ProviderCardProps['onUpdateModel']
+  hasApiKey: boolean
+}
+
+function ModelGroup({
+  label,
+  models,
+  t,
+  state,
+  onToggleModel,
+  onDeleteModel,
+  onUpdateModel,
+  hasApiKey,
+}: ModelGroupProps) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between px-1 pt-1">
+        <span className="text-[11px] font-semibold text-[var(--glass-text-tertiary)]">
+          {label}
+        </span>
+        <span className="rounded-full bg-[var(--glass-tone-neutral-bg)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--glass-tone-neutral-fg)]">
+          {models.length}
+        </span>
+      </div>
+      {models.map((model, index) => (
+        <ModelRow
+          key={`${model.modelKey}-${index}`}
+          model={model}
+          t={t}
+          state={state}
+          onToggleModel={onToggleModel}
+          onDeleteModel={onDeleteModel}
+          onUpdateModel={onUpdateModel}
+          hasApiKey={hasApiKey}
+        />
+      ))}
     </div>
   )
 }

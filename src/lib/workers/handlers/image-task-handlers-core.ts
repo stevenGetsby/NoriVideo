@@ -9,12 +9,12 @@ import {
   getUserModels,
   resolveImageSourceFromGeneration,
   stripLabelBar,
-  toSignedUrlIfCos,
   uploadImageSourceToCos,
   withLabelBar,
 } from '../utils'
 import {
   normalizeReferenceImagesForGeneration,
+  normalizeToOriginalMediaUrl,
   normalizeToBase64ForGeneration,
 } from '@/lib/media/outbound-image'
 import {
@@ -33,6 +33,7 @@ import {
   generateModifiedAssetDescription,
   readIndexedDescription,
 } from './modify-description-sync'
+import { refreshProjectPanelReferenceAssets } from '@/lib/novel-promotion/refresh-panel-reference-assets'
 
 const logger = createScopedLogger({ module: 'worker.modify-asset-image' })
 
@@ -82,8 +83,8 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     const imageIndex = Number(payload.imageIndex ?? appearance.selectedIndex ?? 0)
     const imageUrls = parseImageUrls(appearance.imageUrls, 'characterAppearance.imageUrls')
     const currentKey = imageUrls[imageIndex] || appearance.imageUrl
-    const currentUrl = toSignedUrlIfCos(currentKey, 3600)
-    if (!currentUrl) throw new Error('No image to modify')
+    if (!currentKey) throw new Error('No image to modify')
+    const currentUrl = await normalizeToOriginalMediaUrl(currentKey)
 
     const requiredReference = await stripLabelBar(currentUrl)
     const extraReferenceInputs: string[] = []
@@ -165,6 +166,10 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         ...(descriptionFields || {}),
       },
     })
+    await refreshProjectPanelReferenceAssets({
+      projectId: job.data.projectId,
+      episodeId: job.data.episodeId,
+    })
 
     return { type, appearanceId: appearance.id, imageIndex, imageUrl: cosKey }
   }
@@ -190,8 +195,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       throw new Error('Location image not found')
     }
 
-    const currentUrl = toSignedUrlIfCos(locationImage.imageUrl, 3600)
-    if (!currentUrl) throw new Error('No location image url')
+    const currentUrl = await normalizeToOriginalMediaUrl(locationImage.imageUrl)
 
     const requiredReference = await stripLabelBar(currentUrl)
     const extraReferenceInputs: string[] = []
@@ -265,6 +269,10 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
         } : {}),
       },
     })
+    await refreshProjectPanelReferenceAssets({
+      projectId: job.data.projectId,
+      episodeId: job.data.episodeId,
+    })
 
     return { type, locationImageId: locationImage.id, imageUrl: cosKey }
   }
@@ -305,8 +313,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       throw new Error('Storyboard panel image not found')
     }
 
-    const currentUrl = toSignedUrlIfCos(panel.imageUrl, 3600)
-    if (!currentUrl) throw new Error('No storyboard panel image url')
+    const currentUrl = await normalizeToOriginalMediaUrl(panel.imageUrl)
 
     const projectData = await resolveNovelData(job.data.projectId)
     if (!projectData.videoRatio) throw new Error('Project videoRatio not configured')

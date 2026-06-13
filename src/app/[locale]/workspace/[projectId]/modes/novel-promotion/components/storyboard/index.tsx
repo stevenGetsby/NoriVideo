@@ -108,6 +108,7 @@ export default function StoryboardStage({
     handleSetLocation,
     handleRemoveCharacter,
     handleRemoveLocation,
+    handleConfirmPanelAssetUsage,
     retrySave,
 
     updatePhotographyPlanMutation,
@@ -217,6 +218,7 @@ export default function StoryboardStage({
           onOpenLocationPicker={(panelId) => setAssetPickerPanel({ panelId, type: 'location' })}
           onRemoveCharacter={handleRemoveCharacter}
           onRemoveLocation={handleRemoveLocation}
+          onConfirmPanelAssetUsage={handleConfirmPanelAssetUsage}
           onRetryPanelSave={retrySave}
           onRegeneratePanelImage={regeneratePanelImage}
           onOpenEditModal={(storyboardId, panelIndex) => setEditingPanel({ storyboardId, panelIndex })}

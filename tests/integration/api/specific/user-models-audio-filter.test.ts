@@ -63,9 +63,10 @@ describe('api specific - user models audio filter', () => {
     const res = await mod.GET(req, routeContext)
 
     expect(res.status).toBe(200)
-    const body = await res.json() as { audio: Array<{ value: string }> }
+    const body = await res.json() as { audio: Array<{ value: string }>; vision: Array<{ value: string }> }
     expect(body.audio.map((item) => item.value)).toEqual([
       'bailian::qwen3-tts-vd-2026-01-26',
     ])
+    expect(body.vision).toEqual([])
   })
 })

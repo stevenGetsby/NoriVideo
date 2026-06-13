@@ -9,6 +9,7 @@
   "connect": "Connect",
   "compatibilityLayerOpenAI": "OpenAI Compatible Layer",
   "compatibilityLayerGemini": "Gemini Compatible Layer",
+  "compatibilityLayerAnthropic": "Anthropic Compatible Layer",
   "show": "Show",
   "hide": "Hide",
   "capability": "Models",
@@ -110,6 +111,9 @@
   "apiType": "API Type",
   "apiTypeGeminiCompatible": "Gemini Compatible",
   "apiTypeOpenAICompatible": "OpenAI Compatible",
+  "apiTypeAnthropicCompatible": "Anthropic Compatible",
+  "anthropicTextModels": "Text Models",
+  "anthropicVisionModels": "Image Understanding Models",
   "apiTypeGeminiHint": "Uses Google SDK",
   "otherProviders": "Other Settings",
   "audioCategory": "Audio",
@@ -178,6 +182,9 @@
       "vidu_step1": "Go to the Vidu platform and click 'Create API Key'",
       "openai_compatible_step1": "Enter any OpenAI-compatible service Base URL and API key",
       "gemini_compatible_step1": "Enter any Gemini-compatible service Base URL and API key",
+      "anthropic_compatible_step1": "Enter any Anthropic Messages API compatible Base URL and API key, for example https://lumina.tripo3d.com/",
+      "hfsy_step1": "Enter the HFSY API key; Base URL defaults to https://www.hfsyapi.cn/v1",
+      "lumina_step1": "Enter the Lumina API key; Base URL defaults to https://lumina.tripo3d.com/",
       "bailian_step1": "Go to Alibaba Cloud Bailian console and get an API Key",
       "siliconflow_step1": "Go to SiliconFlow console and create an API Key"
     }

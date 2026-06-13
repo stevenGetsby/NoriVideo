@@ -156,6 +156,13 @@ describe('LLM 畸形 JSON 输出回归测试', () => {
         expect(locations).toHaveLength(1)
     })
 
+    it('对象解析忽略 reasoning 文本中更早出现的数组字面量', () => {
+        const llmOutput = `<reasoning>这个广告文案没有具体场景，locations应该返回[]。最终应输出 {"locations": []}</reasoning>
+{"locations": []}`
+        const result = safeParseJsonObject(llmOutput)
+        expect(result).toEqual({ locations: [] })
+    })
+
     it('使用「」角引号的台词内容 -> 正确解析不破坏 JSON', () => {
         // 改造后的提示词要求 LLM 用「」替代引号
         const llmOutput = '[{"speaker":"孙悟空","content":"「你竟敢拦我的路！」","emotionStrength":0.4}]'
@@ -181,5 +188,22 @@ describe('LLM 畸形 JSON 输出回归测试', () => {
         expect(result).toHaveLength(2)
         expect(result[0].id).toBe('clip_1')
         expect(result[1].startText).toBe('后来')
+    })
+
+    it('数组解析忽略 reasoning 文本中更早出现的空数组', () => {
+        const llmOutput = `<reasoning>角色库和道具库都是无，所以 characters 应该是 []，props 也是 []。</reasoning>
+[
+  {
+    "start": "介绍我们的UGC平台",
+    "end": "核心功能和优势。",
+    "summary": "介绍UGC平台及其核心功能和优势。",
+    "location": null,
+    "characters": [],
+    "props": []
+  }
+]`
+        const result = safeParseJsonArray(llmOutput)
+        expect(result).toHaveLength(1)
+        expect(result[0].start).toBe('介绍我们的UGC平台')
     })
 })

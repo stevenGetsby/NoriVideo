@@ -10,6 +10,7 @@ import type { ChatCompletionOptions, ChatCompletionStreamCallbacks } from './typ
 import { arkResponsesCompletion } from './providers/ark'
 import { extractGoogleText, extractGoogleUsage } from './providers/google'
 import { buildOpenAIChatCompletion } from './providers/openai-compat'
+import { completeAnthropicCompatibleVisionLlm } from './providers/anthropic-compatible'
 import { emitChunkedText } from './stream-helpers'
 import { getCompletionParts } from './completion-parts'
 import {
@@ -23,10 +24,12 @@ import {
 } from './runtime-shared'
 import { completeBailianLlm } from '@/lib/providers/bailian'
 import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
+import { isLuminaProviderId } from '@/lib/model-provider-contract'
 
 type GoogleVisionPart = { inlineData: { mimeType: string; data: string } } | { text: string }
 type ArkVisionContentItem = { type: 'input_image'; image_url: string } | { type: 'input_text'; text: string }
 type OpenAiVisionContentItem = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string } }
+type AnthropicVisionImage = { mediaType: string; data: string }
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error && typeof error.message === 'string') return error.message
@@ -44,6 +47,15 @@ function getErrorBody(error: unknown): { message?: unknown; code?: unknown } {
     return root.error as { message?: unknown; code?: unknown }
   }
   return root
+}
+
+function parseDataUrlImage(dataUrl: string): AnthropicVisionImage | null {
+  const base64Start = dataUrl.indexOf(';base64,')
+  if (!dataUrl.startsWith('data:') || base64Start === -1) return null
+  const mediaType = dataUrl.substring(5, base64Start)
+  const data = dataUrl.substring(base64Start + 8)
+  if (!mediaType || !data) return null
+  return { mediaType, data }
 }
 
 export async function chatCompletionWithVision(
@@ -172,6 +184,47 @@ export async function chatCompletionWithVision(
         })
         const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage)
         recordCompletionUsage(resolvedModelId, completion)
+        return completion
+      }
+
+      if (isLuminaProviderId(provider)) {
+        if (!providerConfig.baseUrl) {
+          throw new Error(`PROVIDER_BASE_URL_MISSING: ${provider} (llm)`)
+        }
+        const { normalizeToBase64ForGeneration } = await import('@/lib/media/outbound-image')
+
+        const images: AnthropicVisionImage[] = []
+        for (const url of imageUrls) {
+          try {
+            const dataUrl = url.startsWith('data:') ? url : await normalizeToBase64ForGeneration(url)
+            const parsed = parseDataUrlImage(dataUrl)
+            if (parsed) images.push(parsed)
+          } catch (e) {
+            _ulogError('[LLM Vision] Anthropic-compatible 图片转换失败:', e)
+          }
+        }
+
+        const completion = await completeAnthropicCompatibleVisionLlm({
+          modelId: resolvedModelId,
+          prompt: textPrompt,
+          images,
+          apiKey: providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+          temperature,
+        })
+        recordCompletionUsage(resolvedModelId, completion)
+        llmLogger.info({
+          action: 'llm.vision.success',
+          message: 'llm vision call succeeded',
+          provider: providerKey,
+          durationMs: Date.now() - attemptStartedAt,
+          details: {
+            model: resolvedModelId,
+            attempt,
+            maxRetries,
+            imageCount: imageUrls.length,
+          },
+        })
         return completion
       }
 

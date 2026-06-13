@@ -12,6 +12,26 @@ interface ProjectDataResponse {
     project: Project
 }
 
+export type WorkflowStageId = 'config' | 'script' | 'storyboard' | 'videos' | 'voice' | 'editor'
+export type WorkflowStageStatus = 'empty' | 'active' | 'processing' | 'ready'
+
+export interface WorkflowStageState {
+    id: WorkflowStageId
+    status: WorkflowStageStatus
+    progress: number
+    counts: Record<string, number>
+    reason: string
+}
+
+interface WorkflowStateResponse {
+    projectId: string
+    episodeId: string | null
+    source: 'derived'
+    updatedAt: string
+    reviewStates?: Record<string, 'confirmed' | 'review'>
+    stages: WorkflowStageState[]
+}
+
 /**
  * 获取项目基础数据
  * 替代原有的 useProject hook
@@ -28,6 +48,24 @@ export function useProjectData(projectId: string | null) {
             }
             const data: ProjectDataResponse = await res.json()
             return data.project
+        },
+        enabled: !!projectId,
+        staleTime: 5000,
+    })
+}
+
+export function useWorkflowState(projectId: string | null, episodeId?: string | null) {
+    return useQuery({
+        queryKey: queryKeys.workflowState(projectId || '', episodeId || null),
+        queryFn: async () => {
+            if (!projectId) throw new Error('Project ID is required')
+            const search = episodeId ? `?episodeId=${encodeURIComponent(episodeId)}` : ''
+            const res = await apiFetch(`/api/projects/${projectId}/workflow-state${search}`)
+            if (!res.ok) {
+                const error = await res.json()
+                throw new Error(resolveTaskErrorMessage(error, 'Failed to load workflow state'))
+            }
+            return await res.json() as WorkflowStateResponse
         },
         enabled: !!projectId,
         staleTime: 5000,

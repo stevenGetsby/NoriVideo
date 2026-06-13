@@ -21,7 +21,7 @@ logs/
 docker-logs/
 *.log
 downloads/
-data/
+/data/
 
 # Local debug artifacts
 .DS_Store

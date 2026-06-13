@@ -152,8 +152,8 @@ export default function StoryInputComposer({
         />
       </div>
 
-      <div className="flex items-center gap-2 overflow-x-auto px-5 pb-4">
-        <div className="flex min-w-max flex-1 items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 overflow-visible px-5 pb-4 sm:flex-nowrap sm:overflow-x-auto">
+        <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto sm:min-w-max sm:flex-nowrap">
           <div className="w-[118px] flex-shrink-0">
             <RatioSelector
               value={videoRatio}
@@ -183,7 +183,7 @@ export default function StoryInputComposer({
             </div>
           ) : null}
         </div>
-        <div className="ml-auto flex min-w-max items-center gap-2">
+        <div className="flex min-w-0 w-full flex-wrap items-center justify-between gap-2 pt-2 sm:ml-auto sm:w-auto sm:min-w-max sm:flex-nowrap sm:justify-start sm:pt-0">
           {secondaryActions}
           {primaryAction}
         </div>

@@ -12,9 +12,11 @@ function VideoPanelCardLayout(props: VideoPanelCardShellProps) {
   const runtime = useVideoPanelActions(props)
 
   return (
-    <div className="glass-surface-elevated overflow-visible">
+    <div className="glass-surface-elevated overflow-hidden border border-[var(--glass-border-light)] bg-[var(--glass-bg-surface)]">
+      <div className="grid gap-0 lg:grid-cols-[minmax(220px,320px)_minmax(0,1fr)]">
       <VideoPanelCardHeader runtime={runtime} />
       <VideoPanelCardBody runtime={runtime} />
+      </div>
       <VideoPanelCardFooter runtime={runtime} />
     </div>
   )

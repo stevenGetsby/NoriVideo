@@ -6,9 +6,11 @@ import type {
   Storyboard,
   VideoPanel,
 } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video'
+import { readPanelSeedanceReferenceAssetsFromActingNotes } from '@/lib/novel-promotion/seedance-reference-assets'
 
 interface TaskStateLike {
   phase?: string | null
+  hasOutputAtStart?: boolean | null
   lastError?: { code?: string; message?: string } | null
 }
 
@@ -56,6 +58,14 @@ export function useVideoPanelsProjection({
         const panelId = panel.id
         const panelVideoState = panelId ? panelVideoStates.getTaskState(`panel-video:${panelId}`) : null
         const panelLipState = panelId ? panelLipStates.getTaskState(`panel-lip:${panelId}`) : null
+        const hasVideoOutput = Boolean(panel.videoUrl)
+        const hasLipSyncOutput = Boolean(panel.lipSyncVideoUrl)
+        const shouldShowVideoTaskState = !hasVideoOutput || panelVideoState?.hasOutputAtStart === true
+        const shouldShowLipSyncTaskState = !hasLipSyncOutput || panelLipState?.hasOutputAtStart === true
+        const isVideoTaskRunning = shouldShowVideoTaskState
+          && (panelVideoState?.phase === 'queued' || panelVideoState?.phase === 'processing')
+        const isLipSyncTaskRunning = shouldShowLipSyncTaskState
+          && (panelLipState?.phase === 'queued' || panelLipState?.phase === 'processing')
 
         panels.push({
           panelId,
@@ -73,30 +83,31 @@ export function useVideoPanelsProjection({
             imagePrompt: panel.imagePrompt || undefined,
             video_prompt: panel.videoPrompt || undefined,
             videoModel: panel.videoModel || undefined,
+            seedanceReferenceAssets: readPanelSeedanceReferenceAssetsFromActingNotes(panel.actingNotes),
           },
           imageUrl: panel.imageUrl || undefined,
           firstLastFramePrompt: panel.firstLastFramePrompt || undefined,
           videoUrl: panel.videoUrl || undefined,
           videoGenerationMode: panel.videoGenerationMode || undefined,
-          videoTaskRunning: panelVideoState?.phase === 'queued' || panelVideoState?.phase === 'processing',
+          videoTaskRunning: isVideoTaskRunning,
           videoErrorCode:
-            panelVideoState?.phase === 'failed'
+            shouldShowVideoTaskState && panelVideoState?.phase === 'failed'
               ? panelVideoState.lastError?.code || panel.videoErrorCode || undefined
               : panel.videoErrorCode || undefined,
           videoErrorMessage:
-            panelVideoState?.phase === 'failed'
+            shouldShowVideoTaskState && panelVideoState?.phase === 'failed'
               ? panelVideoState.lastError?.message || panel.videoErrorMessage || undefined
               : panel.videoErrorMessage || undefined,
           videoModel: panel.videoModel || undefined,
           linkedToNextPanel: panel.linkedToNextPanel || false,
           lipSyncVideoUrl: panel.lipSyncVideoUrl || undefined,
-          lipSyncTaskRunning: panelLipState?.phase === 'queued' || panelLipState?.phase === 'processing',
+          lipSyncTaskRunning: isLipSyncTaskRunning,
           lipSyncErrorCode:
-            panelLipState?.phase === 'failed'
+            shouldShowLipSyncTaskState && panelLipState?.phase === 'failed'
               ? panelLipState.lastError?.code || panel.lipSyncErrorCode || undefined
               : panel.lipSyncErrorCode || undefined,
           lipSyncErrorMessage:
-            panelLipState?.phase === 'failed'
+            shouldShowLipSyncTaskState && panelLipState?.phase === 'failed'
               ? panelLipState.lastError?.message || panel.lipSyncErrorMessage || undefined
               : panel.lipSyncErrorMessage || undefined,
         })

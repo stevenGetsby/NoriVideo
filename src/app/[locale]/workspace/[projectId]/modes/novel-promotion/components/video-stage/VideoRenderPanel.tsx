@@ -1,4 +1,3 @@
-import { getAspectRatioConfig } from '@/lib/constants'
 import type { MutableRefObject } from 'react'
 import type { CapabilitySelections, CapabilityValue } from '@/lib/model-config-contract'
 import { VideoPanelCard, type VideoPanel, type VideoModelOption, type MatchedVoiceLine, type FirstLastFrameParams, type VideoGenerationOptions } from '../video'
@@ -112,10 +111,7 @@ export default function VideoRenderPanel({
 }: VideoRenderPanelProps) {
   return (
     <>
-      <div className={`grid gap-4 ${getAspectRatioConfig(videoRatio).isVertical
-        ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
-        : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
-      }`}>
+      <div className="flex flex-col gap-4">
         {allPanels.map((panel, idx) => {
           const panelKey = `${panel.storyboardId}-${panel.panelIndex}`
           const isLinked = linkedPanels.get(panelKey) || false

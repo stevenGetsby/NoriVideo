@@ -44,6 +44,12 @@ model CharacterAppearance {
   previousDescription  String?                 @db.Text // 上一次的描述词（用于撤回）
   previousDescriptions String?                 @db.Text // 上一次的描述词数组（用于撤回）
   imageMediaId         String?
+  seedanceAssetId      String?
+  seedanceAssetUri     String?                 @db.Text
+  seedanceAssetStatus  String?
+  seedanceAssetError   String?                 @db.Text
+  seedanceAssetImageUrl String?                @db.Text
+  seedanceAssetSyncedAt DateTime?
   imageMedia           MediaObject?            @relation("CharacterAppearanceImageMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
   character            NovelPromotionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
@@ -88,6 +94,8 @@ model NovelPromotionCharacter {
   customVoiceMedia        MediaObject?          @relation("NovelPromotionCharacterVoiceMedia", fields: [customVoiceMediaId], references: [id], onDelete: SetNull)
   voiceId                 String?
   voiceType               String?
+  seedanceAssetGroupId    String?
+  seedanceAssetsProjectName String?
   profileData             String?               @db.Text
   profileConfirmed        Boolean               @default(false)
   introduction            String?               @db.Text // 角色介绍（身份、关系、称呼映射，如"我"对应此角色）
@@ -559,6 +567,9 @@ model UserPreference {
   falApiKey   String? @db.Text // FAL（图片+视频+语音）
   googleAiKey String? @db.Text // Google AI（Gemini 图片）
   arkApiKey   String? @db.Text // 火山引擎（Seedream+Seedance）
+  arkAssetsAccessKeyId String? @db.Text // 火山引擎素材库 AK（加密存储）
+  arkAssetsSecretAccessKey String? @db.Text // 火山引擎素材库 SK（加密存储）
+  arkAssetsProjectName String? @default("default") // 火山素材库 ProjectName
   qwenApiKey  String? @db.Text // 阿里百炼（声音设计）
 
   // 自定义模型列表 + 价格（JSON）

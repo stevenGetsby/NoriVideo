@@ -1,0 +1,11 @@
+{
+  "id": "ugc-platform-promo",
+  "name": "UGC平台宣传短片",
+  "description": "面向创作者、社区和内容平台增长的UGC平台介绍、口播和产品宣传短片。",
+  "keywords": ["UGC", "ugc", "创作者", "内容平台", "社区", "发布内容", "平台介绍", "creator platform"],
+  "defaultConfig": {
+    "videoRatio": "9:16",
+    "artStyle": "realistic",
+    "visualStyle": "浅色科技产品宣传风格，真实口播镜头，干净工作台，平台界面和创作者内容流作为视觉重点"
+  }
+}

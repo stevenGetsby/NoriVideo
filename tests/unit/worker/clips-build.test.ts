@@ -49,6 +49,11 @@ vi.mock('@/lib/prompt-i18n', () => ({
   buildPrompt: vi.fn(() => 'clip-split-prompt'),
 }))
 vi.mock('@/lib/novel-promotion/story-to-script/clip-matching', () => ({
+  buildWholeContentClipBoundary: (content: string) => ({
+    startText: content.trim(),
+    endText: content.trim(),
+    content: content.trim(),
+  }),
   createClipContentMatcher: (content: string) => ({
     matchBoundary: (start: string, end: string, fromIndex = 0) => {
       const startIndex = content.indexOf(start, fromIndex)
@@ -61,6 +66,7 @@ vi.mock('@/lib/novel-promotion/story-to-script/clip-matching', () => ({
       }
     },
   }),
+  shouldFallbackToWholeContentSingleClip: () => false,
 }))
 
 import { handleClipsBuildTask } from '@/lib/workers/handlers/clips-build'

@@ -8,6 +8,7 @@ import {
   uploadImageSourceToCos,
   withLabelBar,
 } from '../utils'
+import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
 
 export type AnyObj = Record<string, unknown>
 
@@ -18,6 +19,7 @@ interface CharacterAppearanceLike {
   descriptions?: string | null
   imageUrls: string | null
   imageUrl: string | null
+  imageMediaId?: string | null
   selectedIndex: number | null
 }
 
@@ -32,10 +34,12 @@ interface LocationImageLike {
   imageIndex?: number
   isSelected: boolean
   imageUrl: string | null
+  imageMediaId?: string | null
 }
 
 interface LocationLike {
   name: string
+  assetKind?: string | null
   images?: LocationImageLike[]
 }
 
@@ -47,8 +51,13 @@ interface NovelProjectData {
 
 interface PanelLike {
   sketchImageUrl?: string | null
+  sketchImageMediaId?: string | null
   characters?: string | null
   location?: string | null
+  props?: string | null
+  description?: string | null
+  videoPrompt?: string | null
+  srtSegment?: string | null
 }
 
 export interface PanelCharacterReference {
@@ -198,6 +207,24 @@ export function parsePanelCharacterReferences(value: string | null | undefined):
   }
 }
 
+function parsePanelPropReferences(value: string | null | undefined): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item: unknown) => {
+        if (typeof item === 'string') return item.trim()
+        if (!item || typeof item !== 'object') return ''
+        const candidate = item as { name?: unknown }
+        return typeof candidate.name === 'string' ? candidate.name.trim() : ''
+      })
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
 /**
  * 按角色名查找角色（支持别名匹配）
  * 优先级：1. 精确全名匹配  2. 按 '/' 拆分后别名精确匹配
@@ -225,7 +252,8 @@ export function findCharacterByName<T extends { name: string }>(characters: T[],
 export async function collectPanelReferenceImages(projectData: NovelProjectData, panel: PanelLike) {
   const refs: string[] = []
 
-  const sketch = toSignedUrlIfCos(panel.sketchImageUrl, 3600)
+  const sketchRef = await resolveMediaRef(panel.sketchImageMediaId, panel.sketchImageUrl)
+  const sketch = toSignedUrlIfCos(mediaUrlFromRef(sketchRef, panel.sketchImageUrl), 3600)
   if (sketch) refs.push(sketch)
 
   const panelCharacters = parsePanelCharacterReferences(panel.characters)
@@ -245,19 +273,42 @@ export async function collectPanelReferenceImages(projectData: NovelProjectData,
     const imageUrls = parseImageUrls(appearance.imageUrls, 'characterAppearance.imageUrls')
     const selectedIndex = appearance.selectedIndex
     const selectedUrl = selectedIndex !== null && selectedIndex !== undefined ? imageUrls[selectedIndex] : null
-    const key = selectedUrl || imageUrls[0] || appearance.imageUrl
+    const mediaRef = await resolveMediaRef(appearance.imageMediaId, selectedUrl || imageUrls[0] || appearance.imageUrl)
+    const key = mediaUrlFromRef(mediaRef, selectedUrl || imageUrls[0] || appearance.imageUrl)
     const signed = toSignedUrlIfCos(key, 3600)
     if (signed) refs.push(signed)
   }
 
   if (panel.location) {
-    const location = (projectData.locations || []).find((loc) => loc.name.toLowerCase() === panel.location!.toLowerCase())
+    const location = (projectData.locations || []).find((loc) => (
+      loc.assetKind !== 'prop'
+      && loc.name.toLowerCase() === panel.location!.toLowerCase()
+    ))
     if (location) {
       const images = location.images || []
       const selected = images.find((img) => img.isSelected) || images[0]
-      const signed = toSignedUrlIfCos(selected?.imageUrl, 3600)
+      const mediaRef = await resolveMediaRef(selected?.imageMediaId, selected?.imageUrl)
+      const signed = toSignedUrlIfCos(mediaUrlFromRef(mediaRef, selected?.imageUrl), 3600)
       if (signed) refs.push(signed)
     }
+  }
+
+  const explicitProps = parsePanelPropReferences(panel.props)
+  const visibleText = [
+    panel.description,
+    panel.videoPrompt,
+    panel.srtSegment,
+  ].filter((item): item is string => typeof item === 'string' && item.trim().length > 0).join('\n')
+  const propNames = new Set(explicitProps.map((item) => item.toLowerCase()))
+  for (const location of projectData.locations || []) {
+    if (location.assetKind !== 'prop') continue
+    const lowerName = location.name.toLowerCase()
+    if (!propNames.has(lowerName) && !visibleText.includes(location.name)) continue
+    const images = location.images || []
+    const selected = images.find((img) => img.isSelected) || images[0]
+    const mediaRef = await resolveMediaRef(selected?.imageMediaId, selected?.imageUrl)
+    const signed = toSignedUrlIfCos(mediaUrlFromRef(mediaRef, selected?.imageUrl), 3600)
+    if (signed) refs.push(signed)
   }
 
   return refs

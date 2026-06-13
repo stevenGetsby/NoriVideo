@@ -1,0 +1,42 @@
+version: 1
+windows:
+  development.algorithm:
+    session_id: 8b7c32c6-fdb4-495c-a8d0-4fba93c3db4f
+    label: NoriVideo/development/algorithm
+    agent: codex
+    slot: development
+    window: algorithm
+  development.backend:
+    label: NoriVideo/development/backend
+    agent: codex
+    slot: development
+    window: backend
+    launch_fingerprint: sha256:1e3a3344e828f74927abeb67c22f3844114bbbafc0e35ee33cc67cb028722762
+    launch_spec_version: 1
+    managed_runtime: terminal
+    tmux_session: NoriVideo-development
+    session_binding_status: pending_capture
+    session_binding_updated_at: '2026-06-02T11:23:40Z'
+  development.docs:
+    session_id: 508fc6af-2663-4015-a220-75cd59d33eed
+    label: NoriVideo/development/docs
+    agent: codex
+    slot: development
+    window: docs
+  development.frontend:
+    label: NoriVideo/development/frontend
+    agent: codex
+    slot: development
+    window: frontend
+    launch_fingerprint: sha256:3e40dfec568dcf851683e11b5d3a8e3c6af3cfe148c43512eab0d22c1976ed86
+    launch_spec_version: 1
+    managed_runtime: terminal
+    tmux_session: NoriVideo-development
+    session_binding_status: pending_capture
+    session_binding_updated_at: '2026-06-02T11:23:40Z'
+slots:
+  development:
+    name: development
+    tmux_session: NoriVideo-development
+    runtime: terminal
+    last_seen_at: '2026-06-02T11:23:40Z'

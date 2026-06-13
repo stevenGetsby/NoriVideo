@@ -214,6 +214,7 @@ function readResponseMap(
   const keys: Array<keyof TemplateResponseMap & string> = [
     'taskIdPath',
     'statusPath',
+    'outputB64JsonPath',
     'outputUrlPath',
     'outputUrlsPath',
     'errorPath',
@@ -427,11 +428,11 @@ function validateModeSpecificRequirements(
     return
   }
 
-  if (!template.response.outputUrlPath && !template.response.outputUrlsPath) {
+  if (!template.response.outputB64JsonPath && !template.response.outputUrlPath && !template.response.outputUrlsPath) {
     issues.push({
       code: 'MODEL_TEMPLATE_UNMAPPABLE',
       field: 'response',
-      message: 'sync mode requires outputUrlPath or outputUrlsPath',
+      message: 'sync mode requires outputB64JsonPath, outputUrlPath, or outputUrlsPath',
     })
   }
 }

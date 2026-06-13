@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import type { CustomModel, Provider } from '../../api-config'
 import { PRESET_PROVIDERS, getProviderKey } from '../../api-config'
 
@@ -127,10 +127,27 @@ export function useApiConfigFilters({
     return grouped
   }, [models, providers])
 
+  const modelsByProvider = useMemo(() => {
+    const grouped = new Map<string, CustomModel[]>()
+    for (const model of models) {
+      const current = grouped.get(model.provider)
+      if (current) {
+        current.push(model)
+      } else {
+        grouped.set(model.provider, [model])
+      }
+    }
+    return grouped
+  }, [models])
+
+  const getModelsForProvider = useCallback(
+    (providerId: string) => modelsByProvider.get(providerId) || [],
+    [modelsByProvider],
+  )
+
   return {
     modelProviders,
-    getModelsForProvider: (providerId: string) =>
-      models.filter((model) => model.provider === providerId),
+    getModelsForProvider,
     getEnabledModelsByType: (type: 'llm' | 'image' | 'video' | 'audio' | 'lipsync' | 'voicedesign') => enabledModelsByType[type],
   }
 }

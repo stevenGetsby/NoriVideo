@@ -54,13 +54,6 @@ export default function VideoPromptModal({
             </div>
             <div><span className="text-[var(--glass-text-tertiary)]">{t('promptModal.location')}</span>{panel.textPanel?.location || t('promptModal.locationUnknown')}</div>
             <div><span className="text-[var(--glass-text-tertiary)]">{t('promptModal.characters')}</span>{panel.textPanel?.characters?.join('、') || t('promptModal.charactersNone')}</div>
-            <div><span className="text-[var(--glass-text-tertiary)]">{t('promptModal.description')}</span>{panel.textPanel?.description}</div>
-            {panel.textPanel?.text_segment && (
-              <div className="border-t pt-2 mt-2">
-                <span className="text-[var(--glass-text-tertiary)]">{t('promptModal.text')}</span>
-                <span className="text-[var(--glass-text-secondary)] italic">&quot;{panel.textPanel.text_segment}&quot;</span>
-              </div>
-            )}
           </div>
 
           {/* 视频提示词编辑 */}

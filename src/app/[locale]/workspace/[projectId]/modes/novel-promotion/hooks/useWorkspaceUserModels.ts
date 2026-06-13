@@ -17,6 +17,7 @@ export interface UserModelOption {
 
 export interface UserModelsPayload {
   llm: UserModelOption[]
+  vision: UserModelOption[]
   image: UserModelOption[]
   video: UserModelOption[]
   audio: UserModelOption[]

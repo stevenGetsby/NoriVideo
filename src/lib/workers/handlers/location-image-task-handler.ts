@@ -15,6 +15,7 @@ import {
 } from './image-task-handler-shared'
 import { buildLocationImagePromptCore } from '@/lib/location-image-prompt'
 import { buildPropImagePromptCore } from '@/lib/prop-image-prompt'
+import { refreshProjectPanelReferenceAssets } from '@/lib/novel-promotion/refresh-panel-reference-assets'
 
 function resolvePayloadArtStyle(payload: AnyObj): string | undefined {
   if (!Object.prototype.hasOwnProperty.call(payload, 'artStyle')) return undefined
@@ -182,6 +183,10 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
       data: { imageUrl: imageKey },
     })
   }
+  await refreshProjectPanelReferenceAssets({
+    projectId,
+    episodeId: job.data.episodeId,
+  })
 
   return {
     updated: locationImages.length,

@@ -52,6 +52,7 @@ export default function StoryboardGroup({
   onOpenLocationPicker,
   onRemoveCharacter,
   onRemoveLocation,
+  onConfirmPanelAssetUsage,
   onRetryPanelSave,
   onRegeneratePanelImage,
   onOpenEditModal,
@@ -221,6 +222,7 @@ export default function StoryboardGroup({
         onOpenLocationPicker={onOpenLocationPicker}
         onRemoveCharacter={onRemoveCharacter}
         onRemoveLocation={onRemoveLocation}
+        onConfirmPanelAssetUsage={onConfirmPanelAssetUsage}
         onRetryPanelSave={onRetryPanelSave}
         onRegeneratePanelImage={handleRegeneratePanelImage}
         onOpenEditModal={onOpenEditModal}

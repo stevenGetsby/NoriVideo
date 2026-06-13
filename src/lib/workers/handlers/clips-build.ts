@@ -4,7 +4,11 @@ import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { buildCharactersIntroduction } from '@/lib/constants'
-import { createClipContentMatcher } from '@/lib/novel-promotion/story-to-script/clip-matching'
+import {
+  buildWholeContentClipBoundary,
+  createClipContentMatcher,
+  shouldFallbackToWholeContentSingleClip,
+} from '@/lib/novel-promotion/story-to-script/clip-matching'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
@@ -22,6 +26,25 @@ function parseClipArrayResponse(responseText: string): Array<Record<string, unkn
 
 function readText(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+function normalizeBoundaryText(value: string): string {
+  return value.replace(/\s+/g, '')
+}
+
+function isWholeContentSingleClip(input: {
+  clipCount: number
+  startText: string
+  endText: string
+  content: string
+}): boolean {
+  if (input.clipCount !== 1) return false
+  const content = normalizeBoundaryText(input.content.trim())
+  if (!content) return false
+  return (
+    normalizeBoundaryText(input.startText) === content
+    && normalizeBoundaryText(input.endText) === content
+  )
 }
 
 const MAX_SPLIT_BOUNDARY_ATTEMPTS = 2
@@ -175,8 +198,45 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
         const clipData = parsed[i]
         const startText = readText(clipData.start)
         const endText = readText(clipData.end)
+        if (isWholeContentSingleClip({
+          clipCount: parsed.length,
+          startText,
+          endText,
+          content: contentToProcess,
+        })) {
+          currentResolved.push({
+            startText,
+            endText,
+            summary: readText(clipData.summary),
+            location: readText(clipData.location) || null,
+            characters: clipData.characters,
+            props: clipData.props,
+            content: contentToProcess,
+          })
+          searchFrom = contentToProcess.length
+          continue
+        }
         const match = matcher.matchBoundary(startText, endText, searchFrom)
         if (!match) {
+          if (shouldFallbackToWholeContentSingleClip({
+            clipCount: parsed.length,
+            startText,
+            endText,
+            content: contentToProcess,
+          })) {
+            const fallback = buildWholeContentClipBoundary(contentToProcess)
+            currentResolved.push({
+              startText: fallback.startText,
+              endText: fallback.endText,
+              summary: readText(clipData.summary),
+              location: readText(clipData.location) || null,
+              characters: clipData.characters,
+              props: clipData.props,
+              content: fallback.content,
+            })
+            searchFrom = contentToProcess.length
+            continue
+          }
           failedAt = { index: i + 1, startText, endText }
           break
         }

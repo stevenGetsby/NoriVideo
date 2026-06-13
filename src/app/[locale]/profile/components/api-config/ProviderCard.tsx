@@ -1,11 +1,14 @@
 'use client'
 
+import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { ProviderAdvancedFields } from './provider-card/ProviderAdvancedFields'
 import { ProviderBaseFields } from './provider-card/ProviderBaseFields'
 import { ProviderCardShell } from './provider-card/ProviderCardShell'
 import { useProviderCardState } from './provider-card/hooks/useProviderCardState'
 import type { ProviderCardProps } from './provider-card/types'
+
+const EMPTY_PROVIDER_MODELS: ProviderCardProps['models'] = []
 
 export function ProviderCard({
   provider,
@@ -26,10 +29,12 @@ export function ProviderCard({
   showProviderLabel,
 }: ProviderCardProps) {
   const t = useTranslations('apiConfig')
+  const [expanded, setExpanded] = useState(false)
+  const activeModels = expanded ? models : EMPTY_PROVIDER_MODELS
 
   const state = useProviderCardState({
     provider,
-    models,
+    models: activeModels,
     allModels,
     defaultModels,
     onUpdateApiKey,
@@ -50,16 +55,22 @@ export function ProviderCard({
       showProviderLabel={showProviderLabel}
       t={t}
       state={state}
+      expanded={expanded}
+      onToggleExpanded={() => setExpanded((current) => !current)}
     >
-      <ProviderBaseFields provider={provider} t={t} state={state} />
-      <ProviderAdvancedFields
-        provider={provider}
-        onToggleModel={onToggleModel}
-        onDeleteModel={onDeleteModel}
-        onUpdateModel={onUpdateModel}
-        t={t}
-        state={state}
-      />
+      {expanded && (
+        <>
+          <ProviderBaseFields provider={provider} t={t} state={state} />
+          <ProviderAdvancedFields
+            provider={provider}
+            onToggleModel={onToggleModel}
+            onDeleteModel={onDeleteModel}
+            onUpdateModel={onUpdateModel}
+            t={t}
+            state={state}
+          />
+        </>
+      )}
     </ProviderCardShell>
   )
 }

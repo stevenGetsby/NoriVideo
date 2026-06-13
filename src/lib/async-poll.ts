@@ -21,6 +21,8 @@ import { queryGeminiBatchStatus, querySeedanceVideoStatus, queryGoogleVideoStatu
 import { getProviderConfig, getUserModels } from './api-config'
 import { buildRenderedTemplateRequest, buildTemplateVariables, normalizeResponseJson, readJsonPath } from './openai-compat-template-runtime'
 import { composeModelKey } from './model-config-contract'
+import { queryHfsySd2VideoTask } from './generators/hfsy-video'
+import { HFSY_PROVIDER_ID } from './hfsy-fixed-models'
 
 const OPENAI_COMPAT_PROVIDER_PREFIX = 'openai-compatible:'
 const PROVIDER_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -48,7 +50,7 @@ function getErrorMessage(error: unknown): string {
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'HFSY' | 'UNKNOWN'
     type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
@@ -210,9 +212,23 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    if (externalId.startsWith('HFSY:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        const requestId = parts.slice(2).join(':')
+        if (type !== 'VIDEO' || !requestId) {
+            throw new Error(`无效 HFSY externalId: "${externalId}"，应为 HFSY:VIDEO:taskId`)
+        }
+        return {
+            provider: 'HFSY',
+            type: 'VIDEO',
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, HFSY:VIDEO:taskId`
     )
 }
 
@@ -252,10 +268,24 @@ export async function pollAsyncTask(
             return await pollBailianTask(parsed.requestId, userId)
         case 'SILICONFLOW':
             return await pollSiliconFlowTask(parsed.requestId)
+        case 'HFSY':
+            return await pollHfsyVideoTask(parsed.requestId, userId)
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
     }
+}
+
+async function pollHfsyVideoTask(
+    taskId: string,
+    userId: string,
+): Promise<PollResult> {
+    const { apiKey, baseUrl } = await getProviderConfig(userId, HFSY_PROVIDER_ID)
+    return await queryHfsySd2VideoTask({
+        apiKey,
+        baseUrl,
+        taskId,
+    })
 }
 
 function decodeProviderId(token: string): string {

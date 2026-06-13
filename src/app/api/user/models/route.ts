@@ -19,6 +19,12 @@ import {
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
+import { isLuminaAnthropicCompatibleVisionCapableModel } from '@/lib/lumina-anthropic-compatible-models'
+import {
+  getModelCapabilityGroup,
+  isLuminaProviderId,
+  isSupportedModelProvider,
+} from '@/lib/model-provider-contract'
 
 type StoredModelType = UnifiedModelType | string
 
@@ -46,7 +52,9 @@ interface UserModelOption {
 }
 
 interface UserModelsPayload {
+  text: UserModelOption[]
   llm: UserModelOption[]
+  vision: UserModelOption[]
   image: UserModelOption[]
   video: UserModelOption[]
   audio: UserModelOption[]
@@ -56,6 +64,19 @@ interface UserModelsPayload {
 const AUDIO_MODEL_EXCLUDED_IDS = new Set([
   'qwen-voice-design',
 ])
+
+const DEFAULT_MODEL_FIELD_TO_TYPE = {
+  analysisModel: 'llm',
+  characterModel: 'image',
+  locationModel: 'image',
+  storyboardModel: 'image',
+  editModel: 'image',
+  videoModel: 'video',
+  audioModel: 'audio',
+  lipSyncModel: 'lipsync',
+} as const
+
+type DefaultModelField = keyof typeof DEFAULT_MODEL_FIELD_TO_TYPE
 
 function isUnifiedModelType(type: unknown): type is UnifiedModelType {
   return (
@@ -96,6 +117,29 @@ function toModelId(model: StoredModel): string {
 function toDisplayLabel(model: StoredModel, fallbackModelId: string): string {
   if (typeof model.name === 'string' && model.name.trim()) return model.name.trim()
   return fallbackModelId
+}
+
+function appendDefaultModelSelections(
+  models: StoredModel[],
+  defaults: Partial<Record<DefaultModelField, string | null | undefined>>,
+): StoredModel[] {
+  const seen = new Set(models.map((model) => toModelKey(model)).filter(Boolean))
+  const merged = [...models]
+
+  for (const [field, modelKey] of Object.entries(defaults) as Array<[DefaultModelField, string | null | undefined]>) {
+    const parsed = parseModelKeyStrict(typeof modelKey === 'string' ? modelKey : '')
+    if (!parsed || seen.has(parsed.modelKey)) continue
+    seen.add(parsed.modelKey)
+    merged.push({
+      modelId: parsed.modelId,
+      modelKey: parsed.modelKey,
+      name: parsed.modelId,
+      type: DEFAULT_MODEL_FIELD_TO_TYPE[field],
+      provider: parsed.provider,
+    })
+  }
+
+  return merged
 }
 
 function dedupeByModelKey(items: UserModelOption[]): UserModelOption[] {
@@ -163,6 +207,13 @@ function isUserSelectableModel(model: StoredModel): boolean {
   return !AUDIO_MODEL_EXCLUDED_IDS.has(modelId)
 }
 
+function isImageUnderstandingModel(model: StoredModel): boolean {
+  if (model.type !== 'llm') return false
+  const provider = toProvider(model)
+  if (!provider || !isLuminaProviderId(provider)) return false
+  return isLuminaAnthropicCompatibleVisionCapableModel(toModelId(model))
+}
+
 export const GET = apiHandler(async () => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
@@ -171,10 +222,33 @@ export const GET = apiHandler(async () => {
 
   const pref = await prisma.userPreference.findUnique({
     where: { userId },
-    select: { customModels: true, customProviders: true },
+    select: {
+      customModels: true,
+      customProviders: true,
+      analysisModel: true,
+      characterModel: true,
+      locationModel: true,
+      storyboardModel: true,
+      editModel: true,
+      videoModel: true,
+      audioModel: true,
+      lipSyncModel: true,
+    },
   })
 
-  const modelsRaw: StoredModel[] = parseStoredModels(pref?.customModels)
+  const modelsRaw: StoredModel[] = appendDefaultModelSelections(
+    parseStoredModels(pref?.customModels),
+    {
+      analysisModel: pref?.analysisModel,
+      characterModel: pref?.characterModel,
+      locationModel: pref?.locationModel,
+      storyboardModel: pref?.storyboardModel,
+      editModel: pref?.editModel,
+      videoModel: pref?.videoModel,
+      audioModel: pref?.audioModel,
+      lipSyncModel: pref?.lipSyncModel,
+    },
+  )
   const providers: StoredProvider[] = parseStoredProviders(pref?.customProviders)
 
   const providerNameMap = new Map<string, string>()
@@ -190,7 +264,9 @@ export const GET = apiHandler(async () => {
   })
 
   const grouped: UserModelsPayload = {
+    text: [],
     llm: [],
+    vision: [],
     image: [],
     video: [],
     audio: [],
@@ -207,6 +283,7 @@ export const GET = apiHandler(async () => {
 
     const provider = toProvider(model)
     if (!provider || !providerIdsWithApiKey.has(provider)) continue
+    if (!isSupportedModelProvider(provider)) continue
     const modelId = toModelId(model)
     const option: UserModelOption = {
       value: modelKey,
@@ -229,11 +306,21 @@ export const GET = apiHandler(async () => {
       }
     }
 
+    const capabilityGroup = getModelCapabilityGroup({
+      provider,
+      modelId,
+      type: modelType,
+    })
+
     grouped[modelType].push(option)
+    if (capabilityGroup === 'text') grouped.text.push(option)
+    if (isImageUnderstandingModel(model)) grouped.vision.push(option)
   }
 
   return NextResponse.json({
+    text: dedupeByModelKey(grouped.text),
     llm: dedupeByModelKey(grouped.llm),
+    vision: dedupeByModelKey(grouped.vision),
     image: dedupeByModelKey(grouped.image),
     video: dedupeByModelKey(grouped.video),
     audio: dedupeByModelKey(grouped.audio),

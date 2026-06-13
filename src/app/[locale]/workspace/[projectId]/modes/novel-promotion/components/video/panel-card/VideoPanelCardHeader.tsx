@@ -18,9 +18,7 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
     layout,
     media,
     taskStatus,
-    videoModel,
     player,
-    actions,
   } = runtime
 
   const [errorDismissed, setErrorDismissed] = useState(false)
@@ -31,19 +29,20 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
   }, [taskStatus.panelErrorDisplay?.message])
 
   const hasVisibleBaseVideo = !!media.baseVideoUrl
-  const showFirstLastFrameSwitch = layout.hasNext
+  const showFirstLastFrameSwitch = false
 
   return (
-    <div className="bg-[var(--glass-bg-muted)] flex items-center justify-center relative" style={{ aspectRatio: player.cssAspectRatio }}>
-      {hasVisibleBaseVideo && player.isPlaying ? (
+    <div className="bg-[var(--glass-bg-muted)] flex min-h-[240px] items-center justify-center relative lg:min-h-[360px]" style={{ aspectRatio: player.cssAspectRatio }}>
+      {hasVisibleBaseVideo && (player.isPlaying || player.hasStartedPlayback) ? (
         <video
           ref={player.videoRef}
-          key={`video-${panel.storyboardId}-${panel.panelIndex}-${media.currentVideoUrl}`}
+          key={`video-${panel.storyboardId}-${panel.panelIndex}-${media.showLipSyncVideo ? 'lip-sync' : 'base'}`}
           src={media.currentVideoUrl}
+          poster={panel.imageUrl || undefined}
           controls
           playsInline
           className="w-full h-full object-contain bg-black"
-          onEnded={() => player.setIsPlaying(false)}
+          onEnded={player.handleEnded}
         />
       ) : hasVisibleBaseVideo ? (
         <div
@@ -76,7 +75,7 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
 
       {/* 镜头编号 */}
       <div className="absolute top-2 left-2 bg-[var(--glass-overlay)] text-white px-2 py-0.5 rounded text-xs font-medium">
-        {panelIndex + 1}
+        SH{String(panelIndex + 1).padStart(2, '0')}
       </div>
 
       {/* 两卡片中间唯一的链接/断开按钮 */}
@@ -85,10 +84,7 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
         <div className="absolute -right-6 top-1/2 -translate-y-1/2 z-30">
           <div className="relative">
             <button
-              onClick={(event) => {
-                event.stopPropagation()
-                actions.onToggleLink(panelKey, panel.storyboardId, panel.panelIndex)
-              }}
+              onClick={(event) => event.stopPropagation()}
               onMouseEnter={() => setShowTooltip(true)}
               onMouseLeave={() => setShowTooltip(false)}
               className={`h-8 w-8 rounded-full flex items-center justify-center shadow-[var(--glass-shadow-sm)] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--glass-stroke-focus)] ${layout.isLinked
@@ -132,28 +128,6 @@ export default function VideoPanelCardHeader({ runtime }: VideoPanelCardHeaderPr
       ) : null}
 
       {/* 重新生成按钮 */}
-      {!layout.isLinked && !layout.isLastFrame && (hasVisibleBaseVideo || taskStatus.isVideoTaskRunning) && (
-        <button
-          onClick={() =>
-            actions.onGenerateVideo(
-              panel.storyboardId,
-              panel.panelIndex,
-              videoModel.selectedModel,
-              undefined,
-              videoModel.generationOptions,
-              panel.panelId,
-            )}
-          disabled={
-            taskStatus.isVideoTaskRunning
-            || !videoModel.selectedModel
-            || videoModel.missingCapabilityFields.length > 0
-          }
-          className="absolute bottom-2 right-2 bg-[var(--glass-overlay)] hover:bg-[var(--glass-overlay-strong)] text-white p-2 rounded-full transition-all z-20 disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          <AppIcon name="refresh" className="w-4 h-4" />
-        </button>
-      )}
-
       {/* 任务进度遮罩 */}
       {(taskStatus.isVideoTaskRunning || taskStatus.isLipSyncTaskRunning) && (
         <TaskStatusOverlay state={taskStatus.overlayPresentation} className="z-10" />

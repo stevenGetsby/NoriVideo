@@ -1,12 +1,16 @@
 'use client'
 
 import type { StageArtifactReadiness } from '@/lib/novel-promotion/stage-readiness'
+import type { WorkflowStageState, WorkflowStageStatus } from '@/lib/query/hooks/useProjectData'
 
-interface CapsuleNavItem {
+export interface CapsuleNavItem {
   id: string
   icon: string
   label: string
   status: 'empty' | 'active' | 'processing' | 'ready'
+  progress?: number
+  counts?: Record<string, number>
+  reason?: string
   disabled?: boolean
   disabledLabel?: string
 }
@@ -14,21 +18,28 @@ interface CapsuleNavItem {
 interface UseWorkspaceStageNavigationParams {
   isAnyOperationRunning: boolean
   stageArtifacts: StageArtifactReadiness
+  workflowStages?: WorkflowStageState[]
   t: (key: string) => string
 }
 
 export function useWorkspaceStageNavigation({
   isAnyOperationRunning,
   stageArtifacts,
+  workflowStages,
   t,
 }: UseWorkspaceStageNavigationParams): CapsuleNavItem[] {
-  const getStageStatus = (stageId: string): 'empty' | 'active' | 'processing' | 'ready' => {
+  const workflowStageMap = new Map(workflowStages?.map((stage) => [stage.id, stage]))
+
+  const getStageStatus = (stageId: WorkflowStageState['id']): WorkflowStageStatus => {
     if (isAnyOperationRunning) return 'processing'
+
+    const serverStage = workflowStageMap.get(stageId)
+    if (serverStage) return serverStage.status
 
     switch (stageId) {
       case 'config':
         return stageArtifacts.hasStory ? 'ready' : 'active'
-      case 'assets':
+      case 'script':
         return stageArtifacts.hasScript ? 'ready' : 'empty'
       case 'storyboard':
         return stageArtifacts.hasStoryboard ? 'ready' : 'empty'
@@ -42,18 +53,28 @@ export function useWorkspaceStageNavigation({
     }
   }
 
+  const buildStageItem = (
+    stageId: WorkflowStageState['id'],
+    icon: string,
+    label: string,
+  ): CapsuleNavItem => {
+    const serverStage = workflowStageMap.get(stageId)
+    return {
+      id: stageId,
+      icon,
+      label,
+      status: getStageStatus(stageId),
+      progress: serverStage?.progress,
+      counts: serverStage?.counts,
+      reason: serverStage?.reason,
+    }
+  }
+
   return [
-    { id: 'config', icon: 'S', label: t('stages.story'), status: getStageStatus('config') },
-    { id: 'script', icon: 'A', label: t('stages.script'), status: getStageStatus('assets') },
-    { id: 'storyboard', icon: 'B', label: t('stages.storyboard'), status: getStageStatus('storyboard') },
-    { id: 'videos', icon: 'V', label: t('stages.video'), status: getStageStatus('videos') },
-    {
-      id: 'editor',
-      icon: 'E',
-      label: t('stages.editor'),
-      status: 'empty',
-      disabled: true,
-      disabledLabel: t('stages.editorComingSoon'),
-    },
+    buildStageItem('config', 'S', t('stages.story')),
+    buildStageItem('script', 'A', t('stages.script')),
+    buildStageItem('storyboard', 'B', t('stages.storyboard')),
+    buildStageItem('videos', 'V', t('stages.video')),
+    buildStageItem('editor', 'E', t('stages.editor')),
   ]
 }

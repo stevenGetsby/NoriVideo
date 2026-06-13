@@ -110,11 +110,73 @@ export class JsonParseError extends Error {
 }
 
 function parseJsonArray<T extends JsonRecord>(responseText: string, label: string): T[] {
-  const rows = safeParseJsonArray(responseText)
+  let rows: JsonRecord[]
+  try {
+    rows = safeParseJsonArray(responseText)
+  } catch (error) {
+    throw new JsonParseError(error instanceof Error ? error.message : `${label}: JSON parse failed`, responseText)
+  }
   if (rows.length === 0) {
     throw new JsonParseError(`${label}: empty result`, responseText)
   }
   return rows as T[]
+}
+
+function isFallbackableStoryboardResponseError(error: unknown): boolean {
+  if (error instanceof JsonParseError) {
+    return error.rawText.trim() === ''
+  }
+  if (!(error instanceof Error)) return false
+  return /returned empty valid panels/i.test(error.message)
+}
+
+function fallbackStoryboardPanel(clip: ClipInput): StoryboardPanel {
+  const clipContent = clip.content?.trim() || formatClipId(clip)
+  return {
+    panel_number: 1,
+    description: clipContent,
+    location: clip.location || '未指定场景',
+    source_text: clipContent,
+    characters: parseClipCharacters(clip.characters ?? null),
+    props: parseClipProps(clip.props ?? null),
+    scene_type: '口播',
+    shot_type: '中景',
+    camera_move: '固定镜头',
+    video_prompt: clipContent,
+    duration: 4,
+  }
+}
+
+function fallbackPhotographyRules(panels: StoryboardPanel[]): PhotographyRule[] {
+  return panels.map((panel, index) => ({
+    panel_number: typeof panel.panel_number === 'number' ? panel.panel_number : index + 1,
+    composition: '主体居中，画面保持清晰',
+    lighting: '柔和均匀光线',
+    color_palette: '自然、干净的品牌色调',
+    atmosphere: '专业、可信、易理解',
+    technical_notes: '保持口播主体稳定，避免复杂运动',
+  }))
+}
+
+function fallbackActingDirections(panels: StoryboardPanel[]): ActingDirection[] {
+  return panels.map((panel, index) => ({
+    panel_number: typeof panel.panel_number === 'number' ? panel.panel_number : index + 1,
+    characters: [],
+  }))
+}
+
+async function withEmptyJsonFallback<T>(
+  operation: () => Promise<T>,
+  fallback: () => T,
+): Promise<T> {
+  try {
+    return await operation()
+  } catch (error) {
+    if (isFallbackableStoryboardResponseError(error)) {
+      return fallback()
+    }
+    throw error
+  }
 }
 
 
@@ -151,6 +213,96 @@ function parseScreenplay(raw: string | null): unknown {
   } catch (error) {
     throw new Error(`Invalid clip screenplay JSON: ${error instanceof Error ? error.message : String(error)}`)
   }
+}
+
+function isShortDramaVideoPromptClip(clip: ClipInput): boolean {
+  const content = clip.content?.trim() || ''
+  const isShotSheetPrompt = content.includes('来源镜头：SH')
+    && content.includes('【分镜')
+    && content.includes('镜头语言：')
+    && content.includes('人物站位：')
+  const isBriefPrompt = content.includes('【短剧角色资产保持不变】')
+    && content.includes('【本分镜负面要求】')
+    && content.includes('镜头语言：')
+    && content.includes('人物站位：')
+  const isAgentPrompt = content.includes('【Agent 视频分镜提示词】')
+    && content.includes('【本分镜负面要求】')
+    && content.includes('本分镜使用资产：')
+    && content.includes('镜头语言：')
+    && content.includes('人物站位：')
+  const isCanonicalPrompt = content.startsWith('场景：')
+    && content.includes('\n剧情片段：')
+    && content.includes('\n执行要求：严格执行本 video_prompt')
+    && content.includes('\n本分镜使用资产：')
+    && content.includes('\n角色行为拆分：')
+    && content.includes('\n人物站位：')
+    && content.includes('\n镜头语言：')
+    && content.includes('\n【本分镜负面要求】')
+  return isShotSheetPrompt || isBriefPrompt || isAgentPrompt || isCanonicalPrompt
+}
+
+function readShortDramaDuration(content: string): number {
+  const match = content.match(/秒数参考：(\d+(?:\.\d+)?)秒/)
+  const rangeEnds = Array.from(content.matchAll(/\n\d+(?:\.\d+)?-(\d+(?:\.\d+)?)s[：:]/g))
+    .map((item) => Number(item[1]))
+    .filter((item) => Number.isFinite(item))
+  const value = Number(match?.[1] || (rangeEnds.length > 0 ? Math.max(...rangeEnds) : 8))
+  if (!Number.isFinite(value)) return 8
+  return Math.max(2, Math.min(15, value))
+}
+
+function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): StoryboardPanel {
+  const content = clip.content?.trim() || formatClipId(clip)
+  const sourceMatch = content.match(/来源镜头：(SH\d+-SH\d+)/)
+  const isAgentPrompt = content.includes('【Agent 视频分镜提示词】') || content.includes('\n执行要求：严格执行本 video_prompt')
+  const isFantasy = /童话|森林|萤火虫|小兔子|月亮灯|fantasy|fairy/i.test(content)
+  const isChina = /中国故事|中国场景|中文环境标识|中国生活语境/.test(content)
+  const isWesternMedical = /现代美国|欧美|英文环境标识|American|hospital|surgery|Dr\.|Nurse/i.test(content)
+  return {
+    panel_number: panelNumber,
+    description: sourceMatch
+      ? `${sourceMatch[1]} 的短剧转绘视频提示词块，按内部秒级拆分执行。`
+      : isAgentPrompt
+        ? 'Agent 生成的视频分镜提示词块，按内部秒级拆分执行。'
+        : '短剧转绘视频提示词块，按内部秒级拆分执行。',
+    location: clip.location || '未指定场景',
+    source_text: content,
+    characters: parseClipCharacters(clip.characters ?? null),
+    props: parseClipProps(clip.props ?? null),
+    scene_type: 'short_drama_remake',
+    shot_type: '复刻分镜块',
+    camera_move: '按视频提示词内部镜头语言执行',
+    video_prompt: content,
+    duration: readShortDramaDuration(content),
+    photographyPlan: {
+      composition: '严格按视频提示词中的人物站位、前景遮挡、景别和构图执行',
+      lighting: isFantasy
+        ? '柔和月光、温暖微光和童话森林环境光保持一致'
+        : isChina
+          ? '符合中国真实生活场景的自然光或室内光，按片段场景保持一致'
+          : isWesternMedical
+            ? '现代美国医院冷白顶灯、手术区或走廊医疗灯光，英文标识环境保持一致'
+            : '真实短剧光线，按片段场景保持一致',
+      colorPalette: isFantasy
+        ? '夜蓝、月光银、萤火虫暖黄绿色，温柔童话质感'
+        : isChina
+          ? '真实中国生活空间色调，自然、克制、可拍摄'
+          : isWesternMedical
+            ? '白色、浅蓝和冷绿色医疗色调，真实欧美医疗短剧质感'
+            : '真实真人短剧质感，色调按故事地域和场景统一',
+      atmosphere: isFantasy
+        ? '可爱童话短片，温柔、善良、清澈'
+        : isWesternMedical
+          ? '欧美医疗短剧，克制紧张，英文口型和专业医疗环境可信'
+          : '竖屏短剧，节奏紧凑，情绪明确但不过度夸张',
+      technicalNotes: '严格执行 video_prompt；不得新增无关镜头、改变站位、改变角色资产或生成乱码字幕',
+    },
+    actingNotes: [],
+  }
+}
+
+function buildShortDramaPanelsFromClip(clip: ClipInput): StoryboardPanel[] {
+  return [buildShortDramaPanelFromClip(clip, 1)]
 }
 
 function withStepMeta(
@@ -221,6 +373,7 @@ function shouldRetryStepError(error: unknown, message: string, retryable: boolea
   if (lowerMessage.includes('unknown field')) return false
   return lowerMessage.includes('unexpected token')
     || lowerMessage.includes('unexpected end of json input')
+    || lowerMessage.includes('unexpected end of json string')
     || lowerMessage.includes('json format invalid')
     || lowerMessage.includes('invalid json output')
     || lowerMessage.includes('parse')
@@ -293,6 +446,29 @@ export async function runScriptToStoryboardOrchestrator(
     rawConcurrency,
     DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   )
+
+  if (clips.every(isShortDramaVideoPromptClip)) {
+    const clipPanels = clips.map((clip, index): ClipStoryboardPanels => ({
+      clipId: clip.id,
+      clipIndex: index + 1,
+      finalPanels: buildShortDramaPanelsFromClip(clip),
+    }))
+    const phase1PanelsByClipId = Object.fromEntries(
+      clipPanels.map((item) => [item.clipId, item.finalPanels]),
+    )
+    return {
+      clipPanels,
+      phase1PanelsByClipId,
+      phase2CinematographyByClipId: {},
+      phase2ActingByClipId: {},
+      phase3PanelsByClipId: phase1PanelsByClipId,
+      summary: {
+        clipCount: clips.length,
+        totalPanelCount: clipPanels.reduce((sum, item) => sum + item.finalPanels.length, 0),
+        totalStepCount: clips.length,
+      },
+    }
+  }
 
   const totalStepCount = clips.length * 4 + 2
   const charactersLibName = (novelPromotionData.characters || []).map((c) => c.name).join(', ') || '无'
@@ -370,15 +546,21 @@ export async function runScriptToStoryboardOrchestrator(
           retryable: true,
         },
       )
-      const { parsed: planPanels } = await runStepWithRetry(
-        runStep, phase1Meta, phase1Prompt, 'storyboard_phase1_plan', 2600,
-        (text) => {
-          const panels = parseJsonArray<StoryboardPanel>(text, `phase1:${formatClipId(clip)}`)
-          if (panels.length === 0) {
-            throw new Error(`Phase 1 returned empty panels for clip ${formatClipId(clip)}`)
-          }
-          return panels
+      const planPanels = await withEmptyJsonFallback(
+        async () => {
+          const { parsed } = await runStepWithRetry(
+            runStep, phase1Meta, phase1Prompt, 'storyboard_phase1_plan', 2600,
+            (text) => {
+              const panels = parseJsonArray<StoryboardPanel>(text, `phase1:${formatClipId(clip)}`)
+              if (panels.length === 0) {
+                throw new Error(`Phase 1 returned empty panels for clip ${formatClipId(clip)}`)
+              }
+              return panels
+            },
+          )
+          return parsed
         },
+        () => [fallbackStoryboardPanel(clip)],
       )
       phase1PanelsByClipId.set(clip.id, planPanels)
 
@@ -441,30 +623,48 @@ export async function runScriptToStoryboardOrchestrator(
         .replace('{props_description}', filteredPropsDescription)
 
       const [
-        { parsed: photographyRules },
-        { parsed: actingDirections },
+        photographyRules,
+        actingDirections,
       ] = await Promise.all([
-        runStepWithRetry(
-          runStep, phase2Meta, phase2Prompt, 'storyboard_phase2_cinematography', 2400,
-          (text) => parseJsonArray<PhotographyRule>(text, `phase2:${formatClipId(clip)}`),
+        withEmptyJsonFallback(
+          async () => {
+            const { parsed } = await runStepWithRetry(
+              runStep, phase2Meta, phase2Prompt, 'storyboard_phase2_cinematography', 2400,
+              (text) => parseJsonArray<PhotographyRule>(text, `phase2:${formatClipId(clip)}`),
+            )
+            return parsed
+          },
+          () => fallbackPhotographyRules(planPanels),
         ),
-        runStepWithRetry(
-          runStep, phase2ActingMeta, phase2ActingPrompt, 'storyboard_phase2_acting', 2400,
-          (text) => parseJsonArray<ActingDirection>(text, `phase2-acting:${formatClipId(clip)}`),
+        withEmptyJsonFallback(
+          async () => {
+            const { parsed } = await runStepWithRetry(
+              runStep, phase2ActingMeta, phase2ActingPrompt, 'storyboard_phase2_acting', 2400,
+              (text) => parseJsonArray<ActingDirection>(text, `phase2-acting:${formatClipId(clip)}`),
+            )
+            return parsed
+          },
+          () => fallbackActingDirections(planPanels),
         ),
       ])
-      const { parsed: filteredPhase3Panels } = await runStepWithRetry(
-        runStep, phase3Meta, phase3Prompt, 'storyboard_phase3_detail', 2600,
-        (text) => {
-          const panels = parseJsonArray<StoryboardPanel>(text, `phase3:${formatClipId(clip)}`)
-          const filtered = panels.filter(
-            (panel) => panel.description && panel.description !== '无' && panel.location !== '无',
+      const filteredPhase3Panels = await withEmptyJsonFallback(
+        async () => {
+          const { parsed } = await runStepWithRetry(
+            runStep, phase3Meta, phase3Prompt, 'storyboard_phase3_detail', 2600,
+            (text) => {
+              const panels = parseJsonArray<StoryboardPanel>(text, `phase3:${formatClipId(clip)}`)
+              const filtered = panels.filter(
+                (panel) => panel.description && panel.description !== '无' && panel.location !== '无',
+              )
+              if (filtered.length === 0) {
+                throw new Error(`Phase 3 returned empty valid panels for clip ${formatClipId(clip)}`)
+              }
+              return filtered
+            },
           )
-          if (filtered.length === 0) {
-            throw new Error(`Phase 3 returned empty valid panels for clip ${formatClipId(clip)}`)
-          }
-          return filtered
+          return parsed
         },
+        () => planPanels,
       )
 
       phase2CinematographyByClipId.set(clip.id, photographyRules)

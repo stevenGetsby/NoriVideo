@@ -19,6 +19,15 @@ import type {
   OpenAICompatMediaTemplateSource,
 } from './openai-compat-media-template'
 import { validateOpenAICompatMediaTemplate } from './user-api/model-template/validator'
+import {
+  getLuminaAnthropicCompatibleModelName,
+} from './lumina-anthropic-compatible-models'
+import {
+  isHfsyProviderId,
+  isLuminaProviderId,
+  isSupportedModelProvider,
+  normalizeProviderModelId,
+} from './model-provider-contract'
 
 export interface CustomModel {
   modelId: string
@@ -59,8 +68,27 @@ interface CustomProvider {
 
 type LlmProtocolType = 'responses' | 'chat-completions'
 
+const DEFAULT_MODEL_FIELD_TO_TYPE = {
+  analysisModel: 'llm',
+  characterModel: 'image',
+  locationModel: 'image',
+  storyboardModel: 'image',
+  editModel: 'image',
+  videoModel: 'video',
+  audioModel: 'audio',
+  lipSyncModel: 'lipsync',
+} as const satisfies Record<string, UnifiedModelType>
+
+type DefaultModelField = keyof typeof DEFAULT_MODEL_FIELD_TO_TYPE
+
 function normalizeProviderBaseUrl(providerId: string, rawBaseUrl?: string): string | undefined {
   const providerKey = getProviderKey(providerId)
+  if (isHfsyProviderId(providerId)) {
+    const baseUrl = readTrimmedString(rawBaseUrl) || 'https://www.hfsyapi.cn/v1'
+    return baseUrl.replace(/\/+$/, '').endsWith('/v1')
+      ? baseUrl.replace(/\/+$/, '')
+      : `${baseUrl.replace(/\/+$/, '')}/v1`
+  }
   if (providerKey === 'minimax') {
     return 'https://api.minimaxi.com/v1'
   }
@@ -150,12 +178,15 @@ function parseCustomProviders(rawProviders: string | null | undefined): CustomPr
     }
 
     const providerKey = getProviderKey(id).toLowerCase()
+    if (!isSupportedModelProvider(id)) {
+      continue
+    }
     const apiModeRaw = raw.apiMode
     let apiMode: 'gemini-sdk' | 'openai-official' | undefined
     if (apiModeRaw === undefined) {
       apiMode = undefined
     } else if (apiModeRaw === 'gemini-sdk' || apiModeRaw === 'openai-official') {
-      if (providerKey === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+      if ((providerKey === 'gemini-compatible' || isLuminaProviderId(id)) && apiModeRaw === 'openai-official') {
         throw new Error(`PROVIDER_API_MODE_INVALID: providers[${index}].apiMode`)
       }
       apiMode = apiModeRaw
@@ -169,9 +200,9 @@ function parseCustomProviders(rawProviders: string | null | undefined): CustomPr
       gatewayRoute = undefined
     } else if (!isGatewayRoute(gatewayRouteRaw)) {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
-    } else if (providerKey === 'openai-compatible' && gatewayRouteRaw === 'official') {
+    } else if (isHfsyProviderId(id) && gatewayRouteRaw === 'official') {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
-    } else if (providerKey !== 'openai-compatible' && gatewayRouteRaw === 'openai-compat') {
+    } else if (!isHfsyProviderId(id) && gatewayRouteRaw === 'openai-compat') {
       throw new Error(`PROVIDER_GATEWAY_ROUTE_INVALID: providers[${index}].gatewayRoute`)
     } else {
       gatewayRoute = gatewayRouteRaw
@@ -205,7 +236,9 @@ function normalizeStoredModel(raw: unknown, index: number): CustomModel {
 
   const parsedFromKey = modelKeyFromField ? parseModelKeyStrict(modelKeyFromField) : null
   const provider = providerFromField || parsedFromKey?.provider || ''
-  const modelId = modelIdFromField || parsedFromKey?.modelId || ''
+  const rawModelId = modelIdFromField || parsedFromKey?.modelId || ''
+  const isLuminaProvider = isLuminaProviderId(provider)
+  const modelId = normalizeProviderModelId(provider, rawModelId)
   const modelKey = composeModelKey(provider, modelId)
 
   if (!modelKey) {
@@ -213,7 +246,11 @@ function normalizeStoredModel(raw: unknown, index: number): CustomModel {
   }
 
   if (parsedFromKey && parsedFromKey.modelKey !== modelKey) {
-    throw new Error(`MODEL_KEY_MISMATCH: models[${index}].modelKey conflicts with provider/modelId`)
+    const normalizedParsedModelId = normalizeProviderModelId(parsedFromKey.provider, parsedFromKey.modelId)
+    const normalizedParsedModelKey = composeModelKey(parsedFromKey.provider, normalizedParsedModelId)
+    if (normalizedParsedModelKey !== modelKey) {
+      throw new Error(`MODEL_KEY_MISMATCH: models[${index}].modelKey conflicts with provider/modelId`)
+    }
   }
 
   const llmProtocolRaw = raw.llmProtocol
@@ -246,7 +283,9 @@ function normalizeStoredModel(raw: unknown, index: number): CustomModel {
     modelKey,
     provider,
     type: raw.type,
-    name: readTrimmedString(raw.name) || modelId,
+    name: (isLuminaProvider ? getLuminaAnthropicCompatibleModelName(modelId) : null)
+      || readTrimmedString(raw.name)
+      || modelId,
     ...(llmProtocol ? { llmProtocol } : {}),
     ...(llmProtocolCheckedAt ? { llmProtocolCheckedAt } : {}),
     ...(compatMediaTemplate ? { compatMediaTemplate } : {}),
@@ -278,6 +317,33 @@ function parseCustomModels(rawModels: string | null | undefined): CustomModel[] 
   return models
 }
 
+function appendDefaultModelSelections(
+  models: CustomModel[],
+  defaults: Partial<Record<DefaultModelField, string | null | undefined>>,
+): CustomModel[] {
+  const seen = new Set(models.map((model) => composeModelKey(model.provider, model.modelId)).filter(Boolean))
+  const merged = [...models]
+
+  for (const [field, modelKey] of Object.entries(defaults) as Array<[DefaultModelField, string | null | undefined]>) {
+    const parsed = parseModelKeyStrict(readTrimmedString(modelKey))
+    if (!parsed || seen.has(parsed.modelKey)) continue
+
+    seen.add(parsed.modelKey)
+    merged.push({
+      modelId: parsed.modelId,
+      modelKey: parsed.modelKey,
+      name: (isLuminaProviderId(parsed.provider)
+        ? getLuminaAnthropicCompatibleModelName(parsed.modelId)
+        : null) || parsed.modelId,
+      type: DEFAULT_MODEL_FIELD_TO_TYPE[field],
+      provider: parsed.provider,
+      price: 0,
+    })
+  }
+
+  return merged
+}
+
 function pickProviderStrict(
   providers: CustomProvider[],
   providerId: string,
@@ -294,18 +360,39 @@ async function readUserConfig(userId: string): Promise<{ models: CustomModel[]; 
     select: {
       customModels: true,
       customProviders: true,
+      analysisModel: true,
+      characterModel: true,
+      locationModel: true,
+      storyboardModel: true,
+      editModel: true,
+      videoModel: true,
+      audioModel: true,
+      lipSyncModel: true,
     },
   })
 
   return {
-    models: parseCustomModels(pref?.customModels),
+    models: appendDefaultModelSelections(
+      parseCustomModels(pref?.customModels),
+      {
+        analysisModel: pref?.analysisModel,
+        characterModel: pref?.characterModel,
+        locationModel: pref?.locationModel,
+        storyboardModel: pref?.storyboardModel,
+        editModel: pref?.editModel,
+        videoModel: pref?.videoModel,
+        audioModel: pref?.audioModel,
+        lipSyncModel: pref?.lipSyncModel,
+      },
+    ),
     providers: parseCustomProviders(pref?.customProviders),
   }
 }
 
 function findModelByKey(models: CustomModel[], modelKey: string): CustomModel | null {
   const parsed = assertModelKey(modelKey, 'model')
-  return models.find((model) => model.modelId === parsed.modelId && model.provider === parsed.provider) || null
+  const parsedModelId = normalizeProviderModelId(parsed.provider, parsed.modelId)
+  return models.find((model) => model.modelId === parsedModelId && model.provider === parsed.provider) || null
 }
 
 /**
@@ -334,10 +421,10 @@ export async function resolveModelSelection(
   }
 
   const providerKey = getProviderKey(exact.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+  const llmProtocol = mediaType === 'llm' && isHfsyProviderId(exact.provider)
     ? (exact.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && isHfsyProviderId(exact.provider)
     ? exact.compatMediaTemplate
     : undefined
 
@@ -365,10 +452,10 @@ async function resolveSingleModelSelection(
 
   const model = models[0]
   const providerKey = getProviderKey(model.provider).toLowerCase()
-  const llmProtocol = mediaType === 'llm' && providerKey === 'openai-compatible'
+  const llmProtocol = mediaType === 'llm' && isHfsyProviderId(model.provider)
     ? (model.llmProtocol || 'chat-completions')
     : undefined
-  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && providerKey === 'openai-compatible'
+  const compatMediaTemplate = (mediaType === 'image' || mediaType === 'video') && isHfsyProviderId(model.provider)
     ? model.compatMediaTemplate
     : undefined
 

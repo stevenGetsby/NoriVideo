@@ -3,13 +3,15 @@
  * MVP 版本：支持阶段 0-3（规划 → 项目初始化 → 故事分析 → 分镜生成）
  */
 
-export type SkillId =
+export type BuiltinSkillId =
   | 'digital-avatar-ad'      // 数字人口播
   | 'travel-master'          // 旅拍大师
   | 'product-promo'          // 商品宣传短片
   | 'food-documentary'       // 舌尖美食
   | 'music-mv'               // 音乐MV
   | 'generic'                // 通用视频制作
+
+export type SkillId = BuiltinSkillId | (string & {})
 
 export type AgentExecutionMode = 'mock' | 'live'
 
@@ -23,6 +25,7 @@ export interface AgentCreativeParameters {
   shotCount?: number
   panelsPerShot?: number
   mockPrompt?: string
+  storyboardOnly?: boolean
 }
 
 export interface AgentContext {
@@ -31,6 +34,8 @@ export interface AgentContext {
   userInput: string
   executionMode?: AgentExecutionMode
   parameters?: Partial<AgentCreativeParameters>
+  targetProjectId?: string
+  workflowRunId?: string
 }
 
 export interface AgentExecutionPlan {
@@ -91,11 +96,52 @@ export interface AgentExecutionResult {
       clipCount: number
       hasScript: boolean
     }
+    assetConsistency?: {
+      characterCount: number
+      locationCount: number
+      propCount: number
+      clipCount: number
+      hasConsistencyBrief: boolean
+      characterAppearanceCount?: number
+      locationImageSlotCount?: number
+      propImageSlotCount?: number
+    }
+    assetImageGeneration?: {
+      characterAppearanceCount: number
+      locationImageCount: number
+      propImageCount: number
+      skippedExistingImageCount: number
+      submittedTaskCount: number
+      completedTaskCount: number
+      failedTaskCount: number
+      hasAssetImages: boolean
+      taskIds: string[]
+    }
     stage3?: {
       storyboardCount: number
       panelCount: number
       voiceLineCount: number
       hasStoryboard: boolean
+    }
+    imageGeneration?: {
+      panelCount: number
+      skippedExistingImageCount: number
+      submittedTaskCount: number
+      completedTaskCount: number
+      failedTaskCount: number
+      hasImages: boolean
+      taskIds: string[]
+    }
+    videoGeneration?: {
+      panelCount: number
+      skippedMissingImageCount: number
+      skippedMissingVideoModel?: boolean
+      skippedExistingVideoCount: number
+      submittedTaskCount: number
+      completedTaskCount: number
+      failedTaskCount: number
+      hasVideos: boolean
+      taskIds: string[]
     }
   }
 
@@ -115,4 +161,5 @@ export interface LLMAnalysisResult {
   episodeName: string
   language: 'zh' | 'en'
   confidence: number
+  creativeParameters?: Partial<AgentCreativeParameters>
 }

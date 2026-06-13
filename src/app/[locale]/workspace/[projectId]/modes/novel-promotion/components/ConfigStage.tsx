@@ -2,11 +2,17 @@
 
 import { useCallback, useState } from 'react'
 import { useParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import NovelInputStage from './NovelInputStage'
-import SmartImportWizard from './SmartImportWizard'
 import { useWorkspaceStageRuntime } from '../WorkspaceStageRuntimeContext'
 import { useWorkspaceEpisodeStageData } from '../hooks/useWorkspaceEpisodeStageData'
 import type { SplitEpisode } from './smart-import/types'
+
+const SmartImportWizard = dynamic(() => import('./SmartImportWizard'), {
+  loading: () => (
+    <div className="min-h-[360px] animate-pulse rounded-lg bg-[var(--glass-bg-muted)]" />
+  ),
+})
 
 /**
  * 配置阶段 — 整合 NovelInputStage + 长文本智能分集

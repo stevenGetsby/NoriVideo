@@ -1,7 +1,65 @@
 {
   "title": "My Projects",
   "subtitle": "Manage your AI anime production projects",
+  "workbenchEyebrow": "Project Workbench",
+  "sidebarSubtitle": "AI video production console",
+  "nav": {
+    "projects": "Projects",
+    "writerWorkbench": "Writer Workbench",
+    "toolbox": "Toolbox",
+    "seedance": "Seedance 2.0",
+    "assetHub": "Asset Library",
+    "materialLibrary": "Material Library",
+    "prompts": "Prompt Library",
+    "team": "Team Management",
+    "serviceRecords": "Service Records",
+    "feedback": "Feedback",
+    "updates": "Check Updates",
+    "user": "User"
+  },
   "newProject": "New Project",
+  "newProjectDesc": "Create a short-drama project and enter the script, asset, storyboard, and shot workflow.",
+  "featureChips": {
+    "script": "Script Breakdown",
+    "assets": "Character Assets",
+    "storyboard": "Auto Storyboards"
+  },
+  "productionOverview": {
+    "title": "Project Production Overview",
+    "subtitle": "Summarizes current project status across script, asset, storyboard, and delivery stages from the project entry.",
+    "local": "Project List",
+    "ready": "Ready",
+    "pending": "Pending",
+    "waiting": "Not Started",
+    "columns": {
+      "stage": "Stage",
+      "projects": "Projects",
+      "status": "Status",
+      "next": "Next Step"
+    },
+    "stages": {
+      "draft": {
+        "title": "Project Drafts",
+        "hint": "Open a project to import scripts or fill description"
+      },
+      "script": {
+        "title": "Script Parse",
+        "hint": "Review episode and text structure"
+      },
+      "storyboard": {
+        "title": "Storyboard Production",
+        "hint": "Check images, shots, and asset references"
+      },
+      "delivery": {
+        "title": "Export Delivery",
+        "hint": "Generate videos and delivery packages in the workbench"
+      }
+    }
+  },
+  "projectBadge": {
+    "active": "In Production",
+    "draft": "Draft"
+  },
   "searchPlaceholder": "Search project name or description...",
   "searchButton": "Search",
   "clearButton": "Clear",
@@ -18,6 +76,50 @@
   "projectNamePlaceholder": "Enter project name",
   "projectDescription": "Project Description (Optional)",
   "projectDescriptionPlaceholder": "Enter project description",
+  "createModal": {
+    "subtitle": "Set the project basics, then enter the short-drama production workbench.",
+    "basicInfo": "Basic Info",
+    "productionSetup": "Production Setup",
+    "projectLevel": "Project Level",
+    "contentType": "Content Type",
+    "resolution": "Resolution",
+    "aspectRatio": "Aspect Ratio",
+    "language": "Language",
+    "source": "Script Source",
+    "sourceHint": "Import full text or upload files after creation",
+    "pipelineTitle": "Workflow",
+    "step": "Step {index}",
+    "persistenceNote": "This version creates the project and opens the workbench; production settings initialize the workflow UI.",
+    "workflowBoundaryNote": "Smart execution runs from workbench stage actions; creation keeps one unified project entry.",
+    "levels": {
+      "efficient": "Efficient",
+      "premium": "Premium",
+      "premium2": "Premium 2.0"
+    },
+    "levelHints": {
+      "efficient": "For fast script breakdown, batch storyboards, and shot generation.",
+      "premium": "For stronger character assets and visual consistency control.",
+      "premium2": "Reserved for richer reference assets and delivery workflows."
+    },
+    "contentTypes": {
+      "shortDrama": "Short Drama",
+      "animation": "Animation"
+    },
+    "languages": {
+      "zh": "Chinese",
+      "en": "English"
+    },
+    "sourceTypes": {
+      "text": "Import Script",
+      "upload": "Local Upload"
+    },
+    "pipeline": {
+      "script": "Script Parse",
+      "assets": "Asset Setup",
+      "storyboard": "Storyboard Design",
+      "delivery": "Export Delivery"
+    }
+  },
   "creating": "Creating...",
   "saving": "Saving...",
   "createFailed": "Failed to create project",
@@ -38,5 +140,920 @@
     "before": "No models configured yet. Please go to",
     "link": "Settings Center",
     "after": "to configure models, or customize them in project settings after creation."
+  },
+  "serviceRecordsPanel": {
+    "title": "Recent Service Records",
+    "subtitle": "Reads the current user's async task records for project production, export, and model-call diagnostics.",
+    "loading": "Loading service records...",
+    "empty": "No task records yet. Script parsing, storyboard, or video generation tasks will appear here after you run them.",
+    "loadFailed": "Failed to load service records",
+    "recentFailures": "Recent Failures",
+    "usage": {
+      "title": "Service Usage Overview",
+      "estimated": "Derived from tasks",
+      "empty": "No service usage to summarize yet.",
+      "stats": {
+        "billableTasks": "Metered Tasks",
+        "estimatedUnits": "Estimated Units",
+        "serviceTypes": "Service Types"
+      }
+    },
+    "billing": {
+      "title": "Service Billing Preview",
+      "realTitle": "Actual Service Billing",
+      "realSubtitle": "Reads balance, project costs, and recent transactions to match FrameOS service records and deductions.",
+      "realSource": "Billing API",
+      "realLoadFailed": "Failed to load actual billing",
+      "projectCosts": "Project Cost Ranking",
+      "transactions": "Recent Transactions",
+      "records": "{count} records",
+      "noRealCosts": "No actual cost records yet.",
+      "noTransactions": "No balance transactions yet.",
+      "realStats": {
+        "balance": "Balance",
+        "frozen": "Frozen",
+        "spent": "Total Spent"
+      },
+      "empty": "No billable tasks to estimate yet.",
+      "units": "{count} units",
+      "total": "{count} runs",
+      "failed": "{count} failed"
+    },
+    "configMatrix": {
+      "title": "Service Configuration Matrix",
+      "subtitle": "Combines the built-in pricing catalog and task records to show service type, price range, success rate, and enablement.",
+      "derived": "Locally derived config",
+      "pricingVersion": "Pricing {version}",
+      "units": "{count} units/run",
+      "modelCoverage": "{providers} providers · {models} models",
+      "runs": "{count} runs",
+      "enabled": "Enabled",
+      "standby": "Standby",
+      "table": {
+        "service": "Service",
+        "unitCost": "Metering",
+        "priceRange": "Price Range",
+        "successRate": "Success",
+        "usage": "Usage",
+        "status": "Status"
+      },
+      "services": {
+        "video": {
+          "title": "Video Generation",
+          "hint": "Seedance, shot video, lip-sync, and other video tasks."
+        },
+        "image": {
+          "title": "Image Assets",
+          "hint": "Storyboard images, character looks, locations, and prop image tasks."
+        },
+        "voice": {
+          "title": "Audio & Timbre",
+          "hint": "TTS, character timbre, and voice generation tasks."
+        },
+        "text": {
+          "title": "Text Analysis",
+          "hint": "Script parsing, clip splitting, and structured analysis tasks."
+        }
+      }
+    },
+    "stats": {
+      "all": "All",
+      "processing": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "table": {
+      "type": "Task Type",
+      "target": "Target",
+      "status": "Status",
+      "progress": "Progress",
+      "updatedAt": "Updated"
+    },
+    "status": {
+      "queued": "Queued",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "canceled": "Canceled"
+    }
+  },
+  "seedancePanel": {
+    "historyTitle": "Video Task Console",
+    "historySubtitle": "Reads the current user's video enhancement history and centralizes Seedance-related video processing tasks.",
+    "openEnhance": "Open Video Enhance",
+    "loading": "Loading video tasks...",
+    "empty": "No video enhancement tasks yet. Open the video enhance tool to submit a video first.",
+    "loadFailed": "Failed to load video tasks",
+    "modelsTitle": "Seedance Capabilities",
+    "presetTitle": "Model Presets",
+    "capabilityTitle": "Seedance Capability Matrix",
+    "capabilitySubtitle": "Summarizes video models, batch generation, first/last frame, audio support, and task history to check whether the video production entry is usable.",
+    "capability": {
+      "local": "Local Model Catalog",
+      "columns": {
+        "module": "Capability",
+        "status": "Status",
+        "count": "Count",
+        "detail": "Detail"
+      },
+      "status": {
+        "ready": "Ready",
+        "review": "Review",
+        "reserved": "Reserved"
+      },
+      "modules": {
+        "models": "Video Models",
+        "batch": "Batch Shots",
+        "firstLast": "First/Last Frame",
+        "audio": "Audio Driven",
+        "history": "Task History"
+      },
+      "details": {
+        "models": "Seedance video model presets",
+        "batch": "Batch shot generation support",
+        "firstLast": "First/last frame reference support",
+        "audio": "Video models with audio support",
+        "history": "{active} running / {failed} failed"
+      }
+    },
+    "taskStats": {
+      "all": "All",
+      "active": "Running",
+      "completed": "Completed",
+      "failed": "Failed"
+    },
+    "modelStats": {
+      "models": "Models",
+      "batch": "Batch",
+      "firstLast": "First/Last",
+      "audio": "Audio"
+    },
+    "table": {
+      "name": "Task Name",
+      "source": "Source",
+      "status": "Status",
+      "updatedAt": "Updated"
+    }
+  },
+  "promptsPanel": {
+    "title": "Prompt Template Catalog",
+    "subtitle": "Reads the current user's editable prompt templates and shows the catalog, variables, and custom override status.",
+    "openEditor": "Open Template Editor",
+    "loading": "Loading prompt templates...",
+    "empty": "No prompt templates available.",
+    "loadFailed": "Failed to load prompt templates",
+    "noVariables": "No variables",
+    "groupsTitle": "Template Groups",
+    "overrideCount": "{count} overridden",
+    "coverageTitle": "Prompt Coverage Matrix",
+    "coverageSubtitle": "Summarizes templates, variables, and ZH/EN overrides by production stage to locate templates that still need coverage.",
+    "coverage": {
+      "local": "Template Catalog",
+      "columns": {
+        "group": "Group",
+        "templates": "Templates",
+        "variables": "Variables",
+        "zh": "ZH",
+        "en": "EN",
+        "missing": "Missing"
+      }
+    },
+    "stats": {
+      "total": "Templates",
+      "zhOverrides": "ZH Overrides",
+      "enOverrides": "EN Overrides",
+      "variables": "Variables"
+    },
+    "table": {
+      "prompt": "Template",
+      "variables": "Variables",
+      "override": "Override"
+    },
+    "groups": {
+      "script": "Script Parse",
+      "assets": "Asset Setup",
+      "storyboard": "Storyboard Design",
+      "video": "Shot Video",
+      "utility": "Utilities"
+    }
+  },
+  "materialPanel": {
+    "title": "Global Material Overview",
+    "subtitle": "Reads the current user's asset library and summarizes characters, locations, props, voices, and generated media status.",
+    "openAssetHub": "Open Asset Library",
+    "loading": "Loading materials...",
+    "empty": "No materials yet. Open the asset library to create characters, locations, props, or voices.",
+    "loadFailed": "Failed to load materials",
+    "noDescription": "No description",
+    "groupsTitle": "Material Groups",
+    "readinessTitle": "Material Production Matrix",
+    "readinessSubtitle": "Summarizes ready materials, missing previews, running jobs, and failures by material type so production gaps can be filled from the library.",
+    "readiness": {
+      "local": "Global Assets",
+      "none": "No materials",
+      "columns": {
+        "kind": "Type",
+        "total": "Total",
+        "ready": "Ready",
+        "missingPreview": "Missing Preview",
+        "running": "Running",
+        "failed": "Failed",
+        "latest": "Latest Material"
+      }
+    },
+    "stats": {
+      "total": "Assets",
+      "visual": "Visual",
+      "audio": "Audio",
+      "renders": "Images",
+      "running": "Running",
+      "failed": "Failed"
+    },
+    "table": {
+      "asset": "Material",
+      "kind": "Type",
+      "renders": "Images",
+      "status": "Status"
+    },
+    "kinds": {
+      "character": "Character",
+      "location": "Location",
+      "prop": "Prop",
+      "voice": "Voice"
+    },
+    "status": {
+      "ready": "Ready",
+      "running": "Generating",
+      "failed": "Failed"
+    }
+  },
+  "toolboxPanel": {
+    "title": "Production Diagnostics",
+    "subtitle": "Summarizes model configuration, task records, assets, and prompt templates to check workflow readiness.",
+    "openRecords": "View Service Records",
+    "loading": "Loading diagnostics...",
+    "loadFailed": "Failed to load diagnostics",
+    "status": {
+      "ok": "OK",
+      "review": "Review"
+    },
+    "checks": {
+      "models": {
+        "title": "Model Setup",
+        "hint": "Enabled models / defaults"
+      },
+      "tasks": {
+        "title": "Task Status",
+        "hint": "Running / failed"
+      },
+      "assets": {
+        "title": "Asset Library",
+        "hint": "Visual / audio"
+      },
+      "prompts": {
+        "title": "Prompts",
+        "hint": "Templates / overrides"
+      }
+    },
+    "metrics": {
+      "providers": "Providers Configured",
+      "videoModels": "Video Models",
+      "concurrency": "Concurrency A/I/V"
+    },
+    "capabilityTitle": "Production Capability Matrix",
+    "capabilitySubtitle": "Summarizes model, task, asset, prompt, and delivery readiness to locate blockers in the video production chain.",
+    "capability": {
+      "local": "Local Diagnostics",
+      "columns": {
+        "module": "Module",
+        "status": "Status",
+        "primary": "Primary",
+        "secondary": "Secondary",
+        "action": "Action"
+      },
+      "modules": {
+        "models": {
+          "title": "Model Runtime",
+          "hint": "Enabled models / default models",
+          "action": "Configure Models"
+        },
+        "tasks": {
+          "title": "Task Queue",
+          "hint": "Running / failed tasks",
+          "action": "View Records"
+        },
+        "assets": {
+          "title": "Asset Library",
+          "hint": "Visual assets / audio assets",
+          "action": "Fill Assets"
+        },
+        "prompts": {
+          "title": "Prompt Library",
+          "hint": "Template catalog / custom overrides",
+          "action": "Check Templates"
+        },
+        "delivery": {
+          "title": "Delivery Chain",
+          "hint": "Completed tasks / failed tasks",
+          "action": "Check Updates"
+        }
+      }
+    },
+    "taskQueueTitle": "Recent Task Queue",
+    "taskQueueEmpty": "No visible task records yet.",
+    "shortcutsTitle": "Quick Tools",
+    "shortcuts": {
+      "profile": {
+        "title": "Models and API",
+        "hint": "Configure defaults, providers, and concurrency"
+      },
+      "seedance": {
+        "title": "Seedance Console",
+        "hint": "Review video tasks and model presets"
+      },
+      "assetHub": {
+        "title": "Asset Library",
+        "hint": "Manage characters, locations, props, and voices"
+      },
+      "records": {
+        "title": "Service Records",
+        "hint": "Inspect task runs and failure reasons"
+      }
+    }
+  },
+  "writerPanel": {
+    "title": "Script Project Queue",
+    "subtitle": "Reads the current project list and aggregates script previews, episode counts, and entry points into the script workflow.",
+    "newProject": "New Project",
+    "loading": "Loading script projects...",
+    "empty": "No projects yet. New projects will appear in the writer workbench.",
+    "loadFailed": "Failed to load script projects",
+    "noPreview": "No script preview yet",
+    "redraw": "Redraw",
+    "stats": {
+      "total": "Projects",
+      "withScript": "With Script",
+      "storyboards": "Panels",
+      "videos": "Videos"
+    },
+    "preparationTitle": "Script Preparation Matrix",
+    "preparationSubtitle": "Aggregates projects by import, episode breakdown, storyboard, and video output stages so the writer entry can locate the next action.",
+    "preparation": {
+      "local": "Project Queue",
+      "none": "No projects",
+      "columns": {
+        "stage": "Stage",
+        "count": "Projects",
+        "latest": "Latest Project",
+        "action": "Action"
+      },
+      "stages": {
+        "draft": "To Import",
+        "script": "Script Ready",
+        "storyboard": "Storyboard Ready",
+        "video": "Has Video"
+      },
+      "actions": {
+        "draft": "Create/Import",
+        "script": "Open Script",
+        "storyboard": "Open Storyboard",
+        "video": "Open Workbench"
+      }
+    },
+    "table": {
+      "project": "Project and Script",
+      "episodes": "Episodes",
+      "status": "Status",
+      "updatedAt": "Updated"
+    },
+    "readiness": {
+      "draft": "To Import",
+      "script": "Script Ready",
+      "storyboard": "Storyboarded"
+    },
+    "workflowTitle": "Writer Workflow",
+    "workflow": {
+      "import": {
+        "title": "Import Draft",
+        "hint": "Paste text or upload files"
+      },
+      "review": {
+        "title": "Episode Breakdown",
+        "hint": "Confirm chapters and story beats"
+      },
+      "redraw": {
+        "title": "Rewrite Redraw",
+        "hint": "Adjust pacing and shootability"
+      },
+      "sync": {
+        "title": "Sync Workbench",
+        "hint": "Continue into assets and storyboard"
+      }
+    }
+  },
+  "redrawPanel": {
+    "title": "Script Redraw Detail",
+    "subtitle": "Reads project script data to review source text, episode structure, asset readiness, and workbench sync state.",
+    "openScript": "Open Script Page",
+    "loading": "Loading redraw data...",
+    "empty": "Project not found.",
+    "loadFailed": "Failed to load redraw data",
+    "noPreview": "No source preview yet",
+    "noEpisodes": "No episodes yet. Import or split the source draft on the script page first.",
+    "episodeFallback": "Episode {number}",
+    "stats": {
+      "episodes": "Episodes",
+      "words": "Characters",
+      "characters": "Roles",
+      "locations": "Locations/Props"
+    },
+    "readinessTitle": "Redraw Readiness Matrix",
+    "readinessSubtitle": "Checks source, episode, asset, and sync prerequisites before entering rewrite redraw.",
+    "readiness": {
+      "local": "Project Data",
+      "columns": {
+        "item": "Check",
+        "status": "Status",
+        "count": "Count",
+        "hint": "Detail"
+      },
+      "status": {
+        "ready": "Ready",
+        "review": "Review"
+      },
+      "items": {
+        "source": "Source Text",
+        "structure": "Episode Structure",
+        "assets": "Asset Dependencies",
+        "sync": "Workbench Sync"
+      },
+      "hints": {
+        "sourceReady": "Source preview is available",
+        "sourceMissing": "Source text is missing",
+        "structureReady": "{count} episodes available",
+        "structureMissing": "Episodes are not split yet",
+        "assetsReady": "{count} asset cues available",
+        "assetsMissing": "Characters, locations, or props are insufficient",
+        "syncReady": "Ready to sync into production",
+        "syncMissing": "Episode text must be filled first"
+      }
+    },
+    "table": {
+      "episode": "Episode Source",
+      "words": "Chars",
+      "updatedAt": "Updated"
+    },
+    "checklistTitle": "Redraw Checklist",
+    "checklist": {
+      "source": {
+        "title": "Source Draft",
+        "hint": "Confirm project description and episode text are ready as rewrite input."
+      },
+      "structure": {
+        "title": "Episode Structure",
+        "hint": "Check episode count, titles, summaries, and story beats."
+      },
+      "assets": {
+        "title": "Asset Dependencies",
+        "hint": "Confirm characters, locations, and props can support redraw."
+      },
+      "sync": {
+        "title": "Production Sync",
+        "hint": "Send redraw results back to the script page before assets and storyboard."
+      }
+    }
+  },
+  "updatesPanel": {
+    "title": "Version Status Check",
+    "subtitle": "Reads local service status and shows the current version, boot ID, core dependencies, and check time.",
+    "openDiagnostics": "Open Diagnostics",
+    "runCheck": "Check Now",
+    "checkingNow": "Checking",
+    "loading": "Checking version status...",
+    "loadFailed": "Failed to load version status",
+    "checkFailed": "Failed to run update check",
+    "cards": {
+      "version": "Current Version",
+      "bootId": "Server Boot ID",
+      "status": "Update Status",
+      "checkedAt": "Checked At"
+    },
+    "status": {
+      "current": "Current",
+      "tracked": "Tracked"
+    },
+    "table": {
+      "item": "Item",
+      "value": "Value"
+    },
+    "dependencies": {
+      "node": "Node Requirement",
+      "npm": "NPM Requirement",
+      "next": "Next.js",
+      "react": "React"
+    },
+    "moduleMatrix": {
+      "title": "Module Update Matrix",
+      "subtitle": "Mirrors the FrameOS check-updates entry by summarizing local status for workflow, model, template, storage, and diagnostics modules.",
+      "localMode": "Local Check",
+      "columns": {
+        "module": "Module",
+        "status": "Status",
+        "version": "Version",
+        "checkedAt": "Checked At"
+      },
+      "status": {
+        "synced": "Synced",
+        "tracked": "Tracked"
+      },
+      "versions": {
+        "workflow": "Current Version",
+        "modelRuntime": "Model Config",
+        "templates": "Template Library",
+        "storage": "Material Storage",
+        "diagnostics": "Runtime Diagnostics"
+      },
+      "modules": {
+        "workflow": {
+          "title": "Project Workflow",
+          "hint": "Project creation, script, assets, storyboard, shots, and export pages."
+        },
+        "modelRuntime": {
+          "title": "Model Runtime",
+          "hint": "Video, image, voice, and text analysis model capabilities."
+        },
+        "templates": {
+          "title": "Prompt Templates",
+          "hint": "Script, asset, storyboard, and video generation prompts."
+        },
+        "storage": {
+          "title": "Material Storage",
+          "hint": "Global material library, asset hub, and project reference resources."
+        },
+        "diagnostics": {
+          "title": "Production Diagnostics",
+          "hint": "Task queues, service records, feedback, and version status."
+        }
+      }
+    },
+    "historyTitle": "Check History",
+    "historyEmpty": "No update check records yet.",
+    "checklistTitle": "Update Checklist",
+    "checklist": {
+      "workflow": {
+        "title": "Workflow Pages",
+        "hint": "Project, script, asset, storyboard, shot, and export pages remain aligned."
+      },
+      "models": {
+        "title": "Model Capabilities",
+        "hint": "Seedance, image, voice, and analysis model capabilities are checked in the toolbox."
+      },
+      "templates": {
+        "title": "Prompt Templates",
+        "hint": "Template catalog and user override status are wired into the prompt library."
+      },
+      "storage": {
+        "title": "Material Storage",
+        "hint": "Material library and asset hub read the same global asset data."
+      }
+    },
+    "releaseTitle": "Release Tracks",
+    "release": {
+      "local": {
+        "title": "Local Feature Replica",
+        "meta": "In Progress",
+        "hint": "Prioritizes FrameOS page structure and production workbench interactions."
+      },
+      "workflow": {
+        "title": "Workflow Experience",
+        "meta": "Calibrating",
+        "hint": "Stage status, manual review, task queues, and delivery panels keep getting refined."
+      },
+      "templates": {
+        "title": "Templates and Models",
+        "meta": "Connected",
+        "hint": "Prompt library, model configuration, and Seedance entry are covered by checks."
+      }
+    },
+    "changelogTitle": "Recent Changes",
+    "changelog": {
+      "stageReview": {
+        "title": "Manual Stage Calibration",
+        "hint": "Workbench overview supports local confirmation and review-needed marks."
+      },
+      "serviceConfig": {
+        "title": "Service Config Matrix",
+        "hint": "Service records now check video, image, audio, and text service groups."
+      },
+      "feedbackSync": {
+        "title": "Feedback Persistence",
+        "hint": "Feedback now supports account records, triage status, and refresh recovery."
+      },
+      "updateCheck": {
+        "title": "Update Check History",
+        "hint": "The updates page now has a check-now action and server-backed history."
+      },
+      "exportQueue": {
+        "title": "Export Task Queue",
+        "hint": "Export delivery now tracks final video, asset package, and editing draft status."
+      }
+    }
+  },
+  "feedbackPanel": {
+    "title": "Local Feedback",
+    "subtitle": "Record page issues, generation quality, workflow blockers, and improvement ideas with route and browser context.",
+    "openRecords": "View Service Records",
+    "submit": "Submit Feedback",
+    "saved": "Saved",
+    "loading": "Loading feedback records...",
+    "loadFailed": "Failed to load feedback records",
+    "saveFailed": "Failed to sync feedback",
+    "serverBacked": "Feedback is saved to the current account and can be restored after refresh.",
+    "localOnly": "Backend sync failed; feedback is temporarily stored in this browser.",
+    "syncWarning": "Sync notice: {error}",
+    "recentTitle": "Recent Feedback",
+    "empty": "No feedback records yet.",
+    "stats": {
+      "total": "All",
+      "bugs": "Bugs",
+      "quality": "Quality",
+      "workflow": "Workflow",
+      "ideas": "Ideas"
+    },
+    "types": {
+      "bug": "Page Bug",
+      "quality": "Generation Quality",
+      "workflow": "Workflow Blocker",
+      "idea": "Improvement Idea"
+    },
+    "fields": {
+      "type": "Feedback Type",
+      "title": "Title",
+      "route": "Page Route",
+      "description": "Description"
+    },
+    "status": {
+      "open": "Open",
+      "triaged": "Triaged",
+      "resolved": "Resolved"
+    },
+    "actions": {
+      "triage": "Triage",
+      "resolve": "Resolve"
+    },
+    "notStarted": "No records",
+    "triageTitle": "Feedback Triage Board",
+    "triageSubtitle": "Summarizes account feedback, unresolved counts, latest route, and latest submission by feedback type.",
+    "localTriage": "Local Triage",
+    "serverTriage": "Server-backed",
+    "triage": {
+      "columns": {
+        "type": "Type",
+        "total": "Total",
+        "open": "Unresolved",
+        "route": "Latest Route",
+        "latest": "Latest"
+      }
+    },
+    "contextTitle": "Captured Context",
+    "context": {
+      "route": {
+        "label": "Current Page",
+        "value": "Current Route"
+      },
+      "browser": {
+        "label": "Browser Context",
+        "value": "Browser signature is recorded on submit"
+      },
+      "storage": {
+        "label": "Storage",
+        "value": "Backend records",
+        "server": "Account backend records",
+        "local": "Local browser storage"
+      }
+    },
+    "placeholders": {
+      "title": "Example: prompt save on shot detail does not refresh",
+      "description": "Describe reproduction steps, expected result, actual result, and relevant project or shot details."
+    }
+  },
+  "teamPanel": {
+    "title": "Personal Workspace Management",
+    "subtitle": "The personal edition keeps the FrameOS team structure but only enables the owner view for project and task status.",
+    "openProjects": "Open Projects",
+    "loading": "Loading workspace data...",
+    "empty": "No projects yet.",
+    "loadFailed": "Failed to load workspace data",
+    "fallbackName": "Personal User",
+    "personalAccount": "Personal Account",
+    "ownerBadge": "Owner",
+    "enabled": "Enabled",
+    "reserved": "Reserved",
+    "profile": {
+      "seat": {
+        "label": "Seat",
+        "value": "Personal Seat"
+      },
+      "workspace": {
+        "label": "Workspace",
+        "value": "NoriVideo Personal"
+      },
+      "security": {
+        "label": "Permission",
+        "value": "Owner Access"
+      }
+    },
+    "stats": {
+      "projects": "Projects",
+      "episodes": "Episodes",
+      "activeTasks": "Running",
+      "failedTasks": "Failed"
+    },
+    "seatMatrix": {
+      "title": "Member Seat Matrix",
+      "subtitle": "Mirrors the FrameOS team page structure with collaboration roles. The personal edition only enables the current owner and keeps other seats as extension boundaries.",
+      "personalMode": "Personal Edition",
+      "none": "No activity",
+      "projectCount": "{count} projects",
+      "taskCount": "{count} tasks",
+      "permissionCount": "{count} areas",
+      "columns": {
+        "role": "Role",
+        "status": "Status",
+        "projects": "Projects",
+        "workload": "Tasks",
+        "lastActivity": "Last Activity",
+        "permissions": "Permissions"
+      }
+    },
+    "workloadTitle": "Task Workload",
+    "workloadEmpty": "No task workload data yet.",
+    "workloadTasks": "{count} tasks",
+    "workloadFailed": "{count} failed",
+    "quotaTitle": "Quota Preview",
+    "quota": {
+      "projects": "Project Capacity",
+      "runningTasks": "Concurrent Tasks",
+      "serviceUnits": "Service Units"
+    },
+    "table": {
+      "project": "Project",
+      "episodes": "Episodes",
+      "updatedAt": "Updated"
+    },
+    "rolesTitle": "Role Boundaries",
+    "roles": {
+      "owner": {
+        "title": "Owner",
+        "hint": "The current personal account manages projects, assets, model configuration, and task records."
+      },
+      "writer": {
+        "title": "Writer",
+        "hint": "Reserved for script import, episode review, and redraw collaboration."
+      },
+      "asset": {
+        "title": "Asset",
+        "hint": "Reserved for character, location, prop, and voice asset collaboration."
+      },
+      "producer": {
+        "title": "Producer",
+        "hint": "Reserved for shot generation, export delivery, and service record review."
+      }
+    },
+    "permissionsTitle": "Permission Matrix",
+    "permissions": {
+      "role": "Role",
+      "projects": "Projects",
+      "scripts": "Scripts",
+      "assets": "Assets",
+      "production": "Production",
+      "records": "Records",
+      "enabled": "On",
+      "reserved": "Res"
+    }
+  },
+  "hubPages": {
+    "common": {
+      "createProject": "New Project",
+      "workflowTitle": "Project Workflow",
+      "ready": "Connected to workbench",
+      "steps": {
+        "script": "Script Parse",
+        "assets": "Asset Setup",
+        "storyboard": "Storyboard Design",
+        "shots": "Shot Production",
+        "delivery": "Export Delivery"
+      }
+    },
+    "writerWorkbench": {
+      "eyebrow": "Writer Workbench",
+      "title": "Script Writing and Rewrite",
+      "subtitle": "FrameOS-style writer entry for script import, rewrite, episode planning, and text preparation before redraw.",
+      "cards": [
+        { "title": "Script Import", "description": "Paste long-form text or sync project scripts as a unified source for breakdown.", "meta": "Text", "icon": "fileText" },
+        { "title": "Episode Plan", "description": "Organize episodes, conflicts, character appearances, and story turns.", "meta": "Plan", "icon": "bookOpen" },
+        { "title": "Rewrite Redraw", "description": "Keep the story spine while adjusting voice, pacing, and visual shootability.", "meta": "Redraw", "icon": "wandOff" },
+        { "title": "Project Sync", "description": "Send confirmed script structures into the project workbench for assets and storyboards.", "meta": "Sync", "icon": "link" }
+      ]
+    },
+    "writerRedraw": {
+      "eyebrow": "Writer Workbench",
+      "title": "Script Redraw",
+      "subtitle": "Matches FrameOS redraw-v2 routing and will host structured rewrite tasks for a selected script.",
+      "cards": [
+        { "title": "Draft Compare", "description": "Review the original script, episode structure, and story nodes to preserve.", "meta": "Compare", "icon": "copy" },
+        { "title": "Rewrite Goal", "description": "Set style, pacing, relationships, and short-video platform adaptation goals.", "meta": "Setup", "icon": "settingsHexMinor" },
+        { "title": "Redraw Result", "description": "Produce a revised plot and episode outline ready for the project workflow.", "meta": "Output", "icon": "sparklesAlt" },
+        { "title": "Version History", "description": "Keep each rewrite result for rollback and continued iteration.", "meta": "History", "icon": "clock" }
+      ]
+    },
+    "toolbox": {
+      "eyebrow": "Toolbox",
+      "title": "Video Production Toolbox",
+      "subtitle": "A central place for script parsing, material processing, prompt assistance, and production diagnostics.",
+      "cards": [
+        { "title": "Script Parser", "description": "Quickly inspect script structure, characters, locations, and shot breakdown readiness.", "meta": "Parse", "icon": "brain" },
+        { "title": "Material Cleanup", "description": "Organize uploaded files, images, audio, and video into project assets.", "meta": "Assets", "icon": "filter" },
+        { "title": "Prompt Assistant", "description": "Generate editable prompts for character images, locations, storyboards, and shots.", "meta": "Prompt", "icon": "sparklesAlt" },
+        { "title": "Production Diagnostics", "description": "Check model configuration, task status, and generation failure causes.", "meta": "Check", "icon": "clipboardCheck" }
+      ]
+    },
+    "seedance": {
+      "eyebrow": "Seedance 2.0",
+      "title": "Video Generation Model Console",
+      "subtitle": "FrameOS-style Seedance 2.0 entry for video models, reference assets, batch shots, and generation settings.",
+      "cards": [
+        { "title": "Model Presets", "description": "Manage Seedance 2.0, Fast, Pro, and default video generation parameters in one place.", "meta": "Model", "icon": "film" },
+        { "title": "Reference Assets", "description": "Check whether character, location, and item references are uploaded and ready for shot generation.", "meta": "Reference", "icon": "folderHeart" },
+        { "title": "Batch Shots", "description": "Summarize pending, running, failed, and completed shot generation tasks.", "meta": "Batch", "icon": "clapperboard" },
+        { "title": "Generation Diagnostics", "description": "Review failure reasons, model settings, and missing asset references.", "meta": "Check", "icon": "clipboardCheck" }
+      ]
+    },
+    "material": {
+      "eyebrow": "Material Library",
+      "title": "Project Material Management",
+      "subtitle": "FrameOS-style material entry for imported files, reference images, video clips, and reusable resources.",
+      "cards": [
+        { "title": "Reference Images", "description": "Manage visual references and style images for characters, environments, and items.", "meta": "Images", "icon": "image" },
+        { "title": "Video Materials", "description": "Organize live-action footage, generated clips, and reusable shots.", "meta": "Video", "icon": "video" },
+        { "title": "Documents", "description": "Store scripts, design notes, storyboard sheets, and production briefs.", "meta": "Docs", "icon": "fileText" },
+        { "title": "Upload Queue", "description": "Prepared for batch upload, format validation, and object storage sync.", "meta": "Upload", "icon": "cloudUpload" }
+      ]
+    },
+    "prompts": {
+      "eyebrow": "Prompt Library",
+      "title": "Prompt Template Center",
+      "subtitle": "Manage templates for script breakdown, asset generation, storyboard drawing, and video generation.",
+      "cards": [
+        { "title": "Script Prompts", "description": "Structured templates for story breakdown, episode outlines, and script review.", "meta": "Script", "icon": "fileText" },
+        { "title": "Asset Prompts", "description": "Template management for characters, locations, items, and voice settings.", "meta": "Assets", "icon": "folderHeart" },
+        { "title": "Storyboard Prompts", "description": "Prompts for shot visuals, composition, motion, and visual consistency.", "meta": "Shot", "icon": "clapperboard" },
+        { "title": "Version Publish", "description": "Prepared for template versions, enable states, and project override policy.", "meta": "Version", "icon": "bookmark" }
+      ]
+    },
+    "team": {
+      "eyebrow": "Team Management",
+      "title": "Personal Collaboration Entry",
+      "subtitle": "The FrameOS team page is preserved as information architecture; subaccounts, permissions, and billing quotas are not implemented in the personal edition.",
+      "cards": [
+        { "title": "Collaborators", "description": "Member invitation is disabled in the personal edition and reserved for project collaborators.", "meta": "Reserved", "icon": "usersRound" },
+        { "title": "Permission Roles", "description": "Keeps role structure for director, writer, asset, and producer workflows.", "meta": "Roles", "icon": "lock" },
+        { "title": "Service Records", "description": "Prepared to summarize project tasks, exports, and model calls.", "meta": "Records", "icon": "receipt" },
+        { "title": "Feedback", "description": "Prepared for local issue records and remote feedback channels.", "meta": "Feedback", "icon": "infoCircle" }
+      ]
+    },
+    "serviceRecords": {
+      "eyebrow": "Service Records",
+      "title": "Tasks and Usage Records",
+      "subtitle": "FrameOS-style service records entry for project runs, model calls, exports, and failed jobs.",
+      "cards": [
+        { "title": "Project Tasks", "description": "Review script parsing, asset generation, storyboard rendering, and video task history.", "meta": "Tasks", "icon": "receipt" },
+        { "title": "Model Calls", "description": "Prepared for model, duration, status, and error statistics.", "meta": "Calls", "icon": "cpu" },
+        { "title": "Export Records", "description": "Track final videos, asset packages, and editing draft delivery history.", "meta": "Export", "icon": "download" },
+        { "title": "Failure Diagnostics", "description": "Centralize task failures, missing media, and configuration errors.", "meta": "Check", "icon": "alert" }
+      ]
+    },
+    "feedback": {
+      "eyebrow": "Feedback",
+      "title": "Feedback and Issue Tracking",
+      "subtitle": "Preserves the FrameOS feedback entry as a personal issue log and reproduction collection page.",
+      "cards": [
+        { "title": "Submit Issue", "description": "Record page, project, reproduction steps, and expected behavior.", "meta": "Issue", "icon": "infoCircle" },
+        { "title": "Error Context", "description": "Prepared to attach task ID, route, model, and browser information automatically.", "meta": "Context", "icon": "clipboardCheck" },
+        { "title": "Improvement Ideas", "description": "Collect workflow, page detail, and generation quality requests.", "meta": "Ideas", "icon": "idea" },
+        { "title": "Handling Status", "description": "Reserved for local feedback status, notes, and close records.", "meta": "Status", "icon": "clock" }
+      ]
+    },
+    "updates": {
+      "eyebrow": "Check Updates",
+      "title": "Version and Capability Updates",
+      "subtitle": "FrameOS-style update entry for workflow, model, template, and local feature changes.",
+      "cards": [
+        { "title": "Version Status", "description": "Show current version, update state, and major change summary.", "meta": "Version", "icon": "arrowDownCircle" },
+        { "title": "Model Capability", "description": "Track Seedance, image, voice, and analysis model capability changes.", "meta": "Model", "icon": "film" },
+        { "title": "Template Updates", "description": "Track prompt template changes for scripts, assets, storyboards, and videos.", "meta": "Template", "icon": "bookmark" },
+        { "title": "Compatibility Check", "description": "Prepared for database, task queue, and media storage migration checks.", "meta": "Check", "icon": "badgeCheck" }
+      ]
+    }
   }
 }

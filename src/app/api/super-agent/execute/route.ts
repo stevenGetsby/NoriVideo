@@ -8,14 +8,19 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { SuperAgentOrchestrator } from '@/lib/super-agent/orchestrator'
 import type { AgentExecutionPlan } from '@/lib/super-agent/types'
-import { normalizeCreativeParameters, normalizeExecutionMode } from '@/lib/super-agent/plan-utils'
+import { normalizeAgentExecutionPlan, normalizeCreativeParameters, normalizeExecutionMode } from '@/lib/super-agent/plan-utils'
+import { prisma } from '@/lib/prisma'
+import { submitTask } from '@/lib/task/submitter'
+import { TASK_TYPE } from '@/lib/task/types'
+import { failAgentWorkflowRun, startAgentWorkflowRun } from '@/lib/super-agent/workflow-store'
+import { attachTaskToRun } from '@/lib/run-runtime/service'
 
 export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
-  const { plan, userInput, locale, executionMode } = body
+  const { plan, userInput, locale, executionMode, targetProjectId, responseMode } = body
 
   if (!plan || typeof plan !== 'object') {
     throw new ApiError('INVALID_PARAMS', {
@@ -35,20 +40,95 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const orchestrator = new SuperAgentOrchestrator()
   const executionPlan = plan as AgentExecutionPlan
+  const normalizedPlan = normalizeAgentExecutionPlan({
+    ...executionPlan,
+    executionMode: normalizeExecutionMode(executionMode ?? executionPlan.executionMode),
+    creativeParameters: normalizeCreativeParameters(executionPlan.creativeParameters),
+  })
+  const executionContext = {
+    userId: authResult.session.user.id,
+    locale: locale || 'zh',
+    userInput: userInput.trim(),
+    targetProjectId: typeof targetProjectId === 'string' && targetProjectId.trim()
+      ? targetProjectId.trim()
+      : undefined,
+  }
+
+  if (responseMode === 'background') {
+    if (!executionContext.targetProjectId) {
+      throw new ApiError('INVALID_PARAMS', {
+        code: 'TARGET_PROJECT_REQUIRED',
+        field: 'targetProjectId',
+        message: 'targetProjectId is required for background Agent execution',
+      })
+    }
+    const targetProject = await prisma.project.findFirst({
+      where: {
+        id: executionContext.targetProjectId,
+        userId: executionContext.userId,
+      },
+      select: { id: true },
+    })
+    if (!targetProject) {
+      throw new ApiError('NOT_FOUND', {
+        code: 'TARGET_PROJECT_NOT_FOUND',
+        field: 'targetProjectId',
+        message: 'Target project not found',
+      })
+    }
+  }
 
   try {
-    const result = await orchestrator.executePlan(
-      {
-        ...executionPlan,
-        executionMode: normalizeExecutionMode(executionMode ?? executionPlan.executionMode),
-        creativeParameters: normalizeCreativeParameters(executionPlan.creativeParameters),
-      },
-      {
-        userId: authResult.session.user.id,
-        locale: locale || 'zh',
-        userInput: userInput.trim(),
+    if (responseMode === 'background') {
+      const workflowRun = await startAgentWorkflowRun({
+        userId: executionContext.userId,
+        projectId: executionContext.targetProjectId!,
+        episodeId: null,
+        targetId: executionContext.targetProjectId!,
+        plan: normalizedPlan,
+        userInput: executionContext.userInput,
+      })
+      try {
+        const submitResult = await submitTask({
+          userId: executionContext.userId,
+          locale: executionContext.locale,
+          projectId: executionContext.targetProjectId!,
+          episodeId: null,
+          type: TASK_TYPE.SUPER_AGENT_EXECUTE,
+          targetType: 'project',
+          targetId: executionContext.targetProjectId!,
+          payload: {
+            plan: normalizedPlan,
+            userInput: executionContext.userInput,
+            targetProjectId: executionContext.targetProjectId!,
+            executionMode: normalizedPlan.executionMode,
+            runId: workflowRun.id,
+            meta: {
+              runId: workflowRun.id,
+            },
+          },
+        })
+        await attachTaskToRun(workflowRun.id, submitResult.taskId)
+        return Response.json({
+          async: true,
+          status: 'accepted',
+          targetProjectId: executionContext.targetProjectId || null,
+          runId: workflowRun.id,
+          taskId: submitResult.taskId,
+        }, { status: 202 })
+      } catch (submitError) {
+        await failAgentWorkflowRun({
+          runId: workflowRun.id,
+          userId: executionContext.userId,
+          projectId: executionContext.targetProjectId!,
+          errorMessage: submitError instanceof Error ? submitError.message : String(submitError),
+          details: { phase: 'submit_task' },
+        }).catch(() => undefined)
+        throw submitError
       }
-    )
+    }
+
+    const result = await orchestrator.executePlan(normalizedPlan, executionContext)
 
     return Response.json({ result })
   } catch (error) {

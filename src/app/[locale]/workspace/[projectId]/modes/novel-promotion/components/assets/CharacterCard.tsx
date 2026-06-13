@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl'
  * 布局：上面名字+描述，下面三张图片（每张图片有独立的编辑和重新生成按钮）
  */
 
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Character, CharacterAppearance } from '@/types/project'
 import { shouldShowError } from '@/lib/error-utils'
 import VoiceSettings from './VoiceSettings'
@@ -23,6 +23,7 @@ import { useImageGenerationCount } from '@/lib/image-generation/use-image-genera
 import { AppIcon } from '@/components/ui/icons'
 import { AI_EDIT_BUTTON_CLASS, AI_EDIT_ICON_CLASS } from '@/components/ui/ai-edit-style'
 import AISparklesIcon from '@/components/ui/icons/AISparklesIcon'
+import { apiFetch } from '@/lib/api-fetch'
 
 interface CharacterCardProps {
   character: Character
@@ -81,6 +82,27 @@ export default function CharacterCard({
   const [pendingUploadIndex, setPendingUploadIndex] = useState<number | undefined>(undefined)
   const [showDeleteMenu, setShowDeleteMenu] = useState(false)
   const [isConfirmingSelection, setIsConfirmingSelection] = useState(false)
+  const [seedanceAssetState, setSeedanceAssetState] = useState({
+    assetId: appearance.seedanceAssetId || null,
+    assetUri: appearance.seedanceAssetUri || null,
+    status: appearance.seedanceAssetStatus || null,
+    error: appearance.seedanceAssetError || null,
+  })
+  const [seedanceActionRunning, setSeedanceActionRunning] = useState(false)
+
+  useEffect(() => {
+    setSeedanceAssetState({
+      assetId: appearance.seedanceAssetId || null,
+      assetUri: appearance.seedanceAssetUri || null,
+      status: appearance.seedanceAssetStatus || null,
+      error: appearance.seedanceAssetError || null,
+    })
+  }, [
+    appearance.seedanceAssetError,
+    appearance.seedanceAssetId,
+    appearance.seedanceAssetStatus,
+    appearance.seedanceAssetUri,
+  ])
 
   // 处理删除按钮点击
   const handleDeleteClick = () => {
@@ -150,6 +172,113 @@ export default function CharacterCard({
   const currentImageUrl = appearance.imageUrl ||
     (selectedIndex !== null ? rawImageUrls[selectedIndex] : null) ||
     imageUrlsWithIndex[0]?.url
+
+  const handleSeedanceAssetUpload = async () => {
+    if (!currentImageUrl) {
+      alert('请先生成或上传角色图')
+      return
+    }
+    setSeedanceActionRunning(true)
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/seedance-assets/character`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: character.id,
+          appearanceId: appearance.id,
+          imageIndex: selectedIndex,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error?.message || `HTTP ${response.status}`)
+      }
+      setSeedanceAssetState({
+        assetId: data.assetId || null,
+        assetUri: data.assetUri || null,
+        status: data.status || null,
+        error: data.error || null,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '上传素材库失败'
+      setSeedanceAssetState((current) => ({ ...current, error: message, status: 'Failed' }))
+      alert(message)
+    } finally {
+      setSeedanceActionRunning(false)
+    }
+  }
+
+  const handleSeedanceAssetRefresh = async () => {
+    if (!seedanceAssetState.assetId) return
+    setSeedanceActionRunning(true)
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/seedance-assets/character`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: character.id,
+          appearanceId: appearance.id,
+        }),
+      })
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data?.message || data?.error?.message || `HTTP ${response.status}`)
+      }
+      setSeedanceAssetState({
+        assetId: data.assetId || seedanceAssetState.assetId,
+        assetUri: data.assetUri || seedanceAssetState.assetUri,
+        status: data.status || null,
+        error: data.error || null,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '刷新素材状态失败'
+      setSeedanceAssetState((current) => ({ ...current, error: message }))
+      alert(message)
+    } finally {
+      setSeedanceActionRunning(false)
+    }
+  }
+
+  const seedanceStatusClass = seedanceAssetState.status === 'Active'
+    ? 'border-green-500/20 bg-green-500/5 text-green-600 dark:text-green-400'
+    : seedanceAssetState.status === 'Failed'
+      ? 'border-red-500/20 bg-red-500/5 text-red-500'
+      : seedanceAssetState.status === 'Processing'
+        ? 'border-blue-500/20 bg-blue-500/5 text-blue-500'
+        : 'border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface)] text-[var(--glass-text-tertiary)]'
+
+  const seedanceAssetControls = currentImageUrl ? (
+    <div className={`mt-3 rounded-xl border px-3 py-2 ${seedanceStatusClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold">
+            <AppIcon name="video" className="h-3.5 w-3.5" />
+            <span>Seedance 素材库</span>
+            <span>{seedanceAssetState.status || '未入库'}</span>
+          </div>
+          {seedanceAssetState.assetUri && (
+            <div className="mt-1 truncate font-mono text-[10px] opacity-80">{seedanceAssetState.assetUri}</div>
+          )}
+          {seedanceAssetState.error && (
+            <div className="mt-1 line-clamp-2 text-[10px] opacity-90">{seedanceAssetState.error}</div>
+          )}
+        </div>
+        <button
+          onClick={seedanceAssetState.assetId ? handleSeedanceAssetRefresh : handleSeedanceAssetUpload}
+          disabled={seedanceActionRunning}
+          className="glass-btn-base h-7 shrink-0 px-2 text-[11px] font-semibold disabled:opacity-50"
+          title={seedanceAssetState.assetId ? '刷新火山素材状态' : '上传到火山素材库'}
+        >
+          {seedanceActionRunning ? (
+            <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          ) : (
+            <AppIcon name={seedanceAssetState.assetId ? 'refresh' : 'upload'} className="h-3.5 w-3.5" />
+          )}
+          <span>{seedanceAssetState.assetId ? '刷新' : '上传素材库'}</span>
+        </button>
+      </div>
+    </div>
+  ) : null
 
   // 调试日志
   if (!currentImageUrl) {
@@ -317,6 +446,7 @@ export default function CharacterCard({
           isPrimaryAppearance={isPrimaryAppearance}
           voiceSettings={selectionVoiceSettings}
         />
+        {seedanceAssetControls}
       </div>
     )
   }
@@ -486,6 +616,7 @@ export default function CharacterCard({
         onGenerate={onGenerate}
         voiceSettings={compactVoiceSettings}
       />
+      {seedanceAssetControls}
     </div>
   )
 }

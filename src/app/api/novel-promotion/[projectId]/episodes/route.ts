@@ -4,6 +4,10 @@ import { prisma } from '@/lib/prisma'
 import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 
+function isUniqueConstraintError(error: unknown) {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
+}
+
 /**
  * GET - 获取项目的所有剧集
  */
@@ -54,20 +58,37 @@ export const POST = apiHandler(async (
   })
   const nextEpisodeNumber = (lastEpisode?.episodeNumber || 0) + 1
 
-  // 创建剧集
-  const createData: Prisma.NovelPromotionEpisodeUncheckedCreateInput = {
-    novelPromotionProjectId: novelData.id,
-    episodeNumber: nextEpisodeNumber,
-    name: name.trim(),
-    description: description?.trim() || null,
-  }
-  if (typeof novelText === 'string') {
-    createData.novelText = novelText
+  const buildCreateData = (episodeNumber: number): Prisma.NovelPromotionEpisodeUncheckedCreateInput => {
+    const createData: Prisma.NovelPromotionEpisodeUncheckedCreateInput = {
+      novelPromotionProjectId: novelData.id,
+      episodeNumber,
+      name: name.trim(),
+      description: description?.trim() || null,
+    }
+    if (typeof novelText === 'string') {
+      createData.novelText = novelText
+    }
+    return createData
   }
 
-  const episode = await prisma.novelPromotionEpisode.create({
-    data: createData,
-  })
+  let episode
+  try {
+    episode = await prisma.novelPromotionEpisode.create({
+      data: buildCreateData(nextEpisodeNumber),
+    })
+  } catch (error) {
+    if (!isUniqueConstraintError(error)) {
+      throw error
+    }
+
+    const latestEpisode = await prisma.novelPromotionEpisode.findFirst({
+      where: { novelPromotionProjectId: novelData.id },
+      orderBy: { episodeNumber: 'desc' },
+    })
+    episode = await prisma.novelPromotionEpisode.create({
+      data: buildCreateData((latestEpisode?.episodeNumber || 0) + 1),
+    })
+  }
 
   // 更新最后编辑的剧集ID
   await prisma.novelPromotionProject.update({

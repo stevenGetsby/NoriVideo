@@ -35,6 +35,7 @@ export interface EpisodeVideoUrlsResponse {
 }
 
 export interface VideoStageShellProps {
+  viewMode?: 'storyboard' | 'final'
   projectId: string
   episodeId: string
   storyboards: Storyboard[]

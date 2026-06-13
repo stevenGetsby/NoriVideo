@@ -15,6 +15,7 @@ import { getInternalLLMStreamCallbacks } from '../llm-observe/internal-stream-co
 import type { ChatCompletionOptions } from './types'
 import { extractGoogleParts, extractGoogleUsage, GoogleEmptyResponseError } from './providers/google'
 import { buildOpenAIChatCompletion } from './providers/openai-compat'
+import { completeAnthropicCompatibleLlm } from './providers/anthropic-compatible'
 import { getCompletionParts } from './completion-parts'
 import {
   buildReasoningAwareContent,
@@ -36,6 +37,7 @@ import {
 } from './runtime-shared'
 import { completeBailianLlm } from '@/lib/providers/bailian'
 import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
+import { isHfsyProviderId, isLuminaProviderId } from '@/lib/model-provider-contract'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
@@ -114,9 +116,8 @@ export async function chatCompletion(
     const attemptStartedAt = Date.now()
     try {
       if (gatewayRoute === 'openai-compat') {
-        // openai-compatible protocol probing only applies to openai-compatible + llm.
-        // gemini-compatible is explicitly excluded and must not enter this branch.
-        if (providerKey !== 'openai-compatible') {
+        // OpenAI-compatible protocol probing only applies to HFSY-compatible LLMs.
+        if (!isHfsyProviderId(provider)) {
           throw new Error(`OPENAI_COMPAT_PROVIDER_UNSUPPORTED: ${provider}`)
         }
         if (!selection.llmProtocol) {
@@ -309,6 +310,46 @@ export async function chatCompletion(
             model: resolvedModelId,
             attempt,
             maxRetries,
+          },
+        })
+        return completion
+      }
+
+      if (isLuminaProviderId(provider)) {
+        if (!providerConfig.baseUrl) {
+          throw new Error(`PROVIDER_BASE_URL_MISSING: ${provider} (llm)`)
+        }
+        const completion = await completeAnthropicCompatibleLlm({
+          modelId: resolvedModelId,
+          messages,
+          apiKey: providerConfig.apiKey,
+          baseUrl: providerConfig.baseUrl,
+          temperature,
+        })
+        const completionParts = getCompletionParts(completion)
+        logLlmRawOutput({
+          userId,
+          projectId,
+          provider: providerKey,
+          modelId: resolvedModelId,
+          modelKey: selection.modelKey,
+          stream: false,
+          action: options.action,
+          text: completionParts.text,
+          reasoning: completionParts.reasoning,
+          usage: completionUsageSummary(completion),
+        })
+        recordCompletionUsage(resolvedModelId, completion)
+        llmLogger.info({
+          action: 'llm.call.success',
+          message: 'llm call succeeded',
+          provider: providerKey,
+          durationMs: Date.now() - attemptStartedAt,
+          details: {
+            model: resolvedModelId,
+            attempt,
+            maxRetries,
+            engine: 'anthropic_messages',
           },
         })
         return completion

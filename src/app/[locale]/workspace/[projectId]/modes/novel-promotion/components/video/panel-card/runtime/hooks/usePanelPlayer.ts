@@ -1,5 +1,5 @@
 import { logError as _ulogError } from '@/lib/logging/core'
-import { useCallback, useRef, useState, type MouseEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from 'react'
 
 interface UsePanelPlayerParams {
   videoRatio: string
@@ -19,11 +19,17 @@ export function usePanelPlayer({
   onPreviewImage,
 }: UsePanelPlayerParams) {
   const [isPlaying, setIsPlaying] = useState(false)
+  const [hasStartedPlayback, setHasStartedPlayback] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const cssAspectRatio = videoRatio.replace(':', '/')
   const currentVideoUrl = videoUrl
     ? (showLipSyncVideo && lipSyncVideoUrl ? lipSyncVideoUrl : videoUrl)
     : undefined
+
+  useEffect(() => {
+    setIsPlaying(false)
+    setHasStartedPlayback(false)
+  }, [currentVideoUrl])
 
   const handlePreviewImage = useCallback((event?: MouseEvent) => {
     if (event) event.stopPropagation()
@@ -32,8 +38,9 @@ export function usePanelPlayer({
   }, [imageUrl, onPreviewImage])
 
   const handlePlayClick = useCallback(async () => {
+    setHasStartedPlayback(true)
     setIsPlaying(true)
-    setTimeout(async () => {
+    window.requestAnimationFrame(async () => {
       if (!videoRef.current) return
       try {
         await videoRef.current.play()
@@ -42,16 +49,22 @@ export function usePanelPlayer({
           _ulogError('Video play error:', error)
         }
       }
-    }, 100)
+    })
+  }, [])
+
+  const handleEnded = useCallback(() => {
+    setIsPlaying(false)
   }, [])
 
   return {
     cssAspectRatio,
     currentVideoUrl,
+    hasStartedPlayback,
     isPlaying,
     setIsPlaying,
     videoRef,
     handlePreviewImage,
     handlePlayClick,
+    handleEnded,
   }
 }

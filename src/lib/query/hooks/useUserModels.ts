@@ -17,6 +17,7 @@ export interface UserModelOption {
 
 export interface UserModelsPayload {
     llm: UserModelOption[]
+    vision: UserModelOption[]
     image: UserModelOption[]
     video: UserModelOption[]
     audio: UserModelOption[]
@@ -34,6 +35,7 @@ export function useUserModels() {
             const data = await response.json()
             return {
                 llm: Array.isArray(data?.llm) ? data.llm : [],
+                vision: Array.isArray(data?.vision) ? data.vision : [],
                 image: Array.isArray(data?.image) ? data.image : [],
                 video: Array.isArray(data?.video) ? data.video : [],
                 audio: Array.isArray(data?.audio) ? data.audio : [],

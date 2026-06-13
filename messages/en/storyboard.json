@@ -125,6 +125,18 @@
         "newPanelDescription": "New shot description",
         "noShotType": "Shot type not set"
     },
+    "assetUsage": {
+        "title": "Shot Assets",
+        "character": "Character",
+        "location": "Location",
+        "prop": "Prop",
+        "empty": "No assets referenced in this shot",
+        "confirm": "Confirm Assets",
+        "confirming": "Confirming...",
+        "confirmed": "Confirmed",
+        "confirmFailed": "Asset confirmation failed",
+        "confirmedAt": "Confirmed at: {time}"
+    },
     "image": {
         "generating": "Generating...",
         "regenerate": "Regenerate",

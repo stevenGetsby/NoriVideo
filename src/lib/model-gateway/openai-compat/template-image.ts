@@ -53,6 +53,10 @@ function readTemplateOutputUrls(value: unknown): string[] {
   return urls
 }
 
+function readTemplateOutputB64(value: unknown): string | null {
+  return typeof value === 'string' && value.trim() ? value.trim() : null
+}
+
 export async function generateImageViaOpenAICompatTemplate(
   request: OpenAICompatImageRequest,
 ): Promise<GenerateResult> {
@@ -99,6 +103,17 @@ export async function generateImageViaOpenAICompatTemplate(
   }
 
   if (request.template.mode === 'sync') {
+    const outputB64 = readTemplateOutputB64(
+      readJsonPath(payload, request.template.response.outputB64JsonPath),
+    )
+    if (outputB64) {
+      return {
+        success: true,
+        imageBase64: outputB64,
+        imageUrl: `data:image/png;base64,${outputB64}`,
+      }
+    }
+
     const outputUrls = readTemplateOutputUrls(
       readJsonPath(payload, request.template.response.outputUrlsPath),
     )

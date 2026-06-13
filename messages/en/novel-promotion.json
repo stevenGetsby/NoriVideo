@@ -1,10 +1,10 @@
 {
   "stages": {
-    "story": "Story",
-    "script": "Script",
-    "storyboard": "Storyboard",
-    "video": "Video",
-    "editor": "AI Editor",
+    "story": "Script Parse",
+    "script": "Asset Setup",
+    "storyboard": "Storyboard Design",
+    "video": "Shot Production",
+    "editor": "Export Delivery",
     "editorComingSoon": "Coming soon, follow us for updates"
   },
   "buttons": {
@@ -12,6 +12,640 @@
     "settings": "Project Config",
     "refreshData": "Refresh Data",
     "enterVideoGeneration": "Enter Video Generation →"
+  },
+  "workbenchShell": {
+    "projectWorkflow": "Project Workflow",
+    "currentEpisode": "Current Episode",
+    "noEpisode": "No episode selected",
+    "episodeList": "Episode List",
+    "addEpisode": "Add Episode",
+    "status": {
+      "empty": "Todo",
+      "active": "Ready",
+      "processing": "Running",
+      "ready": "Done"
+    },
+    "progress": "{value}%",
+    "metrics": {
+      "episodes": "{count} eps",
+      "stories": "{count} texts",
+      "clips": "{count} scenes",
+      "scripts": "{count} scripts",
+      "characters": "{count} chars",
+      "assets": "{count} assets",
+      "storyboards": "{count} boards",
+      "panels": "{count} shots",
+      "images": "{count} images",
+      "videos": "{count} videos",
+      "missingVideos": "{count} missing",
+      "voiceLines": "{count} lines",
+      "audios": "{count} audios",
+      "editorProjects": "{count} drafts"
+    },
+    "groups": {
+      "script": "Script",
+      "assets": "Assets",
+      "storyboard": "Storyboard",
+      "production": "Production"
+    },
+    "items": {
+      "scriptParse": "Script Parse",
+      "scriptReview": "Script Review",
+      "characterAssets": "Character Assets",
+      "itemAssets": "Item Assets",
+      "environmentAssets": "Environment Assets",
+      "timbreMatch": "Character Timbre Match",
+      "storyboardDesign": "Storyboard Design",
+      "productionEpisodes": "Production · Episodes",
+      "shotProduction": "Shot Production",
+      "exportDelivery": "Export Delivery"
+    }
+  },
+  "workbenchFocus": {
+    "variants": {
+      "standard": "Efficient / Premium Workbench",
+      "premium2": "Premium 2.0"
+    },
+    "labels": {
+      "route": "FrameOS Route",
+      "status": "Status",
+      "connected": "Connected"
+    },
+    "workflow": {
+      "title": "Stage Production Overview",
+      "description": "Summarizes script, assets, storyboard, shot, timbre, and delivery progress from real episode outputs.",
+      "derived": "Derived server state",
+      "loading": "Loading workflow state...",
+      "progress": "{value}%",
+      "noMetrics": "No metrics",
+      "reviewStates": {
+        "unset": "Not calibrated",
+        "confirmed": "Manually confirmed",
+        "review": "Needs review"
+      },
+      "actions": {
+        "confirm": "Confirm",
+        "review": "Review"
+      },
+      "status": {
+        "empty": "Todo",
+        "active": "Ready",
+        "processing": "Running",
+        "ready": "Done"
+      },
+      "metrics": {
+        "episodes": "{count} eps",
+        "stories": "{count} texts",
+        "clips": "{count} scenes",
+        "scripts": "{count} scripts",
+        "characters": "{count} chars",
+        "assets": "{count} assets",
+        "storyboards": "{count} boards",
+        "panels": "{count} shots",
+        "images": "{count} images",
+        "videos": "{count} videos",
+        "missingVideos": "{count} missing",
+        "voiceLines": "{count} lines",
+        "audios": "{count} audios",
+        "editorProjects": "{count} drafts"
+      },
+      "reasons": {
+        "story_input_ready": "Story ready",
+        "waiting_for_story_input": "Waiting for story",
+        "script_and_assets_ready": "Script assets ready",
+        "waiting_for_script_assets": "Waiting for script assets",
+        "storyboard_ready": "Storyboard ready",
+        "waiting_for_storyboard": "Waiting for storyboard",
+        "video_ready": "Shots ready",
+        "waiting_for_video": "Waiting for video",
+        "voice_ready": "Timbre ready",
+        "waiting_for_voice": "Waiting for voice",
+        "delivery_ready": "Ready to deliver",
+        "waiting_for_delivery_assets": "Waiting for delivery assets"
+      }
+    },
+    "slots": {
+      "primary": "Primary Action",
+      "secondary": "Review",
+      "handoff": "Next Step"
+    },
+    "data": {
+      "detailTitle": "Current Data",
+      "showing": "Showing {count}",
+      "empty": "No data to show yet. Complete the upstream stages and this area will summarize it.",
+      "characters": "Characters",
+      "appearances": "Appearances",
+      "voiceReady": "Voices Ready",
+      "items": "Items",
+      "environments": "Environments",
+      "linkedPanels": "Linked Shots",
+      "storyClips": "Script Clips",
+      "episodes": "Episodes",
+      "clips": "Clips",
+      "storyboards": "Storyboards",
+      "panels": "Shots",
+      "videoReady": "Video Ready",
+      "imageReady": "Image Ready",
+      "audioReady": "Audio Ready",
+      "pending": "Pending",
+      "currentClips": "Current Clips",
+      "currentPanels": "Current Shots",
+      "ready": "Ready",
+      "todo": "Todo",
+      "current": "Current",
+      "assets": "Assets",
+      "profile": "Character Profile",
+      "timbre": "Timbre",
+      "panelRefs": "Shot references",
+      "scriptRefs": "Script references",
+      "scriptUnits": "Script units",
+      "nextStoryboard": "Next storyboard",
+      "currentEpisode": "Current episode",
+      "projectTotal": "Project total",
+      "assetRefs": "Asset references",
+      "needsGeneration": "Needs generation",
+      "roleVoices": "Role voices",
+      "boundVoices": "Bound voices",
+      "episodeAudio": "Episode audio",
+      "noEpisode": "No episode selected",
+      "noDescription": "No description",
+      "noLocation": "No location",
+      "readyCount": "{count} ready",
+      "imageReadyCount": "{count} images ready",
+      "appearanceCount": "{count} appearances",
+      "clipTitle": "Clip {index}",
+      "episodeNumber": "Episode {index}"
+    },
+    "inspect": {
+      "title": "Detail Inspector",
+      "preview": "Preview",
+      "assetDetail": "Asset Detail",
+      "shotDetail": "Shot Detail",
+      "shotNumber": "Shot {index}",
+      "shotDescription": "Shot Description",
+      "shotType": "Shot Type",
+      "cameraMove": "Camera Move",
+      "visualPrompt": "Visual Prompt",
+      "videoPrompt": "Video Prompt",
+      "duration": "Shot Duration",
+      "assetRefs": "Asset References",
+      "output": "Output Status",
+      "description": "Description",
+      "references": "Reference Stats",
+      "imageStatus": "Image Status",
+      "nextAction": "Next Action",
+      "referenceStats": "Script clips {clips} · shots {panels}"
+    },
+    "edit": {
+      "namePlaceholder": "Enter name",
+      "summaryPlaceholder": "Enter description or usage notes",
+      "imagePromptPlaceholder": "Enter visual prompt",
+      "videoPromptPlaceholder": "Enter video prompt",
+      "durationPlaceholder": "Enter seconds, e.g. 3.5",
+      "shotDescriptionPlaceholder": "Describe framing, action, and emotion",
+      "shotTypePlaceholder": "e.g. medium shot, close-up, over-the-shoulder",
+      "cameraMovePlaceholder": "e.g. locked, push-in, tracking, pan",
+      "locationPlaceholder": "Location / environment reference",
+      "charactersPlaceholder": "Character references",
+      "propsPlaceholder": "Prop references",
+      "saveAsset": "Save Asset",
+      "saveCharacter": "Save Character",
+      "saveShot": "Save Shot",
+      "saving": "Saving...",
+      "saved": "Saved",
+      "saveFailed": "Save failed"
+    },
+    "timeline": {
+      "title": "Timeline Shot Check",
+      "openDetail": "Click a shot for details",
+      "boardTitle": "Timeline Delivery Overview",
+      "boardDescription": "Check shot order, duration, references, image, and video status before export.",
+      "image": "Image",
+      "video": "Video",
+      "duration": "Duration",
+      "durationTotal": "Total Duration",
+      "imageMissing": "Missing Images",
+      "videoMissing": "Missing Videos",
+      "averageDuration": "Avg Duration",
+      "refsMissing": "Missing Refs",
+      "durationMissing": "Missing Duration",
+      "readyShots": "Deliverable Shots",
+      "deliveryReady": "Deliverable {ready}/{total}",
+      "order": "Timeline Order",
+      "orderValue": "Order #{index}",
+      "save": "Save Timeline",
+      "detail": "Open Detail",
+      "saved": "Saved {count} shots",
+      "reordered": "Shot order updated",
+      "moveUp": "Move Up",
+      "moveDown": "Move Down",
+      "noChanges": "No changes to save",
+      "queues": {
+        "refs": {
+          "title": "References Pending"
+        },
+        "duration": {
+          "title": "Duration Pending"
+        }
+      },
+      "queueEmpty": "No pending items"
+    },
+    "assets": {
+      "selectTitle": "Asset Detail Selection",
+      "selected": "Current",
+      "boardTitle": "Asset Production Board",
+      "boardDescriptions": {
+        "characters": "Check character images, script references, shot bindings, and voice prerequisites.",
+        "items": "Check item reference images, script references, and prop bindings in shots.",
+        "environments": "Check environment images, script scenes, and location bindings in shots."
+      },
+      "total": "{count} items",
+      "imageReady": "Images {ready}/{total}",
+      "metrics": {
+        "ready": "Images Ready",
+        "missingImage": "Missing Images",
+        "linkedPanels": "Shot Linked",
+        "scriptOnly": "Script Only"
+      },
+      "queues": {
+        "missing": {
+          "title": "Images Pending"
+        },
+        "scriptOnly": {
+          "title": "Shot Binding Pending"
+        }
+      },
+      "refs": {
+        "script": "Script {count}",
+        "panels": "Shots {count}",
+        "images": "Images {count}"
+      },
+      "queueEmpty": "No pending items"
+    },
+    "script": {
+      "title": "Script Parse Entry Check",
+      "description": "Review the current episode source text, SRT, and production settings, then inspect parsed clips and assets.",
+      "storyReady": "Story ready",
+      "storyMissing": "Missing story",
+      "srtReady": "SRT ready",
+      "srtMissing": "Missing SRT",
+      "sourceTitle": "Script Text Preview",
+      "charCount": "{count} chars",
+      "noSource": "No script text or SRT content yet.",
+      "episode": "Current Episode",
+      "ratio": "Aspect Ratio",
+      "style": "Art Style",
+      "model": "Parse Model",
+      "ready": "Generated",
+      "pending": "Pending",
+      "openReview": "Open Parse Result",
+      "openStoryboard": "Open Storyboard",
+      "outputs": {
+        "clips": "Clips",
+        "characters": "Characters",
+        "locations": "Locations",
+        "props": "Props"
+      }
+    },
+    "scriptReview": {
+      "title": "Script Breakdown Review",
+      "description": "Review AI-generated clips and check scene, character, prop, screenplay, and storyboard completeness.",
+      "total": "{count} clips",
+      "storyboards": "{count} storyboard groups",
+      "panels": "{count} shots",
+      "locationCoverage": "Scene Coverage",
+      "characterCoverage": "Character Coverage",
+      "propCoverage": "Prop Coverage",
+      "clipTitle": "Clip {index}",
+      "noLocation": "Missing scene",
+      "noCharacters": "Missing characters",
+      "screenplayReady": "Screenplay ready",
+      "screenplayMissing": "Missing screenplay",
+      "storyboardReady": "Storyboard linked",
+      "storyboardMissing": "Missing storyboard",
+      "panelCount": "{count} shots",
+      "openShot": "Open Shot",
+      "openStoryboard": "Open Storyboard"
+    },
+    "timbre": {
+      "title": "Character Timbre Match Check",
+      "description": "Check each character's voice binding, uploaded reference audio, script references, and shot references before delivery.",
+      "ready": "Matched",
+      "missing": "Missing",
+      "episodeAudioReady": "Episode audio ready",
+      "episodeAudioMissing": "Episode audio missing",
+      "voiceLines": "{count} lines",
+      "clipRefs": "{count} scenes",
+      "panelRefs": "{count} shots",
+      "noVoiceId": "No voice ID",
+      "openCharacter": "Open Character Asset",
+      "voiceTypes": {
+        "uploaded": "Uploaded Audio",
+        "qwenDesigned": "Qwen Designed",
+        "custom": "Custom",
+        "bound": "Bound",
+        "missing": "Unset"
+      }
+    },
+    "episodes": {
+      "title": "Episode Production Check",
+      "total": "{count} episodes",
+      "index": "Ep {index}",
+      "panels": "{count} shots",
+      "images": "{count} images",
+      "videos": "{count} videos"
+    },
+    "storyboard": {
+      "title": "Storyboard Group Check",
+      "boardTitle": "Storyboard Production Board",
+      "boardDescription": "Check shot count, asset references, image generation, and video output by storyboard group.",
+      "total": "{count} groups",
+      "expectedPanels": "Planned Shots",
+      "panelReady": "Built Shots",
+      "imageCoverage": "Image Coverage",
+      "videoCoverage": "Video Coverage",
+      "qualityTitle": "Storyboard Quality Check",
+      "needsPanels": "Groups Missing Shots",
+      "needsRefs": "Groups Missing Refs",
+      "needsImages": "Groups Missing Images",
+      "videoReadyGroups": "Video-Ready Groups",
+      "openShotQueue": "Shot Queue",
+      "openTimeline": "Timeline",
+      "columnEmpty": "No groups",
+      "columns": {
+        "panel": {
+          "title": "Shots Pending",
+          "description": "Groups below their planned shot count."
+        },
+        "refs": {
+          "title": "Asset Refs Pending",
+          "description": "Character, scene, or prop references are incomplete."
+        },
+        "image": {
+          "title": "Images Pending",
+          "description": "Structured shots that still need storyboard images."
+        },
+        "ready": {
+          "title": "Videos Ready",
+          "description": "All shots in the group have video outputs."
+        }
+      },
+      "groupIndex": "Group {index}",
+      "untitled": "Untitled storyboard group",
+      "panels": "{count} shots",
+      "images": "{count} images",
+      "videos": "{count} videos",
+      "linkedRefs": "{count} refs",
+      "openFirstShot": "Open First Shot",
+      "noPanels": "No shots yet"
+    },
+    "shot": {
+      "title": "Shot Production Queue",
+      "description": "Review image, video, asset references, and production readiness by shot, then open details for missing items.",
+      "overviewTitle": "Production Board",
+      "overviewDescription": "Group shots by image, video, delivery, and attention states for faster production passes.",
+      "total": "{count} shots",
+      "imagesReady": "Images {ready}/{total}",
+      "videosReady": "Videos {ready}/{total}",
+      "pendingImages": "Pending Images",
+      "pendingVideos": "Pending Videos",
+      "deliverable": "Deliverable Shots",
+      "averageDuration": "Avg Duration",
+      "healthTitle": "Production Health",
+      "running": "Running Tasks",
+      "imageErrors": "Image Failures",
+      "videoErrors": "Video Failures",
+      "refsMissingCount": "Missing Refs",
+      "openTimeline": "Timeline",
+      "openExport": "Export",
+      "columnEmpty": "No shots",
+      "columns": {
+        "image": {
+          "title": "Image Pending",
+          "description": "Shots without a first frame or storyboard image."
+        },
+        "video": {
+          "title": "Video Pending",
+          "description": "Shots with images but no video output yet."
+        },
+        "delivery": {
+          "title": "Deliverable",
+          "description": "Shots with both image and video ready."
+        },
+        "attention": {
+          "title": "Needs Attention",
+          "description": "Failed or missing asset references."
+        }
+      },
+      "order": "Order #{index}",
+      "duration": "{value}s",
+      "noImage": "No image",
+      "imageReady": "Image ready",
+      "imageMissing": "Missing image",
+      "videoReady": "Video ready",
+      "videoMissing": "Missing video",
+      "refsReady": "Refs bound",
+      "refsMissing": "Missing refs",
+      "openDetail": "Process Shot"
+    },
+    "shotDetail": {
+      "boardTitle": "Shot Production Inspector",
+      "boardDescription": "Check image, video, asset references, prompts, duration, and failures before editing the shot.",
+      "order": "Order #{index}",
+      "running": "Task running",
+      "idle": "Idle",
+      "ready": "Ready",
+      "pending": "Pending",
+      "checks": {
+        "image": "Image",
+        "video": "Video",
+        "refs": "Refs",
+        "prompts": "Prompts",
+        "duration": "Duration",
+        "errors": "Errors"
+      },
+      "mediaTitle": "Media Status",
+      "refsTitle": "Reference Status",
+      "issueTitle": "Tasks & Errors",
+      "imageState": "Image",
+      "videoState": "Video",
+      "durationState": "Duration",
+      "imageError": "Image Error",
+      "videoError": "Video Error",
+      "taskState": "Task State"
+    },
+    "export": {
+      "title": "Export Delivery Check",
+      "description": "Check final video, asset package, delivery manifest, and audio materials before download.",
+      "videoCoverage": "Videos {ready}/{total}",
+      "imageCoverage": "Images {ready}/{total}",
+      "ready": "Deliverable",
+      "notReady": "Needs work",
+      "missing": "{count} missing",
+      "openTimeline": "Open Timeline",
+      "openShots": "Back to Shot Production",
+      "useStageDownloads": "Use the export stage cards below for downloads",
+      "cards": {
+        "finalVideo": {
+          "title": "Final Video",
+          "detail": "{ready}/{total} video shots generated."
+        },
+        "assetPackage": {
+          "title": "Asset Package",
+          "detail": "{ready}/{total} shot images ready for delivery."
+        },
+        "manifest": {
+          "title": "Delivery Manifest",
+          "detail": "{clips} clips · {storyboards} storyboard groups · {panels} shots."
+        },
+        "audio": {
+          "title": "Audio Materials",
+          "ready": "Episode audio generated.",
+          "missing": "Episode audio pending, {count} voice lines."
+        }
+      }
+    },
+    "stages": {
+      "config": "Script Parse",
+      "script": "Asset Setup",
+      "assets": "Asset Setup",
+      "storyboard": "Storyboard Design",
+      "videos": "Shot Production",
+      "voice": "Timbre Match",
+      "editor": "Export Delivery"
+    },
+    "items": {
+      "workbench": {
+        "title": "Project Workbench Overview",
+        "description": "Maps the FrameOS workbench root page and aggregates script, asset, storyboard, production, and delivery progress.",
+        "route": "/workbench",
+        "slots": {
+          "primary": "Review the current episode and stage status.",
+          "secondary": "Check missing scripts, assets, storyboards, or video outputs.",
+          "handoff": "Use the left workflow stages to continue production."
+        }
+      },
+      "script": {
+        "title": "Script Parse",
+        "description": "Maps the FrameOS /script page for material import, episode content editing, and script parsing.",
+        "route": "/script",
+        "slots": {
+          "primary": "Edit the current episode text and production basics.",
+          "secondary": "Confirm aspect ratio, visual style, and narration settings.",
+          "handoff": "Generate the script structure, then continue to asset setup."
+        }
+      },
+      "script-review": {
+        "title": "Script Review",
+        "description": "Maps workbench/script-review for reviewing AI-generated clips, characters, and locations.",
+        "route": "/workbench/script-review",
+        "slots": {
+          "primary": "Review short-drama clips, dialogue, and narration breakdown.",
+          "secondary": "Find story nodes that need rewrite or additional detail.",
+          "handoff": "Continue to character, item, and environment assets."
+        }
+      },
+      "characters": {
+        "title": "Character Assets",
+        "description": "Maps workbench/assets/characters for character profiles, appearances, and references.",
+        "route": "/workbench/assets/characters",
+        "slots": {
+          "primary": "Maintain character cards, aliases, descriptions, and images.",
+          "secondary": "Check where each character is used in script clips.",
+          "handoff": "Continue to item, environment, or storyboard design."
+        }
+      },
+      "items": {
+        "title": "Item Assets",
+        "description": "Maps workbench/assets/items for props, key objects, and reusable item assets.",
+        "route": "/workbench/assets/items",
+        "slots": {
+          "primary": "Organize key props and visual requirements.",
+          "secondary": "Check whether items are linked to relevant shots.",
+          "handoff": "Use confirmed items as storyboard and video references."
+        }
+      },
+      "environments": {
+        "title": "Environment Assets",
+        "description": "Maps workbench/assets/environments for scenes, locations, and environment references.",
+        "route": "/workbench/assets/environments",
+        "slots": {
+          "primary": "Maintain locations, summaries, and scene reference images.",
+          "secondary": "Check scene coverage against script clips.",
+          "handoff": "Continue to storyboard design after environments are confirmed."
+        }
+      },
+      "timbre": {
+        "title": "Character Timbre Match",
+        "description": "Maps workbench/assets/timbre for character voices, narration, and dialogue timbre.",
+        "route": "/workbench/assets/timbre",
+        "slots": {
+          "primary": "Generate or bind character voices and dialogue audio.",
+          "secondary": "Check voice coverage and missing lines.",
+          "handoff": "Continue to shot production or export once voices are ready."
+        }
+      },
+      "storyboard": {
+        "title": "Storyboard Design",
+        "description": "Maps workbench/storyboard for generating, editing, and reviewing storyboard visuals.",
+        "route": "/workbench/storyboard",
+        "slots": {
+          "primary": "Generate storyboard images and refine visual prompts.",
+          "secondary": "Check consistency with script clips and referenced assets.",
+          "handoff": "Continue to shot production after storyboard approval."
+        }
+      },
+      "episodes": {
+        "title": "Production · Episodes",
+        "description": "Maps workbench/production/episodes for episode-level production progress and missing items.",
+        "route": "/workbench/production/episodes",
+        "slots": {
+          "primary": "Switch episodes and inspect each production state.",
+          "secondary": "Check whether script, assets, storyboards, and videos are complete.",
+          "handoff": "Choose an episode, then enter timeline or shot production."
+        }
+      },
+      "timeline": {
+        "title": "Timeline Production",
+        "description": "Maps workbench/production/timeline for organizing generated videos in shot order.",
+        "route": "/workbench/production/timeline",
+        "slots": {
+          "primary": "Review video shots in storyboard order and missing states.",
+          "secondary": "Check duration, narration, and visual continuity.",
+          "handoff": "Continue to export delivery once the timeline is complete."
+        }
+      },
+      "shot": {
+        "title": "Shot Production",
+        "description": "Maps workbench/production/shot for batch or single-shot video generation.",
+        "route": "/workbench/production/shot",
+        "slots": {
+          "primary": "Generate single-shot videos, batch run, and retry failed shots.",
+          "secondary": "Check first/last frames, video prompts, and model settings.",
+          "handoff": "Continue to timeline or export after shots are complete."
+        }
+      },
+      "shot-detail": {
+        "title": "Shot Detail",
+        "description": "Maps workbench/production/shot/:shotId for a single shot's prompt, references, and generation output.",
+        "route": "/workbench/production/shot/:shotId",
+        "slots": {
+          "primary": "Inspect one shot's visual, prompt, and video output.",
+          "secondary": "Check referenced assets, first/last frames, and failure causes.",
+          "handoff": "Return to batch shot production after the shot is approved."
+        }
+      },
+      "export": {
+        "title": "Export Delivery",
+        "description": "Maps workbench/production/export for final video, asset package, and editing draft delivery.",
+        "route": "/workbench/production/export",
+        "slots": {
+          "primary": "Review final video, asset package, and editing draft exports.",
+          "secondary": "Confirm missing shots, storyboards, and materials are resolved.",
+          "handoff": "Generate final download records after delivery checks pass."
+        }
+      }
+    }
   },
   "smartImport": {
     "title": "Start Your Creative Journey",

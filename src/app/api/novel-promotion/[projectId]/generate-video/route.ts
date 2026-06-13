@@ -15,6 +15,7 @@ import {
 } from '@/lib/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
+import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -56,6 +57,34 @@ function resolveVideoModelKeyFromPayload(payload: Record<string, unknown>): stri
     return payload.videoModel
   }
   return null
+}
+
+function readDurationOptionsForVideoModel(modelKey: string): readonly CapabilityValue[] | undefined {
+  return resolveBuiltinCapabilitiesByModelKey('video', modelKey)?.video?.durationOptions
+}
+
+function withPanelRecommendedDurationPayload(
+  payload: Record<string, unknown>,
+  panel: {
+    duration?: number | null
+    description?: string | null
+    videoPrompt?: string | null
+    firstLastFramePrompt?: string | null
+    srtSegment?: string | null
+    shotType?: string | null
+    cameraMove?: string | null
+  },
+): Record<string, unknown> {
+  const modelKey = resolveVideoModelKeyFromPayload(payload)
+  if (!modelKey) return payload
+  return {
+    ...payload,
+    generationOptions: withRecommendedVideoDurationOptions(
+      panel,
+      toVideoRuntimeSelections(payload.generationOptions),
+      readDurationOptionsForVideoModel(modelKey),
+    ),
+  }
 }
 
 function requireVideoModelKeyFromPayload(payload: unknown): string {
@@ -218,7 +247,16 @@ export const POST = apiHandler(async (
           { videoUrl: '' },
         ],
       },
-      select: { id: true },
+      select: {
+        id: true,
+        duration: true,
+        description: true,
+        videoPrompt: true,
+        firstLastFramePrompt: true,
+        srtSegment: true,
+        shotType: true,
+        cameraMove: true,
+      },
     })
 
     if (panels.length === 0) {
@@ -226,8 +264,9 @@ export const POST = apiHandler(async (
     }
 
     const results = await Promise.all(
-      panels.map(async (panel) =>
-        submitTask({
+      panels.map(async (panel) => {
+        const panelPayload = withPanelRecommendedDurationPayload(body, panel)
+        return submitTask({
           userId: session.user.id,
           locale,
           requestId: getRequestId(request),
@@ -236,13 +275,13 @@ export const POST = apiHandler(async (
           type: TASK_TYPE.VIDEO_PANEL,
           targetType: 'NovelPromotionPanel',
           targetId: panel.id,
-          payload: withTaskUiPayload(body, {
+          payload: withTaskUiPayload(panelPayload, {
             hasOutputAtStart: await hasPanelVideoOutput(panel.id),
           }),
           dedupeKey: `video_panel:${panel.id}`,
-          billingInfo: buildVideoPanelBillingInfoOrThrow(body),
-        }),
-      ),
+          billingInfo: buildVideoPanelBillingInfoOrThrow(panelPayload),
+        })
+      }),
     )
 
     return NextResponse.json({ tasks: results, total: panels.length })
@@ -256,13 +295,23 @@ export const POST = apiHandler(async (
 
   const panel = await prisma.novelPromotionPanel.findFirst({
     where: { storyboardId, panelIndex: Number(panelIndex) },
-    select: { id: true },
+    select: {
+      id: true,
+      duration: true,
+      description: true,
+      videoPrompt: true,
+      firstLastFramePrompt: true,
+      srtSegment: true,
+      shotType: true,
+      cameraMove: true,
+    },
   })
 
   if (!panel) {
     throw new ApiError('NOT_FOUND')
   }
 
+  const panelPayload = withPanelRecommendedDurationPayload(body, panel)
   const result = await submitTask({
     userId: session.user.id,
     locale,
@@ -271,11 +320,11 @@ export const POST = apiHandler(async (
     type: TASK_TYPE.VIDEO_PANEL,
     targetType: 'NovelPromotionPanel',
     targetId: panel.id,
-    payload: withTaskUiPayload(body, {
+    payload: withTaskUiPayload(panelPayload, {
       hasOutputAtStart: await hasPanelVideoOutput(panel.id),
     }),
     dedupeKey: `video_panel:${panel.id}`,
-    billingInfo: buildVideoPanelBillingInfoOrThrow(body),
+    billingInfo: buildVideoPanelBillingInfoOrThrow(panelPayload),
   })
 
   return NextResponse.json(result)

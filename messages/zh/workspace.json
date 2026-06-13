@@ -1,7 +1,65 @@
 {
   "title": "我的项目",
   "subtitle": "管理您的AI动漫制作项目",
+  "workbenchEyebrow": "项目工作台",
+  "sidebarSubtitle": "AI 视频生产控制台",
+  "nav": {
+    "projects": "项目",
+    "writerWorkbench": "编剧工作台",
+    "toolbox": "工具箱",
+    "seedance": "Seedance 2.0",
+    "assetHub": "资产库",
+    "materialLibrary": "素材库",
+    "prompts": "提示词库",
+    "team": "团队管理",
+    "serviceRecords": "服务记录",
+    "feedback": "问题反馈",
+    "updates": "检查更新",
+    "user": "用户"
+  },
   "newProject": "新建项目",
+  "newProjectDesc": "创建短剧项目并进入剧本、资产、分镜、镜头制作工作流。",
+  "featureChips": {
+    "script": "智能剧本拆解",
+    "assets": "角色资产设定",
+    "storyboard": "自动分镜制作"
+  },
+  "productionOverview": {
+    "title": "项目生产概览",
+    "subtitle": "按剧本、资产、分镜和交付阶段汇总当前项目状态，帮助从项目入口快速判断生产进度。",
+    "local": "项目列表",
+    "ready": "已就绪",
+    "pending": "待处理",
+    "waiting": "未开始",
+    "columns": {
+      "stage": "阶段",
+      "projects": "项目",
+      "status": "状态",
+      "next": "下一步"
+    },
+    "stages": {
+      "draft": {
+        "title": "项目草稿",
+        "hint": "进入项目后导入剧本或补充描述"
+      },
+      "script": {
+        "title": "剧本解析",
+        "hint": "继续审核分集与文本结构"
+      },
+      "storyboard": {
+        "title": "分镜制作",
+        "hint": "检查分镜图、镜头和资产引用"
+      },
+      "delivery": {
+        "title": "导出交付",
+        "hint": "进入工作台生成视频和交付包"
+      }
+    }
+  },
+  "projectBadge": {
+    "active": "制作中",
+    "draft": "草稿"
+  },
   "searchPlaceholder": "搜索项目名称或描述...",
   "searchButton": "搜索",
   "clearButton": "清除",
@@ -18,6 +76,50 @@
   "projectNamePlaceholder": "输入项目名称",
   "projectDescription": "项目描述（可选）",
   "projectDescriptionPlaceholder": "输入项目描述",
+  "createModal": {
+    "subtitle": "设置项目基础信息，创建后进入短剧生产工作台。",
+    "basicInfo": "基础信息",
+    "productionSetup": "生产设置",
+    "projectLevel": "项目水准",
+    "contentType": "内容类型",
+    "resolution": "分辨率",
+    "aspectRatio": "画面比例",
+    "language": "语言",
+    "source": "剧本来源",
+    "sourceHint": "创建后可继续导入全文或上传文件",
+    "pipelineTitle": "工作流",
+    "step": "步骤 {index}",
+    "persistenceNote": "当前版本会创建项目并进入工作台，生产设置用于初始化工作流界面。",
+    "workflowBoundaryNote": "智能执行能力会在工作台阶段按钮中触发，创建时只保留统一项目入口。",
+    "levels": {
+      "efficient": "高效版",
+      "premium": "精品版",
+      "premium2": "精品版 2.0"
+    },
+    "levelHints": {
+      "efficient": "适合快速拆解剧本、批量生成分镜和镜头。",
+      "premium": "适合更细的角色资产和视觉一致性管理。",
+      "premium2": "预留给更完整的资产参考和交付工作流。"
+    },
+    "contentTypes": {
+      "shortDrama": "短剧",
+      "animation": "动画"
+    },
+    "languages": {
+      "zh": "中文",
+      "en": "英文"
+    },
+    "sourceTypes": {
+      "text": "导入剧本",
+      "upload": "本地上传"
+    },
+    "pipeline": {
+      "script": "剧本解析",
+      "assets": "资产设定",
+      "storyboard": "分镜设计",
+      "delivery": "导出交付"
+    }
+  },
   "creating": "创建中...",
   "saving": "保存中...",
   "createFailed": "创建项目失败",
@@ -38,5 +140,920 @@
     "before": "检测到尚未配置模型，请先前往",
     "link": "设置中心",
     "after": "配置模型，或在创建项目后于项目配置中自定义。"
+  },
+  "serviceRecordsPanel": {
+    "title": "最近服务记录",
+    "subtitle": "直接读取当前用户的异步任务记录，用于排查项目生产、导出和模型调用状态。",
+    "loading": "正在加载服务记录...",
+    "empty": "暂无任务记录。创建项目并运行剧本解析、分镜或视频生成后会显示在这里。",
+    "loadFailed": "服务记录加载失败",
+    "recentFailures": "最近失败",
+    "usage": {
+      "title": "服务用量概览",
+      "estimated": "按任务派生",
+      "empty": "暂无可统计的服务用量。",
+      "stats": {
+        "billableTasks": "可计量任务",
+        "estimatedUnits": "估算单位",
+        "serviceTypes": "服务类型"
+      }
+    },
+    "billing": {
+      "title": "服务账单预览",
+      "realTitle": "真实服务账单",
+      "realSubtitle": "读取余额、项目费用和最近流水，用于对齐 FrameOS 的服务记录与扣费明细。",
+      "realSource": "账单 API",
+      "realLoadFailed": "真实账单加载失败",
+      "projectCosts": "项目费用排行",
+      "transactions": "最近流水",
+      "records": "{count} 条记录",
+      "noRealCosts": "暂无真实费用记录。",
+      "noTransactions": "暂无余额流水。",
+      "realStats": {
+        "balance": "当前余额",
+        "frozen": "冻结金额",
+        "spent": "累计消耗"
+      },
+      "empty": "暂无可估算账单的任务。",
+      "units": "{count} 单位",
+      "total": "{count} 次",
+      "failed": "失败 {count}"
+    },
+    "configMatrix": {
+      "title": "服务配置矩阵",
+      "subtitle": "合并内置价格目录和任务记录，展示服务类型、价格范围、成功率和启用状态。",
+      "derived": "本地派生配置",
+      "pricingVersion": "价格目录 {version}",
+      "units": "{count} 单位/次",
+      "modelCoverage": "{providers} 家 · {models} 个模型",
+      "runs": "{count} 次",
+      "enabled": "已启用",
+      "standby": "待启用",
+      "table": {
+        "service": "服务",
+        "unitCost": "计量",
+        "priceRange": "价格范围",
+        "successRate": "成功率",
+        "usage": "调用",
+        "status": "状态"
+      },
+      "services": {
+        "video": {
+          "title": "视频生成",
+          "hint": "Seedance、镜头视频和口型同步等视频型任务。"
+        },
+        "image": {
+          "title": "图像资产",
+          "hint": "分镜图、角色形象、场景和道具图像任务。"
+        },
+        "voice": {
+          "title": "音频音色",
+          "hint": "TTS、角色音色和配音生成任务。"
+        },
+        "text": {
+          "title": "文本分析",
+          "hint": "剧本解析、片段拆分和结构化分析任务。"
+        }
+      }
+    },
+    "stats": {
+      "all": "全部",
+      "processing": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "table": {
+      "type": "任务类型",
+      "target": "目标",
+      "status": "状态",
+      "progress": "进度",
+      "updatedAt": "更新时间"
+    },
+    "status": {
+      "queued": "排队中",
+      "processing": "处理中",
+      "completed": "已完成",
+      "failed": "失败",
+      "canceled": "已取消"
+    }
+  },
+  "seedancePanel": {
+    "historyTitle": "视频任务控制台",
+    "historySubtitle": "读取当前用户的视频增强历史，集中查看 Seedance 相关视频处理任务。",
+    "openEnhance": "打开视频增强",
+    "loading": "正在加载视频任务...",
+    "empty": "暂无视频增强任务。可以先进入视频增强工具提交一个视频。",
+    "loadFailed": "视频任务加载失败",
+    "modelsTitle": "Seedance 能力",
+    "presetTitle": "模型预设",
+    "capabilityTitle": "Seedance 能力矩阵",
+    "capabilitySubtitle": "汇总视频模型、批量生成、首尾帧、音频能力和任务历史，判断当前视频生产入口是否可用。",
+    "capability": {
+      "local": "本地模型目录",
+      "columns": {
+        "module": "能力",
+        "status": "状态",
+        "count": "数量",
+        "detail": "说明"
+      },
+      "status": {
+        "ready": "可用",
+        "review": "需检查",
+        "reserved": "预留"
+      },
+      "modules": {
+        "models": "视频模型",
+        "batch": "批量镜头",
+        "firstLast": "首尾帧",
+        "audio": "音频驱动",
+        "history": "任务历史"
+      },
+      "details": {
+        "models": "Seedance 视频模型预设",
+        "batch": "批量镜头生成能力",
+        "firstLast": "首尾帧参考能力",
+        "audio": "带音频的视频模型",
+        "history": "进行中 {active} / 失败 {failed}"
+      }
+    },
+    "taskStats": {
+      "all": "全部",
+      "active": "进行中",
+      "completed": "已完成",
+      "failed": "失败"
+    },
+    "modelStats": {
+      "models": "模型",
+      "batch": "批量",
+      "firstLast": "首尾帧",
+      "audio": "音频"
+    },
+    "table": {
+      "name": "任务名称",
+      "source": "来源",
+      "status": "状态",
+      "updatedAt": "更新时间"
+    }
+  },
+  "promptsPanel": {
+    "title": "提示词模板目录",
+    "subtitle": "读取当前用户的可编辑提示词模板，展示默认目录、变量占位和自定义覆盖状态。",
+    "openEditor": "打开模板编辑",
+    "loading": "正在加载提示词模板...",
+    "empty": "暂无提示词模板。",
+    "loadFailed": "提示词模板加载失败",
+    "noVariables": "无变量",
+    "groupsTitle": "模板分组",
+    "overrideCount": "{count} 个已覆盖",
+    "coverageTitle": "提示词覆盖矩阵",
+    "coverageSubtitle": "按生产阶段汇总模板数量、变量占位和中英文覆盖，快速定位还需要补齐的模板。",
+    "coverage": {
+      "local": "模板目录",
+      "columns": {
+        "group": "分组",
+        "templates": "模板",
+        "variables": "变量",
+        "zh": "中文",
+        "en": "英文",
+        "missing": "待覆盖"
+      }
+    },
+    "stats": {
+      "total": "模板",
+      "zhOverrides": "中文覆盖",
+      "enOverrides": "英文覆盖",
+      "variables": "变量"
+    },
+    "table": {
+      "prompt": "模板",
+      "variables": "变量",
+      "override": "覆盖"
+    },
+    "groups": {
+      "script": "剧本解析",
+      "assets": "资产设定",
+      "storyboard": "分镜设计",
+      "video": "镜头视频",
+      "utility": "通用工具"
+    }
+  },
+  "materialPanel": {
+    "title": "全局素材概览",
+    "subtitle": "读取当前用户资产库，汇总角色、场景、道具、音色和已生成素材状态。",
+    "openAssetHub": "打开资产库",
+    "loading": "正在加载素材...",
+    "empty": "暂无素材。可以进入资产库创建角色、场景、道具或音色。",
+    "loadFailed": "素材加载失败",
+    "noDescription": "暂无描述",
+    "groupsTitle": "素材分组",
+    "readinessTitle": "素材生产矩阵",
+    "readinessSubtitle": "按素材类型汇总可用素材、缺预览、生成中和失败项，便于从素材库继续补齐生产缺口。",
+    "readiness": {
+      "local": "全局资产",
+      "none": "暂无素材",
+      "columns": {
+        "kind": "类型",
+        "total": "总数",
+        "ready": "可用",
+        "missingPreview": "缺预览",
+        "running": "生成中",
+        "failed": "失败",
+        "latest": "最近素材"
+      }
+    },
+    "stats": {
+      "total": "素材",
+      "visual": "视觉",
+      "audio": "音频",
+      "renders": "图片",
+      "running": "进行中",
+      "failed": "失败"
+    },
+    "table": {
+      "asset": "素材",
+      "kind": "类型",
+      "renders": "图片",
+      "status": "状态"
+    },
+    "kinds": {
+      "character": "角色",
+      "location": "场景",
+      "prop": "道具",
+      "voice": "音色"
+    },
+    "status": {
+      "ready": "可用",
+      "running": "生成中",
+      "failed": "失败"
+    }
+  },
+  "toolboxPanel": {
+    "title": "生产诊断面板",
+    "subtitle": "汇总模型配置、任务记录、素材库和提示词模板，快速判断工作流是否具备运行条件。",
+    "openRecords": "查看服务记录",
+    "loading": "正在加载诊断数据...",
+    "loadFailed": "诊断数据加载失败",
+    "status": {
+      "ok": "正常",
+      "review": "需检查"
+    },
+    "checks": {
+      "models": {
+        "title": "模型配置",
+        "hint": "已启用模型 / 默认模型"
+      },
+      "tasks": {
+        "title": "任务状态",
+        "hint": "进行中 / 失败"
+      },
+      "assets": {
+        "title": "素材库",
+        "hint": "视觉 / 音频"
+      },
+      "prompts": {
+        "title": "提示词",
+        "hint": "模板 / 覆盖"
+      }
+    },
+    "metrics": {
+      "providers": "Provider 已配置",
+      "videoModels": "视频模型",
+      "concurrency": "并发 分析/图片/视频"
+    },
+    "capabilityTitle": "生产能力矩阵",
+    "capabilitySubtitle": "按模型、任务、素材、提示词和交付链路汇总运行条件，快速定位影响视频生产的缺口。",
+    "capability": {
+      "local": "本地诊断",
+      "columns": {
+        "module": "模块",
+        "status": "状态",
+        "primary": "主指标",
+        "secondary": "副指标",
+        "action": "处理入口"
+      },
+      "modules": {
+        "models": {
+          "title": "模型运行",
+          "hint": "已启用模型 / 默认模型",
+          "action": "配置模型"
+        },
+        "tasks": {
+          "title": "任务队列",
+          "hint": "进行中 / 失败任务",
+          "action": "查看记录"
+        },
+        "assets": {
+          "title": "素材库",
+          "hint": "视觉素材 / 音频素材",
+          "action": "补齐素材"
+        },
+        "prompts": {
+          "title": "提示词库",
+          "hint": "模板目录 / 自定义覆盖",
+          "action": "检查模板"
+        },
+        "delivery": {
+          "title": "交付链路",
+          "hint": "完成任务 / 失败任务",
+          "action": "检查更新"
+        }
+      }
+    },
+    "taskQueueTitle": "最近任务队列",
+    "taskQueueEmpty": "暂无可见任务记录。",
+    "shortcutsTitle": "快捷工具",
+    "shortcuts": {
+      "profile": {
+        "title": "模型与 API 设置",
+        "hint": "配置默认模型、Provider 和并发"
+      },
+      "seedance": {
+        "title": "Seedance 控制台",
+        "hint": "查看视频任务和模型预设"
+      },
+      "assetHub": {
+        "title": "资产库",
+        "hint": "管理角色、场景、道具和音色"
+      },
+      "records": {
+        "title": "服务记录",
+        "hint": "查看任务运行和失败原因"
+      }
+    }
+  },
+  "writerPanel": {
+    "title": "剧本项目队列",
+    "subtitle": "读取当前项目列表，聚合剧本文本预览、分集数量和进入剧本工作流的操作入口。",
+    "newProject": "新建项目",
+    "loading": "正在加载剧本项目...",
+    "empty": "暂无项目。新建项目后会出现在编剧工作台。",
+    "loadFailed": "剧本项目加载失败",
+    "noPreview": "暂无剧本文本预览",
+    "redraw": "重绘",
+    "stats": {
+      "total": "项目",
+      "withScript": "已拆集",
+      "storyboards": "分镜",
+      "videos": "视频"
+    },
+    "preparationTitle": "剧本准备矩阵",
+    "preparationSubtitle": "按导入、拆集、分镜和视频产出阶段汇总项目，帮助编剧入口快速定位下一步工作。",
+    "preparation": {
+      "local": "项目队列",
+      "none": "暂无项目",
+      "columns": {
+        "stage": "阶段",
+        "count": "项目",
+        "latest": "最近项目",
+        "action": "操作"
+      },
+      "stages": {
+        "draft": "待导入",
+        "script": "已拆集待分镜",
+        "storyboard": "已分镜待视频",
+        "video": "已有视频"
+      },
+      "actions": {
+        "draft": "新建/导入",
+        "script": "打开剧本",
+        "storyboard": "打开分镜",
+        "video": "进入工作台"
+      }
+    },
+    "table": {
+      "project": "项目与剧本",
+      "episodes": "分集",
+      "status": "状态",
+      "updatedAt": "更新时间"
+    },
+    "readiness": {
+      "draft": "待导入",
+      "script": "已拆集",
+      "storyboard": "已分镜"
+    },
+    "workflowTitle": "编剧流程",
+    "workflow": {
+      "import": {
+        "title": "导入原稿",
+        "hint": "粘贴文本或上传文件"
+      },
+      "review": {
+        "title": "拆解分集",
+        "hint": "确认章节和剧情节点"
+      },
+      "redraw": {
+        "title": "改写重绘",
+        "hint": "调整节奏和可拍性"
+      },
+      "sync": {
+        "title": "同步工作台",
+        "hint": "进入资产和分镜制作"
+      }
+    }
+  },
+  "redrawPanel": {
+    "title": "剧本重绘详情",
+    "subtitle": "读取项目剧本数据，核对原稿、分集结构、资产准备和同步工作台状态。",
+    "openScript": "打开剧本页",
+    "loading": "正在加载重绘数据...",
+    "empty": "没有找到对应项目。",
+    "loadFailed": "重绘数据加载失败",
+    "noPreview": "暂无原稿预览",
+    "noEpisodes": "暂无分集。请先进入剧本页导入或拆分原稿。",
+    "episodeFallback": "第 {number} 集",
+    "stats": {
+      "episodes": "分集",
+      "words": "字数",
+      "characters": "角色",
+      "locations": "场景/道具"
+    },
+    "readinessTitle": "重绘准备矩阵",
+    "readinessSubtitle": "按原稿、分集、资产和同步状态检查重绘前置条件，判断是否可进入改写重绘。",
+    "readiness": {
+      "local": "项目数据",
+      "columns": {
+        "item": "检查项",
+        "status": "状态",
+        "count": "数量",
+        "hint": "说明"
+      },
+      "status": {
+        "ready": "就绪",
+        "review": "需补齐"
+      },
+      "items": {
+        "source": "原稿文本",
+        "structure": "分集结构",
+        "assets": "资产依赖",
+        "sync": "同步工作台"
+      },
+      "hints": {
+        "sourceReady": "已有可用原稿预览",
+        "sourceMissing": "缺少原稿文本",
+        "structureReady": "已拆分 {count} 集",
+        "structureMissing": "尚未拆分分集",
+        "assetsReady": "已有 {count} 个资产线索",
+        "assetsMissing": "角色、场景或道具不足",
+        "syncReady": "可同步到后续制作",
+        "syncMissing": "需要先补齐分集文本"
+      }
+    },
+    "table": {
+      "episode": "分集原稿",
+      "words": "字数",
+      "updatedAt": "更新时间"
+    },
+    "checklistTitle": "重绘检查",
+    "checklist": {
+      "source": {
+        "title": "原稿来源",
+        "hint": "确认项目描述和分集文本可作为改写输入。"
+      },
+      "structure": {
+        "title": "分集结构",
+        "hint": "检查集数、标题、摘要和剧情节点。"
+      },
+      "assets": {
+        "title": "资产依赖",
+        "hint": "确认角色、场景、道具是否足够支撑重绘。"
+      },
+      "sync": {
+        "title": "同步制作",
+        "hint": "改写结果回到项目剧本页继续资产和分镜。"
+      }
+    }
+  },
+  "updatesPanel": {
+    "title": "版本状态检查",
+    "subtitle": "读取本地服务状态，展示当前版本、服务启动 ID、核心依赖和检查时间。",
+    "openDiagnostics": "打开生产诊断",
+    "runCheck": "立即检查",
+    "checkingNow": "检查中",
+    "loading": "正在检查版本状态...",
+    "loadFailed": "版本状态加载失败",
+    "checkFailed": "更新检查失败",
+    "cards": {
+      "version": "当前版本",
+      "bootId": "服务启动 ID",
+      "status": "更新状态",
+      "checkedAt": "检查时间"
+    },
+    "status": {
+      "current": "当前可用",
+      "tracked": "已追踪"
+    },
+    "table": {
+      "item": "项目",
+      "value": "值"
+    },
+    "dependencies": {
+      "node": "Node 要求",
+      "npm": "NPM 要求",
+      "next": "Next.js",
+      "react": "React"
+    },
+    "moduleMatrix": {
+      "title": "模块更新矩阵",
+      "subtitle": "按 FrameOS 检查更新入口的信息形态，汇总工作流、模型、模板、存储和诊断模块的本地状态。",
+      "localMode": "本地检查",
+      "columns": {
+        "module": "模块",
+        "status": "状态",
+        "version": "版本",
+        "checkedAt": "检查时间"
+      },
+      "status": {
+        "synced": "已同步",
+        "tracked": "已追踪"
+      },
+      "versions": {
+        "workflow": "当前版本",
+        "modelRuntime": "模型配置",
+        "templates": "模板库",
+        "storage": "素材存储",
+        "diagnostics": "运行诊断"
+      },
+      "modules": {
+        "workflow": {
+          "title": "项目工作流",
+          "hint": "创建项目、剧本、资产、分镜、镜头和导出页面。"
+        },
+        "modelRuntime": {
+          "title": "模型运行时",
+          "hint": "视频、图像、语音和文本分析模型能力。"
+        },
+        "templates": {
+          "title": "提示词模板",
+          "hint": "剧本、资产、分镜和视频生成提示词。"
+        },
+        "storage": {
+          "title": "素材存储",
+          "hint": "全局素材库、资产库和项目引用资源。"
+        },
+        "diagnostics": {
+          "title": "生产诊断",
+          "hint": "任务队列、服务记录、反馈和版本状态。"
+        }
+      }
+    },
+    "historyTitle": "检查记录",
+    "historyEmpty": "暂无更新检查记录。",
+    "checklistTitle": "更新检查项",
+    "checklist": {
+      "workflow": {
+        "title": "工作流页面",
+        "hint": "项目、剧本、资产、分镜、镜头和导出页面持续对齐。"
+      },
+      "models": {
+        "title": "模型能力",
+        "hint": "Seedance、图像、语音和分析模型能力在工具箱集中检查。"
+      },
+      "templates": {
+        "title": "提示词模板",
+        "hint": "模板目录和用户覆盖状态已接入提示词库。"
+      },
+      "storage": {
+        "title": "素材存储",
+        "hint": "素材库和资产库读取同一套全局资产数据。"
+      }
+    },
+    "releaseTitle": "发布轨道",
+    "release": {
+      "local": {
+        "title": "本地功能复刻",
+        "meta": "进行中",
+        "hint": "优先补齐 FrameOS 页面结构和生产工作台交互。"
+      },
+      "workflow": {
+        "title": "工作流体验",
+        "meta": "持续校准",
+        "hint": "阶段状态、人工确认、任务队列和交付面板持续细化。"
+      },
+      "templates": {
+        "title": "模板与模型",
+        "meta": "已接入",
+        "hint": "提示词库、模型配置和 Seedance 入口已纳入检查范围。"
+      }
+    },
+    "changelogTitle": "最近变更",
+    "changelog": {
+      "stageReview": {
+        "title": "阶段人工校准",
+        "hint": "工作台总览已支持本地确认和复核标记。"
+      },
+      "serviceConfig": {
+        "title": "服务配置矩阵",
+        "hint": "服务记录页新增视频、图像、音频和文本服务检查。"
+      },
+      "feedbackSync": {
+        "title": "反馈记录持久化",
+        "hint": "问题反馈页已支持账号级记录、分诊状态和刷新恢复。"
+      },
+      "updateCheck": {
+        "title": "更新检查记录",
+        "hint": "检查更新页新增立即检查动作和后端检查历史。"
+      },
+      "exportQueue": {
+        "title": "导出任务队列",
+        "hint": "导出交付页新增成片、资产包和剪辑草稿状态。"
+      }
+    }
+  },
+  "feedbackPanel": {
+    "title": "本地问题反馈",
+    "subtitle": "记录页面问题、生成质量、工作流阻塞和改进建议，并保留当前路由与浏览器上下文。",
+    "openRecords": "查看服务记录",
+    "submit": "提交反馈",
+    "saved": "已保存",
+    "loading": "正在加载反馈记录...",
+    "loadFailed": "反馈记录加载失败",
+    "saveFailed": "反馈同步失败",
+    "serverBacked": "反馈已写入当前账号的后端记录，可刷新恢复。",
+    "localOnly": "后端同步失败，当前反馈临时保存到本机浏览器。",
+    "syncWarning": "同步提示：{error}",
+    "recentTitle": "最近反馈",
+    "empty": "暂无反馈记录。",
+    "stats": {
+      "total": "全部",
+      "bugs": "缺陷",
+      "quality": "质量",
+      "workflow": "流程",
+      "ideas": "建议"
+    },
+    "types": {
+      "bug": "页面缺陷",
+      "quality": "生成质量",
+      "workflow": "流程阻塞",
+      "idea": "改进建议"
+    },
+    "fields": {
+      "type": "反馈类型",
+      "title": "标题",
+      "route": "页面路径",
+      "description": "问题描述"
+    },
+    "status": {
+      "open": "待处理",
+      "triaged": "已分诊",
+      "resolved": "已解决"
+    },
+    "actions": {
+      "triage": "分诊",
+      "resolve": "解决"
+    },
+    "notStarted": "暂无记录",
+    "triageTitle": "反馈处理看板",
+    "triageSubtitle": "按反馈类型汇总账号反馈、未解决数量、最近路由和最近提交时间。",
+    "localTriage": "本地处理",
+    "serverTriage": "后端持久化",
+    "triage": {
+      "columns": {
+        "type": "类型",
+        "total": "总数",
+        "open": "未解决",
+        "route": "最近路由",
+        "latest": "最近提交"
+      }
+    },
+    "contextTitle": "采集上下文",
+    "context": {
+      "route": {
+        "label": "当前页面",
+        "value": "当前路由"
+      },
+      "browser": {
+        "label": "浏览器上下文",
+        "value": "提交时自动记录浏览器标识"
+      },
+      "storage": {
+        "label": "存储方式",
+        "value": "后端记录",
+        "server": "账号后端记录",
+        "local": "本机 localStorage"
+      }
+    },
+    "placeholders": {
+      "title": "例如：分镜详情页提示词保存后没有刷新",
+      "description": "写清楚复现步骤、期望结果、实际结果，必要时包含项目或镜头信息。"
+    }
+  },
+  "teamPanel": {
+    "title": "个人工作区管理",
+    "subtitle": "个人版保留 FrameOS 团队结构，但当前只启用拥有者视角，集中查看项目和任务状态。",
+    "openProjects": "打开项目",
+    "loading": "正在加载工作区数据...",
+    "empty": "暂无项目。",
+    "loadFailed": "工作区数据加载失败",
+    "fallbackName": "个人用户",
+    "personalAccount": "个人账号",
+    "ownerBadge": "拥有者",
+    "enabled": "已启用",
+    "reserved": "预留",
+    "profile": {
+      "seat": {
+        "label": "席位",
+        "value": "个人席位"
+      },
+      "workspace": {
+        "label": "工作区",
+        "value": "NoriVideo 个人版"
+      },
+      "security": {
+        "label": "权限",
+        "value": "拥有者权限"
+      }
+    },
+    "stats": {
+      "projects": "项目",
+      "episodes": "分集",
+      "activeTasks": "进行中",
+      "failedTasks": "失败"
+    },
+    "seatMatrix": {
+      "title": "成员席位矩阵",
+      "subtitle": "按 FrameOS 团队页的信息形态展示协作角色，个人版只激活当前拥有者，其他席位作为后续扩展边界。",
+      "personalMode": "个人版",
+      "none": "暂无活动",
+      "projectCount": "{count} 项",
+      "taskCount": "{count} 个",
+      "permissionCount": "{count} 项",
+      "columns": {
+        "role": "角色",
+        "status": "状态",
+        "projects": "项目",
+        "workload": "任务",
+        "lastActivity": "最近活动",
+        "permissions": "权限"
+      }
+    },
+    "workloadTitle": "任务负载分布",
+    "workloadEmpty": "暂无任务负载数据。",
+    "workloadTasks": "{count} 个任务",
+    "workloadFailed": "失败 {count}",
+    "quotaTitle": "额度预览",
+    "quota": {
+      "projects": "项目容量",
+      "runningTasks": "并发任务",
+      "serviceUnits": "服务单位"
+    },
+    "table": {
+      "project": "项目",
+      "episodes": "分集",
+      "updatedAt": "更新时间"
+    },
+    "rolesTitle": "角色边界",
+    "roles": {
+      "owner": {
+        "title": "拥有者",
+        "hint": "个人版当前账号拥有项目、素材、模型配置和任务记录的完整管理权限。"
+      },
+      "writer": {
+        "title": "编剧",
+        "hint": "预留给剧本导入、分集审核和改写重绘协作。"
+      },
+      "asset": {
+        "title": "资产",
+        "hint": "预留给角色、场景、道具和音色资产协作。"
+      },
+      "producer": {
+        "title": "制片",
+        "hint": "预留给镜头生成、导出交付和服务记录检查。"
+      }
+    },
+    "permissionsTitle": "权限矩阵",
+    "permissions": {
+      "role": "角色",
+      "projects": "项目",
+      "scripts": "剧本",
+      "assets": "资产",
+      "production": "制作",
+      "records": "记录",
+      "enabled": "开",
+      "reserved": "预"
+    }
+  },
+  "hubPages": {
+    "common": {
+      "createProject": "新建项目",
+      "workflowTitle": "项目工作流",
+      "ready": "已接入工作台",
+      "steps": {
+        "script": "剧本解析",
+        "assets": "资产设定",
+        "storyboard": "分镜设计",
+        "shots": "镜头制作",
+        "delivery": "导出交付"
+      }
+    },
+    "writerWorkbench": {
+      "eyebrow": "编剧工作台",
+      "title": "剧本创作与改写",
+      "subtitle": "承接 FrameOS 编剧工作台入口，用于剧本导入、改写、分集和重绘前的文本准备。",
+      "cards": [
+        { "title": "剧本导入", "description": "粘贴长文本或从项目内同步剧本，为后续拆解生成统一素材源。", "meta": "文本", "icon": "fileText" },
+        { "title": "分集规划", "description": "按短剧节奏整理集数、冲突点、角色出场和剧情转折。", "meta": "规划", "icon": "bookOpen" },
+        { "title": "改写重绘", "description": "保留剧情骨架，调整口吻、节奏和视觉可拍性。", "meta": "Redraw", "icon": "wandOff" },
+        { "title": "项目同步", "description": "将确认后的剧本结构送入项目工作台继续资产和分镜流程。", "meta": "同步", "icon": "link" }
+      ]
+    },
+    "writerRedraw": {
+      "eyebrow": "编剧工作台",
+      "title": "剧本改写重绘",
+      "subtitle": "对应 FrameOS 的 redraw-v2 入口，后续承接指定剧本的结构化改写任务。",
+      "cards": [
+        { "title": "原稿对照", "description": "查看原始剧本、分集结构和需要保留的剧情节点。", "meta": "对照", "icon": "copy" },
+        { "title": "改写目标", "description": "设定风格、节奏、人物关系和短视频平台适配方向。", "meta": "设定", "icon": "settingsHexMinor" },
+        { "title": "重绘结果", "description": "输出可进入项目工作流的新版剧情和集纲。", "meta": "输出", "icon": "sparklesAlt" },
+        { "title": "版本记录", "description": "保留每轮改写结果，便于回滚和继续迭代。", "meta": "历史", "icon": "clock" }
+      ]
+    },
+    "toolbox": {
+      "eyebrow": "工具箱",
+      "title": "视频生产工具箱",
+      "subtitle": "集中放置脚本解析、素材处理、提示词辅助和生产诊断工具。",
+      "cards": [
+        { "title": "脚本解析器", "description": "快速检查剧本文本结构、人物、场景和镜头可拆解性。", "meta": "解析", "icon": "brain" },
+        { "title": "素材清洗", "description": "整理上传文件、图片、音频和视频素材，统一进入项目资产库。", "meta": "素材", "icon": "filter" },
+        { "title": "提示词助手", "description": "为角色图、场景图、分镜图和视频镜头生成可编辑提示词。", "meta": "Prompt", "icon": "sparklesAlt" },
+        { "title": "生产诊断", "description": "检查模型配置、任务状态和生成失败原因。", "meta": "诊断", "icon": "clipboardCheck" }
+      ]
+    },
+    "seedance": {
+      "eyebrow": "Seedance 2.0",
+      "title": "视频生成模型控制台",
+      "subtitle": "对齐 FrameOS 的 Seedance 2.0 主导航入口，用于统一查看视频模型、参考资产、批量镜头和生成配置。",
+      "cards": [
+        { "title": "模型预设", "description": "集中管理 Seedance 2.0、Fast、Pro 等视频模型配置和默认参数。", "meta": "模型", "icon": "film" },
+        { "title": "参考资产", "description": "检查角色、场景和道具参考图是否已入库并可用于镜头生成。", "meta": "Reference", "icon": "folderHeart" },
+        { "title": "批量镜头", "description": "汇总待生成、生成中、失败和已完成的镜头任务。", "meta": "批量", "icon": "clapperboard" },
+        { "title": "生成诊断", "description": "查看失败原因、模型配置和素材引用缺失状态。", "meta": "诊断", "icon": "clipboardCheck" }
+      ]
+    },
+    "material": {
+      "eyebrow": "素材库",
+      "title": "项目素材管理",
+      "subtitle": "承接 FrameOS 素材库入口，用于统一管理导入文件、参考图、视频和可复用素材。",
+      "cards": [
+        { "title": "参考图片", "description": "管理角色、环境、物品的视觉参考和风格图片。", "meta": "图片", "icon": "image" },
+        { "title": "视频素材", "description": "整理实拍、生成结果和可复用镜头素材。", "meta": "视频", "icon": "video" },
+        { "title": "文档素材", "description": "保存剧本、设定、分镜表和制作说明。", "meta": "文档", "icon": "fileText" },
+        { "title": "上传队列", "description": "后续接入批量上传、格式校验和对象存储同步。", "meta": "上传", "icon": "cloudUpload" }
+      ]
+    },
+    "prompts": {
+      "eyebrow": "提示词库",
+      "title": "提示词模板中心",
+      "subtitle": "集中管理剧本拆解、资产生成、分镜绘制和视频生成提示词。",
+      "cards": [
+        { "title": "剧本提示词", "description": "面向故事拆解、集纲生成和脚本审核的结构化模板。", "meta": "Script", "icon": "fileText" },
+        { "title": "资产提示词", "description": "角色、场景、物品和音色设定的模板管理。", "meta": "Assets", "icon": "folderHeart" },
+        { "title": "分镜提示词", "description": "镜头画面、构图、运动和风格一致性提示词。", "meta": "Shot", "icon": "clapperboard" },
+        { "title": "版本发布", "description": "后续接入模板版本、启用状态和项目覆盖策略。", "meta": "版本", "icon": "bookmark" }
+      ]
+    },
+    "team": {
+      "eyebrow": "团队管理",
+      "title": "个人版协作入口",
+      "subtitle": "FrameOS 团队页在个人版中保留信息架构入口，暂不实现子账号、角色权限和计费额度。",
+      "cards": [
+        { "title": "协作者", "description": "个人版暂不开放成员邀请，后续可扩展项目协作者。", "meta": "预留", "icon": "usersRound" },
+        { "title": "权限角色", "description": "保留导演、编剧、资产、制片等角色结构。", "meta": "角色", "icon": "lock" },
+        { "title": "服务记录", "description": "后续汇总项目任务、导出和模型调用记录。", "meta": "记录", "icon": "receipt" },
+        { "title": "问题反馈", "description": "后续接入本地问题记录和远端反馈渠道。", "meta": "反馈", "icon": "infoCircle" }
+      ]
+    },
+    "serviceRecords": {
+      "eyebrow": "服务记录",
+      "title": "任务与调用记录",
+      "subtitle": "对齐 FrameOS 底部服务记录入口，汇总项目运行、模型调用、导出和失败任务。",
+      "cards": [
+        { "title": "项目任务", "description": "查看剧本解析、资产生成、分镜绘制和视频生成的执行记录。", "meta": "任务", "icon": "receipt" },
+        { "title": "模型调用", "description": "后续接入模型、耗时、状态和错误信息统计。", "meta": "调用", "icon": "cpu" },
+        { "title": "导出记录", "description": "跟踪成片、资产包和剪辑草稿的交付历史。", "meta": "导出", "icon": "download" },
+        { "title": "失败诊断", "description": "集中定位任务失败、素材缺失和配置错误。", "meta": "诊断", "icon": "alert" }
+      ]
+    },
+    "feedback": {
+      "eyebrow": "问题反馈",
+      "title": "反馈与问题跟踪",
+      "subtitle": "保留 FrameOS 底部反馈入口，先作为个人版的问题记录和复现信息收集页。",
+      "cards": [
+        { "title": "提交问题", "description": "记录页面、项目、复现步骤和期望结果。", "meta": "反馈", "icon": "infoCircle" },
+        { "title": "错误上下文", "description": "后续自动带入任务 ID、路由、模型和浏览器信息。", "meta": "上下文", "icon": "clipboardCheck" },
+        { "title": "改进建议", "description": "收集工作流、页面细节和生成质量优化需求。", "meta": "建议", "icon": "idea" },
+        { "title": "处理状态", "description": "预留本地反馈状态、备注和关闭记录。", "meta": "状态", "icon": "clock" }
+      ]
+    },
+    "updates": {
+      "eyebrow": "检查更新",
+      "title": "版本与能力更新",
+      "subtitle": "对齐 FrameOS 检查更新入口，展示工作流、模型、模板和本地功能变化。",
+      "cards": [
+        { "title": "版本状态", "description": "展示当前版本、更新状态和主要变更摘要。", "meta": "版本", "icon": "arrowDownCircle" },
+        { "title": "模型能力", "description": "记录 Seedance、图像、语音和分析模型能力变化。", "meta": "模型", "icon": "film" },
+        { "title": "模板更新", "description": "跟踪剧本、资产、分镜和视频提示词模板调整。", "meta": "模板", "icon": "bookmark" },
+        { "title": "兼容检查", "description": "后续检查数据库、任务队列和媒体存储迁移状态。", "meta": "检查", "icon": "badgeCheck" }
+      ]
+    }
   }
 }

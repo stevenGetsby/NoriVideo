@@ -6,7 +6,7 @@ import JSZip from 'jszip'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { useQueryClient } from '@tanstack/react-query'
-import Navbar from '@/components/Navbar'
+import { FrameWorkbenchShell } from '@/components/workspace/FrameWorkbenchShell'
 import { FolderSidebar } from './components/FolderSidebar'
 import { AssetGrid } from './components/AssetGrid'
 import { CharacterCreationModal, LocationCreationModal, PropCreationModal, CharacterEditModal, LocationEditModal, PropEditModal } from '@/components/shared/assets'
@@ -451,9 +451,8 @@ export default function AssetHubPage() {
     }
 
     return (
-        <div className="glass-page min-h-screen">
-            <Navbar />
-            <div className="max-w-7xl mx-auto px-4 py-6">
+        <FrameWorkbenchShell activeKey="assetHub">
+            <div className="mx-auto max-w-7xl">
                 {/* 页面标题 */}
                 <div className="mb-6">
                     <h1 className="text-2xl font-bold text-[var(--glass-text-primary)]">{t('title')}</h1>
@@ -656,6 +655,6 @@ export default function AssetHubPage() {
                     onSelect={handleVoiceSelect}
                 />
             )}
-        </div>
+        </FrameWorkbenchShell>
     )
 }

@@ -105,6 +105,9 @@ export const queryKeys = {
      */
     projectData: (projectId: string) => ['project-data', projectId] as const,
 
+    workflowState: (projectId: string, episodeId?: string | null) =>
+        ['workflow-state', projectId, episodeId || 'project'] as const,
+
     /**
      * 剧集详情数据
      */

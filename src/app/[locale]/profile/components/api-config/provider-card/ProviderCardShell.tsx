@@ -17,6 +17,8 @@ interface ProviderCardShellProps {
   showProviderLabel?: ProviderCardProps['showProviderLabel']
   t: ProviderCardTranslator
   state: UseProviderCardStateResult
+  expanded?: boolean
+  onToggleExpanded?: () => void
   children: ReactNode
 }
 
@@ -27,6 +29,7 @@ export function getCompatibilityLayerBadgeLabel(
   const providerKey = getProviderKey(providerId)
   if (providerKey === 'openai-compatible') return t('compatibilityLayerOpenAI')
   if (providerKey === 'gemini-compatible') return t('compatibilityLayerGemini')
+  if (providerKey === 'anthropic-compatible') return t('compatibilityLayerAnthropic')
   return null
 }
 
@@ -49,6 +52,8 @@ export function ProviderCardShell({
   showProviderLabel,
   t,
   state,
+  expanded = false,
+  onToggleExpanded,
   children,
 }: ProviderCardShellProps) {
   const compatibilityLayerLabel = getCompatibilityLayerBadgeLabel(provider.id, t)
@@ -100,8 +105,18 @@ export function ProviderCardShell({
           </span>
         </div>
         <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={onToggleExpanded}
+            disabled={!onToggleExpanded}
+            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-[var(--glass-text-secondary)] transition-colors hover:bg-[var(--glass-bg-muted)] hover:text-[var(--glass-text-primary)]"
+            aria-expanded={expanded}
+            title={provider.name}
+          >
+            <AppIcon name={expanded ? 'chevronUp' : 'chevronDown'} className="h-4 w-4" />
+          </button>
           {/* 测试连接按钮（内联在标题行） */}
-          {isVerifiable && !state.isEditing && state.keyTestStatus === 'idle' && (
+          {expanded && isVerifiable && !state.isEditing && state.keyTestStatus === 'idle' && (
             <button
               onClick={state.handleTestOnly}
               disabled={!canTest}

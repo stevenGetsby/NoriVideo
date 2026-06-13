@@ -27,6 +27,7 @@ Clip content:
 
 Task:
 Create a coherent panel plan that covers the full clip content in chronological order.
+First identify the clip's directing function in the whole story, then design panels as a film sequence rather than as isolated illustrations.
 
 Output format (JSON array only):
 [
@@ -37,6 +38,7 @@ Output format (JSON array only):
       { "name": "Character Name", "appearance": "appearance name", "slot": "the position beneath the throne steps at the center of the hall" }
     ],
     "location": "location name",
+    "props": ["Prop Name"],
     "scene_type": "daily",
     "source_text": "exact or near-exact source excerpt",
     "shot_type": "medium shot",
@@ -48,14 +50,19 @@ Output format (JSON array only):
 
 Planning rules:
 1. Keep strict chronological order.
-2. Avoid missing key beats from clip_content.
-3. Keep panel transitions smooth and logically continuous.
-4. Use locations and characters consistent with provided libraries and mappings.
-5. Prefer concrete, visible actions over abstract wording.
-6. If location context contains available slots, treat them as preferred placement anchors rather than mandatory hard boundaries.
-7. Prefer assigning a `slot` by copying one full placement phrase from `available_slots` verbatim when a character is stably positioned in the scene.
-8. You may omit `slot` when the shot is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
-9. When no `slot` is used, decide placement freely from source text, action flow, and cinematic staging instead of forcing one of the provided slots.
-10. Do not shorten, rewrite, summarize, or replace a provided slot phrase with a short token such as `slot_1`, `left`, or `throne_front`.
-11. Return strict JSON only.
-12. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+2. Avoid missing key beats from clip_content: cause, action, reaction, result, and transition must be visible.
+3. Do not split by character count. Split by directing beats: establishing shot, trigger/discovery, decisive action, reaction, payoff, and transition.
+4. Generic story/fairy-tale clips usually need 2-5 panels. Add more only for complex action or dialogue; never create duplicate panels that only change framing.
+5. Keep panel transitions smooth and logically continuous. Each panel should answer what happened after the previous panel.
+6. Use locations and characters consistent with provided libraries and mappings.
+7. Prefer concrete, visible actions over abstract wording. Abstract themes must become visible behavior, objects, light, or staging.
+8. For every visible recurring story prop/object, put its exact asset name in `props` and name it consistently in description so downstream image-to-image references can preserve it. Use [] when no prop appears.
+9. For ordinary stories and fairy tales, never treat theme, emotion, moral lesson, or kindness as a product selling point. Only visible entities such as a leaf, moon lamp, puddle, key, or letter belong in `props`.
+10. Only product, brand, platform, or ad prompts may treat props as merchandise or commercial display objects.
+9. If location context contains available slots, treat them as preferred placement anchors rather than mandatory hard boundaries.
+10. Prefer assigning a `slot` by copying one full placement phrase from `available_slots` verbatim when a character is stably positioned in the scene.
+11. You may omit `slot` when the shot is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
+12. When no `slot` is used, decide placement freely from source text, action flow, and cinematic staging instead of forcing one of the provided slots.
+13. Do not shorten, rewrite, summarize, or replace a provided slot phrase with a short token such as `slot_1`, `left`, or `throne_front`.
+14. Return strict JSON only.
+15. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

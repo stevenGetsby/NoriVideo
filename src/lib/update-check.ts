@@ -119,6 +119,7 @@ export async function checkGithubReleaseUpdate({
   fetchImpl,
 }: CheckGithubReleaseUpdateInput): Promise<UpdateCheckResult> {
   const fetcher = fetchImpl ?? fetch
+  const normalizedRepository = repository.trim()
 
   try {
     normalizeSemverTag(currentVersion)
@@ -131,7 +132,11 @@ export async function checkGithubReleaseUpdate({
     }
   }
 
-  const endpoint = `https://api.github.com/repos/${repository}/releases/latest`
+  if (!normalizedRepository) {
+    return { kind: 'no-release' }
+  }
+
+  const endpoint = `https://api.github.com/repos/${normalizedRepository}/releases/latest`
 
   let response: Response
   try {

@@ -30,6 +30,17 @@ import {
 } from '@/lib/model-pricing/catalog'
 import { getBillingMode } from '@/lib/billing/mode'
 import {
+  getLuminaAnthropicCompatibleModelName,
+} from '@/lib/lumina-anthropic-compatible-models'
+import {
+  isHfsyProviderId,
+  isLuminaProviderId,
+  MODEL_PRESETS,
+  normalizeModelProviderKey,
+  isSupportedModelProvider,
+  normalizeProviderModelId,
+} from '@/lib/model-provider-contract'
+import {
   DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   DEFAULT_IMAGE_WORKFLOW_CONCURRENCY,
   DEFAULT_VIDEO_WORKFLOW_CONCURRENCY,
@@ -185,12 +196,7 @@ const DEFAULT_LIPSYNC_MODEL_KEY = composeModelKey('fal', 'fal-ai/kling-video/lip
 const PRICING_PROVIDER_ALIASES: Readonly<Record<string, string>> = {
   'gemini-compatible': 'google',
 }
-const OPTIONAL_PRICING_PROVIDER_KEYS = new Set([
-  'openai-compatible',
-  'gemini-compatible',
-  'bailian',
-  'siliconflow',
-])
+const OPTIONAL_PRICING_PROVIDER_KEYS = new Set(['lumina', 'ark', 'hfsy'])
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 const RETIRED_PROVIDER_KEYS = new Set(['qwen'])
 const MINIMAX_OFFICIAL_BASE_URL = 'https://api.minimaxi.com/v1'
@@ -439,6 +445,11 @@ function getProviderKey(providerId: string): string {
   return index === -1 ? providerId : providerId.slice(0, index)
 }
 
+function hasOptionalPricingProvider(providerId: string): boolean {
+  const providerKey = normalizeModelProviderKey(providerId)
+  return providerKey !== null && OPTIONAL_PRICING_PROVIDER_KEYS.has(providerKey)
+}
+
 function isUnifiedModelType(value: unknown): value is UnifiedModelType {
   return (
     value === 'llm'
@@ -470,8 +481,9 @@ function resolveProviderGatewayRoute(
   rawGatewayRoute: unknown,
 ): GatewayRouteType {
   const providerKey = getProviderKey(providerId)
-  const isOpenAICompatibleProvider = providerKey === 'openai-compatible'
+  const isOpenAICompatibleProvider = isHfsyProviderId(providerId)
   const isGeminiCompatibleProvider = providerKey === 'gemini-compatible'
+  const isAnthropicCompatibleProvider = isLuminaProviderId(providerId)
 
   if (rawGatewayRoute !== undefined && !isGatewayRoute(rawGatewayRoute)) {
     throw new ApiError('INVALID_PARAMS', {
@@ -488,7 +500,7 @@ function resolveProviderGatewayRoute(
     return 'openai-compat'
   }
 
-  if (isGeminiCompatibleProvider) {
+  if (isGeminiCompatibleProvider || isAnthropicCompatibleProvider) {
     if (rawGatewayRoute === 'openai-compat') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_GATEWAY_ROUTE_INVALID',
@@ -754,7 +766,9 @@ function normalizeStoredModel(raw: unknown, index: number, options?: { strictCus
   const parsedModelKey = parseModelKeyStrict(modelKeyFromField)
 
   const provider = providerFromField || parsedModelKey?.provider || ''
-  const modelId = modelIdFromField || parsedModelKey?.modelId || ''
+  const rawModelId = modelIdFromField || parsedModelKey?.modelId || ''
+  const isLuminaProvider = isLuminaProviderId(provider)
+  const modelId = normalizeProviderModelId(provider, rawModelId)
   const modelKey = composeModelKey(provider, modelId)
 
   if (!modelKey) {
@@ -764,13 +778,23 @@ function normalizeStoredModel(raw: unknown, index: number, options?: { strictCus
     })
   }
   if (modelKeyFromField && (!parsedModelKey || parsedModelKey.modelKey !== modelKey)) {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'MODEL_KEY_MISMATCH',
-      field: `models[${index}].modelKey`,
-    })
+    const normalizedParsedModelId = parsedModelKey
+      ? normalizeProviderModelId(parsedModelKey.provider, parsedModelKey.modelId)
+      : ''
+    const normalizedParsedModelKey = parsedModelKey && normalizedParsedModelId
+      ? composeModelKey(parsedModelKey.provider, normalizedParsedModelId)
+      : ''
+    if (normalizedParsedModelKey !== modelKey) {
+      throw new ApiError('INVALID_PARAMS', {
+        code: 'MODEL_KEY_MISMATCH',
+        field: `models[${index}].modelKey`,
+      })
+    }
   }
 
-  const modelName = readTrimmedString(raw.name) || modelId
+  const modelName = (isLuminaProvider ? getLuminaAnthropicCompatibleModelName(modelId) : null)
+    || readTrimmedString(raw.name)
+    || modelId
 
   const customPricing = normalizeCustomPricing(raw.customPricing, {
     strict: options?.strictCustomPricing,
@@ -859,7 +883,7 @@ function normalizeProvidersInput(rawProviders: unknown): StoredProvider[] {
     }
     const normalizedId = id.toLowerCase()
     const providerKey = getProviderKey(normalizedId)
-    if (RETIRED_PROVIDER_KEYS.has(providerKey)) {
+    if (RETIRED_PROVIDER_KEYS.has(providerKey) || !isSupportedModelProvider(id)) {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_NOT_SUPPORTED',
         field: `providers[${index}].id`,
@@ -878,7 +902,8 @@ function normalizeProvidersInput(rawProviders: unknown): StoredProvider[] {
         field: `providers[${index}].apiMode`,
       })
     }
-    if (getProviderKey(id) === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+    const providerKeyForApiMode = getProviderKey(id)
+    if ((providerKeyForApiMode === 'gemini-compatible' || isLuminaProviderId(id)) && apiModeRaw === 'openai-official') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_APIMODE_INVALID',
         field: `providers[${index}].apiMode`,
@@ -967,11 +992,11 @@ function validateModelProviderTypeSupport(models: StoredModel[], providers: Stor
 }
 
 function isOpenAICompatibleLlmModel(model: StoredModel): boolean {
-  return model.type === 'llm' && getProviderKey(model.provider) === 'openai-compatible'
+  return model.type === 'llm' && isHfsyProviderId(model.provider)
 }
 
 function isOpenAICompatibleMediaTemplateModel(model: StoredModel): boolean {
-  if (getProviderKey(model.provider) !== 'openai-compatible') return false
+  if (!isHfsyProviderId(model.provider)) return false
   return model.type === 'image' || model.type === 'video'
 }
 
@@ -1221,7 +1246,7 @@ function validateBillableModelPricing(models: StoredModel[]) {
 
     // Skip validation if user provided custom pricing
     if (hasCustomPricingForType(model)) continue
-    if (OPTIONAL_PRICING_PROVIDER_KEYS.has(getProviderKey(model.provider))) continue
+    if (hasOptionalPricingProvider(model.provider)) continue
 
     if (!hasBuiltinPricingForModel(apiType, model.provider, model.modelId)) {
       throw new ApiError('INVALID_PARAMS', {
@@ -1246,7 +1271,8 @@ function validateDefaultModelKey(field: DefaultModelField, value: unknown): stri
       field: `defaultModels.${field}`,
     })
   }
-  return parsed.modelKey
+  const modelId = normalizeProviderModelId(parsed.provider, parsed.modelId)
+  return composeModelKey(parsed.provider, modelId)
 }
 
 function normalizeDefaultModelsInput(rawDefaultModels: unknown): DefaultModelsPayload {
@@ -1331,7 +1357,7 @@ function validateDefaultModelPricing(defaultModels: DefaultModelsPayload) {
 
     const parsed = parseModelKeyStrict(modelKey)
     if (!parsed) continue
-    if (OPTIONAL_PRICING_PROVIDER_KEYS.has(getProviderKey(parsed.provider))) continue
+    if (hasOptionalPricingProvider(parsed.provider)) continue
     const apiType = DEFAULT_FIELD_TO_PRICING_API_TYPE[field]
 
     if (!hasBuiltinPricingForModel(apiType, parsed.provider, parsed.modelId)) {
@@ -1349,7 +1375,7 @@ function isModelPricedForBilling(model: StoredModel): boolean {
   const apiType = BILLABLE_MODEL_TYPE_TO_PRICING_API_TYPE[model.type]
   if (!apiType) return true
   if (hasCustomPricingForType(model)) return true
-  if (OPTIONAL_PRICING_PROVIDER_KEYS.has(getProviderKey(model.provider))) return true
+  if (hasOptionalPricingProvider(model.provider)) return true
   return hasBuiltinPricingForModel(apiType, model.provider, model.modelId)
 }
 
@@ -1374,7 +1400,7 @@ function sanitizeDefaultModelsForBilling(defaultModels: DefaultModelsPayload): D
       sanitized[field] = ''
       continue
     }
-    if (OPTIONAL_PRICING_PROVIDER_KEYS.has(getProviderKey(parsed.provider))) {
+    if (hasOptionalPricingProvider(parsed.provider)) {
       sanitized[field] = parsed.modelKey
       continue
     }
@@ -1386,6 +1412,15 @@ function sanitizeDefaultModelsForBilling(defaultModels: DefaultModelsPayload): D
   }
 
   return sanitized
+}
+
+function normalizeStoredDefaultModelKey(value: string | null | undefined): string {
+  const modelKey = readTrimmedString(value)
+  if (!modelKey) return ''
+  const parsed = parseModelKeyStrict(modelKey)
+  if (!parsed) return ''
+  const modelId = normalizeProviderModelId(parsed.provider, parsed.modelId)
+  return composeModelKey(parsed.provider, modelId) || ''
 }
 
 function parseStoredProviders(rawProviders: string | null | undefined): StoredProvider[] {
@@ -1426,6 +1461,9 @@ function parseStoredProviders(rawProviders: string | null | undefined): StoredPr
     }
 
     const providerKey = getProviderKey(id)
+    if (!isSupportedModelProvider(id)) {
+      continue
+    }
     const apiModeRaw = raw.apiMode
     let apiMode: ApiModeType | undefined
     if (apiModeRaw !== undefined) {
@@ -1435,7 +1473,7 @@ function parseStoredProviders(rawProviders: string | null | undefined): StoredPr
           field: `customProviders[${index}].apiMode`,
         })
       }
-      if (providerKey === 'gemini-compatible' && apiModeRaw === 'openai-official') {
+      if ((providerKey === 'gemini-compatible' || isLuminaProviderId(id)) && apiModeRaw === 'openai-official') {
         throw new ApiError('INVALID_PARAMS', {
           code: 'PROVIDER_APIMODE_INVALID',
           field: `customProviders[${index}].apiMode`,
@@ -1687,29 +1725,12 @@ export const GET = apiHandler(async () => {
   const pricingDisplay = buildPricingDisplayMap()
   const pricedModels = models.map((model) => withDisplayPricing(model, pricingDisplay))
 
-  // 对每个 gemini-compatible provider，注入尚未保存过的 Google preset 模型（disabled，带完整 capabilities）
-  // gemini-compatible 本质就是改了 baseURL 和 key，模型和能力与 Google 官方完全一致
-  const GEMINI_COMPATIBLE_PRESETS: { type: UnifiedModelType; modelId: string; name: string }[] = [
-    { type: 'llm', modelId: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro' },
-    { type: 'llm', modelId: 'gemini-3-flash-preview', name: 'Gemini 3 Flash' },
-    { type: 'llm', modelId: 'gemini-3.1-flash-lite-preview', name: 'Gemini 3.1 Flash-Lite' },
-    { type: 'image', modelId: 'gemini-3-pro-image-preview', name: 'Banana Pro' },
-    { type: 'image', modelId: 'gemini-3.1-flash-image-preview', name: 'Nano Banana 2' },
-    { type: 'image', modelId: 'gemini-2.5-flash-image', name: 'Gemini 2.5 Flash Image' },
-    { type: 'image', modelId: 'imagen-4.0-generate-001', name: 'Imagen 4' },
-    { type: 'image', modelId: 'imagen-4.0-ultra-generate-001', name: 'Imagen 4 Ultra' },
-    { type: 'image', modelId: 'imagen-4.0-fast-generate-001', name: 'Imagen 4 Fast' },
-    { type: 'video', modelId: 'veo-3.1-generate-preview', name: 'Veo 3.1' },
-    { type: 'video', modelId: 'veo-3.1-fast-generate-preview', name: 'Veo 3.1 Fast' },
-    { type: 'video', modelId: 'veo-3.0-generate-001', name: 'Veo 3.0' },
-    { type: 'video', modelId: 'veo-3.0-fast-generate-001', name: 'Veo 3.0 Fast' },
-    { type: 'video', modelId: 'veo-2.0-generate-001', name: 'Veo 2.0' },
-  ]
   const savedModelKeys = new Set(pricedModels.map((m) => m.modelKey))
   const disabledPresets: (StoredModel & { enabled: false })[] = []
   for (const p of providers) {
-    if (getProviderKey(p.id) !== 'gemini-compatible') continue
-    for (const preset of GEMINI_COMPATIBLE_PRESETS) {
+    const providerKey = normalizeModelProviderKey(p.id)
+    if (!providerKey) continue
+    for (const preset of MODEL_PRESETS.filter((item) => item.provider === providerKey)) {
       const modelKey = composeModelKey(p.id, preset.modelId)
       if (!modelKey || savedModelKeys.has(modelKey)) continue
       savedModelKeys.add(modelKey)
@@ -1720,23 +1741,21 @@ export const GET = apiHandler(async () => {
         type: preset.type,
         provider: p.id,
         price: 0,
-        // alias 回退自动从 google catalog 获取 capabilities
-        capabilities: findBuiltinCapabilities(preset.type, p.id, preset.modelId),
       }
       disabledPresets.push({ ...withDisplayPricing(base, pricingDisplay), enabled: false })
     }
   }
 
   const rawDefaults: DefaultModelsPayload = {
-    analysisModel: pref?.analysisModel || '',
-    characterModel: pref?.characterModel || '',
-    locationModel: pref?.locationModel || '',
-    storyboardModel: pref?.storyboardModel || '',
-    editModel: pref?.editModel || '',
-    videoModel: pref?.videoModel || '',
-    audioModel: pref?.audioModel || '',
-    lipSyncModel: pref?.lipSyncModel || DEFAULT_LIPSYNC_MODEL_KEY,
-    voiceDesignModel: pref?.voiceDesignModel || '',
+    analysisModel: normalizeStoredDefaultModelKey(pref?.analysisModel),
+    characterModel: normalizeStoredDefaultModelKey(pref?.characterModel),
+    locationModel: normalizeStoredDefaultModelKey(pref?.locationModel),
+    storyboardModel: normalizeStoredDefaultModelKey(pref?.storyboardModel),
+    editModel: normalizeStoredDefaultModelKey(pref?.editModel),
+    videoModel: normalizeStoredDefaultModelKey(pref?.videoModel),
+    audioModel: normalizeStoredDefaultModelKey(pref?.audioModel),
+    lipSyncModel: normalizeStoredDefaultModelKey(pref?.lipSyncModel) || DEFAULT_LIPSYNC_MODEL_KEY,
+    voiceDesignModel: normalizeStoredDefaultModelKey(pref?.voiceDesignModel),
   }
   const defaultModels = billingMode === 'OFF'
     ? rawDefaults

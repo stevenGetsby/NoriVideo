@@ -70,7 +70,7 @@
     "cancel": "Cancel"
   },
   "toolbar": {
-    "title": "Video Generation",
+    "title": "Storyboard Video Generation",
     "filter": "Filter",
     "viewAll": "View All",
     "showGenerated": "Generated",
@@ -183,6 +183,102 @@
         "fade": "Fade",
         "slide": "Slide"
       }
+    }
+  },
+  "exportDelivery": {
+    "eyebrow": "Export Delivery",
+    "title": "Export Delivery",
+    "subtitle": "Prepare final video, asset package, and editing draft for \"{episode}\" while checking missing shots.",
+    "episodeFallback": "Current Episode",
+    "stats": {
+      "scenes": "Scenes",
+      "shots": "Shots",
+      "videos": "Videos"
+    },
+    "cards": {
+      "finalVideo": {
+        "title": "Final Video",
+        "description": "Collect generated shots as the final video export entry.",
+        "primary": "Export Video",
+        "meta": "{count} generated video shots"
+      },
+      "assetPackage": {
+        "title": "Asset Package",
+        "description": "Package storyboard images, videos, prompts, and reviewable production assets.",
+        "primary": "Download Package",
+        "meta": "Covers {count} shot assets"
+      },
+      "jianyingDraft": {
+        "title": "Editing Draft",
+        "description": "Export an editable production manifest and media directory for finishing work.",
+        "primary": "Download Manifest",
+        "meta": "Assembled from {count} scenes"
+      }
+    },
+    "actions": {
+      "downloading": "Downloading...",
+      "downloadReady": "Download started. Check your browser downloads.",
+      "downloadFailed": "Download failed",
+      "recordFailed": "Download started, but export history could not be saved.",
+      "noEpisode": "Select an episode before exporting."
+    },
+    "readiness": {
+      "title": "Delivery Check",
+      "videoCoverage": "Video Coverage",
+      "missingVideos": "{count} shots are missing video. Return to shot production first.",
+      "ready": "All videos for this episode are ready for delivery.",
+      "backToShots": "Back to Shot Production"
+    },
+    "queue": {
+      "title": "Export Task Queue",
+      "description": "Summarize final video, asset package, and editing draft readiness in a FrameOS-style delivery queue.",
+      "count": "{count} deliverables",
+      "enqueue": "Queue",
+      "enqueueing": "Queueing...",
+      "enqueued": "Added to the background export queue.",
+      "enqueueFailed": "Failed to queue export",
+      "status": {
+        "ready": "Ready",
+        "blocked": "Needs Work",
+        "available": "Manifest Ready"
+      },
+      "backendStatus": {
+        "idle": "Not queued",
+        "queued": "Queued",
+        "ready": "Queue ready",
+        "blocked": "Queue blocked"
+      },
+      "blockers": {
+        "ready": "Current materials satisfy delivery requirements.",
+        "missingVideos": "{count} video shots are still missing.",
+        "noImages": "No storyboard images are ready for packaging.",
+        "noPanels": "No shots are available for a delivery manifest.",
+        "manifestOnly": "Generates a reviewable manifest before full editing-project packaging."
+      },
+      "items": {
+        "finalVideo": {
+          "title": "Final Video Task",
+          "description": "Export the final video package after all shot videos are ready."
+        },
+        "assetPackage": {
+          "title": "Asset Package Task",
+          "description": "Package storyboard images, references, videos, and prompts."
+        },
+        "editingDraft": {
+          "title": "Editing Draft Task",
+          "description": "Generate an editing manifest and reviewable shot media directory."
+        }
+      }
+    },
+    "history": {
+      "title": "Export History",
+      "emptyBadge": "No records",
+      "countBadge": "{count} records",
+      "available": "Available",
+      "completed": "Completed",
+      "stats": "{clips} scenes · {panels} shots · {videos} videos",
+      "emptyTitle": "No export tasks yet",
+      "emptyDescription": "Final video, asset package, and draft exports will appear here."
     }
   },
   "errors": {

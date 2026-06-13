@@ -246,6 +246,35 @@ function pickSelectionForModel(
   return normalized
 }
 
+function pickDefaultCapabilityOption(
+  field: string,
+  options: readonly CapabilityOptionValue[],
+): CapabilityOptionValue | undefined {
+  if (options.length === 0) return undefined
+
+  if (field === 'generationMode') {
+    return options.includes('normal') ? 'normal' : options[0]
+  }
+
+  if (field === 'generateAudio') {
+    return options.includes(false) ? false : options[0]
+  }
+
+  if (field === 'duration') {
+    const preferredDuration = [5, 4, 6, 3, 8, 10, 12, 2].find((duration) =>
+      options.includes(duration))
+    return preferredDuration ?? options[0]
+  }
+
+  if (field === 'resolution') {
+    const preferredResolution = ['720p', '1080p', '480p', '1K', '2K', '0.5K'].find((resolution) =>
+      options.includes(resolution))
+    return preferredResolution ?? options[0]
+  }
+
+  return options[0]
+}
+
 export function resolveGenerationOptionsForModel(input: {
   modelType: UnifiedModelType
   modelKey: string
@@ -301,6 +330,29 @@ export function resolveGenerationOptionsForModel(input: {
           ...normalizedSelection,
           resolution: firstResolution,
         }
+      }
+    }
+  }
+
+  // Agent / 自动工作流没有手动参数面板，视频模型的必填能力字段需要由后端按能力表补齐。
+  // 默认优先选择普通图生视频、5 秒、720p、不开音频，避免 first-last-frame 等模式要求额外素材。
+  if (input.modelType === 'video') {
+    const optionFields = getCapabilityOptionFields(input.modelType, input.capabilities)
+    for (const [field, options] of Object.entries(optionFields)) {
+      if (Object.prototype.hasOwnProperty.call(normalizedSelection, field)) continue
+
+      const missingFieldIssue = precheckIssues.find(
+        (issue) =>
+          issue.code === 'CAPABILITY_REQUIRED'
+          && issue.field === `capabilities.${input.modelKey}.${field}`,
+      )
+      if (!missingFieldIssue) continue
+
+      const defaultValue = pickDefaultCapabilityOption(field, options)
+      if (defaultValue === undefined) continue
+      normalizedSelection = {
+        ...normalizedSelection,
+        [field]: defaultValue,
       }
     }
   }

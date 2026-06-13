@@ -27,6 +27,7 @@ export interface TemplateEndpoint {
 export interface TemplateResponseMap {
   taskIdPath?: string
   statusPath?: string
+  outputB64JsonPath?: string
   outputUrlPath?: string
   outputUrlsPath?: string
   errorPath?: string

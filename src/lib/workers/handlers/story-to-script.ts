@@ -428,6 +428,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
                 clipPromptTemplate,
                 screenplayPromptTemplate,
               },
+              disableAgentStoryPackageFastPath: payload.disableAgentStoryPackageFastPath === true,
               runStep,
             }),
           )

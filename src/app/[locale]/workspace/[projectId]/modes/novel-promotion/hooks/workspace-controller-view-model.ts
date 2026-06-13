@@ -6,6 +6,7 @@ import type { TaskPresentationState } from '@/lib/task/presentation'
 import type { BatchVideoGenerationParams, VideoGenerationOptions } from '../components/video'
 import type { CapabilitySelections } from '@/lib/model-config-contract'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
+import type { CapsuleNavItem } from './useWorkspaceStageNavigation'
 import type {
   useScriptToStoryboardRunStream,
   useStoryToScriptRunStream,
@@ -64,14 +65,7 @@ interface BuildWorkspaceControllerViewModelParams {
   }
   stageNavState: {
     currentStage: string
-    capsuleNavItems: Array<{
-      id: string
-      label: string
-      icon: string
-      status: 'empty' | 'active' | 'processing' | 'ready'
-      disabled?: boolean
-      disabledLabel?: string
-    }>
+    capsuleNavItems: CapsuleNavItem[]
     handleStageChange: (stage: string) => void
   }
   rebuildState: {

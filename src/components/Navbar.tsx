@@ -39,8 +39,8 @@ export default function Navbar() {
     <>
       <nav className="glass-nav sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
+          <div className="flex h-16 min-w-0 items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2">
               <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group">
                 <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#a78bfa] via-[#818cf8] to-[#60a5fa] bg-clip-text text-transparent transition-transform group-hover:scale-110 inline-block select-none">
                   Nori
@@ -74,7 +74,7 @@ export default function Navbar() {
                 type="button"
                 onClick={() => void handleCheckUpdate()}
                 disabled={manualChecking}
-                className="rounded-full p-1.5 text-[var(--glass-text-tertiary)] hover:bg-[var(--glass-bg-muted)] hover:text-[var(--glass-text-secondary)] transition-colors disabled:opacity-40"
+                className="hidden rounded-full p-1.5 text-[var(--glass-text-tertiary)] transition-colors hover:bg-[var(--glass-bg-muted)] hover:text-[var(--glass-text-secondary)] disabled:opacity-40 sm:inline-flex"
                 title={tc('updateNotice.checkUpdate')}
               >
                 <AppIcon name="refresh" className={`h-3.5 w-3.5 ${manualChecking ? 'animate-spin' : ''}`} />
@@ -88,7 +88,7 @@ export default function Navbar() {
                 </span>
               )}
             </div>
-            <div className="flex items-center space-x-6">
+            <div className="hidden items-center space-x-6 sm:flex">
               {status === 'loading' ? (
                 /* Session 加载中骨架屏 */
                 <div className="flex items-center space-x-4">
@@ -99,14 +99,14 @@ export default function Navbar() {
               ) : session ? (
                 <>
                   <Link
-                    href={{ pathname: '/workspace' }}
+                    href={{ pathname: '/projects' }}
                     className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
                   >
                     <AppIcon name="monitor" className="w-4 h-4" />
                     {t('workspace')}
                   </Link>
                   <Link
-                    href={{ pathname: '/workspace/asset-hub' }}
+                    href={{ pathname: '/asset-hub' }}
                     className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
                   >
                     <AppIcon name="folderHeart" className="w-4 h-4" />
@@ -155,6 +155,13 @@ export default function Navbar() {
                   </Link>
                   <LanguageSwitcher />
                 </>
+              )}
+            </div>
+            <div className="flex shrink-0 items-center gap-2 sm:hidden">
+              {status === 'loading' ? (
+                <div className="h-9 w-9 rounded-lg bg-[var(--glass-bg-muted)] animate-pulse" />
+              ) : (
+                <LanguageSwitcher compact />
               )}
             </div>
           </div>

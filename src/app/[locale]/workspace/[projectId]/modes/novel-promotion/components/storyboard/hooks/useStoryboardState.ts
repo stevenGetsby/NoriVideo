@@ -12,6 +12,11 @@ import {
   getStoryboardPanels,
   sortStoryboardsByClipOrder,
 } from './storyboard-state-utils'
+import {
+  clearPanelAssetUsageConfirmation,
+  parseAssetNames,
+  parsePanelCharacterRefs,
+} from '@/lib/novel-promotion/panel-asset-usage'
 
 export interface StoryboardPanel {
   id: string
@@ -22,12 +27,16 @@ export interface StoryboardPanel {
   description: string
   characters: { name: string; appearance: string; slot?: string }[]
   location?: string
+  props?: string[]
   srt_range?: string
   duration?: number
   video_prompt?: string
   source_text?: string
   candidateImages?: string
   imageUrl?: string | null
+  videoUrl?: string | null
+  videoTaskRunning?: boolean
+  videoErrorMessage?: string | null
   photographyRules?: string | null  // 单镜头摄影规则JSON
   actingNotes?: string | null       // 演技指导数据JSON
   imageTaskRunning?: boolean  // 任务态运行状态（由 tasks 派生）
@@ -110,25 +119,11 @@ export function useStoryboardState({
       (a.panelIndex || 0) - (b.panelIndex || 0)
     )
     return sortedPanels.map((p) => {
-      const parsedChars = p.characters ? JSON.parse(p.characters) : []
-      const characters = Array.isArray(parsedChars)
-        ? parsedChars.flatMap((item): Array<{ name: string; appearance: string; slot?: string }> => {
-          if (
-            typeof item !== 'object'
-            || item === null
-            || typeof (item as { name?: unknown }).name !== 'string'
-            || typeof (item as { appearance?: unknown }).appearance !== 'string'
-          ) {
-            return []
-          }
-          const candidate = item as { name: string; appearance: string; slot?: unknown }
-          return [{
-            name: candidate.name,
-            appearance: candidate.appearance,
-            slot: typeof candidate.slot === 'string' ? candidate.slot : undefined,
-          }]
-        })
-        : []
+      const characters = parsePanelCharacterRefs(p.characters).map((character) => ({
+        name: character.name,
+        appearance: character.appearance ?? '',
+        slot: character.slot,
+      }))
       return {
         id: p.id,
         panelIndex: p.panelIndex,
@@ -137,6 +132,7 @@ export function useStoryboardState({
         camera_move: p.cameraMove,
         description: p.description ?? '',
         location: p.location || undefined,
+        props: parseAssetNames(p.props),
         characters,
         srt_range: p.srtStart && p.srtEnd ? `${p.srtStart}-${p.srtEnd}` : undefined,
         duration: p.duration ?? undefined,
@@ -144,6 +140,9 @@ export function useStoryboardState({
         source_text: p.srtSegment || undefined,
         candidateImages: p.candidateImages || undefined,
         imageUrl: p.imageUrl,
+        videoUrl: p.videoUrl,
+        videoTaskRunning: p.videoTaskRunning || false,
+        videoErrorMessage: p.videoErrorMessage ?? null,
         photographyRules: p.photographyRules,
         actingNotes: p.actingNotes,
         imageTaskRunning: p.imageTaskRunning || false
@@ -177,9 +176,18 @@ export function useStoryboardState({
   const updatePanelEdit = (panelId: string, panel: StoryboardPanel, updates: Partial<PanelEditData>) => {
     setPanelEdits(prev => {
       const currentData = prev[panelId] || getPanelEditData(panel)
+      const touchesAssetUsage = updates.characters !== undefined || updates.location !== undefined
+      const normalizedUpdates: Partial<PanelEditData> = touchesAssetUsage
+        ? {
+          ...updates,
+          actingNotes: clearPanelAssetUsageConfirmation(
+            updates.actingNotes !== undefined ? updates.actingNotes : currentData.actingNotes,
+          ),
+        }
+        : updates
       return {
         ...prev,
-        [panelId]: { ...currentData, ...updates }
+        [panelId]: { ...currentData, ...normalizedUpdates }
       }
     })
   }

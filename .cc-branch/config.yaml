@@ -1,0 +1,18 @@
+version: 2
+project: NoriVideo
+root: /Users/headmasterx/Desktop/NoriVideo
+openWith: warp
+display:
+  dashboard: true
+tabs:
+  - name: development
+    cwd: .
+    panes:
+      - name: frontend
+        agent: codex
+      - name: backend
+        agent: codex
+      - name: algorithm
+        agent: codex
+      - name: docs
+        agent: codex

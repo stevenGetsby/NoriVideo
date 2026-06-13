@@ -164,4 +164,22 @@ describe('sse invalidation behavior', () => {
       }),
     )
   })
+
+  it('does not log recoverable EventSource errors as console errors', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+    const { useSSE } = await import('@/lib/query/hooks/useSSE')
+
+    useSSE({
+      projectId: 'project-1',
+      episodeId: 'episode-1',
+      enabled: true,
+    })
+
+    const source = FakeEventSource.instances[0]
+    expect(source).toBeTruthy()
+    source.onerror?.(new Event('error'))
+
+    expect(consoleErrorSpy).not.toHaveBeenCalled()
+    consoleErrorSpy.mockRestore()
+  })
 })

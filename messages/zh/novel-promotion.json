@@ -1,10 +1,10 @@
 {
   "stages": {
-    "story": "故事",
-    "script": "剧本",
-    "storyboard": "分镜",
-    "video": "成片",
-    "editor": "AI剪辑",
+    "story": "剧本解析",
+    "script": "资产设定",
+    "storyboard": "分镜设计",
+    "video": "镜头制作",
+    "editor": "导出交付",
     "editorComingSoon": "开发中，关注我们获取最新消息"
   },
   "buttons": {
@@ -12,6 +12,640 @@
     "settings": "项目配置",
     "refreshData": "刷新项目数据",
     "enterVideoGeneration": "进入视频生成 →"
+  },
+  "workbenchShell": {
+    "projectWorkflow": "项目工作流",
+    "currentEpisode": "当前剧集",
+    "noEpisode": "未选择剧集",
+    "episodeList": "剧集列表",
+    "addEpisode": "添加剧集",
+    "status": {
+      "empty": "待处理",
+      "active": "可开始",
+      "processing": "运行中",
+      "ready": "已就绪"
+    },
+    "progress": "{value}%",
+    "metrics": {
+      "episodes": "{count} 集",
+      "stories": "{count} 文本",
+      "clips": "{count} 场",
+      "scripts": "{count} 剧本",
+      "characters": "{count} 角色",
+      "assets": "{count} 资产",
+      "storyboards": "{count} 分镜组",
+      "panels": "{count} 镜头",
+      "images": "{count} 图",
+      "videos": "{count} 视频",
+      "missingVideos": "缺 {count}",
+      "voiceLines": "{count} 台词",
+      "audios": "{count} 音频",
+      "editorProjects": "{count} 草稿"
+    },
+    "groups": {
+      "script": "剧本",
+      "assets": "资产",
+      "storyboard": "分镜",
+      "production": "制作"
+    },
+    "items": {
+      "scriptParse": "剧本解析",
+      "scriptReview": "剧本解析结果",
+      "characterAssets": "角色资产设定",
+      "itemAssets": "物品资产设定",
+      "environmentAssets": "环境资产设定",
+      "timbreMatch": "角色音色匹配",
+      "storyboardDesign": "分镜设计",
+      "productionEpisodes": "制作 · 分集",
+      "shotProduction": "镜头制作",
+      "exportDelivery": "导出交付"
+    }
+  },
+  "workbenchFocus": {
+    "variants": {
+      "standard": "高效/精品工作台",
+      "premium2": "精品版 2.0"
+    },
+    "labels": {
+      "route": "FrameOS 路由",
+      "status": "状态",
+      "connected": "已桥接"
+    },
+    "workflow": {
+      "title": "阶段生产总览",
+      "description": "根据当前剧集真实产物汇总剧本、资产、分镜、镜头、音色和交付进度。",
+      "derived": "后端派生状态",
+      "loading": "正在读取阶段状态...",
+      "progress": "{value}%",
+      "noMetrics": "暂无统计",
+      "reviewStates": {
+        "unset": "未人工校准",
+        "confirmed": "人工确认",
+        "review": "需复核"
+      },
+      "actions": {
+        "confirm": "确认",
+        "review": "复核"
+      },
+      "status": {
+        "empty": "待处理",
+        "active": "可开始",
+        "processing": "运行中",
+        "ready": "已就绪"
+      },
+      "metrics": {
+        "episodes": "{count} 集",
+        "stories": "{count} 文本",
+        "clips": "{count} 场",
+        "scripts": "{count} 剧本",
+        "characters": "{count} 角色",
+        "assets": "{count} 资产",
+        "storyboards": "{count} 分镜组",
+        "panels": "{count} 镜头",
+        "images": "{count} 图",
+        "videos": "{count} 视频",
+        "missingVideos": "缺 {count}",
+        "voiceLines": "{count} 台词",
+        "audios": "{count} 音频",
+        "editorProjects": "{count} 草稿"
+      },
+      "reasons": {
+        "story_input_ready": "原文已就绪",
+        "waiting_for_story_input": "等待输入原文",
+        "script_and_assets_ready": "剧本资产已就绪",
+        "waiting_for_script_assets": "等待剧本资产",
+        "storyboard_ready": "分镜已就绪",
+        "waiting_for_storyboard": "等待分镜",
+        "video_ready": "镜头已就绪",
+        "waiting_for_video": "等待视频",
+        "voice_ready": "音色已就绪",
+        "waiting_for_voice": "等待配音",
+        "delivery_ready": "可交付",
+        "waiting_for_delivery_assets": "等待交付素材"
+      }
+    },
+    "slots": {
+      "primary": "核心操作",
+      "secondary": "复核内容",
+      "handoff": "下一步"
+    },
+    "data": {
+      "detailTitle": "当前数据",
+      "showing": "显示 {count} 项",
+      "empty": "暂无可展示数据，完成前置阶段后会在这里汇总。",
+      "characters": "角色",
+      "appearances": "形象",
+      "voiceReady": "已配音色",
+      "items": "物品",
+      "environments": "环境",
+      "linkedPanels": "关联镜头",
+      "storyClips": "剧本片段",
+      "episodes": "剧集",
+      "clips": "片段",
+      "storyboards": "分镜",
+      "panels": "镜头",
+      "videoReady": "视频就绪",
+      "imageReady": "画面就绪",
+      "audioReady": "音频就绪",
+      "pending": "待处理",
+      "currentClips": "当前片段",
+      "currentPanels": "当前镜头",
+      "ready": "已就绪",
+      "todo": "待处理",
+      "current": "当前",
+      "assets": "资产",
+      "profile": "角色档案",
+      "timbre": "音色",
+      "panelRefs": "镜头引用",
+      "scriptRefs": "剧本引用",
+      "scriptUnits": "剧本单元",
+      "nextStoryboard": "下一步分镜",
+      "currentEpisode": "当前剧集",
+      "projectTotal": "项目总计",
+      "assetRefs": "资产引用",
+      "needsGeneration": "需要生成",
+      "roleVoices": "角色声音",
+      "boundVoices": "已绑定声音",
+      "episodeAudio": "本集音频",
+      "noEpisode": "未选择剧集",
+      "noDescription": "暂无描述",
+      "noLocation": "未标注场景",
+      "readyCount": "已就绪 {count}",
+      "imageReadyCount": "画面就绪 {count}",
+      "appearanceCount": "{count} 个形象",
+      "clipTitle": "片段 {index}",
+      "episodeNumber": "第 {index} 集"
+    },
+    "inspect": {
+      "title": "详情检查台",
+      "preview": "预览",
+      "assetDetail": "资产详情",
+      "shotDetail": "镜头详情",
+      "shotNumber": "镜头 {index}",
+      "shotDescription": "镜头描述",
+      "shotType": "景别/镜头类型",
+      "cameraMove": "运镜方式",
+      "visualPrompt": "画面提示词",
+      "videoPrompt": "视频提示词",
+      "duration": "镜头时长",
+      "assetRefs": "资产引用",
+      "output": "输出状态",
+      "description": "描述",
+      "references": "引用统计",
+      "imageStatus": "图像状态",
+      "nextAction": "下一步动作",
+      "referenceStats": "剧本片段 {clips} · 镜头 {panels}"
+    },
+    "edit": {
+      "namePlaceholder": "输入名称",
+      "summaryPlaceholder": "输入描述或用途说明",
+      "imagePromptPlaceholder": "输入画面提示词",
+      "videoPromptPlaceholder": "输入视频提示词",
+      "durationPlaceholder": "输入秒数，例如 3.5",
+      "shotDescriptionPlaceholder": "输入镜头画面、人物动作和情绪说明",
+      "shotTypePlaceholder": "例如：中景、特写、过肩镜头",
+      "cameraMovePlaceholder": "例如：固定、推近、跟拍、摇镜",
+      "locationPlaceholder": "场景/环境引用",
+      "charactersPlaceholder": "角色引用",
+      "propsPlaceholder": "道具引用",
+      "saveAsset": "保存资产",
+      "saveCharacter": "保存角色",
+      "saveShot": "保存镜头",
+      "saving": "保存中...",
+      "saved": "已保存",
+      "saveFailed": "保存失败"
+    },
+    "timeline": {
+      "title": "时间线镜头检查",
+      "openDetail": "点击镜头进入详情",
+      "boardTitle": "时间线交付总览",
+      "boardDescription": "检查镜头顺序、时长、引用、画面和视频状态，保证导出前节奏完整。",
+      "image": "画面",
+      "video": "视频",
+      "duration": "时长",
+      "durationTotal": "总时长",
+      "imageMissing": "缺画面",
+      "videoMissing": "缺视频",
+      "averageDuration": "平均时长",
+      "refsMissing": "缺引用",
+      "durationMissing": "缺时长",
+      "readyShots": "可交付镜头",
+      "deliveryReady": "可交付 {ready}/{total}",
+      "order": "时间线顺序",
+      "orderValue": "顺序 #{index}",
+      "save": "保存时间线",
+      "detail": "进入详情",
+      "saved": "已保存 {count} 个镜头",
+      "reordered": "镜头顺序已更新",
+      "moveUp": "上移",
+      "moveDown": "下移",
+      "noChanges": "没有需要保存的改动",
+      "queues": {
+        "refs": {
+          "title": "引用待补齐"
+        },
+        "duration": {
+          "title": "时长待校准"
+        }
+      },
+      "queueEmpty": "暂无待处理"
+    },
+    "assets": {
+      "selectTitle": "资产详情选择",
+      "selected": "当前",
+      "boardTitle": "资产生产看板",
+      "boardDescriptions": {
+        "characters": "按角色检查形象图、剧本引用、镜头绑定和音色前置状态。",
+        "items": "按物品检查参考图、剧本引用和镜头中的道具绑定。",
+        "environments": "按环境检查场景图、剧本场次和镜头场景绑定。"
+      },
+      "total": "共 {count} 项",
+      "imageReady": "图像 {ready}/{total}",
+      "metrics": {
+        "ready": "图像就绪",
+        "missingImage": "缺图像",
+        "linkedPanels": "已绑镜头",
+        "scriptOnly": "仅剧本引用"
+      },
+      "queues": {
+        "missing": {
+          "title": "图像待补齐"
+        },
+        "scriptOnly": {
+          "title": "待绑定镜头"
+        }
+      },
+      "refs": {
+        "script": "剧本 {count}",
+        "panels": "镜头 {count}",
+        "images": "图像 {count}"
+      },
+      "queueEmpty": "暂无待处理"
+    },
+    "script": {
+      "title": "剧本解析入口检查",
+      "description": "导入或复核当前剧集原稿、SRT 和生产配置，并检查解析后的片段与资产产物。",
+      "storyReady": "原稿已就绪",
+      "storyMissing": "缺原稿",
+      "srtReady": "SRT 已就绪",
+      "srtMissing": "缺 SRT",
+      "sourceTitle": "剧本文本预览",
+      "charCount": "{count} 字",
+      "noSource": "暂无剧本文本或 SRT 内容。",
+      "episode": "当前剧集",
+      "ratio": "画面比例",
+      "style": "美术风格",
+      "model": "解析模型",
+      "ready": "已生成",
+      "pending": "待生成",
+      "openReview": "查看解析结果",
+      "openStoryboard": "进入分镜",
+      "outputs": {
+        "clips": "片段",
+        "characters": "角色",
+        "locations": "场景",
+        "props": "道具"
+      }
+    },
+    "scriptReview": {
+      "title": "剧本拆解复核",
+      "description": "按片段复核 AI 拆解结果，检查场景、角色、道具、剧本正文和分镜关联是否完整。",
+      "total": "共 {count} 个片段",
+      "storyboards": "{count} 个分镜组",
+      "panels": "{count} 个镜头",
+      "locationCoverage": "场景覆盖",
+      "characterCoverage": "角色覆盖",
+      "propCoverage": "道具覆盖",
+      "clipTitle": "片段 {index}",
+      "noLocation": "缺场景",
+      "noCharacters": "缺角色",
+      "screenplayReady": "剧本已生成",
+      "screenplayMissing": "缺剧本",
+      "storyboardReady": "分镜已关联",
+      "storyboardMissing": "缺分镜",
+      "panelCount": "{count} 镜",
+      "openShot": "进入镜头",
+      "openStoryboard": "进入分镜"
+    },
+    "timbre": {
+      "title": "角色音色匹配检查",
+      "description": "按角色检查音色绑定、上传参考音频、剧本引用和镜头引用，确保导出前声音资产可追踪。",
+      "ready": "已匹配",
+      "missing": "待匹配",
+      "episodeAudioReady": "本集音频已生成",
+      "episodeAudioMissing": "本集音频待生成",
+      "voiceLines": "{count} 条台词",
+      "clipRefs": "{count} 场",
+      "panelRefs": "{count} 镜",
+      "noVoiceId": "暂无音色 ID",
+      "openCharacter": "查看角色资产",
+      "voiceTypes": {
+        "uploaded": "上传音频",
+        "qwenDesigned": "通义定制",
+        "custom": "自定义",
+        "bound": "已绑定",
+        "missing": "未设置"
+      }
+    },
+    "episodes": {
+      "title": "剧集制作检查",
+      "total": "共 {count} 集",
+      "index": "第 {index} 集",
+      "panels": "{count} 镜",
+      "images": "{count} 图",
+      "videos": "{count} 视频"
+    },
+    "storyboard": {
+      "title": "分镜组检查",
+      "boardTitle": "分镜生产看板",
+      "boardDescription": "按分镜组检查镜头数量、资产引用、画面生成和视频结果。",
+      "total": "共 {count} 组",
+      "expectedPanels": "计划镜头",
+      "panelReady": "已拆镜头",
+      "imageCoverage": "画面覆盖",
+      "videoCoverage": "视频覆盖",
+      "qualityTitle": "分镜质量检查",
+      "needsPanels": "缺镜头组",
+      "needsRefs": "缺引用组",
+      "needsImages": "缺画面组",
+      "videoReadyGroups": "视频完成组",
+      "openShotQueue": "镜头队列",
+      "openTimeline": "时间线",
+      "columnEmpty": "暂无分镜",
+      "columns": {
+        "panel": {
+          "title": "镜头待补齐",
+          "description": "分镜组还没有达到计划镜头数。"
+        },
+        "refs": {
+          "title": "资产引用待补齐",
+          "description": "角色、场景或道具引用不完整。"
+        },
+        "image": {
+          "title": "画面待生成",
+          "description": "镜头已有结构但缺少分镜图。"
+        },
+        "ready": {
+          "title": "视频已完成",
+          "description": "分镜组内镜头视频均已就绪。"
+        }
+      },
+      "groupIndex": "组 {index}",
+      "untitled": "未命名分镜组",
+      "panels": "{count} 镜",
+      "images": "{count} 图",
+      "videos": "{count} 视频",
+      "linkedRefs": "{count} 引用",
+      "openFirstShot": "进入首个镜头",
+      "noPanels": "暂无镜头"
+    },
+    "shot": {
+      "title": "镜头制作队列",
+      "description": "按镜头检查画面、视频、资产引用和生产完成度，快速进入单镜头详情处理缺失项。",
+      "overviewTitle": "生产看板",
+      "overviewDescription": "把镜头按画面、视频、交付和异常状态分组，便于批量推进制作。",
+      "total": "共 {count} 镜",
+      "imagesReady": "画面 {ready}/{total}",
+      "videosReady": "视频 {ready}/{total}",
+      "pendingImages": "待生成画面",
+      "pendingVideos": "待生成视频",
+      "deliverable": "可交付镜头",
+      "averageDuration": "平均时长",
+      "healthTitle": "生产健康度",
+      "running": "运行中任务",
+      "imageErrors": "画面失败",
+      "videoErrors": "视频失败",
+      "refsMissingCount": "缺引用",
+      "openTimeline": "时间线",
+      "openExport": "导出",
+      "columnEmpty": "暂无镜头",
+      "columns": {
+        "image": {
+          "title": "画面待生成",
+          "description": "还没有首帧/分镜图的镜头。"
+        },
+        "video": {
+          "title": "视频待生成",
+          "description": "已有画面但还缺视频结果。"
+        },
+        "delivery": {
+          "title": "可交付",
+          "description": "画面和视频都已就绪。"
+        },
+        "attention": {
+          "title": "需关注",
+          "description": "存在失败信息或资产引用不完整。"
+        }
+      },
+      "order": "顺序 #{index}",
+      "duration": "{value}s",
+      "noImage": "无画面",
+      "imageReady": "画面已就绪",
+      "imageMissing": "缺画面",
+      "videoReady": "视频已就绪",
+      "videoMissing": "缺视频",
+      "refsReady": "引用已绑定",
+      "refsMissing": "缺引用",
+      "openDetail": "处理镜头"
+    },
+    "shotDetail": {
+      "boardTitle": "镜头生产检查台",
+      "boardDescription": "在编辑前检查当前镜头的画面、视频、资产引用、提示词、时长和失败状态。",
+      "order": "顺序 #{index}",
+      "running": "任务运行中",
+      "idle": "空闲",
+      "ready": "已就绪",
+      "pending": "待补齐",
+      "checks": {
+        "image": "画面",
+        "video": "视频",
+        "refs": "引用",
+        "prompts": "提示词",
+        "duration": "时长",
+        "errors": "错误"
+      },
+      "mediaTitle": "媒体状态",
+      "refsTitle": "引用状态",
+      "issueTitle": "任务与错误",
+      "imageState": "画面",
+      "videoState": "视频",
+      "durationState": "时长",
+      "imageError": "画面错误",
+      "videoError": "视频错误",
+      "taskState": "任务状态"
+    },
+    "export": {
+      "title": "导出交付检查",
+      "description": "在下载前检查成片、资产包、交付清单和音频素材是否完整。",
+      "videoCoverage": "视频 {ready}/{total}",
+      "imageCoverage": "画面 {ready}/{total}",
+      "ready": "可交付",
+      "notReady": "待补齐",
+      "missing": "缺失 {count} 项",
+      "openTimeline": "查看时间线",
+      "openShots": "返回镜头制作",
+      "useStageDownloads": "下方导出阶段卡片提供下载操作",
+      "cards": {
+        "finalVideo": {
+          "title": "成片视频",
+          "detail": "已生成 {ready}/{total} 个视频镜头。"
+        },
+        "assetPackage": {
+          "title": "资产包",
+          "detail": "可交付 {ready}/{total} 张镜头画面。"
+        },
+        "manifest": {
+          "title": "交付清单",
+          "detail": "{clips} 个片段 · {storyboards} 个分镜组 · {panels} 个镜头。"
+        },
+        "audio": {
+          "title": "音频素材",
+          "ready": "本集音频已生成。",
+          "missing": "本集音频待生成，当前 {count} 条台词。"
+        }
+      }
+    },
+    "stages": {
+      "config": "剧本解析",
+      "script": "资产设定",
+      "assets": "资产设定",
+      "storyboard": "分镜设计",
+      "videos": "镜头制作",
+      "voice": "音色匹配",
+      "editor": "导出交付"
+    },
+    "items": {
+      "workbench": {
+        "title": "项目工作台总览",
+        "description": "对应 FrameOS workbench 根页面，聚合剧本、资产、分镜、制作和导出进度。",
+        "route": "/workbench",
+        "slots": {
+          "primary": "查看当前剧集和阶段状态。",
+          "secondary": "检查缺失剧本、资产、分镜或视频产物。",
+          "handoff": "从左侧阶段进入下一步生产。"
+        }
+      },
+      "script": {
+        "title": "剧本解析",
+        "description": "对应 FrameOS /script 页面，用于导入素材、整理单集内容并触发剧本解析。",
+        "route": "/script",
+        "slots": {
+          "primary": "编辑当前剧集原文和基础生产配置。",
+          "secondary": "确认画面比例、风格和旁白设置。",
+          "handoff": "生成剧本结构后进入资产设定。"
+        }
+      },
+      "script-review": {
+        "title": "剧本解析结果",
+        "description": "对应 workbench/script-review，用于复核 AI 拆解后的片段、人物和场景信息。",
+        "route": "/workbench/script-review",
+        "slots": {
+          "primary": "复核短剧片段、对白和旁白拆解。",
+          "secondary": "定位需要改写或补充的剧情节点。",
+          "handoff": "确认后继续角色、物品和环境资产设定。"
+        }
+      },
+      "characters": {
+        "title": "角色资产设定",
+        "description": "对应 workbench/assets/characters，用于管理角色设定、外观和参考图。",
+        "route": "/workbench/assets/characters",
+        "slots": {
+          "primary": "维护角色卡、别名、人物描述和形象图。",
+          "secondary": "检查角色在剧本片段中的使用情况。",
+          "handoff": "角色确认后继续物品、环境或分镜设计。"
+        }
+      },
+      "items": {
+        "title": "物品资产设定",
+        "description": "对应 workbench/assets/items，用于沉淀道具、关键物件和可复用资产。",
+        "route": "/workbench/assets/items",
+        "slots": {
+          "primary": "整理剧情关键物品和道具外观要求。",
+          "secondary": "检查物品是否已绑定到相关镜头。",
+          "handoff": "把确认后的物品作为分镜和视频参考。"
+        }
+      },
+      "environments": {
+        "title": "环境资产设定",
+        "description": "对应 workbench/assets/environments，用于管理场景、地点和环境参考。",
+        "route": "/workbench/assets/environments",
+        "slots": {
+          "primary": "维护地点、环境摘要和场景参考图。",
+          "secondary": "检查场景与剧本片段的对应关系。",
+          "handoff": "环境确认后进入分镜设计。"
+        }
+      },
+      "timbre": {
+        "title": "角色音色匹配",
+        "description": "对应 workbench/assets/timbre，用于为角色匹配声音、旁白和台词音色。",
+        "route": "/workbench/assets/timbre",
+        "slots": {
+          "primary": "生成或绑定角色音色与台词声音。",
+          "secondary": "检查音色覆盖率和缺失台词。",
+          "handoff": "声音准备后进入镜头制作或导出。"
+        }
+      },
+      "storyboard": {
+        "title": "分镜设计",
+        "description": "对应 workbench/storyboard，用于生成、编辑和复核分镜画面。",
+        "route": "/workbench/storyboard",
+        "slots": {
+          "primary": "生成分镜图、调整画面提示词和镜头结构。",
+          "secondary": "检查分镜与剧本片段、资产引用的一致性。",
+          "handoff": "分镜确认后进入镜头制作。"
+        }
+      },
+      "episodes": {
+        "title": "制作 · 分集",
+        "description": "对应 workbench/production/episodes，用于按剧集查看制作进度和缺失项。",
+        "route": "/workbench/production/episodes",
+        "slots": {
+          "primary": "切换剧集并查看当前集制作状态。",
+          "secondary": "检查每集剧本、资产、分镜、视频是否齐全。",
+          "handoff": "选择剧集后进入 timeline 或镜头制作。"
+        }
+      },
+      "timeline": {
+        "title": "时间线制作",
+        "description": "对应 workbench/production/timeline，用于按镜头顺序组织视频生产结果。",
+        "route": "/workbench/production/timeline",
+        "slots": {
+          "primary": "按分镜顺序查看视频镜头和缺失状态。",
+          "secondary": "检查镜头时长、旁白和画面连贯性。",
+          "handoff": "时间线完整后进入导出交付。"
+        }
+      },
+      "shot": {
+        "title": "镜头制作",
+        "description": "对应 workbench/production/shot，用于批量或单镜头生成视频。",
+        "route": "/workbench/production/shot",
+        "slots": {
+          "primary": "生成单镜头视频、批量执行和重试失败镜头。",
+          "secondary": "检查首尾帧、视频提示词和模型配置。",
+          "handoff": "镜头完成后进入时间线或导出。"
+        }
+      },
+      "shot-detail": {
+        "title": "镜头详情",
+        "description": "对应 workbench/production/shot/:shotId，用于聚焦单个镜头的提示词、参考图和生成结果。",
+        "route": "/workbench/production/shot/:shotId",
+        "slots": {
+          "primary": "查看单个镜头的画面、提示词和视频结果。",
+          "secondary": "检查参考资产、首尾帧和失败原因。",
+          "handoff": "单镜头确认后返回批量镜头制作。"
+        }
+      },
+      "export": {
+        "title": "导出交付",
+        "description": "对应 workbench/production/export，用于导出成片、资产包和剪辑草稿。",
+        "route": "/workbench/production/export",
+        "slots": {
+          "primary": "检查成片、资产包和剪辑草稿导出项。",
+          "secondary": "确认缺失镜头、分镜和素材是否补齐。",
+          "handoff": "交付检查通过后生成最终下载记录。"
+        }
+      }
+    }
   },
   "smartImport": {
     "title": "开启你的创作之旅",

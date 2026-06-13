@@ -20,6 +20,8 @@ import {
 } from './model-gateway'
 import { generateBailianAudio, generateBailianImage, generateBailianVideo } from './providers/bailian'
 import { generateSiliconFlowAudio, generateSiliconFlowImage, generateSiliconFlowVideo } from './providers/siliconflow'
+import { generateHfsySd2Video } from './generators/hfsy-video'
+import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from './hfsy-fixed-models'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
@@ -182,13 +184,14 @@ export async function generateVideo(
     imageUrl: string,
     options?: {
         prompt?: string
+        referenceImages?: string[]
         duration?: number
         fps?: number
         resolution?: string      // '720p' | '1080p'
         aspectRatio?: string     // '16:9' | '9:16'
         generateAudio?: boolean  // 仅 Seedance 1.5 Pro 支持
         lastFrameImageUrl?: string  // 首尾帧模式的尾帧图片
-        [key: string]: string | number | boolean | undefined
+        [key: string]: string | number | boolean | string[] | undefined
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'video')
@@ -227,6 +230,23 @@ export async function generateVideo(
         : (providerConfig.gatewayRoute || defaultGatewayRoute)
 
     const { prompt, ...providerOptions } = options || {}
+    if (selection.provider === HFSY_PROVIDER_ID && selection.modelId === HFSY_VIDEO_MODEL_ID) {
+        return await generateHfsySd2Video({
+            apiKey: providerConfig.apiKey,
+            baseUrl: providerConfig.baseUrl,
+            modelId: selection.modelId,
+            prompt: prompt || '',
+            referenceImages: Array.isArray(providerOptions.referenceImages) ? providerOptions.referenceImages : undefined,
+            referenceVideos: Array.isArray(providerOptions.videos) ? providerOptions.videos : undefined,
+            audios: Array.isArray(providerOptions.audios) ? providerOptions.audios : undefined,
+            duration: typeof providerOptions.duration === 'number' ? providerOptions.duration : undefined,
+            aspectRatio: typeof providerOptions.aspectRatio === 'string' ? providerOptions.aspectRatio : undefined,
+            orientation: typeof providerOptions.orientation === 'string' ? providerOptions.orientation : undefined,
+            ratio: typeof providerOptions.ratio === 'string' ? providerOptions.ratio : undefined,
+            size: typeof providerOptions.size === 'string' ? providerOptions.size : undefined,
+            watermark: typeof providerOptions.watermark === 'boolean' ? providerOptions.watermark : undefined,
+        })
+    }
     if (gatewayRoute === 'openai-compat') {
         const compatTemplate = selection.compatMediaTemplate
         if (providerKey === 'openai-compatible' && !compatTemplate) {

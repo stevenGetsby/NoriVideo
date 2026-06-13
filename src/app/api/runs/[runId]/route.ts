@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
-import { getRunSnapshot } from '@/lib/run-runtime/service'
+import {
+  getRunSnapshot,
+  listArtifacts,
+  listCheckpoints,
+  listRunEventsAfterSeq,
+} from '@/lib/run-runtime/service'
 
 export const GET = apiHandler(async (
   _request: NextRequest,
@@ -17,6 +22,27 @@ export const GET = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
-  return NextResponse.json(snapshot)
-})
+  const [events, artifacts, checkpoints] = await Promise.all([
+    listRunEventsAfterSeq({
+      runId,
+      userId: session.user.id,
+      afterSeq: 0,
+      limit: 500,
+    }),
+    listArtifacts({
+      runId,
+      limit: 500,
+    }),
+    listCheckpoints({
+      runId,
+      limit: 50,
+    }),
+  ])
 
+  return NextResponse.json({
+    ...snapshot,
+    events,
+    artifacts,
+    checkpoints,
+  })
+})

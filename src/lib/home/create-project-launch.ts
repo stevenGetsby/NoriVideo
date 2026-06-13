@@ -6,12 +6,6 @@ interface ProjectCreationPayload {
   } | null
 }
 
-interface EpisodeCreationPayload {
-  episode?: {
-    id?: string | null
-  } | null
-}
-
 interface ApiFetchLike {
   (input: string, init?: RequestInit): Promise<Response>
 }
@@ -19,8 +13,7 @@ interface ApiFetchLike {
 export interface HomeWorkspaceLaunchTarget {
   pathname: string
   query: {
-    episode: string
-    autoRun?: 'storyToScript'
+    fromHome?: '1'
   }
 }
 
@@ -36,7 +29,6 @@ export interface CreateHomeProjectLaunchParams {
 
 export interface CreateHomeProjectLaunchResult {
   projectId: string
-  episodeId: string
   target: HomeWorkspaceLaunchTarget
 }
 
@@ -64,21 +56,11 @@ async function readProjectId(response: Response): Promise<string> {
   return projectId
 }
 
-async function readEpisodeId(response: Response): Promise<string> {
-  const payload = await response.json() as EpisodeCreationPayload
-  const episodeId = readNestedString(readObject(payload), 'episode', 'id')
-  if (!episodeId) {
-    throw new Error('Episode creation response missing episode id')
-  }
-  return episodeId
-}
-
-export function buildHomeWorkspaceLaunchTarget(projectId: string, episodeId: string): HomeWorkspaceLaunchTarget {
+export function buildHomeWorkspaceLaunchTarget(projectId: string): HomeWorkspaceLaunchTarget {
   return {
     pathname: `/workspace/${projectId}`,
     query: {
-      episode: episodeId,
-      autoRun: 'storyToScript',
+      fromHome: '1',
     },
   }
 }
@@ -116,24 +98,11 @@ export async function createHomeProjectLaunch({
     throw new Error(await readApiErrorMessage(configResponse, 'Failed to save project config'))
   }
 
-  const episodeResponse = await apiFetch(`/api/novel-promotion/${projectId}/episodes`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      name: episodeName,
-      novelText: storyText,
-    }),
-  })
-
-  if (!episodeResponse.ok) {
-    throw new Error(await readApiErrorMessage(episodeResponse, 'Failed to create first episode'))
-  }
-
-  const episodeId = await readEpisodeId(episodeResponse)
+  void storyText
+  void episodeName
 
   return {
     projectId,
-    episodeId,
-    target: buildHomeWorkspaceLaunchTarget(projectId, episodeId),
+    target: buildHomeWorkspaceLaunchTarget(projectId),
   }
 }

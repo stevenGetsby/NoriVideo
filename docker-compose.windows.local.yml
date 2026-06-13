@@ -1,0 +1,160 @@
+name: nori-video-local
+
+x-nori-env: &nori-env
+  DATABASE_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-nori123}@mysql:3306/${MYSQL_DATABASE:-nori}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_USERNAME: ""
+  REDIS_PASSWORD: ""
+  REDIS_TLS: ""
+
+  NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:13000}
+  NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-nori-docker-secret-change-me}
+  INTERNAL_APP_URL: ${INTERNAL_APP_URL:-http://web:3000}
+  API_ENCRYPTION_KEY: ${API_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+  CRON_SECRET: ${CRON_SECRET:-nori-docker-cron-secret-change-me}
+  INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN:-nori-docker-task-token-change-me}
+
+  STORAGE_TYPE: local
+  UPLOAD_DIR: /app/data/uploads
+
+  WATCHDOG_INTERVAL_MS: "30000"
+  TASK_HEARTBEAT_TIMEOUT_MS: "90000"
+  QUEUE_CONCURRENCY_IMAGE: ${QUEUE_CONCURRENCY_IMAGE:-8}
+  QUEUE_CONCURRENCY_VIDEO: ${QUEUE_CONCURRENCY_VIDEO:-4}
+  QUEUE_CONCURRENCY_VOICE: ${QUEUE_CONCURRENCY_VOICE:-4}
+  QUEUE_CONCURRENCY_TEXT: ${QUEUE_CONCURRENCY_TEXT:-8}
+
+  BULL_BOARD_HOST: 0.0.0.0
+  BULL_BOARD_PORT: "3010"
+  BULL_BOARD_BASE_PATH: /admin/queues
+  BULL_BOARD_USER: ${BULL_BOARD_USER:-}
+  BULL_BOARD_PASSWORD: ${BULL_BOARD_PASSWORD:-}
+
+  LOG_UNIFIED_ENABLED: "true"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  LOG_FORMAT: json
+  LOG_DEBUG_ENABLED: "false"
+  LOG_AUDIT_ENABLED: "true"
+  LOG_SERVICE: nori
+  LOG_REDACT_KEYS: password,token,apiKey,apikey,authorization,cookie,secret,access_token,refresh_token
+  BILLING_MODE: ${BILLING_MODE:-OFF}
+  LLM_STREAM_EPHEMERAL_ENABLED: "true"
+  VIDEO_ENHANCE_DEFAULT_DOWNLOAD_DIR: /app/downloads
+
+x-app-base: &app-base
+  image: nori-video:windows
+  platform: ${NORI_DOCKER_PLATFORM:-linux/amd64}
+  env_file:
+    - path: .env.docker
+      required: false
+  environment: *nori-env
+  volumes:
+    - ./docker-data:/app/data
+    - ./downloads:/app/downloads
+    - ./docker-logs:/app/logs
+  restart: unless-stopped
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: nori-local-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-nori123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nori}
+      MYSQL_ROOT_HOST: "%"
+    ports:
+      - "13306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - "--default-authentication-plugin=mysql_native_password"
+      - "--sql_mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  redis:
+    image: redis:7-alpine
+    container_name: nori-local-redis
+    restart: unless-stopped
+    ports:
+      - "16379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  migrate:
+    <<: *app-base
+    container_name: nori-local-migrate
+    restart: "no"
+    command: sh -c "npx prisma db push --skip-generate"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    <<: *app-base
+    container_name: nori-local-web
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: web
+    ports:
+      - "13000:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  worker:
+    <<: *app-base
+    container_name: nori-local-worker
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  watchdog:
+    <<: *app-base
+    container_name: nori-local-watchdog
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: watchdog
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+
+  bull-board:
+    <<: *app-base
+    container_name: nori-local-bull-board
+    environment:
+      <<: *nori-env
+      SERVICE_MODE: board
+    ports:
+      - "13010:3010"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  redis_data:

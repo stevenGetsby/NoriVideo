@@ -34,6 +34,19 @@ describe('update-check semver helpers', () => {
 })
 
 describe('checkGithubReleaseUpdate', () => {
+  it('returns no-release without fetching when repository is empty', async () => {
+    const fetchMock = vi.fn<typeof fetch>()
+
+    const result = await checkGithubReleaseUpdate({
+      repository: '   ',
+      currentVersion: '0.2.0',
+      fetchImpl: fetchMock,
+    })
+
+    expect(result).toEqual({ kind: 'no-release' })
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('returns no-release when GitHub has no releases yet', async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(new Response(null, { status: 404 }))
 

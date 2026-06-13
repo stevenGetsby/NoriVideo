@@ -4,7 +4,6 @@ import { useMemo } from 'react'
 import { NovelPromotionPanel } from '@/types/project'
 import { StoryboardPanel } from './hooks/useStoryboardState'
 import { PanelEditData } from '../PanelEditForm'
-import { ASPECT_RATIO_CONFIGS } from '@/lib/constants'
 import PanelCard from './PanelCard'
 import type { PanelSaveState } from './hooks/usePanelCrudActions'
 
@@ -29,6 +28,7 @@ interface StoryboardPanelListProps {
   onOpenLocationPicker: (panelId: string) => void
   onRemoveCharacter: (panel: StoryboardPanel, index: number) => void
   onRemoveLocation: (panel: StoryboardPanel) => void
+  onConfirmPanelAssetUsage: (panel: StoryboardPanel, actingNotes: string | null) => Promise<void>
   onRetryPanelSave: (panelId: string) => void
   onRegeneratePanelImage: (panelId: string, count?: number, force?: boolean) => void
   onOpenEditModal: (panelIndex: number) => void
@@ -64,6 +64,7 @@ export default function StoryboardPanelList({
   onOpenLocationPicker,
   onRemoveCharacter,
   onRemoveLocation,
+  onConfirmPanelAssetUsage,
   onRetryPanelSave,
   onRegeneratePanelImage,
   onOpenEditModal,
@@ -78,10 +79,8 @@ export default function StoryboardPanelList({
   isInsertDisabled,
 }: StoryboardPanelListProps) {
   const displayImages = useMemo(() => textPanels.map((panel) => panel.imageUrl || null), [textPanels])
-  const isVertical = ASPECT_RATIO_CONFIGS[videoRatio]?.isVertical ?? false
-
   return (
-    <div className={`grid gap-4 ${isVertical ? 'grid-cols-5' : 'grid-cols-3'} ${isSubmittingStoryboardTextTask ? 'opacity-50 pointer-events-none' : ''}`}>
+    <div className={`flex flex-col gap-4 ${isSubmittingStoryboardTextTask ? 'opacity-50 pointer-events-none' : ''}`}>
       {textPanels.map((panel, index) => {
         const imageUrl = displayImages[index]
         const globalPanelNumber = storyboardStartIndex + index + 1
@@ -130,6 +129,7 @@ export default function StoryboardPanelList({
               onRetrySave={() => onRetryPanelSave(panel.id)}
               onRemoveCharacter={(characterIndex) => onRemoveCharacter(panel, characterIndex)}
               onRemoveLocation={() => onRemoveLocation(panel)}
+              onConfirmAssetUsage={(actingNotes) => onConfirmPanelAssetUsage(panel, actingNotes)}
               onRegeneratePanelImage={onRegeneratePanelImage}
               onOpenEditModal={() => onOpenEditModal(index)}
               onOpenAIDataModal={() => onOpenAIDataModal(index)}

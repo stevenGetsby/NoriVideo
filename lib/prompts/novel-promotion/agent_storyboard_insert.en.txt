@@ -37,8 +37,9 @@ Rules:
 1. Return one object only (not array).
 2. Keep narrative and spatial continuity between previous and next panel.
 3. Use valid character and location names from provided context.
-4. If location details include available slots, treat them as preferred anchors. Reuse a provided `slot` for characters who are stably positioned in the scene.
-5. You may omit `slot` when the inserted panel is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
-6. If `slot` is used, it must copy one full placement phrase from the available slots list verbatim. Do not shorten or rename it.
-7. JSON only, no markdown.
-8. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+4. In video_prompt, describe human actors with visual age+gender wording when needed. Keep animals, fairy-tale creatures, objects, and other non-human subjects as their species/object label, such as "little rabbit", "firefly", or "moon lamp"; never rewrite them as boys, girls, men, or women unless the story explicitly makes them human.
+5. If location details include available slots, treat them as preferred anchors. Reuse a provided `slot` for characters who are stably positioned in the scene.
+6. You may omit `slot` when the inserted panel is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
+7. If `slot` is used, it must copy one full placement phrase from the available slots list verbatim. Do not shorten or rename it.
+8. JSON only, no markdown.
+9. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

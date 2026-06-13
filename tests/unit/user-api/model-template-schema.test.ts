@@ -61,6 +61,34 @@ describe('user-api model template schema', () => {
     expect(result.issues.some((issue) => issue.field.includes('bodyTemplate.prompt'))).toBe(true)
   })
 
+  it('accepts sync image templates that return b64_json', () => {
+    const result = validateOpenAICompatMediaTemplate({
+      version: 1,
+      mediaType: 'image',
+      mode: 'sync',
+      create: {
+        method: 'POST',
+        path: '/images/generations',
+        contentType: 'application/json',
+        bodyTemplate: {
+          model: '{{model}}',
+          prompt: '{{prompt}}',
+          size: '{{size}}',
+          reference_images: '{{images}}',
+          n: 1,
+          response_format: 'b64_json',
+        },
+      },
+      response: {
+        outputB64JsonPath: '$.data[0].b64_json',
+        errorPath: '$.error.message',
+      },
+    })
+
+    expect(result.ok).toBe(true)
+    expect(result.template?.response.outputB64JsonPath).toBe('$.data[0].b64_json')
+  })
+
   it('rejects async template missing polling/status fields', () => {
     const result = validateOpenAICompatMediaTemplate({
       version: 1,

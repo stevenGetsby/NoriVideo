@@ -225,6 +225,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   await prisma.novelPromotionProject.create({
     data: {
       projectId: project.id,
+      importStatus: 'pending',
       ...(userPreference && {
         analysisModel: userPreference.analysisModel,
         characterModel: userPreference.characterModel,

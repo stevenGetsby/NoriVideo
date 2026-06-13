@@ -233,7 +233,25 @@ export const PATCH = apiHandler(async (
   const panelModel = prisma.novelPromotionPanel as unknown as {
     create: (args: { data: Record<string, unknown> }) => Promise<unknown>
   }
-  const { panelId, storyboardId, panelIndex, videoPrompt, firstLastFramePrompt } = body
+  const {
+    panelId,
+    storyboardId,
+    panelIndex,
+    panelNumber,
+    reorderDirection,
+    shotType,
+    cameraMove,
+    description,
+    location,
+    characters,
+    props,
+    srtStart,
+    srtEnd,
+    duration,
+    videoPrompt,
+    firstLastFramePrompt,
+    actingNotes,
+  } = body
 
   // 🔥 方式1：通过 panelId 直接更新（优先）
   if (panelId) {
@@ -245,13 +263,83 @@ export const PATCH = apiHandler(async (
       throw new ApiError('NOT_FOUND')
     }
 
+    if (reorderDirection === 'up' || reorderDirection === 'down') {
+      const sibling = await prisma.novelPromotionPanel.findFirst({
+        where: {
+          storyboardId: panel.storyboardId,
+          panelIndex: reorderDirection === 'up'
+            ? { lt: panel.panelIndex }
+            : { gt: panel.panelIndex }
+        },
+        orderBy: {
+          panelIndex: reorderDirection === 'up' ? 'desc' : 'asc'
+        }
+      })
+
+      if (!sibling) {
+        return NextResponse.json({ success: true, changed: false })
+      }
+
+      await prisma.$transaction(async (tx) => {
+        const tempIndex = Math.max(panel.panelIndex, sibling.panelIndex) + 10000
+        await tx.novelPromotionPanel.update({
+          where: { id: panel.id },
+          data: {
+            panelIndex: tempIndex,
+            panelNumber: tempIndex + 1
+          }
+        })
+        await tx.novelPromotionPanel.update({
+          where: { id: sibling.id },
+          data: {
+            panelIndex: panel.panelIndex,
+            panelNumber: panel.panelIndex + 1
+          }
+        })
+        await tx.novelPromotionPanel.update({
+          where: { id: panel.id },
+          data: {
+            panelIndex: sibling.panelIndex,
+            panelNumber: sibling.panelIndex + 1
+          }
+        })
+      }, {
+        maxWait: 15000,
+        timeout: 30000
+      })
+
+      return NextResponse.json({ success: true, changed: true })
+    }
+
     // 构建更新数据
     const updateData: {
+      panelNumber?: number | null
+      shotType?: string | null
+      cameraMove?: string | null
+      description?: string | null
+      location?: string | null
+      characters?: string | null
+      props?: string | null
+      srtStart?: number | null
+      srtEnd?: number | null
+      duration?: number | null
       videoPrompt?: string | null
       firstLastFramePrompt?: string | null
+      actingNotes?: string | null
     } = {}
+    if (panelNumber !== undefined) updateData.panelNumber = panelNumber
+    if (shotType !== undefined) updateData.shotType = shotType
+    if (cameraMove !== undefined) updateData.cameraMove = cameraMove
+    if (description !== undefined) updateData.description = description
+    if (location !== undefined) updateData.location = location
+    if (characters !== undefined) updateData.characters = characters
+    if (props !== undefined) updateData.props = props
+    if (srtStart !== undefined) updateData.srtStart = parseNullableNumberField(srtStart)
+    if (srtEnd !== undefined) updateData.srtEnd = parseNullableNumberField(srtEnd)
+    if (duration !== undefined) updateData.duration = parseNullableNumberField(duration)
     if (videoPrompt !== undefined) updateData.videoPrompt = videoPrompt
     if (firstLastFramePrompt !== undefined) updateData.firstLastFramePrompt = firstLastFramePrompt
+    if (actingNotes !== undefined) updateData.actingNotes = toStructuredJsonField(actingNotes, 'actingNotes')
 
     await prisma.novelPromotionPanel.update({
       where: { id: panelId },
@@ -279,12 +367,16 @@ export const PATCH = apiHandler(async (
   const updateData: {
     videoPrompt?: string | null
     firstLastFramePrompt?: string | null
+    actingNotes?: string | null
   } = {}
   if (videoPrompt !== undefined) {
     updateData.videoPrompt = videoPrompt
   }
   if (firstLastFramePrompt !== undefined) {
     updateData.firstLastFramePrompt = firstLastFramePrompt
+  }
+  if (actingNotes !== undefined) {
+    updateData.actingNotes = toStructuredJsonField(actingNotes, 'actingNotes')
   }
 
   // 尝试更新 Panel
@@ -307,6 +399,7 @@ export const PATCH = apiHandler(async (
         imageUrl: null,
         videoPrompt: videoPrompt ?? null,
         firstLastFramePrompt: firstLastFramePrompt ?? null,
+        actingNotes: actingNotes !== undefined ? toStructuredJsonField(actingNotes, 'actingNotes') : null,
       }
     })
   }

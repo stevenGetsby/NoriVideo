@@ -14,6 +14,8 @@ interface UseVideoPanelLinkingParams {
     storyboardId: string
     panelIndex: number
     linked: boolean
+    nextStoryboardId?: string
+    nextPanelIndex?: number
   }>
 }
 
@@ -84,6 +86,13 @@ export function useVideoPanelLinking({
   const handleToggleLink = useCallback(async (panelKey: string, storyboardId: string, panelIndex: number) => {
     const currentLinked = linkedPanels.get(panelKey) || false
     const newLinked = !currentLinked
+    const currentPanelIndex = allPanels.findIndex((panel) =>
+      panel.storyboardId === storyboardId && panel.panelIndex === panelIndex)
+    const nextPanel = currentPanelIndex >= 0 ? allPanels[currentPanelIndex + 1] : undefined
+
+    if (newLinked && !nextPanel) {
+      return
+    }
 
     applyOverride(panelKey, newLinked)
 
@@ -92,12 +101,18 @@ export function useVideoPanelLinking({
         storyboardId,
         panelIndex,
         linked: newLinked,
+        ...(newLinked && nextPanel
+          ? {
+            nextStoryboardId: nextPanel.storyboardId,
+            nextPanelIndex: nextPanel.panelIndex,
+          }
+          : {}),
       })
     } catch (error) {
       _ulogError('Failed to save link state:', error)
       applyOverride(panelKey, currentLinked)
     }
-  }, [applyOverride, linkedPanels, updatePanelLinkMutation])
+  }, [allPanels, applyOverride, linkedPanels, updatePanelLinkMutation])
 
   return {
     linkedPanels,

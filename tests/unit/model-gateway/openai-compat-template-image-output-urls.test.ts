@@ -95,4 +95,43 @@ describe('openai-compat template image output urls', () => {
       imageUrl: 'https://cdn.test/only.png',
     })
   })
+
+  it('returns a data URL when template response maps b64_json output', async () => {
+    globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({
+      data: [{ b64_json: 'ZmFrZS1pbWFnZQ==' }],
+    }), { status: 200 })) as unknown as typeof fetch
+
+    const result = await generateImageViaOpenAICompatTemplate({
+      userId: 'user-1',
+      providerId: 'openai-compatible:test-provider',
+      modelId: 'gpt-image-2',
+      modelKey: 'openai-compatible:test-provider::gpt-image-2',
+      prompt: 'draw a tote bag',
+      profile: 'openai-compatible',
+      template: {
+        version: 1,
+        mediaType: 'image',
+        mode: 'sync',
+        create: {
+          method: 'POST',
+          path: '/images/generations',
+          contentType: 'application/json',
+          bodyTemplate: {
+            model: '{{model}}',
+            prompt: '{{prompt}}',
+            response_format: 'b64_json',
+          },
+        },
+        response: {
+          outputB64JsonPath: '$.data[0].b64_json',
+        },
+      },
+    })
+
+    expect(result).toEqual({
+      success: true,
+      imageBase64: 'ZmFrZS1pbWFnZQ==',
+      imageUrl: 'data:image/png;base64,ZmFrZS1pbWFnZQ==',
+    })
+  })
 })

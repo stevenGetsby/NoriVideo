@@ -4,22 +4,32 @@ import { apiFetch } from '@/lib/api-fetch'
 
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { useParams, useSearchParams } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import { useTranslations } from 'next-intl'
 import { useQueryClient } from '@tanstack/react-query'
 import Navbar from '@/components/Navbar'
 import TaskStatusInline from '@/components/task/TaskStatusInline'
-import { useProjectData, useEpisodeData, useUserModels } from '@/lib/query/hooks'
+import { useProjectData, useEpisodeData } from '@/lib/query/hooks'
 import { queryKeys } from '@/lib/query/keys'
-import NovelPromotionWorkspace from './modes/novel-promotion/NovelPromotionWorkspace'
-import SmartImportWizard, { SplitEpisode } from './modes/novel-promotion/components/SmartImportWizard'
+import type { SplitEpisode } from './modes/novel-promotion/components/smart-import/types'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import { resolveSelectedEpisodeId } from './episode-selection'
-import { ModelCapabilityDropdown } from '@/components/ui/config-modals/ModelCapabilityDropdown'
 import { AppIcon } from '@/components/ui/icons'
-import { readConfiguredAnalysisModel, shouldGuideToModelSetup } from '@/lib/workspace/model-setup'
 import { useRouter } from '@/i18n/navigation'
 import { Link } from '@/i18n/navigation'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+
+const RouteLoading = () => (
+  <div className="min-h-[360px] animate-pulse rounded-lg bg-[var(--glass-bg-muted)]" />
+)
+
+const NovelPromotionWorkspace = dynamic(() => import('./modes/novel-promotion/NovelPromotionWorkspace'), {
+  loading: RouteLoading,
+})
+
+const SmartImportWizard = dynamic(() => import('./modes/novel-promotion/components/SmartImportWizard'), {
+  loading: RouteLoading,
+})
 
 // 有效的stage值
 const VALID_STAGES = ['config', 'script', 'assets', 'text-storyboard', 'storyboard', 'videos', 'voice', 'editor'] as const
@@ -39,13 +49,18 @@ interface Episode {
 type NovelPromotionData = {
   episodes?: Episode[]
   importStatus?: string
+  workflowMode?: string | null
+  videoRatio?: string | null
+  artStyle?: string | null
+  artStylePrompt?: string | null
 }
+type WorkflowMode = 'srt' | 'agent'
 
 /**
  * 项目详情页 - 带侧边栏的剧集管理
  */
 export default function ProjectDetailPage() {
-  const params = useParams<{ projectId?: string }>()
+  const params = useParams<{ locale?: string; projectId?: string }>()
   const router = useRouter()
   const searchParams = useSearchParams()
   if (!params?.projectId) {
@@ -70,18 +85,18 @@ export default function ProjectDetailPage() {
 
   // 视图状态（仅 UI）
   const [isGlobalAssetsView, setIsGlobalAssetsView] = useState(false)
-  const [isCheckingModelSetup, setIsCheckingModelSetup] = useState(true)
-  const [needsModelSetup, setNeedsModelSetup] = useState(false)
-  const [analysisModelDraft, setAnalysisModelDraft] = useState('')
-  const [isModelSetupModalOpen, setIsModelSetupModalOpen] = useState(false)
-  const [modelSetupSaving, setModelSetupSaving] = useState(false)
-
-  const userModelsQuery = useUserModels()
-  const llmModelOptions = userModelsQuery.data?.llm || []
+  const [homeDraftContent, setHomeDraftContent] = useState('')
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    if (searchParams.get('fromHome') !== '1') return
+    setHomeDraftContent(window.sessionStorage.getItem(`nori:home-draft:${projectId}`) || '')
+  }, [projectId, searchParams])
 
   // 更新URL参数（stage 和/或 episode）
   const updateUrlParams = useCallback((updates: { stage?: string; episode?: string | null }) => {
-    const params = new URLSearchParams(searchParams.toString())
+    const params = new URLSearchParams(
+      typeof window !== 'undefined' ? window.location.search : searchParams.toString(),
+    )
     if (updates.stage !== undefined) {
       params.set('stage', updates.stage)
     }
@@ -109,8 +124,7 @@ export default function ProjectDetailPage() {
 
   // Stage 状态完全由 URL 控制，不再从数据库同步
   // 如果 URL 没有 stage 参数，默认使用 'config'
-  // 🚧 剪辑阶段 (editor) 暂时禁用，自动重定向到成片阶段 (videos)
-  const effectiveStage = currentUrlStage === 'editor' ? 'videos' : (currentUrlStage || 'config')
+  const effectiveStage = currentUrlStage || 'config'
 
   // 获取剧集列表
   const novelPromotionData = project?.novelPromotionData as NovelPromotionData | undefined
@@ -139,59 +153,16 @@ export default function ProjectDetailPage() {
 
   // 零状态：无剧集且非导入中 → 自动创建第一集
   const isZeroState = episodes.length === 0
-  const shouldShowImportWizard = importStatus === 'pending' // 仅分集预览中才显示 wizard
+  const shouldShowImportWizard = importStatus === 'pending'
   const shouldAutoCreateEpisode = isZeroState && importStatus !== 'pending'
   const autoCreateTriggered = useRef(false)
+  const creationModeSubmitRef = useRef(false)
 
   useEffect(() => {
     if (!shouldAutoCreateEpisode || autoCreateTriggered.current || loading) return
     autoCreateTriggered.current = true
     void handleCreateEpisode(`${t('episode')} 1`)
   }, [shouldAutoCreateEpisode, loading]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const shouldGateImportWizardByModel = shouldShowImportWizard && !isGlobalAssetsView
-
-  useEffect(() => {
-    if (!shouldGateImportWizardByModel) return
-
-    let canceled = false
-    const checkDefaultModelSetup = async () => {
-      setIsCheckingModelSetup(true)
-      try {
-        const response = await apiFetch('/api/user-preference')
-        if (!response.ok) {
-          _ulogError('[ProjectDetail] 获取用户默认模型失败:', { status: response.status })
-          if (!canceled) {
-            setNeedsModelSetup(true)
-            setAnalysisModelDraft('')
-          }
-          return
-        }
-
-        const payload: unknown = await response.json()
-        const configuredModel = readConfiguredAnalysisModel(payload)
-        if (!canceled) {
-          setAnalysisModelDraft(configuredModel || '')
-          setNeedsModelSetup(shouldGuideToModelSetup(payload))
-        }
-      } catch (err) {
-        _ulogError('[ProjectDetail] 检查默认模型失败:', err)
-        if (!canceled) {
-          setNeedsModelSetup(true)
-          setAnalysisModelDraft('')
-        }
-      } finally {
-        if (!canceled) {
-          setIsCheckingModelSetup(false)
-        }
-      }
-    }
-
-    void checkDefaultModelSetup()
-    return () => {
-      canceled = true
-    }
-  }, [shouldGateImportWizardByModel])
 
   // 初始化 URL：无效/缺失 episode 时，统一回写默认 episode
   useEffect(() => {
@@ -203,11 +174,11 @@ export default function ProjectDetailPage() {
   }, [episodes, isGlobalAssetsView, project, selectedEpisodeId, updateUrlParams, urlEpisodeId])
 
   // 创建剧集
-  const handleCreateEpisode = async (name: string, description?: string) => {
+  const handleCreateEpisode = async (name: string, description?: string, novelText?: string): Promise<string> => {
     const res = await apiFetch(`/api/novel-promotion/${projectId}/episodes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, description })
+      body: JSON.stringify({ name, description, ...(novelText?.trim() ? { novelText: novelText.trim() } : {}) })
     })
 
     if (!res.ok) {
@@ -221,6 +192,99 @@ export default function ProjectDetailPage() {
     setIsGlobalAssetsView(false)
     // 同步到URL
     updateUrlParams({ episode: data.episode.id })
+    return data.episode.id
+  }
+
+  const fetchLatestEpisodes = async (): Promise<Episode[]> => {
+    const res = await apiFetch(`/api/projects/${projectId}/data`)
+    if (!res.ok) {
+      throw new Error(await readApiErrorMessage(res, t('createFailed')))
+    }
+
+    const data = await res.json() as { project?: { novelPromotionData?: NovelPromotionData | null } }
+    return [...(data.project?.novelPromotionData?.episodes ?? [])].sort(
+      (a, b) => a.episodeNumber - b.episodeNumber,
+    )
+  }
+
+  const isEpisodeUniqueConflict = (err: unknown) => {
+    if (!(err instanceof Error)) return false
+    return /P2002|Unique constraint failed|novel_promotion_episodes_novelPromotionProjectId_episodeNumb/.test(err.message)
+  }
+
+  const selectExistingEpisode = (episode: Episode) => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.projectData(projectId) })
+    setIsGlobalAssetsView(false)
+    updateUrlParams({ episode: episode.id })
+    return episode.id
+  }
+
+  const ensureInitialEpisode = async (initialNovelText?: string): Promise<string> => {
+    const latestEpisodes = await fetchLatestEpisodes()
+    if (latestEpisodes[0]) {
+      return selectExistingEpisode(latestEpisodes[0])
+    }
+
+    try {
+      return await handleCreateEpisode(`${t('episode')} 1`, undefined, initialNovelText)
+    } catch (err) {
+      if (!isEpisodeUniqueConflict(err)) {
+        throw err
+      }
+
+      const recoveredEpisodes = await fetchLatestEpisodes()
+      if (recoveredEpisodes[0]) {
+        return selectExistingEpisode(recoveredEpisodes[0])
+      }
+      throw err
+    }
+  }
+
+  const updateProjectWorkflowMode = async (workflowMode: WorkflowMode) => {
+    const res = await apiFetch(`/api/novel-promotion/${projectId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ workflowMode }),
+    })
+
+    if (!res.ok) {
+      throw new Error(await readApiErrorMessage(res, t('createFailed')))
+    }
+  }
+
+  const markImportCompleted = async () => {
+    const res = await apiFetch(`/api/novel-promotion/${projectId}/episodes/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ episodes: [], importStatus: 'completed' }),
+    })
+
+    if (!res.ok) {
+      throw new Error(await readApiErrorMessage(res, t('createFailed')))
+    }
+
+    queryClient.invalidateQueries({ queryKey: queryKeys.projectData(projectId) })
+  }
+
+  const handleManualCreateFromWizard = async (rawContent?: string) => {
+    if (creationModeSubmitRef.current) return
+    creationModeSubmitRef.current = true
+    try {
+      const episodeId = await ensureInitialEpisode(rawContent || homeDraftContent)
+      if (importStatus === 'pending') {
+        await updateProjectWorkflowMode('srt')
+        await markImportCompleted()
+      }
+      if (typeof window !== 'undefined') {
+        window.sessionStorage.removeItem(`nori:home-draft:${projectId}`)
+      }
+      updateUrlParams({ stage: 'config', episode: episodeId })
+    } catch (err) {
+      _ulogError('[ProjectDetail] 手动创建第一集失败:', err)
+      alert(err instanceof Error ? err.message : t('createFailed'))
+    } finally {
+      creationModeSubmitRef.current = false
+    }
   }
 
   // 智能导入 - 完成后刷新数据（数据已由 SmartImportWizard 保存）
@@ -309,35 +373,6 @@ export default function ProjectDetailPage() {
     updateUrlParams({ episode: episodeId })
   }
 
-  const handleSaveDefaultAnalysisModel = async () => {
-    const modelKey = analysisModelDraft.trim()
-    if (!modelKey) {
-      alert(t('modelSetup.selectModelFirst'))
-      return
-    }
-
-    setModelSetupSaving(true)
-    try {
-      const response = await apiFetch('/api/user-preference', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ analysisModel: modelKey }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`)
-      }
-
-      setNeedsModelSetup(false)
-      setIsModelSetupModalOpen(false)
-    } catch (err) {
-      _ulogError('[ProjectDetail] 保存默认分析模型失败:', err)
-      alert(t('modelSetup.saveFailed'))
-    } finally {
-      setModelSetupSaving(false)
-    }
-  }
-
   // Loading状态：等待项目数据和剧集数据都准备好
   // 条件：正在加载 或 (有剧集但episode数据未准备好)
   // 排除：如果要显示导入向导，则不需要等待剧集数据
@@ -390,11 +425,11 @@ export default function ProjectDetailPage() {
       <div className="fixed top-20 right-4 z-50">
         <Link
           href={`/workspace/${projectId}/canvas`}
-          className="glass-btn-base glass-btn-primary px-4 py-2 text-sm font-medium inline-flex items-center gap-1.5 shadow-lg"
+          className="glass-btn-base glass-btn-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium shadow-lg sm:px-4"
           title="无限画布"
         >
           <AppIcon name="sparkles" className="w-4 h-4" />
-          无限画布
+          <span className="hidden sm:inline">无限画布</span>
         </Link>
       </div>
 
@@ -416,109 +451,14 @@ export default function ProjectDetailPage() {
               />
             </div>
           ) : shouldShowImportWizard && !isGlobalAssetsView ? (
-            isCheckingModelSetup ? (
-              <div className="glass-surface p-8 text-center">
-                <div className="mx-auto mb-4 w-12 h-12 rounded-full flex items-center justify-center bg-[var(--glass-bg-muted)] text-[var(--glass-text-tertiary)]">
-                  <TaskStatusInline state={initLoadingState} className="[&>span]:sr-only" />
-                </div>
-                <h2 className="text-xl font-semibold text-[var(--glass-text-secondary)] mb-2">{tc('loading')}</h2>
-              </div>
-            ) : needsModelSetup ? (
-              <div className="glass-surface p-8 max-w-2xl mx-auto">
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded-lg bg-[var(--glass-tone-warning-bg)] text-[var(--glass-tone-warning-fg)] flex items-center justify-center shrink-0">
-                    <AppIcon name="alert" className="w-5 h-5" />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-xl font-semibold text-[var(--glass-text-primary)] mb-2">
-                      {t('modelSetup.title')}
-                    </h2>
-                    <p className="text-[var(--glass-text-secondary)] mb-5">
-                      {t('modelSetup.description')}
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        onClick={() => setIsModelSetupModalOpen(true)}
-                        className="glass-btn-base glass-btn-primary px-4 py-2"
-                      >
-                        {t('modelSetup.configureNow')}
-                      </button>
-                      <button
-                        onClick={() => router.push({ pathname: '/profile' })}
-                        className="glass-btn-base glass-btn-secondary px-4 py-2"
-                      >
-                        {t('modelSetup.goProfile')}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {isModelSetupModalOpen && (
-                  <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50 backdrop-blur-sm">
-                    <div className="glass-surface-modal p-6 w-full max-w-xl mx-4">
-                      <h3 className="text-xl font-bold text-[var(--glass-text-primary)] mb-2">
-                        {t('modelSetup.modalTitle')}
-                      </h3>
-                      <p className="text-sm text-[var(--glass-text-secondary)] mb-5">
-                        {t('modelSetup.modalDescription')}
-                      </p>
-
-                      <div className="mb-6">
-                        <label className="glass-field-label block mb-2">{t('modelSetup.selectModelLabel')}</label>
-                        {userModelsQuery.isLoading ? (
-                          <div className="text-sm text-[var(--glass-text-tertiary)]">{tc('loading')}</div>
-                        ) : llmModelOptions.length === 0 ? (
-                          <div className="text-sm text-[var(--glass-tone-warning-fg)]">
-                            {t('modelSetup.noModelOptions')}
-                          </div>
-                        ) : (
-                          <ModelCapabilityDropdown
-                            models={llmModelOptions}
-                            value={analysisModelDraft || undefined}
-                            onModelChange={setAnalysisModelDraft}
-                            capabilityFields={[]}
-                            capabilityOverrides={{}}
-                            onCapabilityChange={(field, rawValue, sample) => {
-                              void field
-                              void rawValue
-                              void sample
-                            }}
-                            placeholder={t('modelSetup.selectModelPlaceholder')}
-                          />
-                        )}
-                      </div>
-
-                      <div className="flex justify-end gap-3">
-                        <button
-                          type="button"
-                          onClick={() => setIsModelSetupModalOpen(false)}
-                          className="glass-btn-base glass-btn-secondary px-4 py-2"
-                          disabled={modelSetupSaving}
-                        >
-                          {tc('cancel')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { void handleSaveDefaultAnalysisModel() }}
-                          className="glass-btn-base glass-btn-primary px-4 py-2 disabled:opacity-50"
-                          disabled={modelSetupSaving || llmModelOptions.length === 0 || !analysisModelDraft.trim()}
-                        >
-                          {modelSetupSaving ? tc('loading') : tc('save')}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              // 导入中（pending）：显示分集预览向导
-              <SmartImportWizard
-                projectId={projectId}
-                onManualCreate={() => handleCreateEpisode(`${t('episode')} 1`)}
-                onImportComplete={handleSmartImportComplete}
-                importStatus={importStatus}
-              />
-            )
+            <SmartImportWizard
+              projectId={projectId}
+              onManualCreate={(rawContent) => { void handleManualCreateFromWizard(rawContent) }}
+              onImportComplete={handleSmartImportComplete}
+              importStatus={importStatus}
+              initialRawContent={homeDraftContent}
+              autoAnalyzeInitialContent={false}
+            />
           ) : selectedEpisodeId && currentEpisode ? (
             // 剧集工作区（确保所有数据都准备好）
             <NovelPromotionWorkspace

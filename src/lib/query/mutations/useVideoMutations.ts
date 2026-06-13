@@ -32,6 +32,8 @@ export function useUpdateProjectPanelLink(projectId: string) {
       storyboardId: string
       panelIndex: number
       linked: boolean
+      nextStoryboardId?: string
+      nextPanelIndex?: number
     }) =>
       await requestJsonWithError(
         `/api/novel-promotion/${projectId}/panel-link`,

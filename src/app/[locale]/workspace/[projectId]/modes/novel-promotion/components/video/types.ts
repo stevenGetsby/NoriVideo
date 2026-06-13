@@ -1,6 +1,7 @@
 // 视频阶段共享类型定义
 import type { ModelCapabilities } from '@/lib/model-config-contract'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
+import type { PanelSeedanceReferenceAsset } from '@/lib/novel-promotion/seedance-reference-assets'
 
 // 用户视频模型选项
 export interface VideoModelOption {
@@ -27,6 +28,7 @@ export interface TextPanel {
   video_prompt?: string
   imagePrompt?: string
   videoModel?: string
+  seedanceReferenceAssets?: PanelSeedanceReferenceAsset[]
 }
 
 export interface Panel {
@@ -53,6 +55,7 @@ export interface Panel {
   videoErrorMessage?: string | null  // 视频生成错误消息
   videoErrorCode?: string | null
   imageTaskRunning?: boolean | null
+  actingNotes?: string | null
   // 口型同步相关
   lipSyncVideoUrl?: string | null
   lipSyncTaskRunning?: boolean | null

@@ -1,10 +1,16 @@
 {
-  "title": "开启你的创作之旅",
-  "subtitle": "首先，选择你的创作方式",
+  "title": "项目工作流",
+  "subtitle": "从剧本导入或第一集创作开始，按剧本解析、资产设定、分镜设计、镜头制作推进。",
   "manualCreate": {
     "title": "从第一集开始创作",
-    "description": "从第一集开始，适合边写边播或单集短视频制作",
+    "description": "直接进入项目工作区，先整理第一集内容，再推进剧本、分镜、配音和视频流程。",
     "button": "开始创作"
+  },
+  "backToSelect": "返回项目工作流",
+  "sourceDraft": {
+    "title": "创作素材",
+    "description": "这段文本会作为项目工作流的原始素材。",
+    "placeholder": "输入故事、产品介绍、短片需求或口播脚本..."
   },
   "manualDesc": "从第一集开始，适合边写边播或单集短视频制作",
   "startCreate": "开始创作",

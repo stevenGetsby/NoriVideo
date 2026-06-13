@@ -3,10 +3,13 @@
 import { logError as _ulogError } from '@/lib/logging/core'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
+import { Player } from '@remotion/player'
+import { AbsoluteFill, Sequence, Video } from 'remotion'
 import {
   VideoToolbar,
   type VideoGenerationOptionValue,
   type VideoGenerationOptions,
+  type VideoPanel,
   type VideoModelOption,
 } from '@/app/[locale]/workspace/[projectId]/modes/novel-promotion/components/video'
 import { AppIcon } from '@/components/ui/icons'
@@ -45,6 +48,7 @@ import {
   shouldResolveVideoSubmissionLock,
   type VideoSubmissionBaseline,
 } from './video-stage-runtime/immediate-video-submission'
+import { getAspectRatioConfig } from '@/lib/constants'
 
 export type { VideoStageShellProps } from './video-stage-runtime/types'
 
@@ -63,7 +67,316 @@ function toFieldLabel(field: string): string {
   return field.replace(/([A-Z])/g, ' $1').replace(/^./, (char) => char.toUpperCase())
 }
 
+function readPromptField(prompt: string | null | undefined, label: string): string {
+  const text = typeof prompt === 'string' ? prompt : ''
+  const escapedLabel = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const match = text.match(new RegExp(`(?:^|\\n)${escapedLabel}[：:]\\s*([^\\n]+)`))
+  return match?.[1]?.trim() || ''
+}
+
+function compactVideoPromptPreview(prompt: string | null | undefined, fallback: string): string {
+  const scene = readPromptField(prompt, '场景')
+  const beat = readPromptField(prompt, '剧情片段')
+  const summary = [scene, beat].filter(Boolean).join('｜')
+  if (summary) return summary
+  const text = (fallback || '').replace(/\s+/g, ' ').trim()
+  if (!text) return '分镜视频提示词待生成'
+  return Array.from(text).length > 80 ? `${Array.from(text).slice(0, 79).join('')}…` : text
+}
+
+interface FinalTimelineClip {
+  id: string
+  src: string
+  startFrame: number
+  durationInFrames: number
+}
+
+function readRatioDimensions(videoRatio: string): { width: number; height: number } {
+  const [rawWidth, rawHeight] = videoRatio.split(':').map((part) => Number(part))
+  const ratioWidth = Number.isFinite(rawWidth) && rawWidth > 0 ? rawWidth : 16
+  const ratioHeight = Number.isFinite(rawHeight) && rawHeight > 0 ? rawHeight : 9
+  const longSide = 1920
+  if (ratioWidth >= ratioHeight) {
+    return {
+      width: longSide,
+      height: Math.round((longSide * ratioHeight) / ratioWidth),
+    }
+  }
+  return {
+    width: Math.round((longSide * ratioWidth) / ratioHeight),
+    height: longSide,
+  }
+}
+
+function FinalTimelineComposition({ clips }: { clips: FinalTimelineClip[] }) {
+  return (
+    <AbsoluteFill style={{ backgroundColor: 'black' }}>
+      {clips.map((clip, index) => (
+        <Sequence
+          key={clip.id}
+          from={clip.startFrame}
+          durationInFrames={clip.durationInFrames}
+          name={`分镜 ${index + 1}`}
+        >
+          <AbsoluteFill>
+            <Video
+              src={clip.src}
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover',
+              }}
+            />
+          </AbsoluteFill>
+        </Sequence>
+      ))}
+    </AbsoluteFill>
+  )
+}
+
+function FinalCompositionPlayer({
+  panels,
+  videoRatio,
+}: {
+  panels: VideoPanel[]
+  videoRatio: string
+}) {
+  const cssAspectRatio = videoRatio.replace(':', '/')
+  const isVerticalVideo = getAspectRatioConfig(videoRatio).isVertical
+  const playerWidthClass = isVerticalVideo
+    ? 'max-w-[260px] sm:max-w-[280px] lg:max-w-[300px]'
+    : 'max-w-[680px]'
+  const { width: compositionWidth, height: compositionHeight } = readRatioDimensions(videoRatio)
+  const fps = 30
+  const playablePanels = useMemo(() => panels.filter((panel) => panel.videoUrl), [panels])
+  const clips = useMemo(() => {
+    let startFrame = 0
+    return playablePanels.map((panel, index) => {
+      const durationSeconds = Number(panel.textPanel?.duration)
+      const durationInFrames = Math.max(1, Math.round((Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : 6) * fps))
+      const clip: FinalTimelineClip = {
+        id: `${panel.storyboardId}-${panel.panelIndex}-${index}`,
+        src: panel.videoUrl!,
+        startFrame,
+        durationInFrames,
+      }
+      startFrame += durationInFrames
+      return clip
+    })
+  }, [playablePanels])
+  const totalFrames = clips.reduce((sum, clip) => sum + clip.durationInFrames, 0)
+
+  return (
+    <div className={`mx-auto w-full overflow-hidden rounded-[18px] border border-[rgba(14,14,44,.08)] bg-black shadow-[0_16px_38px_rgba(14,14,44,.14)] ${playerWidthClass}`}>
+      <div
+        className="relative w-full bg-black"
+        style={{ aspectRatio: cssAspectRatio }}
+      >
+        {clips.length > 0 ? (
+          <Player
+            component={FinalTimelineComposition}
+            inputProps={{ clips }}
+            durationInFrames={Math.max(1, totalFrames)}
+            fps={fps}
+            compositionWidth={compositionWidth}
+            compositionHeight={compositionHeight}
+            controls
+            loop={false}
+            style={{
+              width: '100%',
+              height: '100%',
+            }}
+          />
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3 p-6 text-center text-white/70">
+            <AppIcon name="video" className="h-9 w-9" />
+            <span className="text-sm font-semibold">还没有可播放的成片片段</span>
+          </div>
+        )}
+        {clips.length > 0 && (
+          <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1.5 text-xs font-bold text-white backdrop-blur">
+            成片预览：{clips.length} 个分镜片段
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function FinalCompositionOverview({
+  panels,
+  videoRatio,
+  videosWithUrl,
+  runningCount,
+  failedCount,
+  isDownloading,
+  downloadProgress,
+  onDownloadAll,
+  onBackToStoryboard,
+}: {
+  panels: VideoPanel[]
+  videoRatio: string
+  videosWithUrl: number
+  runningCount: number
+  failedCount: number
+  isDownloading: boolean
+  downloadProgress: { current: number; total: number } | null
+  onDownloadAll: () => void
+  onBackToStoryboard: () => void
+}) {
+  const totalPanels = panels.length
+  const missingCount = Math.max(0, totalPanels - videosWithUrl)
+  const completion = totalPanels > 0 ? Math.round((videosWithUrl / totalPanels) * 100) : 0
+  const cssAspectRatio = videoRatio.replace(':', '/')
+  const generatedPanels = panels.filter((panel) => panel.videoUrl)
+
+  return (
+    <div className="space-y-6 pb-20">
+      <section className="overflow-hidden rounded-[22px] border border-[rgba(14,14,44,.08)] bg-[#fafcfe] shadow-[0_22px_54px_rgba(14,14,44,.085),0_4px_12px_rgba(14,14,44,.045)]">
+        <div className="grid gap-0 lg:grid-cols-[minmax(0,1.25fr)_minmax(360px,.75fr)]">
+          <div className="p-6 lg:p-7">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,44,.08)] bg-white px-3 py-1.5 text-xs font-bold text-[#4B4DED]">
+              <AppIcon name="film" className="h-3.5 w-3.5" />
+              <span>成片总览</span>
+            </div>
+            <div className="space-y-5">
+              <FinalCompositionPlayer panels={panels} videoRatio={videoRatio} />
+              <div className="min-w-0">
+                <h2 className="text-2xl font-bold tracking-normal text-[#0e0e2c]">按分镜顺序拼接的成片检查台</h2>
+                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[#657184]">
+                  顶部播放器会按分镜 1 到分镜 {totalPanels} 的顺序连续播放全部已生成视频，用于检查成片节奏和衔接；需要调整提示词或重新生成时回到分镜制作。
+                </p>
+                <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {[
+                    ['完成度', `${completion}%`],
+                    ['总分镜', `${totalPanels}`],
+                    ['已生成', `${videosWithUrl}`],
+                    ['待处理', `${missingCount}`],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-[16px] border border-[rgba(14,14,44,.08)] bg-white p-3">
+                      <p className="text-xs font-semibold text-[#7a8491]">{label}</p>
+                      <p className="mt-1 text-xl font-bold text-[#0e0e2c]">{value}</p>
+                    </div>
+                  ))}
+                </div>
+                {(runningCount > 0 || failedCount > 0) && (
+                  <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
+                    {runningCount > 0 && (
+                      <span className="rounded-full bg-[#eef5ff] px-3 py-1 text-[#2d65ca]">{runningCount} 个任务处理中</span>
+                    )}
+                    {failedCount > 0 && (
+                      <span className="rounded-full bg-[var(--glass-tone-danger-bg)] px-3 py-1 text-[var(--glass-tone-danger-fg)]">{failedCount} 个生成失败</span>
+                    )}
+                  </div>
+                )}
+                <div className="mt-6 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onBackToStoryboard}
+                    className="glass-btn-base glass-btn-secondary flex items-center gap-2 px-4 py-2 text-sm font-semibold"
+                  >
+                    <AppIcon name="chevronLeft" className="h-4 w-4" />
+                    <span>回到分镜制作</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onDownloadAll}
+                    disabled={videosWithUrl === 0 || isDownloading}
+                    className="glass-btn-base glass-btn-primary flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <AppIcon name={isDownloading ? 'loader' : 'download'} className={`h-4 w-4 ${isDownloading ? 'animate-spin' : ''}`} />
+                    <span>
+                      {isDownloading && downloadProgress
+                        ? `打包中 ${downloadProgress.current}/${downloadProgress.total}`
+                        : '下载全部视频'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-[rgba(14,14,44,.08)] bg-white/70 p-5 lg:border-l lg:border-t-0">
+            <p className="mb-3 text-sm font-bold text-[#0e0e2c]">成片片段顺序</p>
+            <div className="max-h-[520px] space-y-2 overflow-auto pr-1">
+              {panels.map((panel, index) => (
+                <div
+                  key={`${panel.storyboardId}-${panel.panelIndex}`}
+                  className="grid grid-cols-[44px_minmax(0,1fr)_76px] items-center gap-3 rounded-[14px] border border-[rgba(14,14,44,.07)] bg-white p-2.5"
+                >
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#f4f7fa] text-xs font-bold text-[#4B4DED]">
+                    {index + 1}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-[#243042]">
+                      分镜 {index + 1}
+                    </p>
+                    <p className="mt-0.5 truncate text-xs text-[#7a8491]">
+                      {panel.textPanel?.duration ? `${panel.textPanel.duration}s` : '推荐时长待确认'}
+                      {' · '}
+                      {compactVideoPromptPreview(panel.textPanel?.video_prompt, panel.textPanel?.description || `分镜 ${index + 1}`)}
+                    </p>
+                  </div>
+                  <span className={`rounded-full px-2 py-1 text-center text-[11px] font-bold ${
+                    panel.videoUrl
+                      ? 'bg-[#e0faf4] text-[#1a957c]'
+                      : panel.videoTaskRunning
+                        ? 'bg-[#eef5ff] text-[#2d65ca]'
+                        : 'bg-[#f4f7fa] text-[#7a8491]'
+                  }`}>
+                    {panel.videoUrl ? '已生成' : panel.videoTaskRunning ? '生成中' : '缺视频'}
+                  </span>
+                </div>
+              ))}
+              {panels.length === 0 && (
+                <div className="rounded-[16px] border border-dashed border-[rgba(14,14,44,.14)] bg-white p-8 text-center text-sm text-[#7a8491]">
+                  还没有分镜。先让 Agent 完成资产和分镜生成，或回到分镜制作手动创建。
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {generatedPanels.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-base font-bold text-[var(--glass-text-primary)]">视频片段预览</h3>
+            <span className="text-sm text-[var(--glass-text-tertiary)]">{generatedPanels.length} / {totalPanels}</span>
+          </div>
+          <div className={`grid gap-4 ${getAspectRatioConfig(videoRatio).isVertical
+            ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5'
+            : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'
+          }`}>
+            {generatedPanels.map((panel, index) => (
+              <div key={`${panel.storyboardId}-${panel.panelIndex}`} className="overflow-hidden rounded-[18px] border border-[rgba(14,14,44,.08)] bg-white shadow-sm">
+                <div className="relative bg-[#0e0e2c]" style={{ aspectRatio: cssAspectRatio }}>
+                  <video
+                    src={panel.videoUrl}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="h-full w-full object-cover"
+                  />
+                  <span className="absolute left-2 top-2 rounded-full bg-black/58 px-2 py-1 text-xs font-bold text-white">
+                    分镜 {panels.findIndex((item) => item === panel) + 1}
+                  </span>
+                </div>
+                <div className="p-3">
+                  <p className="line-clamp-2 text-xs leading-relaxed text-[#4f5b68]">
+                    {compactVideoPromptPreview(panel.textPanel?.video_prompt, panel.textPanel?.description || '无视频提示词')}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )
+}
+
 export function useVideoStageRuntime({
+  viewMode = 'storyboard',
   projectId,
   episodeId,
   storyboards,
@@ -142,6 +455,7 @@ export function useVideoStageRuntime({
 
   const {
     isDownloading,
+    downloadProgress,
     videosWithUrl,
     handleDownloadAllVideos,
   } = useVideoDownloadAll({
@@ -464,6 +778,7 @@ export function useVideoStageRuntime({
   const projectedPanels = useMemo(() => (
     allPanels.map((panel) => {
       const panelKey = buildVideoSubmissionKey(panel)
+      if (panel.videoUrl && isSubmittingVideoBatch && !submittingVideoPanelKeys.has(panelKey)) return panel
       if (!isSubmittingVideoBatch && !submittingVideoPanelKeys.has(panelKey)) return panel
       return {
         ...panel,
@@ -506,6 +821,22 @@ export function useVideoStageRuntime({
     handleGenerateAllVideosWithImmediateLock,
     isConfirming,
   ])
+
+  if (viewMode === 'final') {
+    return (
+      <FinalCompositionOverview
+        panels={projectedPanels}
+        videoRatio={videoRatio}
+        videosWithUrl={videosWithUrl}
+        runningCount={runningCount}
+        failedCount={failedCount}
+        isDownloading={isDownloading}
+        downloadProgress={downloadProgress}
+        onDownloadAll={handleDownloadAllVideos}
+        onBackToStoryboard={onBack}
+      />
+    )
+  }
 
   return (
     <div className="space-y-6 pb-20">

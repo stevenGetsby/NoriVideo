@@ -10,6 +10,7 @@ type SupportedProvider =
   | 'siliconflow'
   | 'openai-compatible'
   | 'gemini-compatible'
+  | 'anthropic-compatible'
   | 'custom'
 
 type TestConnectionPayload = {
@@ -41,6 +42,7 @@ function normalizeProvider(payload: TestConnectionPayload): SupportedProvider {
     case 'openai':
     case 'openai-compatible':
     case 'gemini-compatible':
+    case 'anthropic-compatible':
     case 'bailian':
     case 'siliconflow':
     case 'custom':
@@ -157,6 +159,66 @@ async function testSiliconFlowProbe(apiKey: string): Promise<{ model?: string; a
   }
 }
 
+function normalizeAnthropicBaseUrl(baseUrl: string): string {
+  const trimmed = baseUrl.trim().replace(/\/+$/, '')
+  if (!trimmed) return ''
+  return trimmed.endsWith('/v1') ? trimmed : `${trimmed}/v1`
+}
+
+function extractAnthropicAnswer(payload: unknown): string {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return ''
+  const content = (payload as { content?: unknown }).content
+  if (!Array.isArray(content)) return ''
+  return content
+    .map((part) => {
+      if (typeof part === 'string') return part
+      if (part && typeof part === 'object' && typeof (part as { text?: unknown }).text === 'string') {
+        return (part as { text: string }).text
+      }
+      return ''
+    })
+    .join('')
+    .trim()
+}
+
+async function testAnthropicCompatibleConnection(params: {
+  apiKey: string
+  baseURL: string
+  model?: string
+}): Promise<Pick<LlmConnectionTestResult, 'model' | 'answer'>> {
+  const model = params.model || 'claude-sonnet-4-6'
+  const response = await fetch(`${normalizeAnthropicBaseUrl(params.baseURL)}/messages`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'anthropic-version': '2023-06-01',
+      Authorization: `Bearer ${params.apiKey}`,
+      'x-api-key': params.apiKey,
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 10,
+      temperature: 0,
+      messages: [{ role: 'user', content: '1+1等于几？只回答数字' }],
+    }),
+    signal: AbortSignal.timeout(30_000),
+  })
+  const bodyText = await response.text().catch(() => '')
+  if (!response.ok) {
+    throw new Error(`Anthropic-compatible probe failed (${response.status}): ${bodyText}`)
+  }
+  let parsed: unknown = null
+  try {
+    parsed = bodyText ? JSON.parse(bodyText) as unknown : null
+  } catch {
+    parsed = null
+  }
+  return {
+    model,
+    answer: extractAnthropicAnswer(parsed),
+  }
+}
+
 export async function testLlmConnection(payload: TestConnectionPayload): Promise<LlmConnectionTestResult> {
   const provider = normalizeProvider(payload)
   const apiKey = requireApiKey(payload)
@@ -213,6 +275,14 @@ export async function testLlmConnection(payload: TestConnectionPayload): Promise
         model: requestedModel || undefined,
       })
       return { provider, message: 'gemini-compatible 连接成功', ...tested }
+    }
+    case 'anthropic-compatible': {
+      const tested = await testAnthropicCompatibleConnection({
+        apiKey,
+        baseURL: requireBaseUrl(payload),
+        model: requestedModel || undefined,
+      })
+      return { provider, message: 'anthropic-compatible 连接成功', ...tested }
     }
     case 'custom': {
       const tested = await testOpenAICompatibleConnection({

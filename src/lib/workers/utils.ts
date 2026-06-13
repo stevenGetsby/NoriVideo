@@ -413,6 +413,7 @@ export async function resolveVideoSourceFromGeneration(
     imageUrl: string
     options?: {
       prompt?: string
+      referenceImages?: string[]
       duration?: number
       fps?: number
       resolution?: string
@@ -420,7 +421,7 @@ export async function resolveVideoSourceFromGeneration(
       generateAudio?: boolean
       lastFrameImageUrl?: string
       generationMode?: 'normal' | 'firstlastframe'
-      [key: string]: string | number | boolean | undefined
+      [key: string]: string | number | boolean | string[] | undefined
     }
     pollProgress?: { start?: number; end?: number }
   },
@@ -485,10 +486,14 @@ export async function resolveVideoSourceFromGeneration(
 
   const providerCapabilityOptions: Record<string, string | number | boolean> = { ...capabilityOptions }
   delete providerCapabilityOptions.generationMode
-  const providerRequestOptions: Record<string, string | number | boolean> = {}
+  const providerRequestOptions: Record<string, string | number | boolean | string[]> = {}
   for (const [key, value] of Object.entries(params.options || {})) {
     if (key === 'generationMode' || value === undefined) continue
-    providerRequestOptions[key] = value
+    if (Array.isArray(value)) {
+      providerRequestOptions[key] = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    } else {
+      providerRequestOptions[key] = value
+    }
   }
 
   const result = await withLogContext(

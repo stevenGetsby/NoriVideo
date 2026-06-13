@@ -125,6 +125,18 @@
         "newPanelDescription": "新镜头描述",
         "noShotType": "未设置镜头"
     },
+    "assetUsage": {
+        "title": "本镜头资产",
+        "character": "角色",
+        "location": "场景",
+        "prop": "道具",
+        "empty": "本镜头尚未引用资产",
+        "confirm": "确认资产",
+        "confirming": "确认中...",
+        "confirmed": "已确认",
+        "confirmFailed": "确认资产失败",
+        "confirmedAt": "确认时间：{time}"
+    },
     "image": {
         "generating": "生成中...",
         "regenerate": "重新生成",

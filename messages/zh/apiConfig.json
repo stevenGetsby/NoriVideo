@@ -9,6 +9,7 @@
   "connect": "连接",
   "compatibilityLayerOpenAI": "OpenAI 兼容层",
   "compatibilityLayerGemini": "Gemini 兼容层",
+  "compatibilityLayerAnthropic": "Anthropic 兼容层",
   "show": "显示",
   "hide": "隐藏",
   "capability": "能力",
@@ -110,6 +111,9 @@
   "apiType": "API 类型",
   "apiTypeGeminiCompatible": "Gemini 兼容",
   "apiTypeOpenAICompatible": "OpenAI 兼容",
+  "apiTypeAnthropicCompatible": "Anthropic 兼容",
+  "anthropicTextModels": "文本模型",
+  "anthropicVisionModels": "图片理解模型",
   "apiTypeGeminiHint": "使用 Google SDK",
   "otherProviders": "其他配置",
   "audioCategory": "音频",
@@ -178,6 +182,9 @@
       "vidu_step1": "进入生数科技 Vidu 平台，点击「新建 API Key」",
       "openai_compatible_step1": "填写任意 OpenAI 协议兼容服务的 Base URL 与 API Key",
       "gemini_compatible_step1": "填写任意 Gemini 协议兼容服务的 Base URL 与 API Key",
+      "anthropic_compatible_step1": "填写任意 Anthropic Messages API 兼容服务的 Base URL 与 API Key，例如 https://lumina.tripo3d.com/",
+      "hfsy_step1": "填写 HFSY API Key；Base URL 默认使用 https://www.hfsyapi.cn/v1",
+      "lumina_step1": "填写 Lumina API Key；Base URL 默认使用 https://lumina.tripo3d.com/",
       "bailian_step1": "进入阿里云百炼平台，获取 API Key",
       "siliconflow_step1": "进入硅基流动控制台，创建 API Key"
     }

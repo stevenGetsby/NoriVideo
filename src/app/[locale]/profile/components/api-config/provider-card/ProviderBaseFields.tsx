@@ -13,6 +13,8 @@ interface ProviderBaseFieldsProps {
 export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsProps) {
   const baseUrlPlaceholder = (() => {
     switch (state.providerKey) {
+      case 'anthropic-compatible':
+        return 'https://lumina.tripo3d.com/'
       case 'gemini-compatible':
         return 'https://your-api-domain.com'
       case 'openai-compatible':

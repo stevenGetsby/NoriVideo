@@ -2,10 +2,18 @@
 import { useEffect, useState } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
+import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
-import ApiConfigTab from './components/ApiConfigTab'
 import { AppIcon } from '@/components/ui/icons'
 import { useRouter } from '@/i18n/navigation'
+
+const ApiConfigTab = dynamic(() => import('./components/ApiConfigTab'), {
+  loading: () => (
+    <div className="flex h-full items-center justify-center">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[var(--glass-text-tertiary)] border-t-transparent" />
+    </div>
+  ),
+})
 
 export default function ProfilePage() {
   const { data: session, status } = useSession()

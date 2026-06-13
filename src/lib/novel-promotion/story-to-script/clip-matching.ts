@@ -106,6 +106,50 @@ function normalizeQuery(text: string): string {
   return buildNormalizedContent(text).text
 }
 
+function makeBoundaryAnchor(text: string, fromEnd = false): string {
+  const chars = Array.from(text.trim())
+  if (chars.length <= 80) return chars.join('')
+  return fromEnd ? chars.slice(-80).join('') : chars.slice(0, 80).join('')
+}
+
+function isInternalBoundaryInstruction(text: string): boolean {
+  return /boundaryconstraints|return\[\]directly|anchorscannotbelocated|originaltextandbelocatable|donotrewritekeyentities/i.test(text)
+}
+
+export function buildWholeContentClipBoundary(content: string): {
+  startText: string
+  endText: string
+  content: string
+} {
+  const trimmed = content.trim()
+  return {
+    startText: makeBoundaryAnchor(trimmed),
+    endText: makeBoundaryAnchor(trimmed, true),
+    content: trimmed,
+  }
+}
+
+export function shouldFallbackToWholeContentSingleClip(input: {
+  clipCount: number
+  startText: string
+  endText: string
+  content: string
+}): boolean {
+  if (input.clipCount !== 1) return false
+  const contentNorm = normalizeQuery(input.content.trim())
+  const startNorm = normalizeQuery(input.startText)
+  const endNorm = normalizeQuery(input.endText)
+  if (!contentNorm || !startNorm || !endNorm) return false
+
+  const startIndex = contentNorm.indexOf(startNorm)
+  if (startIndex < 0) return false
+  const startTolerance = Math.max(8, Math.floor(contentNorm.length * 0.15))
+  if (startIndex > startTolerance) return false
+
+  const endInContent = contentNorm.includes(endNorm)
+  return !endInContent || isInternalBoundaryInstruction(endNorm)
+}
+
 function findNormIndexForRaw(normalized: NormalizedContent, rawIndex: number): number {
   if (normalized.rawStartByNorm.length === 0) return 0
   let left = 0
@@ -209,6 +253,42 @@ function tryExactNormalizedMarkerMatch(
     level: 'L2',
     confidence: 0.97,
   }
+}
+
+function tryStartAnchoredMatchWhenEndIsInsideStart(
+  normalized: NormalizedContent,
+  startQuery: string,
+  endQuery: string,
+  fromIndex: number,
+): ClipBoundaryMatch | null {
+  if (!startQuery.includes(endQuery)) return null
+
+  let startNormCursor = findNormIndexForRaw(normalized, fromIndex)
+  while (startNormCursor < normalized.text.length) {
+    const startNormIndex = normalized.text.indexOf(startQuery, startNormCursor)
+    if (startNormIndex === -1) return null
+
+    const rawStart = normalized.rawStartByNorm[startNormIndex]
+    if (rawStart < fromIndex) {
+      startNormCursor = startNormIndex + 1
+      continue
+    }
+
+    const startNormLast = startNormIndex + startQuery.length - 1
+    const rawEnd = normalized.rawEndByNorm[startNormLast]
+    if (rawEnd > rawStart) {
+      return {
+        startIndex: rawStart,
+        endIndex: rawEnd,
+        level: 'L2',
+        confidence: 0.94,
+      }
+    }
+
+    startNormCursor = startNormIndex + 1
+  }
+
+  return null
 }
 
 function buildLengthCandidates(baseLength: number): number[] {
@@ -431,6 +511,14 @@ export function createClipContentMatcher(content: string): ClipContentMatcher {
       const normalizedStart = normalizeQuery(start)
       const normalizedEnd = normalizeQuery(end)
       if (!normalizedStart || !normalizedEnd) return null
+
+      const startAnchored = tryStartAnchoredMatchWhenEndIsInsideStart(
+        normalized,
+        normalizedStart,
+        normalizedEnd,
+        fromIndex,
+      )
+      if (startAnchored) return startAnchored
 
       const l2 = tryExactNormalizedMatch(normalized, normalizedStart, normalizedEnd, fromIndex)
       if (l2) return l2

@@ -1,5 +1,5 @@
 'use client'
-import { logError as _ulogError } from '@/lib/logging/core'
+import { logError as _ulogError, logWarn as _ulogWarn } from '@/lib/logging/core'
 
 import { useEffect, useMemo, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -212,8 +212,10 @@ export function useSSE({ projectId, episodeId, enabled = true, onEvent }: UseSSE
       source.addEventListener(type, handler)
       listeners.push({ type, handler })
     }
-    source.onerror = (error) => {
-      _ulogError('[useSSE] stream error', error)
+    source.onerror = () => {
+      if (source.readyState === EventSource.CLOSED) {
+        _ulogWarn('[useSSE] stream closed')
+      }
     }
 
     return () => {

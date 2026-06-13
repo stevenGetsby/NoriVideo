@@ -11,6 +11,7 @@ import {
   toSignedUrlIfCos,
 } from '../utils'
 import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
+import { refreshProjectPanelReferenceAssets } from '@/lib/novel-promotion/refresh-panel-reference-assets'
 import {
   AnyObj,
   generateProjectLabeledImageToStorage,
@@ -185,6 +186,10 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
       imageUrls: encodeImageUrls(nextImageUrls),
       imageUrl: mainImage || null,
     },
+  })
+  await refreshProjectPanelReferenceAssets({
+    projectId,
+    episodeId: job.data.episodeId,
   })
 
   return {

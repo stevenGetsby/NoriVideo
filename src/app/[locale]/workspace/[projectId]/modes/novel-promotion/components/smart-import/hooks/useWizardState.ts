@@ -22,11 +22,18 @@ interface UseWizardStateParams {
   t: Translate
   /** 预填文本：传入后自动设置并触发分析 */
   initialRawContent?: string
+  autoAnalyzeInitialContent?: boolean
 }
 
-export function useWizardState({ projectId, importStatus, onImportComplete, t, initialRawContent }: UseWizardStateParams) {
-  const initialStage: WizardStage = importStatus === 'pending' ? 'preview' : 'select'
-  const [stage, setStage] = useState<WizardStage>(initialStage)
+export function useWizardState({
+  projectId,
+  importStatus,
+  onImportComplete,
+  t,
+  initialRawContent,
+  autoAnalyzeInitialContent = true,
+}: UseWizardStateParams) {
+  const [stage, setStage] = useState<WizardStage>('select')
   const [rawContent, setRawContent] = useState(initialRawContent || '')
   const [episodes, setEpisodes] = useState<SplitEpisode[]>([])
   const [selectedEpisode, setSelectedEpisode] = useState(0)
@@ -35,11 +42,26 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t, i
   const [markerResult, setMarkerResult] = useState<EpisodeMarkerResult | null>(null)
   const [showMarkerConfirm, setShowMarkerConfirm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const savedEpisodesLoaded = useRef(false)
+  const appliedInitialRawContent = useRef(initialRawContent || '')
 
   const listProjectEpisodesMutation = useListProjectEpisodes(projectId)
   const splitProjectEpisodesMutation = useSplitProjectEpisodes(projectId)
   const splitProjectEpisodesByMarkersMutation = useSplitProjectEpisodesByMarkers(projectId)
   const saveProjectEpisodesBatchMutation = useSaveProjectEpisodesBatch(projectId)
+
+  useEffect(() => {
+    savedEpisodesLoaded.current = false
+    setStage('select')
+    setEpisodes([])
+    setSelectedEpisode(0)
+  }, [projectId])
+
+  useEffect(() => {
+    if (!initialRawContent || initialRawContent === appliedInitialRawContent.current) return
+    appliedInitialRawContent.current = initialRawContent
+    setRawContent((current) => current || initialRawContent)
+  }, [initialRawContent])
 
   const loadSavedEpisodes = useCallback(async () => {
     try {
@@ -54,17 +76,20 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t, i
         }))
         setEpisodes(loadedEpisodes)
         setStage('preview')
+      } else {
+        setStage('select')
       }
     } catch (err) {
       _ulogError('[SmartImport] 加载已保存剧集失败:', err)
+      setStage('select')
     }
   }, [listProjectEpisodesMutation, t])
 
   useEffect(() => {
-    if (importStatus === 'pending' && episodes.length === 0) {
-      void loadSavedEpisodes()
-    }
-  }, [episodes.length, importStatus, loadSavedEpisodes])
+    if (importStatus !== 'pending' || savedEpisodesLoaded.current) return
+    savedEpisodesLoaded.current = true
+    void loadSavedEpisodes()
+  }, [importStatus, loadSavedEpisodes])
 
 
   const performAISplit = useCallback(async () => {
@@ -137,11 +162,11 @@ export function useWizardState({ projectId, importStatus, onImportComplete, t, i
   // 当预填文本存在时，自动触发分析（跳过选择页面）
   const autoAnalyzeTriggered = useRef(false)
   useEffect(() => {
-    if (initialRawContent && !autoAnalyzeTriggered.current && stage === 'select') {
+    if (autoAnalyzeInitialContent && initialRawContent && !autoAnalyzeTriggered.current && stage === 'select') {
       autoAnalyzeTriggered.current = true
       void handleAnalyze()
     }
-  }) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoAnalyzeInitialContent, handleAnalyze, initialRawContent, stage])
 
 
   const handleMarkerSplit = useCallback(async () => {

@@ -21,6 +21,7 @@ import { buildWorkspaceControllerViewModel } from './workspace-controller-view-m
 import type { NovelPromotionWorkspaceProps } from '../types'
 import { useRouter } from '@/i18n/navigation'
 import { resolveEpisodeStageArtifacts } from '@/lib/novel-promotion/stage-readiness'
+import { useWorkflowState } from '@/lib/query/hooks/useProjectData'
 
 export function useNovelPromotionWorkspaceController({
   project,
@@ -91,6 +92,7 @@ export function useNovelPromotionWorkspaceController({
   })
 
   const userModels = useWorkspaceUserModels()
+  const workflowStateQuery = useWorkflowState(projectId, episodeId)
 
   const execution = useWorkspaceExecution({
     projectId,
@@ -147,6 +149,7 @@ export function useNovelPromotionWorkspaceController({
   const capsuleNavItems = useWorkspaceStageNavigation({
     isAnyOperationRunning,
     stageArtifacts,
+    workflowStages: workflowStateQuery.data?.stages,
     t,
   })
 

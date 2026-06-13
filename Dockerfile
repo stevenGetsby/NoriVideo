@@ -1,15 +1,24 @@
 # ==================== Stage 1: Dependencies ====================
-FROM node:20-alpine AS deps
+ARG NODE_IMAGE=node:22-bookworm-slim
+FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN npm config set registry https://registry.npmmirror.com \
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates openssl \
+	&& rm -rf /var/lib/apt/lists/* \
+	&& npm config set registry https://registry.npmmirror.com \
 	&& npm install --ignore-scripts --no-audit --no-fund
 
 # ==================== Stage 2: Build ====================
-FROM node:20-alpine AS builder
+ARG NODE_IMAGE=node:22-bookworm-slim
+FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
+
+ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -18,13 +27,17 @@ COPY . .
 RUN npm run build
 
 # ==================== Stage 3: Production (no source code) ====================
-FROM node:20-alpine AS runner
+ARG NODE_IMAGE=node:22-bookworm-slim
+FROM ${NODE_IMAGE} AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Install tini for proper signal handling
-RUN apk add --no-cache tini
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates openssl tini \
+	&& rm -rf /var/lib/apt/lists/*
 
 # ---- 只安装生产依赖 ----
 COPY --from=builder /app/package.json ./package.json

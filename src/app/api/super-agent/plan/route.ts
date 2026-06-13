@@ -7,7 +7,7 @@ import { NextRequest } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { SuperAgentOrchestrator } from '@/lib/super-agent/orchestrator'
-import { normalizeExecutionMode, normalizeCreativeParameters } from '@/lib/super-agent/plan-utils'
+import { normalizeExecutionMode } from '@/lib/super-agent/plan-utils'
 
 export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
@@ -32,7 +32,9 @@ export const POST = apiHandler(async (request: NextRequest) => {
       locale: locale || 'zh',
       userInput: userInput.trim(),
       executionMode: normalizeExecutionMode(executionMode),
-      parameters: normalizeCreativeParameters(parameters),
+      parameters: parameters && typeof parameters === 'object' && !Array.isArray(parameters)
+        ? parameters
+        : undefined,
     })
 
     return Response.json({ plan })

@@ -35,7 +35,11 @@ function isSupportedLocale(locale?: string): locale is Locale {
     return locale === 'zh' || locale === 'en'
 }
 
-export default function LanguageSwitcher() {
+interface LanguageSwitcherProps {
+    compact?: boolean
+}
+
+export default function LanguageSwitcher({ compact = false }: LanguageSwitcherProps) {
     const router = useRouter()
     const pathname = usePathname()
     const locale = useLocale()
@@ -96,10 +100,10 @@ export default function LanguageSwitcher() {
                     onClick={() => setIsMenuOpen((prev) => !prev)}
                     aria-label={SWITCH_CONFIRM_COPY[targetLocale].triggerLabel}
                     aria-expanded={isMenuOpen}
-                    className="glass-btn-base glass-btn-secondary inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm"
+                    className={`glass-btn-base glass-btn-secondary inline-flex items-center gap-2 rounded-lg py-2 text-sm ${compact ? 'px-2' : 'px-3'}`}
                 >
                     <AppIcon name="globe" className="h-4 w-4" />
-                    <span>{LANGUAGE_LABELS[currentLocale]}</span>
+                    <span className={compact ? 'sr-only' : undefined}>{LANGUAGE_LABELS[currentLocale]}</span>
                     <AppIcon name="chevronDown" className="h-4 w-4 text-[var(--glass-text-tertiary)]" />
                 </button>
 

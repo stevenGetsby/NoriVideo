@@ -19,6 +19,10 @@ import {
   type WorkflowConcurrencyConfig,
   normalizeWorkflowConcurrencyConfig,
 } from '@/lib/workflow-concurrency'
+import {
+  HFSY_IMAGE_MODEL_KEY,
+  HFSY_TEXT_MODEL_KEY,
+} from '@/lib/hfsy-fixed-models'
 
 export type ParsedModelKey = { provider: string, modelId: string }
 
@@ -155,12 +159,12 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || null,
-    characterModel: extractModelKey(projectData?.characterModel) || null,
-    locationModel: extractModelKey(projectData?.locationModel) || null,
-    storyboardModel: extractModelKey(projectData?.storyboardModel) || null,
-    editModel: extractModelKey(projectData?.editModel) || null,
-    videoModel: extractModelKey(projectData?.videoModel) || null,
+    analysisModel: HFSY_TEXT_MODEL_KEY,
+    characterModel: HFSY_IMAGE_MODEL_KEY,
+    locationModel: HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: HFSY_IMAGE_MODEL_KEY,
+    editModel: HFSY_IMAGE_MODEL_KEY,
+    videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || null,
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
     videoRatio: projectData?.videoRatio || '16:9',
     artStyle: projectData?.artStyle || null,
@@ -179,11 +183,11 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: extractModelKey(userPref?.analysisModel) || null,
-    characterModel: extractModelKey(userPref?.characterModel) || null,
-    locationModel: extractModelKey(userPref?.locationModel) || null,
-    storyboardModel: extractModelKey(userPref?.storyboardModel) || null,
-    editModel: extractModelKey(userPref?.editModel) || null,
+    analysisModel: HFSY_TEXT_MODEL_KEY,
+    characterModel: HFSY_IMAGE_MODEL_KEY,
+    locationModel: HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: HFSY_IMAGE_MODEL_KEY,
+    editModel: HFSY_IMAGE_MODEL_KEY,
     videoModel: extractModelKey(userPref?.videoModel) || null,
     audioModel: extractModelKey(userPref?.audioModel) || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),

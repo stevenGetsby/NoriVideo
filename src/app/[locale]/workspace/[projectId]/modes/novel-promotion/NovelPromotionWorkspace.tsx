@@ -9,10 +9,14 @@ import WorkspaceRunStreamConsoles from './components/WorkspaceRunStreamConsoles'
 import WorkspaceStageContent from './components/WorkspaceStageContent'
 import WorkspaceAssetLibraryModal from './components/WorkspaceAssetLibraryModal'
 import WorkspaceHeaderShell from './components/WorkspaceHeaderShell'
+import AgentEditChatPanel from './components/AgentEditChatPanel'
+import AgentWorkflowHistoryPanel from './components/AgentWorkflowHistoryPanel'
 import { WorkspaceStageRuntimeProvider } from './WorkspaceStageRuntimeContext'
 import { useNovelPromotionWorkspaceController } from './hooks/useNovelPromotionWorkspaceController'
 import type { NovelPromotionWorkspaceProps } from './types'
 import '@/styles/animations.css'
+
+const SHOW_INTERNAL_AGENT_TOOLS = process.env.NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS === 'true'
 
 function NovelPromotionWorkspaceContent(props: NovelPromotionWorkspaceProps) {
   const vm = useNovelPromotionWorkspaceController(props)
@@ -116,9 +120,15 @@ function NovelPromotionWorkspaceContent(props: NovelPromotionWorkspaceProps) {
         refreshTitle={vm.i18n.t('buttons.refreshData')}
       />
 
-      <div className="pt-24">
+      <div className="pt-24 xl:pl-72">
         <WorkspaceStageRuntimeProvider value={vm.runtime.stageRuntime}>
-          <WorkspaceStageContent currentStage={vm.stageNav.currentStage} />
+          <WorkspaceStageContent
+            projectId={projectId}
+            currentStage={vm.stageNav.currentStage}
+            projectData={project.novelPromotionData}
+            episode={props.episode}
+            episodes={episodes}
+          />
         </WorkspaceStageRuntimeProvider>
 
         <WorkspaceAssetLibraryModal
@@ -165,6 +175,20 @@ function NovelPromotionWorkspaceContent(props: NovelPromotionWorkspaceProps) {
           onScriptToStoryboardMinimizedChange={vm.execution.setScriptToStoryboardConsoleMinimized}
           hideMinimizedBadges={vm.execution.showCreatingToast}
         />
+
+        {SHOW_INTERNAL_AGENT_TOOLS && (
+          <>
+            <AgentEditChatPanel
+              projectId={projectId}
+              episodeId={episodeId}
+              onApplied={() => vm.ui.onRefresh({ mode: 'full' })}
+            />
+            <AgentWorkflowHistoryPanel
+              projectId={projectId}
+              episodeId={episodeId}
+            />
+          </>
+        )}
       </div>
     </div>
   )

@@ -1,0 +1,14 @@
+{
+  "updatedAt": "2026-06-13T12:50:22.117Z",
+  "records": [
+    {
+      "id": "1781355022117-final-video",
+      "cardId": "final-video",
+      "title": "成片导出任务",
+      "status": "queued",
+      "blocker": "当前素材满足交付条件。",
+      "createdAt": "2026-06-13T12:50:22.117Z",
+      "updatedAt": "2026-06-13T12:50:22.117Z"
+    }
+  ]
+}

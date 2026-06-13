@@ -1,12 +1,13 @@
 'use client'
 
+import Image from 'next/image'
 import { useTranslations } from 'next-intl'
 import { countWords } from '@/lib/word-count'
 import type { EpisodeMarkerResult } from '@/lib/episode-marker-detector'
 import { AppIcon } from '@/components/ui/icons'
 
 interface StepSourceProps {
-  onManualCreate: () => void
+  onManualCreate: (rawContent?: string) => void
   rawContent: string
   onRawContentChange: (content: string) => void
   onAnalyze: () => void
@@ -33,7 +34,7 @@ export default function StepSource({
   const t = useTranslations('smartImport')
 
   return (
-    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center p-8">
+    <div className="min-h-[calc(100vh-200px)] flex items-center justify-center bg-[#ECF1F4] p-4 sm:p-8">
       {showMarkerConfirm && markerResult && (
         <div className="fixed inset-0 glass-overlay flex items-center justify-center z-50" onClick={onCloseMarkerConfirm}>
           <div className="glass-surface-modal p-6 w-full max-w-lg animate-in fade-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
@@ -96,73 +97,92 @@ export default function StepSource({
         </div>
       )}
 
-      <div className="max-w-5xl w-full">
-        <div className="text-center mb-12 relative">
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 bg-[var(--glass-bg-surface)]/80 rounded-full blur-3xl -z-10"></div>
-          <div className="inline-block relative">
-            <h1 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight">
-              <span className="text-[var(--glass-tone-info-fg)]">
-                {t('title')}
-              </span>
-            </h1>
+      <div className="w-full max-w-5xl">
+        <div className="relative mb-8 text-center">
+          <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,44,.08)] bg-white/85 px-3 py-2 shadow-[0_1px_2px_rgba(14,14,44,.04)]">
+            <Image
+              src="/nori-view/nori-onion-logo.png"
+              alt="Nori"
+              width={28}
+              height={28}
+              className="h-7 w-7 rounded-lg object-contain"
+            />
+            <span className="text-sm font-semibold text-[#0e0e2c]">Nori Workflow</span>
           </div>
-          <p className="text-[var(--glass-text-tertiary)] text-xl font-medium max-w-2xl mx-auto leading-relaxed">
+          <h1 className="mb-4 text-4xl font-extrabold text-[#0e0e2c] md:text-5xl">
+            {t('title')}
+          </h1>
+          <p className="mx-auto max-w-2xl text-base font-medium leading-relaxed text-[#4d5665] md:text-lg">
             {t('subtitle')}
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 items-stretch">
+        <div className="grid items-stretch gap-5 md:grid-cols-2">
           <button
-            onClick={onManualCreate}
-            className="group bg-[var(--glass-bg-surface)] border-2 border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-focus)] rounded-2xl p-8 text-left transition-all duration-200 hover:shadow-xl cursor-pointer flex flex-col justify-center"
+            onClick={() => onManualCreate(rawContent)}
+            className="group relative flex min-h-[248px] cursor-pointer flex-col justify-center overflow-hidden rounded-xl border border-[rgba(14,14,44,.09)] bg-white p-7 text-left shadow-[0_12px_28px_rgba(14,14,44,.07)] transition-all duration-200 hover:-translate-y-0.5 hover:border-[rgba(14,14,44,.18)] hover:shadow-[0_18px_34px_rgba(14,14,44,.1)]"
           >
-            <div className="w-16 h-16 bg-[var(--glass-bg-muted)] rounded-2xl flex items-center justify-center mb-6 group-hover:bg-[var(--glass-tone-info-bg)] transition-colors duration-200">
-              <AppIcon name="edit" className="w-8 h-8 text-[var(--glass-text-secondary)] group-hover:text-[var(--glass-tone-info-fg)] transition-colors duration-200" />
+            <Image
+              src="/nori-view/onion-burst-ring.png"
+              alt=""
+              width={220}
+              height={220}
+              className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 object-contain opacity-35 transition-transform duration-300 group-hover:scale-105"
+            />
+            <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-lg bg-[#ECF1F4] transition-colors duration-200 group-hover:bg-[#D6FF00]/50">
+              <AppIcon name="edit" className="h-7 w-7 text-[#0e0e2c]" />
             </div>
-            <h3 className="text-2xl font-bold mb-3 text-[var(--glass-text-primary)]">{t('manualCreate.title')}</h3>
-            <p className="text-[var(--glass-text-tertiary)] mb-6 leading-relaxed">{t('manualCreate.description')}</p>
-            <div className="flex items-center text-[var(--glass-tone-info-fg)] font-bold">
+            <h3 className="mb-3 text-2xl font-bold text-[#0e0e2c]">{t('manualCreate.title')}</h3>
+            <p className="mb-6 max-w-[28rem] leading-relaxed text-[#5f6876]">{t('manualCreate.description')}</p>
+            <div className="flex items-center font-bold text-[#0e0e2c]">
               <span>{t('manualCreate.button')}</span>
-              <AppIcon name="chevronRight" className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform duration-200" />
+              <AppIcon name="chevronRight" className="ml-2 h-5 w-5 transition-transform duration-200 group-hover:translate-x-1" />
             </div>
           </button>
 
-          <div className="relative rounded-2xl border-2 border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface)] p-6 flex flex-col">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-[var(--glass-tone-info-bg)] rounded-xl flex items-center justify-center">
-                <AppIcon name="bolt" className="w-6 h-6 text-[var(--glass-tone-info-fg)]" />
+          <div className="relative flex flex-col rounded-xl border border-[rgba(14,14,44,.09)] bg-white p-6 shadow-[0_12px_28px_rgba(14,14,44,.07)]">
+            <Image
+              src="/nori-view/nori-ip-character.png"
+              alt=""
+              width={180}
+              height={204}
+              className="pointer-events-none absolute -bottom-8 right-1 h-52 w-auto object-contain opacity-20"
+            />
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[#D6FF00]">
+                <AppIcon name="bolt" className="h-6 w-6 text-[#0e0e2c]" />
               </div>
               <div>
-                <h3 className="text-xl font-bold text-[var(--glass-text-primary)]">{t('smartImport.title')}</h3>
-                <p className="text-sm text-[var(--glass-text-tertiary)]">{t('smartImport.description')}</p>
+                <h3 className="text-xl font-bold text-[#0e0e2c]">{t('smartImport.title')}</h3>
+                <p className="text-sm text-[#5f6876]">{t('smartImport.description')}</p>
               </div>
             </div>
 
-            <div className="flex-grow flex flex-col">
+            <div className="relative z-10 flex flex-grow flex-col">
               <textarea
                 value={rawContent}
                 onChange={(e) => onRawContentChange(e.target.value)}
-                className="flex-grow w-full bg-[var(--glass-bg-muted)] border-2 border-[var(--glass-stroke-base)] rounded-xl p-4 text-sm text-[var(--glass-text-primary)] placeholder:text-[var(--glass-text-tertiary)] focus:bg-[var(--glass-bg-surface)] focus:border-[var(--glass-stroke-focus)] focus:ring-4 focus:ring-[var(--glass-tone-info-fg)]/10 outline-none transition-all resize-none leading-relaxed min-h-[180px]"
+                className="min-h-[180px] w-full flex-grow resize-none rounded-lg border border-[rgba(14,14,44,.1)] bg-[#f7fafc] p-4 text-sm leading-relaxed text-[#0e0e2c] outline-none transition-colors placeholder:text-[#7c8491] focus:border-[rgba(14,14,44,.26)] focus:bg-white"
                 placeholder={t('upload.placeholder')}
               />
 
               <div className="mt-4 flex items-center justify-between gap-6">
-                <span className="text-sm text-[var(--glass-text-tertiary)] whitespace-nowrap">
+                <span className="whitespace-nowrap text-sm text-[#7c8491]">
                   {countWords(rawContent).toLocaleString()} {t('upload.words')} / 30,000
                 </span>
                 <button
                   onClick={onAnalyze}
                   disabled={!rawContent.trim() || rawContent.length < 100}
-                  className="glass-btn-base glass-btn-primary px-5 py-2 rounded-xl font-bold active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  className="glass-btn-base glass-btn-primary flex items-center gap-2 whitespace-nowrap rounded-lg px-5 py-2 font-bold active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <span>{t('upload.startAnalysis')}</span>
-                  <AppIcon name="arrowRightWide" className="w-4 h-4" />
+                  <AppIcon name="arrowRightWide" className="h-4 w-4" />
                 </button>
               </div>
             </div>
 
             {error && (
-              <div className="mt-4 p-3 bg-[var(--glass-tone-danger-bg)] border border-[var(--glass-stroke-danger)] rounded-lg text-[var(--glass-tone-danger-fg)] text-sm">
+              <div className="relative z-10 mt-4 rounded-lg border border-[var(--glass-stroke-danger)] bg-[var(--glass-tone-danger-bg)] p-3 text-sm text-[var(--glass-tone-danger-fg)]">
                 {error}
               </div>
             )}

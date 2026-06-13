@@ -7,6 +7,7 @@ import {
   useScriptToStoryboardRunStream,
   useStoryToScriptRunStream,
 } from '@/lib/query/hooks'
+import { isSuperAgentNavigationLocked } from '@/lib/super-agent/navigation-lock'
 
 interface UseWorkspaceExecutionParams {
   projectId: string
@@ -109,10 +110,12 @@ export function useWorkspaceExecution({
     }
 
     setStoryToScriptConsoleMinimized(true)
-    onStageChange('script')
-    onOpenAssetLibrary()
+    if (!isSuperAgentNavigationLocked(projectId)) {
+      onStageChange('script')
+      onOpenAssetLibrary()
+    }
     storyToScriptStream.reset()
-  }, [onOpenAssetLibrary, onRefresh, onStageChange, storyToScriptStream])
+  }, [onOpenAssetLibrary, onRefresh, onStageChange, projectId, storyToScriptStream])
 
   const finalizeScriptToStoryboardSuccess = useCallback(async (runId: string) => {
     const normalizedRunId = runId.trim()
@@ -130,9 +133,11 @@ export function useWorkspaceExecution({
     }
 
     setScriptToStoryboardConsoleMinimized(true)
-    onStageChange('storyboard')
+    if (!isSuperAgentNavigationLocked(projectId)) {
+      onStageChange('storyboard')
+    }
     scriptToStoryboardStream.reset()
-  }, [onRefresh, onStageChange, scriptToStoryboardStream])
+  }, [onRefresh, onStageChange, projectId, scriptToStoryboardStream])
 
   useEffect(() => {
     setStoryToScriptConsoleMinimized(readSessionBoolean(storyToScriptMinimizedStorageKey))
@@ -192,7 +197,7 @@ export function useWorkspaceExecution({
       setIsTransitioning(true)
       setStoryToScriptConsoleMinimized(false)
 
-      await onUpdateConfig('workflowMode', 'agent')
+      await onUpdateConfig('workflowMode', 'srt')
       setTransitionProgress({ message: t('execution.storyToScriptRunning'), step: 'streaming' })
       const runResult = await storyToScriptStream.run({
         episodeId,
