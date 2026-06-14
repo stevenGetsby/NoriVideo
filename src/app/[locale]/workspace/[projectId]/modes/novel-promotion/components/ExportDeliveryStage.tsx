@@ -334,7 +334,7 @@ export default function ExportDeliveryStage() {
               key={card.id}
               className="flex min-h-[260px] flex-col rounded-lg border border-white/10 bg-[#171922] p-5 shadow-[0_14px_34px_rgba(0,0,0,.16)]"
             >
-              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-md bg-[#2c6ef2] text-white">
+              <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-md bg-[#3b82f6] text-white">
                 <AppIcon name={card.icon} className="h-5 w-5" />
               </div>
               <h2 className="text-base font-semibold text-white">{card.title}</h2>
@@ -370,7 +370,7 @@ export default function ExportDeliveryStage() {
               </div>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
                 <div
-                  className="h-full rounded-full bg-[#2c6ef2]"
+                  className="h-full rounded-full bg-[#3b82f6]"
                   style={{ width: `${panels.length ? Math.round((generatedPanels.length / panels.length) * 100) : 0}%` }}
                 />
               </div>
@@ -387,7 +387,7 @@ export default function ExportDeliveryStage() {
             <button
               type="button"
               onClick={() => runtime.onStageChange('videos')}
-              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#2c6ef2] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
+              className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-[#3b82f6] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8]"
             >
               <AppIcon name="film" className="h-4 w-4" />
               {t('readiness.backToShots')}
@@ -421,7 +421,7 @@ export default function ExportDeliveryStage() {
                     item.status === 'ready'
                       ? 'bg-emerald-400/10 text-emerald-200'
                       : item.status === 'available'
-                        ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]'
+                        ? 'bg-[#3b82f6]/14 text-[#93c5fd]'
                         : 'bg-[#f5a524]/10 text-[#ffd58a]'
                   }`}>
                     {t(`queue.status.${item.status}`)}
@@ -439,7 +439,7 @@ export default function ExportDeliveryStage() {
                     type="button"
                     onClick={() => void enqueueExportItem(item)}
                     disabled={item.status === 'blocked' || queueingId !== null}
-                    className="inline-flex h-7 items-center justify-center rounded border border-white/10 bg-white/6 px-2 text-[11px] font-medium text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="inline-flex h-7 items-center justify-center rounded border border-white/10 bg-white/6 px-2 text-[11px] font-medium text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {queueingId === item.id ? t('queue.enqueueing') : t('queue.enqueue')}
                   </button>

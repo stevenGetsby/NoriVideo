@@ -21,19 +21,19 @@ import type {
 } from '@/types/project'
 
 const FOCUS_META: Record<string, { icon: AppIconName; tone: string }> = {
-  'script': { icon: 'fileText', tone: 'text-[#8ab8ff]' },
-  'script-review': { icon: 'clipboardCheck', tone: 'text-[#8ab8ff]' },
+  'script': { icon: 'fileText', tone: 'text-[#60a5fa]' },
+  'script-review': { icon: 'clipboardCheck', tone: 'text-[#60a5fa]' },
   'characters': { icon: 'usersRound', tone: 'text-[#7ee7c8]' },
   'items': { icon: 'package', tone: 'text-[#f8c96a]' },
   'environments': { icon: 'image', tone: 'text-[#9dd7ff]' },
   'timbre': { icon: 'audioWave', tone: 'text-[#d7a5ff]' },
-  'storyboard': { icon: 'clapperboard', tone: 'text-[#8ab8ff]' },
+  'storyboard': { icon: 'clapperboard', tone: 'text-[#60a5fa]' },
   'episodes': { icon: 'bookOpen', tone: 'text-[#7ee7c8]' },
   'timeline': { icon: 'barChart', tone: 'text-[#f8c96a]' },
-  'shot': { icon: 'film', tone: 'text-[#8ab8ff]' },
+  'shot': { icon: 'film', tone: 'text-[#60a5fa]' },
   'shot-detail': { icon: 'video', tone: 'text-[#9dd7ff]' },
   'export': { icon: 'download', tone: 'text-[#7ee7c8]' },
-  'workbench': { icon: 'monitor', tone: 'text-[#8ab8ff]' },
+  'workbench': { icon: 'monitor', tone: 'text-[#60a5fa]' },
 }
 
 const WORKFLOW_STAGE_PATHS: Record<WorkflowStageState['id'], string> = {
@@ -875,7 +875,7 @@ export default function WorkbenchFocusPanel({
               <span className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] font-medium text-white/42">
                 {t(`variants.${variant}`)}
               </span>
-              <span className="rounded border border-[#2c6ef2]/35 bg-[#2c6ef2]/12 px-2 py-0.5 text-[11px] font-medium text-[#8ab8ff]">
+              <span className="rounded border border-[#3b82f6]/35 bg-[#3b82f6]/12 px-2 py-0.5 text-[11px] font-medium text-[#60a5fa]">
                 {stageLabel}
               </span>
             </div>
@@ -933,7 +933,7 @@ export default function WorkbenchFocusPanel({
                   <Link
                     key={stage.id}
                     href={buildStageHref(stage.id)}
-                    className="rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7"
+                    className="rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="min-w-0">
@@ -946,7 +946,7 @@ export default function WorkbenchFocusPanel({
                         stage.status === 'ready'
                           ? 'bg-emerald-400/12 text-emerald-200'
                           : stage.status === 'active'
-                            ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]'
+                            ? 'bg-[#3b82f6]/14 text-[#93c5fd]'
                             : stage.status === 'processing'
                               ? 'bg-[#d6ff00]/12 text-[#e7ff66]'
                               : 'bg-white/6 text-white/42'
@@ -956,7 +956,7 @@ export default function WorkbenchFocusPanel({
                     </div>
                     <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/8">
                       <div
-                        className={`h-full rounded-full ${stage.status === 'ready' ? 'bg-emerald-400' : 'bg-[#2c6ef2]'}`}
+                        className={`h-full rounded-full ${stage.status === 'ready' ? 'bg-emerald-400' : 'bg-[#3b82f6]'}`}
                         style={{ width: `${stage.progress}%` }}
                       />
                     </div>
@@ -1065,9 +1065,9 @@ export default function WorkbenchFocusPanel({
                 return (
                   <div
                     key={clip.id}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_250px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_250px]"
                   >
-                    <div className="flex h-14 w-14 items-center justify-center rounded-md bg-[#2c6ef2]/14 text-sm font-semibold text-[#9bc3ff]">
+                    <div className="flex h-14 w-14 items-center justify-center rounded-md bg-[#3b82f6]/14 text-sm font-semibold text-[#93c5fd]">
                       {index + 1}
                     </div>
                     <div className="min-w-0">
@@ -1109,11 +1109,11 @@ export default function WorkbenchFocusPanel({
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[#2c6ef2]" style={{ width: `${progress}%` }} />
+                        <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${progress}%` }} />
                       </div>
                       <Link
                         href={linkedPanels[0] ? buildShotDetailHref(linkedPanels[0].id) : buildStoryboardHref()}
-                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {linkedPanels[0] ? t('scriptReview.openShot') : t('scriptReview.openStoryboard')}
                       </Link>
@@ -1202,13 +1202,13 @@ export default function WorkbenchFocusPanel({
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               href={`/workspace/${projectId}/workbench/script-review${episode?.id ? `?episode=${encodeURIComponent(episode.id)}` : ''}`}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
             >
               {t('script.openReview')}
             </Link>
             <Link
               href={buildStoryboardHref()}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
             >
               {t('script.openStoryboard')}
             </Link>
@@ -1262,7 +1262,7 @@ export default function WorkbenchFocusPanel({
               {[
                 { label: t('assets.metrics.ready'), value: assetImageReadyItems.length, tone: 'text-[#7ee7c8]' },
                 { label: t('assets.metrics.missingImage'), value: assetMissingImageItems.length, tone: 'text-[#f8c96a]' },
-                { label: t('assets.metrics.linkedPanels'), value: assetLinkedPanelItems.length, tone: 'text-[#9bc3ff]' },
+                { label: t('assets.metrics.linkedPanels'), value: assetLinkedPanelItems.length, tone: 'text-[#93c5fd]' },
                 { label: t('assets.metrics.scriptOnly'), value: assetScriptOnlyItems.length, tone: 'text-white/74' },
               ].map((item) => (
                 <div key={item.label} className="rounded-md border border-white/8 bg-white/4 p-3">
@@ -1275,7 +1275,7 @@ export default function WorkbenchFocusPanel({
             <div className="grid gap-2 sm:grid-cols-2">
               {[
                 { key: 'missing', title: t('assets.queues.missing.title'), items: assetMissingImageItems, tone: 'border-amber-300/16 bg-amber-300/6' },
-                { key: 'script', title: t('assets.queues.scriptOnly.title'), items: assetScriptOnlyItems, tone: 'border-[#2c6ef2]/20 bg-[#2c6ef2]/7' },
+                { key: 'script', title: t('assets.queues.scriptOnly.title'), items: assetScriptOnlyItems, tone: 'border-[#3b82f6]/20 bg-[#3b82f6]/7' },
               ].map((queue) => (
                 <div key={queue.key} className={`rounded-md border p-3 ${queue.tone}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -1289,7 +1289,7 @@ export default function WorkbenchFocusPanel({
                       <Link
                         key={item.id}
                         href={item.href}
-                        className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#2c6ef2]/55"
+                        className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#3b82f6]/55"
                       >
                         <div className="truncate text-[11px] font-semibold text-white/64">{item.title}</div>
                         <div className="mt-1 flex flex-wrap gap-1 text-[10px] text-white/34">
@@ -1327,13 +1327,13 @@ export default function WorkbenchFocusPanel({
                   href={item.href}
                   className={`rounded-md border px-3 py-2 transition-colors ${
                     active
-                      ? 'border-[#2c6ef2]/60 bg-[#2c6ef2]/12'
-                      : 'border-white/8 bg-white/4 hover:border-[#2c6ef2]/45 hover:bg-white/7'
+                      ? 'border-[#3b82f6]/60 bg-[#3b82f6]/12'
+                      : 'border-white/8 bg-white/4 hover:border-[#3b82f6]/45 hover:bg-white/7'
                   }`}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <div className="min-w-0 truncate text-sm font-medium text-white/76">{item.title}</div>
-                    <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] ${active ? 'bg-[#2c6ef2]/18 text-[#9bc3ff]' : 'bg-white/6 text-white/42'}`}>
+                    <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] ${active ? 'bg-[#3b82f6]/18 text-[#93c5fd]' : 'bg-white/6 text-white/42'}`}>
                       {active ? t('assets.selected') : item.meta}
                     </span>
                   </div>
@@ -1399,7 +1399,7 @@ export default function WorkbenchFocusPanel({
                       <span className="rounded bg-white/6 px-2 py-1 text-white/42">
                         {selectedPanel ? t('shotDetail.order', { index: selectedPanel.panelIndex + 1 }) : t('data.empty')}
                       </span>
-                      <span className={`rounded px-2 py-1 ${selectedPanelRunning ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]' : 'bg-white/6 text-white/42'}`}>
+                      <span className={`rounded px-2 py-1 ${selectedPanelRunning ? 'bg-[#3b82f6]/14 text-[#93c5fd]' : 'bg-white/6 text-white/42'}`}>
                         {selectedPanelRunning ? t('shotDetail.running') : t('shotDetail.idle')}
                       </span>
                     </div>
@@ -1457,7 +1457,7 @@ export default function WorkbenchFocusPanel({
                   <textarea
                     value={draftShotDescription}
                     onChange={(event) => setDraftShotDescription(event.target.value)}
-                    className="mt-2 min-h-[92px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 min-h-[92px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.shotDescriptionPlaceholder')}
                   />
                 </div>
@@ -1466,7 +1466,7 @@ export default function WorkbenchFocusPanel({
                   <input
                     value={draftShotType}
                     onChange={(event) => setDraftShotType(event.target.value)}
-                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.shotTypePlaceholder')}
                   />
                 </div>
@@ -1475,7 +1475,7 @@ export default function WorkbenchFocusPanel({
                   <input
                     value={draftCameraMove}
                     onChange={(event) => setDraftCameraMove(event.target.value)}
-                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.cameraMovePlaceholder')}
                   />
                 </div>
@@ -1484,7 +1484,7 @@ export default function WorkbenchFocusPanel({
                   <textarea
                     value={draftImagePrompt}
                     onChange={(event) => setDraftImagePrompt(event.target.value)}
-                    className="mt-2 min-h-[128px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 min-h-[128px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.imagePromptPlaceholder')}
                   />
                 </div>
@@ -1493,7 +1493,7 @@ export default function WorkbenchFocusPanel({
                   <textarea
                     value={draftVideoPrompt}
                     onChange={(event) => setDraftVideoPrompt(event.target.value)}
-                    className="mt-2 min-h-[128px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 min-h-[128px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.videoPromptPlaceholder')}
                   />
                 </div>
@@ -1503,19 +1503,19 @@ export default function WorkbenchFocusPanel({
                     <input
                       value={draftShotLocation}
                       onChange={(event) => setDraftShotLocation(event.target.value)}
-                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                       placeholder={t('edit.locationPlaceholder')}
                     />
                     <input
                       value={draftShotCharacters}
                       onChange={(event) => setDraftShotCharacters(event.target.value)}
-                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                       placeholder={t('edit.charactersPlaceholder')}
                     />
                     <input
                       value={draftShotProps}
                       onChange={(event) => setDraftShotProps(event.target.value)}
-                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                      className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                       placeholder={t('edit.propsPlaceholder')}
                     />
                   </div>
@@ -1534,7 +1534,7 @@ export default function WorkbenchFocusPanel({
                     step="0.1"
                     value={draftDuration}
                     onChange={(event) => setDraftDuration(event.target.value)}
-                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                    className="mt-2 h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                     placeholder={t('edit.durationPlaceholder')}
                   />
                 </div>
@@ -1550,7 +1550,7 @@ export default function WorkbenchFocusPanel({
                     type="button"
                     onClick={() => { void savePanelDraft() }}
                     disabled={saving || !selectedPanel}
-                    className="rounded-md bg-[#2c6ef2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
+                    className="rounded-md bg-[#3b82f6] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
                   >
                     {saving ? t('edit.saving') : t('edit.saveShot')}
                   </button>
@@ -1566,13 +1566,13 @@ export default function WorkbenchFocusPanel({
                       <input
                         value={draftName}
                         onChange={(event) => setDraftName(event.target.value)}
-                        className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                        className="h-9 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                         placeholder={t('edit.namePlaceholder')}
                       />
                       <textarea
                         value={draftSummary}
                         onChange={(event) => setDraftSummary(event.target.value)}
-                        className="min-h-[104px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                        className="min-h-[104px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                         placeholder={t('edit.summaryPlaceholder')}
                       />
                     </div>
@@ -1624,7 +1624,7 @@ export default function WorkbenchFocusPanel({
                       type="button"
                       onClick={() => { void saveAssetDraft() }}
                       disabled={saving || (!(selectedAsset || selectedCharacter) || !draftName.trim())}
-                      className="rounded-md bg-[#2c6ef2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
+                      className="rounded-md bg-[#3b82f6] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
                     >
                       {saving ? t('edit.saving') : focus === 'characters' ? t('edit.saveCharacter') : t('edit.saveAsset')}
                     </button>
@@ -1655,9 +1655,9 @@ export default function WorkbenchFocusPanel({
                   <Link
                     key={item.id}
                     href={buildEpisodeTimelineHref(item.id)}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[88px_1fr_220px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[88px_1fr_220px]"
                   >
-                    <div className="flex h-14 w-16 items-center justify-center rounded-md bg-[#2c6ef2]/14 text-sm font-semibold text-[#9bc3ff]">
+                    <div className="flex h-14 w-16 items-center justify-center rounded-md bg-[#3b82f6]/14 text-sm font-semibold text-[#93c5fd]">
                       {t('episodes.index', { index: item.episodeNumber })}
                     </div>
                     <div className="min-w-0">
@@ -1679,7 +1679,7 @@ export default function WorkbenchFocusPanel({
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[#2c6ef2]" style={{ width: `${progress}%` }} />
+                        <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${progress}%` }} />
                       </div>
                     </div>
                   </Link>
@@ -1729,7 +1729,7 @@ export default function WorkbenchFocusPanel({
                 return (
                   <div
                     key={character.id}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_240px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_240px]"
                   >
                     <div className="h-14 w-14 overflow-hidden rounded-md border border-white/10 bg-white/6">
                       {previewImage ? (
@@ -1774,7 +1774,7 @@ export default function WorkbenchFocusPanel({
                       </div>
                       <Link
                         href={buildAssetFocusHref('characters', character.id)}
-                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('timbre.openCharacter')}
                       </Link>
@@ -1815,13 +1815,13 @@ export default function WorkbenchFocusPanel({
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={buildShotQueueHref()}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('storyboard.openShotQueue')}
                       </Link>
                       <Link
                         href={episode?.id ? buildEpisodeTimelineHref(episode.id) : buildShotQueueHref()}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('storyboard.openTimeline')}
                       </Link>
@@ -1830,7 +1830,7 @@ export default function WorkbenchFocusPanel({
                   <div className="mt-3 grid gap-2 sm:grid-cols-4">
                     {[
                       { label: t('storyboard.expectedPanels'), value: storyboardExpectedPanels, tone: 'text-white/74' },
-                      { label: t('storyboard.panelReady'), value: panels.length, tone: 'text-[#9bc3ff]' },
+                      { label: t('storyboard.panelReady'), value: panels.length, tone: 'text-[#93c5fd]' },
                       { label: t('storyboard.imageCoverage'), value: `${imagePanels.length}/${panels.length}`, tone: 'text-[#f8c96a]' },
                       { label: t('storyboard.videoCoverage'), value: `${videoPanels.length}/${panels.length}`, tone: 'text-[#7ee7c8]' },
                     ].map((item) => (
@@ -1849,7 +1849,7 @@ export default function WorkbenchFocusPanel({
                   <div className="mt-3 space-y-2">
                     {[
                       { label: t('storyboard.needsPanels'), value: storyboardsNeedingPanels.length, tone: storyboardsNeedingPanels.length ? 'bg-amber-400/12 text-amber-200' : 'bg-white/6 text-white/42' },
-                      { label: t('storyboard.needsRefs'), value: storyboardsNeedingRefs.length, tone: storyboardsNeedingRefs.length ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]' : 'bg-white/6 text-white/42' },
+                      { label: t('storyboard.needsRefs'), value: storyboardsNeedingRefs.length, tone: storyboardsNeedingRefs.length ? 'bg-[#3b82f6]/14 text-[#93c5fd]' : 'bg-white/6 text-white/42' },
                       { label: t('storyboard.needsImages'), value: storyboardsNeedingImages.length, tone: storyboardsNeedingImages.length ? 'bg-amber-400/12 text-amber-200' : 'bg-white/6 text-white/42' },
                       { label: t('storyboard.videoReadyGroups'), value: storyboardsWithVideoReady.length, tone: storyboardsWithVideoReady.length ? 'bg-emerald-400/12 text-emerald-200' : 'bg-white/6 text-white/42' },
                     ].map((item) => (
@@ -1865,7 +1865,7 @@ export default function WorkbenchFocusPanel({
               <div className="grid gap-2 lg:grid-cols-4">
                 {[
                   { key: 'panel', title: t('storyboard.columns.panel.title'), description: t('storyboard.columns.panel.description'), items: storyboardsNeedingPanels, tone: 'border-amber-300/16 bg-amber-300/6' },
-                  { key: 'refs', title: t('storyboard.columns.refs.title'), description: t('storyboard.columns.refs.description'), items: storyboardsNeedingRefs, tone: 'border-[#2c6ef2]/20 bg-[#2c6ef2]/7' },
+                  { key: 'refs', title: t('storyboard.columns.refs.title'), description: t('storyboard.columns.refs.description'), items: storyboardsNeedingRefs, tone: 'border-[#3b82f6]/20 bg-[#3b82f6]/7' },
                   { key: 'image', title: t('storyboard.columns.image.title'), description: t('storyboard.columns.image.description'), items: storyboardsNeedingImages, tone: 'border-amber-300/16 bg-amber-300/6' },
                   { key: 'ready', title: t('storyboard.columns.ready.title'), description: t('storyboard.columns.ready.description'), items: storyboardsWithVideoReady, tone: 'border-emerald-300/16 bg-emerald-300/6' },
                 ].map((column) => (
@@ -1887,7 +1887,7 @@ export default function WorkbenchFocusPanel({
                           <Link
                             key={storyboard.id}
                             href={firstPanel ? buildShotDetailHref(firstPanel.id) : buildStoryboardHref()}
-                            className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#2c6ef2]/55"
+                            className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#3b82f6]/55"
                           >
                             <div className="truncate text-[11px] font-semibold text-white/64">
                               {t('storyboard.groupIndex', { index: storyboards.findIndex((item) => item.id === storyboard.id) + 1 || columnIndex + 1 })}
@@ -1921,9 +1921,9 @@ export default function WorkbenchFocusPanel({
                 return (
                   <div
                     key={storyboard.id}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[88px_1fr_240px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[88px_1fr_240px]"
                   >
-                    <div className="flex h-14 w-16 items-center justify-center rounded-md bg-[#2c6ef2]/14 text-sm font-semibold text-[#9bc3ff]">
+                    <div className="flex h-14 w-16 items-center justify-center rounded-md bg-[#3b82f6]/14 text-sm font-semibold text-[#93c5fd]">
                       {t('storyboard.groupIndex', { index: index + 1 })}
                     </div>
                     <div className="min-w-0">
@@ -1955,17 +1955,17 @@ export default function WorkbenchFocusPanel({
                         <span className={`rounded px-2 py-1 ${itemVideos.length > 0 ? 'bg-emerald-400/12 text-emerald-200' : 'bg-white/6 text-white/34'}`}>
                           {t('storyboard.videos', { count: itemVideos.length })}
                         </span>
-                        <span className={`rounded px-2 py-1 ${linkedRefs > 0 ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]' : 'bg-white/6 text-white/34'}`}>
+                        <span className={`rounded px-2 py-1 ${linkedRefs > 0 ? 'bg-[#3b82f6]/14 text-[#93c5fd]' : 'bg-white/6 text-white/34'}`}>
                           {t('storyboard.linkedRefs', { count: linkedRefs })}
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[#2c6ef2]" style={{ width: `${progress}%` }} />
+                        <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${progress}%` }} />
                       </div>
                       {firstPanel ? (
                         <Link
                           href={buildShotDetailHref(firstPanel.id)}
-                          className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                          className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                         >
                           {t('storyboard.openFirstShot')}
                         </Link>
@@ -2045,7 +2045,7 @@ export default function WorkbenchFocusPanel({
               <div key={card.id} className="rounded-md border border-white/8 bg-white/4 p-3">
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-md bg-white/6">
-                    <AppIcon name={card.icon} className="h-4 w-4 text-[#9bc3ff]" />
+                    <AppIcon name={card.icon} className="h-4 w-4 text-[#93c5fd]" />
                   </div>
                   <span className={`rounded px-2 py-0.5 text-[11px] ${card.ready ? 'bg-emerald-400/12 text-emerald-200' : 'bg-white/6 text-white/34'}`}>
                     {card.ready ? t('export.ready') : t('export.notReady')}
@@ -2064,13 +2064,13 @@ export default function WorkbenchFocusPanel({
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               href={episode?.id ? buildEpisodeTimelineHref(episode.id) : buildShotQueueHref()}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
             >
               {t('export.openTimeline')}
             </Link>
             <Link
               href={buildShotQueueHref()}
-              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+              className="inline-flex h-9 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
             >
               {t('export.openShots')}
             </Link>
@@ -2116,13 +2116,13 @@ export default function WorkbenchFocusPanel({
                     <div className="flex flex-wrap gap-2">
                       <Link
                         href={episode?.id ? buildEpisodeTimelineHref(episode.id) : buildShotQueueHref()}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('shot.openTimeline')}
                       </Link>
                       <Link
                         href={`/workspace/${projectId}/workbench/production/export${episode?.id ? `?episode=${encodeURIComponent(episode.id)}` : ''}`}
-                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 items-center justify-center rounded-md border border-white/10 bg-white/6 px-3 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('shot.openExport')}
                       </Link>
@@ -2131,7 +2131,7 @@ export default function WorkbenchFocusPanel({
                   <div className="mt-3 grid gap-2 sm:grid-cols-4">
                     {[
                       { label: t('shot.pendingImages'), value: pendingImagePanels.length, tone: 'text-[#f8c96a]' },
-                      { label: t('shot.pendingVideos'), value: pendingVideoPanels.length, tone: 'text-[#8ab8ff]' },
+                      { label: t('shot.pendingVideos'), value: pendingVideoPanels.length, tone: 'text-[#60a5fa]' },
                       { label: t('shot.deliverable'), value: deliverablePanels.length, tone: 'text-[#7ee7c8]' },
                       { label: t('shot.averageDuration'), value: formatSeconds(averageDuration), tone: 'text-white/74' },
                     ].map((item) => (
@@ -2149,7 +2149,7 @@ export default function WorkbenchFocusPanel({
                   </div>
                   <div className="mt-3 space-y-2">
                     {[
-                      { label: t('shot.running'), value: runningPanels.length, tone: runningPanels.length ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]' : 'bg-white/6 text-white/42' },
+                      { label: t('shot.running'), value: runningPanels.length, tone: runningPanels.length ? 'bg-[#3b82f6]/14 text-[#93c5fd]' : 'bg-white/6 text-white/42' },
                       { label: t('shot.imageErrors'), value: imageErrorCount, tone: imageErrorCount ? 'bg-rose-500/12 text-rose-200' : 'bg-white/6 text-white/42' },
                       { label: t('shot.videoErrors'), value: videoErrorCount, tone: videoErrorCount ? 'bg-rose-500/12 text-rose-200' : 'bg-white/6 text-white/42' },
                       { label: t('shot.refsMissingCount'), value: panels.filter((panel) => !hasPanelRefs(panel)).length, tone: panels.some((panel) => !hasPanelRefs(panel)) ? 'bg-amber-400/12 text-amber-200' : 'bg-white/6 text-white/42' },
@@ -2166,7 +2166,7 @@ export default function WorkbenchFocusPanel({
               <div className="grid gap-2 lg:grid-cols-4">
                 {[
                   { key: 'image', title: t('shot.columns.image.title'), description: t('shot.columns.image.description'), items: pendingImagePanels, tone: 'border-amber-300/16 bg-amber-300/6' },
-                  { key: 'video', title: t('shot.columns.video.title'), description: t('shot.columns.video.description'), items: pendingVideoPanels, tone: 'border-[#2c6ef2]/20 bg-[#2c6ef2]/7' },
+                  { key: 'video', title: t('shot.columns.video.title'), description: t('shot.columns.video.description'), items: pendingVideoPanels, tone: 'border-[#3b82f6]/20 bg-[#3b82f6]/7' },
                   { key: 'delivery', title: t('shot.columns.delivery.title'), description: t('shot.columns.delivery.description'), items: deliverablePanels, tone: 'border-emerald-300/16 bg-emerald-300/6' },
                   { key: 'attention', title: t('shot.columns.attention.title'), description: t('shot.columns.attention.description'), items: attentionPanels, tone: 'border-rose-300/16 bg-rose-300/6' },
                 ].map((column) => (
@@ -2185,7 +2185,7 @@ export default function WorkbenchFocusPanel({
                         <Link
                           key={panel.id}
                           href={buildShotDetailHref(panel.id)}
-                          className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#2c6ef2]/55"
+                          className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#3b82f6]/55"
                         >
                           <div className="truncate text-[11px] font-semibold text-white/64">
                             {t('shot.order', { index: panel.panelIndex + 1 })}
@@ -2215,7 +2215,7 @@ export default function WorkbenchFocusPanel({
                 return (
                   <div
                     key={panel.id}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[96px_1fr_260px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[96px_1fr_260px]"
                   >
                     <div className="h-16 w-24 overflow-hidden rounded-md border border-white/10 bg-white/6">
                       {panel.imageUrl ? (
@@ -2263,16 +2263,16 @@ export default function WorkbenchFocusPanel({
                         <span className={`rounded px-2 py-1 ${hasVideo ? 'bg-emerald-400/12 text-emerald-200' : 'bg-white/6 text-white/34'}`}>
                           {hasVideo ? t('shot.videoReady') : t('shot.videoMissing')}
                         </span>
-                        <span className={`rounded px-2 py-1 ${hasRefs ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]' : 'bg-white/6 text-white/34'}`}>
+                        <span className={`rounded px-2 py-1 ${hasRefs ? 'bg-[#3b82f6]/14 text-[#93c5fd]' : 'bg-white/6 text-white/34'}`}>
                           {hasRefs ? t('shot.refsReady') : t('shot.refsMissing')}
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[#2c6ef2]" style={{ width: `${completion}%` }} />
+                        <div className="h-full rounded-full bg-[#3b82f6]" style={{ width: `${completion}%` }} />
                       </div>
                       <Link
                         href={buildShotDetailHref(panel.id)}
-                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('shot.openDetail')}
                       </Link>
@@ -2299,7 +2299,7 @@ export default function WorkbenchFocusPanel({
                 type="button"
                 onClick={() => { void saveTimelineDrafts() }}
                 disabled={saving || timelineOrderedPanels.length === 0}
-                className="rounded-md bg-[#2c6ef2] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
+                className="rounded-md bg-[#3b82f6] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
               >
                 {saving ? t('edit.saving') : t('timeline.save')}
               </button>
@@ -2357,7 +2357,7 @@ export default function WorkbenchFocusPanel({
               <div className="grid gap-2 sm:grid-cols-2">
                 {[
                   { key: 'refs', title: t('timeline.queues.refs.title'), items: timelineMissingRefs, tone: 'border-amber-300/16 bg-amber-300/6' },
-                  { key: 'duration', title: t('timeline.queues.duration.title'), items: timelineMissingDuration, tone: 'border-[#2c6ef2]/20 bg-[#2c6ef2]/7' },
+                  { key: 'duration', title: t('timeline.queues.duration.title'), items: timelineMissingDuration, tone: 'border-[#3b82f6]/20 bg-[#3b82f6]/7' },
                 ].map((queue) => (
                   <div key={queue.key} className={`rounded-md border p-3 ${queue.tone}`}>
                     <div className="flex items-center justify-between gap-2">
@@ -2371,7 +2371,7 @@ export default function WorkbenchFocusPanel({
                         <Link
                           key={panel.id}
                           href={buildShotDetailHref(panel.id)}
-                          className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#2c6ef2]/55"
+                          className="block rounded border border-white/8 bg-black/14 px-2 py-2 transition-colors hover:border-[#3b82f6]/55"
                         >
                           <div className="truncate text-[11px] font-semibold text-white/64">
                             {t('timeline.orderValue', { index: panel.panelIndex + 1 || queueIndex + 1 })}
@@ -2411,7 +2411,7 @@ export default function WorkbenchFocusPanel({
                 return (
                   <div
                     key={panel.id}
-                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_230px]"
+                    className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#3b82f6]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_230px]"
                   >
                     <div className="flex h-14 w-14 items-center justify-center rounded-md bg-white/6 text-sm font-semibold text-white/62">
                       {row.timelineIndex || index + 1}
@@ -2427,7 +2427,7 @@ export default function WorkbenchFocusPanel({
                           type="button"
                           onClick={() => { void moveTimelinePanel(panel.id, 'up') }}
                           disabled={saving || !canMoveUp}
-                          className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-white/46 transition-colors hover:border-[#2c6ef2]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                          className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-white/46 transition-colors hover:border-[#3b82f6]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         >
                           {t('timeline.moveUp')}
                         </button>
@@ -2435,7 +2435,7 @@ export default function WorkbenchFocusPanel({
                           type="button"
                           onClick={() => { void moveTimelinePanel(panel.id, 'down') }}
                           disabled={saving || !canMoveDown}
-                          className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-white/46 transition-colors hover:border-[#2c6ef2]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                          className="rounded border border-white/10 bg-white/5 px-2 py-0.5 text-white/46 transition-colors hover:border-[#3b82f6]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
                         >
                           {t('timeline.moveDown')}
                         </button>
@@ -2444,13 +2444,13 @@ export default function WorkbenchFocusPanel({
                         <input
                           value={draft.shotType}
                           onChange={(event) => updateTimelineDraft(panel.id, { shotType: event.target.value })}
-                          className="h-8 rounded-md border border-white/10 bg-[#0b0e14] px-2 text-xs text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          className="h-8 rounded-md border border-white/10 bg-[#0b0e14] px-2 text-xs text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                           placeholder={t('edit.shotTypePlaceholder')}
                         />
                         <input
                           value={draft.cameraMove}
                           onChange={(event) => updateTimelineDraft(panel.id, { cameraMove: event.target.value })}
-                          className="h-8 rounded-md border border-white/10 bg-[#0b0e14] px-2 text-xs text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          className="h-8 rounded-md border border-white/10 bg-[#0b0e14] px-2 text-xs text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                           placeholder={t('edit.cameraMovePlaceholder')}
                         />
                       </div>
@@ -2469,13 +2469,13 @@ export default function WorkbenchFocusPanel({
                           step="0.1"
                           value={draft.duration}
                           onChange={(event) => updateTimelineDraft(panel.id, { duration: event.target.value })}
-                          className="h-7 rounded border border-white/10 bg-[#0b0e14] px-2 text-center text-[11px] text-white outline-none placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          className="h-7 rounded border border-white/10 bg-[#0b0e14] px-2 text-center text-[11px] text-white outline-none placeholder:text-white/28 focus:border-[#3b82f6]"
                           placeholder={t('timeline.duration')}
                         />
                       </div>
                       <Link
                         href={buildShotDetailHref(panel.id)}
-                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white"
+                        className="inline-flex h-8 w-full items-center justify-center rounded-md border border-white/10 bg-white/6 text-xs font-semibold text-white/58 transition-colors hover:border-[#3b82f6]/55 hover:text-white"
                       >
                         {t('timeline.detail')}
                       </Link>

@@ -168,7 +168,7 @@ function WorkbenchSidebar({
     <aside className="fixed left-6 top-20 bottom-6 z-30 hidden w-64 flex-col rounded-lg border border-white/10 bg-[#15161b] p-4 shadow-[0_18px_50px_rgba(0,0,0,.28)] xl:flex">
       <div className="border-b border-white/10 pb-4">
         <div className="mb-3 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#3b82f6] text-sm font-bold text-white">
             N
           </div>
           <div className="min-w-0">
@@ -198,7 +198,7 @@ function WorkbenchSidebar({
                 disabled
                   ? 'cursor-not-allowed text-white/28'
                   : active
-                    ? 'bg-[#2c6ef2] text-white shadow-[0_10px_24px_rgba(44,110,242,.22)]'
+                    ? 'bg-[#3b82f6] text-white shadow-[0_10px_24px_rgba(44,110,242,.22)]'
                     : 'text-white/68 hover:bg-white/7 hover:text-white'
               }`}
             >
@@ -219,7 +219,7 @@ function WorkbenchSidebar({
                 <div className="mt-2">
                   <div className="h-1 overflow-hidden rounded-full bg-white/10">
                     <div
-                      className={`h-full rounded-full ${item.status === 'ready' ? 'bg-emerald-400' : 'bg-[#2c6ef2]'}`}
+                      className={`h-full rounded-full ${item.status === 'ready' ? 'bg-emerald-400' : 'bg-[#3b82f6]'}`}
                       style={{ width: `${item.progress}%` }}
                     />
                   </div>
