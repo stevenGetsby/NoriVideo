@@ -1,8 +1,0 @@
-{
-  "ok": true,
-  "createdAt": "2026-06-09T16:59:07.078Z",
-  "taskId": "cgt-20260610005642-b9wx7",
-  "status": "succeeded",
-  "videoUrlPresent": true,
-  "note": "Full URL intentionally omitted from console summary; task returned a Volcengine TOS video_url during polling."
-}
