@@ -29,7 +29,7 @@ function formatDate(value: string) {
 }
 
 function deriveEdition(p: ProjectItem) {
-  return (p.description || '').includes('Nori1.0') || p.name === 'TEST' ? 'Nori1.0' : 'Nori1.0'
+  return (p.description || '').includes('精品') ? '精品版 2.0' : '精品版 2.0'
 }
 
 function ProjectCard({ project }: { project: ProjectItem }) {
@@ -37,20 +37,20 @@ function ProjectCard({ project }: { project: ProjectItem }) {
   const style = /画风|风$/.test(desc) ? desc.split('·').map((s) => s.trim()).find((s) => s.endsWith('风')) : null
   return (
     <Link href={{ pathname: `/workflow/${project.id}/workbench-premium2` }}
-      className="group block overflow-hidden rounded-[10px] border transition-colors"
-      style={{ height: 293, borderColor: 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
-      <div className="relative flex items-center justify-center" style={{ height: 173, background: 'linear-gradient(145deg,#141a28,#101220)' }}>
-        <span className="absolute left-4 top-4 rounded-full border border-[#a9892d]/60 bg-[#4d3d12]/40 px-3 py-1 text-[11px] font-bold text-[#e4c553]">{deriveEdition(project)}</span>
-        <AppIcon name="folderOpen" className="h-16 w-16 text-[#64708d]/60" />
+      className="group block overflow-hidden rounded-[10px] border transition-colors hover:border-[var(--fos-border-strong)]"
+      style={{ borderColor: 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+      <div className="relative flex items-center justify-center" style={{ aspectRatio: '16 / 10', background: 'linear-gradient(135deg,#1b2330,#0f1320)' }}>
+        <span className="absolute left-3 top-3 rounded-full border border-[#a9892d]/60 bg-[#3a2f12]/70 px-2.5 py-0.5 text-[11px] font-bold text-[#e4c553]">{deriveEdition(project)}</span>
+        <AppIcon name="folderOpen" className="h-14 w-14 text-white/15" />
       </div>
-      <div className="p-5">
-        <h3 className="truncate text-[16px] font-bold text-white">{project.name}</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="fos-pill"><AppIcon name="film" className="h-3 w-3 text-[#5c8dff]" />剧情模式</span>
-          <span className="fos-pill"><AppIcon name="monitor" className="h-3 w-3 text-[#5c8dff]" />9:16</span>
-          {style ? <span className="fos-pill"><AppIcon name="settingsHexMinor" className="h-3 w-3 text-[#5c8dff]" />{style}</span> : null}
+      <div className="p-4">
+        <h3 className="truncate text-[15px] font-bold text-white">{project.name}</h3>
+        <div className="mt-2.5 flex flex-wrap gap-1.5">
+          <span className="fos-pill" style={{ height: 24 }}><AppIcon name="film" className="h-3 w-3 text-[#5c8dff]" />剧情模式</span>
+          <span className="fos-pill" style={{ height: 24 }}><AppIcon name="monitor" className="h-3 w-3 text-[#5c8dff]" />9:16</span>
+          {style ? <span className="fos-pill" style={{ height: 24 }}><AppIcon name="settingsHexMinor" className="h-3 w-3 text-[#5c8dff]" />{style}</span> : null}
         </div>
-        <div className="mt-4 flex items-center gap-2 border-t border-[var(--fos-border-soft)] pt-3 text-[12px] text-[var(--fos-text-4)]">
+        <div className="mt-3 flex items-center gap-1.5 border-t border-[var(--fos-border-soft)] pt-3 text-[12px] text-[var(--fos-text-4)]">
           <AppIcon name="clock" className="h-3.5 w-3.5" />{formatDate(project.createdAt)} 创建
         </div>
       </div>
@@ -150,18 +150,18 @@ export function FosProjectsClient() {
             </div>
           </div>
 
-          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+          <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
             <button type="button" onClick={() => setShowCreate(true)}
-              className="group flex flex-col items-center justify-center gap-4 rounded-[10px] border transition-colors"
-              style={{ height: 293, borderColor: 'var(--fos-primary-border)', background: 'var(--fos-bg-2)' }}>
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-[var(--fos-bg-4)] text-white transition-transform group-hover:scale-105">
-                <AppIcon name="plus" className="h-8 w-8" />
+              className="group flex flex-col items-center justify-center gap-3 rounded-[10px] border border-dashed transition-colors hover:border-[var(--fos-primary-border)]"
+              style={{ aspectRatio: '16 / 14', borderColor: 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--fos-bg-4)] text-white transition-transform group-hover:scale-105">
+                <AppIcon name="plus" className="h-7 w-7" />
               </div>
-              <div className="text-[14px] font-semibold text-[var(--fos-text-2)]">新建项目</div>
+              <div className="text-[13px] font-semibold text-[var(--fos-text-2)]">新建项目</div>
             </button>
             {loading ? (
               Array.from({ length: 3 }).map((_, i) => (
-                <div key={i} className="animate-pulse rounded-[10px]" style={{ height: 293, background: 'var(--fos-bg-2)' }} />
+                <div key={i} className="animate-pulse rounded-[10px]" style={{ aspectRatio: '16 / 14', background: 'var(--fos-bg-2)' }} />
               ))
             ) : (
               projects.map((p) => <ProjectCard key={p.id} project={p} />)

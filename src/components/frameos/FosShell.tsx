@@ -36,7 +36,6 @@ const primaryNav: NavItem[] = [
 const secondaryNav: NavItem[] = [
   { key: 'records', label: '服务记录', href: '/service-records', icon: 'receipt' },
   { key: 'feedback', label: '问题反馈', href: '/feedback', icon: 'infoCircle' },
-  { key: 'updates', label: '检查更新', href: '/updates', icon: 'refresh' },
 ]
 
 interface Balance {
@@ -45,14 +44,7 @@ interface Balance {
 }
 
 export function FosTitlebar() {
-  return (
-    <header className="fos-titlebar">
-      <div className="fos-titlebar-title">NoriVideo</div>
-      <button type="button" className="fos-titlebar-refresh" title="刷新" onClick={() => location.reload()}>
-        <AppIcon name="refresh" className="h-3.5 w-3.5" />
-      </button>
-    </header>
-  )
+  return null
 }
 
 function BalancePill({ balance }: { balance: Balance }) {
@@ -98,7 +90,12 @@ export function FosHeader({ balance }: { balance: Balance }) {
         <span className="fos-logo-mark"><i /><i /><i /></span>
         <span className="fos-logo-text"><span className="a">Nori</span><span className="b">Video</span></span>
       </Link>
-      <BalancePill balance={balance} />
+      <div className="flex items-center gap-4">
+        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" style={{ borderRadius: 9999 }}>
+          <AppIcon name="download" className="h-3.5 w-3.5" />下载桌面端
+        </button>
+        <BalancePill balance={balance} />
+      </div>
     </div>
   )
 }

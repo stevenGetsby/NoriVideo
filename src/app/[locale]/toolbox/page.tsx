@@ -1,15 +1,5 @@
-import { FrameFeatureHubPage } from '@/components/workspace/FrameFeatureHubPage'
-import { FrameToolboxDashboard } from '@/components/workspace/FrameToolboxDashboard'
+import { FosToolboxClient } from '@/components/frameos/FosToolboxClient'
 
 export default function ToolboxPage() {
-  return (
-    <FrameFeatureHubPage
-      activeKey="toolbox"
-      pageKey="toolbox"
-      icon="settingsHexMinor"
-      primaryAction={{ href: { pathname: '/service-records' }, labelKey: 'openServiceRecords', icon: 'receipt' }}
-    >
-      <FrameToolboxDashboard />
-    </FrameFeatureHubPage>
-  )
+  return <FosToolboxClient />
 }
