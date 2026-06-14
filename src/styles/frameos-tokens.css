@@ -1,0 +1,222 @@
+/*
+ * FrameOS 深色主题设计 token（像素级复刻）
+ * 来源：app-asar-extract/dist/web/css/index-l9n7trgZ.css + element-plus-DD6efkYp.css
+ * 规范：pixel-replica/01-design-tokens.md
+ *
+ * 作用域：[data-theme="frameos-dark"]，挂在 FrameOS 复刻页面的根容器上，
+ * 不污染 NoriVideo 现有浅色玻璃主题。
+ */
+
+[data-theme="frameos-dark"] {
+  /* ---- 1.1 背景色层级 ---- */
+  --fos-bg-1: #0a0a0a;        /* 页面最底层 */
+  --fos-bg-2: #141414;        /* 卡片 / 面板 / 主内容容器 */
+  --fos-bg-3: #1d1e1f;        /* 悬浮层 / 弹窗 / 下拉 / popover */
+  --fos-bg-4: #303030;        /* 填充块（输入框填充态、tag 背景） */
+  --fos-bg-5: #262727;        /* 浅填充（hover 态） */
+  --fos-bg-6: #424243;        /* 深填充（强调块） */
+  --fos-fill-lighter: #1d1d1d;
+  --fos-fill-extra-light: #191919;
+  --fos-mask: rgba(0, 0, 0, 0.8);
+
+  /* ---- 1.2 文字色层级 ---- */
+  --fos-text-title: #e5eaf3;     /* 标题 / 主文字 */
+  --fos-text-regular: #cfd3dc;   /* 常规正文 */
+  --fos-text-secondary: #a3a6ad; /* 次级文字 */
+  --fos-text-tertiary: #8d9095;  /* 占位符 / 三级文字 */
+  --fos-text-disabled: #6c6e72;  /* 禁用文字 */
+
+  /* ---- 1.3 主题色 / 品牌色 ---- */
+  --fos-primary: #2563eb;          /* token 源头品牌主色 */
+  --fos-primary-interactive: #3b82f6; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
+  --fos-primary-light-5: #60a5fa;  /* hover 高亮 */
+  --fos-primary-light-7: #93c5fd;
+  --fos-primary-light-8: #bfdbfe;
+  --fos-primary-light-9: #dbeafe;
+  --fos-primary-dark-2: #1d4ed8;   /* 按下态 / 渐变终点 */
+
+  --fos-gradient-primary: linear-gradient(135deg, #2563eb, #1d4ed8);
+  --fos-gradient-primary-hover: linear-gradient(135deg, #1d4ed8, #2563eb);
+  --fos-gradient-purple: linear-gradient(135deg, #9333ea, #7c3aed);
+  --fos-gradient-success: linear-gradient(135deg, #10b981, #059669);
+
+  /* ---- 1.4 状态色 ---- */
+  --fos-success: #10b981;
+  --fos-success-light: #34d399;
+  --fos-success-dark: #059669;
+  --fos-warning: #f59e0b;
+  --fos-warning-light: #fbbf24;
+  --fos-warning-dark: #d97706;
+  --fos-danger: #ef4444;
+  --fos-danger-light: #f87171;
+  --fos-danger-dark: #dc2626;
+  --fos-info: #909399;
+
+  /* ---- 1.5 边框色 ---- */
+  --fos-border: #4c4d4f;
+  --fos-border-hover: rgba(64, 158, 255, 0.5);
+  --fos-border-darker: #636466;
+  --fos-border-dark: #58585b;
+  --fos-border-light: #414243;
+  --fos-border-lighter: #363637;
+  --fos-border-extra-light: #2b2b2c;
+
+  /* ---- 1.6 滚动条 ---- */
+  --fos-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --fos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+  --fos-scrollbar-track: rgba(255, 255, 255, 0.05);
+
+  /* ---- 2 字体 ---- */
+  --fos-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, "Noto Sans", sans-serif,
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --fos-fs-10: 10px;
+  --fos-fs-11: 11px;
+  --fos-fs-12: 12px;
+  --fos-fs-13: 13px;  /* 正文基准 */
+  --fos-fs-14: 14px;
+  --fos-fs-15: 15px;
+  --fos-fs-16: 16px;
+  --fos-fs-18: 18px;
+  --fos-fs-20: 20px;
+
+  /* ---- 4 圆角 ---- */
+  --fos-radius-tag: 4px;
+  --fos-radius-control: 8px;   /* 输入框 / 按钮 */
+  --fos-radius-card: 10px;     /* 卡片 / 面板（全局最高频） */
+  --fos-radius-card-lg: 12px;  /* 大卡片 / 对话框 */
+  --fos-radius-pill: 9999px;
+
+  /* ---- 5 阴影 ---- */
+  --fos-shadow-inset-hi: inset 0 0 0 1px rgba(255, 255, 255, 0.1); /* 卡片高光描边 */
+  --fos-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --fos-shadow-btn-glow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  --fos-shadow-overlay: 0px 12px 32px 4px rgba(0, 0, 0, 0.36), 0px 8px 20px rgba(0, 0, 0, 0.72);
+
+  /* ---- 6 过渡 ---- */
+  --fos-transition-fast: all 0.15s ease;
+  --fos-transition-base: all 0.2s ease;
+  --fos-transition-slow: all 0.3s ease;
+
+  /* ---- 8 组件尺寸 ---- */
+  --fos-size-lg: 40px;
+  --fos-size-base: 32px;
+  --fos-size-sm: 24px;
+}
+
+/* ===== FrameOS 作用域基础样式 ===== */
+[data-theme="frameos-dark"] {
+  background: var(--fos-bg-1);
+  color: var(--fos-text-regular);
+  font-family: var(--fos-font-sans);
+  font-size: var(--fos-fs-13);
+  line-height: 1.5;
+}
+
+[data-theme="frameos-dark"] ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+[data-theme="frameos-dark"] ::-webkit-scrollbar-track {
+  background: var(--fos-scrollbar-track);
+}
+[data-theme="frameos-dark"] ::-webkit-scrollbar-thumb {
+  background: var(--fos-scrollbar-thumb);
+  border-radius: var(--fos-radius-pill);
+}
+[data-theme="frameos-dark"] ::-webkit-scrollbar-thumb:hover {
+  background: var(--fos-scrollbar-thumb-hover);
+}
+
+/* ===== FrameOS 可复用组件类 ===== */
+.fos-card {
+  background: var(--fos-bg-2);
+  border-radius: var(--fos-radius-card);
+  box-shadow: var(--fos-shadow-inset-hi);
+  border: 1px solid var(--fos-border-lighter);
+}
+
+.fos-panel {
+  background: var(--fos-bg-2);
+  border-radius: var(--fos-radius-card);
+  border: 1px solid var(--fos-border-lighter);
+}
+
+.fos-overlay {
+  background: var(--fos-bg-3);
+  border-radius: var(--fos-radius-card);
+  box-shadow: var(--fos-shadow-overlay);
+  border: 1px solid var(--fos-border-light);
+}
+
+.fos-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: var(--fos-size-base);
+  padding: 8px 16px;
+  border-radius: var(--fos-radius-control);
+  font-size: var(--fos-fs-13);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  border: 1px solid var(--fos-border);
+  background: var(--fos-bg-4);
+  color: var(--fos-text-title);
+  transition: var(--fos-transition-fast);
+}
+.fos-btn:hover {
+  background: var(--fos-bg-5);
+  border-color: var(--fos-border-darker);
+}
+
+.fos-btn-primary {
+  background: var(--fos-primary-interactive);
+  border-color: var(--fos-primary-interactive);
+  color: #fff;
+}
+.fos-btn-primary:hover {
+  background: var(--fos-primary-dark-2);
+  border-color: var(--fos-primary-dark-2);
+  box-shadow: var(--fos-shadow-btn-glow);
+}
+
+.fos-input {
+  height: var(--fos-size-base);
+  padding: 0 12px;
+  border-radius: var(--fos-radius-control);
+  background: var(--fos-bg-4);
+  border: 1px solid var(--fos-border);
+  color: var(--fos-text-title);
+  font-size: var(--fos-fs-13);
+  transition: var(--fos-transition-base);
+}
+.fos-input::placeholder {
+  color: var(--fos-text-tertiary);
+}
+.fos-input:focus {
+  outline: none;
+  border-color: var(--fos-primary-interactive);
+}
+
+.fos-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: var(--fos-radius-tag);
+  font-size: var(--fos-fs-12);
+  background: var(--fos-bg-4);
+  color: var(--fos-text-secondary);
+}
+
+.fos-title {
+  color: var(--fos-text-title);
+  font-weight: 600;
+}
+.fos-text-secondary {
+  color: var(--fos-text-secondary);
+}
+.fos-text-tertiary {
+  color: var(--fos-text-tertiary);
+}
