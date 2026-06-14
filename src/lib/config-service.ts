@@ -23,6 +23,7 @@ import {
   HFSY_IMAGE_MODEL_KEY,
 } from '@/lib/hfsy-fixed-models'
 import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
+import { PROJECT_LEVEL, resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
 
 export type ParsedModelKey = { provider: string, modelId: string }
 
@@ -109,7 +110,13 @@ export interface ProjectModelConfig {
   editModel: string | null
   videoModel: string | null
   audioModel: string | null
+  projectLevel: string
+  projectStyle: string
+  targetAudience: string
+  targetAudiencePrompt: string
   videoRatio: string | null
+  videoResolution: string | null
+  targetEpisodeDurationSeconds: number
   artStyle: string | null
   artStylePrompt: string | null
   capabilityDefaults: CapabilitySelections
@@ -166,7 +173,13 @@ export async function getProjectModelConfig(
     editModel: extractModelKey(projectData?.editModel) || extractModelKey(userPref?.editModel) || HFSY_IMAGE_MODEL_KEY,
     videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || null,
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
+    projectLevel: projectData?.projectLevel || PROJECT_LEVEL,
+    projectStyle: projectData?.projectStyle || 'live-action',
+    targetAudience: projectData?.targetAudience || 'zh-platform',
+    targetAudiencePrompt: resolveTargetAudiencePrompt(projectData?.targetAudience),
     videoRatio: projectData?.videoRatio || '16:9',
+    videoResolution: projectData?.videoResolution || '720p',
+    targetEpisodeDurationSeconds: projectData?.targetEpisodeDurationSeconds || 90,
     artStyle: projectData?.artStyle || null,
     artStylePrompt: projectData?.artStylePrompt || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),

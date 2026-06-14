@@ -534,7 +534,10 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
 
   const panel = await getPanelForVideoTask(job)
 
-  const generationOptions = extractGenerationOptions(payload)
+  const generationOptions = {
+    ...(projectModels.videoResolution ? { resolution: projectModels.videoResolution } : {}),
+    ...extractGenerationOptions(payload),
+  }
 
   await reportTaskProgress(job, 10, {
     stage: 'generate_panel_video',

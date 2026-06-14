@@ -336,8 +336,9 @@ export const PATCH = apiHandler(async (
 
   const allowedProjectFields = [
     'analysisModel', 'characterModel', 'locationModel', 'storyboardModel',
-    'editModel', 'videoModel', 'audioModel', 'videoRatio', 'artStyle', 'artStylePrompt',
+    'editModel', 'videoModel', 'audioModel', 'videoRatio', 'videoResolution', 'artStyle', 'artStylePrompt',
     'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides', 'workflowMode',
+    'projectLevel', 'projectStyle', 'targetAudience', 'targetEpisodeDurationSeconds',
   ] as const
 
   const updateData: Record<string, unknown> = {}
@@ -370,6 +371,55 @@ export const PATCH = apiHandler(async (
 
     if (field === 'workflowMode') {
       updateData.workflowMode = validateWorkflowModeField(body[field])
+      continue
+    }
+
+    if (field === 'projectLevel') {
+      if (body[field] !== 'Nori1.0') {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'PROJECT_LEVEL_INVALID',
+          field,
+          message: 'projectLevel must be Nori1.0',
+        })
+      }
+      updateData.projectLevel = 'Nori1.0'
+      continue
+    }
+
+    if (field === 'projectStyle') {
+      if (body[field] !== 'live-action' && body[field] !== 'anime') {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'PROJECT_STYLE_INVALID',
+          field,
+          message: 'projectStyle must be live-action or anime',
+        })
+      }
+      updateData.projectStyle = body[field]
+      continue
+    }
+
+    if (field === 'targetAudience') {
+      if (body[field] !== 'zh-platform' && body[field] !== 'global-platform') {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'TARGET_AUDIENCE_INVALID',
+          field,
+          message: 'targetAudience must be zh-platform or global-platform',
+        })
+      }
+      updateData.targetAudience = body[field]
+      continue
+    }
+
+    if (field === 'targetEpisodeDurationSeconds') {
+      const seconds = Number.parseInt(String(body[field]), 10)
+      if (seconds !== 60 && seconds !== 90 && seconds !== 120) {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'TARGET_EPISODE_DURATION_INVALID',
+          field,
+          message: 'targetEpisodeDurationSeconds must be 60, 90 or 120',
+        })
+      }
+      updateData.targetEpisodeDurationSeconds = seconds
       continue
     }
 

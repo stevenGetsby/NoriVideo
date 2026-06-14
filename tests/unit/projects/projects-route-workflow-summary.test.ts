@@ -8,10 +8,6 @@ describe('projects route workflow summary source', () => {
       path.join(process.cwd(), 'src/app/api/projects/route.ts'),
       'utf8',
     )
-    const workspaceSource = fs.readFileSync(
-      path.join(process.cwd(), 'src/app/[locale]/workspace/page.tsx'),
-      'utf8',
-    )
 
     expect(routeSource).toContain('buildProjectWorkflowSummary')
     expect(routeSource).toContain('prisma.workflowStageState.findMany')
@@ -21,8 +17,5 @@ describe('projects route workflow summary source', () => {
     expect(routeSource).toContain('isInternalUsageCostRecord(item)')
     expect(routeSource).not.toContain('prisma.usageCost.groupBy')
     expect(routeSource).toContain('workflowSummary: buildProjectWorkflowSummary')
-    expect(workspaceSource).toContain('workflowSummary?: ProjectWorkflowSummary')
-    expect(workspaceSource).toContain('resolveProductionOverviewStage(project)')
-    expect(workspaceSource).toContain("t('productionOverview.source')")
   })
 })

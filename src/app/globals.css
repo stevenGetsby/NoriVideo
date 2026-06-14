@@ -2,6 +2,7 @@
 @import "../styles/ui-tokens-glass.css";
 @import "../styles/ui-semantic-glass.css";
 @import "../styles/frameos-tokens.css";
+@import "../styles/frameos-replica.css";
 
 @custom-variant dark (&:is(.dark *));
 

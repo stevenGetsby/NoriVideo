@@ -9,7 +9,6 @@ import type { AppIconName } from '@/components/ui/icons'
 
 export type FrameWorkbenchNavKey =
   | 'projects'
-  | 'writerWorkbench'
   | 'toolbox'
   | 'seedance'
   | 'assetHub'
@@ -76,7 +75,6 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
 
   const navItems: FrameNavItem[] = [
     { key: 'projects', label: t('nav.projects'), icon: 'monitor', href: '/projects' },
-    { key: 'writerWorkbench', label: t('nav.writerWorkbench'), icon: 'fileText', href: '/writer-workbench' },
     { key: 'toolbox', label: t('nav.toolbox'), icon: 'settingsHexMinor', href: '/toolbox' },
     { key: 'seedance', label: t('nav.seedance'), icon: 'film', href: '/seedance', badge: 'HOT' },
     { key: 'assetHub', label: t('nav.assetHub'), icon: 'folderHeart', href: '/asset-hub' },

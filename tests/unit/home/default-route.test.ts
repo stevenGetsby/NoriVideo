@@ -5,10 +5,10 @@ import {
 } from '@/lib/home/default-route'
 
 describe('authenticated home default route', () => {
-  it('uses /home as the only authenticated default pathname', () => {
-    expect(AUTHENTICATED_HOME_PATHNAME).toBe('/home')
+  it('uses /projects as the only authenticated default pathname', () => {
+    expect(AUTHENTICATED_HOME_PATHNAME).toBe('/projects')
     expect(buildAuthenticatedHomeTarget()).toEqual({
-      pathname: '/home',
+      pathname: '/projects',
     })
   })
 })

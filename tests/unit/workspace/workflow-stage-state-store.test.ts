@@ -11,8 +11,12 @@ import {
 
 describe('workflow stage runtime state store', () => {
   it('maps production task types to visible workflow stages', () => {
-    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.STORY_TO_SCRIPT_RUN)).toBe('script')
-    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.CLIPS_BUILD)).toBe('script')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.STORY_TO_SCRIPT_RUN)).toBe('config')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.CLIPS_BUILD)).toBe('config')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.SCREENPLAY_CONVERT)).toBe('config')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.EPISODE_SPLIT_LLM)).toBe('config')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.ANALYZE_NOVEL)).toBe('script')
+    expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.ANALYZE_GLOBAL)).toBe('script')
     expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.IMAGE_CHARACTER)).toBe('script')
     expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.IMAGE_LOCATION)).toBe('script')
     expect(resolveWorkflowStageKeyFromTaskType(TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN)).toBe('storyboard')
@@ -103,11 +107,13 @@ describe('workflow stage runtime state store', () => {
 
   it('builds downstream invalidation plan from the submitted production task type', () => {
     expect(buildWorkflowStageInvalidationPlan(TASK_TYPE.STORY_TO_SCRIPT_RUN)).toMatchObject({
-      sourceStage: 'script',
-      staleStages: ['storyboard', 'videos', 'voice', 'editor'],
+      sourceStage: 'config',
+      staleStages: ['script', 'storyboard', 'videos', 'voice', 'editor'],
     })
     expect(buildWorkflowStageInvalidationPlan(TASK_TYPE.STORY_TO_SCRIPT_RUN)?.cancelTaskTypes).toEqual(
       expect.arrayContaining([
+        TASK_TYPE.ANALYZE_NOVEL,
+        TASK_TYPE.ANALYZE_GLOBAL,
         TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
         TASK_TYPE.IMAGE_PANEL,
         TASK_TYPE.VIDEO_PANEL,

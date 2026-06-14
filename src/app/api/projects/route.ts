@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { inflateSync } from 'node:zlib'
+import mammoth from 'mammoth'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
@@ -17,6 +19,11 @@ import {
   validateProjectDraft,
   type ProjectDraftInput,
 } from '@/lib/projects/validation'
+import {
+  buildProjectDescription,
+  normalizeProjectCreationConfig,
+  type ProjectCreationConfig,
+} from '@/lib/projects/creation-config'
 
 function readProjectDraftBody(body: unknown): ProjectDraftInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -32,6 +39,17 @@ function readProjectDraftBody(body: unknown): ProjectDraftInput {
 
 const INITIAL_IMPORT_TEXT_MAX_LENGTH = 200_000
 const INITIAL_IMPORT_EPISODE_NAME_MAX_LENGTH = 100
+const CREATE_PROJECT_SCRIPT_MAX_BYTES = 10 * 1024 * 1024
+
+interface ParsedCreateProjectBody {
+  rawBody: Record<string, unknown>
+  draft: ProjectDraftInput
+  initialImportDraft: {
+    pendingImportText: string | null
+    pendingImportEpisodeName: string | null
+  }
+  config: ProjectCreationConfig
+}
 
 function normalizeOptionalText(value: unknown, maxLength: number, field: string): string | null {
   if (typeof value !== 'string') return null
@@ -46,6 +64,109 @@ function normalizeOptionalText(value: unknown, maxLength: number, field: string)
     })
   }
   return trimmed
+}
+
+function readStringField(source: Record<string, unknown>, field: string): string | null {
+  const value = source[field]
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed || null
+}
+
+function decodePdfLiteral(value: string): string {
+  return value
+    .replace(/\\([nrtbf()\\])/g, (_, ch: string) => {
+      if (ch === 'n') return '\n'
+      if (ch === 'r') return '\r'
+      if (ch === 't') return '\t'
+      if (ch === 'b') return '\b'
+      if (ch === 'f') return '\f'
+      return ch
+    })
+    .replace(/\\([0-7]{1,3})/g, (_, octal: string) => String.fromCharCode(Number.parseInt(octal, 8)))
+}
+
+function extractPdfTextFromSource(source: string): string {
+  const chunks: string[] = []
+  for (const match of source.matchAll(/\((?:\\.|[^\\)])*\)\s*Tj/g)) {
+    chunks.push(decodePdfLiteral(match[0].replace(/\)\s*Tj$/, '').slice(1)))
+  }
+  for (const match of source.matchAll(/\[([\s\S]*?)\]\s*TJ/g)) {
+    const segment = match[1]
+    for (const part of segment.matchAll(/\((?:\\.|[^\\)])*\)/g)) {
+      chunks.push(decodePdfLiteral(part[0].slice(1, -1)))
+    }
+  }
+  return chunks.join('\n')
+}
+
+function extractPdfStreams(buffer: Buffer): string[] {
+  const source = buffer.toString('latin1')
+  const streams: string[] = [source]
+  const streamPattern = /(<<[\s\S]{0,2000}?>>)\s*stream\r?\n([\s\S]*?)\r?\nendstream/g
+  for (const match of source.matchAll(streamPattern)) {
+    const dictionary = match[1]
+    const raw = Buffer.from(match[2], 'latin1')
+    if (!dictionary.includes('/FlateDecode')) {
+      streams.push(raw.toString('latin1'))
+      continue
+    }
+    try {
+      streams.push(inflateSync(raw).toString('latin1'))
+    } catch {
+      // Ignore streams we cannot inflate; other streams may still contain text.
+    }
+  }
+  return streams
+}
+
+function normalizeExtractedText(text: string): string {
+  return text
+    .replace(/\u0000/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function extractPdfText(buffer: Buffer): string {
+  const text = normalizeExtractedText(extractPdfStreams(buffer).map(extractPdfTextFromSource).join('\n'))
+  if (!text) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'SCRIPT_FILE_UNREADABLE',
+      field: 'scriptFile',
+      message: '无法从该 PDF 提取文本；请上传文本型 PDF，或先转换为 txt/docx。',
+    })
+  }
+  return text
+}
+
+async function extractScriptTextFromFile(file: File): Promise<string> {
+  if (file.size > CREATE_PROJECT_SCRIPT_MAX_BYTES) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'SCRIPT_FILE_TOO_LARGE',
+      field: 'scriptFile',
+      limit: CREATE_PROJECT_SCRIPT_MAX_BYTES,
+      message: 'Script file is too large',
+    })
+  }
+  const name = file.name.toLowerCase()
+  const buffer = Buffer.from(await file.arrayBuffer())
+  let text = ''
+  if (name.endsWith('.txt') || file.type.startsWith('text/')) {
+    text = buffer.toString('utf8')
+  } else if (name.endsWith('.docx') || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+    const result = await mammoth.extractRawText({ buffer })
+    text = result.value
+  } else if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+    text = extractPdfText(buffer)
+  } else {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'SCRIPT_FILE_TYPE_UNSUPPORTED',
+      field: 'scriptFile',
+      message: 'Only txt, docx and text-based pdf files are supported',
+    })
+  }
+  return normalizeOptionalText(text, INITIAL_IMPORT_TEXT_MAX_LENGTH, 'initialNovelText') || ''
 }
 
 function readInitialImportDraftBody(body: unknown) {
@@ -65,6 +186,53 @@ function readInitialImportDraftBody(body: unknown) {
       INITIAL_IMPORT_EPISODE_NAME_MAX_LENGTH,
       'initialEpisodeName',
     ),
+  }
+}
+
+async function readCreateProjectBody(request: NextRequest): Promise<ParsedCreateProjectBody> {
+  const contentType = request.headers.get('content-type') || ''
+  if (contentType.includes('multipart/form-data')) {
+    const form = await request.formData()
+    const rawBody: Record<string, unknown> = {}
+    for (const [key, value] of form.entries()) {
+      if (typeof value === 'string') rawBody[key] = value
+    }
+    const scriptFile = form.get('scriptFile')
+    if (scriptFile instanceof File && scriptFile.size > 0) {
+      rawBody.initialNovelText = await extractScriptTextFromFile(scriptFile)
+      rawBody.initialEpisodeName = readStringField(rawBody, 'initialEpisodeName') || scriptFile.name.replace(/\.[^.]+$/, '')
+    }
+    const explicitDescription = readStringField(rawBody, 'description')
+    const config = normalizeProjectCreationConfig(rawBody)
+    rawBody.description = buildProjectDescription(config, explicitDescription)
+    return {
+      rawBody,
+      draft: readProjectDraftBody(rawBody),
+      initialImportDraft: readInitialImportDraftBody(rawBody),
+      config,
+    }
+  }
+
+  const json = await request.json()
+  const rawBody = json && typeof json === 'object' && !Array.isArray(json)
+    ? json as Record<string, unknown>
+    : {}
+  const explicitDescription = readStringField(rawBody, 'description')
+  const config = normalizeProjectCreationConfig(rawBody)
+  if (
+    rawBody.projectLevel !== undefined ||
+    rawBody.projectStyle !== undefined ||
+    rawBody.targetAudience !== undefined ||
+    rawBody.videoResolution !== undefined ||
+    rawBody.targetEpisodeDurationSeconds !== undefined
+  ) {
+    rawBody.description = buildProjectDescription(config, explicitDescription)
+  }
+  return {
+    rawBody,
+    draft: readProjectDraftBody(rawBody),
+    initialImportDraft: readInitialImportDraftBody(rawBody),
+    config,
   }
 }
 
@@ -295,11 +463,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
-  const body = await request.json()
-  const draft = readProjectDraftBody(body)
+  const { rawBody, draft, initialImportDraft, config } = await readCreateProjectBody(request)
   const validationIssue = validateProjectDraft(draft)
   if (validationIssue) {
-    const locale = resolveTaskLocale(request, body) ?? 'zh'
+    const locale = resolveTaskLocale(request, rawBody) ?? 'zh'
     throw new ApiError('INVALID_PARAMS', {
       code: validationIssue.code,
       field: validationIssue.field,
@@ -309,7 +476,6 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
 
   const { name, description } = normalizeProjectDraft(draft)
-  const initialImportDraft = readInitialImportDraftBody(body)
 
   // 获取用户偏好配置
   const userPreference = await prisma.userPreference.findUnique({
@@ -329,7 +495,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   // 注意：不再自动创建默认剧集，由用户在选择界面决定：
   // - 手动创作 → 创建第一个空白剧集
   // - 智能导入 → AI 分析后批量创建剧集
-  // 🔥 artStylePrompt 通过实时查询获取，不再存储到数据库
+  // 创建时保存完整项目全局变量；后续分镜、视频、资产生成阶段从项目配置读取。
   await prisma.novelPromotionProject.create({
     data: {
       projectId: project.id,
@@ -345,9 +511,18 @@ export const POST = apiHandler(async (request: NextRequest) => {
         videoModel: userPreference.videoModel,
         audioModel: userPreference.audioModel,
         videoRatio: userPreference.videoRatio,
+        videoResolution: userPreference.videoResolution,
         artStyle: (isArtStyleValue(userPreference.artStyle) || isCustomArtStyleValue(userPreference.artStyle)) ? userPreference.artStyle : 'american-comic',
         ttsRate: userPreference.ttsRate
-      })
+      }),
+      projectLevel: config.projectLevel,
+      projectStyle: config.projectStyle,
+      targetAudience: config.targetAudience,
+      videoRatio: config.videoRatio,
+      videoResolution: config.videoResolution,
+      targetEpisodeDurationSeconds: config.targetEpisodeDurationSeconds,
+      artStyle: config.artStyle,
+      artStylePrompt: config.artStylePrompt,
     }
   })
 

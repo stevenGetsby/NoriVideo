@@ -7,12 +7,46 @@ import { ApiError } from '@/lib/api-errors'
 import type { Locale } from '@/i18n/routing'
 
 const STAGE_TASK_TYPE: Record<WorkflowStage, TaskType> = {
-  config: TASK_TYPE.ANALYZE_NOVEL,
-  script: TASK_TYPE.STORY_TO_SCRIPT_RUN,
+  config: TASK_TYPE.STORY_TO_SCRIPT_RUN,
+  script: TASK_TYPE.ANALYZE_NOVEL,
   storyboard: TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
   videos: TASK_TYPE.VIDEO_PANEL,
   voice: TASK_TYPE.VOICE_LINE,
   editor: TASK_TYPE.EXPORT_DELIVERY,
+}
+
+function resolveStageTaskType(stage: WorkflowStage, episodeId?: string | null): TaskType {
+  if (stage === 'script' && !episodeId) {
+    return TASK_TYPE.ANALYZE_GLOBAL
+  }
+  return STAGE_TASK_TYPE[stage]
+}
+
+function resolveStageTaskTarget(params: {
+  stage: WorkflowStage
+  taskType: TaskType
+  episodeId?: string | null
+  projectId: string
+}) {
+  if (
+    params.taskType === TASK_TYPE.STORY_TO_SCRIPT_RUN
+    || params.taskType === TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN
+  ) {
+    if (!params.episodeId) {
+      throw new ApiError('INVALID_PARAMS', {
+        message: `episode_required_for_stage:${params.stage}`,
+      })
+    }
+    return {
+      targetType: 'NovelPromotionEpisode',
+      targetId: params.episodeId,
+    }
+  }
+
+  return {
+    targetType: 'NovelPromotionProject',
+    targetId: params.projectId,
+  }
 }
 
 export async function runStage(params: {
@@ -59,7 +93,7 @@ export async function runStage(params: {
     }
   }
 
-  const taskType = STAGE_TASK_TYPE[stage]
+  const taskType = resolveStageTaskType(stage, params.episodeId || null)
   const npProject = await prisma.novelPromotionProject.findUnique({
     where: { projectId },
     select: { id: true },
@@ -80,6 +114,12 @@ export async function runStage(params: {
       locale,
     },
   }
+  const target = resolveStageTaskTarget({
+    stage,
+    taskType,
+    episodeId: params.episodeId || null,
+    projectId,
+  })
 
   const result = await submitTask({
     userId,
@@ -87,8 +127,8 @@ export async function runStage(params: {
     projectId,
     episodeId: params.episodeId || null,
     type: taskType,
-    targetType: 'novel_promotion_project',
-    targetId: npProject.id,
+    targetType: target.targetType,
+    targetId: target.targetId,
     payload,
     requestId: params.requestId || null,
   })

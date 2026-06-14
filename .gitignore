@@ -25,6 +25,13 @@ downloads/
 .runtime/
 .worktrees/
 
+# FrameOS reverse-engineering reference material (kept local, not in app history)
+/frameos-reverse-engineering/
+/docs/frameos-reverse-engineering/
+/scripts/frameos-*
+/docs/frameos-codex-audit.md
+/docs/frameos-codex-hourly-status.md
+
 # Local debug artifacts
 .DS_Store
 .tmp_check_task.ts

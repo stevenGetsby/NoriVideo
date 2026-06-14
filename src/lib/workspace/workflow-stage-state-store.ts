@@ -12,11 +12,13 @@ const PROJECT_SCOPE_ID = 'project'
 const WORKFLOW_STAGE_ORDER: WorkflowStageKey[] = ['config', 'script', 'storyboard', 'videos', 'voice', 'editor']
 
 const TASK_STAGE_MAP: Partial<Record<string, WorkflowStageKey>> = {
-  [TASK_TYPE.STORY_TO_SCRIPT_RUN]: 'script',
-  [TASK_TYPE.CLIPS_BUILD]: 'script',
-  [TASK_TYPE.SCREENPLAY_CONVERT]: 'script',
+  [TASK_TYPE.STORY_TO_SCRIPT_RUN]: 'config',
+  [TASK_TYPE.CLIPS_BUILD]: 'config',
+  [TASK_TYPE.SCREENPLAY_CONVERT]: 'config',
+  [TASK_TYPE.EPISODE_SPLIT_LLM]: 'config',
+
   [TASK_TYPE.ANALYZE_NOVEL]: 'script',
-  [TASK_TYPE.EPISODE_SPLIT_LLM]: 'script',
+  [TASK_TYPE.ANALYZE_GLOBAL]: 'script',
   [TASK_TYPE.IMAGE_CHARACTER]: 'script',
   [TASK_TYPE.IMAGE_LOCATION]: 'script',
   [TASK_TYPE.MODIFY_ASSET_IMAGE]: 'script',

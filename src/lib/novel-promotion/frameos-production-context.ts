@@ -1,3 +1,5 @@
+import { resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
+
 type ContextSource = Record<string, unknown> | null | undefined
 
 type ProductionContextInput = {
@@ -50,17 +52,23 @@ export function buildFrameosProductionContext(input: ProductionContextInput): st
     input.episode,
     input.project,
   ]
+  const targetAudience = readField(sources, ['targetAudience', 'target_audience'])
 
   const rows = [
     ['project_name', readField(sources, ['project_name', 'projectName', 'name'])],
+    ['project_level', readField(sources, ['projectLevel', 'project_level'])],
+    ['project_style', readField(sources, ['projectStyle', 'project_style'])],
+    ['target_audience', targetAudience],
+    ['target_audience_context', targetAudience ? resolveTargetAudiencePrompt(targetAudience) : ''],
     ['genre', readField(sources, ['genre_name', 'genreName', 'genre'])],
     ['language', readField(sources, ['language', 'locale'])],
-    ['aspect_ratio', readField(sources, ['aspect_ratio', 'aspectRatio'])],
-    ['resolution', readField(sources, ['resolution'])],
+    ['aspect_ratio', readField(sources, ['videoRatio', 'aspect_ratio', 'aspectRatio'])],
+    ['resolution', readField(sources, ['videoResolution', 'resolution'])],
     ['visual_category', readField(sources, ['visual_category_name', 'visualCategoryName', 'visual_category', 'visualCategory'])],
     ['art_style', readField(sources, ['art_style', 'artStyle'])],
+    ['art_style_prompt', readField(sources, ['artStylePrompt', 'art_style_prompt', 'visualStylePrompt'])],
     ['budget_level', readField(sources, ['budget_level_name', 'budgetLevelName', 'budget_level', 'budgetLevel'])],
-    ['episode_duration_seconds', readField(sources, ['episode_duration', 'episodeDuration', 'durationSeconds'])],
+    ['episode_duration_seconds', readField(sources, ['targetEpisodeDurationSeconds', 'episode_duration', 'episodeDuration', 'durationSeconds'])],
     ['script_kilo', readField(sources, ['script_kilo', 'scriptKilo'])],
   ].filter((row): row is [string, string] => Boolean(row[1]))
 

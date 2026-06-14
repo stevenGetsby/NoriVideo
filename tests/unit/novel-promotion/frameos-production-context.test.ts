@@ -25,6 +25,29 @@ describe('buildFrameosProductionContext', () => {
     expect(context).not.toContain('resolution:')
   })
 
+  it('includes project creation globals for storyboard planning', () => {
+    const context = buildFrameosProductionContext({
+      novelProject: {
+        projectLevel: 'Nori1.0',
+        projectStyle: 'anime',
+        targetAudience: 'global-platform',
+        videoRatio: '16:9',
+        videoResolution: '480p',
+        targetEpisodeDurationSeconds: 90,
+        artStylePrompt: '统一为现代动漫动作短剧风格。',
+      },
+    })
+
+    expect(context).toContain('project_level: Nori1.0')
+    expect(context).toContain('project_style: anime')
+    expect(context).toContain('target_audience: global-platform')
+    expect(context).toContain('target_audience_context:')
+    expect(context).toContain('aspect_ratio: 16:9')
+    expect(context).toContain('resolution: 480p')
+    expect(context).toContain('episode_duration_seconds: 90')
+    expect(context).toContain('art_style_prompt: 统一为现代动漫动作短剧风格。')
+  })
+
   it('returns a conservative fallback when no production fields exist', () => {
     const context = buildFrameosProductionContext({})
 
