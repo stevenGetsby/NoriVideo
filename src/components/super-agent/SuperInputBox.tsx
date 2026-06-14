@@ -380,11 +380,13 @@ export function SuperInputBox({
           return
         }
       } catch (recoveryError) {
+        clearSuperAgentNavigationLock(targetProjectId)
         setStatus('idle')
         setError(recoveryError instanceof Error ? recoveryError.message : '执行失败，请重试')
         return
       }
 
+      clearSuperAgentNavigationLock(targetProjectId)
       setStatus('idle')
       setError(err instanceof Error ? err.message : '执行失败，请重试')
     }
@@ -420,6 +422,7 @@ export function SuperInputBox({
       setPlan(nextPlan)
       await executePlan(nextPlan)
     } catch (err) {
+      clearSuperAgentNavigationLock(targetProjectId)
       setStatus('idle')
       setError(err instanceof Error ? err.message : '规划失败，请重试')
     }

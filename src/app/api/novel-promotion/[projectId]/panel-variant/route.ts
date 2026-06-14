@@ -78,9 +78,9 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const storyboardId = body?.storyboardId
-  const insertAfterPanelId = body?.insertAfterPanelId
-  const sourcePanelId = body?.sourcePanelId
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
+  const insertAfterPanelId = typeof body?.insertAfterPanelId === 'string' ? body.insertAfterPanelId.trim() : ''
+  const sourcePanelId = typeof body?.sourcePanelId === 'string' ? body.sourcePanelId.trim() : ''
   const variant = body?.variant
 
   if (!storyboardId || !insertAfterPanelId || !sourcePanelId) {
@@ -110,13 +110,23 @@ export const POST = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
-  const sourcePanel = await prisma.novelPromotionPanel.findUnique({ where: { id: sourcePanelId } })
-  if (!sourcePanel || sourcePanel.storyboardId !== storyboardId) {
+  const sourcePanel = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: sourcePanelId,
+      storyboardId: storyboard.id,
+    },
+  })
+  if (!sourcePanel) {
     throw new ApiError('INVALID_PARAMS')
   }
 
-  const insertAfter = await prisma.novelPromotionPanel.findUnique({ where: { id: insertAfterPanelId } })
-  if (!insertAfter || insertAfter.storyboardId !== storyboardId) {
+  const insertAfter = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: insertAfterPanelId,
+      storyboardId: storyboard.id,
+    },
+  })
+  if (!insertAfter) {
     throw new ApiError('INVALID_PARAMS')
   }
 
@@ -130,7 +140,13 @@ export const POST = apiHandler(async (
       projectId,
       userId: session.user.id,
       imageModel,
-      basePayload: { ...body, newPanelId: createdPanelId },
+      basePayload: {
+        ...body,
+        storyboardId: storyboard.id,
+        insertAfterPanelId: insertAfter.id,
+        sourcePanelId: sourcePanel.id,
+        newPanelId: createdPanelId,
+      },
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Image model capability not configured'
@@ -142,7 +158,7 @@ export const POST = apiHandler(async (
 
   const createdPanel = await prisma.$transaction(async (tx) => {
     const affectedPanels = await tx.novelPromotionPanel.findMany({
-      where: { storyboardId, panelIndex: { gt: insertAfter.panelIndex } },
+      where: { storyboardId: storyboard.id, panelIndex: { gt: insertAfter.panelIndex } },
       select: { id: true, panelIndex: true },
       orderBy: { panelIndex: 'asc' },
     })
@@ -164,7 +180,7 @@ export const POST = apiHandler(async (
     const created = await tx.novelPromotionPanel.create({
       data: {
         id: createdPanelId,
-        storyboardId,
+        storyboardId: storyboard.id,
         panelIndex: insertAfter.panelIndex + 1,
         panelNumber: insertAfter.panelIndex + 2,
         shotType: variant.shot_type || sourcePanel.shotType,
@@ -179,11 +195,11 @@ export const POST = apiHandler(async (
     })
 
     const panelCount = await tx.novelPromotionPanel.count({
-      where: { storyboardId },
+      where: { storyboardId: storyboard.id },
     })
 
     await tx.novelPromotionStoryboard.update({
-      where: { id: storyboardId },
+      where: { id: storyboard.id },
       data: { panelCount },
     })
 
@@ -201,13 +217,13 @@ export const POST = apiHandler(async (
       targetType: 'NovelPromotionPanel',
       targetId: createdPanel.id,
       payload: billingPayload,
-      dedupeKey: `panel_variant:${storyboardId}:${insertAfterPanelId}:${sourcePanelId}`,
+      dedupeKey: `panel_variant:${storyboard.id}:${insertAfter.id}:${sourcePanel.id}`,
       billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.PANEL_VARIANT, billingPayload),
     })
   } catch (error) {
     await rollbackCreatedVariantPanel({
       panelId: createdPanel.id,
-      storyboardId,
+      storyboardId: storyboard.id,
       panelIndex: createdPanel.panelIndex,
     })
     throw error

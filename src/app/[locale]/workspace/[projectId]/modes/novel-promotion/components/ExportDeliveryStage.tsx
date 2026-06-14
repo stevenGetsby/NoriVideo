@@ -9,10 +9,10 @@ import { useWorkspaceStageRuntime } from '../WorkspaceStageRuntimeContext'
 import { useWorkspaceProvider } from '../WorkspaceProvider'
 
 type DeliveryCard = {
-  id: string
+  id: ExportQueueCardId
   title: string
   description: string
-  icon: 'video' | 'package' | 'folderOpen'
+  icon: 'video' | 'package' | 'folderOpen' | 'audioWave'
   primary: string
   meta: string
   disabled?: boolean
@@ -31,6 +31,7 @@ type ExportRecord = {
     panels: number
     images: number
     videos: number
+    voices?: number
   }
 }
 
@@ -38,9 +39,22 @@ type ExportHistoryResponse = {
   records?: ExportRecord[]
 }
 
+type ExportQueueCardId = 'final-video' | 'asset-package' | 'voice-package' | 'jianying-draft'
+type ExportQueueBlockerCode = 'ready' | 'missingVideos' | 'noImages' | 'noVoices' | 'noPanels' | 'manifestOnly'
+
+type ExportQueueServerItem = {
+  id: string
+  cardId: ExportQueueCardId
+  status: 'ready' | 'blocked' | 'available'
+  blockerCode: ExportQueueBlockerCode
+  blockerParams?: {
+    count?: number
+  }
+}
+
 type ExportQueueItem = {
   id: string
-  cardId: string
+  cardId: ExportQueueCardId
   title: string
   description: string
   status: 'ready' | 'blocked' | 'available'
@@ -59,6 +73,7 @@ type ExportQueueRecord = {
 }
 
 type ExportQueueResponse = {
+  items?: ExportQueueServerItem[]
   records?: ExportQueueRecord[]
 }
 
@@ -66,11 +81,13 @@ export default function ExportDeliveryStage() {
   const t = useTranslations('video.exportDelivery')
   const runtime = useWorkspaceStageRuntime()
   const { projectId, episodeId } = useWorkspaceProvider()
-  const { episodeName, clips, storyboards } = useWorkspaceEpisodeStageData()
+  const { episodeName, clips, storyboards, voiceLines } = useWorkspaceEpisodeStageData()
   const [downloadingId, setDownloadingId] = useState<string | null>(null)
   const [downloadMessage, setDownloadMessage] = useState<string | null>(null)
   const [serverExportRecords, setServerExportRecords] = useState<ExportRecord[]>([])
+  const [serverExportQueueItems, setServerExportQueueItems] = useState<ExportQueueServerItem[]>([])
   const [exportQueueRecords, setExportQueueRecords] = useState<ExportQueueRecord[]>([])
+  const [queueLoadError, setQueueLoadError] = useState(false)
   const [queueingId, setQueueingId] = useState<string | null>(null)
 
   const panels = useMemo(
@@ -80,9 +97,9 @@ export default function ExportDeliveryStage() {
 
   const generatedPanels = panels.filter((panel) => Boolean(panel.videoUrl || panel.lipSyncVideoUrl))
   const imagePanels = panels.filter((panel) => Boolean(panel.imageUrl))
+  const generatedVoiceLines = voiceLines.filter((line) => Boolean(line.audioUrl))
   const missingVideoCount = Math.max(panels.length - generatedPanels.length, 0)
   const ready = generatedPanels.length > 0 && missingVideoCount === 0
-  const scopeName = episodeName || t('episodeFallback')
   const loadExportHistory = useCallback(async (signal?: AbortSignal) => {
     if (!episodeId) {
       setServerExportRecords([])
@@ -110,7 +127,9 @@ export default function ExportDeliveryStage() {
 
   const loadExportQueue = useCallback(async (signal?: AbortSignal) => {
     if (!episodeId) {
+      setServerExportQueueItems([])
       setExportQueueRecords([])
+      setQueueLoadError(false)
       return
     }
     try {
@@ -118,9 +137,17 @@ export default function ExportDeliveryStage() {
       if (signal?.aborted) return
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
       const payload = await response.json() as ExportQueueResponse
-      if (!signal?.aborted) setExportQueueRecords(Array.isArray(payload.records) ? payload.records : [])
+      if (!signal?.aborted) {
+        setServerExportQueueItems(Array.isArray(payload.items) ? payload.items : [])
+        setExportQueueRecords(Array.isArray(payload.records) ? payload.records : [])
+        setQueueLoadError(false)
+      }
     } catch {
-      if (!signal?.aborted) setExportQueueRecords([])
+      if (!signal?.aborted) {
+        setServerExportQueueItems([])
+        setExportQueueRecords([])
+        setQueueLoadError(true)
+      }
     }
   }, [episodeId, projectId])
 
@@ -138,35 +165,6 @@ export default function ExportDeliveryStage() {
       .slice(0, 12)
   }, [serverExportRecords])
 
-  const appendExportRecord = useCallback(async (record: ExportRecord) => {
-    if (!episodeId) return
-    const response = await apiFetch(`/api/novel-promotion/${projectId}/export-history?episodeId=${episodeId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(record),
-    })
-    if (!response.ok) throw new Error(t('actions.recordFailed'))
-    await loadExportHistory()
-  }, [episodeId, loadExportHistory, projectId, t])
-
-  const saveResponseAsFile = useCallback(async (response: Response, fallbackFileName: string) => {
-    if (!response.ok) {
-      const errorPayload = await response.json().catch(() => null) as { message?: string; error?: string } | null
-      throw new Error(errorPayload?.message || errorPayload?.error || t('actions.downloadFailed'))
-    }
-
-    const blob = await response.blob()
-    const url = window.URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = fallbackFileName
-    document.body.appendChild(anchor)
-    anchor.click()
-    window.URL.revokeObjectURL(url)
-    document.body.removeChild(anchor)
-    return fallbackFileName
-  }, [t])
-
   const handleDownload = useCallback(async (cardId: string) => {
     if (!episodeId) {
       setDownloadMessage(t('actions.noEpisode'))
@@ -177,54 +175,23 @@ export default function ExportDeliveryStage() {
     setDownloadMessage(null)
 
     try {
-      if (cardId === 'final-video') {
-        const response = await apiFetch(`/api/novel-promotion/${projectId}/download-videos`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ episodeId }),
-        })
-        const fileName = await saveResponseAsFile(response, `${scopeName}_videos.zip`)
-        await appendExportRecord({
-          id: `${Date.now()}-${cardId}`,
-          cardId,
-          title: t('cards.finalVideo.title'),
-          fileName,
-          createdAt: new Date().toISOString(),
-          status: 'completed',
-          stats: { clips: clips.length, panels: panels.length, images: imagePanels.length, videos: generatedPanels.length },
-        })
-      } else if (cardId === 'asset-package') {
-        const response = await apiFetch(`/api/novel-promotion/${projectId}/download-images?episodeId=${episodeId}`)
-        const fileName = await saveResponseAsFile(response, `${scopeName}_images.zip`)
-        await appendExportRecord({
-          id: `${Date.now()}-${cardId}`,
-          cardId,
-          title: t('cards.assetPackage.title'),
-          fileName,
-          createdAt: new Date().toISOString(),
-          status: 'completed',
-          stats: { clips: clips.length, panels: panels.length, images: imagePanels.length, videos: generatedPanels.length },
-        })
-      } else {
-        const response = await apiFetch(`/api/novel-promotion/${projectId}/export-manifest?episodeId=${episodeId}`)
-        const fileName = await saveResponseAsFile(response, `${scopeName}_manifest.json`)
-        await appendExportRecord({
-          id: `${Date.now()}-${cardId}`,
-          cardId,
-          title: t('cards.jianyingDraft.title'),
-          fileName,
-          createdAt: new Date().toISOString(),
-          status: 'completed',
-          stats: { clips: clips.length, panels: panels.length, images: imagePanels.length, videos: generatedPanels.length },
-        })
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/export-queue?episodeId=${episodeId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cardId }),
+      })
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { blocker?: string; message?: string; error?: string } | null
+        throw new Error(payload?.blocker || payload?.message || payload?.error || t('queue.enqueueFailed'))
       }
-      setDownloadMessage(t('actions.downloadReady'))
+      await Promise.all([loadExportQueue(), loadExportHistory()])
+      setDownloadMessage(t('queue.enqueued'))
     } catch (error) {
-      setDownloadMessage(error instanceof Error ? error.message : t('actions.downloadFailed'))
+      setDownloadMessage(error instanceof Error ? error.message : t('queue.enqueueFailed'))
     } finally {
       setDownloadingId(null)
     }
-  }, [appendExportRecord, clips.length, episodeId, generatedPanels.length, imagePanels.length, panels.length, projectId, saveResponseAsFile, scopeName, t])
+  }, [episodeId, loadExportHistory, loadExportQueue, projectId, t])
 
   const cards: DeliveryCard[] = [
     {
@@ -246,6 +213,15 @@ export default function ExportDeliveryStage() {
       disabled: imagePanels.length === 0,
     },
     {
+      id: 'voice-package',
+      title: t('cards.voicePackage.title'),
+      description: t('cards.voicePackage.description'),
+      icon: 'audioWave',
+      primary: t('cards.voicePackage.primary'),
+      meta: t('cards.voicePackage.meta', { count: generatedVoiceLines.length }),
+      disabled: generatedVoiceLines.length === 0,
+    },
+    {
       id: 'jianying-draft',
       title: t('cards.jianyingDraft.title'),
       description: t('cards.jianyingDraft.description'),
@@ -259,39 +235,43 @@ export default function ExportDeliveryStage() {
   const getRecordTitle = (record: ExportRecord) => {
     if (record.cardId === 'final-video') return t('cards.finalVideo.title')
     if (record.cardId === 'asset-package') return t('cards.assetPackage.title')
+    if (record.cardId === 'voice-package') return t('cards.voicePackage.title')
     if (record.cardId === 'jianying-draft') return t('cards.jianyingDraft.title')
     return record.title
   }
 
-  const baseExportQueueItems: ExportQueueItem[] = [
-    {
-      id: 'queue-final-video',
-      cardId: 'final-video',
-      title: t('queue.items.finalVideo.title'),
-      description: t('queue.items.finalVideo.description'),
-      status: ready ? 'ready' : 'blocked',
-      blocker: missingVideoCount > 0 ? t('queue.blockers.missingVideos', { count: missingVideoCount }) : t('queue.blockers.ready'),
-    },
-    {
-      id: 'queue-asset-package',
-      cardId: 'asset-package',
-      title: t('queue.items.assetPackage.title'),
-      description: t('queue.items.assetPackage.description'),
-      status: imagePanels.length > 0 ? 'ready' : 'blocked',
-      blocker: imagePanels.length > 0 ? t('queue.blockers.ready') : t('queue.blockers.noImages'),
-    },
-    {
-      id: 'queue-editing-draft',
-      cardId: 'jianying-draft',
-      title: t('queue.items.editingDraft.title'),
-      description: t('queue.items.editingDraft.description'),
-      status: panels.length > 0 ? 'available' : 'blocked',
-      blocker: panels.length > 0 ? t('queue.blockers.manifestOnly') : t('queue.blockers.noPanels'),
-    },
-  ]
+  const getQueueItemTitle = (cardId: ExportQueueCardId) => {
+    if (cardId === 'final-video') return t('queue.items.finalVideo.title')
+    if (cardId === 'asset-package') return t('queue.items.assetPackage.title')
+    if (cardId === 'voice-package') return t('queue.items.voicePackage.title')
+    return t('queue.items.editingDraft.title')
+  }
 
-  const exportQueueItems: ExportQueueItem[] = baseExportQueueItems.map((item) => ({
-    ...item,
+  const getQueueItemDescription = (cardId: ExportQueueCardId) => {
+    if (cardId === 'final-video') return t('queue.items.finalVideo.description')
+    if (cardId === 'asset-package') return t('queue.items.assetPackage.description')
+    if (cardId === 'voice-package') return t('queue.items.voicePackage.description')
+    return t('queue.items.editingDraft.description')
+  }
+
+  const getQueueBlocker = (item: ExportQueueServerItem) => {
+    if (item.blockerCode === 'ready') return t('queue.blockers.ready')
+    if (item.blockerCode === 'missingVideos') {
+      return t('queue.blockers.missingVideos', { count: item.blockerParams?.count ?? missingVideoCount })
+    }
+    if (item.blockerCode === 'noImages') return t('queue.blockers.noImages')
+    if (item.blockerCode === 'noVoices') return t('queue.blockers.noVoices')
+    if (item.blockerCode === 'noPanels') return t('queue.blockers.noPanels')
+    return t('queue.blockers.manifestOnly')
+  }
+
+  const exportQueueItems: ExportQueueItem[] = serverExportQueueItems.map((item) => ({
+    id: item.id,
+    cardId: item.cardId,
+    title: getQueueItemTitle(item.cardId),
+    description: getQueueItemDescription(item.cardId),
+    status: item.status,
+    blocker: getQueueBlocker(item),
     queuedStatus: exportQueueRecords.find((record) => record.cardId === item.cardId)?.status,
   }))
 
@@ -304,9 +284,6 @@ export default function ExportDeliveryStage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           cardId: item.cardId,
-          title: item.title,
-          status: 'queued',
-          blocker: item.blocker,
         }),
       })
       if (!response.ok) throw new Error(t('queue.enqueueFailed'))
@@ -351,7 +328,7 @@ export default function ExportDeliveryStage() {
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {cards.map((card) => (
             <article
               key={card.id}
@@ -434,41 +411,53 @@ export default function ExportDeliveryStage() {
             {t('queue.count', { count: exportQueueItems.length })}
           </span>
         </div>
-        <div className="grid gap-3 md:grid-cols-3">
-          {exportQueueItems.map((item) => (
-            <div key={item.id} className="rounded-md border border-white/10 bg-[#0f1014] p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="text-sm font-semibold text-white">{item.title}</div>
-                <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
-                  item.status === 'ready'
-                    ? 'bg-emerald-400/10 text-emerald-200'
-                    : item.status === 'available'
-                      ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]'
-                      : 'bg-[#f5a524]/10 text-[#ffd58a]'
-                }`}>
-                  {t(`queue.status.${item.status}`)}
-                </span>
+        {exportQueueItems.length > 0 ? (
+          <div className="grid gap-3 md:grid-cols-3">
+            {exportQueueItems.map((item) => (
+              <div key={item.id} className="rounded-md border border-white/10 bg-[#0f1014] p-4">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div className="text-sm font-semibold text-white">{item.title}</div>
+                  <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                    item.status === 'ready'
+                      ? 'bg-emerald-400/10 text-emerald-200'
+                      : item.status === 'available'
+                        ? 'bg-[#2c6ef2]/14 text-[#9bc3ff]'
+                        : 'bg-[#f5a524]/10 text-[#ffd58a]'
+                  }`}>
+                    {t(`queue.status.${item.status}`)}
+                  </span>
+                </div>
+                <p className="min-h-10 text-xs leading-5 text-white/44">{item.description}</p>
+                <div className="mt-3 rounded border border-white/8 bg-white/4 px-3 py-2 text-xs leading-5 text-white/46">
+                  {item.blocker}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-white/34">
+                    {item.queuedStatus ? t(`queue.backendStatus.${item.queuedStatus}`) : t('queue.backendStatus.idle')}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void enqueueExportItem(item)}
+                    disabled={item.status === 'blocked' || queueingId !== null}
+                    className="inline-flex h-7 items-center justify-center rounded border border-white/10 bg-white/6 px-2 text-[11px] font-medium text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {queueingId === item.id ? t('queue.enqueueing') : t('queue.enqueue')}
+                  </button>
+                </div>
               </div>
-              <p className="min-h-10 text-xs leading-5 text-white/44">{item.description}</p>
-              <div className="mt-3 rounded border border-white/8 bg-white/4 px-3 py-2 text-xs leading-5 text-white/46">
-                {item.blocker}
-              </div>
-              <div className="mt-3 flex items-center justify-between gap-2">
-                <span className="text-[11px] text-white/34">
-                  {item.queuedStatus ? t(`queue.backendStatus.${item.queuedStatus}`) : t('queue.backendStatus.idle')}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void enqueueExportItem(item)}
-                  disabled={item.status === 'blocked' || queueingId !== null}
-                  className="inline-flex h-7 items-center justify-center rounded border border-white/10 bg-white/6 px-2 text-[11px] font-medium text-white/58 transition-colors hover:border-[#2c6ef2]/55 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  {queueingId === item.id ? t('queue.enqueueing') : t('queue.enqueue')}
-                </button>
-              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex min-h-28 flex-col items-center justify-center rounded-md border border-dashed border-white/10 bg-[#0f1014] text-center">
+            <AppIcon name={queueLoadError ? 'alertOutline' : 'clock'} className="mb-3 h-5 w-5 text-white/28" />
+            <div className="text-sm font-medium text-white/62">
+              {queueLoadError ? t('queue.unavailableTitle') : t('queue.emptyTitle')}
             </div>
-          ))}
-        </div>
+            <div className="mt-1 max-w-md text-xs leading-5 text-white/36">
+              {queueLoadError ? t('queue.unavailableDescription') : t('queue.emptyDescription')}
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="rounded-lg border border-white/10 bg-[#15161b] p-5">

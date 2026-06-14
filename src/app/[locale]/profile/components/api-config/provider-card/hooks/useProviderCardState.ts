@@ -772,6 +772,7 @@ export function useProviderCardState({
 
   const maskedKey = (() => {
     const key = provider.apiKey || ''
+    if (!key && provider.hasApiKey) return '••••••••••••••••'
     if (key.length <= 8) return '•'.repeat(key.length)
     return `${key.slice(0, 4)}${'•'.repeat(50)}`
   })()

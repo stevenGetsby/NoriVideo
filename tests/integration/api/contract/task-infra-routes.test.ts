@@ -47,6 +47,7 @@ const listEventsAfterMock = vi.hoisted(() =>
 const listTaskLifecycleEventsMock = vi.hoisted(() =>
   vi.fn<typeof import('@/lib/task/publisher').listTaskLifecycleEvents>(async () => []),
 )
+const prismaTaskFindManyMock = vi.hoisted(() => vi.fn(async (): Promise<unknown[]> => []))
 const addChannelListenerMock = vi.hoisted(() =>
   vi.fn<(channel: string, listener: (message: string) => void) => Promise<() => Promise<void>>>(
     async () => async () => undefined,
@@ -113,7 +114,7 @@ vi.mock('@/lib/sse/shared-subscriber', () => ({
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     task: {
-      findMany: vi.fn(async () => []),
+      findMany: prismaTaskFindManyMock,
     },
   },
 }))
@@ -135,8 +136,11 @@ describe('api contract - task infra routes (behavior)', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'false')
+    vi.stubEnv('NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS', 'false')
     authState.authenticated = true
     subscriberState.listener = null
+    prismaTaskFindManyMock.mockResolvedValue([])
 
     queryTasksMock.mockResolvedValue([baseTask])
     dismissFailedTasksMock.mockResolvedValue(1)
@@ -194,7 +198,71 @@ describe('api contract - task infra routes (behavior)', () => {
     expect(queryTasksMock).toHaveBeenCalledWith(expect.objectContaining({
       projectId: 'project-1',
       targetId: 'appearance-1',
-      limit: 20,
+      limit: 100,
+    }))
+  })
+
+  it('GET /api/tasks: hides internal agent tasks unless internal tools are enabled', async () => {
+    const { GET } = await import('@/app/api/tasks/route')
+    queryTasksMock.mockResolvedValueOnce([
+      baseTask,
+      {
+        ...baseTask,
+        id: 'task-agent-1',
+        type: 'super_agent_execute',
+        targetType: 'project',
+        targetId: 'project-1',
+      },
+    ])
+
+    const req = buildMockRequest({
+      path: '/api/tasks',
+      method: 'GET',
+      query: { projectId: 'project-1', limit: 20 },
+    })
+    const res = await GET(req, emptyRouteContext)
+    const payload = await res.json() as { tasks: TaskRecord[] }
+
+    expect(res.status).toBe(200)
+    expect(payload.tasks.map((task) => task.id)).toEqual(['task-1'])
+
+    const hiddenOnlyReq = buildMockRequest({
+      path: '/api/tasks',
+      method: 'GET',
+      query: { projectId: 'project-1', type: 'super_agent_execute' },
+    })
+    const hiddenOnlyRes = await GET(hiddenOnlyReq, emptyRouteContext)
+    const hiddenOnlyPayload = await hiddenOnlyRes.json() as { tasks: TaskRecord[] }
+
+    expect(hiddenOnlyRes.status).toBe(200)
+    expect(hiddenOnlyPayload.tasks).toEqual([])
+  })
+
+  it('GET /api/tasks: allows internal agent tasks when internal tools are enabled', async () => {
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'true')
+    const { GET } = await import('@/app/api/tasks/route')
+    queryTasksMock.mockResolvedValueOnce([
+      {
+        ...baseTask,
+        id: 'task-agent-1',
+        type: 'super_agent_execute',
+        targetType: 'project',
+        targetId: 'project-1',
+      },
+    ])
+
+    const req = buildMockRequest({
+      path: '/api/tasks',
+      method: 'GET',
+      query: { projectId: 'project-1', type: 'super_agent_execute' },
+    })
+    const res = await GET(req, emptyRouteContext)
+    const payload = await res.json() as { tasks: TaskRecord[] }
+
+    expect(res.status).toBe(200)
+    expect(payload.tasks.map((task) => task.id)).toEqual(['task-agent-1'])
+    expect(queryTasksMock).toHaveBeenCalledWith(expect.objectContaining({
+      type: ['super_agent_execute'],
     }))
   })
 
@@ -267,6 +335,68 @@ describe('api contract - task infra routes (behavior)', () => {
     })
   })
 
+  it('POST /api/task-target-states: hides explicit internal agent task states by default', async () => {
+    const { POST } = await import('@/app/api/task-target-states/route')
+    queryTaskTargetStatesMock.mockResolvedValueOnce([
+      {
+        targetType: 'project',
+        targetId: 'project-1',
+        phase: 'processing',
+        runningTaskId: 'task-agent-1',
+        runningTaskType: 'super_agent_execute',
+        intent: 'build',
+        hasOutputAtStart: null,
+        progress: 35,
+        stage: 'super_agent_execute',
+        stageLabel: 'Agent automation',
+        lastError: null,
+        updatedAt: new Date().toISOString(),
+      },
+    ])
+
+    const req = buildMockRequest({
+      path: '/api/task-target-states',
+      method: 'POST',
+      body: {
+        projectId: 'project-1',
+        targets: [
+          {
+            targetType: 'project',
+            targetId: 'project-1',
+            types: ['super_agent_execute'],
+          },
+        ],
+      },
+    })
+    const res = await POST(req, emptyRouteContext)
+    const payload = await res.json() as { states: Array<Record<string, unknown>> }
+
+    expect(res.status).toBe(200)
+    expect(queryTaskTargetStatesMock).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      userId: 'user-1',
+      targets: [
+        {
+          targetType: 'project',
+          targetId: 'project-1',
+          types: ['__nori_hidden_internal_agent_task__'],
+        },
+      ],
+    })
+    expect(payload.states[0]).toMatchObject({
+      targetType: 'project',
+      targetId: 'project-1',
+      phase: 'idle',
+      runningTaskId: null,
+      runningTaskType: null,
+      progress: null,
+      stage: null,
+      stageLabel: null,
+      lastError: null,
+      updatedAt: null,
+    })
+  })
+
   it('GET /api/tasks/[taskId]: enforces ownership and returns task detail', async () => {
     const route = await import('@/app/api/tasks/[taskId]/route')
 
@@ -287,6 +417,23 @@ describe('api contract - task infra routes (behavior)', () => {
 
     const payload = await res.json() as { task: TaskRecord }
     expect(payload.task.id).toBe('task-1')
+  })
+
+  it('GET /api/tasks/[taskId]: hides internal agent task detail by default', async () => {
+    const route = await import('@/app/api/tasks/[taskId]/route')
+    getTaskByIdMock.mockResolvedValueOnce({
+      ...baseTask,
+      id: 'task-agent-1',
+      type: 'super_agent_execute',
+      targetType: 'project',
+      targetId: 'project-1',
+    })
+
+    const req = buildMockRequest({ path: '/api/tasks/task-agent-1', method: 'GET' })
+    const res = await route.GET(req, { params: Promise.resolve({ taskId: 'task-agent-1' }) })
+
+    expect(res.status).toBe(404)
+    expect(listTaskLifecycleEventsMock).not.toHaveBeenCalled()
   })
 
   it('GET /api/tasks/[taskId]?includeEvents=1: returns lifecycle events for refresh replay', async () => {
@@ -351,6 +498,24 @@ describe('api contract - task infra routes (behavior)', () => {
     }))
   })
 
+  it('DELETE /api/tasks/[taskId]: hides internal agent task cancellation by default', async () => {
+    const { DELETE } = await import('@/app/api/tasks/[taskId]/route')
+    getTaskByIdMock.mockResolvedValueOnce({
+      ...baseTask,
+      id: 'task-agent-1',
+      type: 'super_agent_execute',
+      targetType: 'project',
+      targetId: 'project-1',
+    })
+
+    const req = buildMockRequest({ path: '/api/tasks/task-agent-1', method: 'DELETE' })
+    const res = await DELETE(req, { params: Promise.resolve({ taskId: 'task-agent-1' }) } as RouteContext)
+
+    expect(res.status).toBe(404)
+    expect(cancelTaskMock).not.toHaveBeenCalled()
+    expect(removeTaskJobMock).not.toHaveBeenCalled()
+  })
+
   it('GET /api/sse: missing projectId -> 400; unauthenticated with projectId -> 401', async () => {
     const { GET } = await import('@/app/api/sse/route')
 
@@ -372,6 +537,19 @@ describe('api contract - task infra routes (behavior)', () => {
     const { GET } = await import('@/app/api/sse/route')
 
     listEventsAfterMock.mockResolvedValueOnce([
+      {
+        id: '3',
+        type: 'task.lifecycle',
+        taskId: 'task-agent-1',
+        projectId: 'project-1',
+        userId: 'user-1',
+        ts: new Date().toISOString(),
+        taskType: 'super_agent_execute',
+        targetType: 'project',
+        targetId: 'project-1',
+        episodeId: null,
+        payload: { lifecycleType: 'task.processing' },
+      } satisfies ReplayEvent,
       {
         id: '4',
         type: 'task.lifecycle',
@@ -406,6 +584,8 @@ describe('api contract - task infra routes (behavior)', () => {
     expect(firstChunk.done).toBe(false)
     const decoded = new TextDecoder().decode(firstChunk.value)
     expect(decoded).toContain('event:')
+    expect(decoded).toContain('"taskId":"task-1"')
+    expect(decoded).not.toContain('task-agent-1')
     await reader!.cancel()
   })
 
@@ -425,6 +605,19 @@ describe('api contract - task infra routes (behavior)', () => {
     const listener = subscriberState.listener
     expect(listener).toBeTruthy()
 
+    listener!(JSON.stringify({
+      id: '10',
+      type: 'task.lifecycle',
+      taskId: 'task-agent-1',
+      projectId: 'project-1',
+      userId: 'user-1',
+      ts: new Date().toISOString(),
+      taskType: 'super_agent_execute',
+      targetType: 'project',
+      targetId: 'project-1',
+      episodeId: null,
+      payload: { lifecycleType: 'processing', progress: 20 },
+    }))
     listener!(JSON.stringify({
       id: '11',
       type: 'task.lifecycle',
@@ -461,6 +654,54 @@ describe('api contract - task infra routes (behavior)', () => {
     expect(merged).toContain('"lifecycleType":"processing"')
     expect(merged).toContain('"lifecycleType":"completed"')
     expect(merged).toContain('"taskId":"task-1"')
+    expect(merged).not.toContain('task-agent-1')
+    await reader!.cancel()
+  })
+
+  it('GET /api/sse: active snapshot filters internal agent tasks', async () => {
+    const { GET } = await import('@/app/api/sse/route')
+    prismaTaskFindManyMock.mockResolvedValueOnce([
+      {
+        id: 'task-agent-1',
+        type: 'super_agent_execute',
+        targetType: 'project',
+        targetId: 'project-1',
+        episodeId: null,
+        userId: 'user-1',
+        status: TASK_STATUS.PROCESSING,
+        progress: 20,
+        payload: { stage: 'super_agent_execute' },
+        updatedAt: new Date(),
+      },
+      {
+        id: 'task-1',
+        type: 'image_character',
+        targetType: 'CharacterAppearance',
+        targetId: 'appearance-1',
+        episodeId: null,
+        userId: 'user-1',
+        status: TASK_STATUS.PROCESSING,
+        progress: 60,
+        payload: { stage: 'image_character' },
+        updatedAt: new Date(),
+      },
+    ])
+
+    const req = buildMockRequest({
+      path: '/api/sse',
+      method: 'GET',
+      query: { projectId: 'project-1' },
+    })
+    const res = await GET(req, emptyRouteContext)
+    expect(res.status).toBe(200)
+
+    const reader = res.body?.getReader()
+    expect(reader).toBeTruthy()
+    const firstChunk = await reader!.read()
+    const decoded = new TextDecoder().decode(firstChunk.value)
+
+    expect(decoded).toContain('"taskId":"task-1"')
+    expect(decoded).not.toContain('task-agent-1')
     await reader!.cancel()
   })
 })

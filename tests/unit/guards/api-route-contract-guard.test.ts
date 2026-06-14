@@ -8,13 +8,16 @@ import {
 describe('api route contract guard', () => {
   it('allows explicit public and framework-managed exceptions', () => {
     expect(API_HANDLER_ALLOWLIST.has('src/app/api/auth/[...nextauth]/route.ts')).toBe(true)
-    expect(PUBLIC_ROUTE_ALLOWLIST.has('src/app/api/system/boot-id/route.ts')).toBe(true)
+    expect(PUBLIC_ROUTE_ALLOWLIST.has('src/app/api/system/boot-id/route.ts')).toBe(false)
     expect(
       inspectRouteContract(
         'src/app/api/system/boot-id/route.ts',
         'export async function GET() { return Response.json({ bootId: "x" }) }',
       ),
-    ).toEqual([])
+    ).toEqual([
+      'src/app/api/system/boot-id/route.ts missing apiHandler wrapper',
+      'src/app/api/system/boot-id/route.ts missing requireUserAuth/requireProjectAuth/requireProjectAuthLight',
+    ])
   })
 
   it('passes protected routes that use apiHandler and explicit auth', () => {

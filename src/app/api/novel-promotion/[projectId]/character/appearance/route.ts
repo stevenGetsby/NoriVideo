@@ -172,7 +172,7 @@ export const DELETE = apiHandler(async (
   // 获取形象记录
   const appearance = await prisma.characterAppearance.findUnique({
     where: { id: appearanceId },
-    include: { character: true }
+    include: { character: { include: { novelPromotionProject: true } } }
   })
 
   if (!appearance) {
@@ -181,6 +181,9 @@ export const DELETE = apiHandler(async (
 
   if (appearance.characterId !== characterId) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  if (appearance.character.novelPromotionProject.projectId !== projectId) {
+    throw new ApiError('NOT_FOUND')
   }
 
   // 检查是否是最后一个形象
@@ -230,7 +233,7 @@ export const DELETE = apiHandler(async (
 
   // 删除数据库记录
   await prisma.characterAppearance.delete({
-    where: { id: appearanceId }
+    where: { id: appearance.id }
   })
 
   // 重新排序剩余形象的 appearanceIndex

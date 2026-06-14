@@ -3,6 +3,7 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -19,18 +20,47 @@ export const POST = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
+  const panel = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: panelId,
+      storyboard: {
+        episode: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      storyboard: {
+        select: {
+          episode: {
+            select: { id: true },
+          },
+        },
+      },
+    },
+  })
+  if (!panel) {
+    throw new ApiError('NOT_FOUND')
+  }
 
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
-    episodeId: typeof body?.episodeId === 'string' ? body.episodeId : null,
+    episodeId: panel.storyboard.episode.id,
     type: TASK_TYPE.ANALYZE_SHOT_VARIANTS,
     targetType: 'NovelPromotionPanel',
-    targetId: panelId,
+    targetId: panel.id,
     routePath: `/api/novel-promotion/${projectId}/analyze-shot-variants`,
-    body,
-    dedupeKey: `analyze_shot_variants:${panelId}`})
+    body: {
+      ...body,
+      panelId: panel.id,
+      episodeId: panel.storyboard.episode.id,
+    },
+    dedupeKey: `analyze_shot_variants:${panel.id}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

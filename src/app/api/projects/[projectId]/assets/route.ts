@@ -24,22 +24,21 @@ export const GET = apiHandler(async (
     const { session } = authResult
 
     // 验证项目所有权
-    const project = await prisma.project.findUnique({
-        where: { id: projectId },
-        select: { userId: true }
+    const project = await prisma.project.findFirst({
+        where: {
+            id: projectId,
+            userId: session.user.id,
+        },
+        select: { id: true }
     })
 
     if (!project) {
         throw new ApiError('NOT_FOUND')
     }
 
-    if (project.userId !== session.user.id) {
-        throw new ApiError('FORBIDDEN')
-    }
-
     // 获取 characters 和 locations（包含嵌套数据）
     const novelPromotionData = await prisma.novelPromotionProject.findUnique({
-        where: { projectId },
+        where: { projectId: project.id },
         include: {
             characters: {
                 include: { appearances: { orderBy: { appearanceIndex: 'asc' } } },

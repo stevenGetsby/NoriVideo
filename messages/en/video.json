@@ -208,6 +208,12 @@
         "primary": "Download Package",
         "meta": "Covers {count} shot assets"
       },
+      "voicePackage": {
+        "title": "Voice Package",
+        "description": "Package generated voice lines, character audio, and an audio delivery manifest.",
+        "primary": "Export Voices",
+        "meta": "{count} generated voice lines"
+      },
       "jianyingDraft": {
         "title": "Editing Draft",
         "description": "Export an editable production manifest and media directory for finishing work.",
@@ -237,6 +243,10 @@
       "enqueueing": "Queueing...",
       "enqueued": "Added to the background export queue.",
       "enqueueFailed": "Failed to queue export",
+      "emptyTitle": "Waiting for server deliverables",
+      "emptyDescription": "Export queue readiness is computed by the backend. This episode has no server deliverables to display yet.",
+      "unavailableTitle": "Export queue unavailable",
+      "unavailableDescription": "Could not read backend export readiness. Try again later or check the current project service status.",
       "status": {
         "ready": "Ready",
         "blocked": "Needs Work",
@@ -252,6 +262,7 @@
         "ready": "Current materials satisfy delivery requirements.",
         "missingVideos": "{count} video shots are still missing.",
         "noImages": "No storyboard images are ready for packaging.",
+        "noVoices": "No generated voice audio is ready for packaging.",
         "noPanels": "No shots are available for a delivery manifest.",
         "manifestOnly": "Generates a reviewable manifest before full editing-project packaging."
       },
@@ -263,6 +274,10 @@
         "assetPackage": {
           "title": "Asset Package Task",
           "description": "Package storyboard images, references, videos, and prompts."
+        },
+        "voicePackage": {
+          "title": "Voice Package Task",
+          "description": "Package generated voice lines, character audio, and an audio delivery manifest."
         },
         "editingDraft": {
           "title": "Editing Draft Task",

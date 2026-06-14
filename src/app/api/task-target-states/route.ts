@@ -6,14 +6,24 @@ import {
   requireUserAuth} from '@/lib/api-auth'
 import { withPrismaRetry } from '@/lib/prisma-retry'
 import { queryTaskTargetStates, type TaskTargetQuery } from '@/lib/task/state-service'
+import {
+  isInternalAgentTaskType,
+  isPublicTaskApiVisible,
+} from '@/lib/super-agent/internal-run-visibility'
 
 function normalizeTarget(input: unknown): TaskTargetQuery {
   const payload = input as Record<string, unknown>
   const targetType = typeof payload.targetType === 'string' ? payload.targetType.trim() : ''
   const targetId = typeof payload.targetId === 'string' ? payload.targetId.trim() : ''
-  const types = Array.isArray(payload.types)
+  const requestedTypes = Array.isArray(payload.types)
     ? payload.types.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     : undefined
+  const visibleTypes = requestedTypes
+    ? requestedTypes.filter((item) => !isInternalAgentTaskType(item) || isPublicTaskApiVisible({ type: item }))
+    : undefined
+  const types = requestedTypes && visibleTypes?.length === 0
+    ? ['__nori_hidden_internal_agent_task__']
+    : visibleTypes
 
   if (!targetType || !targetId) {
     throw new ApiError('INVALID_PARAMS')
@@ -67,5 +77,21 @@ export const POST = apiHandler(async (request: NextRequest) => {
       targets})
   )
 
-  return NextResponse.json({ states })
+  return NextResponse.json({
+    states: states.map((state) =>
+      isPublicTaskApiVisible({ type: state.runningTaskType })
+        ? state
+        : {
+          ...state,
+          phase: 'idle',
+          runningTaskId: null,
+          runningTaskType: null,
+          progress: null,
+          stage: null,
+          stageLabel: null,
+          lastError: null,
+          updatedAt: null,
+        }
+    ),
+  })
 })

@@ -251,9 +251,14 @@ async function submitProjectAssetGenerateTask(input: AssetGenerateInput) {
   const appearanceId = normalizeString(input.body.appearanceId)
   const imageIndex = toNumber(input.body.imageIndex)
 
-  if (normalizedKind === 'location' && imageIndex === null) {
-    const location = await prisma.novelPromotionLocation.findUnique({
-      where: { id: input.assetId },
+  if (normalizedKind === 'location') {
+    const location = await prisma.novelPromotionLocation.findFirst({
+      where: {
+        id: input.assetId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
       select: {
         name: true,
         summary: true,
@@ -268,17 +273,19 @@ async function submitProjectAssetGenerateTask(input: AssetGenerateInput) {
     if (!location) {
       throw new ApiError('NOT_FOUND')
     }
-    await ensureProjectLocationImageSlots({
-      locationId: input.assetId,
-      count,
-      fallbackDescription: location.assetKind === 'prop'
-        ? resolvePropVisualDescription({
-          name: location.name,
-          summary: location.summary,
-          description: location.images[0]?.description ?? null,
-        })
-        : location.summary || location.name,
-    })
+    if (imageIndex === null) {
+      await ensureProjectLocationImageSlots({
+        locationId: input.assetId,
+        count,
+        fallbackDescription: location.assetKind === 'prop'
+          ? resolvePropVisualDescription({
+            name: location.name,
+            summary: location.summary,
+            description: location.images[0]?.description ?? null,
+          })
+          : location.summary || location.name,
+      })
+    }
   }
 
   const taskType = normalizedKind === 'character' ? TASK_TYPE.IMAGE_CHARACTER : TASK_TYPE.IMAGE_LOCATION
@@ -286,6 +293,23 @@ async function submitProjectAssetGenerateTask(input: AssetGenerateInput) {
   const targetId = normalizedKind === 'character' ? (appearanceId || input.assetId) : input.assetId
   if (!targetId) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  if (normalizedKind === 'character') {
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: targetId,
+        characterId: input.assetId,
+        character: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (!appearance) {
+      throw new ApiError('NOT_FOUND')
+    }
   }
   const hasOutputAtStart = normalizedKind === 'character'
     ? await hasCharacterAppearanceOutput({
@@ -456,20 +480,87 @@ async function submitProjectAssetModifyTask(input: AssetModifyInput) {
   }
   const normalizedKind = normalizeLocationBackedKind(input.kind)
   const targetType = normalizedKind === 'character' ? 'CharacterAppearance' : 'LocationImage'
-  const targetId = normalizedKind === 'character'
-    ? normalizeString(input.body.appearanceId) || input.assetId
-    : normalizeString(input.body.locationImageId) || input.assetId
+  const requestedAppearanceId = normalizeString(input.body.appearanceId)
+  const requestedLocationImageId = normalizeString(input.body.locationImageId)
+  let targetId = normalizedKind === 'character'
+    ? requestedAppearanceId || input.assetId
+    : requestedLocationImageId || input.assetId
   if (!targetId) {
     throw new ApiError('INVALID_PARAMS')
   }
+  if (normalizedKind === 'character') {
+    if (requestedAppearanceId) {
+      const appearance = await prisma.characterAppearance.findFirst({
+        where: {
+          id: requestedAppearanceId,
+          characterId: input.assetId,
+          character: {
+            novelPromotionProject: {
+              projectId,
+            },
+          },
+        },
+        select: { id: true },
+      })
+      if (!appearance) {
+        throw new ApiError('NOT_FOUND')
+      }
+      targetId = appearance.id
+    } else {
+      const character = await prisma.novelPromotionCharacter.findFirst({
+        where: {
+          id: input.assetId,
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+        select: { id: true },
+      })
+      if (!character) {
+        throw new ApiError('NOT_FOUND')
+      }
+      targetId = character.id
+    }
+  } else if (requestedLocationImageId) {
+    const locationImage = await prisma.locationImage.findFirst({
+      where: {
+        id: requestedLocationImageId,
+        locationId: input.assetId,
+        location: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (!locationImage) {
+      throw new ApiError('NOT_FOUND')
+    }
+    targetId = locationImage.id
+  } else {
+    const location = await prisma.novelPromotionLocation.findFirst({
+      where: {
+        id: input.assetId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!location) {
+      throw new ApiError('NOT_FOUND')
+    }
+    targetId = location.id
+  }
   const hasOutputAtStart = normalizedKind === 'character'
     ? await hasCharacterAppearanceOutput({
-      appearanceId: normalizeString(input.body.appearanceId) || null,
+      appearanceId: requestedAppearanceId ? targetId : null,
       characterId: input.assetId,
       appearanceIndex: toNumber(input.body.appearanceIndex),
     })
     : await hasLocationImageOutput({
-      imageId: normalizeString(input.body.locationImageId) || null,
+      imageId: requestedLocationImageId ? targetId : null,
       locationId: input.assetId,
       imageIndex: toNumber(input.body.imageIndex),
     })
@@ -484,6 +575,8 @@ async function submitProjectAssetModifyTask(input: AssetModifyInput) {
     type: input.kind,
     characterId: normalizedKind === 'character' ? input.assetId : undefined,
     locationId: normalizedKind === 'location' ? input.assetId : undefined,
+    appearanceId: normalizedKind === 'character' && requestedAppearanceId ? targetId : input.body.appearanceId,
+    locationImageId: normalizedKind === 'location' && requestedLocationImageId ? targetId : input.body.locationImageId,
     extraImageUrls: extraImageAudit.normalized,
     meta: {
       ...toObject(input.body.meta),
@@ -625,12 +718,21 @@ async function selectGlobalAssetRender(input: AssetSelectInput) {
 }
 
 async function selectProjectAssetRender(input: AssetSelectInput) {
+  const projectId = requireProjectId(input.access)
   if (input.kind === 'character') {
     const appearanceId = normalizeString(input.body.appearanceId) || normalizeString(input.body.variantId)
     const selectedIndex = toNumber(input.body.selectedIndex ?? input.body.imageIndex)
     if (!appearanceId) throw new ApiError('INVALID_PARAMS')
-    const appearance = await prisma.characterAppearance.findUnique({
-      where: { id: appearanceId },
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: appearanceId,
+        characterId: input.assetId,
+        character: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
       include: { character: true },
     })
     if (!appearance) throw new ApiError('NOT_FOUND')
@@ -650,8 +752,13 @@ async function selectProjectAssetRender(input: AssetSelectInput) {
     return confirmProjectLocationBackedSelection(input.assetId)
   }
   const selectedIndex = toNumber(input.body.selectedIndex ?? input.body.imageIndex)
-  const location = await prisma.novelPromotionLocation.findUnique({
-    where: { id: input.assetId },
+  const location = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: input.assetId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
     include: { images: { orderBy: { imageIndex: 'asc' } } },
   })
   if (!location) throw new ApiError('NOT_FOUND')
@@ -742,11 +849,20 @@ async function revertGlobalAssetRender(input: AssetRevertInput) {
 }
 
 async function revertProjectAssetRender(input: AssetRevertInput) {
+  const projectId = requireProjectId(input.access)
   if (input.kind === 'character') {
     const appearanceId = normalizeString(input.body.appearanceId) || normalizeString(input.body.variantId)
     if (!appearanceId) throw new ApiError('INVALID_PARAMS')
-    const appearance = await prisma.characterAppearance.findUnique({
-      where: { id: appearanceId },
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: appearanceId,
+        characterId: input.assetId,
+        character: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
     })
     if (!appearance) throw new ApiError('NOT_FOUND')
     const previousImageUrls = decodeImageUrlsFromDb(appearance.previousImageUrls, 'characterAppearance.previousImageUrls')
@@ -775,8 +891,13 @@ async function revertProjectAssetRender(input: AssetRevertInput) {
     })
     return { success: true }
   }
-  const location = await prisma.novelPromotionLocation.findUnique({
-    where: { id: input.assetId },
+  const location = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: input.assetId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
     include: { images: { orderBy: { imageIndex: 'asc' } } },
   })
   if (!location) throw new ApiError('NOT_FOUND')
@@ -821,8 +942,13 @@ async function copyCharacterFromGlobal(input: AssetCopyInput) {
     include: { appearances: true },
   })
   if (!globalCharacter) throw new ApiError('NOT_FOUND')
-  const projectCharacter = await prisma.novelPromotionCharacter.findUnique({
-    where: { id: input.targetId },
+  const projectCharacter = await prisma.novelPromotionCharacter.findFirst({
+    where: {
+      id: input.targetId,
+      novelPromotionProject: {
+        projectId: input.access.projectId,
+      },
+    },
     include: { appearances: true },
   })
   if (!projectCharacter) throw new ApiError('NOT_FOUND')
@@ -875,8 +1001,13 @@ async function copyLocationFromGlobal(input: AssetCopyInput) {
     include: { images: true },
   })
   if (!globalLocation) throw new ApiError('NOT_FOUND')
-  const projectLocation = await prisma.novelPromotionLocation.findUnique({
-    where: { id: input.targetId },
+  const projectLocation = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: input.targetId,
+      novelPromotionProject: {
+        projectId: input.access.projectId,
+      },
+    },
     include: { images: true },
   })
   if (!projectLocation) throw new ApiError('NOT_FOUND')
@@ -924,8 +1055,18 @@ async function copyVoiceFromGlobal(input: AssetCopyInput) {
     where: { id: input.globalAssetId, userId: input.access.userId },
   })
   if (!globalVoice) throw new ApiError('NOT_FOUND')
+  const projectCharacter = await prisma.novelPromotionCharacter.findFirst({
+    where: {
+      id: input.targetId,
+      novelPromotionProject: {
+        projectId: input.access.projectId,
+      },
+    },
+    select: { id: true },
+  })
+  if (!projectCharacter) throw new ApiError('NOT_FOUND')
   const character = await prisma.novelPromotionCharacter.update({
-    where: { id: input.targetId },
+    where: { id: projectCharacter.id },
     data: {
       voiceId: globalVoice.voiceId,
       voiceType: globalVoice.voiceType,
@@ -1010,6 +1151,7 @@ async function updateGlobalAsset(input: AssetUpdateInput) {
 }
 
 async function updateProjectAsset(input: AssetUpdateInput) {
+  const projectId = requireProjectId(input.access)
   if (input.kind === 'character') {
     const updateData: Record<string, unknown> = {}
     if (input.body.name !== undefined) updateData.name = normalizeString(input.body.name)
@@ -1018,8 +1160,18 @@ async function updateProjectAsset(input: AssetUpdateInput) {
     if (input.body.voiceType !== undefined) updateData.voiceType = input.body.voiceType
     if (input.body.customVoiceUrl !== undefined) updateData.customVoiceUrl = input.body.customVoiceUrl
     if (input.body.profileConfirmed !== undefined) updateData.profileConfirmed = input.body.profileConfirmed
+    const existingCharacter = await prisma.novelPromotionCharacter.findFirst({
+      where: {
+        id: input.assetId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!existingCharacter) throw new ApiError('NOT_FOUND')
     const character = await prisma.novelPromotionCharacter.update({
-      where: { id: input.assetId },
+      where: { id: existingCharacter.id },
       data: updateData,
     })
     return { success: true, character }
@@ -1028,8 +1180,18 @@ async function updateProjectAsset(input: AssetUpdateInput) {
     const updateData: Record<string, unknown> = {}
     if (input.body.name !== undefined) updateData.name = normalizeString(input.body.name)
     if (input.body.summary !== undefined) updateData.summary = normalizeString(input.body.summary) || null
+    const existingLocation = await prisma.novelPromotionLocation.findFirst({
+      where: {
+        id: input.assetId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!existingLocation) throw new ApiError('NOT_FOUND')
     const location = await prisma.novelPromotionLocation.update({
-      where: { id: input.assetId },
+      where: { id: existingLocation.id },
       data: updateData,
     })
     return { success: true, location }
@@ -1038,8 +1200,18 @@ async function updateProjectAsset(input: AssetUpdateInput) {
     const updateData: Record<string, unknown> = {}
     if (input.body.name !== undefined) updateData.name = normalizeString(input.body.name)
     if (input.body.summary !== undefined) updateData.summary = normalizeString(input.body.summary) || null
+    const existingProp = await prisma.novelPromotionLocation.findFirst({
+      where: {
+        id: input.assetId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!existingProp) throw new ApiError('NOT_FOUND')
     const prop = await prisma.novelPromotionLocation.update({
-      where: { id: input.assetId },
+      where: { id: existingProp.id },
       data: updateData,
     })
     return { success: true, prop }
@@ -1105,9 +1277,18 @@ async function updateGlobalAssetVariant(input: AssetVariantUpdateInput) {
 }
 
 async function updateProjectAssetVariant(input: AssetVariantUpdateInput) {
+  const projectId = requireProjectId(input.access)
   if (input.kind === 'character') {
-    const appearance = await prisma.characterAppearance.findUnique({
-      where: { id: input.variantId },
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: input.variantId,
+        characterId: input.assetId,
+        character: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
     })
     if (!appearance) throw new ApiError('NOT_FOUND')
     const trimmedDescription = normalizeString(input.body.description)
@@ -1133,8 +1314,21 @@ async function updateProjectAssetVariant(input: AssetVariantUpdateInput) {
     const trimmedDescription = normalizeString(input.body.description)
     if (!trimmedDescription) throw new ApiError('INVALID_PARAMS')
     const cleanDescription = removePropPromptSuffix(trimmedDescription)
+    const existingImage = await prisma.locationImage.findFirst({
+      where: {
+        id: input.variantId,
+        locationId: input.assetId,
+        location: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (!existingImage) throw new ApiError('NOT_FOUND')
     const image = await prisma.locationImage.update({
-      where: { id: input.variantId },
+      where: { id: existingImage.id },
       data: { description: cleanDescription },
     })
     return { success: true, image }
@@ -1142,8 +1336,21 @@ async function updateProjectAssetVariant(input: AssetVariantUpdateInput) {
   const trimmedDescription = normalizeString(input.body.description)
   if (!trimmedDescription) throw new ApiError('INVALID_PARAMS')
   const cleanDescription = removeLocationPromptSuffix(trimmedDescription)
+  const existingImage = await prisma.locationImage.findFirst({
+    where: {
+      id: input.variantId,
+      locationId: input.assetId,
+      location: {
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+    },
+    select: { id: true },
+  })
+  if (!existingImage) throw new ApiError('NOT_FOUND')
   const image = await prisma.locationImage.update({
-    where: { id: input.variantId },
+    where: { id: existingImage.id },
     data: { description: cleanDescription },
   })
   return { success: true, image }

@@ -82,16 +82,17 @@ export function mergeProvidersForDisplay(
         seenProviderIds.add(savedProvider.id)
 
         const providerKey = getProviderKey(savedProvider.id)
+        const apiKey = savedProvider.apiKey || ''
+        const hasApiKey = savedProvider.hasApiKey === true || apiKey.length > 0
         const matchedPreset = presetProviders.find((presetProvider) => presetProvider.id === providerKey)
         if (matchedPreset) {
-            const apiKey = savedProvider.apiKey || ''
             const providerBaseUrl = providerKey === 'minimax'
                 ? matchedPreset.baseUrl
                 : (savedProvider.baseUrl || matchedPreset.baseUrl)
             merged.push({
                 ...matchedPreset,
                 apiKey,
-                hasApiKey: apiKey.length > 0,
+                hasApiKey,
                 hidden: savedProvider.hidden === true,
                 baseUrl: providerBaseUrl,
                 apiMode: savedProvider.apiMode,
@@ -103,7 +104,8 @@ export function mergeProvidersForDisplay(
 
         merged.push({
             ...savedProvider,
-            hasApiKey: !!savedProvider.apiKey,
+            apiKey,
+            hasApiKey,
         })
     }
 
@@ -118,6 +120,20 @@ export function mergeProvidersForDisplay(
     }
 
     return merged
+}
+
+export function buildProvidersPayloadForSave(providers: Provider[]): Array<Omit<Provider, 'hasApiKey'>> {
+    return providers.map((provider) => {
+        if (provider.hasApiKey === true && !provider.apiKey) {
+            const { apiKey, hasApiKey, ...payload } = provider
+            void apiKey
+            void hasApiKey
+            return payload
+        }
+        const { hasApiKey, ...payload } = provider
+        void hasApiKey
+        return payload
+    })
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -392,12 +408,13 @@ export function useProviders(): UseProvidersReturn {
             const currentWorkflowConcurrency = overrides?.workflowConcurrency ?? latestWorkflowConcurrencyRef.current
             const currentCapabilityDefaults = overrides?.capabilityDefaults ?? latestCapabilityDefaultsRef.current
             const enabledModels = currentModels.filter(m => m.enabled)
+            const providersPayload = buildProvidersPayloadForSave(currentProviders)
             const res = await apiFetch('/api/user/api-config', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     models: enabledModels,
-                    providers: currentProviders,
+                    providers: providersPayload,
                     defaultModels: currentDefaultModels,
                     workflowConcurrency: currentWorkflowConcurrency,
                     capabilityDefaults: currentCapabilityDefaults,

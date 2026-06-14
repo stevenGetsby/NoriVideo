@@ -25,9 +25,17 @@ export const PUT = apiHandler(async (
         throw new ApiError('INVALID_PARAMS')
     }
 
-    // 验证 storyboard 存在
-    const storyboard = await prisma.novelPromotionStoryboard.findUnique({
-        where: { id: storyboardId }
+    // 验证 storyboard 属于当前项目
+    const storyboard = await prisma.novelPromotionStoryboard.findFirst({
+        where: {
+            id: storyboardId,
+            episode: {
+                novelPromotionProject: {
+                    projectId
+                }
+            }
+        },
+        select: { id: true }
     })
 
     if (!storyboard) {
@@ -38,7 +46,7 @@ export const PUT = apiHandler(async (
     const photographyPlanJson = photographyPlan ? JSON.stringify(photographyPlan) : null
 
     await prisma.novelPromotionStoryboard.update({
-        where: { id: storyboardId },
+        where: { id: storyboard.id },
         data: { photographyPlan: photographyPlanJson }
     })
 

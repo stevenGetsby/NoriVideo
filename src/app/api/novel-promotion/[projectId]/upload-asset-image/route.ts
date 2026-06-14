@@ -25,11 +25,11 @@ interface LocationRecord {
 
 interface UploadAssetImageDb {
   characterAppearance: {
-    findUnique(args: Record<string, unknown>): Promise<CharacterAppearanceRecord | null>
+    findFirst(args: Record<string, unknown>): Promise<CharacterAppearanceRecord | null>
     update(args: Record<string, unknown>): Promise<unknown>
   }
   novelPromotionLocation: {
-    findUnique(args: Record<string, unknown>): Promise<LocationRecord | null>
+    findFirst(args: Record<string, unknown>): Promise<LocationRecord | null>
     update(args: Record<string, unknown>): Promise<unknown>
   }
   locationImage: {
@@ -69,6 +69,41 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  let appearance: CharacterAppearanceRecord | null = null
+  let location: LocationRecord | null = null
+
+  if (type === 'character' && appearanceId !== null) {
+    appearance = await db.characterAppearance.findFirst({
+      where: {
+        id: appearanceId,
+        characterId: id,
+        character: {
+          novelPromotionProject: {
+            projectId
+          }
+        }
+      }
+    })
+    if (!appearance) {
+      throw new ApiError('NOT_FOUND')
+    }
+  } else if (type === 'location') {
+    location = await db.novelPromotionLocation.findFirst({
+      where: {
+        id,
+        novelPromotionProject: {
+          projectId
+        }
+      },
+      include: { images: { orderBy: { imageIndex: 'asc' } } }
+    })
+    if (!location) {
+      throw new ApiError('NOT_FOUND')
+    }
+  } else {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
   // 读取文件
   const arrayBuffer = await file.arrayBuffer()
   const buffer = Buffer.from(arrayBuffer)
@@ -100,15 +135,9 @@ export const POST = apiHandler(async (
 
   // 更新数据库
   if (type === 'character' && appearanceId !== null) {
-    // 更新角色形象图片 - 使用 UUID 直接查询
-    const appearance = await db.characterAppearance.findUnique({
-      where: { id: appearanceId }
-    })
-
     if (!appearance) {
       throw new ApiError('NOT_FOUND')
     }
-
     // 解析现有图片数组
     const imageUrls = decodeImageUrlsFromDb(appearance.imageUrls, 'characterAppearance.imageUrls')
 
@@ -151,16 +180,9 @@ export const POST = apiHandler(async (
     })
 
   } else if (type === 'location') {
-    // 更新场景图片
-    const location = await db.novelPromotionLocation.findUnique({
-      where: { id },
-      include: { images: { orderBy: { imageIndex: 'asc' } } }
-    })
-
     if (!location) {
       throw new ApiError('NOT_FOUND')
     }
-
     // 如果指定了imageIndex，更新对应的图片记录
     if (imageIndex !== null) {
       const targetImageIndex = parseInt(imageIndex)

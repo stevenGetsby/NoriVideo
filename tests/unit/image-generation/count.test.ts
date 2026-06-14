@@ -3,6 +3,7 @@ import {
   getImageGenerationCountConfig,
   getImageGenerationCountOptions,
   normalizeImageGenerationCount,
+  normalizeImageGenerationCountPreferences,
 } from '@/lib/image-generation/count'
 import {
   getImageGenerationCount,
@@ -24,6 +25,20 @@ describe('image generation count helpers', () => {
   it('returns ordered options for each scope', () => {
     expect(getImageGenerationCountOptions('character')).toEqual([1, 2, 3, 4, 5, 6])
     expect(getImageGenerationCountOptions('storyboard-candidates')).toEqual([1, 2, 3, 4])
+  })
+
+  it('normalizes persisted count preferences', () => {
+    expect(normalizeImageGenerationCountPreferences({
+      character: 9,
+      location: '2',
+      'storyboard-candidates': 0,
+      unknown: 6,
+    })).toEqual({
+      character: 6,
+      location: 2,
+      'storyboard-candidates': 1,
+    })
+    expect(normalizeImageGenerationCountPreferences(null)).toEqual({})
   })
 
   it('reads and writes client preference with scope isolation', () => {

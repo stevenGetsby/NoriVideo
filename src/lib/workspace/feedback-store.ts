@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { prisma } from '@/lib/prisma'
 
 export type FeedbackType = 'bug' | 'quality' | 'workflow' | 'idea'
 export type FeedbackStatus = 'open' | 'triaged' | 'resolved'
@@ -24,6 +25,7 @@ interface StoreShape {
 const STORE_DIR = path.join(process.cwd(), '.runtime', 'feedback')
 const FEEDBACK_TYPES = new Set<FeedbackType>(['bug', 'quality', 'workflow', 'idea'])
 const FEEDBACK_STATUSES = new Set<FeedbackStatus>(['open', 'triaged', 'resolved'])
+const MAX_RECORDS = 80
 
 function safeSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_')
@@ -45,6 +47,16 @@ function textValue(value: unknown, fallback = '') {
   return typeof value === 'string' ? value : fallback
 }
 
+function toDate(value: string | null | undefined) {
+  if (!value) return new Date()
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
+function makeCollisionSafeId(id: string) {
+  return `${id}-${Date.now().toString(36)}-${Math.random().toString(16).slice(2, 8)}`.slice(0, 191)
+}
+
 function normalizeRecord(value: unknown): FeedbackRecord | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const record = value as Partial<FeedbackRecord>
@@ -55,16 +67,16 @@ function normalizeRecord(value: unknown): FeedbackRecord | null {
   ) {
     return null
   }
-  const createdAt = textValue(record.createdAt, new Date().toISOString())
+  const createdAt = toDate(textValue(record.createdAt, new Date().toISOString())).toISOString()
   return {
-    id: record.id,
+    id: record.id.slice(0, 191),
     type: normalizeType(record.type),
-    title: record.title,
+    title: record.title.slice(0, 191),
     description: record.description,
     route: textValue(record.route),
     userAgent: textValue(record.userAgent),
     createdAt,
-    updatedAt: textValue(record.updatedAt, createdAt),
+    updatedAt: toDate(textValue(record.updatedAt, createdAt)).toISOString(),
     status: normalizeStatus(record.status),
   }
 }
@@ -76,7 +88,7 @@ function normalizeRecords(value: unknown): FeedbackRecord[] {
     .filter((record): record is FeedbackRecord => Boolean(record))
 }
 
-export async function readFeedbackRecords(userId: string) {
+async function readFeedbackRecordsFile(userId: string) {
   try {
     const raw = await fs.readFile(storePath(userId), 'utf8')
     const parsed = JSON.parse(raw) as Partial<StoreShape>
@@ -86,37 +98,127 @@ export async function readFeedbackRecords(userId: string) {
   }
 }
 
-async function writeFeedbackRecords(userId: string, records: FeedbackRecord[]) {
-  const filePath = storePath(userId)
-  await fs.mkdir(path.dirname(filePath), { recursive: true })
-  const payload: StoreShape = {
-    updatedAt: new Date().toISOString(),
-    records: normalizeRecords(records).slice(0, 80),
+async function removeFeedbackFile(userId: string) {
+  await fs.rm(storePath(userId), { force: true }).catch(() => undefined)
+}
+
+function toApiRecord(row: {
+  id: string
+  type: string
+  title: string
+  description: string
+  route: string | null
+  userAgent: string | null
+  status: string
+  createdAt: Date
+  updatedAt: Date
+}): FeedbackRecord {
+  return {
+    id: row.id,
+    type: normalizeType(row.type),
+    title: row.title,
+    description: row.description,
+    route: row.route || '',
+    userAgent: row.userAgent || '',
+    status: normalizeStatus(row.status),
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   }
-  await fs.writeFile(filePath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8')
-  return payload.records
+}
+
+async function migrateFeedbackFileIfNeeded(userId: string) {
+  const fileRecords = await readFeedbackRecordsFile(userId)
+  if (fileRecords.length === 0) return
+
+  await prisma.workspaceFeedbackRecord.createMany({
+    data: fileRecords.map((record) => ({
+      id: record.id,
+      userId,
+      type: record.type,
+      title: record.title,
+      description: record.description,
+      route: record.route || null,
+      userAgent: record.userAgent || null,
+      status: record.status,
+      createdAt: toDate(record.createdAt),
+      updatedAt: toDate(record.updatedAt),
+    })),
+    skipDuplicates: true,
+  })
+  await removeFeedbackFile(userId)
+}
+
+export async function readFeedbackRecords(userId: string) {
+  let rows = await prisma.workspaceFeedbackRecord.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+    take: MAX_RECORDS,
+  })
+  if (rows.length === 0) {
+    await migrateFeedbackFileIfNeeded(userId)
+    rows = await prisma.workspaceFeedbackRecord.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      take: MAX_RECORDS,
+    })
+  }
+  return rows.map(toApiRecord)
 }
 
 export async function appendFeedbackRecord(userId: string, record: Omit<FeedbackRecord, 'updatedAt'>) {
-  const current = await readFeedbackRecords(userId)
-  const nextRecord: FeedbackRecord = {
+  const normalized = normalizeRecord({
     ...record,
     updatedAt: record.createdAt,
+  })
+  if (!normalized) return readFeedbackRecords(userId)
+
+  await migrateFeedbackFileIfNeeded(userId)
+  const existing = await prisma.workspaceFeedbackRecord.findUnique({
+    where: { id: normalized.id },
+    select: { userId: true },
+  })
+  if (existing?.userId === userId) {
+    await prisma.workspaceFeedbackRecord.update({
+      where: { id: normalized.id },
+      data: {
+        type: normalized.type,
+        title: normalized.title,
+        description: normalized.description,
+        route: normalized.route || null,
+        userAgent: normalized.userAgent || null,
+        status: normalized.status,
+        updatedAt: toDate(normalized.updatedAt),
+      },
+    })
+  } else {
+    await prisma.workspaceFeedbackRecord.create({
+      data: {
+        id: existing ? makeCollisionSafeId(normalized.id) : normalized.id,
+        userId,
+        type: normalized.type,
+        title: normalized.title,
+        description: normalized.description,
+        route: normalized.route || null,
+        userAgent: normalized.userAgent || null,
+        status: normalized.status,
+        createdAt: toDate(normalized.createdAt),
+        updatedAt: toDate(normalized.updatedAt),
+      },
+    })
   }
-  return await writeFeedbackRecords(userId, [
-    nextRecord,
-    ...current.filter((item) => item.id !== nextRecord.id),
-  ])
+  return readFeedbackRecords(userId)
 }
 
 export async function updateFeedbackRecordStatus(userId: string, id: string, status: FeedbackStatus) {
-  const current = await readFeedbackRecords(userId)
-  const next = current.map((record) => (
-    record.id === id
-      ? { ...record, status, updatedAt: new Date().toISOString() }
-      : record
-  ))
-  return await writeFeedbackRecords(userId, next)
+  await migrateFeedbackFileIfNeeded(userId)
+  await prisma.workspaceFeedbackRecord.updateMany({
+    where: { userId, id },
+    data: {
+      status: normalizeStatus(status),
+      updatedAt: new Date(),
+    },
+  })
+  return readFeedbackRecords(userId)
 }
 
 export function isFeedbackStatus(value: unknown): value is FeedbackStatus {

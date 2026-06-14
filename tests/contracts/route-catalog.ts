@@ -67,6 +67,7 @@ const ROUTE_FILES = [
   'src/app/api/auth/[...nextauth]/route.ts',
   'src/app/api/auth/register/route.ts',
   'src/app/api/cos/image/route.ts',
+  'src/app/api/feedback/route.ts',
   'src/app/api/files/[...path]/route.ts',
   'src/app/api/storage/sign/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-character/route.ts',
@@ -98,6 +99,10 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/episodes/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/split-by-markers/route.ts',
   'src/app/api/novel-promotion/[projectId]/episodes/split/route.ts',
+  'src/app/api/novel-promotion/[projectId]/export-artifact/route.ts',
+  'src/app/api/novel-promotion/[projectId]/export-history/route.ts',
+  'src/app/api/novel-promotion/[projectId]/export-manifest/route.ts',
+  'src/app/api/novel-promotion/[projectId]/export-queue/route.ts',
   'src/app/api/novel-promotion/[projectId]/generate-character-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/generate-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/generate-video/route.ts',
@@ -117,8 +122,10 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/regenerate-panel-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/regenerate-single-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/regenerate-storyboard-text/route.ts',
+  'src/app/api/novel-promotion/[projectId]/rebuild-impact/route.ts',
   'src/app/api/novel-promotion/[projectId]/route.ts',
   'src/app/api/novel-promotion/[projectId]/screenplay-conversion/route.ts',
+  'src/app/api/novel-promotion/[projectId]/seedance-assets/character/route.ts',
   'src/app/api/novel-promotion/[projectId]/script-to-storyboard-stream/route.ts',
   'src/app/api/novel-promotion/[projectId]/select-character-image/route.ts',
   'src/app/api/novel-promotion/[projectId]/select-location-image/route.ts',
@@ -126,6 +133,7 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/story-to-script-stream/route.ts',
   'src/app/api/novel-promotion/[projectId]/storyboard-group/route.ts',
   'src/app/api/novel-promotion/[projectId]/storyboards/route.ts',
+  'src/app/api/novel-promotion/[projectId]/timeline/route.ts',
   'src/app/api/novel-promotion/[projectId]/undo-regenerate/route.ts',
   'src/app/api/novel-promotion/[projectId]/update-appearance/route.ts',
   'src/app/api/novel-promotion/[projectId]/update-asset-label/route.ts',
@@ -138,18 +146,38 @@ const ROUTE_FILES = [
   'src/app/api/novel-promotion/[projectId]/voice-design/route.ts',
   'src/app/api/novel-promotion/[projectId]/voice-generate/route.ts',
   'src/app/api/novel-promotion/[projectId]/voice-lines/route.ts',
+  'src/app/api/novel-promotion/episodes/[episodeId]/storyboards/route.ts',
   'src/app/api/projects/[projectId]/assets/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/edges/[edgeId]/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/edges/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/nodes/[nodeId]/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/nodes/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/production-sync/route.ts',
+  'src/app/api/projects/[projectId]/canvas/[canvasId]/route.ts',
+  'src/app/api/projects/[projectId]/canvas/route.ts',
   'src/app/api/projects/[projectId]/costs/route.ts',
   'src/app/api/projects/[projectId]/data/route.ts',
+  'src/app/api/projects/[projectId]/navigation-state/route.ts',
   'src/app/api/projects/[projectId]/route.ts',
+  'src/app/api/projects/[projectId]/workflow-stage-review/route.ts',
+  'src/app/api/projects/[projectId]/workflow-state/route.ts',
   'src/app/api/projects/route.ts',
+  'src/app/api/prompt-templates/route.ts',
   'src/app/api/runs/[runId]/cancel/route.ts',
   'src/app/api/runs/[runId]/events/route.ts',
   'src/app/api/runs/[runId]/route.ts',
   'src/app/api/runs/[runId]/steps/[stepKey]/retry/route.ts',
   'src/app/api/runs/route.ts',
+  'src/app/api/service-records/route.ts',
   'src/app/api/sse/route.ts',
+  'src/app/api/super-agent/chat-edit/route.ts',
+  'src/app/api/super-agent/execute/route.ts',
+  'src/app/api/super-agent/plan/route.ts',
+  'src/app/api/super-agent/skills/route.ts',
   'src/app/api/system/boot-id/route.ts',
+  'src/app/api/system/pricing/route.ts',
+  'src/app/api/system/status/route.ts',
+  'src/app/api/system/update-check/route.ts',
   'src/app/api/task-target-states/route.ts',
   'src/app/api/tasks/[taskId]/route.ts',
   'src/app/api/tasks/dismiss/route.ts',
@@ -167,7 +195,25 @@ const ROUTE_FILES = [
   'src/app/api/user/costs/route.ts',
   'src/app/api/user/ai-story-expand/route.ts',
   'src/app/api/user/models/route.ts',
+  'src/app/api/user/seedance-assets-config/test/route.ts',
+  'src/app/api/user/seedance-assets-config/route.ts',
+  'src/app/api/user/storage-config/route.ts',
   'src/app/api/user/transactions/route.ts',
+  'src/app/api/video-enhance/[taskId]/download/route.ts',
+  'src/app/api/video-enhance/[taskId]/route.ts',
+  'src/app/api/video-enhance/route.ts',
+  'src/app/api/video-enhance/save-to-path/route.ts',
+  'src/app/api/video-enhance/select-directory/route.ts',
+  'src/app/api/workflow/projects/[projectId]/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/approve/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/cancel/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/retry/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/run/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/[stage]/unapprove/route.ts',
+  'src/app/api/workflow/projects/[projectId]/stages/route.ts',
+  'src/app/api/workspace/team-overview/route.ts',
+  'src/app/api/workspace/team-overview/seats/route.ts',
 ] as const
 
 function resolveCategory(routeFile: string): RouteCategory {
@@ -175,6 +221,7 @@ function resolveCategory(routeFile: string): RouteCategory {
   if (routeFile.startsWith('src/app/api/asset-hub/')) return 'asset-hub'
   if (routeFile.startsWith('src/app/api/novel-promotion/')) return 'novel-promotion'
   if (routeFile.startsWith('src/app/api/projects/')) return 'projects'
+  if (routeFile.startsWith('src/app/api/workflow/projects/')) return 'projects'
   if (
     routeFile.startsWith('src/app/api/tasks/')
     || routeFile.startsWith('src/app/api/runs/')
@@ -234,7 +281,11 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
   ) {
     return 'task-infra-routes'
   }
-  if (routeFile.startsWith('src/app/api/projects/') || routeFile.startsWith('src/app/api/user/')) {
+  if (
+    routeFile.startsWith('src/app/api/projects/')
+    || routeFile.startsWith('src/app/api/workflow/projects/')
+    || routeFile.startsWith('src/app/api/user/')
+  ) {
     return 'user-project-routes'
   }
   if (routeFile.startsWith('src/app/api/auth/')) return 'auth-routes'

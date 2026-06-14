@@ -26,51 +26,7 @@ interface FeedbackResponse {
   records?: FeedbackRecord[]
 }
 
-const STORAGE_KEY = 'nori.frameos.feedback.records'
 const FEEDBACK_TYPES: FeedbackType[] = ['bug', 'quality', 'workflow', 'idea']
-const FEEDBACK_STATUSES: FeedbackStatus[] = ['open', 'triaged', 'resolved']
-
-function normalizeType(value: unknown): FeedbackType {
-  return FEEDBACK_TYPES.includes(value as FeedbackType) ? value as FeedbackType : 'bug'
-}
-
-function normalizeStatus(value: unknown): FeedbackStatus {
-  return FEEDBACK_STATUSES.includes(value as FeedbackStatus) ? value as FeedbackStatus : 'open'
-}
-
-function readRecords(): FeedbackRecord[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY)
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed.filter((item) => (
-      item
-      && typeof item.id === 'string'
-      && typeof item.title === 'string'
-      && typeof item.description === 'string'
-    )).map((item) => ({
-      id: item.id,
-      type: normalizeType(item.type),
-      title: item.title,
-      description: item.description,
-      route: typeof item.route === 'string' ? item.route : '',
-      userAgent: typeof item.userAgent === 'string' ? item.userAgent : '',
-      createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date().toISOString(),
-      status: normalizeStatus(item.status),
-    })) : []
-  } catch {
-    return []
-  }
-}
-
-function writeRecords(records: FeedbackRecord[]) {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(records.slice(0, 30)))
-}
-
-function makeId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID()
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
 
 function formatDate(value: string) {
   const date = new Date(value)
@@ -88,7 +44,6 @@ export function FrameFeedbackDashboard() {
   const [saved, setSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [storageMode, setStorageMode] = useState<'server' | 'local'>('server')
 
   useEffect(() => {
     setRoute(window.location.pathname + window.location.search)
@@ -104,13 +59,10 @@ export function FrameFeedbackDashboard() {
         if (!cancelled) {
           const nextRecords = Array.isArray(data.records) ? data.records : []
           setRecords(nextRecords)
-          writeRecords(nextRecords)
-          setStorageMode('server')
         }
       } catch (loadError) {
         if (!cancelled) {
-          setRecords(readRecords())
-          setStorageMode('local')
+          setRecords([])
           setError(loadError instanceof Error ? loadError.message : t('loadFailed'))
         }
       } finally {
@@ -147,9 +99,7 @@ export function FrameFeedbackDashboard() {
   async function updateRecordStatus(id: string, status: FeedbackStatus) {
     const previousRecords = records
     const nextRecords = records.map((record) => record.id === id ? { ...record, status } : record)
-    writeRecords(nextRecords)
     setRecords(nextRecords)
-    if (storageMode === 'local') return
 
     try {
       const response = await apiFetch('/api/feedback', {
@@ -160,12 +110,10 @@ export function FrameFeedbackDashboard() {
       if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
       const data = (await response.json()) as FeedbackResponse
       const serverRecords = Array.isArray(data.records) ? data.records : nextRecords
-      writeRecords(serverRecords)
       setRecords(serverRecords)
       setError(null)
     } catch (updateError) {
       setRecords(previousRecords)
-      writeRecords(previousRecords)
       setError(updateError instanceof Error ? updateError.message : t('saveFailed'))
     }
   }
@@ -177,42 +125,31 @@ export function FrameFeedbackDashboard() {
     const submittedRoute = String(formData.get('route') ?? route).trim()
     if (!trimmedTitle || !trimmedDescription) return
 
-    const nextRecord: FeedbackRecord = {
-      id: makeId(),
+    const nextRecord = {
       type,
       title: trimmedTitle,
       description: trimmedDescription,
       route: submittedRoute || window.location.pathname,
       userAgent: window.navigator.userAgent,
-      createdAt: new Date().toISOString(),
-      status: 'open',
     }
-    const nextRecords = [nextRecord, ...records].slice(0, 30)
-    writeRecords(nextRecords)
-    setRecords(nextRecords)
+
     try {
-      if (storageMode === 'server') {
-        const response = await apiFetch('/api/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(nextRecord),
-        })
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
-        const data = (await response.json()) as FeedbackResponse
-        const serverRecords = Array.isArray(data.records) ? data.records : nextRecords
-        writeRecords(serverRecords)
-        setRecords(serverRecords)
-      }
+      const response = await apiFetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextRecord),
+      })
+      if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
+      const data = (await response.json()) as FeedbackResponse
+      setRecords(Array.isArray(data.records) ? data.records : records)
       setTitle('')
       setDescription('')
       setSaved(true)
       setError(null)
       window.setTimeout(() => setSaved(false), 1800)
     } catch (saveError) {
-      setStorageMode('local')
       setError(saveError instanceof Error ? saveError.message : t('saveFailed'))
-      setSaved(true)
-      window.setTimeout(() => setSaved(false), 1800)
+      setSaved(false)
     }
   }
 
@@ -313,7 +250,7 @@ export function FrameFeedbackDashboard() {
 
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-white/34">
-              {storageMode === 'server' ? t('serverBacked') : t('localOnly')}
+              {t('serverBacked')}
             </div>
             <button
               type="button"
@@ -344,7 +281,7 @@ export function FrameFeedbackDashboard() {
               <p className="mt-1 text-xs leading-5 text-white/40">{t('triageSubtitle')}</p>
             </div>
             <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
-              {storageMode === 'server' ? t('serverTriage') : t('localTriage')}
+              {t('serverTriage')}
             </span>
           </div>
           <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#10131b] px-3 py-2 text-[11px] font-medium text-white/42">
@@ -381,7 +318,7 @@ export function FrameFeedbackDashboard() {
               <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="text-xs text-white/38">{t(`context.${key}.label`)}</div>
                 <div className="mt-1 truncate text-sm font-medium text-white/72">
-                  {key === 'route' ? route || '-' : key === 'storage' ? t(`context.${key}.${storageMode}`) : t(`context.${key}.value`)}
+                  {key === 'route' ? route || '-' : key === 'storage' ? t(`context.${key}.server`) : t(`context.${key}.value`)}
                 </div>
               </div>
             ))}

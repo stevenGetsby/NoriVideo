@@ -573,10 +573,14 @@ stale -> approved               # 用户选择继续沿用旧结果
 ```prisma
 model WorkflowStageState {
   id           String   @id @default(uuid())
-  projectId    String
   userId       String
-  stage        String
+  projectId    String
+  scopeId      String   @default("project") @db.VarChar(128)
+  stageKey     String   @db.VarChar(64)
   status       String   @default("idle")
+  progress     Int?
+  blocker      String?  @db.Text
+  reviewState  String?  @db.VarChar(32)
   lastRunId    String?
   lastTaskId   String?
   summary      Json?
@@ -587,9 +591,9 @@ model WorkflowStageState {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  @@unique([projectId, stage])
+  @@unique([userId, projectId, scopeId, stageKey])
+  @@index([projectId, scopeId])
   @@index([userId])
-  @@index([projectId])
   @@index([status])
   @@map("workflow_stage_states")
 }
@@ -600,6 +604,8 @@ model WorkflowStageState {
 - 避免把阶段状态散落在 `NovelPromotionProject`、`Task`、`GraphRun` 和前端本地状态中。
 - Shell 可以一次查询所有阶段状态。
 - 刷新页面和 worker 恢复都能找到主状态。
+- `scopeId` 使用 `project` 或剧集 ID，避免 MySQL 对 nullable 唯一索引允许多个 `NULL` 的问题。
+- `reviewState` 存人工确认/需复核层，`status` 预留给后续任务状态机和 worker 推进。
 
 ### 6.2 可选 SourceMaterial
 
@@ -804,10 +810,15 @@ src/app/api/workflow/projects/[projectId]/stages/[stage]/cancel/route.ts
         "locked": false,
         "readonly": true,
         "stale": false,
+        "reviewState": "confirmed",
+        "progress": 100,
+        "blocker": null,
         "lastRunId": "run-id",
         "lastTaskId": null,
+        "errorCode": null,
         "errorMessage": null,
-        "summary": { "episodeCount": 12 }
+        "summary": { "episodeCount": 12 },
+        "updatedAt": "2026-06-13T00:00:00.000Z"
       }
     ],
     "activeStage": "assets"
@@ -1533,10 +1544,10 @@ worker 失败更新 failed
 当前仍未完成的 FrameOS 对齐点：
 
 ```text
-1. 导出交付已有独立阶段页、视频 ZIP、图片 ZIP、交付清单下载、后端派生历史 API、服务端持久化下载记录和后台导出队列；仍缺真正剪映工程草稿生成与 worker 执行。
+1. 导出交付已有独立阶段页、视频 ZIP、图片 ZIP、交付清单下载、后端派生历史 API、数据库持久化下载记录、数据库导出队列、Task worker 执行和 worker 侧可下载 artifact 上传；仍缺真正可导入的剪映工程包格式和大文件流式打包优化。
 2. 工作台分组子项目已具备 script-review、items、environments、timeline、shot/:id 等桥接视图；仍需继续细化成更接近 FrameOS 的独立生产子页面。
-3. 阶段状态已新增后端派生状态 API 并接入工作台导航；人工确认/需复核状态已通过 workflow-stage-review API 持久化到服务端文件存储，仍未新增数据库版 WorkflowStageState 数据表。
-4. 主导航里的工具箱、素材库、提示词库、Seedance 2.0 与底部入口已接入现有项目、任务、素材、提示词、视频增强和系统状态 API；服务记录已加入任务派生的用量/估算账单预览，并已接入真实余额、费用汇总、最近流水和内置价格目录 API；仍缺 FrameOS 级别的套餐配置和团队数据模型。
+3. 阶段状态已新增后端派生状态 API 并接入工作台导航；人工确认/需复核状态已通过 workflow-stage-review API 迁移为数据库优先持久化，worker/task/run 运行态也开始写入 WorkflowStageState；内部 super-agent 自动执行导航锁已改为从 GraphRun 派生；后续仍需扩展失败态 UI、轮询刷新和更细的乱序/重试保护。
+4. 主导航里的工具箱、素材库、提示词库、Seedance 2.0 与底部入口已接入现有项目、任务、素材、提示词、视频增强和系统状态 API；服务记录、问题反馈、检查更新、更新提示静默版本、图像生成张数偏好、视频增强安全默认项和团队席位配置均已接入后端聚合或数据库持久化；仍缺 FrameOS 级别的真实子账号、套餐计费和跨成员权限执行。
 5. 当前页面视觉已接近后台工作台，但资产、分镜、镜头详情页还需要继续逐页细化。
 ```
 
@@ -1545,16 +1556,25 @@ worker 失败更新 failed
 ```text
 导出交付
   editor 阶段不再复用最终视频列表。
-  新增独立 ExportDeliveryStage，呈现成片、资产包、剪辑草稿、交付检查、导出历史。
+  新增独立 ExportDeliveryStage，呈现成片、资产包、语音包、剪辑草稿、交付检查、导出历史。
   交付检查基于当前剧集 panels/videoUrl 统计缺失镜头，并提供返回镜头制作入口。
-  成片卡片已接入 /api/novel-promotion/:projectId/download-videos，可按当前剧集下载已生成视频 ZIP。
-  资产包卡片已接入 /api/novel-promotion/:projectId/download-images，可按当前剧集下载分镜图片 ZIP。
-  新增 /api/novel-promotion/:projectId/export-manifest，输出项目、剧集、场次、镜头、提示词和媒体 URL 的 JSON 交付清单。
-  剪辑草稿卡片当前下载交付清单，作为可复核的轻量草稿交付。
-  新增 /api/novel-promotion/:projectId/export-history，GET 合并当前剧集可交付派生记录和服务端持久化下载记录，POST 在每次成片、资产包或清单下载成功后写入记录类型、文件名、时间、状态和统计信息。
-  导出历史已从 localStorage 升级为 .runtime/export-history 服务端文件持久化；前端下载成功后写入后端并重新读取历史列表。
-  新增 /api/novel-promotion/:projectId/export-queue，支持将成片、资产包、剪辑草稿加入后台导出队列；队列记录按 userId/projectId/episodeId 写入 .runtime/export-queue，导出页会显示“未入队 / 后台队列中”等状态。
-  真正剪映工程包和导出 worker 执行仍待后续任务化。
+  成片卡片已从同步 /download-videos 收敛到 /api/novel-promotion/:projectId/export-queue，按当前剧集提交 final-video 后台导出任务，由 worker 生成可下载 artifact。
+  资产包卡片已从同步 /download-images 收敛到 /api/novel-promotion/:projectId/export-queue，按当前剧集提交 asset-package 后台导出任务，由 worker 生成可下载 artifact。
+  语音包卡片已接入 /api/novel-promotion/:projectId/export-queue，按当前剧集提交 voice-package 后台导出任务，由 worker 读取 NovelPromotionVoiceLine.audioUrl 生成可下载语音 ZIP artifact。
+  /api/novel-promotion/:projectId/export-manifest 仍可输出项目、剧集、场次、镜头、提示词和媒体 URL 的 JSON 交付清单，作为兼容即时清单入口。
+  剪辑草稿卡片已从直接下载 export-manifest 收敛到 /api/novel-promotion/:projectId/export-queue，按当前剧集提交 jianying-draft 后台导出任务，由 worker 生成草稿包 artifact。
+  新增 /api/novel-promotion/:projectId/export-history，GET 合并当前剧集可交付派生记录和数据库持久化下载记录；POST 仅保留兼容入口且只接受 cardId，服务端必须找到当前 user/project/episode 下 ready 的 ExportQueueRecord artifact 后才派生 completed 历史，不再信任客户端提交的 title/fileName/stats/createdAt/id。导出交付页主链路由 worker 完成后写入记录类型、文件名、时间、状态、artifact 和统计信息。
+  导出历史已从 localStorage/.runtime 升级为 ExportHistoryRecord 数据表，按 userId/projectId/scopeId 保存；旧 .runtime/export-history 文件仅在数据库为空时迁移导入并清理，数据库异常会向 API 暴露失败，不再静默回退文件写入。
+  新增 /api/novel-promotion/:projectId/export-queue，支持将成片、资产包、剪辑草稿加入后台导出队列；队列记录按 userId/projectId/scopeId/cardId 写入 ExportQueueRecord，导出页会显示“未入队 / 后台队列中”等状态。
+  /api/novel-promotion/:projectId/export-queue POST 已从单纯写队列状态升级为 submitTask(TASK_TYPE.EXPORT_DELIVERY)，走现有 BullMQ text queue、Task 心跳、重试和事件体系；导出任务显式排除出 AI Run，避免把它暴露成外部 Agent 工作流。
+  新增 src/lib/novel-promotion/export-delivery.ts 和 worker handler，worker 会读取 Prisma 项目/剧集/分镜/镜头/配音数据，生成成片、资产包或剪辑草稿的交付 manifest、统计信息和 nori-video.jianying-draft.v1 轻量草稿结构，完成后写回 ExportQueueRecord 并追加 ExportHistoryRecord。
+  worker 侧导出已从“仅生成 manifest”升级为真正构建 artifact：final-video、asset-package 和 voice-package 会生成包含媒体文件与 manifest.json 的 ZIP，jianying-draft 会生成包含 draft_content.json、draft_meta_info.json、manifest.json 和 materials/*.json 引用清单的 ZIP 草稿包，并通过 uploadObject 写入 storage。
+  ExportQueueRecord 和 ExportHistoryRecord 均保存 outputStorageKey、contentType 和按需生成的 outputUrl；Task.result 也返回 artifact key、URL、大小和 manifest；新增 /api/novel-promotion/:projectId/export-artifact 作为带项目权限校验的 artifact 下载入口，可按 queue/history 记录返回 downloadUrl 或 redirect 到签名地址。
+  /api/novel-promotion/:projectId/export-queue 的 readiness/blocker 已迁移到后端 resolveExportReadiness：GET 返回 items/stats/records，POST 只接受 cardId，后端按当前剧集 panels/images/videos 判断 final-video、asset-package、jianying-draft 是否 queued 或 blocked，并写入 ExportQueueRecord；前端不再提交 title/status/blocker。
+  导出交付页已移除本地 fallbackExportQueueItems 和 sourceExportQueueItems，队列区只渲染 /export-queue 返回的服务端 items；API 读取失败或当前剧集无后端交付项时显示空/错误态，不再用前端 panels/images/voices 统计伪造 readiness。
+  导出交付页四个主卡片 final-video、asset-package、voice-package、jianying-draft 均已统一走 export-queue -> EXPORT_DELIVERY worker -> export-artifact/history；download-videos/download-images/download-voices 仅保留为其他模块的兼容即时下载入口。
+  兼容 export-manifest 与 download-* 路由也已接入导出 scope 解析：不传 episodeId 仍支持项目级即时导出；带 episodeId 时会先 trim 并验证剧集属于当前 projectId，跨项目或不存在 episode 返回 NOT_FOUND，且不会继续读取镜头、图片、视频或配音数据。download-* 响应已增加 X-Nori-Delivery-Mode=compat-sync-download，并返回 X-Nori-Replacement-Endpoint=/export-queue 与 X-Nori-Replacement-Artifact=/export-artifact，便于客户端迁移到 artifact 链路。
+  真正剪映官方可导入格式适配和大文件流式打包到 storage 仍待后续实现；兼容 download-* 入口后续可继续收敛到 artifact 查询或声明为 deprecated。
   导出交付页新增导出任务队列，按成片、资产包、剪辑草稿显示可执行/待补齐/可生成清单状态，并给出缺视频、缺图、缺镜头等阻塞原因；本轮已接入后端 export-queue 持久化入队状态。
 
 项目列表与创建弹窗
@@ -1567,6 +1587,28 @@ worker 失败更新 failed
   工作台内 Agent 修改和 Agent Workflow 浮动面板默认隐藏，仅在 NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS=true 时作为内部工具显示。
   SmartImportWizard 已移除 Agent 创建分支和 agentCreate 文案；首次项目导入只保留手动创建与智能文本分集入口。
   项目详情页已移除 Agent 运行恢复对导入向导的显式控制；普通剧本到分镜阶段运行继续以 srt workflowMode 保存，避免把阶段流标记成外部 Agent 项目。
+  新增内部派生 /api/projects/:projectId/navigation-state，只读返回 navigationLocked 布尔值；该状态从 SUPER_AGENT_WORKFLOW_TYPE 的可恢复 GraphRun 派生，用于阻止后台自动执行期间的前端阶段跳转，但普通项目 API 不返回内部 runId/status/source，不作为外部 Agent 模式入口。
+  工作台 useWorkspaceExecution 已优先读取 navigation-state；原 nori:super-agent-running:{projectId} 已降级为 5 分钟 sessionStorage 瞬时 hint，不再写 localStorage，刷新或跨标签页后的权威状态来自 GraphRun。
+  项目详情页零状态自动建集也接入 navigation-state：后端确认内部自动执行 active 时不会抢先创建第一集；自动执行结束后刷新 projectData，若仍为空则显示导入向导而不是重复自动建集。
+  首页快速创建项目提交的故事正文已从 sessionStorage 桥接升级为 NovelPromotionProject.pendingImportText / pendingImportEpisodeName 后端持久化；工作台导入向导从 /api/projects/:projectId/data 读取 pending 初稿，手动创建单集或智能分集实际写入剧集后由后端派生 importStatus=completed 并清理 pending 字段。
+  /api/projects/:projectId 主项目详情、重命名和删除已从 findUnique(id)+FORBIDDEN 收敛为按 id+当前 userId 查询；跨用户 projectId 统一按 NOT_FOUND 处理，后续 lastAccessedAt、update 和 delete 只使用已确认归属的 project.id。
+  requireProjectAuth / requireProjectAuthLight 共享项目鉴权 helper 也已从 findUnique(id)+owner check 收敛为按 id+当前 userId 查询；复用这些 helper 的 workflow、novel-promotion、runs、export、canvas 等后端入口在跨用户 projectId 上统一表现为 NOT_FOUND，不再通过 403 暴露项目 ID 存在性。
+  /api/projects/:projectId/data、/assets 和 /costs 也已收紧为当前 userId 作用域下的项目查询；未命中时不会继续读取 NovelPromotionProject、用户模型偏好、资产媒体签名或项目成本明细，避免通过附属接口探测其他用户项目存在性。
+  普通 /api/runs、/api/runs/:runId、/events、/cancel 和 step retry 入口已默认屏蔽 super_agent_creation / super_agent_chat_edit 运行记录，避免内部后台 Agent run 通过通用 Run API 成为外部产品入口；仅在服务端 NORI_INTERNAL_AGENT_TOOLS=true 时作为内部调试工具可见。NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS 只控制前端内部面板显示，不放行后端数据。
+  /api/runs POST 已收紧到 requireProjectAuthLight(projectId)；公开 run 创建不再只凭登录态信任 body.projectId。若客户端附带 taskId，服务端必须校验 Task.userId/projectId 与当前会话和项目一致后才允许挂载，避免伪造 run 绑定他人任务。
+  /api/runs/:runId/cancel 调用 cancelTask 时也会下推当前 session.user.id 和 run.projectId 作用域；cancelTask 新增可选 scoped cancel，拒绝对不属于当前用户/项目的 taskId 做取消补偿或状态更新，避免构造 run 取消他人任务。
+  novel-promotion 写接口已补齐项目作用域边界：/episodes/:episodeId、/voice-lines、/clips、/clips/:clipId、/panel、/panel/select-candidate、/panel-variant、/storyboard-group、/photography-plan、/storyboards、/update-prompt、/speaker-voice、/character、/character-profile/confirm、/location、/character-voice、/character/appearance、/character/confirm-selection、/location/confirm-selection、/upload-asset-image、/update-appearance、/update-location、/editor、/lip-sync、/generate-video、/regenerate-panel-image、/modify-storyboard-image、/regenerate-single-image、/ai-modify-appearance、/ai-modify-location、/ai-modify-shot-prompt、/analyze、/analyze-shot-variants、/script-to-storyboard-stream、/screenplay-conversion、/voice-analyze、/insert-panel、/regenerate-storyboard-text、/reference-to-character 现在都会在读写或任务提交前验证 episode/storyboard/panel/clip/line/shot/character/location/appearance/location image/editor project 等实体属于当前 projectId；跨项目实体 ID 按 NOT_FOUND 或 INVALID_PARAMS 处理，不再用全局 ID 直接 update/delete 或写入 Task payload。upload-asset-image 会在文件处理和 storage 上传前完成归属校验，避免无效请求产生孤儿对象；lip-sync 入队前还会验证 voiceLineId 属于当前 panel 所在剧集，避免跨剧集音频被写进任务 payload；generate-video 单镜头路径按 panel 所属项目过滤，批量路径先校验 episode 属于当前项目再枚举 panels；regenerate-panel-image、modify-storyboard-image、regenerate-single-image、insert-panel 和 regenerate-storyboard-text 会在读取模型配置、计费 payload 和 submitTask 前校验目标实体属于当前项目；ai-modify-*、analyze、analyze-shot-variants、clips、script-to-storyboard-stream、screenplay-conversion、voice-analyze、character-profile/confirm 和 reference-to-character 会在 maybeSubmitLLMTask 前校验目标实体属于当前项目，并把任务 payload 中的实体 ID 规范化为已校验值。
+  资产通用服务层 src/lib/assets/services/asset-actions.ts 的 project 分支也已收紧：submitAssetGenerateTask、copyAssetFromGlobal、updateAsset、updateAssetVariant、select/revert project render 会按 access.projectId 过滤 NovelPromotionCharacter、NovelPromotionLocation、CharacterAppearance 和 LocationImage，再执行 slot 创建、任务提交、复制、更新或撤回。
+  本轮继续收紧 project 资产图片修改链路：submitAssetModifyTask 在读取模型配置、计费 payload 和 submitTask 前，会验证 characterId/locationId 以及可选 appearanceId/locationImageId 属于当前 projectId；确认后的 appearanceId/locationImageId 会写回任务 payload 和 targetId，避免 legacy body 中的跨项目变体 ID 进入队列。/copy-from-global、/undo-regenerate、/modify-asset-image legacy 入口会先 trim body 中的目标 ID，再调用统一资产服务。
+  update-asset-label 的项目资产重写服务也从 findUnique(assetId) 收敛为按 novelPromotionProject.projectId 过滤的 findFirst，避免通过同名项目 API 触发其他项目角色/场景图片标签重写。
+  验证方式：npx vitest run tests/unit/auth/project-auth-scope.test.ts tests/unit/novel-promotion/scoped-entity-routes.test.ts tests/unit/assets/asset-label.test.ts tests/unit/assets/asset-actions-scope.test.ts tests/integration/api/contract/crud-routes.test.ts tests/integration/api/contract/direct-submit-routes.test.ts tests/integration/api/specific/assets-route.test.ts；npm run typecheck。
+  该能力存储仍复用 GraphRun / GraphEvent / GraphArtifact / GraphCheckpoint；新增 src/lib/super-agent/internal-run-visibility.ts 只负责 API 可见性判断，不影响内部 super-agent 执行、navigation-state 派生或后台恢复。
+  验证方式：tests/integration/api/contract/runs-list.route.test.ts、run-cancel.route.test.ts、run-step-retry.route.test.ts，以及 tests/unit/run-runtime/run-detail-route.test.ts、run-events-route.test.ts 覆盖默认隐藏、内部开关放行和 public run 正常读取。
+  普通 /api/tasks、/api/tasks/:taskId、/api/task-target-states 和 /api/sse 也已默认过滤 super_agent_execute 任务及 lifecycle 事件；无显式 type 查询时 /api/tasks 会 overfetch 后过滤再按客户端 limit 截断，避免内部任务挤占普通任务列表。/api/tasks/dismiss 底层的 dismissFailedTasks 也默认带 type notIn=super_agent_execute，避免用户通过猜 taskId 修改内部后台任务状态。仅服务端内部工具开关打开时可见或可写。
+  该能力存储仍复用 Task、TaskEvent/SSE replay 和现有 task-target-state 派生；内部过滤集中复用 src/lib/super-agent/internal-run-visibility.ts，不改变后台队列、worker 或 super-agent 执行。
+  验证方式：tests/integration/api/contract/task-infra-routes.test.ts 覆盖任务列表、任务详情、取消、target-state、SSE replay、SSE active snapshot 和 subscriber 实时事件的默认隐藏与内部开关放行；tests/unit/task/dismiss-internal-agent.test.ts 覆盖 dismiss 写路径默认排除内部任务。
+  /api/super-agent/plan、/execute、/chat-edit、/skills 已从普通登录 API 收敛为服务端内部工具 API：默认直接返回 404，不执行 auth、计划、入队或技能读取；只有 NORI_INTERNAL_AGENT_TOOLS=true 时才允许内部调试面板调用。HTTP 入口门禁集中在 src/lib/super-agent/internal-api-guard.ts，后台 worker 的 super_agent_execute handler、GraphRun 存储和 navigation-state 派生不依赖这些 HTTP 入口。
+  验证方式：tests/unit/super-agent/routes.test.ts 覆盖 plan/skills/chat-edit 默认 404 与内部开关放行，tests/unit/super-agent/execute-route.test.ts 覆盖 execute 默认 404、同步执行、后台入队、失败回写和项目归属校验。
 
 主导航页面
   新增共享 FrameWorkbenchShell，抽出 FrameOS 风格左侧主导航、顶部 Navbar、底部服务记录/用户入口。
@@ -1578,23 +1620,30 @@ worker 失败更新 failed
   新增 /projects 兼容入口，保留查询参数后重定向到 /workspace，复用当前项目列表和创建弹窗实现。
   新增 /workflow 顶层兼容入口，保留查询参数后重定向到 /projects，用作 FrameOS 工作流根路径回退。
   项目列表已读取 URL 的 search/page 参数；从 /projects?search=xxx&page=n 进入时会同步搜索框、分页状态和 /api/projects 请求，搜索/翻页交互也会写回 URL；项目入口新增项目生产概览，按草稿、剧本解析、分镜制作和导出交付汇总当前项目状态。
+  /api/projects/:projectId PATCH 已从 `data: body` 改为字段白名单，只允许更新基础可编辑字段 `name/description`；`id/userId/createdAt/updatedAt/lastAccessedAt` 等 ownership/审计字段不会接受客户端 mass assignment。
+  /api/projects 每个项目新增 workflowSummary，服务端批量读取 WorkflowStageState、当前用户 active Task 数和项目产物统计，返回 currentStage/status/progress/activeStages/blockedStages/reviewStages/staleStages/approvedStages；项目生产概览和项目卡片状态已从“本地列表”切换为“后端状态”，stats 仅作为无阶段记录时的兜底。
+  /api/projects 项目卡片 totalCost 已从 UsageCost groupBy 改为读取当前用户项目用量后复用 isInternalUsageCostRecord 过滤内部 Agent 用量再聚合，避免项目列表金额包含已从账单明细隐藏的内部后台消费。
   新增 /writer-workbench、/writer-workbench/redraw-v2/:scriptId、/toolbox、/material、/prompts、/team 页面骨架。
   编剧工作台、工具箱、素材库、提示词库、团队管理先以功能卡片和工作流预览呈现，后续逐步接真实 API。
   /team 保留个人版信息架构入口，接入个人账号、项目/任务统计、成员席位矩阵、角色边界、权限矩阵和额度预览；不实现子账号登录、真实团队权限和计费额度。
   新增 /seedance 页面，对齐 FrameOS 的 Seedance 2.0 主导航入口，用于承载模型预设、参考资产、批量镜头和生成诊断。
   底部服务记录、问题反馈、检查更新从静态按钮改为真实路由入口，新增 /service-records、/feedback、/updates 页面骨架。
-  /service-records 已接入现有 /api/tasks?limit=80，展示当前用户异步任务统计、服务用量概览、估算账单预览、最近失败和任务明细表。
-  /service-records 新增服务配置矩阵，按视频生成、图像资产、音频音色、文本分析四类展示价格范围、成功率、调用次数和启用状态；本轮已接入 /api/user/balance、/api/user/costs、/api/user/transactions 和 /api/system/pricing，展示真实余额、冻结金额、累计消耗、项目费用排行、最近扣费流水、价格目录版本、模型覆盖和价格范围；真实套餐和团队额度仍待后续接后端模型。
-  /service-records 可见统计和任务表过滤 super_agent、NORI_AGENT、自动创作模式等内部任务标记，避免把内部 Agent 能力作为外部服务记录类型暴露。
+  /service-records 已接入 /api/service-records 后端聚合接口，服务端统一读取 Task、UsageCost、UserBalance、BalanceTransaction 和内置价格目录，返回任务统计、服务用量、真实账单、最近失败、服务配置矩阵、价格目录版本、模型覆盖和任务明细；后端默认过滤 super_agent、NORI_AGENT、自动创作模式等内部任务/用量/流水标记，避免把内部 Agent 能力作为外部服务记录类型暴露。
   /seedance 已接入现有 /api/video-enhance?limit=40，展示视频任务统计、Seedance 能力矩阵、最近视频增强历史、Seedance 模型预设和跳转到 /video-enhance 的操作入口。
   /prompts 已接入现有 /api/prompt-templates，展示提示词模板目录、提示词覆盖矩阵、中文/英文覆盖统计、变量占位和剧本/资产/分镜/视频分组。
   /material 已接入现有 /api/assets?scope=global，展示全局素材统计、素材生产矩阵、角色/场景/道具/音色分组、最近素材预览和跳转到 /asset-hub 的入口。
   /toolbox 已接入 /api/user/api-config、/api/tasks?limit=60、/api/assets?scope=global、/api/prompt-templates，展示模型配置、任务状态、素材库、提示词模板的生产诊断、生产能力矩阵、最近任务队列和快捷入口。
   /writer-workbench 已接入 /api/projects?page=1&pageSize=8，展示剧本项目队列、剧本准备矩阵、第一集文本预览、分集/分镜/视频统计，并链接到项目剧本页和 redraw-v2 入口。
   /writer-workbench/redraw-v2/:scriptId 已接入 /api/projects/:scriptId/data，展示项目原稿预览、重绘准备矩阵、分集列表、字数/角色/场景统计和重绘检查清单。
-  /updates 已新增并接入 /api/system/status，展示 package 版本、服务启动 ID、Node/NPM/Next/React 依赖状态、模块更新矩阵、发布轨道、最近变更和更新检查项；本轮已新增 /api/system/update-check 与 .runtime/update-checks 后端检查历史，页面支持“立即检查”并展示最近检查记录。
-  /feedback 已加入个人版反馈记录表单和处理看板，支持问题类型、标题、路由、描述、浏览器上下文、分诊/解决状态和按类型汇总；本轮已接入 /api/feedback 与 .runtime/feedback 后端持久化，刷新后可恢复账号反馈记录，API 不可用时才降级到 localStorage。
-  /team 已接入 /api/projects?page=1&pageSize=6 和 /api/tasks?limit=40，展示个人账号、拥有者角色、成员席位矩阵、项目/分集/任务统计、任务负载分布、额度预览、权限矩阵和团队角色预留边界。
+  图像生成张数偏好已从纯 localStorage 升级为 /api/user-preference 的 imageGenerationCounts 字段，角色、场景、分镜候选和参考转角色的生成数量可随账号保存；localStorage 仅作为未登录或 API 失败时的即时回退。
+  /video-enhance 的安全默认项已从纯 localStorage 升级为 /api/user-preference 的 videoEnhanceSettings 字段，保存输入模式、工具版本、场景、分辨率模式、分辨率上限、fps、高级面板、批量并发和受限 videoUrlsDraft 草稿；clientToken、callbackArgs 和本机下载路径继续只存浏览器本地，避免把请求幂等 token、本机路径或回调上下文跨设备持久化。
+  Navbar 更新提示的“本版本不再提醒”已从纯 localStorage 升级为 /api/user-preference 的 mutedUpdateVersion 字段，dismiss 时写入账号偏好；旧 nori:update:muted-version 仅作为一次性迁移和 API 故障时的本地回退。
+  /updates 已新增并接入带登录认证的 /api/system/status 与 /api/system/update-check，展示 package 版本、服务启动 ID、Node/NPM/Next/React 依赖状态、模块更新矩阵、发布轨道、最近变更、任务队列健康和当前账号的更新检查历史；检查记录已落表到 SystemUpdateCheckRecord，旧 .runtime/update-checks 文件仅作为空库迁移导入来源，数据库异常会向 API 暴露失败，不再静默回退文件写入。
+  /feedback 已加入个人版反馈记录表单和处理看板，支持问题类型、标题、路由、描述、浏览器上下文、分诊/解决状态和按类型汇总；本轮已接入 /api/feedback 与 WorkspaceFeedbackRecord 数据表，刷新后可恢复账号反馈记录；前端不再把已提交反馈写入 localStorage，API 不可用时显示错误；旧 .runtime/feedback 文件仅作为空库迁移导入来源，数据库异常不再回退文件存储。
+  /team 已接入 /api/workspace/team-overview 后端聚合接口，服务端统一汇总个人账号、项目/分集/镜头/视频统计、任务负载、成员席位矩阵、额度预览和角色边界；该 API 默认过滤 super_agent、NORI_AGENT、自动创作模式等内部任务标记。
+  /api/workspace/team-overview 已从固定 seatRows 预览升级为数据库优先：首次访问会为当前用户 seed WorkspaceTeamProfile 与 owner/writer/asset/producer 四类 WorkspaceTeamSeat，响应增加 teamStateSource=database、teamProfileId、seatLimit、seat id、permissionKeys 和 updatedAt，原有 seatRows role/status/projects/workload/lastActivity/permissions contract 保持兼容。
+  新增 PATCH /api/workspace/team-overview/seats，只允许当前用户更新自己的席位配置；payload 支持 role、status、displayName、email、permissions，owner 始终强制 enabled 和全权限，不引入子账号登录、邀请、真实成员身份切换或跨成员权限执行。
+  /api/tasks 已将当前用户 userId 下推到 Prisma 查询条件，避免先全局 limit 再内存过滤导致当前用户服务记录、团队负载或任务列表缺失。
 
 项目 workbench 子路由
   新增 /workspace/:projectId/script、/characters、/storyboard 桥接入口，对齐 FrameOS 顶层 workflow 子页面。
@@ -1628,9 +1677,13 @@ workbench focus 子视图
   timeline 子视图新增时间线镜头检查列表，展示总时长、缺画面、缺视频统计，以及每个镜头的顺序、画面、视频、时长和提示词摘要；本轮已升级为时间线交付总览，补充平均时长、缺引用、缺时长、可交付镜头统计，以及引用待补齐/时长待校准队列。
   timeline 子视图已支持批量编辑镜头时长、景别/镜头类型和运镜方式，并通过 /api/novel-promotion/:projectId/panel 逐项保存变更。
   timeline 子视图已支持同一分镜组内镜头上移/下移重排；前端调用 /api/novel-promotion/:projectId/panel 的 reorderDirection 操作，后端用事务交换 panelIndex/panelNumber 并保持 storyboard 内唯一顺序。
+  新增 /api/novel-promotion/:projectId/timeline，GET 聚合 episode/storyboard/panel 数据并返回 nori-video.timeline-summary.v1：每集时间线行、start/end/duration、ready/needs_refs/needs_image/needs_video/needs_duration 状态、缺引用/缺图/缺视频/缺时长队列、总时长和可交付镜头数。
+  timeline API 的存储来源是现有 NovelPromotionEpisode、NovelPromotionStoryboard、NovelPromotionPanel 与关联 clip；缺时长镜头会用 3 秒默认排布但标记 durationSource=default，避免把前端临时估算当成已确认数据。
+  /api/novel-promotion/:projectId/timeline PATCH 支持批量保存 panel duration/shotType/cameraMove 和单镜头 up/down 重排，服务端按 projectId/episodeId 校验 panel 归属，保存后返回最新 timeline summary；timeline 视图的“保存”和上下移动已从多次 /panel PATCH 改为一次 timeline PATCH。
+  timeline 视图已优先读取 /api/novel-promotion/:projectId/timeline 的 nori-video.timeline-summary.v1，统计卡、缺引用/缺时长队列和镜头顺序列表使用后端 stats/queues/timeline；本地 panels 只作为 API 失败或未返回时的兜底。
   timeline 镜头条目已链接到 /workspace/:projectId/workbench/production/shot/:shotId，桥接层会将 shotId 写入最终 URL 并选中对应镜头。
   export 子视图新增导出交付检查面板，汇总成片视频、资产包、交付清单和音频素材的就绪状态，并提供时间线和镜头制作回跳入口；实际下载仍由下方 ExportDeliveryStage 承载。
-  目前仍复用现有阶段主内容；下一步再扩展到 timeline 跨分镜拖拽排序、批量重排和更完整的镜头字段。
+  目前仍复用现有阶段主内容；下一步再扩展到跨分镜拖拽排序、批量重排和更完整的镜头字段。
 
 工作流阶段状态
   新增 /api/projects/:projectId/workflow-state，只读汇总当前项目或指定剧集的剧本、资产、分镜、视频、配音和导出交付状态。
@@ -1640,7 +1693,88 @@ workbench focus 子视图
   /workbench 根总览已复用同一份 workflow-state，形成可点击的阶段生产看板，用户可从总览直达剧本复核、资产设定、分镜、时间线、音色和导出交付。
   刷新项目或剧集数据时会同步刷新 workflow-state。
   /workbench 根总览新增人工校准层，可将每个阶段标记为“人工确认”或“需复核”；本轮已从 localStorage 升级为 /api/projects/:projectId/workflow-stage-review 服务端持久化，并在 workflow-state 响应中返回 reviewStates。
-  该结构当前使用 .runtime/workflow-stage-review 文件存储；后续仍需迁移为数据库版 WorkflowStageState，用于失败回滚、跨实例同步和后台任务推进。
+  本轮新增 WorkflowStageState Prisma 模型和 20260613143000_add_workflow_stage_states 迁移，按 userId/projectId/scopeId/stageKey 唯一保存阶段状态。
+  /api/projects/:projectId/workflow-stage-review 已改为数据库持久化读写，GET/PUT 返回 source=database；旧 .runtime/workflow-stage-review 文件仅作为空库迁移导入来源，数据库写入成功后会删除旧文件，数据库不可用时向 API 暴露失败，不再回退文件存储；当请求带 episodeId 时会先 trim 并验证该剧集属于当前 projectId，指定剧集不存在或跨项目时返回 NOT_FOUND，避免读写其他项目的 WorkflowStageState。
+  /api/projects/:projectId/workflow-state 继续返回 source=derived，并新增 reviewStateSource 区分人工复核状态来源；当请求带 episodeId 时会先 trim 并限定在当前 projectId 的 episodes 查询结果内，指定剧集不存在或属于其他项目时返回 NOT_FOUND，不再把跨项目 episodeId 当作空剧集范围返回。
+  本轮新增 workflow-stage-state-store 运行态投影：task lifecycle 和 run event 会把明确属于剧本/资产、分镜、视频、配音、导出的任务写入 WorkflowStageState.status/progress/lastRunId/lastTaskId/summary/error*；人工 review 写入通过 approved/pending_review/stale 维护状态机，运行态新执行仍可继续推进。
+  /api/workflow/projects/:projectId 和 /api/workflow/projects/:projectId/stages 也已从 WorkflowStageState 返回持久化运行态明细：每个 stage 会带出 reviewState、progress、blocker、lastRunId、lastTaskId、errorCode、errorMessage、summary 和 updatedAt；activeStage 优先 queued/running，其次 failed，再到 pending_review 或第一个未锁定 idle，避免失败阶段被后续空闲阶段掩盖。/stages 仍保留原 projectId/episodeId/stages 响应形状，同时新增 scopeId 和 activeStage；当请求带 episodeId 时会先 trim 并验证该剧集属于当前 projectId，指定剧集不存在或跨项目时返回 NOT_FOUND，不再读取其他项目的 WorkflowStageState。
+  新增 GET /api/workflow/projects/:projectId/stages/:stage 单阶段只读详情 API，使用 requireProjectAuthLight 校验项目归属，按 episodeId trim 并验证剧集归属后映射 scopeId，从 WorkflowStageState 返回该阶段 label/status/locked/readonly/stale/reviewState/progress/blocker/task/run/error/summary/updatedAt；非法 stage 在 auth 和存储读取前返回 INVALID_PARAMS，跨项目或不存在的 episodeId 返回 NOT_FOUND。
+  新增 POST /api/workflow/projects/:projectId/stages/:stage/retry，复用 requireProjectAuthLight 和 runStage/submitTask 链路，只允许 failed/canceled/stale 阶段重新入队；retry payload 会保留 previousStatus/previousTaskId/previousRunId，并把 retryOfTaskId/retryOfRunId/retryError* 写入新任务 payload，idle/approved/pending_review 等状态返回 stage_not_retryable，避免 retry 变成绕过状态机的普通 run。/api/workflow/projects/:projectId/stages/:stage/run、approve、unapprove、cancel 和 retry 均已统一校验 episodeId 属于当前 projectId，校验失败时在状态机写入或任务提交前返回 NOT_FOUND。
+  /api/projects/:projectId/workflow-state 会读取同 scope 下 queued/running/completed/failed/canceled 运行态，并在不破坏原四态 contract 的前提下返回 runtimeState、runtimeMessage、lastRunId、lastTaskId、errorCode/errorMessage；queued/running 且内容未 ready 时阶段显示为 processing。
+  workflow-stage-review PUT 已同步维护 WorkflowStageState.status：confirmed 写 approved，review 写 pending_review；原先 confirmed 的上游被改为 review 或移除时，下游阶段会标记 stale 并在 reviewStates 中返回 review，避免用户继续沿用已失效的下游结果。task/run completed 事件现在写 pending_review，同一执行内旧 queued/running 事件不会覆盖 approved/pending_review/stale。
+  /api/projects 项目级 workflowSummary 会读取同一项目下所有 scope 的 WorkflowStageState：queued/running 优先标记 running，failed/canceled/blocker 标记 blocked，pending_review/reviewState=review 标记 review，stale 标记 stale，confirmed/approvedAt 汇总为 approvedStages；activeTaskCount 作为任务事件尚未投影到阶段表时的兜底运行信号，并按 Task.type/targetType/errorMessage 复用 internal-record-visibility 过滤内部 Agent 标记，避免内部自动执行污染项目卡片状态。
+  /api/projects/:projectId/canvas/* 已收紧画布工作流后端边界：requireCanvasInProject 改为按 canvasId + projectId 查询，节点/边删除也先按 canvasId + nodeId/edgeId 查找再执行删除；production-sync 在同步生产投影前必须命中当前 userId/projectId 的 Project 记录，不再在项目数据缺失时用空对象继续清理生产节点和边。
+  运行态写入是尽力而为，不影响 task/run event 发布；同一 run/task 内已完成状态不会被旧的 queued/running 事件回退，进度也保持单调；后续还需要把 failed/canceled 做成前端明确失败态，并继续补强跨重试/乱序事件的版本边界。
+  /api/projects/:projectId/navigation-state 使用 requireProjectAuthLight 校验项目归属，调用 readSuperAgentNavigationState 查询 workflowType=super_agent_creation、targetType=project、targetId=projectId 且状态为 queued/running/canceling 的可恢复 GraphRun；路由响应只暴露 navigationLocked，不暴露内部 runId/status/source。验证方式为 npx vitest run tests/unit/super-agent/navigation-state.test.ts tests/unit/workspace/agent-mode-input.test.ts、npm run typecheck 和 git diff --check。
+  workflow-stage-review 状态机验证方式为 npx vitest run tests/unit/projects/workflow-stage-review-route.test.ts tests/unit/workflow/project-route-runtime.test.ts tests/unit/workflow/project-stages-route.test.ts tests/unit/workflow/project-stage-route.test.ts tests/unit/workflow/project-stage-retry-route.test.ts tests/unit/workflow/retry-stage.test.ts tests/unit/workspace/workflow-stage-review-store.test.ts tests/unit/workspace/workflow-stage-state-store.test.ts、npm run typecheck 和 git diff --check。
+  /api/projects workflowSummary/totalCost 验证方式为 npx vitest run tests/unit/projects/workflow-summary.test.ts tests/unit/projects/projects-route-workflow-summary.test.ts tests/unit/projects/workflow-state-route.test.ts、npm run typecheck 和 git diff --check。
+  canvas workflow API 作用域验证方式为 npx vitest run tests/unit/projects/canvas-routes-scope.test.ts、npm run typecheck 和 git diff --check。
+  /api/novel-promotion/:projectId/timeline 使用 requireProjectAuthLight 校验项目归属，可带 episodeId 查询/更新单集；timeline UI 也优先消费该 summary；验证方式为 npx vitest run tests/unit/novel-promotion/timeline-summary.test.ts tests/unit/novel-promotion/timeline-route-source.test.ts、npm run check:test-route-coverage、npm run typecheck 和 git diff --check。
+  新增 /api/novel-promotion/:projectId/rebuild-impact，用于剧本重建或重新生成分镜前的下游影响确认。API 会先 trim episodeId，再按 projectId/episodeId/userId 校验归属，从 NovelPromotionStoryboard、NovelPromotionPanel、NovelPromotionVoiceLine、VideoEditorProject、ExportQueueRecord、ExportHistoryRecord 和 Task 聚合 storyboards/panels/images/videos/voice/editor/export/activeTask counts，并返回 shouldConfirm；activeTask 只统计 queued/processing 且未命中 Task.type/targetType/errorMessage 内部 Agent 标记的公开任务。
+  前端 useGetProjectStoryboardStats 已从“拉完整 storyboards 后在客户端 reduce 计数”改为读取 rebuild-impact 的 counts；useRebuildConfirm 在 rebuild-impact API 异常时 fail-closed，要求用户确认重建影响，不再用本地 episodeStoryboards 缓存作为权威兜底自动放行。
+  rebuild-impact 后续联动已接入 submitTask：新的生产任务成功入队后，会按当前 task type 映射 sourceStage，自动将下游 WorkflowStageState 标记为 stale/review，取消同 project/episode 下仍 queued/processing 的下游任务，并把已入队或 ready 的 ExportQueueRecord 标记为 blocked/upstream_*_regenerating；deduped 旧任务不会重复触发联动。
+  rebuild-impact 剩余缺口：当前不做级联删除历史产物，也不自动撤销用户已经保留的具体媒体文件；后续若需要强一致重建，可在同一 invalidation plan 上扩展为 artifact 版本化、按镜头/分镜粒度失效和队列恢复策略。
+  rebuild-impact 验证方式为 npx vitest run tests/unit/novel-promotion/rebuild-impact.test.ts tests/unit/novel-promotion/rebuild-impact-route.test.ts tests/unit/novel-promotion/rebuild-impact-route-source.test.ts tests/unit/workspace/rebuild-confirm.test.ts tests/unit/workspace/workflow-stage-state-store.test.ts、npm run check:test-route-coverage、npm run typecheck 和 git diff --check。
+
+导出交付后端
+  新增 ExportHistoryRecord 和 ExportQueueRecord Prisma 模型以及 20260613152000_add_export_delivery_records 迁移。
+  export-history store 已改为数据库持久化，兼容旧 API contract：GET 仍返回 { records }，POST 仍返回 { success, record, records }；旧 .runtime/export-history 文件仅作为空库迁移导入来源，数据库读写异常不再回退到文件存储。
+  export-history POST 已从客户端提交完成记录收敛为 ready queue artifact 派生：客户端只能提交 cardId，后端从 ExportQueueRecord.outputFileName/outputStorageKey/outputUrl/contentType/stats/taskId 生成历史记录；appendExportHistoryRecord 更新已有 id 前会校验 userId/projectId/scopeId，避免通过泄漏 id 跨用户或跨项目迁移历史记录 ownership。
+  export-queue store 已改为数据库持久化，兼容旧 API contract：GET 仍返回 { projectId, episodeId, records }，POST 仍返回 { success, records }，并额外返回 task；旧 .runtime/export-queue 文件仅作为空库迁移导入来源，数据库读写异常不再回退到文件存储。
+  新增 TASK_TYPE.EXPORT_DELIVERY 和 text worker 分发 handleExportDeliveryTask；worker 成功后队列状态变为 ready，失败时变为 blocked，Task 表仍是执行状态权威来源。
+  handleExportDeliveryTask 已接入 buildAndUploadExportDeliveryArtifact，生成 ZIP artifact 后上传到 storage，并在 ExportQueueRecord、ExportHistoryRecord 和 Task.result 中记录 outputStorageKey、outputUrl、contentType、sizeBytes 与 outputManifest；jianying-draft 已从单 JSON 升级为草稿包 ZIP。
+  新增 export-readiness 服务，统一计算导出队列 cards 的 ready/blocked/available、blockerCode 和 clips/panels/images/videos/voices stats；/api/novel-promotion/:projectId/export-queue GET 额外返回 items/stats，POST 只接收 cardId 并由后端决定 blocked 或 submitTask，前端队列面板改为消费后端 items。
+  ExportDeliveryStage 的四个主交付卡片已不再直接调用 download-videos、download-images、download-voices 或 export-manifest 写入历史；点击主按钮会 POST export-queue，等待 worker 生成 artifact 并由 worker 持久化 ExportQueueRecord/ExportHistoryRecord。
+  新增 /api/novel-promotion/:projectId/export-artifact，GET 通过 requireProjectAuthLight 校验项目归属后，按 source=queue/history 与 episodeId/id/cardId/taskId 查 ExportQueueRecord 或 ExportHistoryRecord，返回受控 downloadUrl、fileName、contentType、status 和 artifact 元数据；redirect=1 时后端重定向到签名 URL 或已记录的 outputUrl。export-queue、export-history 和 export-artifact 现在共用导出 scope 解析：episodeId 会先 trim 并验证属于当前 projectId，POST 必填 episodeId 为空仍返回 INVALID_PARAMS，跨项目或不存在 episode 返回 NOT_FOUND。
+  export-artifact 的存储来源是 ExportQueueRecord.outputStorageKey/outputUrl 与 ExportHistoryRecord.outputStorageKey/outputUrl；优先用 outputStorageKey 通过 getSignedUrl 生成短期下载入口，只有历史数据没有 key 时才回退 outputUrl；当请求带 episodeId 时会先 trim 并验证该剧集属于当前 projectId，指定剧集不存在或跨项目时返回 NOT_FOUND，且不会继续按伪造 scopeId 查询 artifact 记录。
+  本地文件服务 /api/files 已补充 .zip -> application/zip MIME，local storage 下导出 ZIP 下载头正确。
+  requirements matrix 已新增 REQ-NP-EXPORT-DELIVERY，把 export-readiness、export-queue route source、export-artifact、worker/export-delivery 纳入 P0 导出交付覆盖。
+  export-artifact 剩余缺口：当前仍返回签名地址/重定向，不做服务端大文件流式代理；真正剪映官方可导入结构也仍需独立 adapter；非导出页的 download-* 兼容入口已保留为受控兼容同步下载，后续可进一步改成 artifact 查询或明确 deprecated。
+  验证方式：prisma validate、prisma generate、npm run typecheck、npx vitest run tests/unit/novel-promotion/export-readiness.test.ts tests/unit/novel-promotion/export-queue-route-source.test.ts tests/unit/novel-promotion/export-queue-store.test.ts tests/unit/novel-promotion/export-history-route.test.ts tests/unit/novel-promotion/export-history-store.test.ts tests/unit/novel-promotion/export-artifact.test.ts tests/unit/novel-promotion/export-artifact-route-source.test.ts tests/unit/novel-promotion/download-compat-route-source.test.ts tests/unit/worker/export-delivery.test.ts tests/contracts/requirements-matrix.test.ts、git diff --check；运行时需要先应用 20260613152000_add_export_delivery_records 迁移。
+
+工作区支持记录后端
+  新增 WorkspaceFeedbackRecord 和 SystemUpdateCheckRecord Prisma 模型以及 20260613161000_add_workspace_support_records 迁移。
+  /api/service-records 保持 GET contract，支持可选 limit 查询参数；服务端会按 limit 放大读取 Task 窗口，先过滤内部后台任务再返回任务明细，响应新增 taskWindow 描述 limit/readLimit/rawCount/filteredInternalCount/returnedCount/hasMore。
+  service-records 聚合已统一过滤 Task、UsageCost 和 BalanceTransaction 中的 super_agent/super-agent/super agent/superagent、NORI_AGENT、自动创作模式等明确内部标记；不再按普通 agent 单词过滤，避免 customer agent voice、agent_storyboard_plan 等外部可见业务文本被误隐藏。usageRows、dailyUsage、usageSummary、costs.byProject 和 transactions 均基于过滤后的外部可见记录计算，避免任务明细隐藏内部后台记录但用量/账单继续暴露内部 action。
+  /api/user/costs、/api/user/costs/details、/api/user/transactions、/api/user/balance 和 /api/projects/:projectId/costs 也已复用同一内部记录可见性过滤：UsageCost 的 action/apiType/model/metadata 与 BalanceTransaction 的 taskType/description/billingMeta（含嵌套 JSON）命中内部 Agent 标记时不进入公开账单汇总、明细分页、项目成本、余额流水 total 和公开 totalSpent。UserBalance.totalSpent 仍保留真实钱包账本累计，公开 /api/user/balance 与 service-records.balance.totalSpent 由 BalanceTransaction 可见 consume 流水重算，避免详情已隐藏但累计消费仍泄露内部后台消耗。/api/user/costs、/api/user/transactions 和 service-records 的项目/剧集展示名二次查询已限定当前 userId，脏 UsageCost/BalanceTransaction 行即使指向其他用户 projectId/episodeId，也只返回未知项目或 null；/api/user/costs/details 和 /api/user/transactions 分页参数统一归一化到 page>=1、pageSize<=100，避免超大页大小或非法参数造成异常响应。过滤逻辑集中在 src/lib/workspace/internal-record-visibility.ts；存储仍复用 UsageCost 与 BalanceTransaction，不新增表。
+  /api/feedback 保持 GET/POST/PATCH contract 不变：GET 返回 { success, records }，POST 写入当前用户反馈后返回 records，PATCH 只更新当前用户同 id 记录的 open/triaged/resolved 状态。
+  feedback store 已改为数据库持久化，按 userId 隔离读取最多 80 条；数据库为空时导入 .runtime/feedback/{userId}.json 并清理旧文件，数据库不可用时向 API 返回失败，不再回退文件存储；写入时避免用户提供的 id 碰撞到其他用户记录；FrameFeedbackDashboard 不再维护 localStorage 业务记录，提交和分诊以 /api/feedback 响应为准。
+  /api/system/status 已接入 apiHandler 和 requireUserAuth，返回当前系统快照；queues 字段按当前 userId 从 Task 表聚合 text/image/video/voice 四类 queued、processing、completed24h、failed24h、staleProcessing 和 latestError，作为系统页和服务记录的账号范围生产诊断，不再对普通登录用户做全表跨用户队列统计；公开队列健康显式排除 super_agent_execute 等内部 Agent task type，避免内部后台能力通过 text 队列诊断泄露。
+  /api/system/boot-id 已从公开裸接口收敛为 apiHandler + requireUserAuth 的登录态系统接口；系统页仍通过 /api/system/status 获取 bootId，独立 boot-id 只保留给已登录客户端做轻量重启检测，不再列入 public/apiHandler allowlist。
+  system status 队列健康的存储来源是当前用户 Task.status/type/finishedAt/heartbeatAt/errorMessage；当前不连接 BullMQ/Redis 做全局 worker 存活探测，避免系统页因为队列连接故障而不可用，也避免向普通用户暴露跨用户运行态。后续如需更强运行时诊断，可在内部运维 API 增加 Redis waiting/delayed/failed job 计数和 worker heartbeat。
+  /api/system/update-check 保持 GET/POST contract 不变：GET 返回当前用户检查历史，POST 读取当前用户范围系统快照并追加一条 status=current 的检查记录。
+  update-check store 已改为数据库持久化，按 userId 保存到 SystemUpdateCheckRecord，modules 继续保持 workflow/modelRuntime/templates/storage/diagnostics 的固定兼容矩阵；旧 .runtime/update-checks/{userId}.json 仅作为空库迁移导入来源，数据库不可用时向 API 返回失败，不再回退文件存储。
+  验证方式：prisma validate、prisma generate、npm run typecheck、npx vitest run tests/unit/system/status.test.ts tests/unit/system/update-check-store.test.ts tests/unit/workspace/feedback-store.test.ts tests/unit/workspace/service-records-overview.test.ts tests/unit/workspace/service-records-route.test.ts tests/unit/billing/internal-record-visibility.test.ts tests/unit/user-api/billing-routes-internal-agent.test.ts tests/unit/guards/api-route-contract-guard.test.ts tests/integration/api/contract/infra-routes.test.ts、git diff --check；运行时需要先应用 20260613161000_add_workspace_support_records 迁移。
+
+团队席位持久层
+  新增 WorkspaceTeamProfile 和 WorkspaceTeamSeat Prisma 模型以及 20260613173000_add_workspace_team_seats 迁移；WorkspaceTeamSeat.memberUserId 为可空字段，只有 owner seat 绑定当前用户，reserved seat 不绑定真实账号。
+  /api/workspace/team-overview GET 继续返回项目、任务、负载、额度和 seatRows 聚合；席位矩阵改为从 WorkspaceTeamSeat 读取，数据库为空时自动 seed 当前用户 owner enabled 与 writer/asset/producer reserved；任务负载统计复用 src/lib/workspace/internal-record-visibility.ts 按 Task.type/targetType/errorMessage 过滤内部 Agent task 标记，与服务记录、公开账单和系统状态保持同一可见性边界。
+  PATCH /api/workspace/team-overview/seats 提供最小写入口，保存席位状态、显示名、邮箱和权限 key；该接口只操作当前用户自己的 profile，不提供邀请、登录、真实团队切换或套餐权限结算。
+  本轮补强：团队总览不再只看 Task.type，wrapped internal task 只要 targetType/errorMessage 含内部 Agent 标记，也不会进入 tasks、workloadRows、quotaRows 或 seat workload。
+  验证方式：prisma validate、prisma generate、npm run typecheck、npx vitest run tests/unit/workspace/team-store.test.ts tests/unit/workspace/team-overview-route.test.ts、git diff --check；运行时需要先应用 20260613173000_add_workspace_team_seats 迁移。
+
+用户偏好后端
+  新增 UserPreference.imageGenerationCounts JSON 字段以及 20260613170000_add_image_generation_count_preferences 迁移。
+  /api/user-preference PATCH 已允许 imageGenerationCounts，对 character、location、storyboard-candidates、reference-to-character 四类生成张数做统一范围校验和归一化；GET 继续返回完整 preference。
+  useImageGenerationCount 首屏仍读取 localStorage 保持即时交互，登录态加载 /api/user-preference 后会把账号偏好同步回本地缓存；用户调整张数时会 PATCH 到后端，API 不可用时保留本地回退。
+  新增 UserPreference.videoEnhanceSettings JSON 字段以及 20260613172000_add_video_enhance_settings 迁移。
+  /api/user-preference PATCH 已允许 videoEnhanceSettings，对 sourceMode、toolVersion、scene、resolutionMode、resolution、resolutionLimit、fps、showAdvanced、submitConcurrency 和 videoUrlsDraft 做统一校验和归一化；videoUrlsDraft 最多保留 50 行、单行 2048 字符、总长 10000 字符，避免把整个 localStorage 对象原样入库；GET 继续返回完整 preference。
+  VideoEnhanceClient 首屏仍读取 localStorage 保持本机体验，登录态加载 /api/user-preference 后会用账号级安全默认项和显式 videoUrlsDraft 覆盖；用户调整安全默认项或 URL 草稿时 debounce PATCH 到后端。clientToken、callbackArgs、本机下载目录不写后端。
+  新增 UserPreference.mutedUpdateVersion 字段以及 20260613174000_add_muted_update_version_preference 迁移。
+  /api/user-preference PATCH 已允许 mutedUpdateVersion，接受 semver 字符串或 null；字符串会按 normalizeSemverTag 归一化后保存，格式错误返回 INVALID_MUTED_UPDATE_VERSION。
+  useGithubReleaseUpdate 检查到新版本时优先读取 /api/user-preference 的 mutedUpdateVersion 决定是否显示脉冲；dismiss 当前更新时 PATCH 账号偏好。旧 localStorage key nori:update:muted-version 仅用于导入旧浏览器状态或 API 不可用时的即时回退。
+  /api/user/api-config 的 provider API key 继续加密保存在 UserPreference.customProviders；GET 不再解密回显明文，只返回 apiKey="" 和 hasApiKey，PUT 保持“不传 apiKey 保留旧密文、传空串清除、传非空字符串加密覆盖”的契约；前端保存 payload 会在 hasApiKey=true 且当前无明文输入时省略 apiKey，避免刷新后自动保存误清除既有 key。
+  /api/user/seedance-assets-config 已明确作为用户级 Seedance 素材库配置后端：GET 按当前 userId 从 UserPreference.arkAssetsAccessKeyId/arkAssetsSecretAccessKey/arkAssetsProjectName 读取配置状态，但不解密回显 AK/SK 明文，只返回 accessKeyId=""、secretAccessKey=""、configured、hasAccessKeyId 和 hasSecretAccessKey；PUT 将非空 AK/SK 加密后 upsert 到同一用户偏好，未传字段保留旧密文，两个字段都传空串时清除，半套凭证会返回 INVALID_PARAMS；该接口不写 .env.local、不修改 process.env，也不影响全局 storage provider。新增 /api/user/seedance-assets-config/test，使用当前用户已保存的密文配置解密后发起只读 ListAssetGroups 探测，返回 success/configured/projectName/latencyMs/assetGroupCount/totalAssetGroupCount 或脱敏失败码，不接受临时 AK/SK body，也不回显 provider 原始错误中的密钥。
+  /api/user/storage-config 当前仍代表全局运行时 storage provider 配置，存储位置是 .env.local 和 process.env，而不是用户级数据库字段；GET 会读取全局 endpoint/bucket/region 摘要，POST 连接探测会 resetStorageProvider、上传探针对象、签名读取并删除对象，PUT 会写 .env.local/process.env，因此 GET/POST/PUT 均已默认收敛为 404，只有服务端 NORI_INTERNAL_AGENT_TOOLS=true 时作为内部运维工具开放；GET 即使在内部模式下也只返回 hasAccessKey/hasSecretKey，不回显 AK/SK 明文。profile 存储配置卡片同步只在 NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS=true 时渲染。后续如果要做真正用户级存储配置，需要把 storage provider 工厂和上传/签名链路一起改为按 userId/projectId 解析，不能只把表单保存到数据库。
+  验证方式：prisma validate、prisma generate、npm run typecheck、npx vitest run tests/unit/image-generation/count.test.ts tests/unit/video-enhance/settings.test.ts tests/unit/user-api/user-preference-muted-update-version.test.ts tests/unit/user-api/storage-config-route.test.ts tests/unit/user-api/seedance-assets-config-route.test.ts tests/unit/api-config/use-providers-order.test.ts tests/integration/api/specific/user-api-config-put.test.ts tests/unit/helpers/github-release-update-preference-storage.test.ts、git diff --check；运行时需要先应用 20260613170000_add_image_generation_count_preferences、20260613172000_add_video_enhance_settings 和 20260613174000_add_muted_update_version_preference 迁移。
+
+首页导入初稿后端
+  新增 NovelPromotionProject.pendingImportText 和 pendingImportEpisodeName 字段以及 20260613171000_add_pending_import_draft 迁移。
+  /api/projects POST 继续保持创建项目 contract，同时允许 initialNovelText / initialEpisodeName；有值时写入关联的 novel_promotion_projects pending 字段，importStatus 仍为 pending。
+  首页快速创建不再写 sessionStorage 的 nori:home-draft:{projectId}；工作台导入向导从 /api/projects/:projectId/data 返回的 pendingImportText 预填，刷新、重新打开或跨标签页不会丢失初稿。
+  /api/novel-promotion/:projectId/episodes POST 在 pending 项目成功创建单集后，由后端把 importStatus 派生为 completed 并清理 pendingImportText / pendingImportEpisodeName；工作台手动创建首集不再提交空 batch 改状态。
+  /api/novel-promotion/:projectId/episodes/batch 不再信任客户端 importStatus；空 episodes 只执行可选 clearExisting，不会把 pending 初稿标 completed 或清理 pending 字段。只有实际创建至少一集时，后端才派生 importStatus=completed，并在 pending 项目上清理 pending 初稿。
+  验证方式：prisma validate、prisma generate、npm run typecheck、npx vitest run tests/unit/home/create-project-launch.test.ts、git diff --check；运行时需要先应用 20260613171000_add_pending_import_draft 迁移。
 ```
 
 2026-06-13 Prompt 与模型调用策略调优追加记录：

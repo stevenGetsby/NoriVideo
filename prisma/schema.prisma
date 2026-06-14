@@ -273,6 +273,8 @@ model NovelPromotionProject {
   lastEpisodeId       String?
   imageResolution     String                    @default("2K")
   importStatus        String?
+  pendingImportText   String?                   @db.LongText
+  pendingImportEpisodeName String?              @db.VarChar(191)
   characters          NovelPromotionCharacter[]
   episodes            NovelPromotionEpisode[]
   locations           NovelPromotionLocation[]
@@ -370,6 +372,9 @@ model Project {
   user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   usageCosts         UsageCost[]
   canvases           Canvas[]
+  workflowStageStates WorkflowStageState[]
+  exportHistoryRecords ExportHistoryRecord[]
+  exportQueueRecords ExportQueueRecord[]
 
   @@index([userId])
   @@map("projects")
@@ -502,8 +507,185 @@ model User {
   graphRuns          GraphRun[]
   graphEvents        GraphEvent[]
   videoEnhanceTasks  VideoEnhanceTask[]
+  workflowStageStates WorkflowStageState[]
+  exportHistoryRecords ExportHistoryRecord[]
+  exportQueueRecords ExportQueueRecord[]
+  workspaceFeedbackRecords WorkspaceFeedbackRecord[]
+  systemUpdateCheckRecords SystemUpdateCheckRecord[]
+  workspaceTeamProfile WorkspaceTeamProfile?
+  workspaceTeamSeats WorkspaceTeamSeat[] @relation("WorkspaceTeamSeatMember")
 
   @@map("user")
+}
+
+model WorkspaceTeamProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  mode        String   @default("personal") @db.VarChar(32)
+  displayName String?  @db.VarChar(191)
+  seatLimit   Int      @default(1)
+  settings    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seats WorkspaceTeamSeat[]
+
+  @@index([mode])
+  @@map("workspace_team_profiles")
+}
+
+model WorkspaceTeamSeat {
+  id             String    @id @default(uuid())
+  profileId      String
+  memberUserId   String?
+  role           String    @db.VarChar(32)
+  status         String    @default("reserved") @db.VarChar(32)
+  displayName    String?   @db.VarChar(191)
+  email          String?   @db.VarChar(191)
+  permissions    Json?
+  lastActivityAt DateTime?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  profile WorkspaceTeamProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  member  User?                @relation("WorkspaceTeamSeatMember", fields: [memberUserId], references: [id], onDelete: SetNull)
+
+  @@unique([profileId, role])
+  @@index([memberUserId, role])
+  @@index([status])
+  @@map("workspace_team_seats")
+}
+
+model WorkflowStageState {
+  id           String    @id @default(uuid())
+  userId       String
+  projectId    String
+  scopeId      String    @default("project") @db.VarChar(128)
+  stageKey     String    @db.VarChar(64)
+  status       String    @default("idle") @db.VarChar(32)
+  progress     Int?
+  blocker      String?   @db.Text
+  reviewState  String?   @db.VarChar(32)
+  lastRunId    String?
+  lastTaskId   String?
+  summary      Json?
+  errorCode    String?
+  errorMessage String?   @db.Text
+  approvedAt   DateTime?
+  approvedBy   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @default(now()) @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, scopeId, stageKey])
+  @@index([projectId, scopeId])
+  @@index([userId])
+  @@index([status])
+  @@map("workflow_stage_states")
+}
+
+model ExportHistoryRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  projectId String
+  scopeId   String   @default("project") @db.VarChar(128)
+  episodeId String?  @db.VarChar(128)
+  cardId    String   @db.VarChar(64)
+  title     String
+  fileName  String   @db.Text
+  status    String   @default("completed") @db.VarChar(32)
+  source    String   @default("persistent") @db.VarChar(32)
+  stats     Json?
+  manifest  Json?
+  taskId    String?
+  outputStorageKey String? @db.Text
+  outputUrl String? @db.Text
+  contentType String? @db.VarChar(128)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId, scopeId, createdAt])
+  @@index([projectId, scopeId])
+  @@index([cardId])
+  @@index([taskId])
+  @@map("export_history_records")
+}
+
+model ExportQueueRecord {
+  id             String    @id @default(uuid())
+  userId         String
+  projectId      String
+  scopeId        String    @default("project") @db.VarChar(128)
+  episodeId      String?   @db.VarChar(128)
+  cardId         String    @db.VarChar(64)
+  title          String
+  status         String    @default("queued") @db.VarChar(32)
+  blocker        String?   @db.Text
+  taskId         String?
+  outputFileName String?   @db.Text
+  outputStorageKey String? @db.Text
+  outputUrl      String?   @db.Text
+  contentType    String?   @db.VarChar(128)
+  outputManifest Json?
+  stats          Json?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+  finishedAt     DateTime?
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId, scopeId, cardId])
+  @@index([projectId, scopeId])
+  @@index([status])
+  @@index([taskId])
+  @@map("export_queue_records")
+}
+
+model WorkspaceFeedbackRecord {
+  id          String   @id @default(uuid())
+  userId      String
+  type        String   @default("bug") @db.VarChar(32)
+  title       String   @db.VarChar(191)
+  description String   @db.Text
+  route       String?  @db.Text
+  userAgent   String?  @db.Text
+  status      String   @default("open") @db.VarChar(32)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, status])
+  @@index([type])
+  @@map("workspace_feedback_records")
+}
+
+model SystemUpdateCheckRecord {
+  id        String   @id @default(uuid())
+  userId    String
+  checkedAt DateTime
+  version   String   @db.VarChar(64)
+  bootId    String   @db.VarChar(128)
+  status    String   @default("current") @db.VarChar(32)
+  modules   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, checkedAt])
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("system_update_check_records")
 }
 
 model VideoEnhanceTask {
@@ -560,6 +742,9 @@ model UserPreference {
   updatedAt           DateTime @default(now()) @updatedAt
   imageResolution     String   @default("2K")
   capabilityDefaults  String?  @db.Text
+  imageGenerationCounts Json?
+  videoEnhanceSettings Json?
+  mutedUpdateVersion  String?  @db.VarChar(64)
 
   // API Key 配置（极简版）
   llmBaseUrl  String? @default("https://openrouter.ai/api/v1")
@@ -1116,4 +1301,242 @@ model LegacyMediaRefBackup {
   @@index([runId])
   @@index([tableName, fieldName])
   @@map("legacy_media_refs_backup")
+}
+
+// =====================================================
+// FrameOS — Material service
+// =====================================================
+model FrameosMaterial {
+  id                String   @id @default(uuid())
+  projectId         String
+  userId            String
+  ownerName         String?
+  title             String?
+  type              String   // image | video | audio
+  source            String   // toolbox | creative | production | upload
+  status            String   @default("ready") // ready | processing | failed
+  isFavorited       Boolean  @default(false)
+  resultUrl         String?  @db.Text
+  storageKey        String?  @db.Text
+  isSuperresolved   Boolean  @default(false)
+  isSubtitleErased  Boolean  @default(false)
+  bindingStatus     String   @default("unbound") // unbound | bound
+  isSelected        Boolean  @default(false)
+  metadata          Json?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([projectId, createdAt])
+  @@index([userId, createdAt])
+  @@index([projectId, type])
+  @@map("frameos_materials")
+}
+
+// =====================================================
+// FrameOS — Screenwriter service
+// =====================================================
+model FrameosScript {
+  id                  String   @id @default(uuid())
+  userId              String
+  projectId           String
+  title               String
+  content             String   @db.LongText
+  status              String   @default("draft") // available | draft | archived
+  bibleContent        Json?
+  bibleLocked         Boolean  @default(false)
+  targetBibleContent  Json?
+  targetBibleLocked   Boolean  @default(false)
+  marketRules         Json?
+  sections            Json?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([projectId])
+  @@map("frameos_scripts")
+}
+
+model FrameosWorld {
+  id                   String   @id @default(uuid())
+  projectId            String
+  worldLabel           String
+  worldBackground      String?  @db.Text
+  representativeFrame  String?
+  candidates           Json?
+  selectedStyleAnchor  String?
+  previewMaterials     Json?
+  isDefault            Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([projectId, worldLabel])
+  @@index([projectId])
+  @@map("frameos_worlds")
+}
+
+model FrameosArtDirection {
+  id                  String   @id @default(uuid())
+  projectId           String   @unique
+  flowStatus          String   @default("idle")
+  flowId              String?
+  currentLabel        String?
+  derivedPhase        String?
+  defaultWorldLabel   String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("frameos_art_directions")
+}
+
+model FrameosScreenwriterEpisode {
+  id              String   @id @default(uuid())
+  projectId       String
+  scriptId        String?
+  episodeNumber   Int
+  title           String
+  content         String   @db.LongText
+  contentKilo     Float    @default(0)
+  infoPoints      String?  @db.Text
+  sourceAnchor    Json?
+  reasoning       Json?
+  status          String   @default("draft")
+  scenes          Json?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([projectId, episodeNumber])
+  @@index([projectId])
+  @@index([scriptId])
+  @@map("frameos_screenwriter_episodes")
+}
+
+// =====================================================
+// FrameOS — Director service
+// =====================================================
+model FrameosDirectorEpisode {
+  id                    String   @id @default(uuid())
+  projectId             String
+  episodeId             String   // FrameosScreenwriterEpisode.id
+  directorConfirmed     Boolean  @default(false)
+  shotStatus            String   @default("pending")
+  steps                 Json?
+  emotionArc            String?  @db.Text
+  reasoning             Json?
+  bgmPlans              Json?
+  totalSceneCount       Int      @default(0)
+  totalShotCount        Int      @default(0)
+  totalDurationSeconds  Float    @default(0)
+  scenes                Json?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([projectId, episodeId])
+  @@index([projectId])
+  @@map("frameos_director_episodes")
+}
+
+// =====================================================
+// FrameOS — Production service
+// =====================================================
+model FrameosProductionScene {
+  id          String   @id @default(uuid())
+  projectId   String
+  episodeId   String
+  sceneNo     Int
+  sceneTitle  String
+  createdAt   DateTime @default(now())
+
+  @@unique([projectId, episodeId, sceneNo])
+  @@index([projectId])
+  @@index([episodeId])
+  @@map("frameos_production_scenes")
+}
+
+model FrameosProductionShot {
+  id                   String   @id @default(uuid())
+  projectId            String
+  episodeId            String
+  sceneId              String
+  shotNo               String
+  shotTitle            String?
+  shotStatus           String   @default("pending")
+  durationSeconds      Float    @default(0)
+  needsRevision        Boolean  @default(false)
+  videoPrompt          String?  @db.Text
+  stylePrompt          String?  @db.Text
+  aspectRatio          String?
+  resolution           String?
+  currentMaterialId    String?
+  currentMaterialUrl   String?  @db.Text
+  videoStatus          String   @default("idle")
+  errorMessage         String?  @db.Text
+  characters           Json?
+  environments         Json?
+  items                Json?
+  useReferenceVideo    Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@index([projectId, episodeId])
+  @@index([sceneId])
+  @@map("frameos_production_shots")
+}
+
+model FrameosProductionBgmTask {
+  id                String   @id @default(uuid())
+  projectId         String
+  sceneId           String
+  taskId            String?
+  status            String   @default("idle")
+  url               String?  @db.Text
+  errorMessage      String?  @db.Text
+  caption           String?  @db.Text
+  lyrics            String?  @db.Text
+  durationEstimate  Float?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@unique([projectId, sceneId])
+  @@index([projectId])
+  @@map("frameos_production_bgm_tasks")
+}
+
+// =====================================================
+// FrameOS — Toolbox service
+// =====================================================
+model FrameosToolboxAsset {
+  id          String   @id @default(uuid())
+  userId      String
+  projectId   String?
+  type        String   // image | video | audio
+  source      String   @default("toolbox")
+  bizType     String?
+  modelId     String?
+  skuCode     String?
+  materialId  String?
+  params      Json?
+  status      String   @default("pending")
+  resultUrl   String?  @db.Text
+  isFavorited Boolean  @default(false)
+  errorMessage String? @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@map("frameos_toolbox_assets")
+}
+
+model FrameosToolboxPromptHistory {
+  id         String   @id @default(uuid())
+  userId     String
+  assetId    String?
+  sessionId  String?
+  variant    String   @default("default") // default | sd2
+  messages   Json
+  createdAt  DateTime @default(now())
+
+  @@index([userId, assetId])
+  @@index([sessionId])
+  @@map("frameos_toolbox_prompt_history")
 }

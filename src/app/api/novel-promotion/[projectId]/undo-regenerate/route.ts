@@ -20,11 +20,15 @@ export const POST = apiHandler(async (
   if ((body.type !== 'character' && body.type !== 'location') || typeof body.id !== 'string' || body.id.trim().length === 0) {
     throw new ApiError('INVALID_PARAMS')
   }
+  const assetId = body.id.trim()
 
   const result = await revertAssetRender({
     kind: body.type,
-    assetId: body.id,
-    body,
+    assetId,
+    body: {
+      ...body,
+      id: assetId,
+    },
     access: {
       scope: 'project',
       userId: authResult.session.user.id,

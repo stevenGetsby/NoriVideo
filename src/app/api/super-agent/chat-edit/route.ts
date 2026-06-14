@@ -9,6 +9,7 @@ import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
 import { applyAgentChatEdit } from '@/lib/super-agent/chat-edit'
 import { resolveTaskLocale } from '@/lib/task/resolve-locale'
 import type { SkillId } from '@/lib/super-agent/types'
+import { assertInternalAgentApiEnabled } from '@/lib/super-agent/internal-api-guard'
 
 function readString(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -22,6 +23,8 @@ function readSkillId(value: string | null): SkillId | null {
 }
 
 export const POST = apiHandler(async (request: NextRequest) => {
+  assertInternalAgentApiEnabled()
+
   const body = await request.json().catch(() => null)
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new ApiError('INVALID_PARAMS')

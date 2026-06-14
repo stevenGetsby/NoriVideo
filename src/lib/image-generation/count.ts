@@ -4,6 +4,8 @@ export type ImageGenerationCountScope =
   | 'storyboard-candidates'
   | 'reference-to-character'
 
+export type ImageGenerationCountPreferences = Partial<Record<ImageGenerationCountScope, number>>
+
 interface ImageGenerationCountConfig {
   defaultValue: number
   min: number
@@ -37,6 +39,8 @@ const IMAGE_GENERATION_COUNT_CONFIG: Record<ImageGenerationCountScope, ImageGene
     storageKey: 'image-count:reference-to-character',
   },
 }
+
+const IMAGE_GENERATION_COUNT_SCOPES = Object.keys(IMAGE_GENERATION_COUNT_CONFIG) as ImageGenerationCountScope[]
 
 function toFiniteNumber(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value)) {
@@ -80,4 +84,19 @@ export function getImageGenerationCountOptions(scope: ImageGenerationCountScope)
 
 export function getImageGenerationCountStorageKey(scope: ImageGenerationCountScope): string {
   return getImageGenerationCountConfig(scope).storageKey
+}
+
+export function normalizeImageGenerationCountPreferences(value: unknown): ImageGenerationCountPreferences {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  const raw = value as Partial<Record<ImageGenerationCountScope, unknown>>
+  return IMAGE_GENERATION_COUNT_SCOPES.reduce<ImageGenerationCountPreferences>((preferences, scope) => {
+    if (raw[scope] !== undefined) {
+      preferences[scope] = normalizeImageGenerationCount(scope, raw[scope])
+    }
+    return preferences
+  }, {})
+}
+
+export function getImageGenerationCountScopes(): ImageGenerationCountScope[] {
+  return [...IMAGE_GENERATION_COUNT_SCOPES]
 }

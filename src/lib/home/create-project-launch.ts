@@ -79,6 +79,8 @@ export async function createHomeProjectLaunch({
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       name: projectName,
+      initialNovelText: storyText,
+      initialEpisodeName: episodeName,
     }),
   })
 
@@ -97,9 +99,6 @@ export async function createHomeProjectLaunch({
   if (!configResponse.ok) {
     throw new Error(await readApiErrorMessage(configResponse, 'Failed to save project config'))
   }
-
-  void storyText
-  void episodeName
 
   return {
     projectId,

@@ -108,6 +108,30 @@ describe('useRebuildConfirm', () => {
     expect(resetCall('storyToScript')).toBeNull()
     expect(resetCall('scriptToStoryboard')).toBe('scriptToStoryboard')
   })
+
+  it('fails closed when backend downstream impact check fails', async () => {
+    const getProjectStoryboardStats = vi.fn(async () => {
+      throw new Error('backend unavailable')
+    })
+    const action = vi.fn(async () => undefined)
+
+    const hook = useRebuildConfirm({
+      episodeId: 'episode-1',
+      episodeStoryboards: [],
+      getProjectStoryboardStats,
+      t: (key: string) => key,
+    })
+
+    await hook.runWithRebuildConfirm('storyToScript', action)
+
+    expect(action).not.toHaveBeenCalled()
+    expect(setRebuildConfirmContextMock).toHaveBeenCalledWith({
+      actionType: 'storyToScript',
+      storyboardCount: 0,
+      panelCount: 0,
+    })
+    expect(setShowRebuildConfirmMock).toHaveBeenCalledWith(true)
+  })
 })
 
 describe('hasDownstreamStoryboardData', () => {
@@ -121,5 +145,19 @@ describe('hasDownstreamStoryboardData', () => {
 
   it('panel count is greater than zero -> returns true', () => {
     expect(hasDownstreamStoryboardData({ storyboardCount: 0, panelCount: 2 })).toBe(true)
+  })
+
+  it('server impact confirmation flag is authoritative', () => {
+    expect(hasDownstreamStoryboardData({
+      storyboardCount: 0,
+      panelCount: 0,
+      imageCount: 3,
+      shouldConfirm: false,
+    })).toBe(false)
+    expect(hasDownstreamStoryboardData({
+      storyboardCount: 0,
+      panelCount: 0,
+      shouldConfirm: true,
+    })).toBe(true)
   })
 })

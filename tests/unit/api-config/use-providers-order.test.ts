@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { mergeProvidersForDisplay } from '@/app/[locale]/profile/components/api-config/hooks'
+import {
+  buildProvidersPayloadForSave,
+  mergeProvidersForDisplay,
+} from '@/app/[locale]/profile/components/api-config/hooks'
 import type { Provider } from '@/app/[locale]/profile/components/api-config/types'
 
 describe('useProviders provider order merge', () => {
@@ -61,5 +64,42 @@ describe('useProviders provider order merge', () => {
       apiKey: 'mm-key',
       hasApiKey: true,
     })
+  })
+
+  it('preserves configured provider key state when GET does not return the secret', () => {
+    const presetProviders: Provider[] = [
+      { id: 'google', name: 'Google AI Studio', baseUrl: 'https://google.default' },
+    ]
+    const savedProviders: Provider[] = [
+      { id: 'google', name: 'Google AI Studio', baseUrl: 'https://google.default', apiKey: '', hasApiKey: true },
+    ]
+
+    const merged = mergeProvidersForDisplay(savedProviders, presetProviders)
+
+    expect(merged[0]).toMatchObject({
+      id: 'google',
+      apiKey: '',
+      hasApiKey: true,
+    })
+  })
+
+  it('omits empty apiKey on save when provider already has a stored key', () => {
+    const payload = buildProvidersPayloadForSave([
+      { id: 'google', name: 'Google AI Studio', apiKey: '', hasApiKey: true },
+    ])
+
+    expect(payload).toEqual([
+      { id: 'google', name: 'Google AI Studio' },
+    ])
+  })
+
+  it('sends empty apiKey on save when user cleared a provider key', () => {
+    const payload = buildProvidersPayloadForSave([
+      { id: 'google', name: 'Google AI Studio', apiKey: '', hasApiKey: false },
+    ])
+
+    expect(payload).toEqual([
+      { id: 'google', name: 'Google AI Studio', apiKey: '' },
+    ])
   })
 })

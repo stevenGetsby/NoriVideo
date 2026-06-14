@@ -91,9 +91,16 @@ export const POST = apiHandler(async (
   }
 
   // 更新最后编辑的剧集ID
+  const updateData: Prisma.NovelPromotionProjectUpdateInput = { lastEpisodeId: episode.id }
+  if (novelData.importStatus === 'pending' || novelData.pendingImportText || novelData.pendingImportEpisodeName) {
+    updateData.importStatus = 'completed'
+    updateData.pendingImportText = null
+    updateData.pendingImportEpisodeName = null
+  }
+
   await prisma.novelPromotionProject.update({
     where: { id: novelData.id },
-    data: { lastEpisodeId: episode.id }
+    data: updateData,
   })
 
   return NextResponse.json({ episode }, { status: 201 })

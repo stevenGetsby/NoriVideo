@@ -26,7 +26,15 @@ export const POST = apiHandler(async (
 
   // 更新 LocationImage 表中对应的记录
   const locationImage = await prisma.locationImage.findFirst({
-    where: { locationId, imageIndex }
+    where: {
+      locationId,
+      imageIndex,
+      location: {
+        novelPromotionProject: {
+          projectId
+        }
+      }
+    }
   })
 
   if (!locationImage) {

@@ -20,12 +20,28 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  // 使用 UUID 直接查询
+  // 使用 UUID 查询，并限定到当前项目
   const appearance = await prisma.characterAppearance.findUnique({
-    where: { id: appearanceId }
+    where: { id: appearanceId },
+    include: {
+      character: {
+        select: {
+          id: true,
+          novelPromotionProject: {
+            select: { projectId: true }
+          }
+        }
+      }
+    }
   })
 
   if (!appearance) {
+    throw new ApiError('NOT_FOUND')
+  }
+  if (appearance.characterId !== characterId) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+  if (appearance.character.novelPromotionProject.projectId !== projectId) {
     throw new ApiError('NOT_FOUND')
   }
 

@@ -11,6 +11,7 @@ import {
 import { coerceTaskIntent, resolveTaskIntent } from './intent'
 import { mapTaskSSEEventToRunEvents } from '@/lib/run-runtime/task-bridge'
 import { publishRunEvent } from '@/lib/run-runtime/publisher'
+import { recordWorkflowStageProgressFromTaskEvent } from '@/lib/workspace/workflow-stage-state-store'
 
 const CHANNEL_PREFIX = 'task-events:project:'
 const STREAM_EPHEMERAL_ENABLED = process.env.LLM_STREAM_EPHEMERAL_ENABLED !== 'false'
@@ -279,6 +280,14 @@ export async function publishTaskLifecycleEvent(params: {
   })
 
   await redis.publish(getProjectChannel(params.projectId), JSON.stringify(message))
+  await recordWorkflowStageProgressFromTaskEvent(message).catch((error) => {
+    console.warn('[workflow-stage-state] failed to project task event', {
+      taskId: params.taskId,
+      projectId: params.projectId,
+      taskType: params.taskType || null,
+      error,
+    })
+  })
   await mirrorTaskEventToRun(message)
   return message
 }

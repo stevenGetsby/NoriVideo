@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
 
 function safeFileName(value: string) {
   return value.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'export_manifest'
@@ -12,11 +13,18 @@ export const GET = apiHandler(async (
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
 
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { project } = authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: request.nextUrl.searchParams.get('episodeId'),
+  })
+  if (!scope) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const { episodeId } = scope
 
   const episodes = episodeId
     ? await prisma.novelPromotionEpisode.findMany({

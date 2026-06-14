@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { useTranslations } from 'next-intl'
 import { useQueryClient } from '@tanstack/react-query'
@@ -60,6 +60,52 @@ type TimelineDraft = {
 }
 
 type StageReviewState = 'confirmed' | 'review'
+
+type TimelineSummaryPanelRow = {
+  id: string
+  timelineIndex: number
+  panelIndex: number
+  startSeconds: number
+  endSeconds: number
+  durationSeconds: number
+  durationSource: 'panel' | 'default'
+  status: 'ready' | 'needs_refs' | 'needs_image' | 'needs_video' | 'needs_duration'
+  readiness: {
+    hasRefs: boolean
+    hasImage: boolean
+    hasVideo: boolean
+    hasDuration: boolean
+  }
+}
+
+type TimelineSummaryEpisode = {
+  id: string
+  stats: {
+    panels: number
+    images: number
+    videos: number
+    readyShots: number
+    missingRefs: number
+    missingImages: number
+    missingVideos: number
+    missingDurations: number
+    scheduledDurationSeconds: number
+    averageDurationSeconds: number
+  }
+  queues: {
+    refs: string[]
+    images: string[]
+    videos: string[]
+    durations: string[]
+  }
+  timeline: TimelineSummaryPanelRow[]
+}
+
+type TimelineSummaryResponse = {
+  success?: boolean
+  schema?: string
+  episodes?: TimelineSummaryEpisode[]
+}
 
 function flattenPanels(episode?: Episode | null): NovelPromotionPanel[] {
   return (episode?.storyboards || []).flatMap((storyboard) => storyboard.panels || [])
@@ -166,10 +212,26 @@ export default function WorkbenchFocusPanel({
   const [draftShotProps, setDraftShotProps] = useState('')
   const [timelineDrafts, setTimelineDrafts] = useState<Record<string, TimelineDraft>>({})
   const [stageReviewStates, setStageReviewStates] = useState<Record<string, StageReviewState>>({})
+  const [timelineSummary, setTimelineSummary] = useState<TimelineSummaryResponse | null>(null)
   const [saving, setSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<string | null>(null)
   const workflowStateQuery = useWorkflowState(projectId, episode?.id)
   const stageReviewEndpoint = `/api/projects/${projectId}/workflow-stage-review${episode?.id ? `?episodeId=${encodeURIComponent(episode.id)}` : ''}`
+  const loadTimelineSummary = useCallback(async (signal?: AbortSignal) => {
+    if (!episode?.id) {
+      setTimelineSummary(null)
+      return
+    }
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/timeline?episodeId=${encodeURIComponent(episode.id)}`)
+      if (signal?.aborted) return
+      if (!response.ok) throw new Error('load timeline summary failed')
+      const data = await response.json() as TimelineSummaryResponse
+      if (!signal?.aborted) setTimelineSummary(data)
+    } catch {
+      if (!signal?.aborted) setTimelineSummary(null)
+    }
+  }, [episode?.id, projectId])
 
   const meta = FOCUS_META[focus]
   const variant = searchParams?.get('workbench') === 'premium2' ? 'premium2' : 'standard'
@@ -192,11 +254,46 @@ export default function WorkbenchFocusPanel({
   const imageErrorCount = panels.filter((panel) => Boolean(panel.imageErrorMessage)).length
   const videoErrorCount = panels.filter((panel) => Boolean(panel.videoErrorMessage)).length
   const panelCompletion = panels.length ? Math.round((videoPanels.length / panels.length) * 100) : 0
-  const totalDuration = panels.reduce((sum, panel) => sum + (Number(panel.duration) || 0), 0)
-  const averageDuration = panels.length ? totalDuration / panels.length : 0
-  const timelineMissingRefs = panels.filter((panel) => !hasPanelRefs(panel))
-  const timelineMissingDuration = panels.filter((panel) => !(typeof panel.duration === 'number' && Number.isFinite(panel.duration) && panel.duration > 0))
-  const timelineReadyPanels = panels.filter((panel) => panel.imageUrl && hasPanelVideo(panel) && hasPanelRefs(panel))
+  const timelineEpisodeSummary = timelineSummary?.episodes?.find((item) => item.id === episode?.id) || timelineSummary?.episodes?.[0] || null
+  const panelById = new Map(panels.map((panel) => [panel.id, panel]))
+  const timelinePanelRows = timelineEpisodeSummary?.timeline
+    ?.map((row) => {
+      const panel = panelById.get(row.id)
+      return panel ? { row, panel } : null
+    })
+    .filter((item): item is { row: TimelineSummaryPanelRow; panel: NovelPromotionPanel } => Boolean(item))
+    || panels.map((panel, index) => ({
+      panel,
+      row: {
+        id: panel.id,
+        timelineIndex: index + 1,
+        panelIndex: panel.panelIndex,
+        startSeconds: 0,
+        endSeconds: Number(panel.duration) || 0,
+        durationSeconds: Number(panel.duration) || 0,
+        durationSource: (panel.duration ? 'panel' : 'default') as 'panel' | 'default',
+        status: (panel.imageUrl && hasPanelVideo(panel) && hasPanelRefs(panel) && panel.duration ? 'ready' : 'needs_video') as TimelineSummaryPanelRow['status'],
+        readiness: {
+          hasRefs: hasPanelRefs(panel),
+          hasImage: Boolean(panel.imageUrl),
+          hasVideo: hasPanelVideo(panel),
+          hasDuration: typeof panel.duration === 'number' && Number.isFinite(panel.duration) && panel.duration > 0,
+        },
+      },
+    }))
+  const timelineOrderedPanels = timelinePanelRows.map((item) => item.panel)
+  const timelineStats = timelineEpisodeSummary?.stats
+  const totalDuration = timelineStats?.scheduledDurationSeconds ?? panels.reduce((sum, panel) => sum + (Number(panel.duration) || 0), 0)
+  const averageDuration = timelineStats?.averageDurationSeconds ?? (panels.length ? totalDuration / panels.length : 0)
+  const timelineMissingRefs = timelineEpisodeSummary
+    ? timelineEpisodeSummary.queues.refs.map((id) => panelById.get(id)).filter((panel): panel is NovelPromotionPanel => Boolean(panel))
+    : panels.filter((panel) => !hasPanelRefs(panel))
+  const timelineMissingDuration = timelineEpisodeSummary
+    ? timelineEpisodeSummary.queues.durations.map((id) => panelById.get(id)).filter((panel): panel is NovelPromotionPanel => Boolean(panel))
+    : panels.filter((panel) => !(typeof panel.duration === 'number' && Number.isFinite(panel.duration) && panel.duration > 0))
+  const timelineReadyPanels = timelineEpisodeSummary
+    ? timelinePanelRows.filter((item) => item.row.status === 'ready').map((item) => item.panel)
+    : panels.filter((panel) => panel.imageUrl && hasPanelVideo(panel) && hasPanelRefs(panel))
   const voiceLinesCount = Array.isArray(episode?.voiceLines) ? episode.voiceLines.length : 0
   const missingVideoCount = Math.max(panels.length - videoPanels.length, 0)
   const missingImageCount = Math.max(panels.length - imagePanels.length, 0)
@@ -413,6 +510,18 @@ export default function WorkbenchFocusPanel({
     }
   }, [stageReviewEndpoint])
 
+  useEffect(() => {
+    if (focus !== 'timeline') {
+      setTimelineSummary(null)
+      return
+    }
+    const controller = new AbortController()
+    void loadTimelineSummary(controller.signal)
+    return () => {
+      controller.abort()
+    }
+  }, [focus, loadTimelineSummary])
+
   const persistStageReviewStates = async (next: Record<string, StageReviewState>) => {
     try {
       const response = await apiFetch(stageReviewEndpoint, {
@@ -421,6 +530,8 @@ export default function WorkbenchFocusPanel({
         body: JSON.stringify({ states: next }),
       })
       if (!response.ok) throw new Error('save workflow stage review failed')
+      const data = await response.json() as { states?: Record<string, StageReviewState> }
+      if (data.states) setStageReviewStates(data.states)
       await queryClient.invalidateQueries({ queryKey: queryKeys.workflowState(projectId, episode?.id || null) })
     } catch {
       setSaveMessage(t('edit.saveFailed'))
@@ -562,15 +673,17 @@ export default function WorkbenchFocusPanel({
     setSaving(true)
     setSaveMessage(null)
     try {
-      for (const payload of payloads) {
-        const response = await apiFetch(`/api/novel-promotion/${projectId}/panel`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        })
-        if (!response.ok) throw new Error(t('edit.saveFailed'))
-      }
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/timeline`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          episodeId: episode?.id,
+          updates: payloads,
+        }),
+      })
+      if (!response.ok) throw new Error(t('edit.saveFailed'))
       await refreshAfterSave()
+      await loadTimelineSummary()
       setSaveMessage(t('timeline.saved', { count: changedPanels.length }))
     } catch {
       setSaveMessage(t('edit.saveFailed'))
@@ -583,16 +696,20 @@ export default function WorkbenchFocusPanel({
     setSaving(true)
     setSaveMessage(null)
     try {
-      const response = await apiFetch(`/api/novel-promotion/${projectId}/panel`, {
+      const response = await apiFetch(`/api/novel-promotion/${projectId}/timeline`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          panelId,
-          reorderDirection: direction,
+          episodeId: episode?.id,
+          reorder: {
+            panelId,
+            direction,
+          },
         }),
       })
       if (!response.ok) throw new Error(t('edit.saveFailed'))
       await refreshAfterSave()
+      await loadTimelineSummary()
       setSaveMessage(t('timeline.reordered'))
     } catch {
       setSaveMessage(t('edit.saveFailed'))
@@ -643,6 +760,11 @@ export default function WorkbenchFocusPanel({
           { label: t('data.currentPanels'), value: panels.length, hint: t('data.currentEpisode') },
         ]
       case 'timeline':
+        return [
+          { label: t('data.panels'), value: timelineStats?.panels ?? panels.length, hint: t('data.currentEpisode') },
+          { label: t('data.videoReady'), value: timelineStats?.videos ?? videoPanels.length, hint: `${panelCompletion}%` },
+          { label: t('data.pending'), value: timelineStats?.missingVideos ?? Math.max(panels.length - videoPanels.length, 0), hint: t('data.needsGeneration') },
+        ]
       case 'shot':
       case 'shot-detail':
       case 'export':
@@ -2176,14 +2298,14 @@ export default function WorkbenchFocusPanel({
               <button
                 type="button"
                 onClick={() => { void saveTimelineDrafts() }}
-                disabled={saving || panels.length === 0}
+                disabled={saving || timelineOrderedPanels.length === 0}
                 className="rounded-md bg-[#2c6ef2] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
               >
                 {saving ? t('edit.saving') : t('timeline.save')}
               </button>
               <span className="text-[11px] text-white/34">{t('timeline.openDetail')}</span>
               <span className="rounded bg-white/6 px-2 py-0.5 text-[11px] text-white/42">
-                {videoPanels.length}/{panels.length}
+                {timelineStats?.videos ?? videoPanels.length}/{timelineStats?.panels ?? panels.length}
               </span>
             </div>
           </div>
@@ -2194,14 +2316,14 @@ export default function WorkbenchFocusPanel({
             </div>
             <div className="rounded-md border border-white/8 bg-white/4 px-3 py-2">
               <div className="text-[11px] text-white/38">{t('timeline.imageMissing')}</div>
-              <div className="mt-1 text-sm font-semibold text-white/72">{Math.max(panels.length - imagePanels.length, 0)}</div>
+              <div className="mt-1 text-sm font-semibold text-white/72">{timelineStats?.missingImages ?? Math.max(panels.length - imagePanels.length, 0)}</div>
             </div>
             <div className="rounded-md border border-white/8 bg-white/4 px-3 py-2">
               <div className="text-[11px] text-white/38">{t('timeline.videoMissing')}</div>
-              <div className="mt-1 text-sm font-semibold text-white/72">{Math.max(panels.length - videoPanels.length, 0)}</div>
+              <div className="mt-1 text-sm font-semibold text-white/72">{timelineStats?.missingVideos ?? Math.max(panels.length - videoPanels.length, 0)}</div>
             </div>
           </div>
-          {panels.length > 0 ? (
+          {timelineOrderedPanels.length > 0 ? (
             <div className="mb-3 grid gap-3 lg:grid-cols-[1fr_1fr]">
               <div className="rounded-md border border-white/8 bg-[#0b0e14] p-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -2214,7 +2336,7 @@ export default function WorkbenchFocusPanel({
                     </div>
                   </div>
                   <span className="rounded bg-white/6 px-2 py-1 text-[11px] text-white/42">
-                    {t('timeline.deliveryReady', { ready: timelineReadyPanels.length, total: panels.length })}
+                    {t('timeline.deliveryReady', { ready: timelineReadyPanels.length, total: timelineStats?.panels ?? panels.length })}
                   </span>
                 </div>
                 <div className="mt-3 grid gap-2 sm:grid-cols-4">
@@ -2270,11 +2392,11 @@ export default function WorkbenchFocusPanel({
               </div>
             </div>
           ) : null}
-          {panels.length > 0 ? (
+          {timelineOrderedPanels.length > 0 ? (
             <div className="space-y-2">
-              {panels.slice(0, 12).map((panel, index) => {
-                const hasVideo = Boolean(panel.videoUrl || panel.lipSyncVideoUrl)
-                const hasImage = Boolean(panel.imageUrl)
+              {timelinePanelRows.slice(0, 12).map(({ panel, row }, index) => {
+                const hasVideo = row.readiness.hasVideo
+                const hasImage = row.readiness.hasImage
                 const storyboardPanels = panels
                   .filter((item) => item.storyboardId === panel.storyboardId)
                   .sort((a, b) => a.panelIndex - b.panelIndex)
@@ -2292,7 +2414,7 @@ export default function WorkbenchFocusPanel({
                     className="grid gap-3 rounded-md border border-white/8 bg-white/4 p-3 transition-colors hover:border-[#2c6ef2]/55 hover:bg-white/7 md:grid-cols-[72px_1fr_230px]"
                   >
                     <div className="flex h-14 w-14 items-center justify-center rounded-md bg-white/6 text-sm font-semibold text-white/62">
-                      {index + 1}
+                      {row.timelineIndex || index + 1}
                     </div>
                     <div className="min-w-0 space-y-2">
                       <div className="truncate text-sm font-medium text-white/74">{pickPanelTitle(panel, index)}</div>
@@ -2300,7 +2422,7 @@ export default function WorkbenchFocusPanel({
                         {displayText(panel.videoPrompt || panel.imagePrompt || panel.characters || panel.location, t('data.noDescription'))}
                       </div>
                       <div className="flex flex-wrap items-center gap-2 text-[11px] text-white/32">
-                        <span>{t('timeline.orderValue', { index: panel.panelIndex + 1 })}</span>
+                        <span>{t('timeline.orderValue', { index: row.timelineIndex || panel.panelIndex + 1 })}</span>
                         <button
                           type="button"
                           onClick={() => { void moveTimelinePanel(panel.id, 'up') }}

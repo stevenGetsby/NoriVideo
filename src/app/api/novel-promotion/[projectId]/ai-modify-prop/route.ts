@@ -46,6 +46,20 @@ export const POST = apiHandler(async (
   if (!prop) {
     throw new ApiError('NOT_FOUND')
   }
+  let scopedVariantId = ''
+  if (variantId) {
+    const variant = await prisma.locationImage.findFirst({
+      where: {
+        id: variantId,
+        locationId: prop.id,
+      },
+      select: { id: true },
+    })
+    if (!variant) {
+      throw new ApiError('NOT_FOUND')
+    }
+    scopedVariantId = variant.id
+  }
 
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
@@ -53,16 +67,16 @@ export const POST = apiHandler(async (
     projectId,
     type: TASK_TYPE.AI_MODIFY_PROP,
     targetType: 'NovelPromotionLocation',
-    targetId: variantId || propId,
+    targetId: scopedVariantId || prop.id,
     routePath: `/api/novel-promotion/${projectId}/ai-modify-prop`,
     body: {
-      propId,
+      propId: prop.id,
       propName: prop.name,
-      variantId: variantId || undefined,
+      variantId: scopedVariantId || undefined,
       currentDescription,
       modifyInstruction,
     },
-    dedupeKey: `ai_modify_prop:${propId}:${variantId || 'default'}`,
+    dedupeKey: `ai_modify_prop:${prop.id}:${scopedVariantId || 'default'}`,
   })
   if (asyncTaskResponse) return asyncTaskResponse
 

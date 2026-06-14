@@ -33,8 +33,13 @@ export const POST = apiHandler(async (
   }
 
   // 获取场景及其图片
-  const location = await prisma.novelPromotionLocation.findUnique({
-    where: { id: locationId },
+  const location = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: locationId,
+      novelPromotionProject: {
+        projectId
+      }
+    },
     include: { images: { orderBy: { imageIndex: 'asc' } } }
   })
 

@@ -20,26 +20,42 @@ interface DownstreamCheckResult {
 type StoryboardStats = {
   storyboardCount: number
   panelCount: number
+  imageCount?: number
+  videoCount?: number
+  voiceLineCount?: number
+  voiceAudioCount?: number
+  editorProjectCount?: number
+  exportQueueCount?: number
+  exportHistoryCount?: number
+  activeTaskCount?: number
+  shouldConfirm?: boolean
 }
 
 export function hasDownstreamStoryboardData(stats: StoryboardStats): boolean {
-  return stats.storyboardCount > 0 || stats.panelCount > 0
-}
-
-interface StoryboardLike {
-  panels?: unknown[] | null
+  if (typeof stats.shouldConfirm === 'boolean') return stats.shouldConfirm
+  return [
+    stats.storyboardCount,
+    stats.panelCount,
+    stats.imageCount,
+    stats.videoCount,
+    stats.voiceLineCount,
+    stats.voiceAudioCount,
+    stats.editorProjectCount,
+    stats.exportQueueCount,
+    stats.exportHistoryCount,
+    stats.activeTaskCount,
+  ].some((count) => typeof count === 'number' && count > 0)
 }
 
 interface UseRebuildConfirmParams {
   episodeId?: string
-  episodeStoryboards?: StoryboardLike[]
+  episodeStoryboards?: unknown[]
   getProjectStoryboardStats: (episodeId: string) => Promise<StoryboardStats>
   t: (key: string, values?: Record<string, string | number | Date>) => string
 }
 
 export function useRebuildConfirm({
   episodeId,
-  episodeStoryboards,
   getProjectStoryboardStats,
   t,
 }: UseRebuildConfirmParams) {
@@ -47,16 +63,6 @@ export function useRebuildConfirm({
   const [rebuildConfirmContext, setRebuildConfirmContext] = useState<RebuildConfirmContext | null>(null)
   const [pendingActionType, setPendingActionType] = useState<RebuildActionType | null>(null)
   const pendingRebuildActionRef = useRef<(() => Promise<void>) | null>(null)
-
-  const getFallbackStoryboardStats = useCallback(() => {
-    const storyboards = Array.isArray(episodeStoryboards) ? episodeStoryboards : []
-    const storyboardCount = storyboards.length
-    const panelCount = storyboards.reduce((sum: number, storyboard) => {
-      const panels = Array.isArray(storyboard?.panels) ? storyboard.panels.length : 0
-      return sum + panels
-    }, 0)
-    return { storyboardCount, panelCount }
-  }, [episodeStoryboards])
 
   const checkStoryboardDownstreamData = useCallback(async (): Promise<DownstreamCheckResult> => {
     if (!episodeId) {
@@ -71,15 +77,14 @@ export function useRebuildConfirm({
         panelCount,
       }
     } catch (error) {
-      _ulogWarn('[RebuildConfirm] Failed to check downstream storyboards, fallback to local cache', error)
-      const fallbackStats = getFallbackStoryboardStats()
+      _ulogWarn('[RebuildConfirm] Failed to check downstream impact from backend, requiring confirmation', error)
       return {
-        shouldConfirm: hasDownstreamStoryboardData(fallbackStats),
-        storyboardCount: fallbackStats.storyboardCount,
-        panelCount: fallbackStats.panelCount,
+        shouldConfirm: true,
+        storyboardCount: 0,
+        panelCount: 0,
       }
     }
-  }, [episodeId, getFallbackStoryboardStats, getProjectStoryboardStats])
+  }, [episodeId, getProjectStoryboardStats])
 
   const runWithRebuildConfirm = useCallback(async (
     actionType: RebuildActionType,

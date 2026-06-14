@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 /**
  * POST /api/novel-promotion/[projectId]/clips
@@ -26,20 +27,34 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
+    select: { id: true },
+  })
+  if (!episode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
-    episodeId,
+    episodeId: episode.id,
     type: TASK_TYPE.CLIPS_BUILD,
     targetType: 'NovelPromotionEpisode',
-    targetId: episodeId,
+    targetId: episode.id,
     routePath: `/api/novel-promotion/${projectId}/clips`,
     body: {
       ...body,
+      episodeId: episode.id,
       displayMode: 'detail',
     },
-    dedupeKey: `clips_build:${episodeId}`,
+    dedupeKey: `clips_build:${episode.id}`,
     priority: 1,
   })
   if (asyncTaskResponse) return asyncTaskResponse

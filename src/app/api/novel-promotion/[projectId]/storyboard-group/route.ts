@@ -4,6 +4,38 @@ import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 
+async function getNovelPromotionProject(projectId: string) {
+  const novelPromotionProject = await prisma.novelPromotionProject.findUnique({
+    where: { projectId },
+    select: { id: true }
+  })
+
+  if (!novelPromotionProject) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return novelPromotionProject
+}
+
+async function getProjectEpisodeWithClips(projectId: string, episodeId: string) {
+  const novelPromotionProject = await getNovelPromotionProject(projectId)
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProjectId: novelPromotionProject.id
+    },
+    include: {
+      clips: { orderBy: { createdAt: 'asc' } }
+    }
+  })
+
+  if (!episode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return episode
+}
+
 /**
  * POST /api/novel-promotion/[projectId]/storyboard-group
  * 添加一组新的分镜（创建 Clip + Storyboard + 初始 Panel）
@@ -26,16 +58,7 @@ export const POST = apiHandler(async (
   }
 
   // 获取剧集和现有 clips
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    include: {
-      clips: { orderBy: { createdAt: 'asc' } }
-    }
-  })
-
-  if (!episode) {
-    throw new ApiError('NOT_FOUND')
-  }
+  const episode = await getProjectEpisodeWithClips(projectId, episodeId)
 
   const existingClips = episode.clips
   const insertAt = insertIndex !== undefined ? insertIndex : existingClips.length
@@ -133,16 +156,7 @@ export const PUT = apiHandler(async (
   }
 
   // 获取剧集和所有 clips（按 createdAt 排序）
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-    include: {
-      clips: { orderBy: { createdAt: 'asc' } }
-    }
-  })
-
-  if (!episode) {
-    throw new ApiError('NOT_FOUND')
-  }
+  const episode = await getProjectEpisodeWithClips(projectId, episodeId)
 
   const clips = episode.clips
   const currentIndex = clips.findIndex(c => c.id === clipId)
@@ -214,8 +228,14 @@ export const DELETE = apiHandler(async (
   }
 
   // 获取 storyboard 及其关联的 clip
-  const storyboard = await prisma.novelPromotionStoryboard.findUnique({
-    where: { id: storyboardId },
+  const novelPromotionProject = await getNovelPromotionProject(projectId)
+  const storyboard = await prisma.novelPromotionStoryboard.findFirst({
+    where: {
+      id: storyboardId,
+      episode: {
+        novelPromotionProjectId: novelPromotionProject.id
+      }
+    },
     include: {
       panels: true,
       clip: true

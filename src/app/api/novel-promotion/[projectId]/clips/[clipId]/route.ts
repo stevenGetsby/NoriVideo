@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-errors'
+import { apiHandler, ApiError } from '@/lib/api-errors'
 
 /**
  * PATCH /api/novel-promotion/[projectId]/clips/[clipId]
@@ -24,9 +24,26 @@ export const PATCH = apiHandler(async (
         update: (args: { where: { id: string }; data: Record<string, unknown> }) => Promise<unknown>
     }
 
-    // 验证 Clip 是否存在且属于该项目（间接验证）
-    // 这里简化处理，直接通过 ID 更新，Prisma 会处理是否存在
-    // 严谨做法是先查 Clip -> Episode -> Project 确认归属，但考虑到 projectId 主要是路由参数校验，且用户只能删改自己的数据
+    const novelPromotionProject = await prisma.novelPromotionProject.findUnique({
+        where: { projectId },
+        select: { id: true }
+    })
+    if (!novelPromotionProject) {
+        throw new ApiError('NOT_FOUND')
+    }
+
+    const existingClip = await prisma.novelPromotionClip.findFirst({
+        where: {
+            id: clipId,
+            episode: {
+                novelPromotionProjectId: novelPromotionProject.id
+            }
+        },
+        select: { id: true }
+    })
+    if (!existingClip) {
+        throw new ApiError('NOT_FOUND')
+    }
 
     const updateData: {
         characters?: string | null
@@ -42,7 +59,7 @@ export const PATCH = apiHandler(async (
     if (screenplay !== undefined) updateData.screenplay = screenplay // JSON string
 
     const clip = await clipModel.update({
-        where: { id: clipId },
+        where: { id: existingClip.id },
         data: updateData
     })
 

@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
+import { isErrorResponse, requireProjectAuthLight, requireUserAuth } from '@/lib/api-auth'
+import { prisma } from '@/lib/prisma'
 import { createRun, listRuns } from '@/lib/run-runtime/service'
 import { RUN_STATUS, type RunStatus } from '@/lib/run-runtime/types'
+import {
+  isInternalAgentWorkflowType,
+  isPublicRunApiVisible,
+} from '@/lib/super-agent/internal-run-visibility'
 
 function readString(value: unknown): string | null {
   if (typeof value !== 'string') return null
@@ -62,6 +67,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
     && !!workflowType
     && !!targetType
     && !!targetId
+  if (isInternalAgentWorkflowType(workflowType) && !isPublicRunApiVisible({ workflowType })) {
+    return NextResponse.json({ runs: [] })
+  }
   const runs = await listRuns({
     userId: session.user.id,
     projectId: projectId || undefined,
@@ -74,7 +82,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     recoverableOnly: scopedActiveRecoveryQuery,
     latestOnly: scopedActiveRecoveryQuery,
   })
-  return NextResponse.json({ runs })
+  return NextResponse.json({ runs: runs.filter(isPublicRunApiVisible) })
 })
 
 export const POST = apiHandler(async (request: NextRequest) => {
@@ -101,6 +109,32 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   if (!projectId || !workflowType || !targetType || !targetId) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  if (isInternalAgentWorkflowType(workflowType) && !isPublicRunApiVisible({ workflowType })) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'INTERNAL_AGENT_RUN_API_DISABLED',
+    })
+  }
+  const projectAuth = await requireProjectAuthLight(projectId)
+  if (isErrorResponse(projectAuth)) return projectAuth
+  if (projectAuth.session.user.id !== session.user.id) {
+    throw new ApiError('NOT_FOUND')
+  }
+  if (taskId) {
+    const task = await prisma.task.findFirst({
+      where: {
+        id: taskId,
+        userId: session.user.id,
+        projectId,
+      },
+      select: { id: true },
+    })
+    if (!task) {
+      throw new ApiError('INVALID_PARAMS', {
+        code: 'RUN_TASK_SCOPE_MISMATCH',
+        field: 'taskId',
+      })
+    }
   }
 
   const run = await createRun({

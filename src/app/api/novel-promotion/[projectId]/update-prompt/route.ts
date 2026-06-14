@@ -20,9 +20,28 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  if (!shotId) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
+  const shot = await prisma.novelPromotionShot.findFirst({
+    where: {
+      id: shotId,
+      episode: {
+        novelPromotionProject: {
+          projectId
+        }
+      }
+    },
+    select: { id: true }
+  })
+  if (!shot) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   // 更新shot
   const updatedShot = await prisma.novelPromotionShot.update({
-    where: { id: shotId },
+    where: { id: shot.id },
     data: { [field]: value }
   })
 

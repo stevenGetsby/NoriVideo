@@ -15,11 +15,14 @@ export const DELETE = apiHandler(async (
 
   await requireCanvasInProject(canvasId, projectId)
 
-  const node = await prisma.canvasNode.findUnique({
-    where: { id: nodeId },
+  const node = await prisma.canvasNode.findFirst({
+    where: {
+      id: nodeId,
+      canvasId,
+    },
     select: { id: true, canvasId: true },
   })
-  if (!node || node.canvasId !== canvasId) {
+  if (!node) {
     throw new ApiError('NOT_FOUND')
   }
 
@@ -30,7 +33,7 @@ export const DELETE = apiHandler(async (
         OR: [{ sourceNodeId: nodeId }, { targetNodeId: nodeId }],
       },
     }),
-    prisma.canvasNode.delete({ where: { id: nodeId } }),
+    prisma.canvasNode.delete({ where: { id: node.id } }),
   ])
 
   return NextResponse.json({ success: true })

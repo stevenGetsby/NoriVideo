@@ -43,6 +43,7 @@ import { handleReferenceToCharacterTask } from './handlers/reference-to-characte
 import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 import { handleSuperAgentExecuteTask } from './handlers/super-agent-execute'
+import { handleExportDeliveryTask } from './handlers/export-delivery'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -717,6 +718,8 @@ async function processTextTask(job: Job<TaskJobData>) {
       return await handleRegenerateStoryboardTextTask(job)
     case TASK_TYPE.INSERT_PANEL:
       return await handleInsertPanelTask(job)
+    case TASK_TYPE.EXPORT_DELIVERY:
+      return await handleExportDeliveryTask(job)
     case TASK_TYPE.SUPER_AGENT_EXECUTE:
       return await handleSuperAgentExecuteTask(job)
     default:

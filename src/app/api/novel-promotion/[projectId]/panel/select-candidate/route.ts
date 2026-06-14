@@ -29,6 +29,27 @@ function parsePanelHistory(jsonValue: string | null): PanelHistoryEntry[] {
   })
 }
 
+async function getProjectPanel(projectId: string, panelId: string) {
+  const panel = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: panelId,
+      storyboard: {
+        episode: {
+          novelPromotionProject: {
+            projectId
+          }
+        }
+      }
+    }
+  })
+
+  if (!panel) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return panel
+}
+
 /**
  * POST /api/novel-promotion/[projectId]/panel/select-candidate
  * 统一的候选图片操作 API
@@ -53,10 +74,12 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const panel = await getProjectPanel(projectId, panelId)
+
   // === 取消操作 ===
   if (action === 'cancel') {
     await prisma.novelPromotionPanel.update({
-      where: { id: panelId },
+      where: { id: panel.id },
       data: { candidateImages: null }
     })
 
@@ -69,15 +92,6 @@ export const POST = apiHandler(async (
   // === 选择操作 ===
   if (!selectedImageUrl) {
     throw new ApiError('INVALID_PARAMS')
-  }
-
-  // 获取 Panel
-  const panel = await prisma.novelPromotionPanel.findUnique({
-    where: { id: panelId }
-  })
-
-  if (!panel) {
-    throw new ApiError('NOT_FOUND')
   }
 
   // 验证选择的图片是否在候选列表中
@@ -118,7 +132,7 @@ export const POST = apiHandler(async (
 
   // 更新 Panel：设置新图片，清空候选列表
   await prisma.novelPromotionPanel.update({
-    where: { id: panelId },
+    where: { id: panel.id },
     data: {
       imageUrl: finalImageKey,
       imageHistory: JSON.stringify(currentHistory),

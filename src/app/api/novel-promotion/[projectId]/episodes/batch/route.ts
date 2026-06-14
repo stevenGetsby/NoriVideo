@@ -27,7 +27,7 @@ export const POST = apiHandler(async (
     // 🔐 统一权限验证
     const authResult = await requireProjectAuthLight(projectId)
     if (isErrorResponse(authResult)) return authResult
-    const { episodes, clearExisting = false, importStatus } = await request.json()
+    const { episodes, clearExisting = false } = await request.json()
 
     if (!episodes || !Array.isArray(episodes)) {
         throw new ApiError('INVALID_PARAMS')
@@ -49,18 +49,11 @@ export const POST = apiHandler(async (
         })
     }
 
-    // 如果剧集数组为空，只更新 importStatus
     if (episodes.length === 0) {
-        if (importStatus) {
-            await prisma.novelPromotionProject.update({
-                where: { id: project.id },
-                data: { importStatus }
-            })
-        }
         return NextResponse.json({
             success: true,
             episodes: [],
-            message: '已清空剧集'
+            message: clearExisting ? '已清空剧集' : '没有剧集需要保存'
         })
     }
 
@@ -89,9 +82,18 @@ export const POST = apiHandler(async (
     )
 
     // 更新项目的 lastEpisodeId 和 importStatus
-    const updateData: { lastEpisodeId: string; importStatus?: string } = { lastEpisodeId: createdEpisodes[0].id }
-    if (importStatus) {
-        updateData.importStatus = importStatus
+    const updateData: {
+        lastEpisodeId: string
+        importStatus: 'completed'
+        pendingImportText?: null
+        pendingImportEpisodeName?: null
+    } = {
+        lastEpisodeId: createdEpisodes[0].id,
+        importStatus: 'completed',
+    }
+    if (project.importStatus === 'pending' || project.pendingImportText || project.pendingImportEpisodeName) {
+        updateData.pendingImportText = null
+        updateData.pendingImportEpisodeName = null
     }
 
     await prisma.novelPromotionProject.update({

@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -23,16 +24,36 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const appearance = await prisma.characterAppearance.findFirst({
+    where: {
+      id: appearanceId,
+      characterId,
+      character: {
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+    },
+    select: { id: true },
+  })
+  if (!appearance) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
     type: TASK_TYPE.AI_MODIFY_APPEARANCE,
     targetType: 'CharacterAppearance',
-    targetId: appearanceId,
+    targetId: appearance.id,
     routePath: `/api/novel-promotion/${projectId}/ai-modify-appearance`,
-    body,
-    dedupeKey: `ai_modify_appearance:${appearanceId}`})
+    body: {
+      ...body,
+      characterId,
+      appearanceId: appearance.id,
+    },
+    dedupeKey: `ai_modify_appearance:${appearance.id}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

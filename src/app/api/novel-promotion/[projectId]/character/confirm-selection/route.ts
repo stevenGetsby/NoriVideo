@@ -36,10 +36,16 @@ export const POST = apiHandler(async (
   // 获取形象记录 - 使用 UUID 直接查询
   const appearance = await prisma.characterAppearance.findUnique({
     where: { id: appearanceId },
-    include: { character: true }
+    include: { character: { include: { novelPromotionProject: true } } }
   })
 
   if (!appearance) {
+    throw new ApiError('NOT_FOUND')
+  }
+  if (appearance.characterId !== characterId) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+  if (appearance.character.novelPromotionProject.projectId !== projectId) {
     throw new ApiError('NOT_FOUND')
   }
 

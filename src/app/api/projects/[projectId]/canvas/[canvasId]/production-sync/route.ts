@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { apiHandler } from '@/lib/api-errors'
+import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
@@ -214,8 +214,11 @@ export const POST = apiHandler(async (
 
   await requireCanvasInProject(canvasId, projectId)
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: authResult.session.user.id,
+    },
     include: {
       novelPromotionData: {
         include: {
@@ -235,8 +238,11 @@ export const POST = apiHandler(async (
       },
     },
   })
+  if (!project) {
+    throw new ApiError('NOT_FOUND')
+  }
 
-  const withMedia = await attachMediaFieldsToProject(project || {})
+  const withMedia = await attachMediaFieldsToProject(project)
   const { nodes, edges } = buildProductionGraph(canvasId, withMedia as {
     novelPromotionData?: { episodes?: Array<Record<string, unknown>> } | null
   })

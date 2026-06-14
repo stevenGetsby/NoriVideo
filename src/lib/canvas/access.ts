@@ -6,8 +6,11 @@ import { ApiError } from '@/lib/api-errors'
  * 调用前必须已经过 requireProjectAuthLight，否则不要直接信任 projectId。
  */
 export async function requireCanvasInProject(canvasId: string, projectId: string) {
-  const canvas = await prisma.canvas.findUnique({
-    where: { id: canvasId },
+  const canvas = await prisma.canvas.findFirst({
+    where: {
+      id: canvasId,
+      projectId,
+    },
     select: {
       id: true,
       projectId: true,
@@ -21,7 +24,7 @@ export async function requireCanvasInProject(canvasId: string, projectId: string
       updatedAt: true,
     },
   })
-  if (!canvas || canvas.projectId !== projectId) {
+  if (!canvas) {
     throw new ApiError('NOT_FOUND')
   }
   return canvas

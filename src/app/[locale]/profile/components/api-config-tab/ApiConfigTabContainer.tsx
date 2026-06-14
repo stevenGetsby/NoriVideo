@@ -17,6 +17,8 @@ import { SeedanceAssetLibraryConfigCard } from './SeedanceAssetLibraryConfigCard
 import { StorageConfigCard } from './StorageConfigCard'
 import { useApiConfigFilters } from './hooks/useApiConfigFilters'
 
+const showInternalStorageConfig = process.env.NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS === 'true'
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
 }
@@ -129,7 +131,7 @@ export function ApiConfigTabContainer() {
 
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-6 p-6">
-          <StorageConfigCard />
+          {showInternalStorageConfig ? <StorageConfigCard /> : null}
           <SeedanceAssetLibraryConfigCard />
           <DefaultModelCards
             t={t}

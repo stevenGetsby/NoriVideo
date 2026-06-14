@@ -23,9 +23,14 @@ export const GET = apiHandler(async (
         throw new ApiError('INVALID_PARAMS')
     }
 
-    // 查找编辑器项目
-    const editorProject = await prisma.videoEditorProject.findUnique({
-        where: { episodeId }
+    // 查找编辑器项目，必须限定在当前项目下的剧集，避免跨项目 episodeId 读取编辑数据。
+    const editorProject = await prisma.videoEditorProject.findFirst({
+        where: {
+            episodeId,
+            episode: {
+                novelPromotionProject: { projectId }
+            }
+        }
     })
 
     if (!editorProject) {
@@ -115,8 +120,22 @@ export const DELETE = apiHandler(async (
         throw new ApiError('INVALID_PARAMS')
     }
 
+    const editorProject = await prisma.videoEditorProject.findFirst({
+        where: {
+            episodeId,
+            episode: {
+                novelPromotionProject: { projectId }
+            }
+        },
+        select: { id: true }
+    })
+
+    if (!editorProject) {
+        throw new ApiError('NOT_FOUND')
+    }
+
     await prisma.videoEditorProject.delete({
-        where: { episodeId }
+        where: { id: editorProject.id }
     })
 
     return NextResponse.json({ success: true })

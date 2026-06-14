@@ -23,7 +23,10 @@ export const GET = apiHandler(async () => {
   // 获取项目名称
   const projectIds = costSummary.byProject.map(p => p.projectId)
   const projects = await prisma.project.findMany({
-    where: { id: { in: projectIds } },
+    where: {
+      id: { in: projectIds },
+      userId,
+    },
     select: { id: true, name: true }
   })
 

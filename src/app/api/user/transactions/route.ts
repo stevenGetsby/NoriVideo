@@ -5,6 +5,11 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import type { Prisma } from '@prisma/client'
 import { toMoneyNumber } from '@/lib/billing/money'
+import { normalizeBillingPagination } from '@/lib/billing/reporting'
+import {
+    isInternalBalanceTransactionRecord,
+    parseJsonRecord,
+} from '@/lib/workspace/internal-record-visibility'
 
 // action key 的特征：小写字母、数字、下划线组成
 const ACTION_KEY_PATTERN = /^[a-z][a-z0-9_]*$/
@@ -35,8 +40,10 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const { session } = authResult
 
     const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '20')
+    const { page, pageSize } = normalizeBillingPagination(
+        searchParams.get('page'),
+        searchParams.get('pageSize'),
+    )
     const type = searchParams.get('type') // recharge | consume | all
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
@@ -60,16 +67,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
         }
     }
 
-    // 获取流水记录
-    const [transactionsRaw, total] = await Promise.all([
-        prisma.balanceTransaction.findMany({
-            where,
-            orderBy: { createdAt: 'desc' },
-            skip: (page - 1) * pageSize,
-            take: pageSize
-        }),
-        prisma.balanceTransaction.count({ where })
-    ])
+    // 获取流水记录；先过滤内部 Agent 记录，再分页，避免第一页被内部流水占满。
+    const transactionsAll = await prisma.balanceTransaction.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+    })
+    const visibleTransactions = transactionsAll.filter((item) => !isInternalBalanceTransactionRecord(item))
+    const total = visibleTransactions.length
+    const transactionsRaw = visibleTransactions.slice((page - 1) * pageSize, page * pageSize)
 
     // 批量查询涉及的项目名和集数（避免 N+1）
     const projectIds = [...new Set(transactionsRaw.map((t) => t.projectId).filter(Boolean) as string[])]
@@ -78,13 +83,23 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const [projects, episodes] = await Promise.all([
         projectIds.length > 0
             ? prisma.project.findMany({
-                where: { id: { in: projectIds } },
+                where: {
+                    id: { in: projectIds },
+                    userId: session.user.id,
+                },
                 select: { id: true, name: true },
             })
             : Promise.resolve([]),
         episodeIds.length > 0
             ? prisma.novelPromotionEpisode.findMany({
-                where: { id: { in: episodeIds } },
+                where: {
+                    id: { in: episodeIds },
+                    novelPromotionProject: {
+                        project: {
+                            userId: session.user.id,
+                        },
+                    },
+                },
                 select: { id: true, episodeNumber: true, name: true },
             })
             : Promise.resolve([]),
@@ -95,12 +110,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
     const transactions = transactionsRaw.map((item) => {
         // 解析 billingMeta JSON
-        let billingMeta: Record<string, unknown> | null = null
-        if (item.billingMeta && typeof item.billingMeta === 'string') {
-            try {
-                billingMeta = JSON.parse(item.billingMeta) as Record<string, unknown>
-            } catch { /* ignore */ }
-        }
+        const billingMeta = parseJsonRecord(item.billingMeta)
 
         return {
             ...item,

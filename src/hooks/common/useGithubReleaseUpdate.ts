@@ -7,9 +7,10 @@ import {
   shouldPulseUpdate,
 } from '@/lib/update-check'
 import { APP_VERSION, GITHUB_REPOSITORY } from '@/lib/app-meta'
+import { apiFetch } from '@/lib/api-fetch'
 
 const ONE_HOUR_IN_MS = 60 * 60 * 1000
-const MUTED_UPDATE_VERSION_KEY = 'nori:update:muted-version'
+const LEGACY_MUTED_UPDATE_VERSION_KEY = 'nori:update:muted-version'
 
 export interface ReleaseUpdateInfo {
   latestVersion: string
@@ -30,14 +31,79 @@ export interface UseGithubReleaseUpdateResult {
   checkNow: () => Promise<void>
 }
 
-function readMutedUpdateVersion(): string | null {
-  if (typeof window === 'undefined') return null
-  return window.localStorage.getItem(MUTED_UPDATE_VERSION_KEY)
+interface UserPreferenceResponse {
+  preference?: {
+    mutedUpdateVersion?: unknown
+  } | null
 }
 
-function writeMutedUpdateVersion(version: string): void {
+function normalizeMutedUpdateVersion(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  try {
+    return normalizeSemverTag(value)
+  } catch {
+    return null
+  }
+}
+
+function readLegacyMutedUpdateVersion(): string | null {
+  if (typeof window === 'undefined') return null
+  try {
+    return normalizeMutedUpdateVersion(window.localStorage.getItem(LEGACY_MUTED_UPDATE_VERSION_KEY))
+  } catch {
+    return null
+  }
+}
+
+function writeLegacyMutedUpdateVersion(version: string): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(MUTED_UPDATE_VERSION_KEY, version)
+  try {
+    window.localStorage.setItem(LEGACY_MUTED_UPDATE_VERSION_KEY, version)
+  } catch {
+    // Legacy storage is only a fallback; API persistence remains the source of truth.
+  }
+}
+
+function removeLegacyMutedUpdateVersion(): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.removeItem(LEGACY_MUTED_UPDATE_VERSION_KEY)
+  } catch {
+    // Ignore browsers that block localStorage.
+  }
+}
+
+async function writePreferenceMutedUpdateVersion(version: string): Promise<void> {
+  const response = await apiFetch('/api/user-preference', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mutedUpdateVersion: version }),
+  })
+  if (!response.ok) {
+    throw new Error(`Failed to persist muted update version: ${response.status}`)
+  }
+  removeLegacyMutedUpdateVersion()
+}
+
+async function readPreferenceMutedUpdateVersion(): Promise<string | null> {
+  try {
+    const response = await apiFetch('/api/user-preference', { cache: 'no-store' })
+    if (!response.ok) return readLegacyMutedUpdateVersion()
+
+    const payload = await response.json() as UserPreferenceResponse
+    const mutedVersion = normalizeMutedUpdateVersion(payload.preference?.mutedUpdateVersion)
+    if (mutedVersion) return mutedVersion
+
+    const legacyMutedVersion = readLegacyMutedUpdateVersion()
+    if (legacyMutedVersion) {
+      void writePreferenceMutedUpdateVersion(legacyMutedVersion).catch(() => undefined)
+      return legacyMutedVersion
+    }
+
+    return null
+  } catch {
+    return readLegacyMutedUpdateVersion()
+  }
 }
 
 export function useGithubReleaseUpdate(): UseGithubReleaseUpdateResult {
@@ -95,7 +161,8 @@ export function useGithubReleaseUpdate(): UseGithubReleaseUpdateResult {
       publishedAt: result.release.publishedAt,
     }
 
-    const mutedVersion = readMutedUpdateVersion()
+    const mutedVersion = await readPreferenceMutedUpdateVersion()
+    if (requestId !== latestRequestRef.current) return
     setShouldPulse(shouldPulseUpdate(nextUpdate.latestVersion, mutedVersion))
     setUpdate(nextUpdate)
     setIsChecking(false)
@@ -122,7 +189,9 @@ export function useGithubReleaseUpdate(): UseGithubReleaseUpdateResult {
 
   const dismissCurrentUpdate = useCallback(() => {
     if (update) {
-      writeMutedUpdateVersion(update.latestVersion)
+      void writePreferenceMutedUpdateVersion(update.latestVersion).catch(() => {
+        writeLegacyMutedUpdateVersion(update.latestVersion)
+      })
     }
     setShouldPulse(false)
     setShowModal(false)

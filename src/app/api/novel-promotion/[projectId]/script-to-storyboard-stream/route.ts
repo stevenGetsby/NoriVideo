@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const runtime = 'nodejs'
 
@@ -24,20 +25,34 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
+    select: { id: true },
+  })
+  if (!episode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
-    episodeId,
+    episodeId: episode.id,
     type: TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
     targetType: 'NovelPromotionEpisode',
-    targetId: episodeId,
+    targetId: episode.id,
     routePath: `/api/novel-promotion/${projectId}/script-to-storyboard-stream`,
     body: {
       ...body,
+      episodeId: episode.id,
       displayMode: 'detail',
     },
-    dedupeKey: `script_to_storyboard_run:${episodeId}`,
+    dedupeKey: `script_to_storyboard_run:${episode.id}`,
     priority: 2,
   })
   if (asyncTaskResponse) return asyncTaskResponse

@@ -3,7 +3,10 @@
 import {
   getImageGenerationCountConfig,
   getImageGenerationCountStorageKey,
+  getImageGenerationCountScopes,
   normalizeImageGenerationCount,
+  normalizeImageGenerationCountPreferences,
+  type ImageGenerationCountPreferences,
   type ImageGenerationCountScope,
 } from './count'
 
@@ -31,4 +34,19 @@ export function setImageGenerationCount(scope: ImageGenerationCountScope, value:
     storage.setItem(getImageGenerationCountStorageKey(scope), String(normalized))
   }
   return normalized
+}
+
+export function getStoredImageGenerationCounts(): ImageGenerationCountPreferences {
+  return getImageGenerationCountScopes().reduce<ImageGenerationCountPreferences>((preferences, scope) => {
+    preferences[scope] = getImageGenerationCount(scope)
+    return preferences
+  }, {})
+}
+
+export function applyImageGenerationCountPreferences(value: unknown): ImageGenerationCountPreferences {
+  const preferences = normalizeImageGenerationCountPreferences(value)
+  for (const [scope, count] of Object.entries(preferences) as [ImageGenerationCountScope, number][]) {
+    setImageGenerationCount(scope, count)
+  }
+  return preferences
 }

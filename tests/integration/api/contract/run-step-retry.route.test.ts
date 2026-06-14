@@ -42,6 +42,8 @@ vi.mock('@/lib/task/resolve-locale', () => ({
 describe('api contract - run step retry route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'false')
+    vi.stubEnv('NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS', 'false')
     authState.authenticated = true
 
     getRunByIdMock.mockResolvedValue({
@@ -130,5 +132,33 @@ describe('api contract - run step retry route', () => {
         model: 'openai/gpt-5',
       }),
     }))
+  })
+
+  it('does not expose retry controls for internal agent runs by default', async () => {
+    getRunByIdMock.mockResolvedValue({
+      id: 'run-agent-1',
+      userId: 'user-1',
+      projectId: 'project-1',
+      episodeId: 'episode-1',
+      workflowType: 'super_agent_creation',
+      taskType: 'super_agent_creation',
+      targetType: 'project',
+      targetId: 'project-1',
+      input: {},
+    })
+    const route = await import('@/app/api/runs/[runId]/steps/[stepKey]/retry/route')
+
+    const req = buildMockRequest({
+      path: '/api/runs/run-agent-1/steps/stage_1/retry',
+      method: 'POST',
+      body: {},
+    })
+    const res = await route.POST(req, {
+      params: Promise.resolve({ runId: 'run-agent-1', stepKey: 'stage_1' }),
+    } as RouteContext)
+
+    expect(res.status).toBe(404)
+    expect(retryFailedStepMock).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
   })
 })

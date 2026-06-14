@@ -121,7 +121,6 @@ export default function HomePage() {
         episodeName: `${tc('episode')} 1`,
       })
 
-      window.sessionStorage.setItem(`nori:home-draft:${result.projectId}`, storyText)
       router.push(result.target)
     } catch (error) {
       const message = error instanceof Error ? error.message : t('createFailed')

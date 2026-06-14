@@ -260,8 +260,11 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
     // 3. 获取项目（包含 novelPromotionData 及其可选关联）
     const hasIncludes = Object.keys(novelPromotionIncludes).length > 0
     const project = await withPrismaRetry(() =>
-        prisma.project.findUnique({
-            where: { id: projectId },
+        prisma.project.findFirst({
+            where: {
+                id: projectId,
+                userId: session.user.id,
+            },
             include: {
                 novelPromotionData: hasIncludes
                     ? { include: novelPromotionIncludes }
@@ -275,12 +278,7 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
         return notFound('Project')
     }
 
-    // 5. 所有权验证
-    if (project.userId !== session.user.id) {
-        return forbidden()
-    }
-
-    // 6. NovelPromotionData 检查
+    // 5. NovelPromotionData 检查
     if (!project.novelPromotionData) {
         return notFound('Novel promotion data')
     }
@@ -353,17 +351,16 @@ export async function requireProjectAuthLight(
     bindAuthLogContext(session, projectId)
 
     const project = await withPrismaRetry(() =>
-        prisma.project.findUnique({
-            where: { id: projectId }
+        prisma.project.findFirst({
+            where: {
+                id: projectId,
+                userId: session.user.id,
+            }
         })
     )
 
     if (!project) {
         return notFound('Project')
-    }
-
-    if (project.userId !== session.user.id) {
-        return forbidden()
     }
 
     return { session, project }

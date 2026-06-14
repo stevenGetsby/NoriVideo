@@ -75,6 +75,7 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(async () => ({ lipSyncModel: 'fal::lipsync-model' })),
   },
   novelPromotionStoryboard: {
+    findFirst: vi.fn(async () => ({ id: 'storyboard-1' })),
     findUnique: vi.fn(async () => ({
       id: 'storyboard-1',
       episode: {
@@ -86,7 +87,14 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(async () => ({})),
   },
   novelPromotionPanel: {
-    findFirst: vi.fn(async () => ({ id: 'panel-1' })),
+    findFirst: vi.fn(async ({ where }: { where?: { id?: string } } = {}) => ({
+      id: where?.id || 'panel-1',
+      storyboard: {
+        episode: {
+          id: 'episode-1',
+        },
+      },
+    })),
     findMany: vi.fn(async () => []),
     findUnique: vi.fn(async ({ where }: { where?: { id?: string } }) => {
       const id = where?.id || 'panel-1'
@@ -140,6 +148,12 @@ const prismaMock = vi.hoisted(() => ({
     delete: vi.fn(async () => ({})),
     count: vi.fn(async () => 3),
     updateMany: vi.fn(async () => ({ count: 0 })),
+  },
+  characterAppearance: {
+    findFirst: vi.fn(async () => ({ id: 'appearance-1' })),
+  },
+  locationImage: {
+    findFirst: vi.fn(async () => ({ id: 'location-image-1' })),
   },
   novelPromotionProject: {
     findUnique: vi.fn(async () => ({
@@ -399,7 +413,7 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
       panelIndex: 0,
       generationOptions: {
         resolution: '720p',
-        duration: 5,
+        duration: 3,
       },
       firstLastFrame: {
         flModel: 'ark::doubao-seedance-2-0-260128',
@@ -413,7 +427,7 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
       videoModel: 'ark::doubao-seedance-2-0-260128',
       generationOptions: {
         resolution: '720p',
-        duration: 5,
+        duration: 3,
       },
       firstLastFrame: {
         flModel: 'ark::doubao-seedance-2-0-260128',
@@ -603,4 +617,37 @@ describe('api contract - direct submit routes (behavior)', () => {
       }
     })
   }
+
+  it('refuses project asset modify when the character appearance is outside the current project', async () => {
+    prismaMock.characterAppearance.findFirst.mockResolvedValueOnce(null as never)
+
+    const res = await invokePostRoute({
+      routeFile: 'src/app/api/novel-promotion/[projectId]/modify-asset-image/route.ts',
+      body: {
+        type: 'character',
+        characterId: 'character-1',
+        appearanceId: 'appearance-other',
+        modifyPrompt: 'enhance texture',
+      },
+      params: { projectId: 'project-1' },
+      expectedTaskType: TASK_TYPE.MODIFY_ASSET_IMAGE,
+      expectedTargetType: 'CharacterAppearance',
+      expectedProjectId: 'project-1',
+    })
+
+    expect(res.status).toBe(404)
+    expect(prismaMock.characterAppearance.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'appearance-other',
+        characterId: 'character-1',
+        character: {
+          novelPromotionProject: {
+            projectId: 'project-1',
+          },
+        },
+      },
+      select: { id: true },
+    }))
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
 })

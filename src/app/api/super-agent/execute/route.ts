@@ -14,8 +14,11 @@ import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE } from '@/lib/task/types'
 import { failAgentWorkflowRun, startAgentWorkflowRun } from '@/lib/super-agent/workflow-store'
 import { attachTaskToRun } from '@/lib/run-runtime/service'
+import { assertInternalAgentApiEnabled } from '@/lib/super-agent/internal-api-guard'
 
 export const POST = apiHandler(async (request: NextRequest) => {
+  assertInternalAgentApiEnabled()
+
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 

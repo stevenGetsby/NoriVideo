@@ -7,7 +7,10 @@ import {
   useScriptToStoryboardRunStream,
   useStoryToScriptRunStream,
 } from '@/lib/query/hooks'
-import { isSuperAgentNavigationLocked } from '@/lib/super-agent/navigation-lock'
+import {
+  clearSuperAgentNavigationLock,
+  isSuperAgentNavigationLocked,
+} from '@/lib/super-agent/navigation-lock'
 
 interface UseWorkspaceExecutionParams {
   projectId: string
@@ -93,6 +96,61 @@ export function useWorkspaceExecution({
   const handledScriptToStoryboardRunIdsRef = useRef<Set<string>>(new Set())
   const storyToScriptWasActiveRef = useRef(false)
   const scriptToStoryboardWasActiveRef = useRef(false)
+  const [serverAgentNavigationLocked, setServerAgentNavigationLocked] = useState(false)
+  const observedServerAgentNavigationLockRef = useRef(false)
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let isMounted = true
+    let timer: number | null = null
+    observedServerAgentNavigationLockRef.current = false
+
+    async function refreshAgentNavigationState() {
+      try {
+        const response = await fetch(`/api/projects/${encodeURIComponent(projectId)}/navigation-state`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error(`navigation-state request failed: ${response.status}`)
+        }
+        const payload = await response.json() as {
+          navigationLocked?: boolean
+        }
+        const locked = Boolean(payload.navigationLocked)
+        if (isMounted) {
+          setServerAgentNavigationLocked(locked)
+          if (locked) {
+            observedServerAgentNavigationLockRef.current = true
+            timer = window.setTimeout(refreshAgentNavigationState, 5000)
+          } else if (observedServerAgentNavigationLockRef.current) {
+            clearSuperAgentNavigationLock(projectId)
+          }
+        }
+      } catch (err: unknown) {
+        if (isAbortError(err)) return
+        if (isMounted) {
+          setServerAgentNavigationLocked(false)
+        }
+        _ulogInfo('[WorkspaceExecution] agent navigation state request failed', {
+          projectId,
+          message: getErrorMessage(err),
+        })
+      }
+    }
+
+    refreshAgentNavigationState()
+
+    return () => {
+      isMounted = false
+      if (timer !== null) window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [projectId])
+
+  const isAgentNavigationLocked = useCallback(() => (
+    serverAgentNavigationLocked || isSuperAgentNavigationLocked(projectId)
+  ), [projectId, serverAgentNavigationLocked])
 
   const finalizeStoryToScriptSuccess = useCallback(async (runId: string) => {
     const normalizedRunId = runId.trim()
@@ -110,12 +168,12 @@ export function useWorkspaceExecution({
     }
 
     setStoryToScriptConsoleMinimized(true)
-    if (!isSuperAgentNavigationLocked(projectId)) {
+    if (!isAgentNavigationLocked()) {
       onStageChange('script')
       onOpenAssetLibrary()
     }
     storyToScriptStream.reset()
-  }, [onOpenAssetLibrary, onRefresh, onStageChange, projectId, storyToScriptStream])
+  }, [isAgentNavigationLocked, onOpenAssetLibrary, onRefresh, onStageChange, storyToScriptStream])
 
   const finalizeScriptToStoryboardSuccess = useCallback(async (runId: string) => {
     const normalizedRunId = runId.trim()
@@ -133,11 +191,11 @@ export function useWorkspaceExecution({
     }
 
     setScriptToStoryboardConsoleMinimized(true)
-    if (!isSuperAgentNavigationLocked(projectId)) {
+    if (!isAgentNavigationLocked()) {
       onStageChange('storyboard')
     }
     scriptToStoryboardStream.reset()
-  }, [onRefresh, onStageChange, projectId, scriptToStoryboardStream])
+  }, [isAgentNavigationLocked, onRefresh, onStageChange, scriptToStoryboardStream])
 
   useEffect(() => {
     setStoryToScriptConsoleMinimized(readSessionBoolean(storyToScriptMinimizedStorageKey))

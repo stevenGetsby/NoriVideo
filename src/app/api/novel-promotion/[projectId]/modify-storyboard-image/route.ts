@@ -28,7 +28,7 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId : ''
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
   const panelIndex = Number(body?.panelIndex)
   const modifyPrompt = typeof body?.modifyPrompt === 'string' ? body.modifyPrompt.trim() : ''
 
@@ -39,7 +39,14 @@ export const POST = apiHandler(async (
   const panel = await prisma.novelPromotionPanel.findFirst({
     where: {
       storyboardId,
-      panelIndex
+      panelIndex,
+      storyboard: {
+        episode: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
     },
     select: {
       id: true

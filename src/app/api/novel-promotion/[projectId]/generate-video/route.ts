@@ -233,14 +233,27 @@ export const POST = apiHandler(async (
   })
 
   if (isBatch) {
-    const episodeId = body?.episodeId
+    const episodeId = typeof body?.episodeId === 'string' ? body.episodeId.trim() : ''
     if (!episodeId) {
       throw new ApiError('INVALID_PARAMS')
     }
 
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!episode) {
+      throw new ApiError('NOT_FOUND')
+    }
+
     const panels = await prisma.novelPromotionPanel.findMany({
       where: {
-        storyboard: { episodeId },
+        storyboard: { episodeId: episode.id },
         imageUrl: { not: null },
         OR: [
           { videoUrl: null },
@@ -249,6 +262,11 @@ export const POST = apiHandler(async (
       },
       select: {
         id: true,
+        storyboard: {
+          select: {
+            episodeId: true,
+          },
+        },
         duration: true,
         description: true,
         videoPrompt: true,
@@ -271,7 +289,7 @@ export const POST = apiHandler(async (
           locale,
           requestId: getRequestId(request),
           projectId,
-          episodeId,
+          episodeId: panel.storyboard.episodeId,
           type: TASK_TYPE.VIDEO_PANEL,
           targetType: 'NovelPromotionPanel',
           targetId: panel.id,
@@ -287,16 +305,31 @@ export const POST = apiHandler(async (
     return NextResponse.json({ tasks: results, total: panels.length })
   }
 
-  const storyboardId = body?.storyboardId
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
   const panelIndex = body?.panelIndex
   if (!storyboardId || panelIndex === undefined) {
     throw new ApiError('INVALID_PARAMS')
   }
 
   const panel = await prisma.novelPromotionPanel.findFirst({
-    where: { storyboardId, panelIndex: Number(panelIndex) },
+    where: {
+      storyboardId,
+      panelIndex: Number(panelIndex),
+      storyboard: {
+        episode: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+    },
     select: {
       id: true,
+      storyboard: {
+        select: {
+          episodeId: true,
+        },
+      },
       duration: true,
       description: true,
       videoPrompt: true,
@@ -317,6 +350,7 @@ export const POST = apiHandler(async (
     locale,
     requestId: getRequestId(request),
     projectId,
+    episodeId: panel.storyboard.episodeId,
     type: TASK_TYPE.VIDEO_PANEL,
     targetType: 'NovelPromotionPanel',
     targetId: panel.id,

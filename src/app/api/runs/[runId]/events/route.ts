@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { apiHandler } from '@/lib/api-errors'
+import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
-import { listRunEventsAfterSeq } from '@/lib/run-runtime/service'
+import { getRunById, listRunEventsAfterSeq } from '@/lib/run-runtime/service'
+import { isPublicRunApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 export const GET = apiHandler(async (
   request: NextRequest,
@@ -16,6 +17,11 @@ export const GET = apiHandler(async (
   const afterSeq = Number.isFinite(afterSeqRaw) ? Math.max(0, afterSeqRaw) : 0
   const limit = Number.isFinite(limitRaw) ? Math.min(Math.max(limitRaw, 1), 2000) : 200
 
+  const run = await getRunById(runId)
+  if (!run || run.userId !== session.user.id || !isPublicRunApiVisible(run)) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const events = await listRunEventsAfterSeq({
     runId,
     userId: session.user.id,
@@ -28,4 +34,3 @@ export const GET = apiHandler(async (
     events,
   })
 })
-

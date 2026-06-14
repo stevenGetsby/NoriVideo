@@ -27,11 +27,13 @@ export const POST = apiHandler(async (
   ) {
     throw new ApiError('INVALID_PARAMS')
   }
+  const targetId = body.targetId.trim()
+  const globalAssetId = body.globalAssetId.trim()
 
   const result = await copyAssetFromGlobal({
     kind: body.type,
-    targetId: body.targetId,
-    globalAssetId: body.globalAssetId,
+    targetId,
+    globalAssetId,
     access: {
       userId: authResult.session.user.id,
       projectId,

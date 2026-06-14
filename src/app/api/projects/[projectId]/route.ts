@@ -11,6 +11,22 @@ import {
   cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
 
+function readOptionalString(value: unknown, maxLength: number) {
+  if (value === null) return undefined
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return undefined
+  return trimmed.slice(0, maxLength)
+}
+
+function readNullableOptionalString(value: unknown, maxLength: number) {
+  if (value === null) return null
+  if (typeof value !== 'string') return undefined
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  return trimmed.slice(0, maxLength)
+}
+
 // GET - 获取项目详情
 export const GET = apiHandler(async (
   request: NextRequest,
@@ -23,8 +39,11 @@ export const GET = apiHandler(async (
   const { session } = authResult
 
   // 只获取基础项目信息，不包含模式特定数据
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
     include: {
       user: true
     }
@@ -34,13 +53,9 @@ export const GET = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
-  if (project.userId !== session.user.id) {
-    throw new ApiError('FORBIDDEN')
-  }
-
   // 更新最近访问时间（异步，不阻塞响应）
   prisma.project.update({
-    where: { id: projectId },
+    where: { id: project.id },
     data: { lastAccessedAt: new Date() }
   }).catch(err => _ulogError('更新访问时间失败:', err))
 
@@ -61,10 +76,13 @@ export const PATCH = apiHandler(async (
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
-  const body = await request.json()
+  const body = await request.json().catch(() => null) as Record<string, unknown> | null
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
     include: { user: true }
   })
 
@@ -72,14 +90,22 @@ export const PATCH = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
-  if (project.userId !== session.user.id) {
-    throw new ApiError('FORBIDDEN')
+  const updateData: {
+    name?: string
+    description?: string | null
+  } = {}
+  const nextName = readOptionalString(body?.name, 191)
+  const nextDescription = readNullableOptionalString(body?.description, 5000)
+  if (nextName !== undefined) updateData.name = nextName
+  if (nextDescription !== undefined) updateData.description = nextDescription
+  if (Object.keys(updateData).length === 0) {
+    throw new ApiError('INVALID_PARAMS')
   }
 
   // 更新项目
   const updatedProject = await prisma.project.update({
-    where: { id: projectId },
-    data: body
+    where: { id: project.id },
+    data: updateData
   })
 
   logProjectAction(
@@ -88,7 +114,7 @@ export const PATCH = apiHandler(async (
     session.user.name,
     projectId,
     updatedProject.name,
-    { changes: body }
+    { changes: updateData }
   )
 
   return NextResponse.json({ project: updatedProject })
@@ -196,17 +222,16 @@ export const DELETE = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
     include: { user: true }
   })
 
   if (!project) {
     throw new ApiError('NOT_FOUND')
-  }
-
-  if (project.userId !== session.user.id) {
-    throw new ApiError('FORBIDDEN')
   }
 
   // 1. 先收集所有 COS 文件 Key
@@ -230,7 +255,7 @@ export const DELETE = apiHandler(async (
 
   // 3. 删除数据库记录 (级联删除所有关联数据)
   await prisma.project.delete({
-    where: { id: projectId }
+    where: { id: project.id }
   })
 
   logProjectAction(

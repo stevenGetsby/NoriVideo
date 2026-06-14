@@ -27,10 +27,6 @@ interface ServiceTask {
   updatedAt: string
 }
 
-interface TasksResponse {
-  tasks?: ServiceTask[]
-}
-
 interface BalanceResponse {
   currency?: string
   balance?: number
@@ -63,11 +59,6 @@ interface BillingTransaction {
   createdAt: string
 }
 
-interface TransactionsResponse {
-  currency?: string
-  transactions?: BillingTransaction[]
-}
-
 interface PricingApiTypeRow {
   apiType: string
   providerCount: number
@@ -81,6 +72,58 @@ interface PricingResponse {
   version?: string
   totalModels?: number
   byApiType?: PricingApiTypeRow[]
+}
+
+interface ServiceStats {
+  all: number
+  processing: number
+  completed: number
+  failed: number
+}
+
+interface UsageRow {
+  key: string
+  total: number
+  completed: number
+  failed: number
+  units: number
+}
+
+interface DailyUsageRow {
+  day: string
+  total: number
+  units: number
+}
+
+interface UsageSummary {
+  billableTasks: number
+  estimatedUnits: number
+  serviceTypes: number
+}
+
+interface ServiceConfigRow {
+  id: string
+  apiType: string
+  unitCost: number
+  total: number
+  completed: number
+  failed: number
+  successRate: number
+  enabled: boolean
+}
+
+interface ServiceRecordsResponse {
+  tasks?: ServiceTask[]
+  balance?: BalanceResponse
+  costs?: CostsResponse
+  transactions?: BillingTransaction[]
+  pricing?: PricingResponse
+  stats?: ServiceStats
+  recentFailures?: ServiceTask[]
+  usageRows?: UsageRow[]
+  dailyUsage?: DailyUsageRow[]
+  usageSummary?: UsageSummary
+  serviceConfigRows?: ServiceConfigRow[]
 }
 
 const STATUS_CLASSES: Record<string, string> = {
@@ -104,7 +147,7 @@ const BILLABLE_TASK_HINTS = [
   'seedance',
 ]
 
-const INTERNAL_TASK_PATTERN = /(\bNORI_AGENT[\w-]*\b|\bsuper[_\s-]?agent[\w-]*\b|\bagent\b|自动创作模式)/i
+const INTERNAL_TASK_PATTERN = /(?:^|[^A-Za-z0-9])(?:NORI_AGENT[\w-]*|super[_\s-]?agent[\w-]*)|自动创作模式/i
 
 const SERVICE_CONFIGS = [
   { id: 'video', apiType: 'video', matcher: /video|seedance/i, unitCost: 6 },
@@ -171,6 +214,12 @@ export function FrameServiceRecordsDashboard() {
   const [costs, setCosts] = useState<CostsResponse | null>(null)
   const [transactions, setTransactions] = useState<BillingTransaction[]>([])
   const [pricing, setPricing] = useState<PricingResponse | null>(null)
+  const [serverStats, setServerStats] = useState<ServiceStats | null>(null)
+  const [serverRecentFailures, setServerRecentFailures] = useState<ServiceTask[] | null>(null)
+  const [serverUsageRows, setServerUsageRows] = useState<UsageRow[] | null>(null)
+  const [serverDailyUsage, setServerDailyUsage] = useState<DailyUsageRow[] | null>(null)
+  const [serverUsageSummary, setServerUsageSummary] = useState<UsageSummary | null>(null)
+  const [serverServiceConfigRows, setServerServiceConfigRows] = useState<ServiceConfigRow[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [billingError, setBillingError] = useState<string | null>(null)
@@ -178,16 +227,29 @@ export function FrameServiceRecordsDashboard() {
   useEffect(() => {
     let cancelled = false
 
-    async function loadTasks() {
+    async function loadOverview() {
       setIsLoading(true)
       setError(null)
+      setBillingError(null)
       try {
-        const response = await apiFetch('/api/tasks?limit=80')
+        const response = await apiFetch('/api/service-records')
         if (!response.ok) {
           throw new Error(`${response.status} ${response.statusText}`.trim())
         }
-        const data = (await response.json()) as TasksResponse
-        if (!cancelled) setTasks(Array.isArray(data.tasks) ? data.tasks : [])
+        const data = (await response.json()) as ServiceRecordsResponse
+        if (!cancelled) {
+          setTasks(Array.isArray(data.tasks) ? data.tasks : [])
+          setBalance(data.balance || null)
+          setCosts(data.costs || null)
+          setTransactions(Array.isArray(data.transactions) ? data.transactions : [])
+          setPricing(data.pricing || null)
+          setServerStats(data.stats || null)
+          setServerRecentFailures(Array.isArray(data.recentFailures) ? data.recentFailures : null)
+          setServerUsageRows(Array.isArray(data.usageRows) ? data.usageRows : null)
+          setServerDailyUsage(Array.isArray(data.dailyUsage) ? data.dailyUsage : null)
+          setServerUsageSummary(data.usageSummary || null)
+          setServerServiceConfigRows(Array.isArray(data.serviceConfigRows) ? data.serviceConfigRows : null)
+        }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('loadFailed'))
       } finally {
@@ -195,70 +257,16 @@ export function FrameServiceRecordsDashboard() {
       }
     }
 
-    loadTasks()
+    loadOverview()
     return () => {
       cancelled = true
     }
   }, [t])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadBilling() {
-      setBillingError(null)
-      try {
-        const [balanceResponse, costsResponse, transactionsResponse] = await Promise.all([
-          apiFetch('/api/user/balance'),
-          apiFetch('/api/user/costs'),
-          apiFetch('/api/user/transactions?page=1&pageSize=6&type=all'),
-        ])
-        if (!balanceResponse.ok || !costsResponse.ok || !transactionsResponse.ok) {
-          throw new Error(t('billing.realLoadFailed'))
-        }
-        const [balanceData, costsData, transactionsData] = await Promise.all([
-          balanceResponse.json() as Promise<BalanceResponse>,
-          costsResponse.json() as Promise<CostsResponse>,
-          transactionsResponse.json() as Promise<TransactionsResponse>,
-        ])
-        if (!cancelled) {
-          setBalance(balanceData)
-          setCosts(costsData)
-          setTransactions(Array.isArray(transactionsData.transactions) ? transactionsData.transactions : [])
-        }
-      } catch (loadError) {
-        if (!cancelled) setBillingError(loadError instanceof Error ? loadError.message : t('billing.realLoadFailed'))
-      }
-    }
-
-    loadBilling()
-    return () => {
-      cancelled = true
-    }
-  }, [t])
-
-  useEffect(() => {
-    let cancelled = false
-
-    async function loadPricing() {
-      try {
-        const response = await apiFetch('/api/system/pricing')
-        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
-        const data = await response.json() as PricingResponse
-        if (!cancelled) setPricing(data)
-      } catch {
-        if (!cancelled) setPricing(null)
-      }
-    }
-
-    loadPricing()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const visibleTasks = useMemo(() => tasks.filter((task) => !isInternalTask(task)), [tasks])
 
   const stats = useMemo(() => {
+    if (serverStats) return serverStats
     const totals = {
       all: visibleTasks.length,
       processing: 0,
@@ -271,14 +279,15 @@ export function FrameServiceRecordsDashboard() {
       if (task.status === 'failed') totals.failed += 1
     }
     return totals
-  }, [visibleTasks])
+  }, [serverStats, visibleTasks])
 
   const recentFailures = useMemo(
-    () => visibleTasks.filter((task) => task.status === 'failed' && taskErrorMessage(task)).slice(0, 3),
-    [visibleTasks],
+    () => serverRecentFailures ?? visibleTasks.filter((task) => task.status === 'failed' && taskErrorMessage(task)).slice(0, 3),
+    [serverRecentFailures, visibleTasks],
   )
 
   const usageRows = useMemo(() => {
+    if (serverUsageRows) return serverUsageRows
     const rows = new Map<string, { key: string; total: number; completed: number; failed: number; units: number }>()
     for (const task of visibleTasks) {
       const key = task.type || task.targetType || 'unknown'
@@ -292,9 +301,10 @@ export function FrameServiceRecordsDashboard() {
     return Array.from(rows.values())
       .sort((a, b) => b.units - a.units || b.total - a.total)
       .slice(0, 6)
-  }, [visibleTasks])
+  }, [serverUsageRows, visibleTasks])
 
   const dailyUsage = useMemo(() => {
+    if (serverDailyUsage) return serverDailyUsage
     const rows = new Map<string, { day: string; total: number; units: number }>()
     for (const task of visibleTasks) {
       const day = taskDay(task)
@@ -304,9 +314,10 @@ export function FrameServiceRecordsDashboard() {
       rows.set(day, current)
     }
     return Array.from(rows.values()).slice(0, 7)
-  }, [visibleTasks])
+  }, [serverDailyUsage, visibleTasks])
 
   const usageSummary = useMemo(() => {
+    if (serverUsageSummary) return serverUsageSummary
     const billableTasks = visibleTasks.filter(isBillableTask)
     const estimatedUnits = billableTasks.reduce((sum, task) => sum + estimateUnits(task), 0)
     return {
@@ -314,10 +325,10 @@ export function FrameServiceRecordsDashboard() {
       estimatedUnits,
       serviceTypes: usageRows.length,
     }
-  }, [usageRows.length, visibleTasks])
+  }, [serverUsageSummary, usageRows.length, visibleTasks])
 
   const serviceConfigRows = useMemo(() => (
-    SERVICE_CONFIGS.map((config) => {
+    serverServiceConfigRows ?? SERVICE_CONFIGS.map((config) => {
       const matchedTasks = visibleTasks.filter((task) => config.matcher.test(`${task.type} ${task.targetType}`))
       const completed = matchedTasks.filter((task) => task.status === 'completed').length
       const failed = matchedTasks.filter((task) => task.status === 'failed').length
@@ -333,7 +344,7 @@ export function FrameServiceRecordsDashboard() {
         enabled: matchedTasks.length > 0,
       }
     })
-  ), [visibleTasks])
+  ), [serverServiceConfigRows, visibleTasks])
 
   const billingCurrency = balance?.currency || costs?.currency || 'CNY'
   const pricingCurrency = pricing?.currency || billingCurrency

@@ -21,6 +21,13 @@ export interface WorkflowStageState {
     progress: number
     counts: Record<string, number>
     reason: string
+    runtimeState?: string
+    runtimeUpdatedAt?: string
+    runtimeMessage?: string | null
+    lastRunId?: string | null
+    lastTaskId?: string | null
+    errorCode?: string | null
+    errorMessage?: string | null
 }
 
 interface WorkflowStateResponse {

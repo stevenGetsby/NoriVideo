@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -17,21 +18,38 @@ export const POST = apiHandler(async (
   })
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
+  let scopedEpisodeId = episodeId ? episodeId.trim() : null
+  if (scopedEpisodeId) {
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: scopedEpisodeId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!episode) {
+      throw new ApiError('NOT_FOUND')
+    }
+    scopedEpisodeId = episode.id
+  }
 
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
-    episodeId,
+    episodeId: scopedEpisodeId,
     type: TASK_TYPE.ANALYZE_NOVEL,
     targetType: 'NovelPromotionProject',
     targetId: projectId,
     routePath: `/api/novel-promotion/${projectId}/analyze`,
     body: {
       ...body,
+      ...(scopedEpisodeId ? { episodeId: scopedEpisodeId } : {}),
       displayMode: 'detail',
     },
-    dedupeKey: `analyze_novel:${projectId}:${episodeId || 'global'}`,
+    dedupeKey: `analyze_novel:${projectId}:${scopedEpisodeId || 'global'}`,
     priority: 1,
   })
   if (asyncTaskResponse) return asyncTaskResponse

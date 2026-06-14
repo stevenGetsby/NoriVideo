@@ -208,6 +208,12 @@
         "primary": "下载资产包",
         "meta": "覆盖 {count} 个镜头素材"
       },
+      "voicePackage": {
+        "title": "语音包",
+        "description": "打包已生成配音、角色发声和音频交付清单。",
+        "primary": "导出语音包",
+        "meta": "已生成 {count} 条配音"
+      },
       "jianyingDraft": {
         "title": "剪辑草稿",
         "description": "导出可继续精修的剪辑工程清单和素材目录。",
@@ -237,6 +243,10 @@
       "enqueueing": "加入中...",
       "enqueued": "已加入后台导出队列。",
       "enqueueFailed": "加入导出队列失败",
+      "emptyTitle": "等待后端返回交付项",
+      "emptyDescription": "导出队列的可执行状态由后端计算，当前剧集暂无可显示的交付项。",
+      "unavailableTitle": "导出队列暂不可用",
+      "unavailableDescription": "无法读取后端导出 readiness，请稍后重试或检查当前项目服务状态。",
       "status": {
         "ready": "可执行",
         "blocked": "待补齐",
@@ -252,6 +262,7 @@
         "ready": "当前素材满足交付条件。",
         "missingVideos": "仍缺 {count} 个视频镜头。",
         "noImages": "暂无可打包的分镜图。",
+        "noVoices": "暂无可打包的配音音频。",
         "noPanels": "暂无镜头，无法生成交付清单。",
         "manifestOnly": "当前先生成可复核清单，后续接剪辑工程包。"
       },
@@ -263,6 +274,10 @@
         "assetPackage": {
           "title": "资产包任务",
           "description": "打包分镜图、参考图、视频和提示词素材。"
+        },
+        "voicePackage": {
+          "title": "语音包任务",
+          "description": "打包已生成配音、角色音频和语音交付清单。"
         },
         "editingDraft": {
           "title": "剪辑草稿任务",

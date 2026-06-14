@@ -159,20 +159,37 @@ export function useAnalyzeProjectAssets(projectId: string) {
 export function useGetProjectStoryboardStats(projectId: string) {
     return useMutation({
         mutationFn: async ({ episodeId }: { episodeId: string }) => {
-            const data = await requestJsonWithError<{ storyboards?: Array<{ panels?: unknown[] }> }>(
-                `/api/novel-promotion/${projectId}/storyboards?episodeId=${encodeURIComponent(episodeId)}`,
+            const data = await requestJsonWithError<{
+                counts?: {
+                    storyboardCount?: number
+                    panelCount?: number
+                    imageCount?: number
+                    videoCount?: number
+                    voiceLineCount?: number
+                    voiceAudioCount?: number
+                    editorProjectCount?: number
+                    exportQueueCount?: number
+                    exportHistoryCount?: number
+                    activeTaskCount?: number
+                }
+                shouldConfirm?: boolean
+            }>(
+                `/api/novel-promotion/${projectId}/rebuild-impact?episodeId=${encodeURIComponent(episodeId)}`,
                 { method: 'GET' },
-                'storyboards check failed',
+                'rebuild impact check failed',
             )
-            const storyboards = Array.isArray(data?.storyboards) ? data.storyboards : []
-            const storyboardCount = storyboards.length
-            const panelCount = storyboards.reduce((sum: number, storyboard) => {
-                const panels = Array.isArray(storyboard?.panels) ? storyboard.panels.length : 0
-                return sum + panels
-            }, 0)
             return {
-                storyboardCount,
-                panelCount,
+                storyboardCount: data.counts?.storyboardCount ?? 0,
+                panelCount: data.counts?.panelCount ?? 0,
+                imageCount: data.counts?.imageCount ?? 0,
+                videoCount: data.counts?.videoCount ?? 0,
+                voiceLineCount: data.counts?.voiceLineCount ?? 0,
+                voiceAudioCount: data.counts?.voiceAudioCount ?? 0,
+                editorProjectCount: data.counts?.editorProjectCount ?? 0,
+                exportQueueCount: data.counts?.exportQueueCount ?? 0,
+                exportHistoryCount: data.counts?.exportHistoryCount ?? 0,
+                activeTaskCount: data.counts?.activeTaskCount ?? 0,
+                shouldConfirm: data.shouldConfirm ?? false,
             }
         },
     })

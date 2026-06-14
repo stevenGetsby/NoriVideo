@@ -408,6 +408,34 @@ describe('api specific - unified assets routes', () => {
     expect(body).toEqual({ success: true })
   })
 
+  it('POST /api/novel-promotion/[projectId]/copy-from-global normalizes legacy ids before delegation', async () => {
+    const mod = await import('@/app/api/novel-promotion/[projectId]/copy-from-global/route')
+    const req = buildMockRequest({
+      path: '/api/novel-promotion/project-1/copy-from-global',
+      method: 'POST',
+      body: {
+        type: 'voice',
+        targetId: '  character-1  ',
+        globalAssetId: '  voice-1  ',
+      },
+    })
+
+    const res = await mod.POST(req, {
+      params: Promise.resolve({ projectId: 'project-1' }),
+    })
+
+    expect(res.status).toBe(200)
+    expect(copyAssetFromGlobalMock).toHaveBeenCalledWith({
+      kind: 'voice',
+      targetId: 'character-1',
+      globalAssetId: 'voice-1',
+      access: {
+        userId: 'user-1',
+        projectId: 'project-1',
+      },
+    })
+  })
+
   it('POST /api/assets/[assetId]/copy delegates prop copy to the centralized copy service', async () => {
     const mod = await import('@/app/api/assets/[assetId]/copy/route')
     const req = buildMockRequest({

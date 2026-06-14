@@ -136,10 +136,26 @@ describe('api contract - infra routes (behavior)', () => {
     expect(res.headers.get('location')).toBe('https://signed.example/folder/a.png?expires=3600')
   })
 
-  it('GET /api/system/boot-id returns the current server boot id', async () => {
+  it('GET /api/system/boot-id rejects unauthenticated requests', async () => {
+    const mod = await import('@/app/api/system/boot-id/route')
+    const req = buildMockRequest({
+      path: '/api/system/boot-id',
+      method: 'GET',
+    })
+
+    const res = await mod.GET(req, { params: Promise.resolve({}) })
+    expect(res.status).toBe(401)
+  })
+
+  it('GET /api/system/boot-id returns the current server boot id when authenticated', async () => {
+    authState.authenticated = true
     const mod = await import('@/app/api/system/boot-id/route')
     const serverBoot = await import('@/lib/server-boot')
-    const res = await mod.GET()
+    const req = buildMockRequest({
+      path: '/api/system/boot-id',
+      method: 'GET',
+    })
+    const res = await mod.GET(req, { params: Promise.resolve({}) })
     const json = await res.json() as { bootId: string }
 
     expect(res.status).toBe(200)

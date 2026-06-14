@@ -4,7 +4,7 @@ import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
   requireProjectAuth: vi.fn(async () => ({
-    novelData: { id: 'np-1', projectId: 'project-1' },
+    novelData: { id: 'np-1', projectId: 'project-1', importStatus: 'pending', pendingImportText: '第一章内容', pendingImportEpisodeName: null },
   })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
 }))
@@ -75,7 +75,12 @@ describe('api specific - novel promotion episode create text', () => {
     })
     expect(prismaMock.novelPromotionProject.update).toHaveBeenCalledWith({
       where: { id: 'np-1' },
-      data: { lastEpisodeId: 'episode-1' },
+      data: {
+        lastEpisodeId: 'episode-1',
+        importStatus: 'completed',
+        pendingImportText: null,
+        pendingImportEpisodeName: null,
+      },
     })
   })
 
@@ -131,7 +136,12 @@ describe('api specific - novel promotion episode create text', () => {
     })
     expect(prismaMock.novelPromotionProject.update).toHaveBeenCalledWith({
       where: { id: 'np-1' },
-      data: { lastEpisodeId: 'episode-2' },
+      data: {
+        lastEpisodeId: 'episode-2',
+        importStatus: 'completed',
+        pendingImportText: null,
+        pendingImportEpisodeName: null,
+      },
     })
   })
 })

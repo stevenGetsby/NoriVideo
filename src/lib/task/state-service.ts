@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { normalizeTaskError } from '@/lib/errors/normalize'
+import { isPublicTaskApiVisible } from '@/lib/super-agent/internal-run-visibility'
 import { coerceTaskIntent, type TaskIntent } from './intent'
 
 export type TaskTargetQuery = {
@@ -258,7 +259,7 @@ export async function queryTaskTargetStates(params: {
         updatedAt: true,
       },
     })
-    allRows.push(...rows)
+    allRows.push(...rows.filter(isPublicTaskApiVisible))
   }
 
   // 应用层按 updatedAt desc 排序（每个 target 组内排序即可）

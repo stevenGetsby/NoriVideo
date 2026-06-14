@@ -5,6 +5,12 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { toMoneyNumber } from '@/lib/billing/money'
 import { isArtStyleValue, isCustomArtStyleValue } from '@/lib/constants'
 import { resolveTaskLocale } from '@/lib/task/resolve-locale'
+import { TASK_STATUS } from '@/lib/task/types'
+import { buildProjectWorkflowSummary } from '@/lib/projects/workflow-summary'
+import {
+  containsInternalRecordMarker,
+  isInternalUsageCostRecord,
+} from '@/lib/workspace/internal-record-visibility'
 import {
   formatProjectValidationIssue,
   normalizeProjectDraft,
@@ -21,6 +27,44 @@ function readProjectDraftBody(body: unknown): ProjectDraftInput {
   return {
     name: typeof payload.name === 'string' ? payload.name : '',
     description: typeof payload.description === 'string' ? payload.description : null,
+  }
+}
+
+const INITIAL_IMPORT_TEXT_MAX_LENGTH = 200_000
+const INITIAL_IMPORT_EPISODE_NAME_MAX_LENGTH = 100
+
+function normalizeOptionalText(value: unknown, maxLength: number, field: string): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  if (trimmed.length > maxLength) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'FIELD_TOO_LONG',
+      field,
+      limit: maxLength,
+      message: `${field} is too long`,
+    })
+  }
+  return trimmed
+}
+
+function readInitialImportDraftBody(body: unknown) {
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return { pendingImportText: null, pendingImportEpisodeName: null }
+  }
+
+  const payload = body as Record<string, unknown>
+  return {
+    pendingImportText: normalizeOptionalText(
+      payload.initialNovelText ?? payload.pendingImportText,
+      INITIAL_IMPORT_TEXT_MAX_LENGTH,
+      'initialNovelText',
+    ),
+    pendingImportEpisodeName: normalizeOptionalText(
+      payload.initialEpisodeName ?? payload.pendingImportEpisodeName,
+      INITIAL_IMPORT_EPISODE_NAME_MAX_LENGTH,
+      'initialEpisodeName',
+    ),
   }
 }
 
@@ -80,16 +124,25 @@ export const GET = apiHandler(async (request: NextRequest) => {
   // 获取项目 ID 列表
   const projectIds = projects.map(p => p.id)
 
-  // ⚡ 并行获取：费用 + 项目统计（章节数、图片数、视频数）
-  const [costsByProject, novelProjects] = await Promise.all([
+  // ⚡ 并行获取：费用 + 项目统计 + 后端工作流状态
+  const [costsByProject, novelProjects, workflowStageRows, activeTasksByProject] = await Promise.all([
     // 一次性获取所有项目的费用（代替 N+1 查询）
-    prisma.usageCost.groupBy({
-      by: ['projectId'],
-      where: { projectId: { in: projectIds } },
-      _sum: { cost: true }
-    }),
+    projectIds.length > 0 ? prisma.usageCost.findMany({
+      where: {
+        userId: session.user.id,
+        projectId: { in: projectIds },
+      },
+      select: {
+        projectId: true,
+        cost: true,
+        action: true,
+        apiType: true,
+        model: true,
+        metadata: true,
+      },
+    }) : Promise.resolve([]),
     // 一次性获取所有项目的统计数据
-    prisma.novelPromotionProject.findMany({
+    projectIds.length > 0 ? prisma.novelPromotionProject.findMany({
       where: { projectId: { in: projectIds } },
       select: {
         projectId: true,
@@ -127,13 +180,49 @@ export const GET = apiHandler(async (request: NextRequest) => {
           }
         }
       }
-    })
+    }) : Promise.resolve([]),
+    projectIds.length > 0 ? prisma.workflowStageState.findMany({
+      where: {
+        userId: session.user.id,
+        projectId: { in: projectIds },
+      },
+      select: {
+        projectId: true,
+        scopeId: true,
+        stageKey: true,
+        status: true,
+        progress: true,
+        reviewState: true,
+        blocker: true,
+        errorMessage: true,
+        approvedAt: true,
+        updatedAt: true,
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    }) : Promise.resolve([]),
+    projectIds.length > 0 ? prisma.task.findMany({
+      where: {
+        userId: session.user.id,
+        projectId: { in: projectIds },
+        status: { in: [TASK_STATUS.QUEUED, TASK_STATUS.PROCESSING] },
+      },
+      select: {
+        projectId: true,
+        type: true,
+        targetType: true,
+        errorMessage: true,
+      },
+    }) : Promise.resolve([]),
   ])
 
   // 构建费用映射表
-  const costMap = new Map(
-    costsByProject.map(item => [item.projectId, toMoneyNumber(item._sum.cost)])
-  )
+  const costMap = new Map<string, number>()
+  for (const item of costsByProject) {
+    if (isInternalUsageCostRecord(item)) continue
+    costMap.set(item.projectId, (costMap.get(item.projectId) ?? 0) + toMoneyNumber(item.cost))
+  }
 
   // 构建统计映射表 + 第一集预览
   const statsMap = new Map<string, { episodes: number; images: number; videos: number; panels: number; firstEpisodePreview: string | null }>(
@@ -163,11 +252,29 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
   )
 
+  const workflowStageMap = new Map<string, typeof workflowStageRows>()
+  for (const row of workflowStageRows) {
+    const current = workflowStageMap.get(row.projectId) || []
+    current.push(row)
+    workflowStageMap.set(row.projectId, current)
+  }
+
+  const activeTaskCountMap = new Map<string, number>()
+  for (const task of activeTasksByProject) {
+    if (containsInternalRecordMarker(task.type, task.targetType, task.errorMessage)) continue
+    activeTaskCountMap.set(task.projectId, (activeTaskCountMap.get(task.projectId) ?? 0) + 1)
+  }
+
   // 合并项目、费用与统计
   const projectsWithStats = projects.map(project => ({
     ...project,
     totalCost: costMap.get(project.id) ?? 0,
-    stats: statsMap.get(project.id) ?? { episodes: 0, images: 0, videos: 0, panels: 0, firstEpisodePreview: null }
+    stats: statsMap.get(project.id) ?? { episodes: 0, images: 0, videos: 0, panels: 0, firstEpisodePreview: null },
+    workflowSummary: buildProjectWorkflowSummary({
+      stats: statsMap.get(project.id) ?? { episodes: 0, images: 0, videos: 0, panels: 0 },
+      stages: workflowStageMap.get(project.id) ?? [],
+      activeTaskCount: activeTaskCountMap.get(project.id) ?? 0,
+    }),
   }))
 
   return NextResponse.json({
@@ -202,6 +309,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
 
   const { name, description } = normalizeProjectDraft(draft)
+  const initialImportDraft = readInitialImportDraftBody(body)
 
   // 获取用户偏好配置
   const userPreference = await prisma.userPreference.findUnique({
@@ -226,6 +334,8 @@ export const POST = apiHandler(async (request: NextRequest) => {
     data: {
       projectId: project.id,
       importStatus: 'pending',
+      pendingImportText: initialImportDraft.pendingImportText,
+      pendingImportEpisodeName: initialImportDraft.pendingImportEpisodeName,
       ...(userPreference && {
         analysisModel: userPreference.analysisModel,
         characterModel: userPreference.characterModel,

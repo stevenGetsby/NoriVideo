@@ -302,6 +302,41 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(Object.prototype.hasOwnProperty.call(newProvider as object, 'apiKey')).toBe(false)
   })
 
+  it('does not return decrypted provider api keys from GET', async () => {
+    installAuthMocks()
+    mockAuthenticated('user-1')
+    prismaMock.userPreference.findUnique.mockResolvedValue({
+      customProviders: JSON.stringify([
+        {
+          id: 'openai-compatible:secure',
+          name: 'Secure Provider',
+          baseUrl: 'https://secure.test',
+          apiKey: 'enc:secret-key',
+        },
+      ] satisfies SavedProvider[]),
+      customModels: null,
+    })
+    const route = await import('@/app/api/user/api-config/route')
+
+    const req = buildMockRequest({
+      path: '/api/user/api-config',
+      method: 'GET',
+    })
+
+    const res = await route.GET(req, routeContext)
+    const payload = await res.json() as { providers?: Array<{ id?: string; apiKey?: string; hasApiKey?: boolean }> }
+    const provider = payload.providers?.find((item) => item.id === 'openai-compatible:secure')
+
+    expect(res.status).toBe(200)
+    expect(provider).toMatchObject({
+      id: 'openai-compatible:secure',
+      apiKey: '',
+      hasApiKey: true,
+    })
+    expect(JSON.stringify(payload)).not.toContain('secret-key')
+    expect(decryptApiKeyMock).not.toHaveBeenCalled()
+  })
+
   it('rejects duplicated provider ids', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')

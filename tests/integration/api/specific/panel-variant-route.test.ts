@@ -91,6 +91,12 @@ const prismaMock = vi.hoisted(() => ({
   },
   novelPromotionPanel: {
     findUnique: vi.fn(async ({ where }: { where: { id: string } }) => routeState.panels.get(where.id) ?? null),
+    findFirst: vi.fn(async ({ where }: { where: { id: string; storyboardId?: string } }) => {
+      const panel = routeState.panels.get(where.id) ?? null
+      if (!panel) return null
+      if (where.storyboardId && panel.storyboardId !== where.storyboardId) return null
+      return panel
+    }),
   },
   $transaction: vi.fn(async (
     fn: (tx: {

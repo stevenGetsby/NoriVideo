@@ -23,6 +23,25 @@ interface ProjectStats {
   firstEpisodePreview: string | null
 }
 
+type ProjectWorkflowStageKey = 'config' | 'script' | 'storyboard' | 'videos' | 'voice' | 'editor'
+type ProjectWorkflowSummaryStatus = 'draft' | 'ready' | 'running' | 'blocked' | 'review' | 'stale'
+type ProductionOverviewStageKey = 'draft' | 'script' | 'storyboard' | 'delivery'
+
+interface ProjectWorkflowSummary {
+  source: 'workflow-stage-state'
+  currentStage: ProjectWorkflowStageKey
+  status: ProjectWorkflowSummaryStatus
+  progress: number
+  activeTaskCount: number
+  activeStages: ProjectWorkflowStageKey[]
+  blockedStages: ProjectWorkflowStageKey[]
+  reviewStages: ProjectWorkflowStageKey[]
+  staleStages: ProjectWorkflowStageKey[]
+  approvedStages: ProjectWorkflowStageKey[]
+  blocker: string | null
+  updatedAt: string | null
+}
+
 interface Project {
   id: string
   name: string
@@ -31,6 +50,7 @@ interface Project {
   updatedAt: string
   totalCost?: number  // 项目总费用（CNY）
   stats?: ProjectStats
+  workflowSummary?: ProjectWorkflowSummary
 }
 
 interface Pagination {
@@ -97,6 +117,42 @@ function sanitizeProjectPreview(value?: string | null): string {
     .replace(/\{[^{}]*agent[^{}]*\}/gi, '')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+function resolveProductionOverviewStage(project: Pick<Project, 'stats' | 'workflowSummary'>): ProductionOverviewStageKey {
+  switch (project.workflowSummary?.currentStage) {
+    case 'config':
+      return 'draft'
+    case 'script':
+      return 'script'
+    case 'storyboard':
+      return 'storyboard'
+    case 'videos':
+    case 'voice':
+    case 'editor':
+      return 'delivery'
+  }
+
+  if (!project.stats || ((project.stats.episodes || 0) === 0 && (project.stats.panels || 0) === 0 && (project.stats.videos || 0) === 0)) {
+    return 'draft'
+  }
+  if ((project.stats.videos || 0) > 0) return 'delivery'
+  if ((project.stats.panels || 0) > 0) return 'storyboard'
+  return 'script'
+}
+
+function resolveProjectBadgeKey(project: Pick<Project, 'stats' | 'workflowSummary'>) {
+  const status = project.workflowSummary?.status
+  if (status === 'running') return 'running'
+  if (status === 'blocked') return 'blocked'
+  if (status === 'review' || status === 'stale') return 'review'
+  const hasContent = Boolean(project.stats && (
+    project.stats.episodes > 0
+    || project.stats.images > 0
+    || project.stats.videos > 0
+    || project.stats.panels > 0
+  ))
+  return hasContent || status === 'ready' ? 'active' : 'draft'
 }
 
 export default function WorkspacePage() {
@@ -428,28 +484,14 @@ export default function WorkspacePage() {
     },
   ] as const
 
-  const productionRows = [
-    {
-      key: 'draft',
-      count: projects.filter(project => !project.stats || ((project.stats.episodes || 0) === 0 && (project.stats.panels || 0) === 0 && (project.stats.videos || 0) === 0)).length,
-      ready: false,
-    },
-    {
-      key: 'script',
-      count: projects.filter(project => (project.stats?.episodes || 0) > 0).length,
-      ready: projects.some(project => (project.stats?.episodes || 0) > 0),
-    },
-    {
-      key: 'storyboard',
-      count: projects.filter(project => (project.stats?.panels || 0) > 0).length,
-      ready: projects.some(project => (project.stats?.panels || 0) > 0),
-    },
-    {
-      key: 'delivery',
-      count: projects.filter(project => (project.stats?.videos || 0) > 0).length,
-      ready: projects.some(project => (project.stats?.videos || 0) > 0),
-    },
-  ] as const
+  const productionRows = (['draft', 'script', 'storyboard', 'delivery'] as const).map((key) => {
+    const count = projects.filter(project => resolveProductionOverviewStage(project) === key).length
+    return {
+      key,
+      count,
+      ready: key !== 'draft' && count > 0,
+    }
+  })
 
   if (status === 'loading' || (!session && !TEST_MODE_ENABLED)) {
     return (
@@ -515,7 +557,7 @@ export default function WorkspacePage() {
                 <p className="mt-1 text-xs leading-5 text-white/40">{t('productionOverview.subtitle')}</p>
               </div>
               <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
-                {t('productionOverview.local')}
+                {t('productionOverview.source')}
               </span>
             </div>
             <div className="grid grid-cols-[.75fr_.55fr_.65fr_1fr] gap-2 border-b border-white/10 bg-[#10131b] px-4 py-2 text-[11px] font-medium text-white/42">
@@ -587,6 +629,7 @@ export default function WorkspacePage() {
           ) : (
             projects.map((project) => {
               const hasContent = Boolean(project.stats && (project.stats.episodes > 0 || project.stats.images > 0 || project.stats.videos > 0 || project.stats.panels > 0))
+              const projectBadgeKey = resolveProjectBadgeKey(project)
               const previewText = sanitizeProjectPreview(project.description) || sanitizeProjectPreview(project.stats?.firstEpisodePreview) || t('noContent')
 
               return (
@@ -598,10 +641,10 @@ export default function WorkspacePage() {
                   <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-white/8 bg-[#0d1017]">
                     <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(44,110,242,.22),transparent_45%,rgba(20,184,166,.12))]" />
                     <div className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white/80">
-                      <AppIcon name={hasContent ? 'film' : 'folderOpen'} className="h-7 w-7" />
+                      <AppIcon name={projectBadgeKey !== 'draft' || hasContent ? 'film' : 'folderOpen'} className="h-7 w-7" />
                     </div>
                     <span className="absolute left-3 top-3 rounded bg-[#2c6ef2]/90 px-2 py-1 text-[11px] font-semibold text-white">
-                      {hasContent ? t('projectBadge.active') : t('projectBadge.draft')}
+                      {t(`projectBadge.${projectBadgeKey}`)}
                     </span>
                     <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                       <button

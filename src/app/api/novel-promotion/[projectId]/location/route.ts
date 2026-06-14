@@ -35,9 +35,20 @@ export const DELETE = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const existingLocation = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: locationId,
+      novelPromotionProject: { projectId }
+    },
+    select: { id: true }
+  })
+  if (!existingLocation) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   // 删除场景（LocationImage 会级联删除）
   await prisma.novelPromotionLocation.delete({
-    where: { id: locationId }
+    where: { id: existingLocation.id }
   })
 
   return NextResponse.json({ success: true })
@@ -128,6 +139,17 @@ export const PATCH = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const existingLocation = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: targetLocationId,
+      novelPromotionProject: { projectId }
+    },
+    select: { id: true }
+  })
+  if (!existingLocation) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   // 如果提供了 name 或 summary，更新场景信息
   if (name !== undefined || body.summary !== undefined) {
     const updateData: { name?: string; summary?: string | null } = {}
@@ -135,7 +157,7 @@ export const PATCH = apiHandler(async (
     if (body.summary !== undefined) updateData.summary = body.summary?.trim() || null
 
     const location = await prisma.novelPromotionLocation.update({
-      where: { id: targetLocationId },
+      where: { id: existingLocation.id },
       data: updateData
     })
     return NextResponse.json({ success: true, location })
@@ -146,7 +168,7 @@ export const PATCH = apiHandler(async (
     const cleanDescription = removeLocationPromptSuffix(description.trim())
     const image = await prisma.locationImage.update({
       where: {
-        locationId_imageIndex: { locationId: targetLocationId, imageIndex }
+        locationId_imageIndex: { locationId: existingLocation.id, imageIndex }
       },
       data: {
         description: cleanDescription,

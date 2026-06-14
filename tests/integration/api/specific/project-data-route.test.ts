@@ -10,7 +10,7 @@ const authMock = vi.hoisted(() => ({
 
 const prismaMock = vi.hoisted(() => ({
   project: {
-    findUnique: vi.fn(),
+    findFirst: vi.fn(),
     update: vi.fn(async () => ({})),
   },
   userPreference: {
@@ -33,7 +33,7 @@ describe('api specific - project data route', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    prismaMock.project.findUnique.mockResolvedValue({
+    prismaMock.project.findFirst.mockResolvedValue({
       id: 'project-1',
       name: 'Project 1',
       description: null,
@@ -88,7 +88,7 @@ describe('api specific - project data route', () => {
   })
 
   it('exposes user default models when project has no explicit model override', async () => {
-    prismaMock.project.findUnique.mockResolvedValueOnce({
+    prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-1',
       name: 'Project 1',
       description: null,
@@ -148,13 +148,8 @@ describe('api specific - project data route', () => {
     expect(body.project?.novelPromotionData?.videoModel).toBe('video-provider::video-model')
   })
 
-  it('returns a JSON forbidden error for another user project', async () => {
-    prismaMock.project.findUnique.mockResolvedValueOnce({
-      id: 'project-1',
-      name: 'Project 1',
-      userId: 'other-user',
-      novelPromotionData: { id: 'novel-1', projectId: 'project-1' },
-    })
+  it('returns a JSON not-found error for a project outside the current user scope', async () => {
+    prismaMock.project.findFirst.mockResolvedValueOnce(null)
 
     const mod = await import('@/app/api/projects/[projectId]/data/route')
     const req = buildMockRequest({
@@ -165,8 +160,15 @@ describe('api specific - project data route', () => {
     const res = await mod.GET(req, routeContext)
     const body = await res.json() as { error?: { code?: string } }
 
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(404)
     expect(res.headers.get('content-type')).toContain('application/json')
-    expect(body.error?.code).toBe('FORBIDDEN')
+    expect(body.error?.code).toBe('NOT_FOUND')
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        id: 'project-1',
+        userId: 'user-1',
+      },
+    }))
+    expect(prismaMock.project.update).not.toHaveBeenCalled()
   })
 })

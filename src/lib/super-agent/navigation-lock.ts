@@ -1,5 +1,5 @@
 const SUPER_AGENT_NAVIGATION_LOCK_PREFIX = 'nori:super-agent-running:'
-const SUPER_AGENT_NAVIGATION_LOCK_TTL_MS = 6 * 60 * 60 * 1000
+const SUPER_AGENT_NAVIGATION_LOCK_TTL_MS = 5 * 60 * 1000
 
 function lockKey(projectId: string): string {
   return `${SUPER_AGENT_NAVIGATION_LOCK_PREFIX}${projectId}`
@@ -9,7 +9,7 @@ function readStorageValue(projectId: string): string | null {
   if (typeof window === 'undefined') return null
   const key = lockKey(projectId)
   try {
-    return window.sessionStorage?.getItem(key) || window.localStorage?.getItem(key) || null
+    return window.sessionStorage?.getItem(key) || null
   } catch {
     return null
   }
@@ -23,11 +23,6 @@ function writeStorageValue(projectId: string, value: string): void {
   } catch {
     // Ignore browser storage failures.
   }
-  try {
-    window.localStorage?.setItem(key, value)
-  } catch {
-    // Ignore browser storage failures.
-  }
 }
 
 function removeStorageValue(projectId: string): void {
@@ -35,11 +30,6 @@ function removeStorageValue(projectId: string): void {
   const key = lockKey(projectId)
   try {
     window.sessionStorage?.removeItem(key)
-  } catch {
-    // Ignore browser storage failures.
-  }
-  try {
-    window.localStorage?.removeItem(key)
   } catch {
     // Ignore browser storage failures.
   }

@@ -101,7 +101,13 @@ function applyToProcessEnv(updates: Partial<Record<StorageConfigKey, string>>) {
   resetStorageProvider()
 }
 
+function assertStorageConfigAccessAllowed() {
+  if (process.env.NORI_INTERNAL_AGENT_TOOLS === 'true') return
+  throw new ApiError('NOT_FOUND')
+}
+
 export const GET = apiHandler(async () => {
+  assertStorageConfigAccessAllowed()
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const state = await readEnvState()
@@ -109,6 +115,7 @@ export const GET = apiHandler(async () => {
 })
 
 export const PUT = apiHandler(async (request: NextRequest) => {
+  assertStorageConfigAccessAllowed()
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
@@ -147,6 +154,7 @@ export const PUT = apiHandler(async (request: NextRequest) => {
 })
 
 export const POST = apiHandler(async () => {
+  assertStorageConfigAccessAllowed()
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   resetStorageProvider()

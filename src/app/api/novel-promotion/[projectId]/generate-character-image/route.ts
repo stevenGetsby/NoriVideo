@@ -50,8 +50,13 @@ export const POST = apiHandler(async (
 
   let targetAppearanceId = appearanceId
   if (!targetAppearanceId) {
-    const character = await prisma.novelPromotionCharacter.findUnique({
-      where: { id: characterId },
+    const character = await prisma.novelPromotionCharacter.findFirst({
+      where: {
+        id: characterId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
       include: { appearances: { orderBy: { appearanceIndex: 'asc' } } },
     })
     if (!character) {

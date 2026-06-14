@@ -15,15 +15,18 @@ export const DELETE = apiHandler(async (
 
   await requireCanvasInProject(canvasId, projectId)
 
-  const edge = await prisma.canvasEdge.findUnique({
-    where: { id: edgeId },
+  const edge = await prisma.canvasEdge.findFirst({
+    where: {
+      id: edgeId,
+      canvasId,
+    },
     select: { id: true, canvasId: true },
   })
-  if (!edge || edge.canvasId !== canvasId) {
+  if (!edge) {
     throw new ApiError('NOT_FOUND')
   }
 
-  await prisma.canvasEdge.delete({ where: { id: edgeId } })
+  await prisma.canvasEdge.delete({ where: { id: edge.id } })
 
   return NextResponse.json({ success: true })
 })

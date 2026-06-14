@@ -19,7 +19,7 @@ export const POST = apiHandler(async () => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 
-  const status = await readSystemStatusSnapshot()
+  const status = await readSystemStatusSnapshot({ userId: authResult.session.user.id })
   const records = await appendUpdateCheckRecord(authResult.session.user.id, status)
   return NextResponse.json({
     success: true,

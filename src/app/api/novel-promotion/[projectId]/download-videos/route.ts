@@ -6,6 +6,7 @@ import { getObjectBuffer, toFetchableUrl } from '@/lib/storage'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
 
 interface PanelData {
   panelIndex: number | null
@@ -37,7 +38,7 @@ export const POST = apiHandler(async (
 
   // 解析请求体
   const body = await request.json()
-  const { episodeId, panelPreferences } = body as {
+  const { episodeId: rawEpisodeId, panelPreferences } = body as {
     episodeId?: string
     panelPreferences?: Record<string, boolean>  // key: panelKey, value: true=口型同步, false=原始
   }
@@ -46,14 +47,25 @@ export const POST = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { project } = authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: rawEpisodeId,
+  })
+  if (!scope) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const { episodeId } = scope
 
   // 根据是否指定 episodeId 来获取数据
   let episodes: EpisodeData[] = []
 
   if (episodeId) {
     // 只获取指定剧集的数据
-    const episode = await prisma.novelPromotionEpisode.findUnique({
-      where: { id: episodeId },
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: { projectId },
+      },
       include: {
         storyboards: {
           include: {
@@ -244,7 +256,10 @@ export const POST = apiHandler(async (
   return new Response(result, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_videos.zip"`
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_videos.zip"`,
+      'X-Nori-Delivery-Mode': 'compat-sync-download',
+      'X-Nori-Replacement-Endpoint': `/api/novel-promotion/${projectId}/export-queue`,
+      'X-Nori-Replacement-Artifact': `/api/novel-promotion/${projectId}/export-artifact`,
     }
   })
 })

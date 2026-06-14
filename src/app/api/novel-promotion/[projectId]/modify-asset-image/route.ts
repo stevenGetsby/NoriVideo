@@ -26,12 +26,17 @@ export const POST = apiHandler(async (
   if ((body.type !== 'character' && body.type !== 'location') || typeof assetId !== 'string' || assetId.trim().length === 0) {
     throw new ApiError('INVALID_PARAMS')
   }
+  const normalizedAssetId = assetId.trim()
 
   const result = await submitAssetModifyTask({
     request,
     kind: body.type,
-    assetId,
-    body,
+    assetId: normalizedAssetId,
+    body: {
+      ...body,
+      characterId: body.type === 'character' ? normalizedAssetId : body.characterId,
+      locationId: body.type === 'location' ? normalizedAssetId : body.locationId,
+    },
     access: {
       scope: 'project',
       userId: authResult.session.user.id,

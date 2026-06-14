@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { withPrismaRetry } from '@/lib/prisma-retry'
 import { rollbackTaskBilling } from '@/lib/billing'
+import { canExposeInternalAgentRuns, listInternalAgentTaskTypes } from '@/lib/super-agent/internal-run-visibility'
 import { locales } from '@/i18n/routing'
 import { TASK_STATUS, type CreateTaskInput, type TaskBillingInfo, type TaskStatus } from './types'
 
@@ -409,6 +410,7 @@ export async function getTaskById(taskId: string) {
 }
 
 export async function queryTasks(filters: {
+  userId?: string
   projectId?: string
   targetType?: string
   targetId?: string
@@ -418,6 +420,7 @@ export async function queryTasks(filters: {
 }) {
   return await taskModel.findMany({
     where: {
+      ...(filters.userId ? { userId: filters.userId } : {}),
       ...(filters.projectId ? { projectId: filters.projectId } : {}),
       ...(filters.targetType ? { targetType: filters.targetType } : {}),
       ...(filters.targetId ? { targetId: filters.targetId } : {}),
@@ -620,16 +623,29 @@ export async function markTaskCanceled(taskId: string, errorCode: string, errorM
   return await tryMarkTaskCanceled(taskId, errorCode, errorMessage)
 }
 
-export async function cancelTask(taskId: string, reason = 'Task cancelled by user') {
+export async function cancelTask(
+  taskId: string,
+  reason = 'Task cancelled by user',
+  scope?: {
+    userId?: string
+    projectId?: string
+  },
+) {
   const snapshot = await taskModel.findUnique({
     where: { id: taskId },
     select: {
       id: true,
+      userId: true,
+      projectId: true,
       status: true,
       billingInfo: true,
     },
   })
-  if (!snapshot) {
+  if (
+    !snapshot
+    || (scope?.userId && snapshot.userId !== scope.userId)
+    || (scope?.projectId && snapshot.projectId !== scope.projectId)
+  ) {
     return {
       task: null,
       cancelled: false,
@@ -739,11 +755,13 @@ export async function sweepStaleTasks(params: {
 
 export async function dismissFailedTasks(taskIds: string[], userId: string) {
   if (taskIds.length === 0) return 0
+  const hiddenInternalTypes = canExposeInternalAgentRuns() ? [] : listInternalAgentTaskTypes()
   const result = await taskModel.updateMany({
     where: {
       id: { in: taskIds },
       userId,
       status: TASK_STATUS.FAILED,
+      ...(hiddenInternalTypes.length > 0 ? { type: { notIn: hiddenInternalTypes } } : {}),
     },
     data: {
       status: TASK_STATUS.DISMISSED,

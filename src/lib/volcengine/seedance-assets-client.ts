@@ -19,6 +19,14 @@ export interface SeedanceAssetGroupResult {
   ProjectName?: string
 }
 
+export interface SeedanceAssetGroupListResult {
+  AssetGroups?: SeedanceAssetGroupResult[]
+  Groups?: SeedanceAssetGroupResult[]
+  Items?: SeedanceAssetGroupResult[]
+  Total?: number
+  TotalCount?: number
+}
+
 export interface SeedanceAssetResult {
   Id: string
   Name?: string
@@ -119,6 +127,17 @@ export class SeedanceAssetsClient {
       Description: (input.description || '').slice(0, 300),
       GroupType: 'AIGC',
       ProjectName: input.projectName,
+    })
+  }
+
+  async listAssetGroups(input: {
+    projectName: string
+    pageSize?: number
+  }): Promise<SeedanceAssetGroupListResult> {
+    return await this.call<SeedanceAssetGroupListResult>('ListAssetGroups', {
+      ProjectName: input.projectName,
+      PageNumber: 1,
+      PageSize: Math.max(1, Math.min(input.pageSize ?? 1, 20)),
     })
   }
 

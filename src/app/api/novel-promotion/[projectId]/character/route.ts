@@ -49,9 +49,20 @@ export const PATCH = apiHandler(async (
   if (name) updateData.name = name.trim()
   if (introduction !== undefined) updateData.introduction = introduction.trim()
 
+  const existingCharacter = await prisma.novelPromotionCharacter.findFirst({
+    where: {
+      id: characterId,
+      novelPromotionProject: { projectId }
+    },
+    select: { id: true }
+  })
+  if (!existingCharacter) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   // 更新角色
   const character = await prisma.novelPromotionCharacter.update({
-    where: { id: characterId },
+    where: { id: existingCharacter.id },
     data: updateData
   })
 
@@ -108,7 +119,7 @@ export const DELETE = apiHandler(async (
 
   // 删除角色（CharacterAppearance 会级联删除）
   await prisma.novelPromotionCharacter.delete({
-    where: { id: characterId }
+    where: { id: character.id }
   })
 
   return NextResponse.json({ success: true })

@@ -7,6 +7,11 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 
+const ROLE_KEYS = ['owner', 'writer', 'asset', 'producer'] as const
+const PERMISSION_KEYS = ['projects', 'scripts', 'assets', 'production', 'records'] as const
+const QUOTA_KEYS = ['projects', 'runningTasks', 'serviceUnits'] as const
+const showInternalAgentTools = process.env.NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS === 'true'
+
 interface ProjectSummary {
   id: string
   name: string
@@ -18,13 +23,6 @@ interface ProjectSummary {
   }
 }
 
-interface ProjectsResponse {
-  projects?: ProjectSummary[]
-  pagination?: {
-    total: number
-  }
-}
-
 interface TaskSummary {
   id: string
   type: string
@@ -33,8 +31,43 @@ interface TaskSummary {
   projectId?: string | null
 }
 
-interface TasksResponse {
+interface TeamStats {
+  projects: number
+  episodes: number
+  activeTasks: number
+  failedTasks: number
+}
+
+interface WorkloadRow {
+  key: string
+  count: number
+  failed: number
+}
+
+interface QuotaRow {
+  used: number
+  limit: number
+}
+
+type QuotaRows = Record<(typeof QUOTA_KEYS)[number], QuotaRow>
+
+interface SeatRow {
+  role: (typeof ROLE_KEYS)[number]
+  status: 'enabled' | 'reserved'
+  projects: number
+  workload: number
+  lastActivity: string | null
+  permissions: number
+}
+
+interface TeamOverviewResponse {
+  projects?: ProjectSummary[]
+  projectTotal?: number
   tasks?: TaskSummary[]
+  stats?: TeamStats
+  workloadRows?: WorkloadRow[]
+  quotaRows?: QuotaRows
+  seatRows?: SeatRow[]
 }
 
 function formatDate(value: string) {
@@ -42,11 +75,6 @@ function formatDate(value: string) {
   if (Number.isNaN(date.getTime())) return '-'
   return date.toLocaleString()
 }
-
-const ROLE_KEYS = ['owner', 'writer', 'asset', 'producer'] as const
-const PERMISSION_KEYS = ['projects', 'scripts', 'assets', 'production', 'records'] as const
-const QUOTA_KEYS = ['projects', 'runningTasks', 'serviceUnits'] as const
-const showInternalAgentTools = process.env.NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS === 'true'
 
 function countRolePermissions(role: (typeof ROLE_KEYS)[number]) {
   if (role === 'owner') return PERMISSION_KEYS.length
@@ -73,6 +101,10 @@ export function FrameTeamDashboard() {
   const [projects, setProjects] = useState<ProjectSummary[]>([])
   const [projectTotal, setProjectTotal] = useState(0)
   const [tasks, setTasks] = useState<TaskSummary[]>([])
+  const [serverStats, setServerStats] = useState<TeamStats | null>(null)
+  const [serverWorkloadRows, setServerWorkloadRows] = useState<WorkloadRow[] | null>(null)
+  const [serverQuotaRows, setServerQuotaRows] = useState<QuotaRows | null>(null)
+  const [serverSeatRows, setServerSeatRows] = useState<SeatRow[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,21 +115,17 @@ export function FrameTeamDashboard() {
       setIsLoading(true)
       setError(null)
       try {
-        const [projectsResponse, tasksResponse] = await Promise.all([
-          apiFetch('/api/projects?page=1&pageSize=6'),
-          apiFetch('/api/tasks?limit=40'),
-        ])
-        const failed = [projectsResponse, tasksResponse].find((response) => !response.ok)
-        if (failed) throw new Error(`${failed.status} ${failed.statusText}`.trim())
-
-        const [projectsPayload, tasksPayload] = await Promise.all([
-          projectsResponse.json() as Promise<ProjectsResponse>,
-          tasksResponse.json() as Promise<TasksResponse>,
-        ])
+        const response = await apiFetch('/api/workspace/team-overview')
+        if (!response.ok) throw new Error(`${response.status} ${response.statusText}`.trim())
+        const payload = await response.json() as TeamOverviewResponse
         if (!cancelled) {
-          setProjects(Array.isArray(projectsPayload.projects) ? projectsPayload.projects : [])
-          setProjectTotal(projectsPayload.pagination?.total ?? projectsPayload.projects?.length ?? 0)
-          setTasks(Array.isArray(tasksPayload.tasks) ? tasksPayload.tasks : [])
+          setProjects(Array.isArray(payload.projects) ? payload.projects : [])
+          setProjectTotal(payload.projectTotal ?? payload.projects?.length ?? 0)
+          setTasks(Array.isArray(payload.tasks) ? payload.tasks : [])
+          setServerStats(payload.stats || null)
+          setServerWorkloadRows(Array.isArray(payload.workloadRows) ? payload.workloadRows : null)
+          setServerQuotaRows(payload.quotaRows || null)
+          setServerSeatRows(Array.isArray(payload.seatRows) ? payload.seatRows : null)
         }
       } catch (loadError) {
         if (!cancelled) setError(loadError instanceof Error ? loadError.message : t('loadFailed'))
@@ -118,6 +146,7 @@ export function FrameTeamDashboard() {
   }, [tasks])
 
   const stats = useMemo(() => {
+    if (serverStats) return serverStats
     const activeTasks = visibleTasks.filter((task) => task.status === 'queued' || task.status === 'processing').length
     const failedTasks = visibleTasks.filter((task) => task.status === 'failed').length
     return {
@@ -126,9 +155,10 @@ export function FrameTeamDashboard() {
       activeTasks,
       failedTasks,
     }
-  }, [projectTotal, projects, visibleTasks])
+  }, [projectTotal, projects, serverStats, visibleTasks])
 
   const workloadRows = useMemo(() => {
+    if (serverWorkloadRows) return serverWorkloadRows.slice(0, 5)
     const rows = new Map<string, { key: string; count: number; failed: number }>()
     for (const task of visibleTasks) {
       const key = task.type || 'unknown'
@@ -138,9 +168,10 @@ export function FrameTeamDashboard() {
       rows.set(key, current)
     }
     return Array.from(rows.values()).sort((a, b) => b.count - a.count).slice(0, 5)
-  }, [visibleTasks])
+  }, [serverWorkloadRows, visibleTasks])
 
   const quotaRows = useMemo(() => {
+    if (serverQuotaRows) return serverQuotaRows
     const serviceUnits = visibleTasks.reduce((sum, task) => {
       if (task.status !== 'completed') return sum
       const text = task.type.toLowerCase()
@@ -154,9 +185,15 @@ export function FrameTeamDashboard() {
       runningTasks: { used: stats.activeTasks, limit: 8 },
       serviceUnits: { used: serviceUnits, limit: Math.max(120, serviceUnits) },
     }
-  }, [projectTotal, stats.activeTasks, visibleTasks])
+  }, [projectTotal, serverQuotaRows, stats.activeTasks, visibleTasks])
 
   const seatRows = useMemo(() => {
+    if (serverSeatRows) {
+      return serverSeatRows.map((row) => ({
+        ...row,
+        lastActivity: row.lastActivity ? formatDate(row.lastActivity) : t('seatMatrix.none'),
+      }))
+    }
     const latestActivity = getLatestActivity(projects, visibleTasks)
     return ROLE_KEYS.map((role) => ({
       role,
@@ -166,7 +203,7 @@ export function FrameTeamDashboard() {
       lastActivity: role === 'owner' && latestActivity ? formatDate(latestActivity) : t('seatMatrix.none'),
       permissions: countRolePermissions(role),
     }))
-  }, [projectTotal, projects, t, visibleTasks])
+  }, [projectTotal, projects, serverSeatRows, t, visibleTasks])
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">

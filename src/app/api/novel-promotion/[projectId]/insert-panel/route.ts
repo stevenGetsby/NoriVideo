@@ -7,6 +7,7 @@ import { TASK_TYPE } from '@/lib/task/types'
 import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { getProjectModelConfig } from '@/lib/config-service'
 import { resolveInsertPanelUserInput } from '@/lib/novel-promotion/insert-panel'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -20,8 +21,8 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const storyboardId = body?.storyboardId
-  const insertAfterPanelId = body?.insertAfterPanelId
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
+  const insertAfterPanelId = typeof body?.insertAfterPanelId === 'string' ? body.insertAfterPanelId.trim() : ''
   const userInput = resolveInsertPanelUserInput((body || {}) as Record<string, unknown>, locale)
 
   if (!storyboardId || !insertAfterPanelId) {
@@ -29,9 +30,36 @@ export const POST = apiHandler(async (
     })
   }
 
+  const storyboard = await prisma.novelPromotionStoryboard.findFirst({
+    where: {
+      id: storyboardId,
+      episode: {
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+    },
+    select: { id: true },
+  })
+  if (!storyboard) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const insertAfterPanel = await prisma.novelPromotionPanel.findFirst({
+    where: {
+      id: insertAfterPanelId,
+      storyboardId: storyboard.id,
+    },
+    select: { id: true },
+  })
+  if (!insertAfterPanel) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const projectModelConfig = await getProjectModelConfig(projectId, session.user.id)
   const billingPayload = {
     ...body,
+    storyboardId: storyboard.id,
+    insertAfterPanelId: insertAfterPanel.id,
     userInput,
     ...(projectModelConfig.analysisModel ? { analysisModel: projectModelConfig.analysisModel } : {}),
   }
@@ -43,9 +71,9 @@ export const POST = apiHandler(async (
     projectId,
     type: TASK_TYPE.INSERT_PANEL,
     targetType: 'NovelPromotionStoryboard',
-    targetId: storyboardId,
+    targetId: storyboard.id,
     payload: billingPayload,
-    dedupeKey: `insert_panel:${storyboardId}:${insertAfterPanelId}`,
+    dedupeKey: `insert_panel:${storyboard.id}:${insertAfterPanel.id}`,
     billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.INSERT_PANEL, billingPayload),
   })
 

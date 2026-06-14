@@ -26,10 +26,12 @@ const prismaMock = vi.hoisted(() => ({
     findUnique: vi.fn(),
   },
   characterAppearance: {
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
   },
   novelPromotionLocation: {
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
   },
@@ -38,13 +40,19 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
   },
   novelPromotionClip: {
+    findFirst: vi.fn(),
     update: vi.fn(),
   },
+  novelPromotionProject: {
+    findUnique: vi.fn(),
+  },
   novelPromotionStoryboard: {
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
   },
   novelPromotionPanel: {
+    findFirst: vi.fn(),
     findUnique: vi.fn(),
     update: vi.fn(),
     create: vi.fn(),
@@ -209,10 +217,26 @@ describe('api contract - crud routes (behavior)', () => {
       selectedIndex: null,
       character: { id: 'character-1', name: 'Alice' },
     })
+    prismaMock.characterAppearance.findFirst.mockResolvedValue({
+      id: 'appearance-1',
+      characterId: 'character-1',
+      imageUrls: JSON.stringify(['cos/char-0.png', 'cos/char-1.png']),
+      imageUrl: null,
+      selectedIndex: null,
+      character: { id: 'character-1', name: 'Alice' },
+    })
     prismaMock.characterAppearance.update.mockResolvedValue({
       id: 'appearance-1',
       selectedIndex: 1,
       imageUrl: 'cos/char-1.png',
+    })
+    prismaMock.novelPromotionLocation.findFirst.mockResolvedValue({
+      id: 'location-1',
+      name: 'Old Town',
+      images: [
+        { id: 'img-0', imageIndex: 0, imageUrl: 'cos/loc-0.png' },
+        { id: 'img-1', imageIndex: 1, imageUrl: 'cos/loc-1.png' },
+      ],
     })
     prismaMock.novelPromotionLocation.findUnique.mockResolvedValue({
       id: 'location-1',
@@ -233,6 +257,12 @@ describe('api contract - crud routes (behavior)', () => {
       id: 'location-1',
       selectedImageId: 'img-1',
     })
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
+      id: 'novel-project-1',
+    })
+    prismaMock.novelPromotionClip.findFirst.mockResolvedValue({
+      id: 'clip-1',
+    })
     prismaMock.novelPromotionClip.update.mockResolvedValue({
       id: 'clip-1',
       characters: JSON.stringify(['Alice']),
@@ -241,6 +271,12 @@ describe('api contract - crud routes (behavior)', () => {
       content: 'clip content',
       screenplay: JSON.stringify({ scenes: [{ id: 1 }] }),
     })
+    prismaMock.novelPromotionStoryboard.findFirst.mockResolvedValue({
+      id: 'storyboard-1',
+      episodeId: 'episode-1',
+      clipId: 'clip-1',
+      panelCount: 1,
+    })
     prismaMock.novelPromotionStoryboard.findUnique.mockResolvedValue({
       id: 'storyboard-1',
       projectId: 'project-1',
@@ -248,6 +284,11 @@ describe('api contract - crud routes (behavior)', () => {
     prismaMock.novelPromotionStoryboard.update.mockResolvedValue({
       id: 'storyboard-1',
       panelCount: 1,
+    })
+    prismaMock.novelPromotionPanel.findFirst.mockResolvedValue({
+      id: 'panel-1',
+      storyboardId: 'storyboard-1',
+      panelIndex: 0,
     })
     prismaMock.novelPromotionPanel.findUnique.mockResolvedValue({
       id: 'panel-1',

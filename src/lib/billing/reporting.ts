@@ -1,6 +1,10 @@
 import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import {
+  isInternalBalanceTransactionRecord,
+  isInternalUsageCostRecord,
+} from '@/lib/workspace/internal-record-visibility'
 import type { ApiType, UsageUnit } from './cost'
 import { BillingOperationError } from './errors'
 import { toMoneyNumber } from './money'
@@ -25,9 +29,28 @@ interface PureRecordParams extends RecordParams {
 }
 
 const VIRTUAL_PROJECT_IDS = new Set(['asset-hub', 'global-asset-hub', 'system'])
+const DEFAULT_BILLING_PAGE = 1
+const DEFAULT_BILLING_PAGE_SIZE = 20
+const MAX_BILLING_PAGE_SIZE = 100
 
 function isProjectScoped(projectId: string): boolean {
   return Boolean(projectId && !VIRTUAL_PROJECT_IDS.has(projectId))
+}
+
+export function normalizeBillingPagination(page: unknown, pageSize: unknown) {
+  const parsedPage = typeof page === 'number' ? page : Number.parseInt(String(page ?? ''), 10)
+  const parsedPageSize = typeof pageSize === 'number' ? pageSize : Number.parseInt(String(pageSize ?? ''), 10)
+  const normalizedPage = Number.isFinite(parsedPage) && parsedPage > 0
+    ? Math.floor(parsedPage)
+    : DEFAULT_BILLING_PAGE
+  const normalizedPageSize = Number.isFinite(parsedPageSize) && parsedPageSize > 0
+    ? Math.min(MAX_BILLING_PAGE_SIZE, Math.floor(parsedPageSize))
+    : DEFAULT_BILLING_PAGE_SIZE
+
+  return {
+    page: normalizedPage,
+    pageSize: normalizedPageSize,
+  }
 }
 
 /**
@@ -137,11 +160,12 @@ export async function recordUsageCostOnly(
 
 export async function getProjectTotalCost(projectId: string): Promise<number> {
   try {
-    const result = await prisma.usageCost.aggregate({
+    const records = await prisma.usageCost.findMany({
       where: { projectId },
-      _sum: { cost: true },
     })
-    return toMoneyNumber(result._sum.cost)
+    return records
+      .filter((item) => !isInternalUsageCostRecord(item))
+      .reduce((sum, item) => sum + toMoneyNumber(item.cost), 0)
   } catch (error) {
     _ulogError('[计费] 查询项目总费用失败:', error)
     return 0
@@ -149,76 +173,63 @@ export async function getProjectTotalCost(projectId: string): Promise<number> {
 }
 
 export async function getProjectCostDetails(projectId: string) {
-  const byTypeRaw = await prisma.usageCost.groupBy({
-    by: ['apiType'],
-    where: { projectId },
-    _sum: { cost: true },
-    _count: true,
-  })
-
-  const byActionRaw = await prisma.usageCost.groupBy({
-    by: ['action'],
-    where: { projectId },
-    _sum: { cost: true },
-    _count: true,
-  })
-
-  const recentRecordsRaw = await prisma.usageCost.findMany({
+  const recordsRaw = await prisma.usageCost.findMany({
     where: { projectId },
     orderBy: { createdAt: 'desc' },
-    take: 50,
   })
 
-  const byType = byTypeRaw.map((item) => ({
-    ...item,
-    _sum: {
-      ...item._sum,
-      cost: toMoneyNumber(item._sum.cost),
-    },
-  }))
-  const byAction = byActionRaw.map((item) => ({
-    ...item,
-    _sum: {
-      ...item._sum,
-      cost: toMoneyNumber(item._sum.cost),
-    },
-  }))
-  const recentRecords = recentRecordsRaw.map((item) => ({
+  const records = recordsRaw.filter((item) => !isInternalUsageCostRecord(item))
+  const byTypeMap = new Map<string, { apiType: string; _sum: { cost: number }; _count: number }>()
+  const byActionMap = new Map<string, { action: string; _sum: { cost: number }; _count: number }>()
+  let total = 0
+
+  for (const item of records) {
+    const cost = toMoneyNumber(item.cost)
+    total += cost
+    const typeRow = byTypeMap.get(item.apiType) || { apiType: item.apiType, _sum: { cost: 0 }, _count: 0 }
+    typeRow._sum.cost += cost
+    typeRow._count += 1
+    byTypeMap.set(item.apiType, typeRow)
+
+    const actionRow = byActionMap.get(item.action) || { action: item.action, _sum: { cost: 0 }, _count: 0 }
+    actionRow._sum.cost += cost
+    actionRow._count += 1
+    byActionMap.set(item.action, actionRow)
+  }
+
+  const recentRecords = records.slice(0, 50).map((item) => ({
     ...item,
     cost: toMoneyNumber(item.cost),
   }))
 
   return {
-    total: await getProjectTotalCost(projectId),
-    byType,
-    byAction,
+    total,
+    byType: Array.from(byTypeMap.values()),
+    byAction: Array.from(byActionMap.values()),
     recentRecords,
   }
 }
 
 export async function getUserCostSummary(userId: string) {
   try {
-    const byProjectRaw = await prisma.usageCost.groupBy({
-      by: ['projectId'],
+    const recordsRaw = await prisma.usageCost.findMany({
       where: { userId },
-      _sum: { cost: true },
-      _count: true,
     })
-
-    const totalResult = await prisma.usageCost.aggregate({
-      where: { userId },
-      _sum: { cost: true },
-    })
+    const records = recordsRaw.filter((item) => !isInternalUsageCostRecord(item))
+    const byProjectMap = new Map<string, { projectId: string; _sum: { cost: number }; _count: number }>()
+    let total = 0
+    for (const item of records) {
+      const cost = toMoneyNumber(item.cost)
+      total += cost
+      const row = byProjectMap.get(item.projectId) || { projectId: item.projectId, _sum: { cost: 0 }, _count: 0 }
+      row._sum.cost += cost
+      row._count += 1
+      byProjectMap.set(item.projectId, row)
+    }
 
     return {
-      total: toMoneyNumber(totalResult._sum.cost),
-      byProject: byProjectRaw.map((item) => ({
-        ...item,
-        _sum: {
-          ...item._sum,
-          cost: toMoneyNumber(item._sum.cost),
-        },
-      })),
+      total,
+      byProject: Array.from(byProjectMap.values()),
     }
   } catch (error) {
     _ulogError('[计费] 查询用户费用汇总失败:', error)
@@ -229,20 +240,34 @@ export async function getUserCostSummary(userId: string) {
   }
 }
 
+export async function getVisibleUserTotalSpent(userId: string): Promise<number> {
+  const records = await prisma.balanceTransaction.findMany({
+    where: { userId, type: 'consume' },
+    select: {
+      amount: true,
+      taskType: true,
+      description: true,
+      billingMeta: true,
+    },
+  })
+
+  return records
+    .filter((item) => !isInternalBalanceTransactionRecord(item))
+    .reduce((sum, item) => sum + Math.abs(toMoneyNumber(item.amount)), 0)
+}
+
 export async function getUserCostDetails(userId: string, page = 1, pageSize = 20) {
-  const skip = (page - 1) * pageSize
+  const pagination = normalizeBillingPagination(page, pageSize)
+  const skip = (pagination.page - 1) * pagination.pageSize
 
-  const [recordsRaw, total] = await Promise.all([
-    prisma.usageCost.findMany({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      skip,
-      take: pageSize,
-    }),
-    prisma.usageCost.count({ where: { userId } }),
-  ])
+  const recordsRaw = await prisma.usageCost.findMany({
+    where: { userId },
+    orderBy: { createdAt: 'desc' },
+  })
+  const visibleRecords = recordsRaw.filter((item) => !isInternalUsageCostRecord(item))
+  const total = visibleRecords.length
 
-  const records = recordsRaw.map((item) => ({
+  const records = visibleRecords.slice(skip, skip + pagination.pageSize).map((item) => ({
     ...item,
     cost: toMoneyNumber(item.cost),
   }))
@@ -250,8 +275,8 @@ export async function getUserCostDetails(userId: string, page = 1, pageSize = 20
   return {
     records,
     total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
+    page: pagination.page,
+    pageSize: pagination.pageSize,
+    totalPages: Math.ceil(total / pagination.pageSize),
   }
 }

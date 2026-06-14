@@ -47,8 +47,11 @@ export const GET = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
     include: {
       novelPromotionData: {
         include: {
@@ -88,16 +91,12 @@ export const GET = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
-  if (project.userId !== session.user.id) {
-    throw new ApiError('FORBIDDEN')
-  }
-
   if (!project.novelPromotionData) {
     throw new ApiError('NOT_FOUND')
   }
 
   await prisma.project.update({
-    where: { id: projectId },
+    where: { id: project.id },
     data: { lastAccessedAt: new Date() },
   }).catch(() => undefined)
 

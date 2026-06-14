@@ -41,6 +41,8 @@ describe('createHomeProjectLaunch', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         name: '开场白',
+        initialNovelText: '第一章内容',
+        initialEpisodeName: '第 1 集',
       }),
     })
     expect(apiFetch).toHaveBeenNthCalledWith(2, '/api/novel-promotion/project-1', {

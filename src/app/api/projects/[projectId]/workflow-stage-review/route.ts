@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
-import { apiHandler } from '@/lib/api-errors'
+import { apiHandler, ApiError } from '@/lib/api-errors'
 import {
-  readWorkflowStageReview,
+  readWorkflowStageReviewWithMeta,
   writeWorkflowStageReview,
   type WorkflowStageReviewMap,
 } from '@/lib/workspace/workflow-stage-review-store'
@@ -19,11 +20,26 @@ export const GET = apiHandler(async (
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
+  const episodeId = request.nextUrl.searchParams.get('episodeId')?.trim() || null
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
 
-  const states = await readWorkflowStageReview({
+  if (episodeId) {
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!episode) {
+      throw new ApiError('NOT_FOUND')
+    }
+  }
+
+  const payload = await readWorkflowStageReviewWithMeta({
     userId: authResult.session.user.id,
     projectId,
     episodeId,
@@ -32,8 +48,9 @@ export const GET = apiHandler(async (
   return NextResponse.json({
     projectId,
     episodeId: episodeId || null,
-    source: 'persistent',
-    states,
+    source: payload.source,
+    updatedAt: payload.updatedAt,
+    states: payload.states,
   })
 })
 
@@ -42,9 +59,24 @@ export const PUT = apiHandler(async (
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
+  const episodeId = request.nextUrl.searchParams.get('episodeId')?.trim() || null
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
+
+  if (episodeId) {
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!episode) {
+      throw new ApiError('NOT_FOUND')
+    }
+  }
 
   const body = await request.json().catch(() => ({}))
   const payload = await writeWorkflowStageReview({
@@ -57,7 +89,7 @@ export const PUT = apiHandler(async (
   return NextResponse.json({
     projectId,
     episodeId: episodeId || null,
-    source: 'persistent',
+    source: payload.source,
     updatedAt: payload.updatedAt,
     states: payload.states,
   })

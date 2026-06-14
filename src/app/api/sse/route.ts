@@ -7,6 +7,7 @@ import { TASK_EVENT_TYPE, TASK_SSE_EVENT_TYPE, type SSEEvent } from '@/lib/task/
 import { getSharedSubscriber } from '@/lib/sse/shared-subscriber'
 import { prisma } from '@/lib/prisma'
 import { coerceTaskIntent } from '@/lib/task/intent'
+import { isPublicTaskApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 function parseReplayCursorId(value: string | null): number {
   if (!value) return 0
@@ -62,7 +63,7 @@ async function listActiveLifecycleSnapshot(params: {
       payload: true,
       updatedAt: true}})
 
-  return rows.map((row): SSEEvent => {
+  return rows.filter(isPublicTaskApiVisible).map((row): SSEEvent => {
     const payload = asObject(row.payload)
     const payloadUi = asObject(payload?.ui)
     const lifecycleType = row.status === 'queued'
@@ -163,7 +164,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
           details: {
             fromEventId: lastEventId,
             count: missed.length}})
-        for (const event of missed) {
+        for (const event of missed.filter(isPublicTaskApiVisible)) {
           safeEnqueue(formatSSE(event))
         }
       } else {
@@ -178,14 +179,18 @@ export const GET = apiHandler(async (request: NextRequest) => {
           details: {
             count: snapshotEvents.length}})
         for (const event of snapshotEvents) {
-          safeEnqueue(formatSSE(event))
+          if (isPublicTaskApiVisible(event)) {
+            safeEnqueue(formatSSE(event))
+          }
         }
       }
 
       unsubscribe = await sharedSubscriber.addChannelListener(channel, (message) => {
         try {
           const event = JSON.parse(message) as SSEEvent
-          safeEnqueue(formatSSE(event))
+          if (isPublicTaskApiVisible(event)) {
+            safeEnqueue(formatSSE(event))
+          }
         } catch {
           safeEnqueue(`data: ${message}\n\n`)
         }

@@ -6,6 +6,7 @@ import { listTaskLifecycleEvents, publishTaskEvent } from '@/lib/task/publisher'
 import { cancelTask, getTaskById } from '@/lib/task/service'
 import { TASK_EVENT_TYPE } from '@/lib/task/types'
 import { normalizeTaskError } from '@/lib/errors/normalize'
+import { isPublicTaskApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -22,7 +23,7 @@ export const GET = apiHandler(async (
   const { taskId } = await context.params
 
   const task = await getTaskById(taskId)
-  if (!task || task.userId !== session.user.id) {
+  if (!task || task.userId !== session.user.id || !isPublicTaskApiVisible(task)) {
     throw new ApiError('NOT_FOUND')
   }
 
@@ -49,7 +50,7 @@ export const DELETE = apiHandler(async (
   const { taskId } = await context.params
 
   const task = await getTaskById(taskId)
-  if (!task || task.userId !== session.user.id) {
+  if (!task || task.userId !== session.user.id || !isPublicTaskApiVisible(task)) {
     throw new ApiError('NOT_FOUND')
   }
 

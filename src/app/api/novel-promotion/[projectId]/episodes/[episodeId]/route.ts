@@ -7,6 +7,19 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
 
+async function getNovelPromotionProject(projectId: string) {
+  const novelPromotionProject = await prisma.novelPromotionProject.findUnique({
+    where: { projectId },
+    select: { id: true, lastEpisodeId: true }
+  })
+
+  if (!novelPromotionProject) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return novelPromotionProject
+}
+
 /**
  * GET - 获取单个剧集的完整数据
  */
@@ -20,9 +33,14 @@ export const GET = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
 
+  const novelPromotionProject = await getNovelPromotionProject(projectId)
+
   // 获取剧集及其关联数据
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProjectId: novelPromotionProject.id
+    },
     include: {
       clips: {
         orderBy: { createdAt: 'asc' }
@@ -49,7 +67,7 @@ export const GET = apiHandler(async (
 
   // 更新最后编辑的剧集ID（异步，不阻塞响应）
   prisma.novelPromotionProject.update({
-    where: { projectId },
+    where: { id: novelPromotionProject.id },
     data: { lastEpisodeId: episodeId }
   }).catch(err => _ulogError('更新 lastEpisodeId 失败:', err))
 
@@ -72,6 +90,18 @@ export const PATCH = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
 
+  const novelPromotionProject = await getNovelPromotionProject(projectId)
+  const existingEpisode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProjectId: novelPromotionProject.id
+    },
+    select: { id: true }
+  })
+  if (!existingEpisode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const body = await request.json()
   const { name, description, novelText, audioUrl, srtContent } = body
 
@@ -87,7 +117,7 @@ export const PATCH = apiHandler(async (
   if (srtContent !== undefined) updateData.srtContent = srtContent
 
   const episode = await prisma.novelPromotionEpisode.update({
-    where: { id: episodeId },
+    where: { id: existingEpisode.id },
     data: updateData
   })
 
@@ -107,17 +137,25 @@ export const DELETE = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
 
+  const novelPromotionProject = await getNovelPromotionProject(projectId)
+  const existingEpisode = await prisma.novelPromotionEpisode.findFirst({
+    where: {
+      id: episodeId,
+      novelPromotionProjectId: novelPromotionProject.id
+    },
+    select: { id: true }
+  })
+  if (!existingEpisode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   // 删除剧集（关联数据会级联删除）
   await prisma.novelPromotionEpisode.delete({
-    where: { id: episodeId }
+    where: { id: existingEpisode.id }
   })
 
   // 如果删除的是最后编辑的剧集，更新 lastEpisodeId
-  const novelPromotionProject = await prisma.novelPromotionProject.findUnique({
-    where: { projectId }
-  })
-
-  if (novelPromotionProject?.lastEpisodeId === episodeId) {
+  if (novelPromotionProject.lastEpisodeId === episodeId) {
     // 找到另一个剧集作为默认
     const anotherEpisode = await prisma.novelPromotionEpisode.findFirst({
       where: { novelPromotionProjectId: novelPromotionProject.id },

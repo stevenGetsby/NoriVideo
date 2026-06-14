@@ -6,6 +6,7 @@ import { getObjectBuffer, toFetchableUrl } from '@/lib/storage'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
 
 export const GET = apiHandler(async (
   request: NextRequest,
@@ -13,12 +14,19 @@ export const GET = apiHandler(async (
 ) => {
   const { projectId } = await context.params
   const { searchParams } = new URL(request.url)
-  const episodeId = searchParams.get('episodeId')
 
   // 🔐 统一权限验证
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { project } = authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: searchParams.get('episodeId'),
+  })
+  if (!scope) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const { episodeId } = scope
 
   // 获取配音台词
   const whereClause: Record<string, unknown> = {
@@ -26,7 +34,15 @@ export const GET = apiHandler(async (
   }
 
   if (episodeId) {
-    whereClause.episodeId = episodeId
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: { projectId },
+      },
+      select: { id: true },
+    })
+    if (!episode) throw new ApiError('NOT_FOUND')
+    whereClause.episodeId = episode.id
   } else {
     // 如果没有指定 episodeId，获取该项目所有剧集的配音
     const npData = await prisma.novelPromotionProject.findFirst({
@@ -117,7 +133,10 @@ export const GET = apiHandler(async (
   return new Response(stream, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_voices.zip"`
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_voices.zip"`,
+      'X-Nori-Delivery-Mode': 'compat-sync-download',
+      'X-Nori-Replacement-Endpoint': `/api/novel-promotion/${projectId}/export-queue`,
+      'X-Nori-Replacement-Artifact': `/api/novel-promotion/${projectId}/export-artifact`,
     }
   })
 })

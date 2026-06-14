@@ -48,9 +48,31 @@ export const POST = apiHandler(async (
 
   const targetType = type === 'character' ? 'CharacterAppearance' : 'LocationImage'
   const targetId = type === 'character' ? appearanceId : id
+  if (type === 'character') {
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: appearanceId,
+        characterId: id,
+        character: {
+          novelPromotionProject: {
+            projectId
+          }
+        }
+      },
+      select: { id: true }
+    })
+    if (!appearance) {
+      throw new ApiError('NOT_FOUND')
+    }
+  }
   if (type === 'location') {
-    const location = await prisma.novelPromotionLocation.findUnique({
-      where: { id },
+    const location = await prisma.novelPromotionLocation.findFirst({
+      where: {
+        id,
+        novelPromotionProject: {
+          projectId
+        }
+      },
       select: { name: true, summary: true },
     })
     if (!location) {

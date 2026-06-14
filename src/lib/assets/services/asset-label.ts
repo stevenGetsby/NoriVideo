@@ -38,9 +38,12 @@ async function updateProjectAssetRenderLabel(input: UpdateAssetRenderLabelInput)
     throw new Error('projectId is required for project assets')
   }
   if (input.kind === 'character') {
-    const character = await prisma.novelPromotionCharacter.findUnique({
+    const character = await prisma.novelPromotionCharacter.findFirst({
       where: {
         id: input.assetId,
+        novelPromotionProject: {
+          projectId: input.projectId,
+        },
       },
       include: { appearances: true },
     })
@@ -78,9 +81,12 @@ async function updateProjectAssetRenderLabel(input: UpdateAssetRenderLabelInput)
     return
   }
 
-  const location = await prisma.novelPromotionLocation.findUnique({
+  const location = await prisma.novelPromotionLocation.findFirst({
     where: {
       id: input.assetId,
+      novelPromotionProject: {
+        projectId: input.projectId,
+      },
     },
     include: { images: true },
   })

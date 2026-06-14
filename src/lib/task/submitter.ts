@@ -24,6 +24,7 @@ import { getTaskFlowMeta } from '@/lib/llm-observe/stage-pipeline'
 import type { Locale } from '@/i18n/routing'
 import { attachTaskToRun, createRun, findReusableActiveRun } from '@/lib/run-runtime/service'
 import { isAiTaskType, workflowTypeFromTaskType } from '@/lib/run-runtime/workflow'
+import { invalidateDownstreamWorkflowStagesForTask } from '@/lib/workspace/workflow-stage-state-store'
 
 const RUN_CENTRIC_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.STORY_TO_SCRIPT_RUN,
@@ -336,6 +337,29 @@ export async function submitTask(params: {
         priority: typeof task.priority === 'number' ? task.priority : 0,
       })
       await markTaskEnqueued(task.id)
+      try {
+        const invalidation = await invalidateDownstreamWorkflowStagesForTask({
+          userId: params.userId,
+          projectId: params.projectId,
+          episodeId: params.episodeId || null,
+          taskId: task.id,
+          taskType: params.type,
+        })
+        if (invalidation.staleStages.length > 0) {
+          logger.info({
+            action: 'task.submit.downstream_invalidated',
+            message: 'downstream workflow stages invalidated',
+            taskId: task.id,
+            details: invalidation,
+          })
+        }
+      } catch (error) {
+        logger.warn({
+          action: 'task.submit.downstream_invalidation_failed',
+          message: error instanceof Error ? error.message : String(error),
+          taskId: task.id,
+        })
+      }
       logger.info({
         action: 'task.submit.enqueued',
         message: 'task enqueued',

@@ -7,6 +7,8 @@ import {
   readExportHistory,
   type ExportHistoryRecord,
 } from '@/lib/novel-promotion/export-history-store'
+import { normalizeExportDeliveryCardId } from '@/lib/novel-promotion/export-delivery'
+import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
 
 function safeName(value: string) {
   return value.replace(/[\\/:*?"<>|]/g, '_').slice(0, 80) || 'export'
@@ -19,16 +21,29 @@ function latestIso(values: Date[]) {
   return (latest || new Date()).toISOString()
 }
 
+function readRecord(value: unknown) {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
 export const GET = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
 
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { project } = authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: request.nextUrl.searchParams.get('episodeId'),
+  })
+  if (!scope) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const { episodeId } = scope
 
   const episodes = episodeId
     ? await prisma.novelPromotionEpisode.findMany({
@@ -139,7 +154,7 @@ export const GET = apiHandler(async (
         id: `server-${episode.id}-jianying-draft`,
         cardId: 'jianying-draft',
         title: 'Editing Draft',
-        fileName: episode.editorProject?.outputUrl ? `${baseName}_editor_project.json` : `${baseName}_manifest.json`,
+        fileName: `${baseName}_jianying_draft.zip`,
         createdAt: touchedAt,
         status: 'completed',
         source: 'server',
@@ -179,28 +194,76 @@ export const POST = apiHandler(async (
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
-  if (!episodeId) {
+  const rawEpisodeId = request.nextUrl.searchParams.get('episodeId')
+  if (!rawEpisodeId || !rawEpisodeId.trim()) {
     throw new ApiError('INVALID_PARAMS', { message: 'episodeId is required' })
   }
 
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: rawEpisodeId,
+  })
+  if (!scope?.episodeId) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const episodeId = scope.episodeId
 
-  const body = await request.json().catch(() => ({})) as Partial<ExportHistoryRecord>
-  if (!body.cardId || !body.title || !body.fileName) {
-    throw new ApiError('INVALID_PARAMS')
+  const body = readRecord(await request.json().catch(() => ({})))
+  const cardId = normalizeExportDeliveryCardId(body.cardId)
+  if (!cardId) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'EXPORT_HISTORY_CARD_ID_INVALID',
+      field: 'cardId',
+    })
+  }
+
+  const queueRecord = await prisma.exportQueueRecord.findFirst({
+    where: {
+      userId: authResult.session.user.id,
+      projectId,
+      scopeId: scope.scopeId,
+      episodeId,
+      cardId,
+      status: 'ready',
+    },
+    select: {
+      id: true,
+      cardId: true,
+      title: true,
+      taskId: true,
+      outputFileName: true,
+      outputStorageKey: true,
+      outputUrl: true,
+      contentType: true,
+      stats: true,
+      finishedAt: true,
+      updatedAt: true,
+    },
+  })
+
+  if (!queueRecord?.outputFileName || (!queueRecord.outputStorageKey && !queueRecord.outputUrl)) {
+    throw new ApiError('CONFLICT', {
+      code: 'EXPORT_HISTORY_READY_ARTIFACT_REQUIRED',
+      field: 'cardId',
+      message: 'export history can only be recorded from a ready export artifact',
+    })
   }
 
   const record: ExportHistoryRecord = {
-    id: body.id || `${Date.now()}-${body.cardId}`,
-    cardId: body.cardId,
-    title: body.title,
-    fileName: body.fileName,
-    createdAt: body.createdAt || new Date().toISOString(),
+    id: `${queueRecord.taskId || queueRecord.id}-${queueRecord.cardId}`,
+    cardId: queueRecord.cardId,
+    title: queueRecord.title,
+    fileName: queueRecord.outputFileName,
+    createdAt: (queueRecord.finishedAt || queueRecord.updatedAt).toISOString(),
     status: 'completed',
     source: 'persistent',
-    ...(body.stats ? { stats: body.stats } : {}),
+    taskId: queueRecord.taskId,
+    outputStorageKey: queueRecord.outputStorageKey,
+    outputUrl: queueRecord.outputUrl,
+    contentType: queueRecord.contentType,
+    ...(queueRecord.stats ? { stats: queueRecord.stats as ExportHistoryRecord['stats'] } : {}),
   }
 
   const records = await appendExportHistoryRecord({

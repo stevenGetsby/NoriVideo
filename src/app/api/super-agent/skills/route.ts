@@ -1,8 +1,11 @@
 import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { skillLibrary } from '@/lib/super-agent/skill-parser'
+import { assertInternalAgentApiEnabled } from '@/lib/super-agent/internal-api-guard'
 
 export const GET = apiHandler(async () => {
+  assertInternalAgentApiEnabled()
+
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 

@@ -7,6 +7,7 @@ import {
   listCheckpoints,
   listRunEventsAfterSeq,
 } from '@/lib/run-runtime/service'
+import { isPublicRunApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 export const GET = apiHandler(async (
   _request: NextRequest,
@@ -18,7 +19,7 @@ export const GET = apiHandler(async (
   const { runId } = await context.params
 
   const snapshot = await getRunSnapshot(runId)
-  if (!snapshot || snapshot.run.userId !== session.user.id) {
+  if (!snapshot || snapshot.run.userId !== session.user.id || !isPublicRunApiVisible(snapshot.run)) {
     throw new ApiError('NOT_FOUND')
   }
 

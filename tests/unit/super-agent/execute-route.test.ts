@@ -50,6 +50,7 @@ vi.mock('@/lib/run-runtime/service', () => ({
 describe('super-agent execute route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'true')
     prismaMock.project.findFirst.mockResolvedValue({ id: 'project-target-1' })
     submitTaskMock.mockResolvedValue({
       success: true,
@@ -73,6 +74,28 @@ describe('super-agent execute route', () => {
       summary: 'ok',
       errors: [],
     })
+  })
+
+  it('does not expose execution API unless server-side internal tools are enabled', async () => {
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'false')
+    const mod = await import('@/app/api/super-agent/execute/route')
+    const response = await callRoute(mod.POST, 'POST', {
+      userInput: '生成小兔子童话短片',
+      locale: 'zh',
+      plan: {
+        projectConfig: { name: '月亮灯', videoRatio: '9:16', artStyle: '可爱童话风' },
+        episodeConfig: { name: '第1集', novelText: '小兔子救萤火虫' },
+        selectedSkill: 'generic',
+        skillDescription: '通用视频制作',
+        stages: [],
+        estimatedDuration: 1,
+      },
+    })
+
+    expect(response.status).toBe(404)
+    expect(executePlanMock).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+    expect(startAgentWorkflowRunMock).not.toHaveBeenCalled()
   })
 
   it('normalizes execution mode and missing creative parameters before execution', async () => {
@@ -103,7 +126,7 @@ describe('super-agent execute route', () => {
     expect(planArg.executionMode).toBe('mock')
     expect(planArg.creativeParameters).toMatchObject({
       durationSeconds: 30,
-      shotCount: 3,
+      shotCount: 6,
       panelsPerShot: 3,
       narration: 'auto',
     })

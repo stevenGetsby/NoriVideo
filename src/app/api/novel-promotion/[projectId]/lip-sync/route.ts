@@ -24,9 +24,9 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const storyboardId = body?.storyboardId
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
   const panelIndex = body?.panelIndex
-  const voiceLineId = body?.voiceLineId
+  const voiceLineId = typeof body?.voiceLineId === 'string' ? body.voiceLineId.trim() : ''
   const requestedLipSyncModel = typeof body?.lipSyncModel === 'string' ? body.lipSyncModel.trim() : ''
 
   if (!storyboardId || panelIndex === undefined || !voiceLineId) {
@@ -53,16 +53,51 @@ export const POST = apiHandler(async (
   }
 
   const panel = await prisma.novelPromotionPanel.findFirst({
-    where: { storyboardId, panelIndex: Number(panelIndex) },
-    select: { id: true },
+    where: {
+      storyboardId,
+      panelIndex: Number(panelIndex),
+      storyboard: {
+        episode: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      storyboard: {
+        select: {
+          episode: {
+            select: {
+              id: true,
+            },
+          },
+        },
+      },
+    },
   })
 
   if (!panel) {
     throw new ApiError('NOT_FOUND')
   }
 
+  const voiceLine = await prisma.novelPromotionVoiceLine.findFirst({
+    where: {
+      id: voiceLineId,
+      episodeId: panel.storyboard.episode.id,
+    },
+    select: { id: true },
+  })
+
+  if (!voiceLine) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const payload = {
     ...body,
+    storyboardId,
+    voiceLineId: voiceLine.id,
     lipSyncModel: resolvedLipSyncModel,
   }
 
@@ -71,13 +106,14 @@ export const POST = apiHandler(async (
     locale,
     requestId: getRequestId(request),
     projectId,
+    episodeId: panel.storyboard.episode.id,
     type: TASK_TYPE.LIP_SYNC,
     targetType: 'NovelPromotionPanel',
     targetId: panel.id,
     payload: withTaskUiPayload(payload, {
       hasOutputAtStart: await hasPanelLipSyncOutput(panel.id),
     }),
-    dedupeKey: `lip_sync:${panel.id}:${voiceLineId}`,
+    dedupeKey: `lip_sync:${panel.id}:${voiceLine.id}`,
     billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.LIP_SYNC, payload),
   })
 

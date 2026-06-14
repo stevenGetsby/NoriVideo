@@ -68,10 +68,40 @@ const prismaMock = vi.hoisted(() => ({
       id: 'novel-project-1',
     })),
   },
+  novelPromotionEpisode: {
+    findFirst: vi.fn(async () => ({
+      id: 'episode-1',
+    })),
+  },
+  novelPromotionPanel: {
+    findFirst: vi.fn(async () => ({
+      id: 'panel-1',
+      storyboard: {
+        episode: {
+          id: 'episode-1',
+        },
+      },
+    })),
+  },
+  novelPromotionCharacter: {
+    findFirst: vi.fn(async () => ({
+      id: 'character-1',
+    })),
+  },
   novelPromotionLocation: {
     findFirst: vi.fn(async () => ({
       id: 'project-prop-1',
       name: '遗物匕首',
+    })),
+  },
+  characterAppearance: {
+    findFirst: vi.fn(async () => ({
+      id: 'appearance-1',
+    })),
+  },
+  locationImage: {
+    findFirst: vi.fn(async () => ({
+      id: 'project-prop-variant-1',
     })),
   },
 }))

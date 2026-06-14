@@ -6,6 +6,7 @@ import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_TYPE } from '@/lib/task/types'
 import { buildDefaultTaskBillingInfo } from '@/lib/billing'
 import { getProjectModelConfig } from '@/lib/config-service'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -19,14 +20,33 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const storyboardId = body?.storyboardId
+  const storyboardId = typeof body?.storyboardId === 'string' ? body.storyboardId.trim() : ''
 
   if (!storyboardId) {
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const storyboard = await prisma.novelPromotionStoryboard.findFirst({
+    where: {
+      id: storyboardId,
+      episode: {
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+    },
+    select: { id: true },
+  })
+  if (!storyboard) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const projectModelConfig = await getProjectModelConfig(projectId, session.user.id)
-  const billingPayload = { ...body, ...(projectModelConfig.analysisModel ? { analysisModel: projectModelConfig.analysisModel } : {}) }
+  const billingPayload = {
+    ...body,
+    storyboardId: storyboard.id,
+    ...(projectModelConfig.analysisModel ? { analysisModel: projectModelConfig.analysisModel } : {}),
+  }
 
   const result = await submitTask({
     userId: session.user.id,
@@ -35,9 +55,9 @@ export const POST = apiHandler(async (
     projectId,
     type: TASK_TYPE.REGENERATE_STORYBOARD_TEXT,
     targetType: 'NovelPromotionStoryboard',
-    targetId: storyboardId,
+    targetId: storyboard.id,
     payload: billingPayload,
-    dedupeKey: `regenerate_storyboard_text:${storyboardId}`,
+    dedupeKey: `regenerate_storyboard_text:${storyboard.id}`,
     billingInfo: buildDefaultTaskBillingInfo(TASK_TYPE.REGENERATE_STORYBOARD_TEXT, billingPayload)
   })
 

@@ -53,6 +53,8 @@ type NovelPromotionData = {
   videoRatio?: string | null
   artStyle?: string | null
   artStylePrompt?: string | null
+  pendingImportText?: string | null
+  pendingImportEpisodeName?: string | null
 }
 type WorkflowMode = 'srt' | 'agent'
 
@@ -85,12 +87,6 @@ export default function ProjectDetailPage() {
 
   // 视图状态（仅 UI）
   const [isGlobalAssetsView, setIsGlobalAssetsView] = useState(false)
-  const [homeDraftContent, setHomeDraftContent] = useState('')
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    if (searchParams.get('fromHome') !== '1') return
-    setHomeDraftContent(window.sessionStorage.getItem(`nori:home-draft:${projectId}`) || '')
-  }, [projectId, searchParams])
 
   // 更新URL参数（stage 和/或 episode）
   const updateUrlParams = useCallback((updates: { stage?: string; episode?: string | null }) => {
@@ -150,11 +146,80 @@ export default function ProjectDetailPage() {
 
   // 获取导入状态
   const importStatus = novelPromotionData?.importStatus
+  const pendingImportText = typeof novelPromotionData?.pendingImportText === 'string'
+    ? novelPromotionData.pendingImportText
+    : ''
+  const [agentNavigationStateLoaded, setAgentNavigationStateLoaded] = useState(false)
+  const [serverAgentNavigationLocked, setServerAgentNavigationLocked] = useState(false)
+  const [agentNavigationWasLocked, setAgentNavigationWasLocked] = useState(false)
+
+  useEffect(() => {
+    setAgentNavigationStateLoaded(false)
+    setServerAgentNavigationLocked(false)
+    setAgentNavigationWasLocked(false)
+  }, [projectId])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let isMounted = true
+    let timer: number | null = null
+
+    async function refreshAgentNavigationState() {
+      try {
+        const res = await apiFetch(`/api/projects/${projectId}/navigation-state`, {
+          cache: 'no-store',
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          throw new Error(await readApiErrorMessage(res, 'navigation-state request failed'))
+        }
+        const data = await res.json() as {
+          navigationLocked?: boolean
+        }
+        const locked = Boolean(data.navigationLocked)
+        if (!isMounted) return
+
+        setAgentNavigationStateLoaded(true)
+        setServerAgentNavigationLocked(locked)
+        if (locked) {
+          setAgentNavigationWasLocked(true)
+          timer = window.setTimeout(refreshAgentNavigationState, 5000)
+          return
+        }
+        if (agentNavigationWasLocked) {
+          queryClient.invalidateQueries({ queryKey: queryKeys.projectData(projectId) })
+        }
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'AbortError') return
+        if (!isMounted) return
+        setAgentNavigationStateLoaded(true)
+        setServerAgentNavigationLocked(false)
+        _ulogInfo('[ProjectDetailPage] navigation-state request failed', {
+          projectId,
+          message: err instanceof Error ? err.message : String(err),
+        })
+      }
+    }
+
+    refreshAgentNavigationState()
+
+    return () => {
+      isMounted = false
+      if (timer !== null) window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [agentNavigationWasLocked, projectId, queryClient])
 
   // 零状态：无剧集且非导入中 → 自动创建第一集
   const isZeroState = episodes.length === 0
-  const shouldShowImportWizard = importStatus === 'pending'
-  const shouldAutoCreateEpisode = isZeroState && importStatus !== 'pending'
+  const shouldShowImportWizard = importStatus === 'pending' || (isZeroState && agentNavigationWasLocked)
+  const shouldAutoCreateEpisode = (
+    isZeroState
+    && importStatus !== 'pending'
+    && agentNavigationStateLoaded
+    && !serverAgentNavigationLocked
+    && !agentNavigationWasLocked
+  )
   const autoCreateTriggered = useRef(false)
   const creationModeSubmitRef = useRef(false)
 
@@ -252,31 +317,14 @@ export default function ProjectDetailPage() {
     }
   }
 
-  const markImportCompleted = async () => {
-    const res = await apiFetch(`/api/novel-promotion/${projectId}/episodes/batch`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ episodes: [], importStatus: 'completed' }),
-    })
-
-    if (!res.ok) {
-      throw new Error(await readApiErrorMessage(res, t('createFailed')))
-    }
-
-    queryClient.invalidateQueries({ queryKey: queryKeys.projectData(projectId) })
-  }
-
   const handleManualCreateFromWizard = async (rawContent?: string) => {
     if (creationModeSubmitRef.current) return
     creationModeSubmitRef.current = true
     try {
-      const episodeId = await ensureInitialEpisode(rawContent || homeDraftContent)
+      const episodeId = await ensureInitialEpisode(rawContent || pendingImportText)
       if (importStatus === 'pending') {
         await updateProjectWorkflowMode('srt')
-        await markImportCompleted()
-      }
-      if (typeof window !== 'undefined') {
-        window.sessionStorage.removeItem(`nori:home-draft:${projectId}`)
+        queryClient.invalidateQueries({ queryKey: queryKeys.projectData(projectId) })
       }
       updateUrlParams({ stage: 'config', episode: episodeId })
     } catch (err) {
@@ -456,7 +504,7 @@ export default function ProjectDetailPage() {
               onManualCreate={(rawContent) => { void handleManualCreateFromWizard(rawContent) }}
               onImportComplete={handleSmartImportComplete}
               importStatus={importStatus}
-              initialRawContent={homeDraftContent}
+              initialRawContent={pendingImportText}
               autoAnalyzeInitialContent={false}
             />
           ) : selectedEpisodeId && currentEpisode ? (

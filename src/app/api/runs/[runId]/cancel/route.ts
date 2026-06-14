@@ -5,6 +5,7 @@ import { cancelTask } from '@/lib/task/service'
 import { getRunById, requestRunCancel } from '@/lib/run-runtime/service'
 import { publishRunEvent } from '@/lib/run-runtime/publisher'
 import { RUN_EVENT_TYPE, RUN_STATUS } from '@/lib/run-runtime/types'
+import { isPublicRunApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 export const POST = apiHandler(async (
   _request: NextRequest,
@@ -16,7 +17,7 @@ export const POST = apiHandler(async (
   const { runId } = await context.params
 
   const run = await getRunById(runId)
-  if (!run || run.userId !== session.user.id) {
+  if (!run || run.userId !== session.user.id || !isPublicRunApiVisible(run)) {
     throw new ApiError('NOT_FOUND')
   }
 
@@ -29,7 +30,10 @@ export const POST = apiHandler(async (
   }
 
   if (cancelledRun.taskId) {
-    await cancelTask(cancelledRun.taskId, 'Run cancelled by user')
+    await cancelTask(cancelledRun.taskId, 'Run cancelled by user', {
+      userId: session.user.id,
+      projectId: cancelledRun.projectId,
+    })
   }
 
   if (
@@ -52,4 +56,3 @@ export const POST = apiHandler(async (
     run: cancelledRun,
   })
 })
-

@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -21,18 +22,68 @@ export const POST = apiHandler(async (
   }
   const panelId = typeof body?.panelId === 'string' ? body.panelId.trim() : ''
   const episodeId = typeof body?.episodeId === 'string' ? body.episodeId.trim() : ''
+  let scopedPanelId = panelId
+  let scopedEpisodeId = episodeId || null
+
+  if (panelId) {
+    const panel = await prisma.novelPromotionPanel.findFirst({
+      where: {
+        id: panelId,
+        storyboard: {
+          episode: {
+            novelPromotionProject: {
+              projectId,
+            },
+          },
+        },
+      },
+      select: {
+        id: true,
+        storyboard: {
+          select: {
+            episode: {
+              select: { id: true },
+            },
+          },
+        },
+      },
+    })
+    if (!panel) {
+      throw new ApiError('NOT_FOUND')
+    }
+    scopedPanelId = panel.id
+    scopedEpisodeId = panel.storyboard.episode.id
+  } else if (episodeId) {
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!episode) {
+      throw new ApiError('NOT_FOUND')
+    }
+    scopedEpisodeId = episode.id
+  }
 
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
-    episodeId: episodeId || null,
+    episodeId: scopedEpisodeId,
     type: TASK_TYPE.AI_MODIFY_SHOT_PROMPT,
-    targetType: panelId ? 'NovelPromotionPanel' : 'NovelPromotionProject',
-    targetId: panelId || projectId,
+    targetType: scopedPanelId ? 'NovelPromotionPanel' : 'NovelPromotionProject',
+    targetId: scopedPanelId || projectId,
     routePath: `/api/novel-promotion/${projectId}/ai-modify-shot-prompt`,
-    body,
-    dedupeKey: panelId ? `ai_modify_shot_prompt:${panelId}` : `ai_modify_shot_prompt:${projectId}`})
+    body: {
+      ...body,
+      ...(scopedPanelId ? { panelId: scopedPanelId } : {}),
+      ...(scopedEpisodeId ? { episodeId: scopedEpisodeId } : {}),
+    },
+    dedupeKey: scopedPanelId ? `ai_modify_shot_prompt:${scopedPanelId}` : `ai_modify_shot_prompt:${projectId}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

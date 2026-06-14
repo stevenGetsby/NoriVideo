@@ -4,6 +4,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
+import { prisma } from '@/lib/prisma'
 
 function parseReferenceImages(body: Record<string, unknown>): string[] {
   const list = Array.isArray(body.referenceImageUrls)
@@ -36,10 +37,51 @@ export const POST = apiHandler(async (
   body.count = count
 
   const isBackgroundJob = body.isBackgroundJob === true || body.isBackgroundJob === 1 || body.isBackgroundJob === '1'
-  const characterId = typeof body.characterId === 'string' ? body.characterId : ''
-  const appearanceId = typeof body.appearanceId === 'string' ? body.appearanceId : ''
+  const characterId = typeof body.characterId === 'string' ? body.characterId.trim() : ''
+  const appearanceId = typeof body.appearanceId === 'string' ? body.appearanceId.trim() : ''
   if (isBackgroundJob && (!characterId || !appearanceId)) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  if (characterId) {
+    body.characterId = characterId
+  }
+  if (appearanceId) {
+    body.appearanceId = appearanceId
+  }
+
+  let targetType = appearanceId ? 'CharacterAppearance' : 'NovelPromotionProject'
+  let targetId = projectId
+  if (appearanceId) {
+    const appearance = await prisma.characterAppearance.findFirst({
+      where: {
+        id: appearanceId,
+        ...(characterId ? { characterId } : {}),
+        character: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (!appearance) {
+      throw new ApiError('NOT_FOUND')
+    }
+    targetId = appearance.id
+  } else if (characterId) {
+    const character = await prisma.novelPromotionCharacter.findFirst({
+      where: {
+        id: characterId,
+        novelPromotionProject: {
+          projectId,
+        },
+      },
+      select: { id: true },
+    })
+    if (!character) {
+      throw new ApiError('NOT_FOUND')
+    }
+    targetId = character.id
   }
 
   const asyncTaskResponse = await maybeSubmitLLMTask({
@@ -47,11 +89,11 @@ export const POST = apiHandler(async (
     userId: session.user.id,
     projectId,
     type: TASK_TYPE.REFERENCE_TO_CHARACTER,
-    targetType: appearanceId ? 'CharacterAppearance' : 'NovelPromotionProject',
-    targetId: appearanceId || characterId || projectId,
+    targetType,
+    targetId,
     routePath: `/api/novel-promotion/${projectId}/reference-to-character`,
     body,
-    dedupeKey: `reference_to_character:${appearanceId || characterId || projectId}:${count}`})
+    dedupeKey: `reference_to_character:${targetId}:${count}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

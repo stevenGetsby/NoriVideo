@@ -59,7 +59,7 @@ export function ProviderCardShell({
   const compatibilityLayerLabel = getCompatibilityLayerBadgeLabel(provider.id, t)
   const providerKey = getProviderKey(provider.id)
   const isVerifiable = VERIFIABLE_PROVIDER_KEYS.has(providerKey)
-  const canTest = isVerifiable && !!provider.hasApiKey
+  const canTest = isVerifiable && !!provider.apiKey
   const isHidden = provider.hidden === true
   const hiddenToggleLabel = isHidden
     ? (showProviderLabel || t('showProvider'))

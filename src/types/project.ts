@@ -264,6 +264,9 @@ export interface NovelPromotionProject {
   capabilityOverrides?: CapabilitySelections | string | null
   ttsRate: string
   workflowMode: WorkflowMode  // 新增：工作流模式
+  importStatus?: string | null
+  pendingImportText?: string | null
+  pendingImportEpisodeName?: string | null
   artStyle: string
   artStylePrompt: string | null
   audioUrl: string | null

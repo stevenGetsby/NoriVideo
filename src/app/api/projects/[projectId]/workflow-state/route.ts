@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { readWorkflowStageReview } from '@/lib/workspace/workflow-stage-review-store'
+import { readWorkflowStageReviewWithMeta } from '@/lib/workspace/workflow-stage-review-store'
 
-type WorkflowStageId = 'config' | 'script' | 'storyboard' | 'videos' | 'voice' | 'editor'
+const WORKFLOW_STAGE_IDS = ['config', 'script', 'storyboard', 'videos', 'voice', 'editor'] as const
+
+type WorkflowStageId = typeof WORKFLOW_STAGE_IDS[number]
 type WorkflowStageStatus = 'empty' | 'active' | 'processing' | 'ready'
 
 function hasText(value: string | null | undefined) {
@@ -33,12 +35,76 @@ function buildStage(
   }
 }
 
+function toObject(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return value as Record<string, unknown>
+}
+
+function readSummaryText(value: unknown) {
+  const summary = toObject(value)
+  return typeof summary.message === 'string' && summary.message.trim() ? summary.message.trim() : null
+}
+
+function overlayRuntimeStages(
+  stages: ReturnType<typeof buildStage>[],
+  rows: Array<{
+    stageKey: string
+    status: string
+    progress: number | null
+    lastRunId: string | null
+    lastTaskId: string | null
+    summary: unknown
+    errorCode: string | null
+    errorMessage: string | null
+    blocker: string | null
+    updatedAt: Date
+  }>,
+) {
+  const runtimeMap = new Map<string, (typeof rows)[number]>()
+  for (const row of rows) {
+    if (!runtimeMap.has(row.stageKey)) {
+      runtimeMap.set(row.stageKey, row)
+    }
+  }
+  return stages.map((stage) => {
+    const runtime = runtimeMap.get(stage.id)
+    if (!runtime) return stage
+
+    const runtimeIsActive = runtime.status === 'queued' || runtime.status === 'running'
+    const runtimeIsFailed = runtime.status === 'failed' || runtime.status === 'canceled'
+    const runtimeProgress = typeof runtime.progress === 'number' ? runtime.progress : null
+    const nextProgress = runtimeProgress === null
+      ? stage.progress
+      : runtimeIsActive
+        ? Math.max(stage.progress, runtimeProgress)
+        : runtime.status === 'completed'
+          ? Math.max(stage.progress, runtimeProgress)
+          : stage.progress
+
+    return {
+      ...stage,
+      status: runtimeIsActive && stage.status !== 'ready' ? 'processing' as const : stage.status,
+      progress: Math.max(0, Math.min(100, Math.round(nextProgress))),
+      reason: runtimeIsFailed
+        ? (runtime.errorMessage || runtime.blocker || stage.reason)
+        : stage.reason,
+      runtimeState: runtime.status,
+      runtimeUpdatedAt: runtime.updatedAt.toISOString(),
+      runtimeMessage: readSummaryText(runtime.summary),
+      lastRunId: runtime.lastRunId,
+      lastTaskId: runtime.lastTaskId,
+      errorCode: runtime.errorCode,
+      errorMessage: runtime.errorMessage,
+    }
+  })
+}
+
 export const GET = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> },
 ) => {
   const { projectId } = await context.params
-  const episodeId = request.nextUrl.searchParams.get('episodeId')
+  const episodeId = request.nextUrl.searchParams.get('episodeId')?.trim() || null
 
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
@@ -66,6 +132,9 @@ export const GET = apiHandler(async (
   })
 
   if (!novelPromotionData) {
+    throw new ApiError('NOT_FOUND')
+  }
+  if (episodeId && novelPromotionData.episodes.length === 0) {
     throw new ApiError('NOT_FOUND')
   }
 
@@ -145,18 +214,48 @@ export const GET = apiHandler(async (
     ),
   ]
 
-  const reviewStates = await readWorkflowStageReview({
+  const reviewPayload = await readWorkflowStageReviewWithMeta({
     userId: authResult.session.user.id,
     projectId,
     episodeId,
   })
+  const runtimeRows = await prisma.workflowStageState.findMany({
+    where: {
+      userId: authResult.session.user.id,
+      projectId,
+      scopeId: episodeId || 'project',
+      stageKey: {
+        in: [...WORKFLOW_STAGE_IDS],
+      },
+      status: {
+        in: ['queued', 'running', 'completed', 'failed', 'canceled', 'pending_review', 'approved', 'stale'],
+      },
+    },
+    select: {
+      stageKey: true,
+      status: true,
+      progress: true,
+      lastRunId: true,
+      lastTaskId: true,
+      summary: true,
+      errorCode: true,
+      errorMessage: true,
+      blocker: true,
+      updatedAt: true,
+    },
+    orderBy: {
+      updatedAt: 'desc',
+    },
+  })
+  const stagesWithRuntime = overlayRuntimeStages(stages, runtimeRows)
 
   return NextResponse.json({
     projectId,
     episodeId: episodeId || null,
     source: 'derived',
     updatedAt: new Date().toISOString(),
-    reviewStates,
-    stages,
+    reviewStateSource: reviewPayload.source,
+    reviewStates: reviewPayload.states,
+    stages: stagesWithRuntime,
   })
 })

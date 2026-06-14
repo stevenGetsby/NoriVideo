@@ -8,8 +8,11 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { SuperAgentOrchestrator } from '@/lib/super-agent/orchestrator'
 import { normalizeExecutionMode } from '@/lib/super-agent/plan-utils'
+import { assertInternalAgentApiEnabled } from '@/lib/super-agent/internal-api-guard'
 
 export const POST = apiHandler(async (request: NextRequest) => {
+  assertInternalAgentApiEnabled()
+
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 

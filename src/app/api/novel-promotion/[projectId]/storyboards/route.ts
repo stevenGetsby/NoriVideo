@@ -25,9 +25,22 @@ export const GET = apiHandler(async (
         throw new ApiError('INVALID_PARAMS')
     }
 
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+        where: {
+            id: episodeId,
+            novelPromotionProject: {
+                projectId
+            }
+        },
+        select: { id: true }
+    })
+    if (!episode) {
+        throw new ApiError('NOT_FOUND')
+    }
+
     // 获取剧集的分镜数据
     const storyboards = await prisma.novelPromotionStoryboard.findMany({
-        where: { episodeId },
+        where: { episodeId: episode.id },
         include: {
             clip: true,
             panels: { orderBy: { panelIndex: 'asc' } }
@@ -61,8 +74,23 @@ export const PATCH = apiHandler(async (
         throw new ApiError('INVALID_PARAMS')
     }
 
+    const storyboard = await prisma.novelPromotionStoryboard.findFirst({
+        where: {
+            id: storyboardId,
+            episode: {
+                novelPromotionProject: {
+                    projectId
+                }
+            }
+        },
+        select: { id: true }
+    })
+    if (!storyboard) {
+        throw new ApiError('NOT_FOUND')
+    }
+
     await prisma.novelPromotionStoryboard.update({
-        where: { id: storyboardId },
+        where: { id: storyboard.id },
         data: { lastError: null }})
 
     return NextResponse.json({ success: true })

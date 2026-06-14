@@ -6,6 +6,7 @@ import { getObjectBuffer, toFetchableUrl } from '@/lib/storage'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
 
 interface PanelData {
   panelIndex: number | null
@@ -33,20 +34,30 @@ export const GET = apiHandler(async (
 ) => {
   const { projectId } = await context.params
   const { searchParams } = new URL(request.url)
-  const episodeId = searchParams.get('episodeId')
 
   // 🔐 统一权限验证
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
   const { project } = authResult
+  const scope = await resolveExportScope({
+    projectId,
+    episodeId: searchParams.get('episodeId'),
+  })
+  if (!scope) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const { episodeId } = scope
 
   // 根据是否指定 episodeId 来获取数据
   let episodes: EpisodeData[] = []
 
   if (episodeId) {
     // 只获取指定剧集的数据
-    const episode = await prisma.novelPromotionEpisode.findUnique({
-      where: { id: episodeId },
+    const episode = await prisma.novelPromotionEpisode.findFirst({
+      where: {
+        id: episodeId,
+        novelPromotionProject: { projectId },
+      },
       include: {
         storyboards: {
           include: {
@@ -212,7 +223,10 @@ export const GET = apiHandler(async (
   return new Response(stream, {
     headers: {
       'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_images.zip"`
+      'Content-Disposition': `attachment; filename="${encodeURIComponent(project.name)}_images.zip"`,
+      'X-Nori-Delivery-Mode': 'compat-sync-download',
+      'X-Nori-Replacement-Endpoint': `/api/novel-promotion/${projectId}/export-queue`,
+      'X-Nori-Replacement-Artifact': `/api/novel-promotion/${projectId}/export-artifact`,
     }
   })
 })

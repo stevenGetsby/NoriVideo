@@ -60,6 +60,21 @@ export const REQUIREMENTS_MATRIX: ReadonlyArray<RequirementCoverageEntry> = [
     ],
   },
   {
+    id: 'REQ-NP-EXPORT-DELIVERY',
+    feature: 'Novel promotion export delivery',
+    userValue: '导出交付通过后端队列、worker artifact、历史记录和受控下载完成',
+    risk: '导出页绕过任务队列或 artifact 权限校验，导致刷新不可恢复、历史缺失或下载泄漏',
+    priority: 'P0',
+    tests: [
+      'tests/unit/novel-promotion/export-readiness.test.ts',
+      'tests/unit/novel-promotion/export-queue-route-source.test.ts',
+      'tests/unit/novel-promotion/export-artifact.test.ts',
+      'tests/unit/novel-promotion/export-artifact-route-source.test.ts',
+      'tests/unit/novel-promotion/download-compat-route-source.test.ts',
+      'tests/unit/worker/export-delivery.test.ts',
+    ],
+  },
+  {
     id: 'REQ-NP-INSERT-PANEL-AUTO-ANALYZE',
     feature: 'Novel promotion insert panel',
     userValue: 'AI 自动分析插入分镜时不会因空输入失败',

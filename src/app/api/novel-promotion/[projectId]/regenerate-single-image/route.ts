@@ -11,6 +11,7 @@ import {
   hasCharacterAppearanceOutput,
   hasLocationImageOutput
 } from '@/lib/task/has-output'
+import { prisma } from '@/lib/prisma'
 
 function toNumber(value: unknown) {
   const parsed = Number(value)
@@ -29,12 +30,13 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const locale = resolveRequiredTaskLocale(request, body)
-  const type = body?.type
-  const id = body?.id
-  const appearanceId = body?.appearanceId
+  const type = typeof body?.type === 'string' ? body.type.trim() : ''
+  const id = typeof body?.id === 'string' ? body.id.trim() : ''
+  const appearanceId = typeof body?.appearanceId === 'string' ? body.appearanceId.trim() : ''
   const imageIndex = body?.imageIndex
 
-  if (!type || !id || imageIndex === undefined) {
+  const parsedImageIndex = toNumber(imageIndex)
+  if (!type || !id || parsedImageIndex === null) {
     throw new ApiError('INVALID_PARAMS')
   }
 
@@ -44,11 +46,61 @@ export const POST = apiHandler(async (
 
   const taskType = type === 'character' ? TASK_TYPE.IMAGE_CHARACTER : TASK_TYPE.IMAGE_LOCATION
   const targetType = type === 'character' ? 'CharacterAppearance' : 'LocationImage'
-  const targetId = type === 'character' ? (appearanceId || id) : id
-  const parsedImageIndex = toNumber(imageIndex)
+  let targetId = type === 'character' ? (appearanceId || id) : id
+  if (type === 'character') {
+    if (appearanceId) {
+      const appearance = await prisma.characterAppearance.findFirst({
+        where: {
+          id: appearanceId,
+          characterId: id,
+          character: {
+            novelPromotionProject: {
+              projectId,
+            },
+          },
+        },
+        select: { id: true },
+      })
+      if (!appearance) {
+        throw new ApiError('NOT_FOUND')
+      }
+      targetId = appearance.id
+    } else {
+      const character = await prisma.novelPromotionCharacter.findFirst({
+        where: {
+          id,
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+        select: { id: true },
+      })
+      if (!character) {
+        throw new ApiError('NOT_FOUND')
+      }
+      targetId = character.id
+    }
+  } else {
+    const image = await prisma.locationImage.findFirst({
+      where: {
+        locationId: id,
+        imageIndex: parsedImageIndex,
+        location: {
+          novelPromotionProject: {
+            projectId,
+          },
+        },
+      },
+      select: { id: true },
+    })
+    if (!image) {
+      throw new ApiError('NOT_FOUND')
+    }
+  }
+
   const hasOutputAtStart = type === 'character'
     ? await hasCharacterAppearanceOutput({
-      appearanceId: targetId,
+      appearanceId: appearanceId ? targetId : undefined,
       characterId: id
     })
     : await hasLocationImageOutput({
@@ -60,6 +112,13 @@ export const POST = apiHandler(async (
   const imageModel = type === 'character'
     ? projectModelConfig.characterModel
     : projectModelConfig.locationModel
+  const basePayload = {
+    ...body,
+    type,
+    id,
+    ...(appearanceId ? { appearanceId: targetId } : {}),
+    imageIndex: parsedImageIndex,
+  }
 
   let billingPayload: Record<string, unknown>
   try {
@@ -67,7 +126,7 @@ export const POST = apiHandler(async (
       projectId,
       userId: session.user.id,
       imageModel,
-      basePayload: body,
+      basePayload,
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Image model capability not configured'

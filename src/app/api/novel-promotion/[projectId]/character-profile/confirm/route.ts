@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 /**
  * 确认角色档案并生成视觉描述
@@ -24,16 +25,32 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
+  const character = await prisma.novelPromotionCharacter.findFirst({
+    where: {
+      id: characterId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
+    select: { id: true },
+  })
+  if (!character) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
     type: TASK_TYPE.CHARACTER_PROFILE_CONFIRM,
     targetType: 'NovelPromotionCharacter',
-    targetId: characterId,
+    targetId: character.id,
     routePath: `/api/novel-promotion/${projectId}/character-profile/confirm`,
-    body,
-    dedupeKey: `character_profile_confirm:${characterId}`})
+    body: {
+      ...body,
+      characterId: character.id,
+    },
+    dedupeKey: `character_profile_confirm:${character.id}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

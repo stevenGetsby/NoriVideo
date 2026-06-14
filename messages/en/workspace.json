@@ -28,6 +28,7 @@
     "title": "Project Production Overview",
     "subtitle": "Summarizes current project status across script, asset, storyboard, and delivery stages from the project entry.",
     "local": "Project List",
+    "source": "Backend Status",
     "ready": "Ready",
     "pending": "Pending",
     "waiting": "Not Started",
@@ -58,7 +59,10 @@
   },
   "projectBadge": {
     "active": "In Production",
-    "draft": "Draft"
+    "draft": "Draft",
+    "running": "Running",
+    "blocked": "Needs Attention",
+    "review": "Review"
   },
   "searchPlaceholder": "Search project name or description...",
   "searchButton": "Search",

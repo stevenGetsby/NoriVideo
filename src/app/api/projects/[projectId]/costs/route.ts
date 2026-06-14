@@ -21,24 +21,23 @@ export const GET = apiHandler(async (
   const { projectId } = await context.params
 
   // 验证项目归属
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
-    select: { userId: true, name: true }
+  const project = await prisma.project.findFirst({
+    where: {
+      id: projectId,
+      userId: session.user.id,
+    },
+    select: { id: true, name: true }
   })
 
   if (!project) {
     throw new ApiError('NOT_FOUND')
   }
 
-  if (project.userId !== session.user.id) {
-    throw new ApiError('FORBIDDEN')
-  }
-
   // 获取费用详情
-  const costDetails = await getProjectCostDetails(projectId)
+  const costDetails = await getProjectCostDetails(project.id)
 
   return NextResponse.json({
-    projectId,
+    projectId: project.id,
     projectName: project.name,
     currency: BILLING_CURRENCY,
     ...costDetails

@@ -9,6 +9,7 @@ interface EpisodeStagePayload {
   novelText?: string | null
   clips?: NovelPromotionClip[]
   storyboards?: NovelPromotionStoryboard[]
+  voiceLines?: Array<{ audioUrl?: string | null }>
 }
 
 export function useWorkspaceEpisodeStageData() {
@@ -21,5 +22,6 @@ export function useWorkspaceEpisodeStageData() {
     novelText: payload?.novelText || '',
     clips: payload?.clips || [],
     storyboards: payload?.storyboards || [],
+    voiceLines: payload?.voiceLines || [],
   }
 }

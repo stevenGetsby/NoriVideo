@@ -267,6 +267,8 @@ model NovelPromotionProject {
   lastEpisodeId       String?
   imageResolution     String                    @default("2K")
   importStatus        String?
+  pendingImportText   String?
+  pendingImportEpisodeName String?
   characters          NovelPromotionCharacter[]
   episodes            NovelPromotionEpisode[]
   locations           NovelPromotionLocation[]
@@ -425,8 +427,50 @@ model User {
   tasks              Task[]
   taskEvents         TaskEvent[]
   videoEnhanceTasks  VideoEnhanceTask[]
+  workspaceTeamProfile WorkspaceTeamProfile?
+  workspaceTeamSeats WorkspaceTeamSeat[] @relation("WorkspaceTeamSeatMember")
 
   @@map("user")
+}
+
+model WorkspaceTeamProfile {
+  id          String   @id @default(uuid())
+  userId      String   @unique
+  mode        String   @default("personal")
+  displayName String?
+  seatLimit   Int      @default(1)
+  settings    Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  seats WorkspaceTeamSeat[]
+
+  @@index([mode])
+  @@map("workspace_team_profiles")
+}
+
+model WorkspaceTeamSeat {
+  id             String    @id @default(uuid())
+  profileId      String
+  memberUserId   String?
+  role           String
+  status         String    @default("reserved")
+  displayName    String?
+  email          String?
+  permissions    Json?
+  lastActivityAt DateTime?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
+
+  profile WorkspaceTeamProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  member  User?                @relation("WorkspaceTeamSeatMember", fields: [memberUserId], references: [id], onDelete: SetNull)
+
+  @@unique([profileId, role])
+  @@index([memberUserId, role])
+  @@index([status])
+  @@map("workspace_team_seats")
 }
 
 model VideoEnhanceTask {
@@ -483,6 +527,9 @@ model UserPreference {
   updatedAt           DateTime @default(now()) @updatedAt
   imageResolution     String   @default("2K")
   capabilityDefaults  String?
+  imageGenerationCounts Json?
+  videoEnhanceSettings Json?
+  mutedUpdateVersion  String?
 
   // API Key 配置（极简版）
   llmBaseUrl  String? @default("https://openrouter.ai/api/v1")

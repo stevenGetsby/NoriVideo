@@ -8,6 +8,7 @@ import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useRouter } from '@/i18n/navigation'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import { normalizeVideoEnhanceSettings } from '@/lib/video-enhance/settings'
 
 type SourceMode = 'file' | 'url'
 type ResolutionMode = 'preset' | 'limit' | 'original'
@@ -447,54 +448,77 @@ export default function VideoEnhanceClient() {
     if (!session) router.push({ pathname: '/auth/signin' })
   }, [session, status, router])
 
-  useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(VIDEO_ENHANCE_SETTINGS_KEY)
-      if (raw) {
-        const settings = JSON.parse(raw) as Partial<{
-          sourceMode: SourceMode
-          videoUrls: string
-          toolVersion: 'standard' | 'professional'
-          scene: string
-          resolutionMode: ResolutionMode
-          resolution: string
-          resolutionLimit: string
-          fps: string
-          clientToken: string
-          callbackArgs: string
-          showAdvanced: boolean
-          submitConcurrency: string
-          downloadDirectoryPath: string
-        }>
-        if (settings.sourceMode === 'file' || settings.sourceMode === 'url') setSourceMode(settings.sourceMode)
-        if (typeof settings.videoUrls === 'string') setVideoUrls(settings.videoUrls)
-        if (settings.toolVersion === 'standard' || settings.toolVersion === 'professional') setToolVersion(settings.toolVersion)
-        if (typeof settings.scene === 'string') setScene(settings.scene)
-        if (settings.resolutionMode === 'preset' || settings.resolutionMode === 'limit' || settings.resolutionMode === 'original') setResolutionMode(settings.resolutionMode)
-        if (typeof settings.resolution === 'string') setResolution(settings.resolution)
-        if (typeof settings.resolutionLimit === 'string') setResolutionLimit(settings.resolutionLimit)
-        if (typeof settings.fps === 'string') setFps(settings.fps)
-        if (typeof settings.clientToken === 'string') setClientToken(settings.clientToken)
-        if (typeof settings.callbackArgs === 'string') setCallbackArgs(settings.callbackArgs)
-        if (typeof settings.showAdvanced === 'boolean') setShowAdvanced(settings.showAdvanced)
-        if (typeof settings.submitConcurrency === 'string') setSubmitConcurrency(settings.submitConcurrency)
-        if (typeof settings.downloadDirectoryPath === 'string') {
-          const shouldClearLegacyDefault = settings.downloadDirectoryPath === LEGACY_DEFAULT_DOWNLOAD_DIRECTORY
-            && window.localStorage.getItem(VIDEO_ENHANCE_DOWNLOAD_PATH_MIGRATION_KEY) !== '1'
-          setDownloadDirectoryPath(shouldClearLegacyDefault ? '' : settings.downloadDirectoryPath)
-          if (shouldClearLegacyDefault) window.localStorage.setItem(VIDEO_ENHANCE_DOWNLOAD_PATH_MIGRATION_KEY, '1')
-        }
-      }
-    } catch {
-      window.localStorage.removeItem(VIDEO_ENHANCE_SETTINGS_KEY)
-    } finally {
-      setSettingsLoaded(true)
+  const applyPersistedSettings = useCallback((value: unknown) => {
+    const settings = normalizeVideoEnhanceSettings(value)
+    setSourceMode(settings.sourceMode)
+    setToolVersion(settings.toolVersion)
+    setScene(settings.scene)
+    setResolutionMode(settings.resolutionMode)
+    setResolution(settings.resolution)
+    setResolutionLimit(settings.resolutionLimit)
+    setFps(settings.fps)
+    setShowAdvanced(settings.showAdvanced)
+    setSubmitConcurrency(settings.submitConcurrency)
+    if (
+      value
+      && typeof value === 'object'
+      && !Array.isArray(value)
+      && Object.prototype.hasOwnProperty.call(value, 'videoUrlsDraft')
+    ) {
+      setVideoUrls(settings.videoUrlsDraft)
     }
   }, [])
 
   useEffect(() => {
+    if (status === 'loading') return
+    let cancelled = false
+    setSettingsLoaded(false)
+
+    void (async () => {
+      try {
+        const raw = window.localStorage.getItem(VIDEO_ENHANCE_SETTINGS_KEY)
+        if (raw) {
+          const parsed = JSON.parse(raw) as Record<string, unknown>
+          applyPersistedSettings(parsed)
+          if (typeof parsed.videoUrls === 'string') setVideoUrls(parsed.videoUrls)
+          if (typeof parsed.clientToken === 'string') setClientToken(parsed.clientToken)
+          if (typeof parsed.callbackArgs === 'string') setCallbackArgs(parsed.callbackArgs)
+          if (typeof parsed.downloadDirectoryPath === 'string') {
+            const shouldClearLegacyDefault = parsed.downloadDirectoryPath === LEGACY_DEFAULT_DOWNLOAD_DIRECTORY
+              && window.localStorage.getItem(VIDEO_ENHANCE_DOWNLOAD_PATH_MIGRATION_KEY) !== '1'
+            setDownloadDirectoryPath(shouldClearLegacyDefault ? '' : parsed.downloadDirectoryPath)
+            if (shouldClearLegacyDefault) window.localStorage.setItem(VIDEO_ENHANCE_DOWNLOAD_PATH_MIGRATION_KEY, '1')
+          }
+        }
+      } catch {
+        window.localStorage.removeItem(VIDEO_ENHANCE_SETTINGS_KEY)
+      }
+
+      if (status === 'authenticated') {
+        try {
+          const response = await apiFetch('/api/user-preference')
+          if (response.ok) {
+            const data = await response.json() as {
+              preference?: { videoEnhanceSettings?: unknown } | null
+            }
+            if (!cancelled && data.preference?.videoEnhanceSettings) {
+              applyPersistedSettings(data.preference.videoEnhanceSettings)
+            }
+          }
+        } catch {
+          // Keep browser settings when account preferences are unavailable.
+        }
+      }
+
+      if (!cancelled) setSettingsLoaded(true)
+    })()
+
+    return () => { cancelled = true }
+  }, [applyPersistedSettings, status])
+
+  useEffect(() => {
     if (!settingsLoaded) return
-    window.localStorage.setItem(VIDEO_ENHANCE_SETTINGS_KEY, JSON.stringify({
+    const localSettings = {
       sourceMode,
       videoUrls,
       toolVersion,
@@ -503,13 +527,28 @@ export default function VideoEnhanceClient() {
       resolution,
       resolutionLimit,
       fps,
+      videoUrlsDraft: videoUrls,
       clientToken,
       callbackArgs,
       showAdvanced,
       submitConcurrency,
       downloadDirectoryPath,
-    }))
-  }, [callbackArgs, clientToken, downloadDirectoryPath, fps, resolution, resolutionLimit, resolutionMode, scene, settingsLoaded, showAdvanced, sourceMode, submitConcurrency, toolVersion, videoUrls])
+    }
+    window.localStorage.setItem(VIDEO_ENHANCE_SETTINGS_KEY, JSON.stringify(localSettings))
+    if (status !== 'authenticated') return
+
+    const timer = window.setTimeout(() => {
+      void apiFetch('/api/user-preference', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          videoEnhanceSettings: normalizeVideoEnhanceSettings(localSettings),
+        }),
+      }).catch(() => undefined)
+    }, 500)
+
+    return () => window.clearTimeout(timer)
+  }, [callbackArgs, clientToken, downloadDirectoryPath, fps, resolution, resolutionLimit, resolutionMode, scene, settingsLoaded, showAdvanced, sourceMode, status, submitConcurrency, toolVersion, videoUrls])
 
   useEffect(() => {
     if (status !== 'authenticated' || !session) return

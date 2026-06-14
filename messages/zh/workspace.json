@@ -28,6 +28,7 @@
     "title": "项目生产概览",
     "subtitle": "按剧本、资产、分镜和交付阶段汇总当前项目状态，帮助从项目入口快速判断生产进度。",
     "local": "项目列表",
+    "source": "后端状态",
     "ready": "已就绪",
     "pending": "待处理",
     "waiting": "未开始",
@@ -58,7 +59,10 @@
   },
   "projectBadge": {
     "active": "制作中",
-    "draft": "草稿"
+    "draft": "草稿",
+    "running": "运行中",
+    "blocked": "需处理",
+    "review": "待复核"
   },
   "searchPlaceholder": "搜索项目名称或描述...",
   "searchButton": "搜索",

@@ -3,6 +3,7 @@ import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { prisma } from '@/lib/prisma'
 
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -24,18 +25,32 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  const location = await prisma.novelPromotionLocation.findFirst({
+    where: {
+      id: locationId,
+      novelPromotionProject: {
+        projectId,
+      },
+    },
+    select: { id: true },
+  })
+  if (!location) {
+    throw new ApiError('NOT_FOUND')
+  }
+
   const asyncTaskResponse = await maybeSubmitLLMTask({
     request,
     userId: session.user.id,
     projectId,
     type: TASK_TYPE.AI_MODIFY_LOCATION,
     targetType: 'NovelPromotionLocation',
-    targetId: locationId,
+    targetId: location.id,
     routePath: `/api/novel-promotion/${projectId}/ai-modify-location`,
     body: {
       ...body,
+      locationId: location.id,
       imageIndex},
-    dedupeKey: `ai_modify_location:${locationId}:${imageIndex}`})
+    dedupeKey: `ai_modify_location:${location.id}:${imageIndex}`})
   if (asyncTaskResponse) return asyncTaskResponse
 
   throw new ApiError('INVALID_PARAMS')

@@ -7,7 +7,7 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { encryptApiKey, decryptApiKey } from '@/lib/crypto-utils'
+import { encryptApiKey } from '@/lib/crypto-utils'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import {
@@ -1716,7 +1716,8 @@ export const GET = apiHandler(async () => {
 
   const providers = parseStoredProviders(pref?.customProviders).map((provider) => ({
     ...provider,
-    apiKey: provider.apiKey ? decryptApiKey(provider.apiKey) : '',
+    apiKey: '',
+    hasApiKey: Boolean(provider.apiKey),
   }))
 
   const billingMode = await getBillingMode()

@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 describe('workspace agent mode input', () => {
-  it('auto-starts agent execution when entering agent mode with a prepared prompt from the workspace wizard', () => {
+  it('does not expose agent auto-start from the workspace import wizard', () => {
     const source = fs.readFileSync(
       path.join(
         process.cwd(),
@@ -14,8 +14,10 @@ describe('workspace agent mode input', () => {
 
     const superInputBlock = source.match(/<SuperInputBox[\s\S]*?\/>/)?.[0] ?? ''
 
-    expect(superInputBlock).toContain('autoExecute')
-    expect(superInputBlock).toContain('autoStart={Boolean(wizard.rawContent.trim())}')
+    expect(superInputBlock).toBe('')
+    expect(source).not.toContain('autoExecute')
+    expect(source).not.toContain('autoStart={Boolean(wizard.rawContent.trim())}')
+    expect(source).toContain('<StepSource')
   })
 
   it('does not expose the old Agent plan parameter confirmation panel', () => {
@@ -37,8 +39,8 @@ describe('workspace agent mode input', () => {
 
     expect(source).toContain("status === 'planning' || status === 'executing'")
     expect(source).toContain("phase={status}")
-    expect(source).toContain("lg:grid-cols-[minmax(0,1fr)_minmax(360px,440px)]")
-    expect(source).toContain('layout="side"')
+    expect(source).toContain("layout === 'side'")
+    expect(source).toContain("layout?: 'full' | 'side' | 'modal'")
     expect(source).toContain('Agent 正在规划创作流程')
     expect(source).toContain('规划完成后会自动进入执行')
   })
@@ -55,7 +57,7 @@ describe('workspace agent mode input', () => {
     expect(source).toContain('clearSuperAgentNavigationLock(targetProjectId)')
     expect(source).toContain('normalizeAgentResultWorkspaceUrl(data.result)')
     expect(source).toContain('normalizeAgentWorkspaceVideoUrl(output.workspaceUrl, output.episodeId)')
-    expect(source).toContain('完成后会直接进入成片总览')
+    expect(source).toContain('全部完成后会直接打开成片总览')
     expect(source).toContain('Nori 会先锁定资产，再生成视频提示词，并用资产参考图直出单镜视频')
   })
 
@@ -69,25 +71,46 @@ describe('workspace agent mode input', () => {
     )
 
     expect(source).toContain("from '@/lib/super-agent/navigation-lock'")
-    expect(source).toContain('if (!isSuperAgentNavigationLocked(projectId))')
+    expect(source).toContain('/api/projects/${encodeURIComponent(projectId)}/navigation-state')
+    expect(source).toContain('navigationLocked?: boolean')
+    expect(source).toContain('serverAgentNavigationLocked || isSuperAgentNavigationLocked(projectId)')
+    expect(source).toContain('if (!isAgentNavigationLocked())')
     expect(source).toContain("onStageChange('script')")
     expect(source).toContain("onStageChange('storyboard')")
   })
 
-  it('lets users inspect workspace outputs while Agent automation is still running', () => {
+  it('keeps Agent automation as an internal backend-derived navigation state', () => {
+    const source = fs.readFileSync(
+      path.join(process.cwd(), 'src/app/api/projects/[projectId]/navigation-state/route.ts'),
+      'utf8',
+    )
+    const stateSource = fs.readFileSync(
+      path.join(process.cwd(), 'src/lib/super-agent/navigation-state.ts'),
+      'utf8',
+    )
+
+    expect(source).toContain("requireProjectAuthLight(projectId)")
+    expect(source).toContain('readSuperAgentNavigationState')
+    expect(source).toContain('navigationLocked: navigationState.locked')
+    expect(source).not.toContain('agentNavigation')
+    expect(stateSource).toContain("workflowType: SUPER_AGENT_WORKFLOW_TYPE")
+    expect(stateSource).toContain("targetType: 'project'")
+    expect(stateSource).toContain('recoverableOnly: true')
+  })
+
+  it('does not auto-create a zero-state episode while internal Agent automation is active', () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), 'src/app/[locale]/workspace/[projectId]/page.tsx'),
       'utf8',
     )
 
-    expect(source).toContain("from '@/lib/super-agent/navigation-lock'")
-    expect(source).toContain('const [agentNavigationLocked, setAgentNavigationLocked] = useState(false)')
-    expect(source).toContain("setAgentNavigationLocked(isSuperAgentNavigationLocked(projectId))")
-    expect(source).not.toContain("updates.stage !== 'videos' && isSuperAgentNavigationLocked(projectId)")
-    expect(source).toContain("const shouldShowImportWizard = importStatus === 'pending' || (agentNavigationLocked && isZeroState)")
-    expect(source).toContain("if (!agentNavigationLocked) return")
-    expect(source).toContain('queryKeys.storyboards.all(selectedEpisodeId)')
-    expect(source).toContain("const shouldAutoCreateEpisode = isZeroState && importStatus !== 'pending' && !agentNavigationLocked")
+    expect(source).toContain('/api/projects/${projectId}/navigation-state')
+    expect(source).toContain('navigationLocked?: boolean')
+    expect(source).toContain('setAgentNavigationWasLocked(true)')
+    expect(source).toContain("const shouldShowImportWizard = importStatus === 'pending' || (isZeroState && agentNavigationWasLocked)")
+    expect(source).toContain('&& !serverAgentNavigationLocked')
+    expect(source).toContain('&& !agentNavigationWasLocked')
+    expect(source).not.toContain("from '@/lib/super-agent/navigation-lock'")
   })
 
   it('uses bounded weighted Agent progress instead of max percent jumps', () => {
@@ -116,7 +139,7 @@ describe('workspace agent mode input', () => {
     expect(source).not.toContain('<StoryboardStage />')
   })
 
-  it('enters Agent input mode without calling the workspace episode-create handler', () => {
+  it('keeps Agent input mode out of the workspace import wizard', () => {
     const wizardSource = fs.readFileSync(
       path.join(
         process.cwd(),
@@ -129,9 +152,9 @@ describe('workspace agent mode input', () => {
       'utf8',
     )
 
-    expect(wizardSource).toContain('enableAgentCreate')
-    expect(wizardSource).toContain("wizard.setStage('agent')")
-    expect(pageSource).toContain('enableAgentCreate')
+    expect(wizardSource).not.toContain('enableAgentCreate')
+    expect(wizardSource).not.toContain("wizard.setStage('agent')")
+    expect(pageSource).not.toContain('enableAgentCreate')
     expect(pageSource).not.toContain('handleAgentCreateFromWizard')
     expect(pageSource).not.toContain('Agent 创建第一集失败')
   })

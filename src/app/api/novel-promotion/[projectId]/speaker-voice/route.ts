@@ -22,6 +22,25 @@ function signUrlIfNeeded(url: string): string {
   return getSignedUrl(url, 7200)
 }
 
+async function getProjectEpisode(projectId: string, episodeId: string) {
+  const projectData = await prisma.novelPromotionProject.findUnique({
+    where: { projectId },
+    select: { id: true },
+  })
+  if (!projectData) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  const episode = await prisma.novelPromotionEpisode.findFirst({
+    where: { id: episodeId, novelPromotionProjectId: projectData.id },
+  })
+  if (!episode) {
+    throw new ApiError('NOT_FOUND')
+  }
+
+  return episode
+}
+
 /**
  * GET /api/novel-promotion/[projectId]/speaker-voice?episodeId=xxx
  * 获取剧集的发言人音色配置
@@ -41,13 +60,7 @@ export const GET = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  const episode = await prisma.novelPromotionEpisode.findUnique({
-    where: { id: episodeId },
-  })
-
-  if (!episode) {
-    throw new ApiError('NOT_FOUND')
-  }
+  const episode = await getProjectEpisode(projectId, episodeId)
 
   const storedSpeakerVoices = parseSpeakerVoiceMap(episode.speakerVoices)
   const speakerVoices: SpeakerVoiceMap = {}
@@ -114,21 +127,7 @@ export const PATCH = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  const projectData = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    select: { id: true },
-  })
-  if (!projectData) {
-    throw new ApiError('NOT_FOUND')
-  }
-
-  const episode = await prisma.novelPromotionEpisode.findFirst({
-    where: { id: episodeId, novelPromotionProjectId: projectData.id },
-    select: { id: true, speakerVoices: true },
-  })
-  if (!episode) {
-    throw new ApiError('NOT_FOUND')
-  }
+  const episode = await getProjectEpisode(projectId, episodeId)
 
   const speakerVoices = parseSpeakerVoiceMap(episode.speakerVoices)
 

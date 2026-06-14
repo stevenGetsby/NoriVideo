@@ -4,7 +4,6 @@ import { execSync } from 'node:child_process'
 const ALLOWLIST = new Set([
   'src/app/api/auth/[...nextauth]/route.ts',
   'src/app/api/files/[...path]/route.ts',
-  'src/app/api/system/boot-id/route.ts',
 ])
 
 function main() {

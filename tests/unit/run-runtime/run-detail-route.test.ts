@@ -20,6 +20,8 @@ vi.mock('@/lib/run-runtime/service', () => serviceMock)
 describe('/api/runs/[runId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'false')
+    vi.stubEnv('NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS', 'false')
     authMock.requireUserAuth.mockResolvedValue({
       session: {
         user: { id: 'user-1' },
@@ -30,7 +32,7 @@ describe('/api/runs/[runId]', () => {
         id: 'run-1',
         userId: 'user-1',
         projectId: 'project-1',
-        workflowType: 'super_agent_creation',
+        workflowType: 'story_to_script_run',
       },
       steps: [],
     })
@@ -51,7 +53,7 @@ describe('/api/runs/[runId]', () => {
     expect(payload).toMatchObject({
       run: {
         id: 'run-1',
-        workflowType: 'super_agent_creation',
+        workflowType: 'story_to_script_run',
       },
       steps: [],
       events: [{ id: '1', seq: 1, eventType: 'run.start' }],
@@ -67,6 +69,54 @@ describe('/api/runs/[runId]', () => {
     expect(serviceMock.listArtifacts).toHaveBeenCalledWith({
       runId: 'run-1',
       limit: 500,
+    })
+  })
+
+  it('hides internal agent run detail by default', async () => {
+    serviceMock.getRunSnapshot.mockResolvedValue({
+      run: {
+        id: 'run-agent-1',
+        userId: 'user-1',
+        projectId: 'project-1',
+        workflowType: 'super_agent_creation',
+      },
+      steps: [],
+    })
+    const { GET } = await import('@/app/api/runs/[runId]/route')
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/runs/run-agent-1') as never,
+      { params: Promise.resolve({ runId: 'run-agent-1' }) },
+    )
+
+    expect(response.status).toBe(404)
+    expect(serviceMock.listRunEventsAfterSeq).not.toHaveBeenCalled()
+    expect(serviceMock.listArtifacts).not.toHaveBeenCalled()
+  })
+
+  it('allows internal agent run detail when internal tools are enabled', async () => {
+    vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'true')
+    serviceMock.getRunSnapshot.mockResolvedValue({
+      run: {
+        id: 'run-agent-1',
+        userId: 'user-1',
+        projectId: 'project-1',
+        workflowType: 'super_agent_creation',
+      },
+      steps: [],
+    })
+    const { GET } = await import('@/app/api/runs/[runId]/route')
+
+    const response = await GET(
+      new NextRequest('http://localhost/api/runs/run-agent-1') as never,
+      { params: Promise.resolve({ runId: 'run-agent-1' }) },
+    )
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(payload.run).toMatchObject({
+      id: 'run-agent-1',
+      workflowType: 'super_agent_creation',
     })
   })
 })
