@@ -34,6 +34,7 @@ import { resolveAnalysisModel } from './resolve-analysis-model'
 import { createArtifact, listArtifacts } from '@/lib/run-runtime/service'
 import { assertWorkflowRunActive, withWorkflowRunLease } from '@/lib/run-runtime/workflow-lease'
 import { parseScreenplayPayload } from './screenplay-convert-helpers'
+import { buildFrameosProductionContext } from '@/lib/novel-promotion/frameos-production-context'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -141,6 +142,12 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
   const payloadMeta = typeof payload.meta === 'object' && payload.meta !== null
     ? (payload.meta as AnyObj)
     : {}
+  const projectProductionContext = buildFrameosProductionContext({
+    project,
+    novelProject: novelData as unknown as Record<string, unknown>,
+    episode: episode as unknown as Record<string, unknown>,
+    payload,
+  })
   const runId = typeof payload.runId === 'string' && payload.runId.trim()
     ? payload.runId.trim()
     : (typeof payloadMeta.runId === 'string' ? payloadMeta.runId.trim() : '')
@@ -181,11 +188,11 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
     meta: StoryToScriptStepMeta,
     prompt: string,
     action: string,
-    _maxOutputTokens: number,
+    maxOutputTokens: number,
   ): Promise<StoryToScriptStepOutput> => {
-    void _maxOutputTokens
     const stepAttempt = meta.stepAttempt
       || (retryStepKey && meta.stepId === retryStepKey ? retryStepAttempt : 1)
+    const maxTokens = Math.min(12_000, Math.max(4_096, maxOutputTokens))
     await assertRunActive(`story_to_script_step:${meta.stepId}`)
     const progress = 15 + Math.min(55, Math.floor((meta.stepIndex / Math.max(1, meta.stepTotal)) * 55))
     await reportTaskProgress(job, progress, {
@@ -224,6 +231,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
       temperature,
       reasoning,
       reasoningEffort,
+      maxTokens,
     })
     await callbacks.flush()
 
@@ -290,6 +298,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           .replace('{characters_lib_name}', asString(splitPayload.charactersLibName) || '无')
           .replace('{props_lib_name}', asString(splitPayload.propsLibName) || '无')
           .replace('{characters_introduction}', asString(splitPayload.charactersIntroduction) || '暂无角色介绍')
+          .replace('{project_production_context}', asString(splitPayload.projectProductionContext) || projectProductionContext)
           .replace('{clip_id}', retryClipId)
 
         const stepMeta: StoryToScriptStepMeta = {
@@ -421,6 +430,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
                 name: item.name,
                 introduction: item.introduction || '',
               })),
+              projectProductionContext,
               promptTemplates: {
                 characterPromptTemplate,
                 locationPromptTemplate,
@@ -478,6 +488,7 @@ export async function handleStoryToScriptTask(job: Job<TaskJobData>) {
           locationsLibName: result.locationsLibName,
           propsLibName: result.propsLibName,
           charactersIntroduction: result.charactersIntroduction,
+          projectProductionContext: result.projectProductionContext || projectProductionContext,
         },
       })
       for (const screenplayResult of result.screenplayResults) {

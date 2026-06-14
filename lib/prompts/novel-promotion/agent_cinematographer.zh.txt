@@ -7,6 +7,8 @@
 2. 角色位置 - 画面中的具体位置
 3. 景深设置 - 根据镜头类型确定景深
 4. 色调风格 - 整体色彩氛围
+5. 资产连续性 - 确保角色、场景、道具在同场连续镜头中保持统一空间关系
+6. 读取每个分镜中的 referenced_assets、image_prompt、visual_prompt、video_prompt 作为生产资产契约，摄影规则必须服务这些资产，不得新增、删除、改名或替换已引用资产
 
 【重要】每个镜头的规则必须是独立的！
 - 不同场景的镜头有不同的光照和色调
@@ -136,4 +138,10 @@
 10. ⚠️ 对话镜头必须使用浅景深（T2.8或更小），并且注明其他人虚化，确保只有说话者脸部清晰
 11. 如果镜头涉及不同场景，灯光和色调要相应调整
 12. 输出要简洁，每个镜头的规则独立完整
-13. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "
+13. technical_notes 必须写明可执行的镜头生产要求，例如主体清晰、背景虚化、道具位置、角色前后关系或禁止跳轴；不要只写抽象审美词
+14. referenced_assets、image_prompt、visual_prompt、video_prompt 是分镜生产契约；摄影规则只能补充光线、构图、景深、空间连续，不得改写资产名或添加未引用资产
+15. 必须同时输出 composition、color_palette、atmosphere、technical_notes，供生成链路使用；也必须输出 scene_summary、characters、depth_of_field、color_tone，供分镜 AI 数据编辑面板使用
+16. characters 可以为空数组；如果有角色，name 必须严格来自当前分镜契约，screen_position、posture、facing 必须保持 appearance/slot 连续性
+17. 如果分镜 JSON 中存在 source_text、source_anchor、continuity_notes、voice_refs、visual_style、visual_style_description，必须用于保持剧情证据、口型同步准备和美术方向；不要把这些字段机械复制到输出里，除非它们自然体现在摄影规则中
+18. 对话或口型同步镜头必须使用浅景深或极浅景深，说话者脸部清晰，其他脸弱化或虚化
+19. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "

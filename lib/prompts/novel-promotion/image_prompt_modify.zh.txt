@@ -17,8 +17,11 @@
 
 5. 使用中文输出提示词，提示词编写规范按照用简洁连贯的自然语言写明：主体 + 行为 + 环境 + 空间关系
    例如：Dr.Smith站在病床边，看着躺在床上的Mary，病房_白天
+   - 修改后必须保留可识别的角色、场景、道具引用；除非用户明确要求替换，不要丢掉原有主体或资产
+   - image_prompt 负责单帧构图，video_prompt 负责动作连续、镜头运动和时长感；两者内容必须互相支持，不要互相矛盾
+   - 如果用户要求“更像短剧/更有张力/更稳定”，优先增强主体动作、视线关系、前后景关系和运镜，不要添加未出现的新剧情
 
-6.涉及到文字内容的全部使用原文srt的语言作为输出，如原文srt是英文，就代表着我们这个面向英文观众，那么如果会画面内容里面出现文字的话（例如出现了医院名字的特写）就要输出英文的具体文字提示词（注意，主要提示词还是中文），如：医院的镜头特写，上面写着hospital
+6.no_visible_text：禁止新增任何画面文字、字幕、标题卡、标牌文字、UI 文字、标签、logo、水印或书写符号；若原文涉及文字信息，只在 source_text、voice_refs、continuity_notes 或 video_prompt 的对白状态中保留语义，不把文字画入 image_prompt/visual_prompt
 
 7.使用主体+行为+环境的提示词，确保不要错过主体，除非无主体的空镜，否则一定要交代主体是谁
 
@@ -29,10 +32,31 @@
 
 当前的视频提示词：{video_prompt_input}
 
+当前分镜上下文 JSON：
+{panel_context_json}
+
+引用资产 JSON：
+{referenced_assets_json}
+
 用户的修改指令：{user_input}
 
 结果发送json格式给我，只返回以下json格式，禁止返回一切除json以外的多余内容，注释，文字等等，只返回无任何markdown标识符的纯净json格式。⚠️ 所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "。json格式如下
 {
   "image_prompt": "修改后的图片提示词（静态画面描述）",
-  "video_prompt": ""
+  "visual_prompt": "FrameOS 兼容的视觉提示词别名，默认与 image_prompt 一致",
+  "video_prompt": "修改后的视频提示词（动作、表演、镜头运动）",
+  "referenced_assets": {
+    "characters": [],
+    "location": "",
+    "props": []
+  },
+  "continuity_notes": "只说明资产连续、镜头连续或改写连续性",
+  "change_summary": "一句话说明本次修改"
 }
+
+额外要求：
+- referenced_assets 是生产资产契约，默认必须沿用输入中的角色、场景、道具；除非用户明确要求替换、删除或新增资产，否则不要改名、丢弃或新增
+- image_prompt 和 visual_prompt 是静帧提示词；video_prompt 是动态提示词；三者必须引用同一批可见资产、同一地点和同一动作状态
+- no_visible_text：image_prompt 和 visual_prompt 不得生成画面文字、字幕、标题卡、招牌文字、UI 字、标签、logo、水印或书写符号
+- 如果用户要求“更稳定”“更像短剧”“更有张力”，只增强主体动作、视线关系、前后景关系、运镜和可拍摄性，不要新增未出现的剧情事件
+- continuity_notes 只写本镜头如何保持 source_text、角色外观、场景、道具状态、前后镜头承接，不要扩写剧情

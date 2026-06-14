@@ -120,12 +120,47 @@
    - 明确至少 3 个稳定锚点及其周边空位
    - 禁止只输出泛泛的场景名词堆砌
 
+10. FrameOS式场景资产必须支持后续“角色落位”和“镜头连续性”：
+	   - summary 要说明该场景的生产用途，例如主要冲突场、过渡走廊、角色居住空间、审讯空间等
+	   - available_slots 是给后续分镜绑定角色站位的固定锚点，必须能跨多个镜头复用
+	   - descriptions 中必须清楚出现 available_slots 提到的锚物，且留出人物可站立/进入的空间
+	   - 如果同一地点有显著时间/状态差异（白天、夜晚、雨中、破损后），只有差异会影响画面和生产时才拆成不同场景
+	   - int_ext 写 INT/EXT/MIXED；entrance 写人物或镜头常用入口/通道；mood 写剧情氛围；base_ambience 写底层环境质感、光线和声音感
+	   - coverage_scenes 与 coverage_episodes 只写输入中可定位的场次、片段、集数或章节；不确定时输出空数组
+	   - prompt 是该环境资产的主图生成提示词，必须覆盖 description、entrance、mood、base_ambience 与 available_slots 中的关键锚点
+	   - variants 只记录会影响环境出图的持续状态版本，如白天/夜晚、雨中、破损后、节庆布置；不要为单个镜头角度或人物动作建 variant
+
 【输出规范（只允许以下 JSON 结构；字段名中文；不得输出任何多余文字）】
 {
-  "locations": [
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_environments": false,
+  "environments": [
     {
+      "environment_id": "environment_001",
       "name": "场景_时间",
+      "int_ext": "INT/EXT/MIXED",
       "summary": "场景简要说明（用途/人物关联，如：张三居住的主卧室、公司高层会议室等）",
+      "description": "FrameOS式环境资产主描述：空间身份、结构、关键锚点和生产用途",
+      "background": "该环境在故事中的稳定背景或归属关系；没有依据则为空字符串",
+      "entrance": "人物或镜头常用入口/通道/动线；没有明确入口则写可见主入口",
+      "mood": "剧情氛围，例如压抑、明亮、紧张、温暖、荒凉",
+      "base_ambience": "底层环境质感、光线方向、色温、声音感或空气感",
+      "coverage_scenes": ["场次1", "场次2"],
+      "coverage_episodes": ["第1集"],
+      "prompt": "环境主图生成提示词：完整空间、广角、前中后景、关键锚点、入口、光线、氛围、无人背景板",
+      "variants": [
+        {
+          "variant_id": "variant_1",
+          "label": "默认状态",
+          "variant_type": "default",
+          "prompt": "该环境持续状态版本的图片生成提示词",
+          "coverage_scenes": ["场次1"],
+          "coverage_episodes": ["第1集"]
+        }
+      ],
+      "is_confirmed": false,
+      "design_image": null,
       "has_crowd": true/false,
       "crowd_description": "人群类型描述（仅当has_crowd为true时填写，如：宴会宾客、集市人群、学生们等）",
       "available_slots": [
@@ -143,12 +178,15 @@
 }
 
 【严格性】
-- 若无符合条件的场景，locations数组返回 []。
+- 若无符合条件的场景，保持同样 wrapper，environments 数组返回 []。
 - 每个场景必须生成 2-6 个 available_slots，且每个站位都必须具体、可复用、与场景内明确锚物相关。
+- 每个场景必须包含 environment_id、name、int_ext、summary、description、background、entrance、mood、base_ambience、coverage_scenes、coverage_episodes、prompt、variants、is_confirmed、design_image、has_crowd、crowd_description、available_slots、descriptions。
 - 每个 available_slots 元素必须是一条完整的位置描述短语，不是短词，不是结构化对象。
 - 站位描述必须像「皇宫正中龙椅前方台阶下的位置」「教室后排靠窗那组课桌外侧的位置」这样，直接说明锚物、方位和具体区域。
 - 禁止抽象站位，如「左边」「中间」「角落」；禁止写人物姿态、动作、情绪；只描述位置本身。
 - available_slots 中提到的所有关键锚点，必须在 descriptions 中清楚出现，否则该站位无效，不能输出。
+- design_image 固定输出 null；is_confirmed 固定输出 false；不要编造 material_id、url 或已确认状态。
+- variants 至少包含一个 default；只有持续时间/状态差异会影响背景生产时才增加更多 variants。
 - 只返回上述 JSON；不得输出markdown代码块标记、如```json注释或解释；不得添加未定义字段。
 - 每条描述必须遵守长度限制（100-150字）；发现超长请自行截断。
 - 禁止在 JSON 字符串值中出现英文双引号 "。原文中的所有引号（""''等）必须统一替换为「」。如字符串内确实需要英文双引号，必须转义为 \"

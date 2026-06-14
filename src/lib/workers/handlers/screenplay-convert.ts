@@ -15,10 +15,82 @@ import {
   parseScreenplayPayload,
   readText,
 } from './screenplay-convert-helpers'
-import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveAnalysisModel } from './resolve-analysis-model'
+import { buildFrameosProductionContext } from '@/lib/novel-promotion/frameos-production-context'
 
 const MAX_SCREENPLAY_ATTEMPTS = 2
+
+function readAssetKind(value: Record<string, unknown>): string {
+  return typeof value.assetKind === 'string' ? value.assetKind : 'location'
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function readSourceAnchorObject(value: unknown): { start: string; end: string } | null {
+  if (!isRecord(value)) return null
+  const start = readText(value.start).trim()
+  const end = readText(value.end).trim()
+  if (!start && !end) return null
+  return { start, end }
+}
+
+function buildClipSourceAnchor(
+  clip: { startText?: string | null; endText?: string | null },
+): { start: string; end: string } | null {
+  const start = readText(clip.startText).trim()
+  const end = readText(clip.endText).trim()
+  if (!start && !end) return null
+  return { start, end }
+}
+
+function withFrameosArtDirection(screenplay: Record<string, unknown>): Record<string, unknown> {
+  if (isRecord(screenplay.art_direction)) return screenplay
+
+  const worlds = Array.isArray(screenplay.worlds) ? screenplay.worlds : []
+  const defaultVisualStyle = isRecord(screenplay.default_visual_style)
+    ? screenplay.default_visual_style
+    : null
+
+  if (worlds.length === 0 && !defaultVisualStyle) return screenplay
+
+  return {
+    ...screenplay,
+    art_direction: {
+      flow_status: readText(screenplay.status).trim() || 'draft',
+      flow_id: readText(screenplay.clip_id).trim(),
+      current_label: defaultVisualStyle
+        ? readText(defaultVisualStyle.name).trim()
+        : '',
+      derived_phase: 'screenplay_conversion',
+      default_world_label: isRecord(worlds[0]) ? readText(worlds[0].world_label).trim() : '',
+      worlds,
+    },
+  }
+}
+
+function withClipBoundaryMetadata(
+  screenplay: Record<string, unknown>,
+  clip: { startText?: string | null; endText?: string | null; summary?: string | null },
+): Record<string, unknown> {
+  const next = withFrameosArtDirection({ ...screenplay })
+  const existingSourceAnchor = readSourceAnchorObject(next.source_anchor)
+  const fallbackSourceAnchor = buildClipSourceAnchor(clip)
+  const summary = readText(clip.summary).trim()
+
+  if (!existingSourceAnchor && fallbackSourceAnchor) {
+    next.source_anchor = fallbackSourceAnchor
+  } else if (existingSourceAnchor) {
+    next.source_anchor = existingSourceAnchor
+  }
+  if (summary && !Array.isArray(next.info_points)) {
+    next.info_points = [summary]
+  }
+
+  return next
+}
 
 export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as AnyObj
@@ -73,10 +145,18 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
     throw new Error('No clips found, please split clips first')
   }
 
-  const screenplayPromptTemplate = getPromptTemplate(PROMPT_IDS.NP_SCREENPLAY_CONVERSION, job.data.locale)
+  const locationAssets = novelData.locations.filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+  const propAssets = novelData.locations.filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
   const charactersLibName = novelData.characters.map((item) => item.name).join('、') || '无'
-  const locationsLibName = novelData.locations.map((item) => item.name).join('、') || '无'
+  const locationsLibName = locationAssets.map((item) => item.name).join('、') || '无'
+  const propsLibName = propAssets.map((item) => item.name).join('、') || '无'
   const charactersIntroduction = buildCharactersIntroduction(novelData.characters)
+  const projectProductionContext = buildFrameosProductionContext({
+    project,
+    novelProject: novelData as unknown as Record<string, unknown>,
+    episode: episode as unknown as Record<string, unknown>,
+    payload,
+  })
 
   await reportTaskProgress(job, 10, {
     stage: 'screenplay_convert_prepare',
@@ -120,12 +200,19 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
         throw new Error(`clip ${clip.id} content is empty`)
       }
 
-      const prompt = screenplayPromptTemplate
-        .replace('{clip_content}', clipContent)
-        .replace('{locations_lib_name}', locationsLibName)
-        .replace('{characters_lib_name}', charactersLibName)
-        .replace('{characters_introduction}', charactersIntroduction)
-        .replace('{clip_id}', clip.id)
+      const prompt = buildPrompt({
+        promptId: PROMPT_IDS.NP_SCREENPLAY_CONVERSION,
+        locale: job.data.locale,
+        variables: {
+          clip_content: clipContent,
+          locations_lib_name: locationsLibName,
+          characters_lib_name: charactersLibName,
+          props_lib_name: propsLibName,
+          characters_introduction: charactersIntroduction,
+          project_production_context: projectProductionContext,
+          clip_id: clip.id,
+        },
+      })
 
       // 记录 prompt 输入
       onProjectNameAvailable(projectId, project.name)
@@ -149,6 +236,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
                     model: analysisModel,
                     messages: [{ role: 'user', content: prompt }],
                     reasoning: true,
+                    maxTokens: 5_500,
                     projectId,
                     action: 'screenplay_conversion',
                     meta: {
@@ -183,9 +271,10 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
             model: analysisModel,
           })
 
-          const screenplay = parseScreenplayPayload(responseText)
-          screenplay.clip_id = clip.id
-          screenplay.original_text = clipContent
+          const parsedScreenplay = parseScreenplayPayload(responseText)
+          parsedScreenplay.clip_id = clip.id
+          parsedScreenplay.original_text = clipContent
+          const screenplay = withClipBoundaryMetadata(parsedScreenplay, clip)
 
           await prisma.novelPromotionClip.update({
             where: { id: clip.id },

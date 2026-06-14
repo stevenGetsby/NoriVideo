@@ -39,6 +39,7 @@ export type AiStepExecutionInput = {
   temperature?: number
   reasoning?: boolean
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  maxTokens?: number
 }
 
 export type AiStepExecutionResult = {
@@ -63,6 +64,7 @@ export type AiVisionStepExecutionInput = {
   temperature?: number
   reasoning?: boolean
   reasoningEffort?: 'minimal' | 'low' | 'medium' | 'high'
+  maxTokens?: number
 }
 
 export type AiVisionStepExecutionResult = {

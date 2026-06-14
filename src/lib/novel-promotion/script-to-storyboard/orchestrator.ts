@@ -20,6 +20,7 @@ import {
   buildPromptAssetContext,
   compileAssetPromptFragments,
 } from '@/lib/assets/services/asset-prompt-context'
+import { buildScreenplayVisualStyleContext } from '@/lib/novel-promotion/screenplay-visual-style-context'
 import {
   DEFAULT_ANALYSIS_WORKFLOW_CONCURRENCY,
   normalizeWorkflowConcurrencyValue,
@@ -77,6 +78,7 @@ export type ScriptToStoryboardOrchestratorInput = {
     locations: LocationAsset[]
     props?: PropAsset[]
   }
+  projectProductionContext?: string
   promptTemplates: ScriptToStoryboardPromptTemplates
   runStep: (
     meta: ScriptToStoryboardStepMeta,
@@ -132,17 +134,29 @@ function isFallbackableStoryboardResponseError(error: unknown): boolean {
 
 function fallbackStoryboardPanel(clip: ClipInput): StoryboardPanel {
   const clipContent = clip.content?.trim() || formatClipId(clip)
+  const characters = parseClipCharacters(clip.characters ?? null)
+  const props = parseClipProps(clip.props ?? null)
+  const location = clip.location || '未指定场景'
   return {
+    panel_id: `${formatClipId(clip)}:P1`,
     panel_number: 1,
     description: clipContent,
-    location: clip.location || '未指定场景',
+    location,
     source_text: clipContent,
-    characters: parseClipCharacters(clip.characters ?? null),
-    props: parseClipProps(clip.props ?? null),
+    source_anchor: { start: clipContent, end: clipContent },
+    referenced_assets: { characters, location, props },
+    characters,
+    props,
     scene_type: '口播',
+    visual_style: '写实短片',
+    visual_style_description: '按片段场景和人物资产保持自然、清晰、可拍摄的画面质感。',
     shot_type: '中景',
     camera_move: '固定镜头',
+    image_prompt: clipContent,
+    visual_prompt: clipContent,
     video_prompt: clipContent,
+    continuity_notes: '空响应兜底为单镜头，保持当前片段的角色、场景、道具和原文一致。',
+    voice_refs: [],
     duration: 4,
   }
 }
@@ -258,21 +272,41 @@ function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): Sto
   const isFantasy = /童话|森林|萤火虫|小兔子|月亮灯|fantasy|fairy/i.test(content)
   const isChina = /中国故事|中国场景|中文环境标识|中国生活语境/.test(content)
   const isWesternMedical = /现代美国|欧美|英文环境标识|American|hospital|surgery|Dr\.|Nurse/i.test(content)
+  const characters = parseClipCharacters(clip.characters ?? null)
+  const props = parseClipProps(clip.props ?? null)
+  const location = clip.location || '未指定场景'
   return {
+    panel_id: `${formatClipId(clip)}:P${panelNumber}`,
     panel_number: panelNumber,
     description: sourceMatch
       ? `${sourceMatch[1]} 的短剧转绘视频提示词块，按内部秒级拆分执行。`
       : isAgentPrompt
         ? 'Agent 生成的视频分镜提示词块，按内部秒级拆分执行。'
         : '短剧转绘视频提示词块，按内部秒级拆分执行。',
-    location: clip.location || '未指定场景',
+    location,
     source_text: content,
-    characters: parseClipCharacters(clip.characters ?? null),
-    props: parseClipProps(clip.props ?? null),
+    source_anchor: { start: content, end: content },
+    referenced_assets: { characters, location, props },
+    characters,
+    props,
     scene_type: 'short_drama_remake',
+    visual_style: isFantasy
+      ? '童话短片'
+      : isWesternMedical
+        ? '欧美医疗短剧'
+        : '真人短剧',
+    visual_style_description: isFantasy
+      ? '柔和月光、温暖微光和童话森林环境光保持一致。'
+      : isWesternMedical
+        ? '现代美国医院冷白顶灯、英文标识和真实医疗空间质感保持一致。'
+        : '真实短剧光线和地域场景质感保持一致。',
     shot_type: '复刻分镜块',
     camera_move: '按视频提示词内部镜头语言执行',
+    image_prompt: content,
+    visual_prompt: content,
     video_prompt: content,
+    continuity_notes: '按短剧转绘提示词内部秒级拆分保持角色资产、场景资产、道具资产和站位连续。',
+    voice_refs: [],
     duration: readShortDramaDuration(content),
     photographyPlan: {
       composition: '严格按视频提示词中的人物站位、前景遮挡、景别和构图执行',
@@ -439,6 +473,7 @@ export async function runScriptToStoryboardOrchestrator(
   input: ScriptToStoryboardOrchestratorInput,
 ): Promise<ScriptToStoryboardOrchestratorResult> {
   const { clips, novelPromotionData, promptTemplates, runStep, concurrency: rawConcurrency } = input
+  const projectProductionContext = input.projectProductionContext || 'No explicit project production context provided. Infer production choices only from source text and asset libraries.'
   if (!Array.isArray(clips) || clips.length === 0) {
     throw new Error('No clips found')
   }
@@ -519,6 +554,9 @@ export async function runScriptToStoryboardOrchestrator(
         2,
       )
 
+      const screenplay = parseScreenplay(clip.screenplay)
+      const visualStyleContext = buildScreenplayVisualStyleContext(screenplay)
+
       let phase1Prompt = promptTemplates.phase1PlanTemplate
         .replace('{characters_lib_name}', charactersLibName)
         .replace('{locations_lib_name}', locationsLibName)
@@ -526,9 +564,10 @@ export async function runScriptToStoryboardOrchestrator(
         .replace('{characters_appearance_list}', filteredAppearanceList)
         .replace('{characters_full_description}', filteredFullDescription)
         .replace('{props_description}', filteredPropsDescription)
+        .replace('{visual_style_context}', visualStyleContext)
+        .replace('{project_production_context}', projectProductionContext)
         .replace('{clip_json}', clipJson)
 
-      const screenplay = parseScreenplay(clip.screenplay)
       if (screenplay) {
         phase1Prompt = phase1Prompt.replace('{clip_content}', `【剧本格式】\n${JSON.stringify(screenplay, null, 2)}`)
       } else {

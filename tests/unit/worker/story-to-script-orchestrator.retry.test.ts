@@ -2,6 +2,125 @@ import { describe, expect, it, vi } from 'vitest'
 import { runStoryToScriptOrchestrator } from '@/lib/novel-promotion/story-to-script/orchestrator'
 
 describe('story-to-script orchestrator retry', () => {
+  it('carries FrameOS-style clip review metadata into screenplay JSON', async () => {
+    const runStep = vi.fn(async (_meta, _prompt, action: string) => {
+      if (action === 'analyze_characters') {
+        return { text: JSON.stringify({ characters: [{ name: '甲', introduction: '人物介绍' }] }), reasoning: '' }
+      }
+      if (action === 'analyze_locations') {
+        return {
+          text: JSON.stringify({
+            status: 'draft',
+            extraction_status: 'completed',
+            has_deprecated_environments: false,
+            environments: [{ name: '地点A' }],
+          }),
+          reasoning: '',
+        }
+      }
+      if (action === 'analyze_props') {
+        return {
+          text: JSON.stringify({
+            status: 'draft',
+            extraction_status: 'completed',
+            has_deprecated_items: false,
+            items: [],
+          }),
+          reasoning: '',
+        }
+      }
+      if (action === 'split_clips') {
+        return {
+          text: JSON.stringify([
+            {
+              start: '甲在门口',
+              end: '乙回答',
+              summary: '触发：甲在门口等待，乙回应',
+              source_anchor: '甲在门口',
+              info_points: ['甲在门口', '乙回答'],
+              reasoning: {
+                adaptation_decision: '同一地点的一问一答保持在同一片段',
+                production_function: 'trigger',
+                self_review: '未丢失角色和回应',
+              },
+              location: '地点A',
+              characters: ['甲'],
+            },
+          ]),
+          reasoning: '',
+        }
+      }
+      if (action === 'screenplay_conversion') {
+        return {
+          text: JSON.stringify({
+            status: 'draft',
+            steps: ['script_parse', 'scene_split'],
+            script_kilo: 1,
+            strategy_thinking: '忠实保留门口等待和回应',
+            style_reasoning: '普通地点对话使用写实短剧风格',
+            default_visual_style: {
+              name: '写实短剧',
+              description: '自然光线和清晰人物关系',
+            },
+            worlds: [
+              {
+                name: '现实地点',
+                description: '地点A中的一问一答',
+                source_anchor: '甲在门口',
+              },
+            ],
+            scenes: [{ scene_number: 1 }],
+          }),
+          reasoning: '',
+        }
+      }
+      throw new Error(`unexpected action: ${action}`)
+    })
+
+    const result = await runStoryToScriptOrchestrator({
+      content: '甲在门口。乙回答。',
+      baseCharacters: [],
+      baseLocations: [],
+      baseCharacterIntroductions: [],
+      promptTemplates: {
+        characterPromptTemplate: '{input} {characters_lib_name} {characters_lib_info}',
+        locationPromptTemplate: '{input} {locations_lib_name}',
+        propPromptTemplate: '{input} {props_lib_name}',
+        clipPromptTemplate: '{input} {locations_lib_name} {characters_lib_name} {characters_introduction}',
+        screenplayPromptTemplate: '{clip_content} {locations_lib_name} {characters_lib_name} {characters_introduction} {clip_id}',
+      },
+      runStep,
+    })
+
+    expect(result.clipList[0]).toEqual(expect.objectContaining({
+      sourceAnchor: '甲在门口',
+      infoPoints: ['甲在门口', '乙回答'],
+      reasoning: expect.objectContaining({
+        production_function: 'trigger',
+      }),
+    }))
+    expect(result.screenplayResults[0].screenplay).toEqual(expect.objectContaining({
+      status: 'draft',
+      strategy_thinking: '忠实保留门口等待和回应',
+      style_reasoning: '普通地点对话使用写实短剧风格',
+      default_visual_style: expect.objectContaining({
+        name: '写实短剧',
+      }),
+      worlds: [
+        expect.objectContaining({
+          name: '现实地点',
+          source_anchor: '甲在门口',
+        }),
+      ],
+      source_anchor: '甲在门口',
+      info_points: ['甲在门口', '乙回答'],
+      reasoning: expect.objectContaining({
+        adaptation_decision: '同一地点的一问一答保持在同一片段',
+        production_function: 'trigger',
+      }),
+    }))
+  })
+
   it('retries retryable step failure up to 3 attempts', async () => {
     const actionCalls = new Map<string, number>()
     const characterMetas: Array<{ stepId: string; stepAttempt?: number }> = []

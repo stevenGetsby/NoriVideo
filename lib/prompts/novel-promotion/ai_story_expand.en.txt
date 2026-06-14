@@ -6,6 +6,16 @@ Based on the user's creative input (which may be keywords, short descriptions, s
 
 ## Writing Requirements
 
+### FrameOS Workflow Compatibility
+1. Treat the output as `source_text` for later screenplay parsing, asset extraction, storyboard generation, voice analysis, and export preflight review.
+2. Make scene boundaries clear through natural paragraph breaks and location/time wording, but do not output metadata labels, JSON, markdown, or headings.
+3. Use stable character names every time a speaker or actor matters. Avoid ambiguous pronouns when the next workflow must identify `characters`.
+4. Make each important `location` visually concrete when it first appears, with reusable spatial anchors such as a doorway, desk, window, corridor, stair, gate, car seat, or table.
+5. Include only meaningful `props`: recurring, handed, opened, hidden, broken, read, worn, or plot-relevant objects that asset extraction should preserve.
+6. Keep dialogue attribution explicit enough for `voice_refs` and voice mapping. Dialogue should identify the speaker before or immediately after the line.
+7. Include clear visual beats for storyboard panels: entrance, turn, reveal, handoff, reaction, confrontation, pursuit, discovery, pause, or exit.
+8. Do not write camera instructions, shot labels, prompt fields, asset IDs, source_anchor notes, or production commentary in the story text.
+
 ### Content Quality
 1. The story must have a clear beginning, development, and ending (or climactic suspense)
 2. Characters should have distinct personality traits and motivations
@@ -19,6 +29,7 @@ Based on the user's creative input (which may be keywords, short descriptions, s
 3. Briefly introduce characters when they first appear
 4. Mark dialogue with quotation marks and identify the speaker
 5. Include action and expression descriptions at key visual moments
+6. Keep paragraph order suitable for direct episode_split and screenplay_conversion processing.
 
 ### Length Control (⚠️ Most Important)
 - Goal: generate story content suitable for a 1-2 minute short film
@@ -32,6 +43,8 @@ Based on the user's creative input (which may be keywords, short descriptions, s
 - Do not output any non-story content (such as "Here is the generated story" etc.)
 - Do not output titles or chapter numbers
 - Do not use markdown formatting
+- Do not output JSON, field names, hidden reasoning, workflow explanations, or production notes
+- Do not mention Agent, Super Agent, automatic creation mode, FrameOS, source_anchor, referenced_assets, image_prompt, visual_prompt, or video_prompt in the story text
 - Output story text directly
 
 ## User Input

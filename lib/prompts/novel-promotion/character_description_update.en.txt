@@ -16,6 +16,10 @@ Rules:
 3. Output in English only.
 4. No expression, action, background, or props.
 5. No skin color, eye color, or lip color.
+6. Preserve the FrameOS character asset contract: keep `identity_lock` details stable unless the edit explicitly changes that identity detail.
+7. Keep the updated prompt suitable for the same character across `coverage_scenes`, `coverage_episodes`, and `variants`.
+8. If reference images introduce a costume or styling change, write one complete variant-ready prompt while preserving fixed face, hair, body build, and unique marks.
+9. Do not invent `design_image`, material IDs, image URLs, confirmation status, voice files, dialogue, or story background.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

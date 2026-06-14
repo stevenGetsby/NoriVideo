@@ -14,6 +14,11 @@ import {
   writePanelSeedanceReferenceAssetsToActingNotes,
 } from '@/lib/novel-promotion/seedance-reference-assets'
 import {
+  parseCharacterDescriptionValues,
+  readFrameOSAppearanceMetadataFromDescriptions,
+  stringifyCharacterDescriptionsWithFrameOSMetadata,
+} from '@/lib/novel-promotion/character-appearance-frameos-metadata'
+import {
   hasCharacterAppearanceOutput,
   hasLocationImageOutput,
   hasPanelVideoOutput,
@@ -613,13 +618,7 @@ async function loadEditableEpisode(projectId: string, episodeId: string) {
 }
 
 function parseDescriptions(value: string | null | undefined): string[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed.map((item) => String(item || '')) : []
-  } catch {
-    return []
-  }
+  return parseCharacterDescriptionValues(value).map((item) => String(item || ''))
 }
 
 function writeIndexedDescription(input: {
@@ -632,7 +631,10 @@ function writeIndexedDescription(input: {
   const index = Math.max(0, input.index)
   while (descriptions.length <= index) descriptions.push(input.fallback || '')
   descriptions[index] = input.nextDescription
-  return JSON.stringify(descriptions)
+  return stringifyCharacterDescriptionsWithFrameOSMetadata(
+    descriptions,
+    readFrameOSAppearanceMetadataFromDescriptions(input.descriptions),
+  )
 }
 
 async function refreshPanelReferenceAssets(panelId: string) {

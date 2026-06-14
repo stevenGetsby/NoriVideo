@@ -20,6 +20,10 @@ Requirements:
 4. Do not include expression, action, background, or story narration.
 5. Do not include skin color, eye color, or lip color.
 6. Keep each description concise and image-generation friendly.
+7. Treat these as FrameOS character `variants`: every description must keep the same `identity_lock` while changing only sustained wardrobe, age state, disguise, or appearance treatment implied by the appearance reason.
+8. Use story context only to infer durable production needs for `coverage_scenes` and `coverage_episodes`; do not write scene IDs, episode labels, or plot exposition inside descriptions.
+9. Do not invent `design_image`, material IDs, image URLs, confirmation status, voice files, dialogue, or story background.
+10. Do not create three different people. Face, hair identity, body build, and unique marks must remain consistent across all `descriptions`.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

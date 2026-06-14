@@ -4,6 +4,15 @@ import type { StoryToScriptClipCandidate } from '@/lib/novel-promotion/story-to-
 import { seedProjectLocationBackedImageSlots } from '@/lib/assets/services/location-backed-assets'
 import { normalizeLocationAvailableSlots } from '@/lib/location-available-slots'
 import { resolvePropVisualDescription } from '@/lib/assets/prop-description'
+import {
+  normalizeAssetVariants,
+  normalizeCoverageEpisodes,
+  normalizeExpectedAppearances,
+} from '@/lib/novel-promotion/character-profile-metadata'
+import {
+  buildEnvironmentFrameOSMetadata,
+  buildItemFrameOSMetadata,
+} from '@/lib/novel-promotion/asset-frameos-metadata'
 
 export type AnyObj = Record<string, unknown>
 
@@ -61,18 +70,35 @@ export async function persistAnalyzedCharacters(params: {
     if (params.existingNames.has(key)) continue
 
     const profileData = {
+      role_type: item.role_type,
       role_level: item.role_level,
+      description: item.description,
       archetype: item.archetype,
       personality_tags: toStringArray(item.personality_tags),
       era_period: item.era_period,
       social_class: item.social_class,
       occupation: item.occupation,
+      background: item.background,
+      identity_lock: toStringArray(item.identity_lock),
+      relationships: toStringArray(item.relationships),
+      coverage_scenes: toStringArray(item.coverage_scenes),
+      coverage_episodes: normalizeCoverageEpisodes(item.coverage_episodes),
+      prompt: item.prompt,
+      voice_trait: item.voice_trait,
+      representative_line: item.representative_line,
+      voice_audition_prompt: item.voice_audition_prompt,
+      speech_rate: item.speech_rate,
+      voice_id: item.voice_id,
+      voice_raw_file: item.voice_raw_file,
+      audition_status: item.audition_status,
       costume_tier: item.costume_tier,
       suggested_colors: toStringArray(item.suggested_colors),
       primary_identifier: item.primary_identifier,
       visual_keywords: toStringArray(item.visual_keywords),
       gender: item.gender,
       age_range: item.age_range,
+      expected_appearances: normalizeExpectedAppearances(item.expected_appearances),
+      variants: normalizeAssetVariants(item.variants),
     }
 
     const createdRow = await db.novelPromotionCharacter.create({
@@ -145,6 +171,7 @@ export async function persistAnalyzedLocations(params: {
       fallbackDescription: asString(item.summary) || name,
       availableSlots,
       locationImageModel: db.locationImage,
+      frameosMetadata: buildEnvironmentFrameOSMetadata(item),
     })
 
     params.existingNames.add(key)
@@ -194,6 +221,7 @@ export async function persistAnalyzedProps(params: {
       fallbackDescription: description,
       availableSlots: [],
       locationImageModel: db.locationImage,
+      frameosMetadata: buildItemFrameOSMetadata(item),
     })
 
     params.existingNames.add(key)

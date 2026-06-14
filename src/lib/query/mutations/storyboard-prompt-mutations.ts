@@ -10,14 +10,16 @@ import {
 export function useAiModifyProjectShotPrompt(projectId: string) {
     return useMutation({
         mutationFn: async (payload: {
+            panelId?: string
             currentPrompt: string
             currentVideoPrompt?: string
+            currentVisualPrompt?: string
             modifyInstruction: string
             referencedAssets: Array<{
                 id: string
                 name: string
                 description: string
-                type: 'character' | 'location'
+                type: 'character' | 'location' | 'prop'
             }>
         }) => {
             const response = await requestTaskResponseWithError(
@@ -31,12 +33,15 @@ export function useAiModifyProjectShotPrompt(projectId: string) {
             )
             return await resolveTaskResponse<{
                 modifiedImagePrompt: string
+                modifiedVisualPrompt?: string
                 modifiedVideoPrompt?: string
+                continuityNotes?: string
+                changeSummary?: string
                 referencedAssets?: Array<{
                     id: string
                     name: string
                     description: string
-                    type: 'character' | 'location'
+                    type: 'character' | 'location' | 'prop'
                 }>
             }>(response)
         },

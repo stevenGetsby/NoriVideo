@@ -6,11 +6,16 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import {
+    type EpisodeFrameOSMetadata,
+    writeEpisodeFrameOSMetadataToSpeakerVoices,
+} from '@/lib/novel-promotion/episode-frameos-metadata'
 
 interface BatchEpisode {
     name: string
     description?: string
     novelText: string
+    frameosMetadata?: EpisodeFrameOSMetadata
 }
 
 export const POST = apiHandler(async (
@@ -76,7 +81,8 @@ export const POST = apiHandler(async (
                     episodeNumber: startNumber + idx,
                     name: ep.name,
                     description: ep.description || null,
-                    novelText: ep.novelText
+                    novelText: ep.novelText,
+                    speakerVoices: writeEpisodeFrameOSMetadataToSpeakerVoices(null, ep.frameosMetadata || null)
                 }
             })
         )

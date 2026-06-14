@@ -6,6 +6,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import {
   parseSpeakerVoiceMap,
+  stringifySpeakerVoiceMapPreservingPrivateEntries,
   type SpeakerVoiceEntry,
   type SpeakerVoiceMap,
 } from '@/lib/voice/provider-voice-binding'
@@ -162,7 +163,7 @@ export const PATCH = apiHandler(async (
 
   await prisma.novelPromotionEpisode.update({
     where: { id: episodeId },
-    data: { speakerVoices: JSON.stringify(speakerVoices) },
+    data: { speakerVoices: stringifySpeakerVoiceMapPreservingPrivateEntries(episode.speakerVoices, speakerVoices) },
   })
 
   return NextResponse.json({ success: true })

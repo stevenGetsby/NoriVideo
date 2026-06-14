@@ -6,19 +6,40 @@ Current image prompt:
 Current video prompt:
 {video_prompt_input}
 
+Current panel context JSON:
+{panel_context_json}
+
+Referenced assets JSON:
+{referenced_assets_json}
+
 User instruction:
 {user_input}
 
 Requirements:
-1. Return an updated image prompt and video prompt.
-2. Keep subject identity and scene continuity unless user asks to change.
+1. Return an updated image_prompt, visual_prompt, and video_prompt.
+2. Keep subject identity, referenced_assets, source_text meaning, visual_style, and scene continuity unless the user explicitly asks to change them.
 3. Write in concise English.
-4. Image prompt should focus on visual composition.
-5. Video prompt should focus on motion/performance/camera behavior.
+4. image_prompt and visual_prompt are still-frame prompts. They should focus on subject identity, asset names, location, composition, light/style continuity, and visible prop state.
+5. video_prompt should focus on motion, performance, camera behavior, dialogue state, and duration feel.
+6. Preserve recognizable character, location, and prop references unless the user explicitly asks to replace them.
+7. The image_prompt, visual_prompt, and video_prompt must support each other: no contradictory action, location, asset, prop state, visual style, or camera logic.
+8. Use referenced_assets from the input as the production asset contract. Return the same referenced_assets shape unless the user explicitly adds, removes, or replaces an asset.
+9. If the user asks for a stronger or more stable short-drama result, improve subject action, gaze relationship, foreground/background relation, and camera movement without adding new story events.
+10. continuity_notes should explain only what was preserved or adjusted for asset/shot continuity.
+11. change_summary should be short and production-facing.
+12. no_visible_text: Do not add visible text, subtitles, title cards, sign text, UI text, labels, logos, watermarks, or written symbols to image_prompt or visual_prompt. If source_text or voice_refs contains text information, preserve its meaning only in source_text, voice_refs, continuity_notes, or video_prompt dialogue state; do not render it as visible image text.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:
 {
   "image_prompt": "updated image prompt",
-  "video_prompt": "updated video prompt"
+  "visual_prompt": "FrameOS visual_prompt alias for the still-frame prompt",
+  "video_prompt": "updated video prompt",
+  "referenced_assets": {
+    "characters": [],
+    "location": "",
+    "props": []
+  },
+  "continuity_notes": "continuity note",
+  "change_summary": "brief summary of the requested change"
 }

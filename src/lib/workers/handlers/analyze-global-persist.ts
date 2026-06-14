@@ -12,6 +12,15 @@ import {
 import { seedProjectLocationBackedImageSlots } from '@/lib/assets/services/location-backed-assets'
 import { normalizeLocationAvailableSlots } from '@/lib/location-available-slots'
 import { resolvePropVisualDescription } from '@/lib/assets/prop-description'
+import {
+  normalizeAssetVariants,
+  normalizeCoverageEpisodes,
+  normalizeExpectedAppearances,
+} from '@/lib/novel-promotion/character-profile-metadata'
+import {
+  buildEnvironmentFrameOSMetadata,
+  buildItemFrameOSMetadata,
+} from '@/lib/novel-promotion/asset-frameos-metadata'
 
 export type AnalyzeGlobalStats = {
   totalChunks: number
@@ -67,18 +76,35 @@ export async function persistAnalyzeGlobalChunk(params: {
 
     try {
       const profileData = {
+        role_type: char.role_type,
         role_level: char.role_level,
+        description: char.description,
         archetype: char.archetype,
         personality_tags: toStringArray(char.personality_tags),
         era_period: char.era_period,
         social_class: char.social_class,
         occupation: char.occupation,
+        background: char.background,
+        identity_lock: toStringArray(char.identity_lock),
+        relationships: toStringArray(char.relationships),
+        coverage_scenes: toStringArray(char.coverage_scenes),
+        coverage_episodes: normalizeCoverageEpisodes(char.coverage_episodes),
+        prompt: char.prompt,
+        voice_trait: char.voice_trait,
+        representative_line: char.representative_line,
+        voice_audition_prompt: char.voice_audition_prompt,
+        speech_rate: char.speech_rate,
+        voice_id: char.voice_id,
+        voice_raw_file: char.voice_raw_file,
+        audition_status: char.audition_status,
         costume_tier: char.costume_tier,
         suggested_colors: toStringArray(char.suggested_colors),
         primary_identifier: char.primary_identifier,
         visual_keywords: toStringArray(char.visual_keywords),
         gender: char.gender,
         age_range: char.age_range,
+        expected_appearances: normalizeExpectedAppearances(char.expected_appearances),
+        variants: normalizeAssetVariants(char.variants),
       }
 
       const created = await prisma.novelPromotionCharacter.create({
@@ -186,6 +212,7 @@ export async function persistAnalyzeGlobalChunk(params: {
         descriptions: cleanDescriptions,
         fallbackDescription: summary || name,
         availableSlots,
+        frameosMetadata: buildEnvironmentFrameOSMetadata(loc),
       })
 
       params.existingLocationNames.push(name)
@@ -229,6 +256,7 @@ export async function persistAnalyzeGlobalChunk(params: {
         descriptions: [description],
         fallbackDescription: description,
         availableSlots: [],
+        frameosMetadata: buildItemFrameOSMetadata(prop),
       })
       params.existingPropNames.push(name)
       params.stats.newProps += 1

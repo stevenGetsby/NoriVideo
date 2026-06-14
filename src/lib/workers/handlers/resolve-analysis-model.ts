@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { composeModelKey, parseModelKeyStrict } from '@/lib/model-config-contract'
+import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
 
 type ResolveAnalysisModelInput = {
   userId: string
@@ -30,5 +31,5 @@ export async function resolveAnalysisModel(input: ResolveAnalysisModelInput): Pr
   const modelFromUserPreference = normalizeModelKey(userPreference?.analysisModel)
   if (modelFromUserPreference) return modelFromUserPreference
 
-  throw new Error('ANALYSIS_MODEL_NOT_CONFIGURED: 请先在设置页面配置分析模型')
+  return LUMINA_GPT55_MODEL_KEY
 }

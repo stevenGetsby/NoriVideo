@@ -11,6 +11,11 @@ Requirements:
 4. Do not include expression, action, background, or camera language.
 5. Do not mention skin color, eye color, or lip color.
 6. Keep it concise and production-ready.
+7. Treat the result as a FrameOS character asset base prompt: it must be stable enough to become an `identity_lock` for later shots and variants.
+8. Include only durable visual identity details that can remain consistent across `coverage_scenes` and `coverage_episodes`.
+9. Make the prompt ready for a default entry in `variants`: fixed face, hair, body build, outfit, shoes, accessories, and any unique visual marks.
+10. Do not invent `design_image`, material IDs, image URLs, confirmation status, voice files, dialogue, or story background.
+11. Do not write multiple costumes or optional alternatives. If the user asks for multiple looks, choose the base default look only.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks in text MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values:

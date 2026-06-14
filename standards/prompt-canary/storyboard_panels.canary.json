@@ -1,5 +1,6 @@
 [
   {
+    "panel_id": "EP01-S01-P001",
     "panel_number": 1,
     "description": "Wide shot of Lena entering the hall while Victor stands near the far table.",
     "characters": [
@@ -7,25 +8,63 @@
       { "name": "Victor", "appearance": "formal" }
     ],
     "location": "grand_hall_night",
+    "props": [],
     "scene_type": "daily",
+    "visual_style": "cinematic noir",
+    "visual_style_description": "Low warm practical light, muted green shadows, and a symmetrical hall composition.",
     "source_text": "Lena enters the hall and speaks to Victor.",
+    "source_anchor": {
+      "start": "Lena enters the hall",
+      "end": "speaks to Victor."
+    },
+    "referenced_assets": {
+      "characters": ["Lena", "Victor"],
+      "location": "grand_hall_night",
+      "props": []
+    },
     "shot_type": "wide shot",
     "camera_move": "slow push in",
+    "image_prompt": "Cinematic wide still of Lena entering grand_hall_night while Victor waits near the far table.",
+    "visual_prompt": "Cinematic wide still of Lena entering grand_hall_night while Victor waits near the far table.",
     "video_prompt": "A woman walks into a grand hall and approaches a man at a long table.",
+    "continuity_notes": "Lena enters from the doorway and moves toward Victor; the next panel continues at the table.",
+    "voice_refs": [
+      {
+        "speaker": "Lena",
+        "source_text": "Lena enters the hall and speaks to Victor."
+      }
+    ],
     "duration": 3
   },
   {
+    "panel_id": "EP01-S01-P002",
     "panel_number": 2,
     "description": "Medium close-up of Lena placing a sealed letter on the table.",
     "characters": [
       { "name": "Lena", "appearance": "default" }
     ],
     "location": "grand_hall_night",
+    "props": ["sealed_letter"],
     "scene_type": "emotion",
+    "visual_style": "cinematic noir",
+    "visual_style_description": "The warm table light catches the letter seal while the background falls into soft shadow.",
     "source_text": "She places the letter in front of him.",
+    "source_anchor": {
+      "start": "She places the letter",
+      "end": "in front of him."
+    },
+    "referenced_assets": {
+      "characters": ["Lena"],
+      "location": "grand_hall_night",
+      "props": ["sealed_letter"]
+    },
     "shot_type": "medium close-up",
     "camera_move": "static",
+    "image_prompt": "Medium close-up still of Lena placing sealed_letter on the wooden table in grand_hall_night.",
+    "visual_prompt": "Medium close-up still of Lena placing sealed_letter on the wooden table in grand_hall_night.",
     "video_prompt": "A young woman puts a sealed envelope on a wooden table.",
+    "continuity_notes": "The letter lands on the table where Victor can read it in the following beat.",
+    "voice_refs": [],
     "duration": 2
   }
 ]

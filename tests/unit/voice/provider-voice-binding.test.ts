@@ -4,6 +4,7 @@ import {
   hasAnyVoiceBinding,
   parseSpeakerVoiceMap,
   resolveVoiceBindingForProvider,
+  stringifySpeakerVoiceMapPreservingPrivateEntries,
 } from '@/lib/voice/provider-voice-binding'
 
 describe('provider voice binding', () => {
@@ -106,5 +107,41 @@ describe('provider voice binding', () => {
         voiceType: 'uploaded',
       },
     }))).toThrow('SPEAKER_VOICE_ENTRY_MISSING_BINDING')
+  })
+
+  it('ignores and preserves private FrameOS metadata entries', () => {
+    const raw = JSON.stringify({
+      _frameosEpisodeMetadata: {
+        episode_id: 'episode_001',
+        source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
+      },
+      Narrator: {
+        provider: 'bailian',
+        voiceType: 'qwen-designed',
+        voiceId: 'qwen-tts-vd-001',
+      },
+    })
+
+    const map = parseSpeakerVoiceMap(raw)
+    expect(Object.keys(map)).toEqual(['Narrator'])
+
+    const next = stringifySpeakerVoiceMapPreservingPrivateEntries(raw, {
+      Narrator: {
+        provider: 'fal',
+        voiceType: 'uploaded',
+        audioUrl: 'voice/fal.wav',
+      },
+    })
+    const parsed = JSON.parse(next) as Record<string, unknown>
+
+    expect(parsed._frameosEpisodeMetadata).toEqual({
+      episode_id: 'episode_001',
+      source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
+    })
+    expect(parsed.Narrator).toEqual({
+      provider: 'fal',
+      voiceType: 'uploaded',
+      audioUrl: 'voice/fal.wav',
+    })
   })
 })

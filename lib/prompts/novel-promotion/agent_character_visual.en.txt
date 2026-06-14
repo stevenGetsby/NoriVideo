@@ -17,6 +17,21 @@ Appearance strategy:
 - Initial appearance should be complete and self-contained.
 - Additional appearances should focus on visual changes indicated by change_reason.
 - Provide 3 alternative description lines per appearance.
+- Use expected_appearances.coverage_episodes only to decide where an appearance is needed. Do not write episode numbers or coverage labels inside image descriptions.
+
+FrameOS-style character image contract:
+1. The initial appearance is the default reusable asset for storyboard references, image edits, voice avatars, and video references. The three description variants may vary details but must clearly describe the same person or subject.
+2. Additional appearances must inherit the main face, body type, hair, and core identifiers. Describe only persistent wardrobe, age, or special-costume changes.
+3. Do not include camera language, background, action, emotion, dialogue, or plot function. Storyboard and video_prompt handle those.
+4. Character names must exactly match the input profiles because later panels reference assets by these names.
+5. For animals, mythic beings, anthropomorphic objects, or other non-human subjects, preserve the species/object identity first, then add stable color, structure, texture, and ornament details.
+6. Additional appearances must follow the input expected_appearances change_reason and coverage_episodes plan; coverage_episodes is production planning metadata, not description text.
+7. `identity_lock` is the strongest continuity source. Every initial-appearance description must include all stable identity_lock anchors that are visually expressible.
+8. `variants` are persistent FrameOS asset variants. Read variants[].variant_id, variants[].variant_type, and variants[].prompt as production planning metadata. If a profile contains variants[].prompt, use it as the production reference for the matching appearance, while preserving the same identity_lock anchors.
+9. `prompt` is the main reusable base prompt. Use it to keep age range, fixed appearance, outfit, accessories, temperament, and consistency constraints stable across all description variants.
+10. `coverage_scenes`, `coverage_episodes`, `role_type`, `description`, and `background` are planning context only. Use them to choose whether an appearance is needed, but do not write scene labels, episode labels, or story exposition inside descriptions.
+11. `voice_trait`, `representative_line`, and `voice_audition_prompt` may suggest avatar temperament or age impression, but must not add speech, audio, dialogue text, lip movement, or performance instructions to descriptions.
+12. `design_image`, `variants[].design_image`, material ids, image URLs, and confirmed status are asset state fields. Never invent or describe them in the visual output.
 
 Output format (JSON only):
 {
@@ -42,4 +57,7 @@ Strict constraints:
 1. JSON only.
 2. Keep names exactly aligned with input profiles.
 3. Each descriptions array must contain at least 3 valid English strings.
-4. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+4. Do not put coverage_episodes, episode numbers, scene numbers, or asset-management notes inside descriptions.
+5. Preserve identity_lock across every appearance and use variants[].prompt only for persistent visual differences.
+6. Do not output design_image, material_id, image URL, voice id, or confirmation state.
+7. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

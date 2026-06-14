@@ -1,7 +1,8 @@
 import { getCompletionContent } from '@/lib/llm-client'
 import { runModelGatewayTextCompletion } from '@/lib/model-gateway/llm'
 import { createScopedLogger } from '@/lib/logging/core'
-import { HFSY_TEXT_MODEL_KEY } from '@/lib/hfsy-fixed-models'
+import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
+import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
 
 type SuperAgentLlmOptions = {
   action?: string
@@ -58,7 +59,13 @@ export class SuperAgentLLMClient {
     const timeoutMs = Math.max(10_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
     const action = options.action || 'super-agent.llm'
     const attempts: LlmAttempt[] = []
-    const selectedCandidates = [HFSY_TEXT_MODEL_KEY]
+    const projectConfig = options.projectId
+      ? await getProjectModelConfig(options.projectId, userId).catch(() => null)
+      : null
+    const userConfig = projectConfig ? null : await getUserModelConfig(userId).catch(() => null)
+    const selectedCandidates = [
+      projectConfig?.analysisModel?.trim() || userConfig?.analysisModel?.trim() || LUMINA_GPT55_MODEL_KEY,
+    ]
 
     for (let index = 0; index < selectedCandidates.length; index += 1) {
       const model = selectedCandidates[index]

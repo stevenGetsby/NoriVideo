@@ -52,15 +52,26 @@
 
 | 字段 | 类型 | 说明 |
 |------|------|------|
+| panel_id | string | 插入镜头的临时稳定ID，如 inserted-transition；系统后续可重编号 |
 | panel_number | number | 固定填 0（由系统重新编号） |
 | description | string | 画面描述：包含角色动作、位置、表情。禁止身份称呼（如"母亲"），使用具体角色名。禁止主观情绪词（如"显得尴尬"），只描述可视化动作。 |
 | characters | array | 出现的角色列表，格式：`[{"name": "角色名", "appearance": "形象名", "slot": "场景位置描述"}]`。角色名必须与角色信息中的名字完全一致。形象名从角色信息的形象列表中选择。如果场景信息中提供了可站位置，应优先为稳定停留的角色选择 slot，并直接复用可站位置列表中的完整位置描述。动态移动、过渡区域、入口出口、空镜、想象空间等情况可以不使用 slot。 |
 | location | string | 场景名称，必须与场景信息中的名字完全一致 |
+| props | array | 当前镜头可见、被持有、被使用或发生状态变化的剧情道具；没有则 [] |
 | scene_type | string | 场景类型，枚举值：`daily`（日常）/ `emotion`（情感）/ `action`（动作）/ `epic`（史诗）/ `suspense`（悬疑） |
+| visual_style | string | 从前后镜头继承或保守推断的画风名称 |
+| visual_style_description | string | 插入镜头如何保持光线、色调、质感、构图或氛围 |
 | source_text | string | 对应的原文片段。可以基于前后镜头的 source_text 推断，或填写"过渡镜头" |
+| source_anchor | object | `{start: "前后镜头附近的起始原文短语", end: "前后镜头附近的结束原文短语"}` |
+| referenced_assets | object | `{characters: ["角色名"], location: "场景名", props: ["道具名"]}`，必须和最终画面可见资产一致 |
 | shot_type | string | 景别+视角，格式如："平视中景"、"越肩近景"、"仰拍全景"。景别包括：大远景/远景/全景/中景/近景/特写/极端特写。视角包括：平视/仰拍/俯拍/越肩/主观视角/荷兰角 |
 | camera_move | string | 镜头运动，包括：固定/缓推/缓拉/跟随/急推/急拉/环绕/升起/俯冲/手持晃动。特写镜头必须用"固定" |
-| video_prompt | string | 视频提示词。人类角色用"年龄段+性别"替代角色名（如"年轻女子"、"中年男子"）。动物、童话生物、物品等非人类角色必须保留物种或主体（如"小兔子"、"萤火虫"、"月亮灯"），不得改写成少年/少女/男子/女子/少男少女。年龄段分类仅用于人类：少年/少女（10-16岁）、年轻男子/年轻女子（17-30岁）、中年男子/中年女子（31-50岁）、老年男子/老年女子（50+岁）。如果角色在说话，必须写明"正在说话"。 |
+| image_prompt | string | 静帧图片提示词，使用同一批角色、场景、道具和画风 |
+| visual_prompt | string | FrameOS 兼容的视觉提示词别名；默认与 image_prompt 一致 |
+| video_prompt | string | 视频提示词。必须采用生产语法：可视主体（visual subject）+ 可见过渡动作 + 被引用的场景/道具/角色资产 + 镜头运动 + 前后镜头之间的起止状态（start/end state）+ 连续性约束。人类角色用"年龄段+性别"替代角色名（如"年轻女子"、"中年男子"）。动物、童话生物、物品等非人类角色必须保留物种或主体（如"小兔子"、"萤火虫"、"月亮灯"），不得改写成少年/少女/男子/女子/少男少女。年龄段分类仅用于人类：少年/少女（10-16岁）、年轻男子/年轻女子（17-30岁）、中年男子/中年女子（31-50岁）、老年男子/老年女子（50+岁）。如果角色在说话，必须写明"正在说话"；没有台词时必须保留无声反应或移动状态，不要编造对白。 |
+| continuity_notes | string | 仅说明如何承接前镜头并铺垫后镜头，不新增剧情事实 |
+| voice_refs | array | 插入镜头匹配的对白或旁白引用，没有则 [] |
+| duration | number | 秒数建议，按动作复杂度、台词和镜头运动推断 |
 
 ======================================
 【禁止规则】（违反将导致生成失败）
@@ -75,6 +86,8 @@
 ❌ 把动物/童话生物/物品改写成少年/少女/年轻男女 → ✅ 非人类主体必须保留物种或主体，例如"小兔子""萤火虫""月亮灯"
 ❌ 稳定停留位置明明适合使用已有 slot，却完全无视场景锚点 → ✅ 优先复用场景可站位置中的 slot
 ❌ 把 slot 改写成短词、代号、缩写 → ✅ 若使用 slot，必须直接复制可站位置列表中的完整位置描述
+❌ 新增前后镜头都没有支持的新剧情节点 → ✅ 只桥接 prev_panel_json 与 next_panel_json 之间可见的过渡动作
+❌ 有 voice_refs 或台词时生成字幕/可见文字 → ✅ 只写可见说话者或反应主体、正在说话/无声反应状态，不生成字幕或画面文字
 
 ======================================
 【输出格式】
@@ -84,18 +97,38 @@
 ⚠️ JSON安全：所有引号（""''等）在字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "。
 
 {
+  "panel_id": "inserted-transition",
   "panel_number": 0,
   "description": "...",
   "characters": [{"name": "...", "appearance": "...", "slot": "皇宫正中龙椅前方台阶下的位置"}],
   "location": "...",
+  "props": [],
   "scene_type": "...",
+  "visual_style": "...",
+  "visual_style_description": "...",
   "source_text": "...",
+  "source_anchor": {"start": "...", "end": "..."},
+  "referenced_assets": {
+    "characters": ["..."],
+    "location": "...",
+    "props": []
+  },
   "shot_type": "...",
   "camera_move": "...",
-  "video_prompt": "..."
+  "image_prompt": "...",
+  "visual_prompt": "...",
+  "video_prompt": "...",
+  "continuity_notes": "...",
+  "voice_refs": [],
+  "duration": 3
 }
 
 补充原则：
 - slot 是优先锚点，不是绝对硬边界
 - 当新镜头主要表现角色走动、进入/离开、穿过空间、临时停留、空白空间或想象空间时，可以不使用 slot
 - 若不使用 slot，应根据前后镜头、原文空间关系和过渡逻辑自由决定人物位置
+- props、visual_style、visual_style_description、source_anchor、referenced_assets、image_prompt、visual_prompt、continuity_notes、voice_refs、duration 必须和普通生成分镜保持同构，不能因为是插入镜头而省略
+- image_prompt 是静帧图片提示词，visual_prompt 是 FrameOS 兼容别名，video_prompt 是动态视频提示词；三者必须引用同一批可见资产和场景
+- video_prompt 必须采用生产语法：可视主体（visual subject）+ 可见过渡动作 + 被引用的场景/道具/角色资产 + 镜头运动 + 前后镜头之间的起止状态（start/end state）+ 连续性约束
+- 不要创建新的剧情节点；只桥接 prev_panel_json 与 next_panel_json 之间可见的过渡
+- 有台词、旁白或 voice_refs 时，video_prompt 必须包含口型/配音准备：可见说话者或反应主体、正在说话/无声反应状态，并禁止字幕或画面文字

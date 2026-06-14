@@ -90,6 +90,7 @@ export async function chatCompletion(
     temperature = 0.7,
     reasoning = true,
     reasoningEffort = 'high',
+    maxTokens,
     maxRetries = 2,
   } = options
   const projectId =
@@ -325,6 +326,7 @@ export async function chatCompletion(
           apiKey: providerConfig.apiKey,
           baseUrl: providerConfig.baseUrl,
           temperature,
+          maxTokens,
         })
         const completionParts = getCompletionParts(completion)
         logLlmRawOutput({

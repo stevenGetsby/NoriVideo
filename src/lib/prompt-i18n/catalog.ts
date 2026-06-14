@@ -32,7 +32,14 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_AGENT_SHOT_VARIANT_ANALYSIS]: {
     pathStem: 'novel-promotion/agent_shot_variant_analysis',
-    variableKeys: ['panel_description', 'shot_type', 'camera_move', 'location', 'characters_info'],
+    variableKeys: [
+      'panel_description',
+      'shot_type',
+      'camera_move',
+      'location',
+      'characters_info',
+      'panel_context_json',
+    ],
   },
   [PROMPT_IDS.NP_AGENT_SHOT_VARIANT_GENERATE]: {
     pathStem: 'novel-promotion/agent_shot_variant_generate',
@@ -77,6 +84,8 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
       'characters_appearance_list',
       'characters_full_description',
       'props_description',
+      'visual_style_context',
+      'project_production_context',
       'clip_json',
       'clip_content',
     ],
@@ -105,9 +114,13 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'novel-promotion/episode_split',
     variableKeys: ['CONTENT'],
   },
+  [PROMPT_IDS.NP_EXPORT_PREFLIGHT_REVIEW]: {
+    pathStem: 'novel-promotion/export_preflight_review',
+    variableKeys: ['export_target', 'episodes_json', 'assets_json', 'storyboard_json', 'voice_json'],
+  },
   [PROMPT_IDS.NP_IMAGE_PROMPT_MODIFY]: {
     pathStem: 'novel-promotion/image_prompt_modify',
-    variableKeys: ['prompt_input', 'user_input', 'video_prompt_input'],
+    variableKeys: ['prompt_input', 'video_prompt_input', 'panel_context_json', 'referenced_assets_json', 'user_input'],
   },
   [PROMPT_IDS.NP_LOCATION_CREATE]: {
     pathStem: 'novel-promotion/location_create',
@@ -131,7 +144,7 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_SCREENPLAY_CONVERSION]: {
     pathStem: 'novel-promotion/screenplay_conversion',
-    variableKeys: ['clip_content', 'locations_lib_name', 'characters_lib_name', 'props_lib_name', 'characters_introduction', 'clip_id'],
+    variableKeys: ['clip_content', 'locations_lib_name', 'characters_lib_name', 'props_lib_name', 'characters_introduction', 'project_production_context', 'clip_id'],
   },
   [PROMPT_IDS.NP_SELECT_PROP]: {
     pathStem: 'novel-promotion/select_prop',
@@ -147,10 +160,14 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
   },
   [PROMPT_IDS.NP_STORYBOARD_EDIT]: {
     pathStem: 'novel-promotion/storyboard_edit',
-    variableKeys: ['user_input'],
+    variableKeys: ['panel_context_json', 'referenced_assets_json', 'source_image_context', 'user_input'],
   },
   [PROMPT_IDS.NP_VOICE_ANALYSIS]: {
     pathStem: 'novel-promotion/voice_analysis',
-    variableKeys: ['input', 'characters_lib_name', 'characters_introduction', 'storyboard_json'],
+    variableKeys: ['input', 'characters_lib_name', 'characters_introduction', 'character_voice_context', 'storyboard_json'],
+  },
+  [PROMPT_IDS.NP_VOICE_MAPPING]: {
+    pathStem: 'novel-promotion/voice_mapping',
+    variableKeys: ['characters_json', 'dialogue_samples_json', 'voice_library_json'],
   },
 }

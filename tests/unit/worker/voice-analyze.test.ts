@@ -29,6 +29,10 @@ const workerMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
 }))
 
+const promptMock = vi.hoisted(() => ({
+  buildPrompt: vi.fn(() => 'voice-analysis-prompt'),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/llm-client', () => llmMock)
 vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
@@ -36,6 +40,7 @@ vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
 }))
 vi.mock('@/lib/constants', () => ({
   buildCharactersIntroduction: vi.fn(() => 'characters-introduction'),
+  buildCharacterVoiceContext: vi.fn(() => 'Hero：voice_trait=低沉克制；representative_line=我来负责'),
 }))
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: workerMock.reportTaskProgress }))
 vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: workerMock.assertTaskActive }))
@@ -55,7 +60,7 @@ vi.mock('@/lib/workers/handlers/voice-analyze-helpers', () => ({
 }))
 vi.mock('@/lib/prompt-i18n', () => ({
   PROMPT_IDS: { NP_VOICE_ANALYSIS: 'np_voice_analysis' },
-  buildPrompt: vi.fn(() => 'voice-analysis-prompt'),
+  buildPrompt: promptMock.buildPrompt,
 }))
 
 import { handleVoiceAnalyzeTask } from '@/lib/workers/handlers/voice-analyze'
@@ -86,7 +91,15 @@ describe('worker voice-analyze behavior', () => {
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
       id: 'np-project-1',
       analysisModel: 'llm::analysis-1',
-      characters: [{ id: 'char-1', name: 'Hero' }],
+      characters: [{
+        id: 'char-1',
+        name: 'Hero',
+        profileData: JSON.stringify({
+          voice_trait: '低沉克制',
+          representative_line: '我来负责',
+          voice_audition_prompt: '低沉克制地说：我来负责',
+        }),
+      }],
     })
 
     prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
@@ -189,6 +202,11 @@ describe('worker voice-analyze behavior', () => {
         notIn: [1, 2],
       },
     })
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        character_voice_context: 'Hero：voice_trait=低沉克制；representative_line=我来负责',
+      }),
+    }))
   })
 
   it('empty voice lines -> success with zero rows and clears existing lines', async () => {

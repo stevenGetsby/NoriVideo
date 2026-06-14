@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Project } from '@/types/project'
+import type { EpisodeFrameOSMetadata } from '@/lib/novel-promotion/episode-frameos-metadata'
 import { resolveTaskResponse } from '@/lib/task/client'
 import { queryKeys } from '../keys'
 import {
@@ -21,6 +22,7 @@ export function useListProjectEpisodes(projectId: string) {
           name?: string
           description?: string
           novelText?: string
+          speakerVoices?: string | null
         }>
       }>(`/api/novel-promotion/${projectId}/episodes`, { method: 'GET' }, '获取剧集失败'),
   })
@@ -48,6 +50,7 @@ export function useSplitProjectEpisodes(projectId: string) {
           summary: string
           content: string
           wordCount: number
+          frameosMetadata?: EpisodeFrameOSMetadata
         }>
       }>(response)
     },
@@ -90,6 +93,7 @@ export function useSaveProjectEpisodesBatch(projectId: string) {
         name: string
         description?: string
         novelText?: string
+        frameosMetadata?: EpisodeFrameOSMetadata
       }>
       clearExisting?: boolean
       importStatus?: 'pending' | 'completed'

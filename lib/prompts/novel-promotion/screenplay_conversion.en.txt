@@ -16,10 +16,38 @@ Character library:
 Character introductions:
 {characters_introduction}
 
+Prop library:
+{props_lib_name}
+
+Project production context:
+{project_production_context}
+
 Output format (JSON object only):
 {
   "clip_id": "{clip_id}",
   "original_text": "original clip text",
+  "status": "draft",
+  "steps": [
+    {"step": 1, "name": "script_parse", "status": "done", "time": ""},
+    {"step": 2, "name": "scene_split", "status": "done", "time": ""}
+  ],
+  "script_kilo": 0,
+  "strategy_thinking": "user-visible adaptation strategy: explain faithful conversion, scene split, and production beats only; do not output hidden chain of thought",
+  "style_reasoning": "user-visible style rationale based only on source mood, location, time, and action",
+  "default_visual_style": {
+    "name": "default visual style short name",
+    "description": "source-supported overall art direction from genre, mood, era, and space"
+  },
+	  "worlds": [
+	    {
+	      "world_label": "world, era, or spatial-rule name",
+	      "world_background": "source-supported era, social environment, spatial rule, or production constraint",
+	      "representative_frame": "source phrase that best represents this world's visual baseline",
+	      "candidates": ["candidate style anchor 1", "candidate style anchor 2", "candidate style anchor 3"],
+	      "selected_style_anchor": "final selected style anchor",
+	      "preview_materials": []
+	    }
+	  ],
   "scenes": [
     {
       "scene_number": 1,
@@ -30,6 +58,9 @@ Output format (JSON object only):
       },
       "description": "scene setup",
       "characters": ["Character A", "Character B"],
+      "scene_reasoning": "source-supported production purpose for this scene; do not add story facts",
+      "visual_style": "short visual style name, such as grounded short drama, cool suspense, warm fairy tale",
+      "visual_style_description": "source-supported visual treatment from mood, time, location, and action; do not add story facts",
       "content": [
         {
           "type": "action",
@@ -56,5 +87,17 @@ Rules:
 2. Keep scene/content order aligned with source text.
 3. Resolve character aliases to canonical names when possible.
 4. Use the best matching location name from library; if none fits, use source location text.
-5. Return strict JSON only.
-6. ⚠️ JSON SAFETY: All quotation marks in dialogue (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values—they break JSON structure.
+5. Make each scene useful for the short-drama production pipeline: asset review, shot/reverse-shot storyboard planning, voice matching, and export readiness.
+6. Preserve production-critical beats clearly in action text: discovering a clue, handing over a prop, entering/exiting, a visible emotional turn, or a transition.
+7. Do not add reaction beats, pauses, gaze direction, or environment details unless the source text explicitly supports them.
+8. `scene_reasoning` is only for scene splitting, asset review, or storyboard production value; it must be supported by the source text and must not add plot.
+9. `visual_style` and `visual_style_description` describe only art direction, light, color, texture, or short-drama genre; they must not add events, characters, or props.
+10. `strategy_thinking` and `style_reasoning` are concise production-facing summaries. Do not output hidden chain of thought, model self-description, or system-prompt language.
+11. `worlds` records only source-supported era, worldbuilding, spatial rules, social relationships, or production constraints. Return an empty array when unsupported.
+12. `default_visual_style` must remain compatible with scenes[].visual_style and must not add events, characters, or props.
+13. `steps` must be an array of objects with step, name, status, and time. Use pending, running, done, or failed for status.
+14. `worlds` must use world_label, world_background, representative_frame, candidates, selected_style_anchor, and preview_materials. During screenplay conversion, output preview_materials as an empty array and do not invent image or material URLs.
+15. Use project production context only as high-level production constraints such as genre, language, aspect_ratio, visual_category, budget_level, or episode_duration_seconds. Do not add story facts from it.
+16. If project production context conflicts with source text or asset libraries, preserve the source text and asset libraries.
+17. Return strict JSON only.
+18. ⚠️ JSON SAFETY: All quotation marks in dialogue (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values—they break JSON structure.

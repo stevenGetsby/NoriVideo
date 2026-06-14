@@ -19,6 +19,12 @@ Character full descriptions:
 Prop descriptions:
 {props_description}
 
+Visual style context from screenplay:
+{visual_style_context}
+
+Project production context:
+{project_production_context}
+
 Clip metadata JSON:
 {clip_json}
 
@@ -28,10 +34,12 @@ Clip content:
 Task:
 Create a coherent panel plan that covers the full clip content in chronological order.
 First identify the clip's directing function in the whole story, then design panels as a film sequence rather than as isolated illustrations.
+The plan must be usable as a staged production artifact: every panel needs a clear subject, action, location, referenced assets, and source_text so downstream image prompts, video prompts, voice matching, and missing-asset checks can run reliably.
 
 Output format (JSON array only):
 [
   {
+    "panel_id": "stable local id such as EP01-S01-P001",
     "panel_number": 1,
     "description": "visual action description",
     "characters": [
@@ -40,10 +48,24 @@ Output format (JSON array only):
     "location": "location name",
     "props": ["Prop Name"],
     "scene_type": "daily",
+    "visual_style": "visual style name inherited or refined from the screenplay context",
+    "visual_style_description": "how this panel applies the visual style through light, color, texture, composition, or mood",
     "source_text": "exact or near-exact source excerpt",
+    "source_anchor": { "start": "first source phrase used by this panel", "end": "last source phrase used by this panel" },
+    "referenced_assets": {
+      "characters": ["Character Name"],
+      "location": "location name",
+      "props": ["Prop Name"]
+    },
     "shot_type": "medium shot",
     "camera_move": "static",
-    "video_prompt": "short visual motion prompt",
+    "image_prompt": "image-generation still prompt using the exact referenced assets and visual style",
+    "visual_prompt": "FrameOS visual_prompt alias; same content as image_prompt unless the user asks for a platform-specific variant",
+    "video_prompt": "motion prompt with subject, action, referenced scene/assets, camera movement, start/end state, and continuity constraint",
+    "continuity_notes": "how this panel continues from the previous panel and sets up the next one",
+    "voice_refs": [
+      { "speaker": "Character Name", "source_text": "dialogue or voiceover excerpt matched to this panel" }
+    ],
     "duration": 3
   }
 ]
@@ -59,10 +81,25 @@ Planning rules:
 8. For every visible recurring story prop/object, put its exact asset name in `props` and name it consistently in description so downstream image-to-image references can preserve it. Use [] when no prop appears.
 9. For ordinary stories and fairy tales, never treat theme, emotion, moral lesson, or kindness as a product selling point. Only visible entities such as a leaf, moon lamp, puddle, key, or letter belong in `props`.
 10. Only product, brand, platform, or ad prompts may treat props as merchandise or commercial display objects.
-9. If location context contains available slots, treat them as preferred placement anchors rather than mandatory hard boundaries.
-10. Prefer assigning a `slot` by copying one full placement phrase from `available_slots` verbatim when a character is stably positioned in the scene.
-11. You may omit `slot` when the shot is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
-12. When no `slot` is used, decide placement freely from source text, action flow, and cinematic staging instead of forcing one of the provided slots.
-13. Do not shorten, rewrite, summarize, or replace a provided slot phrase with a short token such as `slot_1`, `left`, or `throne_front`.
-14. Return strict JSON only.
-15. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+11. Keep a character's appearance stable across continuous panels. Switch appearance only when the source text shows a sustained costume, age, disguise, or body-form change.
+12. Every character, location, and prop listed in fields must also be visible in description with the same name and a clear screen relationship.
+13. If screenplay visual style context is present, carry it into `visual_style` and `visual_style_description` for each panel, adapting only lighting, palette, texture, composition, and mood; do not add story facts.
+14. Use project production context only to calibrate pacing, aspect ratio, language, genre, budget level, and episode duration. Do not add story facts from it.
+15. If no explicit visual style context is present, infer a conservative style from source mood, time, location, genre, and project production context.
+16. If location context contains available slots, treat them as preferred placement anchors rather than mandatory hard boundaries.
+17. Prefer assigning a `slot` by copying one full placement phrase from `available_slots` verbatim when a character is stably positioned in the scene.
+18. You may omit `slot` when the shot is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
+19. When no `slot` is used, decide placement freely from source text, action flow, and cinematic staging instead of forcing one of the provided slots.
+20. Do not shorten, rewrite, summarize, or replace a provided slot phrase with a short token such as `slot_1`, `left`, or `throne_front`.
+21. `panel_id` must be stable inside the current clip. Use a local human-readable id when no global episode id is available.
+22. `source_anchor.start` and `source_anchor.end` must come from source_text or the nearest exact source phrases. Do not invent source anchors.
+23. `referenced_assets` must mirror the visible assets in `characters`, `location`, and `props`; use [] for empty characters or props.
+24. `image_prompt` is for a still-frame image task and must mention the same visible subjects, assets, location, and visual style as description.
+25. `visual_prompt` is the FrameOS-compatible alias for the still-frame prompt. Keep it identical to `image_prompt` unless a platform-specific visual prompt variant is needed.
+26. `video_prompt` must follow this production grammar: visual subject + visible action + referenced location/prop/character asset + camera movement + start/end state of the beat + continuity constraint from the previous or next panel.
+27. Do not use generic video wording such as "cinematic shot" or "dramatic movement" by itself. The prompt must say who or what moves, what changes on screen, where it happens, and how the camera moves.
+28. If dialogue or voiceover belongs to the panel, `video_prompt` must name the visible speaker or reaction subject and include lip-sync preparation such as "speaking" or "reacting silently"; never add subtitles or visible text.
+29. `voice_refs` should list dialogue or voiceover excerpts that should be matched to this panel. Use [] when no voice line belongs here.
+30. `continuity_notes` must explain only screen continuity, asset continuity, or transition logic; do not add new story facts.
+31. Return strict JSON only.
+32. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

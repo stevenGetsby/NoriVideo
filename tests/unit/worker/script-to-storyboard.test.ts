@@ -109,6 +109,7 @@ vi.mock('@/lib/logging/file-writer', () => ({
 
 vi.mock('@/lib/constants', () => ({
   buildCharactersIntroduction: vi.fn(() => 'characters-introduction'),
+  buildCharacterVoiceContext: vi.fn(() => 'character-voice-context'),
 }))
 
 vi.mock('@/lib/workers/shared', () => ({

@@ -26,6 +26,7 @@
 3. 识别场景中出现的角色（匹配资产库）
 4. 区分动作、对话、画外音等不同类型
 5. ⭐100%保持原文信息的完整性，不增不减
+6. 让输出适合短剧流水线继续生产：每个 scene 要能支撑资产确认、正反打分镜、配音匹配和后续导出检查
 
 【剧本格式规范】
 
@@ -112,6 +113,8 @@
 - 多个连续动作可以合并在一个action中
 - 示例: ❌ 不好: "孙悟空站起来。" + "孙悟空走向门口。" + "孙悟空打开门。"
 - 示例: ✅ 好: "孙悟空站起来，走向门口，打开门。"
+- 但如果一个动作会直接决定分镜拆解，如“发现线索”“递交道具”“角色离场”“情绪爆发”，必须在 action 文本中清楚保留，不要被合并到模糊描述里
+- 对话前后的关键反应、停顿、视线方向只有原文明确出现时才写入；没有明确出现时不要补写
 
 【输出格式】
 
@@ -120,6 +123,28 @@
 {
   "clip_id": "{clip_id}",
   "original_text": "原文内容",
+  "status": "draft",
+  "steps": [
+    {"step": 1, "name": "script_parse", "status": "done", "time": ""},
+    {"step": 2, "name": "scene_split", "status": "done", "time": ""}
+  ],
+  "script_kilo": 0,
+  "strategy_thinking": "面向用户可见的改编策略说明：只说明如何忠实转换、拆场和保留生产重点，不输出隐藏推理链",
+  "style_reasoning": "面向用户可见的风格判断说明：只基于原文情绪、地点、时间和动作说明风格来源",
+  "default_visual_style": {
+    "name": "全片默认视觉风格短名",
+    "description": "只基于原文整体类型、情绪、时代和空间推导的默认画面风格"
+  },
+	  "worlds": [
+	    {
+	      "world_label": "世界观/时代/空间规则名称",
+	      "world_background": "只写原文明确支持的时代、社会环境、空间规则或生产限制",
+	      "representative_frame": "最能代表该世界视觉基调的原文画面短句",
+	      "candidates": ["可选风格锚点1", "可选风格锚点2", "可选风格锚点3"],
+	      "selected_style_anchor": "最终选用的风格锚点",
+	      "preview_materials": []
+	    }
+	  ],
   
   "scenes": [
     {
@@ -131,6 +156,9 @@
       },
       "description": "场景环境描述",
       "characters": ["角色1", "角色2"],
+      "scene_reasoning": "基于原文说明此场景在生产中的用途，不得添加新剧情",
+      "visual_style": "该场景的视觉风格短名，如写实短剧/冷色悬疑/温暖童话",
+      "visual_style_description": "只基于原文情绪、时间、地点和动作推导的画面风格说明，不添加剧情",
       
       "content": [
         {
@@ -215,7 +243,16 @@ description字段应该简洁但信息丰富，包含：
 10. parenthetical是可选的，只在原文有明确表演指导时添加
 11. 输出必须是**严格合法的JSON**：字符串中不能出现原始换行/回车/制表符，必须使用转义字符（\\\\n、\\\\r、\\\\t）
 12. clip_id 必须与输入的 Clip ID 完全一致，严禁输出 "{clip_id}" 这种占位符
-13. 建议输出为单行JSON对象（不包含多余空行/解释）
+13. scene_reasoning 只用于说明场景拆分、资产确认或分镜生产价值，必须有原文依据，不得补充剧情
+14. visual_style 和 visual_style_description 只描述镜头美术、光线、色调、质感或短剧类型；不得添加原文没有的事件、角色或道具
+15. strategy_thinking、style_reasoning 是给制作人员看的简短策略摘要，不要输出隐藏推理链、模型自述或系统提示
+16. worlds 只记录原文支持的时代、世界观、空间规则、社会关系或生产限制；没有明确依据时输出空数组
+17. default_visual_style 必须和 scenes[].visual_style 兼容，不能添加原文没有的事件、角色或道具
+18. steps 必须是对象数组，每个对象包含 step、name、status、time；status 使用 pending/running/done/failed。
+19. worlds 必须使用 world_label、world_background、representative_frame、candidates、selected_style_anchor、preview_materials 字段；preview_materials 在剧本转换阶段输出空数组，不要编造图片或素材 URL。
+20. 项目生产上下文只作为类型、语言、aspect_ratio、visual_category、budget_level、episode_duration_seconds 等高层制作约束；不得从中添加剧情事实。
+21. 如果项目生产上下文与原文或资产库冲突，必须以原文和资产库为准。
+22. 建议输出为单行JSON对象（不包含多余空行/解释）
 
 ⚠️⚠️⚠️【JSON安全输出 - 最高优先级】⚠️⚠️⚠️
 - 原文中的所有引号（""''「」『』等）在 JSON 字符串值中必须统一替换为日式方括号引号「」
@@ -244,6 +281,12 @@ Clip原文：
 
 角色介绍（⭐重要：用于理解"我"和称呼对应的角色以及角色关系）：
 {characters_introduction}
+
+道具资产库（用于识别被持有、交付、寻找或发生状态变化的关键实体道具）：
+{props_lib_name}
+
+项目生产上下文：
+{project_production_context}
 
 Clip ID:
 {clip_id}

@@ -8,7 +8,7 @@ import {
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { logAIAnalysis } from '@/lib/logging/semantic'
 import { onProjectNameAvailable } from '@/lib/logging/file-writer'
-import { buildCharactersIntroduction } from '@/lib/constants'
+import { buildCharactersIntroduction, buildCharacterVoiceContext } from '@/lib/constants'
 import { TaskTerminatedError } from '@/lib/task/errors'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import {
@@ -36,6 +36,7 @@ import {
   parseStoryboardRetryTarget,
   runScriptToStoryboardAtomicRetry,
 } from './script-to-storyboard-atomic-retry'
+import { buildFrameosProductionContext } from '@/lib/novel-promotion/frameos-production-context'
 
 type AnyObj = Record<string, unknown>
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
@@ -151,6 +152,12 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
   const payloadMeta = typeof payload.meta === 'object' && payload.meta !== null
     ? (payload.meta as AnyObj)
     : {}
+  const projectProductionContext = buildFrameosProductionContext({
+    project,
+    novelProject: novelData as unknown as Record<string, unknown>,
+    episode: episode as unknown as Record<string, unknown>,
+    payload,
+  })
   const runId = typeof payload.runId === 'string' && payload.runId.trim()
     ? payload.runId.trim()
     : (typeof payloadMeta.runId === 'string' ? payloadMeta.runId.trim() : '')
@@ -187,11 +194,11 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     meta: ScriptToStoryboardStepMeta,
     prompt: string,
     action: string,
-    _maxOutputTokens: number,
+    maxOutputTokens: number,
   ): Promise<ScriptToStoryboardStepOutput> => {
-    void _maxOutputTokens
     const stepAttempt = meta.stepAttempt
       || (retryStepKey && meta.stepId === retryStepKey ? retryStepAttempt : 1)
+    const maxTokens = Math.min(12_000, Math.max(4_096, maxOutputTokens))
     await assertRunActive(`script_to_storyboard_step:${meta.stepId}`)
     const progress = 15 + Math.min(70, Math.floor((meta.stepIndex / Math.max(1, meta.stepTotal)) * 70))
     await reportTaskProgress(job, progress, {
@@ -230,6 +237,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       temperature,
       reasoning,
       reasoningEffort,
+      maxTokens,
     })
     await callbacks.flush()
 
@@ -295,6 +303,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                       .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
                       .map((item) => ({ name: item.name, summary: item.summary })),
                   },
+                  projectProductionContext,
                   promptTemplates: {
                     phase1PlanTemplate,
                     phase2CinematographyTemplate,
@@ -336,6 +345,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                       .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
                       .map((item) => ({ name: item.name, summary: item.summary })),
                   },
+                  projectProductionContext,
                   promptTemplates: {
                     phase1PlanTemplate,
                     phase2CinematographyTemplate,
@@ -467,6 +477,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
             ? (novelData.characters || []).map((item) => item.name).join('、')
             : '无',
           characters_introduction: buildCharactersIntroduction(novelData.characters || []),
+          character_voice_context: buildCharacterVoiceContext(novelData.characters || []),
           storyboard_json: buildStoryboardJsonFromClipPanels(orchestratorResult.clipPanels),
         },
       })

@@ -315,3 +315,47 @@ export function buildCharactersIntroduction(characters: Array<{ name: string; in
 
   return introductions.join('\n')
 }
+
+function parseCharacterProfileData(profileData: string | null | undefined): Record<string, unknown> | null {
+  if (!profileData) return null
+  try {
+    const parsed = JSON.parse(profileData)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+    return parsed as Record<string, unknown>
+  } catch {
+    return null
+  }
+}
+
+function readProfileText(profile: Record<string, unknown> | null, key: string): string {
+  const value = profile?.[key]
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+/**
+ * 构建角色音色上下文（用于台词/配音分析，帮助稳定 speaker 与后续音色资产绑定）
+ */
+export function buildCharacterVoiceContext(characters: Array<{
+  name: string
+  introduction?: string | null
+  profileData?: string | null
+}>): string {
+  if (!characters || characters.length === 0) return '暂无音色资产线索'
+
+  const rows = characters
+    .map((character) => {
+      const profile = parseCharacterProfileData(character.profileData)
+      const voiceTrait = readProfileText(profile, 'voice_trait')
+      const representativeLine = readProfileText(profile, 'representative_line')
+      const voiceAuditionPrompt = readProfileText(profile, 'voice_audition_prompt')
+      const parts = [
+        voiceTrait ? `voice_trait=${voiceTrait}` : '',
+        representativeLine ? `representative_line=${representativeLine}` : '',
+        voiceAuditionPrompt ? `voice_audition_prompt=${voiceAuditionPrompt}` : '',
+      ].filter(Boolean)
+      return parts.length > 0 ? `- ${character.name}：${parts.join('；')}` : ''
+    })
+    .filter(Boolean)
+
+  return rows.length > 0 ? rows.join('\n') : '暂无音色资产线索'
+}

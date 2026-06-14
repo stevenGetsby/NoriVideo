@@ -9,27 +9,75 @@ Core rules:
 2. Prefer natural breakpoints (chapter boundary, scene shift, time jump).
 3. Keep chronology and full coverage (no overlap, no missing text).
 4. Provide reliable startMarker and endMarker copied from source text.
-5. Return JSON only.
-6. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+5. Add FrameOS-style production metadata for every episode without copying the full episode body:
+   - episode_id: stable id such as episode_001
+   - episode_number: same value as number
+   - status: draft
+   - content_kilo: estimatedWords divided by 1000, rounded to one decimal place
+   - source_anchor: object with start and end copied from source text, aligned with startMarker/endMarker
+   - info_points: source-supported production facts only, written as a short semicolon-separated string
+   - reasoning: user-visible production note with diagnosis and key_decisions; do not output hidden chain of thought
+   - scenes: scene-outline objects only, not full screenplay; use source-supported scene_id, scene_number, heading, int_ext, location, time, summary, content, content_kilo, characters, visual_style, visual_style_description, and visual_style_confirmed fields when clear
+6. Return JSON only.
+7. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
 
 Output format:
 {
+  "status": "draft",
+  "steps": [
+    {"step": 1, "name": "script_parse", "status": "done", "time": ""},
+    {"step": 2, "name": "episode_split", "status": "done", "time": ""}
+  ],
+  "default_visual_style": null,
+  "script_kilo": 0,
+  "adapted_kilo": 0,
   "analysis": {
     "totalWords": 0,
     "episodeCount": 0,
     "targetWordsPerEpisode": 0,
     "allowedRange": "0-0"
   },
-  "episodes": [
+  "items": [
     {
       "number": 1,
+      "episode_id": "episode_001",
+      "episode_number": 1,
       "title": "Episode title",
       "summary": "Short summary",
+      "content": "episode text excerpt or concise episode content assembled from source",
       "estimatedWords": 0,
+      "content_kilo": 0,
       "startMarker": "exact start marker",
       "endMarker": "exact end marker",
       "startIndex": 0,
-      "endIndex": 0
+      "endIndex": 0,
+      "source_anchor": {
+        "start": "exact source start anchor",
+        "end": "exact source end anchor"
+      },
+      "info_points": "source-supported production fact; source-supported character, prop, conflict, or transition fact",
+      "reasoning": {
+        "diagnosis": "source-supported reason for this episode boundary",
+        "key_decisions": ["boundary or production decision supported by source"]
+      },
+      "status": "draft",
+      "scenes": [
+        {
+          "scene_id": "scene_1",
+          "scene_number": 1,
+          "heading": "INT/EXT location time",
+          "int_ext": "INT or EXT",
+          "location": "location name",
+          "time": "morning/day/evening/night",
+          "summary": "source-supported scene-outline summary",
+          "content": "source-supported scene outline content",
+          "content_kilo": 0,
+          "characters": "Character A,Character B",
+          "visual_style": "short source-supported visual style",
+          "visual_style_description": "source-supported light, color, texture, composition, or mood",
+          "visual_style_confirmed": false
+        }
+      ]
     }
   ],
   "validation": {

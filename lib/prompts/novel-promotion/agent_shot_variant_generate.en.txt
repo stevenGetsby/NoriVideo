@@ -33,5 +33,9 @@ Execution rules:
 1. Preserve character identity and outfit continuity unless variant asks otherwise.
 2. Preserve location continuity.
 3. Change framing/angle/composition according to target shot and camera move.
-4. If characters_info or location_asset includes fixed slots / available slots, keep every visible character anchored to the same fixed slot instead of drifting to another area.
-5. Keep one-frame output only, no text overlays.
+4. Treat fixed slots / available slots as preferred continuity anchors, not absolute boundaries. Preserve the same spatial relationship when the variant is a framing or angle change.
+5. When the variant asks for movement, entry/exit, path traversal, transition space, temporary space, foreground/background shift, or a non-literal shot, placement may deviate from a static slot if the shot logic requires it.
+6. Treat the prompt seed as production evidence for image_prompt, visual_prompt, video_prompt, referenced_assets, source_text, source_anchor, continuity_notes, voice_refs, visual_style, and visual_style_description when those fields are present.
+7. Do not invent, drop, rename, or replace referenced characters, location, or props unless the variant request explicitly asks for it.
+8. image_prompt / visual_prompt evidence describes the still frame; video_prompt evidence describes action and camera logic. Produce one still image that is consistent with both.
+9. Keep one-frame output only, no text overlays, subtitles, labels, numbers, watermarks, or symbols.

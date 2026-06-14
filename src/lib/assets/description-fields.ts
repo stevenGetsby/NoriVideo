@@ -1,4 +1,8 @@
 import { parseJsonStringArray } from '@/lib/workers/handlers/image-task-handler-shared'
+import {
+  readFrameOSAppearanceMetadataFromDescriptions,
+  stringifyCharacterDescriptionsWithFrameOSMetadata,
+} from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 function trimText(value: string | null | undefined): string {
   return typeof value === 'string' ? value.trim() : ''
@@ -35,8 +39,9 @@ export function buildCharacterDescriptionFields(params: {
   if (!values[0]) {
     values[0] = nextDescription
   }
+  const metadata = readFrameOSAppearanceMetadataFromDescriptions(params.descriptions)
   return {
     description: values[0],
-    descriptions: JSON.stringify(values),
+    descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata(values, metadata),
   }
 }

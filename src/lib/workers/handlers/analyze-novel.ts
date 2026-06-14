@@ -13,6 +13,16 @@ import { resolveAnalysisModel } from './resolve-analysis-model'
 import { seedProjectLocationBackedImageSlots } from '@/lib/assets/services/location-backed-assets'
 import { normalizeLocationAvailableSlots } from '@/lib/location-available-slots'
 import { resolvePropVisualDescription } from '@/lib/assets/prop-description'
+import {
+  normalizeAssetVariants,
+  normalizeCoverageEpisodes,
+  normalizeExpectedAppearances,
+} from '@/lib/novel-promotion/character-profile-metadata'
+import {
+  buildEnvironmentFrameOSMetadata,
+  buildItemFrameOSMetadata,
+} from '@/lib/novel-promotion/asset-frameos-metadata'
+import { buildCharacterVoiceMappingUpdates } from '@/lib/novel-promotion/voice-mapping-binding'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -235,11 +245,15 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
   const parsedCharacters = Array.isArray(charactersData.characters)
     ? (charactersData.characters as Array<Record<string, unknown>>)
     : []
-  const parsedLocations = Array.isArray(locationsData.locations)
-    ? (locationsData.locations as Array<Record<string, unknown>>)
-    : []
-  const parsedProps = Array.isArray(propsData.props)
-    ? (propsData.props as Array<Record<string, unknown>>)
+  const parsedLocations = Array.isArray(locationsData.environments)
+    ? (locationsData.environments as Array<Record<string, unknown>>)
+    : Array.isArray(locationsData.locations)
+      ? (locationsData.locations as Array<Record<string, unknown>>)
+      : []
+  const parsedProps = Array.isArray(propsData.items)
+    ? (propsData.items as Array<Record<string, unknown>>)
+    : Array.isArray(propsData.props)
+      ? (propsData.props as Array<Record<string, unknown>>)
     : []
 
   await reportTaskProgress(job, 75, {
@@ -250,6 +264,7 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
   await assertTaskActive(job, 'analyze_novel_persist')
 
   const createdCharacters: Array<{ id: string }> = []
+  const createdCharacterTargets: Array<{ id: string; name: string; aliases: string[] }> = []
   for (const item of parsedCharacters) {
     const name = readText(item.name).trim()
     if (!name) continue
@@ -260,31 +275,68 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
     if (existsInLibrary) continue
 
     const profileData = {
+      role_type: item.role_type,
       role_level: item.role_level,
+      description: item.description,
       archetype: item.archetype,
       personality_tags: toStringArray(item.personality_tags),
       era_period: item.era_period,
       social_class: item.social_class,
       occupation: item.occupation,
+      background: item.background,
+      identity_lock: toStringArray(item.identity_lock),
+      relationships: toStringArray(item.relationships),
+      coverage_scenes: toStringArray(item.coverage_scenes),
+      coverage_episodes: normalizeCoverageEpisodes(item.coverage_episodes),
+      prompt: item.prompt,
+      voice_trait: item.voice_trait,
+      representative_line: item.representative_line,
+      voice_audition_prompt: item.voice_audition_prompt,
+      speech_rate: item.speech_rate,
+      voice_id: item.voice_id,
+      voice_raw_file: item.voice_raw_file,
+      audition_status: item.audition_status,
       costume_tier: item.costume_tier,
       suggested_colors: toStringArray(item.suggested_colors),
       primary_identifier: item.primary_identifier,
       visual_keywords: toStringArray(item.visual_keywords),
       gender: item.gender,
       age_range: item.age_range,
+      expected_appearances: normalizeExpectedAppearances(item.expected_appearances),
+      variants: normalizeAssetVariants(item.variants),
     }
 
+    const aliases = toStringArray(item.aliases)
     const created = await prisma.novelPromotionCharacter.create({
       data: {
         novelPromotionProjectId: novelData.id,
         name,
-        aliases: JSON.stringify(toStringArray(item.aliases)),
+        aliases: JSON.stringify(aliases),
         profileData: JSON.stringify(profileData),
         profileConfirmed: false,
       },
       select: { id: true },
     })
     createdCharacters.push(created)
+    createdCharacterTargets.push({ id: created.id, name, aliases })
+  }
+
+  const voiceMappingPlan = buildCharacterVoiceMappingUpdates({
+    mappings: charactersData,
+    characters: [
+      ...(novelData.characters || []).map((character) => ({
+        id: character.id,
+        name: character.name,
+        aliases: character.aliases,
+      })),
+      ...createdCharacterTargets,
+    ],
+  })
+  for (const update of voiceMappingPlan.updates) {
+    await prisma.novelPromotionCharacter.update({
+      where: { id: update.characterId },
+      data: update.data,
+    })
   }
 
   const createdLocations: Array<{ id: string }> = []
@@ -324,6 +376,7 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
       descriptions: cleanDescriptions,
       fallbackDescription: readText(item.summary) || name,
       availableSlots,
+      frameosMetadata: buildEnvironmentFrameOSMetadata(item),
     })
 
     createdLocations.push(created)
@@ -362,6 +415,7 @@ export async function handleAnalyzeNovelTask(job: Job<TaskJobData>) {
       descriptions: [description],
       fallbackDescription: description,
       availableSlots: [],
+      frameosMetadata: buildItemFrameOSMetadata(item),
     })
     existingPropNameSet.add(normalizedName)
     createdProps.push(created)

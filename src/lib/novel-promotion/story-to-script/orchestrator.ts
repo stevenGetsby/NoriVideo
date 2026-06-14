@@ -56,6 +56,9 @@ export type StoryToScriptClipCandidate = {
   location: string | null
   characters: string[]
   props: string[]
+  sourceAnchor?: string | null
+  infoPoints?: string[]
+  reasoning?: Record<string, unknown> | null
   content: string
   matchLevel: ClipMatchLevel
   matchConfidence: number
@@ -85,6 +88,7 @@ export type StoryToScriptOrchestratorInput = {
   baseLocations: string[]
   baseProps?: string[]
   baseCharacterIntroductions: Array<{ name: string; introduction?: string | null }>
+  projectProductionContext?: string
   promptTemplates: StoryToScriptPromptTemplates
   runStep: (
     meta: StoryToScriptStepMeta,
@@ -111,6 +115,7 @@ export type StoryToScriptOrchestratorResult = {
   locationsLibName: string
   propsLibName: string
   charactersIntroduction: string
+  projectProductionContext?: string
   clipList: StoryToScriptClipCandidate[]
   screenplayResults: StoryToScriptScreenplayResult[]
   summary: {
@@ -157,8 +162,41 @@ function toObjectArray(value: unknown): Record<string, unknown>[] {
   return value.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
 }
 
+function toRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  return value as Record<string, unknown>
+}
+
 function uniqueStrings(values: string[]): string[] {
   return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)))
+}
+
+function withClipReviewMetadata(
+  screenplay: Record<string, unknown>,
+  clip: StoryToScriptClipCandidate,
+): Record<string, unknown> {
+  const next = { ...screenplay }
+  const sourceAnchor = asString(next.source_anchor) || clip.sourceAnchor || ''
+  const infoPoints = Array.isArray(next.info_points)
+    ? toStringArray(next.info_points)
+    : (clip.infoPoints || [])
+  const screenplayReasoning = toRecord(next.reasoning)
+  const clipReasoning = clip.reasoning || null
+
+  if (sourceAnchor) {
+    next.source_anchor = sourceAnchor
+  }
+  if (infoPoints.length > 0) {
+    next.info_points = infoPoints
+  }
+  if (clipReasoning || screenplayReasoning) {
+    next.reasoning = {
+      ...(clipReasoning || {}),
+      ...(screenplayReasoning || {}),
+    }
+  }
+
+  return next
 }
 
 function parseShotCharacters(raw: string | undefined): string[] {
@@ -840,10 +878,14 @@ function extractAnalyzedCharacters(obj: Record<string, unknown>): Record<string,
 }
 
 function extractAnalyzedLocations(obj: Record<string, unknown>): Record<string, unknown>[] {
+  const primary = toObjectArray(obj.environments)
+  if (primary.length > 0) return primary
   return toObjectArray(obj.locations)
 }
 
 function extractAnalyzedProps(obj: Record<string, unknown>): Record<string, unknown>[] {
+  const primary = toObjectArray(obj.items)
+  if (primary.length > 0) return primary
   return toObjectArray(obj.props)
 }
 
@@ -969,6 +1011,7 @@ export async function runStoryToScriptOrchestrator(
     baseLocations,
     baseProps = [],
     baseCharacterIntroductions,
+    projectProductionContext = 'No explicit project production context provided. Infer production choices only from source text and asset libraries.',
     promptTemplates,
     runStep,
     onStepError,
@@ -1045,7 +1088,7 @@ export async function runStoryToScriptOrchestrator(
         },
         characterPrompt,
         'analyze_characters',
-        2200,
+        6500,
         safeParseJsonObject,
       ),
       () => runStepWithRetry(
@@ -1061,7 +1104,7 @@ export async function runStoryToScriptOrchestrator(
         },
         locationPrompt,
         'analyze_locations',
-        2200,
+        6500,
         safeParseJsonObject,
       ),
       () => runStepWithRetry(
@@ -1077,7 +1120,7 @@ export async function runStoryToScriptOrchestrator(
         },
         propPrompt,
         'analyze_props',
-        1600,
+        3000,
         safeParseJsonObject,
       ),
     ],
@@ -1180,7 +1223,7 @@ export async function runStoryToScriptOrchestrator(
       splitMeta,
       splitPrompt,
       'split_clips',
-      2600,
+      6500,
       parseClipArray,
     )
     if (rawClipList.length === 0) {
@@ -1201,6 +1244,9 @@ export async function runStoryToScriptOrchestrator(
       const item = rawClipList[index]
       const startText = asString(item.start)
       const endText = asString(item.end)
+      const sourceAnchor = asString(item.source_anchor) || startText
+      const infoPoints = toStringArray(item.info_points)
+      const reasoning = toRecord(item.reasoning)
       const clipId = `clip_${index + 1}`
       if (isWholeContentSingleClip({
         clipCount: rawClipList.length,
@@ -1216,6 +1262,9 @@ export async function runStoryToScriptOrchestrator(
           location: asString(item.location) || null,
           characters: toStringArray(item.characters),
           props: toStringArray(item.props),
+          sourceAnchor,
+          infoPoints,
+          reasoning,
           content,
           matchLevel: 'L1',
           matchConfidence: 1,
@@ -1240,6 +1289,9 @@ export async function runStoryToScriptOrchestrator(
             location: asString(item.location) || null,
             characters: toStringArray(item.characters),
             props: toStringArray(item.props),
+            sourceAnchor: asString(item.source_anchor) || fallback.startText,
+            infoPoints,
+            reasoning,
             content: fallback.content,
             matchLevel: 'L2',
             matchConfidence: 0.91,
@@ -1259,6 +1311,9 @@ export async function runStoryToScriptOrchestrator(
         location: asString(item.location) || null,
         characters: toStringArray(item.characters),
         props: toStringArray(item.props),
+        sourceAnchor,
+        infoPoints,
+        reasoning,
         content: content.slice(match.startIndex, match.endIndex),
         matchLevel: match.level,
         matchConfidence: match.confidence,
@@ -1321,6 +1376,7 @@ export async function runStoryToScriptOrchestrator(
           characters_lib_name: charactersLibName || '无',
           props_lib_name: propsLibName || '无',
           characters_introduction: charactersIntroduction || '暂无角色介绍',
+          project_production_context: projectProductionContext,
           clip_id: clip.id,
         })
 
@@ -1329,15 +1385,16 @@ export async function runStoryToScriptOrchestrator(
           stepMeta,
           screenplayPrompt,
           'screenplay_conversion',
-          2200,
+          5500,
           parseScreenplayObject,
         )
-        const scenes = Array.isArray(screenplay.scenes) ? screenplay.scenes : []
+        const screenplayWithMetadata = withClipReviewMetadata(screenplay, clip)
+        const scenes = Array.isArray(screenplayWithMetadata.scenes) ? screenplayWithMetadata.scenes : []
         return {
           clipId: clip.id,
           success: true,
           sceneCount: scenes.length,
-          screenplay,
+          screenplay: screenplayWithMetadata,
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -1371,6 +1428,7 @@ export async function runStoryToScriptOrchestrator(
     locationsLibName,
     propsLibName,
     charactersIntroduction,
+    projectProductionContext,
     clipList,
     screenplayResults,
     summary: {

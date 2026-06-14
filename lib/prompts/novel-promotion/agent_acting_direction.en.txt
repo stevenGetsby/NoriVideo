@@ -8,6 +8,19 @@ Core input:
 - Character info:
 {characters_info}
 
+FrameOS panel context contract:
+- Panels may contain source_text, source_anchor, referenced_assets, visual_style, visual_style_description, video_prompt, continuity_notes, and voice_refs.
+- Use source_text/source_anchor as the exact story beat for the acting note. Do not invent unrelated motivation or action.
+- Use referenced_assets and continuity_notes to keep identity, costume, prop handling, location relationship, and previous/next beat continuity consistent.
+- Use video_prompt to align the acting with camera movement, visible motion, and shot timing.
+- Use voice_refs to infer dialogue_state:
+  - speaking: the character has a current line or explicit voice/dialogue reference in this panel.
+  - listening/reacting: the character has no current line but reacts to another speaker.
+  - silent/neutral: no voice reference is active for the character.
+- If dialogue_state is speaking, the acting sentence must include lip_sync readiness: visible mouth shape, unobstructed face, breath/pause, or readable jaw/lip motion as appropriate to the shot.
+- If dialogue_state is listening/reacting, the acting sentence must include a visible reaction cue such as gaze shift, breath hold, blink, shoulder tension, or hand movement.
+- Never request on-screen subtitles, captions, speech bubbles, or text overlays.
+
 Requirements:
 1. Treat each panel independently. The same character can have different emotional states across panels.
 2. Adapt performance style to panel.scene_type (daily / emotion / action / epic / suspense).
@@ -16,6 +29,7 @@ Requirements:
    - facial expression details
    - body language / posture
    - micro action and gaze direction
+   - dialogue_state implied by voice_refs, including lip_sync readiness when speaking
 4. Use only observable descriptions. Avoid abstract words like "sad" without visual evidence.
 
 Output format (JSON array only):
@@ -36,4 +50,5 @@ Strict constraints:
 2. Array length must equal {panel_count}.
 3. Each character object must contain only "name" and "acting".
 4. Keep character names exactly consistent with panel input.
-5. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+5. Preserve the production fields by writing them into the acting sentence, not by adding new JSON keys.
+6. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

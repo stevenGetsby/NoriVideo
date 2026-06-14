@@ -6,7 +6,9 @@ import { countWords } from '@/lib/word-count'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
-import { getUserModelConfig } from '@/lib/config-service'
+import { getProjectModelConfig } from '@/lib/config-service'
+import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
+import { buildEpisodeFrameOSMetadata, type EpisodeFrameOSMetadata } from '@/lib/novel-promotion/episode-frameos-metadata'
 import { createTextMarkerMatcher } from '@/lib/novel-promotion/story-to-script/clip-matching'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
 import type { TaskJobData } from '@/lib/task/types'
@@ -14,16 +16,33 @@ import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 
 type EpisodeSplit = {
   number?: number
+  episode_id?: string
+  episode_number?: number
   title?: string
   summary?: string
+  estimatedWords?: number
+  content_kilo?: number
   startMarker?: string
   endMarker?: string
   startIndex?: number
   endIndex?: number
+  source_anchor?: unknown
+  info_points?: unknown
+  reasoning?: unknown
+  status?: string
+  scenes?: unknown
 }
 
 type SplitResponse = {
+  status?: string
+  steps?: unknown
+  default_visual_style?: unknown
+  script_kilo?: number
+  adapted_kilo?: number
+  analysis?: unknown
   episodes?: EpisodeSplit[]
+  items?: EpisodeSplit[]
+  validation?: unknown
 }
 
 const MAX_EPISODE_SPLIT_ATTEMPTS = 2
@@ -36,8 +55,14 @@ const EPISODE_SPLIT_BOUNDARY_SUFFIX = `
 
 function parseSplitResponse(aiResponse: string): SplitResponse {
   const parsed = safeParseJsonObject(aiResponse) as SplitResponse
-  if (!parsed || !Array.isArray(parsed.episodes) || parsed.episodes.length === 0) {
+  const rows = Array.isArray(parsed.episodes) && parsed.episodes.length > 0
+    ? parsed.episodes
+    : parsed.items
+  if (!parsed || !Array.isArray(rows) || rows.length === 0) {
     throw new Error('Failed to parse AI response: invalid episodes payload')
+  }
+  if (!Array.isArray(parsed.episodes) || parsed.episodes.length === 0) {
+    parsed.episodes = rows
   }
   return parsed
 }
@@ -81,11 +106,8 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     throw new Error('Novel promotion data not found')
   }
 
-  const userConfig = await getUserModelConfig(job.data.userId)
-  const analysisModel = userConfig.analysisModel
-  if (!analysisModel) {
-    throw new Error('请先在设置页面配置分析模型')
-  }
+  const projectConfig = await getProjectModelConfig(projectId, job.data.userId)
+  const analysisModel = projectConfig.analysisModel || LUMINA_GPT55_MODEL_KEY
 
   const promptBase = buildPrompt({
     promptId: PROMPT_IDS.NP_EPISODE_SPLIT,
@@ -111,6 +133,7 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
     summary: string
     content: string
     wordCount: number
+    frameosMetadata?: EpisodeFrameOSMetadata
   }
   let episodes: EpisodeOutput[] | null = null
   let lastError: Error | null = null
@@ -219,12 +242,27 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
             throw new Error(`episode_${idx + 1} 匹配内容为空`)
           }
 
+          const frameosMetadata = buildEpisodeFrameOSMetadata({
+            episode_id: ep.episode_id,
+            episode_number: ep.episode_number ?? episodeNumber,
+            status: ep.status ?? splitResult.status,
+            content_kilo: ep.content_kilo,
+            estimatedWords: ep.estimatedWords,
+            source_anchor: ep.source_anchor,
+            info_points: ep.info_points,
+            reasoning: ep.reasoning,
+            scenes: ep.scenes,
+            analysis: splitResult.analysis,
+            validation: splitResult.validation,
+          })
+
           resolved.push({
             number: episodeNumber,
             title,
             summary: typeof ep.summary === 'string' ? ep.summary : '',
             content: episodeContent,
             wordCount: countWords(episodeContent),
+            ...(frameosMetadata ? { frameosMetadata } : {}),
           })
           searchFrom = endPos
         }

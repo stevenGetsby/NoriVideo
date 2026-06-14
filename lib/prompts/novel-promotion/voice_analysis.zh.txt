@@ -55,13 +55,27 @@
 4. 【角色匹配】
    - 角色库：{characters_lib_name}
    - 角色介绍：{characters_introduction}
+   - 音色资产线索：{character_voice_context}
    - 优先使用角色库中完全一致的名称
    - ⭐ 参考角色介绍理解"我"和其他称呼对应的角色
    - 如果不存在，使用原文中的称呼
+   - 同一角色在全片中的 speaker 必须保持同一个规范名字；不要在不同台词里混用“我”“丈夫”“林总”等称呼
+   - speaker 不是音色名称，只是发言人；音色设定会根据 speaker 与角色资产继续绑定
+   - 如音色资产线索中包含 voice_trait、representative_line 或 voice_audition_prompt，只用于判断该角色的稳定说话气质、情绪强弱和后续试镜参考；不要把它们输出成 speaker，也不要输出音色模型名或配音演员名
 
 5. 【镜头匹配 - 严格规则】
    ⚠️ 这是关键步骤，必须严格遵守以下规则：
    
+   FrameOS 分镜字段理解：
+   - 分镜可能同时包含旧字段 text_segment，以及 FrameOS 结构字段 panel_id、panel_number、source_text、source_anchor、referenced_assets、characters、location、props、video_prompt、continuity_notes、voice_refs、scene_type、duration
+   - source_text/source_anchor 是该镜头对应的原文证据；台词必须落在同一语义段或相邻对白段内，不能把只支持动作、反应、场景描述的镜头当成说话镜头
+   - referenced_assets.characters 与 characters 用于校验发言人身份和画面可见性；对话台词优先匹配发言人在场的镜头
+   - voice_refs 如果已经包含相同 speaker 或相同台词内容，优先匹配该镜头；如果 voice_refs 与原文冲突，以原文为准，无法可靠匹配则 matchedPanel 设为 null
+   - video_prompt 如果明确描述某角色正在说话，优先匹配该镜头；如果只是听者反应镜头，不要把说话者台词匹配过去
+   - continuity_notes、scene_type、duration 只作为时间、动作承接和镜头连续性线索，帮助判断台词是否适合放入该镜头
+   - 匹配结果必须为后续 dialogue_state 与 lip_sync 做准备：说话者口型或旁白时机要能落在该镜头中
+   - 输出 JSON 结构保持不变，严禁新增 source_text、source_anchor、referenced_assets、voice_refs、dialogue_state、lip_sync 等字段
+
    a) **顺序约束**：
       - 台词在原文中的出现顺序必须与分镜顺序大致对应
       - 第N条台词应该匹配在第N个分镜附近，不能跳跃太远
@@ -81,6 +95,7 @@
       2. 验证分镜角色是否包含台词发言人
       3. 验证顺序是否合理（前后3个分镜范围内）
       4. 如果无法满足以上条件，matchedPanel设为null
+      5. 如果分镜 video_prompt 已明确“正在说话”，优先匹配该镜头；如果只有听者反应，不要把说话者台词匹配到听者镜头
    
    e) **示例**：
       - 原文顺序：柳如烟说"殿下身份尊贵" → 玄离说"胆子挺大"

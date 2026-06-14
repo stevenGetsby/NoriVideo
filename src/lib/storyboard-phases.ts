@@ -15,6 +15,8 @@ import {
     buildPromptAssetContext,
     compileAssetPromptFragments,
 } from '@/lib/assets/services/asset-prompt-context'
+import { buildScreenplayVisualStyleContext } from '@/lib/novel-promotion/screenplay-visual-style-context'
+import { buildFrameosProductionContext } from '@/lib/novel-promotion/frameos-production-context'
 
 // 阶段类型
 export type StoryboardPhase = 1 | '2-cinematography' | '2-acting' | 3
@@ -76,17 +78,26 @@ type NovelPromotionAssetData = {
 }
 
 export type StoryboardPanel = JsonRecord & {
+    panel_id?: string
     panel_number?: number
     description?: string
     location?: string
     source_text?: string
+    source_anchor?: unknown
+    referenced_assets?: unknown
     characters?: unknown
     props?: unknown
     srt_range?: unknown[]
     scene_type?: string
+    visual_style?: string
+    visual_style_description?: string
     shot_type?: string
     camera_move?: string
+    image_prompt?: string
+    visual_prompt?: string
     video_prompt?: string
+    continuity_notes?: string
+    voice_refs?: unknown
     duration?: number
     photographyPlan?: JsonRecord
     actingNotes?: unknown
@@ -200,6 +211,83 @@ function parseClipProps(raw: string | null | undefined): string[] {
     }
 }
 
+function readPanelNumber(panel: StoryboardPanel, index: number): number {
+    if (typeof panel.panel_number === 'number' && Number.isFinite(panel.panel_number)) return panel.panel_number
+    const value = panel.panelIndex
+    if (typeof value === 'number' && Number.isFinite(value)) return value + 1
+    return index + 1
+}
+
+function readName(value: unknown): string | null {
+    if (typeof value === 'string' && value.trim()) return value.trim()
+    if (!isJsonRecord(value)) return null
+    const name = value.name
+    return typeof name === 'string' && name.trim() ? name.trim() : null
+}
+
+function normalizePanelNameList(value: unknown, fallback: unknown[]): unknown[] {
+    if (Array.isArray(value) && value.length > 0) return value
+    const names = fallback.map(readName).filter((name): name is string => Boolean(name))
+    return names
+}
+
+function readPanelText(panel: StoryboardPanel, clip: ClipAsset): string {
+    if (typeof panel.source_text === 'string' && panel.source_text.trim()) return panel.source_text
+    if (typeof panel.text_segment === 'string' && panel.text_segment.trim()) return panel.text_segment
+    if (typeof panel.description === 'string' && panel.description.trim()) return panel.description
+    return clip.content || ''
+}
+
+function buildSourceAnchor(panel: StoryboardPanel, sourceText: string, clip: ClipAsset): unknown {
+    if (panel.source_anchor !== undefined && panel.source_anchor !== null) return panel.source_anchor
+    const start = typeof clip.startText === 'string' && clip.startText.trim() ? clip.startText.trim() : ''
+    const end = typeof clip.endText === 'string' && clip.endText.trim() ? clip.endText.trim() : ''
+    if (start || end) return { start, end }
+    return sourceText ? { text: sourceText } : null
+}
+
+export function enrichPanelsForFrameOSPhaseContext(
+    clip: ClipAsset,
+    planPanels: StoryboardPanel[],
+): StoryboardPanel[] {
+    const clipCharacters = parseClipCharacters(clip.characters)
+    const clipLocation = clip.location || ''
+    const clipProps = parseClipProps(clip.props)
+
+    return planPanels.map((panel, index) => {
+        const sourceText = readPanelText(panel, clip)
+        const characters = normalizePanelNameList(panel.characters, clipCharacters)
+        const props = normalizePanelNameList(panel.props, clipProps)
+        const location = typeof panel.location === 'string' && panel.location.trim()
+            ? panel.location
+            : clipLocation
+        return {
+            ...panel,
+            panel_id: typeof panel.panel_id === 'string' && panel.panel_id.trim()
+                ? panel.panel_id
+                : `panel_${readPanelNumber(panel, index)}`,
+            panel_number: readPanelNumber(panel, index),
+            source_text: sourceText,
+            source_anchor: buildSourceAnchor(panel, sourceText, clip),
+            characters,
+            location,
+            props,
+            referenced_assets: panel.referenced_assets ?? {
+                characters,
+                location,
+                props,
+            },
+            visual_prompt: typeof panel.visual_prompt === 'string' && panel.visual_prompt.trim()
+                ? panel.visual_prompt
+                : typeof panel.image_prompt === 'string'
+                    ? panel.image_prompt
+                    : '',
+            continuity_notes: typeof panel.continuity_notes === 'string' ? panel.continuity_notes : '',
+            voice_refs: panel.voice_refs ?? [],
+        }
+    })
+}
+
 // 格式化Clip标识（支持SRT模式和Agent模式）
 export function formatClipId(clip: ClipAsset): string {
     // SRT 模式
@@ -292,6 +380,10 @@ export async function executePhase1(
     if (clip.screenplay && !screenplay) {
         _ulogWarn(`[Phase 1] Clip ${clipId}: 剧本JSON解析失败`)
     }
+    const visualStyleContext = buildScreenplayVisualStyleContext(screenplay)
+    const projectProductionContext = buildFrameosProductionContext({
+        project: { name: projectName },
+    })
 
     // 构建提示词
     let planPrompt = planPromptTemplate
@@ -301,6 +393,8 @@ export async function executePhase1(
         .replace('{characters_appearance_list}', filteredAppearanceList)
         .replace('{characters_full_description}', filteredFullDescription)
         .replace('{props_description}', filteredPropsDescription)
+        .replace('{visual_style_context}', visualStyleContext)
+        .replace('{project_production_context}', projectProductionContext)
         .replace('{clip_json}', clipJson)
 
     if (screenplay) {
@@ -423,10 +517,11 @@ export async function executePhase2(
         clipLocation: null,
         clipProps,
     })).propsDescriptionText
+    const phasePanels = enrichPanelsForFrameOSPhaseContext(clip, planPanels)
 
     // 构建提示词
     const cinematographerPrompt = cinematographerPromptTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
+        .replace('{panels_json}', JSON.stringify(phasePanels, null, 2))
         .replace('{panel_count}', planPanels.length.toString())
         .replace(/\{panel_count\}/g, planPanels.length.toString())
         .replace('{locations_description}', filteredLocationsDescription)
@@ -511,10 +606,11 @@ export async function executePhase2Acting(
     const clipCharacters = parseClipCharacters(clip.characters)
 
     const filteredFullDescription = getFilteredFullDescription(novelPromotionData.characters, clipCharacters)
+    const phasePanels = enrichPanelsForFrameOSPhaseContext(clip, planPanels)
 
     // 构建提示词
     const actingPrompt = actingPromptTemplate
-        .replace('{panels_json}', JSON.stringify(planPanels, null, 2))
+        .replace('{panels_json}', JSON.stringify(phasePanels, null, 2))
         .replace('{panel_count}', planPanels.length.toString())
         .replace(/\{panel_count\}/g, planPanels.length.toString())
         .replace('{characters_info}', filteredFullDescription)

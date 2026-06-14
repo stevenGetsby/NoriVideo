@@ -4,7 +4,9 @@ import { prisma } from '@/lib/prisma'
 import {
   type LocationAvailableSlot,
   stringifyLocationAvailableSlots,
+  stringifyLocationAvailableSlotsWithFrameOSMetadata,
 } from '@/lib/location-available-slots'
+import type { AssetFrameOSMetadata } from '@/lib/novel-promotion/asset-frameos-metadata'
 
 export type LocationBackedAssetKind = 'location' | 'prop'
 
@@ -274,6 +276,7 @@ export async function seedProjectLocationBackedImageSlots(input: {
   fallbackDescription: string
   descriptions?: string[]
   availableSlots?: LocationAvailableSlot[]
+  frameosMetadata?: AssetFrameOSMetadata | null
   locationImageModel?: {
     createMany: (args: {
       data: Array<{
@@ -289,7 +292,9 @@ export async function seedProjectLocationBackedImageSlots(input: {
   if (descriptions.length === 0) {
     return
   }
-  const availableSlots = stringifyLocationAvailableSlots(input.availableSlots ?? [])
+  const availableSlots = input.frameosMetadata
+    ? stringifyLocationAvailableSlotsWithFrameOSMetadata(input.availableSlots ?? [], input.frameosMetadata)
+    : stringifyLocationAvailableSlots(input.availableSlots ?? [])
 
   const locationImageModel = input.locationImageModel ?? prisma.locationImage
   await locationImageModel.createMany({

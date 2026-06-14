@@ -1,6 +1,7 @@
 import { decodeImageUrlsFromDb } from '@/lib/contracts/image-urls-contract'
 import { createScopedLogger } from '@/lib/logging/core'
 import { getSignedUrl } from '@/lib/storage'
+import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 export type UnknownRecord = Record<string, unknown>
 
@@ -83,7 +84,7 @@ export function addSignedUrlsToCharacter(character: CharacterLike) {
     let descriptions: string[] | null = null
     if (app.descriptions) {
       try {
-        descriptions = typeof app.descriptions === 'string' ? JSON.parse(app.descriptions) : app.descriptions as string[]
+        descriptions = parseCharacterDescriptionValues(app.descriptions)
       } catch (error: unknown) {
         _ulogError('[signed-url] failed to parse descriptions', app.descriptions, error)
       }

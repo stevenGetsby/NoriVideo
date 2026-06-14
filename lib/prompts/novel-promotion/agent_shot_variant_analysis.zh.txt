@@ -18,6 +18,9 @@
 ## 当前画面
 （附带参考图片）
 
+## FrameOS 分镜生产上下文 JSON
+{panel_context_json}
+
 ======================================
 【分析任务】
 ======================================
@@ -36,13 +39,14 @@
    - 推近：从中景聚焦到特写，强调情绪/细节
    - 局部特写：聚焦画面中的某个物品或身体部位
 
-3. **时间/动作变化**
-   - 动作前/后：展示动作发生前一刻或后一刻
-   - 反应镜头：另一角色对当前画面的反应
+3. **同一剧情锚点内的动作强调**
+   - 禁止生成动作发生前/后一刻的新剧情节点
+   - 只能在同一 source_anchor 内改变可见动作强调、主体反应、视线关系或动作细节
+   - 反应镜头只能表现当前 source_anchor 已包含的反应，不新增新的事件结果
 
 4. **场景/氛围变化**
    - 环境镜头：聚焦背景氛围（窗外、室内布置）
-   - 光影变化：不同光线氛围（如逆光、剪影）
+   - 光影变化：只能在 visual_style / visual_style_description 已建立的风格内微调，不得改变时间、天气、地点或剧情事实
 
 ======================================
 【输出格式】
@@ -58,7 +62,15 @@
     "description": "详细描述这个镜头变体会呈现什么画面",
     "shot_type": "推荐景别（如：主观特写）",
     "camera_move": "推荐运镜（如：固定）",
-    "video_prompt": "用于图片生成的详细提示词，使用年龄+性别描述人物",
+    "image_prompt": "该变体的静帧构图提示词，使用同一 referenced_assets",
+    "visual_prompt": "FrameOS 静帧视觉提示词别名，默认与 image_prompt 一致",
+    "video_prompt": "该变体的视频运动提示词，聚焦动作、表演、镜头运动",
+    "referenced_assets": {
+      "characters": [],
+      "location": "",
+      "props": []
+    },
+    "continuity_notes": "说明保留了哪些 source_anchor、referenced_assets 和连续性约束",
     "creative_score": 5
   }
 ]
@@ -70,7 +82,11 @@
 - `description`: 详细描述该变体的画面内容
 - `shot_type`: 推荐景别，如"平视中景"、"俯拍全景"、"主观特写"
 - `camera_move`: 推荐运镜，如"固定"、"缓推"
-- `video_prompt`: 图片生成提示词，必须用"年龄+性别"替代角色名（如"年轻女子"、"中年男子"）
+- `image_prompt`: 静帧构图提示词，必须保持同一 source_anchor、referenced_assets、visual_style、道具状态和可见动作状态
+- `visual_prompt`: FrameOS 静帧视觉提示词别名，除非平台需要区分，默认与 image_prompt 一致
+- `video_prompt`: 视频运动提示词，必须包含主体、动作、目标运镜，以及维持连续性所需的道具或场景锚点
+- `referenced_assets`: 沿用 panel_context_json 中的角色、场景、道具引用；除非 source_anchor 已明确包含资产变化，否则不得新增、删除、改名或替换
+- `continuity_notes`: 说明该变体如何保留 source_anchor、referenced_assets 和 continuity_notes
 - `creative_score`: 创意程度 1-5，5为最有创意
 
 ======================================
@@ -88,7 +104,15 @@
     "description": "第一人称视角，展示手机屏幕内容，手机边缘和手指可见",
     "shot_type": "主观特写",
     "camera_move": "固定",
-    "video_prompt": "POV shot of a smartphone screen, fingers holding the phone edges, bright screen glow in dark room, close-up perspective",
+    "image_prompt": "POV shot of hands holding a smartphone inside the same bedroom, close-up composition, same visual style",
+    "visual_prompt": "POV shot of hands holding a smartphone inside the same bedroom, close-up composition, same visual style",
+    "video_prompt": "POV shot holds on the smartphone while fingers make a small visible movement, fixed camera, same bedroom continuity",
+    "referenced_assets": {
+      "characters": ["young woman"],
+      "location": "bedroom",
+      "props": ["smartphone"]
+    },
+    "continuity_notes": "Keeps the same bedroom, phone prop, and source action emphasis.",
     "creative_score": 5
   },
   {
@@ -97,7 +121,15 @@
     "description": "女子脸部特写，手机屏光打在脸上，呈现表情细节",
     "shot_type": "特写",
     "camera_move": "固定",
-    "video_prompt": "Close-up of a young woman's face illuminated by phone screen light, soft blue glow on skin, expression of focus, lying down angle",
+    "image_prompt": "Close-up of a young woman's face beside the smartphone, same bedroom and phone prop, focused expression",
+    "visual_prompt": "Close-up of a young woman's face beside the smartphone, same bedroom and phone prop, focused expression",
+    "video_prompt": "Camera holds on the young woman's face as her gaze stays on the phone, fixed camera, same bedroom continuity",
+    "referenced_assets": {
+      "characters": ["young woman"],
+      "location": "bedroom",
+      "props": ["smartphone"]
+    },
+    "continuity_notes": "Keeps the same phone-viewing action without moving to a new story moment.",
     "creative_score": 4
   },
   {
@@ -106,7 +138,15 @@
     "description": "从天花板角度俯拍，展示整个床铺和女子姿态",
     "shot_type": "俯拍全景",
     "camera_move": "固定",
-    "video_prompt": "Top-down bird's eye view of bedroom, young woman lying on bed holding phone, cozy blankets, bedroom interior visible",
+    "image_prompt": "Top-down view of the same bedroom, young woman lying on bed holding smartphone, bedroom layout visible",
+    "visual_prompt": "Top-down view of the same bedroom, young woman lying on bed holding smartphone, bedroom layout visible",
+    "video_prompt": "Top-down camera stays fixed as the young woman holds the phone, preserving the same bedroom layout",
+    "referenced_assets": {
+      "characters": ["young woman"],
+      "location": "bedroom",
+      "props": ["smartphone"]
+    },
+    "continuity_notes": "Keeps the same character, location, and phone prop while changing only camera angle.",
     "creative_score": 4
   },
   {
@@ -115,7 +155,15 @@
     "description": "特写手指在手机屏幕上滑动",
     "shot_type": "极端特写",
     "camera_move": "固定",
-    "video_prompt": "Extreme close-up of feminine fingers swiping on smartphone touchscreen, colorful app interface, shallow depth of field",
+    "image_prompt": "Extreme close-up of fingers on the same smartphone, shallow depth of field, same bedroom context",
+    "visual_prompt": "Extreme close-up of fingers on the same smartphone, shallow depth of field, same bedroom context",
+    "video_prompt": "Extreme close-up holds on the fingers making a small phone interaction, fixed camera, same prop continuity",
+    "referenced_assets": {
+      "characters": ["young woman"],
+      "location": "bedroom",
+      "props": ["smartphone"]
+    },
+    "continuity_notes": "Keeps the same phone prop and action emphasis inside the same source_anchor.",
     "creative_score": 3
   },
   {
@@ -124,7 +172,15 @@
     "description": "逆光侧拍，女子轮廓剪影，手机屏幕微微发光",
     "shot_type": "近景",
     "camera_move": "固定",
-    "video_prompt": "Silhouette profile of young woman in dark room, backlit by dim blue phone glow, artistic dramatic lighting, moody atmosphere",
+    "image_prompt": "Side profile of the young woman with the same smartphone in the same bedroom, silhouette-style composition within the existing visual style",
+    "visual_prompt": "Side profile of the young woman with the same smartphone in the same bedroom, silhouette-style composition within the existing visual style",
+    "video_prompt": "Side profile camera holds as the young woman keeps looking at the phone, same bedroom and prop continuity",
+    "referenced_assets": {
+      "characters": ["young woman"],
+      "location": "bedroom",
+      "props": ["smartphone"]
+    },
+    "continuity_notes": "Changes composition only and keeps the same source action, location, and prop state.",
     "creative_score": 5
   }
 ]
@@ -139,6 +195,23 @@
 ❌ 推荐超出场景合理性的内容（如室内镜头推荐户外场景）
 ❌ 推荐少于 5 个或多于 8 个变体
 ❌ video_prompt 使用中文（必须英文）
+❌ 生成动作发生前/后一刻的新剧情节点；只能改变同一 source_anchor 内的景别、角度、构图、主体强调、前后景关系或运镜
+❌ 光影变化改变时间、天气、地点或剧情事实
+
+======================================
+【FrameOS 生产契约】
+======================================
+
+1. panel_context_json 是当前分镜的生产契约，必须读取其中的 source_text、source_anchor、referenced_assets、image_prompt、visual_prompt、video_prompt、continuity_notes、voice_refs、visual_style、visual_style_description。
+2. source_text 和 source_anchor 是剧情证据，镜头变体只能改变镜头表达，不能添加新的剧情事件。
+3. referenced_assets 是角色、场景、道具引用清单，禁止新增、删除、改名或替换已引用资产。
+4. continuity_notes 是连续性约束，必须保留空间方向、手持道具状态、视线关系、出入场逻辑和相邻镜头承接。
+5. 如果 voice_refs 表明该镜头含台词，至少一个变体必须保留口型同步准备：说话者脸部清晰，其他脸弱化或虚化。
+6. 每个 description 必须说明变体改变了什么，以及为什么仍然保持 source_anchor、referenced_assets 和 continuity_notes。
+7. 每个 image_prompt 与 visual_prompt 必须描述同一 source_anchor 内的静帧构图，并保留同一 referenced_assets、visual_style、道具状态和可见动作状态。
+8. 每个 video_prompt 必须聚焦运动，包含主体、动作、目标运镜，以及维持连续性所需的道具或场景锚点。
+9. 变体可以改变景别、角度、主体强调、前后景关系或运镜，但不能改变剧情事件。
+10. 禁止生成动作发生前/后一刻的新剧情节点；只能改变同一 source_anchor 内的镜头表达。
 
 ======================================
 【输出】

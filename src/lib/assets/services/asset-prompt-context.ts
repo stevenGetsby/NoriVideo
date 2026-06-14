@@ -3,6 +3,7 @@ import {
   formatLocationAvailableSlotsText,
   parseLocationAvailableSlots,
 } from '@/lib/location-available-slots'
+import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 type PromptLocale = 'zh' | 'en'
 
@@ -80,18 +81,7 @@ export function characterNameMatches(characterName: string, referenceName: strin
 }
 
 function parseDescriptions(raw: string[] | string | null | undefined): string[] {
-  if (!raw) return []
-  if (Array.isArray(raw)) {
-    return raw.filter((item): item is string => typeof item === 'string')
-  }
-  try {
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((item): item is string => typeof item === 'string')
-      : []
-  } catch {
-    return []
-  }
+  return parseCharacterDescriptionValues(raw)
 }
 
 export function getFilteredPropsDescription(props: PromptPropAsset[], clipProps: string[]): string {

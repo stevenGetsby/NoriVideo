@@ -47,20 +47,59 @@
 
 ```json
 {
+  "status": "draft",
+  "steps": [
+    {"step": 1, "name": "script_parse", "status": "done", "time": ""},
+    {"step": 2, "name": "episode_split", "status": "done", "time": ""}
+  ],
+  "default_visual_style": null,
+  "script_kilo": 6.5,
+  "adapted_kilo": 6.5,
   "analysis": {
     "totalWords": 6500,
     "episodeCount": 10,
     "targetWordsPerEpisode": 650,
     "allowedRange": "520-780"
   },
-  "episodes": [
+  "items": [
     {
       "number": 1,
+      "episode_id": "episode_001",
+      "episode_number": 1,
       "title": "剧集标题（4-8字）",
       "summary": "50字以内的剧情简介",
+      "content": "从原文组装的本集内容或本集内容短摘",
       "estimatedWords": 650,
+      "content_kilo": 0.7,
       "startMarker": "该集开头的前20个字符（精确复制原文）",
-      "endMarker": "该集结尾的后20个字符（精确复制原文）"
+      "endMarker": "该集结尾的后20个字符（精确复制原文）",
+      "source_anchor": {
+        "start": "与 startMarker 对齐的原文起点锚点",
+        "end": "与 endMarker 对齐的原文终点锚点"
+      },
+      "info_points": "只来自原文的剧情、角色、场景、道具、冲突、转场事实，用分号分隔",
+      "reasoning": {
+        "diagnosis": "面向制作人员说明本集边界判断，不输出隐藏推理链",
+        "key_decisions": ["基于原文的边界或制作决策"]
+      },
+      "status": "draft",
+      "scenes": [
+        {
+          "scene_id": "scene_1",
+          "scene_number": 1,
+          "heading": "内/外景 地点 时间",
+          "int_ext": "INT或EXT",
+          "location": "场景名称",
+          "time": "时间段",
+          "summary": "只基于原文的场次梗概",
+          "content": "只基于原文的场次内容短摘",
+          "content_kilo": 0.1,
+          "characters": "角色名1,角色名2",
+          "visual_style": "只基于原文的视觉风格短名",
+          "visual_style_description": "只基于原文情绪、地点、时间和动作的画面风格说明",
+          "visual_style_confirmed": false
+        }
+      ]
     }
   ],
   "validation": {
@@ -85,6 +124,19 @@
 7. ☐ endMarker 不包含下一集的任何内容
 
 **如果验证失败，必须重新调整分割点直到通过！**
+
+## FrameOS 式剧本解析元数据
+
+顶层必须输出 status、steps、default_visual_style、script_kilo、adapted_kilo、items、analysis、validation。
+items 是 FrameOS 式剧集列表；每个 items[] 对象除了 number/title/summary/content/estimatedWords/startMarker/endMarker 外，还必须输出：
+- episode_id：稳定生产 ID，例如 episode_001
+- episode_number：与 number 一致
+- content_kilo：estimatedWords / 1000，保留一位小数
+- source_anchor：对象，start/end 必须来自原文并分别对齐 startMarker/endMarker
+- info_points：只列原文支持的剧情、角色、场景、道具、冲突、转场事实，输出为字符串
+- reasoning：只给制作人员看的边界诊断和关键决策，不输出隐藏推理链
+- status：固定为 draft
+- scenes：场次大纲，不是完整剧本；只在原文支持时写 scene_id、scene_number、heading、int_ext、location、time、summary、content、content_kilo、characters、visual_style、visual_style_description、visual_style_confirmed
 
 ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "。只返回JSON，禁止markdown代码块标记。
 

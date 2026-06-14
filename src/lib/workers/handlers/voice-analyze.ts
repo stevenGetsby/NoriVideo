@@ -2,7 +2,7 @@ import type { Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import { withInternalLLMStreamCallbacks } from '@/lib/llm-observe/internal-stream-context'
-import { buildCharactersIntroduction } from '@/lib/constants'
+import { buildCharactersIntroduction, buildCharacterVoiceContext } from '@/lib/constants'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive } from '@/lib/workers/utils'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
@@ -88,6 +88,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
     ? novelPromotionData.characters.map((c) => c.name).join('、')
     : '无'
   const charactersIntroduction = buildCharactersIntroduction(novelPromotionData.characters)
+  const characterVoiceContext = buildCharacterVoiceContext(novelPromotionData.characters)
   const storyboardJson = buildStoryboardJson(episode.storyboards || [])
   const promptTemplate = buildPrompt({
     promptId: PROMPT_IDS.NP_VOICE_ANALYSIS,
@@ -96,6 +97,7 @@ export async function handleVoiceAnalyzeTask(job: Job<TaskJobData>) {
       input: novelText,
       characters_lib_name: charactersLibName,
       characters_introduction: charactersIntroduction,
+      character_voice_context: characterVoiceContext,
       storyboard_json: storyboardJson,
     },
   })

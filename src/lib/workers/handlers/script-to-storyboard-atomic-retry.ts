@@ -25,6 +25,7 @@ import {
   buildPromptAssetContext,
   compileAssetPromptFragments,
 } from '@/lib/assets/services/asset-prompt-context'
+import { buildScreenplayVisualStyleContext } from '@/lib/novel-promotion/screenplay-visual-style-context'
 
 type StoryboardClipInput = {
   id: string
@@ -343,9 +344,11 @@ export async function runScriptToStoryboardAtomicRetry(params: {
     locations: LocationAsset[]
     props?: PropAsset[]
   }
+  projectProductionContext?: string
   promptTemplates: ScriptToStoryboardPromptTemplates
   runStep: StepRunner
 }): Promise<ScriptToStoryboardAtomicRetryResult> {
+  const projectProductionContext = params.projectProductionContext || 'No explicit project production context provided. Infer production choices only from source text and asset libraries.'
   const clipCharacters = parseClipCharacters(params.clip.characters)
   const clipLocation = params.clip.location || null
   const clipProps = parseClipProps(params.clip.props ?? null)
@@ -420,6 +423,8 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       null,
       2,
     )
+    const screenplay = parseScreenplay(params.clip.screenplay)
+    const visualStyleContext = buildScreenplayVisualStyleContext(screenplay)
     let phase1Prompt = params.promptTemplates.phase1PlanTemplate
       .replace('{characters_lib_name}', charactersLibName)
       .replace('{locations_lib_name}', locationsLibName)
@@ -427,8 +432,9 @@ export async function runScriptToStoryboardAtomicRetry(params: {
       .replace('{characters_appearance_list}', filteredAppearanceList)
       .replace('{characters_full_description}', filteredFullDescription)
       .replace('{props_description}', filteredPropsDescription)
+      .replace('{visual_style_context}', visualStyleContext)
+      .replace('{project_production_context}', projectProductionContext)
       .replace('{clip_json}', clipJson)
-    const screenplay = parseScreenplay(params.clip.screenplay)
     if (screenplay) {
       phase1Prompt = phase1Prompt.replace('{clip_content}', `【剧本格式】\n${JSON.stringify(screenplay, null, 2)}`)
     } else {

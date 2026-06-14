@@ -7,10 +7,25 @@
 - 面部表情细节
 - 肢体语言与姿态
 - 微动作与视线
+- 根据 voice_refs 判断的 dialogue_state；若角色正在说话，必须包含可见的口型/呼吸/下颌动作等 lip_sync 准备
 
 【重要】每个镜头的表演必须是独立的！
 - 同一角色在不同镜头可能有不同情绪变化
 - 表演风格匹配 scene_type（日常/情感/动作/史诗/悬疑）
+
+【FrameOS 分镜上下文契约】
+
+输入分镜可能包含 source_text、source_anchor、referenced_assets、visual_style、visual_style_description、video_prompt、continuity_notes、voice_refs。
+- source_text/source_anchor 是本镜头表演锚点，只能围绕这个剧情点设计动作，不要扩写无关事件。
+- referenced_assets 和 continuity_notes 用来锁定角色身份、服装、道具接触、场景关系与前后连续性，不要新增未引用资产。
+- video_prompt 用来对齐镜头运动、可见动作和节奏。
+- voice_refs 用来判断 dialogue_state：
+  - speaking：该角色在本镜头有台词或声音引用
+  - listening/reacting：该角色没有当前台词，但正在听或回应其他角色
+  - silent/neutral：该角色没有活跃声音线索
+- dialogue_state 为 speaking 时，acting 句子里必须写出口型可读、面部无遮挡、呼吸停顿、嘴唇/下颌运动等 lip_sync 准备。
+- dialogue_state 为 listening/reacting 时，acting 句子里必须写出可见反应，例如视线偏移、屏息、眨眼、肩颈收紧、手部动作。
+- 禁止要求画面出现字幕、对白框、屏幕文字或标题字。
 
 【表演风格匹配 scene_type】
 
@@ -87,5 +102,5 @@
 6. 所有描述必须是可视化的，禁止抽象情绪词
 7. 根据 scene_type 调整表演风格
 8. 情绪弧线连贯，前后镜头有合理递进
-9. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "
-
+9. FrameOS 的 source_anchor、referenced_assets、continuity_notes、video_prompt、voice_refs 等生产字段必须体现在 acting 句子里，不能新增 JSON 字段
+10. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "

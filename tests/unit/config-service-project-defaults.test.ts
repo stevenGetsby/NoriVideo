@@ -89,4 +89,39 @@ describe('config-service project model defaults', () => {
     expect(config.videoModel).toBe('project-video::model')
     expect(config.audioModel).toBe('user-audio::model')
   })
+
+  it('uses Lumina GPT-5.5 as the final analysis fallback', async () => {
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
+      analysisModel: null,
+      characterModel: null,
+      locationModel: null,
+      storyboardModel: null,
+      editModel: null,
+      videoModel: null,
+      audioModel: null,
+      videoRatio: null,
+      artStyle: null,
+      artStylePrompt: null,
+      capabilityOverrides: null,
+    })
+    prismaMock.userPreference.findUnique.mockResolvedValue({
+      analysisModel: null,
+      characterModel: null,
+      locationModel: null,
+      storyboardModel: null,
+      editModel: null,
+      videoModel: null,
+      audioModel: null,
+      capabilityDefaults: null,
+    })
+
+    const { getProjectModelConfig, getUserModelConfig } = await import('@/lib/config-service')
+
+    await expect(getProjectModelConfig('project-1', 'user-1')).resolves.toEqual(
+      expect.objectContaining({ analysisModel: 'lumina::gpt-5.5' }),
+    )
+    await expect(getUserModelConfig('user-1')).resolves.toEqual(
+      expect.objectContaining({ analysisModel: 'lumina::gpt-5.5' }),
+    )
+  })
 })

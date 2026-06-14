@@ -1,0 +1,75 @@
+{
+  "status": "draft",
+  "voice_mapping": [
+    {
+      "character": "Ari",
+      "character_id": "character_1",
+      "role_type": "protagonist",
+      "voice_profile": {
+        "gender": "neutral",
+        "age_range": "young adult",
+        "traits": [
+          "calm",
+          "quick",
+          "focused"
+        ]
+      },
+      "voice_source": "library_match",
+      "voice_raw_file": "",
+      "candidates": [
+        {
+          "rank": 1,
+          "voice_id": "voice_1",
+          "voice_name": "Clear Young Adult",
+          "reason": "Matches Ari's calm focused delivery and representative line.",
+          "is_selected": true,
+          "reference_audio_id": null
+        }
+      ]
+    },
+    {
+      "character": "Mika",
+      "character_id": "character_2",
+      "role_type": "core_supporting",
+      "voice_profile": {
+        "gender": "female",
+        "age_range": "young adult",
+        "traits": [
+          "careful",
+          "warm",
+          "measured"
+        ]
+      },
+      "voice_source": "unmatched",
+      "voice_raw_file": "",
+      "candidates": []
+    },
+    {
+      "character": "Nia",
+      "character_id": "character_3",
+      "role_type": "supporting",
+      "voice_profile": {
+        "gender": "female",
+        "age_range": "middle aged",
+        "traits": [
+          "steady",
+          "low",
+          "direct"
+        ]
+      },
+      "voice_source": "custom_upload",
+      "voice_raw_file": "uploaded_voice_nia_1",
+      "candidates": []
+    }
+  ],
+  "auditions": [
+    {
+      "audition_id": "audition_1",
+      "character_id": "character_1",
+      "voice_id": "voice_1",
+      "reference_audio_id": null,
+      "prompt": "Read with calm urgency and practical focus.",
+      "status": "pending"
+    }
+  ]
+}

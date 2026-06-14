@@ -41,6 +41,12 @@
    - 禁止写人物姿态、动作、情绪
    - 站位中提到的锚点必须在三条 descriptions 中都成立
 
+7. 【FrameOS 场景 variants 契约】
+   - 这 3 条 descriptions 是同一 environment_id 的候选环境变体，必须保持同一场景身份、入口逻辑、基础布局和可复用锚点
+   - 每条 description 都必须通过具体视觉描述承载 summary、description、background、entrance、mood、base_ambience 的生产含义，但不要额外输出字段
+   - 三条 descriptions 必须能被后续 coverage_scenes、coverage_episodes 复用，不写一次性剧情事件
+   - 禁止编造 design_image、素材 ID、图片 URL、确认状态、具名角色或剧情事件
+
 【输出格式】只返回以下 JSON，不要任何其他内容。⚠️ 所有引号（""''等）在 JSON 字符串值中必须替换为「」，严禁出现未转义的英文双引号 "。
 {
   "descriptions": [

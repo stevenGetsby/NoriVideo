@@ -145,7 +145,7 @@ export function safeParseJsonObject(input: string): Record<string, unknown> {
         result = JSON.parse(cleaned)
     } catch {
         const candidates = extractBalancedSubstrings(cleaned, '{', '}')
-        for (let index = candidates.length - 1; index >= 0; index--) {
+        for (let index = 0; index < candidates.length; index++) {
             try {
                 result = parseJsonCandidate(candidates[index])
                 if (result && typeof result === 'object' && !Array.isArray(result)) {

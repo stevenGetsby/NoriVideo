@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { composeModelKey, parseModelKeyStrict } from '@/lib/model-config-contract'
+import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
 import { type LocationAvailableSlot, stringifyLocationAvailableSlots } from '@/lib/location-available-slots'
 
 function normalizeModelKey(value: unknown): string | null {
@@ -30,8 +31,8 @@ export async function resolveAnalysisModel(projectId: string, userId: string): P
   // 优先读项目配置，fallback 到用户全局设置
   const analysisModel =
     normalizeModelKey(novelData.analysisModel) ??
-    normalizeModelKey(userPreference?.analysisModel)
-  if (!analysisModel) throw new Error('请先在项目设置中配置分析模型')
+    normalizeModelKey(userPreference?.analysisModel) ??
+    LUMINA_GPT55_MODEL_KEY
 
   return { id: novelData.id, analysisModel }
 }

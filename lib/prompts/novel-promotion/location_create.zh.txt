@@ -33,6 +33,12 @@
    - 这些位置里提到的锚点必须在场景描述中真实出现
    - 示例：饭桌左侧靠桌边的位置、教室后排靠窗那组课桌外侧的位置、皇宫正中龙椅前方台阶下的位置
 
+7. 【FrameOS 场景资产契约】
+   - 本次输出虽然只返回 prompt 和 available_slots，但 prompt 内容必须能承载 summary、description、background、entrance、mood、base_ambience 的生产含义
+   - prompt 必须像 environments 的 default variants 背景底图一样稳定，可被后续 coverage_scenes、coverage_episodes 复用，不写一次性剧情事件
+   - 必须明确入口、可通行区域、前中后景、固定锚点和基础环境声/氛围对应的可见线索
+   - 禁止编造 environment_id、design_image、素材 ID、图片 URL、确认状态、角色动作或剧情事件
+
 以下是用户的生成指令:{user_input}
 
 只返回以下json格式，禁止返回一切除json以外的多余内容。⚠️ 所有引号（""''等）在 JSON 字符串值中必须替换为「」，严禁出现未转义的英文双引号 "。

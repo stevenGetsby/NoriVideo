@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { logInfo as _ulogInfo, logWarn as _ulogWarn, logError as _ulogError } from '@/lib/logging/core'
 import { detectEpisodeMarkers, type EpisodeMarkerResult } from '@/lib/episode-marker-detector'
 import { countWords } from '@/lib/word-count'
+import { readEpisodeFrameOSMetadataFromSpeakerVoices } from '@/lib/novel-promotion/episode-frameos-metadata'
 import {
   useListProjectEpisodes,
   useSaveProjectEpisodesBatch,
@@ -67,13 +68,23 @@ export function useWizardState({
     try {
       const data = await listProjectEpisodesMutation.mutateAsync()
       if (data.episodes && data.episodes.length > 0) {
-        const loadedEpisodes: SplitEpisode[] = data.episodes.map((ep: { episodeNumber?: number; name?: string; description?: string; novelText?: string }, idx: number) => ({
-          number: ep.episodeNumber || idx + 1,
-          title: ep.name || t('episode', { num: idx + 1 }),
-          summary: ep.description || '',
-          content: ep.novelText || '',
-          wordCount: countWords(ep.novelText || ''),
-        }))
+        const loadedEpisodes: SplitEpisode[] = data.episodes.map((ep: {
+          episodeNumber?: number
+          name?: string
+          description?: string
+          novelText?: string
+          speakerVoices?: string | null
+        }, idx: number) => {
+          const frameosMetadata = readEpisodeFrameOSMetadataFromSpeakerVoices(ep.speakerVoices)
+          return {
+            number: ep.episodeNumber || idx + 1,
+            title: ep.name || t('episode', { num: idx + 1 }),
+            summary: ep.description || '',
+            content: ep.novelText || '',
+            wordCount: countWords(ep.novelText || ''),
+            ...(frameosMetadata ? { frameosMetadata } : {}),
+          }
+        })
         setEpisodes(loadedEpisodes)
         setStage('preview')
       } else {
@@ -110,6 +121,7 @@ export function useWizardState({
             name: ep.title,
             description: ep.summary,
             novelText: ep.content,
+            frameosMetadata: ep.frameosMetadata,
           })),
           clearExisting: true,
           importStatus: 'pending',
@@ -188,6 +200,7 @@ export function useWizardState({
             name: ep.title,
             description: ep.summary,
             novelText: ep.content,
+            frameosMetadata: ep.frameosMetadata,
           })),
           clearExisting: true,
           importStatus: 'pending',
@@ -273,6 +286,7 @@ export function useWizardState({
           name: ep.title,
           description: ep.summary,
           novelText: ep.content,
+          frameosMetadata: ep.frameosMetadata,
         })),
         clearExisting: true,
         importStatus: 'completed',

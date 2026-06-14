@@ -21,8 +21,8 @@ import {
 } from '@/lib/workflow-concurrency'
 import {
   HFSY_IMAGE_MODEL_KEY,
-  HFSY_TEXT_MODEL_KEY,
 } from '@/lib/hfsy-fixed-models'
+import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
 
 export type ParsedModelKey = { provider: string, modelId: string }
 
@@ -159,11 +159,11 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: HFSY_TEXT_MODEL_KEY,
-    characterModel: HFSY_IMAGE_MODEL_KEY,
-    locationModel: HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: HFSY_IMAGE_MODEL_KEY,
-    editModel: HFSY_IMAGE_MODEL_KEY,
+    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || LUMINA_GPT55_MODEL_KEY,
+    characterModel: extractModelKey(projectData?.characterModel) || extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
+    locationModel: extractModelKey(projectData?.locationModel) || extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: extractModelKey(projectData?.storyboardModel) || extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,
+    editModel: extractModelKey(projectData?.editModel) || extractModelKey(userPref?.editModel) || HFSY_IMAGE_MODEL_KEY,
     videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || null,
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
     videoRatio: projectData?.videoRatio || '16:9',
@@ -183,11 +183,11 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: HFSY_TEXT_MODEL_KEY,
-    characterModel: HFSY_IMAGE_MODEL_KEY,
-    locationModel: HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: HFSY_IMAGE_MODEL_KEY,
-    editModel: HFSY_IMAGE_MODEL_KEY,
+    analysisModel: extractModelKey(userPref?.analysisModel) || LUMINA_GPT55_MODEL_KEY,
+    characterModel: extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
+    locationModel: extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,
+    editModel: extractModelKey(userPref?.editModel) || HFSY_IMAGE_MODEL_KEY,
     videoModel: extractModelKey(userPref?.videoModel) || null,
     audioModel: extractModelKey(userPref?.audioModel) || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),

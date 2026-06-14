@@ -30,6 +30,7 @@ import {
   readPanelSeedanceReferenceAssetsFromActingNotes,
 } from '@/lib/novel-promotion/seedance-reference-assets'
 import { ensureProjectAssetImagesOnStorage } from '@/lib/novel-promotion/asset-storage-sync'
+import { readPanelFrameOSMetadataFromActingNotes } from '@/lib/novel-promotion/panel-frameos-metadata'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -132,6 +133,30 @@ function buildArkTextOnlyFallbackPrompt(prompt: string): string {
     '必须严格保持原 panel 的角色资产、服装、场景、道具、人物站位、镜头语言、按秒动作/对白和负面要求。',
     '不要新增无关角色，不要改变剧情，不要改变角色关系，不要改变地域/语言语境。',
     prompt,
+  ].join('\n')
+}
+
+function buildPanelVideoPromptWithFrameOSEvidence(panel: PanelRecord, basePrompt: string): string {
+  const metadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+  if (!metadata) return basePrompt
+
+  const evidence: Record<string, unknown> = {}
+  if (metadata.panel_id) evidence.panel_id = metadata.panel_id
+  if (metadata.panel_number !== undefined) evidence.panel_number = metadata.panel_number
+  if (metadata.source_text) evidence.source_text = metadata.source_text
+  if (metadata.source_anchor !== undefined) evidence.source_anchor = metadata.source_anchor
+  if (metadata.referenced_assets !== undefined) evidence.referenced_assets = metadata.referenced_assets
+  if (metadata.continuity_notes) evidence.continuity_notes = metadata.continuity_notes
+  if (metadata.voice_refs !== undefined) evidence.voice_refs = metadata.voice_refs
+  if (metadata.visual_style) evidence.visual_style = metadata.visual_style
+  if (metadata.visual_style_description) evidence.visual_style_description = metadata.visual_style_description
+
+  if (Object.keys(evidence).length === 0) return basePrompt
+  return [
+    basePrompt,
+    '',
+    'FrameOS production evidence for this panel. Keep the video consistent with this evidence; do not add subtitles or visible text from voice_refs.',
+    JSON.stringify(evidence, null, 2),
   ].join('\n')
 }
 
@@ -324,7 +349,11 @@ async function generateVideoForPanel(
   const firstLastCustomPrompt = typeof firstLastFramePayload?.customPrompt === 'string' ? firstLastFramePayload.customPrompt : null
   const persistedFirstLastPrompt = firstLastFramePayload ? panel.firstLastFramePrompt : null
   const customPrompt = typeof payload.customPrompt === 'string' ? payload.customPrompt : null
-  const prompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
+  const rawPrompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
+  const shouldAppendFrameOSEvidence = !firstLastCustomPrompt && !customPrompt
+  const prompt = rawPrompt && shouldAppendFrameOSEvidence
+    ? buildPanelVideoPromptWithFrameOSEvidence(panel, rawPrompt)
+    : rawPrompt
   if (!prompt) {
     throw new Error(`Panel ${panel.id} has no video prompt`)
   }

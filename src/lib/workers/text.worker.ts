@@ -10,6 +10,12 @@ import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { resolveInsertPanelUserInput } from '@/lib/novel-promotion/insert-panel'
 import { buildInsertPanelLocationsDescription } from '@/lib/novel-promotion/insert-panel-prompt-context'
 import {
+  buildPanelFrameOSMetadata,
+  readPanelFrameOSMetadataFromActingNotes,
+  writePanelFrameOSMetadataToActingNotes,
+} from '@/lib/novel-promotion/panel-frameos-metadata'
+import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
+import {
   executePhase1,
   executePhase2,
   executePhase2Acting,
@@ -242,6 +248,42 @@ function parsePanelProps(panel: Record<string, unknown> | null | undefined): str
   }
 }
 
+function buildInsertPanelNeighborJson(panel: Record<string, unknown> | null | undefined): string {
+  if (!panel) return '无'
+  const metadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+  const sourceText = metadata?.source_text || readNullableText(panel, 'srtSegment')
+  const referencedAssets = metadata?.referenced_assets || {
+    characters: parsePanelCharacters({ characters: readNullableText(panel, 'characters') }),
+    location: readNullableText(panel, 'location') || '',
+    props: parsePanelProps(panel),
+  }
+
+  return JSON.stringify(
+    {
+      panel_id: metadata?.panel_id || readNullableText(panel, 'id') || '',
+      panel_number: metadata?.panel_number ?? panel.panelNumber ?? null,
+      shot_type: readNullableText(panel, 'shotType'),
+      camera_move: readNullableText(panel, 'cameraMove'),
+      description: readNullableText(panel, 'description'),
+      image_prompt: readNullableText(panel, 'imagePrompt') || metadata?.visual_prompt || '',
+      visual_prompt: metadata?.visual_prompt || readNullableText(panel, 'imagePrompt') || '',
+      video_prompt: readNullableText(panel, 'videoPrompt'),
+      location: readNullableText(panel, 'location'),
+      characters: readNullableText(panel, 'characters') ? JSON.parse(readNullableText(panel, 'characters') || '[]') : [],
+      props: parsePanelProps(panel),
+      source_text: sourceText,
+      source_anchor: metadata?.source_anchor || (sourceText ? { text: sourceText } : null),
+      referenced_assets: referencedAssets,
+      visual_style: metadata?.visual_style || '',
+      visual_style_description: metadata?.visual_style_description || '',
+      continuity_notes: metadata?.continuity_notes || '',
+      voice_refs: metadata?.voice_refs || [],
+    },
+    null,
+    2,
+  )
+}
+
 async function runStoryboardPhasesForClip(params: {
   clip: {
     id: string
@@ -434,7 +476,7 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
   }
 }
 
-async function handleInsertPanelTask(job: Job<TaskJobData>) {
+export async function handleInsertPanelTask(job: Job<TaskJobData>) {
   const payload = (job.data.payload || {}) as AnyObj
   const storyboardId = typeof payload.storyboardId === 'string' ? payload.storyboardId : job.data.targetId
   const insertAfterPanelId = typeof payload.insertAfterPanelId === 'string' ? payload.insertAfterPanelId : ''
@@ -472,37 +514,8 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   const projectLocations = (projectData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
   const projectProps = (projectData.locations || []).filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
 
-  const prevPanelJson = JSON.stringify(
-    {
-      shot_type: prevPanel.shotType,
-      camera_move: prevPanel.cameraMove,
-      description: prevPanel.description,
-      video_prompt: prevPanel.videoPrompt,
-      location: prevPanel.location,
-      characters: prevPanel.characters ? JSON.parse(prevPanel.characters) : [],
-      props: parsePanelProps(prevPanel),
-      source_text: prevPanel.srtSegment,
-    },
-    null,
-    2,
-  )
-
-  const nextPanelJson = nextPanel
-    ? JSON.stringify(
-      {
-        shot_type: nextPanel.shotType,
-        camera_move: nextPanel.cameraMove,
-        description: nextPanel.description,
-        video_prompt: nextPanel.videoPrompt,
-        location: nextPanel.location,
-        characters: nextPanel.characters ? JSON.parse(nextPanel.characters) : [],
-        props: parsePanelProps(nextPanel),
-        source_text: nextPanel.srtSegment,
-      },
-      null,
-      2,
-    )
-    : '无'
+  const prevPanelJson = buildInsertPanelNeighborJson(prevPanel as unknown as Record<string, unknown>)
+  const nextPanelJson = buildInsertPanelNeighborJson(nextPanel as unknown as Record<string, unknown> | null)
 
   const relatedCharacters = Array.from(new Set([...parsePanelCharacters(prevPanel), ...parsePanelCharacters(nextPanel)]))
   const relatedLocations = Array.from(new Set([prevPanel.location, nextPanel?.location].filter((v): v is string => Boolean(v))))
@@ -515,14 +528,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
       if (appearances.length === 0) return `${character.name}: 无形象信息`
       const appearanceText = appearances
         .map((appearance) => {
-          const descriptions = appearance.descriptions ? (() => {
-            try {
-              const parsed = JSON.parse(appearance.descriptions)
-              return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === 'string') : []
-            } catch {
-              return [] as string[]
-            }
-          })() : []
+          const descriptions = parseCharacterDescriptionValues(appearance.descriptions)
           const selectedIndex = appearance.selectedIndex ?? 0
           const selectedDescription = descriptions[selectedIndex] || appearance.description || '无描述'
           return `${appearance.changeReason || '默认'}: ${selectedDescription}`
@@ -590,6 +596,18 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
   const generatedLocation = typeof generatedPanel.location === 'string' ? generatedPanel.location : null
   const generatedSrtSegment = typeof generatedPanel.source_text === 'string' ? generatedPanel.source_text : null
   const generatedDuration = typeof generatedPanel.duration === 'number' ? generatedPanel.duration : null
+  const generatedFrameOSMetadata = buildPanelFrameOSMetadata({
+    panel_id: generatedPanel.panel_id,
+    panel_number: generatedPanel.panel_number,
+    source_text: generatedPanel.source_text,
+    source_anchor: generatedPanel.source_anchor,
+    referenced_assets: generatedPanel.referenced_assets,
+    visual_prompt: generatedPanel.visual_prompt,
+    visual_style: generatedPanel.visual_style,
+    visual_style_description: generatedPanel.visual_style_description,
+    continuity_notes: generatedPanel.continuity_notes,
+    voice_refs: generatedPanel.voice_refs,
+  })
 
   await reportTaskProgress(job, 80, { stage: 'insert_panel_persist' })
 
@@ -633,6 +651,7 @@ async function handleInsertPanelTask(job: Job<TaskJobData>) {
         props: generatedPanel.props ? JSON.stringify(generatedPanel.props) : readNullableText(prevPanel as unknown as Record<string, unknown>, 'props'),
         srtSegment: generatedSrtSegment || prevPanel.srtSegment,
         duration: generatedDuration,
+        actingNotes: writePanelFrameOSMetadataToActingNotes(null, generatedFrameOSMetadata),
       },
     })
 

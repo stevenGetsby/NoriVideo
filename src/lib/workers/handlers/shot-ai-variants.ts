@@ -11,6 +11,11 @@ import type { TaskJobData } from '@/lib/task/types'
 import { resolveAnalysisModel } from './shot-ai-persist'
 import type { AnyObj } from './shot-ai-prompt'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import { parsePanelCharacterReferences } from './image-task-handler-shared'
+import {
+  readActingNotesContinuityText,
+  readPanelFrameOSMetadataFromActingNotes,
+} from '@/lib/novel-promotion/panel-frameos-metadata'
 
 function readText(value: unknown): string {
   return typeof value === 'string' ? value : ''
@@ -49,6 +54,82 @@ function parsePanelCharacters(value: string | null): string {
   }
 }
 
+function parsePanelProps(value: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item: unknown) => {
+        if (typeof item === 'string') return item.trim()
+        if (!item || typeof item !== 'object') return ''
+        const record = item as Record<string, unknown>
+        return typeof record.name === 'string' ? record.name.trim() : ''
+      })
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function buildPanelContextJson(panel: {
+  id: string
+  panelNumber: number | null
+  description: string | null
+  shotType: string | null
+  cameraMove: string | null
+  location: string | null
+  characters: string | null
+  props: string | null
+  srtSegment: string | null
+  imagePrompt: string | null
+  videoPrompt: string | null
+  sceneType: string | null
+  duration: number | null
+  photographyRules: string | null
+  actingNotes: string | null
+}): string {
+  const metadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+  const panelCharacterRefs = parsePanelCharacterReferences(panel.characters)
+  const panelPropRefs = parsePanelProps(panel.props)
+  const sourceText = typeof metadata?.source_text === 'string' && metadata.source_text.trim()
+    ? metadata.source_text
+    : panel.srtSegment || ''
+  const continuityNotes = [
+    metadata?.continuity_notes,
+    panel.photographyRules,
+    readActingNotesContinuityText(panel.actingNotes),
+  ]
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .join('\n')
+
+  return JSON.stringify({
+    panel_id: metadata?.panel_id || panel.id,
+    panel_number: typeof metadata?.panel_number === 'number' ? metadata.panel_number : panel.panelNumber ?? null,
+    description: panel.description || '',
+    source_text: sourceText,
+    source_anchor: metadata?.source_anchor ?? (sourceText ? { text: sourceText } : null),
+    referenced_assets: metadata?.referenced_assets ?? {
+      characters: panelCharacterRefs,
+      location: panel.location || null,
+      props: panelPropRefs,
+    },
+    shot_type: panel.shotType || '',
+    camera_move: panel.cameraMove || '',
+    image_prompt: panel.imagePrompt || '',
+    visual_prompt: metadata?.visual_prompt || panel.imagePrompt || '',
+    video_prompt: panel.videoPrompt || '',
+    visual_style: metadata?.visual_style || '',
+    visual_style_description: metadata?.visual_style_description || '',
+    continuity_notes: continuityNotes,
+    acting_notes: panel.actingNotes || '',
+    voice_refs: metadata?.voice_refs || [],
+    scene_type: panel.sceneType || '',
+    duration: panel.duration ?? null,
+  }, null, 2)
+}
+
 export async function handleAnalyzeShotVariantsTask(job: Job<TaskJobData>, payload: AnyObj) {
   const panelId = readRequiredString(payload.panelId, 'panelId')
   const novelData = await resolveAnalysisModel(job.data.projectId, job.data.userId)
@@ -63,6 +144,14 @@ export async function handleAnalyzeShotVariantsTask(job: Job<TaskJobData>, paylo
       cameraMove: true,
       location: true,
       characters: true,
+      props: true,
+      srtSegment: true,
+      imagePrompt: true,
+      videoPrompt: true,
+      sceneType: true,
+      duration: true,
+      photographyRules: true,
+      actingNotes: true,
     },
   })
   if (!panel) throw new Error('Panel not found')
@@ -82,6 +171,7 @@ export async function handleAnalyzeShotVariantsTask(job: Job<TaskJobData>, paylo
       camera_move: panel.cameraMove || '固定',
       location: panel.location || '未知',
       characters_info: charactersInfo,
+      panel_context_json: buildPanelContextJson(panel),
     },
   })
 

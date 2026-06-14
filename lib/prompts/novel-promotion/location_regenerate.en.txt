@@ -17,6 +17,10 @@ Requirements:
 7. Each `available_slots` item must be one complete descriptive placement phrase, not a short token and not an object.
 8. Do not mention posture, action, or emotion in `available_slots`.
 9. Every anchor mentioned in `available_slots` must remain valid across all three regenerated descriptions.
+10. Treat the three descriptions as FrameOS environment `variants`: all must preserve the same `environment_id` identity, entrance logic, base layout, and reusable anchor zones.
+11. Each description must internally cover `summary`, `description`, `background`, `entrance`, `mood`, and `base_ambience` through concrete visual wording, without adding extra JSON fields.
+12. Keep the location stable for `coverage_scenes` and `coverage_episodes`; do not turn variants into one-off plot moments.
+13. Do not invent `design_image`, material IDs, image URLs, confirmation status, named characters, or plot events.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

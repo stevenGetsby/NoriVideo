@@ -2,6 +2,95 @@ import { describe, expect, it, vi } from 'vitest'
 import { runScriptToStoryboardOrchestrator } from '@/lib/novel-promotion/script-to-storyboard/orchestrator'
 
 describe('script-to-storyboard orchestrator retry', () => {
+  it('passes screenplay visual style context into phase1 planning and preserves panel fields', async () => {
+    let phase1Prompt = ''
+    const runStep = vi.fn(async (_meta, prompt, action: string) => {
+      if (action === 'storyboard_phase1_plan') {
+        phase1Prompt = prompt
+        return {
+          text: JSON.stringify([{
+            panel_number: 1,
+            description: '镜头',
+            location: '场景A',
+            source_text: '甲走进场景A',
+            characters: [],
+            visual_style: '冷色悬疑',
+            visual_style_description: '低饱和冷光，狭窄空间压迫感',
+          }]),
+          reasoning: '',
+        }
+      }
+      if (action === 'storyboard_phase2_cinematography') {
+        return { text: JSON.stringify([{ panel_number: 1, composition: '居中' }]), reasoning: '' }
+      }
+      if (action === 'storyboard_phase2_acting') {
+        return { text: JSON.stringify([{ panel_number: 1, characters: [] }]), reasoning: '' }
+      }
+      if (action === 'storyboard_phase3_detail') {
+        return {
+          text: JSON.stringify([{
+            panel_number: 1,
+            description: '镜头',
+            location: '场景A',
+            source_text: '甲走进场景A',
+            characters: [],
+            visual_style: '冷色悬疑',
+            visual_style_description: '低饱和冷光，狭窄空间压迫感',
+          }]),
+          reasoning: '',
+        }
+      }
+      throw new Error(`unexpected action: ${action}`)
+    })
+
+    const result = await runScriptToStoryboardOrchestrator({
+      clips: [
+        {
+          id: 'clip-1',
+          content: '甲走进场景A。',
+          characters: JSON.stringify([{ name: '角色A' }]),
+          location: '场景A',
+          screenplay: JSON.stringify({
+            default_visual_style: {
+              name: '写实短剧',
+              description: '真实室内光线',
+            },
+            scenes: [
+              {
+                scene_number: 1,
+                heading: { location: '场景A', time: '夜晚' },
+                visual_style: '冷色悬疑',
+                visual_style_description: '低饱和冷光，狭窄空间压迫感',
+              },
+            ],
+          }),
+        },
+      ],
+      novelPromotionData: {
+        characters: [{ name: '角色A', appearances: [] }],
+        locations: [{ name: '场景A', images: [] }],
+      },
+      promptTemplates: {
+        phase1PlanTemplate: '{clip_content}\nSTYLE:\n{visual_style_context}\n{clip_json} {characters_lib_name} {locations_lib_name} {characters_introduction} {characters_appearance_list} {characters_full_description}',
+        phase2CinematographyTemplate: '{panels_json} {panel_count} {locations_description} {characters_info}',
+        phase2ActingTemplate: '{panels_json} {panel_count} {characters_info}',
+        phase3DetailTemplate: '{panels_json} {characters_age_gender} {locations_description}',
+      },
+      runStep,
+    })
+
+    expect(phase1Prompt).toContain('Default visual style: 写实短剧 - 真实室内光线')
+    expect(phase1Prompt).toContain('Scene 1 (场景A 夜晚): visual_style=冷色悬疑')
+    expect(result.phase1PanelsByClipId['clip-1']?.[0]).toEqual(expect.objectContaining({
+      visual_style: '冷色悬疑',
+      visual_style_description: '低饱和冷光，狭窄空间压迫感',
+    }))
+    expect(result.clipPanels[0].finalPanels[0]).toEqual(expect.objectContaining({
+      visual_style: '冷色悬疑',
+      visual_style_description: '低饱和冷光，狭窄空间压迫感',
+    }))
+  })
+
   it('retries retryable step failures up to 3 attempts', async () => {
     const attemptsByAction = new Map<string, number>()
     const phase1Metas: Array<{ stepId: string; stepAttempt?: number }> = []

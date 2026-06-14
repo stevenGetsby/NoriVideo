@@ -16,11 +16,22 @@ Output format (JSON array only):
 [
   {
     "panel_number": 1,
+    "scene_summary": "where and when this panel happens",
     "composition": "framing and layout rule",
     "lighting": "light direction and quality",
     "color_palette": "dominant palette",
     "atmosphere": "visual mood",
-    "technical_notes": "camera/depth/motion notes"
+    "technical_notes": "camera/depth/motion notes",
+    "characters": [
+      {
+        "name": "character name",
+        "screen_position": "relative screen position",
+        "posture": "visible body/action state",
+        "facing": "relative facing or eyeline"
+      }
+    ],
+    "depth_of_field": "depth rule such as deep focus, T4.0, T2.8, or T1.8",
+    "color_tone": "dominant tone for UI editing"
   }
 ]
 
@@ -29,9 +40,16 @@ Rules:
 2. Keep continuity across neighboring panels.
 3. Adapt to scene_type and story rhythm.
 4. Technical notes must be directly actionable by image/video generation.
-5. If characters already carry `slot`, treat it as a preferred placement anchor, not an absolute boundary.
-6. When a panel is about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space, composition and placement may deviate from a static slot if the shot logic requires it.
-7. Treat `slot` as one full placement phrase from the location context, not as a short token, whenever you reference it.
-8. Do not shorten, rewrite, summarize, or replace a provided `slot` phrase with a short token.
-9. JSON only, no markdown.
-10. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+5. Preserve asset continuity: characters, locations, and props should keep a stable spatial relationship across neighboring panels in the same scene.
+6. Read each panel's `referenced_assets`, `image_prompt`, `visual_prompt`, and `video_prompt` as the production asset contract. Photography rules must support those assets and must not invent, drop, rename, or replace referenced assets.
+7. technical_notes must include executable production guidance such as subject focus, background blur, prop position, foreground/background relationship, or axis continuity; do not write only abstract aesthetic words.
+8. If characters already carry `slot`, treat it as a preferred placement anchor, not an absolute boundary.
+9. When a panel is about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space, composition and placement may deviate from a static slot if the shot logic requires it.
+10. Treat `slot` as one full placement phrase from the location context, not as a short token, whenever you reference it.
+11. Do not shorten, rewrite, summarize, or replace a provided `slot` phrase with a short token.
+12. Include `scene_summary`, `characters`, `depth_of_field`, and `color_tone` for the storyboard AI data editor, while still keeping `composition`, `lighting`, `color_palette`, `atmosphere`, and `technical_notes` for the generation pipeline.
+13. `characters` may be an empty array for an empty/environment panel. When present, use names exactly from the panel contract and preserve appearance/slot continuity.
+14. Read `source_text`, `source_anchor`, `continuity_notes`, `voice_refs`, `visual_style`, and `visual_style_description` if present in the panels JSON. Use them to preserve story evidence, lip-sync readiness, and art direction; do not copy those fields into the output unless they are naturally reflected in photography rules.
+15. Dialogue or lip-sync panels must use shallow or very shallow depth of field, keep the speaking face clear, and de-emphasize other faces.
+16. JSON only, no markdown.
+17. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

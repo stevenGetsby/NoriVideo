@@ -1,0 +1,80 @@
+{
+  "status": "completed",
+  "steps": [
+    {
+      "step": 1,
+      "name": "script_parse",
+      "status": "done",
+      "time": ""
+    },
+    {
+      "step": 2,
+      "name": "scene_split",
+      "status": "done",
+      "time": ""
+    }
+  ],
+  "default_visual_style": null,
+  "script_kilo": 1.2,
+  "adapted_kilo": 1,
+  "items": [
+    {
+      "episode_id": "episode_1",
+      "episode_number": 1,
+      "title": "Episode 1",
+      "content": "Ari enters the workshop and finds Mika waiting by the workbench.",
+      "content_kilo": 0.1,
+      "info_points": "Ari enters the workshop; Mika is waiting by the workbench.",
+      "source_anchor": {
+        "start": "Ari enters the workshop",
+        "end": "Mika waiting by the workbench"
+      },
+      "reasoning": {
+        "diagnosis": "One contained workshop beat can stay in one episode item.",
+        "key_decisions": [
+          "Keep the workshop action together",
+          "Preserve both visible characters"
+        ]
+      },
+      "status": "draft",
+      "scenes": [
+        {
+          "scene_id": "scene_1",
+          "scene_number": 1,
+          "heading": "INT Workshop Day",
+          "int_ext": "INT",
+          "location": "workshop_day",
+          "time": "day",
+          "summary": "Ari meets Mika in the workshop.",
+          "content": "Ari enters the workshop and speaks to Mika near the workbench.",
+          "content_kilo": 0.1,
+          "characters": "Ari,Mika",
+          "visual_style": "grounded workshop drama",
+          "visual_style_description": "Clear daylight, practical textures, and controlled staging.",
+          "visual_style_confirmed": false
+        }
+      ]
+    }
+  ],
+  "art_direction": {
+    "flow_status": "completed",
+    "flow_id": "flow_1",
+    "current_label": "grounded workshop drama",
+    "derived_phase": "style_review",
+    "default_world_label": "modern workshop",
+    "worlds": [
+      {
+        "world_label": "modern workshop",
+        "world_background": "A grounded present-day craft workspace with practical tools and clear work areas.",
+        "representative_frame": "Ari enters the workshop and finds Mika waiting by the workbench.",
+        "candidates": [
+          "grounded workshop drama",
+          "clean practical realism",
+          "warm industrial daylight"
+        ],
+        "selected_style_anchor": "grounded workshop drama",
+        "preview_materials": []
+      }
+    ]
+  }
+}

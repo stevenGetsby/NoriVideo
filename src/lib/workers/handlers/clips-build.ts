@@ -168,6 +168,7 @@ export async function handleClipsBuildTask(job: Job<TaskJobData>) {
             messages: [{ role: 'user', content: promptTemplate }],
             projectId,
             action: 'split_clips',
+            maxTokens: 6_500,
             meta: {
               stepId: 'split_clips',
               stepAttempt: attempt,

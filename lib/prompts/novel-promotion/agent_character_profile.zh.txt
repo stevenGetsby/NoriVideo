@@ -49,6 +49,24 @@
 示例 introduction：
 "故事主角，小说以第一人称'我'叙述，真名林墨。苏晴的丈夫，张三的女婿。被苏晴称呼为'老公'、'墨哥'，被下属称呼为'林总'。"
 
+【FrameOS式资产库契约】
+
+1. name 是后续剧本解析、分镜、台词匹配、配音绑定和导出检查使用的规范主键；同一个角色全片只能使用一个稳定 name。
+2. aliases 只放原文中真实出现的称呼、代号、关系称谓或第一人称映射；不要把性格标签、职业、外貌词写进 aliases。
+3. introduction 必须能回答三个生产问题：这个角色是谁、和谁有关、后续遇到哪些称呼应映射回这个角色。
+4. expected_appearances 只描述需要独立出图或改图的持续外观版本；不要把情绪、动作、受光、镜头状态写成子形象。
+5. 如果已有资产库中出现同一人，必须放入 updated_characters，不要新建近似重复角色；updated_characters.name 必须与已有资产库完全一致。
+6. 所有角色字段都服务于后续资产设定：能指导人物图、能帮助分镜引用、能帮助台词 speaker 绑定；没有生产价值的泛泛描述不要输出。
+7. 如原文有足够依据，补充 FrameOS 式音色资产线索：voice_trait 写稳定声线特征，representative_line 写最能代表角色语气的一句台词，voice_audition_prompt 写可用于试镜的简短提示；没有依据时留空字符串，不要编造。
+8. coverage_episodes 记录角色或子形象明确覆盖的分集、章节或剧情段，只写原文/输入能支持的编号或标签；没有依据时输出空数组。
+9. role_type 是 FrameOS 资产列表使用的角色类型，可写“主角/核心配角/反派/重要配角/次要角色/群众角色”；role_level 仍按 S/A/B/C/D 输出，二者必须互相一致。
+10. description 是资产卡片可展示的角色一句话描述；background 写更稳定的身份、关系和剧情定位背景。
+11. identity_lock 是外观连续性锁定项，只写稳定脸部、发型、服饰、配饰或体态特征；不要写情绪、动作、镜头、光线。
+12. coverage_scenes 记录可定位的场次、场景或片段标签；coverage_episodes 记录可定位的集数、章节或剧情段；不确定时输出空数组。
+13. prompt 是角色主形象生成提示词，必须包含身份、年龄段、核心外观、固定服装/配饰、气质和画面一致性要求，不写动作剧情。
+14. variants 是 FrameOS 式持续视觉变体，只记录需要单独出图或改图的版本；每个变体包含 variant_id、label、variant_type、prompt、coverage_scenes、coverage_episodes。不要为临时情绪、姿态、受伤瞬间、镜头角度或光影生成 variants。
+15. speech_rate 是配音语速倍率，默认 1.0；voice_id 与 voice_raw_file 在资产提取阶段固定为空字符串；audition_status 固定为 pending；is_confirmed 固定为 false；design_image 固定为 null。
+
 【角色重要性层级判断规则】
 
 ⚠️ 重要：根据角色在剧情中的戏份和身份地位来判断，不是根据外表华丽程度！
@@ -164,6 +182,7 @@ D级（群众演员）：
    - 每个角色必须至少有一个 id=1 的"初始形象"
    - 如有换装/年龄变化等，添加 id=2, 3... 的子形象
    - change_reason 简要说明变化原因（如"出浴状态"、"战斗装束"、"年老回忆"）
+   - coverage_episodes 写该子形象覆盖的分集、章节或剧情段；如果无法判断，输出空数组
 
 【已有资产库】
 
@@ -180,29 +199,60 @@ D级（群众演员）：
 - updated_characters: 需要更新介绍的已有角色（如发现了新的称呼、关系、或真名）
 
 {
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_characters": false,
   "new_characters": [
     {
-      "name": "角色名",
-      "aliases": ["别名1", "别名2"],
-      "introduction": "角色介绍：身份定位、叙述视角映射、与其他角色的关系、常用称呼",
-      "gender": "男/女",
-      "age_range": "约二十五岁",
-      "role_level": "S/A/B/C/D",
-      "archetype": "角色原型（如霸道总裁）",
-      "personality_tags": ["高冷", "腹黑"],
-      "era_period": "现代都市/古代唐朝/未来科幻",
-      "social_class": "上层精英/中产/平民",
-      "occupation": "企业家/学生/无",
-      "costume_tier": 5,
+	      "name": "角色名",
+	      "aliases": ["别名1", "别名2"],
+	      "introduction": "角色介绍：身份定位、叙述视角映射、与其他角色的关系、常用称呼",
+	      "gender": "男/女",
+	      "age_range": "约二十五岁",
+	      "role_type": "主角/核心配角/反派/重要配角/次要角色/群众角色",
+	      "role_level": "S/A/B/C/D",
+	      "description": "资产卡片可展示的一句话角色描述",
+	      "archetype": "角色原型（如霸道总裁）",
+	      "personality_tags": ["高冷", "腹黑"],
+	      "era_period": "现代都市/古代唐朝/未来科幻",
+	      "social_class": "上层精英/中产/平民",
+	      "occupation": "企业家/学生/无",
+	      "background": "角色背景：只写与身份、关系、剧情定位有关的稳定信息",
+	      "relationships": ["与某角色的关系或称呼映射"],
+	      "identity_lock": ["稳定外观锁定项1", "稳定外观锁定项2"],
+	      "coverage_scenes": ["场次1", "场次2"],
+	      "coverage_episodes": ["第1集", "第2集"],
+	      "prompt": "角色主形象生成提示词：身份、年龄段、外观锁定、服装、配饰、气质和一致性要求",
+	      "voice_trait": "低沉克制/清亮急促/温和成熟等稳定声线特征",
+	      "representative_line": "原文中最能代表角色语气的一句台词，没有则为空字符串",
+	      "voice_audition_prompt": "用于音色试镜的简短提示词，没有则为空字符串",
+	      "speech_rate": 1.0,
+	      "voice_id": "",
+	      "voice_raw_file": "",
+	      "audition_status": "pending",
+	      "costume_tier": 5,
       "suggested_colors": ["深蓝", "金色"],
       "primary_identifier": "眼角泪痣（仅S/A级需要）",
       "visual_keywords": ["精英气质", "禁欲系"],
-      "expected_appearances": [
-        {"id": 1, "change_reason": "初始形象"},
-        {"id": 2, "change_reason": "换装/特殊状态的原因（如有）"}
-      ]
-    }
-  ],
+	      "expected_appearances": [
+	        {"id": 1, "change_reason": "初始形象", "coverage_episodes": ["第1集"]},
+	        {"id": 2, "change_reason": "换装/特殊状态的原因（如有）", "coverage_episodes": ["第2集"]}
+	      ],
+	      "variants": [
+	        {
+	          "variant_id": "variant_1",
+	          "label": "初始形象",
+	          "variant_type": "default",
+	          "prompt": "该持续视觉变体的图片生成提示词",
+	          "coverage_scenes": ["场次1"],
+	          "coverage_episodes": ["第1集"],
+	          "design_image": null
+	        }
+	      ],
+	      "is_confirmed": false,
+	      "design_image": null
+	    }
+	  ],
   "updated_characters": [
     {
       "name": "已有角色名（必须与资产库中的名字完全一致）",
@@ -240,6 +290,11 @@ D级（群众演员）：
 10. expected_appearances 必填，至少包含 id=1 的初始形象
 11. 只有持续性视觉变化才添加子形象，临时特效/情绪/动作不添加
 12. 输出必须是**严格合法的JSON**：字符串中不能出现原始换行/回车/制表符
+13. voice_trait、representative_line、voice_audition_prompt 只服务于后续音色/试镜绑定；不要把它们写成音色模型名或配音演员名。
+14. coverage_episodes 只能来自输入中可定位的分集、章节、场次或剧情段；不确定时输出空数组，不要猜测。
+15. role_type、description、relationships、identity_lock、coverage_scenes、prompt、variants 必须与原文证据或生产需要一致；没有依据时 relationships、coverage_scenes 返回空数组，prompt 和 default variant 仍基于稳定外观输出。
+16. variants 与 expected_appearances 必须互相兼容：如果只有初始形象，variants 只输出一个 default；如果有持续换装/年龄/伪装版本，variants 才增加对应项。
+17. voice_id、voice_raw_file 固定输出空字符串；audition_status 固定输出 pending；is_confirmed 固定输出 false；design_image 与 variants[].design_image 固定输出 null；不要编造音色 id、音频文件、material_id 或图片 URL。
 
 ⚠️⚠️⚠️【JSON安全输出 - 最高优先级】⚠️⚠️⚠️
 - 原文中的所有引号（""''「」『』等）在 JSON 字符串值中必须统一替换为日式方括号引号「」

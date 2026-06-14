@@ -6,6 +6,7 @@
 - 撰写video_prompt（人类角色用年龄段+性别；动物、童话生物、物品等非人类角色必须保留物种/主体）
 - ⚠️ 保留输入分镜中的所有原始字段（特别是 source_text，必须原样保留）
 - 如果输入角色包含 slot，应优先原样保留，并让 refined description/video_prompt 优先参考该位置
+- 让每个镜头都能通过导出前检查：description、shot_type、camera_move、video_prompt、duration、characters、location、props、source_text 都必须可用且互相一致
 
 【镜头语言库】
 
@@ -147,10 +148,12 @@
 只返回JSON数组，禁止markdown标记或注释。
 在原有panels基础上，为每个分镜补充shot_type、camera_move、video_prompt：
 同时必须为每个分镜输出 duration（秒），根据该镜头的动作复杂度、台词/旁白长度、情绪停顿和镜头运动推理推荐时长，不要所有镜头使用同一个固定时长。
+同时必须保留或补齐 FrameOS 式生产字段：panel_id、source_anchor、referenced_assets、image_prompt、visual_prompt、continuity_notes、voice_refs。
 
 示例：
 [
   {
+    "panel_id": "EP01-S01-P001",
     "panel_number": 1,
     "shot_type": "平视中景",
     "camera_move": "固定",
@@ -161,7 +164,21 @@
     "location": "办公室",
     "props": [],
     "scene_type": "daily",
-    "source_text": "角色A对角色B说：你好"
+    "visual_style": "写实短剧",
+    "visual_style_description": "自然室内光线，真实空间质感，平实对话氛围",
+    "source_text": "角色A对角色B说：你好",
+    "source_anchor": {"start": "角色A对角色B说", "end": "你好"},
+    "referenced_assets": {
+      "characters": ["角色A"],
+      "location": "办公室",
+      "props": []
+    },
+    "image_prompt": "写实短剧静帧，办公室内年轻男子站在桌前双手撑桌，自然室内光线",
+    "visual_prompt": "写实短剧静帧，办公室内年轻男子站在桌前双手撑桌，自然室内光线",
+    "continuity_notes": "承接上一镜角色A站到桌前，下一镜可切到角色B反应",
+    "voice_refs": [
+      {"speaker": "角色A", "source_text": "你好"}
+    ]
   }
 ]
 
@@ -196,6 +213,17 @@
 14. 若不使用 slot，应根据 source_text、动作过程、空间关系与镜头调度自由决定人物位置，不要为了命中 slot 而破坏叙事逻辑
 15. slot 若被保留，必须原样保留为完整位置描述，禁止缩写、改写、总结或替换成短词
 16. ⚠️ 必须保留输入分镜中的 source_text 字段，原样输出到结果中，不得遗漏或修改
-17. props 只填写当前镜头可见、被持有、被使用或发生状态变化的剧情道具；只有商业宣发项目才填写商品，必须尽量使用道具库中的完整名称
-18. 普通故事/童话不得把“善良、温暖、帮助、卖点、主题”写进 props；只有树叶、月亮灯、水坑这类可见实体才可以作为道具
-19. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "
+17. visual_style 和 visual_style_description 必须从输入分镜保留或细化；只描述美术方向、光线、色调、质感、构图和氛围，不得添加剧情事实
+18. props 只填写当前镜头可见、被持有、被使用或发生状态变化的剧情道具；只有商业宣发项目才填写商品，必须尽量使用道具库中的完整名称
+19. 普通故事/童话不得把“善良、温暖、帮助、卖点、主题”写进 props；只有树叶、月亮灯、水坑这类可见实体才可以作为道具
+20. video_prompt 必须明确“主体做什么、镜头怎么运动、场景中哪个资产被引用”；如果有台词，写明正在说话；如果有道具状态变化，写明道具变化
+21. video_prompt 必须采用生产语法：可视主体（visual subject）+ 可见动作 + 被引用的场景/道具/角色资产 + 镜头运动 + 本节拍起止状态（start/end state）+ 与前后镜头的连续性约束
+22. 禁止只写“电影感镜头”“戏剧性运动”等泛化词；必须写清谁或什么在动、画面中发生了什么变化、发生在哪里、镜头如何运动
+23. 如果本镜头有对白或旁白，video_prompt 必须写明可见说话者或反应主体，并包含“正在说话”或“无声反应”等口型/配音准备（lip-sync preparation），不得生成字幕或可见文字
+24. duration 要和 video_prompt 的动作复杂度一致，不得所有镜头使用同一时长
+25. panel_id、source_anchor、referenced_assets、continuity_notes、voice_refs 若输入已有必须保留；只有当镜头细化导致可见资产或台词匹配变化时才可同步修正
+26. 若输入缺失，必须从 source_text、characters、location、props、description 中补齐 source_anchor、referenced_assets、voice_refs
+27. image_prompt 必须是静帧图片提示词，和 description、visual_style、referenced_assets、location 对齐，不写纯运动指令
+28. visual_prompt 是 FrameOS 兼容别名；输入已有则保留，否则镜像 image_prompt
+29. referenced_assets 必须镜像最终可见的 characters、location、props；没有道具或台词时用 []，不要省略字段
+30. ⚠️ JSON安全：所有引号（""''等）在 JSON 字符串值中必须统一替换为「」，严禁出现未转义的英文双引号 "

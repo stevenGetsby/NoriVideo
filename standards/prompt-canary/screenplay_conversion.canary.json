@@ -1,6 +1,38 @@
 {
   "clip_id": "clip_1",
   "original_text": "Lena enters the hall and speaks to Victor.",
+  "status": "draft",
+  "steps": [
+    {
+      "step": 1,
+      "name": "script_parse",
+      "status": "done",
+      "time": ""
+    },
+    {
+      "step": 2,
+      "name": "scene_split",
+      "status": "done",
+      "time": ""
+    }
+  ],
+  "script_kilo": 1,
+  "strategy_thinking": "Preserve the entrance, letter handoff, and dialogue as one production beat.",
+  "style_reasoning": "The hall at night supports a grounded suspense visual style.",
+  "default_visual_style": {
+    "name": "grounded suspense",
+    "description": "Low-key night lighting with clear character staging."
+  },
+  "worlds": [
+    {
+      "world_label": "formal estate interior",
+      "world_background": "A large interior hall with social tension around the sealed letter.",
+      "representative_frame": "Lena enters the hall",
+      "candidates": ["grounded suspense", "formal interior tension", "low-key night drama"],
+      "selected_style_anchor": "grounded suspense",
+      "preview_materials": []
+    }
+  ],
   "scenes": [
     {
       "scene_number": 1,
@@ -11,6 +43,9 @@
       },
       "description": "A large hall lit by chandeliers with long shadows on the floor.",
       "characters": ["Lena", "Victor"],
+      "scene_reasoning": "One location and one exchange can be staged as a single scene.",
+      "visual_style": "grounded suspense",
+      "visual_style_description": "Low-key night lighting with a formal interior texture.",
       "content": [
         {
           "type": "action",

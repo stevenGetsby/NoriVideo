@@ -23,6 +23,9 @@ Rules:
 7. Each `available_slots` item must be one complete descriptive placement phrase, not a short token and not an object.
 8. Do not mention posture, action, or emotion in `available_slots`.
 9. Every anchor mentioned in `available_slots` must also appear clearly in the updated scene description.
+10. Preserve the FrameOS environment asset contract: keep `summary`, `description`, `background`, `entrance`, `mood`, and `base_ambience` implied through concrete visual wording.
+11. Keep the updated scene stable for `coverage_scenes`, `coverage_episodes`, and `variants`; do not turn it into a single plot moment.
+12. Do not invent `environment_id`, `design_image`, material IDs, image URLs, confirmation status, characters, or plot events.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

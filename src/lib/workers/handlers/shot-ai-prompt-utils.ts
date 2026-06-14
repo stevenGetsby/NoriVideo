@@ -20,20 +20,36 @@ export function parseJsonObject(responseText: string): AnyObj {
 
 export function parseShotPromptResponse(responseText: string): {
   imagePrompt: string
+  visualPrompt: string
   videoPrompt: string
+  referencedAssets: unknown
+  continuityNotes: string
+  changeSummary: string
 } {
   try {
     const direct = parseJsonObject(responseText)
     if (typeof direct.image_prompt === 'string' && direct.image_prompt.trim()) {
+      const imagePrompt = direct.image_prompt.trim()
       return {
-        imagePrompt: direct.image_prompt.trim(),
+        imagePrompt,
+        visualPrompt: typeof direct.visual_prompt === 'string' && direct.visual_prompt.trim()
+          ? direct.visual_prompt.trim()
+          : imagePrompt,
         videoPrompt: typeof direct.video_prompt === 'string' ? direct.video_prompt.trim() : '',
+        referencedAssets: direct.referenced_assets ?? null,
+        continuityNotes: typeof direct.continuity_notes === 'string' ? direct.continuity_notes.trim() : '',
+        changeSummary: typeof direct.change_summary === 'string' ? direct.change_summary.trim() : '',
       }
     }
     if (typeof direct.prompt === 'string' && direct.prompt.trim()) {
+      const imagePrompt = direct.prompt.trim()
       return {
-        imagePrompt: direct.prompt.trim(),
+        imagePrompt,
+        visualPrompt: imagePrompt,
         videoPrompt: '',
+        referencedAssets: null,
+        continuityNotes: '',
+        changeSummary: '',
       }
     }
   } catch {

@@ -64,6 +64,27 @@ function readTrimmedString(input: unknown): string | null {
   return value.length > 0 ? value : null
 }
 
+function isPrivateSpeakerVoiceKey(key: string): boolean {
+  return key.trim().startsWith('_')
+}
+
+function parseSpeakerVoiceRecord(raw: string | null | undefined): Record<string, unknown> {
+  if (!raw) return {}
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    throw new Error('SPEAKER_VOICES_INVALID_JSON')
+  }
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('SPEAKER_VOICES_INVALID_SHAPE')
+  }
+
+  return parsed as Record<string, unknown>
+}
+
 function normalizeRawSpeakerVoiceEntry(raw: unknown, speaker: string): SpeakerVoiceEntry {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
     throw new Error(`SPEAKER_VOICE_ENTRY_INVALID: ${speaker}`)
@@ -126,28 +147,32 @@ function normalizeRawSpeakerVoiceEntry(raw: unknown, speaker: string): SpeakerVo
 }
 
 export function parseSpeakerVoiceMap(raw: string | null | undefined): SpeakerVoiceMap {
-  if (!raw) return {}
-
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    throw new Error('SPEAKER_VOICES_INVALID_JSON')
-  }
-
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('SPEAKER_VOICES_INVALID_SHAPE')
-  }
-
-  const record = parsed as Record<string, unknown>
+  const record = parseSpeakerVoiceRecord(raw)
   const result: SpeakerVoiceMap = {}
   for (const [speaker, value] of Object.entries(record)) {
+    if (isPrivateSpeakerVoiceKey(speaker)) continue
     if (!speaker.trim()) {
       throw new Error('SPEAKER_VOICES_INVALID_SPEAKER')
     }
     result[speaker] = normalizeRawSpeakerVoiceEntry(value, speaker)
   }
   return result
+}
+
+export function stringifySpeakerVoiceMapPreservingPrivateEntries(
+  raw: string | null | undefined,
+  speakerVoices: SpeakerVoiceMap,
+): string {
+  const record = raw ? parseSpeakerVoiceRecord(raw) : {}
+  for (const key of Object.keys(record)) {
+    if (!isPrivateSpeakerVoiceKey(key)) {
+      delete record[key]
+    }
+  }
+  return JSON.stringify({
+    ...record,
+    ...speakerVoices,
+  })
 }
 
 function normalizeProviderKey(providerKey: string): SupportedAudioProviderKey | null {

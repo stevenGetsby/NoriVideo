@@ -14,6 +14,9 @@ const outboundMock = vi.hoisted(() => ({
 }))
 
 const prismaMock = vi.hoisted(() => ({
+  novelPromotionProject: {
+    findUnique: vi.fn(),
+  },
   characterAppearance: {
     findUnique: vi.fn(),
     findFirst: vi.fn(),
@@ -84,6 +87,9 @@ describe('worker character-image-task-handler behavior', () => {
     prismaMock.characterAppearance.findFirst.mockResolvedValue({
       imageUrl: 'cos/primary.png',
       imageUrls: JSON.stringify(['cos/primary.png']),
+    })
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
+      episodes: [],
     })
   })
 

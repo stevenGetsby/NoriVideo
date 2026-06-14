@@ -9,6 +9,7 @@ import {
   withLabelBar,
 } from '../utils'
 import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
+import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 export type AnyObj = Record<string, unknown>
 
@@ -73,18 +74,7 @@ interface NovelDataDb {
 }
 
 export function parseJsonStringArray(value: unknown): string[] {
-  if (!value) return []
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === 'string')
-  }
-  if (typeof value !== 'string') return []
-  try {
-    const parsed = JSON.parse(value)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter((item): item is string => typeof item === 'string')
-  } catch {
-    return []
-  }
+  return parseCharacterDescriptionValues(value)
 }
 
 export function parseImageUrls(value: string | null | undefined, fieldName: string): string[] {

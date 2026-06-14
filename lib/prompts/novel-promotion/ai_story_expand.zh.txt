@@ -6,6 +6,16 @@
 
 ## 创作要求
 
+### FrameOS 工作流兼容
+1. 将输出当作后续 episode_split、screenplay_conversion、asset extraction、storyboard generation、voice_refs 和 export preflight review 的 source_text 来写
+2. 场景转换必须通过自然段落、地点和时间变化清楚呈现，但不要输出元数据标签、JSON、markdown 或标题
+3. characters 角色名必须稳定；只要涉及说话者、行动者或后续资产抽取，避免只用含混的“他/她/那人”
+4. 每个重要 location 首次出现时要具备可视化空间锚点，如门口、桌边、窗前、走廊、楼梯、车座、柜台、院门等
+5. 只写有生产价值的 props：反复出现、被交接、打开、隐藏、损坏、阅读、穿戴或推动剧情的物件
+6. 对白归属必须清楚，便于后续 voice_refs 和音色匹配；台词前后要能判断说话者
+7. 每段关键剧情都要包含可分镜的视觉动作，如进入、转身、揭示、交接、反应、对峙、追逐、发现、停顿、离开
+8. 故事正文中不要写镜头指令、景别标签、prompt 字段、资产 ID、source_anchor 注释或制作说明
+
 ### 内容质量
 1. 故事必须有清晰的开头、发展和结尾（或高潮悬念）
 2. 角色要有鲜明的性格特征和行为动机
@@ -19,6 +29,7 @@
 3. 角色名称在首次出现时需要简短介绍
 4. 对话使用引号标注，并注明说话者
 5. 在关键画面处加入动作和表情描写
+6. 段落顺序必须适合直接进入 episode_split 和 screenplay_conversion 处理
 
 ### 篇幅控制（⚠️ 最重要）
 - 目标：生成适合 1-2 分钟影视短片的故事内容
@@ -32,6 +43,8 @@
 - 不要输出任何非故事内容（如"以下是生成的故事"等说明文字）
 - 不要输出标题、章节号
 - 不要使用 markdown 格式
+- 不要输出 JSON、字段名、隐藏推理、工作流解释或制作备注
+- 故事正文中不要出现 Agent、Super Agent、自动创作模式、FrameOS、source_anchor、referenced_assets、image_prompt、visual_prompt、video_prompt
 - 直接输出故事正文内容
 
 ## 用户输入

@@ -1,6 +1,7 @@
 import type { Job } from 'bullmq'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
+import { CHARACTER_APPEARANCE_FRAMEOS_METADATA_KEY } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 const prismaMock = vi.hoisted(() => ({
   $transaction: vi.fn(),
@@ -70,6 +71,7 @@ vi.mock('@/lib/prompt-i18n', () => ({
   buildPrompt: vi.fn(() => 'character-visual-prompt'),
 }))
 
+import { buildPrompt } from '@/lib/prompt-i18n'
 import { handleCharacterProfileTask } from '@/lib/workers/handlers/character-profile'
 
 function buildJob(type: TaskJobData['type'], payload: Record<string, unknown>): Job<TaskJobData> {
@@ -101,6 +103,7 @@ describe('worker character-profile behavior', () => {
           {
             appearances: [
               {
+                id: 1,
                 change_reason: '默认形象',
                 descriptions: ['黑发，冷静，风衣'],
               },
@@ -113,7 +116,23 @@ describe('worker character-profile behavior', () => {
     prismaMock.novelPromotionCharacter.findFirst.mockImplementation(async (args: { where: { id: string } }) => ({
       id: args.where.id,
       name: args.where.id === 'character-2' ? 'Villain' : 'Hero',
-      profileData: JSON.stringify({ archetype: 'lead' }),
+      profileData: JSON.stringify({
+        archetype: 'lead',
+        coverage_episodes: ['第1集'],
+        expected_appearances: [
+          { id: 1, change_reason: '初始形象', coverage_episodes: ['第1集'] },
+        ],
+        variants: [
+          {
+            variant_id: 1,
+            label: '初始形象',
+            variant_type: 'default',
+            prompt: 'Hero default outfit with black hair and wind coat.',
+            coverage_scenes: ['scene_1'],
+            coverage_episodes: ['第1集'],
+          },
+        ],
+      }),
       profileConfirmed: false,
       novelPromotionProjectId: 'np-project-1',
     }))
@@ -154,11 +173,47 @@ describe('worker character-profile behavior', () => {
         description: '黑发，冷静，风衣',
       }),
     })
+    const createCalls = prismaMock.characterAppearance.create.mock.calls as unknown as Array<[{
+      data?: { descriptions?: string }
+    }]>
+    const createCall = createCalls[0]?.[0]
+    if (!createCall) throw new Error('expected character appearance create call')
+    const descriptionsPayload = JSON.parse(createCall?.data?.descriptions || '{}') as Record<string, unknown>
+    expect(descriptionsPayload.values).toEqual(['黑发，冷静，风衣'])
+    expect(descriptionsPayload[CHARACTER_APPEARANCE_FRAMEOS_METADATA_KEY]).toEqual(expect.objectContaining({
+      appearance_id: 1,
+      appearance_index: 1,
+      variant_id: 1,
+      variant_type: 'default',
+      prompt: 'Hero default outfit with black hair and wind coat.',
+      coverage_scenes: ['scene_1'],
+      coverage_episodes: ['第1集'],
+    }))
+    const promptCall = vi.mocked(buildPrompt).mock.calls[0]?.[0]
+    const characterProfiles = String(promptCall?.variables?.character_profiles || '')
+    expect(characterProfiles).toContain('"coverage_episodes"')
+    expect(characterProfiles).toContain('"expected_appearances"')
 
     expect(prismaMock.novelPromotionCharacter.update).toHaveBeenCalledWith({
       where: { id: 'character-1' },
       data: {
-        profileData: JSON.stringify({ archetype: 'lead' }),
+        profileData: JSON.stringify({
+          archetype: 'lead',
+          coverage_episodes: ['第1集'],
+          expected_appearances: [
+            { id: 1, change_reason: '初始形象', coverage_episodes: ['第1集'] },
+          ],
+          variants: [
+            {
+              variant_id: 1,
+              label: '初始形象',
+              variant_type: 'default',
+              prompt: 'Hero default outfit with black hair and wind coat.',
+              coverage_scenes: ['scene_1'],
+              coverage_episodes: ['第1集'],
+            },
+          ],
+        }),
         profileConfirmed: true,
       },
     })

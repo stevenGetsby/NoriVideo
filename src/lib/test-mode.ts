@@ -5,11 +5,14 @@ import {
   HFSY_IMAGE_MODEL_ID,
   HFSY_IMAGE_MODEL_KEY,
   HFSY_PROVIDER_ID,
-  HFSY_TEXT_MODEL_ID,
-  HFSY_TEXT_MODEL_KEY,
   HFSY_VIDEO_MODEL_ID,
   HFSY_VIDEO_MODEL_KEY,
 } from '@/lib/hfsy-fixed-models'
+import {
+  LUMINA_GPT55_MODEL_ID,
+  LUMINA_GPT55_MODEL_KEY,
+  LUMINA_PROVIDER_ID,
+} from '@/lib/lumina-fixed-models'
 import type { AuthSession } from '@/lib/api-auth'
 import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
 
@@ -18,7 +21,6 @@ type TestProviderConfig = {
   name: string
   baseUrl?: string
   apiKey: string
-  apiMode?: 'gemini-sdk'
   gatewayRoute?: 'openai-compat'
 }
 
@@ -36,7 +38,6 @@ type TestModelConfig = {
 
 const TEST_USER_ID = '00000000-0000-4000-8000-000000000001'
 const TEST_USER_NAME = 'nori-test'
-const LUMINA_PROVIDER_ID = 'anthropic-compatible:lumina-test'
 const IMAGE_PROVIDER_ID = HFSY_PROVIDER_ID
 const ARK_PROVIDER_ID = 'ark'
 const LUMINA_BASE_URL = 'https://lumina.tripo3d.com/'
@@ -69,7 +70,7 @@ export function getTestModeUserId(): string {
 
 export function getTestModeModelKeys() {
   return {
-    analysisModel: HFSY_TEXT_MODEL_KEY,
+    analysisModel: LUMINA_GPT55_MODEL_KEY,
     imageModel: HFSY_IMAGE_MODEL_KEY,
     videoModel: HFSY_VIDEO_MODEL_KEY,
   }
@@ -109,7 +110,6 @@ function buildTestProviders(luminaApiKey: string, imageApiKey: string, arkApiKey
       name: 'Lumina Test',
       baseUrl: LUMINA_BASE_URL,
       apiKey: encryptApiKey(luminaApiKey),
-      apiMode: 'gemini-sdk',
     },
     {
       id: IMAGE_PROVIDER_ID,
@@ -137,12 +137,11 @@ function buildTestModels(includeArkVideoModels = false) {
 
   const models: TestModelConfig[] = [
     {
-      modelId: HFSY_TEXT_MODEL_ID,
-      modelKey: HFSY_TEXT_MODEL_KEY,
-      name: 'HFSY GPT-5.5',
+      modelId: LUMINA_GPT55_MODEL_ID,
+      modelKey: LUMINA_GPT55_MODEL_KEY,
+      name: 'Lumina GPT-5.5',
       type: 'llm',
-      provider: IMAGE_PROVIDER_ID,
-      llmProtocol: 'chat-completions',
+      provider: LUMINA_PROVIDER_ID,
     },
     {
       modelId: IMAGE_MODEL_ID,

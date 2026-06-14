@@ -64,6 +64,12 @@
 - 站位中禁止写人物姿态、动作、情绪，只写位置
 - 新站位必须与修改后的场景描述一致，且其中提到的锚点必须在场景描述中出现
 
+【FrameOS 场景资产契约】
+- 修改后的 prompt 仍必须能承载 summary、description、background、entrance、mood、base_ambience 的生产含义
+- 保持 environments 资产的稳定性，可被后续 coverage_scenes、coverage_episodes 和 variants 复用，不写一次性剧情事件
+- 如果只修改局部区域，未被修改的入口、锚点、可通行区域和 available_slots 要保持一致；如果删除锚点，站位必须同步替换
+- 禁止编造 environment_id、design_image、素材 ID、图片 URL、确认状态、角色动作或剧情事件
+
 当前场景描述：{location_input}
 
 用户的修改指令：{user_input}

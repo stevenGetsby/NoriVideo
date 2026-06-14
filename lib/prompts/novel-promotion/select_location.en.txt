@@ -28,12 +28,48 @@ If the source location is generic, such as 「classroom」, 「office」, or 「
 - define at least 3 stable anchor areas and nearby open space
 - avoid vague noun piles
 
+FrameOS-style location asset contract:
+1. `summary` should state the production function of the location, such as conflict room, transition corridor, home base, interrogation space, or reveal location.
+2. `available_slots` are stable anchors for later storyboard character placement and should remain reusable across neighboring shots.
+3. Every anchor mentioned in `available_slots` must appear clearly in `descriptions`, with usable open space nearby for character insertion.
+4. Split the same place into separate assets only when time or state changes materially affect visual production, such as day/night, rain, damaged, or decorated.
+5. The location asset is a background plate. Do not include named protagonist actions in descriptions.
+6. `int_ext` must be INT, EXT, or MIXED. `entrance` describes the reusable visible entry point or movement path. `mood` describes story atmosphere. `base_ambience` describes the base texture, light, temperature, air, and sound feeling.
+7. `coverage_scenes` and `coverage_episodes` must come from traceable input scene, clip, episode, or chapter labels. Use empty arrays when unsupported.
+8. `prompt` is the main environment image prompt. It must include the canonical description, entrance, mood, base_ambience, and all critical anchor objects from `available_slots`.
+9. `variants` are only persistent environment states that affect image production, such as day, night, rainy, damaged, decorated, or post-event. Do not create variants for a single camera angle or character action.
+
 Output format (JSON only):
 {
-  "locations": [
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_environments": false,
+  "environments": [
     {
+      "environment_id": "environment_001",
       "name": "location_name",
+      "int_ext": "INT",
       "summary": "short usage summary",
+      "description": "FrameOS-style main environment asset description: spatial identity, structure, key anchors, and production use",
+      "background": "stable story background or ownership for this environment, or empty string",
+      "entrance": "reusable visible entry point, doorway, path, or circulation route",
+      "mood": "story atmosphere",
+      "base_ambience": "base texture, light direction, color temperature, air, and sound feeling",
+      "coverage_scenes": ["scene 1"],
+      "coverage_episodes": ["episode 1"],
+      "prompt": "main environment image prompt: complete wide space, foreground/midground/background, anchor objects, entrance, light, atmosphere, empty background plate",
+      "variants": [
+        {
+          "variant_id": "variant_1",
+          "label": "default state",
+          "variant_type": "default",
+          "prompt": "image prompt for this persistent environment state",
+          "coverage_scenes": ["scene 1"],
+          "coverage_episodes": ["episode 1"]
+        }
+      ],
+      "is_confirmed": false,
+      "design_image": null,
       "has_crowd": false,
       "crowd_description": "",
       "available_slots": [
@@ -52,11 +88,13 @@ Output format (JSON only):
 
 Strict constraints:
 1. JSON only.
-2. If no valid location exists, return: {"locations":[]}.
-3. Each location must include 2-6 `available_slots`.
-4. Each `available_slots` item must be a complete descriptive placement phrase, not a short token and not an object.
-5. Slot descriptions must be concrete and reusable, tied to visible anchors such as the outer side of a desk row, the open floor before the blackboard, the inner side of a doorway, the space beside a window wall.
-6. Do not mention character posture, action, or emotion inside `available_slots`. Describe position only.
-7. Every anchor mentioned in `available_slots` must also appear clearly in the location descriptions.
-8. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
-  
+2. If no valid location exists, return the same wrapper with "environments":[].
+3. Each location must include `environment_id`, `name`, `int_ext`, `summary`, `description`, `background`, `entrance`, `mood`, `base_ambience`, `coverage_scenes`, `coverage_episodes`, `prompt`, `variants`, `is_confirmed`, `design_image`, `has_crowd`, `crowd_description`, `available_slots`, and `descriptions`.
+4. Each location must include 2-6 `available_slots`.
+5. Each `available_slots` item must be a complete descriptive placement phrase, not a short token and not an object.
+6. Slot descriptions must be concrete and reusable, tied to visible anchors such as the outer side of a desk row, the open floor before the blackboard, the inner side of a doorway, the space beside a window wall.
+7. Do not mention character posture, action, or emotion inside `available_slots`. Describe position only.
+8. Every anchor mentioned in `available_slots` must also appear clearly in the location descriptions.
+9. Always output `design_image` as null and `is_confirmed` as false. Do not invent material_id, image URLs, or confirmed status.
+10. `variants` must include one default variant. Add more variants only for persistent time or state changes that affect background production.
+11. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

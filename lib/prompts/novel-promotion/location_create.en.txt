@@ -17,6 +17,10 @@ Rules:
 10. Also generate 2-6 fixed `available_slots` as complete descriptive placement phrases tied to concrete scene anchors.
 11. Do not mention posture, action, or emotion in `available_slots`. Describe position only.
 12. Every anchor mentioned in `available_slots` must appear clearly in the scene prompt.
+13. Treat the scene as a FrameOS environment asset: the prompt must internally cover `summary`, `description`, `background`, `entrance`, `mood`, and `base_ambience` through concrete visual wording, without adding extra JSON fields.
+14. Make the base environment stable for later `coverage_scenes`, `coverage_episodes`, and `variants`; write a default background plate, not a one-off dramatic shot.
+15. Do not invent `environment_id`, `design_image`, material IDs, image URLs, confirmation status, characters, or plot events.
+16. The prompt and `available_slots` must make entrances, walkable zones, and reusable anchor areas easy to reference in storyboard panels.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

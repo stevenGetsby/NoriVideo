@@ -111,7 +111,21 @@ describe('worker panel-image-task-handler behavior', () => {
       characters: JSON.stringify([{ name: 'Hero', appearance: 'default', slot: '街道左侧靠墙的留白位置' }]),
       srtSegment: '台词片段',
       photographyRules: null,
-      actingNotes: null,
+      actingNotes: JSON.stringify({
+        _frameosPanelMetadata: {
+          panel_id: 'panel-frameos-1',
+          panel_number: 1,
+          source_text: 'Ari raises the brass key and speaks.',
+          source_anchor: { start: 'Ari raises', end: 'speaks.' },
+          referenced_assets: { characters: ['Hero'], location: 'Old Town', props: ['brass_key'] },
+          visual_prompt: 'Hero at the old town gate with the brass key.',
+          visual_style: 'grounded workshop realism',
+          visual_style_description: 'Natural light and stable composition.',
+          continuity_notes: 'Hero keeps the brass key in the right hand.',
+          voice_refs: [{ speaker: 'Hero', source_text: 'We start here.' }],
+        },
+        characters: [{ name: 'Hero', acting: 'speaking face remains clear' }],
+      }),
       sketchImageUrl: null,
       imageUrl: null,
     })
@@ -155,6 +169,41 @@ describe('worker panel-image-task-handler behavior', () => {
     expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
       variables: expect.objectContaining({
         storyboard_text_json_input: expect.stringContaining('"slot": "街道左侧靠墙的留白位置"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"image_prompt": "panel anchor prompt"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"visual_prompt": "Hero at the old town gate with the brass key."'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"referenced_assets"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"panel_id": "panel-frameos-1"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"source_anchor"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"voice_refs"'),
+      }),
+    }))
+    expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
+      variables: expect.objectContaining({
+        storyboard_text_json_input: expect.stringContaining('"continuity_notes": "Hero keeps the brass key in the right hand.\\nHero: speaking face remains clear"'),
       }),
     }))
     expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({

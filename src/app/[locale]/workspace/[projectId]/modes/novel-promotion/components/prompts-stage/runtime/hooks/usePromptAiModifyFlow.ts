@@ -7,12 +7,18 @@ import type { PromptAssetReference, PromptShotEditState } from '../promptStageRu
 
 interface ModifyShotPromptResult {
   modifiedImagePrompt: string
+  modifiedVisualPrompt?: string
+  modifiedVideoPrompt?: string
+  continuityNotes?: string
+  changeSummary?: string
 }
 
 export interface PromptAiModifier {
   mutateAsync: (payload: {
+    panelId?: string
     currentPrompt: string
     currentVideoPrompt: string
+    currentVisualPrompt?: string
     modifyInstruction: string
     referencedAssets: PromptAssetReference[]
   }) => Promise<ModifyShotPromptResult>
@@ -59,6 +65,7 @@ export function usePromptAiModifyFlow({
     try {
       setAiModifyingShots((previous) => new Set(previous).add(shotId))
       const data = await aiModifyShotPrompt.mutateAsync({
+        panelId: shotId,
         currentPrompt: snapshotEditValue,
         currentVideoPrompt: '',
         modifyInstruction: snapshotAiInstruction,

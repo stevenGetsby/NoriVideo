@@ -5,6 +5,12 @@ import {
   buildPanelSeedanceReferenceAssets,
   writePanelSeedanceReferenceAssetsToActingNotes,
 } from '@/lib/novel-promotion/seedance-reference-assets'
+import {
+  buildPanelFrameOSMetadata,
+  readActingNotesContinuityText,
+  readPanelFrameOSMetadataFromActingNotes,
+  writePanelFrameOSMetadataToActingNotes,
+} from '@/lib/novel-promotion/panel-frameos-metadata'
 
 export type JsonRecord = Record<string, unknown>
 
@@ -20,10 +26,20 @@ export type PersistedStoryboard = {
   panels: Array<{
     id: string
     panelIndex: number
+    panelNumber?: number | null
+    shotType?: string | null
+    cameraMove?: string | null
     description: string | null
+    location?: string | null
     srtSegment: string | null
     characters: string | null
     props: string | null
+    duration?: number | null
+    imagePrompt?: string | null
+    videoPrompt?: string | null
+    photographyRules?: string | null
+    actingNotes?: string | null
+    sceneType?: string | null
   }>
 }
 
@@ -65,6 +81,31 @@ function parseStringArray(raw: string | null): string[] {
   }
 }
 
+function readPanelNames(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item) => {
+      if (typeof item === 'string') return item.trim()
+      if (typeof item === 'object' && item !== null) {
+        const record = item as JsonRecord
+        return typeof record.name === 'string' ? record.name.trim() : ''
+      }
+      return ''
+    })
+    .filter(Boolean)
+}
+
+function buildContinuityNotes(...items: Array<unknown>): string {
+  return items
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .join('\n')
+}
+
+function isNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value)
+}
+
 export function parseVoiceLinesJson(responseText: string): JsonRecord[] {
   const rows = safeParseJsonArray(responseText)
   if (rows.length === 0) {
@@ -85,21 +126,76 @@ export function buildStoryboardJson(storyboards: PersistedStoryboard[]) {
   const rows: Array<{
     storyboardId: string
     panelIndex: number
+    panel_id: string
+    panel_number: number
     text_segment: string
+    source_text: string
+    source_anchor: unknown
     description: string
+    location: string
     characters: string[]
     props: string[]
+    referenced_assets: unknown
+    scene_type: string
+    shot_type: string
+    camera_move: string
+    image_prompt: string
+    visual_prompt: string
+    video_prompt: string
+    visual_style: string
+    visual_style_description: string
+    continuity_notes: string
+    voice_refs: unknown
+    duration: number | null
   }> = []
 
   for (const storyboard of storyboards) {
     for (const panel of storyboard.panels) {
+      const textSegment = panel.srtSegment || ''
+      const characters = parsePanelCharacters(panel.characters)
+      const props = parseStringArray(panel.props)
+      const location = panel.location || ''
+      const metadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+      const sourceText = typeof metadata?.source_text === 'string' && metadata.source_text.trim()
+        ? metadata.source_text
+        : textSegment
+      const referencedAssets = metadata?.referenced_assets ?? {
+        characters,
+        location,
+        props,
+      }
       rows.push({
         storyboardId: storyboard.storyboardId,
         panelIndex: panel.panelIndex,
-        text_segment: panel.srtSegment || '',
+        panel_id: metadata?.panel_id || panel.id,
+        panel_number: typeof metadata?.panel_number === 'number'
+          ? metadata.panel_number
+          : typeof panel.panelNumber === 'number'
+            ? panel.panelNumber
+            : panel.panelIndex + 1,
+        text_segment: textSegment,
+        source_text: sourceText,
+        source_anchor: metadata?.source_anchor ?? (sourceText ? { text: sourceText } : null),
         description: panel.description || '',
-        characters: parsePanelCharacters(panel.characters),
-        props: parseStringArray(panel.props),
+        location,
+        characters,
+        props,
+        referenced_assets: referencedAssets,
+        scene_type: panel.sceneType || '',
+        shot_type: panel.shotType || '',
+        camera_move: panel.cameraMove || '',
+        image_prompt: panel.imagePrompt || '',
+        visual_prompt: metadata?.visual_prompt || panel.imagePrompt || '',
+        video_prompt: panel.videoPrompt || '',
+        visual_style: metadata?.visual_style || '',
+        visual_style_description: metadata?.visual_style_description || '',
+        continuity_notes: buildContinuityNotes(
+          metadata?.continuity_notes,
+          panel.photographyRules,
+          readActingNotesContinuityText(panel.actingNotes),
+        ),
+        voice_refs: metadata?.voice_refs || [],
+        duration: typeof panel.duration === 'number' ? panel.duration : null,
       })
     }
   }
@@ -112,22 +208,60 @@ export function buildStoryboardJsonFromClipPanels(clipPanels: ClipPanelsResult[]
   const rows: Array<{
     storyboardId: string
     panelIndex: number
+    panel_id: string
+    panel_number: number
     text_segment: string
+    source_text: string
+    source_anchor: unknown
     description: string
     characters: string[]
+    location: string
     props: string[]
+    referenced_assets: unknown
+    scene_type: string
+    shot_type: string
+    camera_move: string
+    image_prompt: string
+    visual_prompt: string
+    video_prompt: string
+    continuity_notes: string
+    voice_refs: unknown
+    duration: number | null
   }> = []
 
   for (const clipEntry of clipPanels) {
     for (let index = 0; index < clipEntry.finalPanels.length; index += 1) {
       const panel = clipEntry.finalPanels[index]
+      const textSegment = panel.source_text || ''
+      const characters = readPanelNames(panel.characters)
+      const props = Array.isArray(panel.props) ? panel.props.filter((item): item is string => typeof item === 'string' && Boolean(item)) : []
+      const location = panel.location || ''
       rows.push({
         storyboardId: clipEntry.clipId,
         panelIndex: index,
-        text_segment: panel.source_text || '',
+        panel_id: panel.panel_id || `${clipEntry.clipId}:${index}`,
+        panel_number: isNumber(panel.panel_number) ? panel.panel_number : index + 1,
+        text_segment: textSegment,
+        source_text: textSegment,
+        source_anchor: panel.source_anchor ?? (textSegment ? { text: textSegment } : null),
         description: panel.description || '',
-        characters: Array.isArray(panel.characters) ? panel.characters.filter(Boolean) : [],
-        props: Array.isArray(panel.props) ? panel.props.filter(Boolean) : [],
+        characters,
+        location,
+        props,
+        referenced_assets: panel.referenced_assets ?? {
+          characters,
+          location,
+          props,
+        },
+        scene_type: panel.scene_type || '',
+        shot_type: panel.shot_type || '',
+        camera_move: panel.camera_move || '',
+        image_prompt: panel.image_prompt || '',
+        visual_prompt: panel.visual_prompt || '',
+        video_prompt: panel.video_prompt || '',
+        continuity_notes: buildContinuityNotes(panel.continuity_notes, panel.photographyPlan, panel.actingNotes),
+        voice_refs: panel.voice_refs || [],
+        duration: isNumber(panel.duration) ? panel.duration : null,
       })
     }
   }
@@ -169,10 +303,20 @@ export async function persistStoryboardsAndPanels(params: {
   type PanelRow = {
     id: string
     panelIndex: number
+    panelNumber: number | null
+    shotType: string | null
+    cameraMove: string | null
     description: string | null
+    location: string | null
     srtSegment: string | null
     characters: string | null
     props: string | null
+    duration: number | null
+    imagePrompt: string | null
+    videoPrompt: string | null
+    photographyRules: string | null
+    actingNotes: string | null
+    sceneType: string | null
   }
   const projectAssets = await resolvePanelReferenceProjectAssets(episodeId)
   return await prisma.$transaction(async (tx) => {
@@ -203,10 +347,20 @@ export async function persistStoryboardsAndPanels(params: {
           select: {
             id: true
             panelIndex: true
+            panelNumber: true
+            shotType: true
+            cameraMove: true
             description: true
+            location: true
             srtSegment: true
             characters: true
             props: true
+            duration: true
+            imagePrompt: true
+            videoPrompt: true
+            photographyRules: true
+            actingNotes: true
+            sceneType: true
           }
         }) => Promise<PanelRow>
       }
@@ -226,7 +380,21 @@ export async function persistStoryboardsAndPanels(params: {
           })
           : []
         const actingNotes = writePanelSeedanceReferenceAssetsToActingNotes(
-          panel.actingNotes || null,
+          writePanelFrameOSMetadataToActingNotes(
+            panel.actingNotes || null,
+            buildPanelFrameOSMetadata({
+              panel_id: panel.panel_id,
+              panel_number: panel.panel_number || i + 1,
+              source_text: panel.source_text,
+              source_anchor: panel.source_anchor,
+              referenced_assets: panel.referenced_assets,
+              visual_prompt: panel.visual_prompt,
+              visual_style: panel.visual_style,
+              visual_style_description: panel.visual_style_description,
+              continuity_notes: panel.continuity_notes,
+              voice_refs: panel.voice_refs,
+            }),
+          ),
           seedanceReferenceAssets,
         )
         const created = await panelModel.create({
@@ -237,6 +405,7 @@ export async function persistStoryboardsAndPanels(params: {
             shotType: panel.shot_type || '中景',
             cameraMove: panel.camera_move || '固定',
             description: panel.description || null,
+            imagePrompt: panel.image_prompt || panel.visual_prompt || null,
             videoPrompt: panel.video_prompt || null,
             location: panel.location || null,
             characters: panel.characters ? JSON.stringify(panel.characters) : null,
@@ -249,10 +418,20 @@ export async function persistStoryboardsAndPanels(params: {
           select: {
             id: true,
             panelIndex: true,
+            panelNumber: true,
+            shotType: true,
+            cameraMove: true,
             description: true,
+            location: true,
             srtSegment: true,
             characters: true,
             props: true,
+            duration: true,
+            imagePrompt: true,
+            videoPrompt: true,
+            photographyRules: true,
+            actingNotes: true,
+            sceneType: true,
           },
         })
         persistedPanels.push(created)
@@ -307,18 +486,38 @@ export async function persistStoryboardOutputs(params: {
           select: {
             id: true
             panelIndex: true
+            panelNumber: true
+            shotType: true
+            cameraMove: true
             description: true
+            location: true
             srtSegment: true
             characters: true
             props: true
+            duration: true
+            imagePrompt: true
+            videoPrompt: true
+            photographyRules: true
+            actingNotes: true
+            sceneType: true
           }
         }) => Promise<{
           id: string
           panelIndex: number
+          panelNumber: number | null
+          shotType: string | null
+          cameraMove: string | null
           description: string | null
+          location: string | null
           srtSegment: string | null
           characters: string | null
           props: string | null
+          duration: number | null
+          imagePrompt: string | null
+          videoPrompt: string | null
+          photographyRules: string | null
+          actingNotes: string | null
+          sceneType: string | null
         }>
       }
       const persistedPanels: PersistedStoryboard['panels'] = []
@@ -337,7 +536,21 @@ export async function persistStoryboardOutputs(params: {
           })
           : []
         const actingNotes = writePanelSeedanceReferenceAssetsToActingNotes(
-          panel.actingNotes || null,
+          writePanelFrameOSMetadataToActingNotes(
+            panel.actingNotes || null,
+            buildPanelFrameOSMetadata({
+              panel_id: panel.panel_id,
+              panel_number: panel.panel_number || i + 1,
+              source_text: panel.source_text,
+              source_anchor: panel.source_anchor,
+              referenced_assets: panel.referenced_assets,
+              visual_prompt: panel.visual_prompt,
+              visual_style: panel.visual_style,
+              visual_style_description: panel.visual_style_description,
+              continuity_notes: panel.continuity_notes,
+              voice_refs: panel.voice_refs,
+            }),
+          ),
           seedanceReferenceAssets,
         )
         const created = await panelModel.create({
@@ -348,6 +561,7 @@ export async function persistStoryboardOutputs(params: {
             shotType: panel.shot_type || '中景',
             cameraMove: panel.camera_move || '固定',
             description: panel.description || null,
+            imagePrompt: panel.image_prompt || panel.visual_prompt || null,
             videoPrompt: panel.video_prompt || null,
             location: panel.location || null,
             characters: panel.characters ? JSON.stringify(panel.characters) : null,
@@ -360,10 +574,20 @@ export async function persistStoryboardOutputs(params: {
           select: {
             id: true,
             panelIndex: true,
+            panelNumber: true,
+            shotType: true,
+            cameraMove: true,
             description: true,
+            location: true,
             srtSegment: true,
             characters: true,
             props: true,
+            duration: true,
+            imagePrompt: true,
+            videoPrompt: true,
+            photographyRules: true,
+            actingNotes: true,
+            sceneType: true,
           },
         })
         panelIdByStoryboardRef.set(`${storyboard.id}:${created.panelIndex}`, created.id)

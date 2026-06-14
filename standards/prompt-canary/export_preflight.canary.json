@@ -1,0 +1,169 @@
+{
+  "status": "needs_work",
+  "summary": "Episode 1 is close to export, but one panel still needs a generated video and voice binding review.",
+  "readiness": {
+    "script": "ready",
+    "assets": "ready",
+    "storyboard": "ready",
+    "shots": "needs_work",
+    "voice": "needs_work",
+    "export": "needs_work"
+  },
+  "issues": [
+    {
+      "code": "missing_video",
+      "severity": "blocker",
+      "stage": "shots",
+      "target_type": "panel",
+      "target_id": "panel_1",
+      "priority": 1,
+      "evidence": [
+        "panel_1.video_url is missing",
+        "panel_1.video_prompt is present"
+      ],
+      "message": "Panel 1 has still-frame evidence and a video prompt, but no completed video URL for export.",
+      "blocking_reason": "The requested delivery package requires a completed video for each exportable panel.",
+      "suggested_fix": "Generate or attach the panel video before export."
+    },
+    {
+      "code": "voice_gap",
+      "severity": "warning",
+      "stage": "voice",
+      "target_type": "voice_line",
+      "target_id": "voice_1",
+      "priority": 2,
+      "evidence": [
+        "voice_1.status is generated",
+        "delivery manifest has no confirmed voice mapping"
+      ],
+      "message": "Ari's dialogue has voice_refs but no confirmed voice mapping in the delivery manifest.",
+      "blocking_reason": "",
+      "suggested_fix": "Confirm the voice mapping or attach the generated dubbing line."
+    },
+    {
+      "code": "missing_image",
+      "severity": "blocker",
+      "stage": "shots",
+      "target_type": "panel",
+      "target_id": "panel_2",
+      "priority": 3,
+      "evidence": [
+        "panel_2.image_url is missing",
+        "panel_2.image_prompt is present"
+      ],
+      "message": "Panel 2 has prompt evidence but no generated still image for the export package.",
+      "blocking_reason": "The requested delivery package requires a still image for each exportable panel.",
+      "suggested_fix": "Generate or attach the panel still image before export."
+    },
+    {
+      "code": "missing_reference",
+      "severity": "warning",
+      "stage": "storyboard",
+      "target_type": "panel",
+      "target_id": "panel_3",
+      "priority": 4,
+      "evidence": [
+        "panel_3.referenced_assets is missing",
+        "panel_3.characters contains Ari"
+      ],
+      "message": "Panel 3 names visible production assets but does not provide traceable referenced_assets.",
+      "blocking_reason": "",
+      "suggested_fix": "Restore referenced asset bindings in the storyboard stage."
+    },
+    {
+      "code": "missing_prompt",
+      "severity": "blocker",
+      "stage": "shots",
+      "target_type": "panel",
+      "target_id": "panel_4",
+      "priority": 5,
+      "evidence": [
+        "panel_4.video_prompt is empty",
+        "panel_4.description is present"
+      ],
+      "message": "Panel 4 has a storyboard description but no usable video prompt for generation.",
+      "blocking_reason": "The video export cannot be generated without a panel-level video prompt.",
+      "suggested_fix": "Regenerate shot prompts for panel_4."
+    },
+    {
+      "code": "duration_risk",
+      "severity": "warning",
+      "stage": "shots",
+      "target_type": "panel",
+      "target_id": "panel_5",
+      "priority": 6,
+      "evidence": [
+        "panel_5.duration is 0.5",
+        "export_target expects short-drama delivery timing"
+      ],
+      "message": "Panel 5 duration is too short for a readable short-drama shot.",
+      "blocking_reason": "",
+      "suggested_fix": "Review shot duration and pacing in the storyboard or shot prompt stage."
+    },
+    {
+      "code": "asset_gap",
+      "severity": "warning",
+      "stage": "assets",
+      "target_type": "asset",
+      "target_id": "character_1",
+      "priority": 7,
+      "evidence": [
+        "character_1.design_image is null",
+        "character_1.coverage_episodes includes episode_1"
+      ],
+      "message": "A recurring character is referenced for delivery but lacks a confirmed design image.",
+      "blocking_reason": "",
+      "suggested_fix": "Complete the character design image in asset setup."
+    },
+    {
+      "code": "continuity_gap",
+      "severity": "warning",
+      "stage": "storyboard",
+      "target_type": "panel",
+      "target_id": "panel_6",
+      "priority": 8,
+      "evidence": [
+        "panel_6.continuity_notes is missing",
+        "panel_6 follows panel_5 in the same scene"
+      ],
+      "message": "Adjacent panels in the same scene do not preserve a visible continuity note.",
+      "blocking_reason": "",
+      "suggested_fix": "Add continuity notes for the scene transition in storyboard review."
+    },
+    {
+      "code": "manifest_gap",
+      "severity": "blocker",
+      "stage": "export",
+      "target_type": "project",
+      "target_id": "episode_1",
+      "priority": 9,
+      "evidence": [
+        "manifest row for panel_1 has no video_url",
+        "panel_1 is marked exportable"
+      ],
+      "message": "The export manifest does not preserve the required media URL for an exportable panel.",
+      "blocking_reason": "The delivery package cannot be assembled with an incomplete manifest row.",
+      "suggested_fix": "Regenerate the export manifest after shot media is complete."
+    }
+  ],
+  "deliverables": {
+    "video_ready": "partial",
+    "image_ready": "ready",
+    "audio_ready": "partial",
+    "manifest_ready": "partial"
+  },
+  "next_actions": [
+    {
+      "stage": "shots",
+      "priority": 1,
+      "target_id": "panel_1",
+      "action": "Generate the missing video for panel_1 using the existing visual_prompt, video_prompt, referenced_assets, and continuity_notes."
+    },
+    {
+      "stage": "voice",
+      "priority": 2,
+      "target_id": "voice_1",
+      "action": "Confirm Ari's voice mapping and bind voice_1 to the panel voice_refs before final export."
+    }
+  ]
+}

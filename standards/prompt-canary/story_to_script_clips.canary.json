@@ -2,15 +2,31 @@
   {
     "start": "The morning bell rings across the old town square.",
     "end": "She silently folds the letter and walks away.",
-    "summary": "A tense reunion begins in the square.",
+    "summary": "setup: a tense reunion begins in the square.",
+    "source_anchor": "old town square",
+    "info_points": ["The morning bell rings across the square.", "Lena and Victor meet with a letter."],
+    "reasoning": {
+      "adaptation_decision": "The same location and reunion beat stay in one clip.",
+      "production_function": "setup",
+      "self_review": "No key line, character, prop, or visible action is dropped."
+    },
     "location": "town_square_day",
-    "characters": ["Lena", "Victor"]
+    "characters": ["Lena", "Victor"],
+    "props": ["letter"]
   },
   {
     "start": "At dusk, the alley lights flicker one by one.",
     "end": "The door clicks shut behind them.",
-    "summary": "They move into a hidden back alley.",
+    "summary": "transition: they move into a hidden back alley.",
+    "source_anchor": "alley lights flicker",
+    "info_points": ["The time changes to dusk.", "The group enters the back alley."],
+    "reasoning": {
+      "adaptation_decision": "The time and location change create a new production beat.",
+      "production_function": "transition",
+      "self_review": "The alley movement and door close are preserved."
+    },
     "location": "old_alley_evening",
-    "characters": ["Lena", "Victor", "Guard"]
+    "characters": ["Lena", "Victor", "Guard"],
+    "props": []
   }
 ]

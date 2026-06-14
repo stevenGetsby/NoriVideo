@@ -110,9 +110,16 @@ describe('worker panel-variant-task-handler behavior', () => {
         return {
           id: 'panel-new',
           storyboardId: 'storyboard-1',
+          panelNumber: 5,
           imageUrl: null,
           location: 'Old Town',
           characters: JSON.stringify([{ name: 'Hero', appearance: 'default', slot: '街道左侧靠墙的留白位置' }]),
+          props: JSON.stringify(['brass_key']),
+          srtSegment: 'Hero reaches the Old Town gate.',
+          imagePrompt: 'Hero at the Old Town gate.',
+          videoPrompt: 'Hero raises the brass key at the Old Town gate.',
+          photographyRules: 'Keep Hero beside the gate.',
+          actingNotes: JSON.stringify([{ name: 'Hero', acting: 'focused face toward the gate' }]),
         }
       }
       if (args.where.id === 'panel-source') {
@@ -125,6 +132,28 @@ describe('worker panel-variant-task-handler behavior', () => {
           cameraMove: 'pan',
           location: 'Old Town',
           characters: JSON.stringify([{ name: 'Hero' }]),
+          photographyRules: 'Keep the brass key visible.',
+          actingNotes: JSON.stringify({
+            characters: [{ name: 'Hero', acting: 'clear speaking face' }],
+            _frameosPanelMetadata: {
+              panel_id: 'source-frameos-panel',
+              source_text: 'Hero reaches the Old Town gate and raises the brass key.',
+              source_anchor: {
+                start: 'Hero reaches the Old Town gate',
+                end: 'raises the brass key.',
+              },
+              referenced_assets: {
+                characters: [{ name: 'Hero', appearance: 'black coat' }],
+                location: 'Old Town gate',
+                props: ['brass_key'],
+              },
+              visual_prompt: 'FrameOS visual prompt: Hero and brass key at the gate.',
+              visual_style: 'grounded suspense',
+              visual_style_description: 'cool daylight with restrained contrast',
+              continuity_notes: 'FrameOS continuity: brass key in Hero right hand.',
+              voice_refs: [{ speaker: 'Hero', source_text: 'We open it now.' }],
+            },
+          }),
         }
       }
       return null
@@ -163,16 +192,31 @@ describe('worker panel-variant-task-handler behavior', () => {
       }),
     )
 
-    expect(prismaMock.novelPromotionPanel.update).toHaveBeenCalledWith({
+    expect(prismaMock.novelPromotionPanel.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'panel-new' },
-      data: { imageUrl: 'cos/panel-variant-new.png' },
-    })
+      data: expect.objectContaining({ imageUrl: 'cos/panel-variant-new.png' }),
+    }))
     expect(promptMock.buildPrompt).toHaveBeenCalledWith(expect.objectContaining({
       variables: expect.objectContaining({
         characters_info: expect.stringContaining('固定位置：街道左侧靠墙的留白位置'),
         location_asset: expect.stringContaining('街道左侧靠墙的留白位置'),
+        video_prompt: expect.stringContaining('FrameOS production evidence:'),
       }),
     }))
+    const promptCalls = promptMock.buildPrompt.mock.calls as unknown[][]
+    const promptCall = promptCalls.at(-1)?.[0] as { variables?: Record<string, string> } | undefined
+    expect(promptCall?.variables?.video_prompt).toContain('"source_anchor"')
+    expect(promptCall?.variables?.video_prompt).toContain('"referenced_assets"')
+    expect(promptCall?.variables?.video_prompt).toContain('"visual_prompt": "FrameOS visual prompt: Hero and brass key at the gate."')
+    expect(promptCall?.variables?.video_prompt).toContain('"visual_style": "grounded suspense"')
+    expect(promptCall?.variables?.video_prompt).toContain('"visual_style_description": "cool daylight with restrained contrast"')
+    expect(promptCall?.variables?.video_prompt).toContain('"voice_refs"')
+
+    const updateCalls = prismaMock.novelPromotionPanel.update.mock.calls as unknown[][]
+    const panelUpdate = updateCalls.at(-1)?.[0] as { data?: { actingNotes?: string } } | undefined
+    expect(panelUpdate?.data?.actingNotes).toContain('_frameosPanelMetadata')
+    expect(panelUpdate?.data?.actingNotes).toContain('FrameOS continuity: brass key in Hero right hand.')
+    expect(panelUpdate?.data?.actingNotes).toContain('brass_key')
 
     expect(result).toEqual({
       panelId: 'panel-new',

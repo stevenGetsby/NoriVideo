@@ -24,53 +24,132 @@ Field rules:
 - costume_tier: 1-5 based on social identity (not role_level)
 - expected_appearances: always include at least one initial appearance
 - introduction: include identity, relationship mapping, and common address mapping
+- coverage_episodes: episode, chapter, scene, or story-span labels supported by the input; use an empty array when unsupported
+- role_type: FrameOS-style role type such as protagonist, core supporting role, antagonist, important supporting role, minor role, or background role; keep it consistent with role_level
+- description: one short asset-card description; background is the more stable identity, relationship, and story-positioning note
+- identity_lock: stable continuity anchors only, such as face, hair, outfit, accessory, silhouette, or body-type details; no emotion, action, camera, or lighting
+- coverage_scenes: source-supported scene, sequence, or clip labels; use an empty array when unsupported
+- prompt: main character image prompt with identity, age range, fixed appearance, outfit, accessories, temperament, and consistency constraints; do not write action plot
+- variants: FrameOS-style persistent visual variants only; each variant must include variant_id, label, variant_type, prompt, coverage_scenes, and coverage_episodes
+- speech_rate is the TTS speed multiplier and should default to 1.0. voice_id and voice_raw_file must be empty strings during extraction. audition_status must be pending. is_confirmed must be false. design_image must be null.
+
+FrameOS-style asset contract:
+1. `name` is the canonical production key used later by screenplay parsing, storyboard panels, voice matching, voice binding, and export readiness. Use one stable name for the same character across the whole story.
+2. `aliases` should contain only names, titles, relationship labels, or first-person mappings that actually appear in the source. Do not put personality, job, or appearance words in aliases.
+3. `introduction` must answer three production questions: who the character is, which relationships matter, and which later labels should map back to this character.
+4. `expected_appearances` is only for persistent visual versions that require a separate character image or edit. Do not create appearances for emotion, action, lighting, camera state, or temporary effects.
+5. If the existing library already contains the same person, put the row in `updated_characters` and do not create a near-duplicate. `updated_characters.name` must exactly match the existing library name.
+6. Every field must help downstream asset setup: character image generation, storyboard references, or dialogue speaker binding. Avoid generic filler.
+7. When the source supports it, include FrameOS-style voice-asset cues: `voice_trait` for stable vocal quality, `representative_line` for one source dialogue line that best represents the character, and `voice_audition_prompt` for a short audition prompt. Leave them as empty strings when unsupported; do not invent.
+8. `coverage_episodes` records where the character or appearance is actually used. It must come from input evidence; do not guess missing episode numbers.
+9. `variants` must align with `expected_appearances`: output one default variant for the initial look, and add more variants only for persistent costume, age, disguise, or state changes that need separate image production.
+10. Do not create variants for temporary emotion, posture, injury moments, camera angle, lighting, or visual effects.
 
 Output format (JSON only):
 {
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_characters": false,
   "characters": [
     {
       "name": "Canonical Name",
       "aliases": ["alias 1", "alias 2"],
       "introduction": "Role, perspective mapping, relationships, and naming aliases",
-      "gender": "male/female/other",
-      "age_range": "young adult",
-      "role_level": "S",
-      "archetype": "character archetype",
-      "personality_tags": ["tag1", "tag2"],
-      "era_period": "modern/fantasy/historical/sci-fi",
-      "social_class": "elite/middle/common",
-      "occupation": "occupation or none",
-      "costume_tier": 3,
+	      "gender": "male/female/other",
+	      "age_range": "young adult",
+	      "role_type": "protagonist/core_supporting/antagonist/supporting/minor/background",
+	      "role_level": "S",
+	      "description": "short asset-card character description",
+	      "archetype": "character archetype",
+	      "personality_tags": ["tag1", "tag2"],
+	      "era_period": "modern/fantasy/historical/sci-fi",
+	      "social_class": "elite/middle/common",
+	      "occupation": "occupation or none",
+	      "background": "stable role background relevant to identity, relationships, or production",
+	      "relationships": ["relationship or address mapping"],
+	      "identity_lock": ["stable visual anchor 1", "stable visual anchor 2"],
+	      "coverage_scenes": ["scene 1"],
+	      "coverage_episodes": ["episode 1"],
+	      "prompt": "main character image prompt with identity, age range, locked appearance, outfit, accessories, temperament, and consistency requirements",
+	      "voice_trait": "stable vocal quality such as calm low voice or bright nervous voice",
+	      "representative_line": "one source dialogue line that best represents the character, or empty string",
+	      "voice_audition_prompt": "short audition prompt for voice matching, or empty string",
+	      "speech_rate": 1.0,
+	      "voice_id": "",
+	      "voice_raw_file": "",
+	      "audition_status": "pending",
+	      "costume_tier": 3,
       "suggested_colors": ["color1", "color2"],
       "primary_identifier": "signature visual marker",
       "visual_keywords": ["keyword1", "keyword2"],
-      "expected_appearances": [
-        { "id": 1, "change_reason": "initial appearance" }
-      ]
-    }
-  ],
+	      "expected_appearances": [
+	        { "id": 1, "change_reason": "initial appearance", "coverage_episodes": ["episode 1"] }
+	      ],
+	      "variants": [
+	        {
+	          "variant_id": "variant_1",
+	          "label": "initial appearance",
+	          "variant_type": "default",
+	          "prompt": "image prompt for this persistent visual variant",
+	          "coverage_scenes": ["scene 1"],
+	          "coverage_episodes": ["episode 1"],
+	          "design_image": null
+	        }
+	      ],
+	      "is_confirmed": false,
+	      "design_image": null
+	    }
+	  ],
   "new_characters": [
     {
       "name": "Canonical Name",
       "aliases": ["alias 1", "alias 2"],
       "introduction": "Role, perspective mapping, relationships, and naming aliases",
-      "gender": "male/female/other",
-      "age_range": "young adult",
-      "role_level": "S",
-      "archetype": "character archetype",
-      "personality_tags": ["tag1", "tag2"],
-      "era_period": "modern/fantasy/historical/sci-fi",
-      "social_class": "elite/middle/common",
-      "occupation": "occupation or none",
-      "costume_tier": 3,
+	      "gender": "male/female/other",
+	      "age_range": "young adult",
+	      "role_type": "protagonist/core_supporting/antagonist/supporting/minor/background",
+	      "role_level": "S",
+	      "description": "short asset-card character description",
+	      "archetype": "character archetype",
+	      "personality_tags": ["tag1", "tag2"],
+	      "era_period": "modern/fantasy/historical/sci-fi",
+	      "social_class": "elite/middle/common",
+	      "occupation": "occupation or none",
+	      "background": "stable role background relevant to identity, relationships, or production",
+	      "relationships": ["relationship or address mapping"],
+	      "identity_lock": ["stable visual anchor 1", "stable visual anchor 2"],
+	      "coverage_scenes": ["scene 1"],
+	      "coverage_episodes": ["episode 1"],
+	      "prompt": "main character image prompt with identity, age range, locked appearance, outfit, accessories, temperament, and consistency requirements",
+	      "voice_trait": "stable vocal quality such as calm low voice or bright nervous voice",
+	      "representative_line": "one source dialogue line that best represents the character, or empty string",
+	      "voice_audition_prompt": "short audition prompt for voice matching, or empty string",
+	      "speech_rate": 1.0,
+	      "voice_id": "",
+	      "voice_raw_file": "",
+	      "audition_status": "pending",
+	      "costume_tier": 3,
       "suggested_colors": ["color1", "color2"],
       "primary_identifier": "signature visual marker",
       "visual_keywords": ["keyword1", "keyword2"],
-      "expected_appearances": [
-        { "id": 1, "change_reason": "initial appearance" }
-      ]
-    }
-  ],
+	      "expected_appearances": [
+	        { "id": 1, "change_reason": "initial appearance", "coverage_episodes": ["episode 1"] }
+	      ],
+	      "variants": [
+	        {
+	          "variant_id": "variant_1",
+	          "label": "initial appearance",
+	          "variant_type": "default",
+	          "prompt": "image prompt for this persistent visual variant",
+	          "coverage_scenes": ["scene 1"],
+	          "coverage_episodes": ["episode 1"],
+	          "design_image": null
+	        }
+	      ],
+	      "is_confirmed": false,
+	      "design_image": null
+	    }
+	  ],
   "updated_characters": [
     {
       "name": "Existing Canonical Name",
@@ -84,4 +163,8 @@ Strict constraints:
 1. JSON only.
 2. If no valid character is found, return empty arrays.
 3. Keep all strings in English.
-4. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+4. `voice_trait`, `representative_line`, and `voice_audition_prompt` are for downstream voice matching and audition only; do not output voice model names or voice actor names.
+5. `coverage_episodes` must be based on traceable input episode, chapter, scene, or story-span labels. Use an empty array when uncertain.
+6. `role_type`, `description`, `relationships`, `identity_lock`, `coverage_scenes`, `prompt`, and `variants` must be supported by source evidence or direct production need. If unsupported, use empty arrays for relationships and coverage_scenes; still write a stable appearance prompt and one default variant from available evidence.
+7. `voice_id` and `voice_raw_file` must be empty strings. `audition_status` must be pending. `is_confirmed` must be false. `design_image` and `variants[].design_image` must be null. Do not invent voice ids, audio files, material_id values, or image URLs.
+8. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

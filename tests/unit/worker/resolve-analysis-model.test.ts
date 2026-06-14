@@ -65,13 +65,13 @@ describe('resolveAnalysisModel', () => {
     expect(prismaMock.userPreference.findUnique).toHaveBeenCalledTimes(1)
   })
 
-  it('throws explicit error when all levels are missing', async () => {
+  it('falls back to Lumina GPT-5.5 when all levels are missing', async () => {
     prismaMock.userPreference.findUnique.mockResolvedValueOnce({ analysisModel: null })
 
     await expect(resolveAnalysisModel({
       userId: 'user-1',
       inputModel: '',
       projectAnalysisModel: null,
-    })).rejects.toThrow('ANALYSIS_MODEL_NOT_CONFIGURED')
+    })).resolves.toBe('lumina::gpt-5.5')
   })
 })

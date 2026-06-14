@@ -10,10 +10,14 @@ Character info:
 Location info:
 {locations_description}
 
+Prop info:
+{props_description}
+
 Task:
 For each panel, output a complete panel object with improved cinematic detail.
 If any character already has `slot`, prefer preserving it exactly and use it as a preferred placement anchor.
 Treat `slot` as one full placement phrase from the location context, not as a short token.
+Every output panel must be ready for pre-export checks: description, shot_type, camera_move, video_prompt, duration, characters, location, props, and source_text must be usable and mutually consistent.
 
 Required fields per panel:
 - panel_number
@@ -22,27 +26,51 @@ Required fields per panel:
 - location
 - props
 - scene_type (daily/emotion/action/epic/suspense)
+- visual_style
+- visual_style_description
 - source_text
 - shot_type
 - camera_move
 - video_prompt
 - duration
+- panel_id
+- source_anchor
+- referenced_assets
+- image_prompt
+- visual_prompt
+- continuity_notes
+- voice_refs
 
 Duration must be a numeric recommendation in seconds inferred from the panel content, not a fixed value reused for every panel. Use action complexity, dialogue/voiceover length, emotional pauses, and camera movement: 2-3s for short close-ups or single beats, 4-5s for ordinary actions or short dialogue, 6-8s for longer dialogue, multi-step actions, emotional pauses, or transitions, and up to 10-12s for complex action or long voiceover.
 
 Output schema example (field names must be preserved):
 [
   {
+    "panel_id": "stable local id such as EP01-S01-P001",
     "panel_number": 1,
     "description": "panel description",
     "characters": [{ "name": "Character", "appearance": "appearance", "slot": "the position beneath the throne steps at the center of the hall" }],
     "location": "location name",
     "props": ["prop name"],
     "scene_type": "daily",
+    "visual_style": "visual style name",
+    "visual_style_description": "how light, color, texture, composition, or mood applies the visual style",
     "source_text": "source text excerpt",
+    "source_anchor": { "start": "first source phrase used by this panel", "end": "last source phrase used by this panel" },
+    "referenced_assets": {
+      "characters": ["Character"],
+      "location": "location name",
+      "props": ["prop name"]
+    },
     "shot_type": "medium shot",
     "camera_move": "static",
-    "video_prompt": "motion-ready prompt",
+    "image_prompt": "still-frame prompt using exact referenced assets and visual style",
+    "visual_prompt": "FrameOS visual_prompt alias; same content as image_prompt unless a platform-specific variant is needed",
+    "video_prompt": "motion prompt with subject, action, referenced scene/assets, camera movement, start/end state, and continuity constraint",
+    "continuity_notes": "screen continuity note",
+    "voice_refs": [
+      { "speaker": "Character", "source_text": "dialogue or voiceover excerpt matched to this panel" }
+    ],
     "duration": 4
   }
 ]
@@ -55,9 +83,19 @@ Rules:
 5. Preserve and refine `props`; include only visible story props that are held, used, or changing state in that panel. Use [] when no prop appears.
 6. For ordinary stories and fairy tales, do not put theme, emotion, moral lesson, kindness, or selling points into `props`; only visible entities such as a leaf, moon lamp, puddle, key, or letter are valid props.
 7. Only product, brand, platform, or ad prompts may treat props as merchandise or commercial display objects.
-6. Preserve every input `slot` when the character is stably positioned, and reflect it as a preferred anchor in refined description/video_prompt.
-7. `slot` is not an absolute boundary. If the shot is clearly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space, you may remove `slot` or keep it without forcing a rigid static match.
-8. When no `slot` is used, decide placement freely from source text, action flow, spatial logic, and cinematic staging.
-9. Do not shorten, rewrite, summarize, or replace a provided `slot` phrase with a short token.
-10. Return JSON array only.
-11. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+8. Preserve every input `slot` when the character is stably positioned, and reflect it as a preferred anchor in refined description/video_prompt.
+9. `slot` is not an absolute boundary. If the shot is clearly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space, you may remove `slot` or keep it without forcing a rigid static match.
+10. When no `slot` is used, decide placement freely from source text, action flow, spatial logic, and cinematic staging.
+11. Do not shorten, rewrite, summarize, or replace a provided `slot` phrase with a short token.
+12. Preserve or refine `visual_style` and `visual_style_description` from the input panels. They may describe only art direction, light, color, texture, composition, or mood, and must not add story facts.
+13. video_prompt must explicitly state the subject action, camera movement, and referenced scene/asset. If dialogue is present, state that the speaker is speaking. If a prop changes state, state that visible change.
+14. `video_prompt` must follow this production grammar: visual subject + visible action + referenced location/prop/character asset + camera movement + start/end state of the beat + continuity constraint from the previous or next panel.
+15. Do not use generic video wording such as "cinematic shot" or "dramatic movement" by itself. The prompt must say who or what moves, what changes on screen, where it happens, and how the camera moves.
+16. If dialogue or voiceover belongs to the panel, `video_prompt` must name the visible speaker or reaction subject and include lip-sync preparation such as "speaking" or "reacting silently"; never add subtitles or visible text.
+17. duration must fit the video_prompt complexity and cannot be the same value for every panel by default.
+18. Preserve `panel_id`, `source_anchor`, `referenced_assets`, `continuity_notes`, and `voice_refs` from input whenever present. Refine only when the visual detail changes the panel's visible asset set or voice match.
+19. If missing, generate `source_anchor` from source_text, `referenced_assets` from the final visible characters/location/props, and `voice_refs` from dialogue or voiceover in source_text.
+20. `image_prompt` must be a still-frame prompt aligned with description, visual_style, referenced_assets, and location. It must not include motion-only instructions.
+21. `visual_prompt` is the FrameOS-compatible alias for the still-frame prompt. Preserve it from input when present; otherwise mirror `image_prompt`.
+22. Return JSON array only.
+23. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

@@ -27,6 +27,10 @@ Execution rules:
 5. Use character references to preserve identity, costume, face, body shape, and style.
 6. Use location references to preserve environment style, layout logic, lighting, and atmosphere, while repainting the background according to shot type and angle.
 7. Use prop/product references only when `props` or the panel description clearly includes that prop; preserve its appearance, material, color, scale, and structure.
-8. Decide required references from `characters`, `location`, and `props` in the storyboard data. Keep all referenced assets globally consistent.
-9. If storyboard conflicts with source text, keep narrative logic from source text.
-10. Keep final visual style consistent with provided references.
+8. Treat `referenced_assets` as the production reference contract when it exists. It must match the visible `characters`, `location`, and `props`; do not invent, drop, rename, or replace referenced assets.
+9. Treat `image_prompt` and `visual_prompt` as still-frame prompt evidence. If both exist, they should describe the same frame, assets, location, prop state, visual_style, and composition.
+10. Treat `video_prompt` as motion evidence only; use it to understand action timing and camera logic, but render one still frame.
+11. Treat `source_text` and `source_anchor` as narrative traceability evidence. If storyboard conflicts with source text, keep narrative logic from source text.
+12. Treat `continuity_notes` as continuity guidance for character appearance, prop state, and action handoff; do not add new story events.
+13. Use `voice_refs` only to infer who is speaking or reacting in this frame; never draw subtitles or text.
+14. Keep final visual style consistent with provided references and `visual_style` / `visual_style_description` when present.

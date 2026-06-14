@@ -7,11 +7,33 @@ A prop is a physical object that can exist independently of any specific scene a
 
 Output format:
 {
-  "props": [
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_items": false,
+  "items": [
     {
+      "item_id": "item_001",
       "name": "prop name",
+      "item_type": "weapon/evidence/token/tool/vehicle/device/artifact/other",
       "summary": "short human-readable prop summary",
-      "description": "pure visual description for image generation"
+      "description": "pure visual description for image generation",
+      "background": "stable source, ownership, or background for the prop, or empty string",
+      "significance": "production significance such as clue, token, weapon, tool, evidence, or vehicle",
+      "coverage_scenes": ["scene 1"],
+      "coverage_episodes": ["episode 1"],
+      "prompt": "main prop image prompt: standalone object, material, color, structure, texture, markings, no people, no environment",
+      "variants": [
+        {
+          "variant_id": "variant_1",
+          "label": "default state",
+          "variant_type": "default",
+          "prompt": "image prompt for this persistent prop state",
+          "coverage_scenes": ["scene 1"],
+          "coverage_episodes": ["episode 1"]
+        }
+      ],
+      "is_confirmed": false,
+      "design_image": null
     }
   ]
 }
@@ -67,17 +89,26 @@ Example judgements (to calibrate your standard):
 ❌ Skip: a standard office laptop (ordinary equipment, not a recurring unique prop)
 
 Output rules:
-1. Only output `name`, `summary`, and `description`.
-2. `name`, `summary`, and `description` must all be non-empty.
+1. Every prop must output `item_id`, `name`, `item_type`, `summary`, `description`, `background`, `significance`, `coverage_scenes`, `coverage_episodes`, `prompt`, `variants`, `is_confirmed`, and `design_image`.
+2. `name`, `summary`, `description`, `item_type`, `significance`, and `prompt` must all be non-empty.
 3. Do not repeat props that already exist in the prop library with the exact same name.
 4. Keep names stable and short.
 5. `summary` is for humans only. Keep it short and objective. Do not mention plot function, repeated appearances, character interaction, or camera language.
 6. `description` is for image generation only. Keep it purely visual: material, color, shape, structure, quantity relationship, decorative detail. Do not mention usage, plot, action, people, hands, tables, environment, or background.
 7. If `summary` or `description` contains phrases like "appears multiple times", "used by the character", "drives the plot", or "in the frame", it is invalid.
 8. Usually output no more than 3 props unless more are clearly all key props.
-9. If none exist, return {"props": []}. Returning an empty array is correct in most cases.
+9. If none exist, return the same wrapper with "items": []. Returning an empty array is correct in most cases.
 10. Replace raw quotation marks inside JSON string values with corner brackets「」.
 11. It is better to miss borderline candidates than to misclassify ordinary scene items as props.
+12. FrameOS-style prop assets must be reusable by later storyboard panels: `name` is the stable asset key, and `description` must include consistent shape, material, color, texture, markings, or structural details.
+13. If a key prop changes state later, such as an opened envelope, broken key, or cracked watch screen, do not create a new prop asset for the state. Keep `summary` as the static identity, keep `description` as the default appearance, and leave the state change to storyboard description and video_prompt.
+14. Choose `item_type` from weapon, evidence, token, tool, vehicle, device, artifact, or other.
+15. `background` should contain only source-supported origin, ownership, manufacture, inheritance, or possession background. Use an empty string when unsupported.
+16. `significance` may describe the production purpose or story category, but keep it short and do not retell the plot.
+17. `coverage_scenes` and `coverage_episodes` must come from traceable input scene, clip, episode, or chapter labels. Use empty arrays when unsupported.
+18. `prompt` must be a standalone prop image prompt and include every stable visual point from `description`. Do not include people, hands, tabletops, rooms, backgrounds, or camera action.
+19. `variants` must include one default variant. Add more variants only for persistent visual states that affect image production. Do not create a new prop or variant for one-shot broken, opened, bloodied, or altered states unless that state persists across scenes.
+20. Always output `design_image` as null and `is_confirmed` as false. Do not invent material_id, image URLs, or confirmed status.
 
 Input:
 {input}

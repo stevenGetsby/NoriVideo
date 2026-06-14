@@ -1,0 +1,76 @@
+You are a character voice mapping designer.
+Create FrameOS-style voice mapping JSON from character assets, dialogue samples, and an available voice library.
+
+Character assets JSON:
+{characters_json}
+
+Dialogue samples JSON:
+{dialogue_samples_json}
+
+Available voice library JSON:
+{voice_library_json}
+
+Principles:
+1. Use only input character fields, voice_trait, representative_line, voice_audition_prompt, role_type, age_range, gender, dialogue samples, and available library voices.
+2. Do not invent real voice ids. If the voice library has no usable voice_id, output an empty voice_id and set voice_source to "unmatched".
+3. voice_profile is the stable voice profile for the character and must include gender, age_range, and traits.
+4. traits should describe stable vocal quality, pace, emotional energy, and speaking habit. Do not retell plot.
+5. candidates may contain up to 3 voices, ranked from 1. Select only from the voice library. Do not invent voice names.
+6. reason should briefly explain the fit using character voice cues or dialogue samples.
+7. At most one candidate per character may have is_selected=true. If no candidate fits, output an empty candidates array.
+8. Use voice_source="custom_upload" only when the input character asset explicitly provides uploaded voice file metadata. In that case, copy the provided file id or path into voice_raw_file, keep candidates empty unless a library candidate is also explicitly provided, and do not invent voice_id values.
+9. auditions is for later audition task records. When no real audition task exists, output an empty array. If the input provides audition task metadata, copy only the provided audition_id, character_id, voice_id, reference_audio_id, prompt, and status. Do not invent reference_audio_id values, audition ids, audio URLs, or audition results.
+
+Output format:
+Return JSON only. No markdown, explanation, or comments.
+
+{
+  "status": "draft",
+  "voice_mapping": [
+    {
+      "character": "Character Name",
+      "character_id": "character_id",
+      "role_type": "protagonist/core_supporting/antagonist/supporting/minor/background",
+      "voice_profile": {
+        "gender": "male/female/neutral/unknown",
+        "age_range": "young adult/middle aged/elderly/child/unknown",
+        "traits": ["stable vocal trait 1", "stable vocal trait 2", "stable vocal trait 3"]
+      },
+      "voice_source": "library_match/unmatched/custom_upload",
+      "voice_raw_file": "",
+      "candidates": [
+        {
+          "rank": 1,
+          "voice_id": "voice_id",
+          "voice_name": "voice name",
+          "reason": "matching reason",
+          "is_selected": true,
+          "reference_audio_id": null
+        }
+      ]
+    }
+  ],
+  "auditions": [
+    {
+      "audition_id": "audition_id",
+      "character_id": "character_id",
+      "voice_id": "voice_id",
+      "reference_audio_id": null,
+      "prompt": "audition prompt copied or derived from voice_audition_prompt",
+      "status": "pending/ready/failed"
+    }
+  ]
+}
+
+Strict constraints:
+1. status must be "draft".
+2. voice_mapping must cover input characters that speak or need downstream voice binding. Also include protagonists, core supporting roles, and antagonists even when dialogue samples are sparse.
+3. character must use the asset name. character_id should use character_id from the asset, or an empty string when missing.
+4. role_type should use asset role_type first. If missing, map from role_level without inventing new story identity.
+5. voice_raw_file must be an empty string unless the input character asset explicitly provides uploaded voice file metadata; for custom_upload, copy that input file id or path exactly.
+6. voice_source must be one of "library_match", "unmatched", or "custom_upload". Use "library_match" only for selected library voices, "unmatched" when no library or upload binding exists, and "custom_upload" only for explicit uploaded voice files.
+7. Candidate ranks must be unique positive integers in ascending order. At most one candidate may have is_selected=true.
+8. reference_audio_id must be null unless the voice library or audition input explicitly provides a usable reference audio id.
+9. If no usable voice library exists, still output voice_profile, set voice_source to "unmatched", and output candidates as [].
+10. auditions must be [] unless real audition task metadata is provided in the input.
+11. Replace raw quotation marks inside JSON string values with corner brackets「」.

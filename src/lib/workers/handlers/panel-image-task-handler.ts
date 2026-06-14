@@ -24,6 +24,10 @@ import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import {
   parseLocationAvailableSlots,
 } from '@/lib/location-available-slots'
+import {
+  readActingNotesContinuityText,
+  readPanelFrameOSMetadataFromActingNotes,
+} from '@/lib/novel-promotion/panel-frameos-metadata'
 
 function parseJsonUnknown(raw: string | null | undefined): unknown | null {
   if (!raw) return null
@@ -80,6 +84,7 @@ function buildPanelPromptContext(params: {
   projectData: Awaited<ReturnType<typeof resolveNovelData>>
 }) {
   const panelCharacters = parsePanelCharacterReferences(params.panel.characters)
+  const frameosMetadata = readPanelFrameOSMetadataFromActingNotes(params.panel.actingNotes)
   const characterContexts = panelCharacters.map((reference) => {
     const character = findCharacterByName(params.projectData.characters || [], reference.name)
     if (!character) {
@@ -120,16 +125,31 @@ function buildPanelPromptContext(params: {
 
   return {
     panel: {
-      panel_id: params.panel.id,
+      panel_id: frameosMetadata?.panel_id || params.panel.id,
+      panel_number: frameosMetadata?.panel_number || null,
       shot_type: params.panel.shotType || '',
       camera_move: params.panel.cameraMove || '',
       description: params.panel.description || '',
       image_prompt: params.panel.imagePrompt || '',
+      visual_prompt: frameosMetadata?.visual_prompt || params.panel.imagePrompt || '',
       video_prompt: params.panel.videoPrompt || '',
       location: params.panel.location || '',
       characters: panelCharacters,
       props: parseJsonUnknown(params.panel.props),
-      source_text: params.panel.srtSegment || '',
+      referenced_assets: frameosMetadata?.referenced_assets || {
+        characters: panelCharacters.map((item) => item.name).filter(Boolean),
+        location: params.panel.location || '',
+        props: Array.isArray(parseJsonUnknown(params.panel.props)) ? parseJsonUnknown(params.panel.props) : [],
+      },
+      source_text: frameosMetadata?.source_text || params.panel.srtSegment || '',
+      source_anchor: frameosMetadata?.source_anchor || null,
+      continuity_notes: [
+        frameosMetadata?.continuity_notes,
+        readActingNotesContinuityText(params.panel.actingNotes),
+      ].filter(Boolean).join('\n'),
+      voice_refs: frameosMetadata?.voice_refs || [],
+      visual_style: frameosMetadata?.visual_style || '',
+      visual_style_description: frameosMetadata?.visual_style_description || '',
       photography_rules: parseJsonUnknown(params.panel.photographyRules),
       acting_notes: parseJsonUnknown(params.panel.actingNotes),
     },

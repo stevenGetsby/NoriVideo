@@ -7,11 +7,33 @@
 
 输出格式：
 {
-  "props": [
+  "status": "draft",
+  "extraction_status": "completed",
+  "has_deprecated_items": false,
+  "items": [
     {
+      "item_id": "item_001",
       "name": "道具名称",
+      "item_type": "weapon/evidence/token/tool/vehicle/device/artifact/other",
       "summary": "给人阅读的简短道具说明",
-      "description": "用于生成图片的纯视觉描述"
+      "description": "用于生成图片的纯视觉描述",
+      "background": "道具的稳定来源、归属或背景；没有明确依据则为空字符串",
+      "significance": "该道具在生产上的关键意义：线索、信物、武器、工具、证物、交通工具等",
+      "coverage_scenes": ["场次1", "场次2"],
+      "coverage_episodes": ["第1集"],
+      "prompt": "道具主图生成提示词：独立物体、材质、颜色、结构、纹理、标记、无人物、无环境",
+      "variants": [
+        {
+          "variant_id": "variant_1",
+          "label": "默认状态",
+          "variant_type": "default",
+          "prompt": "该道具持续状态版本的图片生成提示词",
+          "coverage_scenes": ["场次1"],
+          "coverage_episodes": ["第1集"]
+        }
+      ],
+      "is_confirmed": false,
+      "design_image": null
     }
   ]
 }
@@ -67,17 +89,26 @@
 ❌ 不提取：办公室里的普通笔记本电脑（普通设备，场景配置）
 
 输出要求：
-1. 只输出三个字段：name、summary、description。
-2. name、summary、description 都不能为空。
+1. 每个道具必须输出 item_id、name、item_type、summary、description、background、significance、coverage_scenes、coverage_episodes、prompt、variants、is_confirmed、design_image。
+2. name、summary、description、item_type、significance、prompt 都不能为空。
 3. 如果道具库里已经有完全同名道具，不要重复输出。
 4. 名称尽量简洁稳定，例如"青铜匕首""录音笔""红绳手链"。
 5. summary 只给人阅读，简短说明这是一个什么道具；禁止写剧情作用、使用过程、出现频次、角色互动、镜头描述。
 6. description 只写图片生成所需的静态视觉信息；只允许写材质、颜色、形状、结构、数量关系、装饰细节；禁止写用途、剧情、动作、人物、手部、桌面、环境、背景。
 7. 如果 summary 或 description 中出现"多次出现""被角色使用""推进剧情""在画面中"这类语义，视为错误，禁止输出。
 8. 通常不超过 3 个；只有确实都是关键道具时才可更多。
-9. 如果没有合适道具，返回 {"props": []}。绝大多数情况下返回空数组是正确的。
+9. 如果没有合适道具，保持同样 wrapper，items 返回 []。绝大多数情况下返回空数组是正确的。
 10. JSON 字符串值中的引号统一替换为「」。
 11. 宁可漏掉边缘候选，也不要把场景里的普通物件误报为道具。
+12. FrameOS式道具资产需要能被后续分镜引用：name 是稳定资产名，description 必须包含能保持一致的形状、材质、颜色、纹理、标记或结构特征。
+13. 如果道具会发生关键状态变化（例如信封被打开、钥匙断裂、手表裂屏），不要把状态变化写成新道具；在 summary 中保持静态身份，在 description 中只写常态外观，状态变化留给分镜描述和 video_prompt。
+14. item_type 从 weapon、evidence、token、tool、vehicle、device、artifact、other 中选择最贴近的一类。
+15. background 只写原文支持的来源、归属、制造、传承或持有背景；没有依据时输出空字符串，不要编造。
+16. significance 可写该道具的生产用途和剧情类别，但必须简短，不要写完整剧情复述。
+17. coverage_scenes 与 coverage_episodes 只写输入中可定位的场次、片段、集数或章节；不确定时输出空数组。
+18. prompt 必须是独立道具图提示词，包含 description 的所有稳定视觉点；禁止出现人物、手、桌面、房间、背景、镜头动作。
+19. variants 至少包含一个 default；只有持续外观状态会影响出图时才增加更多 variants。不要为一次性破损、开合、沾血等镜头状态创建新道具或新 variant，除非该状态会持续跨场景复现。
+20. design_image 固定输出 null；is_confirmed 固定输出 false；不要编造 material_id、url 或已确认状态。
 
 输入文本：
 {input}

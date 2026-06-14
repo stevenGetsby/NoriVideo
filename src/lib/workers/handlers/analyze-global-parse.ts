@@ -11,16 +11,27 @@ export type CharacterBrief = {
 }
 
 export type AnalyzeGlobalCharactersData = {
+  status?: string
+  extraction_status?: string
+  has_deprecated_characters?: boolean
   new_characters?: Array<Record<string, unknown>>
   updated_characters?: Array<Record<string, unknown>>
   characters?: Array<Record<string, unknown>>
 }
 
 export type AnalyzeGlobalLocationsData = {
+  status?: string
+  extraction_status?: string
+  has_deprecated_environments?: boolean
+  environments?: Array<Record<string, unknown>>
   locations?: Array<Record<string, unknown>>
 }
 
 export type AnalyzeGlobalPropsData = {
+  status?: string
+  extraction_status?: string
+  has_deprecated_items?: boolean
+  items?: Array<Record<string, unknown>>
   props?: Array<Record<string, unknown>>
 }
 
@@ -93,7 +104,11 @@ export function safeParseCharactersResponse(responseText: string): AnalyzeGlobal
 
 export function safeParseLocationsResponse(responseText: string): AnalyzeGlobalLocationsData {
   try {
-    return parseJsonResponse(responseText) as AnalyzeGlobalLocationsData
+    const parsed = parseJsonResponse(responseText) as AnalyzeGlobalLocationsData
+    if (!parsed.locations && Array.isArray(parsed.environments)) {
+      parsed.locations = parsed.environments
+    }
+    return parsed
   } catch {
     return {}
   }
@@ -101,7 +116,11 @@ export function safeParseLocationsResponse(responseText: string): AnalyzeGlobalL
 
 export function safeParsePropsResponse(responseText: string): AnalyzeGlobalPropsData {
   try {
-    return parseJsonResponse(responseText) as AnalyzeGlobalPropsData
+    const parsed = parseJsonResponse(responseText) as AnalyzeGlobalPropsData
+    if (!parsed.props && Array.isArray(parsed.items)) {
+      parsed.props = parsed.items
+    }
+    return parsed
   } catch {
     return {}
   }

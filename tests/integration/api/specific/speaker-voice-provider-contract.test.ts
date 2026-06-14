@@ -65,6 +65,15 @@ describe('api specific - speaker voice provider contract', () => {
   })
 
   it('stores fal speaker voice with explicit provider and normalized audio storage key', async () => {
+    prismaMock.novelPromotionEpisode.findFirst.mockResolvedValueOnce({
+      id: 'episode-1',
+      speakerVoices: JSON.stringify({
+        _frameosEpisodeMetadata: {
+          episode_id: 'episode_001',
+          source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
+        },
+      }),
+    })
     const mod = await import('@/app/api/novel-promotion/[projectId]/speaker-voice/route')
     const req = buildMockRequest({
       path: '/api/novel-promotion/project-1/speaker-voice',
@@ -94,6 +103,10 @@ describe('api specific - speaker voice provider contract', () => {
       provider: 'fal',
       voiceType: 'uploaded',
       audioUrl: 'voice/storage/fal.wav',
+    })
+    expect(saved._frameosEpisodeMetadata).toEqual({
+      episode_id: 'episode_001',
+      source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
     })
   })
 

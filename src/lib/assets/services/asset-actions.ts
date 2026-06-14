@@ -22,6 +22,11 @@ import {
   stringifyLocationAvailableSlots,
 } from '@/lib/location-available-slots'
 import {
+  parseCharacterDescriptionValues,
+  readFrameOSAppearanceMetadataFromDescriptions,
+  stringifyCharacterDescriptionsWithFrameOSMetadata,
+} from '@/lib/novel-promotion/character-appearance-frameos-metadata'
+import {
   createGlobalLocationBackedAsset,
   createProjectLocationBackedAsset,
   deleteGlobalLocationBackedAsset,
@@ -547,9 +552,10 @@ async function selectGlobalAssetRender(input: AssetSelectInput) {
       }
       let descriptions: string[] = []
       if (appearance.descriptions) {
-        try { descriptions = JSON.parse(appearance.descriptions) as string[] } catch { descriptions = [] }
+        descriptions = parseCharacterDescriptionValues(appearance.descriptions)
       }
       const selectedDescription = descriptions[appearance.selectedIndex] || appearance.description || ''
+      const metadata = readFrameOSAppearanceMetadataFromDescriptions(appearance.descriptions)
       await prisma.globalCharacterAppearance.update({
         where: { id: appearance.id },
         data: {
@@ -557,7 +563,7 @@ async function selectGlobalAssetRender(input: AssetSelectInput) {
           imageUrls: encodeImageUrls([selectedUrl]),
           selectedIndex: 0,
           description: selectedDescription,
-          descriptions: JSON.stringify([selectedDescription]),
+          descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata([selectedDescription], metadata),
         },
       })
     } else {
@@ -1059,13 +1065,16 @@ async function updateGlobalAssetVariant(input: AssetVariantUpdateInput) {
       const trimmedDescription = normalizeString(input.body.description)
       let descriptions: string[] = []
       if (appearance.descriptions) {
-        try { descriptions = JSON.parse(appearance.descriptions) as string[] } catch { descriptions = [] }
+        descriptions = parseCharacterDescriptionValues(appearance.descriptions)
       }
       if (descriptions.length === 0) descriptions = [appearance.description || '']
       const descriptionIndex = toNumber(input.body.descriptionIndex)
       if (descriptionIndex !== null) descriptions[descriptionIndex] = trimmedDescription
       else descriptions[0] = trimmedDescription
-      updateData.descriptions = JSON.stringify(descriptions)
+      updateData.descriptions = stringifyCharacterDescriptionsWithFrameOSMetadata(
+        descriptions,
+        readFrameOSAppearanceMetadataFromDescriptions(appearance.descriptions),
+      )
       updateData.description = descriptions[0]
     }
     if (input.body.changeReason !== undefined) updateData.changeReason = normalizeString(input.body.changeReason)
@@ -1104,11 +1113,7 @@ async function updateProjectAssetVariant(input: AssetVariantUpdateInput) {
     const trimmedDescription = normalizeString(input.body.description)
     if (!trimmedDescription) throw new ApiError('INVALID_PARAMS')
     let descriptions: string[] = []
-    try {
-      descriptions = appearance.descriptions ? JSON.parse(appearance.descriptions) as string[] : []
-    } catch {
-      descriptions = []
-    }
+    descriptions = parseCharacterDescriptionValues(appearance.descriptions)
     const descriptionIndex = toNumber(input.body.descriptionIndex) ?? 0
     if (descriptionIndex >= 0 && descriptionIndex < descriptions.length) descriptions[descriptionIndex] = trimmedDescription
     else descriptions.push(trimmedDescription)
@@ -1116,7 +1121,10 @@ async function updateProjectAssetVariant(input: AssetVariantUpdateInput) {
       where: { id: input.variantId },
       data: {
         description: trimmedDescription,
-        descriptions: JSON.stringify(descriptions),
+        descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata(
+          descriptions,
+          readFrameOSAppearanceMetadataFromDescriptions(appearance.descriptions),
+        ),
       },
     })
     return { success: true }

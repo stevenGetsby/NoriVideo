@@ -23,6 +23,10 @@ Rules:
 5. Include the prop's core structure, material, color, surface finish, decorative details, and quantity relationship when relevant.
 6. Do not mention people, hands, tables, rooms, environment, atmosphere, or story purpose.
 7. Return one concise English visual description.
+8. Preserve the FrameOS prop asset contract: keep the same asset identity unless the user explicitly changes it, and make the prompt stable for `coverage_scenes`, `coverage_episodes`, and `variants`.
+9. Include durable `item_type` cues through visual wording when relevant, but do not add extra JSON fields.
+10. Do not invent `item_id`, `design_image`, material IDs, image URLs, confirmation status, characters, usage action, or plot significance.
+11. If the edit creates a variant, describe one complete variant prompt while preserving the prop's recognizable base structure.
 
 Output format:
 Return JSON only. ⚠️ JSON SAFETY: All quotation marks MUST be converted to corner brackets「」in JSON string values:

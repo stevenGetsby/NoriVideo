@@ -16,6 +16,10 @@ import {
 } from './character-profile-helpers'
 import { createWorkerLLMStreamCallbacks, createWorkerLLMStreamContext } from './llm-stream'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import {
+  buildCharacterAppearanceFrameOSMetadata,
+  stringifyCharacterDescriptionsWithFrameOSMetadata,
+} from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 type ConfirmProfileOptions = {
   suppressProgress?: boolean
@@ -144,12 +148,17 @@ async function handleConfirmProfile(
     await assertTaskActive(job, 'character_profile_confirm_create_appearance')
     const descriptions = Array.isArray(app.descriptions) ? app.descriptions : []
     const normalizedDescriptions = descriptions.map((item) => readText(item)).filter(Boolean)
+    const frameosMetadata = buildCharacterAppearanceFrameOSMetadata({
+      appearance: app,
+      profile: parsedProfile,
+      appearanceIndex: appIndex,
+    })
     appearanceRows.push({
       characterId: character.id,
       appearanceIndex: appIndex,
       changeReason: readText(app.change_reason) || '初始形象',
       description: normalizedDescriptions[0] || '',
-      descriptions: JSON.stringify(normalizedDescriptions),
+      descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata(normalizedDescriptions, frameosMetadata),
       imageUrls: encodeImageUrls([]),
       previousImageUrls: encodeImageUrls([]),
     })

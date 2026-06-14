@@ -15,6 +15,7 @@ type PanelRow = {
   srtSegment?: string | null
   shotType?: string | null
   cameraMove?: string | null
+  actingNotes?: string | null
   duration: number | null
 }
 
@@ -136,6 +137,7 @@ vi.mock('@/lib/model-capabilities/lookup', () => ({
   resolveBuiltinCapabilitiesByModelKey: vi.fn(() => ({ video: { firstlastframe: true } })),
 }))
 vi.mock('@/lib/model-config-contract', () => ({
+  composeModelKey: vi.fn((provider: string, modelId: string) => `${provider}::${modelId}`),
   parseModelKeyStrict: vi.fn(() => ({ provider: 'fal' })),
 }))
 vi.mock('@/lib/api-config', () => ({
@@ -154,6 +156,7 @@ function buildPanel(overrides?: Partial<PanelRow>): PanelRow {
     videoPrompt: 'panel prompt',
     description: 'panel description',
     firstLastFramePrompt: null,
+    actingNotes: null,
     duration: 5,
     ...(overrides || {}),
   }
@@ -407,7 +410,94 @@ describe('worker video processor behavior', () => {
           prompt: expect.stringContaining('Ava 请求 Dr. Grayson'),
           duration: 8,
           resolution: '720p',
-          referenceImages: [],
+        }),
+      }),
+    )
+  })
+
+  it('VIDEO_PANEL: appends persisted FrameOS metadata to default panel video prompt', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValueOnce(buildPanel({
+      duration: 8,
+      videoPrompt: 'Close shot, Hero speaks while lifting the brass key.',
+      actingNotes: JSON.stringify({
+        _frameosPanelMetadata: {
+          panel_id: 'frameos-panel-1',
+          panel_number: 1,
+          source_text: 'Hero raises the brass key and speaks.',
+          source_anchor: { start: 'Hero raises', end: 'speaks.' },
+          referenced_assets: { characters: ['Hero'], location: 'Old Town', props: ['brass_key'] },
+          continuity_notes: 'Hero keeps the brass key in the right hand.',
+          voice_refs: [{ speaker: 'Hero', source_text: 'We start here.' }],
+          visual_style: 'grounded workshop realism',
+          visual_style_description: 'Natural light and stable composition.',
+        },
+      }),
+    }))
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+        generationOptions: {
+          resolution: '720p',
+        },
+      },
+    })
+
+    await processor!(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          prompt: expect.stringContaining('FrameOS production evidence for this panel'),
+        }),
+      }),
+    )
+    const videoRequest = utilsMock.resolveVideoSourceFromGeneration.mock.calls[0]?.[1] as {
+      options?: { prompt?: string }
+    }
+    expect(videoRequest.options?.prompt).toContain('"source_anchor"')
+    expect(videoRequest.options?.prompt).toContain('"referenced_assets"')
+    expect(videoRequest.options?.prompt).toContain('"voice_refs"')
+    expect(videoRequest.options?.prompt).toContain('Hero keeps the brass key in the right hand.')
+  })
+
+  it('VIDEO_PANEL: custom payload prompt is not expanded with FrameOS metadata', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValueOnce(buildPanel({
+      videoPrompt: 'panel prompt',
+      actingNotes: JSON.stringify({
+        _frameosPanelMetadata: {
+          source_text: 'metadata source',
+          voice_refs: [{ speaker: 'Hero', source_text: 'metadata line' }],
+        },
+      }),
+    }))
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+        customPrompt: 'manual retry prompt',
+        generationOptions: {
+          resolution: '720p',
+        },
+      },
+    })
+
+    await processor!(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          prompt: 'manual retry prompt',
         }),
       }),
     )

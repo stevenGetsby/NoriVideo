@@ -89,6 +89,7 @@ export async function chatCompletionStream(
   const temperature = options.temperature ?? 0.7
   const reasoning = options.reasoning ?? true
   const reasoningEffort = options.reasoningEffort || 'high'
+  const maxTokens = options.maxTokens
   const projectId =
     typeof options.projectId === 'string' && options.projectId.trim().length > 0
       ? options.projectId.trim()
@@ -384,6 +385,7 @@ export async function chatCompletionStream(
         apiKey: providerConfig.apiKey,
         baseUrl: providerConfig.baseUrl,
         temperature,
+        maxTokens,
         onTextDelta: (delta) => {
           emitStreamChunk(callbacks, streamStep, {
             kind: 'text',

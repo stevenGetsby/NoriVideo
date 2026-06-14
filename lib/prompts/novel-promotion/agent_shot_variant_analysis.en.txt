@@ -16,6 +16,9 @@ Location:
 Characters:
 {characters_info}
 
+Panel production context JSON:
+{panel_context_json}
+
 Task:
 Generate at least 3 shot variants while preserving narrative continuity, character identity, and location consistency.
 
@@ -27,7 +30,15 @@ Output format (JSON array only):
     "description": "What changes and why it works",
     "shot_type": "target shot type",
     "camera_move": "target camera move",
+    "image_prompt": "still-frame prompt for this variant using the same referenced_assets",
+    "visual_prompt": "FrameOS still-frame visual prompt alias, same as image_prompt unless platform-specific",
     "video_prompt": "short motion-focused prompt",
+    "referenced_assets": {
+      "characters": [],
+      "location": "",
+      "props": []
+    },
+    "continuity_notes": "what source_anchor, referenced_assets, and continuity constraints are preserved",
     "creative_score": 8.5
   }
 ]
@@ -37,4 +48,15 @@ Rules:
 2. Keep each variant practically producible.
 3. creative_score range: 0-10.
 4. Keep JSON strict and valid.
-5. ⚠️ JSON SAFETY: All quotation marks in text MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+5. Treat `panel_context_json` as the FrameOS production contract for this panel.
+6. Read `source_text` and `source_anchor` as the story evidence. Do not propose variants that add new plot beats outside that source evidence.
+7. Read `referenced_assets`, `image_prompt`, `visual_prompt`, and `video_prompt` as asset and shot evidence. Do not invent, drop, rename, or replace referenced characters, locations, or props.
+8. Read `continuity_notes` and preserve spatial direction, hand-held prop state, eyeline, entry/exit logic, and neighboring-shot continuity.
+9. Read `voice_refs`; if the panel contains speech, at least one variant should preserve lip-sync readiness with the speaking character's face visible and other faces de-emphasized.
+10. Read `visual_style` and `visual_style_description`; every variant should preserve the same art direction unless it only changes lighting within the established style.
+11. Each `description` must state what changes and why it still preserves source_anchor, referenced_assets, and continuity_notes.
+12. Each `image_prompt` and `visual_prompt` must describe the still-frame composition for the same source_anchor, referenced_assets, visual_style, prop state, and visible action state. visual_prompt should match image_prompt unless a platform-specific alias is needed.
+13. Each `video_prompt` must be motion-focused and must include the target subject, target action, target camera move, and any referenced prop or location anchor needed for continuity.
+14. Use shot variants to change framing, angle, subject emphasis, foreground/background relationship, or camera move; do not change the story event.
+15. Do not create a new before-action or after-action story node. A variant may show a different visible emphasis inside the same source_anchor, but it must not move to a new time, weather, location, result state, or plot fact.
+16. ⚠️ JSON SAFETY: All quotation marks in text MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

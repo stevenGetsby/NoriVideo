@@ -16,20 +16,39 @@ Character details:
 Location details:
 {locations_description}
 
+Prop details:
+{props_description}
+
 Task:
 Generate exactly one transition panel with coherent action and cinematic continuity.
 
 Output format (single JSON object only):
 {
+  "panel_id": "inserted transition id",
   "panel_number": 0,
   "description": "visual description",
   "characters": [{ "name": "Character Name", "appearance": "appearance name", "slot": "the position beneath the throne steps at the center of the hall" }],
   "location": "location name",
+  "props": ["Prop Name"],
   "scene_type": "daily",
+  "visual_style": "visual style name inherited from neighboring panels",
+  "visual_style_description": "how the inserted panel preserves light, color, texture, composition, or mood",
   "source_text": "source text or transition shot",
+  "source_anchor": { "start": "source phrase before the inserted beat", "end": "source phrase after the inserted beat" },
+  "referenced_assets": {
+    "characters": ["Character Name"],
+    "location": "location name",
+    "props": ["Prop Name"]
+  },
   "shot_type": "shot type",
   "camera_move": "camera movement",
-  "video_prompt": "video prompt",
+  "image_prompt": "still-frame prompt using exact referenced assets and visual style",
+  "visual_prompt": "FrameOS visual_prompt alias; same content as image_prompt unless a platform-specific variant is needed",
+  "video_prompt": "visual subject + visible bridging action + referenced location/prop/character asset + camera movement + start/end state between previous and next panel + continuity constraint",
+  "continuity_notes": "how this panel bridges previous and next panel",
+  "voice_refs": [
+    { "speaker": "Character Name", "source_text": "dialogue or voiceover excerpt matched to this panel" }
+  ],
   "duration": 3
 }
 
@@ -41,5 +60,12 @@ Rules:
 5. If location details include available slots, treat them as preferred anchors. Reuse a provided `slot` for characters who are stably positioned in the scene.
 6. You may omit `slot` when the inserted panel is mainly about movement, entry/exit, path traversal, transition space, temporary space, empty space, imagination, dream, memory, or abstract/non-literal space.
 7. If `slot` is used, it must copy one full placement phrase from the available slots list verbatim. Do not shorten or rename it.
-8. JSON only, no markdown.
-9. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.
+8. Preserve or infer `props`, `visual_style`, `visual_style_description`, `source_anchor`, `referenced_assets`, `image_prompt`, `continuity_notes`, `voice_refs`, and `duration` so the inserted panel has the same structure as generated panels.
+9. `referenced_assets` must mirror final visible characters, location, and props. Use [] when no prop or voice line belongs in the inserted transition.
+10. `image_prompt` is a still-frame prompt; `visual_prompt` is its FrameOS-compatible alias; `video_prompt` is a motion prompt. All three must reference the same visible assets and location.
+11. `video_prompt` must follow this production grammar: visual subject + visible bridging action + referenced location/prop/character asset + camera movement + start/end state between previous and next panel + continuity constraint.
+12. Do not create a new story beat; bridge only the visible transition between `prev_panel_json` and `next_panel_json`.
+13. If the inserted panel contains dialogue, narration, or voice_refs, include lip-sync preparation in `video_prompt`: visible speaker or reaction subject, speaking/reaction state, and no subtitles or visible text.
+14. If there is no dialogue, explicitly preserve silent reaction or movement state when relevant; do not invent a voice line.
+15. JSON only, no markdown.
+16. ⚠️ JSON SAFETY: All quotation marks in text (""''「」 etc.) MUST be converted to corner brackets「」in JSON string values. NEVER use raw ASCII double quotes " inside string values.

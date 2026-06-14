@@ -24,6 +24,12 @@ import {
   resolveNovelData,
 } from './image-task-handler-shared'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
+import {
+  buildPanelFrameOSMetadata,
+  readActingNotesContinuityText,
+  readPanelFrameOSMetadataFromActingNotes,
+  writePanelFrameOSMetadataToActingNotes,
+} from '@/lib/novel-promotion/panel-frameos-metadata'
 
 // ── 构建变体提示词 ──────────────────────────────────────
 interface VariantPromptParams {
@@ -65,6 +71,90 @@ function buildVariantPrompt(params: VariantPromptParams): string {
       style: params.style,
     },
   })
+}
+
+function parsePanelProps(value: string | null): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item: unknown) => {
+        if (typeof item === 'string') return item.trim()
+        if (!item || typeof item !== 'object') return ''
+        const record = item as Record<string, unknown>
+        return typeof record.name === 'string' ? record.name.trim() : ''
+      })
+      .filter(Boolean)
+  } catch {
+    return []
+  }
+}
+
+function buildVariantEvidence(params: {
+  newPanel: {
+    id: string
+    panelNumber: number | null
+    description: string | null
+    location: string | null
+    characters: string | null
+    props?: string | null
+    srtSegment: string | null
+    imagePrompt?: string | null
+    videoPrompt: string | null
+    photographyRules?: string | null
+    actingNotes: string | null
+  }
+  sourcePanel: {
+    actingNotes: string | null
+    photographyRules?: string | null
+  }
+  variant: PanelVariantPayload
+}) {
+  const newMetadata = readPanelFrameOSMetadataFromActingNotes(params.newPanel.actingNotes)
+  const sourceMetadata = readPanelFrameOSMetadataFromActingNotes(params.sourcePanel.actingNotes)
+  const sourceText = newMetadata?.source_text || sourceMetadata?.source_text || params.newPanel.srtSegment || ''
+  const referencedAssets = newMetadata?.referenced_assets ?? sourceMetadata?.referenced_assets ?? {
+    characters: parsePanelCharacterReferences(params.newPanel.characters),
+    location: params.newPanel.location || null,
+    props: parsePanelProps(params.newPanel.props || null),
+  }
+  const continuityNotes = [
+    newMetadata?.continuity_notes,
+    sourceMetadata?.continuity_notes,
+    params.newPanel.photographyRules,
+    params.sourcePanel.photographyRules,
+    readActingNotesContinuityText(params.newPanel.actingNotes),
+    readActingNotesContinuityText(params.sourcePanel.actingNotes),
+  ]
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+    .join('\n')
+
+  return {
+    panel_id: newMetadata?.panel_id || params.newPanel.id,
+    panel_number: newMetadata?.panel_number ?? params.newPanel.panelNumber ?? null,
+    source_text: sourceText,
+    source_anchor: newMetadata?.source_anchor ?? sourceMetadata?.source_anchor ?? (sourceText ? { text: sourceText } : null),
+    referenced_assets: referencedAssets,
+    image_prompt: params.newPanel.imagePrompt || '',
+    visual_prompt: newMetadata?.visual_prompt || sourceMetadata?.visual_prompt || params.newPanel.imagePrompt || '',
+    video_prompt: params.variant.video_prompt || params.newPanel.videoPrompt || '',
+    visual_style: newMetadata?.visual_style || sourceMetadata?.visual_style || '',
+    visual_style_description: newMetadata?.visual_style_description || sourceMetadata?.visual_style_description || '',
+    continuity_notes: continuityNotes,
+    voice_refs: newMetadata?.voice_refs || sourceMetadata?.voice_refs || [],
+  }
+}
+
+function buildVariantPromptSeed(videoPrompt: string, evidence: ReturnType<typeof buildVariantEvidence>): string {
+  const basePrompt = videoPrompt.trim()
+  const evidenceJson = JSON.stringify(evidence, null, 2)
+  return [
+    basePrompt,
+    'FrameOS production evidence:',
+    evidenceJson,
+  ].filter(Boolean).join('\n\n')
 }
 
 // ── 构建角色和场景描述信息 ─────────────────────────────
@@ -241,6 +331,7 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
     ? buildCharacterAssetsDescription(newPanel, projectData)
     : (job.data.locale === 'en' ? 'Character reference images disabled' : '未使用角色参考图')
   const locationName = newPanel.location || sourcePanel.location || ''
+  const variantEvidence = buildVariantEvidence({ newPanel, sourcePanel, variant })
 
   const prompt = buildVariantPrompt({
     locale: job.data.locale,
@@ -253,7 +344,10 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
     variantDescription: variant.description || '',
     targetShotType: variant.shot_type || sourcePanel.shotType || '',
     targetCameraMove: variant.camera_move || sourcePanel.cameraMove || '',
-    videoPrompt: pickFirstString(variant.video_prompt, variant.description) || '',
+    videoPrompt: buildVariantPromptSeed(
+      pickFirstString(variant.video_prompt, variant.description) || '',
+      variantEvidence,
+    ),
     characterAssets: characterAssetsDesc,
     locationAsset: buildLocationAssetDescription({
       includeLocationAsset,
@@ -283,7 +377,13 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   await assertTaskActive(job, 'persist_panel_variant')
   await prisma.novelPromotionPanel.update({
     where: { id: newPanel.id },
-    data: { imageUrl: cosKey },
+    data: {
+      imageUrl: cosKey,
+      actingNotes: writePanelFrameOSMetadataToActingNotes(
+        newPanel.actingNotes,
+        buildPanelFrameOSMetadata(variantEvidence),
+      ),
+    },
   })
 
   return {
