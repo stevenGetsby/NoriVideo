@@ -495,15 +495,15 @@ export default function WorkspacePage() {
 
   if (status === 'loading' || (!session && !TEST_MODE_ENABLED)) {
     return (
-      <div className="glass-page min-h-screen flex items-center justify-center">
-        <div className="text-[var(--glass-text-secondary)]">{tc('loading')}</div>
+      <div data-theme="frameos-dark" className="min-h-screen flex items-center justify-center bg-[var(--fos-bg-1)]">
+        <div className="text-[var(--fos-text-secondary)]">{tc('loading')}</div>
       </div>
     )
   }
 
   return (
     <FrameWorkbenchShell activeKey="projects">
-          <section className="mb-6 rounded-lg border border-white/10 bg-[#171922] p-5 shadow-[0_18px_50px_rgba(0,0,0,.20)]">
+          <section className="mb-6 rounded-lg border border-white/10 bg-[#141414] p-5 shadow-[0_18px_50px_rgba(0,0,0,.20)]">
             <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
               <div>
                 <div className="mb-2 inline-flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-medium text-white/62">
@@ -522,11 +522,11 @@ export default function WorkspacePage() {
                   onChange={(e) => setSearchInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   placeholder={t('searchPlaceholder')}
-                  className="h-10 w-full rounded-md border border-white/10 bg-[#0f1117] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/32 focus:border-[#2c6ef2] sm:w-72"
+                  className="h-10 w-full rounded-md border border-white/10 bg-[#0a0a0a] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/32 focus:border-[#3b82f6] sm:w-72"
                 />
                 <button
                   onClick={handleSearch}
-                  className="h-10 rounded-md bg-[#2c6ef2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
+                  className="h-10 rounded-md bg-[#3b82f6] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8]"
                 >
                   {t('searchButton')}
                 </button>
@@ -547,20 +547,20 @@ export default function WorkspacePage() {
             </div>
           </section>
 
-          <section className="mb-6 overflow-hidden rounded-lg border border-white/10 bg-[#151820] shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+          <section className="mb-6 overflow-hidden rounded-lg border border-white/10 bg-[#141414] shadow-[0_18px_50px_rgba(0,0,0,.18)]">
             <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-4 py-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                  <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#9bc3ff]" />
+                  <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#93c5fd]" />
                   {t('productionOverview.title')}
                 </div>
                 <p className="mt-1 text-xs leading-5 text-white/40">{t('productionOverview.subtitle')}</p>
               </div>
-              <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
+              <span className="w-fit rounded border border-white/10 bg-[#0a0a0a] px-2 py-1 text-[11px] font-medium text-white/42">
                 {t('productionOverview.source')}
               </span>
             </div>
-            <div className="grid grid-cols-[.75fr_.55fr_.65fr_1fr] gap-2 border-b border-white/10 bg-[#10131b] px-4 py-2 text-[11px] font-medium text-white/42">
+            <div className="grid grid-cols-[.75fr_.55fr_.65fr_1fr] gap-2 border-b border-white/10 bg-[#0a0a0a] px-4 py-2 text-[11px] font-medium text-white/42">
               <div>{t('productionOverview.columns.stage')}</div>
               <div>{t('productionOverview.columns.projects')}</div>
               <div>{t('productionOverview.columns.status')}</div>
@@ -574,9 +574,9 @@ export default function WorkspacePage() {
                   <div>
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       row.ready
-                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                        ? 'border-[#34d399]/30 bg-[#34d399]/10 text-[#34d399]'
                         : row.key === 'draft'
-                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[#fbbf24]/30 bg-[#fbbf24]/10 text-[#fbbf24]'
                           : 'border-white/10 bg-white/5 text-white/38'
                     }`}>
                       {row.ready ? t('productionOverview.ready') : row.key === 'draft' ? t('productionOverview.pending') : t('productionOverview.waiting')}
@@ -593,10 +593,10 @@ export default function WorkspacePage() {
           <button
             type="button"
             onClick={() => openCreateModal()}
-            className="group flex min-h-[282px] flex-col overflow-hidden rounded-lg border border-dashed border-[#2c6ef2]/55 bg-[#141821] text-left transition-all duration-300 hover:border-[#63a4ff] hover:bg-[#182033] hover:shadow-[0_18px_50px_rgba(44,110,242,.18)]"
+            className="group flex min-h-[282px] flex-col overflow-hidden rounded-lg border border-dashed border-[#3b82f6]/55 bg-[#141414] text-left transition-all duration-300 hover:border-[#60a5fa] hover:bg-[#1d1e1f] hover:shadow-[0_18px_50px_rgba(44,110,242,.18)]"
           >
-            <div className="flex h-36 items-center justify-center border-b border-white/8 bg-[#0f121a]">
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#2c6ef2] text-white shadow-[0_14px_36px_rgba(44,110,242,.35)] transition-transform group-hover:scale-105">
+            <div className="flex h-36 items-center justify-center border-b border-white/8 bg-[#0a0a0a]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-lg bg-[#3b82f6] text-white shadow-[0_14px_36px_rgba(44,110,242,.35)] transition-transform group-hover:scale-105">
                 <AppIcon name="plus" className="h-7 w-7" />
               </div>
             </div>
@@ -617,7 +617,7 @@ export default function WorkspacePage() {
 
           {loading ? (
             Array.from({ length: 3 }).map((_, index) => (
-              <div key={index} className="min-h-[282px] animate-pulse rounded-lg border border-white/10 bg-[#151820]">
+              <div key={index} className="min-h-[282px] animate-pulse rounded-lg border border-white/10 bg-[#141414]">
                 <div className="h-36 border-b border-white/8 bg-white/5" />
                 <div className="space-y-3 p-4">
                   <div className="h-4 rounded bg-white/8" />
@@ -636,14 +636,14 @@ export default function WorkspacePage() {
                 <Link
                   key={project.id}
                   href={{ pathname: `/workspace/${project.id}` }}
-                  className="group block min-h-[282px] overflow-hidden rounded-lg border border-white/10 bg-[#151820] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#2c6ef2]/70 hover:bg-[#181d28] hover:shadow-[0_18px_50px_rgba(0,0,0,.28)]"
+                  className="group block min-h-[282px] overflow-hidden rounded-lg border border-white/10 bg-[#141414] transition-all duration-300 hover:-translate-y-0.5 hover:border-[#3b82f6]/70 hover:bg-[#1d1e1f] hover:shadow-[0_18px_50px_rgba(0,0,0,.28)]"
                 >
-                  <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-white/8 bg-[#0d1017]">
+                  <div className="relative flex h-36 items-center justify-center overflow-hidden border-b border-white/8 bg-[#0a0a0a]">
                     <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(44,110,242,.22),transparent_45%,rgba(20,184,166,.12))]" />
                     <div className="relative flex h-14 w-14 items-center justify-center rounded-lg border border-white/10 bg-white/8 text-white/80">
                       <AppIcon name={projectBadgeKey !== 'draft' || hasContent ? 'film' : 'folderOpen'} className="h-7 w-7" />
                     </div>
-                    <span className="absolute left-3 top-3 rounded bg-[#2c6ef2]/90 px-2 py-1 text-[11px] font-semibold text-white">
+                    <span className="absolute left-3 top-3 rounded bg-[#3b82f6]/90 px-2 py-1 text-[11px] font-semibold text-white">
                       {t(`projectBadge.${projectBadgeKey}`)}
                     </span>
                     <div className="absolute right-3 top-3 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
@@ -678,7 +678,7 @@ export default function WorkspacePage() {
                   </div>
 
                   <div className="flex min-h-[146px] flex-col p-4">
-                    <h3 className="line-clamp-1 text-base font-semibold text-white transition-colors group-hover:text-[#7eb0ff]">
+                    <h3 className="line-clamp-1 text-base font-semibold text-white transition-colors group-hover:text-[#60a5fa]">
                       {project.name}
                     </h3>
                     <p className="mt-2 line-clamp-2 min-h-[44px] text-sm leading-6 text-white/55">
@@ -720,8 +720,8 @@ export default function WorkspacePage() {
 
         {/* Empty State */}
         {!loading && projects.length === 0 && (
-          <div className="mt-8 rounded-lg border border-white/10 bg-[#151820] px-6 py-12 text-center">
-            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg bg-[#0f121a]">
+          <div className="mt-8 rounded-lg border border-white/10 bg-[#141414] px-6 py-12 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-lg bg-[#0a0a0a]">
               <AppIcon name="clapperboard" className="h-8 w-8 text-white/45" />
             </div>
             <h3 className="mb-2 text-lg font-semibold text-white">
@@ -742,7 +742,7 @@ export default function WorkspacePage() {
             {!searchQuery && (
               <button
                 onClick={() => openCreateModal()}
-                className="rounded-md bg-[#2c6ef2] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
+                className="rounded-md bg-[#3b82f6] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8]"
               >
                 {t('newProject')}
               </button>
@@ -805,7 +805,7 @@ export default function WorkspacePage() {
       {/* Create Project Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6 backdrop-blur-sm">
-          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-[#151820] shadow-[0_24px_80px_rgba(0,0,0,.45)]">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-hidden rounded-lg border border-white/10 bg-[#141414] shadow-[0_24px_80px_rgba(0,0,0,.45)]">
             <div className="flex items-start justify-between border-b border-white/10 px-5 py-4">
               <div>
                 <h2 className="text-xl font-bold text-white">{t('createProject')}</h2>
@@ -844,9 +844,9 @@ export default function WorkspacePage() {
             <form onSubmit={handleCreateProject} className="max-h-[calc(92vh-73px)] overflow-y-auto">
               <div className="grid gap-5 p-5 lg:grid-cols-[1.15fr_.85fr]">
                 <div className="space-y-5">
-                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                  <section className="rounded-lg border border-white/10 bg-[#0a0a0a] p-4">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-                      <AppIcon name="fileText" className="h-4 w-4 text-[#7eb0ff]" />
+                      <AppIcon name="fileText" className="h-4 w-4 text-[#60a5fa]" />
                       {t('createModal.basicInfo')}
                     </div>
                     <div className="space-y-4">
@@ -864,7 +864,7 @@ export default function WorkspacePage() {
                               setCreateError(null)
                             }
                           }}
-                          className="h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          className="h-10 w-full rounded-md border border-white/10 bg-[#0a0a0a] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#3b82f6]"
                           placeholder={t('projectNamePlaceholder')}
                           maxLength={100}
                           required
@@ -884,7 +884,7 @@ export default function WorkspacePage() {
                               setCreateError(null)
                             }
                           }}
-                          className="min-h-[104px] w-full resize-y rounded-md border border-white/10 bg-[#0b0e14] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#2c6ef2]"
+                          className="min-h-[104px] w-full resize-y rounded-md border border-white/10 bg-[#0a0a0a] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/28 focus:border-[#3b82f6]"
                           placeholder={t('projectDescriptionPlaceholder')}
                           rows={4}
                           maxLength={500}
@@ -893,9 +893,9 @@ export default function WorkspacePage() {
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                  <section className="rounded-lg border border-white/10 bg-[#0a0a0a] p-4">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-                      <AppIcon name="monitor" className="h-4 w-4 text-[#7eb0ff]" />
+                      <AppIcon name="monitor" className="h-4 w-4 text-[#60a5fa]" />
                       {t('createModal.productionSetup')}
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2">
@@ -905,7 +905,7 @@ export default function WorkspacePage() {
                           <select
                             value={creationSetup[select.key]}
                             onChange={(e) => setCreationSetup(prev => ({ ...prev, [select.key]: e.target.value }))}
-                            className="h-10 w-full rounded-md border border-white/10 bg-[#0b0e14] px-3 text-sm text-white outline-none focus:border-[#2c6ef2]"
+                            className="h-10 w-full rounded-md border border-white/10 bg-[#0a0a0a] px-3 text-sm text-white outline-none focus:border-[#3b82f6]"
                           >
                             {select.options.map((option) => (
                               <option key={option.value} value={option.value}>
@@ -918,10 +918,10 @@ export default function WorkspacePage() {
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                  <section className="rounded-lg border border-white/10 bg-[#0a0a0a] p-4">
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                        <AppIcon name="cloudUpload" className="h-4 w-4 text-[#7eb0ff]" />
+                        <AppIcon name="cloudUpload" className="h-4 w-4 text-[#60a5fa]" />
                         {t('createModal.source')}
                       </div>
                       <span className="text-xs text-white/38">{t('createModal.sourceHint')}</span>
@@ -934,7 +934,7 @@ export default function WorkspacePage() {
                           onClick={() => setCreationSetup(prev => ({ ...prev, sourceType: option.value }))}
                           className={`flex items-center gap-3 rounded-md border px-3 py-3 text-left text-sm transition-colors ${
                             creationSetup.sourceType === option.value
-                              ? 'border-[#2c6ef2] bg-[#2c6ef2]/14 text-white'
+                              ? 'border-[#3b82f6] bg-[#3b82f6]/14 text-white'
                               : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
                           }`}
                         >
@@ -947,9 +947,9 @@ export default function WorkspacePage() {
                 </div>
 
                 <aside className="space-y-5">
-                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                  <section className="rounded-lg border border-white/10 bg-[#0a0a0a] p-4">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-                      <AppIcon name="diamond" className="h-4 w-4 text-[#7eb0ff]" />
+                      <AppIcon name="diamond" className="h-4 w-4 text-[#60a5fa]" />
                       {t('createModal.projectLevel')}
                     </div>
                     <div className="space-y-2">
@@ -960,7 +960,7 @@ export default function WorkspacePage() {
                           onClick={() => setCreationSetup(prev => ({ ...prev, projectLevel: option.value }))}
                           className={`w-full rounded-md border px-3 py-3 text-left transition-colors ${
                             creationSetup.projectLevel === option.value
-                              ? 'border-[#2c6ef2] bg-[#2c6ef2]/14'
+                              ? 'border-[#3b82f6] bg-[#3b82f6]/14'
                               : 'border-white/10 bg-white/4 hover:bg-white/7'
                           }`}
                         >
@@ -971,9 +971,9 @@ export default function WorkspacePage() {
                     </div>
                   </section>
 
-                  <section className="rounded-lg border border-white/10 bg-[#10131b] p-4">
+                  <section className="rounded-lg border border-white/10 bg-[#0a0a0a] p-4">
                     <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-                      <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#7eb0ff]" />
+                      <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#60a5fa]" />
                       {t('createModal.pipelineTitle')}
                     </div>
                     <div className="space-y-3">
@@ -1018,7 +1018,7 @@ export default function WorkspacePage() {
                 </button>
                 <button
                   type="submit"
-                  className="rounded-md bg-[#2c6ef2] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd] disabled:opacity-50"
+                  className="rounded-md bg-[#3b82f6] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1d4ed8] disabled:opacity-50"
                   disabled={createLoading || !formData.name.trim()}
                 >
                   {createLoading ? t('creating') : t('createProject')}

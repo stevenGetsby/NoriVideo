@@ -47,22 +47,22 @@ function FrameNavLink({
       href={{ pathname: item.href }}
       className={
         compact
-          ? `inline-flex h-10 shrink-0 items-center gap-2 rounded-md border px-3 text-sm transition-colors ${
+          ? `inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors ${
             active
-              ? 'border-[#2c6ef2]/70 bg-[#2c6ef2] text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]'
-              : 'border-white/10 bg-white/5 text-white/68 hover:bg-white/8 hover:text-white'
+              ? 'border-[var(--fos-primary-interactive)] bg-[var(--fos-primary-interactive)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              : 'border-[var(--fos-border-lighter)] bg-[var(--fos-bg-4)] text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
-          : `flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+          : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
             active
-              ? 'bg-[#2c6ef2] text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]'
-              : 'text-white/68 hover:bg-white/7 hover:text-white'
+              ? 'bg-[var(--fos-primary-interactive)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
       }
     >
       <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
       {item.badge ? (
-        <span className="rounded bg-[#ff3b30]/18 px-1.5 py-0.5 text-[10px] font-bold text-[#ff7b72]">
+        <span className="rounded bg-[var(--fos-danger)]/18 px-1.5 py-0.5 text-[10px] font-bold text-[var(--fos-danger-light)]">
           {item.badge}
         </span>
       ) : null}
@@ -86,18 +86,18 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
   ]
 
   return (
-    <div className="glass-page min-h-screen bg-[#0f0f12]">
+    <div data-theme="frameos-dark" className="min-h-screen bg-[var(--fos-bg-1)]">
       <Navbar />
 
       <div className="mx-auto flex max-w-[1680px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
-        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] w-64 shrink-0 flex-col rounded-lg border border-white/10 bg-[#15161b] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)] lg:flex">
-          <Link href={{ pathname: '/projects' }} className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+        <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] w-64 shrink-0 flex-col rounded-[10px] border border-[var(--fos-border-lighter)] bg-[var(--fos-bg-2)] p-4 shadow-[var(--fos-shadow-inset-hi)] lg:flex">
+          <Link href={{ pathname: '/projects' }} className="mb-5 flex items-center gap-3 border-b border-[var(--fos-border-lighter)] pb-4">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--fos-primary-interactive)] text-sm font-bold text-white">
               N
             </div>
             <div className="min-w-0">
-              <div className="truncate text-sm font-semibold text-white">NoriVideo</div>
-              <div className="text-xs text-white/45">{t('sidebarSubtitle')}</div>
+              <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
+              <div className="text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>
             </div>
           </Link>
 
@@ -110,13 +110,13 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
             })}
           </nav>
 
-          <div className="mt-auto border-t border-white/10 pt-4">
+          <div className="mt-auto border-t border-[var(--fos-border-lighter)] pt-4">
             <Link
               href={{ pathname: '/service-records' }}
-              className={`flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+              className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
                 activeKey === 'serviceRecords'
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/62 hover:bg-white/7 hover:text-white'
+                  ? 'bg-[var(--fos-bg-5)] text-[var(--fos-text-title)]'
+                  : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
               }`}
             >
               <AppIcon name="receipt" className="h-4 w-4" />
@@ -124,10 +124,10 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
             </Link>
             <Link
               href={{ pathname: '/feedback' }}
-              className={`mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+              className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
                 activeKey === 'feedback'
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/62 hover:bg-white/7 hover:text-white'
+                  ? 'bg-[var(--fos-bg-5)] text-[var(--fos-text-title)]'
+                  : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
               }`}
             >
               <AppIcon name="infoCircle" className="h-4 w-4" />
@@ -135,16 +135,16 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
             </Link>
             <Link
               href={{ pathname: '/updates' }}
-              className={`mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors ${
+              className={`mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
                 activeKey === 'updates'
-                  ? 'bg-white/10 text-white'
-                  : 'text-white/62 hover:bg-white/7 hover:text-white'
+                  ? 'bg-[var(--fos-bg-5)] text-[var(--fos-text-title)]'
+                  : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
               }`}
             >
               <AppIcon name="arrowDownCircle" className="h-4 w-4" />
               {t('nav.updates')}
             </Link>
-            <button className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm text-white/62 hover:bg-white/7 hover:text-white">
+            <button className="mt-1 flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]">
               <AppIcon name="userRoundCog" className="h-4 w-4" />
               {session?.user?.name || session?.user?.email || t('nav.user')}
             </button>
@@ -152,18 +152,18 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
         </aside>
 
         <main className="min-w-0 flex-1">
-          <div className="mb-4 rounded-lg border border-white/10 bg-[#15161b] p-3 shadow-[0_14px_34px_rgba(0,0,0,.18)] lg:hidden">
+          <div className="mb-4 rounded-[10px] border border-[var(--fos-border-lighter)] bg-[var(--fos-bg-2)] p-3 shadow-[var(--fos-shadow-inset-hi)] lg:hidden">
             <div className="mb-3 flex items-center justify-between gap-3">
               <Link href={{ pathname: '/projects' }} className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--fos-primary-interactive)] text-sm font-bold text-white">
                   N
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-white">NoriVideo</div>
-                  <div className="truncate text-xs text-white/45">{t('sidebarSubtitle')}</div>
+                  <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
+                  <div className="truncate text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>
                 </div>
               </Link>
-              <div className="truncate text-xs text-white/38">
+              <div className="truncate text-xs text-[var(--fos-text-tertiary)]">
                 {session?.user?.name || session?.user?.email || t('nav.user')}
               </div>
             </div>
