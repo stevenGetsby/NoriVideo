@@ -11,7 +11,7 @@
     "assetHub": "Asset Library",
     "materialLibrary": "Material Library",
     "prompts": "Prompt Library",
-    "team": "Team Management",
+    "team": "Workspace",
     "serviceRecords": "Service Records",
     "feedback": "Feedback",
     "updates": "Check Updates",
@@ -146,65 +146,46 @@
     "after": "to configure models, or customize them in project settings after creation."
   },
   "serviceRecordsPanel": {
-    "title": "Recent Service Records",
-    "subtitle": "Reads the current user's async task records for project production, export, and model-call diagnostics.",
-    "loading": "Loading service records...",
+    "title": "Recent Task Records",
+    "subtitle": "Reads the current user's async task records and summarizes project production by type, status, and date.",
+    "loading": "Loading task records...",
     "empty": "No task records yet. Script parsing, storyboard, or video generation tasks will appear here after you run them.",
-    "loadFailed": "Failed to load service records",
+    "loadFailed": "Failed to load task records",
     "recentFailures": "Recent Failures",
     "usage": {
-      "title": "Service Usage Overview",
-      "estimated": "Derived from tasks",
-      "empty": "No service usage to summarize yet.",
+      "title": "Task Run Overview",
+      "derived": "Derived from task records",
+      "empty": "No task runs to summarize yet.",
       "stats": {
-        "billableTasks": "Metered Tasks",
-        "estimatedUnits": "Estimated Units",
-        "serviceTypes": "Service Types"
+        "totalTasks": "Total Tasks",
+        "completedRuns": "Completed Runs",
+        "serviceTypes": "Task Types"
       }
     },
-    "billing": {
-      "title": "Service Billing Preview",
-      "realTitle": "Actual Service Billing",
-      "realSubtitle": "Reads balance, project costs, and recent transactions to match FrameOS service records and deductions.",
-      "realSource": "Billing API",
-      "realLoadFailed": "Failed to load actual billing",
-      "projectCosts": "Project Cost Ranking",
-      "transactions": "Recent Transactions",
-      "records": "{count} records",
-      "noRealCosts": "No actual cost records yet.",
-      "noTransactions": "No balance transactions yet.",
-      "realStats": {
-        "balance": "Balance",
-        "frozen": "Frozen",
-        "spent": "Total Spent"
-      },
-      "empty": "No billable tasks to estimate yet.",
-      "units": "{count} units",
+    "distribution": {
+      "title": "Task Type Distribution",
+      "empty": "No task type distribution yet.",
       "total": "{count} runs",
+      "running": "{count} running",
       "failed": "{count} failed"
     },
     "configMatrix": {
-      "title": "Service Configuration Matrix",
-      "subtitle": "Combines the built-in pricing catalog and task records to show service type, price range, success rate, and enablement.",
-      "derived": "Locally derived config",
-      "pricingVersion": "Pricing {version}",
-      "units": "{count} units/run",
-      "modelCoverage": "{providers} providers · {models} models",
+      "title": "Service Capability Matrix",
+      "subtitle": "Groups existing task records to show whether video, image, audio, and text capabilities have been used.",
+      "derived": "Local task grouping",
       "runs": "{count} runs",
-      "enabled": "Enabled",
-      "standby": "Standby",
+      "enabled": "Used",
+      "standby": "Unused",
       "table": {
-        "service": "Service",
-        "unitCost": "Metering",
-        "priceRange": "Price Range",
+        "service": "Capability",
         "successRate": "Success",
-        "usage": "Usage",
+        "usage": "Runs",
         "status": "Status"
       },
       "services": {
         "video": {
           "title": "Video Generation",
-          "hint": "Seedance, shot video, lip-sync, and other video tasks."
+          "hint": "Shot video, Seedance, export, and render-related tasks."
         },
         "image": {
           "title": "Image Assets",
@@ -219,6 +200,16 @@
           "hint": "Script parsing, clip splitting, and structured analysis tasks."
         }
       }
+    },
+    "groups": {
+      "title": "Capability Groups",
+      "total": "{count} runs",
+      "empty": "No capability group data yet.",
+      "video": "Video",
+      "image": "Image",
+      "voice": "Audio",
+      "text": "Text",
+      "other": "Other"
     },
     "stats": {
       "all": "All",
@@ -843,28 +834,26 @@
   },
   "teamPanel": {
     "title": "Personal Workspace Management",
-    "subtitle": "The personal edition keeps the FrameOS team structure but only enables the owner view for project and task status.",
+    "subtitle": "The personal edition focuses on the current account's projects, assets, and task status in a solo production workspace.",
     "openProjects": "Open Projects",
     "loading": "Loading workspace data...",
     "empty": "No projects yet.",
     "loadFailed": "Failed to load workspace data",
     "fallbackName": "Personal User",
     "personalAccount": "Personal Account",
-    "ownerBadge": "Owner",
-    "enabled": "Enabled",
-    "reserved": "Reserved",
+    "profileBadge": "Current Account",
     "profile": {
-      "seat": {
-        "label": "Seat",
-        "value": "Personal Seat"
+      "account": {
+        "label": "Account",
+        "value": "Personal Use"
       },
       "workspace": {
         "label": "Workspace",
         "value": "NoriVideo Personal"
       },
-      "security": {
-        "label": "Permission",
-        "value": "Owner Access"
+      "mode": {
+        "label": "Mode",
+        "value": "Solo Production"
       }
     },
     "stats": {
@@ -873,72 +862,62 @@
       "activeTasks": "Running",
       "failedTasks": "Failed"
     },
-    "seatMatrix": {
-      "title": "Member Seat Matrix",
-      "subtitle": "Mirrors the FrameOS team page structure with collaboration roles. The personal edition only enables the current owner and keeps other seats as extension boundaries.",
-      "personalMode": "Personal Edition",
-      "none": "No activity",
-      "projectCount": "{count} projects",
-      "taskCount": "{count} tasks",
-      "permissionCount": "{count} areas",
-      "columns": {
-        "role": "Role",
-        "status": "Status",
-        "projects": "Projects",
-        "workload": "Tasks",
-        "lastActivity": "Last Activity",
-        "permissions": "Permissions"
-      }
-    },
     "workloadTitle": "Task Workload",
     "workloadEmpty": "No task workload data yet.",
     "workloadTasks": "{count} tasks",
+    "workloadRunning": "{count} running",
     "workloadFailed": "{count} failed",
-    "quotaTitle": "Quota Preview",
-    "quota": {
-      "projects": "Project Capacity",
-      "runningTasks": "Concurrent Tasks",
-      "serviceUnits": "Service Units"
+    "workload": {
+      "script": "Script",
+      "asset": "Assets",
+      "storyboard": "Storyboard",
+      "video": "Video",
+      "other": "Other"
     },
     "table": {
       "project": "Project",
       "episodes": "Episodes",
       "updatedAt": "Updated"
     },
-    "rolesTitle": "Role Boundaries",
-    "roles": {
-      "owner": {
-        "title": "Owner",
-        "hint": "The current personal account manages projects, assets, model configuration, and task records."
+    "readinessTitle": "Workspace Readiness",
+    "readiness": {
+      "hasProject": {
+        "title": "Project Created",
+        "hint": "Created projects can continue through script, asset, storyboard, and video production."
       },
-      "writer": {
-        "title": "Writer",
-        "hint": "Reserved for script import, episode review, and redraw collaboration."
+      "hasTaskHistory": {
+        "title": "Task History Present",
+        "hint": "Task records preserve production history for failure checks and progress review."
       },
-      "asset": {
-        "title": "Asset",
-        "hint": "Reserved for character, location, prop, and voice asset collaboration."
-      },
-      "producer": {
-        "title": "Producer",
-        "hint": "Reserved for shot generation, export delivery, and service record review."
+      "stableRuns": {
+        "title": "Runs Stable",
+        "hint": "The workspace is considered stable when there are no failed tasks."
       }
     },
-    "permissionsTitle": "Permission Matrix",
-    "permissions": {
-      "role": "Role",
-      "projects": "Projects",
-      "scripts": "Scripts",
-      "assets": "Assets",
-      "production": "Production",
-      "records": "Records",
-      "enabled": "On",
-      "reserved": "Res"
+    "activityTitle": "Recent Activity",
+    "activity": {
+      "latest": "Latest Update",
+      "project": "Recent Project",
+      "task": "Recent Task",
+      "none": "No records"
+    },
+    "scopeTitle": "Personal Scope",
+    "scope": {
+      "projects": "Projects, assets, and tasks belong to the current account.",
+      "assets": "The asset library reuses personal assets without member assignment.",
+      "records": "Task records support production diagnostics with status, progress, and failure details."
     }
   },
   "hubPages": {
     "common": {
       "createProject": "New Project",
+      "openProjects": "Open Projects",
+      "openAssetHub": "Open Asset Hub",
+      "openVideoEnhance": "Open Video Enhance",
+      "openPromptSettings": "Open Prompt Settings",
+      "openServiceRecords": "Open Task Records",
+      "openDiagnostics": "Open Diagnostics",
+      "openWriterQueue": "Back to Writer Queue",
       "workflowTitle": "Project Workflow",
       "ready": "Connected to workbench",
       "steps": {
@@ -1016,12 +995,12 @@
       ]
     },
     "team": {
-      "eyebrow": "Team Management",
-      "title": "Personal Collaboration Entry",
-      "subtitle": "The FrameOS team page is preserved as information architecture; subaccounts, permissions, and billing quotas are not implemented in the personal edition.",
+      "eyebrow": "Workspace",
+      "title": "Personal Workspace",
+      "subtitle": "View the current account's projects, tasks, and production status from a personal workspace entry.",
       "cards": [
-        { "title": "Collaborators", "description": "Member invitation is disabled in the personal edition and reserved for project collaborators.", "meta": "Reserved", "icon": "usersRound" },
-        { "title": "Permission Roles", "description": "Keeps role structure for director, writer, asset, and producer workflows.", "meta": "Roles", "icon": "lock" },
+        { "title": "Account Status", "description": "Shows the current login account and personal workspace scope.", "meta": "Personal", "icon": "userRoundCog" },
+        { "title": "Task Load", "description": "Reviews script, asset, storyboard, and video task pressure.", "meta": "Tasks", "icon": "statsBar" },
         { "title": "Service Records", "description": "Prepared to summarize project tasks, exports, and model calls.", "meta": "Records", "icon": "receipt" },
         { "title": "Feedback", "description": "Prepared for local issue records and remote feedback channels.", "meta": "Feedback", "icon": "infoCircle" }
       ]

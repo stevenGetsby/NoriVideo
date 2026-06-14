@@ -8,7 +8,12 @@ interface WriterRedrawPageProps {
 export default async function WriterRedrawPage({ params }: WriterRedrawPageProps) {
   const { scriptId } = await params
   return (
-    <FrameFeatureHubPage activeKey="writerWorkbench" pageKey="writerRedraw" icon="wandOff">
+    <FrameFeatureHubPage
+      activeKey="writerWorkbench"
+      pageKey="writerRedraw"
+      icon="wandOff"
+      primaryAction={{ href: { pathname: '/writer-workbench' }, labelKey: 'openWriterQueue', icon: 'fileText' }}
+    >
       <FrameWriterRedrawDashboard scriptId={scriptId} />
     </FrameFeatureHubPage>
   )

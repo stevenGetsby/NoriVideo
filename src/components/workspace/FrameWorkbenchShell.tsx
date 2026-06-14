@@ -82,7 +82,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
     { key: 'assetHub', label: t('nav.assetHub'), icon: 'folderHeart', href: '/asset-hub' },
     { key: 'materialLibrary', label: t('nav.materialLibrary'), icon: 'package', href: '/material' },
     { key: 'prompts', label: t('nav.prompts'), icon: 'bookmark', href: '/prompts' },
-    { key: 'team', label: t('nav.team'), icon: 'usersRound', href: '/team' },
+    { key: 'team', label: t('nav.team'), icon: 'userRoundCog', href: '/team' },
   ]
 
   return (
@@ -119,7 +119,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
                   : 'text-white/62 hover:bg-white/7 hover:text-white'
               }`}
             >
-              <AppIcon name="refresh" className="h-4 w-4" />
+              <AppIcon name="receipt" className="h-4 w-4" />
               {t('nav.serviceRecords')}
             </Link>
             <Link
@@ -174,7 +174,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
             </nav>
             <div className="mt-2 grid grid-cols-3 gap-2">
               {[
-                { key: 'serviceRecords' as const, label: t('nav.serviceRecords'), icon: 'refresh' as AppIconName, href: '/service-records' },
+                { key: 'serviceRecords' as const, label: t('nav.serviceRecords'), icon: 'receipt' as AppIconName, href: '/service-records' },
                 { key: 'feedback' as const, label: t('nav.feedback'), icon: 'infoCircle' as AppIconName, href: '/feedback' },
                 { key: 'updates' as const, label: t('nav.updates'), icon: 'arrowDownCircle' as AppIconName, href: '/updates' },
               ].map((item) => (

@@ -1,11 +1,13 @@
 'use client'
-import { useEffect, useState } from 'react'
+import type { ComponentProps } from 'react'
+import { useEffect } from 'react'
 import { useSession, signOut } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
 import dynamic from 'next/dynamic'
 import Navbar from '@/components/Navbar'
 import { AppIcon } from '@/components/ui/icons'
-import { useRouter } from '@/i18n/navigation'
+import type { AppIconName } from '@/components/ui/icons'
+import { Link, useRouter } from '@/i18n/navigation'
 
 const ApiConfigTab = dynamic(() => import('./components/ApiConfigTab'), {
   loading: () => (
@@ -21,9 +23,6 @@ export default function ProfilePage() {
   const t = useTranslations('profile')
   const tc = useTranslations('common')
 
-  // 主要分区：扣费记录 / API配置
-  const [activeSection, setActiveSection] = useState<'billing' | 'apiConfig'>('apiConfig')
-
   useEffect(() => {
     if (status === 'loading') return
     if (!session) { router.push({ pathname: '/auth/signin' }); return }
@@ -37,80 +36,78 @@ export default function ProfilePage() {
     )
   }
 
+  const quickLinks: Array<{ key: string; href: ComponentProps<typeof Link>['href']; icon: AppIconName; label: string; detail: string }> = [
+    { key: 'projects', href: { pathname: '/projects' }, icon: 'monitor', label: t('quickLinks.projects'), detail: t('quickLinks.projectsHint') },
+    { key: 'assetHub', href: { pathname: '/asset-hub' }, icon: 'folderHeart', label: t('quickLinks.assetHub'), detail: t('quickLinks.assetHubHint') },
+    { key: 'records', href: { pathname: '/service-records' }, icon: 'receipt', label: t('quickLinks.records'), detail: t('quickLinks.recordsHint') },
+  ]
+
   return (
-    <div className="glass-page min-h-screen">
+    <div className="glass-page min-h-screen bg-[#0f0f12]">
       <Navbar />
 
-      <main className="max-w-[1400px] mx-auto px-6 py-8">
-        <div className="flex gap-6 h-[calc(100vh-140px)]">
-
-          {/* 左侧侧边栏 */}
-          <div className="w-64 flex-shrink-0">
-            <div className="glass-surface-elevated h-full flex flex-col p-5">
-
-              {/* 用户信息 */}
-              <div className="mb-6">
-                <div className="mb-4">
-                  <h2 className="font-semibold text-[var(--glass-text-primary)]">{session.user?.name || t('user')}</h2>
-                  <p className="text-xs text-[var(--glass-text-tertiary)]">{t('personalAccount')}</p>
-                </div>
-
-                {/* 余额卡片 */}
-                <div className="glass-surface-soft rounded-2xl border border-[var(--glass-stroke-base)] p-4">
-                  <div className="text-xs font-medium text-[var(--glass-text-secondary)]">{t('availableBalance')}</div>
-                  <div className="mt-2 text-base font-semibold text-[var(--glass-text-primary)]">{t('freeToUse')}</div>
-                </div>
+      <main className="mx-auto max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
+          <aside className="rounded-lg border border-white/10 bg-[#15161b] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+            <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+                {(session.user?.name || session.user?.email || 'N').slice(0, 1).toUpperCase()}
               </div>
-
-              {/* 导航菜单 */}
-              <nav className="flex-1 space-y-2">
-                <button
-                  onClick={() => setActiveSection('apiConfig')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all cursor-pointer ${activeSection === 'apiConfig'
-                    ? 'glass-btn-base glass-btn-tone-info'
-                    : 'text-[var(--glass-text-secondary)] hover:bg-[var(--glass-bg-muted)]'
-                    }`}
-                >
-                  <AppIcon name="settingsHexAlt" className="w-5 h-5" />
-                  <span className="font-medium">{t('apiConfig')}</span>
-                </button>
-
-                <button
-                  onClick={() => setActiveSection('billing')}
-                  className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left transition-all cursor-pointer ${activeSection === 'billing'
-                    ? 'glass-btn-base glass-btn-tone-info'
-                    : 'text-[var(--glass-text-secondary)] hover:bg-[var(--glass-bg-muted)]'
-                    }`}
-                >
-                  <AppIcon name="receipt" className="w-5 h-5" />
-                  <span className="font-medium">{t('billingRecords')}</span>
-                </button>
-              </nav>
-              {/* 退出登录 */}
-              <button
-                onClick={() => signOut({ callbackUrl: '/' })}
-                className="glass-btn-base glass-btn-tone-danger mt-auto flex items-center gap-2 px-4 py-3 text-sm rounded-xl transition-all cursor-pointer"
-              >
-                <AppIcon name="logout" className="w-4 h-4" />
-                {t('logout')}
-              </button>
+              <div className="min-w-0">
+                <h2 className="truncate text-sm font-semibold text-white">{session.user?.name || t('user')}</h2>
+                <p className="truncate text-xs text-white/45">{session.user?.email || t('personalAccount')}</p>
+              </div>
             </div>
-          </div>
 
-          {/* 右侧内容区 */}
-          <div className="flex-1 min-w-0">
-            <div className="glass-surface-elevated h-full flex flex-col">
-
-              {activeSection === 'apiConfig' ? (
-                <ApiConfigTab />
-              ) : (
-                <div className="flex h-full flex-col items-center justify-center px-6 text-center">
-                  <AppIcon name="receipt" className="mb-4 h-12 w-12 text-[var(--glass-text-tertiary)]" />
-                  <p className="text-base font-semibold text-[var(--glass-text-primary)]">{t('noRecords')}</p>
-                </div>
-              )}
+            <div className="mb-5 rounded-md border border-white/10 bg-white/4 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
+                <AppIcon name="userRoundCog" className="h-4 w-4 text-[#7eb0ff]" />
+                {t('settingsTitle')}
+              </div>
+              <div className="mt-2 text-xs leading-5 text-white/42">{t('settingsSubtitle')}</div>
             </div>
-          </div>
+
+            <nav className="space-y-2">
+              <div className="flex w-full items-center gap-3 rounded-md bg-[#2c6ef2] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]">
+                <AppIcon name="settingsHexAlt" className="h-4 w-4" />
+                {t('apiConfig')}
+              </div>
+              {quickLinks.map((item) => (
+                <Link
+                  key={item.key}
+                  href={item.href}
+                  className="flex items-start gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-2.5 transition-colors hover:bg-white/8"
+                >
+                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[#7eb0ff]" />
+                  <span className="min-w-0">
+                    <span className="block text-sm font-medium text-white/72">{item.label}</span>
+                    <span className="mt-0.5 block text-xs leading-5 text-white/36">{item.detail}</span>
+                  </span>
+                </Link>
+              ))}
+            </nav>
+
+            <button
+              onClick={() => signOut({ callbackUrl: '/' })}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-3 py-2.5 text-sm font-semibold text-[#ffb1b1] transition-colors hover:bg-[#ff6b6b]/14"
+            >
+              <AppIcon name="logout" className="h-4 w-4" />
+              {t('logout')}
+            </button>
+          </aside>
+
+          <section className="min-w-0 rounded-lg border border-white/10 bg-[#15161b] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+            <div className="border-b border-white/10 px-5 py-4">
+              <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[#7eb0ff]" />
+                {t('apiConfig')}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-white/45">{t('apiConfigHint')}</p>
+            </div>
+            <div className="h-[calc(100vh-220px)] min-h-[620px] overflow-auto p-4">
+              <ApiConfigTab />
+            </div>
+          </section>
         </div>
       </main >
     </div >

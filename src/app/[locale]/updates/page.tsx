@@ -3,7 +3,12 @@ import { FrameUpdatesDashboard } from '@/components/workspace/FrameUpdatesDashbo
 
 export default function UpdatesPage() {
   return (
-    <FrameFeatureHubPage activeKey="updates" pageKey="updates" icon="arrowDownCircle">
+    <FrameFeatureHubPage
+      activeKey="updates"
+      pageKey="updates"
+      icon="arrowDownCircle"
+      primaryAction={{ href: { pathname: '/toolbox' }, labelKey: 'openDiagnostics', icon: 'clipboardCheck' }}
+    >
       <FrameUpdatesDashboard />
     </FrameFeatureHubPage>
   )

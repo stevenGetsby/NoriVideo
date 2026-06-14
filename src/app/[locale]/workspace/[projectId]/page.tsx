@@ -74,6 +74,7 @@ export default function ProjectDetailPage() {
   const projectId = params.projectId
   const t = useTranslations('workspaceDetail')
   const tc = useTranslations('common')
+  const canvasT = useTranslations('canvas')
 
   // 从URL读取参数
   const urlStage = searchParams.get('stage') as Stage | null
@@ -469,15 +470,15 @@ export default function ProjectDetailPage() {
     <div className="glass-page min-h-screen flex flex-col">
       <Navbar />
 
-      {/* Canvas 入口（M0：无限画布模式） */}
-      <div className="fixed top-20 right-4 z-50">
+      {/* Production canvas entry */}
+      <div className="fixed right-4 top-20 z-40">
         <Link
           href={`/workspace/${projectId}/canvas`}
-          className="glass-btn-base glass-btn-primary inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium shadow-lg sm:px-4"
-          title="无限画布"
+          className="inline-flex h-9 items-center gap-2 rounded-md border border-white/10 bg-[#15161b]/95 px-3 text-sm font-semibold text-white/72 shadow-[0_14px_34px_rgba(0,0,0,.22)] backdrop-blur transition-colors hover:bg-[#1b1f2a] hover:text-white"
+          title={canvasT('openProduction')}
         >
-          <AppIcon name="sparkles" className="w-4 h-4" />
-          <span className="hidden sm:inline">无限画布</span>
+          <AppIcon name="monitor" className="h-4 w-4 text-[#7eb0ff]" />
+          <span className="hidden sm:inline">{canvasT('productionTitle')}</span>
         </Link>
       </div>
 

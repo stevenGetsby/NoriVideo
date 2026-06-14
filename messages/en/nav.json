@@ -1,9 +1,11 @@
 {
+  "console": "Production Console",
   "workspace": "Projects",
   "assetHub": "Asset Hub",
+  "toolbox": "Toolbox",
+  "serviceRecords": "Task Records",
   "videoEnhance": "Video Enhance",
   "profile": "Settings",
-  "downloadLogs": "Download Logs",
   "signin": "Sign In",
   "signup": "Sign Up",
   "logout": "Logout"

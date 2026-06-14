@@ -1,15 +1,25 @@
 'use client'
 
+import type { ComponentProps } from 'react'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from './LanguageSwitcher'
 import { AppIcon } from '@/components/ui/icons'
+import type { AppIconName } from '@/components/ui/icons'
 import UpdateNoticeModal from './UpdateNoticeModal'
 import { useGithubReleaseUpdate } from '@/hooks/common/useGithubReleaseUpdate'
 import { Link } from '@/i18n/navigation'
 import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
 
+const AUTH_NAV_LINKS: Array<{ href: ComponentProps<typeof Link>['href']; labelKey: string; icon: AppIconName }> = [
+  { href: { pathname: '/projects' }, labelKey: 'workspace', icon: 'monitor' },
+  { href: { pathname: '/asset-hub' }, labelKey: 'assetHub', icon: 'folderHeart' },
+  { href: { pathname: '/toolbox' }, labelKey: 'toolbox', icon: 'settingsHexMinor' },
+  { href: { pathname: '/service-records' }, labelKey: 'serviceRecords', icon: 'receipt' },
+  { href: { pathname: '/video-enhance' }, labelKey: 'videoEnhance', icon: 'film' },
+  { href: { pathname: '/profile' }, labelKey: 'profile', icon: 'userRoundCog' },
+]
 
 export default function Navbar() {
   const { data: session, status } = useSession()
@@ -19,7 +29,6 @@ export default function Navbar() {
   const [checkMsg, setCheckMsg] = useState<string | null>(null)
   const [checkMsgFading, setCheckMsgFading] = useState(false)
   const [manualChecking, setManualChecking] = useState(false)
-  const downloadLogsHref = '/api/admin/download-logs'
 
   const handleCheckUpdate = async () => {
     setCheckMsg(null)
@@ -35,15 +44,34 @@ export default function Navbar() {
     }, 100)
   }
 
+  const renderAuthNavLink = (item: (typeof AUTH_NAV_LINKS)[number], compact = false) => (
+    <Link
+      key={item.labelKey}
+      href={item.href}
+      className={
+        compact
+          ? 'inline-flex h-10 shrink-0 items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 text-sm font-medium text-[var(--glass-text-secondary)] transition-colors hover:bg-white/8 hover:text-[var(--glass-text-primary)]'
+          : 'inline-flex h-8 items-center gap-1.5 rounded px-2.5 text-sm font-medium text-[var(--glass-text-secondary)] transition-colors hover:bg-white/8 hover:text-[var(--glass-text-primary)]'
+      }
+    >
+      <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
+      <span className="whitespace-nowrap">{t(item.labelKey)}</span>
+    </Link>
+  )
+
   return (
     <>
       <nav className="glass-nav sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1680px] px-4 sm:px-6 lg:px-8">
           <div className="flex h-16 min-w-0 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
-              <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group">
-                <span className="text-2xl font-extrabold tracking-tight bg-gradient-to-r from-[#a78bfa] via-[#818cf8] to-[#60a5fa] bg-clip-text text-transparent transition-transform group-hover:scale-110 inline-block select-none">
-                  Nori
+              <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group flex items-center gap-2">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]">
+                  N
+                </span>
+                <span className="hidden leading-tight sm:block">
+                  <span className="block text-sm font-semibold text-[var(--glass-text-primary)]">NoriVideo</span>
+                  <span className="block text-[11px] text-[var(--glass-text-tertiary)]">{t('console')}</span>
                 </span>
               </Link>
               <button
@@ -88,55 +116,20 @@ export default function Navbar() {
                 </span>
               )}
             </div>
-            <div className="hidden items-center space-x-6 sm:flex">
+            <div className="hidden min-w-0 items-center gap-2 sm:flex">
               {status === 'loading' ? (
                 /* Session 加载中骨架屏 */
-                <div className="flex items-center space-x-4">
+                <div className="flex items-center gap-3">
                   <div className="h-4 w-16 rounded-full bg-[var(--glass-bg-muted)] animate-pulse" />
                   <div className="h-4 w-16 rounded-full bg-[var(--glass-bg-muted)] animate-pulse" />
                   <div className="h-8 w-20 rounded-lg bg-[var(--glass-bg-muted)] animate-pulse" />
                 </div>
               ) : session ? (
                 <>
-                  <Link
-                    href={{ pathname: '/projects' }}
-                    className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
-                  >
-                    <AppIcon name="monitor" className="w-4 h-4" />
-                    {t('workspace')}
-                  </Link>
-                  <Link
-                    href={{ pathname: '/asset-hub' }}
-                    className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
-                  >
-                    <AppIcon name="folderHeart" className="w-4 h-4" />
-                    {t('assetHub')}
-                  </Link>
-                  <Link
-                    href={{ pathname: '/video-enhance' }}
-                    className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
-                  >
-                    <AppIcon name="film" className="w-4 h-4" />
-                    {t('videoEnhance')}
-                  </Link>
-                  <Link
-                    href={{ pathname: '/profile' }}
-                    className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
-                    title={t('profile')}
-                  >
-                    <AppIcon name="userRoundCog" className="w-5 h-5" />
-                    {t('profile')}
-                  </Link>
+                  <div className="flex min-w-0 items-center gap-1 rounded-md border border-white/10 bg-white/4 p-1">
+                    {AUTH_NAV_LINKS.map((item) => renderAuthNavLink(item))}
+                  </div>
                   <LanguageSwitcher />
-                  <a
-                    href={downloadLogsHref}
-                    download
-                    className="text-sm text-[var(--glass-text-primary)] hover:text-[var(--glass-tone-info-fg)] font-medium transition-colors flex items-center gap-1"
-                    title={t('downloadLogs')}
-                  >
-                    <AppIcon name="download" className="w-4 h-4" />
-                    {t('downloadLogs')}
-                  </a>
                 </>
 
               ) : (
@@ -165,6 +158,11 @@ export default function Navbar() {
               )}
             </div>
           </div>
+          {status !== 'loading' && session ? (
+            <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-3 sm:hidden">
+              {AUTH_NAV_LINKS.map((item) => renderAuthNavLink(item, true))}
+            </nav>
+          ) : null}
         </div>
       </nav>
       {update ? (

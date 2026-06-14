@@ -3,7 +3,12 @@ import { FrameFeedbackDashboard } from '@/components/workspace/FrameFeedbackDash
 
 export default function FeedbackPage() {
   return (
-    <FrameFeatureHubPage activeKey="feedback" pageKey="feedback" icon="infoCircle">
+    <FrameFeatureHubPage
+      activeKey="feedback"
+      pageKey="feedback"
+      icon="infoCircle"
+      primaryAction={{ href: { pathname: '/service-records' }, labelKey: 'openServiceRecords', icon: 'receipt' }}
+    >
       <FrameFeedbackDashboard />
     </FrameFeatureHubPage>
   )

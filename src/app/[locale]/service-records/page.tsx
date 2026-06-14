@@ -3,7 +3,12 @@ import { FrameServiceRecordsDashboard } from '@/components/workspace/FrameServic
 
 export default function ServiceRecordsPage() {
   return (
-    <FrameFeatureHubPage activeKey="serviceRecords" pageKey="serviceRecords" icon="receipt">
+    <FrameFeatureHubPage
+      activeKey="serviceRecords"
+      pageKey="serviceRecords"
+      icon="receipt"
+      primaryAction={{ href: { pathname: '/toolbox' }, labelKey: 'openDiagnostics', icon: 'clipboardCheck' }}
+    >
       <FrameServiceRecordsDashboard />
     </FrameFeatureHubPage>
   )
