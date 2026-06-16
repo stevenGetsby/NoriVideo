@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { encryptApiKey } from '@/lib/crypto-utils'
 import { composeModelKey } from '@/lib/model-config-contract'
 import {
+  HFSY_TEXT_MODEL_ID,
+  HFSY_TEXT_MODEL_KEY,
   HFSY_IMAGE_MODEL_ID,
   HFSY_IMAGE_MODEL_KEY,
   HFSY_PROVIDER_ID,
@@ -70,7 +72,7 @@ export function getTestModeUserId(): string {
 
 export function getTestModeModelKeys() {
   return {
-    analysisModel: LUMINA_GPT55_MODEL_KEY,
+    analysisModel: HFSY_TEXT_MODEL_KEY,
     imageModel: HFSY_IMAGE_MODEL_KEY,
     videoModel: HFSY_VIDEO_MODEL_KEY,
   }
@@ -103,7 +105,7 @@ function buildGptImage2Template(): OpenAICompatMediaTemplate {
   }
 }
 
-function buildTestProviders(luminaApiKey: string, imageApiKey: string, arkApiKey?: string) {
+function buildTestProviders(luminaApiKey: string, hfsyApiKey: string, arkApiKey?: string) {
   const providers: TestProviderConfig[] = [
     {
       id: LUMINA_PROVIDER_ID,
@@ -113,9 +115,9 @@ function buildTestProviders(luminaApiKey: string, imageApiKey: string, arkApiKey
     },
     {
       id: IMAGE_PROVIDER_ID,
-      name: 'HFSY gpt-image-2 Test',
+      name: 'HFSY Test',
       baseUrl: IMAGE_BASE_URL,
-      apiKey: encryptApiKey(imageApiKey),
+      apiKey: encryptApiKey(hfsyApiKey),
       gatewayRoute: 'openai-compat',
     },
   ]
@@ -136,6 +138,14 @@ function buildTestModels(includeArkVideoModels = false) {
   const imageTemplate = buildGptImage2Template()
 
   const models: TestModelConfig[] = [
+    {
+      modelId: HFSY_TEXT_MODEL_ID,
+      modelKey: HFSY_TEXT_MODEL_KEY,
+      name: 'HFSY GPT-5.5',
+      type: 'llm',
+      provider: HFSY_PROVIDER_ID,
+      llmProtocol: 'chat-completions',
+    },
     {
       modelId: LUMINA_GPT55_MODEL_ID,
       modelKey: LUMINA_GPT55_MODEL_KEY,
@@ -185,10 +195,10 @@ function buildTestModels(includeArkVideoModels = false) {
 
 async function seedTestModeUser(): Promise<AuthSession> {
   const luminaApiKey = requireTestKey('NORI_TEST_LUMINA_API_KEY')
-  const imageApiKey = requireTestKey('NORI_TEST_IMAGE_API_KEY')
+  const hfsyApiKey = readEnv('NORI_TEST_HFSY_API_KEY') || requireTestKey('NORI_TEST_IMAGE_API_KEY')
   const arkApiKey = readEnv('NORI_TEST_ARK_API_KEY')
   const modelKeys = getTestModeModelKeys()
-  const providers = buildTestProviders(luminaApiKey, imageApiKey, arkApiKey)
+  const providers = buildTestProviders(luminaApiKey, hfsyApiKey, arkApiKey)
   const models = buildTestModels(!!arkApiKey)
 
   const user = await prisma.user.upsert({

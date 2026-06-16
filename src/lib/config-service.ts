@@ -22,7 +22,7 @@ import {
 import {
   HFSY_IMAGE_MODEL_KEY,
 } from '@/lib/hfsy-fixed-models'
-import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
+import { HFSY_TEXT_MODEL_KEY } from '@/lib/hfsy-fixed-models'
 import { PROJECT_LEVEL, resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
 
 export type ParsedModelKey = { provider: string, modelId: string }
@@ -166,7 +166,7 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || LUMINA_GPT55_MODEL_KEY,
+    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || HFSY_TEXT_MODEL_KEY,
     characterModel: extractModelKey(projectData?.characterModel) || extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
     locationModel: extractModelKey(projectData?.locationModel) || extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
     storyboardModel: extractModelKey(projectData?.storyboardModel) || extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,
@@ -196,7 +196,7 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: extractModelKey(userPref?.analysisModel) || LUMINA_GPT55_MODEL_KEY,
+    analysisModel: extractModelKey(userPref?.analysisModel) || HFSY_TEXT_MODEL_KEY,
     characterModel: extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
     locationModel: extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
     storyboardModel: extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,

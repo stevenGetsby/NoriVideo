@@ -75,3 +75,63 @@ export const demoEnvironments: FosAsset[] = [
   asset('v4', '陆府书房', '室内空间', '议事与对峙的核心场所。', '民国大户书房，红木家具，藏书满墙，暖黄灯光。'),
   asset('v5', '督军府大门', '室外空间', '权力象征的恢弘门庭。', '民国督军府大门，石狮门庭，军卫森严，恢弘冷峻。'),
 ]
+
+/* ---------- storyboard success-state demo (mirrors live FrameOS E4 入府受辱) ---------- */
+export type FosSegIntent = 'establish' | 'conflict' | 'emotion' | 'reverse'
+
+export interface FosSegAssetRef { kind: '角色' | '物品' | '环境'; name: string }
+export interface FosStorySegment {
+  id: string
+  intent: FosSegIntent
+  intentLabel: string
+  duration: number
+  scriptHeading: string
+  scriptText: string
+  refs: FosSegAssetRef[]
+}
+export interface FosStoryScene {
+  code: string
+  location: string
+  env: string
+  segments: FosStorySegment[]
+}
+export interface FosStoryboardEpisode {
+  episodeNumber: number
+  sceneCount: number
+  segmentCount: number
+  totalSeconds: number
+  scenes: FosStoryScene[]
+}
+
+const WITH_SHEN = (extra: string[] = []): FosSegAssetRef[] => [
+  { kind: '角色', name: '苏晚卿 · 陆府姨太时期' },
+  { kind: '角色', name: '沈曼柔' },
+  { kind: '角色', name: '沈曼柔贴身丫鬟' },
+  ...extra.map((name) => ({ kind: '物品' as const, name })),
+  { kind: '环境', name: '陆府偏僻小院' },
+]
+
+export const demoStoryboard: FosStoryboardEpisode = {
+  episodeNumber: 4,
+  sceneCount: 1,
+  segmentCount: 9,
+  totalSeconds: 121,
+  scenes: [
+    {
+      code: 'S01',
+      location: '陆府偏僻小院',
+      env: '日 - 阴',
+      segments: [
+        { id: 'S01-SEG01', intent: 'establish', intentLabel: '建立情境', duration: 10, scriptHeading: '第四集', scriptText: '第四集', refs: [{ kind: '角色', name: '苏晚卿 · 陆府姨太时期' }, { kind: '角色', name: '春桃' }, { kind: '物品', name: '刻"陆"字玄铁令牌' }, { kind: '环境', name: '陆府偏僻小院' }] },
+        { id: 'S01-SEG02', intent: 'conflict', intentLabel: '制造冲突', duration: 12, scriptHeading: '春桃', scriptText: '春桃（刻薄甩下包袱）：乡野丫头，能住这里就不错了，别妄想攀高枝，惹恼沈姨太没好果子吃！', refs: [{ kind: '角色', name: '苏晚卿 · 陆府姨太时期' }, { kind: '角色', name: '春桃' }, { kind: '物品', name: '刻"陆"字玄铁令牌' }, { kind: '环境', name: '陆府偏僻小院' }] },
+        { id: 'S01-SEG03', intent: 'emotion', intentLabel: '情绪承载', duration: 14, scriptHeading: '春桃', scriptText: '春桃（恼羞成怒，撞翻水杯泼我手背，冷笑）：敢嘴硬？偷懒就罚你一天不吃饭！（说完扬长而去。）', refs: [{ kind: '角色', name: '苏晚卿 · 陆府姨太时期' }, { kind: '角色', name: '春桃' }, { kind: '物品', name: '刻"陆"字玄铁令牌' }, { kind: '环境', name: '陆府偏僻小院' }] },
+        { id: 'S01-SEG04', intent: 'conflict', intentLabel: '制造冲突', duration: 15, scriptHeading: '沈曼柔', scriptText: '沈曼柔（带着丫鬟闯入，神色傲慢、语气尖酸）：苏晚卿？乡下来的贱丫头，住这破地方正合适。', refs: WITH_SHEN() },
+        { id: 'S01-SEG05', intent: 'conflict', intentLabel: '制造冲突', duration: 12, scriptHeading: '沈曼柔', scriptText: '沈曼柔（揪住我的头发，厉声呵斥）：卑贱孤女也配说自重？敢抢我位置，活腻歪了！', refs: WITH_SHEN() },
+        { id: 'S01-SEG06', intent: 'conflict', intentLabel: '制造冲突', duration: 14, scriptHeading: '沈曼柔', scriptText: '沈曼柔（扇我一耳光，踹我跪倒在地）：在陆府我说了算，你也敢反抗？', refs: WITH_SHEN() },
+        { id: 'S01-SEG07', intent: 'conflict', intentLabel: '制造冲突', duration: 15, scriptHeading: '沈曼柔', scriptText: '沈曼柔（扫落衣物，我的令牌滑落，她狠狠踩在脚下碾动）：拼命？你也配？我毁了这破牌子，让你断了念想！', refs: WITH_SHEN(['刻"陆"字玄铁令牌 · 踩压变形态']) },
+        { id: 'S01-SEG08', intent: 'conflict', intentLabel: '制造冲突', duration: 15, scriptHeading: '沈曼柔', scriptText: '沈曼柔（捏住我下巴，狠厉威胁）：记住你的身份！敢踏出小院一步，我打断你的腿，再杀了陈阿婆！', refs: WITH_SHEN(['刻"陆"字玄铁令牌 · 踩压变形态']) },
+        { id: 'S01-SEG09', intent: 'reverse', intentLabel: '反转钩子', duration: 14, scriptHeading: '内心OS', scriptText: '△沈曼柔转身离去，我捡起变形的令牌，望着她的背影，心底暗誓。（内心OS）：沈曼柔，今日之辱，我必加倍奉还！', refs: WITH_SHEN(['刻"陆"字玄铁令牌 · 踩压变形态']) },
+      ],
+    },
+  ],
+}

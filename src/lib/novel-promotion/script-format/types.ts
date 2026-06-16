@@ -1,26 +1,16 @@
-export type StandardScriptPackageVersion = 'standard-script-v1'
+export type EpisodeSplitPackageVersion = 'episode-split-v1'
 
-export type StandardScriptWarningCode =
-  | 'TEXT_EMPTY'
-  | 'SECTION_MISSING'
-  | 'CHARACTER_LINE_UNPARSED'
+export type EpisodeSplitWarningCode =
+  | 'NO_EPISODE_HEADING_DEFAULTED'
   | 'EPISODE_BODY_EMPTY'
-  | 'LLM_REPAIR_USED'
 
-export type StandardScriptSource = {
+export type EpisodeSplitSource = {
   fileName?: string
   rawTextLength: number
   normalizedText: string
 }
 
-export type StandardScriptCharacter = {
-  id: string
-  name: string
-  description: string
-  aliases: string[]
-}
-
-export type StandardScriptEpisode = {
+export type ParsedScriptEpisode = {
   id: string
   episodeNumber: number
   title: string
@@ -28,40 +18,31 @@ export type StandardScriptEpisode = {
   synopsis?: string
 }
 
-export type StandardScriptWarning = {
-  code: StandardScriptWarningCode
+export type EpisodeSplitWarning = {
+  code: EpisodeSplitWarningCode
   message: string
   targetId?: string
 }
 
-export type StandardScriptPackage = {
-  version: StandardScriptPackageVersion
-  source: StandardScriptSource
-  storyBrief: string
-  characters: StandardScriptCharacter[]
-  episodes: StandardScriptEpisode[]
-  warnings: StandardScriptWarning[]
+export type EpisodeSplitPackage = {
+  version: EpisodeSplitPackageVersion
+  source: EpisodeSplitSource
+  episodes: ParsedScriptEpisode[]
+  warnings: EpisodeSplitWarning[]
 }
 
-export type StandardScriptParseErrorCode =
-  | 'TEXT_EMPTY'
-  | 'STORY_BRIEF_MISSING'
-  | 'CHARACTERS_MISSING'
-  | 'EPISODES_MISSING'
-  | 'NO_VALID_EPISODES'
-  | 'PACKAGE_INVALID'
+export type EpisodeSplitParseErrorCode = 'TEXT_EMPTY'
 
-export class StandardScriptParseError extends Error {
-  code: StandardScriptParseErrorCode
+export class EpisodeSplitParseError extends Error {
+  code: EpisodeSplitParseErrorCode
 
-  constructor(code: StandardScriptParseErrorCode, message: string) {
+  constructor(code: EpisodeSplitParseErrorCode, message: string) {
     super(message)
-    this.name = 'StandardScriptParseError'
+    this.name = 'EpisodeSplitParseError'
     this.code = code
   }
 }
 
-export type ParseStandardScriptOptions = {
+export type ParseScriptEpisodesOptions = {
   fileName?: string
-  mode?: 'strict' | 'relaxed'
 }
