@@ -1,6 +1,18 @@
 # 背景知识
 - 你处在WSL环境中
-- 项目说明在项目目录中的 README.md （包含项目目录，启动命令等）
+
+# 如何读项目文档
+- 项目说明在项目目录中的 README.md 和 docs/ 里面
+
+## 项目架构
+- 根据 docs/architecture.md 内容确定项目的系统架构
+- 除非用户要求，不能够自行修改 docs/architecture.md
+- 要采用违背现有架构设定的实施方法时，需要与用户确认
+
+## 计划式工作
+- “当前计划” 指的是 docs/plans/ 中 Status 为 Active 的 .md 文件（Status是文件中的内容）
+- 工作时需要读取当前计划，并且根据计划进行执行
+- 如果用户的指令与当前计划冲突，需要修改当前计划中的 Changed Items 与 Last Sync with Code
 
 ## 清单式工作
 
