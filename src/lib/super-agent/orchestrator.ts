@@ -2255,8 +2255,9 @@ export class SuperAgentOrchestrator {
     for (const storyboard of storyboards) {
       const hasAgentTimedPanels = (storyboard.panels || []).some((panel) => (
         typeof panel.videoPrompt === 'string'
-        && panel.videoPrompt.includes('\n执行要求：严格执行本 video_prompt')
-        && /\n\d+(?:\.\d+)?-\d+(?:\.\d+)?s[：:]/.test(panel.videoPrompt)
+        && panel.videoPrompt.includes('\n◈ 视频提示词\n')
+        && /\nShot\s+1\n/.test(panel.videoPrompt)
+        && /\nduration:\s*\d+(?:\.\d+)?s/.test(panel.videoPrompt)
       ))
       if (hasAgentTimedPanels) continue
       if ((storyboard.panels || []).length <= maxPanels) continue

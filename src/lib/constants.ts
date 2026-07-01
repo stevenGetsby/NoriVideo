@@ -233,32 +233,31 @@ export function parseCustomArtStyles(json: string | null | undefined): CustomArt
 }
 
 // 角色形象生成的系统后缀（始终添加到提示词末尾，不显示给用户）- 左侧面部特写+右侧三视图
-export const CHARACTER_PROMPT_SUFFIX = '角色设定图，画面分为左右两个区域：【左侧区域】占约1/3宽度，是角色的正面特写（如果是人类则展示完整正脸，如果是动物/生物则展示最具辨识度的正面形态）；【右侧区域】占约2/3宽度，是角色三视图横向排列（从左到右依次为：正面全身、侧面全身、背面全身），三视图高度一致。纯白色背景，无其他元素。'
+export const CHARACTER_PROMPT_SUFFIX = '角色设定图，画面分为左右两个区域：【左侧区域】占约1/3宽度，是角色的正面特写（如果是人类则展示完整正脸，如果是动物/生物则展示最具辨识度的正面形态）；【右侧区域】占约2/3宽度，是角色三视图横向排列（从左到右依次为：正面全身、侧面全身、背面全身），三视图高度一致。纯白色背景，无其他元素；不出现任何文字、标题、Logo、水印、UI。'
 
 // 道具图片生成的系统后缀（固定白底三视图资产图）
-export const PROP_PROMPT_SUFFIX = '道具设定图，画面分为左右两个区域：【左侧区域】占约1/3宽度，是道具主体的主视图特写；【右侧区域】占约2/3宽度，是同一道具的三视图横向排列（从左到右依次为：正面、侧面、背面），三视图高度一致。纯白色背景，主体居中完整展示，无人物、无手部、无桌面陈设、无环境背景、无其他元素。'
+export const PROP_PROMPT_SUFFIX = '道具设定图，画面分为左右两个区域：【左侧区域】占约1/3宽度，是道具主体的主视图特写；【右侧区域】占约2/3宽度，是同一道具的三视图横向排列（从左到右依次为：正面、侧面、背面），三视图高度一致。纯白色背景，主体居中完整展示，无人物、无手部、无桌面陈设、无环境背景、无其他元素；不出现任何文字、标题、Logo、水印、UI。'
 
 // 场景图片生成的系统后缀（已禁用四视图，直接生成单张场景图）
 export const LOCATION_PROMPT_SUFFIX = ''
 
-// 角色资产图生成比例（当前角色设定图实际使用 3:2）
-export const CHARACTER_ASSET_IMAGE_RATIO = '3:2'
-// 历史保留：旧注释中曾写 16:9，但当前资产图生成统一以 CHARACTER_ASSET_IMAGE_RATIO 为准
+// 资产图统一生成比例（角色 / 道具 / 场景）
+export const CHARACTER_ASSET_IMAGE_RATIO = '16:9'
 export const CHARACTER_IMAGE_RATIO = CHARACTER_ASSET_IMAGE_RATIO
 // 角色图片尺寸（用于Seedream API）
-export const CHARACTER_IMAGE_SIZE = '3840x2160'  // 16:9 横版
+export const CHARACTER_IMAGE_SIZE = '1280x720'
 // 角色图片尺寸（用于Banana API）
 export const CHARACTER_IMAGE_BANANA_RATIO = CHARACTER_ASSET_IMAGE_RATIO
 
 // 道具图片生成比例（与角色资产图保持一致）
 export const PROP_IMAGE_RATIO = CHARACTER_ASSET_IMAGE_RATIO
 
-// 场景图片生成比例（1:1 正方形单张场景）
-export const LOCATION_IMAGE_RATIO = '1:1'
-// 场景图片尺寸（用于Seedream API）- 4K
-export const LOCATION_IMAGE_SIZE = '4096x4096'  // 1:1 正方形 4K
+// 场景图片生成比例（与资产图保持一致）
+export const LOCATION_IMAGE_RATIO = CHARACTER_ASSET_IMAGE_RATIO
+// 场景图片尺寸（用于Seedream API）
+export const LOCATION_IMAGE_SIZE = CHARACTER_IMAGE_SIZE
 // 场景图片尺寸（用于Banana API）
-export const LOCATION_IMAGE_BANANA_RATIO = '1:1'
+export const LOCATION_IMAGE_BANANA_RATIO = LOCATION_IMAGE_RATIO
 
 // 从提示词中移除角色系统后缀（用于显示给用户）
 export function removeCharacterPromptSuffix(prompt: string): string {

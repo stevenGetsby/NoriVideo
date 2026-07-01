@@ -1,5 +1,4 @@
 import OpenAI from 'openai'
-import { GoogleGenAI } from '@google/genai'
 import { getInternalBaseUrl } from '@/lib/env'
 import {
   getProviderConfig,
@@ -96,6 +95,7 @@ export async function chatCompletionWithVision(
     try {
       const providerConfig = await getProviderConfig(userId, provider)
       if (providerKey === 'google' || providerKey === 'gemini-compatible') {
+        const { GoogleGenAI } = await import('@google/genai')
         const ai = new GoogleGenAI({ apiKey: providerConfig.apiKey })
         const { normalizeToBase64ForGeneration } = await import('@/lib/media/outbound-image')
 

@@ -9,7 +9,6 @@
  * - 处理时间 24 小时内
  */
 
-import { GoogleGenAI } from '@google/genai'
 import { getInternalBaseUrl } from '@/lib/env'
 import { getImageBase64Cached } from './image-cache'
 import { logInternal } from './logging/semantic'
@@ -66,6 +65,7 @@ export async function submitGeminiBatch(
   }
 
   try {
+    const { GoogleGenAI } = await import('@google/genai')
     const ai = new GoogleGenAI({ apiKey })
 
     // 构建 content parts
@@ -181,6 +181,7 @@ export async function queryGeminiBatchStatus(batchName: string, apiKey: string):
   }
 
   try {
+    const { GoogleGenAI } = await import('@google/genai')
     const ai = new GoogleGenAI({ apiKey })
 
     // 🔥 使用 ai.batches.get 查询任务状态

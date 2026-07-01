@@ -29,7 +29,7 @@ export function useListProjectEpisodes(projectId: string) {
 }
 
 /**
- * AI 智能分割剧集
+ * 按明确集标题规则分割剧集
  */
 export function useSplitProjectEpisodes(projectId: string) {
   return useMutation({

@@ -169,18 +169,18 @@ describe('chain contract - text queue behavior', () => {
     expect(calls[0]?.options).toEqual(expect.objectContaining({ priority: 7, jobId: 'task-text-2' }))
   })
 
-  it('queued text job payload can be consumed by text handler and resolve episode boundaries', async () => {
+  it('queued text job payload can be consumed by text handler and split by explicit headings', async () => {
     const { addTaskJob, QUEUE_NAME } = await import('@/lib/task/queues')
     const { handleEpisodeSplitTask } = await import('@/lib/workers/handlers/episode-split')
 
     const content = [
-      '前置内容用于凑长度，确保文本超过一百字。这一段会重复两次以保证长度满足阈值。',
-      '前置内容用于凑长度，确保文本超过一百字。这一段会重复两次以保证长度满足阈值。',
-      'START_MARKER',
+      '故事简介：前置内容用于凑长度，确保文本超过一百字。这一段不能并入第一集正文。',
+      '正文',
+      '第一集',
       '这里是第一集的正文内容，包含角色冲突与场景推进，长度足够用于链路测试验证。',
-      'END_MARKER',
-      '后置内容用于确保边界外还有文本，并继续补足长度。',
-    ].join('')
+      '第二集',
+      '这里是第二集的正文内容，继续补足长度，并验证明确标题可以稳定切出两集。',
+    ].join('\n')
 
     await addTaskJob({
       taskId: 'task-text-chain-worker-1',
@@ -200,9 +200,9 @@ describe('chain contract - text queue behavior', () => {
 
     const result = await handleEpisodeSplitTask(toJob(queued!))
     expect(result.success).toBe(true)
-    expect(result.episodes).toHaveLength(1)
-    expect(result.episodes[0]?.title).toBe('第一集')
-    expect(result.episodes[0]?.content).toContain('START_MARKER')
-    expect(result.episodes[0]?.content).toContain('END_MARKER')
+    expect(result.episodes).toHaveLength(2)
+    expect(result.episodes[0]?.title).toBe('第1集')
+    expect(result.episodes[0]?.content).not.toContain('故事简介')
+    expect(result.episodes[1]?.title).toBe('第2集')
   })
 })

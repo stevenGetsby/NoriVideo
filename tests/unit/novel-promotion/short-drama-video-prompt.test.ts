@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   buildCompressedAgentPrompt,
+  buildPreciseBeatVideoPrompt,
   buildShortDramaBriefVideoPrompt,
   buildShortDramaVideoPromptText,
   buildVideoPromptBlocks,
@@ -71,23 +72,34 @@ describe('short-drama-video-prompt', () => {
     })
   })
 
-  it('matches the reference medical case as 15 video prompt blocks', () => {
+  it('matches the reference medical case as 15 precise segment prompt blocks', () => {
     const blocks = buildVideoPromptBlocks(buildMedicalFiftyShotFixture())
     expect(blocks).toHaveLength(15)
-    expect(blocks[0].text).toMatch(/^场景：/)
-    expect(blocks[0].text).toContain('剧情片段：')
-    expect(blocks[0].text).toContain('本分镜使用资产：')
+    expect(blocks[0].segmentId).toBe('S01-SEG01')
+    expect(blocks[0].text).toMatch(/^S01-SEG01\n/)
+    expect(blocks[0].text).toContain('◎ 参考资产')
+    expect(blocks[0].text).toContain('◎ 输出参数')
+    expect(blocks[0].text).toContain('◈ 一致性控制')
+    expect(blocks[0].text).toContain('◈ 视频提示词')
+    expect(blocks[0].text).toContain('开场状态：')
+    expect(blocks[0].text).toContain('Shot 1')
+    expect(blocks[0].text).toContain('duration:')
+    expect(blocks[0].text).toContain('镜头：')
+    expect(blocks[0].text).toContain('画面：')
+    expect(blocks[0].text).toContain('光影：')
     expect(blocks[0].text).not.toContain('来源镜头：SH001-SH004')
     expect(blocks[14].text).not.toContain('来源镜头：SH048-SH050')
   })
 
-  it('builds canonical panel prompt text without global asset boilerplate', () => {
+  it('builds precise segment prompt text without global asset boilerplate', () => {
     const text = buildShortDramaVideoPromptText(buildMedicalFiftyShotFixture())
-    expect(text).toMatch(/^场景：/)
+    expect(text).toMatch(/^S01-SEG01\n/)
+    expect(text).toContain('◎ 参考资产')
+    expect(text).toContain('◈ 视频提示词')
+    expect(text).toContain('Shot 1')
     expect(text).not.toContain('【短剧角色资产保持不变】')
     expect(text).not.toContain('Ava：年轻美国女性')
     expect(text).not.toContain('Dr. Grayson：美国男外科医生')
-    expect(text).toContain('英文口型同步')
     expect(text).toContain('【本分镜负面要求】')
     expect(text).not.toContain('【全局负面要求】')
     expect(text).not.toContain('沾血')
@@ -101,7 +113,7 @@ describe('short-drama-video-prompt', () => {
     expect(prompt).toContain('先抽取并锁定全局资产')
   })
 
-  it('builds video-ready brief prompts with scene, staging, camera language, and timed actions first', () => {
+  it('builds video-ready brief prompts with precise segment and internal shots', () => {
     const brief = parseShortDramaBrief([
       '请用 Agent 自动创作模式生成一支 9:16 欧美医疗短剧转绘视频，真实真人短剧质感，英文口型，不要中文字幕，不要背景音乐。',
       '角色资产：',
@@ -120,19 +132,82 @@ describe('short-drama-video-prompt', () => {
     })
     const lines = prompt.split('\n')
 
-    expect(lines[0]).toMatch(/^场景：现代美国私立医院/)
-    expect(lines[1]).toContain('剧情片段：Ava 在医院走廊请求 Dr. Grayson')
-    expect(lines[2]).toContain('执行要求：严格执行本 video_prompt')
-    expect(lines[3]).toContain('本分镜使用资产：角色=Ava、Dr. Grayson、Nurse Sarah')
-    expect(lines[4]).toContain('角色行为拆分：Ava')
-    expect(lines[5]).toContain('人物站位：')
-    expect(lines[6]).toContain('镜头语言：')
-    expect(prompt).toMatch(/\n0-\d+s：中景，平视，固定镜头。/)
-    expect(prompt).toMatch(/\n\d+-\d+s：近景或越肩/)
-    expect(prompt).not.toContain('2-3s：近景或越肩')
+    expect(lines[0]).toBe('S01-SEG01')
+    expect(lines[1]).toBe('现代美国私立医院')
+    expect(prompt).toContain('◎ 参考资产')
+    expect(prompt).toContain('角色\nAva\nDr. Grayson\nNurse Sarah')
+    expect(prompt).toContain('物品\n手术安排文件')
+    expect(prompt).toContain('◈ 一致性控制')
+    expect(prompt).toContain('◈ 视频提示词')
+    expect(prompt).toContain('开场状态：')
+    expect(prompt).toContain('站位关系：')
+    expect(prompt).toContain('Shot 1')
+    expect(prompt).toMatch(/\nShot 2\n/)
+    expect(prompt).toMatch(/\nduration: \d+\.\d+s/)
+    expect(prompt).toContain('镜头：')
+    expect(prompt).toContain('画面：')
+    expect(prompt).toContain('光影：')
     expect(prompt).not.toContain('【短剧角色资产保持不变】')
     expect(prompt).not.toContain('来源镜头：')
     expect(prompt).toContain('不要生成中文字幕')
     expect(prompt).toContain('不要自动生成大段字幕')
+  })
+
+  it('turns a beat into structured cinematic internal shots instead of generic templates', () => {
+    const prompt = buildPreciseBeatVideoPrompt({
+      segmentId: 'S01-SEG01',
+      location: '张秃子家破旧柴房',
+      beat: '开场钩子：第一集开场：苏晚卿在破旧柴房中从药效和惊恐中醒来，意识到自己被卖给张秃子。',
+      durationSeconds: 15,
+      characters: [{ name: '苏晚卿', appearance: '孤女逃亡时期' }],
+      props: [{ name: '陈阿婆留的银簪', state: '藏在发髻中，完好' }],
+    })
+
+    expect(prompt).toContain('Shot 5')
+    expect(prompt).toContain('大特写')
+    expect(prompt).toContain('瞳孔骤然收缩')
+    expect(prompt).toContain('2700K')
+    expect(prompt).toContain('6500K')
+    expect(prompt).toContain('key:fill')
+    expect(prompt).toContain('◈ 画风描述')
+    expect(prompt).not.toContain('完成本段核心动作')
+    expect(prompt).not.toContain('口型同步，说：苏晚卿在破旧柴房中从药效和惊恐中醒来')
+  })
+
+  it('does not treat script camera labels as lip-sync dialogue', () => {
+    const narrationPrompt = buildPreciseBeatVideoPrompt({
+      segmentId: 'S01-SEG01',
+      location: '张秃子家破旧柴房',
+      beat: '开场钩子：镜头特写：我猛地从混沌中惊醒，脑袋昏沉、浑身酸软，眼底满是惊恐与屈辱。',
+      durationSeconds: 10,
+      characters: [{ name: '苏晚卿', appearance: '孤女逃亡时期' }],
+      props: [{ name: '陈阿婆留的银簪', state: '藏在发髻中，完好' }],
+    })
+    expect(narrationPrompt).not.toContain('口型同步，说：我猛地从混沌中惊醒')
+
+    const dialoguePrompt = buildPreciseBeatVideoPrompt({
+      segmentId: 'S02-SEG03',
+      location: '城郊破旧土地庙',
+      beat: '情绪承载：我（低声呢喃）：阿婆，我不能死，我还要回去找你……',
+      durationSeconds: 8,
+      characters: [{ name: '苏晚卿', appearance: '孤女逃亡时期' }],
+      props: [{ name: '陈阿婆留的银簪', state: '攥在手心' }],
+    })
+    expect(dialoguePrompt).toContain('口型同步，说：阿婆，我不能死，我还要回去找你')
+
+    const conflictPrompt = buildPreciseBeatVideoPrompt({
+      segmentId: 'S01-SEG04',
+      location: '张秃子家破旧柴房',
+      beat: [
+        '制造冲突：张秃子（粗哑狞笑，抓我手腕）：小美人，你娘把你卖给我还下了药，从今往后你就是我的人！',
+        '我（缩手蜷身，声音发颤却藏狠劲）：放开我！我娘卖我不算数，就算死，我也不伺候你这个恶魔！',
+      ].join('\n'),
+      durationSeconds: 12,
+      characters: [{ name: '苏晚卿', appearance: '孤女逃亡时期' }, { name: '张秃子' }],
+      props: [{ name: '陈阿婆留的银簪', state: '藏在发髻中，完好' }],
+    })
+    expect(conflictPrompt).toContain('口型同步，说：小美人，你娘把你卖给我还下了药，从今往后你就是我的人！')
+    expect(conflictPrompt).toContain('口型同步，说：放开我！')
+    expect(conflictPrompt).not.toContain('口型同步，说：小美人，你娘把你卖给我还下了药，从今往后你就是我的人！ 我（缩手蜷身')
   })
 })

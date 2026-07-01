@@ -14,8 +14,7 @@ import {
   normalizeWorkflowConcurrencyValue,
 } from '@/lib/workflow-concurrency'
 import {
-  CANONICAL_PANEL_NEGATIVE_REQUIREMENTS,
-  buildCanonicalTimedActionLines,
+  buildPreciseBeatVideoPrompt,
   buildShortDramaBriefVideoPrompt,
   buildVideoPromptBlocks,
   parseShortDramaBrief,
@@ -556,32 +555,26 @@ function buildAgentVideoPrompt(params: {
 }): string {
   const { pkg, beat, participants, props, locationName } = params
   const duration = inferAgentBeatDuration(beat)
-  const beatSummary = summarizeVideoPromptBeat(beat, 120)
-  const participantNames = participants.map((role) => role.name).join('、')
-  const propNames = props.map((prop) => prop.name).join('、')
   const dialogue = extractDialogueSummary(beat, pkg.dialogueLanguage)
   const roleActionLines = buildAgentRoleActionLines({ pkg, beat, participants })
-  const roleActionText = summarizeVideoPromptBeat(roleActionLines.join('；'), 180)
-  const timedActionLines = buildCanonicalTimedActionLines({
-    duration,
-    scene: locationName,
-    roleNames: participantNames,
-    roleActionText,
-    beatSummary,
-    propNames,
+  const beatWithRoleActions = [beat, roleActionLines.length > 0 ? `角色行为：${roleActionLines.join('；')}` : '']
+    .filter(Boolean)
+    .join('；')
+  return buildPreciseBeatVideoPrompt({
+    segmentId: `S01-SEG${String(params.beatIndex).padStart(2, '0')}`,
+    location: locationName,
+    beat: beatWithRoleActions,
+    durationSeconds: duration,
+    characters: participants.map((role) => ({ name: role.name })),
+    props: props.map((prop) => ({ name: prop.name })),
+    sceneOpening: `${locationName}，${buildRegionLine(pkg.settingRegion)} 场景空间、入口方向、道具位置和环境声在本段内保持连续<环境声、脚步声、衣料摩擦声>。`,
+    lighting: pkg.settingRegion === 'fantasy'
+      ? '柔和月光或童话实用光作为主光，角色和关键道具边缘有温暖微光，阴影保持温柔不压暗。'
+      : pkg.settingRegion === 'western'
+        ? '真实欧美短剧主光稳定落在角色脸部和动作区，英文环境标识可读但不抢画面。'
+        : '符合中国故事语境的自然光或室内实用光，角色脸部、手部和关键道具清晰。',
     dialogueInstruction: dialogue,
   })
-  return [
-    `场景：${locationName}。`,
-    `剧情片段：${beatSummary}`,
-    '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-    `本分镜使用资产：角色=${participantNames || '按剧情出现的主要角色'}；场景=${locationName}；道具=${propNames || '无独立关键道具，仅使用场景内自然元素'}。`,
-    `角色行为拆分：${roleActionText}`,
-    `人物站位：${participantNames || '主要角色'} 按剧情关系形成清楚前景、中景、背景层次；说话者占主画面，听者可在前景边缘或背景虚化；角色进入、停顿、转身、递交、救助、质问等动作必须和剧情片段一致。`,
-    '镜头语言：先用关系中景建立空间和人物位置，再用近景表现核心动作/台词，再用特写捕捉眼神、手部或道具状态，最后用中景给出结果或转场。固定镜头为主，可轻微推近；不要手持乱晃，不要新增无关镜头。',
-    ...timedActionLines,
-    `【本分镜负面要求】 ${CANONICAL_PANEL_NEGATIVE_REQUIREMENTS}`,
-  ].join('\n')
 }
 
 function buildAgentStoryPackageFastPathResult(content: string): StoryToScriptOrchestratorResult | null {

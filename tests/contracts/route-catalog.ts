@@ -245,7 +245,6 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     || routeFile.includes('/reference-to-character/')
     || routeFile.includes('/character-profile/')
     || routeFile.endsWith('/clips/route.ts')
-    || routeFile.endsWith('/episodes/split/route.ts')
     || routeFile.endsWith('/voice-analyze/route.ts')
   ) {
     return 'llm-observe-routes'
@@ -257,6 +256,7 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     || routeFile.endsWith('/modify-image/route.ts')
     || routeFile.endsWith('/modify-render/route.ts')
     || routeFile.endsWith('/voice-design/route.ts')
+    || routeFile.endsWith('/episodes/split/route.ts')
     || routeFile.endsWith('/insert-panel/route.ts')
     || routeFile.endsWith('/lip-sync/route.ts')
     || routeFile.endsWith('/modify-asset-image/route.ts')

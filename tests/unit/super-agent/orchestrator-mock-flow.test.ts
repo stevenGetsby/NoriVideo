@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildPreciseBeatVideoPrompt } from '@/lib/novel-promotion/short-drama-video-prompt'
 
 const getUserModelConfigMock = vi.hoisted(() => vi.fn())
 const getProjectModelConfigMock = vi.hoisted(() => vi.fn())
@@ -100,18 +101,15 @@ vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
 }))
 
-function canonicalAgentPanelPrompt(action: string): string {
-  return [
-    '场景：现代美国私立医院。',
-    `剧情片段：${action}`,
-    '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-    '本分镜使用资产：角色=Ava、Dr. Grayson；场景=现代美国私立医院；道具=手术安排文件。',
-    '角色行为拆分：Ava：请求帮助；Dr. Grayson：冷静回应。',
-    '人物站位：Ava、Dr. Grayson 按剧情关系形成清楚前景、中景、背景层次。',
-    '镜头语言：中景到近景，固定镜头。',
-    `0-4s：中景，平视，固定镜头。${action}`,
-    '【本分镜负面要求】 不要改变故事核心因果。',
-  ].join('\n')
+function preciseAgentPanelPrompt(action: string): string {
+  return buildPreciseBeatVideoPrompt({
+    segmentId: 'S01-SEG01',
+    location: '现代美国私立医院',
+    beat: action,
+    durationSeconds: 4,
+    characters: [{ name: 'Ava' }, { name: 'Dr. Grayson' }],
+    props: [{ name: '手术安排文件' }],
+  })
 }
 
 describe('SuperAgentOrchestrator mock flow', () => {
@@ -768,9 +766,9 @@ describe('SuperAgentOrchestrator mock flow', () => {
       .mockResolvedValueOnce({ success: true, async: true, taskId: 'task-image-panel-3', runId: 'run-image-panel-3', status: 'queued', deduped: false })
 
     const panels = [
-      { id: 'agent-panel-1', imageUrl: null, imageMediaId: null, videoPrompt: canonicalAgentPanelPrompt('建立场景') },
-      { id: 'agent-panel-2', imageUrl: null, imageMediaId: null, videoPrompt: canonicalAgentPanelPrompt('角色说话') },
-      { id: 'agent-panel-3', imageUrl: null, imageMediaId: null, videoPrompt: canonicalAgentPanelPrompt('特写反应') },
+      { id: 'agent-panel-1', imageUrl: null, imageMediaId: null, videoPrompt: preciseAgentPanelPrompt('建立场景') },
+      { id: 'agent-panel-2', imageUrl: null, imageMediaId: null, videoPrompt: preciseAgentPanelPrompt('角色说话') },
+      { id: 'agent-panel-3', imageUrl: null, imageMediaId: null, videoPrompt: preciseAgentPanelPrompt('特写反应') },
     ]
     prismaMock.novelPromotionEpisode.findUnique.mockResolvedValueOnce({
       id: 'episode-1',
@@ -846,7 +844,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
         videoMediaId: null,
         duration: 2,
         description: '建立医院走廊空间和人物站位',
-        videoPrompt: canonicalAgentPanelPrompt('Ava 站在 Dr. Grayson 面前'),
+        videoPrompt: preciseAgentPanelPrompt('Ava 站在 Dr. Grayson 面前'),
         firstLastFramePrompt: null,
         srtSegment: null,
         shotType: '中景',
@@ -860,7 +858,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
         videoMediaId: null,
         duration: 5,
         description: 'Ava 说出请求',
-        videoPrompt: canonicalAgentPanelPrompt('Ava 英文口型同步，说：Please help my grandma.'),
+        videoPrompt: preciseAgentPanelPrompt('Ava 英文口型同步，说：Please help my grandma.'),
         firstLastFramePrompt: null,
         srtSegment: 'Ava: Please help my grandma.',
         shotType: '近景',
@@ -874,7 +872,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
         videoMediaId: null,
         duration: 8,
         description: 'Dr. Grayson 冷静回应并转场',
-        videoPrompt: canonicalAgentPanelPrompt('Dr. Grayson 转身安排手术'),
+        videoPrompt: preciseAgentPanelPrompt('Dr. Grayson 转身安排手术'),
         firstLastFramePrompt: null,
         srtSegment: null,
         shotType: '中景',
@@ -964,7 +962,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
         videoMediaId: null,
         duration: 8,
         description: 'Ava 请求帮助',
-        videoPrompt: canonicalAgentPanelPrompt('Ava 请求 Dr. Grayson 帮外婆安排手术'),
+        videoPrompt: preciseAgentPanelPrompt('Ava 请求 Dr. Grayson 帮外婆安排手术'),
         firstLastFramePrompt: null,
         srtSegment: null,
         shotType: '中景',
@@ -978,7 +976,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
         videoMediaId: null,
         duration: 6,
         description: '医生回应',
-        videoPrompt: canonicalAgentPanelPrompt('Dr. Grayson 冷静回应并安排手术'),
+        videoPrompt: preciseAgentPanelPrompt('Dr. Grayson 冷静回应并安排手术'),
         firstLastFramePrompt: null,
         srtSegment: null,
         shotType: '近景',
@@ -1037,10 +1035,10 @@ describe('SuperAgentOrchestrator mock flow', () => {
 
   it('does not truncate Agent timed panels when enforcing storyboard budget', async () => {
     const agentPanels = [
-      { id: 'agent-panel-1', panelIndex: 0, videoPrompt: canonicalAgentPanelPrompt('建立场景') },
-      { id: 'agent-panel-2', panelIndex: 1, videoPrompt: canonicalAgentPanelPrompt('角色说话') },
-      { id: 'agent-panel-3', panelIndex: 2, videoPrompt: canonicalAgentPanelPrompt('特写反应') },
-      { id: 'agent-panel-4', panelIndex: 3, videoPrompt: canonicalAgentPanelPrompt('转场收束') },
+      { id: 'agent-panel-1', panelIndex: 0, videoPrompt: preciseAgentPanelPrompt('建立场景') },
+      { id: 'agent-panel-2', panelIndex: 1, videoPrompt: preciseAgentPanelPrompt('角色说话') },
+      { id: 'agent-panel-3', panelIndex: 2, videoPrompt: preciseAgentPanelPrompt('特写反应') },
+      { id: 'agent-panel-4', panelIndex: 3, videoPrompt: preciseAgentPanelPrompt('转场收束') },
     ]
     prismaMock.novelPromotionStoryboard.findMany.mockResolvedValueOnce([
       { id: 'storyboard-agent-1', panels: agentPanels },

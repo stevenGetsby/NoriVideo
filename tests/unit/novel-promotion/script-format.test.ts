@@ -31,6 +31,7 @@ describe('script episode splitter', () => {
       title: '第1集',
     })
     expect(result.episodes[0].sourceText).toContain('苏晚卿从柴房逃出')
+    expect(result.episodes[0].sourceText).not.toContain('故事简介')
     expect(result.episodes[1]).toMatchObject({
       id: 'episode-002',
       episodeNumber: 2,

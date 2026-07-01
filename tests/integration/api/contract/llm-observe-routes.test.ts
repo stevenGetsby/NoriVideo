@@ -334,14 +334,6 @@ const ROUTE_CASES: ReadonlyArray<LLMRouteCase> = [
     expectedProjectId: 'project-1',
   },
   {
-    routeFile: 'src/app/api/novel-promotion/[projectId]/episodes/split/route.ts',
-    body: { content: 'x'.repeat(120) },
-    params: { projectId: 'project-1' },
-    expectedTaskType: TASK_TYPE.EPISODE_SPLIT_LLM,
-    expectedTargetType: 'NovelPromotionProject',
-    expectedProjectId: 'project-1',
-  },
-  {
     routeFile: 'src/app/api/novel-promotion/[projectId]/reference-to-character/route.ts',
     body: { referenceImageUrl: 'https://example.com/ref.png' },
     params: { projectId: 'project-1' },
@@ -412,7 +404,7 @@ describe('api contract - llm observe routes (behavior)', () => {
   })
 
   it('keeps expected coverage size', () => {
-    expect(ROUTE_CASES.length).toBe(25)
+    expect(ROUTE_CASES.length).toBe(24)
   })
 
   for (const routeCase of ROUTE_CASES) {

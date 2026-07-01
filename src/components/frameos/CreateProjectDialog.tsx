@@ -48,10 +48,11 @@ export function CreateProjectDialog({
   onCreate,
 }: {
   onClose: () => void
-  onCreate: (draft: CreateProjectDraft) => Promise<boolean> | boolean
+  onCreate: (draft: CreateProjectDraft, setStatus: (status: string) => void) => Promise<boolean> | boolean
 }) {
   const [draft, setDraft] = useState<CreateProjectDraft>(DEFAULT_DRAFT)
   const [submitting, setSubmitting] = useState(false)
+  const [submitStatus, setSubmitStatus] = useState('创建中…')
   const [error, setError] = useState<string | null>(null)
   const set = <K extends keyof CreateProjectDraft>(key: K, value: CreateProjectDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }))
@@ -61,9 +62,10 @@ export function CreateProjectDialog({
     if (!draft.name.trim()) { setError('项目名称必填'); return }
     if (!draft.scriptFile) { setError('请上传 txt、docx 或 pdf 剧本文件'); return }
     setSubmitting(true)
+    setSubmitStatus('创建项目…')
     setError(null)
     try {
-      const ok = await onCreate(draft)
+      const ok = await onCreate(draft, setSubmitStatus)
       if (ok) onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建项目失败')
@@ -205,7 +207,7 @@ export function CreateProjectDialog({
         <div className="fos-dialog-foot">
           <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose}>取消</button>
           <button type="submit" className="fos-btn fos-btn-primary fos-btn-lg" disabled={submitting || !draft.name.trim()}>
-            {submitting ? '创建中…' : '确认创建并进入工作台'}
+            {submitting ? submitStatus : '确认创建并进入工作台'}
           </button>
         </div>
       </form>

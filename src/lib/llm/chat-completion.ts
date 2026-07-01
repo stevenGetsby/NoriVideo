@@ -1,7 +1,6 @@
 import OpenAI from 'openai'
 import { generateText, type ModelMessage } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-import { GoogleGenAI } from '@google/genai'
 import {
   resolveModelGatewayRoute,
   runOpenAICompatChatCompletion,
@@ -38,6 +37,14 @@ import {
 import { completeBailianLlm } from '@/lib/providers/bailian'
 import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
 import { isHfsyProviderId, isLuminaProviderId } from '@/lib/model-provider-contract'
+import {
+  getTextLlmRuntimeInfo,
+  isDevelopmentTextLlmRuntime,
+  resolveTextLlmRuntime,
+} from './mode-config'
+import {
+  runDevTextLlmCompletion,
+} from './dev-text-llm'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
@@ -70,6 +77,65 @@ export async function chatCompletion(
       { ...options, __skipAutoStream: true },
       internalCallbacks,
     )
+  }
+
+  const textRuntime = resolveTextLlmRuntime(model)
+  if (isDevelopmentTextLlmRuntime(textRuntime)) {
+    const {
+      temperature = 0.7,
+      reasoning = true,
+      reasoningEffort = 'high',
+    } = options
+    const runtimeInfo = getTextLlmRuntimeInfo(textRuntime)
+    const projectId =
+      typeof options.projectId === 'string' && options.projectId.trim().length > 0
+        ? options.projectId.trim()
+        : undefined
+    const attemptStartedAt = Date.now()
+    logLlmRawInput({
+      userId,
+      projectId,
+      provider: runtimeInfo.provider,
+      modelId: runtimeInfo.modelId,
+      modelKey: runtimeInfo.modelKey,
+      stream: false,
+      reasoning,
+      reasoningEffort,
+      temperature,
+      action: options.action,
+      messages,
+    })
+    const completion = await runDevTextLlmCompletion({
+      messages,
+      options,
+      config: textRuntime.config,
+    })
+    const completionParts = getCompletionParts(completion)
+    logLlmRawOutput({
+      userId,
+      projectId,
+      provider: runtimeInfo.provider,
+      modelId: runtimeInfo.modelId,
+      modelKey: runtimeInfo.modelKey,
+      stream: false,
+      action: options.action,
+      text: completionParts.text,
+      reasoning: completionParts.reasoning,
+      usage: completionUsageSummary(completion),
+    })
+    recordCompletionUsage(runtimeInfo.modelId, completion)
+    llmLogger.info({
+      action: 'llm.call.success',
+      message: 'llm call succeeded',
+      provider: runtimeInfo.provider,
+      durationMs: Date.now() - attemptStartedAt,
+      details: {
+        model: runtimeInfo.modelId,
+        engine: 'dev_llm_lite_openai_compat',
+        baseUrl: runtimeInfo.baseUrl,
+      },
+    })
+    return completion
   }
 
   if (!model) {
@@ -173,6 +239,7 @@ export async function chatCompletion(
       }
 
       if (providerKey === 'google' || providerKey === 'gemini-compatible') {
+        const { GoogleGenAI } = await import('@google/genai')
         const googleAiOptions = providerConfig.baseUrl
           ? { apiKey: providerConfig.apiKey, httpOptions: { baseUrl: providerConfig.baseUrl } }
           : { apiKey: providerConfig.apiKey }

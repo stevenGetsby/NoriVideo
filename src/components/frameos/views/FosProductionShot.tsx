@@ -49,7 +49,7 @@ function ReferencePicker({ kind, onClose }: { kind: AssetTab; onClose: () => voi
         <div className="fos-dialog-body">
           <div className="relative mb-4">
             <AppIcon name="search" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fos-text-4)]" />
-            <input className="fos-input pl-9" placeholder="搜索资产名称…" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input className="fos-input" style={{ paddingLeft: 36 }} placeholder="搜索资产名称…" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-3">
             {filtered.map((a) => (

@@ -48,10 +48,10 @@ describe('LongTextDetectionPrompt', () => {
       createElement(LongTextDetectionPrompt, {
         open: true,
         copy: {
-          title: '建议使用智能分集',
+          title: '建议按标题分集',
           description: '检测到文本较长',
           strongRecommend: '建议拆分',
-          smartSplitLabel: '智能分集',
+          smartSplitLabel: '按标题分集',
           smartSplitBadge: '推荐',
           continueLabel: '仍然单集创作',
           continueHint: '单集模式',

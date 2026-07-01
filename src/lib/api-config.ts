@@ -8,7 +8,7 @@
  */
 
 import { prisma } from './prisma'
-import { decryptApiKey } from './crypto-utils'
+import { decryptApiKey, encryptApiKey } from './crypto-utils'
 import {
   composeModelKey,
   parseModelKeyStrict,
@@ -28,6 +28,11 @@ import {
   isSupportedModelProvider,
   normalizeProviderModelId,
 } from './model-provider-contract'
+import {
+  HFSY_IMAGE_MODEL_ID,
+  HFSY_IMAGE_MODEL_KEY,
+  HFSY_PROVIDER_ID,
+} from './hfsy-fixed-models'
 
 export interface CustomModel {
   modelId: string
@@ -118,6 +123,39 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function readTrimmedString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function readEnvHfsyApiKey(): string {
+  return readTrimmedString(process.env.HFSY_API_KEY)
+    || readTrimmedString(process.env.NORI_TEST_HFSY_API_KEY)
+    || readTrimmedString(process.env.NORI_TEST_IMAGE_API_KEY)
+}
+
+function buildHfsyGptImage2Template(): OpenAICompatMediaTemplate {
+  return {
+    version: 1,
+    mediaType: 'image',
+    mode: 'sync',
+    create: {
+      method: 'POST',
+      path: '/images/generations',
+      contentType: 'application/json',
+      bodyTemplate: {
+        model: '{{model}}',
+        prompt: '{{prompt}}',
+        size: '{{size}}',
+        reference_images: '{{images}}',
+        n: 1,
+        response_format: 'b64_json',
+      },
+    },
+    response: {
+      outputB64JsonPath: '$.data[0].b64_json',
+      outputUrlPath: '$.data[0].url',
+      outputUrlsPath: '$.data',
+      errorPath: '$.error.message',
+    },
+  }
 }
 
 function isUnifiedModelType(value: unknown): value is UnifiedModelType {
@@ -344,6 +382,54 @@ function appendDefaultModelSelections(
   return merged
 }
 
+function appendEnvHfsyProvider(providers: CustomProvider[]): CustomProvider[] {
+  if (providers.some((provider) => provider.id === HFSY_PROVIDER_ID)) return providers
+  const apiKey = readEnvHfsyApiKey()
+  if (!apiKey) return providers
+  return [
+    ...providers,
+    {
+      id: HFSY_PROVIDER_ID,
+      name: 'HFSY API',
+      baseUrl: 'https://www.hfsyapi.cn/v1',
+      apiKey: encryptApiKey(apiKey),
+      gatewayRoute: 'openai-compat',
+    },
+  ]
+}
+
+function ensureHfsyImageModelTemplate(models: CustomModel[]): CustomModel[] {
+  const template = buildHfsyGptImage2Template()
+  const now = new Date().toISOString()
+  let hasImageModel = false
+  const nextModels = models.map((model) => {
+    if (model.modelKey !== HFSY_IMAGE_MODEL_KEY || model.type !== 'image') return model
+    hasImageModel = true
+    return {
+      ...model,
+      name: model.name || 'HFSY GPT Image 2',
+      compatMediaTemplate: model.compatMediaTemplate || template,
+      compatMediaTemplateCheckedAt: model.compatMediaTemplateCheckedAt || now,
+      compatMediaTemplateSource: model.compatMediaTemplateSource || 'manual',
+    }
+  })
+  if (hasImageModel) return nextModels
+  return [
+    ...nextModels,
+    {
+      modelId: HFSY_IMAGE_MODEL_ID,
+      modelKey: HFSY_IMAGE_MODEL_KEY,
+      name: 'HFSY GPT Image 2',
+      type: 'image',
+      provider: HFSY_PROVIDER_ID,
+      compatMediaTemplate: template,
+      compatMediaTemplateCheckedAt: now,
+      compatMediaTemplateSource: 'manual',
+      price: 0,
+    },
+  ]
+}
+
 function pickProviderStrict(
   providers: CustomProvider[],
   providerId: string,
@@ -371,21 +457,23 @@ async function readUserConfig(userId: string): Promise<{ models: CustomModel[]; 
     },
   })
 
+  const models = ensureHfsyImageModelTemplate(appendDefaultModelSelections(
+    parseCustomModels(pref?.customModels),
+    {
+      analysisModel: pref?.analysisModel,
+      characterModel: pref?.characterModel,
+      locationModel: pref?.locationModel,
+      storyboardModel: pref?.storyboardModel,
+      editModel: pref?.editModel,
+      videoModel: pref?.videoModel,
+      audioModel: pref?.audioModel,
+      lipSyncModel: pref?.lipSyncModel,
+    },
+  ))
+
   return {
-    models: appendDefaultModelSelections(
-      parseCustomModels(pref?.customModels),
-      {
-        analysisModel: pref?.analysisModel,
-        characterModel: pref?.characterModel,
-        locationModel: pref?.locationModel,
-        storyboardModel: pref?.storyboardModel,
-        editModel: pref?.editModel,
-        videoModel: pref?.videoModel,
-        audioModel: pref?.audioModel,
-        lipSyncModel: pref?.lipSyncModel,
-      },
-    ),
-    providers: parseCustomProviders(pref?.customProviders),
+    models,
+    providers: appendEnvHfsyProvider(parseCustomProviders(pref?.customProviders)),
   }
 }
 

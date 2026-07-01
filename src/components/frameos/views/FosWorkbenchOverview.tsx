@@ -16,7 +16,7 @@ function StageCard({
   emphasized?: boolean; children: ReactNode; footer: ReactNode
 }) {
   return (
-    <article className="flex flex-col rounded-[10px] border p-5"
+    <article className="flex min-w-0 flex-col rounded-[10px] border p-5"
       style={{
         background: 'var(--fos-bg-2)',
         borderColor: emphasized ? 'var(--fos-primary)' : 'var(--fos-border-mid)',
@@ -41,14 +41,46 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
   const { projectId } = data
   const base = `/workflow/${projectId}/workbench-premium2`
   const episodeCount = data.usingDemo ? 30 : data.episodes.length
+  const scriptWordCount = data.usingDemo
+    ? 19700
+    : data.episodes.reduce((sum, episode) => sum + episode.wordCount, 0)
+  const scriptReady = episodeCount > 0
+  const importActive = data.scriptImportStatus === 'pending' || data.scriptImportStatus === 'processing'
+  const scriptStatus = scriptReady
+    ? '已完成'
+    : data.scriptImportStatus === 'failed'
+      ? '失败'
+      : data.scriptImportStatus === 'pending'
+        ? '待处理'
+        : data.scriptImportStatus === 'processing'
+          ? '处理中'
+          : '未开始'
+  const scriptTone: Tone = scriptReady
+    ? 'done'
+    : data.scriptImportStatus === 'failed'
+      ? 'failed'
+      : importActive
+        ? 'pending'
+        : 'idle'
   const charCount = data.usingDemo ? 22 : data.characters.length
   const itemCount = data.usingDemo ? 15 : data.items.length
   const envCount = data.usingDemo ? 30 : data.environments.length
+  const assetReady = charCount + itemCount + envCount > 0
+  const assetStatus = assetReady ? '已完成' : importActive ? '等待解析' : '未开始'
+  const assetTone: Tone = assetReady ? 'done' : importActive ? 'pending' : 'idle'
+  const canStartStoryboard = scriptReady && assetReady
+  const storyboardStatus = canStartStoryboard ? '未开始' : '等待资产'
+  const charVariantCount = data.usingDemo
+    ? 7
+    : data.characters.reduce((sum, item) => sum + (item.variants?.length ?? 0), 0)
+  const itemVariantCount = data.usingDemo
+    ? 1
+    : data.items.reduce((sum, item) => sum + (item.variants?.length ?? 0), 0)
 
   const assetRows: Array<[string, string, string, string]> = [
-    ['角色', `已确认 ${charCount}/${charCount}`, `主图 ${charCount}/${charCount} · 变体图 7/7`, 'characters'],
-    ['物品', `已确认 ${itemCount}/${itemCount}`, `主图 ${itemCount}/${itemCount} · 变体图 1/1`, 'items'],
-    ['环境', `已确认 ${envCount}/${envCount}`, `主图 ${envCount}/${envCount}`, 'environments'],
+    ['角色', charCount > 0 ? `已确认 ${charCount}/${charCount}` : '等待解析', `主图 ${charCount}/${charCount} · 变体图 ${charVariantCount}/${charVariantCount}`, 'characters'],
+    ['物品', itemCount > 0 ? `已确认 ${itemCount}/${itemCount}` : '等待解析', `主图 ${itemCount}/${itemCount} · 变体图 ${itemVariantCount}/${itemVariantCount}`, 'items'],
+    ['环境', envCount > 0 ? `已确认 ${envCount}/${envCount}` : '等待解析', `主图 ${envCount}/${envCount}`, 'environments'],
     ['音色', '待匹配', `角色音色 0/${charCount}`, 'timbre'],
   ]
 
@@ -60,16 +92,16 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
           <p className="hidden text-[13px] text-[var(--fos-text-3)] lg:block">按主流程从左到右推进；每个阶段卡片同时提供状态、摘要和主要操作入口。</p>
         </div>
         <div className="grid gap-5" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
-          <StageCard step="Step 1" title="剧本解析" status="已完成" tone="done"
+          <StageCard step="Step 1" title="剧本解析" status={scriptStatus} tone={scriptTone}
             footer={<Link href={{ pathname: `${base}/script-review` }} className="fos-btn fos-btn-ghost w-full">查看解析详情</Link>}>
             <div className="space-y-4 text-[13px] text-white">
               <p className="font-bold">核心产出：{episodeCount} 集</p>
-              <p className="text-[var(--fos-text-3)]">剧本：约 19700 字</p>
+              <p className="text-[var(--fos-text-3)]">剧本：约 {scriptWordCount.toLocaleString('zh-CN')} 字</p>
               <p className="leading-7 text-[var(--fos-text-3)]">将原始素材整理为结构化的分集分场剧本，作为后续设定与制作的统一基础。</p>
             </div>
           </StageCard>
 
-          <StageCard step="Step 2" title="资产设定" status="已完成" tone="done"
+          <StageCard step="Step 2" title="资产设定" status={assetStatus} tone={assetTone}
             footer={<Link href={{ pathname: `${base}/assets/characters` }} className="fos-btn fos-btn-soft w-full">设定</Link>}>
             <p className="mb-4 text-[13px] leading-7 text-[var(--fos-text-2)]">确认角色、物品、环境、音色四类核心资产，建立后续可复用的一致性设定。</p>
             <div className="space-y-2.5">
@@ -78,7 +110,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                   style={{ gridTemplateColumns: '40px 1fr 56px' }}>
                   <div className="text-[13px] font-bold text-white">{label}</div>
                   <div className="min-w-0">
-                    <div className={label === '音色' ? 'text-[12px] font-bold text-[var(--fos-text-3)]' : 'text-[12px] font-bold text-[#59c98d]'}>{statusText}</div>
+                    <div className={statusText.startsWith('已确认') ? 'text-[12px] font-bold text-[#59c98d]' : 'text-[12px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
                     <div className="mt-0.5 truncate text-[11px] text-[var(--fos-text-4)]">{detail}</div>
                   </div>
                   <Link href={{ pathname: `${base}/assets/${href}` }} className="fos-btn fos-btn-soft fos-btn-sm">{label === '音色' ? '设置' : '设定'}</Link>
@@ -87,15 +119,14 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
             </div>
           </StageCard>
 
-          <StageCard step="Step 3" title="分镜设计" status="失败" tone="failed" emphasized
-            footer={<Link href={{ pathname: `${base}/storyboard` }} className="fos-btn fos-btn-primary w-full">进入分镜设计</Link>}>
+          <StageCard step="Step 3" title="分镜设计" status={storyboardStatus} tone="idle" emphasized={canStartStoryboard}
+            footer={<Link href={{ pathname: `${base}/storyboard` }} className={`fos-btn ${canStartStoryboard ? 'fos-btn-primary' : 'fos-btn-ghost'} w-full`}>进入分镜设计</Link>}>
             <div className="space-y-4">
               <p className="text-[13px] font-bold text-white">{episodeCount} 集 · {episodeCount} 镜 · 总长约 6 分钟 · 已确认 0/{episodeCount} 集</p>
               <p className="text-[13px] leading-7 text-[var(--fos-text-2)]">把剧本进一步拆解为可直接制作的分镜，明确画面推进、对白与节奏。</p>
-              <p className="text-[12px] text-[var(--fos-text-3)]">前置：资产设定审阅通过后，可提取分镜。</p>
-              <div className="rounded-[10px] border border-[rgba(239,68,68,.35)] bg-[rgba(239,68,68,.08)] px-3 py-2.5 text-[12px] font-bold text-[#ff7777]">
-                第 1 集镜头编排失败，可进入分镜设计按场景重试。
-              </div>
+              <p className="text-[12px] text-[var(--fos-text-3)]">
+                {canStartStoryboard ? '前置已满足，可进入分镜设计。' : '前置：剧本解析和资产设定完成后，可提取分镜。'}
+              </p>
             </div>
           </StageCard>
 

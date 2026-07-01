@@ -231,44 +231,31 @@ function parseScreenplay(raw: string | null): unknown {
 
 function isShortDramaVideoPromptClip(clip: ClipInput): boolean {
   const content = clip.content?.trim() || ''
-  const isShotSheetPrompt = content.includes('来源镜头：SH')
-    && content.includes('【分镜')
-    && content.includes('镜头语言：')
-    && content.includes('人物站位：')
-  const isBriefPrompt = content.includes('【短剧角色资产保持不变】')
-    && content.includes('【本分镜负面要求】')
-    && content.includes('镜头语言：')
-    && content.includes('人物站位：')
-  const isAgentPrompt = content.includes('【Agent 视频分镜提示词】')
-    && content.includes('【本分镜负面要求】')
-    && content.includes('本分镜使用资产：')
-    && content.includes('镜头语言：')
-    && content.includes('人物站位：')
-  const isCanonicalPrompt = content.startsWith('场景：')
-    && content.includes('\n剧情片段：')
-    && content.includes('\n执行要求：严格执行本 video_prompt')
-    && content.includes('\n本分镜使用资产：')
-    && content.includes('\n角色行为拆分：')
-    && content.includes('\n人物站位：')
-    && content.includes('\n镜头语言：')
+  const isPrecisePrompt = /^S\d{2}-SEG\d{2}\n/.test(content)
+    && content.includes('\n◎ 参考资产\n')
+    && content.includes('\n◎ 输出参数\n')
+    && content.includes('\n◈ 一致性控制\n')
+    && content.includes('\n◈ 视频提示词\n')
+    && content.includes('\n开场状态：\n')
+    && content.includes('\nShot 1\n')
+    && content.includes('\nduration: ')
     && content.includes('\n【本分镜负面要求】')
-  return isShotSheetPrompt || isBriefPrompt || isAgentPrompt || isCanonicalPrompt
+  return isPrecisePrompt
 }
 
 function readShortDramaDuration(content: string): number {
-  const match = content.match(/秒数参考：(\d+(?:\.\d+)?)秒/)
-  const rangeEnds = Array.from(content.matchAll(/\n\d+(?:\.\d+)?-(\d+(?:\.\d+)?)s[：:]/g))
+  const match = content.match(/\n视频秒数\n(\d+(?:\.\d+)?)s?/)
+    || content.match(/^S\d{2}-SEG\d{2}\n[^\n]+\n(\d+(?:\.\d+)?)s/m)
+  const shotDurations = Array.from(content.matchAll(/\nduration:\s*(\d+(?:\.\d+)?)s/g))
     .map((item) => Number(item[1]))
     .filter((item) => Number.isFinite(item))
-  const value = Number(match?.[1] || (rangeEnds.length > 0 ? Math.max(...rangeEnds) : 8))
+  const value = Number(match?.[1] || (shotDurations.length > 0 ? shotDurations.reduce((sum, item) => sum + item, 0) : 8))
   if (!Number.isFinite(value)) return 8
   return Math.max(2, Math.min(15, value))
 }
 
 function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): StoryboardPanel {
   const content = clip.content?.trim() || formatClipId(clip)
-  const sourceMatch = content.match(/来源镜头：(SH\d+-SH\d+)/)
-  const isAgentPrompt = content.includes('【Agent 视频分镜提示词】') || content.includes('\n执行要求：严格执行本 video_prompt')
   const isFantasy = /童话|森林|萤火虫|小兔子|月亮灯|fantasy|fairy/i.test(content)
   const isChina = /中国故事|中国场景|中文环境标识|中国生活语境/.test(content)
   const isWesternMedical = /现代美国|欧美|英文环境标识|American|hospital|surgery|Dr\.|Nurse/i.test(content)
@@ -278,11 +265,7 @@ function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): Sto
   return {
     panel_id: `${formatClipId(clip)}:P${panelNumber}`,
     panel_number: panelNumber,
-    description: sourceMatch
-      ? `${sourceMatch[1]} 的短剧转绘视频提示词块，按内部秒级拆分执行。`
-      : isAgentPrompt
-        ? 'Agent 生成的视频分镜提示词块，按内部秒级拆分执行。'
-        : '短剧转绘视频提示词块，按内部秒级拆分执行。',
+    description: '精细化短剧视频提示词块，按开场状态与内部 Shot 拆分执行。',
     location,
     source_text: content,
     source_anchor: { start: content, end: content },
@@ -305,7 +288,7 @@ function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): Sto
     image_prompt: content,
     visual_prompt: content,
     video_prompt: content,
-    continuity_notes: '按短剧转绘提示词内部秒级拆分保持角色资产、场景资产、道具资产和站位连续。',
+    continuity_notes: '按精细化视频提示词中的开场状态、站位关系、Shot duration、镜头、画面、光影和音效保持连续。',
     voice_refs: [],
     duration: readShortDramaDuration(content),
     photographyPlan: {
@@ -329,7 +312,7 @@ function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): Sto
         : isWesternMedical
           ? '欧美医疗短剧，克制紧张，英文口型和专业医疗环境可信'
           : '竖屏短剧，节奏紧凑，情绪明确但不过度夸张',
-      technicalNotes: '严格执行 video_prompt；不得新增无关镜头、改变站位、改变角色资产或生成乱码字幕',
+      technicalNotes: '严格执行 video_prompt；不得新增无关 Shot、改变站位、改变角色资产或生成乱码字幕',
     },
     actingNotes: [],
   }

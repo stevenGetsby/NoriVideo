@@ -2,6 +2,8 @@ import type {
   AssetExtractionPackage,
   CharacterAsset,
   CharacterImportance,
+  CharacterMainAppearance,
+  CharacterPeriodFacts,
   CharacterVariant,
   CharacterVisualProfile,
   EnvironmentAsset,
@@ -90,6 +92,18 @@ function normalizeVisualProfile(value: unknown): CharacterVisualProfile {
   }
 }
 
+function mergeProfileFallback(
+  value: CharacterVisualProfile,
+  fallback: CharacterVisualProfile,
+): CharacterVisualProfile {
+  return {
+    subject: value.subject || fallback.subject,
+    face: value.face || fallback.face,
+    clothing: value.clothing || fallback.clothing,
+    accessories: value.accessories || fallback.accessories,
+  }
+}
+
 function normalizeProfileOverride(value: unknown): Partial<CharacterVisualProfile> {
   const record = isRecord(value) ? value : {}
   return {
@@ -97,6 +111,39 @@ function normalizeProfileOverride(value: unknown): Partial<CharacterVisualProfil
     ...(readString(record.face) ? { face: readString(record.face) } : {}),
     ...(readString(record.clothing) ? { clothing: readString(record.clothing) } : {}),
     ...(readString(record.accessories) ? { accessories: readString(record.accessories) } : {}),
+  }
+}
+
+function normalizePeriodFacts(value: unknown, fallback: {
+  identity?: string
+  socialStatus?: string
+  plotState?: string
+  explicitVisualCues?: string[]
+} = {}): CharacterPeriodFacts {
+  const record = isRecord(value) ? value : {}
+  const explicitVisualCues = readStringArray(record.explicitVisualCues)
+  return {
+    identity: readString(record.identity) || fallback.identity || '',
+    socialStatus: readString(record.socialStatus) || fallback.socialStatus || '',
+    plotState: readString(record.plotState) || fallback.plotState || '',
+    explicitVisualCues: explicitVisualCues.length > 0
+      ? explicitVisualCues
+      : (fallback.explicitVisualCues || []),
+  }
+}
+
+function ensureDraftVisualProfile(
+  profile: CharacterVisualProfile,
+  facts: CharacterPeriodFacts,
+  periodName: string,
+): CharacterVisualProfile {
+  const identity = facts.identity || periodName
+  const cues = facts.explicitVisualCues.slice(0, 3).join('、') || '无明确视觉线索'
+  return {
+    subject: profile.subject || `主体初稿：${identity}。`,
+    face: profile.face || `面部初稿：保留原文线索：${cues}。`,
+    clothing: profile.clothing || `服装初稿：按${identity}身份在视觉设定阶段补全。`,
+    accessories: profile.accessories || `配饰初稿：保留原文线索：${cues}。`,
   }
 }
 
@@ -114,6 +161,12 @@ function normalizeVariants(value: unknown, characterId: string): CharacterVarian
         id: readString(item.id) || `${characterId}-variant-${slug(name, String(index + 1))}`,
         name,
         episodeRange: { start, end: Math.max(start, end) },
+        facts: normalizePeriodFacts(item.facts, {
+          identity: name,
+          socialStatus: readString(item.backgroundDelta),
+          plotState: readString(item.reason),
+          explicitVisualCues: normalizeEvidence(item.evidence).map((evidence) => evidence.quote),
+        }),
         backgroundDelta: readString(item.backgroundDelta),
         profileOverride: normalizeProfileOverride(item.profileOverride),
         reason: readString(item.reason),
@@ -121,6 +174,54 @@ function normalizeVariants(value: unknown, characterId: string): CharacterVarian
       }
     })
     .filter((item): item is CharacterVariant => !!item)
+}
+
+function readEpisodeRange(value: unknown, fallbackEpisodes: number[]) {
+  const range = isRecord(value) ? value : {}
+  const fallbackStart = fallbackEpisodes[0] || 1
+  const fallbackEnd = fallbackEpisodes.at(-1) || fallbackStart
+  const start = readInt(range.start) || fallbackStart
+  const end = readInt(range.end) || fallbackEnd || start
+  return {
+    start,
+    end: Math.max(start, end),
+  }
+}
+
+function normalizeMainAppearance(input: {
+  value: unknown
+  characterId: string
+  profile: CharacterVisualProfile
+  relatedEpisodes: number[]
+  evidence: SourceEvidence[]
+}): CharacterMainAppearance {
+  const record = isRecord(input.value) ? input.value : {}
+  const name = readString(record.name) || '主形象时期'
+  const facts = normalizePeriodFacts(record.facts, {
+    identity: name,
+    socialStatus: readString(record.reason),
+    plotState: readString(record.reason),
+    explicitVisualCues: input.evidence.map((evidence) => evidence.quote),
+  })
+  const profile = ensureDraftVisualProfile(
+    mergeProfileFallback(
+      normalizeVisualProfile(record.profile),
+      input.profile,
+    ),
+    facts,
+    name,
+  )
+  return {
+    id: readString(record.id) || `${input.characterId}-main-appearance`,
+    name,
+    episodeRange: readEpisodeRange(record.episodeRange, input.relatedEpisodes),
+    facts,
+    profile,
+    reason: readString(record.reason) || '角色默认主形象，用于资产定稿图和多数常规镜头复用。',
+    evidence: normalizeEvidence(record.evidence).length > 0
+      ? normalizeEvidence(record.evidence)
+      : input.evidence,
+  }
 }
 
 function normalizeCharacters(value: unknown): CharacterAsset[] {
@@ -131,16 +232,27 @@ function normalizeCharacters(value: unknown): CharacterAsset[] {
       const name = readString(item.name)
       if (!name) return null
       const id = readString(item.id) || `character-${slug(name, String(index + 1))}`
+      const profile = normalizeVisualProfile(item.profile)
+      const relatedEpisodes = readIntArray(item.relatedEpisodes)
+      const evidence = normalizeEvidence(item.evidence)
+      const mainAppearance = normalizeMainAppearance({
+        value: item.mainAppearance,
+        characterId: id,
+        profile,
+        relatedEpisodes,
+        evidence,
+      })
       return {
         id,
         name,
         aliases: readStringArray(item.aliases),
         importance: normalizeImportance(item.importance),
         background: readString(item.background),
-        profile: normalizeVisualProfile(item.profile),
+        mainAppearance,
+        profile: mainAppearance.profile,
         variants: normalizeVariants(item.variants, id),
-        relatedEpisodes: readIntArray(item.relatedEpisodes),
-        evidence: normalizeEvidence(item.evidence),
+        relatedEpisodes,
+        evidence,
       }
     })
     .filter((item): item is CharacterAsset => !!item)
@@ -249,6 +361,16 @@ export function validateAssetExtractionPackage(pkg: AssetExtractionPackage): Ass
     if (!character.background) throw new Error(`character background is required: ${character.name}`)
     if (!character.profile.subject || !character.profile.face || !character.profile.clothing) {
       throw new Error(`character visual profile is incomplete: ${character.name}`)
+    }
+    if (!character.mainAppearance.name || !character.mainAppearance.episodeRange.start) {
+      throw new Error(`character main appearance is incomplete: ${character.name}`)
+    }
+    if (
+      !character.mainAppearance.profile.subject ||
+      !character.mainAppearance.profile.face ||
+      !character.mainAppearance.profile.clothing
+    ) {
+      throw new Error(`character main appearance profile is incomplete: ${character.name}`)
     }
   }
   return pkg

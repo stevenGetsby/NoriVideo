@@ -656,14 +656,14 @@
       "button": "Start Creating"
     },
     "smartImport": {
-      "title": "Smart Import Full Book",
-      "description": "Upload a complete novel or script, AI engine automatically recognizes chapter structure and splits into episodes.",
+      "title": "Import Full Book by Headings",
+      "description": "Upload a complete novel or script. The system splits episodes by explicit headings such as Episode 1 / Episode 2.",
       "button": "Import Now",
       "recommended": "Recommended"
     },
     "upload": {
       "title": "Upload Raw Material",
-      "subtitle": "AI engine is ready, automatic episode splitting and formatting",
+      "subtitle": "Split and format by explicit episode headings",
       "maxWords": "(Max 30,000 words)",
       "textInput": "Enter Text Content",
       "documentUpload": "Upload Full Document",
@@ -676,18 +676,18 @@
       "expandPreview": "Expand More",
       "collapsePreview": "Collapse",
       "deleteFile": "Delete File",
-      "startAnalysis": "Start Smart Analysis",
+      "startAnalysis": "Start Splitting",
       "back": "Back",
       "words": "words"
     },
     "analyzing": {
-      "title": "AI is Analyzing Your Story",
-      "description": "Recognizing chapter structure, smart splitting in progress...",
-      "autoSave": "Will auto-save after analysis complete"
+      "title": "Splitting Episodes by Headings",
+      "description": "Detecting explicit headings such as Episode 1 / Episode 2...",
+      "autoSave": "Will auto-save after splitting completes"
     },
     "preview": {
-      "title": "Smart Splitting Complete",
-      "episodeCount": "Automatically split into {count} episodes",
+      "title": "Rule-based Splitting Complete",
+      "episodeCount": "Split into {count} episodes by heading",
       "totalWords": "Total {count} words",
       "autoSaved": "✓ Auto-saved",
       "reanalyze": "Re-analyze",
@@ -770,11 +770,11 @@
     "ready": "✓ Configuration complete, ready for next step",
     "pleaseInput": "Please enter script content first",
     "longTextDetection": {
-      "title": "🚀 Smart Episode Splitting Recommended",
+      "title": "🚀 Episode Heading Split Recommended",
       "description": "Detected ~{count} characters. Processing long text as a single episode may reduce output quality.",
-      "strongRecommend": "We strongly recommend using Smart Split. AI will automatically identify chapters, split into episodes, and process them in parallel for significantly better results.",
+      "strongRecommend": "We strongly recommend adding explicit headings such as Episode 1 / Episode 2. The system will split by headings and process episodes in parallel for better results.",
       "continueAnyway": "Continue as single episode",
-      "smartSplit": "Smart Split",
+      "smartSplit": "Split by Headings",
       "smartSplitRecommend": "Recommended",
       "singleEpisodeWarning": "All content will be processed as one episode"
     }

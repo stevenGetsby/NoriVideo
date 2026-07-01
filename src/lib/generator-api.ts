@@ -31,15 +31,27 @@ const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 function aspectRatioToOpenAISize(aspectRatio: string | undefined): string | undefined {
     if (!aspectRatio) return undefined
     const ratio = aspectRatio.trim()
-    // OpenAI 支持的尺寸: 1024x1024, 1792x1024, 1024x1792, 1536x1024, 1024x1536
     const mapping: Record<string, string> = {
         '1:1': '1024x1024',
-        '16:9': '1792x1024',
-        '9:16': '1024x1792',
-        '3:2': '1536x1024',
-        '2:3': '1024x1536',
+        '5:4': '1040x832',
+        '9:16': '720x1280',
+        '16:9': '1280x720',
+        '4:3': '1024x768',
+        '3:2': '1008x672',
+        '4:5': '832x1040',
+        '3:4': '768x1024',
+        '2:3': '672x1008',
+        '21:9': '1344x576',
     }
     return mapping[ratio] || undefined
+}
+
+function withOpenAICompatSize<T extends Record<string, unknown>>(options: T): T {
+    const aspectRatio = typeof options.aspectRatio === 'string' ? options.aspectRatio : undefined
+    const hasSize = typeof options.size === 'string' && options.size.trim().length > 0
+    const mappedSize = aspectRatioToOpenAISize(aspectRatio)
+    if (!mappedSize || hasSize) return options
+    return { ...options, size: mappedSize }
 }
 
 /**
@@ -111,6 +123,12 @@ export async function generateImage(
             throw new Error(`MODEL_COMPAT_MEDIA_TEMPLATE_REQUIRED: ${selection.modelKey}`)
         }
         if (compatTemplate) {
+            const templateOptions = withOpenAICompatSize({
+                ...generatorOptions,
+                provider: selection.provider,
+                modelId: selection.modelId,
+                modelKey: selection.modelKey,
+            })
             return await generateImageViaOpenAICompatTemplate({
                 userId,
                 providerId: selection.provider,
@@ -118,24 +136,15 @@ export async function generateImage(
                 modelKey: selection.modelKey,
                 prompt,
                 referenceImages,
-                options: {
-                    ...generatorOptions,
-                    provider: selection.provider,
-                    modelId: selection.modelId,
-                    modelKey: selection.modelKey,
-                },
+                options: templateOptions,
                 profile: 'openai-compatible',
                 template: compatTemplate,
             })
         }
 
         // OpenAI 兼容模式：将 aspectRatio 转换为 size
-        let openaiCompatOptions = { ...generatorOptions }
+        let openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
         if (openaiCompatOptions.aspectRatio) {
-            const mappedSize = aspectRatioToOpenAISize(openaiCompatOptions.aspectRatio)
-            if (mappedSize && !openaiCompatOptions.size) {
-                openaiCompatOptions = { ...openaiCompatOptions, size: mappedSize }
-            }
             // 移除不支持的 aspectRatio
             delete openaiCompatOptions.aspectRatio
         }

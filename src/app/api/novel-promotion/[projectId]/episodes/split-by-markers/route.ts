@@ -1,7 +1,7 @@
 import { logInfo as _ulogInfo } from '@/lib/logging/core'
 /**
  * 标识符分集 API
- * 根据检测到的分集标记直接切割文本，不调用 AI
+ * 根据检测到的分集标记直接切割文本，不调用模型
  */
 
 import { NextRequest, NextResponse } from 'next/server'

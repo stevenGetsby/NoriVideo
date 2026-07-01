@@ -8,6 +8,7 @@ import { pollAsyncTask } from '@/lib/async-poll'
 import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { processMediaResult } from '@/lib/media-process'
+import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
 import {
   getProjectModelConfig,
   getUserModelConfig,
@@ -214,6 +215,12 @@ export async function resolveImageSourceFromGeneration(
   if (typeof params.options?.resolution === 'string') {
     runtimeSelections.resolution = params.options.resolution
   }
+  if (typeof params.options?.aspectRatio === 'string') {
+    runtimeSelections.aspectRatio = params.options.aspectRatio
+  }
+  if (typeof params.options?.size === 'string') {
+    runtimeSelections.size = params.options.size
+  }
 
   const capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
     projectId: job.data.projectId,
@@ -222,23 +229,44 @@ export async function resolveImageSourceFromGeneration(
     modelKey: params.modelId,
     runtimeSelections,
   })
+  const normalizedReferenceImages = Array.isArray(params.options?.referenceImages)
+    ? await normalizeReferenceImagesForGeneration(params.options.referenceImages, {
+      context: {
+        projectId: job.data.projectId,
+        taskId: job.data.taskId,
+        usage: 'image_generation',
+      },
+    })
+    : undefined
+  const generationOptions = {
+    ...params.options,
+    ...(normalizedReferenceImages && normalizedReferenceImages.length > 0
+      ? { referenceImages: normalizedReferenceImages }
+      : {}),
+  }
+  if (normalizedReferenceImages && normalizedReferenceImages.length === 0) {
+    delete generationOptions.referenceImages
+  }
+  const finalGenerationOptions = {
+    ...capabilityOptions,
+    ...generationOptions,
+  }
 
   logger.info({
     message: 'image source generation calling generateImage',
     details: {
       model: params.modelId,
-      referenceImageCount: params.options?.referenceImages?.length ?? 0,
+      referenceImageCount: finalGenerationOptions.referenceImages?.length ?? 0,
       capabilityOptions,
-      optionKeys: Object.keys(params.options || {}),
+      aspectRatio: finalGenerationOptions.aspectRatio,
+      size: finalGenerationOptions.size,
+      optionKeys: Object.keys(finalGenerationOptions || {}),
     },
   })
 
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
-    () => generateImage(params.userId, params.modelId, params.prompt, {
-      ...params.options,
-      ...capabilityOptions,
-    }),
+    () => generateImage(params.userId, params.modelId, params.prompt, finalGenerationOptions),
   )
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')
@@ -338,6 +366,12 @@ export async function resolveImageSourcesFromGeneration(
   if (typeof params.options?.resolution === 'string') {
     runtimeSelections.resolution = params.options.resolution
   }
+  if (typeof params.options?.aspectRatio === 'string') {
+    runtimeSelections.aspectRatio = params.options.aspectRatio
+  }
+  if (typeof params.options?.size === 'string') {
+    runtimeSelections.size = params.options.size
+  }
 
   const capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
     projectId: job.data.projectId,
@@ -346,13 +380,32 @@ export async function resolveImageSourcesFromGeneration(
     modelKey: params.modelId,
     runtimeSelections,
   })
+  const normalizedReferenceImages = Array.isArray(params.options?.referenceImages)
+    ? await normalizeReferenceImagesForGeneration(params.options.referenceImages, {
+      context: {
+        projectId: job.data.projectId,
+        taskId: job.data.taskId,
+        usage: 'image_generation_multi',
+      },
+    })
+    : undefined
+  const generationOptions = {
+    ...params.options,
+    ...(normalizedReferenceImages && normalizedReferenceImages.length > 0
+      ? { referenceImages: normalizedReferenceImages }
+      : {}),
+  }
+  if (normalizedReferenceImages && normalizedReferenceImages.length === 0) {
+    delete generationOptions.referenceImages
+  }
+  const finalGenerationOptions = {
+    ...capabilityOptions,
+    ...generationOptions,
+  }
 
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
-    () => generateImage(params.userId, params.modelId, params.prompt, {
-      ...params.options,
-      ...capabilityOptions,
-    }),
+    () => generateImage(params.userId, params.modelId, params.prompt, finalGenerationOptions),
   )
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')

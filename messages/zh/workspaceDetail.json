@@ -9,7 +9,7 @@
   "episode": "剧集",
   "modelSetup": {
     "title": "开始创作前，请先配置默认模型",
-    "description": "当前账号还没有默认分析模型，智能分集和后续 AI 流程无法使用。请先完成默认模型配置。",
+    "description": "当前账号还没有默认分析模型，后续 AI 流程无法使用。规则分集可直接按明确集标题执行。",
     "configureNow": "立即配置分析模型",
     "goProfile": "前往个人设置",
     "modalTitle": "配置默认分析模型",

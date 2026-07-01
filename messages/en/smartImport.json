@@ -15,8 +15,8 @@
   "manualDesc": "Start from the first episode, suitable for serialized or single short video production",
   "startCreate": "Start Creating",
   "smartImport": {
-    "title": "Smart Text Split",
-    "description": "Upload a complete novel or script, AI engine automatically recognizes chapter structure and splits into episodes.",
+    "title": "Split Text by Headings",
+    "description": "Upload a complete novel or script. The system splits episodes by explicit headings such as Episode 1 / Episode 2.",
     "button": "Import Now",
     "recommended": "Recommended"
   },
@@ -24,11 +24,11 @@
     "enable": "Use Markers (Episode X / 第X集)",
     "tooltip": "Auto-detect [Episode X], [Chapter X], [第X集/章] markers, free & fast"
   },
-  "smartImportDesc": "Upload your novel or script, AI engine automatically identifies chapter structure for one-click smart episode splitting.",
+  "smartImportDesc": "Upload your novel or script. The system splits episodes by explicit episode headings.",
   "recommended": "Recommended",
   "importNow": "Import Now",
   "uploadTitle": "Upload Source Material",
-  "uploadSubtitle": "AI engine ready, one-click auto-split and format",
+  "uploadSubtitle": "Split and format by explicit episode headings",
   "maxWords": "Max 30,000 words",
   "textInput": "Enter Text Content",
   "textPlaceholder": "Paste your novel chapter or script content here...",
@@ -40,14 +40,14 @@
   "words": "words",
   "startAnalyzing": "Start Analysis",
   "analyzing": {
-    "title": "AI is Analyzing Your Story",
-    "description": "Recognizing chapter structure, smart splitting in progress...",
-    "autoSave": "Will auto-save after analysis complete"
+    "title": "Splitting Episodes by Headings",
+    "description": "Detecting explicit headings such as Episode 1 / Episode 2...",
+    "autoSave": "Will auto-save after splitting completes"
   },
-  "analyzingDesc": "Identifying chapter structure, smart splitting...",
-  "autoSave": "Will auto-save after analysis",
-  "splitComplete": "Smart Split Complete",
-  "splitResult": "Auto-split into {count} episodes, total {words} words",
+  "analyzingDesc": "Detecting explicit episode headings and splitting...",
+  "autoSave": "Will auto-save after splitting",
+  "splitComplete": "Rule-based Split Complete",
+  "splitResult": "Split into {count} episodes by heading, total {words} words",
   "saved": "Auto-saved",
   "reAnalyze": "Re-analyze",
   "confirmComplete": "Confirm Complete",
@@ -65,8 +65,8 @@
   "confirmDelete": "Confirm Delete",
   "deleteConfirmMsg": "Are you sure you want to delete \"{title}\"?",
   "preview": {
-    "title": "Smart Splitting Complete",
-    "episodeCount": "Automatically split into {count} episodes",
+    "title": "Rule-based Splitting Complete",
+    "episodeCount": "Split into {count} episodes by heading",
     "totalWords": "Total {count} words",
     "autoSaved": "✓ Auto-saved",
     "reanalyze": "Re-analyze",
@@ -105,7 +105,7 @@
   "deleteEpisode": "Delete Episode",
   "upload": {
     "title": "Upload Raw Material",
-    "subtitle": "AI engine is ready, automatic episode splitting and formatting",
+    "subtitle": "Split and format by explicit episode headings",
     "maxWords": "(Max 30,000 words)",
     "textInput": "Enter Text Content",
     "documentUpload": "Upload Full Document",
@@ -144,8 +144,8 @@
     "preview": "Preview Split Result",
     "useMarker": "Use Marker Split",
     "useMarkerDesc": "Fast & Free",
-    "useAI": "Use AI Smart Split",
-    "useAIDesc": "Intelligent analysis, uses credits",
+    "useAI": "Split by Headings",
+    "useAIDesc": "Fast rule-based splitting, no model call",
     "cancel": "Cancel",
     "totalCount": "{count} episodes total",
     "markerTypes": {

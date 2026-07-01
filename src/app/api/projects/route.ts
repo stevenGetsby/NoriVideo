@@ -24,6 +24,7 @@ import {
   normalizeProjectCreationConfig,
   type ProjectCreationConfig,
 } from '@/lib/projects/creation-config'
+import { logError, logInfo } from '@/lib/logging/core'
 
 function readProjectDraftBody(body: unknown): ProjectDraftInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -49,6 +50,27 @@ interface ParsedCreateProjectBody {
     pendingImportEpisodeName: string | null
   }
   config: ProjectCreationConfig
+}
+
+function startInitialProjectImport(input: { projectId: string; userId: string }): void {
+  void import('@/lib/novel-promotion/project-import-pipeline')
+    .then(({ runProjectImportPipeline }) => runProjectImportPipeline({
+      projectId: input.projectId,
+      userId: input.userId,
+    }))
+    .then((result) => {
+      logInfo('[Projects API] 初始剧本导入后台完成', {
+        projectId: input.projectId,
+        episodes: result.episodes.length,
+        assets: result.assets,
+      })
+    })
+    .catch((err) => {
+      logError('[Projects API] 初始剧本导入后台失败', {
+        projectId: input.projectId,
+        error: err,
+      })
+    })
 }
 
 function normalizeOptionalText(value: unknown, maxLength: number, field: string): string | null {
@@ -499,7 +521,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   await prisma.novelPromotionProject.create({
     data: {
       projectId: project.id,
-      importStatus: 'pending',
+      importStatus: initialImportDraft.pendingImportText ? 'pending' : null,
       pendingImportText: initialImportDraft.pendingImportText,
       pendingImportEpisodeName: initialImportDraft.pendingImportEpisodeName,
       ...(userPreference && {
@@ -525,6 +547,13 @@ export const POST = apiHandler(async (request: NextRequest) => {
       artStylePrompt: config.artStylePrompt,
     }
   })
+
+  if (initialImportDraft.pendingImportText) {
+    startInitialProjectImport({
+      projectId: project.id,
+      userId: session.user.id,
+    })
+  }
 
   return NextResponse.json({ project }, { status: 201 })
 })

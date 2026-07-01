@@ -9,7 +9,7 @@
   "episode": "Episode",
   "modelSetup": {
     "title": "Set up default models before starting",
-    "description": "No default analysis model is configured for this account. Smart split and downstream AI flows cannot run until it is set.",
+    "description": "No default analysis model is configured for this account. Downstream AI flows cannot run until it is set; rule-based splitting can still run from explicit episode headings.",
     "configureNow": "Configure Analysis Model",
     "goProfile": "Go to Profile Settings",
     "modalTitle": "Configure Default Analysis Model",

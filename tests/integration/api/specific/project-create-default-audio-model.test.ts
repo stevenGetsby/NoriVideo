@@ -69,6 +69,9 @@ describe('api specific - project create default audio model', () => {
     expect(prismaMock.novelPromotionProject.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         projectId: 'project-1',
+        importStatus: null,
+        pendingImportText: null,
+        pendingImportEpisodeName: null,
         audioModel: 'audio::tts',
       }),
     })

@@ -2,6 +2,7 @@ import { TASK_TYPE, type TaskType } from '@/lib/task/types'
 
 const NON_AI_TASK_TYPES: ReadonlySet<TaskType> = new Set<TaskType>([
   TASK_TYPE.EXPORT_DELIVERY,
+  TASK_TYPE.EPISODE_SPLIT_LLM,
 ])
 
 const AI_TASK_TYPES: ReadonlySet<TaskType> = new Set<TaskType>(

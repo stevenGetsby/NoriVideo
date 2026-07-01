@@ -40,6 +40,25 @@ function buildMedicalFiftyShotFixture() {
   return parts.join('\n')
 }
 
+function expectPreciseSegmentPrompt(text: string | undefined) {
+  expect(text).toBeTruthy()
+  expect(text).toMatch(/^S\d{2}-SEG\d{2}\n/)
+  expect(text).toContain('◎ 参考资产')
+  expect(text).toContain('◎ 输出参数')
+  expect(text).toContain('◈ 一致性控制')
+  expect(text).toContain('◈ 视频提示词')
+  expect(text).toContain('开场状态：')
+  expect(text).toContain('站位关系：')
+  expect(text).toContain('Shot 1')
+  expect(text).toContain('duration:')
+  expect(text).toContain('镜头：')
+  expect(text).toContain('画面：')
+  expect(text).toContain('光影：')
+  expect(text).toContain('【本分镜负面要求】')
+  expect(text).not.toContain('剧情片段：')
+  expect(text).not.toContain('角色行为拆分：')
+}
+
 describe('short-drama Agent fast path', () => {
   const shortDramaBriefPrompt = [
     '请用 Agent 自动创作模式生成一支 9:16 欧美医疗短剧转绘视频，真实真人短剧质感，英文口型，不要中文字幕，不要背景音乐。',
@@ -80,12 +99,10 @@ describe('short-drama Agent fast path', () => {
       'Nurse Sarah',
       'Dr. Carter',
     ])
-    expect(result.clipList[0].content).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(result.clipList[0].content)
     expect(result.clipList[0].content).not.toContain('【短剧角色资产保持不变】')
-    expect(result.clipList[0].content).toContain('本分镜使用资产：角色=Ava、Dr. Grayson、Nurse Sarah')
-    expect(result.clipList[0].content).toContain('人物站位：')
-    expect(result.clipList[0].content).toMatch(/\n0-\d+s：/)
-    expect(result.clipList[0].content).toContain('【本分镜负面要求】')
+    expect(result.clipList[0].content).toContain('角色\nAva')
+    expect(result.clipList[0].content).toMatch(/\nShot 2\n/)
   })
 
   it('script-to-storyboard keeps refined brief clips as final video-ready panels', async () => {
@@ -134,16 +151,11 @@ describe('short-drama Agent fast path', () => {
     expect(storyboardResult.summary.totalPanelCount).toBe(storyResult.summary.clipCount)
     expect(storyboardResult.clipPanels[0].finalPanels).toHaveLength(1)
     const firstPanel = storyboardResult.clipPanels[0].finalPanels[0]
-    expect(firstPanel.video_prompt).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(firstPanel.video_prompt)
     expect(firstPanel.video_prompt).not.toContain('【短剧角色资产保持不变】')
-    expect(firstPanel.video_prompt).toContain('本分镜使用资产：角色=Ava、Dr. Grayson、Nurse Sarah')
-    expect(firstPanel.video_prompt).toContain('镜头语言：')
     expect(firstPanel.video_prompt).toContain('英文口型同步')
-    expect(firstPanel.video_prompt).toContain('角色行为拆分：Ava')
     expect(firstPanel.video_prompt).not.toContain('本 panel 角色行为约束')
-    expect(firstPanel.video_prompt).toMatch(/\n0-\d+s：中景/)
-    expect(firstPanel.video_prompt).toMatch(/\n\d+-\d+s：近景或越肩/)
-    expect(firstPanel.video_prompt).not.toContain('2-3s：近景或越肩')
+    expect(firstPanel.video_prompt).toMatch(/\nShot 2\n/)
     expect(firstPanel.duration).toBeGreaterThan(1)
   })
 
@@ -170,7 +182,7 @@ describe('short-drama Agent fast path', () => {
     expect(llmCalls).toBe(0)
     expect(result.summary.clipCount).toBe(15)
     expect(result.summary.screenplayFailedCount).toBe(0)
-    expect(result.clipList[0].content).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(result.clipList[0].content)
     expect(result.clipList[0].content).not.toContain('来源镜头：SH001-SH004')
     expect(result.clipList[14].content).not.toContain('来源镜头：SH048-SH050')
     expect(result.analyzedCharacters.map((item) => item.name)).toContain('Ava')
@@ -258,16 +270,17 @@ describe('short-drama Agent fast path', () => {
       'Nurse Sarah',
       'Dr. Carter',
     ])
-    expect(storyResult.clipList[0].content).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(storyResult.clipList[0].content)
     expect(storyResult.clipList[0].content).not.toContain('来源镜头：SH001-SH004')
-    expect(storyResult.clipList[0].content).toContain('人物站位：Ava、Dr. Grayson')
-    expect(storyResult.clipList[0].content).not.toMatch(/人物站位：[^\n]*Dr\. Carter/)
+    expect(storyResult.clipList[0].content).toContain('Ava')
+    expect(storyResult.clipList[0].content).toContain('Dr. Grayson')
     expect(storyResult.clipList[0].content).toContain('英文口型同步')
     expect(storyResult.clipList[0].content).toContain('不要生成中文字幕')
     expect(storyResult.clipList[0].content).toContain('不要生成背景音乐')
-    expect(storyResult.clipList[0].content).toMatch(/\n0-\d+s：/)
+    expect(storyResult.clipList[0].content).toMatch(/\nShot 2\n/)
     expect(storyResult.clipList[14].content).not.toContain('来源镜头：SH048-SH050')
-    expect(storyResult.clipList[14].content).toContain('人物站位：Ava、Dr. Grayson')
+    expect(storyResult.clipList[14].content).toContain('Ava')
+    expect(storyResult.clipList[14].content).toContain('Dr. Grayson')
 
     const storyboardResult = await runScriptToStoryboardOrchestrator({
       clips: storyResult.clipList.map((clip) => ({
@@ -297,16 +310,13 @@ describe('short-drama Agent fast path', () => {
     expect(storyboardResult.clipPanels).toHaveLength(15)
     expect(storyboardResult.summary.totalPanelCount).toBe(15)
     const firstPanel = storyboardResult.clipPanels[0].finalPanels[0]
+    expectPreciseSegmentPrompt(firstPanel.video_prompt)
     expect(firstPanel.video_prompt).not.toContain('来源镜头：SH001-SH004')
-    expect(firstPanel.video_prompt).toContain('严格执行本 video_prompt')
-    expect(firstPanel.video_prompt).toContain('角色行为拆分：Ava')
     expect(firstPanel.video_prompt).not.toContain('本 panel 角色行为约束')
-    expect(firstPanel.video_prompt).toMatch(/\n0-\d+s：中景/)
-    expect(firstPanel.video_prompt).toMatch(/\n\d+-\d+s：近景或越肩/)
-    expect(firstPanel.video_prompt).not.toContain('2-3s：近景或越肩')
+    expect(firstPanel.video_prompt).toMatch(/\nShot 2\n/)
     const finalPanelText = storyboardResult.clipPanels[14].finalPanels.map((panel) => panel.video_prompt).join('\n')
     expect(finalPanelText).not.toContain('来源镜头：SH048-SH050')
-    expect(finalPanelText).toContain('角色行为拆分：')
+    expect(finalPanelText).toContain('Shot 1')
   })
 
   it('Agent story package turns a short fairy-tale prompt into asset-bound video-ready panels', async () => {
@@ -347,16 +357,15 @@ describe('short-drama Agent fast path', () => {
       expect.arrayContaining(['月亮灯', '树叶', '小水坑']),
     )
     expect(storyResult.analyzedLocations.map((item) => item.name)).toContain('夜晚童话森林')
-    expect(storyResult.clipList[0].content).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(storyResult.clipList[0].content)
     expect(storyResult.clipList[0].content).not.toContain('【Agent 视频分镜提示词】')
-    expect(storyResult.clipList[0].content).toContain('本分镜使用资产：')
-    expect(storyResult.clipList[0].content).toContain('角色行为拆分：小兔子')
-    expect(storyResult.clipList[0].content).toContain('人物站位：')
-    expect(storyResult.clipList[0].content).toMatch(/\n0-\d+s：/)
+    expect(storyResult.clipList[0].content).toContain('角色\n小兔子')
+    expect(storyResult.clipList[0].content).toMatch(/\nShot 2\n/)
     expect(storyResult.clipList[0].content).toContain('不要把剧情道具改成商品卖点')
     expect(storyResult.clipList.join('\n')).not.toMatch(/少男|少女|young man|young woman/i)
     const rescueClip = storyResult.clipList.find((clip) => clip.props.includes('树叶'))
-    expect(rescueClip?.content).toContain('角色行为拆分：小兔子')
+    expectPreciseSegmentPrompt(rescueClip?.content)
+    expect(rescueClip?.content).toContain('小兔子')
     expect(rescueClip?.content).toContain('萤火虫')
     expect(rescueClip?.props).toEqual(expect.arrayContaining(['树叶', '小水坑']))
     const moonLampClip = storyResult.clipList.find((clip) => clip.content.includes('月亮灯'))
@@ -396,12 +405,10 @@ describe('short-drama Agent fast path', () => {
     })
     expect(storyboardResult.summary.totalPanelCount).toBe(storyResult.summary.clipCount)
     expect(storyboardResult.clipPanels[0].finalPanels).toHaveLength(1)
-    expect(firstPanel.video_prompt).toMatch(/^场景：/)
+    expectPreciseSegmentPrompt(firstPanel.video_prompt)
     expect(firstPanel.video_prompt).not.toContain('【Agent 视频分镜提示词】')
-    expect(firstPanel.video_prompt).toContain('严格执行本 video_prompt')
-    expect(firstPanel.video_prompt).toContain('角色行为拆分：小兔子')
     expect(firstPanel.video_prompt).not.toContain('本分镜使用资产：角色=小兔子；场景=夜晚童话森林；道具=无独立关键道具，仅使用场景内自然元素。\n本分镜使用资产：')
-    expect(firstPanel.video_prompt).toMatch(/\n0-\d+s：/)
+    expect(firstPanel.video_prompt).toContain('小兔子')
     expect(firstPanel.photographyPlan?.atmosphere).toContain('童话')
     expect(firstPanelAssetUsage.characters.map((item) => item.name)).toContain('小兔子')
     expect(firstPanelAssetUsage.locations).toContain('夜晚童话森林')
@@ -409,7 +416,8 @@ describe('short-drama Agent fast path', () => {
     const rescuePanel = storyboardResult.clipPanels
       .flatMap((clip) => clip.finalPanels)
       .find((panel) => (panel.video_prompt || '').includes('树叶') && (panel.video_prompt || '').includes('小水坑'))
-    expect(rescuePanel?.video_prompt).toContain('角色行为拆分：小兔子')
+    expectPreciseSegmentPrompt(rescuePanel?.video_prompt)
+    expect(rescuePanel?.video_prompt).toContain('小兔子')
     expect(rescuePanel?.video_prompt).toContain('萤火虫')
     const rescueAssetUsage = getPanelAssetUsage({
       characters: rescuePanel?.characters,
@@ -450,7 +458,7 @@ describe('short-drama Agent fast path', () => {
     })
 
     expect(storyResult.analyzedLocations[0].summary).toContain('现代美国私立医院')
-    expect(storyResult.clipList[0].content).toContain('英文/欧美故事必须使用国外场景')
+    expect(storyResult.clipList[0].content).toContain('英文/欧美故事必须保持国外场景')
     expect(storyResult.clipList[0].content).toContain('英文环境标识')
     expect(storyResult.clipList[0].content).toContain('不要变成亚洲场景')
   })
@@ -499,12 +507,12 @@ describe('short-drama Agent fast path', () => {
     expect(storyResult.analyzedProps.map((item) => item.name)).toContain('手术安排文件')
     expect(allClipText).not.toContain('Ava：年轻美国女性')
     expect(allClipText).not.toContain('Dr. Grayson：美国男外科医生')
-    expect(allClipText).toContain('角色行为拆分：')
+    expect(allClipText).toContain('角色行为：')
     expect(allClipText).toContain('英文口型同步')
     expect(allClipText).toContain('不要生成中文字幕')
     expect(allClipText).toContain('不要生成背景音乐')
-    expect(allClipText).toMatch(/\n0-\d+s：/)
-    expect(allClipText).toMatch(/2-\d+s：/)
+    expect(allClipText).toMatch(/\nShot 1\n/)
+    expect(allClipText).toMatch(/\nduration: \d+\.\d+s/)
     expect(allClipText).toContain('【本分镜负面要求】')
     expect(allClipText).toContain('不要变成亚洲场景')
 
@@ -541,9 +549,7 @@ describe('short-drama Agent fast path', () => {
       props: firstPanel.props,
     })
     expect(firstPanel.video_prompt).toContain('Ava')
-    expect(firstPanel.video_prompt).toContain('严格执行本 video_prompt')
-    expect(firstPanel.video_prompt).toContain('本分镜使用资产：角色=Ava')
-    expect(firstPanel.video_prompt).toContain('角色行为拆分：Ava')
+    expectPreciseSegmentPrompt(firstPanel.video_prompt)
     expect(firstPanel.video_prompt).toContain('英文口型同步')
     expect(firstPanel.video_prompt).toContain('不要生成中文字幕')
     expect(firstPanel.location).toContain('现代美国')
@@ -554,7 +560,8 @@ describe('short-drama Agent fast path', () => {
     const surgeryPanel = storyboardResult.clipPanels
       .flatMap((clip) => clip.finalPanels)
       .find((panel) => (panel.video_prompt || '').includes('Dr. Grayson') && (panel.video_prompt || '').includes('手术安排文件'))
-    expect(surgeryPanel?.video_prompt).toContain('角色行为拆分：')
+    expectPreciseSegmentPrompt(surgeryPanel?.video_prompt)
+    expect(surgeryPanel?.video_prompt).toContain('角色行为：')
     expect(surgeryPanel?.video_prompt).toMatch(/Dr\. Grayson：/)
   })
 })

@@ -3,7 +3,7 @@
  * when the backend has no real episodes/assets yet. Sourced from
  * .runtime/frameos-frontend-handoff captures.
  */
-import type { FosEpisode, FosAsset } from './useFosProject'
+import type { FosEpisode, FosAsset, FosAssetVariant } from './useFosProject'
 
 const EPISODE_TITLES: Array<[number, string, number]> = [
   [1, '雨夜出逃', 680], [2, '土地庙相遇', 606], [3, '被迫为妾', 657], [4, '入府受辱', 702],
@@ -43,13 +43,27 @@ export const demoEpisodes: FosEpisode[] = EPISODE_TITLES.map(([n, name, words]) 
   wordCount: words,
 }))
 
-function asset(id: string, name: string, type: string, description: string, prompt: string): FosAsset {
-  return { id, name, type, description, prompt, imageUrl: null, confirmed: true }
+function asset(id: string, name: string, type: string, description: string, prompt: string, extra?: { episodes?: string; variants?: FosAssetVariant[] }): FosAsset {
+  return { id, name, type, description, prompt, imageUrl: null, confirmed: true, episodes: extra?.episodes ?? null, variants: extra?.variants }
 }
 
 export const demoCharacters: FosAsset[] = [
-  asset('c1', '苏晚卿', '主角', '工农底层出身，后期成为豪门顶层督军夫人，正派主视角。性格外柔内刚、隐忍果决，被生母卖给恶霸张秃子后逃亡，被陆承煜所救入陆府，为养母陈阿婆复仇，与陆承煜并肩平定叛乱，成为督军夫人。原文别名：我、苏姨太、侧夫人、督军夫人。', '【整体美学】真人实拍摄影质感，自然皮肤毛孔与织物纹理，影棚级光影，35mm 胶片质地。\n\n【画面规格】角色设定图，"苏晚卿"。16:9 横版，纯白背景，平视视角。仅一个角色，画面中不得出现其他人物。'),
-  asset('c2', '陆承煜', '核心配角', '督军府嫡长子，外冷内热，救下逃亡的苏晚卿并娶为侧室，与其并肩平定叛乱。', '真人实拍质感，民国军装与便装两套，冷峻克制气质，纯白背景三视图。'),
+  asset('c1', '苏晚卿', '主角', '工农底层出身，后期成为豪门顶层督军夫人，正派主视角。性格外柔内刚、隐忍果决，被生母卖给恶霸张秃子后逃亡，被陆承煜所救入陆府，为养母陈阿婆复仇，与陆承煜并肩平定叛乱，成为督军夫人。原文别名：我、苏姨太、侧夫人、督军夫人。', '【整体美学】真人实拍摄影质感，自然皮肤毛孔与织物纹理，影棚级光影，35mm 胶片质地。\n\n【画面规格】角色设定图，"苏晚卿"。16:9 横版，纯白背景，平视视角。仅一个角色，画面中不得出现其他人物。', {
+    episodes: 'EP12–18 · 共7集',
+    variants: [
+      { label: '孤女逃亡时期', episodes: 'EP1–3 · 共3集', description: '相对主形象，服装换为靛蓝色粗布大襟短衫、黑色粗布长裤、黑布千层底布鞋，浑身湿透沾泥水，手臂有淤青，发型凌乱，面色惨白唇色发紫，其余外观特征保持不变。' },
+      { label: '陆府姨太时期', episodes: 'EP4–11 · 共8集', description: '相对主形象，服装换为藏青色粗棉布旗袍、黑布平跟鞋，服饰半旧有磨损，无贵重配饰，藏令牌与银簪，面色怯懦警惕，其余外观特征保持不变。' },
+      { label: '督军夫人时期', episodes: 'EP12–18 · 共7集', description: '相对主形象，服装换为月白色提花真丝旗袍、缎面高跟绣鞋，佩戴鎏金点翠首饰，妆容精致，神态雍容沉静，其余外观特征保持不变。' },
+      { label: '老年时期', episodes: 'EP19–30 · 共12集', description: '相对主形象，发色斑白挽髻、面有岁月纹理，着深绛色素缎旗袍、外罩深色绒披肩，神态慈和坚毅，其余外观特征保持不变。' },
+    ],
+  }),
+  asset('c2', '陆承煜', '核心配角', '督军府嫡长子，外冷内热，救下逃亡的苏晚卿并娶为侧室，与其并肩平定叛乱。', '真人实拍质感，民国军装与便装两套，冷峻克制气质，纯白背景三视图。', {
+    episodes: 'EP4–18 · 共15集',
+    variants: [
+      { label: '便装时期', episodes: 'EP4–11 · 共8集', description: '相对主形象，服装换为深灰色长衫、黑布鞋，气质温润内敛，其余外观特征保持不变。' },
+      { label: '老年时期', episodes: 'EP19–30 · 共12集', description: '相对主形象，鬓角染霜、面有刚毅纹理，着深色立领军常服，威严沉稳，其余外观特征保持不变。' },
+    ],
+  }),
   asset('c3', '沈曼柔', '核心配角', '陆府正室出身名门，表面温婉实则善妒阴狠，多次构陷苏晚卿。', '真人实拍质感，民国名门贵妇旗袍，精致妆容下藏阴鸷神态。'),
   asset('c4', '柳氏', '核心配角', '陆督军侧室，左右逢源，立场摇摆。', '真人实拍质感，民国姨太装扮。'),
   asset('c5', '陆承宇', '核心配角', '陆府次子，纨绔却重情义。', '真人实拍质感，民国公子哥装扮。'),

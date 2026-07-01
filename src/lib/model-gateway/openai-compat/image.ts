@@ -19,6 +19,15 @@ type OpenAIImageGenerateSize =
   | '512x512'
   | '1792x1024'
   | '1024x1792'
+  | '1040x832'
+  | '720x1280'
+  | '1280x720'
+  | '1024x768'
+  | '1008x672'
+  | '832x1040'
+  | '768x1024'
+  | '672x1008'
+  | '1344x576'
 
 const OPENAI_IMAGE_OPTION_KEYS = new Set([
   'provider',
@@ -81,6 +90,15 @@ function normalizeOpenAIImageSize(value: string | undefined): OpenAIImageGenerat
     || value === '512x512'
     || value === '1792x1024'
     || value === '1024x1792'
+    || value === '1040x832'
+    || value === '720x1280'
+    || value === '1280x720'
+    || value === '1024x768'
+    || value === '1008x672'
+    || value === '832x1040'
+    || value === '768x1024'
+    || value === '672x1008'
+    || value === '1344x576'
   ) {
     return value
   }

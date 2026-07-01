@@ -3,12 +3,15 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import type { AppIconName } from '@/components/ui/icons'
+import { ServiceRecordsModal, FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
 
 export type FosNavKey =
   | 'projects'
+  | 'screenwriter'
   | 'toolbox'
   | 'seedance'
   | 'assetHub'
@@ -26,16 +29,18 @@ interface NavItem {
 }
 
 const primaryNav: NavItem[] = [
-  { key: 'projects', label: '我的项目', href: '/projects', icon: 'folder' },
+  { key: 'projects', label: '我的作品', href: '/projects', icon: 'folder' },
+  { key: 'screenwriter', label: '编剧工作台', href: '/screenwriter', icon: 'edit' },
   { key: 'toolbox', label: '工具箱', href: '/toolbox', icon: 'settingsHexMinor' },
   { key: 'seedance', label: 'Seedance 2.0', href: '/seedance', icon: 'film', badge: 'HOT' },
   { key: 'assetHub', label: '资产库', href: '/asset-hub', icon: 'folderHeart' },
   { key: 'material', label: '素材库', href: '/material', icon: 'image' },
 ]
 
-const secondaryNav: NavItem[] = [
-  { key: 'records', label: '服务记录', href: '/service-records', icon: 'receipt' },
-  { key: 'feedback', label: '问题反馈', href: '/feedback', icon: 'infoCircle' },
+const secondaryNav: Array<{ key: 'records' | 'feedback' | 'updates'; label: string; icon: AppIconName }> = [
+  { key: 'records', label: '服务记录', icon: 'receipt' },
+  { key: 'feedback', label: '问题反馈', icon: 'infoCircle' },
+  { key: 'updates', label: '检查更新', icon: 'refresh' },
 ]
 
 interface Balance {
@@ -74,7 +79,7 @@ function BalancePill({ balance }: { balance: Balance }) {
             </div>
           </div>
           <div className="fos-bp-actions">
-            <button type="button" className="fos-btn fos-btn-primary fos-btn-sm flex-1" disabled title="充值入口已禁用（演示）">立即充值</button>
+            <button type="button" className="fos-btn fos-btn-sm flex-1" style={{ background: 'linear-gradient(180deg,#ffd770,#f3b73e)', color: '#5a3d05', fontWeight: 700, border: 'none' }} title="充值入口已禁用（演示）">立即充值</button>
             <Link href={{ pathname: '/service-records' }} className="fos-btn fos-btn-ghost fos-btn-sm flex-1">查看明细</Link>
           </div>
         </div>
@@ -115,6 +120,19 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
 function Sidebar({ activeKey }: { activeKey: FosNavKey }) {
   const { data: session } = useSession()
   const account = session?.user?.name || session?.user?.email?.split('@')[0] || 'xuyizhao'
+  const params = useSearchParams()
+  const initialPanel = ((): 'records' | 'feedback' | 'account' | null => {
+    const p = params?.get('panel')
+    return p === 'records' || p === 'feedback' || p === 'account' ? p : null
+  })()
+  const [modal, setModal] = useState<'records' | 'feedback' | 'account' | null>(initialPanel)
+  const [toast, setToast] = useState(false)
+
+  const onFooter = (key: 'records' | 'feedback' | 'updates') => {
+    if (key === 'updates') { setToast(true); return }
+    setModal(key)
+  }
+
   return (
     <aside className="fos-sidebar">
       <div className="fos-sidebar-header">
@@ -126,18 +144,28 @@ function Sidebar({ activeKey }: { activeKey: FosNavKey }) {
         {primaryNav.map((item) => <NavLink key={item.key} item={item} active={item.key === activeKey} />)}
       </nav>
       <div className="fos-sidebar-footer">
-        {secondaryNav.map((item) => <NavLink key={item.key} item={item} active={item.key === activeKey} />)}
-        <div className="fos-user-card">
+        {secondaryNav.map((item) => (
+          <button key={item.key} type="button" className="fos-nav-item" onClick={() => onFooter(item.key)}>
+            <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 truncate">{item.label}</span>
+          </button>
+        ))}
+        <button type="button" className="fos-user-card" onClick={() => setModal('account')}>
           <span className="fos-user-avatar"><AppIcon name="user" className="h-4 w-4" /></span>
           <span className="fos-user-meta">
             <span className="fos-user-name">{account}</span>
             <span className="fos-user-role">子账号</span>
           </span>
-          <button type="button" className="fos-user-logout" title="退出登录（演示已禁用）" disabled>
+          <span className="fos-user-logout" title="退出登录（演示已禁用）">
             <AppIcon name="logout" className="h-4 w-4" />
-          </button>
-        </div>
+          </span>
+        </button>
       </div>
+
+      {modal === 'records' ? <ServiceRecordsModal onClose={() => setModal(null)} /> : null}
+      {modal === 'feedback' ? <FeedbackModal onClose={() => setModal(null)} /> : null}
+      {modal === 'account' ? <AccountModal account={account} onClose={() => setModal(null)} /> : null}
+      {toast ? <UpdatesToast onDone={() => setToast(false)} /> : null}
     </aside>
   )
 }

@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import type { StoryboardPanel } from '@/lib/storyboard-phases'
 import { persistStoryboardsAndPanels } from '@/lib/workers/handlers/script-to-storyboard-helpers'
+import { buildPreciseSegmentVideoPrompt } from '@/lib/novel-promotion/short-drama-video-prompt'
 
 type Shot = {
   id: string
@@ -89,34 +90,6 @@ function dialogueLine(raw: string): string {
   return `对白： ${text}。`
 }
 
-function shotLanguage(shot: Shot): string {
-  return [
-    shot.fields['景别'],
-    shot.fields['机位'],
-    shot.fields['运镜'],
-  ].filter((item) => !isEmptyField(item)).join('')
-}
-
-function formatShotAction(shot: Shot, groupStart: number): string {
-  const start = Math.max(0, shot.start - groupStart)
-  const end = Math.max(start + 1, shot.end - groupStart)
-  const shotType = shot.fields['景别'] || '镜头'
-  const camera = shot.fields['机位'] || '平视'
-  const move = shot.fields['运镜'] || '固定'
-  const image = shot.fields['画面'] || shot.fields['起点'] || '按原始镜头稿推进画面'
-  const action = shot.fields['动作']
-  const expression = shot.fields['微表情']
-  const dialogue = dialogueLine(shot.fields['对白/字幕'] || '')
-  const lighting = shot.fields['光影']
-  return [
-    `${start}-${end}s：${shotType}，${camera}，${move}镜头。${image}。`,
-    !isEmptyField(action) ? `动作：${action}。` : '',
-    !isEmptyField(expression) ? `表情：${expression}。` : '',
-    dialogue,
-    !isEmptyField(lighting) ? `光影：${lighting}。` : '',
-  ].filter(Boolean).join('')
-}
-
 function groupCharacters(group: ShotGroup): string[] {
   const names = new Set<string>()
   for (const shot of group.shots) {
@@ -143,19 +116,54 @@ function buildVideoPrompt(group: ShotGroup): string {
   const sourceRange = `${first.id}-${last.id}`
   const scene = sceneSetting(group.sceneLocation)
   const characters = groupCharacters(group)
-  const languages = group.shots.map(shotLanguage).filter(Boolean).join('—')
-  const groupStart = first.start
-  const actionLines = group.shots.map((shot) => formatShotAction(shot, groupStart))
   const props = groupProps(group)
-  return [
-    `场景：${scene}。来源镜头：${sourceRange}。`,
-    characters.length > 0
-      ? `人物站位：${characters.join('、')} 按原始镜头稿中的前景、中景、背景关系站位，保持左右关系、视线方向和距离变化连续。`
-      : '人物站位：按原始镜头稿保持主体、前景遮挡、背景层次和视线方向连续。',
-    `镜头语言：${languages || '按原始镜头稿的景别、机位和运镜连续执行'}。镜头切换快但稳定，不手持乱晃。`,
-    ...actionLines,
-    '【本分镜负面要求】不要改写故事含义，不要替换角色资产，不要新增无关角色，不要把剧情道具改成商品卖点。角色脸部、发型、服装、体型、年龄气质必须全片一致，不串脸、不漂移。不要生成中文字幕，不要自动生成大段字幕。不要生成背景音乐，只保留必要环境声、脚步声、衣料摩擦声和道具声。所有可见说话角色必须英文口型同步准确，不要中文口型。必须使用现代美国医院场景、英文环境标识和欧美短剧语境，不要变成亚洲场景或中文标识环境。',
-  ].filter(Boolean).join('\n')
+  const durationSeconds = Math.max(2, Math.min(15, last.end - first.start))
+  return buildPreciseSegmentVideoPrompt({
+    segmentId: `S${String(group.groupIndex).padStart(2, '0')}-SEG01`,
+    location: group.sceneLocation,
+    sourceText: `${sourceRange}：${group.shots.map((shot) => shot.fields['动作'] || shot.fields['画面'] || shot.id).join('；')}`,
+    assets: {
+      characters: characters.map((name) => ({ name })),
+      props: props.map((name) => ({ name })),
+      environment: group.sceneLocation,
+    },
+    outputParams: {
+      durationSeconds,
+    },
+    openingState: {
+      environmentLine: `${scene}，按原始镜头稿开场，空间结构、入口方向、前景遮挡和环境声保持连续<环境底噪、脚步声、衣料摩擦声>。`,
+      blockingLines: [
+        characters.length > 0
+          ? `${characters.join('、')}：按原始镜头稿中的前景、中景、背景关系站位，保持左右关系、视线方向和距离变化连续。`
+          : '主体：按原始镜头稿保持主体、前景遮挡、背景层次和视线方向连续。',
+        props.length > 0 ? `${props.join('、')}：位于镜头稿指定位置，状态只随动作变化，不新增道具变体。` : '',
+      ].filter(Boolean),
+      lightingLine: first.fields['光影'] || '主光按原始镜头稿方向照亮主体动作区；角色脸部、手部和关键道具清晰。',
+    },
+    shots: group.shots.map((shot, index) => {
+      const shotType = shot.fields['景别'] || '中景'
+      const camera = shot.fields['机位'] || '平视'
+      const move = shot.fields['运镜'] || '固定'
+      const dialogue = dialogueLine(shot.fields['对白/字幕'] || '')
+      const sound = shot.fields['声音/剪辑']
+      return {
+        shotNumber: index + 1,
+        durationSeconds: Math.max(1, shot.end - shot.start),
+        cameraLine: `${shotType}，${camera}，${move}，标准 50mm，浅景深焦在动作主体，常速，稳定器固定。镜头从 ${shot.id} 的起始构图进入，保持原始站位和视线方向，最后落到该镜头动作结果。`,
+        frameLine: [
+          shot.fields['画面'] || '按原始镜头稿推进画面',
+          !isEmptyField(shot.fields['动作']) ? `动作：${shot.fields['动作']}` : '',
+          !isEmptyField(shot.fields['微表情']) ? `微表情：${shot.fields['微表情']}` : '',
+          dialogue,
+        ].filter(Boolean).join('；'),
+        lightingLine: shot.fields['光影'] || '主光稳定落在主体动作区；背景不过曝；关键表情和道具状态清晰。',
+        audioLines: [
+          dialogue ? dialogue : '',
+          !isEmptyField(sound) ? `<${sound}>` : '',
+        ].filter(Boolean),
+      }
+    }),
+  })
 }
 
 function parseStructuredShotScript(sourceText: string): { shots: Shot[]; groups: ShotGroup[] } {

@@ -118,6 +118,44 @@ describe('generator-api gateway routing', () => {
     expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
   })
 
+  it('maps aspect ratio to size for openai-compatible image templates', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'hfsy',
+      modelId: 'gpt-image-2',
+      modelKey: 'hfsy::gpt-image-2',
+      mediaType: 'image',
+      compatMediaTemplate: {
+        version: 1,
+        mediaType: 'image',
+        mode: 'sync',
+        create: { method: 'POST', path: '/v1/images/generations' },
+        response: { outputUrlPath: 'data[0].url' },
+      },
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'hfsy',
+      name: 'HFSY',
+      apiKey: 'hfsy-key',
+      gatewayRoute: 'openai-compat',
+    })
+    resolveModelGatewayRouteMock.mockReturnValueOnce('openai-compat')
+
+    const result = await generateImage('user-1', 'hfsy::gpt-image-2', 'draw cat', {
+      aspectRatio: '16:9',
+    })
+
+    expect(generateImageViaOpenAICompatTemplateMock).toHaveBeenCalledTimes(1)
+    expect(generateImageViaOpenAICompatTemplateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        options: expect.objectContaining({
+          aspectRatio: '16:9',
+          size: '1280x720',
+        }),
+      }),
+    )
+    expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
+  })
+
   it('routes official image requests to provider generator', async () => {
     resolveModelSelectionMock.mockResolvedValueOnce({
       provider: 'google',

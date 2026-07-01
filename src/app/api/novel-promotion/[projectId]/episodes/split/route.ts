@@ -1,11 +1,12 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
-import { apiHandler, ApiError } from '@/lib/api-errors'
+import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
-import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { submitTask } from '@/lib/task/submitter'
+import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 
 /**
- * AI 分集 API（任务化）
+ * 规则分集 API（任务化）：只按“第一集/第二集...”等显式标题切分。
  */
 export const POST = apiHandler(async (
   request: NextRequest,
@@ -26,17 +27,24 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  const asyncTaskResponse = await maybeSubmitLLMTask({
-    request,
+  const result = await submitTask({
     userId: session.user.id,
+    locale: resolveRequiredTaskLocale(request, body),
     projectId,
     type: TASK_TYPE.EPISODE_SPLIT_LLM,
     targetType: 'NovelPromotionProject',
     targetId: projectId,
-    routePath: `/api/novel-promotion/${projectId}/episodes/split`,
-    body: { content },
-    dedupeKey: `episode_split_llm:${projectId}:${content.length}`})
-  if (asyncTaskResponse) return asyncTaskResponse
+    payload: {
+      content,
+      displayMode: 'loading',
+      flowId: 'single:episode_split_rule',
+      flowStageIndex: 1,
+      flowStageTotal: 1,
+      flowStageTitle: '规则分集',
+    },
+    dedupeKey: `episode_split_rule:${projectId}:${content.length}`,
+    requestId: getRequestId(request),
+  })
 
-  throw new ApiError('INVALID_PARAMS')
+  return NextResponse.json(result)
 })

@@ -47,6 +47,11 @@ function resolveChainTestByTaskType(taskType: TaskType): string {
 
 function resolveApiContractByTaskType(taskType: TaskType): string {
   if (
+    taskType === 'episode_split_llm'
+  ) {
+    return 'tests/integration/api/contract/episode-split-route.test.ts'
+  }
+  if (
     taskType === 'analyze_novel'
     || taskType === 'story_to_script_run'
     || taskType === 'script_to_storyboard_run'
@@ -63,7 +68,6 @@ function resolveApiContractByTaskType(taskType: TaskType): string {
     || taskType === 'reference_to_character'
     || taskType === 'character_profile_confirm'
     || taskType === 'character_profile_batch_confirm'
-    || taskType === 'episode_split_llm'
     || taskType === 'asset_hub_ai_design_character'
     || taskType === 'asset_hub_ai_design_location'
     || taskType === 'asset_hub_ai_modify_character'

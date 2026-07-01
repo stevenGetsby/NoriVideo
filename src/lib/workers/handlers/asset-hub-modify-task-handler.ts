@@ -1,6 +1,6 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO } from '@/lib/constants'
+import { CHARACTER_ASSET_IMAGE_RATIO, LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO } from '@/lib/constants'
 import { type TaskJobData } from '@/lib/task/types'
 import {
   assertTaskActive,
@@ -138,7 +138,7 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
       prompt,
       options: {
         referenceImages,
-        aspectRatio: '3:2',
+        aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
         ...(resolution ? { resolution } : {}),
       },
     })

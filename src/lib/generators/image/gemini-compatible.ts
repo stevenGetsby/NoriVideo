@@ -1,4 +1,3 @@
-import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai'
 import { getProviderConfig } from '@/lib/api-config'
 import { getInternalBaseUrl } from '@/lib/env'
 import { getImageBase64Cached } from '@/lib/image-cache'
@@ -84,6 +83,7 @@ export class GeminiCompatibleImageGenerator extends BaseImageGenerator {
     }
     await setProxy()
 
+    const { GoogleGenAI, HarmBlockThreshold, HarmCategory } = await import('@google/genai')
     const ai = new GoogleGenAI({
       apiKey: providerConfig.apiKey,
       httpOptions: { baseUrl: providerConfig.baseUrl },

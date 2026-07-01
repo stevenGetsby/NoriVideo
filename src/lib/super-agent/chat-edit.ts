@@ -24,6 +24,7 @@ import {
   hasPanelVideoOutput,
 } from '@/lib/task/has-output'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
+import { buildPreciseBeatVideoPrompt } from '@/lib/novel-promotion/short-drama-video-prompt'
 
 type EditablePanel = {
   id: string
@@ -38,6 +39,25 @@ type EditablePanel = {
   videoPrompt: string | null
   srtSegment: string | null
   actingNotes: string | null
+}
+
+function parsePanelNameList(raw: string | null | undefined): string[] {
+  if (!raw) return []
+  try {
+    const parsed = JSON.parse(raw) as unknown
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => {
+        if (typeof item === 'string') return item.trim()
+        if (item && typeof item === 'object' && typeof (item as { name?: unknown }).name === 'string') {
+          return (item as { name: string }).name.trim()
+        }
+        return ''
+      }).filter(Boolean)
+    }
+  } catch {
+    // Fall through to delimiter parsing.
+  }
+  return raw.split(/[、,，/]/).map((item) => item.trim()).filter(Boolean)
 }
 
 type EditableEpisodeContext = {
@@ -456,13 +476,16 @@ function createMockEditPlan(
         action: 'insert',
         insertAfterPanelId: firstPanel.id,
         description: 'Agent 测试衔接分镜：承接上一镜头的视线方向，并为下一镜头保留动作入口。',
-        videoPrompt: [
-          '场景：沿用上一分镜的主要场景，保持角色、光线、空间方向一致。',
-          `承接上一个分镜：${firstPanel.description || firstPanel.videoPrompt || '上一动作'}`,
-          `衔接到下一个分镜：${secondPanel.description || secondPanel.videoPrompt || '下一动作'}`,
-          '镜头语言：固定中景建立空间连续性，再轻微推近到角色视线或手部动作，结尾留出进入下一镜头的动作方向。',
-          '负面要求：不要新增无关角色，不要改变故事核心因果，不要生成中文字幕。',
-        ].join('\n'),
+        videoPrompt: buildPreciseBeatVideoPrompt({
+          segmentId: `S01-SEG${String((firstPanel.panelNumber || firstPanel.panelIndex || 0) + 1).padStart(2, '0')}`,
+          location: firstPanel.location || secondPanel.location || '沿用上一分镜的主要场景',
+          beat: `承接上一个分镜：${firstPanel.description || '上一动作'}；衔接到下一个分镜：${secondPanel.description || '下一动作'}；保持角色、光线、空间方向一致，结尾留出进入下一镜头的动作方向。`,
+          durationSeconds: 4,
+          characters: parsePanelNameList(firstPanel.characters || secondPanel.characters).map((name) => ({ name })),
+          props: parsePanelNameList(firstPanel.props || secondPanel.props).map((name) => ({ name })),
+          sceneOpening: `${firstPanel.location || secondPanel.location || '沿用上一分镜的主要场景'}，承接上一分镜的空间方向、角色站位和光线，不改变故事核心因果<环境声延续、衣料摩擦声>。`,
+          lighting: '固定中景建立空间连续性，再轻微推近到角色视线或手部动作；主光方向承接上一分镜，结尾保留下一分镜入口。',
+        }),
         characters: firstPanel.characters || secondPanel.characters || '[]',
         location: firstPanel.location || secondPanel.location || undefined,
         props: firstPanel.props || secondPanel.props || undefined,

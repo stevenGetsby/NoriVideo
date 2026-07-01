@@ -3,6 +3,11 @@ import { runModelGatewayTextCompletion } from '@/lib/model-gateway/llm'
 import { createScopedLogger } from '@/lib/logging/core'
 import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
 import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
+import {
+  getTextLlmRuntimeInfo,
+  isDevelopmentTextLlmRuntime,
+  resolveTextLlmRuntime,
+} from '@/lib/llm/mode-config'
 
 type SuperAgentLlmOptions = {
   action?: string
@@ -59,13 +64,19 @@ export class SuperAgentLLMClient {
     const timeoutMs = Math.max(10_000, options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
     const action = options.action || 'super-agent.llm'
     const attempts: LlmAttempt[] = []
-    const projectConfig = options.projectId
-      ? await getProjectModelConfig(options.projectId, userId).catch(() => null)
-      : null
-    const userConfig = projectConfig ? null : await getUserModelConfig(userId).catch(() => null)
-    const selectedCandidates = [
-      projectConfig?.analysisModel?.trim() || userConfig?.analysisModel?.trim() || LUMINA_GPT55_MODEL_KEY,
-    ]
+    const textRuntime = resolveTextLlmRuntime()
+    let selectedCandidates: string[]
+    if (isDevelopmentTextLlmRuntime(textRuntime)) {
+      selectedCandidates = [getTextLlmRuntimeInfo(textRuntime).modelKey]
+    } else {
+      const projectConfig = options.projectId
+        ? await getProjectModelConfig(options.projectId, userId).catch(() => null)
+        : null
+      const userConfig = projectConfig ? null : await getUserModelConfig(userId).catch(() => null)
+      selectedCandidates = [
+        projectConfig?.analysisModel?.trim() || userConfig?.analysisModel?.trim() || LUMINA_GPT55_MODEL_KEY,
+      ]
+    }
 
     for (let index = 0; index < selectedCandidates.length; index += 1) {
       const model = selectedCandidates[index]

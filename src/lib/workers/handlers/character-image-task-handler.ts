@@ -14,7 +14,7 @@ import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-imag
 import { refreshProjectPanelReferenceAssets } from '@/lib/novel-promotion/refresh-panel-reference-assets'
 import {
   AnyObj,
-  generateProjectLabeledImageToStorage,
+  generateCleanImageToStorage,
   parseImageUrls,
   parseJsonStringArray,
   pickFirstString,
@@ -56,6 +56,9 @@ interface CharacterRecord {
 interface PrimaryAppearanceRecord {
   imageUrl: string | null
   imageUrls: string | null
+  description?: string | null
+  descriptions?: string | null
+  changeReason?: string | null
 }
 
 interface CharacterImageDb {
@@ -114,15 +117,19 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
 
   // 子形象（不是主形象）生成时，引用主形象图片保持一致性
   const primaryReferenceInputs: string[] = []
+  let primaryReferenceArchive = ''
   if (appearance.appearanceIndex > PRIMARY_APPEARANCE_INDEX) {
     const primaryAppearance = await db.characterAppearance.findFirst({
       where: {
         characterId: appearance.characterId,
         appearanceIndex: PRIMARY_APPEARANCE_INDEX,
       },
-      select: { imageUrl: true, imageUrls: true },
+      select: { imageUrl: true, imageUrls: true, description: true, descriptions: true, changeReason: true },
     })
     if (primaryAppearance) {
+      primaryReferenceArchive = extractCharacterArchiveForVariant(
+        parseJsonStringArray(primaryAppearance.descriptions)[0] || primaryAppearance.description || '',
+      )
       const primaryMainUrl = primaryAppearance.imageUrl
         ? toSignedUrlIfCos(primaryAppearance.imageUrl, 3600)
         : null
@@ -141,24 +148,30 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
 
   const imageUrls = parseImageUrls(appearance.imageUrls, 'characterAppearance.imageUrls')
   const nextImageUrls = [...imageUrls]
-  const label = `${characterName} - ${appearance.changeReason || '形象'}`
 
   for (let i = 0; i < indexes.length; i++) {
     const index = indexes[i]
     const raw = baseDescriptions[index] || baseDescriptions[0]
-    const prompt = artStyle ? `${addCharacterPromptSuffix(raw)}，${artStyle}` : addCharacterPromptSuffix(raw)
+    const promptBody = appearance.appearanceIndex > PRIMARY_APPEARANCE_INDEX
+      ? normalizeVariantImagePrompt({
+        raw,
+        characterName,
+        variantName: appearance.changeReason || '变体',
+        mainArchive: primaryReferenceArchive,
+      })
+      : raw
+    const prompt = artStyle ? `${addCharacterPromptSuffix(promptBody)}，${artStyle}` : addCharacterPromptSuffix(promptBody)
 
     await reportTaskProgress(job, 15 + Math.floor((i / Math.max(indexes.length, 1)) * 55), {
       stage: 'generate_character_image',
       index,
     })
 
-    const imageKey = await generateProjectLabeledImageToStorage({
+    const imageKey = await generateCleanImageToStorage({
       job,
       userId,
       modelId,
       prompt,
-      label,
       targetId: `${appearance.id}-${index}`,
       keyPrefix: 'character',
       options: {
@@ -171,6 +184,64 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
       nextImageUrls.push('')
     }
     nextImageUrls[index] = imageKey
+  }
+
+  function extractLegacyVariantChangeText(prompt: string): string {
+    const marker = '【变体变化】'
+    const markerIndex = prompt.indexOf(marker)
+    const body = markerIndex >= 0 ? prompt.slice(markerIndex + marker.length).trim() : prompt
+
+    const visualMarker = '视觉档案：'
+    const visualIndex = body.indexOf(visualMarker)
+    if (visualIndex >= 0) {
+      const lines = body.slice(visualIndex + visualMarker.length).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+      const changeLines: string[] = []
+      for (const line of lines) {
+        if (/^(世界背景|统一画风|近代|民国|院线|真人实拍)/.test(line)) break
+        if (/^(主体|面部|服装|配饰)[：:]/.test(line)) changeLines.push(line)
+      }
+      if (changeLines.length > 0) return changeLines.join('\n')
+    }
+
+    return body
+  }
+
+  function extractCharacterArchiveForVariant(prompt: string): string {
+    const archiveMarker = '【角色档案】'
+    const archiveIndex = prompt.indexOf(archiveMarker)
+    if (archiveIndex >= 0) {
+      return prompt
+        .slice(archiveIndex + archiveMarker.length)
+        .split('（不出现任何字幕')[0]
+        .trim()
+    }
+    const visualMarker = '视觉档案：'
+    const visualIndex = prompt.indexOf(visualMarker)
+    if (visualIndex >= 0) {
+      return extractLegacyVariantChangeText(prompt)
+    }
+    return prompt
+  }
+
+  function normalizeVariantImagePrompt(input: {
+    raw: string
+    characterName: string
+    variantName: string
+    mainArchive: string
+  }): string {
+    if (input.raw.includes('基于参考图生成角色变体设定图') && input.raw.includes('【变体变化】')) {
+      return input.raw
+    }
+    const changeText = extractLegacyVariantChangeText(input.raw)
+    return [
+      '基于参考图生成角色变体设定图，必须保持同一人物身份连续性：脸型、五官结构、身高体型、肤色、年龄感与主形象一致。',
+      `角色：${input.characterName}。变体：${input.variantName}。`,
+      '只改变变体要求中明确变化的服装、发型状态、面色、配饰状态，其余外观特征保持不变。',
+      '16:9 横版，纯白背景，平视视角。角色设定图，左40%为3/4侧角面部大特写，右60%为正面、侧面、背面三张等尺全身像横向排列。',
+      '仅一个角色，不出现其他人物；不出现任何字幕、文字、Logo、水印、UI；不裁切头顶或脚部。',
+      input.mainArchive ? `【主形象参考】\n${input.mainArchive}` : null,
+      `【变体变化】\n${changeText}`,
+    ].filter(Boolean).join('\n')
   }
 
   const selectedIndex = appearance.selectedIndex

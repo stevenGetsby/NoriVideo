@@ -56,6 +56,19 @@ interface PanelReferenceInput {
   maxProps?: number
 }
 
+interface StoryboardSegmentReferenceInput {
+  segment: {
+    characters?: Array<{ name: string }>
+    location?: string | null
+    props?: Array<{ name: string }>
+  }
+  characterAssets?: PanelReferenceSourceAsset[]
+  locationAssets?: PanelReferenceSourceAsset[]
+  maxCharacters?: number
+  maxLocations?: number
+  maxProps?: number
+}
+
 function compact(value: string | null | undefined): string {
   return (value || '').replace(/\s+/g, ' ').trim()
 }
@@ -82,7 +95,7 @@ function splitAssetNames(value: string): string[] {
     .split(/[、,，/]/)
     .map((item) => compact(item))
     .filter(Boolean)
-    .filter((item) => !/^无独立/.test(item))
+    .filter((item) => !item.startsWith('无独立'))
 }
 
 function normalizeMatchName(value: string): string {
@@ -190,53 +203,6 @@ export function replacePanelSeedanceReferenceAssetForCharacter(
   return JSON.stringify(record)
 }
 
-function extractPromptAssetNames(videoPrompt: string | null | undefined, label: string): string[] {
-  const text = videoPrompt || ''
-  const match = text.match(new RegExp(`${label}\\s*=\\s*([^；;\\n]+)`))
-  return match ? splitAssetNames(match[1] || '') : []
-}
-
-function extractPromptSceneText(videoPrompt: string | null | undefined): string {
-  const text = videoPrompt || ''
-  const match = text.match(/(?:^|\n)\s*场景[：:]\s*([^\n]+)/)
-  return compact(match?.[1] || '')
-}
-
-function sceneMatchTokens(value: string): string[] {
-  const normalized = compact(value).toLowerCase()
-  const tokens = new Set<string>()
-  for (const match of normalized.matchAll(/[a-z0-9][a-z0-9-]{2,}/g)) {
-    tokens.add(match[0])
-  }
-  const cjk = normalized.replace(/[^\u3400-\u9fff]/g, '')
-  for (let index = 0; index < cjk.length - 1; index += 1) {
-    tokens.add(cjk.slice(index, index + 2))
-  }
-  return Array.from(tokens)
-}
-
-function inferLocationNameFromSceneText(
-  sceneText: string,
-  assets: PanelReferenceSourceAsset[],
-): string | null {
-  const sceneTokens = sceneMatchTokens(sceneText)
-  if (sceneTokens.length === 0) return null
-
-  let best: { name: string; score: number } | null = null
-  for (const asset of assets) {
-    const name = compact(asset.name)
-    if (!name) continue
-    const source = [name, asset.summary || ''].join('\n')
-    const assetTokens = new Set(sceneMatchTokens(source))
-    const score = sceneTokens.reduce((sum, token) => sum + (assetTokens.has(token) ? 1 : 0), 0)
-    if (score > (best?.score || 0)) {
-      best = { name, score }
-    }
-  }
-
-  return best && best.score >= 2 ? best.name : null
-}
-
 function uniqueNames(values: string[]): string[] {
   const seen = new Set<string>()
   const result: string[] = []
@@ -279,28 +245,17 @@ function findAssetsByNames(
 
 export function buildPanelSeedanceReferenceAssets(input: PanelReferenceInput): PanelSeedanceReferenceAsset[] {
   const usage = getPanelAssetUsage(input.panel)
-  const promptCharacters = extractPromptAssetNames(input.panel.videoPrompt, '角色')
-  const promptLocations = extractPromptAssetNames(input.panel.videoPrompt, '场景')
-  const promptProps = extractPromptAssetNames(input.panel.videoPrompt, '道具')
   const locationAssets = input.locationAssets || []
   const realLocationAssets = locationAssets.filter((asset) => (asset.assetKind || 'location') !== 'prop')
   const propAssets = locationAssets.filter((asset) => asset.assetKind === 'prop')
-  const promptSceneLocation = inferLocationNameFromSceneText(
-    extractPromptSceneText(input.panel.videoPrompt),
-    realLocationAssets,
-  )
   const characterNames = uniqueNames([
     ...usage.characters.map((character) => character.name),
-    ...promptCharacters,
   ])
   const locationNames = uniqueNames([
-    promptSceneLocation || '',
     ...usage.locations,
-    ...promptLocations,
   ])
   const propNames = uniqueNames([
     ...usage.props,
-    ...promptProps,
   ])
 
   return [
@@ -308,6 +263,23 @@ export function buildPanelSeedanceReferenceAssets(input: PanelReferenceInput): P
     ...findAssetsByNames('location', locationNames, realLocationAssets, input.maxLocations ?? 1),
     ...findAssetsByNames('prop', propNames, propAssets, input.maxProps ?? 3),
   ]
+}
+
+export function buildStoryboardSegmentSeedanceReferenceAssets(
+  input: StoryboardSegmentReferenceInput,
+): PanelSeedanceReferenceAsset[] {
+  return buildPanelSeedanceReferenceAssets({
+    panel: {
+      characters: input.segment.characters?.map((character) => character.name) || [],
+      location: input.segment.location || '',
+      props: input.segment.props?.map((prop) => prop.name) || [],
+    },
+    characterAssets: input.characterAssets,
+    locationAssets: input.locationAssets,
+    maxCharacters: input.maxCharacters,
+    maxLocations: input.maxLocations,
+    maxProps: input.maxProps,
+  })
 }
 
 export function buildSeedanceReferenceImageContentItems(

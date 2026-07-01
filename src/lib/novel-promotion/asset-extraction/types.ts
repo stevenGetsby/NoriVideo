@@ -14,6 +14,13 @@ export type CharacterVisualProfile = {
   accessories: string
 }
 
+export type CharacterPeriodFacts = {
+  identity: string
+  socialStatus: string
+  plotState: string
+  explicitVisualCues: string[]
+}
+
 export type CharacterVariant = {
   id: string
   name: string
@@ -21,8 +28,22 @@ export type CharacterVariant = {
     start: number
     end: number
   }
+  facts: CharacterPeriodFacts
   backgroundDelta: string
   profileOverride: Partial<CharacterVisualProfile>
+  reason: string
+  evidence: SourceEvidence[]
+}
+
+export type CharacterMainAppearance = {
+  id: string
+  name: string
+  episodeRange: {
+    start: number
+    end: number
+  }
+  facts: CharacterPeriodFacts
+  profile: CharacterVisualProfile
   reason: string
   evidence: SourceEvidence[]
 }
@@ -33,6 +54,8 @@ export type CharacterAsset = {
   aliases: string[]
   importance: CharacterImportance
   background: string
+  mainAppearance: CharacterMainAppearance
+  /** Backward-compatible copy of mainAppearance.profile. */
   profile: CharacterVisualProfile
   variants: CharacterVariant[]
   relatedEpisodes: number[]

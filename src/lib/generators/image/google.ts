@@ -8,7 +8,6 @@ import { logInfo as _ulogInfo, logWarn as _ulogWarn } from '@/lib/logging/core'
  * - Imagen 4
  */
 
-import { GoogleGenAI, HarmCategory, HarmBlockThreshold } from '@google/genai'
 import { getInternalBaseUrl } from '@/lib/env'
 import { BaseImageGenerator, ImageGenerateParams, GenerateResult } from '../base'
 import { getProviderConfig } from '@/lib/api-config'
@@ -72,6 +71,7 @@ export class GoogleGeminiImageGenerator extends BaseImageGenerator {
         }
 
         await setProxy()
+        const { GoogleGenAI, HarmCategory, HarmBlockThreshold } = await import('@google/genai')
         const ai = new GoogleGenAI({ apiKey })
 
         // 构建内容数组
@@ -196,6 +196,7 @@ export class GoogleImagenGenerator extends BaseImageGenerator {
         } = options
 
         await setProxy()
+        const { GoogleGenAI } = await import('@google/genai')
         const ai = new GoogleGenAI({ apiKey })
 
         try {

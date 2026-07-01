@@ -5,6 +5,7 @@ import type { StoryboardPanel } from '@/lib/storyboard-phases'
 import fs from 'node:fs/promises'
 import JSZip from 'jszip'
 import {
+  buildPreciseBeatVideoPrompt,
   buildVideoPromptBlocks,
   parseShotSheetText,
   summarizeVideoPromptBeat,
@@ -72,17 +73,6 @@ const MAX_ASSETS = 40
 const MAX_CLIPS = 30
 const MAX_PANELS = 80
 const MAX_PROMPT_CHARS = 6000
-const CANONICAL_NEGATIVE_REQUIREMENTS = [
-  '不要改变故事核心因果，不要新增无关角色，不要把剧情道具改成商品卖点。',
-  '角色脸部、发型、服装、体型、年龄气质必须全片一致，不串脸、不漂移。',
-  '镜头必须服务动作、台词和情绪推进，不要只输出静态摆拍。',
-  '不要乱码文字，不要无意义字幕，不要过度美颜，不要塑料皮肤。',
-  '不要生成中文字幕，不要自动生成大段字幕。',
-  '不要生成背景音乐，只保留必要环境声、脚步声、衣料摩擦声和道具声。',
-  '所有可见说话角色必须英文口型同步准确，不要中文口型。',
-  '英文/欧美故事必须使用国外场景、英文环境标识和欧美生活语境，不要变成亚洲场景或中文标识环境。',
-  '结尾必须留出进入下一剧情片段的动作、视线或空间方向。',
-].join(' ')
 const LLM_JSON_RETRY_COUNT = 2
 const STAGE2_LLM_TIMEOUT_MS = 240_000
 const STAGE3_CLIP_LLM_TIMEOUT_MS = 90_000
@@ -448,21 +438,26 @@ function inferShotProps(shots: ShotSheetShot[]): string[] {
   return uniqueTextValues([...explicit, ...inferred]).slice(0, 12)
 }
 
-function isCanonicalVideoPrompt(content: string): boolean {
+function isPreciseSegmentVideoPrompt(content: string): boolean {
   const text = content.trim()
-  return text.startsWith('场景：')
-    && text.includes('\n剧情片段：')
-    && text.includes('\n执行要求：严格执行本 video_prompt')
-    && text.includes('\n本分镜使用资产：')
-    && text.includes('\n角色行为拆分：')
-    && text.includes('\n人物站位：')
-    && text.includes('\n镜头语言：')
+  return /^S\d{2}-SEG\d{2}\n/.test(text)
+    && text.includes('\n◎ 参考资产\n')
+    && text.includes('\n◎ 输出参数\n')
+    && text.includes('\n◈ 一致性控制\n')
+    && text.includes('\n◈ 视频提示词\n')
+    && text.includes('\n开场状态：\n')
+    && text.includes('\nShot 1\n')
+    && text.includes('\nduration: ')
     && text.includes('\n【本分镜负面要求】')
 }
 
 function extractVideoPromptSummary(prompt: string, fallback: string): string {
-  const match = prompt.match(/\n剧情片段：([^\n]+)/)
-  return truncate(compactText(match?.[1] || fallback), 700)
+  const body = prompt.match(/\n◈ 视频提示词\n\d+\s*字\n([\s\S]+)/)?.[1] || ''
+  const firstActionLine = body
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line && !/^(开场状态：|环境：|站位关系：|灯光：|Shot \d+|duration:|镜头：|画面：|光影：|【本分镜负面要求】)/.test(line))
+  return truncate(compactText(firstActionLine || fallback), 700)
 }
 
 function normalizeShotScriptText(rawText: string): string {
@@ -901,157 +896,38 @@ async function callWithTimeout<T>(params: {
   }
 }
 
-function hasTimedBeat(prompt: string): boolean {
-  return /\d+(?:\.\d+)?\s*[-—]\s*\d+(?:\.\d+)?\s*(?:s|秒)[：:，,]/i.test(prompt)
-}
-
 function normalizeVideoPrompt(rawPrompt: string, panel: Omit<NormalizedPanel, 'videoPrompt'>, clip: NormalizedClip): string {
   let prompt = rawPrompt
     .replace(/^```(?:text|markdown)?\s*/i, '')
     .replace(/\s*```$/g, '')
     .trim()
 
-  const sceneIndex = prompt.indexOf('场景：')
-  if (sceneIndex >= 0) prompt = prompt.slice(sceneIndex).trim()
+  const segmentIndex = prompt.search(/S\d{2}-SEG\d{2}\n/)
+  if (segmentIndex >= 0) prompt = prompt.slice(segmentIndex).trim()
 
   const disallowedSection = prompt.search(/\n(?:对应原文|画面描述|说明|解释|JSON)[：:]/)
   if (disallowedSection > 0) prompt = prompt.slice(0, disallowedSection).trim()
 
-  const characters = panel.characters.length > 0 ? panel.characters.join('、') : '无'
-  const props = panel.props.length > 0 ? panel.props.join('、') : '无'
+  if (isPreciseSegmentVideoPrompt(prompt)) {
+    return truncate(prompt, MAX_PROMPT_CHARS)
+  }
+
   const location = panel.location || clip.location || '按剧情锁定场景'
   const duration = panel.duration || clip.duration || 6
-
-  const requiredPrefix = [
-    `场景：${location}。`,
-    `剧情片段：${panel.summary || clip.summary}`,
-    '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-    `本分镜使用资产：角色=${characters}；场景=${location}；道具=${props}。`,
-  ]
-
-  if (!prompt.startsWith('场景：')) {
-    prompt = [
-      ...requiredPrefix,
-      `角色行为拆分：${characters === '无' ? '无固定角色；以场景、道具和镜头动作推进剧情。' : `${characters}：按剧情片段执行动作、反应和必要英文台词。`}`,
-      characters === '无'
-        ? '人物站位：无真人角色时，主体道具或场景行动占主画面，环境只服务剧情推进。'
-        : `人物站位：${characters} 按剧情关系形成清楚前景、中景、背景层次；说话者占主画面，听者可在前景边缘或背景虚化。`,
-      `镜头语言：${panel.shotType || '中景到近景'}，${panel.cameraMove || '固定镜头或轻微推近'}；镜头只服务动作、台词和情绪推进。`,
-      ...buildFallbackTimedLines(panel, clip, duration),
-    ].join('\n')
-  } else {
-    for (const line of requiredPrefix) {
-      const key = line.split('：')[0]
-      if (!prompt.includes(`${key}：`)) {
-        prompt = `${prompt}\n${line}`
-      }
-    }
-    if (!prompt.includes('角色行为拆分：')) {
-      prompt += `\n角色行为拆分：${characters === '无' ? '无固定角色；以场景、道具和镜头动作推进剧情。' : `${characters}：按剧情片段执行动作、反应和必要英文台词。`}`
-    }
-    if (!prompt.includes('人物站位：')) {
-      prompt += `\n人物站位：${characters === '无' ? '无真人角色时，主体道具或场景行动占主画面。' : `${characters} 按剧情关系形成清楚前景、中景、背景层次。`}`
-    }
-    if (!prompt.includes('镜头语言：')) {
-      prompt += `\n镜头语言：${panel.shotType || '中景到近景'}，${panel.cameraMove || '固定镜头或轻微推近'}；镜头只服务动作、台词和情绪推进。`
-    }
-    if (!hasTimedBeat(prompt)) {
-      prompt += `\n${buildFallbackTimedLines(panel, clip, duration).join('\n')}`
-    }
-  }
-
-  if (!prompt.includes('【本分镜负面要求】')) {
-    prompt += `\n【本分镜负面要求】 ${CANONICAL_NEGATIVE_REQUIREMENTS}`
-  }
-
-  return truncate(prompt, MAX_PROMPT_CHARS)
-}
-
-function stringifyScreenplayArray(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item) => typeof item === 'string' ? item.trim() : '')
-    .filter(Boolean)
-}
-
-function splitDialogueLine(line: string): { speaker: string; text: string } | null {
-  const match = line.match(/^([^:：]{1,40})[:：]\s*(.+)$/)
-  if (!match?.[1] || !match[2]) return null
-  return {
-    speaker: match[1].trim(),
-    text: match[2].trim().replace(/^["“”]+|["“”]+$/g, ''),
-  }
-}
-
-function distributeTimedRanges(duration: number, count: number): Array<{ start: number; end: number }> {
-  const segmentCount = Math.max(1, Math.min(5, count))
-  const ranges: Array<{ start: number; end: number }> = []
-  let cursor = 0
-  for (let index = 0; index < segmentCount; index += 1) {
-    const remainingSegments = segmentCount - index
-    const remainingDuration = duration - cursor
-    const length = index === segmentCount - 1
-      ? remainingDuration
-      : Math.max(1, Math.round(remainingDuration / remainingSegments))
-    const end = Math.min(duration, cursor + length)
-    ranges.push({ start: cursor, end })
-    cursor = end
-  }
-  return ranges.filter((range) => range.end > range.start)
-}
-
-function buildFallbackTimedLines(
-  panel: Omit<NormalizedPanel, 'videoPrompt'>,
-  clip: NormalizedClip,
-  duration: number,
-): string[] {
-  const beats = stringifyScreenplayArray(clip.screenplay.beats)
-  const dialogue = stringifyScreenplayArray(clip.screenplay.dialogue)
-  const steps: string[] = []
-
-  if (beats.length > 0) {
-    steps.push(...beats.slice(0, 4))
-  }
-  if (steps.length === 0) {
-    steps.push(panel.summary || clip.summary || clip.content)
-  }
-
-  const dialogueByIndex = dialogue
-    .slice(0, 4)
-    .map(splitDialogueLine)
-    .filter((item): item is { speaker: string; text: string } => Boolean(item))
-  const desiredCount = Math.max(2, Math.min(4, Math.max(steps.length, dialogueByIndex.length || 0)))
-  while (steps.length < desiredCount) {
-    steps.push(steps[steps.length - 1] || panel.summary || clip.summary)
-  }
-
-  const ranges = distributeTimedRanges(duration, desiredCount)
-  const dialogueByStep = new Map<number, { speaker: string; text: string }>()
-  for (let index = 0; index < dialogueByIndex.length; index += 1) {
-    const line = dialogueByIndex[index]
-    const speakerPattern = new RegExp(line.speaker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i')
-    const matchedStep = steps.findIndex((step) => speakerPattern.test(step))
-    const fallbackStep = dialogueByIndex.length === 1 ? ranges.length - 1 : Math.min(index, ranges.length - 1)
-    const stepIndex = matchedStep >= 0 ? matchedStep : fallbackStep
-    if (!dialogueByStep.has(stepIndex)) {
-      dialogueByStep.set(stepIndex, line)
-    }
-  }
-  return ranges.map((range, index) => {
-    const shot = index === 0
-      ? '中景，平视，固定镜头'
-      : index === ranges.length - 1
-        ? '特写或近景，平视，固定镜头'
-        : '近景或越肩，平视，轻微推近'
-    const beat = steps[index] || panel.summary || clip.summary
-    const dialogueLine = dialogueByStep.get(index)
-    const dialogueText = dialogueLine
-      ? ` 英文口型同步，说：${dialogueLine.speaker}: ${dialogueLine.text}。`
-      : index === 0
-        ? ''
-        : ' 如本拍需要台词，使用简短自然英文台词并保持英文口型同步。'
-    return `${range.start}-${range.end}s：${shot}。${beat}。${dialogueText}`.replace(/。。+/g, '。')
-  })
+  const beat = [prompt, panel.summary, clip.summary].map(compactText).find(Boolean) || '按当前剧情片段完成主体动作、台词、表情和情绪落点。'
+  return truncate(buildPreciseBeatVideoPrompt({
+    segmentId: `S${String(clip.index).padStart(2, '0')}-SEG${String(panel.panelIndex).padStart(2, '0')}`,
+    location,
+    beat,
+    durationSeconds: duration,
+    characters: panel.characters.map((name) => ({ name })),
+    props: panel.props.map((name) => ({ name })),
+    sceneOpening: `${location}，按当前剧情片段建立可拍摄空间，角色站位、道具位置、入口方向和环境声保持连续<环境声、脚步声、衣料摩擦声>。`,
+    lighting: `${panel.shotType || '中景到近景'} 与 ${panel.cameraMove || '固定或轻微推近'} 对应的主光保持稳定；动作主体、表情和关键道具清晰。`,
+    dialogueInstruction: /英文|English|Dr\.|Nurse|Ava/i.test(`${beat}\n${clip.content}`)
+      ? '如本片段需要台词，使用简短自然英文台词并保持英文口型同步。'
+      : '如本片段需要台词，使用简短自然台词并保持口型同步。',
+  }), MAX_PROMPT_CHARS)
 }
 
 function normalizePanel(value: unknown, clip: NormalizedClip, fallbackIndex: number): NormalizedPanel {
@@ -1144,20 +1020,32 @@ function buildStage3SystemPrompt(plan: AgentExecutionPlan): string {
     '  "panels": [{"clipIndex":1,"panelIndex":1,"summary":"本分镜剧情","location":"场景名","characters":["角色名"],"props":["道具名"],"shotType":"中景/近景/特写等","cameraMove":"固定/轻微推近等","duration":7,"video_prompt":"干净的视频提示词"}]',
     '}',
     'video_prompt 必须是纯文本，不要放 JSON，不要放“对应原文”“画面描述”“说明”。',
-    'video_prompt 必须包含这些段落：',
-    '场景：...',
-    '剧情片段：...',
-    '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-    '本分镜使用资产：角色=...；场景=...；道具=...。',
-    '角色行为拆分：...',
-    '人物站位：...',
-    '镜头语言：...',
-    '按秒拆分的动作/台词行：数量和时长由剧情自然推理，可以是一段、两段、三段或更多，不要固定 0-2/2-3/3-4。',
+    'video_prompt 必须复刻精细 Segment 结构，包含这些段落且顺序固定：',
+    'S01-SEG01',
+    '场景名',
+    '视频秒数',
+    '◎ 参考资产',
+    '角色 / 物品 / 环境',
+    '◎ 输出参数',
+    '视频模型 / 分辨率 / 视频秒数',
+    '◈ 一致性控制',
+    '◈ 视频提示词',
+    '开场状态：',
+    '环境：',
+    '站位关系：',
+    '灯光：',
+    'Shot 1',
+    'duration: 3.0s',
+    '镜头：景别、角度、运镜、焦段、景深、速度、稳定方式、镜头起点和落点。',
+    '画面：',
+    '角色动作、微表情、道具状态、台词或内心独白。',
+    '光影：主光、辅光、色温、阴影比例、高光细节。',
+    '<必要环境声或道具声>',
     '【本分镜负面要求】 ...',
     '规则：',
     '- 每个剧情片段可以生成 1-3 个分镜，由动作、台词、场景变化自然决定；不要机械平均。',
     '- duration 必须按台词和动作推理，范围 2-15 秒；如果剧情动作或台词超过 15 秒，必须拆成多个连续分镜。',
-    '- 每条按秒拆分必须推进动作、台词或情绪，不要静态摆拍。',
+    '- 每个 Shot 必须推进动作、台词、表情、道具状态或情绪，不要静态摆拍。',
     '- 需要台词时写简短自然英文台词并要求英文口型同步；用户要求不要中文字幕/不要背景音乐时必须遵守。',
     '- prompt 中提到的角色、场景、道具必须能在 assets 中找到，reference image 后续会由资产系统补充。',
     `项目视觉风格：${plan.projectConfig.artStylePrompt || plan.projectConfig.artStyle}`,
@@ -1538,7 +1426,7 @@ export async function persistAgentLlmStage3(params: {
   }
 
   const panels: NormalizedPanel[] = []
-  if (clips.every((clip) => isCanonicalVideoPrompt(clip.content))) {
+  if (clips.every((clip) => isPreciseSegmentVideoPrompt(clip.content))) {
     panels.push(...clips.map((clip) => ({
       clipIndex: clip.index,
       panelIndex: 1,

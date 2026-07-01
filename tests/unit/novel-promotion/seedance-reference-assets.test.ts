@@ -2,19 +2,16 @@ import { describe, expect, it } from 'vitest'
 import {
   buildPanelSeedanceReferenceAssets,
   buildSeedanceReferenceImageContentItems,
+  buildStoryboardSegmentSeedanceReferenceAssets,
 } from '@/lib/novel-promotion/seedance-reference-assets'
 
 describe('seedance reference asset helpers', () => {
-  it('builds character and scene reference images from panel fields and video_prompt asset line', () => {
+  it('builds character and scene reference images from structured panel fields', () => {
     const assets = buildPanelSeedanceReferenceAssets({
       panel: {
         characters: JSON.stringify(['Ava', 'Dr. Grayson']),
         location: '现代美国私立医院走廊',
         props: JSON.stringify(['手术安排文件']),
-        videoPrompt: [
-          '本分镜使用资产：角色=Ava、Dr. Grayson；场景=现代美国私立医院走廊，白色墙面配浅蓝色横向导视线；道具=手术安排文件。',
-          '0-2s：中景，平视过肩，固定镜头。Ava 站在 Dr. Grayson 面前。',
-        ].join('\n'),
       },
       characterAssets: [
         { name: 'Ava', imageUrl: 'https://cdn.example/ava.png' },
@@ -59,6 +56,31 @@ describe('seedance reference asset helpers', () => {
 
     expect(assets).toEqual([
       { kind: 'character', name: 'Nurse Sarah', imageUrl: 'https://cdn.example/sarah.png', role: 'reference_image' },
+    ])
+  })
+
+  it('builds reference images from new episode workflow segment assets', () => {
+    const assets = buildStoryboardSegmentSeedanceReferenceAssets({
+      segment: {
+        characters: [{ name: '苏晚卿' }, { name: '张秃子' }],
+        location: '张秃子家破旧柴房',
+        props: [{ name: '陈阿婆留的银簪' }],
+      },
+      characterAssets: [
+        { name: '苏晚卿', imageUrl: 'asset://char-su' },
+        { name: '张秃子', imageUrl: 'https://cdn.example/zhang.png' },
+      ],
+      locationAssets: [
+        { name: '张秃子家破旧柴房', assetKind: 'location', imageUrl: 'https://cdn.example/woodshed.png' },
+        { name: '陈阿婆留的银簪', assetKind: 'prop', imageUrl: 'https://cdn.example/hairpin.png' },
+      ],
+    })
+
+    expect(assets).toEqual([
+      { kind: 'character', name: '苏晚卿', imageUrl: 'asset://char-su', role: 'reference_image' },
+      { kind: 'character', name: '张秃子', imageUrl: 'https://cdn.example/zhang.png', role: 'reference_image' },
+      { kind: 'location', name: '张秃子家破旧柴房', imageUrl: 'https://cdn.example/woodshed.png', role: 'reference_image' },
+      { kind: 'prop', name: '陈阿婆留的银簪', imageUrl: 'https://cdn.example/hairpin.png', role: 'reference_image' },
     ])
   })
 })

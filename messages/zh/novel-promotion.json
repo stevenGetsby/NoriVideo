@@ -656,14 +656,14 @@
       "button": "开始创作"
     },
     "smartImport": {
-      "title": "智能全书导入",
-      "description": "上传整本小说或剧本，AI 引擎自动识别章节结构，一键完成智能分集。",
+      "title": "按标题导入全书",
+      "description": "上传整本小说或剧本，系统将按「第一集/第二集」等明确标题切分剧集。",
       "button": "立即导入",
       "recommended": "推荐"
     },
     "upload": {
       "title": "上传原始素材",
-      "subtitle": "AI 引擎已准备就绪，一键自动分集与格式化",
+      "subtitle": "按明确集标题自动分集与格式化",
       "maxWords": "（最大支持 3 万字）",
       "textInput": "输入文本内容",
       "documentUpload": "上传完整文档",
@@ -676,18 +676,18 @@
       "expandPreview": "展开更多",
       "collapsePreview": "收起预览",
       "deleteFile": "删除文件",
-      "startAnalysis": "开始智能分析",
+      "startAnalysis": "开始分集",
       "back": "返回",
       "words": "字"
     },
     "analyzing": {
-      "title": "AI 正在分析你的故事",
-      "description": "识别章节结构，智能分集中...",
-      "autoSave": "分析完成后将自动保存"
+      "title": "正在按标题切分剧集",
+      "description": "检测「第一集/第二集」等明确标题并分集中...",
+      "autoSave": "分集完成后将自动保存"
     },
     "preview": {
-      "title": "智能分集完成",
-      "episodeCount": "已为你自动分为 {count} 集",
+      "title": "规则分集完成",
+      "episodeCount": "已按标题分为 {count} 集",
       "totalWords": "总计 {count} 字",
       "autoSaved": "✓ 已自动保存",
       "reanalyze": "重新分析",
@@ -770,11 +770,11 @@
     "ready": "✓ 配置完成，可以进入下一步",
     "pleaseInput": "请先输入剧本内容",
     "longTextDetection": {
-      "title": "🚀 建议使用智能分集",
+      "title": "🚀 建议按标题分集",
       "description": "检测到文本约 {count} 字，长文本直接作为单集处理可能导致生成效果不佳。",
-      "strongRecommend": "强烈建议使用智能分集，AI 将自动识别章节结构，拆分为多集并行处理，显著提升生成质量和效率。",
+      "strongRecommend": "强烈建议先在正文中使用「第一集/第二集」等明确标题，系统会按标题拆分为多集并行处理，显著提升生成质量和效率。",
       "continueAnyway": "仍然单集创作",
-      "smartSplit": "智能分集",
+      "smartSplit": "按标题分集",
       "smartSplitRecommend": "推荐",
       "singleEpisodeWarning": "单集模式下，所有内容将作为一集处理"
     }

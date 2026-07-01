@@ -2,7 +2,10 @@ import path from 'node:path'
 import { createScopedLogger } from '@/lib/logging/core'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 
-type StorageHelpers = Pick<typeof import('@/lib/storage'), 'getSignedUrl' | 'toFetchableUrl'>
+type StorageHelpers = Pick<
+  typeof import('@/lib/storage'),
+  'generateUniqueKey' | 'getSignedObjectUrl' | 'toFetchableUrl' | 'uploadObject'
+>
 
 type InputIssueReason =
   | 'next_image_unwrapped'
@@ -88,8 +91,10 @@ let storageHelpersPromise: Promise<StorageHelpers> | null = null
 async function getStorageHelpers(): Promise<StorageHelpers> {
   if (!storageHelpersPromise) {
     storageHelpersPromise = import('@/lib/storage').then((mod) => ({
-      getSignedUrl: mod.getSignedUrl,
+      generateUniqueKey: mod.generateUniqueKey,
+      getSignedObjectUrl: mod.getSignedObjectUrl,
       toFetchableUrl: mod.toFetchableUrl,
+      uploadObject: mod.uploadObject,
     }))
   }
   return await storageHelpersPromise
@@ -278,14 +283,108 @@ function guessContentType(input: string, contentTypeHeader: string | null, buffe
   return MIME_BY_EXT[ext] || DEFAULT_CONTENT_TYPE
 }
 
+function extensionFromMimeType(mimeType: string): string {
+  const normalized = mimeType.split(';')[0]?.trim().toLowerCase()
+  if (normalized === 'image/png') return 'png'
+  if (normalized === 'image/jpeg' || normalized === 'image/jpg') return 'jpg'
+  if (normalized === 'image/webp') return 'webp'
+  if (normalized === 'image/gif') return 'gif'
+  return 'jpg'
+}
+
 async function signStorageKey(storageKey: string): Promise<string> {
-  const { getSignedUrl, toFetchableUrl } = await getStorageHelpers()
-  return toFetchableUrl(getSignedUrl(storageKey, SIGNED_URL_TTL_SECONDS))
+  const { getSignedObjectUrl, toFetchableUrl } = await getStorageHelpers()
+  const signedUrl = await getSignedObjectUrl(storageKey, SIGNED_URL_TTL_SECONDS)
+  return signedUrl.startsWith('/') ? toFetchableUrl(signedUrl) : signedUrl
 }
 
 async function toFetchableAbsoluteUrl(value: string): Promise<string> {
   const { toFetchableUrl } = await getStorageHelpers()
   return toFetchableUrl(value)
+}
+
+function resolveStorageKeyFromAppRoute(input: string): string | null {
+  const parsed = toUrlMaybe(input)
+  if (!parsed) return null
+
+  if (parsed.pathname === '/api/storage/sign') {
+    const key = parsed.searchParams.get('key')?.trim()
+    return key || null
+  }
+
+  if (parsed.pathname.startsWith('/api/files/')) {
+    const encodedKey = parsed.pathname.slice('/api/files/'.length)
+    if (!encodedKey) return null
+    try {
+      return decodeURIComponent(encodedKey).replace(/^\/+/, '') || null
+    } catch {
+      return encodedKey.replace(/^\/+/, '') || null
+    }
+  }
+
+  return null
+}
+
+function isLocalHttpUrl(value: string): boolean {
+  const parsed = toUrlMaybe(value)
+  if (!parsed || parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  const hostname = parsed.hostname.toLowerCase()
+  return hostname === 'localhost'
+    || hostname === '127.0.0.1'
+    || hostname === '0.0.0.0'
+    || hostname === '::1'
+}
+
+async function uploadImageBufferToStorage(buffer: Buffer, mimeType: string): Promise<string> {
+  const { generateUniqueKey, uploadObject } = await getStorageHelpers()
+  const key = generateUniqueKey('outbound-reference', extensionFromMimeType(mimeType))
+  const storageKey = await uploadObject(buffer, key, undefined, mimeType)
+  return await signStorageKey(storageKey)
+}
+
+async function uploadDataUrlToStorage(dataUrl: string): Promise<string> {
+  const marker = ';base64,'
+  const markerIndex = dataUrl.indexOf(marker)
+  if (markerIndex === -1) {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_UNSUPPORTED_INPUT',
+      stage: 'normalize_original',
+      input: dataUrl.slice(0, 80),
+      message: 'unsupported data URL without base64 payload',
+    })
+  }
+
+  const mimeType = dataUrl.slice(5, markerIndex) || 'image/png'
+  const base64 = dataUrl.slice(markerIndex + marker.length)
+  return await uploadImageBufferToStorage(Buffer.from(base64, 'base64'), mimeType)
+}
+
+async function uploadFetchableImageToStorage(input: string): Promise<string> {
+  const fetchUrl = await toFetchableAbsoluteUrl(input)
+  let response: Response
+  try {
+    response = await fetch(fetchUrl)
+  } catch {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_FETCH_EXCEPTION',
+      stage: 'normalize_original',
+      input,
+      message: `normalizeToPublicImageUrlForGeneration fetch exception: ${fetchUrl}`,
+    })
+  }
+
+  if (!response.ok) {
+    throw new OutboundImageNormalizeError({
+      code: 'OUTBOUND_IMAGE_FETCH_FAILED',
+      stage: 'normalize_original',
+      input,
+      message: `normalizeToPublicImageUrlForGeneration fetch failed (${response.status}): ${fetchUrl}`,
+    })
+  }
+
+  const buffer = Buffer.from(await response.arrayBuffer())
+  const mimeType = guessContentType(input, response.headers.get('content-type'), buffer)
+  return await uploadImageBufferToStorage(buffer, mimeType)
 }
 
 function unwrapNextImageInternal(input: string): string {
@@ -347,6 +446,11 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
     return await signStorageKey(unwrappedInput)
   }
 
+  const appRouteStorageKey = resolveStorageKeyFromAppRoute(unwrappedInput)
+  if (appRouteStorageKey) {
+    return await signStorageKey(appRouteStorageKey)
+  }
+
   const mediaRouteUrl = await normalizeMediaRouteUrl(unwrappedInput)
   if (mediaRouteUrl) {
     return mediaRouteUrl
@@ -384,6 +488,17 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
     input: unwrappedInput,
     message: `unsupported outbound image input: ${unwrappedInput}`,
   })
+}
+
+export async function normalizeToPublicImageUrlForGeneration(input: string): Promise<string> {
+  const normalizedUrl = await normalizeToOriginalMediaUrl(input)
+  if (isDataUrl(normalizedUrl)) {
+    return await uploadDataUrlToStorage(normalizedUrl)
+  }
+  if (normalizedUrl.startsWith('/') || isLocalHttpUrl(normalizedUrl)) {
+    return await uploadFetchableImageToStorage(normalizedUrl)
+  }
+  return normalizedUrl
 }
 
 export async function normalizeToBase64ForGeneration(input: string): Promise<string> {
@@ -462,7 +577,7 @@ export async function normalizeReferenceImagesForGeneration(
     candidateCount += 1
 
     try {
-      normalized.push(await normalizeToBase64ForGeneration(trimmed))
+      normalized.push(await normalizeToPublicImageUrlForGeneration(trimmed))
     } catch (error) {
       const issue = toNormalizationIssue(error, trimmed, index)
       options.onIssue?.(issue)

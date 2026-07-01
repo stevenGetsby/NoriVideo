@@ -17,6 +17,23 @@ describe('agent LLM storyboard pipeline normalization', () => {
     },
   } as any
 
+  function expectPreciseSegmentPrompt(text: string) {
+    expect(text).toMatch(/^S\d{2}-SEG\d{2}\n/)
+    expect(text).toContain('◎ 参考资产')
+    expect(text).toContain('◎ 输出参数')
+    expect(text).toContain('◈ 一致性控制')
+    expect(text).toContain('◈ 视频提示词')
+    expect(text).toContain('开场状态：')
+    expect(text).toContain('Shot 1')
+    expect(text).toContain('duration:')
+    expect(text).toContain('镜头：')
+    expect(text).toContain('画面：')
+    expect(text).toContain('光影：')
+    expect(text).toContain('【本分镜负面要求】')
+    expect(text).not.toContain('剧情片段：')
+    expect(text).not.toContain('角色行为拆分：')
+  }
+
   it('normalizes assets, clips, and clean variable-duration video prompts', () => {
     const stage2 = hooks.normalizeStage2Response(JSON.stringify({
       assets: {
@@ -79,15 +96,8 @@ describe('agent LLM storyboard pipeline normalization', () => {
           cameraMove: 'fixed with slight push-in',
           duration: 7,
           video_prompt: [
-            '场景：现代美国私立医院走廊。',
-            '剧情片段：Ava asks Dr. Grayson to arrange surgery.',
-            '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-            '本分镜使用资产：角色=Ava、Dr. Grayson；场景=modern American private hospital corridor；道具=surgery schedule document。',
-            '角色行为拆分：Ava：approaches with wet eyes and speaks softly；Dr. Grayson：listens without moving.',
-            '人物站位：Ava in foreground, Dr. Grayson in middle ground.',
-            '镜头语言：medium shot to close-up, fixed with slight push-in.',
-            '0-3s：medium shot, Ava steps closer and lifts the document.',
-            '3-7s：close-up, Ava says: "Please, doctor. She cannot wait." English lip sync.',
+            'Ava steps closer and lifts the surgery schedule document.',
+            'Ava says: "Please, doctor. She cannot wait." English lip sync.',
             '对应原文：this line must be stripped',
           ].join('\n'),
         },
@@ -98,9 +108,8 @@ describe('agent LLM storyboard pipeline normalization', () => {
     expect(stage2.clips).toHaveLength(1)
     expect(panels).toHaveLength(1)
     expect(panels[0].duration).toBe(7)
-    expect(panels[0].videoPrompt).toContain('0-3s：')
-    expect(panels[0].videoPrompt).toContain('3-7s：')
-    expect(panels[0].videoPrompt).toContain('【本分镜负面要求】')
+    expectPreciseSegmentPrompt(panels[0].videoPrompt)
+    expect(panels[0].videoPrompt).toMatch(/\nShot 2\n/)
     expect(panels[0].videoPrompt).not.toContain('对应原文')
   })
 
@@ -136,23 +145,13 @@ describe('agent LLM storyboard pipeline normalization', () => {
         characters: ['Ava'],
         props: ['surgery document'],
         duration: 6,
-        video_prompt: [
-          '场景：hospital corridor。',
-          '剧情片段：Ava proves the record was changed.',
-          '执行要求：严格执行本 video_prompt，不要改写故事含义，不要替换角色资产，不要把本分镜简化成单张静态图。',
-          '本分镜使用资产：角色=Ava；场景=hospital corridor；道具=surgery document。',
-          '角色行为拆分：Ava flips the document and points to the timestamp.',
-          '人物站位：Ava stands in the foreground.',
-          '镜头语言：close-up, fixed.',
-          '按秒拆分的动作/台词行：0-1.5秒，Ava翻开文件；1.5-4秒，Ava英文口型同步说：Someone changed the record；4-6秒，Ava指向时间戳。',
-          '【本分镜负面要求】不要中文字幕，不要背景音乐。',
-        ].join('\n'),
+        video_prompt: 'Ava flips the document, points to the timestamp, and says: Someone changed the record.',
       }],
     }), stage2.clips)
 
-    expect(panels[0].videoPrompt.match(/\n0-2s：/g)).toBeNull()
-    expect(panels[0].videoPrompt).toContain('0-1.5秒')
-    expect(panels[0].videoPrompt).toContain('4-6秒')
+    expectPreciseSegmentPrompt(panels[0].videoPrompt)
+    expect(panels[0].videoPrompt).toMatch(/\nShot 2\n/)
+    expect(panels[0].videoPrompt).toContain('Someone changed the record')
   })
 
   it('generates validated SH shot script before building video prompts from a short story', async () => {
@@ -237,8 +236,8 @@ describe('agent LLM storyboard pipeline normalization', () => {
     expect(validation.shots).toHaveLength(5)
     expect(stage2?.clips.length).toBeGreaterThan(0)
     expect(Math.max(...(stage2?.clips.map((clip: any) => clip.duration) || [0]))).toBeLessThanOrEqual(15)
-    expect(stage2?.clips[0].content).toContain('执行要求：严格执行本 video_prompt')
-    expect(stage2?.clips[0].content).toContain('本分镜使用资产：')
+    expectPreciseSegmentPrompt(stage2?.clips[0].content || '')
+    expect(stage2?.clips[0].content).toContain('◎ 参考资产')
     expect(stage2?.clips[0].content).toContain('【本分镜负面要求】')
   })
 })

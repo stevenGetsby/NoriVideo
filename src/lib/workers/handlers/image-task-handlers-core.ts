@@ -1,6 +1,6 @@
 import { type Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO } from '@/lib/constants'
+import { CHARACTER_ASSET_IMAGE_RATIO, LOCATION_IMAGE_RATIO, PROP_IMAGE_RATIO } from '@/lib/constants'
 import { type TaskJobData } from '@/lib/task/types'
 import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import {
@@ -10,7 +10,6 @@ import {
   resolveImageSourceFromGeneration,
   stripLabelBar,
   uploadImageSourceToCos,
-  withLabelBar,
 } from '../utils'
 import {
   normalizeReferenceImagesForGeneration,
@@ -110,14 +109,12 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       prompt,
       options: {
         referenceImages,
-        aspectRatio: '3:2',
+        aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
         ...(resolution ? { resolution } : {}),
       },
     })
 
-    const label = `${appearance.character?.name || '角色'} - ${appearance.changeReason || '形象'}`
-    const labeled = await withLabelBar(source, label)
-    const cosKey = await uploadImageSourceToCos(labeled, 'character-modify', appearance.id)
+    const cosKey = await uploadImageSourceToCos(source, 'character-modify', appearance.id)
 
     while (imageUrls.length <= imageIndex) imageUrls.push('')
     imageUrls[imageIndex] = cosKey
@@ -225,9 +222,7 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
       },
     })
 
-    const label = locationImage.location?.name || (isProp ? '道具' : '场景')
-    const labeled = await withLabelBar(source, label)
-    const cosKey = await uploadImageSourceToCos(labeled, isProp ? 'prop-modify' : 'location-modify', locationImage.id)
+    const cosKey = await uploadImageSourceToCos(source, isProp ? 'prop-modify' : 'location-modify', locationImage.id)
 
     let extractedDescription: {
       prompt: string
