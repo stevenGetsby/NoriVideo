@@ -44,3 +44,5 @@ final-check-*.png
 
 # External reference checkouts kept locally only
 reference/
+
+FOS_screenshot/

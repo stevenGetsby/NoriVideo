@@ -1,10 +1,11 @@
 # 剧本级视频转绘前端页面实现计划
 
-- Status: Active
+- Status: Not Active
 - Last sync with code: 6307b7efbe977dea2b0baeb8dca66e891aa5f514
 - Date: 2026/7/1
 
 ## Changed Items
+1. 选择基于截图来重新设计实现计划，该计划废止
 
 ## 实现意见
 1. [&先不依赖任何后端实际接口，先 mock，先将前端互动链路完成&]
