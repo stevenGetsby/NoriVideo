@@ -31,6 +31,13 @@ export type VideoRepaintStageKey =
   | 'target_settings'
   | 'episode_repaint'
 
+export type EpisodeProcessStatus =
+  | 'pending'
+  | 'running'
+  | 'succeeded'
+  | 'failed'
+  | 'retrying'
+
 export interface ScreenwriterModeCard {
   key: ScreenwriterModeKey
   title: string
@@ -69,4 +76,60 @@ export interface VideoRepaintTaskView {
   requirement: string
   currentStage: VideoRepaintStageKey
   stages: VideoRepaintStageItem[]
+  sourceSettings: SettingsReviewView
+  targetSettings: SettingsReviewView
+  alignmentEpisodes: EpisodeProcessItem[]
+  repaintEpisodes: EpisodeProcessItem[]
+}
+
+export interface SettingsReviewView {
+  title: string
+  checkpoint: 'A' | 'B'
+  outlineTitle: string
+  bodySections: Array<{
+    heading: string
+    body: string
+  }>
+  collapsedPanelTitle: string
+  collapsedPanelCount: number
+  nameIndexGroups: NameIndexGroup[]
+  issuePanelTitle: string
+  issueCount: number
+  issues: ReviewIssue[]
+  feedbackPlaceholder: string
+}
+
+export interface NameIndexGroup {
+  title: string
+  rows: Array<{
+    sourceName: string
+    targetName: string
+    description?: string
+  }>
+}
+
+export interface ReviewIssue {
+  id: string
+  label: string
+  category: string
+  currentHandling: string
+  evidence: string
+  risk: string
+  confirmationPrompt: string
+}
+
+export interface EpisodeProcessItem {
+  id: string
+  episodeNumber: number
+  status: EpisodeProcessStatus
+  errorMessage?: string
+}
+
+export interface TargetScriptEpisode {
+  id: string
+  episodeNumber: number
+  title: string
+  status: EpisodeProcessStatus
+  wordCount: number
+  content: string
 }
