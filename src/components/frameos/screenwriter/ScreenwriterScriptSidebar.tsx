@@ -16,7 +16,7 @@ export function ScreenwriterScriptSidebar({
 }: {
   scripts: ScreenwriterScriptSummary[]
   selectedScriptId?: string | null
-  onSelectScript: (scriptId: string) => void
+  onSelectScript: (script: ScreenwriterScriptSummary) => void
 }) {
   const counts = STATUS_TABS.reduce<Record<ScreenwriterScriptStatus, number>>((acc, tab) => {
     acc[tab.key] = scripts.filter((script) => script.status === tab.key).length
@@ -56,7 +56,7 @@ export function ScreenwriterScriptSidebar({
             <button
               key={script.id}
               type="button"
-              onClick={() => onSelectScript(script.id)}
+              onClick={() => onSelectScript(script)}
               className="w-full rounded-[10px] border border-transparent px-2 py-3 text-left transition-colors hover:border-[var(--fos-border-soft)] hover:bg-[var(--fos-bg-2)]"
               style={{ background: active ? 'var(--fos-bg-2)' : 'transparent' }}
             >

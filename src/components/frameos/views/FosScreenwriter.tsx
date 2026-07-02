@@ -4,14 +4,16 @@ import { useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { ScreenwriterWorkbench } from '@/components/frameos/screenwriter/ScreenwriterWorkbench'
-import { screenwriterDemoScripts } from '@/components/frameos/screenwriter/screenwriterDemoData'
-import type { ScreenwriterModeKey } from '@/components/frameos/screenwriter/types'
+import { getScreenwriterTaskNextRoute } from '@/components/frameos/screenwriter/screenwriterRoutes'
+import { useScreenwriterTasks } from '@/components/frameos/screenwriter/useScreenwriterTasks'
+import type { ScreenwriterModeKey, ScreenwriterScriptSummary } from '@/components/frameos/screenwriter/types'
 
 export type ToolKey = 'video-repaint-2' | 'video2script' | 'video2board' | 'script2board' | 'board2board'
 
 export function FosScreenwriter({ initialDialog }: { initialDialog?: ToolKey | null }) {
   const router = useRouter()
   const [dialog, setDialog] = useState<ToolKey | null>(initialDialog ?? null)
+  const { tasks } = useScreenwriterTasks()
 
   const onCard = (key: ScreenwriterModeKey) => {
     if (key === 'video-repaint-2') {
@@ -31,9 +33,13 @@ export function FosScreenwriter({ initialDialog }: { initialDialog?: ToolKey | n
     }
   }
 
+  const onScript = (script: ScreenwriterScriptSummary) => {
+    router.push(getScreenwriterTaskNextRoute(script))
+  }
+
   return (
     <>
-      <ScreenwriterWorkbench scripts={screenwriterDemoScripts} onModeSelect={onCard} />
+      <ScreenwriterWorkbench scripts={tasks} onModeSelect={onCard} onScriptSelect={onScript} />
 
       {dialog === 'video2script' ? <VideoToTextDialog mode="script" onClose={() => setDialog(null)} /> : null}
       {dialog === 'video2board' ? <VideoToTextDialog mode="board" onClose={() => setDialog(null)} /> : null}

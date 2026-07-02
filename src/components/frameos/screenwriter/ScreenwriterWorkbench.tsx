@@ -10,9 +10,11 @@ import type { ScreenwriterModeKey, ScreenwriterScriptSummary } from './types'
 export function ScreenwriterWorkbench({
   scripts,
   onModeSelect,
+  onScriptSelect,
 }: {
   scripts: ScreenwriterScriptSummary[]
   onModeSelect: (key: ScreenwriterModeKey) => void
+  onScriptSelect?: (script: ScreenwriterScriptSummary) => void
 }) {
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null)
 
@@ -33,7 +35,10 @@ export function ScreenwriterWorkbench({
         <ScreenwriterScriptSidebar
           scripts={scripts}
           selectedScriptId={selectedScriptId}
-          onSelectScript={setSelectedScriptId}
+          onSelectScript={(script) => {
+            setSelectedScriptId(script.id)
+            onScriptSelect?.(script)
+          }}
         />
         <ScreenwriterEmptyCanvas />
       </div>

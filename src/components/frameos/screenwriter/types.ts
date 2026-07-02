@@ -31,6 +31,8 @@ export type VideoRepaintStageKey =
   | 'target_settings'
   | 'episode_repaint'
 
+export type VideoRepaintRouteStage = VideoRepaintStageKey | 'target_script'
+
 export type EpisodeProcessStatus =
   | 'pending'
   | 'running'
@@ -59,6 +61,10 @@ export interface ScreenwriterScriptSummary {
   activeTaskId?: string
   activeTaskLabel?: string
   activeTaskStatus?: VideoRepaintStageStatus
+  currentStage?: VideoRepaintRouteStage
+  currentStageStatus?: VideoRepaintStageStatus
+  nextRoute?: string
+  updatedAt?: string
 }
 
 export interface VideoRepaintStageItem {
@@ -80,6 +86,12 @@ export interface VideoRepaintTaskView {
   targetSettings: SettingsReviewView
   alignmentEpisodes: EpisodeProcessItem[]
   repaintEpisodes: EpisodeProcessItem[]
+}
+
+export interface VideoRepaintTaskDetail extends VideoRepaintTaskView {
+  routeByStage: Record<VideoRepaintRouteStage, string>
+  canConfirmCurrentStage: boolean
+  canRetryCurrentStage: boolean
 }
 
 export interface SettingsReviewView {
