@@ -3,67 +3,43 @@
 import { useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
-import type { AppIconName } from '@/components/ui/icons'
+import { ScreenwriterWorkbench } from '@/components/frameos/screenwriter/ScreenwriterWorkbench'
+import { screenwriterDemoScripts } from '@/components/frameos/screenwriter/screenwriterDemoData'
+import type { ScreenwriterModeKey } from '@/components/frameos/screenwriter/types'
 
 export type ToolKey = 'video-repaint-2' | 'video2script' | 'video2board' | 'script2board' | 'board2board'
-
-interface ToolCard {
-  key: ToolKey
-  title: string
-  subtitle: string
-  icon: AppIconName
-  accent: string
-  iconBg: string
-  badge?: string
-}
-
-const TOOLS: ToolCard[] = [
-  { key: 'video-repaint-2', title: '视频转绘2.0', subtitle: '整剧视频转为目标版本剧本/分镜\n保持全剧角色、场景映射一致', icon: 'sparklesAlt', accent: '#3b6ef2', iconBg: 'rgba(59,110,242,.16)', badge: 'NEW' },
-  { key: 'video2script', title: '视频转剧本', subtitle: '上传参考视频，AI 分析画面节奏与对话，反向生成台词稿，适合改编或翻拍场景。', icon: 'videoWide', accent: '#3b82f6', iconBg: 'rgba(59,130,246,.16)' },
-  { key: 'video2board', title: '视频转分镜', subtitle: '上传参考视频，AI 识别镜头切换点位与景别，输出镜头化文本，可叠加自动转绘。', icon: 'folderCards', accent: '#8b5cf6', iconBg: 'rgba(139,92,246,.16)' },
-  { key: 'script2board', title: '剧本转绘', subtitle: '选择已有剧本或上传剧本文件，按目标市场规则生成转绘版剧本。', icon: 'sparkles', accent: '#22c55e', iconBg: 'rgba(34,197,94,.16)' },
-  { key: 'board2board', title: '分镜转绘', subtitle: '选择已有分镜或上传分镜文件，按目标市场规则生成转绘版分镜。', icon: 'imageLandscape', accent: '#ec4899', iconBg: 'rgba(236,72,153,.16)' },
-]
 
 export function FosScreenwriter({ initialDialog }: { initialDialog?: ToolKey | null }) {
   const router = useRouter()
   const [dialog, setDialog] = useState<ToolKey | null>(initialDialog ?? null)
 
-  const onCard = (key: ToolKey) => {
+  const onCard = (key: ScreenwriterModeKey) => {
     if (key === 'video-repaint-2') {
       router.push({ pathname: '/screenwriter/video-repaint' })
       return
     }
-    setDialog(key)
+    if (key === 'script-repaint-2') {
+      setDialog('script2board')
+      return
+    }
+    if (key === 'storyboard-repaint-2') {
+      setDialog('board2board')
+      return
+    }
+    if (key === 'video2script' || key === 'video2board' || key === 'script2board' || key === 'board2board') {
+      setDialog(key)
+    }
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-6 py-10">
-      <div className="mx-auto flex max-w-[820px] flex-col gap-4">
-        {TOOLS.map((t) => (
-          <button key={t.key} onClick={() => onCard(t.key)}
-            className="group relative flex items-center gap-5 overflow-hidden rounded-[16px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] px-6 py-5 text-left transition-colors hover:border-[var(--fos-border-mid)] hover:bg-[var(--fos-bg-3)]">
-            <span className="absolute inset-y-0 left-0 w-[3px]" style={{ background: t.accent }} />
-            <span className="flex h-12 w-12 flex-none items-center justify-center rounded-[12px]" style={{ background: t.iconBg, color: t.accent }}>
-              <AppIcon name={t.icon} className="h-6 w-6" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <span className="text-[16px] font-bold text-white">{t.title}</span>
-                {t.badge ? <span className="rounded bg-[#3b6ef2] px-1.5 py-0.5 text-[10px] font-bold text-white">{t.badge}</span> : null}
-              </span>
-              <span className="mt-1 block whitespace-pre-line text-[13px] leading-6 text-[var(--fos-text-3)]">{t.subtitle}</span>
-            </span>
-            <AppIcon name="chevronRight" className="h-5 w-5 flex-none text-[var(--fos-text-4)]" />
-          </button>
-        ))}
-      </div>
+    <>
+      <ScreenwriterWorkbench scripts={screenwriterDemoScripts} onModeSelect={onCard} />
 
       {dialog === 'video2script' ? <VideoToTextDialog mode="script" onClose={() => setDialog(null)} /> : null}
       {dialog === 'video2board' ? <VideoToTextDialog mode="board" onClose={() => setDialog(null)} /> : null}
       {dialog === 'script2board' ? <RepaintDialog mode="script" onClose={() => setDialog(null)} /> : null}
       {dialog === 'board2board' ? <RepaintDialog mode="board" onClose={() => setDialog(null)} /> : null}
-    </div>
+    </>
   )
 }
 
