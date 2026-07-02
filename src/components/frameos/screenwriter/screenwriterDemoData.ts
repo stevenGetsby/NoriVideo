@@ -1,4 +1,4 @@
-import type { ScreenwriterModeCard, ScreenwriterScriptSummary } from './types'
+import type { ScreenwriterModeCard, ScreenwriterScriptSummary, VideoRepaintTaskView } from './types'
 
 export const screenwriterModeCards: ScreenwriterModeCard[] = [
   {
@@ -106,3 +106,19 @@ export const screenwriterDemoScripts: ScreenwriterScriptSummary[] = [
     activeTaskStatus: 'running',
   },
 ]
+
+export const videoRepaintDemoTask: VideoRepaintTaskView = {
+  id: 'demo-oversea-redraw-task',
+  title: 'TEST-海外转绘版',
+  taskTypeLabel: '剧本转绘 2.0',
+  requirement: '输出英文版本，保留现代都市设定与情感冲突，角色命名和对白表达按海外短剧语境重写。',
+  currentStage: 'source_settings',
+  stages: [
+    { key: 'auto_split', title: '自动拆集', subtitle: '保存用户上传视频', status: 'approved' },
+    { key: 'fact_extract', title: '事实卡提取', subtitle: '逐集分析文本', status: 'approved' },
+    { key: 'source_settings', title: '设定提炼', subtitle: '汇总设定总纲', status: 'waiting_check', checkpoint: 'A' },
+    { key: 'episode_alignment', title: '逐集对齐', subtitle: '称呼统一整理', status: 'not_started' },
+    { key: 'target_settings', title: '目标设定', subtitle: '生成目标总纲', status: 'not_started', checkpoint: 'B' },
+    { key: 'episode_repaint', title: '逐集转绘', subtitle: '剧本转绘2.0', status: 'not_started' },
+  ],
+}

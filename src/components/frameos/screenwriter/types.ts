@@ -23,6 +23,14 @@ export type VideoRepaintStageStatus =
   | 'failed'
   | 'stale'
 
+export type VideoRepaintStageKey =
+  | 'auto_split'
+  | 'fact_extract'
+  | 'source_settings'
+  | 'episode_alignment'
+  | 'target_settings'
+  | 'episode_repaint'
+
 export interface ScreenwriterModeCard {
   key: ScreenwriterModeKey
   title: string
@@ -44,4 +52,21 @@ export interface ScreenwriterScriptSummary {
   activeTaskId?: string
   activeTaskLabel?: string
   activeTaskStatus?: VideoRepaintStageStatus
+}
+
+export interface VideoRepaintStageItem {
+  key: VideoRepaintStageKey
+  title: string
+  subtitle: string
+  status: VideoRepaintStageStatus
+  checkpoint?: 'A' | 'B'
+}
+
+export interface VideoRepaintTaskView {
+  id: string
+  title: string
+  taskTypeLabel: string
+  requirement: string
+  currentStage: VideoRepaintStageKey
+  stages: VideoRepaintStageItem[]
 }
