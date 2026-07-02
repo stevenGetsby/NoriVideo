@@ -5,6 +5,7 @@
 - Date: 2026/7/2
 
 ## Changed Items
+1. 补充编剧工作台前端互动链路计划：明确任务对象、查询/创建接口边界、按钮跳转、检查点确认推进、非检查点阶段 10s 自动推进，以及当前实现缺口。
 
 ## 目标
 
@@ -429,6 +430,168 @@ PATCH  /api/screenwriter/video-repaint/:taskId/target-script/:episodeId
 3. 每个页面对象至少覆盖：空态、运行态、检查态、失败态之一；流程壳和集网格覆盖状态组合。
 4. 文档计划完成后无需运行前端测试；开始实现代码后按改动范围运行 `npm run typecheck` 和相关组件测试。
 
+### 13. 前端互动链路补充计划
+
+当前实现已经具备展示型 mock 页面和基础路由，但互动链路还没有跑通。后续需要把“后端接口驱动状态”的真实语义抽象到前端 hook 和状态机里，即使 Version 1 仍使用 mock，也要按真实接口形状实现创建、查询、跳转和阶段推进。
+
+#### 13.1 现有前端对象分析
+
+1. 编剧工作台任务对象
+   - 页面：`/screenwriter`。
+   - 当前组件：`ScreenwriterWorkbench`、`ScreenwriterScriptSidebar`、`ScreenwriterModeCards`。
+   - 真实语义：进入页面时调用后端接口查询当前用户/项目中进行的编剧任务，渲染草稿、可用、归档。
+   - 当前缺口：`ScreenwriterWorkbench` 只读取 `screenwriterDemoScripts`，点击“进行中”任务只设置选中态，不会跳转到对应阶段页面。
+
+2. 视频转绘创建对象
+   - 页面：`/screenwriter/video-repaint`。
+   - 当前组件：`VideoRepaintCreateForm`。
+   - 真实语义：填写任务名称、视频转译形式、参考视频、转绘需求、检查点配置；前端先校验必填项，再调用后端接口提交任务。
+   - 创建成功后：后端返回 `taskId`；前端跳转到任务详情页，回到 `/screenwriter` 时也能从查询接口看到新增任务。
+   - 当前缺口：开始运行按钮直接跳 demo task，没有表单校验、没有提交接口、没有创建后刷新任务列表。
+
+3. 视频转绘流程对象
+   - 页面：`/screenwriter/video-repaint/[taskId]/*`。
+   - 当前组件：`FosVideoRepaintFlowClient`、`VideoRepaintFlowShell`、`VideoRepaintStageNav`、`SettingsReviewPage`、`EpisodeProgressGrid`、`TargetScriptReview`。
+   - 真实语义：进入任一阶段页时通过 `taskId` 查询任务详情、当前阶段、阶段状态、检查点状态和产物数据。
+   - 当前缺口：流程页读取固定 `videoRepaintDemoTask`，阶段按钮不负责跳转，检查点确认按钮没有回调，非检查点阶段不会模拟后端完成后自动进入下一阶段。
+
+#### 13.2 建议前端状态对象
+
+```ts
+export interface ScreenwriterTaskSummary {
+  id: string
+  title: string
+  episodeCount: number
+  taskType: 'video_repaint_2' | 'script_repaint_2' | 'storyboard_repaint_2'
+  bucket: 'draft' | 'available' | 'archived'
+  currentStage: VideoRepaintStageKey | 'target_script'
+  currentStageStatus: VideoRepaintStageStatus
+  nextRoute: string
+  updatedAt: string
+}
+
+export interface VideoRepaintCreateDraft {
+  title: string
+  mode: 'script' | 'board'
+  uploadMode: 'file' | 'folder'
+  sourceVideos: Array<{
+    id: string
+    name: string
+    uploadStatus: 'local' | 'uploading' | 'uploaded' | 'failed'
+    url?: string
+  }>
+  requirement: string
+  checkpoints: {
+    sourceSettings: boolean
+    targetSettings: boolean
+  }
+}
+
+export interface VideoRepaintTaskDetail extends VideoRepaintTaskView {
+  routeByStage: Record<VideoRepaintStageKey | 'target_script', string>
+  canConfirmCurrentStage: boolean
+  canRetryCurrentStage: boolean
+}
+```
+
+#### 13.3 Hook 与数据来源
+
+1. `useScreenwriterTasks`
+   - Version 1：从 local mock store 读取任务列表。
+   - 后续真实接口：`GET /api/screenwriter/scripts`。
+   - 返回：`tasks`、`isLoading`、`error`、`reload`。
+   - 用途：`/screenwriter` 首屏渲染；创建任务成功后 reload。
+
+2. `useCreateVideoRepaintTask`
+   - Version 1：本地校验后把任务写入 mock store，并返回 mock `taskId`。
+   - 后续真实接口：`POST /api/screenwriter/video-repaint`。
+   - 校验规则：任务名称非空、转绘需求非空、至少 1 个视频且上传状态为 `uploaded`；检查点配置存在默认值。
+   - 成功跳转：`/screenwriter/video-repaint/${taskId}` 或后端返回的 `nextRoute`。
+
+3. `useVideoRepaintTask`
+   - Version 1：按 `taskId` 从 mock store 查询详情。
+   - 后续真实接口：`GET /api/screenwriter/video-repaint/:taskId`。
+   - 返回：任务详情、当前阶段、阶段产物、可跳转 route。
+
+4. `useStageAdvance`
+   - 负责检查点确认、阶段重试、非检查点自动推进。
+   - 后续接口：
+     - `POST /api/screenwriter/video-repaint/:taskId/source-settings/approve`
+     - `POST /api/screenwriter/video-repaint/:taskId/target-settings/approve`
+     - `POST /api/screenwriter/video-repaint/:taskId/stages/:stage/retry`
+
+#### 13.4 页面跳转逻辑
+
+1. `/screenwriter`
+   - 加载 `useScreenwriterTasks`。
+   - 点击顶部“视频转绘”模式：跳 `/screenwriter/video-repaint`。
+   - 点击左侧“进行中”任务：跳到任务的 `nextRoute`。
+     - 例如当前阶段为 `source_settings`：跳 `/screenwriter/video-repaint/:taskId/source-settings`。
+     - 当前阶段为 `episode_alignment`：跳 `/screenwriter/video-repaint/:taskId/episode-alignment`。
+     - 当前阶段为 `target_script`：跳 `/screenwriter/video-repaint/:taskId/target-script`。
+
+2. `/screenwriter/video-repaint`
+   - 表单输入变化写入本地 draft state。
+   - 点击“开始运行”：
+     1. 前端校验。
+     2. 校验失败显示字段错误，不跳转。
+     3. 校验成功调用创建接口。
+     4. 创建成功后跳转后端返回的 `nextRoute`。
+   - 回到 `/screenwriter` 后，任务列表查询应包含新任务。
+
+3. 检查点页面
+   - `source-settings` 点击“确认设定总纲，继续”：
+     1. 调用 approve 接口或 mock advance。
+     2. 将 `source_settings` 标记为 `approved`。
+     3. 将 `episode_alignment` 标记为 `running`。
+     4. 跳转 `/screenwriter/video-repaint/:taskId/episode-alignment`。
+   - `target-settings` 点击“确认锁定，开始转绘”：
+     1. 调用 approve 接口或 mock advance。
+     2. 将 `target_settings` 标记为 `approved`。
+     3. 将 `episode_repaint` 标记为 `running`。
+     4. 跳转 `/screenwriter/video-repaint/:taskId/episode-repaint`。
+
+4. 非检查点页面自动推进
+   - `episode-alignment` 页面：
+     - 初次查询状态为 `running` 时，前端展示处理中网格。
+     - Version 1 用 `setTimeout(10_000)` 模拟后端完成并推送。
+     - 10s 后把 `episode_alignment` 标记为 `succeeded`，把 `target_settings` 标记为 `waiting_check`，自动跳转 `/target-settings`。
+   - `episode-repaint` 页面：
+     - 初次查询状态为 `running` 时展示处理中网格。
+     - 10s 后把 `episode_repaint` 标记为 `succeeded`，自动跳转 `/target-script`。
+   - 如果阶段状态为 `failed`，不得自动跳转，显示失败与重试入口。
+   - 如果组件卸载，必须清理 timer，避免重复跳转。
+
+5. StageNav 阶段按钮
+   - 已完成或当前阶段可点击跳转。
+   - 未解锁阶段禁用。
+   - 失败阶段可点击进入失败页查看并重试。
+   - 点击行为由 `routeByStage` 决定，不在组件内硬编码路径。
+
+#### 13.5 交互链路实施顺序
+
+1. Red：为 `useScreenwriterTasks` / `useCreateVideoRepaintTask` / `useStageAdvance` 写纯状态测试。
+2. Green：实现 mock store 与 hooks，使 `/screenwriter` 从 hook 读取任务，不再直接读 `screenwriterDemoScripts`。
+3. Green：让 `VideoRepaintCreateForm` 支持受控 draft、字段错误和提交成功跳转。
+4. Green：让 `ScreenwriterScriptSidebar` 点击任务时跳 `task.nextRoute`，而不是只设置选中态。
+5. Green：为 `SettingsReviewPage` 增加 `onConfirm` / `onRegenerate` props，确认按钮推进并跳转下一阶段。
+6. Green：为 `EpisodeProgressGrid` 所在页面增加 10s 自动推进逻辑；失败状态不推进。
+7. Refactor：把 route 构造集中到 `screenwriterRoutes.ts`，避免页面组件手写路径。
+8. Refactor：把 mock store 边界设计成未来可替换真实接口的 adapter。
+
+#### 13.6 验证标准
+
+1. 进入 `/screenwriter` 能通过 hook 渲染任务列表。
+2. 新建任务页缺少名称、视频或转绘需求时不允许提交，并显示错误。
+3. 提交成功后跳转到新任务当前阶段；返回 `/screenwriter` 能看到新任务。
+4. 点击“进行中”任务能进入对应阶段页面。
+5. `source-settings` 确认后进入 `episode-alignment`。
+6. `episode-alignment` 在 running 状态 10s 后自动进入 `target-settings`。
+7. `target-settings` 确认后进入 `episode-repaint`。
+8. `episode-repaint` 在 running 状态 10s 后自动进入 `target-script`。
+9. `failed` 阶段不自动跳转，显示重试入口。
+10. 相关测试与 `npm run typecheck` 通过。
+
 ## 完成标准
 
 1. `/screenwriter` 同时支持“无任何剧本”入口态和“已有工作进行中”运行态，左侧剧本队列、顶部模式卡片和右侧空白提示与截图语义一致。
@@ -439,3 +602,4 @@ PATCH  /api/screenwriter/video-repaint/:taskId/target-script/:episodeId
 6. 逐集转绘页面可展示全部集数的处理状态、完成计数、失败提示和进入目标剧本结果页的入口。
 7. 所有新页面沿用 FrameOS 深色工作台视觉与现有 `FosShell`、`AppIcon`、`fos-*` token，不引入新的全局视觉体系。
 8. 组件测试覆盖关键状态渲染与主要点击路径；实现阶段通过 `npm run typecheck`。
+9. 前端互动链路可在 mock 模式下跑通：创建任务、回到列表可见、点击任务进入当前阶段、检查点确认跳下一阶段、非检查点 running 状态 10s 后自动推进。
