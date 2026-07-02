@@ -14,6 +14,7 @@ import {
   parseModelKeyStrict,
 } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
+import { normalizeProviderModelId } from '@/lib/model-provider-contract'
 import { resolveGenerationOptionsForModel } from '@/lib/model-capabilities/lookup'
 import {
   type WorkflowConcurrencyConfig,
@@ -24,6 +25,7 @@ import {
 } from '@/lib/hfsy-fixed-models'
 import { HFSY_TEXT_MODEL_KEY } from '@/lib/hfsy-fixed-models'
 import { PROJECT_LEVEL, resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
+import { getServiceDefaultModel } from '@/lib/service-config'
 
 export type ParsedModelKey = { provider: string, modelId: string }
 
@@ -60,7 +62,10 @@ export function extractModelId(key: string | null | undefined): string | null {
 export function extractModelKey(key: string | null | undefined): string | null {
   const parsed = parseModelKey(key)
   if (!parsed?.provider || !parsed?.modelId) return null
-  return composeModelKey(parsed.provider, parsed.modelId)
+  const provider = parsed.provider === 'dev_ghc_api' || parsed.provider === 'dev_text_llm'
+    ? 'ghc'
+    : parsed.provider
+  return composeModelKey(provider, normalizeProviderModelId(provider, parsed.modelId))
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -166,13 +171,13 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || HFSY_TEXT_MODEL_KEY,
-    characterModel: extractModelKey(projectData?.characterModel) || extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
-    locationModel: extractModelKey(projectData?.locationModel) || extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: extractModelKey(projectData?.storyboardModel) || extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,
-    editModel: extractModelKey(projectData?.editModel) || extractModelKey(userPref?.editModel) || HFSY_IMAGE_MODEL_KEY,
-    videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || null,
-    audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || null,
+    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || extractModelKey(getServiceDefaultModel('analysisModel')) || HFSY_TEXT_MODEL_KEY,
+    characterModel: extractModelKey(projectData?.characterModel) || extractModelKey(userPref?.characterModel) || extractModelKey(getServiceDefaultModel('characterModel')) || HFSY_IMAGE_MODEL_KEY,
+    locationModel: extractModelKey(projectData?.locationModel) || extractModelKey(userPref?.locationModel) || extractModelKey(getServiceDefaultModel('locationModel')) || HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: extractModelKey(projectData?.storyboardModel) || extractModelKey(userPref?.storyboardModel) || extractModelKey(getServiceDefaultModel('storyboardModel')) || HFSY_IMAGE_MODEL_KEY,
+    editModel: extractModelKey(projectData?.editModel) || extractModelKey(userPref?.editModel) || extractModelKey(getServiceDefaultModel('editModel')) || HFSY_IMAGE_MODEL_KEY,
+    videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || extractModelKey(getServiceDefaultModel('videoModel')) || null,
+    audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     projectLevel: projectData?.projectLevel || PROJECT_LEVEL,
     projectStyle: projectData?.projectStyle || 'live-action',
     targetAudience: projectData?.targetAudience || 'zh-platform',
@@ -196,13 +201,13 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: extractModelKey(userPref?.analysisModel) || HFSY_TEXT_MODEL_KEY,
-    characterModel: extractModelKey(userPref?.characterModel) || HFSY_IMAGE_MODEL_KEY,
-    locationModel: extractModelKey(userPref?.locationModel) || HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: extractModelKey(userPref?.storyboardModel) || HFSY_IMAGE_MODEL_KEY,
-    editModel: extractModelKey(userPref?.editModel) || HFSY_IMAGE_MODEL_KEY,
-    videoModel: extractModelKey(userPref?.videoModel) || null,
-    audioModel: extractModelKey(userPref?.audioModel) || null,
+    analysisModel: extractModelKey(userPref?.analysisModel) || extractModelKey(getServiceDefaultModel('analysisModel')) || HFSY_TEXT_MODEL_KEY,
+    characterModel: extractModelKey(userPref?.characterModel) || extractModelKey(getServiceDefaultModel('characterModel')) || HFSY_IMAGE_MODEL_KEY,
+    locationModel: extractModelKey(userPref?.locationModel) || extractModelKey(getServiceDefaultModel('locationModel')) || HFSY_IMAGE_MODEL_KEY,
+    storyboardModel: extractModelKey(userPref?.storyboardModel) || extractModelKey(getServiceDefaultModel('storyboardModel')) || HFSY_IMAGE_MODEL_KEY,
+    editModel: extractModelKey(userPref?.editModel) || extractModelKey(getServiceDefaultModel('editModel')) || HFSY_IMAGE_MODEL_KEY,
+    videoModel: extractModelKey(userPref?.videoModel) || extractModelKey(getServiceDefaultModel('videoModel')) || null,
+    audioModel: extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),
   }
 }

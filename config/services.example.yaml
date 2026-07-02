@@ -1,0 +1,58 @@
+storage:
+  type: tos
+  tos:
+    endpoint: https://tos-cn-beijing.volces.com
+    publicEndpoint: https://tos-cn-beijing.volces.com
+    region: cn-beijing
+    bucket: your-tos-bucket
+    accessKey: your-tos-access-key
+    secretKey: your-tos-secret-key
+    forcePathStyle: false
+
+llm:
+  providers:
+    - id: ghc
+      name: GHC API
+      baseUrl: http://localhost:8313/v1
+      apiKey: dummy
+      gatewayRoute: openai-compat
+    - id: hfsy
+      name: HFSY API
+      baseUrl: https://www.hfsyapi.cn/v1
+      apiKey: your-hfsy-api-key
+      gatewayRoute: openai-compat
+    - id: deepseek
+      name: DeepSeek 官方
+      baseUrl: https://api.deepseek.com/v1
+      apiKey: your-deepseek-api-key
+      gatewayRoute: openai-compat
+  models:
+    - modelId: gpt-5.5
+      modelKey: ghc::gpt-5.5
+      name: GHC GPT 5.5
+      type: llm
+      provider: ghc
+      llmProtocol: responses
+    - modelId: gpt-5.5
+      modelKey: hfsy::gpt-5.5
+      name: HFSY GPT 5.5
+      type: llm
+      provider: hfsy
+      llmProtocol: chat-completions
+    - modelId: gpt-image-2
+      modelKey: hfsy::gpt-image-2
+      name: HFSY GPT Image 2
+      type: image
+      provider: hfsy
+    - modelId: deepseek-chat
+      modelKey: deepseek::deepseek-chat
+      name: DeepSeek Chat
+      type: llm
+      provider: deepseek
+      llmProtocol: chat-completions
+  defaultModels:
+    analysisModel: deepseek::deepseek-chat
+    characterModel: hfsy::gpt-image-2
+    locationModel: hfsy::gpt-image-2
+    storyboardModel: hfsy::gpt-image-2
+    editModel: hfsy::gpt-image-2

@@ -1,6 +1,7 @@
 import type { DeleteObjectsResult, SignedUrlParams, StorageProvider, UploadObjectParams, UploadObjectResult } from '@/lib/storage/types'
 import { normalizeKey, requireEnv, streamToBuffer, toFetchableUrl } from '@/lib/storage/utils'
 import { createHash, createHmac } from 'node:crypto'
+import { getServiceStorageConfig, type ServiceConfigStorageTos } from '@/lib/service-config'
 
 interface NormalizedEndpoint {
   endpoint: string
@@ -27,6 +28,18 @@ function readOptionalEndpoint(name: string): NormalizedEndpoint | null {
   return value ? normalizeEndpoint(value) : null
 }
 
+function readConfiguredValue(config: ServiceConfigStorageTos | undefined, key: keyof ServiceConfigStorageTos, envName: string): string {
+  const configured = config?.[key]
+  if (typeof configured === 'string' && configured.trim()) return configured.trim()
+  return requireEnv(envName)
+}
+
+function readConfiguredOptionalEndpoint(config: ServiceConfigStorageTos | undefined, key: keyof ServiceConfigStorageTos, envName: string): NormalizedEndpoint | null {
+  const configured = config?.[key]
+  if (typeof configured === 'string' && configured.trim()) return normalizeEndpoint(configured)
+  return readOptionalEndpoint(envName)
+}
+
 function toEndpointUrl(endpoint: NormalizedEndpoint): string {
   return `${endpoint.secure ? 'https' : 'http'}://${endpoint.endpoint}`
 }
@@ -43,13 +56,16 @@ export class TosStorageProvider implements StorageProvider {
   private readonly forcePathStyle: boolean
 
   constructor() {
-    this.endpoint = normalizeEndpoint(requireEnv('TOS_ENDPOINT'))
-    this.publicEndpoint = readOptionalEndpoint('TOS_PUBLIC_ENDPOINT')
-    this.accessKeyId = requireEnv('TOS_ACCESS_KEY')
-    this.secretAccessKey = requireEnv('TOS_SECRET_KEY')
-    this.bucket = requireEnv('TOS_BUCKET')
-    this.region = requireEnv('TOS_REGION')
-    this.forcePathStyle = process.env.TOS_FORCE_PATH_STYLE === 'true'
+    const tosConfig = getServiceStorageConfig()?.tos
+    this.endpoint = normalizeEndpoint(readConfiguredValue(tosConfig, 'endpoint', 'TOS_ENDPOINT'))
+    this.publicEndpoint = readConfiguredOptionalEndpoint(tosConfig, 'publicEndpoint', 'TOS_PUBLIC_ENDPOINT')
+    this.accessKeyId = readConfiguredValue(tosConfig, 'accessKey', 'TOS_ACCESS_KEY')
+    this.secretAccessKey = readConfiguredValue(tosConfig, 'secretKey', 'TOS_SECRET_KEY')
+    this.bucket = readConfiguredValue(tosConfig, 'bucket', 'TOS_BUCKET')
+    this.region = readConfiguredValue(tosConfig, 'region', 'TOS_REGION')
+    this.forcePathStyle = typeof tosConfig?.forcePathStyle === 'boolean'
+      ? tosConfig.forcePathStyle
+      : process.env.TOS_FORCE_PATH_STYLE === 'true'
   }
 
   private objectUrl(key: string, endpoint: NormalizedEndpoint = this.endpoint): URL {

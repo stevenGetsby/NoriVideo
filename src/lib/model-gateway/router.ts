@@ -1,10 +1,12 @@
 import { getProviderKey } from '@/lib/api-config'
-import { isHfsyProviderId } from '@/lib/model-provider-contract'
+import { isOpenAICompatLlmProviderId } from '@/lib/model-provider-contract'
 import type { ModelGatewayRoute } from './types'
 
 const COMPATIBLE_PROVIDER_KEYS = new Set([
   'openai-compatible',
   'hfsy',
+  'ghc',
+  'deepseek',
 ])
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set([
   'bailian',
@@ -12,7 +14,7 @@ const OFFICIAL_ONLY_PROVIDER_KEYS = new Set([
 ])
 
 export function isCompatibleProvider(providerId: string): boolean {
-  if (isHfsyProviderId(providerId)) return true
+  if (isOpenAICompatLlmProviderId(providerId)) return true
   const providerKey = getProviderKey(providerId).toLowerCase()
   return COMPATIBLE_PROVIDER_KEYS.has(providerKey)
 }

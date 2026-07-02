@@ -5,7 +5,13 @@ describe('model-gateway router', () => {
   it('routes openai-compatible providers to openai-compat', () => {
     expect(isCompatibleProvider('openai-compatible')).toBe(true)
     expect(isCompatibleProvider('openai-compatible:oa-1')).toBe(true)
+    expect(isCompatibleProvider('ghc')).toBe(true)
+    expect(isCompatibleProvider('hfsy')).toBe(true)
+    expect(isCompatibleProvider('deepseek')).toBe(true)
     expect(resolveModelGatewayRoute('openai-compatible:oa-1')).toBe('openai-compat')
+    expect(resolveModelGatewayRoute('ghc')).toBe('openai-compat')
+    expect(resolveModelGatewayRoute('hfsy')).toBe('openai-compat')
+    expect(resolveModelGatewayRoute('deepseek')).toBe('openai-compat')
   })
 
   it('keeps gemini-compatible providers on official route', () => {

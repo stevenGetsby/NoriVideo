@@ -12,7 +12,7 @@ describe('llm mode config', () => {
     vi.unstubAllEnvs()
   })
 
-  it('resolves explicit development mode to the ghc gpt-5.5 text runtime', () => {
+  it('resolves explicit development mode to the configurable text runtime', () => {
     vi.stubEnv('NODE_ENV', 'test')
     vi.stubEnv('LLM_RUNTIME_MODE', 'development')
     vi.stubEnv('DEV_TEXT_LLM_BASE_URL', 'http://localhost:8313/v1')
@@ -25,9 +25,9 @@ describe('llm mode config', () => {
     expect(isDevelopmentTextLlmRuntime(runtime)).toBe(true)
     expect(getTextLlmRuntimeInfo(runtime)).toEqual({
       mode: 'development',
-      provider: 'dev_ghc_api',
+      provider: 'dev_text_llm',
       modelId: 'gpt-5.5',
-      modelKey: 'dev_ghc_api::gpt-5.5',
+      modelKey: 'dev_text_llm::gpt-5.5',
       baseUrl: 'http://localhost:8313/v1',
       protocol: 'responses',
     })
@@ -61,7 +61,7 @@ describe('llm mode config', () => {
     expect(resolveLlmRuntimeMode()).toBe('configured')
   })
 
-  it('defaults the development text model to ghc gpt-5.5 responses without streaming', () => {
+  it('defaults the development text model to local gpt-5.5 responses without streaming', () => {
     vi.stubEnv('NODE_ENV', 'test')
 
     expect(readDevelopmentTextLlmConfig()).toEqual({

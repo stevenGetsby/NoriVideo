@@ -34,6 +34,7 @@ import {
 } from '@/lib/lumina-anthropic-compatible-models'
 import {
   isHfsyProviderId,
+  isOpenAICompatLlmProviderId,
   isLuminaProviderId,
   MODEL_PRESETS,
   normalizeModelProviderKey,
@@ -481,7 +482,7 @@ function resolveProviderGatewayRoute(
   rawGatewayRoute: unknown,
 ): GatewayRouteType {
   const providerKey = getProviderKey(providerId)
-  const isOpenAICompatibleProvider = isHfsyProviderId(providerId)
+  const isOpenAICompatibleProvider = isOpenAICompatLlmProviderId(providerId)
   const isGeminiCompatibleProvider = providerKey === 'gemini-compatible'
   const isAnthropicCompatibleProvider = isLuminaProviderId(providerId)
 
@@ -492,12 +493,12 @@ function resolveProviderGatewayRoute(
   }
 
   if (isOpenAICompatibleProvider) {
-    if (rawGatewayRoute === 'official') {
+    if (isHfsyProviderId(providerId) && rawGatewayRoute === 'official') {
       throw new ApiError('INVALID_PARAMS', {
         code: 'PROVIDER_GATEWAY_ROUTE_INVALID',
       })
     }
-    return 'openai-compat'
+    return rawGatewayRoute === 'official' ? 'official' : 'openai-compat'
   }
 
   if (isGeminiCompatibleProvider || isAnthropicCompatibleProvider) {

@@ -7,6 +7,14 @@ node_modules/
 .env.*
 !.env.example
 !*.example
+config/services.json
+config/services.yaml
+config/services.yml
+config/services.local.json
+config/services.local.yaml
+config/services.local.yml
+!config/services.example.json
+!config/services.example.yaml
 
 # Next.js and build output
 .next/

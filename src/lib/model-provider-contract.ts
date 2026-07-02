@@ -14,6 +14,8 @@ export const MODEL_PROVIDER = {
   LUMINA: 'lumina',
   ARK: 'ark',
   HFSY: 'hfsy',
+  GHC: 'ghc',
+  DEEPSEEK: 'deepseek',
 } as const
 
 export type ModelProviderKey = (typeof MODEL_PROVIDER)[keyof typeof MODEL_PROVIDER]
@@ -38,6 +40,8 @@ const PROVIDER_KEY_ALIASES: Readonly<Record<string, ModelProviderKey>> = {
   'anthropic-compatible': MODEL_PROVIDER.LUMINA,
   ark: MODEL_PROVIDER.ARK,
   hfsy: MODEL_PROVIDER.HFSY,
+  ghc: MODEL_PROVIDER.GHC,
+  deepseek: MODEL_PROVIDER.DEEPSEEK,
   'openai-compatible': MODEL_PROVIDER.HFSY,
 }
 
@@ -45,12 +49,16 @@ export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
   { id: MODEL_PROVIDER.LUMINA, name: 'Lumina', baseUrl: 'https://lumina.tripo3d.com/' },
   { id: MODEL_PROVIDER.ARK, name: 'Volcengine Ark' },
   { id: MODEL_PROVIDER.HFSY, name: 'HFSY API', baseUrl: 'https://www.hfsyapi.cn/v1' },
+  { id: MODEL_PROVIDER.GHC, name: 'GHC API', baseUrl: 'http://localhost:8313/v1' },
+  { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
 ]
 
 export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<ModelProviderKey, string>> = {
   lumina: 'Lumina',
   ark: '火山引擎 Ark',
   hfsy: 'HFSY API',
+  ghc: 'GHC API',
+  deepseek: 'DeepSeek 官方',
 }
 
 const ARK_TEXT_MODELS: ModelPreset[] = [
@@ -88,6 +96,9 @@ export const MODEL_PRESETS: readonly ModelPreset[] = [
   ...ARK_TEXT_MODELS,
   ...ARK_IMAGE_MODELS,
   ...ARK_VIDEO_MODELS,
+  { modelId: 'gpt-5.5', name: 'GHC GPT 5.5', type: 'llm', provider: MODEL_PROVIDER.GHC, capabilityGroup: 'text' },
+  { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
+  { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
   { modelId: HFSY_TEXT_MODEL_ID, name: 'HFSY GPT 5.5', type: 'llm', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'text' },
   { modelId: HFSY_IMAGE_MODEL_ID, name: 'HFSY GPT Image 2', type: 'image', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'image' },
   { modelId: HFSY_VIDEO_MODEL_ID, name: 'HFSY SD 2 VIP', type: 'video', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'video' },
@@ -116,7 +127,21 @@ export function isHfsyProviderId(providerId?: string): boolean {
   return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY
 }
 
+export function isOpenAICompatLlmProviderId(providerId?: string): boolean {
+  const providerKey = getRawProviderKey(providerId).toLowerCase()
+  return providerKey === 'openai-compatible'
+    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY
+    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.GHC
+    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.DEEPSEEK
+}
+
 export function normalizeProviderModelId(providerId: string | undefined, modelId: string): string {
+  if (
+    (normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.GHC)
+    && modelId === 'gpt5.5'
+  ) {
+    return 'gpt-5.5'
+  }
   return isLuminaProviderId(providerId)
     ? normalizeLuminaAnthropicCompatibleModelId(modelId)
     : modelId

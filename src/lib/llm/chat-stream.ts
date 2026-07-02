@@ -39,15 +39,7 @@ import { withStreamChunkTimeout } from './stream-timeout'
 import { shouldUseOpenAIReasoningProviderOptions } from './reasoning-capability'
 import { completeBailianLlm } from '@/lib/providers/bailian'
 import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
-import { isHfsyProviderId, isLuminaProviderId } from '@/lib/model-provider-contract'
-import {
-  getTextLlmRuntimeInfo,
-  isDevelopmentTextLlmRuntime,
-  resolveTextLlmRuntime,
-} from './mode-config'
-import {
-  runDevTextLlmCompletionStream,
-} from './dev-text-llm'
+import { isLuminaProviderId } from '@/lib/model-provider-contract'
 
 const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
 
@@ -79,57 +71,6 @@ export async function chatCompletionStream(
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   const streamStep = resolveStreamStepMeta(options)
   emitStreamStage(callbacks, streamStep, 'submit')
-  const textRuntime = resolveTextLlmRuntime(model)
-  if (isDevelopmentTextLlmRuntime(textRuntime)) {
-    const runtimeInfo = getTextLlmRuntimeInfo(textRuntime)
-    const temperature = options.temperature ?? 0.7
-    const reasoning = options.reasoning ?? true
-    const reasoningEffort = options.reasoningEffort || 'high'
-    const projectId =
-      typeof options.projectId === 'string' && options.projectId.trim().length > 0
-        ? options.projectId.trim()
-        : undefined
-    logLlmRawInput({
-      userId,
-      projectId,
-      provider: runtimeInfo.provider,
-      modelId: runtimeInfo.modelId,
-      modelKey: runtimeInfo.modelKey,
-      stream: true,
-      reasoning,
-      reasoningEffort,
-      temperature,
-      action: options.action,
-      messages,
-    })
-    try {
-      const completion = await runDevTextLlmCompletionStream({
-        messages,
-        options,
-        callbacks,
-        config: textRuntime.config,
-      })
-      const completionParts = getCompletionParts(completion)
-      logLlmRawOutput({
-        userId,
-        projectId,
-        provider: runtimeInfo.provider,
-        modelId: runtimeInfo.modelId,
-        modelKey: runtimeInfo.modelKey,
-        stream: true,
-        action: options.action,
-        text: completionParts.text,
-        reasoning: completionParts.reasoning,
-        usage: completionUsageSummary(completion),
-      })
-      recordCompletionUsage(runtimeInfo.modelId, completion)
-      return completion
-    } catch (error) {
-      callbacks?.onError?.(error, streamStep)
-      throw error
-    }
-  }
-
   if (!model) {
     const error = new Error('ANALYSIS_MODEL_NOT_CONFIGURED: 请先在设置页面配置分析模型')
     callbacks?.onError?.(error, streamStep)
@@ -168,10 +109,6 @@ export async function chatCompletionStream(
 
   try {
     if (gatewayRoute === 'openai-compat') {
-      // OpenAI-compatible protocol probing only applies to HFSY-compatible LLMs.
-      if (!isHfsyProviderId(provider)) {
-        throw new Error(`OPENAI_COMPAT_PROVIDER_UNSUPPORTED: ${provider}`)
-      }
       if (!selection.llmProtocol) {
         throw new Error(`MODEL_LLM_PROTOCOL_REQUIRED: ${selection.modelKey}`)
       }

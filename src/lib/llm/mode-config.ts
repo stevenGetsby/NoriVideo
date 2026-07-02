@@ -3,7 +3,7 @@ const DEFAULT_DEV_TEXT_LLM_API_KEY = 'dummy'
 const DEFAULT_DEV_TEXT_LLM_MODEL = 'gpt-5.5'
 const DEFAULT_DEV_TEXT_LLM_PROTOCOL: DevTextLlmProtocol = 'responses'
 
-export const DEV_TEXT_LLM_PROVIDER = 'dev_ghc_api'
+export const DEV_TEXT_LLM_PROVIDER = 'dev_text_llm'
 
 export type LlmRuntimeMode = 'development' | 'configured'
 export type DevTextLlmProtocol = 'chat' | 'responses'
