@@ -1,6 +1,6 @@
 # 编剧工作台流程页面前端实现计划
 
-- Status: Active
+- Status: Completed
 - Last sync with code: 6ca0aa67ffff2c9e2dfbb2885265dd7431a7c0e6
 - Date: 2026/7/2
 

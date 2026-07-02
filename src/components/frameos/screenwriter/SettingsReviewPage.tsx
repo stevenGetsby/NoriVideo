@@ -10,10 +10,12 @@ export function SettingsReviewPage({
   review,
   confirmLabel,
   regenerateLabel,
+  onConfirm,
 }: {
   review: SettingsReviewView
   confirmLabel: string
   regenerateLabel: string
+  onConfirm?: () => void
 }) {
   const isTarget = review.checkpoint === 'B'
 
@@ -57,7 +59,7 @@ export function SettingsReviewPage({
             <AppIcon name="refresh" className="h-4 w-4" />
             {regenerateLabel}
           </button>
-          <button type="button" className="fos-btn fos-btn-primary mt-3 w-full">
+          <button type="button" className="fos-btn fos-btn-primary mt-3 w-full" onClick={onConfirm}>
             {confirmLabel}
           </button>
         </section>

@@ -33,6 +33,10 @@ export type VideoRepaintStageKey =
 
 export type VideoRepaintRouteStage = VideoRepaintStageKey | 'target_script'
 
+export type VideoRepaintTransferForm = 'script' | 'board'
+
+export type VideoRepaintUploadMode = 'file' | 'folder'
+
 export type EpisodeProcessStatus =
   | 'pending'
   | 'running'
@@ -92,6 +96,31 @@ export interface VideoRepaintTaskDetail extends VideoRepaintTaskView {
   routeByStage: Record<VideoRepaintRouteStage, string>
   canConfirmCurrentStage: boolean
   canRetryCurrentStage: boolean
+}
+
+export interface VideoRepaintCreateInput {
+  title: string
+  transferForm: VideoRepaintTransferForm
+  uploadMode: VideoRepaintUploadMode
+  sourceAssetName: string
+  requirement: string
+  checkpoints: Record<'A' | 'B', boolean>
+}
+
+export interface VideoRepaintCreateResult {
+  id: string
+  title: string
+  nextRoute: string
+}
+
+export interface VideoRepaintAdvanceResult {
+  taskId: string
+  nextStage: VideoRepaintRouteStage
+  nextRoute: string
+}
+
+export interface VideoRepaintAutoAdvance extends VideoRepaintAdvanceResult {
+  delayMs: number
 }
 
 export interface SettingsReviewView {

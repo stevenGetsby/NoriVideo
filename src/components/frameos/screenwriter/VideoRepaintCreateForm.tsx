@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import type { VideoRepaintCreateInput, VideoRepaintTransferForm, VideoRepaintUploadMode } from './types'
 
 const CHECKPOINTS: Array<[string, string]> = [
   ['A', '设定总纲：审查提炼的设定，支持多轮 Feedback'],
@@ -13,11 +14,32 @@ export function VideoRepaintCreateForm({
   onStart,
 }: {
   onBack: () => void
-  onStart: () => void
+  onStart: (input: VideoRepaintCreateInput) => void
 }) {
-  const [form, setForm] = useState<'script' | 'board'>('script')
-  const [uploadTab, setUploadTab] = useState<'file' | 'folder'>('file')
+  const [taskTitle, setTaskTitle] = useState('')
+  const [form, setForm] = useState<VideoRepaintTransferForm>('script')
+  const [uploadTab, setUploadTab] = useState<VideoRepaintUploadMode>('file')
+  const [sourceAssetName, setSourceAssetName] = useState('')
+  const [requirement, setRequirement] = useState('')
   const [checks, setChecks] = useState<Record<string, boolean>>({ A: true, B: true })
+  const [errors, setErrors] = useState<Partial<Record<keyof VideoRepaintCreateInput, string>>>({})
+
+  const handleStart = () => {
+    const result = validateVideoRepaintCreateInput({
+      title: taskTitle,
+      transferForm: form,
+      uploadMode: uploadTab,
+      sourceAssetName,
+      requirement,
+      checkpoints: { A: Boolean(checks.A), B: Boolean(checks.B) },
+    })
+    if (!result.valid) {
+      setErrors(result.errors)
+      return
+    }
+    setErrors({})
+    onStart(result.value)
+  }
 
   return (
     <div className="flex min-h-0 flex-1">
@@ -52,7 +74,13 @@ export function VideoRepaintCreateForm({
           <div className="mt-7 space-y-6">
             <div>
               <label className="mb-2 block text-[13px] font-bold text-white">任务名称</label>
-              <input className="fos-input w-full" placeholder="例：夜色债 · 海外转绘版" />
+              <input
+                className="fos-input w-full"
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                placeholder="例：夜色债 · 海外转绘版"
+              />
+              {errors.title ? <p className="mt-2 text-[12px] text-[#ef4444]">{errors.title}</p> : null}
             </div>
 
             <div>
@@ -84,7 +112,7 @@ export function VideoRepaintCreateForm({
             <div>
               <div className="mb-2 flex items-center justify-between">
                 <label className="text-[13px] font-bold text-white">参考视频</label>
-                <span className="text-[12px] text-[var(--fos-text-4)]">待上传参考视频</span>
+                <span className="text-[12px] text-[var(--fos-text-4)]">{sourceAssetName || '待上传参考视频'}</span>
               </div>
               <div className="mb-3 flex gap-2">
                 {(['file', 'folder'] as const).map((tab) => (
@@ -108,7 +136,15 @@ export function VideoRepaintCreateForm({
                 </span>
                 <div className="text-[14px] font-bold text-white">点击选择视频 / 拖拽视频文件至此</div>
                 <div className="text-[12px] text-[var(--fos-text-4)]">支持 mp4 / mov / avi 格式，单个不超过 1 GB</div>
+                <button
+                  type="button"
+                  onClick={() => setSourceAssetName(uploadTab === 'file' ? 'demo-episode-01.mp4' : 'demo-video-folder')}
+                  className="rounded-[8px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] px-3 py-1.5 text-[12px] font-bold text-[var(--fos-text-2)] hover:bg-[var(--fos-bg-3)]"
+                >
+                  使用示例视频
+                </button>
               </div>
+              {errors.sourceAssetName ? <p className="mt-2 text-[12px] text-[#ef4444]">{errors.sourceAssetName}</p> : null}
               <p className="mt-2 text-[12px] text-[var(--fos-text-3)]">每个已上传视频将对应 1 集，可拖动卡片调整展示顺序，最终按集号升序参与流程。</p>
               <p className="mt-1 text-[12px] text-[#e0a23a]">请确保上传内容为您本人创作或已获得合法授权。</p>
             </div>
@@ -118,8 +154,11 @@ export function VideoRepaintCreateForm({
               <textarea
                 className="fos-textarea"
                 style={{ minHeight: 120 }}
+                value={requirement}
+                onChange={(event) => setRequirement(event.target.value)}
                 placeholder="例：输出英文版本，保留现代都市设定与情感冲突，角色命名和对白表达按海外短剧语境重写"
               />
+              {errors.requirement ? <p className="mt-2 text-[12px] text-[#ef4444]">{errors.requirement}</p> : null}
             </div>
 
             <div>
@@ -171,7 +210,7 @@ export function VideoRepaintCreateForm({
             </div>
 
             <div className="flex justify-end pb-4">
-              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" onClick={onStart}>
+              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" onClick={handleStart}>
                 开始运行
               </button>
             </div>
@@ -180,4 +219,27 @@ export function VideoRepaintCreateForm({
       </main>
     </div>
   )
+}
+
+export type VideoRepaintCreateValidationResult =
+  | { valid: true; value: VideoRepaintCreateInput }
+  | { valid: false; errors: Partial<Record<keyof VideoRepaintCreateInput, string>> }
+
+export function validateVideoRepaintCreateInput(input: VideoRepaintCreateInput): VideoRepaintCreateValidationResult {
+  const value: VideoRepaintCreateInput = {
+    ...input,
+    title: input.title.trim(),
+    sourceAssetName: input.sourceAssetName.trim(),
+    requirement: input.requirement.trim(),
+  }
+  const errors: Partial<Record<keyof VideoRepaintCreateInput, string>> = {}
+
+  if (!value.title) errors.title = '请输入任务名称'
+  if (!value.sourceAssetName) errors.sourceAssetName = '请先选择参考视频'
+  if (!value.requirement) errors.requirement = '请输入转绘需求'
+
+  if (Object.keys(errors).length > 0) {
+    return { valid: false, errors }
+  }
+  return { valid: true, value }
 }

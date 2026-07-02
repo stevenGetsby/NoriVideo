@@ -1,5 +1,10 @@
 import { FosVideoRepaintFlowClient } from '@/components/frameos/FosVideoRepaintFlowClient'
 
-export default function VideoRepaintTargetScriptPage() {
-  return <FosVideoRepaintFlowClient stage="target_script" />
+export default async function VideoRepaintTargetScriptPage({
+  params,
+}: {
+  params: Promise<{ taskId: string }>
+}) {
+  const { taskId } = await params
+  return <FosVideoRepaintFlowClient taskId={taskId} stage="target_script" />
 }

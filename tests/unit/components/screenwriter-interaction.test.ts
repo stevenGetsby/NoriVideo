@@ -1,12 +1,23 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
+import {
+  validateVideoRepaintCreateInput,
+} from '@/components/frameos/screenwriter/VideoRepaintCreateForm'
 import {
   getScreenwriterTaskNextRoute,
   getVideoRepaintStageRoute,
 } from '@/components/frameos/screenwriter/screenwriterRoutes'
 import {
+  advanceVideoRepaintTask,
+  createVideoRepaintTask,
+  getVideoRepaintAutoAdvance,
   getVideoRepaintTask,
   listScreenwriterTasks,
+  resetScreenwriterMockStore,
 } from '@/components/frameos/screenwriter/screenwriterMockStore'
+
+beforeEach(() => {
+  resetScreenwriterMockStore()
+})
 
 describe('screenwriter interaction routes', () => {
   it('builds stage routes for a video repaint task', () => {
@@ -44,5 +55,81 @@ describe('screenwriter mock store', () => {
     expect(task?.id).toBe('demo-oversea-redraw-task')
     expect(task?.routeByStage.source_settings).toBe('/screenwriter/video-repaint/demo-oversea-redraw-task/source-settings')
     expect(task?.routeByStage.target_script).toBe('/screenwriter/video-repaint/demo-oversea-redraw-task/target-script')
+  })
+
+  it('advances checkpoint stages to the next flow page', () => {
+    const sourceResult = advanceVideoRepaintTask('demo-oversea-redraw-task', 'source_settings')
+
+    expect(sourceResult).toMatchObject({
+      nextStage: 'episode_alignment',
+      nextRoute: '/screenwriter/video-repaint/demo-oversea-redraw-task/episode-alignment',
+    })
+    expect(getVideoRepaintTask('demo-oversea-redraw-task')?.currentStage).toBe('episode_alignment')
+
+    const targetResult = advanceVideoRepaintTask('demo-oversea-redraw-task', 'target_settings')
+
+    expect(targetResult).toMatchObject({
+      nextStage: 'episode_repaint',
+      nextRoute: '/screenwriter/video-repaint/demo-oversea-redraw-task/episode-repaint',
+    })
+  })
+
+  it('describes auto advance for non-checkpoint stage pages', () => {
+    expect(getVideoRepaintAutoAdvance('demo-oversea-redraw-task', 'episode_alignment')).toMatchObject({
+      delayMs: 10000,
+      nextStage: 'target_settings',
+      nextRoute: '/screenwriter/video-repaint/demo-oversea-redraw-task/target-settings',
+    })
+    expect(getVideoRepaintAutoAdvance('demo-oversea-redraw-task', 'episode_repaint')).toMatchObject({
+      delayMs: 10000,
+      nextStage: 'target_script',
+      nextRoute: '/screenwriter/video-repaint/demo-oversea-redraw-task/target-script',
+    })
+    expect(getVideoRepaintAutoAdvance('demo-oversea-redraw-task', 'source_settings')).toBeNull()
+  })
+
+  it('adds a submitted video repaint task to the workbench task list', () => {
+    const submitted = createVideoRepaintTask({
+      title: '夜色债 · 海外转绘版',
+      transferForm: 'script',
+      uploadMode: 'file',
+      sourceAssetName: 'episode-01.mp4',
+      requirement: '输出英文版本，保留现代都市设定。',
+      checkpoints: { A: true, B: true },
+    })
+
+    const tasks = listScreenwriterTasks()
+    const newTask = tasks.find((task) => task.activeTaskId === submitted.id)
+
+    expect(submitted.nextRoute).toBe(`/screenwriter/video-repaint/${submitted.id}`)
+    expect(newTask).toMatchObject({
+      title: '夜色债 · 海外转绘版',
+      taskKind: 'video_repaint_2',
+      activeTaskLabel: '进行中',
+      currentStage: 'auto_split',
+      currentStageStatus: 'running',
+      nextRoute: `/screenwriter/video-repaint/${submitted.id}`,
+    })
+    expect(getVideoRepaintTask(submitted.id)?.requirement).toBe('输出英文版本，保留现代都市设定。')
+  })
+})
+
+describe('video repaint create validation', () => {
+  it('rejects missing required create fields before submit', () => {
+    const result = validateVideoRepaintCreateInput({
+      title: ' ',
+      transferForm: 'script',
+      uploadMode: 'file',
+      sourceAssetName: '',
+      requirement: ' ',
+      checkpoints: { A: true, B: true },
+    })
+
+    expect(result.valid).toBe(false)
+    if (!result.valid) {
+      expect(result.errors.title).toBe('请输入任务名称')
+      expect(result.errors.sourceAssetName).toBe('请先选择参考视频')
+      expect(result.errors.requirement).toBe('请输入转绘需求')
+    }
   })
 })
