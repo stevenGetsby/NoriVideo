@@ -4,6 +4,10 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { VideoRepaintCreateForm } from '@/components/frameos/screenwriter/VideoRepaintCreateForm'
 import { VideoRepaintFlowShell } from '@/components/frameos/screenwriter/VideoRepaintFlowShell'
+import {
+  ScriptRepaintCreateForm,
+  validateScriptRepaintCreateInput,
+} from '@/components/frameos/screenwriter/ScriptRepaintCreateForm'
 import { videoRepaintDemoTask } from '@/components/frameos/screenwriter/screenwriterDemoData'
 
 describe('VideoRepaintFlowShell', () => {
@@ -55,5 +59,64 @@ describe('VideoRepaintCreateForm', () => {
     expect(html).toContain('转绘需求')
     expect(html).toContain('检查点配置')
     expect(html).toContain('开始运行')
+  })
+})
+
+describe('ScriptRepaintCreateForm', () => {
+  it('renders script source controls without video upload copy', () => {
+    Reflect.set(globalThis, 'React', React)
+
+    const html = renderToStaticMarkup(
+      createElement(ScriptRepaintCreateForm, {
+        onBack: () => undefined,
+        onStart: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('新建剧本转绘 2.0 任务')
+    expect(html).toContain('源剧本')
+    expect(html).toContain('粘贴文本')
+    expect(html).toContain('上传文本')
+    expect(html).toContain('转绘需求')
+    expect(html).toContain('检查点配置')
+    expect(html).not.toContain('参考视频')
+  })
+
+  it('validates required script repaint create fields', () => {
+    const empty = validateScriptRepaintCreateInput({
+      title: ' ',
+      sourceInputMode: 'paste',
+      sourceScriptText: ' ',
+      requirement: ' ',
+      checkpoints: { A: true, B: true },
+    })
+
+    expect(empty.valid).toBe(false)
+    if (!empty.valid) {
+      expect(empty.errors).toMatchObject({
+        title: '请输入任务名称',
+        sourceScriptText: '请先填写源剧本',
+        requirement: '请输入转绘需求',
+      })
+    }
+
+    const valid = validateScriptRepaintCreateInput({
+      title: ' Demo ',
+      sourceInputMode: 'paste',
+      sourceScriptText: ' 第一集 ',
+      requirement: ' 北美化 ',
+      checkpoints: { A: true, B: true },
+    })
+
+    expect(valid).toEqual({
+      valid: true,
+      value: {
+        title: 'Demo',
+        sourceInputMode: 'paste',
+        sourceScriptText: '第一集',
+        requirement: '北美化',
+        checkpoints: { A: true, B: true },
+      },
+    })
   })
 })

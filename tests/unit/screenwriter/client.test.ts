@@ -53,6 +53,39 @@ describe('screenwriter API client', () => {
     expect(result.id).toBe('sw-task-1')
   })
 
+  it('creates script repaint tasks through the dedicated API', async () => {
+    const { createScriptRepaintTask } = await import('@/components/frameos/screenwriter/screenwriterApi')
+    apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
+      id: 'sw-task-2',
+      title: 'Script Demo',
+      nextRoute: '/screenwriter/script-repaint/sw-task-2',
+    }), { status: 200, headers: { 'content-type': 'application/json' } }))
+
+    const result = await createScriptRepaintTask({
+      title: 'Script Demo',
+      sourceInputMode: 'paste',
+      sourceScriptText: '第一集\n女主进入公司。',
+      requirement: '改为北美现代都市风格',
+      checkpoints: { A: true, B: true },
+    })
+
+    expect(apiFetchMock).toHaveBeenCalledWith('/api/screenwriter/script-repaint', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({
+        title: 'Script Demo',
+        sourceInputMode: 'paste',
+        sourceScriptText: '第一集\n女主进入公司。',
+        requirement: '改为北美现代都市风格',
+        checkpoints: { A: true, B: true },
+      }),
+    }))
+    expect(result).toEqual({
+      id: 'sw-task-2',
+      title: 'Script Demo',
+      nextRoute: '/screenwriter/script-repaint/sw-task-2',
+    })
+  })
+
   it('approves checkpoints and fetches target script through screenwriter API', async () => {
     const { approveVideoRepaintStage, fetchTargetScriptEpisodes } = await import('@/components/frameos/screenwriter/screenwriterApi')
     apiFetchMock

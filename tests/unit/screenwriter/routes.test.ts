@@ -10,6 +10,7 @@ const authMock = vi.hoisted(() => ({
 const serviceMock = vi.hoisted(() => ({
   listScreenwriterTasks: vi.fn(),
   createVideoRepaintTask: vi.fn(),
+  createScriptRepaintTask: vi.fn(),
   getVideoRepaintTaskDetail: vi.fn(),
   updateVideoRepaintRequirement: vi.fn(),
   runStage: vi.fn(),
@@ -89,6 +90,42 @@ describe('screenwriter API routes', () => {
       id: 'sw-task-1',
       title: 'Demo',
       nextRoute: '/screenwriter/video-repaint/sw-task-1',
+    })
+  })
+
+  it('POST /api/screenwriter/script-repaint creates a script repaint task', async () => {
+    serviceMock.createScriptRepaintTask.mockResolvedValue({
+      id: 'sw-script-1',
+      title: 'Script Demo',
+      nextRoute: '/screenwriter/script-repaint/sw-script-1',
+    })
+    const { POST } = await import('@/app/api/screenwriter/script-repaint/route')
+
+    const response = await POST(buildMockRequest({
+      path: '/api/screenwriter/script-repaint',
+      method: 'POST',
+      body: {
+        title: 'Script Demo',
+        sourceInputMode: 'paste',
+        sourceScriptText: '第一集\n女主进入公司。',
+        requirement: 'modern',
+        checkpoints: { A: true, B: true },
+      },
+    }) as never, { params: Promise.resolve({}) })
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(serviceMock.createScriptRepaintTask).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      title: 'Script Demo',
+      sourceInputMode: 'paste',
+      sourceScriptText: '第一集\n女主进入公司。',
+      requirement: 'modern',
+    }))
+    expect(payload).toEqual({
+      id: 'sw-script-1',
+      title: 'Script Demo',
+      nextRoute: '/screenwriter/script-repaint/sw-script-1',
     })
   })
 

@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { toScreenwriterTaskSummary, toTargetScriptEpisode, toVideoRepaintTaskDetail, countWords } from './dto'
-import { getVideoRepaintStageRoute, getVideoRepaintTaskRoute } from './routes'
+import { getScriptRepaintTaskRoute, getVideoRepaintStageRoute, getVideoRepaintTaskRoute } from './routes'
 import {
   SCREENWRITER_TASK_KIND,
   SCREENWRITER_TASK_STATUS,
@@ -8,6 +8,8 @@ import {
   VIDEO_REPAINT_STAGE_STATUS,
   type ScreenwriterTaskKind,
   type ScreenwriterTaskStatus,
+  type ScriptRepaintCreateInput,
+  type ScriptRepaintCreateResponse,
   type TargetScriptEpisodeDto,
   type VideoRepaintCreateInput,
   type VideoRepaintCreateResponse,
@@ -25,6 +27,7 @@ type ScreenwriterClient = {
   screenwriterSettingsReview: ScreenwriterSettingsReviewModel
   screenwriterReviewFeedback: ScreenwriterReviewFeedbackModel
   screenwriterScriptEpisode: ScreenwriterScriptEpisodeModel
+  screenwriterArtifact: ScreenwriterArtifactModel
 }
 
 type ScreenwriterTx = Omit<ScreenwriterClient, '$transaction'>
@@ -60,6 +63,12 @@ type ScreenwriterScriptEpisodeModel = {
   update: (args: unknown) => Promise<unknown>
 }
 
+type ScreenwriterArtifactModel = {
+  create: (args: unknown) => Promise<unknown>
+  findFirst: (args: unknown) => Promise<unknown | null>
+  update: (args: unknown) => Promise<unknown>
+}
+
 const client = prisma as unknown as ScreenwriterClient
 
 const STAGE_DEFS: Array<{
@@ -76,11 +85,27 @@ const STAGE_DEFS: Array<{
   { key: 'episode_repaint', title: '逐集转绘', subtitle: '生成目标版本剧本文本。' },
 ]
 
+const SCRIPT_REPAINT_STAGE_DEFS = STAGE_DEFS.filter((stage) => stage.key !== VIDEO_REPAINT_STAGE.EPISODE_ALIGNMENT).map((stage) => {
+  if (stage.key === VIDEO_REPAINT_STAGE.AUTO_SPLIT) {
+    return { ...stage, subtitle: '将源剧本文本拆分为可逐集处理的剧集。' }
+  }
+  return stage
+})
+
 const STAGE_ORDER: VideoRepaintRouteStage[] = [
   'auto_split',
   'fact_extract',
   'source_settings',
   'episode_alignment',
+  'target_settings',
+  'episode_repaint',
+  'target_script',
+]
+
+const SCRIPT_REPAINT_STAGE_ORDER: VideoRepaintRouteStage[] = [
+  'auto_split',
+  'fact_extract',
+  'source_settings',
   'target_settings',
   'episode_repaint',
   'target_script',
@@ -127,10 +152,11 @@ function normalizeStageStatus(value: string): VideoRepaintStageStatus {
   return VIDEO_REPAINT_STAGE_STATUS.NOT_STARTED
 }
 
-function nextStage(stage: VideoRepaintRouteStage): VideoRepaintRouteStage | null {
-  const index = STAGE_ORDER.indexOf(stage)
-  if (index < 0 || index >= STAGE_ORDER.length - 1) return null
-  return STAGE_ORDER[index + 1]
+function nextStageForTask(taskKind: string | undefined, stage: VideoRepaintRouteStage): VideoRepaintRouteStage | null {
+  const order = taskKind === SCREENWRITER_TASK_KIND.SCRIPT_REPAINT_2 ? SCRIPT_REPAINT_STAGE_ORDER : STAGE_ORDER
+  const index = order.indexOf(stage)
+  if (index < 0 || index >= order.length - 1) return null
+  return order[index + 1]
 }
 
 function buildWhere(params: {
@@ -155,6 +181,20 @@ function buildWhere(params: {
 
 function createStageRows(startStatus: VideoRepaintStageStatus, checkpoints: Record<'A' | 'B', boolean>) {
   return STAGE_DEFS.map((stage) => ({
+    stageKey: stage.key,
+    title: stage.title,
+    subtitle: stage.subtitle,
+    status: stage.key === VIDEO_REPAINT_STAGE.AUTO_SPLIT ? startStatus : VIDEO_REPAINT_STAGE_STATUS.NOT_STARTED,
+    checkpoint:
+      stage.checkpoint && checkpoints[stage.checkpoint]
+        ? stage.checkpoint
+        : null,
+    progress: stage.key === VIDEO_REPAINT_STAGE.AUTO_SPLIT ? 5 : 0,
+  }))
+}
+
+function createScriptStageRows(startStatus: VideoRepaintStageStatus, checkpoints: Record<'A' | 'B', boolean>) {
+  return SCRIPT_REPAINT_STAGE_DEFS.map((stage) => ({
     stageKey: stage.key,
     title: stage.title,
     subtitle: stage.subtitle,
@@ -217,6 +257,60 @@ export async function createVideoRepaintTask(input: VideoRepaintCreateInput): Pr
     id: String(row.id),
     title: String(row.title),
     nextRoute: getVideoRepaintTaskRoute(String(row.id)),
+  }
+}
+
+export async function createScriptRepaintTask(input: ScriptRepaintCreateInput): Promise<ScriptRepaintCreateResponse> {
+  const title = input.title.trim()
+  const requirement = input.requirement.trim()
+  const sourceScriptText = input.sourceScriptText.trim()
+  if (!input.userId || !title || !requirement || !sourceScriptText) {
+    throw new Error('INVALID_SCRIPT_REPAINT_INPUT')
+  }
+
+  const created = await client.$transaction(async (tx) => {
+    return await tx.screenwriterTask.create({
+      data: {
+        userId: input.userId,
+        title,
+        taskKind: SCREENWRITER_TASK_KIND.SCRIPT_REPAINT_2,
+        status: SCREENWRITER_TASK_STATUS.DRAFT,
+        activeTaskLabel: '进行中',
+        currentStage: VIDEO_REPAINT_STAGE.AUTO_SPLIT,
+        currentStageStatus: VIDEO_REPAINT_STAGE_STATUS.RUNNING,
+        episodeCount: 1,
+        requirement,
+        transferForm: 'script',
+        uploadMode: input.sourceInputMode,
+        checkpointConfig: input.checkpoints as unknown as JsonValue,
+        stageStates: {
+          create: createScriptStageRows(VIDEO_REPAINT_STAGE_STATUS.RUNNING, input.checkpoints),
+        },
+        artifacts: {
+          create: [
+            {
+              stageKey: VIDEO_REPAINT_STAGE.AUTO_SPLIT,
+              artifactType: 'source_script_raw',
+              refId: 'source-script',
+              payload: {
+                sourceInputMode: input.sourceInputMode,
+                sourceScriptName: input.sourceScriptName || null,
+                sourceScriptText,
+              } as unknown as JsonValue,
+              version: 1,
+            },
+          ],
+        },
+      },
+      include: DETAIL_INCLUDE,
+    })
+  })
+
+  const row = toObject(created)
+  return {
+    id: String(row.id),
+    title: String(row.title),
+    nextRoute: getScriptRepaintTaskRoute(String(row.id)),
   }
 }
 
@@ -387,7 +481,7 @@ export async function approveStage(params: {
   const review = (toObject(task).settingsReviews as unknown[] | undefined)
     ?.filter((item) => toObject(item).stageKey === stage)
     .at(-1)
-  const next = nextStage(stage)
+  const next = nextStageForTask(readString(toObject(task).taskKind), stage)
   if (!next || next === 'target_script') throw new Error('SCREENWRITER_STAGE_NEXT_MISSING')
 
   const updated = await client.$transaction(async (tx) => {
@@ -519,6 +613,78 @@ export async function listTargetScriptEpisodes(params: {
     orderBy: [{ episodeNumber: 'asc' }, { version: 'desc' }],
   })
   return rows.map((row) => toTargetScriptEpisode(row as Parameters<typeof toTargetScriptEpisode>[0]))
+}
+
+export async function getSourceScript(params: {
+  userId: string
+  taskId: string
+}) {
+  const task = await client.screenwriterTask.findFirst({
+    where: { id: params.taskId, userId: params.userId },
+  })
+  if (!task) return null
+  const artifact = await client.screenwriterArtifact.findFirst({
+    where: {
+      screenwriterTaskId: params.taskId,
+      stageKey: VIDEO_REPAINT_STAGE.AUTO_SPLIT,
+      artifactType: 'source_script_raw',
+      refId: 'source-script',
+    },
+    orderBy: { version: 'desc' },
+  })
+  const payload = toObject(toObject(artifact).payload)
+  return {
+    sourceInputMode: readString(payload.sourceInputMode) || 'paste',
+    sourceScriptName: readString(payload.sourceScriptName) || null,
+    sourceScriptText: readString(payload.sourceScriptText),
+  }
+}
+
+export async function updateSourceScript(params: {
+  userId: string
+  taskId: string
+  sourceInputMode?: string | null
+  sourceScriptName?: string | null
+  sourceScriptText: string
+}) {
+  const task = await client.screenwriterTask.findFirst({
+    where: { id: params.taskId, userId: params.userId },
+  })
+  if (!task) return null
+  const sourceScriptText = params.sourceScriptText.trim()
+  if (!sourceScriptText) throw new Error('INVALID_SOURCE_SCRIPT')
+  const existing = await client.screenwriterArtifact.findFirst({
+    where: {
+      screenwriterTaskId: params.taskId,
+      stageKey: VIDEO_REPAINT_STAGE.AUTO_SPLIT,
+      artifactType: 'source_script_raw',
+      refId: 'source-script',
+    },
+    orderBy: { version: 'desc' },
+  })
+  const payload = {
+    sourceInputMode: params.sourceInputMode || 'paste',
+    sourceScriptName: params.sourceScriptName || null,
+    sourceScriptText,
+  }
+  if (!existing) {
+    await client.screenwriterArtifact.create({
+      data: {
+        screenwriterTaskId: params.taskId,
+        stageKey: VIDEO_REPAINT_STAGE.AUTO_SPLIT,
+        artifactType: 'source_script_raw',
+        refId: 'source-script',
+        payload: payload as unknown as JsonValue,
+        version: 1,
+      },
+    })
+    return payload
+  }
+  await client.screenwriterArtifact.update({
+    where: { id: String(toObject(existing).id) },
+    data: { payload: payload as unknown as JsonValue },
+  })
+  return payload
 }
 
 export async function updateTargetScriptEpisode(params: {

@@ -93,6 +93,87 @@ describe('screenwriter service', () => {
     })
   })
 
+  it('creates a persisted script repaint task with source script artifact and five stages', async () => {
+    const { createScriptRepaintTask } = await import('@/lib/screenwriter/service')
+    prismaMock.screenwriterTask.create.mockResolvedValue({
+      id: 'sw-script-1',
+      title: 'Script Demo',
+      taskKind: 'script_repaint_2',
+      status: 'draft',
+      activeTaskLabel: '进行中',
+      currentStage: 'auto_split',
+      currentStageStatus: 'running',
+      episodeCount: 1,
+      requirement: 'make it modern',
+      transferForm: 'script',
+      uploadMode: 'paste',
+      updatedAt: new Date('2026-07-02T00:00:00.000Z'),
+      stageStates: [
+        { stageKey: 'auto_split', title: '自动拆集', subtitle: '', status: 'running', checkpoint: null },
+        { stageKey: 'fact_extract', title: '事实卡提取', subtitle: '', status: 'not_started', checkpoint: null },
+        { stageKey: 'source_settings', title: '源设定', subtitle: '', status: 'not_started', checkpoint: 'A' },
+        { stageKey: 'target_settings', title: '目标设定', subtitle: '', status: 'not_started', checkpoint: 'B' },
+        { stageKey: 'episode_repaint', title: '逐集转绘', subtitle: '', status: 'not_started', checkpoint: null },
+      ],
+      sourceVideos: [],
+      settingsReviews: [],
+      episodeProcesses: [],
+      scriptEpisodes: [],
+    })
+
+    const result = await createScriptRepaintTask({
+      userId: 'user-1',
+      title: 'Script Demo',
+      sourceInputMode: 'paste',
+      sourceScriptText: '第一集\n女主进入公司。',
+      requirement: 'make it modern',
+      checkpoints: { A: true, B: true },
+    })
+
+    expect(prismaMock.screenwriterTask.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        userId: 'user-1',
+        title: 'Script Demo',
+        taskKind: 'script_repaint_2',
+        currentStage: 'auto_split',
+        currentStageStatus: 'running',
+        transferForm: 'script',
+        uploadMode: 'paste',
+        artifacts: {
+          create: [expect.objectContaining({
+            stageKey: 'auto_split',
+            artifactType: 'source_script_raw',
+            refId: 'source-script',
+            payload: expect.objectContaining({
+              sourceInputMode: 'paste',
+              sourceScriptText: '第一集\n女主进入公司。',
+            }),
+          })],
+        },
+        stageStates: {
+          create: [
+            expect.objectContaining({ stageKey: 'auto_split', status: 'running' }),
+            expect.objectContaining({ stageKey: 'fact_extract', status: 'not_started' }),
+            expect.objectContaining({ stageKey: 'source_settings', checkpoint: 'A' }),
+            expect.objectContaining({ stageKey: 'target_settings', checkpoint: 'B' }),
+            expect.objectContaining({ stageKey: 'episode_repaint', status: 'not_started' }),
+          ],
+        },
+      }),
+      include: expect.any(Object),
+    }))
+    const createArgs = prismaMock.screenwriterTask.create.mock.calls.at(-1)?.[0] as {
+      data?: { sourceVideos?: unknown; stageStates?: { create?: Array<{ stageKey: string }> } }
+    }
+    expect(createArgs.data?.sourceVideos).toBeUndefined()
+    expect(createArgs.data?.stageStates?.create?.map((stage) => stage.stageKey)).not.toContain('episode_alignment')
+    expect(result).toEqual({
+      id: 'sw-script-1',
+      title: 'Script Demo',
+      nextRoute: '/screenwriter/script-repaint/sw-script-1',
+    })
+  })
+
   it('lists task summaries with search, status, kind and pagination', async () => {
     const { listScreenwriterTasks } = await import('@/lib/screenwriter/service')
     prismaMock.screenwriterTask.count.mockResolvedValue(1)
@@ -138,6 +219,35 @@ describe('screenwriter service', () => {
         activeTaskId: 'sw-task-1',
         nextRoute: '/screenwriter/video-repaint/sw-task-1/source-settings',
       }],
+    })
+  })
+
+  it('routes script repaint task summaries to script repaint pages', async () => {
+    const { listScreenwriterTasks } = await import('@/lib/screenwriter/service')
+    prismaMock.screenwriterTask.count.mockResolvedValue(1)
+    prismaMock.screenwriterTask.findMany.mockResolvedValue([
+      {
+        id: 'sw-script-1',
+        title: 'Script Task',
+        taskKind: 'script_repaint_2',
+        status: 'draft',
+        activeTaskLabel: '进行中',
+        currentStage: 'target_settings',
+        currentStageStatus: 'waiting_check',
+        episodeCount: 2,
+        updatedAt: new Date('2026-07-02T00:00:00.000Z'),
+      },
+    ])
+
+    const result = await listScreenwriterTasks({
+      userId: 'user-1',
+      taskKind: 'script_repaint_2',
+    })
+
+    expect(result.tasks[0]).toMatchObject({
+      id: 'sw-script-1',
+      taskKind: 'script_repaint_2',
+      nextRoute: '/screenwriter/script-repaint/sw-script-1/target-settings',
     })
   })
 

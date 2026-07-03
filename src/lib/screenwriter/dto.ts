@@ -1,4 +1,4 @@
-import { getVideoRepaintRouteByStage, getVideoRepaintStageRoute } from './routes'
+import { getScreenwriterRouteByStage, getScreenwriterStageRoute } from './routes'
 import {
   SCREENWRITER_TASK_KIND,
   VIDEO_REPAINT_STAGE,
@@ -164,7 +164,7 @@ export function toScreenwriterTaskSummary(row: TaskSummaryRow): ScreenwriterTask
     activeTaskStatus: currentStageStatus,
     currentStage,
     currentStageStatus,
-    nextRoute: getVideoRepaintStageRoute(row.id, currentStage),
+    nextRoute: getScreenwriterStageRoute(taskKind, row.id, currentStage),
     updatedAt: iso(row.updatedAt),
   }
 }
@@ -235,6 +235,7 @@ export function countWords(content: string): number {
 }
 
 export function toVideoRepaintTaskDetail(row: TaskDetailRow): VideoRepaintTaskDetailDto {
+  const taskKind = normalizeTaskKind(row.taskKind)
   const stages = (row.stageStates || []).map(toStageItem).filter((item): item is VideoRepaintStageItemDto => !!item)
   const currentStage = normalizeCurrentStage(row.currentStage)
   const detailStage: VideoRepaintStageKey = currentStage === 'target_script' ? VIDEO_REPAINT_STAGE.EPISODE_REPAINT : currentStage
@@ -250,7 +251,9 @@ export function toVideoRepaintTaskDetail(row: TaskDetailRow): VideoRepaintTaskDe
   return {
     id: row.id,
     title: row.title,
-    taskTypeLabel: TASK_TYPE_LABEL_BY_TRANSFER_FORM[row.transferForm] || '视频转绘 2.0',
+    taskTypeLabel: taskKind === SCREENWRITER_TASK_KIND.SCRIPT_REPAINT_2
+      ? '剧本转绘 2.0'
+      : TASK_TYPE_LABEL_BY_TRANSFER_FORM[row.transferForm] || '视频转绘 2.0',
     requirement: row.requirement,
     currentStage: detailStage,
     stages,
@@ -258,7 +261,7 @@ export function toVideoRepaintTaskDetail(row: TaskDetailRow): VideoRepaintTaskDe
     targetSettings,
     alignmentEpisodes: (row.episodeProcesses || []).filter((item) => item.stageKey === 'episode_alignment').map(toEpisode),
     repaintEpisodes: (row.episodeProcesses || []).filter((item) => item.stageKey === 'episode_repaint').map(toEpisode),
-    routeByStage: getVideoRepaintRouteByStage(row.id),
+    routeByStage: getScreenwriterRouteByStage(taskKind, row.id),
     canConfirmCurrentStage: currentStage === 'source_settings' || currentStage === 'target_settings',
     canRetryCurrentStage: stages.some((stage) => stage.status === 'failed' || stage.status === 'stale'),
   }

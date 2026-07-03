@@ -21,7 +21,7 @@ export function FosScreenwriter({ initialDialog }: { initialDialog?: ToolKey | n
       return
     }
     if (key === 'script-repaint-2') {
-      setDialog('script2board')
+      router.push({ pathname: '/screenwriter/script-repaint' })
       return
     }
     if (key === 'storyboard-repaint-2') {

@@ -41,6 +41,7 @@ export type VideoRepaintStageStatus = (typeof VIDEO_REPAINT_STAGE_STATUS)[keyof 
 
 export type VideoRepaintTransferForm = 'script' | 'board'
 export type VideoRepaintUploadMode = 'file' | 'folder'
+export type ScriptRepaintSourceInputMode = 'paste' | 'file' | 'workspace'
 export type EpisodeProcessStatus = 'pending' | 'running' | 'succeeded' | 'failed' | 'retrying'
 
 export type ScreenwriterTaskSummaryDto = {
@@ -139,3 +140,15 @@ export type VideoRepaintCreateResponse = {
   title: string
   nextRoute: string
 }
+
+export type ScriptRepaintCreateInput = {
+  userId: string
+  title: string
+  sourceInputMode: ScriptRepaintSourceInputMode
+  sourceScriptText: string
+  sourceScriptName?: string | null
+  requirement: string
+  checkpoints: Record<'A' | 'B', boolean>
+}
+
+export type ScriptRepaintCreateResponse = VideoRepaintCreateResponse

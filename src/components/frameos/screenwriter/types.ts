@@ -36,6 +36,7 @@ export type VideoRepaintRouteStage = VideoRepaintStageKey | 'target_script'
 export type VideoRepaintTransferForm = 'script' | 'board'
 
 export type VideoRepaintUploadMode = 'file' | 'folder'
+export type ScriptRepaintSourceInputMode = 'paste' | 'file' | 'workspace'
 
 export type EpisodeProcessStatus =
   | 'pending'
@@ -112,6 +113,17 @@ export interface VideoRepaintCreateResult {
   title: string
   nextRoute: string
 }
+
+export interface ScriptRepaintCreateInput {
+  title: string
+  sourceInputMode: ScriptRepaintSourceInputMode
+  sourceScriptText: string
+  sourceScriptName?: string
+  requirement: string
+  checkpoints: Record<'A' | 'B', boolean>
+}
+
+export type ScriptRepaintCreateResult = VideoRepaintCreateResult
 
 export interface VideoRepaintAdvanceResult {
   taskId: string
