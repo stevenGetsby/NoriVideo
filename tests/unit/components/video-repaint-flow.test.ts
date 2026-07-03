@@ -8,6 +8,7 @@ import {
   ScriptRepaintCreateForm,
   validateScriptRepaintCreateInput,
 } from '@/components/frameos/screenwriter/ScriptRepaintCreateForm'
+import { RepaintDialog, VideoToTextDialog } from '@/components/frameos/screenwriter/ScreenwriterDialogs'
 import { videoRepaintDemoTask } from '@/components/frameos/screenwriter/screenwriterDemoData'
 
 describe('VideoRepaintFlowShell', () => {
@@ -118,5 +119,29 @@ describe('ScriptRepaintCreateForm', () => {
         checkpoints: { A: true, B: true },
       },
     })
+  })
+})
+
+describe('ScreenwriterDialogs', () => {
+  it('renders detached hidden dialog content for dynamic loading', () => {
+    Reflect.set(globalThis, 'React', React)
+
+    const videoDialog = renderToStaticMarkup(
+      createElement(VideoToTextDialog, {
+        mode: 'script',
+        onClose: () => undefined,
+      }),
+    )
+    const repaintDialog = renderToStaticMarkup(
+      createElement(RepaintDialog, {
+        mode: 'board',
+        onClose: () => undefined,
+      }),
+    )
+
+    expect(videoDialog).toContain('视频转剧本')
+    expect(videoDialog).toContain('自动转绘')
+    expect(repaintDialog).toContain('分镜转绘')
+    expect(repaintDialog).toContain('目标市场规则')
   })
 })

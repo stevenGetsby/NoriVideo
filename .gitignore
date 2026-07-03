@@ -46,3 +46,6 @@ final-check-*.png
 reference/
 
 FOS_screenshot/
+
+# codex
+.agents/

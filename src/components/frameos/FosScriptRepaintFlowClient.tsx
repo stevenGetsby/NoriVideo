@@ -1,12 +1,10 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useRouter } from '@/i18n/navigation'
 import { FosShell } from './FosShell'
-import { EpisodeProgressGrid } from './screenwriter/EpisodeProgressGrid'
 import { ScreenwriterLoadingSkeleton } from './screenwriter/ScreenwriterLoadingSkeleton'
-import { SettingsReviewPage } from './screenwriter/SettingsReviewPage'
-import { TargetScriptReview } from './screenwriter/TargetScriptReview'
 import { VideoRepaintFlowShell } from './screenwriter/VideoRepaintFlowShell'
 import {
   approveScriptRepaintStage,
@@ -23,6 +21,24 @@ const POLLABLE_STAGES = new Set<VideoRepaintRouteStage>([
   'fact_extract',
   'episode_repaint',
 ])
+
+function StageContentLoading() {
+  return (
+    <section className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-6">
+      <div className="text-[15px] font-bold text-white">正在加载阶段内容</div>
+    </section>
+  )
+}
+
+const SettingsReviewPage = dynamic(() => import('./screenwriter/SettingsReviewPage').then((mod) => mod.SettingsReviewPage), {
+  loading: StageContentLoading,
+})
+const EpisodeProgressGrid = dynamic(() => import('./screenwriter/EpisodeProgressGrid').then((mod) => mod.EpisodeProgressGrid), {
+  loading: StageContentLoading,
+})
+const TargetScriptReview = dynamic(() => import('./screenwriter/TargetScriptReview').then((mod) => mod.TargetScriptReview), {
+  loading: StageContentLoading,
+})
 
 function createEmptyTask(taskId: string, currentStage: VideoRepaintStageKey): VideoRepaintTaskDetail {
   return {
