@@ -18,6 +18,7 @@ export const screenwriterModeCards: ScreenwriterModeCard[] = [
     accent: '#22c55e',
     iconBg: 'rgba(34,197,94,.16)',
     badge: '2.0',
+    implemented: true,
   },
   {
     key: 'storyboard-repaint-2',
@@ -82,6 +83,7 @@ export const emptyScreenwriterModeCards: ScreenwriterModeCard[] = [
     icon: 'sparkles',
     accent: '#22c55e',
     iconBg: 'rgba(34,197,94,.16)',
+    implemented: true,
   },
   {
     key: 'board2board',

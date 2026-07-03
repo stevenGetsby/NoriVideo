@@ -1,4 +1,8 @@
+import * as React from 'react'
 import { beforeEach, describe, expect, it } from 'vitest'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { ScriptRepaintCreateForm } from '@/components/frameos/screenwriter/ScriptRepaintCreateForm'
 import {
   validateVideoRepaintCreateInput,
 } from '@/components/frameos/screenwriter/VideoRepaintCreateForm'
@@ -131,5 +135,24 @@ describe('video repaint create validation', () => {
       expect(result.errors.sourceAssetName).toBe('请先选择参考视频')
       expect(result.errors.requirement).toBe('请输入转绘需求')
     }
+  })
+})
+
+describe('script repaint create form availability', () => {
+  it('keeps unimplemented source input modes disabled with hover hints', () => {
+    Reflect.set(globalThis, 'React', React)
+
+    const html = renderToStaticMarkup(
+      createElement(ScriptRepaintCreateForm, {
+        onBack: () => undefined,
+        onStart: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('data-source-mode="paste"')
+    expect(html).not.toContain('data-source-mode="paste" disabled=""')
+    expect(html).toContain('data-source-mode="file" disabled=""')
+    expect(html).toContain('data-source-mode="workspace" disabled=""')
+    expect(html).toContain('title="功能尚未实现"')
   })
 })

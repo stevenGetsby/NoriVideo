@@ -62,4 +62,23 @@ describe('ScreenwriterWorkbench', () => {
 
     expect(scriptRepaintCard?.key).toBe('script-repaint-2')
   })
+
+  it('marks unimplemented workbench modes as disabled with a hover hint', () => {
+    Reflect.set(globalThis, 'React', React)
+
+    const html = renderToStaticMarkup(
+      createElement(ScreenwriterWorkbench, {
+        scripts: screenwriterDemoScripts,
+        onModeSelect: () => undefined,
+      }),
+    )
+
+    expect(html).toContain('data-mode-key="script-repaint-2"')
+    expect(html).not.toContain('data-mode-key="script-repaint-2" disabled=""')
+
+    for (const key of ['video-repaint-2', 'storyboard-repaint-2', 'single-episode-test', 'novel-to-script']) {
+      expect(html).toContain(`data-mode-key="${key}" disabled=""`)
+      expect(html).toContain('title="功能尚未实现"')
+    }
+  })
 })

@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import type { TargetScriptEpisode } from './types'
 
+const UNIMPLEMENTED_HINT = '功能尚未实现'
+
 export function TargetScriptReview({
   episodes,
   onSaveEpisode,
@@ -75,14 +77,18 @@ export function TargetScriptReview({
             <div className="mt-1 text-[12px] text-[var(--fos-text-4)]">源剧本对照 / 目标设定引用 / 对齐片段引用</div>
           </div>
           <div className="flex gap-2">
-            <button type="button" className="fos-btn">
-              <AppIcon name="refresh" className="h-4 w-4" />
-              重新生成单集
-            </button>
+            <span title={UNIMPLEMENTED_HINT}>
+              <button type="button" className="fos-btn cursor-not-allowed opacity-55" disabled title={UNIMPLEMENTED_HINT}>
+                <AppIcon name="refresh" className="h-4 w-4" />
+                重新生成单集
+              </button>
+            </span>
             <button type="button" className="fos-btn fos-btn-primary" onClick={saveSelected} disabled={saving}>
               {saving ? '保存中' : '保存编辑'}
             </button>
-            <button type="button" className="fos-btn">进入后续分镜</button>
+            <span title={UNIMPLEMENTED_HINT}>
+              <button type="button" className="fos-btn cursor-not-allowed opacity-55" disabled title={UNIMPLEMENTED_HINT}>进入后续分镜</button>
+            </span>
           </div>
         </div>
         <div className="p-5">

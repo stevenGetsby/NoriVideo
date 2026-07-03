@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { ScreenwriterLoadingSkeleton } from '@/components/frameos/screenwriter/ScreenwriterLoadingSkeleton'
 import { ScreenwriterWorkbench } from '@/components/frameos/screenwriter/ScreenwriterWorkbench'
 import { getScreenwriterTaskNextRoute } from '@/components/frameos/screenwriter/screenwriterRoutes'
 import { useScreenwriterTasks } from '@/components/frameos/screenwriter/useScreenwriterTasks'
@@ -11,35 +12,32 @@ import type { ScreenwriterModeKey, ScreenwriterScriptSummary } from '@/component
 export type ToolKey = 'video-repaint-2' | 'video2script' | 'video2board' | 'script2board' | 'board2board'
 
 export function FosScreenwriter({ initialDialog }: { initialDialog?: ToolKey | null }) {
+  void initialDialog
   const router = useRouter()
-  const [dialog, setDialog] = useState<ToolKey | null>(initialDialog ?? null)
+  const [dialog, setDialog] = useState<ToolKey | null>(null)
+  const [isNavigating, setIsNavigating] = useState(false)
   const { tasks } = useScreenwriterTasks()
 
   const onCard = (key: ScreenwriterModeKey) => {
-    if (key === 'video-repaint-2') {
-      router.push({ pathname: '/screenwriter/video-repaint' })
-      return
-    }
     if (key === 'script-repaint-2') {
+      setIsNavigating(true)
       router.push({ pathname: '/screenwriter/script-repaint' })
       return
-    }
-    if (key === 'storyboard-repaint-2') {
-      setDialog('board2board')
-      return
-    }
-    if (key === 'video2script' || key === 'video2board' || key === 'script2board' || key === 'board2board') {
-      setDialog(key)
     }
   }
 
   const onScript = (script: ScreenwriterScriptSummary) => {
+    setIsNavigating(true)
     router.push(getScreenwriterTaskNextRoute(script))
   }
 
   return (
     <>
-      <ScreenwriterWorkbench scripts={tasks} onModeSelect={onCard} onScriptSelect={onScript} />
+      {isNavigating ? (
+        <ScreenwriterLoadingSkeleton title="正在加载编剧工作台" />
+      ) : (
+        <ScreenwriterWorkbench scripts={tasks} onModeSelect={onCard} onScriptSelect={onScript} />
+      )}
 
       {dialog === 'video2script' ? <VideoToTextDialog mode="script" onClose={() => setDialog(null)} /> : null}
       {dialog === 'video2board' ? <VideoToTextDialog mode="board" onClose={() => setDialog(null)} /> : null}

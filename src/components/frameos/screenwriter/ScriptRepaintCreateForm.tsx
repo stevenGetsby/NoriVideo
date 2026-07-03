@@ -10,6 +10,7 @@ const CHECKPOINTS: Array<[string, string]> = [
 ]
 
 const STAGES = ['自动拆集', '事实卡提取', '设定提炼', '目标设定', '逐集转绘']
+const UNIMPLEMENTED_HINT = '功能尚未实现'
 
 export function ScriptRepaintCreateForm({
   onBack,
@@ -102,20 +103,29 @@ export function ScriptRepaintCreateForm({
                 <span className="text-[12px] text-[var(--fos-text-4)]">{sourceScriptName || '可粘贴全文或使用示例文本'}</span>
               </div>
               <div className="mb-3 flex gap-2">
-                {(['paste', 'file', 'workspace'] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setSourceInputMode(mode)}
-                    className="rounded-[8px] px-3 py-1.5 text-[13px] font-bold"
-                    style={{
-                      background: sourceInputMode === mode ? 'var(--fos-primary-soft)' : 'var(--fos-fill-soft)',
-                      color: sourceInputMode === mode ? 'var(--fos-primary)' : 'var(--fos-text-3)',
-                    }}
-                  >
-                    {mode === 'paste' ? '粘贴文本' : mode === 'file' ? '上传文本' : '从工作台选择'}
-                  </button>
-                ))}
+                {(['paste', 'file', 'workspace'] as const).map((mode) => {
+                  const disabled = mode !== 'paste'
+                  return (
+                    <span key={mode} title={disabled ? UNIMPLEMENTED_HINT : undefined}>
+                      <button
+                        type="button"
+                        data-source-mode={mode}
+                        disabled={disabled}
+                        title={disabled ? UNIMPLEMENTED_HINT : undefined}
+                        onClick={() => {
+                          if (!disabled) setSourceInputMode(mode)
+                        }}
+                        className="rounded-[8px] px-3 py-1.5 text-[13px] font-bold disabled:cursor-not-allowed disabled:opacity-55"
+                        style={{
+                          background: sourceInputMode === mode ? 'var(--fos-primary-soft)' : 'var(--fos-fill-soft)',
+                          color: sourceInputMode === mode ? 'var(--fos-primary)' : 'var(--fos-text-3)',
+                        }}
+                      >
+                        {mode === 'paste' ? '粘贴文本' : mode === 'file' ? '上传文本' : '从工作台选择'}
+                      </button>
+                    </span>
+                  )
+                })}
               </div>
               <textarea
                 className="fos-textarea"

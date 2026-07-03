@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { FosShell } from './FosShell'
 import { EpisodeProgressGrid } from './screenwriter/EpisodeProgressGrid'
+import { ScreenwriterLoadingSkeleton } from './screenwriter/ScreenwriterLoadingSkeleton'
 import { SettingsReviewPage } from './screenwriter/SettingsReviewPage'
 import { TargetScriptReview } from './screenwriter/TargetScriptReview'
 import { VideoRepaintFlowShell } from './screenwriter/VideoRepaintFlowShell'
@@ -90,6 +91,8 @@ export function FosScriptRepaintFlowClient({
   const [refreshKey, setRefreshKey] = useState(0)
   const [actionError, setActionError] = useState<string | null>(null)
   const [targetEpisodes, setTargetEpisodes] = useState<TargetScriptEpisode[]>([])
+  const [targetEpisodesLoading, setTargetEpisodesLoading] = useState(false)
+  const [targetEpisodesLoaded, setTargetEpisodesLoaded] = useState(false)
   const { task, error, isLoading, reload } = useScriptRepaintTask(taskId, refreshKey)
   const activeStage = stage ?? task?.currentStage ?? 'auto_split'
   const shellStage: VideoRepaintStageKey = activeStage === 'target_script' ? 'episode_repaint' : activeStage
@@ -139,14 +142,25 @@ export function FosScriptRepaintFlowClient({
   }, [activeStage, refreshAndRoute])
 
   useEffect(() => {
-    if (activeStage !== 'target_script') return
+    if (activeStage !== 'target_script') {
+      setTargetEpisodesLoaded(false)
+      return
+    }
     let cancelled = false
+    setTargetEpisodesLoading(true)
+    setTargetEpisodesLoaded(false)
     fetchScriptRepaintTargetScriptEpisodes(taskId)
       .then((episodes) => {
         if (!cancelled) setTargetEpisodes(episodes)
       })
       .catch((err) => {
         if (!cancelled) setActionError(err instanceof Error ? err.message : '获取目标剧本失败')
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setTargetEpisodesLoading(false)
+          setTargetEpisodesLoaded(true)
+        }
       })
     return () => {
       cancelled = true
@@ -161,14 +175,19 @@ export function FosScriptRepaintFlowClient({
     setRefreshKey((value) => value + 1)
   }, [taskId])
 
+  if ((isLoading && !task) || (activeStage === 'target_script' && (!targetEpisodesLoaded || targetEpisodesLoading) && targetEpisodes.length === 0)) {
+    return (
+      <FosShell
+        activeKey="screenwriter"
+        hideSidebar
+        header={<div className="flex items-center gap-3 border-b border-[var(--fos-border-soft)] px-6 py-4"><h1 className="text-[16px] font-bold text-white">剧本转绘 2.0</h1></div>}
+      >
+        <ScreenwriterLoadingSkeleton title="正在加载剧本转绘页面" />
+      </FosShell>
+    )
+  }
+
   const content = (() => {
-    if (isLoading && !task) {
-      return (
-        <section className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-6">
-          <div className="text-[15px] font-bold text-white">正在加载任务</div>
-        </section>
-      )
-    }
     if (error) {
       return (
         <section className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-6">

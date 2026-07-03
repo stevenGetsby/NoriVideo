@@ -54,6 +54,7 @@ export interface ScreenwriterModeCard {
   iconBg: string
   badge?: string
   compact?: boolean
+  implemented?: boolean
 }
 
 export interface ScreenwriterScriptSummary {
