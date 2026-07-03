@@ -1,6 +1,6 @@
 # 剧本转绘功能链路实现计划
 
-- Status: Active
+- Status: Completed
 - Last sync with code: 13de5bbc6d97825ccb91d94adc7c006638cf2627
 - Date: 2026/7/3
 
