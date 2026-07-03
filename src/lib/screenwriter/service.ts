@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { toScreenwriterTaskSummary, toTargetScriptEpisode, toVideoRepaintTaskDetail, countWords } from './dto'
 import { getScriptRepaintTaskRoute, getVideoRepaintStageRoute, getVideoRepaintTaskRoute } from './routes'
+import { enqueueScreenwriterMockStage } from './task-producer'
 import {
   SCREENWRITER_TASK_KIND,
   SCREENWRITER_TASK_STATUS,
@@ -307,6 +308,12 @@ export async function createScriptRepaintTask(input: ScriptRepaintCreateInput): 
   })
 
   const row = toObject(created)
+  await enqueueScreenwriterMockStage({
+    userId: input.userId,
+    taskId: String(row.id),
+    stage: 'auto_split',
+  })
+
   return {
     id: String(row.id),
     title: String(row.title),
@@ -526,6 +533,27 @@ export async function approveStage(params: {
       include: DETAIL_INCLUDE,
     })
   })
+  const taskKind = readString(toObject(task).taskKind)
+  if (taskKind === SCREENWRITER_TASK_KIND.SCRIPT_REPAINT_2) {
+    if (stage === VIDEO_REPAINT_STAGE.SOURCE_SETTINGS && next === VIDEO_REPAINT_STAGE.TARGET_SETTINGS) {
+      await enqueueScreenwriterMockStage({
+        userId: params.userId,
+        taskId: params.taskId,
+        stage: 'target_settings',
+      })
+    } else if (stage === VIDEO_REPAINT_STAGE.TARGET_SETTINGS && next === VIDEO_REPAINT_STAGE.EPISODE_REPAINT) {
+      await enqueueScreenwriterMockStage({
+        userId: params.userId,
+        taskId: params.taskId,
+        stage: 'episode_repaint',
+      })
+    }
+    const refreshed = await client.screenwriterTask.findFirst({
+      where: { id: params.taskId, userId: params.userId },
+      include: DETAIL_INCLUDE,
+    })
+    return refreshed ? toDetail(refreshed) : toDetail(updated)
+  }
   return toDetail(updated)
 }
 

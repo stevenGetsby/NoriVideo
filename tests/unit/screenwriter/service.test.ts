@@ -11,17 +11,31 @@ const prismaMock = vi.hoisted(() => ({
   screenwriterStageState: {
     update: vi.fn(),
   },
+  screenwriterSettingsReview: {
+    update: vi.fn(),
+  },
   screenwriterReviewFeedback: {
     create: vi.fn(),
   },
   $transaction: vi.fn(),
 }))
+const producerMock = vi.hoisted(() => ({
+  enqueueScreenwriterMockStage: vi.fn(),
+}))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/lib/screenwriter/task-producer', () => producerMock)
 
 describe('screenwriter service', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    producerMock.enqueueScreenwriterMockStage.mockResolvedValue({
+      success: true,
+      async: true,
+      taskId: 'worker-task-1',
+      status: 'queued',
+      deduped: false,
+    })
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => Promise<unknown>) => {
       return await callback(prismaMock)
     })
@@ -172,6 +186,11 @@ describe('screenwriter service', () => {
       title: 'Script Demo',
       nextRoute: '/screenwriter/script-repaint/sw-script-1',
     })
+    expect(producerMock.enqueueScreenwriterMockStage).toHaveBeenCalledWith({
+      userId: 'user-1',
+      taskId: 'sw-script-1',
+      stage: 'auto_split',
+    })
   })
 
   it('lists task summaries with search, status, kind and pagination', async () => {
@@ -300,6 +319,53 @@ describe('screenwriter service', () => {
         action: 'approve',
         createdBy: 'user-1',
       },
+    })
+  })
+
+  it('enqueues target settings mock task after approving script repaint source settings', async () => {
+    const { approveStage } = await import('@/lib/screenwriter/service')
+    const taskRow = {
+      id: 'sw-script-1',
+      title: 'Script Task',
+      taskKind: 'script_repaint_2',
+      status: 'draft',
+      activeTaskLabel: '进行中',
+      currentStage: 'source_settings',
+      currentStageStatus: 'waiting_check',
+      episodeCount: 1,
+      requirement: 'make it modern',
+      transferForm: 'script',
+      updatedAt: new Date('2026-07-02T00:00:00.000Z'),
+      sourceVideos: [],
+      stageStates: [
+        { stageKey: 'auto_split', title: '自动拆集', subtitle: '', status: 'succeeded', checkpoint: null },
+        { stageKey: 'fact_extract', title: '事实卡提取', subtitle: '', status: 'succeeded', checkpoint: null },
+        { stageKey: 'source_settings', title: '源设定', subtitle: '', status: 'waiting_check', checkpoint: 'A' },
+        { stageKey: 'target_settings', title: '目标设定', subtitle: '', status: 'not_started', checkpoint: 'B' },
+        { stageKey: 'episode_repaint', title: '逐集转绘', subtitle: '', status: 'not_started', checkpoint: null },
+      ],
+      settingsReviews: [{ id: 'review-1', stageKey: 'source_settings', version: 1 }],
+      episodeProcesses: [],
+      scriptEpisodes: [],
+    }
+    prismaMock.screenwriterTask.findFirst.mockResolvedValue(taskRow)
+    prismaMock.screenwriterTask.update.mockResolvedValue({
+      ...taskRow,
+      currentStage: 'target_settings',
+      currentStageStatus: 'running',
+    })
+
+    await approveStage({
+      userId: 'user-1',
+      taskId: 'sw-script-1',
+      stage: 'source_settings',
+      feedback: 'looks good',
+    })
+
+    expect(producerMock.enqueueScreenwriterMockStage).toHaveBeenCalledWith({
+      userId: 'user-1',
+      taskId: 'sw-script-1',
+      stage: 'target_settings',
     })
   })
 })

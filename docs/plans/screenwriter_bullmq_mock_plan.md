@@ -1,11 +1,12 @@
 # 编剧工作台 BullMQ Mock 任务接入计划
 
-- Status: Active
-- Last sync with code: 3dd0bb9e9dcde1a3bf3baee4e25e4d8a0e1c4ece
+- Status: Completed
+- Last sync with code: 49a155d3a3a40d5e2296263c57ea7bea1e3a5804
 - Date: 2026/7/3
 
 ## Changed Items
 1. Mock 专用任务类型取名 screenwriter_mock，因为后续编剧工作台链路的其他功能链路也可以用这个 Mock 任务来测试链路流程
+2. 已接入 `screenwriter_mock` BullMQ 生产消费链路，现阶段使用 10s sleep 的 Mock worker 推进剧本转绘阶段，并以系统测试覆盖创建任务、两个人工检查点、逐集转绘和目标剧本查看链路。
 
 ## 目标
 
