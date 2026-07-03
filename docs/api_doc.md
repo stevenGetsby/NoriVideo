@@ -1,6 +1,6 @@
 # NoriVideo API 接口文档
 
-> 本文档由当前代码库 `src/app/api/**/route.ts` 梳理生成，覆盖所有已导出的 Next.js API Route 方法。统计口径：190 个 route 文件，255 个方法级接口。
+> 本文档由当前代码库 `src/app/api/**/route.ts` 梳理生成，覆盖所有已导出的 Next.js API Route 方法。统计口径：201 个 route 文件，266 个方法级接口。
 
 ## 通用约定
 
@@ -21,11 +21,30 @@
 | 项目与画布接口 | 22 | projects |
 | 工作流阶段接口 | 8 | workflow |
 | 任务与运行时接口 | 12 | tasks-runs |
+| 编剧工作台接口 | 11 | screenwriter |
 | 用户配置、费用与偏好接口 | 22 | user |
 | Super Agent 接口 | 4 | super-agent |
 | 视频增强接口 | 6 | video-enhance |
 | 认证接口 | 3 | auth |
 | 系统、存储、文件与基础设施接口 | 17 | system-infra |
+
+## 编剧工作台接口
+
+编剧工作台前端只调用 `/api/screenwriter/*` 专用接口，不直接拼装 `/api/projects`、`/api/novel-promotion/*`、`/api/workflow/*`、`/api/runs/*` 或 `/api/tasks/*` 的原始结构。接口内部可复用认证、Prisma、Task、GraphRun、MediaObject 和 storage 等底层基础设施。
+
+| 方法 | 路径 | 用途 |
+| --- | --- | --- |
+| GET | `/api/screenwriter/tasks` | 查询当前用户的编剧工作台任务队列，支持 `status`、`taskKind`、`search`、`page`、`pageSize`。 |
+| POST | `/api/screenwriter/video-repaint` | 创建视频转绘 2.0 任务，初始化源视频和 6 个阶段，返回 `{ id, title, nextRoute }`。 |
+| GET | `/api/screenwriter/video-repaint/{taskId}` | 查询视频转绘任务详情，包括阶段状态、检查点产物、逐集进度和目标剧本摘要。 |
+| PATCH | `/api/screenwriter/video-repaint/{taskId}` | 更新任务标题、转绘需求和检查点配置，并按需标记下游阶段为 stale。 |
+| POST | `/api/screenwriter/video-repaint/{taskId}/stages/{stage}/run` | 运行指定阶段，将阶段置为 queued。 |
+| POST | `/api/screenwriter/video-repaint/{taskId}/stages/{stage}/retry` | 重试 failed 或 stale 阶段，可带 `episodeNumber`。 |
+| POST | `/api/screenwriter/video-repaint/{taskId}/stages/{stage}/approve` | 确认源设定或目标设定检查点，保存反馈并解锁下一阶段。 |
+| POST | `/api/screenwriter/video-repaint/{taskId}/source-settings/regenerate` | 保存反馈并生成新版本源设定检查点。 |
+| POST | `/api/screenwriter/video-repaint/{taskId}/target-settings/regenerate` | 保存反馈并生成新版本目标设定检查点。 |
+| GET | `/api/screenwriter/video-repaint/{taskId}/target-script` | 查询目标剧本分集列表，可用 `episodeNumber` 过滤。 |
+| PATCH | `/api/screenwriter/video-repaint/{taskId}/target-script/{episodeId}` | 保存人工编辑后的目标剧本内容，更新字数和更新时间。 |
 
 ## 小说/短剧工作流接口
 

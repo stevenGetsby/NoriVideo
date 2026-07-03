@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { MappingPanel } from './MappingPanel'
 import { NameIndexPanel } from './NameIndexPanel'
@@ -11,13 +12,16 @@ export function SettingsReviewPage({
   confirmLabel,
   regenerateLabel,
   onConfirm,
+  onRegenerate,
 }: {
   review: SettingsReviewView
   confirmLabel: string
   regenerateLabel: string
   onConfirm?: () => void
+  onRegenerate?: (feedback: string) => void
 }) {
   const isTarget = review.checkpoint === 'B'
+  const [feedback, setFeedback] = useState('')
 
   return (
     <div className="grid gap-6 xl:grid-cols-[minmax(0,740px)_380px]">
@@ -54,8 +58,10 @@ export function SettingsReviewPage({
             className="fos-textarea mt-4"
             style={{ minHeight: 92 }}
             placeholder={review.feedbackPlaceholder}
+            value={feedback}
+            onChange={(event) => setFeedback(event.target.value)}
           />
-          <button type="button" className="fos-btn mt-3 w-full opacity-70">
+          <button type="button" className="fos-btn mt-3 w-full opacity-70" onClick={() => onRegenerate?.(feedback)}>
             <AppIcon name="refresh" className="h-4 w-4" />
             {regenerateLabel}
           </button>

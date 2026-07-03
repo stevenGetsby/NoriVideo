@@ -10,13 +10,11 @@ export function VideoRepaintFlowShell({
   currentStage,
   children,
   onBack,
-  onRequirementClick,
 }: {
   task: VideoRepaintTaskView
   currentStage: VideoRepaintStageKey
   children: ReactNode
   onBack: () => void
-  onRequirementClick: () => void
 }) {
   const activeStage = task.stages.find((stage) => stage.key === currentStage)
 
@@ -41,7 +39,7 @@ export function VideoRepaintFlowShell({
             </div>
             <button
               type="button"
-              onClick={onRequirementClick}
+              onClick={() => document.getElementById('video-repaint-requirement')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
               className="fos-btn fos-btn-ghost"
             >
               <AppIcon name="eye" className="h-4 w-4" />

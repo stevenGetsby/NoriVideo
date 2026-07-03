@@ -1,7 +1,7 @@
 # 编剧工作台真实后端接口接入计划
 
-- Status: Active
-- Last sync with code: 4745ca458b1168b9e1b7992275b9a7a2c79ee3cd
+- Status: Completed
+- Last sync with code: 2026-07-02 working tree (uncommitted)
 - Date: 2026/7/2
 
 ## Changed Items
@@ -9,6 +9,7 @@
 2. 将后端接口要涉及的数据对象写在 "### 3. 需要创建的后端对象" 中
 3. 前端在非检查点阶段页面，通过定时轮询（ 10s ）是否已经全部完成，若完成则跳转到下一个页面
    1. 后端会一直 work 不停（除非有些失败了，就停下），前端轮询后端查看所处阶段，并且渲染对应页面
+4. 已新增 screenwriter 专用 Prisma 对象、`/api/screenwriter/*` 接口、前端 API client 与轮询接入；mock store 仅保留为历史测试 fixture，不再作为页面默认数据源。
 
 
 ## 目标

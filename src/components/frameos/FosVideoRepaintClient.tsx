@@ -3,14 +3,14 @@
 import { useRouter } from '@/i18n/navigation'
 import { FosShell } from './FosShell'
 import { VideoRepaintCreateForm } from './screenwriter/VideoRepaintCreateForm'
-import { createVideoRepaintTask } from './screenwriter/screenwriterMockStore'
+import { createVideoRepaintTask } from './screenwriter/screenwriterApi'
 import type { VideoRepaintCreateInput } from './screenwriter/types'
 
 export function FosVideoRepaintClient() {
   const router = useRouter()
 
-  const handleStart = (input: VideoRepaintCreateInput) => {
-    const task = createVideoRepaintTask(input)
+  const handleStart = async (input: VideoRepaintCreateInput) => {
+    const task = await createVideoRepaintTask(input)
     router.push(task.nextRoute)
   }
 

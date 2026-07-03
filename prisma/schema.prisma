@@ -514,6 +514,7 @@ model User {
   workflowStageStates WorkflowStageState[]
   exportHistoryRecords ExportHistoryRecord[]
   exportQueueRecords ExportQueueRecord[]
+  screenwriterTasks ScreenwriterTask[]
   workspaceFeedbackRecords WorkspaceFeedbackRecord[]
   systemUpdateCheckRecords SystemUpdateCheckRecord[]
   workspaceTeamProfile WorkspaceTeamProfile?
@@ -1287,6 +1288,7 @@ model MediaObject {
   globalLocationImageImages             GlobalLocationImage[]       @relation("GlobalLocationImageMedia")
   globalLocationImagePreviousImages     GlobalLocationImage[]       @relation("GlobalLocationImagePreviousImageMedia")
   globalVoiceCustomVoices               GlobalVoice[]               @relation("GlobalVoiceCustomVoiceMedia")
+  screenwriterSourceVideos              ScreenwriterSourceVideo[]   @relation("ScreenwriterSourceVideoMedia")
 
   @@index([createdAt])
   @@map("media_objects")
@@ -1305,6 +1307,237 @@ model LegacyMediaRefBackup {
   @@index([runId])
   @@index([tableName, fieldName])
   @@map("legacy_media_refs_backup")
+}
+
+// =====================================================
+// Screenwriter workbench
+// =====================================================
+model ScreenwriterTask {
+  id                 String                       @id @default(uuid())
+  userId             String
+  title              String
+  taskKind           String                       @default("video_repaint_2") @db.VarChar(64)
+  status             String                       @default("draft") @db.VarChar(32)
+  activeTaskLabel    String?                      @db.VarChar(64)
+  currentStage       String                       @default("auto_split") @db.VarChar(64)
+  currentStageStatus String                       @default("queued") @db.VarChar(32)
+  episodeCount       Int                          @default(1)
+  requirement        String                       @db.Text
+  transferForm       String                       @default("script") @db.VarChar(32)
+  uploadMode         String                       @default("file") @db.VarChar(32)
+  checkpointConfig   Json?
+  sourceProjectId    String?
+  targetProjectId    String?
+  activeRunId        String?
+  activeWorkerTaskId String?
+  archivedAt         DateTime?
+  createdAt          DateTime                     @default(now())
+  updatedAt          DateTime                     @updatedAt
+
+  user               User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceVideos       ScreenwriterSourceVideo[]
+  stageStates        ScreenwriterStageState[]
+  settingsReviews    ScreenwriterSettingsReview[]
+  reviewFeedbacks    ScreenwriterReviewFeedback[]
+  episodeProcesses   ScreenwriterEpisodeProcess[]
+  scriptEpisodes     ScreenwriterScriptEpisode[]
+  nameMappings       ScreenwriterNameMapping[]
+  artifacts          ScreenwriterArtifact[]
+
+  @@index([userId, status])
+  @@index([userId, updatedAt])
+  @@index([taskKind])
+  @@index([currentStage, currentStageStatus])
+  @@map("screenwriter_tasks")
+}
+
+model ScreenwriterSourceVideo {
+  id                 String                      @id @default(uuid())
+  screenwriterTaskId String
+  episodeNumber      Int                         @default(1)
+  fileName           String
+  mediaObjectId      String?
+  storageKey         String?                     @db.Text
+  url                String?                     @db.Text
+  durationSeconds    Float?
+  fileSize           BigInt?
+  mimeType           String?
+  uploadStatus       String                      @default("local") @db.VarChar(32)
+  transcodeStatus    String?
+  extractStatus      String?
+  errorMessage       String?                     @db.Text
+  createdAt          DateTime                    @default(now())
+  updatedAt          DateTime                    @updatedAt
+
+  screenwriterTask   ScreenwriterTask            @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+  mediaObject        MediaObject?                @relation("ScreenwriterSourceVideoMedia", fields: [mediaObjectId], references: [id], onDelete: SetNull)
+  scriptEpisodes     ScreenwriterScriptEpisode[]
+
+  @@unique([screenwriterTaskId, episodeNumber])
+  @@index([screenwriterTaskId])
+  @@index([mediaObjectId])
+  @@map("screenwriter_source_videos")
+}
+
+model ScreenwriterStageState {
+  id                 String           @id @default(uuid())
+  screenwriterTaskId String
+  stageKey           String           @db.VarChar(64)
+  title              String
+  subtitle           String           @db.Text
+  status             String           @default("not_started") @db.VarChar(32)
+  checkpoint         String?          @db.VarChar(8)
+  progress           Int              @default(0)
+  workerTaskId       String?
+  runId              String?
+  errorCode          String?          @db.VarChar(80)
+  errorMessage       String?          @db.Text
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  approvedAt         DateTime?
+  approvedBy         String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  screenwriterTask   ScreenwriterTask @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([screenwriterTaskId, stageKey])
+  @@index([screenwriterTaskId, status])
+  @@map("screenwriter_stage_states")
+}
+
+model ScreenwriterSettingsReview {
+  id                  String                       @id @default(uuid())
+  screenwriterTaskId  String
+  stageKey            String                       @db.VarChar(64)
+  checkpoint          String                       @db.VarChar(8)
+  version             Int                          @default(1)
+  status              String                       @default("draft") @db.VarChar(32)
+  outlineTitle        String
+  bodySections        Json
+  collapsedPanelTitle String
+  nameIndexGroups     Json?
+  mappingGroups       Json?
+  issues              Json?
+  feedbackPlaceholder String                       @db.Text
+  latestFeedback      String?                      @db.Text
+  approvedAt          DateTime?
+  createdAt           DateTime                     @default(now())
+  updatedAt           DateTime                     @updatedAt
+
+  screenwriterTask    ScreenwriterTask             @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+  feedbacks           ScreenwriterReviewFeedback[]
+
+  @@unique([screenwriterTaskId, stageKey, version])
+  @@index([screenwriterTaskId, stageKey, status])
+  @@map("screenwriter_settings_reviews")
+}
+
+model ScreenwriterReviewFeedback {
+  id                 String                      @id @default(uuid())
+  settingsReviewId   String?
+  screenwriterTaskId String
+  stageKey           String                      @db.VarChar(64)
+  content            String?                     @db.Text
+  action             String                      @db.VarChar(32)
+  runId              String?
+  workerTaskId       String?
+  createdBy          String
+  createdAt          DateTime                    @default(now())
+
+  settingsReview     ScreenwriterSettingsReview? @relation(fields: [settingsReviewId], references: [id], onDelete: SetNull)
+  screenwriterTask   ScreenwriterTask            @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+
+  @@index([settingsReviewId])
+  @@index([screenwriterTaskId, stageKey])
+  @@map("screenwriter_review_feedback")
+}
+
+model ScreenwriterEpisodeProcess {
+  id                 String           @id @default(uuid())
+  screenwriterTaskId String
+  stageKey           String           @db.VarChar(64)
+  episodeNumber      Int
+  status             String           @default("pending") @db.VarChar(32)
+  workerTaskId       String?
+  runId              String?
+  sourceEpisodeId    String?
+  targetEpisodeId    String?
+  progress           Int              @default(0)
+  errorCode          String?          @db.VarChar(80)
+  errorMessage       String?          @db.Text
+  startedAt          DateTime?
+  finishedAt         DateTime?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  screenwriterTask   ScreenwriterTask @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([screenwriterTaskId, stageKey, episodeNumber])
+  @@index([screenwriterTaskId, stageKey, status])
+  @@map("screenwriter_episode_processes")
+}
+
+model ScreenwriterScriptEpisode {
+  id                 String                    @id @default(uuid())
+  screenwriterTaskId String
+  episodeNumber      Int
+  scriptKind         String                    @db.VarChar(32)
+  title              String
+  content            String                    @db.LongText
+  wordCount          Int                       @default(0)
+  status             String                    @default("pending") @db.VarChar(32)
+  sourceVideoId      String?
+  sourceEpisodeId    String?
+  version            Int                       @default(1)
+  updatedBy          String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+
+  screenwriterTask   ScreenwriterTask          @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+  sourceVideo        ScreenwriterSourceVideo?  @relation(fields: [sourceVideoId], references: [id], onDelete: SetNull)
+
+  @@unique([screenwriterTaskId, scriptKind, episodeNumber, version])
+  @@index([screenwriterTaskId, scriptKind])
+  @@index([sourceVideoId])
+  @@map("screenwriter_script_episodes")
+}
+
+model ScreenwriterNameMapping {
+  id                 String           @id @default(uuid())
+  screenwriterTaskId String
+  mappingKind        String           @db.VarChar(32)
+  sourceName         String
+  targetName         String?
+  aliases            Json?
+  description        String?          @db.Text
+  sourceEvidence     Json?
+  status             String           @default("draft") @db.VarChar(32)
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  screenwriterTask   ScreenwriterTask @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+
+  @@index([screenwriterTaskId, mappingKind])
+  @@map("screenwriter_name_mappings")
+}
+
+model ScreenwriterArtifact {
+  id                 String           @id @default(uuid())
+  screenwriterTaskId String
+  stageKey           String           @db.VarChar(64)
+  artifactType       String           @db.VarChar(80)
+  refId              String
+  payload            Json?
+  version            Int              @default(1)
+  runId              String?
+  createdAt          DateTime         @default(now())
+
+  screenwriterTask   ScreenwriterTask @relation(fields: [screenwriterTaskId], references: [id], onDelete: Cascade)
+
+  @@unique([screenwriterTaskId, stageKey, artifactType, refId, version])
+  @@index([screenwriterTaskId, stageKey])
+  @@map("screenwriter_artifacts")
 }
 
 // =====================================================

@@ -14,7 +14,7 @@ export function VideoRepaintCreateForm({
   onStart,
 }: {
   onBack: () => void
-  onStart: (input: VideoRepaintCreateInput) => void
+  onStart: (input: VideoRepaintCreateInput) => void | Promise<void>
 }) {
   const [taskTitle, setTaskTitle] = useState('')
   const [form, setForm] = useState<VideoRepaintTransferForm>('script')
@@ -23,8 +23,11 @@ export function VideoRepaintCreateForm({
   const [requirement, setRequirement] = useState('')
   const [checks, setChecks] = useState<Record<string, boolean>>({ A: true, B: true })
   const [errors, setErrors] = useState<Partial<Record<keyof VideoRepaintCreateInput, string>>>({})
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const handleStart = () => {
+  const handleStart = async () => {
+    if (isSubmitting) return
     const result = validateVideoRepaintCreateInput({
       title: taskTitle,
       transferForm: form,
@@ -38,7 +41,15 @@ export function VideoRepaintCreateForm({
       return
     }
     setErrors({})
-    onStart(result.value)
+    setSubmitError(null)
+    setIsSubmitting(true)
+    try {
+      await onStart(result.value)
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : '创建视频转绘任务失败')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
@@ -210,8 +221,9 @@ export function VideoRepaintCreateForm({
             </div>
 
             <div className="flex justify-end pb-4">
-              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" onClick={handleStart}>
-                开始运行
+              {submitError ? <div className="mr-4 self-center text-[12px] text-[#ef4444]">{submitError}</div> : null}
+              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" onClick={handleStart} disabled={isSubmitting}>
+                {isSubmitting ? '提交中' : '开始运行'}
               </button>
             </div>
           </div>

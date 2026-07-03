@@ -1,0 +1,122 @@
+import { apiFetch } from '@/lib/api-fetch'
+import type {
+  ScreenwriterScriptSummary,
+  TargetScriptEpisode,
+  VideoRepaintCreateInput,
+  VideoRepaintCreateResult,
+  VideoRepaintRouteStage,
+  VideoRepaintTaskDetail,
+} from './types'
+
+async function readJson<T>(response: Response, fallbackMessage: string): Promise<T> {
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) {
+    const message =
+      payload && typeof payload === 'object'
+        ? ((payload as { error?: { message?: unknown }; message?: unknown }).error?.message
+          || (payload as { message?: unknown }).message)
+        : null
+    throw new Error(typeof message === 'string' ? message : fallbackMessage)
+  }
+  return payload as T
+}
+
+export async function fetchScreenwriterTasks(): Promise<{
+  tasks: ScreenwriterScriptSummary[]
+  total?: number
+  page?: number
+  pageSize?: number
+}> {
+  const response = await apiFetch('/api/screenwriter/tasks', { cache: 'no-store' })
+  return await readJson(response, '获取编剧任务失败')
+}
+
+export async function createVideoRepaintTask(input: VideoRepaintCreateInput): Promise<VideoRepaintCreateResult> {
+  const response = await apiFetch('/api/screenwriter/video-repaint', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return await readJson(response, '创建视频转绘任务失败')
+}
+
+export async function fetchVideoRepaintTask(taskId: string): Promise<VideoRepaintTaskDetail> {
+  const response = await apiFetch(`/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}`, {
+    cache: 'no-store',
+  })
+  const payload = await readJson<{ task: VideoRepaintTaskDetail }>(response, '获取视频转绘任务失败')
+  return payload.task
+}
+
+export async function runVideoRepaintStage(taskId: string, stage: VideoRepaintRouteStage): Promise<VideoRepaintTaskDetail> {
+  const response = await apiFetch(
+    `/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/stages/${encodeURIComponent(stage)}/run`,
+    { method: 'POST' },
+  )
+  const payload = await readJson<{ task: VideoRepaintTaskDetail }>(response, '运行阶段失败')
+  return payload.task
+}
+
+export async function retryVideoRepaintStage(taskId: string, stage: VideoRepaintRouteStage, episodeNumber?: number): Promise<VideoRepaintTaskDetail> {
+  const response = await apiFetch(
+    `/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/stages/${encodeURIComponent(stage)}/retry`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ episodeNumber }),
+    },
+  )
+  const payload = await readJson<{ task: VideoRepaintTaskDetail }>(response, '重试阶段失败')
+  return payload.task
+}
+
+export async function approveVideoRepaintStage(taskId: string, stage: VideoRepaintRouteStage, feedback?: string): Promise<VideoRepaintTaskDetail> {
+  const response = await apiFetch(
+    `/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/stages/${encodeURIComponent(stage)}/approve`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    },
+  )
+  const payload = await readJson<{ task: VideoRepaintTaskDetail }>(response, '确认阶段失败')
+  return payload.task
+}
+
+export async function regenerateVideoRepaintSettings(taskId: string, stage: 'source_settings' | 'target_settings', feedback?: string): Promise<VideoRepaintTaskDetail> {
+  const endpointStage = stage === 'source_settings' ? 'source-settings' : 'target-settings'
+  const response = await apiFetch(
+    `/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/${endpointStage}/regenerate`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    },
+  )
+  const payload = await readJson<{ task: VideoRepaintTaskDetail }>(response, '重新生成设定失败')
+  return payload.task
+}
+
+export async function fetchTargetScriptEpisodes(taskId: string): Promise<TargetScriptEpisode[]> {
+  const response = await apiFetch(`/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/target-script`, {
+    cache: 'no-store',
+  })
+  const payload = await readJson<{ episodes: TargetScriptEpisode[] }>(response, '获取目标剧本失败')
+  return payload.episodes
+}
+
+export async function updateTargetScriptEpisode(taskId: string, episodeId: string, input: {
+  title?: string
+  content: string
+}): Promise<TargetScriptEpisode> {
+  const response = await apiFetch(
+    `/api/screenwriter/video-repaint/${encodeURIComponent(taskId)}/target-script/${encodeURIComponent(episodeId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    },
+  )
+  const payload = await readJson<{ episode: TargetScriptEpisode }>(response, '保存目标剧本失败')
+  return payload.episode
+}

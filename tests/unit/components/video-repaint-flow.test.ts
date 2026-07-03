@@ -17,7 +17,6 @@ describe('VideoRepaintFlowShell', () => {
           task: videoRepaintDemoTask,
           currentStage: 'source_settings',
           onBack: () => undefined,
-          onRequirementClick: () => undefined,
           children: createElement('div', null, '阶段内容'),
         },
       ),

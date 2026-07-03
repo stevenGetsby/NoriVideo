@@ -1,12 +1,53 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import type { TargetScriptEpisode } from './types'
 
-export function TargetScriptReview({ episodes }: { episodes: TargetScriptEpisode[] }) {
-  const [selectedId, setSelectedId] = useState(episodes[0]?.id ?? null)
+export function TargetScriptReview({
+  episodes,
+  onSaveEpisode,
+}: {
+  episodes: TargetScriptEpisode[]
+  onSaveEpisode?: (episode: TargetScriptEpisode, content: string) => Promise<void> | void
+}) {
+  const [selectedId, setSelectedId] = useState<string | null>(episodes[0]?.id ?? null)
   const selected = episodes.find((episode) => episode.id === selectedId) ?? episodes[0]
+  const [draft, setDraft] = useState(selected?.content ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!episodes.length) {
+      setSelectedId(null)
+      setDraft('')
+      return
+    }
+    const nextSelected = episodes.find((episode) => episode.id === selectedId) ?? episodes[0]
+    if (nextSelected.id !== selectedId) {
+      setSelectedId(nextSelected.id)
+      setDraft(nextSelected.content)
+    }
+  }, [episodes, selectedId])
+
+  function selectEpisode(episode: TargetScriptEpisode) {
+    setSelectedId(episode.id)
+    setDraft(episode.content)
+    setError(null)
+  }
+
+  async function saveSelected() {
+    if (!selected || !onSaveEpisode || saving) return
+    setSaving(true)
+    setError(null)
+    try {
+      await onSaveEpisode(selected, draft)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '保存目标剧本失败')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="grid min-h-[620px] gap-5 lg:grid-cols-[260px_minmax(0,1fr)]">
@@ -17,7 +58,7 @@ export function TargetScriptReview({ episodes }: { episodes: TargetScriptEpisode
             <button
               key={episode.id}
               type="button"
-              onClick={() => setSelectedId(episode.id)}
+              onClick={() => selectEpisode(episode)}
               className="w-full rounded-[8px] px-3 py-3 text-left"
               style={{ background: episode.id === selected?.id ? 'rgba(59,110,242,.15)' : 'transparent' }}
             >
@@ -38,15 +79,19 @@ export function TargetScriptReview({ episodes }: { episodes: TargetScriptEpisode
               <AppIcon name="refresh" className="h-4 w-4" />
               重新生成单集
             </button>
-            <button type="button" className="fos-btn fos-btn-primary">保存编辑</button>
+            <button type="button" className="fos-btn fos-btn-primary" onClick={saveSelected} disabled={saving}>
+              {saving ? '保存中' : '保存编辑'}
+            </button>
             <button type="button" className="fos-btn">进入后续分镜</button>
           </div>
         </div>
         <div className="p-5">
+          {error ? <div className="mb-3 text-[12px] text-[#ef4444]">{error}</div> : null}
           <textarea
             className="fos-textarea w-full font-mono"
             style={{ minHeight: 460 }}
-            defaultValue={selected?.content ?? ''}
+            value={draft}
+            onChange={(event) => setDraft(event.target.value)}
           />
         </div>
       </main>
