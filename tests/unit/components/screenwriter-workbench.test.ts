@@ -3,7 +3,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
 import { ScreenwriterWorkbench } from '@/components/frameos/screenwriter/ScreenwriterWorkbench'
-import { screenwriterDemoScripts } from '@/components/frameos/screenwriter/screenwriterDemoData'
+import { emptyScreenwriterModeCards, screenwriterDemoScripts } from '@/components/frameos/screenwriter/screenwriterDemoData'
 
 vi.mock('@/i18n/navigation', () => ({
   Link: ({
@@ -55,5 +55,11 @@ describe('ScreenwriterWorkbench', () => {
     expect(html).toContain('视频转剧本')
     expect(html).not.toContain('我的剧本')
     expect(html).not.toContain('请从左侧选择一份剧本开始编辑')
+  })
+
+  it('routes the no-script script repaint entry to the script repaint create page', () => {
+    const scriptRepaintCard = emptyScreenwriterModeCards.find((card) => card.title === '剧本转绘')
+
+    expect(scriptRepaintCard?.key).toBe('script-repaint-2')
   })
 })

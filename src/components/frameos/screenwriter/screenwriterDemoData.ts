@@ -76,7 +76,7 @@ export const emptyScreenwriterModeCards: ScreenwriterModeCard[] = [
     iconBg: 'rgba(139,92,246,.16)',
   },
   {
-    key: 'script2board',
+    key: 'script-repaint-2',
     title: '剧本转绘',
     subtitle: '选择已有剧本或上传剧本文件，按目标市场规则生成转绘版剧本。',
     icon: 'sparkles',
