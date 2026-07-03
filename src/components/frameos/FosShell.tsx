@@ -2,12 +2,17 @@
 
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import type { AppIconName } from '@/components/ui/icons'
-import { ServiceRecordsModal, FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
+
+const ServiceRecordsModal = dynamic(() => import('./FosShellModals').then((mod) => mod.ServiceRecordsModal))
+const FeedbackModal = dynamic(() => import('./FosShellModals').then((mod) => mod.FeedbackModal))
+const AccountModal = dynamic(() => import('./FosShellModals').then((mod) => mod.AccountModal))
+const UpdatesToast = dynamic(() => import('./FosShellModals').then((mod) => mod.UpdatesToast))
 
 export type FosNavKey =
   | 'projects'

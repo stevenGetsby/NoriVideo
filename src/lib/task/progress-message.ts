@@ -43,6 +43,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
   [TASK_TYPE.ASSET_HUB_REFERENCE_TO_CHARACTER]: 'progress.taskType.assetHubReferenceToCharacter',
   [TASK_TYPE.SUPER_AGENT_EXECUTE]: 'progress.taskType.superAgentExecute',
   [TASK_TYPE.EXPORT_DELIVERY]: 'progress.taskType.exportDelivery',
+  [TASK_TYPE.SCREENWRITER_MOCK]: 'progress.taskType.screenwriterMock',
 }
 
 const STAGE_LABELS: Record<string, string> = {

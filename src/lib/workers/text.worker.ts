@@ -44,6 +44,7 @@ import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 import { handleSuperAgentExecuteTask } from './handlers/super-agent-execute'
 import { handleExportDeliveryTask } from './handlers/export-delivery'
+import { handleScreenwriterMockTask } from './handlers/screenwriter-mock'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -722,6 +723,8 @@ async function processTextTask(job: Job<TaskJobData>) {
       return await handleExportDeliveryTask(job)
     case TASK_TYPE.SUPER_AGENT_EXECUTE:
       return await handleSuperAgentExecuteTask(job)
+    case TASK_TYPE.SCREENWRITER_MOCK:
+      return await handleScreenwriterMockTask(job)
     default:
       throw new Error(`Unsupported text task type: ${job.data.type}`)
   }
