@@ -16,6 +16,7 @@ const utilsMock = vi.hoisted(() => ({
 
 const outboundImageMock = vi.hoisted(() => ({
   normalizeReferenceImagesForGeneration: vi.fn(async () => ['normalized-reference-image']),
+  normalizeToOriginalMediaUrl: vi.fn(async (value: string) => value),
   normalizeToBase64ForGeneration: vi.fn(async () => 'base64-required-reference'),
 }))
 
@@ -47,6 +48,9 @@ vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/media/outbound-image', () => outboundImageMock)
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
+}))
+vi.mock('@/lib/frameos/material-service', () => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
 }))
 vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
   const actual = await vi.importActual<typeof import('@/lib/workers/handlers/image-task-handler-shared')>(

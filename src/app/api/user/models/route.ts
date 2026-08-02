@@ -1,52 +1,23 @@
-/**
- * 获取用户的模型列表
- *
- * 返回用户在个人中心启用的模型，供项目配置下拉框使用。
- * capabilities 仅来自系统内置目录（不信任用户提交的 model.capabilities）。
- */
-
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
-import { apiHandler, ApiError } from '@/lib/api-errors'
+import { apiHandler } from '@/lib/api-errors'
 import {
-  composeModelKey,
-  parseModelKeyStrict,
-  type CapabilityValue,
-  type ModelCapabilities,
-  type UnifiedModelType,
-} from '@/lib/model-config-contract'
+  listNoriBusinessModels,
+  resolveNoriModelRoute,
+  type NoriBusinessModel,
+  type NoriModelTier,
+} from '@/lib/nori-model-catalog'
+import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
-import { isLuminaAnthropicCompatibleVisionCapableModel } from '@/lib/lumina-anthropic-compatible-models'
-import {
-  getModelCapabilityGroup,
-  isLuminaProviderId,
-  isSupportedModelProvider,
-} from '@/lib/model-provider-contract'
-
-type StoredModelType = UnifiedModelType | string
-
-interface StoredModel {
-  modelId?: string
-  modelKey?: string
-  name?: string
-  type?: StoredModelType
-  provider?: string
-}
-
-interface StoredProvider {
-  id?: string
-  name?: string
-  apiKey?: string
-}
 
 interface UserModelOption {
   value: string
   label: string
-  provider?: string
-  providerName?: string
+  provider: 'nori'
+  providerName: 'Nori Platform'
+  tier: NoriModelTier
   capabilities?: ModelCapabilities
   videoPricingTiers?: VideoPricingTier[]
 }
@@ -61,269 +32,47 @@ interface UserModelsPayload {
   lipsync: UserModelOption[]
 }
 
-const AUDIO_MODEL_EXCLUDED_IDS = new Set([
-  'qwen-voice-design',
-])
-
-const DEFAULT_MODEL_FIELD_TO_TYPE = {
-  analysisModel: 'llm',
-  characterModel: 'image',
-  locationModel: 'image',
-  storyboardModel: 'image',
-  editModel: 'image',
-  videoModel: 'video',
-  audioModel: 'audio',
-  lipSyncModel: 'lipsync',
-} as const
-
-type DefaultModelField = keyof typeof DEFAULT_MODEL_FIELD_TO_TYPE
-
-function isUnifiedModelType(type: unknown): type is UnifiedModelType {
-  return (
-    type === 'llm'
-    || type === 'image'
-    || type === 'video'
-    || type === 'audio'
-    || type === 'lipsync'
-  )
-}
-
-function toModelKey(model: StoredModel): string {
-  const provider = typeof model.provider === 'string' ? model.provider.trim() : ''
-  const modelId = typeof model.modelId === 'string' ? model.modelId.trim() : ''
-
-  if (provider && modelId) {
-    return composeModelKey(provider, modelId)
-  }
-
-  const parsed = parseModelKeyStrict(typeof model.modelKey === 'string' ? model.modelKey : '')
-  return parsed?.modelKey || ''
-}
-
-function toProvider(model: StoredModel): string | undefined {
-  if (typeof model.provider === 'string' && model.provider.trim()) return model.provider.trim()
-  const parsed = parseModelKeyStrict(typeof model.modelKey === 'string' ? model.modelKey : '')
-  return parsed?.provider || undefined
-}
-
-function toModelId(model: StoredModel): string {
-  if (typeof model.modelId === 'string' && model.modelId.trim()) {
-    return model.modelId.trim()
-  }
-  const parsed = parseModelKeyStrict(typeof model.modelKey === 'string' ? model.modelKey : '')
-  return parsed?.modelId || ''
-}
-
-function toDisplayLabel(model: StoredModel, fallbackModelId: string): string {
-  if (typeof model.name === 'string' && model.name.trim()) return model.name.trim()
-  return fallbackModelId
-}
-
-function appendDefaultModelSelections(
-  models: StoredModel[],
-  defaults: Partial<Record<DefaultModelField, string | null | undefined>>,
-): StoredModel[] {
-  const seen = new Set(models.map((model) => toModelKey(model)).filter(Boolean))
-  const merged = [...models]
-
-  for (const [field, modelKey] of Object.entries(defaults) as Array<[DefaultModelField, string | null | undefined]>) {
-    const parsed = parseModelKeyStrict(typeof modelKey === 'string' ? modelKey : '')
-    if (!parsed || seen.has(parsed.modelKey)) continue
-    seen.add(parsed.modelKey)
-    merged.push({
-      modelId: parsed.modelId,
-      modelKey: parsed.modelKey,
-      name: parsed.modelId,
-      type: DEFAULT_MODEL_FIELD_TO_TYPE[field],
-      provider: parsed.provider,
-    })
-  }
-
-  return merged
-}
-
-function dedupeByModelKey(items: UserModelOption[]): UserModelOption[] {
-  const seen = new Set<string>()
-  return items.filter((item) => {
-    if (seen.has(item.value)) return false
-    seen.add(item.value)
-    return true
-  })
-}
-
 function cloneVideoPricingTiers(rawTiers: Array<{ when: Record<string, CapabilityValue> }>): VideoPricingTier[] {
-  return rawTiers.map((tier) => ({
-    when: { ...tier.when },
-  }))
+  return rawTiers.map((tier) => ({ when: { ...tier.when } }))
 }
 
-function parseStoredModels(rawModels: string | null | undefined): StoredModel[] {
-  if (!rawModels) return []
-  let parsedUnknown: unknown
-  try {
-    parsedUnknown = JSON.parse(rawModels)
-  } catch {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'MODEL_PAYLOAD_INVALID',
-      field: 'customModels',
-    })
+function toOption(model: NoriBusinessModel): UserModelOption {
+  const option: UserModelOption = {
+    value: model.key,
+    label: model.name,
+    provider: 'nori',
+    providerName: 'Nori Platform',
+    tier: model.tier,
   }
-  if (!Array.isArray(parsedUnknown)) {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'MODEL_PAYLOAD_INVALID',
-      field: 'customModels',
-    })
+  const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')
+  if (!target) return option
+
+  const capabilities = findBuiltinCapabilities(model.type, target.provider, target.modelId)
+  if (capabilities) option.capabilities = capabilities
+  if (model.type === 'video') {
+    const pricing = findBuiltinPricingCatalogEntry('video', target.provider, target.modelId)
+    if (pricing?.pricing.mode === 'capability' && Array.isArray(pricing.pricing.tiers)) {
+      option.videoPricingTiers = cloneVideoPricingTiers(pricing.pricing.tiers)
+    }
   }
-  return parsedUnknown as StoredModel[]
-}
-
-function parseStoredProviders(rawProviders: string | null | undefined): StoredProvider[] {
-  if (!rawProviders) return []
-  let parsedUnknown: unknown
-  try {
-    parsedUnknown = JSON.parse(rawProviders)
-  } catch {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'PROVIDER_PAYLOAD_INVALID',
-      field: 'customProviders',
-    })
-  }
-  if (!Array.isArray(parsedUnknown)) {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'PROVIDER_PAYLOAD_INVALID',
-      field: 'customProviders',
-    })
-  }
-  return parsedUnknown as StoredProvider[]
-}
-
-function hasStoredProviderApiKey(provider: StoredProvider): boolean {
-  return typeof provider.apiKey === 'string' && provider.apiKey.trim().length > 0
-}
-
-function isUserSelectableModel(model: StoredModel): boolean {
-  if (model.type !== 'audio') return true
-  const modelId = toModelId(model)
-  return !AUDIO_MODEL_EXCLUDED_IDS.has(modelId)
-}
-
-function isImageUnderstandingModel(model: StoredModel): boolean {
-  if (model.type !== 'llm') return false
-  const provider = toProvider(model)
-  if (!provider || !isLuminaProviderId(provider)) return false
-  return isLuminaAnthropicCompatibleVisionCapableModel(toModelId(model))
+  return option
 }
 
 export const GET = apiHandler(async () => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
-  const { session } = authResult
-  const userId = session.user.id
 
-  const pref = await prisma.userPreference.findUnique({
-    where: { userId },
-    select: {
-      customModels: true,
-      customProviders: true,
-      analysisModel: true,
-      characterModel: true,
-      locationModel: true,
-      storyboardModel: true,
-      editModel: true,
-      videoModel: true,
-      audioModel: true,
-      lipSyncModel: true,
-    },
-  })
-
-  const modelsRaw: StoredModel[] = appendDefaultModelSelections(
-    parseStoredModels(pref?.customModels),
-    {
-      analysisModel: pref?.analysisModel,
-      characterModel: pref?.characterModel,
-      locationModel: pref?.locationModel,
-      storyboardModel: pref?.storyboardModel,
-      editModel: pref?.editModel,
-      videoModel: pref?.videoModel,
-      audioModel: pref?.audioModel,
-      lipSyncModel: pref?.lipSyncModel,
-    },
-  )
-  const providers: StoredProvider[] = parseStoredProviders(pref?.customProviders)
-
-  const providerNameMap = new Map<string, string>()
-  const providerIdsWithApiKey = new Set<string>()
-  providers.forEach((provider) => {
-    const providerId = typeof provider?.id === 'string' ? provider.id.trim() : ''
-    if (!providerId) return
-
-    if (provider?.name && typeof provider.name === 'string') {
-      providerNameMap.set(providerId, provider.name)
-    }
-    if (hasStoredProviderApiKey(provider)) providerIdsWithApiKey.add(providerId)
-  })
-
-  const grouped: UserModelsPayload = {
-    text: [],
-    llm: [],
-    vision: [],
-    image: [],
-    video: [],
-    audio: [],
-    lipsync: [],
-  }
-
-  for (const model of modelsRaw) {
-    if (!isUnifiedModelType(model.type)) continue
-    if (!isUserSelectableModel(model)) continue
-
-    const modelType = model.type
-    const modelKey = toModelKey(model)
-    if (!modelKey) continue
-
-    const provider = toProvider(model)
-    if (!provider || !providerIdsWithApiKey.has(provider)) continue
-    if (!isSupportedModelProvider(provider)) continue
-    const modelId = toModelId(model)
-    const option: UserModelOption = {
-      value: modelKey,
-      label: toDisplayLabel(model, modelId || modelKey),
-      provider,
-      providerName: provider ? providerNameMap.get(provider) : undefined,
-    }
-
-    if (provider && modelId) {
-      const capabilities = findBuiltinCapabilities(modelType, provider, modelId)
-      if (capabilities) {
-        option.capabilities = capabilities
-      }
-
-      if (modelType === 'video') {
-        const pricingEntry = findBuiltinPricingCatalogEntry('video', provider, modelId)
-        if (pricingEntry?.pricing.mode === 'capability' && Array.isArray(pricingEntry.pricing.tiers)) {
-          option.videoPricingTiers = cloneVideoPricingTiers(pricingEntry.pricing.tiers)
-        }
-      }
-    }
-
-    const capabilityGroup = getModelCapabilityGroup({
-      provider,
-      modelId,
-      type: modelType,
-    })
-
-    grouped[modelType].push(option)
-    if (capabilityGroup === 'text') grouped.text.push(option)
-    if (isImageUnderstandingModel(model)) grouped.vision.push(option)
-  }
-
+  const llm = listNoriBusinessModels('llm').map(toOption)
+  const image = listNoriBusinessModels('image').map(toOption)
+  const video = listNoriBusinessModels('video').map(toOption)
+  const audio = listNoriBusinessModels('audio').map(toOption)
   return NextResponse.json({
-    text: dedupeByModelKey(grouped.text),
-    llm: dedupeByModelKey(grouped.llm),
-    vision: dedupeByModelKey(grouped.vision),
-    image: dedupeByModelKey(grouped.image),
-    video: dedupeByModelKey(grouped.video),
-    audio: dedupeByModelKey(grouped.audio),
-    lipsync: dedupeByModelKey(grouped.lipsync),
+    text: llm,
+    llm,
+    vision: [],
+    image,
+    video,
+    audio,
+    lipsync: [],
   } satisfies UserModelsPayload)
 })

@@ -25,7 +25,12 @@ import {
 } from '@/lib/hfsy-fixed-models'
 import { HFSY_TEXT_MODEL_KEY } from '@/lib/hfsy-fixed-models'
 import { PROJECT_LEVEL, resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
+import type { ProjectStyleReferenceValue } from '@/lib/projects/style-reference-contract'
 import { getServiceDefaultModel } from '@/lib/service-config'
+import {
+  normalizeProjectBusinessModelKey,
+  resolveRuntimeModelKey,
+} from '@/lib/nori-model-catalog'
 
 export type ParsedModelKey = { provider: string, modelId: string }
 
@@ -121,9 +126,12 @@ export interface ProjectModelConfig {
   targetAudiencePrompt: string
   videoRatio: string | null
   videoResolution: string | null
+  episodeDurationMode: string
+  episodeDurationValue: number
   targetEpisodeDurationSeconds: number
   artStyle: string | null
   artStylePrompt: string | null
+  artStyleReferences: ProjectStyleReferenceValue[]
   capabilityDefaults: CapabilitySelections
   capabilityOverrides: CapabilitySelections
 }
@@ -171,22 +179,27 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: extractModelKey(projectData?.analysisModel) || extractModelKey(userPref?.analysisModel) || extractModelKey(getServiceDefaultModel('analysisModel')) || HFSY_TEXT_MODEL_KEY,
-    characterModel: extractModelKey(projectData?.characterModel) || extractModelKey(userPref?.characterModel) || extractModelKey(getServiceDefaultModel('characterModel')) || HFSY_IMAGE_MODEL_KEY,
-    locationModel: extractModelKey(projectData?.locationModel) || extractModelKey(userPref?.locationModel) || extractModelKey(getServiceDefaultModel('locationModel')) || HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: extractModelKey(projectData?.storyboardModel) || extractModelKey(userPref?.storyboardModel) || extractModelKey(getServiceDefaultModel('storyboardModel')) || HFSY_IMAGE_MODEL_KEY,
-    editModel: extractModelKey(projectData?.editModel) || extractModelKey(userPref?.editModel) || extractModelKey(getServiceDefaultModel('editModel')) || HFSY_IMAGE_MODEL_KEY,
-    videoModel: extractModelKey(projectData?.videoModel) || extractModelKey(userPref?.videoModel) || extractModelKey(getServiceDefaultModel('videoModel')) || null,
+    analysisModel: normalizeProjectBusinessModelKey(projectData?.analysisModel || userPref?.analysisModel || getServiceDefaultModel('analysisModel') || HFSY_TEXT_MODEL_KEY, 'llm'),
+    characterModel: normalizeProjectBusinessModelKey(projectData?.characterModel || userPref?.characterModel || getServiceDefaultModel('characterModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    locationModel: normalizeProjectBusinessModelKey(projectData?.locationModel || userPref?.locationModel || getServiceDefaultModel('locationModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    storyboardModel: normalizeProjectBusinessModelKey(projectData?.storyboardModel || userPref?.storyboardModel || getServiceDefaultModel('storyboardModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    editModel: normalizeProjectBusinessModelKey(projectData?.editModel || userPref?.editModel || getServiceDefaultModel('editModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    videoModel: normalizeProjectBusinessModelKey(projectData?.videoModel || userPref?.videoModel || getServiceDefaultModel('videoModel'), 'video'),
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     projectLevel: projectData?.projectLevel || PROJECT_LEVEL,
     projectStyle: projectData?.projectStyle || 'live-action',
     targetAudience: projectData?.targetAudience || 'zh-platform',
     targetAudiencePrompt: resolveTargetAudiencePrompt(projectData?.targetAudience),
     videoRatio: projectData?.videoRatio || '16:9',
-    videoResolution: projectData?.videoResolution || '720p',
-    targetEpisodeDurationSeconds: projectData?.targetEpisodeDurationSeconds || 90,
+    videoResolution: projectData?.videoResolution || '480p',
+    episodeDurationMode: projectData?.episodeDurationMode || 'per-episode',
+    episodeDurationValue: projectData?.episodeDurationValue || projectData?.targetEpisodeDurationSeconds || 120,
+    targetEpisodeDurationSeconds: projectData?.targetEpisodeDurationSeconds || 120,
     artStyle: projectData?.artStyle || null,
     artStylePrompt: projectData?.artStylePrompt || null,
+    artStyleReferences: Array.isArray(projectData?.artStyleReferences)
+      ? projectData.artStyleReferences as unknown as ProjectStyleReferenceValue[]
+      : [],
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),
     capabilityOverrides: parseCapabilitySelections(projectData?.capabilityOverrides),
   }
@@ -201,25 +214,26 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: extractModelKey(userPref?.analysisModel) || extractModelKey(getServiceDefaultModel('analysisModel')) || HFSY_TEXT_MODEL_KEY,
-    characterModel: extractModelKey(userPref?.characterModel) || extractModelKey(getServiceDefaultModel('characterModel')) || HFSY_IMAGE_MODEL_KEY,
-    locationModel: extractModelKey(userPref?.locationModel) || extractModelKey(getServiceDefaultModel('locationModel')) || HFSY_IMAGE_MODEL_KEY,
-    storyboardModel: extractModelKey(userPref?.storyboardModel) || extractModelKey(getServiceDefaultModel('storyboardModel')) || HFSY_IMAGE_MODEL_KEY,
-    editModel: extractModelKey(userPref?.editModel) || extractModelKey(getServiceDefaultModel('editModel')) || HFSY_IMAGE_MODEL_KEY,
-    videoModel: extractModelKey(userPref?.videoModel) || extractModelKey(getServiceDefaultModel('videoModel')) || null,
+    analysisModel: normalizeProjectBusinessModelKey(userPref?.analysisModel || getServiceDefaultModel('analysisModel') || HFSY_TEXT_MODEL_KEY, 'llm'),
+    characterModel: normalizeProjectBusinessModelKey(userPref?.characterModel || getServiceDefaultModel('characterModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    locationModel: normalizeProjectBusinessModelKey(userPref?.locationModel || getServiceDefaultModel('locationModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    storyboardModel: normalizeProjectBusinessModelKey(userPref?.storyboardModel || getServiceDefaultModel('storyboardModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    editModel: normalizeProjectBusinessModelKey(userPref?.editModel || getServiceDefaultModel('editModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    videoModel: normalizeProjectBusinessModelKey(userPref?.videoModel || getServiceDefaultModel('videoModel'), 'video'),
     audioModel: extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),
   }
 }
 
 export function resolveModelCapabilityGenerationOptions(input: {
-  modelType: 'llm' | 'image' | 'video'
+  modelType: 'llm' | 'image' | 'video' | 'audio'
   modelKey: string
   capabilityDefaults?: CapabilitySelections
   capabilityOverrides?: CapabilitySelections
   runtimeSelections?: Record<string, CapabilityValue>
 }): Record<string, CapabilityValue> {
-  const parsed = parseModelKeyStrict(input.modelKey)
+  const runtimeModelKey = resolveRuntimeModelKey(input.modelKey) || input.modelKey
+  const parsed = parseModelKeyStrict(runtimeModelKey)
   if (!parsed) {
     throw new Error(`MODEL_KEY_INVALID: ${input.modelKey}`)
   }
@@ -232,7 +246,11 @@ export function resolveModelCapabilityGenerationOptions(input: {
     capabilityDefaults: input.capabilityDefaults,
     capabilityOverrides: input.capabilityOverrides,
     runtimeSelections: input.runtimeSelections,
-    requireAllFields: input.modelType !== 'llm',
+    // Audio mode is required by the audio request contract and supplied as a
+    // runtime selection. Duration may be a continuous range rather than an
+    // option field, so it must not be auto-treated as a globally required
+    // capability (notably for TTS).
+    requireAllFields: input.modelType !== 'llm' && input.modelType !== 'audio',
   })
 
   if (resolved.issues.length > 0) {
@@ -246,7 +264,7 @@ export function resolveModelCapabilityGenerationOptions(input: {
 export async function resolveProjectModelCapabilityGenerationOptions(input: {
   projectId: string
   userId: string
-  modelType: 'llm' | 'image' | 'video'
+  modelType: 'llm' | 'image' | 'video' | 'audio'
   modelKey: string
   runtimeSelections?: Record<string, CapabilityValue>
 }): Promise<Record<string, CapabilityValue>> {

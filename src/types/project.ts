@@ -265,6 +265,8 @@ export interface NovelPromotionProject {
   projectLevel: string
   projectStyle: string
   targetAudience: string
+  episodeDurationMode?: string
+  episodeDurationValue?: number
   targetEpisodeDurationSeconds: number
   capabilityOverrides?: CapabilitySelections | string | null
   ttsRate: string
@@ -274,6 +276,7 @@ export interface NovelPromotionProject {
   pendingImportEpisodeName?: string | null
   artStyle: string
   artStylePrompt: string | null
+  artStyleReferences?: ProjectStyleReference[] | null
   audioUrl: string | null
   media?: MediaRef | null
   srtContent: string | null
@@ -294,6 +297,21 @@ export interface NovelPromotionProject {
   clips?: NovelPromotionClip[]
   storyboards?: NovelPromotionStoryboard[]
   shots?: NovelPromotionShot[]
+}
+
+export interface ProjectStyleReference {
+  mediaId: string
+  publicId: string
+  url: string
+  storageKey: string
+  kind: 'image' | 'video'
+  name: string
+  mimeType: string
+  sizeBytes: number
+  width: number | null
+  height: number | null
+  durationMs: number | null
+  order: number
 }
 
 // ============================================

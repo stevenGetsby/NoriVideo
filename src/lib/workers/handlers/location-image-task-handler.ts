@@ -137,6 +137,7 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
   }
 
   const locationIds = Array.from(new Set(locationImages.map((it) => it.locationId)))
+  const generatedImages: Array<{ imageId: string; imageIndex: number; imageUrl: string }> = []
 
   for (let i = 0; i < locationImages.length; i++) {
     const item = locationImages[i]
@@ -172,12 +173,20 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
       options: {
         aspectRatio,
       },
+      materialTitle: `${locationNameMap[item.locationId] || (assetType === 'prop' ? '物品' : '环境')}${locationImages.length > 1 ? ` · ${item.imageIndex + 1}` : ''}`,
+      materialSource: 'creative',
+      materialMetadata: { originType: assetType, originId: item.id, imageIndex: item.imageIndex },
     })
 
     await assertTaskActive(job, 'persist_location_image')
     await db.locationImage.update({
       where: { id: item.id },
       data: { imageUrl: imageKey },
+    })
+    generatedImages.push({
+      imageId: item.id,
+      imageIndex: item.imageIndex,
+      imageUrl: imageKey,
     })
   }
   await refreshProjectPanelReferenceAssets({
@@ -188,5 +197,7 @@ export async function handleLocationImageTask(job: Job<TaskJobData>) {
   return {
     updated: locationImages.length,
     locationIds,
+    images: generatedImages,
+    imageUrl: generatedImages.length === 1 ? generatedImages[0].imageUrl : null,
   }
 }

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 import {
     type EpisodeFrameOSMetadata,
     writeEpisodeFrameOSMetadataToSpeakerVoices,
@@ -27,6 +28,7 @@ export const POST = apiHandler(async (
     // 🔐 统一权限验证
     const authResult = await requireProjectAuthLight(projectId)
     if (isErrorResponse(authResult)) return authResult
+    const { session } = authResult
     const { episodes, clearExisting = false } = await request.json()
 
     if (!episodes || !Array.isArray(episodes)) {
@@ -50,6 +52,10 @@ export const POST = apiHandler(async (
     }
 
     if (episodes.length === 0) {
+        await syncProjectAssignmentsForProject({
+            projectId,
+            workspaceOwnerId: session.user.id,
+        })
         return NextResponse.json({
             success: true,
             episodes: [],
@@ -99,6 +105,11 @@ export const POST = apiHandler(async (
     await prisma.novelPromotionProject.update({
         where: { id: project.id },
         data: updateData
+    })
+
+    await syncProjectAssignmentsForProject({
+        projectId,
+        workspaceOwnerId: session.user.id,
     })
 
     return NextResponse.json({

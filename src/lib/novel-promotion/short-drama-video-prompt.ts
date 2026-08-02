@@ -18,6 +18,7 @@ export type ShotSheetShot = {
 export type PreciseSegmentCharacterRef = {
   name: string
   appearance?: string
+  appearanceId?: string
 }
 
 export type PreciseSegmentPropRef = {
@@ -105,7 +106,7 @@ export const PRECISE_SEGMENT_NEGATIVE_REQUIREMENTS = [
   '不要乱码文字，不要无意义字幕，不要过度美颜，不要塑料皮肤。',
   '不要生成中文字幕，不要自动生成大段字幕；如需台词，只作为口型、声音或内心独白指导。',
   '不要生成背景音乐，只保留必要环境声、脚步声、衣料摩擦声和道具声。',
-  '结尾必须留出进入下一剧情片段的动作、视线或空间方向。',
+  '结尾必须停在当前剧情片段的最后状态，只保留可供下一段接续的视线或空间方向，不执行下一段动作。',
 ].join(' ')
 
 const TARGET_REFERENCE_RANGES_FOR_50_SHOT_MEDICAL_TEST = [
@@ -368,7 +369,7 @@ function buildConsistencyControl(assets: PreciseSegmentAssets, sourceText = ''):
   const propText = assets.props.length > 0
     ? `道具 ${assets.props.map(assetPropLine).join('、')} 的位置、持握方式和状态连续`
     : '不新增未列出的关键道具'
-  const source = sourceText ? `剧情含义严格对应“${truncateText(sourceText, 80)}”` : '剧情含义严格对应本段剧本原文'
+  const source = sourceText ? `剧情含义严格对应“${truncateText(sourceText, 240)}”` : '剧情含义严格对应本段剧本原文'
   return `${characterText}；环境 ${assets.environment} 的空间结构、入口方向、主光方向和色调不漂移；${propText}；${source}。`
 }
 
@@ -896,8 +897,8 @@ function buildEnvironmentProfile(location: string, beat: string): CinematicEnvir
       atmosphereLine: '夜，密集暴雨压在破旧木屋顶上，空气潮湿发霉，暖黄油灯和窗外冷青闪电形成压迫感',
       keyLightLine: '破旧油灯暖黄主光 2700K 从画面侧前方斜切，火苗轻微跳动造成不稳定硬光',
       fillLightLine: '窗外雨夜冷青闪电 6500K 只在关键瞬间短促补边，平时几乎无副光',
-      contrastLine: 'key:fill 约 10:1，阴影占画面约 75%-85%，暗部压得很深但保留眼神、汗珠和银簪高光',
-      textureLine: '潮湿木地板、霉斑墙面、冷汗、衣料湿痕、手臂淤青和银簪冷光必须清楚可见',
+      contrastLine: 'key:fill 约 10:1，阴影占画面约 75%-85%，暗部压得很深但保留眼神、汗珠和本段明确可见的关键道具高光',
+      textureLine: '潮湿木地板、霉斑墙面、冷汗、衣料湿痕、手臂淤青和本段明确可见的关键道具质感必须清楚',
       audioLines: ['<密集的暴雨砸屋顶声>', '<远处惊雷声>', '<破旧木门轻微吱呀声>'],
     }
   }
@@ -1246,6 +1247,87 @@ function buildCinematicDrafts(params: {
   ]
 }
 
+function narrativeCameraLine(beat: string, index: number, total: number, subject: string): string {
+  if (/眼|瞳孔|眼神|泪|汗|嘴角|嘴唇|表情/.test(beat)) {
+    return `大特写，平视或轻微低角度，固定后缓慢推近，长焦 100mm，浅景深焦在${subject}的眼神与即时表情，常速，稳定器固定。只记录当前节拍产生的表情变化，不预示后续行动。`
+  }
+  if (/[“”"']|说|低语|喊|问|回答|口型/.test(beat)) {
+    return `中近景，平视或越肩，缓慢推近，中长焦 85mm，浅景深焦在${subject}的口型与即时反应，常速，稳定器固定。保持对话双方的视线轴线，不插入后续动作。`
+  }
+  if (/手|指|腕|道具|簪|刀|枪|信|文件|手机|钥匙|杯|门把/.test(beat)) {
+    return `特写，平视或微俯拍，固定后轻微推近，长焦 100mm，浅景深焦在本节拍明确写出的手部或道具动作，常速，稳定器固定。只跟随动作从起点到本节拍结果。`
+  }
+  if (/跑|冲|走|退|逼近|转身|起身|倒下|推|拉|追|进入|离开/.test(beat)) {
+    return `中景，沿既定动作轴线侧向跟拍，标准 50mm，中景深，常速，稳定器稳定跟随。镜头只覆盖本节拍明确发生的位移，不跳到下一剧情地点。`
+  }
+  if (index === 0) {
+    return `中景，平视，固定后缓慢推近，标准 50mm，中景深保留人物与环境关系，常速，稳定器固定。镜头从本段剧情入口直接找到${subject}，不重新表演上一段。`
+  }
+  if (index === total - 1) {
+    return `近景，平视，缓慢推近后固定，中长焦 85mm，浅景深焦在${subject}的本段最终反应，常速，稳定器固定。镜头停在当前剧情落点，不预演下一段。`
+  }
+  return `近景，平视，固定或轻微推近，中长焦 85mm，浅景深焦在${subject}完成当前节拍时的表情与身体反应，常速，稳定器固定。`
+}
+
+function narrativeSentence(value: string): string {
+  const text = compact(value)
+  return /[。！？!?]$/u.test(text) ? text : `${text}。`
+}
+
+function buildNarrativeBoundDrafts(params: {
+  beat: string
+  location: string
+  characterNames: string[]
+  propNames: string[]
+  dialogueInstruction?: string
+  narrativeEntry?: string
+  narrativeExit?: string
+  shotBeats?: string[]
+}): CinematicShotDraft[] {
+  const beats = (params.shotBeats || [])
+    .map((item) => compact(item))
+    .filter(Boolean)
+    .slice(0, 5)
+  if (beats.length === 0) return []
+
+  const subject = params.characterNames.join('、') || '当前画面主体'
+  const profile = buildEnvironmentProfile(params.location, `${params.beat}\n${beats.join('\n')}`)
+  const explicitDialogue = buildDialogueLine(params.dialogueInstruction, params.beat)
+  const sourceDialogue = extractDialogueSnippets(params.beat)
+    .map((item) => `口型同步，说：${item}`)
+    .join('；')
+  const dialogueFallback = explicitDialogue || sourceDialogue
+  const dialogueTarget = Math.max(0, beats.findIndex((item) => /[“”"']|说|低语|喊|问|回答|口型/.test(item)))
+
+  return beats.map((shotBeat, index) => {
+    const beatDialogue = extractDialogueSnippets(shotBeat)
+      .map((item) => `口型同步，说：${item}`)
+      .join('；')
+    const dialogue = beatDialogue || (index === dialogueTarget ? dialogueFallback : '')
+    const frameParts = [
+      index === 0 && params.narrativeEntry
+        ? `从叙事入口“${compact(params.narrativeEntry)}”直接接起，不重复上一分镜已经完成的剧情。`
+        : '',
+      `本镜只表现当前有序剧情节拍：${narrativeSentence(shotBeat)}`,
+      index === beats.length - 1 && params.narrativeExit
+        ? `镜尾精确停在“${compact(params.narrativeExit)}”，不得补拍或预演后续剧情。`
+        : '动作完成到本节拍写明的结果即止，不借景别变化重复上一节拍。',
+    ].filter(Boolean)
+
+    return {
+      camera: narrativeCameraLine(shotBeat, index, beats.length, subject),
+      frame: frameParts.join(''),
+      lighting: index === 0
+        ? `${profile.keyLightLine}；${profile.fillLightLine}；${profile.contrastLine}`
+        : `主光方向、色温和阴影位置承接前镜，只让当前动作主体保持可读；${profile.contrastLine}`,
+      audio: dialogue
+        ? [dialogue, ...profile.audioLines.slice(0, 2)]
+        : soundLines(profile, index === beats.length - 1 ? '<环境声在当前剧情落点延续>' : '<当前动作的真实同期声>'),
+      weight: index === 0 || index === beats.length - 1 ? 1.05 : 1,
+    }
+  })
+}
+
 function buildCinematicInternalShots(params: {
   beat: string
   duration: number
@@ -1253,9 +1335,15 @@ function buildCinematicInternalShots(params: {
   characterNames: string[]
   propNames: string[]
   dialogueInstruction?: string
+  narrativeEntry?: string
+  narrativeExit?: string
+  shotBeats?: string[]
 }): PreciseInternalShot[] {
-  const count = inferShotCount(params.duration, params.beat, params.propNames.length)
-  const drafts = buildCinematicDrafts(params).slice(0, count)
+  const narrativeDrafts = buildNarrativeBoundDrafts(params)
+  const count = narrativeDrafts.length || inferShotCount(params.duration, params.beat, params.propNames.length)
+  const drafts = narrativeDrafts.length > 0
+    ? narrativeDrafts
+    : buildCinematicDrafts(params).slice(0, count)
   const durations = splitDurationForInternalShots(params.duration, drafts.length, drafts.map((draft) => draft.weight || 1))
 
   return drafts.map((draft, index) => ({
@@ -1281,6 +1369,13 @@ export function buildPreciseBeatVideoPrompt(params: {
   outputParams?: Partial<PreciseSegmentOutputParams>
   negativeRequirements?: string
   styleDescription?: string
+  previousEndState?: string
+  openingContinuity?: string
+  endingStateTarget?: string
+  narrativeEntry?: string
+  narrativeExit?: string
+  shotBeats?: string[]
+  cameraAxis?: string
 }): string {
   const durationSeconds = params.durationSeconds || inferBeatDuration(params.beat)
   const assets: PreciseSegmentAssets = {
@@ -1293,15 +1388,47 @@ export function buildPreciseBeatVideoPrompt(params: {
   const openingState: PreciseOpeningState = {
     environmentLine: params.sceneOpening || `${params.location}，按剧情片段建立真实可拍摄空间，色调、天气、入口方向和环境声保持连续<环境声、脚步声、衣料摩擦声>。`,
     blockingLines: [
+      params.previousEndState
+        ? `连续性承接：上一分镜结束于“${params.previousEndState}”；本分镜第一帧必须从该姿态、位置、朝向、持物手和道具状态直接开始，不得重置站位。`
+        : '',
+      params.openingContinuity
+        ? `本镜开场动作：${params.openingContinuity}`
+        : '',
       characterNames.length > 0
         ? `${characterNames.join('、')}：位于${params.location}的关键行动区域，面向核心冲突方向；身体状态和情绪承接剧本原文。`
         : '主体资产：位于画面中心行动区域，按剧情片段建立清楚起始状态。',
       propNames.length > 0
-        ? `${propNames.join('、')}：位于角色可触达或画面可见的位置，状态只按剧情变化，不作为新资产变体。`
+        ? `${propNames.join('、')}：保持已建立的位置与状态；若本段 sourceText 未明确使用，不得让角色触碰、注视、取出或把它作为镜头焦点。`
         : '',
     ].filter(Boolean),
     lightingLine: params.lighting || '主光按场景既有光源方向落在动作主体上；副光克制；实用光、环境光和阴影比例保持同一段内连续。',
   }
+  const shots = buildCinematicInternalShots({
+    beat: params.beat,
+    duration: durationSeconds,
+    location: params.location,
+    characterNames,
+    propNames,
+    dialogueInstruction: params.dialogueInstruction,
+    narrativeEntry: params.narrativeEntry,
+    narrativeExit: params.narrativeExit,
+    shotBeats: params.shotBeats,
+  }).map((shot, index, rows) => ({
+    ...shot,
+    cameraLine: `${index === 0 && params.cameraAxis ? `沿用轴线“${params.cameraAxis}”，保持人物左右关系和运动方向；` : ''}${shot.cameraLine}`,
+    frameLine: `${index === 0 && params.previousEndState ? `第一帧严格复现上一分镜尾帧：${params.previousEndState}；` : ''}${shot.frameLine}${index === rows.length - 1 && params.endingStateTarget ? `；本镜最后一帧必须落到：${params.endingStateTarget}` : ''}`,
+  }))
+  const continuityControl = [
+    buildConsistencyControl(assets, params.beat),
+    params.cameraAxis ? `整段遵守轴线“${params.cameraAxis}”，除非剧本明确越轴，否则角色屏幕左右关系不反转。` : '',
+    params.previousEndState ? `开场严格承接上一分镜尾帧“${params.previousEndState}”。` : '',
+    params.endingStateTarget ? `结尾锁定为“${params.endingStateTarget}”，供下一分镜接续。` : '',
+    params.narrativeEntry ? `剧情只从“${params.narrativeEntry}”开始。` : '',
+    params.narrativeExit ? `剧情最远只推进到“${params.narrativeExit}”。` : '',
+    params.shotBeats?.length
+      ? '所有 Shot 必须严格依次执行给定 shot beats；不得复演上一分镜，不得添加、暗示或提前表演后续分镜剧情。'
+      : '',
+  ].filter(Boolean).join(' ')
   return buildPreciseSegmentVideoPrompt({
     segmentId: params.segmentId,
     location: params.location,
@@ -1312,16 +1439,10 @@ export function buildPreciseBeatVideoPrompt(params: {
       videoModel: params.outputParams?.videoModel,
       resolution: params.outputParams?.resolution,
     },
+    consistencyControl: continuityControl,
     openingState,
-    shots: buildCinematicInternalShots({
-      beat: params.beat,
-      duration: durationSeconds,
-      location: params.location,
-      characterNames,
-      propNames,
-      dialogueInstruction: params.dialogueInstruction,
-    }),
-    negativeRequirements: params.negativeRequirements,
+    shots,
+    negativeRequirements: `${params.negativeRequirements || PRECISE_SEGMENT_NEGATIVE_REQUIREMENTS} 相邻镜头之间禁止角色瞬移、换手、换装、道具复原、视线反向或无动机越轴。禁止加入 sourceText 和 shotBeats 之外的动作、对白、人物入场、反击、逃跑或道具使用；禁止提前表演下一分镜。`,
     styleDescription: params.styleDescription || buildCinematicStyleDescription(params.location, params.beat),
   })
 }

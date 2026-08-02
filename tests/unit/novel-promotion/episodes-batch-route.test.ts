@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const authMock = vi.hoisted(() => ({
   requireProjectAuthLight: vi.fn(async () => ({
+    session: { user: { id: 'user-1' } },
     project: { id: 'project-1' },
   })),
   isErrorResponse: (value: unknown) => value instanceof NextResponse,
@@ -24,6 +25,9 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock('@/lib/api-auth', () => authMock)
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
+}))
+vi.mock('@/lib/collaboration/assignments', () => ({
+  syncProjectAssignmentsForProject: vi.fn(async () => undefined),
 }))
 
 function request(body: unknown) {

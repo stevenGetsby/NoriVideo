@@ -1,37 +1,45 @@
 'use client'
 
-import { useState } from "react"
-import { signIn } from "next-auth/react"
-import { useTranslations, useLocale } from 'next-intl'
-import Navbar from "@/components/Navbar"
+import { useState } from 'react'
+import { getSession, signIn } from 'next-auth/react'
+import { useLocale, useTranslations } from 'next-intl'
+import { FosAuthShell } from '@/components/frameos/FosAuthShell'
 import { Link } from '@/i18n/navigation'
+import { SURFACE_LOGIN_ERRORS } from '@/lib/app-surface'
 
 export default function SignIn() {
-  const [username, setUsername] = useState("")
-  const [password, setPassword] = useState("")
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState("")
+  const [error, setError] = useState('')
   const locale = useLocale()
   const t = useTranslations('auth')
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setLoading(true)
-    setError("")
+    setError('')
 
     try {
-      const result = await signIn("credentials", {
-        username,
+      const result = await signIn('credentials', {
+        username: username.trim(),
         password,
         redirect: false,
       })
 
-      if (result?.error === 'RateLimited') {
+      if ((result?.status || 0) >= 500) {
+        setError('登录服务暂时异常，请稍后重试；账号密码未必有误。')
+      } else if (result?.error === 'RateLimited') {
         setError(t('rateLimited'))
-      } else if (result?.error) {
+      } else if (result?.error === SURFACE_LOGIN_ERRORS.adminRequired) {
+        setError('账号密码正确，但平台 Admin 必须从下方的独立管理端入口登录。')
+      } else if (result?.error || !result?.ok) {
         setError(t('loginFailed'))
-      } else if (result?.ok) {
-        window.location.href = `/${locale}/home`
+      } else {
+        const session = await getSession()
+        window.location.href = session?.user?.role === 'super_admin'
+          ? `/${locale}/admin/accounts`
+          : `/${locale}/works`
       }
     } catch {
       setError(t('loginError'))
@@ -41,85 +49,50 @@ export default function SignIn() {
   }
 
   return (
-    <div className="glass-page min-h-screen">
-      <Navbar />
-      <div className="flex items-center justify-center px-4 py-12">
-        <div className="max-w-md w-full">
-          <div className="glass-surface-modal p-8">
-            <div className="text-center mb-8">
-              <h1 className="text-3xl font-bold text-[var(--glass-text-primary)] mb-2">
-                {t('welcomeBack')}
-              </h1>
-              <p className="text-[var(--glass-text-secondary)]">{t('loginTo')}</p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label htmlFor="username" className="glass-field-label block mb-2">
-                  {t('phoneNumber')}
-                </label>
-                <input
-                  id="username"
-                  name="username"
-                  type="text"
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  required
-                  className="glass-input-base w-full px-4 py-3"
-                  placeholder={t('phoneNumberPlaceholder')}
-                />
-              </div>
-
-              <div>
-                <label htmlFor="password" className="glass-field-label block mb-2">
-                  {t('password')}
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="glass-input-base w-full px-4 py-3"
-                  placeholder={t('passwordPlaceholder')}
-                />
-              </div>
-
-              {error && (
-                <div className="bg-[var(--glass-tone-danger-bg)] border border-[color:color-mix(in_srgb,var(--glass-tone-danger-fg)_22%,transparent)] text-[var(--glass-tone-danger-fg)] px-4 py-3 rounded-lg text-sm">
-                  {error}
-                </div>
-              )}
-
-              <button
-                type="submit"
-                disabled={loading}
-                className="glass-btn-base glass-btn-primary w-full py-3 px-4 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {loading ? t('loginButtonLoading') : t('loginButton')}
-              </button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-[var(--glass-text-secondary)]">
-                {t('noAccount')}{" "}
-                <Link href={{ pathname: '/auth/signup' }} className="text-[var(--glass-tone-info-fg)] hover:underline font-medium">
-                  {t('signupNow')}
-                </Link>
-              </p>
-            </div>
-
-            <div className="mt-6 text-center">
-              <Link href={{ pathname: '/' }} className="text-[var(--glass-text-tertiary)] hover:text-[var(--glass-text-secondary)] text-sm">
-                {t('backToHome')}
-              </Link>
-            </div>
-          </div>
+    <FosAuthShell
+      title={t('welcomeBack')}
+      subtitle="登录后进入所属工作区，写权限由当前角色的功能区决定。"
+      footer="没有账号？请联系管理账号分配账号、密码、角色与功能区权限。"
+    >
+      <form onSubmit={handleSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="username" className="mb-2 block text-[12px] font-semibold text-white/60">账号</label>
+          <input
+            id="username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            value={username}
+            onChange={(event) => setUsername(event.target.value)}
+            required
+            className="fos-input w-full"
+            style={{ height: 44 }}
+            placeholder="请输入账号"
+          />
         </div>
-      </div>
-    </div>
+        <div>
+          <label htmlFor="password" className="mb-2 block text-[12px] font-semibold text-white/60">{t('password')}</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            required
+            className="fos-input w-full"
+            style={{ height: 44 }}
+            placeholder={t('passwordPlaceholder')}
+          />
+        </div>
+        {error ? <div className="rounded-[9px] border border-red-400/20 bg-red-400/10 px-4 py-3 text-[13px] text-red-200">{error}</div> : null}
+        <button type="submit" disabled={loading} className="fos-btn fos-btn-primary h-11 w-full font-semibold disabled:cursor-not-allowed disabled:opacity-50">
+          {loading ? t('loginButtonLoading') : t('loginButton')}
+        </button>
+        <Link className="block text-center text-[11px] text-white/35 transition hover:text-white/60" href={{ pathname: '/admin/signin' }}>
+          平台 Admin 请使用独立管理端口
+        </Link>
+      </form>
+    </FosAuthShell>
   )
 }

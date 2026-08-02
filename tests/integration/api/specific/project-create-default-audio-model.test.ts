@@ -3,12 +3,13 @@ import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
   requireUserAuth: vi.fn(async () => ({
-    session: { user: { id: 'user-1' } },
+    session: { user: { id: 'user-1', role: 'admin', permissions: ['projectCreate'] } },
   })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
 }))
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
   userPreference: {
     findUnique: vi.fn(async () => ({
       analysisModel: 'llm::analysis',
@@ -31,8 +32,14 @@ const prismaMock = vi.hoisted(() => ({
       userId: 'user-1',
     })),
   },
+  work: {
+    findFirst: vi.fn(async () => ({ id: 'work-1' })),
+  },
   novelPromotionProject: {
     create: vi.fn(async () => ({ id: 'np-1', projectId: 'project-1' })),
+  },
+  workflowAssignment: {
+    create: vi.fn(async () => ({ uuid: 'assignment-1' })),
   },
 }))
 
@@ -44,6 +51,8 @@ describe('api specific - project create default audio model', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
   it('copies user preference audioModel into the new novel promotion project', async () => {
@@ -54,6 +63,7 @@ describe('api specific - project create default audio model', () => {
       body: {
         name: 'Test Project',
         description: '',
+        workId: 'work-1',
       },
     })
 
@@ -64,6 +74,9 @@ describe('api specific - project create default audio model', () => {
         name: 'Test Project',
         description: null,
         userId: 'user-1',
+        workId: 'work-1',
+        createdById: 'user-1',
+        collaborationMode: 'solo',
       },
     })
     expect(prismaMock.novelPromotionProject.create).toHaveBeenCalledWith({

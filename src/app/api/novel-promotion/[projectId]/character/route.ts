@@ -12,6 +12,7 @@ import {
   collectBailianManagedVoiceIds,
   cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
+import { stringifyCharacterDescriptionsWithFrameOSMetadata } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -20,6 +21,14 @@ function toObject(value: unknown): Record<string, unknown> {
 
 function normalizeString(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function normalizeCoverageEpisodes(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0)))
+    .sort((left, right) => left - right)
 }
 
 // 更新角色信息（名字或介绍）
@@ -144,6 +153,9 @@ export const POST = apiHandler(async (
   const acceptLanguage = request.headers.get('accept-language') || ''
   const name = normalizeString(body.name)
   const description = normalizeString(body.description)
+  const introduction = normalizeString(body.introduction) || description
+  const role = normalizeString(body.role) || 'supporting'
+  const coverageEpisodes = normalizeCoverageEpisodes(body.coverageEpisodes)
   const referenceImageUrl = normalizeString(body.referenceImageUrl)
   const generateFromReference = body.generateFromReference === true
   const uploadDirect = body.uploadDirect === true
@@ -184,7 +196,14 @@ export const POST = apiHandler(async (
     data: {
       novelPromotionProjectId: novelData.id,
       name,
-      aliases: null
+      aliases: null,
+      introduction: introduction || null,
+      profileData: JSON.stringify({
+        role,
+        description: introduction || description || `${name} 的角色设定`,
+        background: introduction || null,
+        coverage_episodes: coverageEpisodes,
+      }),
     }
   })
 
@@ -196,7 +215,12 @@ export const POST = apiHandler(async (
       appearanceIndex: PRIMARY_APPEARANCE_INDEX,
       changeReason: '初始形象',
       description: descText,
-      descriptions: JSON.stringify([descText]),
+      descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata([descText], {
+        appearance_index: PRIMARY_APPEARANCE_INDEX,
+        change_reason: '初始形象',
+        label: '初始形象',
+        coverage_episodes: coverageEpisodes,
+      }),
       imageUrls: encodeImageUrls([]),
       previousImageUrls: encodeImageUrls([])}
   })

@@ -3,6 +3,7 @@
 import { useCallback } from 'react'
 import { VideoClip, VideoEditorProject } from '../types/editor.types'
 import { apiFetch } from '@/lib/api-fetch'
+import { readApiErrorMessage } from '@/lib/api/read-error-message'
 
 interface UseEditorActionsProps {
     projectId: string
@@ -86,15 +87,15 @@ export function useEditorActions({ projectId, episodeId }: UseEditorActionsProps
         const response = await apiFetch(`/api/novel-promotion/${projectId}/editor`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ projectData: project })
+            body: JSON.stringify({ episodeId, projectData: project })
         })
 
         if (!response.ok) {
-            throw new Error('Failed to save project')
+            throw new Error(await readApiErrorMessage(response, '保存粗剪工程失败'))
         }
 
         return response.json()
-    }, [projectId])
+    }, [episodeId, projectId])
 
     /**
      * 加载项目

@@ -37,6 +37,9 @@ const generateBailianAudioMock = vi.hoisted(() => vi.fn(async () => ({ success: 
 const generateSiliconFlowImageMock = vi.hoisted(() => vi.fn(async () => ({ success: true, imageUrl: 'siliconflow-image' })))
 const generateSiliconFlowVideoMock = vi.hoisted(() => vi.fn(async () => ({ success: true, videoUrl: 'siliconflow-video' })))
 const generateSiliconFlowAudioMock = vi.hoisted(() => vi.fn(async () => ({ success: true, audioUrl: 'siliconflow-audio' })))
+const generateKuaiziImageMock = vi.hoisted(() => vi.fn(async () => ({ success: true, async: true, requestId: 'kz-image', externalId: 'KUAIZI:IMAGE:mock' })))
+const generateKuaiziVideoMock = vi.hoisted(() => vi.fn(async () => ({ success: true, async: true, requestId: 'kz-video', externalId: 'KUAIZI:VIDEO:mock' })))
+const generateKuaiziAudioMock = vi.hoisted(() => vi.fn(async () => ({ success: true, async: true, requestId: 'kz-audio', externalId: 'KUAIZI:AUDIO:mock' })))
 
 vi.mock('@/lib/api-config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api-config')>()
@@ -75,6 +78,12 @@ vi.mock('@/lib/providers/siliconflow', () => ({
   generateSiliconFlowImage: generateSiliconFlowImageMock,
   generateSiliconFlowVideo: generateSiliconFlowVideoMock,
   generateSiliconFlowAudio: generateSiliconFlowAudioMock,
+}))
+
+vi.mock('@/lib/providers/kuaizi', () => ({
+  generateKuaiziImage: generateKuaiziImageMock,
+  generateKuaiziVideo: generateKuaiziVideoMock,
+  generateKuaiziAudio: generateKuaiziAudioMock,
 }))
 
 import { generateAudio, generateImage, generateVideo } from '@/lib/generator-api'
@@ -116,6 +125,43 @@ describe('generator-api gateway routing', () => {
     expect(generateImageViaOpenAICompatTemplateMock).toHaveBeenCalledTimes(1)
     expect(createImageGeneratorMock).not.toHaveBeenCalled()
     expect(result).toEqual({ success: true, imageUrl: 'compat-template-image' })
+  })
+
+  it('bypasses a generic compat template for strict inpaint requests', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      modelKey: 'openai-compatible:oa-1::gpt-image-1',
+      mediaType: 'image',
+      compatMediaTemplate: {
+        version: 1,
+        mediaType: 'image',
+        mode: 'sync',
+        create: { method: 'POST', path: '/v1/images/generations' },
+        response: { outputUrlPath: 'data[0].url' },
+      },
+    })
+    resolveModelGatewayRouteMock.mockReturnValueOnce('openai-compat')
+
+    const result = await generateImage('user-1', 'openai-compatible:oa-1::gpt-image-1', 'replace the masked window', {
+      referenceImages: ['data:image/png;base64,U09VUkNF'],
+      editMode: 'inpaint',
+      maskImage: 'data:image/png;base64,TUFTSw==',
+      quality: 'high',
+    })
+
+    expect(result).toEqual({ success: true, imageUrl: 'compat-image' })
+    expect(generateImageViaOpenAICompatTemplateMock).not.toHaveBeenCalled()
+    expect(createImageGeneratorMock).not.toHaveBeenCalled()
+    expect(generateImageViaOpenAICompatMock).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      prompt: 'replace the masked window',
+      referenceImages: ['data:image/png;base64,U09VUkNF'],
+      editMode: 'inpaint',
+      maskImage: 'data:image/png;base64,TUFTSw==',
+      options: expect.objectContaining({ quality: 'high' }),
+    }))
   })
 
   it('maps aspect ratio to size for openai-compatible image templates', async () => {
@@ -335,5 +381,62 @@ describe('generator-api gateway routing', () => {
     expect(generateBailianAudioMock).toHaveBeenCalledTimes(1)
     expect(createAudioGeneratorMock).not.toHaveBeenCalled()
     expect(result).toEqual({ success: true, audioUrl: 'bailian-audio' })
+  })
+
+  it('routes Kuaizi image, video, and audio through the official adapters', async () => {
+    resolveModelSelectionMock
+      .mockResolvedValueOnce({
+        provider: 'kuaizi',
+        modelId: 'seedream5.0lite',
+        modelKey: 'kuaizi::seedream5.0lite',
+        mediaType: 'image',
+      })
+      .mockResolvedValueOnce({
+        provider: 'kuaizi',
+        modelId: 'doubao-seedance-2-0-fast-260128',
+        modelKey: 'kuaizi::doubao-seedance-2-0-fast-260128',
+        mediaType: 'video',
+      })
+      .mockResolvedValueOnce({
+        provider: 'kuaizi',
+        modelId: 'speech-2.8-hd',
+        modelKey: 'kuaizi::speech-2.8-hd',
+        mediaType: 'audio',
+      })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'kuaizi',
+      name: 'Kuaizi',
+      apiKey: 'kuaizi-key',
+      gatewayRoute: 'openai-compat',
+    })
+
+    const image = await generateImage('user-1', 'kuaizi::seedream5.0lite', 'draw sky')
+    const video = await generateVideo(
+      'user-1',
+      'kuaizi::doubao-seedance-2-0-fast-260128',
+      '',
+      { prompt: 'animate sky' },
+    )
+    const audio = await generateAudio('user-1', 'kuaizi::speech-2.8-hd', 'hello', { voice: 'voice-1' })
+
+    expect(generateKuaiziImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      prompt: 'draw sky',
+      options: expect.objectContaining({ modelId: 'seedream5.0lite' }),
+    }))
+    expect(generateKuaiziVideoMock).toHaveBeenCalledWith(expect.objectContaining({
+      prompt: 'animate sky',
+      options: expect.objectContaining({ modelId: 'doubao-seedance-2-0-fast-260128' }),
+    }))
+    expect(generateKuaiziAudioMock).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'hello',
+      voice: 'voice-1',
+      options: expect.objectContaining({ modelId: 'speech-2.8-hd' }),
+    }))
+    expect(image).toMatchObject({ requestId: 'kz-image' })
+    expect(video).toMatchObject({ requestId: 'kz-video' })
+    expect(audio).toMatchObject({ requestId: 'kz-audio' })
+    expect(generateImageViaOpenAICompatMock).not.toHaveBeenCalled()
+    expect(generateVideoViaOpenAICompatMock).not.toHaveBeenCalled()
   })
 })

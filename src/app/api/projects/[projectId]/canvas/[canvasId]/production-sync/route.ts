@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
+import { recordCanvasSnapshotInTransaction } from '@/lib/canvas/persistence'
+import { canvasProductionEdgeId, canvasProductionNodeId } from '@/lib/canvas/production-ids'
+import { removeDeletedCanvasGroupMembers } from '@/lib/canvas/group-membership'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 
 const PRODUCTION_NODE_TYPES = [
@@ -42,6 +45,16 @@ function asArray<T>(value: T[] | null | undefined): T[] {
   return Array.isArray(value) ? value : []
 }
 
+function parseSyncInput(value: unknown): { expectedRevision: number; clientId: string } | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const source = value as Record<string, unknown>
+  const expectedRevision = source.expectedRevision
+  const clientId = typeof source.clientId === 'string' ? source.clientId.trim() : ''
+  if (!Number.isSafeInteger(expectedRevision) || (expectedRevision as number) < 0) return null
+  if (!clientId || clientId.length > 120) return null
+  return { expectedRevision: expectedRevision as number, clientId }
+}
+
 function statusLabel(panel: Record<string, unknown>): string {
   if (typeof panel.videoUrl === 'string' && panel.videoUrl) return '已生视频'
   if (typeof panel.imageUrl === 'string' && panel.imageUrl) return '已生图'
@@ -53,7 +66,6 @@ function buildProductionGraph(canvasId: string, project: {
     episodes?: Array<Record<string, unknown>>
   } | null
 }): { nodes: NodeDraft[]; edges: EdgeDraft[] } {
-  void canvasId
   const nodes: NodeDraft[] = []
   const edges: EdgeDraft[] = []
   const episodes = asArray(project.novelPromotionData?.episodes)
@@ -68,7 +80,7 @@ function buildProductionGraph(canvasId: string, project: {
     const videoCount = panels.filter((panel) => typeof panel.videoUrl === 'string' && panel.videoUrl).length
     const imageCount = panels.filter((panel) => typeof panel.imageUrl === 'string' && panel.imageUrl).length
 
-    const episodeNodeId = `prod_episode_${episodeId}`
+    const episodeNodeId = canvasProductionNodeId(canvasId, 'episode', episodeId)
     nodes.push({
       id: episodeNodeId,
       type: 'production_episode',
@@ -77,11 +89,11 @@ function buildProductionGraph(canvasId: string, project: {
       data: {
         sourceType: 'episode',
         sourceId: episodeId,
-        title: typeof episode.name === 'string' ? episode.name : `Episode ${episodeIndex + 1}`,
+        title: typeof episode.name === 'string' ? episode.name : `第 ${episodeIndex + 1} 集`,
         subtitle: `第 ${episode.episodeNumber || episodeIndex + 1} 集`,
         description: compactText(episode.description || episode.novelText, 220),
         episodeNumber: episode.episodeNumber,
-        statusLabel: 'Episode',
+        statusLabel: '剧集',
         stats: {
           分镜组: storyboards.length,
           面板: panels.length,
@@ -100,7 +112,7 @@ function buildProductionGraph(canvasId: string, project: {
         : {}
       const storyboardPanels = asArray(storyboard.panels as Array<Record<string, unknown>> | undefined)
       const rowY = episodeY + storyboardIndex * 330
-      const storyboardNodeId = `prod_storyboard_${storyboardId}`
+      const storyboardNodeId = canvasProductionNodeId(canvasId, 'storyboard', storyboardId)
 
       nodes.push({
         id: storyboardNodeId,
@@ -114,7 +126,7 @@ function buildProductionGraph(canvasId: string, project: {
           subtitle: `面板 ${storyboardPanels.length}`,
           description: compactText(clip.content || storyboard.storyboardTextJson, 220),
           imageUrl: typeof storyboard.storyboardImageUrl === 'string' ? storyboard.storyboardImageUrl : null,
-          statusLabel: 'Storyboard',
+          statusLabel: '分镜组',
           stats: {
             面板: storyboardPanels.length,
             视频: storyboardPanels.filter((panel) => typeof panel.videoUrl === 'string' && panel.videoUrl).length,
@@ -122,7 +134,7 @@ function buildProductionGraph(canvasId: string, project: {
         },
       })
       edges.push({
-        id: `prod_edge_${episodeNodeId}_${storyboardNodeId}`,
+        id: canvasProductionEdgeId(canvasId, episodeNodeId, storyboardNodeId),
         sourceNodeId: episodeNodeId,
         targetNodeId: storyboardNodeId,
         role: 'PRODUCTION_FLOW',
@@ -136,7 +148,7 @@ function buildProductionGraph(canvasId: string, project: {
         const band = Math.floor(panelIndex / 4)
         const panelX = 720 + column * 300
         const panelY = rowY + band * 300
-        const panelNodeId = `prod_panel_${panelId}`
+        const panelNodeId = canvasProductionNodeId(canvasId, 'panel', panelId)
         const imageUrl = typeof panel.imageUrl === 'string' ? panel.imageUrl : null
         const videoUrl = typeof panel.videoUrl === 'string' ? panel.videoUrl : null
 
@@ -161,14 +173,14 @@ function buildProductionGraph(canvasId: string, project: {
           mediaObjectId: typeof panel.imageMediaId === 'string' ? panel.imageMediaId : null,
         })
         edges.push({
-          id: `prod_edge_${storyboardNodeId}_${panelNodeId}`,
+          id: canvasProductionEdgeId(canvasId, storyboardNodeId, panelNodeId),
           sourceNodeId: storyboardNodeId,
           targetNodeId: panelNodeId,
           role: 'PRODUCTION_FLOW',
         })
 
         if (videoUrl) {
-          const videoNodeId = `prod_video_${panelId}`
+          const videoNodeId = canvasProductionNodeId(canvasId, 'video', panelId)
           nodes.push({
             id: videoNodeId,
             type: 'production_video',
@@ -186,12 +198,12 @@ function buildProductionGraph(canvasId: string, project: {
               panelIndex: panel.panelIndex,
               hasImage: Boolean(imageUrl),
               hasVideo: true,
-              statusLabel: 'Video',
+              statusLabel: '视频',
             },
             mediaObjectId: typeof panel.videoMediaId === 'string' ? panel.videoMediaId : null,
           })
           edges.push({
-            id: `prod_edge_${panelNodeId}_${videoNodeId}`,
+            id: canvasProductionEdgeId(canvasId, panelNodeId, videoNodeId),
             sourceNodeId: panelNodeId,
             targetNodeId: videoNodeId,
             role: 'PRODUCTION_FLOW',
@@ -205,14 +217,23 @@ function buildProductionGraph(canvasId: string, project: {
 }
 
 export const POST = apiHandler(async (
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ projectId: string; canvasId: string }> }
 ) => {
   const { projectId, canvasId } = await context.params
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
 
-  await requireCanvasInProject(canvasId, projectId)
+  const current = await requireCanvasInProject(canvasId, projectId)
+  const input = parseSyncInput(await request.json().catch(() => null))
+  if (!input) throw new ApiError('INVALID_PARAMS', { message: '同步请求缺少有效的画布版本。' })
+  if (current.revision !== input.expectedRevision) {
+    throw new ApiError('CONFLICT', {
+      message: '画布已在另一个标签页中更新，请加载服务端版本后重试同步。',
+      expectedRevision: input.expectedRevision,
+      actualRevision: current.revision,
+    })
+  }
 
   const project = await prisma.project.findFirst({
     where: {
@@ -247,18 +268,46 @@ export const POST = apiHandler(async (
     novelPromotionData?: { episodes?: Array<Record<string, unknown>> } | null
   })
   const nodeIds = nodes.map((node) => node.id)
+  const nextRevision = input.expectedRevision + 1
 
-  const staleNodes = await prisma.canvasNode.findMany({
-    where: {
-      canvasId,
-      type: { in: [...PRODUCTION_NODE_TYPES] },
-      id: { notIn: nodeIds.length > 0 ? nodeIds : [''] },
-    },
-    select: { id: true },
-  })
-  const staleNodeIds = staleNodes.map((node) => node.id)
+  const graph = await prisma.$transaction(async (tx) => {
+    const claimed = await tx.canvas.updateMany({
+      where: { id: canvasId, projectId, revision: input.expectedRevision },
+      data: { revision: { increment: 1 } },
+    })
+    if (claimed.count !== 1) {
+      throw new ApiError('CONFLICT', {
+        message: '画布已在另一个标签页中更新，请加载服务端版本后重试同步。',
+        expectedRevision: input.expectedRevision,
+      })
+    }
 
-  await prisma.$transaction(async (tx) => {
+    const staleNodes = await tx.canvasNode.findMany({
+      where: {
+        canvasId,
+        type: { in: [...PRODUCTION_NODE_TYPES] },
+        id: { notIn: nodeIds.length > 0 ? nodeIds : [''] },
+      },
+      select: { id: true },
+    })
+    const staleNodeIds = staleNodes.map((node) => node.id)
+
+    if (staleNodeIds.length > 0) {
+      const deletedNodeIds = new Set(staleNodeIds)
+      const groups = await tx.canvasNode.findMany({
+        where: { canvasId, type: 'group' },
+        select: { id: true, data: true },
+      })
+      for (const group of groups) {
+        const data = removeDeletedCanvasGroupMembers(group.data, deletedNodeIds)
+        if (!data) continue
+        await tx.canvasNode.update({
+          where: { id: group.id },
+          data: { data: data as Prisma.InputJsonValue },
+        })
+      }
+    }
+
     await tx.canvasEdge.deleteMany({
       where: {
         canvasId,
@@ -320,58 +369,77 @@ export const POST = apiHandler(async (
       })
     }
 
-    await tx.canvas.update({
-      where: { id: canvasId },
-      data: { updatedAt: new Date() },
+    const [canvas, syncedNodes, syncedEdges] = await Promise.all([
+      tx.canvas.findUniqueOrThrow({
+        where: { id: canvasId },
+        select: {
+          id: true,
+          projectId: true,
+          title: true,
+          themeColor: true,
+          viewport: true,
+          visibility: true,
+          forkedFromId: true,
+          revision: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      }),
+      tx.canvasNode.findMany({
+        where: { canvasId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          canvasId: true,
+          type: true,
+          position: true,
+          size: true,
+          data: true,
+          status: true,
+          taskId: true,
+          runId: true,
+          mediaObjectId: true,
+          parentNodeId: true,
+        },
+      }),
+      tx.canvasEdge.findMany({
+        where: { canvasId },
+        orderBy: { createdAt: 'asc' },
+        select: {
+          id: true,
+          canvasId: true,
+          sourceNodeId: true,
+          targetNodeId: true,
+          sourceHandle: true,
+          targetHandle: true,
+          role: true,
+        },
+      }),
+    ])
+
+    await recordCanvasSnapshotInTransaction(tx, {
+      canvasId,
+      revision: nextRevision,
+      userId: authResult.session.user.actorId || authResult.session.user.id,
+      clientId: input.clientId,
+      changeSummary: '同步项目内容',
+      document: {
+        viewport: canvas.viewport || { x: 0, y: 0, zoom: 1 },
+        nodes: syncedNodes,
+        edges: syncedEdges,
+      } as unknown as Prisma.InputJsonValue,
     })
+
+    return { canvas, nodes: syncedNodes, edges: syncedEdges }
   })
 
-  const [canvas, syncedNodes, syncedEdges] = await Promise.all([
-    prisma.canvas.findUnique({
-      where: { id: canvasId },
-      select: {
-        id: true,
-        projectId: true,
-        title: true,
-        themeColor: true,
-        viewport: true,
-        visibility: true,
-        forkedFromId: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    }),
-    prisma.canvasNode.findMany({
-      where: { canvasId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        canvasId: true,
-        type: true,
-        position: true,
-        size: true,
-        data: true,
-        status: true,
-        taskId: true,
-        runId: true,
-        mediaObjectId: true,
-        parentNodeId: true,
-      },
-    }),
-    prisma.canvasEdge.findMany({
-      where: { canvasId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        canvasId: true,
-        sourceNodeId: true,
-        targetNodeId: true,
-        sourceHandle: true,
-        targetHandle: true,
-        role: true,
-      },
-    }),
-  ])
+  if (graph.canvas.revision !== nextRevision) {
+    throw new ApiError('CONFLICT', {
+      message: '同步后的画布版本异常，请重新加载画布。',
+      expectedRevision: nextRevision,
+      actualRevision: graph.canvas.revision,
+    })
+  }
 
-  return NextResponse.json({ canvas, nodes: syncedNodes, edges: syncedEdges })
+  return NextResponse.json(graph)
 })

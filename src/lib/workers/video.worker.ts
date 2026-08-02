@@ -13,7 +13,6 @@ import {
   resolveVideoSourceFromGeneration,
   toSignedUrlIfCos,
   uploadVideoSourceToCos,
-  waitExternalResult,
 } from './utils'
 import { normalizeToBase64ForGeneration } from '@/lib/media/outbound-image'
 import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
@@ -22,15 +21,34 @@ import { ensureStorageObjectAvailable } from '@/lib/storage/ensure-object'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getProviderConfig } from '@/lib/api-config'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
-import { arkCreateVideoTask } from '@/lib/ark-api'
 import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from '@/lib/hfsy-fixed-models'
+import { handleCanvasVideoOperationTask } from './handlers/canvas-operation-task-handler'
 import {
   buildPanelSeedanceReferenceAssets,
+  mergePanelSeedanceReferenceAssets,
   readPanelSeedanceReferenceAssetsFromActingNotes,
+  type PanelSeedanceReferenceAsset,
 } from '@/lib/novel-promotion/seedance-reference-assets'
+import {
+  compileSeedancePromptForSubmission,
+  extractSeedanceVideoPromptBody,
+  isSeedanceVideoPromptBody,
+  stripSeedancePromptAssetMentions,
+} from '@/lib/novel-promotion/seedance-prompt-assets'
 import { ensureProjectAssetImagesOnStorage } from '@/lib/novel-promotion/asset-storage-sync'
 import { readPanelFrameOSMetadataFromActingNotes } from '@/lib/novel-promotion/panel-frameos-metadata'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
+import { handleToolboxVideoTask } from './handlers/toolbox-video-task-handler'
+import { appendProjectArtStyleConstraint } from '@/lib/projects/creation-config'
+import {
+  buildArkTextOnlyFallbackPrompt,
+  isArkInputImageModerationError,
+  isArkVideoModel,
+  readArkModelId,
+  submitArkTextOnlyVideoFallback,
+} from './ark-video-fallback'
 
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
@@ -69,23 +87,13 @@ function extractGenerationOptions(payload: AnyObj): VideoOptionMap {
   return next
 }
 
-function isArkInputImageModerationError(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error)
-  return /InputImageSensitiveContentDetected|PrivacyInformation|输入图片审核未通过|input image/i.test(message)
-}
-
-function isArkVideoModel(modelKey: string): boolean {
-  return /^ark::/i.test(modelKey) || /doubao-seedance/i.test(modelKey)
+function supportsArkReferenceImageMode(modelKey: string): boolean {
+  return /^doubao-seedance-2-0(?:-|$)/i.test(readArkModelId(modelKey))
 }
 
 function isHfsyVideoModel(modelKey: string): boolean {
-  const parsed = parseModelKeyStrict(modelKey)
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
   return parsed?.provider === HFSY_PROVIDER_ID && parsed.modelId === HFSY_VIDEO_MODEL_ID
-}
-
-function readArkModelId(modelKey: string): string {
-  if (modelKey.startsWith('ark::')) return modelKey.slice('ark::'.length)
-  return modelKey
 }
 
 function normalizeHfsyDuration(value: VideoOptionValue | undefined): number {
@@ -123,17 +131,12 @@ async function toProviderFetchablePublicUrl(value: string | null | undefined): P
   return availableKey ? await getSignedObjectUrl(availableKey, 3600) : null
 }
 
-function readVideoResolution(value: VideoOptionValue | undefined): '480p' | '720p' | '1080p' | undefined {
-  return value === '480p' || value === '720p' || value === '1080p' ? value : undefined
-}
-
-function buildArkTextOnlyFallbackPrompt(prompt: string): string {
-  return [
-    '【重要】上游视频模型拒绝使用输入分镜图，为了继续完成 Agent 成片流程，改用纯文本视频生成。',
-    '必须严格保持原 panel 的角色资产、服装、场景、道具、人物站位、镜头语言、按秒动作/对白和负面要求。',
-    '不要新增无关角色，不要改变剧情，不要改变角色关系，不要改变地域/语言语境。',
-    prompt,
-  ].join('\n')
+function readVideoResolution(value: VideoOptionValue | undefined): '480p' | '720p' | '1080p' | '4k' | undefined {
+  if (typeof value !== 'string') return undefined
+  const normalized = value.trim().toLowerCase()
+  return normalized === '480p' || normalized === '720p' || normalized === '1080p' || normalized === '4k'
+    ? normalized
+    : undefined
 }
 
 function buildPanelVideoPromptWithFrameOSEvidence(panel: PanelRecord, basePrompt: string): string {
@@ -211,32 +214,44 @@ async function resolvePanelAssetReferenceImagesForVideo(
   projectId: string,
   panel: PanelRecord,
   options?: { publicFetchableUrls?: boolean },
-): Promise<string[]> {
+): Promise<PanelSeedanceReferenceAsset[]> {
   const projectModel = (prisma as unknown as {
     novelPromotionProject?: typeof prisma.novelPromotionProject
   }).novelPromotionProject
   if (!projectModel) return []
+  const storyboardModel = (prisma as unknown as {
+    novelPromotionStoryboard?: typeof prisma.novelPromotionStoryboard
+  }).novelPromotionStoryboard
 
-  const projectAssets = await projectModel.findUnique({
-    where: { projectId },
-    include: {
-      characters: {
-        include: {
-          appearances: { orderBy: { appearanceIndex: 'asc' } },
+  const [projectAssets, storyboardContext] = await Promise.all([
+    projectModel.findUnique({
+      where: { projectId },
+      include: {
+        characters: {
+          include: {
+            appearances: { orderBy: { appearanceIndex: 'asc' } },
+          },
+        },
+        locations: {
+          include: {
+            selectedImage: true,
+            images: { orderBy: { imageIndex: 'asc' } },
+          },
         },
       },
-      locations: {
-        include: {
-          selectedImage: true,
-          images: { orderBy: { imageIndex: 'asc' } },
-        },
+    }),
+    storyboardModel ? storyboardModel.findFirst({
+      where: {
+        id: panel.storyboardId,
+        episode: { novelPromotionProject: { projectId } },
       },
-    },
-  })
+      select: { episode: { select: { episodeNumber: true } } },
+    }) : Promise.resolve(null),
+  ])
   if (!projectAssets) return []
 
   const persistedReferences = readPanelSeedanceReferenceAssetsFromActingNotes(panel.actingNotes)
-  const references = persistedReferences.length > 0 ? persistedReferences : buildPanelSeedanceReferenceAssets({
+  const generatedReferences = buildPanelSeedanceReferenceAssets({
     panel: {
       characters: panel.characters,
       location: panel.location,
@@ -245,27 +260,47 @@ async function resolvePanelAssetReferenceImagesForVideo(
     },
     characterAssets: projectAssets.characters,
     locationAssets: projectAssets.locations,
+    episodeNumber: storyboardContext?.episode.episodeNumber,
+    sceneId: readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)?.panel_id?.match(/^S\d+/i)?.[0] || null,
   })
+  const references = mergePanelSeedanceReferenceAssets(generatedReferences, persistedReferences)
 
   const seen = new Set<string>()
   const panelImage = panel.imageUrl?.trim()
-  const urls: string[] = []
+  const resolvedAssets: PanelSeedanceReferenceAsset[] = []
   for (const reference of references) {
     const resolvedUrl = options?.publicFetchableUrls
       ? await toProviderFetchablePublicUrl(reference.imageUrl)
       : toSignedUrlIfCos(reference.imageUrl, 3600) || reference.imageUrl
     const trimmed = (resolvedUrl || '').trim()
-    if (!trimmed || trimmed === panelImage || seen.has(trimmed)) continue
+    if (!trimmed || reference.imageUrl === panelImage || trimmed === panelImage || seen.has(trimmed)) continue
     seen.add(trimmed)
-    urls.push(trimmed)
+    resolvedAssets.push({ ...reference, imageUrl: trimmed })
   }
-  return urls
+  return resolvedAssets
 }
 
 function normalizeAssetNameForMatch(value: string): string {
   return value
     .toLowerCase()
     .replace(/[\s"'“”‘’`·。、，,;；:：()（）[\]【】\-_/|]/g, '')
+}
+
+function addCharacterNames(names: Set<string>, value: unknown) {
+  if (typeof value === 'string') {
+    value.split(/[、,，/]/).forEach((item) => {
+      const normalized = item.trim()
+      if (normalized) names.add(normalized)
+    })
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => addCharacterNames(names, item))
+    return
+  }
+  if (!value || typeof value !== 'object') return
+  const row = value as Record<string, unknown>
+  addCharacterNames(names, row.name ?? row.speaker ?? row.character ?? row.characterName)
 }
 
 function panelReferenceNames(panel: PanelRecord): string[] {
@@ -287,6 +322,14 @@ function panelReferenceNames(panel: PanelRecord): string[] {
       })
     }
   }
+  const frameosMetadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+  if (frameosMetadata?.referenced_assets && typeof frameosMetadata.referenced_assets === 'object') {
+    addCharacterNames(
+      names,
+      (frameosMetadata.referenced_assets as Record<string, unknown>).characters,
+    )
+  }
+  addCharacterNames(names, frameosMetadata?.voice_refs)
   return Array.from(names)
 }
 
@@ -318,8 +361,11 @@ async function resolvePanelAudioReferencesForVideo(projectId: string, panel: Pan
       || (name.length >= 4 && characterName.includes(name))
       || (characterName.length >= 4 && name.includes(characterName))
     ))
-    if (!matched || !character.customVoiceUrl) continue
-    const url = await toProviderFetchablePublicUrl(character.customVoiceUrl)
+    if (!matched || (!character.customVoiceUrl && !character.customVoiceMediaId)) continue
+    const voiceMedia = await resolveMediaRef(character.customVoiceMediaId, character.customVoiceUrl)
+    const url = await toProviderFetchablePublicUrl(
+      voiceMedia?.storageKey || voiceMedia?.url || character.customVoiceUrl,
+    )
     if (!url || seen.has(url)) continue
     seen.add(url)
     urls.push(url)
@@ -335,6 +381,7 @@ async function generateVideoForPanel(
   payload: AnyObj,
   modelId: string,
   projectVideoRatio: string | null | undefined,
+  projectArtStylePrompt: string | null | undefined,
   generationOptions: VideoOptionMap,
 ): Promise<{
   cosKey: string
@@ -350,13 +397,16 @@ async function generateVideoForPanel(
   const persistedFirstLastPrompt = firstLastFramePayload ? panel.firstLastFramePrompt : null
   const customPrompt = typeof payload.customPrompt === 'string' ? payload.customPrompt : null
   const rawPrompt = firstLastCustomPrompt || persistedFirstLastPrompt || customPrompt || panel.videoPrompt || panel.description
-  const shouldAppendFrameOSEvidence = !firstLastCustomPrompt && !customPrompt
-  const prompt = rawPrompt && shouldAppendFrameOSEvidence
-    ? buildPanelVideoPromptWithFrameOSEvidence(panel, rawPrompt)
-    : rawPrompt
-  if (!prompt) {
+  if (!rawPrompt?.trim()) {
     throw new Error(`Panel ${panel.id} has no video prompt`)
   }
+  const editorPrompt = appendProjectArtStyleConstraint(
+    extractSeedanceVideoPromptBody(rawPrompt),
+    projectArtStylePrompt,
+  )
+  const shouldAppendFrameOSEvidence = !firstLastCustomPrompt
+    && !customPrompt
+    && !isSeedanceVideoPromptBody(editorPrompt)
 
   let lastFrameImageBase64: string | undefined
   const generationMode: VideoGenerationMode = firstLastFramePayload ? 'firstlastframe' : 'normal'
@@ -402,7 +452,7 @@ async function generateVideoForPanel(
 
   const selectedCapabilities = resolveBuiltinCapabilitiesByModelKey('video', model)
   const durationOptions = selectedCapabilities?.video?.durationOptions
-  const recommendedGenerationOptions = withRecommendedVideoDurationOptions({
+  const recommendedGenerationOptionsRaw = withRecommendedVideoDurationOptions({
     duration: panel.duration,
     description: panel.description,
     videoPrompt: panel.videoPrompt,
@@ -411,18 +461,55 @@ async function generateVideoForPanel(
     shotType: panel.shotType,
     cameraMove: panel.cameraMove,
   }, generationOptions, durationOptions)
+  const canonicalResolution = readVideoResolution(recommendedGenerationOptionsRaw.resolution)
+  const recommendedGenerationOptions = canonicalResolution
+    ? { ...recommendedGenerationOptionsRaw, resolution: canonicalResolution }
+    : recommendedGenerationOptionsRaw
   if (isHfsyVideoModel(model)) {
     await ensureProjectAssetImagesOnStorage(job.data.projectId)
   }
-  const shouldAttachPanelReferenceAssets = isArkVideoModel(model) || isHfsyVideoModel(model)
-  const panelReferenceImages = shouldAttachPanelReferenceAssets
+  const shouldAttachPanelReferenceAssets = (
+    isArkVideoModel(model)
+    && supportsArkReferenceImageMode(model)
+    && generationMode === 'normal'
+  ) || isHfsyVideoModel(model)
+  const panelReferenceAssets = shouldAttachPanelReferenceAssets
     ? await resolvePanelAssetReferenceImagesForVideo(job.data.projectId, panel, {
       publicFetchableUrls: isHfsyVideoModel(model),
     })
     : []
-  const panelAudioReferences = isHfsyVideoModel(model)
+  const panelReferenceImages = panelReferenceAssets.map((asset) => asset.imageUrl)
+  const usesArkReferenceImageMode = isArkModel
+    && generationMode === 'normal'
+    && panelReferenceAssets.length > 0
+  const supportsPanelAudioReferences = isHfsyModel || (
+    isArkModel
+    && supportsArkReferenceImageMode(model)
+    && generationMode === 'normal'
+  )
+  const panelAudioReferences = supportsPanelAudioReferences
     ? await resolvePanelAudioReferencesForVideo(job.data.projectId, panel)
     : []
+  const usesArkReferenceMediaMode = isArkModel
+    && generationMode === 'normal'
+    && (panelReferenceAssets.length > 0 || panelAudioReferences.length > 0)
+  const effectiveReferenceImages = usesArkReferenceMediaMode
+    && panelReferenceImages.length === 0
+    && inputImage.sourceImageUrl
+    ? [inputImage.sourceImageUrl]
+    : panelReferenceImages
+  const providerBasePrompt = isArkModel
+    ? usesArkReferenceImageMode
+      ? compileSeedancePromptForSubmission(editorPrompt, panelReferenceAssets)
+      : stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
+    : editorPrompt
+  const prompt = shouldAppendFrameOSEvidence
+    ? buildPanelVideoPromptWithFrameOSEvidence(panel, providerBasePrompt)
+    : providerBasePrompt
+  const arkTextOnlyBasePrompt = stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
+  const arkTextOnlyPrompt = shouldAppendFrameOSEvidence
+    ? buildPanelVideoPromptWithFrameOSEvidence(panel, arkTextOnlyBasePrompt)
+    : arkTextOnlyBasePrompt
   const hfsyDuration = isHfsyVideoModel(model)
     ? normalizeHfsyDuration(recommendedGenerationOptions.duration)
     : undefined
@@ -434,9 +521,10 @@ async function generateVideoForPanel(
     prompt,
     ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
     ...recommendedGenerationOptions,
+    ...(panelAudioReferences.length > 0 ? { generateAudio: true } : {}),
     ...(hfsyDuration ? { duration: hfsyDuration } : {}),
     generationMode,
-    ...(panelReferenceImages.length > 0 ? { referenceImages: panelReferenceImages } : {}),
+    ...(effectiveReferenceImages.length > 0 ? { referenceImages: effectiveReferenceImages } : {}),
     ...(panelAudioReferences.length > 0 ? { audios: panelAudioReferences } : {}),
     ...(isHfsyVideoModel(model) ? {
       orientation: resolveHfsyOrientation(projectVideoRatio),
@@ -452,11 +540,18 @@ async function generateVideoForPanel(
     generatedVideo = await resolveVideoSourceFromGeneration(job, {
       userId: job.data.userId,
       modelId: model,
-      imageUrl: inputImage.sourceImageBase64 || panelReferenceImages[0] || '',
+      imageUrl: usesArkReferenceMediaMode
+        ? ''
+        : inputImage.sourceImageBase64 || panelReferenceImages[0] || '',
       options: videoRequestOptions,
     })
   } catch (error) {
-    if (!isArkVideoModel(model) || generationMode !== 'normal' || !isArkInputImageModerationError(error)) {
+    if (
+      !isArkVideoModel(model)
+      || generationMode !== 'normal'
+      || panelAudioReferences.length > 0
+      || !isArkInputImageModerationError(error)
+    ) {
       throw error
     }
     await reportTaskProgress(job, 35, {
@@ -464,32 +559,19 @@ async function generateVideoForPanel(
       panelId: panel.id,
       reason: 'input_image_moderation',
     })
-    const { apiKey } = await getProviderConfig(job.data.userId, 'ark')
-    const fallbackTask = await arkCreateVideoTask({
-      model: readArkModelId(model),
-      content: [
-        {
-          type: 'text',
-          text: buildArkTextOnlyFallbackPrompt(prompt),
-        },
-      ],
-      ...(readVideoResolution(recommendedGenerationOptions.resolution) ? { resolution: readVideoResolution(recommendedGenerationOptions.resolution) } : {}),
-      ...(projectVideoRatio ? { ratio: projectVideoRatio } : {}),
-      ...(typeof recommendedGenerationOptions.duration === 'number' ? { duration: recommendedGenerationOptions.duration } : {}),
-      ...(typeof recommendedGenerationOptions.generateAudio === 'boolean' ? { generate_audio: recommendedGenerationOptions.generateAudio } : {}),
-      ...(typeof recommendedGenerationOptions.seed === 'number' ? { seed: recommendedGenerationOptions.seed } : {}),
-      ...(typeof recommendedGenerationOptions.cameraFixed === 'boolean' ? { camera_fixed: recommendedGenerationOptions.cameraFixed } : {}),
-      ...(typeof recommendedGenerationOptions.watermark === 'boolean' ? { watermark: recommendedGenerationOptions.watermark } : {}),
-    }, {
-      apiKey,
-      logPrefix: '[ARK Video Fallback]',
-    })
-    if (!fallbackTask.id) {
-      throw new Error('ARK text-only fallback did not return task id')
-    }
-    const polled = await waitExternalResult(job, `ARK:VIDEO:${fallbackTask.id}`, job.data.userId, {
+    const polled = await submitArkTextOnlyVideoFallback(job, {
+      modelKey: model,
+      prompt: buildArkTextOnlyFallbackPrompt(arkTextOnlyPrompt),
+      resolution: readVideoResolution(recommendedGenerationOptions.resolution),
+      ratio: projectVideoRatio || undefined,
+      duration: typeof recommendedGenerationOptions.duration === 'number' ? recommendedGenerationOptions.duration : undefined,
+      generateAudio: typeof recommendedGenerationOptions.generateAudio === 'boolean' ? recommendedGenerationOptions.generateAudio : undefined,
+      seed: typeof recommendedGenerationOptions.seed === 'number' ? recommendedGenerationOptions.seed : undefined,
+      cameraFixed: typeof recommendedGenerationOptions.cameraFixed === 'boolean' ? recommendedGenerationOptions.cameraFixed : undefined,
+      watermark: typeof recommendedGenerationOptions.watermark === 'boolean' ? recommendedGenerationOptions.watermark : undefined,
       progressStart: 45,
       progressEnd: 94,
+      logPrefix: '[ARK Video Fallback]',
     })
     generatedVideo = {
       url: polled.url,
@@ -504,7 +586,7 @@ async function generateVideoForPanel(
   if (generatedVideo.downloadHeaders) {
     downloadHeaders = generatedVideo.downloadHeaders
   } else if (typeof videoSource === 'string') {
-    const parsedModel = parseModelKeyStrict(model)
+    const parsedModel = parseModelKeyStrict(resolveRuntimeModelKey(model) || model)
     const isGoogleDownloadUrl = videoSource.includes('generativelanguage.googleapis.com/')
       && videoSource.includes('/files/')
       && videoSource.includes(':download')
@@ -550,6 +632,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     payload,
     modelId,
     projectModels.videoRatio,
+    projectModels.artStylePrompt,
     generationOptions,
   )
 
@@ -559,6 +642,21 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     data: {
       videoUrl: cosKey,
       videoGenerationMode: generationMode,
+    },
+  })
+  await registerFrameosMaterial({
+    userId: job.data.userId,
+    projectId: job.data.projectId,
+    title: `分镜视频 · 镜头 ${panel.panelNumber ?? panel.panelIndex + 1}`,
+    type: 'video',
+    source: 'production',
+    storageKey: cosKey,
+    metadata: {
+      taskId: job.data.taskId,
+      originType: 'panel-video',
+      originId: panel.id,
+      generationMode,
+      prompt: payload.customPrompt || panel.videoPrompt || panel.description,
     },
   })
 
@@ -647,6 +745,10 @@ async function processVideoTask(job: Job<TaskJobData>) {
       return await handleVideoPanelTask(job)
     case TASK_TYPE.LIP_SYNC:
       return await handleLipSyncTask(job)
+    case TASK_TYPE.TOOLBOX_VIDEO:
+      return await handleToolboxVideoTask(job)
+    case TASK_TYPE.CANVAS_VIDEO_OPERATION:
+      return await handleCanvasVideoOperationTask(job)
     default:
       throw new Error(`Unsupported video task type: ${job.data.type}`)
   }

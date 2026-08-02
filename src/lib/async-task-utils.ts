@@ -52,6 +52,23 @@ function getErrorStatus(error: unknown): number | undefined {
     return typeof record.status === 'number' ? record.status : undefined
 }
 
+function readProviderFailure(value: unknown): { code: string; message: string } {
+    const payload = asRecord(value)
+    const error = asRecord(payload?.error)
+    const code = [error?.code, payload?.code]
+        .find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        ?.trim() || ''
+    const message = [error?.message, payload?.message, payload?.error]
+        .find((item): item is string => typeof item === 'string' && item.trim().length > 0)
+        ?.trim() || ''
+    return { code, message }
+}
+
+function seedanceFailureMessage(prefix: string, failure: { code: string; message: string }, fallback: string): string {
+    const detail = failure.message || fallback
+    return `${prefix}${failure.code ? `（${failure.code}）` : ''}：${detail}`
+}
+
 interface GeminiBatchClient {
     batches: {
         get(args: { name: string }): Promise<unknown>
@@ -317,16 +334,34 @@ export async function querySeedanceVideoStatus(taskId: string, apiKey: string): 
             }
         )
 
+        const responseText = await queryResponse.text()
+        let queryData: UnknownRecord = {}
+        try {
+            queryData = asRecord(responseText ? JSON.parse(responseText) : null) || {}
+        } catch {
+            queryData = {}
+        }
         if (!queryResponse.ok) {
-            logInternal('Seedance', 'ERROR', `Status query failed: ${queryResponse.status}`)
-            return { status: 'pending' }
+            const failure = readProviderFailure(queryData)
+            const error = seedanceFailureMessage(
+                `Seedance 状态查询失败（HTTP ${queryResponse.status}）`,
+                failure,
+                responseText.trim().slice(0, 500) || queryResponse.statusText || '服务未返回错误详情',
+            )
+            logInternal('Seedance', 'ERROR', error, { taskId, status: queryResponse.status })
+            return { status: 'failed', error }
         }
 
-        const queryData = await queryResponse.json()
-        const status = queryData.status
-        const actualVideoTokens = typeof queryData?.usage?.total_tokens === 'number'
-            ? queryData.usage.total_tokens
-            : undefined
+        const status = typeof queryData.status === 'string' ? queryData.status : ''
+        const usage = asRecord(queryData.usage)
+        // Ark documents completion_tokens as the authoritative billed video
+        // usage. Keep total_tokens only as a compatibility fallback for older
+        // responses so existing in-flight tasks can still settle.
+        const actualVideoTokens = typeof usage?.completion_tokens === 'number'
+            ? usage.completion_tokens
+            : typeof usage?.total_tokens === 'number'
+                ? usage.total_tokens
+                : undefined
 
         if (status === 'succeeded') {
             const videoUrl = readArkVideoUrl(queryData.content)
@@ -341,14 +376,17 @@ export async function querySeedanceVideoStatus(taskId: string, apiKey: string): 
 
             return { status: 'failed', error: 'No video URL in response' }
         } else if (status === 'failed') {
-            const errorObj = queryData.error || {}
-            const errorMessage = errorObj.message || 'Unknown error'
-            return { status: 'failed', error: errorMessage }
+            const failure = readProviderFailure(queryData)
+            return {
+                status: 'failed',
+                error: seedanceFailureMessage('Seedance 生成失败', failure, '平台未返回具体原因'),
+            }
         }
 
         return { status: 'pending' }
     } catch (error: unknown) {
-        logInternal('Seedance', 'ERROR', 'Query error', { error: getErrorMessage(error) })
-        return { status: 'pending' }
+        const message = getErrorMessage(error)
+        logInternal('Seedance', 'ERROR', 'Query error', { taskId, error: message })
+        return { status: 'failed', error: `Seedance 状态查询异常：${message}` }
     }
 }

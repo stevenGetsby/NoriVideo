@@ -13,7 +13,7 @@ export function calculateTimelineDuration(clips: VideoClip[]): number {
         // 最后一个片段不减去转场时间
         if (index < clips.length - 1 && clip.transition) {
             // 转场会让总时长减少（重叠部分）
-            duration -= Math.floor(clip.transition.durationInFrames / 2)
+            duration -= Math.min(clip.durationInFrames - 1, clips[index + 1].durationInFrames - 1, clip.transition.durationInFrames)
         }
 
         return total + duration
@@ -33,7 +33,7 @@ export function computeClipPositions(clips: VideoClip[]): ComputedClip[] {
 
         // 计算下一个片段的起始位置（考虑转场重叠）
         if (clip.transition && index < clips.length - 1) {
-            currentFrame = endFrame - Math.floor(clip.transition.durationInFrames / 2)
+            currentFrame = endFrame - Math.min(clip.durationInFrames - 1, clips[index + 1].durationInFrames - 1, clip.transition.durationInFrames)
         } else {
             currentFrame = endFrame
         }

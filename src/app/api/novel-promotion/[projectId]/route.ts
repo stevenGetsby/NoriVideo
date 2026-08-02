@@ -5,7 +5,7 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isArtStyleValue, isCustomArtStyleValue, parseCustomArtStyles, resolveCustomArtStylePrompt } from '@/lib/constants'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
-import { extractModelKey } from '@/lib/config-service'
+import { extractModelKey, getProjectModelConfig } from '@/lib/config-service'
 import {
   parseModelKeyStrict,
   type CapabilitySelections,
@@ -15,6 +15,12 @@ import {
   getCapabilityOptionFields,
   validateCapabilitySelectionsPayload,
   type CapabilityModelContext} from '@/lib/model-capabilities/lookup'
+import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
+import {
+  EPISODE_DURATION_MODES,
+  PROJECT_LEVELS,
+  PROJECT_STYLES,
+} from '@/lib/projects/creation-config'
 
 const MODEL_FIELDS = [
   'analysisModel',
@@ -123,6 +129,17 @@ function validateModelKeyField(field: typeof MODEL_FIELDS[number], value: unknow
     throw new ApiError('INVALID_PARAMS', {
       code: 'MODEL_KEY_INVALID',
       field})
+  }
+  const expectedType = MODEL_FIELD_TO_TYPE[field]
+  if (expectedType === 'llm' || expectedType === 'image' || expectedType === 'video') {
+    const businessModel = findNoriBusinessModel(value)
+    if (!businessModel || businessModel.type !== expectedType) {
+      throw new ApiError('INVALID_PARAMS', {
+        code: 'MODEL_NOT_PLATFORM_MANAGED',
+        field,
+        message: `${field} must use a Nori business model`,
+      })
+    }
   }
 }
 
@@ -282,14 +299,20 @@ export const GET = apiHandler(async (
       videoModel: true,
       audioModel: true,
     }})
-  const userPreference = await prisma.userPreference.findUnique({
-    where: { userId: authResult.session.user.id },
-    select: USER_MODEL_DEFAULT_SELECT,
-  })
-
   const storedOverrides = parseStoredCapabilitySelections(projectData?.capabilityOverrides)
-  const effectiveModelFields = projectData
-    ? resolveEffectiveModelFields(projectData, userPreference)
+  const projectModelConfig = projectData
+    ? await getProjectModelConfig(projectId, authResult.session.user.id)
+    : null
+  const effectiveModelFields = projectModelConfig
+    ? {
+      analysisModel: projectModelConfig.analysisModel,
+      characterModel: projectModelConfig.characterModel,
+      locationModel: projectModelConfig.locationModel,
+      storyboardModel: projectModelConfig.storyboardModel,
+      editModel: projectModelConfig.editModel,
+      videoModel: projectModelConfig.videoModel,
+      audioModel: projectModelConfig.audioModel,
+    }
     : null
   const modelContextMap = projectData
     ? getNextProjectModelMap(effectiveModelFields!, {})
@@ -297,7 +320,9 @@ export const GET = apiHandler(async (
   const cleanedOverrides = sanitizeCapabilityOverrides(storedOverrides, modelContextMap)
 
   return NextResponse.json({
-    capabilityOverrides: cleanedOverrides})
+    capabilityOverrides: cleanedOverrides,
+    modelConfig: effectiveModelFields,
+  })
 })
 
 // PATCH - 更新小说推文项目配置
@@ -338,7 +363,8 @@ export const PATCH = apiHandler(async (
     'analysisModel', 'characterModel', 'locationModel', 'storyboardModel',
     'editModel', 'videoModel', 'audioModel', 'videoRatio', 'videoResolution', 'artStyle', 'artStylePrompt',
     'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides', 'workflowMode',
-    'projectLevel', 'projectStyle', 'targetAudience', 'targetEpisodeDurationSeconds',
+    'projectLevel', 'projectStyle', 'targetAudience', 'episodeDurationMode',
+    'episodeDurationValue', 'targetEpisodeDurationSeconds',
   ] as const
 
   const updateData: Record<string, unknown> = {}
@@ -375,23 +401,23 @@ export const PATCH = apiHandler(async (
     }
 
     if (field === 'projectLevel') {
-      if (body[field] !== 'Nori1.0') {
+      if (!(PROJECT_LEVELS as readonly unknown[]).includes(body[field])) {
         throw new ApiError('INVALID_PARAMS', {
           code: 'PROJECT_LEVEL_INVALID',
           field,
-          message: 'projectLevel must be Nori1.0',
+          message: `projectLevel must be one of: ${PROJECT_LEVELS.join(', ')}`,
         })
       }
-      updateData.projectLevel = 'Nori1.0'
+      updateData.projectLevel = body[field]
       continue
     }
 
     if (field === 'projectStyle') {
-      if (body[field] !== 'live-action' && body[field] !== 'anime') {
+      if (!(PROJECT_STYLES as readonly unknown[]).includes(body[field])) {
         throw new ApiError('INVALID_PARAMS', {
           code: 'PROJECT_STYLE_INVALID',
           field,
-          message: 'projectStyle must be live-action or anime',
+          message: `projectStyle must be one of: ${PROJECT_STYLES.join(', ')}`,
         })
       }
       updateData.projectStyle = body[field]
@@ -410,15 +436,31 @@ export const PATCH = apiHandler(async (
       continue
     }
 
-    if (field === 'targetEpisodeDurationSeconds') {
+    if (field === 'episodeDurationMode') {
+      if (!(EPISODE_DURATION_MODES as readonly unknown[]).includes(body[field])) {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'EPISODE_DURATION_MODE_INVALID',
+          field,
+          message: `episodeDurationMode must be one of: ${EPISODE_DURATION_MODES.join(', ')}`,
+        })
+      }
+      updateData.episodeDurationMode = body[field]
+      continue
+    }
+
+    if (field === 'episodeDurationValue' || field === 'targetEpisodeDurationSeconds') {
       const seconds = Number.parseInt(String(body[field]), 10)
-      if (seconds !== 60 && seconds !== 90 && seconds !== 120) {
+      const mode = body.episodeDurationMode === 'per-1000-chars' ? 'per-1000-chars' : 'per-episode'
+      const minimum = mode === 'per-episode' ? 10 : 1
+      const maximum = mode === 'per-episode' ? 3600 : 600
+      if (!Number.isInteger(seconds) || seconds < minimum || seconds > maximum) {
         throw new ApiError('INVALID_PARAMS', {
           code: 'TARGET_EPISODE_DURATION_INVALID',
           field,
-          message: 'targetEpisodeDurationSeconds must be 60, 90 or 120',
+          message: `${field} must be an integer between ${minimum} and ${maximum}`,
         })
       }
+      updateData.episodeDurationValue = seconds
       updateData.targetEpisodeDurationSeconds = seconds
       continue
     }

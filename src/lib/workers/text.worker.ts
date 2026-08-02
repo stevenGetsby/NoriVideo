@@ -44,6 +44,8 @@ import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 import { handleSuperAgentExecuteTask } from './handlers/super-agent-execute'
 import { handleExportDeliveryTask } from './handlers/export-delivery'
+import { handleAssetExtractionTask } from './handlers/asset-extraction'
+import { handleCanvasGenerationTask } from './handlers/canvas-generation-task-handler'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -675,6 +677,11 @@ async function processTextTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
+    case TASK_TYPE.CANVAS_TEXT_GENERATION:
+    case TASK_TYPE.CANVAS_STORYBOARD_PLAN:
+      return await handleCanvasGenerationTask(job)
+    case TASK_TYPE.ASSET_EXTRACTION_RUN:
+      return await handleAssetExtractionTask(job)
     case TASK_TYPE.STORY_TO_SCRIPT_RUN:
       return await handleStoryToScriptTask(job)
     case TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN:

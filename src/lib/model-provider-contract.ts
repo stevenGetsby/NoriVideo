@@ -16,10 +16,11 @@ export const MODEL_PROVIDER = {
   HFSY: 'hfsy',
   GHC: 'ghc',
   DEEPSEEK: 'deepseek',
+  KUAIZI: 'kuaizi',
 } as const
 
 export type ModelProviderKey = (typeof MODEL_PROVIDER)[keyof typeof MODEL_PROVIDER]
-export type ModelCapabilityGroup = 'text' | 'vision' | 'image' | 'video'
+export type ModelCapabilityGroup = 'text' | 'vision' | 'image' | 'video' | 'audio'
 
 export type ModelProviderPreset = {
   id: ModelProviderKey
@@ -42,6 +43,7 @@ const PROVIDER_KEY_ALIASES: Readonly<Record<string, ModelProviderKey>> = {
   hfsy: MODEL_PROVIDER.HFSY,
   ghc: MODEL_PROVIDER.GHC,
   deepseek: MODEL_PROVIDER.DEEPSEEK,
+  kuaizi: MODEL_PROVIDER.KUAIZI,
   'openai-compatible': MODEL_PROVIDER.HFSY,
 }
 
@@ -51,6 +53,7 @@ export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
   { id: MODEL_PROVIDER.HFSY, name: 'HFSY API', baseUrl: 'https://www.hfsyapi.cn/v1' },
   { id: MODEL_PROVIDER.GHC, name: 'GHC API', baseUrl: 'http://localhost:8313/v1' },
   { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
+  { id: MODEL_PROVIDER.KUAIZI, name: '筷子 AI 开放平台', baseUrl: 'https://aiopenapi.kuaizi.cn' },
 ]
 
 export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<ModelProviderKey, string>> = {
@@ -59,6 +62,7 @@ export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<ModelProviderKey, string>> 
   hfsy: 'HFSY API',
   ghc: 'GHC API',
   deepseek: 'DeepSeek 官方',
+  kuaizi: '筷子 AI 开放平台',
 }
 
 const ARK_TEXT_MODELS: ModelPreset[] = [
@@ -154,6 +158,7 @@ export function getModelCapabilityGroup(input: {
 }): ModelCapabilityGroup | null {
   if (input.type === 'image') return 'image'
   if (input.type === 'video') return 'video'
+  if (input.type === 'audio') return 'audio'
   if (input.type !== 'llm') return null
 
   if (

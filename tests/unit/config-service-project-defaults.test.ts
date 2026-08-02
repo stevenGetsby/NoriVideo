@@ -44,21 +44,21 @@ describe('config-service project model defaults', () => {
     const { getProjectModelConfig } = await import('@/lib/config-service')
     const config = await getProjectModelConfig('project-1', 'user-1')
 
-    expect(config.analysisModel).toBe('llm::analysis')
-    expect(config.characterModel).toBe('image::character')
-    expect(config.locationModel).toBe('image::location')
-    expect(config.storyboardModel).toBe('image::storyboard')
-    expect(config.editModel).toBe('image::edit')
-    expect(config.videoModel).toBe('video::default')
+    expect(config.analysisModel).toBe('nori::nori-gpt')
+    expect(config.characterModel).toBe('nori::nori-image')
+    expect(config.locationModel).toBe('nori::nori-image')
+    expect(config.storyboardModel).toBe('nori::nori-image')
+    expect(config.editModel).toBe('nori::nori-image')
+    expect(config.videoModel).toBe('nori::seedance2.0')
     expect(config.audioModel).toBe('audio::default')
   })
 
   it('keeps explicit project model overrides ahead of user defaults', async () => {
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
-      analysisModel: 'project-llm::analysis',
-      characterModel: 'project-image::character',
+      analysisModel: 'nori::nori-deepseek',
+      characterModel: 'nori::nori-image-pro',
       locationModel: null,
-      storyboardModel: 'project-image::storyboard',
+      storyboardModel: 'nori::nori-image',
       editModel: null,
       videoModel: 'project-video::model',
       audioModel: null,
@@ -68,12 +68,12 @@ describe('config-service project model defaults', () => {
       capabilityOverrides: null,
     })
     prismaMock.userPreference.findUnique.mockResolvedValue({
-      analysisModel: 'user-llm::analysis',
-      characterModel: 'user-image::character',
-      locationModel: 'user-image::location',
-      storyboardModel: 'user-image::storyboard',
-      editModel: 'user-image::edit',
-      videoModel: 'user-video::model',
+      analysisModel: 'nori::nori-gpt',
+      characterModel: 'nori::nori-image',
+      locationModel: 'nori::nori-image-pro',
+      storyboardModel: 'nori::nori-image-pro',
+      editModel: 'nori::nori-image-pro',
+      videoModel: 'nori::seedance2.0',
       audioModel: 'user-audio::model',
       capabilityDefaults: null,
     })
@@ -81,16 +81,16 @@ describe('config-service project model defaults', () => {
     const { getProjectModelConfig } = await import('@/lib/config-service')
     const config = await getProjectModelConfig('project-1', 'user-1')
 
-    expect(config.analysisModel).toBe('project-llm::analysis')
-    expect(config.characterModel).toBe('project-image::character')
-    expect(config.locationModel).toBe('user-image::location')
-    expect(config.storyboardModel).toBe('project-image::storyboard')
-    expect(config.editModel).toBe('user-image::edit')
-    expect(config.videoModel).toBe('project-video::model')
+    expect(config.analysisModel).toBe('nori::nori-deepseek')
+    expect(config.characterModel).toBe('nori::nori-image-pro')
+    expect(config.locationModel).toBe('nori::nori-image-pro')
+    expect(config.storyboardModel).toBe('nori::nori-image')
+    expect(config.editModel).toBe('nori::nori-image-pro')
+    expect(config.videoModel).toBe('nori::seedance2.0')
     expect(config.audioModel).toBe('user-audio::model')
   })
 
-  it('uses Lumina GPT-5.5 as the final analysis fallback', async () => {
+  it('uses stable Nori business models as final fallbacks', async () => {
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
       analysisModel: null,
       characterModel: null,
@@ -118,10 +118,10 @@ describe('config-service project model defaults', () => {
     const { getProjectModelConfig, getUserModelConfig } = await import('@/lib/config-service')
 
     await expect(getProjectModelConfig('project-1', 'user-1')).resolves.toEqual(
-      expect.objectContaining({ analysisModel: 'lumina::gpt-5.5' }),
+      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::seedance2.0' }),
     )
     await expect(getUserModelConfig('user-1')).resolves.toEqual(
-      expect.objectContaining({ analysisModel: 'lumina::gpt-5.5' }),
+      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::seedance2.0' }),
     )
   })
 })

@@ -1,24 +1,43 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useState } from 'react'
-import { useSession } from 'next-auth/react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { signOut, useSession } from 'next-auth/react'
+import { useLocale } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
-import { Link } from '@/i18n/navigation'
+import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import type { AppIconName } from '@/components/ui/icons'
-import { ServiceRecordsModal, FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
+import { normalizeAccountPointCredit } from '@/lib/account/credits'
+import { apiFetch } from '@/lib/api-fetch'
+import { BALANCE_CHANGED_EVENT } from '@/lib/billing/client'
+import {
+  ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
+  defaultSubaccountRoleLabel,
+  hasAccountPermissions,
+  isManagementRole,
+} from '@/lib/account/permissions'
+import { FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
+import { FosCanvasShellContext } from './FosCanvasShellContext'
 
 export type FosNavKey =
   | 'projects'
+  | 'assignments'
   | 'screenwriter'
   | 'toolbox'
-  | 'seedance'
+  | 'canvas'
   | 'assetHub'
   | 'material'
+  | 'accounts'
   | 'records'
   | 'feedback'
   | 'updates'
+
+export interface FosProjectNavigation {
+  projectId: string
+  projectName: string
+  activeItem: 'workbench' | 'canvas'
+}
 
 interface NavItem {
   key: FosNavKey
@@ -29,11 +48,14 @@ interface NavItem {
 }
 
 const primaryNav: NavItem[] = [
-  { key: 'projects', label: '我的作品', href: '/projects', icon: 'folder' },
-  { key: 'screenwriter', label: '编剧工作台', href: '/screenwriter', icon: 'edit' },
+  { key: 'projects', label: '我的作品', href: '/works', icon: 'folder' },
+  { key: 'assignments', label: '我的任务', href: '/my-assignments', icon: 'clipboardCheck' },
+  { key: 'screenwriter', label: '编剧工作台', href: '/writer-workbench', icon: 'edit' },
   { key: 'toolbox', label: '工具箱', href: '/toolbox', icon: 'settingsHexMinor' },
-  { key: 'seedance', label: 'Seedance 2.0', href: '/seedance', icon: 'film', badge: 'HOT' },
-  { key: 'assetHub', label: '资产库', href: '/asset-hub', icon: 'folderHeart' },
+  { key: 'canvas', label: '无限画布', href: '/canvas', icon: 'monitor' },
+  // Link to the canonical page directly. The legacy /asset-hub alias performs
+  // a server redirect and briefly exposes the light document background.
+  { key: 'assetHub', label: '资产库', href: '/workspace/asset-hub', icon: 'folderHeart' },
   { key: 'material', label: '素材库', href: '/material', icon: 'image' },
 ]
 
@@ -43,44 +65,63 @@ const secondaryNav: Array<{ key: 'records' | 'feedback' | 'updates'; label: stri
   { key: 'updates', label: '检查更新', icon: 'refresh' },
 ]
 
-interface Balance {
-  coins: number
-  points: number
-}
+const TEST_MODE = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
+const FOS_SIDEBAR_STORAGE_KEY = 'nori.fos.sidebarCollapsed'
+const FOS_CANVAS_SIDEBAR_STORAGE_KEY = 'nori.fos.canvasSidebarCollapsed'
 
-export function FosTitlebar() {
-  return null
-}
-
-function BalancePill({ balance }: { balance: Balance }) {
-  const [open, setOpen] = useState(false)
+export function FosTitlebar({ title }: { title?: string }) {
   return (
-    <div className="relative" onMouseLeave={() => setOpen(false)}>
-      <button type="button" className="fos-credits" onClick={() => setOpen((v) => !v)} onMouseEnter={() => setOpen(true)}>
-        <span className="fos-cr-badge orange">¥</span>
-        <span>{balance.coins}</span>
-        <span className="fos-cr-divider" />
+    <div className="fos-titlebar" data-testid="fos-titlebar">
+      {title ? <span className="fos-titlebar-title">{title}</span> : <span className="fos-titlebar-title">NoriVideo</span>}
+      <button type="button" className="fos-titlebar-refresh" aria-label="刷新页面" title="刷新" onClick={() => window.location.reload()}>
+        <AppIcon name="refresh" className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
+}
+
+function BalancePill({ points }: { points: number }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const display = (value: number) => Number.isInteger(value)
+    ? String(value)
+    : value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false)
+    }
+    window.addEventListener('pointerdown', closeOutside)
+    window.addEventListener('keydown', closeWithEscape)
+    return () => {
+      window.removeEventListener('pointerdown', closeOutside)
+      window.removeEventListener('keydown', closeWithEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative">
+      <button type="button" className="fos-credits" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span className="fos-cr-badge blue">◆</span>
-        <span>{balance.points}</span>
+        <span className="fos-cr-label">积分</span>
+        <span className={points <= 0 ? 'text-red-300' : ''}>{display(points)}</span>
       </button>
       {open ? (
-        <div className="fos-balance-pop">
-          <h3>余额</h3>
-          <div className="fos-bp-cards">
+        <div className="fos-balance-pop" role="menu">
+          <h3>积分账户</h3>
+          <div className="fos-bp-cards is-single">
             <div className="fos-bp-card">
-              <div className="fos-bp-card-label">金币</div>
-              <div className="fos-bp-card-value">{balance.coins}</div>
-              <div className="fos-bp-card-desc">畅享全部模型</div>
-            </div>
-            <div className="fos-bp-card">
-              <div className="fos-bp-card-label">积分</div>
-              <div className="fos-bp-card-value">{balance.points}</div>
-              <div className="fos-bp-card-desc">可体验部分模型</div>
+              <div className="fos-bp-card-label">可用积分</div>
+              <div className={`fos-bp-card-value${points <= 0 ? ' text-red-300' : ''}`}>{display(points)}</div>
+              <div className="fos-bp-card-desc">¥1 = 100 积分 · 积分不足会停止全部生成服务</div>
             </div>
           </div>
           <div className="fos-bp-actions">
-            <button type="button" className="fos-btn fos-btn-sm flex-1" style={{ background: 'linear-gradient(180deg,#ffd770,#f3b73e)', color: '#5a3d05', fontWeight: 700, border: 'none' }} title="充值入口已禁用（演示）">立即充值</button>
-            <Link href={{ pathname: '/service-records' }} className="fos-btn fos-btn-ghost fos-btn-sm flex-1">查看明细</Link>
+            <Link href={{ pathname: '/service-records' }} role="menuitem" className="fos-btn fos-btn-primary fos-btn-sm flex-1" onClick={() => setOpen(false)}>查看明细</Link>
           </div>
         </div>
       ) : null}
@@ -88,18 +129,66 @@ function BalancePill({ balance }: { balance: Balance }) {
   )
 }
 
-export function FosHeader({ balance }: { balance: Balance }) {
+export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
+  const { data: session } = useSession()
+  const [livePoints, setLivePoints] = useState<number | null>(null)
+  const refreshBalance = useCallback(async () => {
+    if (!session?.user?.id) return
+    try {
+      const response = await apiFetch('/api/user/balance', { cache: 'no-store' })
+      if (!response.ok) return
+      const payload = await response.json() as { balancePoints?: unknown }
+      const value = Number(payload.balancePoints)
+      if (Number.isFinite(value)) setLivePoints(value)
+    } catch {
+      // Keep the last visible value during a transient network failure.
+    }
+  }, [session?.user?.id])
+
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setLivePoints(null)
+      return
+    }
+    void refreshBalance()
+    const timer = window.setInterval(() => void refreshBalance(), 15_000)
+    const refresh = () => void refreshBalance()
+    window.addEventListener(BALANCE_CHANGED_EVENT, refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener(BALANCE_CHANGED_EVENT, refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [refreshBalance, session?.user?.id])
+  const points = livePoints ?? normalizeAccountPointCredit(session?.user?.pointCredits)
+  const role = session?.user?.role
+  const roleLabel = role === 'super_admin'
+    ? '平台 Admin · 全部权限'
+    : role === 'admin'
+      ? '管理账号 · 全部权限'
+      : `${session?.user?.roleLabel || defaultSubaccountRoleLabel(role)} · ${ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS
+        .filter((definition) => session?.user?.permissions?.includes(definition.key))
+        .map((definition) => definition.label)
+        .join(' / ') || '仅查看'}`
   return (
     <div className="fos-header">
-      <Link href={{ pathname: '/projects' }} className="fos-logo">
+      <Link href={{ pathname: '/works' }} className="fos-logo">
         <span className="fos-logo-mark"><i /><i /><i /></span>
         <span className="fos-logo-text"><span className="a">Nori</span><span className="b">Video</span></span>
       </Link>
-      <div className="flex items-center gap-4">
-        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" style={{ borderRadius: 9999 }}>
-          <AppIcon name="download" className="h-3.5 w-3.5" />下载桌面端
-        </button>
-        <BalancePill balance={balance} />
+      <div className={`fos-header-actions flex items-center${canvasMode ? '' : ' gap-4'}`}>
+        {!canvasMode && session ? (
+          <span className="hidden rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] text-white/50 lg:inline-flex">
+            {roleLabel}
+          </span>
+        ) : null}
+        {!canvasMode ? (
+          <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" style={{ borderRadius: 9999 }}>
+            <AppIcon name="download" className="h-3.5 w-3.5" />下载桌面端
+          </button>
+        ) : null}
+        <BalancePill points={points} />
       </div>
     </div>
   )
@@ -117,83 +206,281 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
   )
 }
 
-function Sidebar({ activeKey }: { activeKey: FosNavKey }) {
+function Sidebar({
+  activeKey,
+  projectNavigation,
+  collapsed,
+  canvasMode,
+  onToggle,
+}: {
+  activeKey: FosNavKey
+  projectNavigation?: FosProjectNavigation
+  collapsed: boolean
+  canvasMode: boolean
+  onToggle: () => void
+}) {
   const { data: session } = useSession()
-  const account = session?.user?.name || session?.user?.email?.split('@')[0] || 'xuyizhao'
+  const locale = useLocale()
+  const account = session?.user?.name || session?.user?.email?.split('@')[0] || (TEST_MODE ? '测试账号' : '当前账号')
+  const isAdmin = session?.user?.role === 'admin'
+  const roleLabel = isManagementRole(session?.user?.role)
+    ? session?.user?.role === 'super_admin' ? '平台 Admin' : '管理账号'
+    : session?.user?.roleLabel || defaultSubaccountRoleLabel(session?.user?.role)
+  const canUseToolbox = hasAccountPermissions(session?.user || {}, ['toolboxUse'])
+  const canUseCanvas = hasAccountPermissions(session?.user || {}, ['canvasWrite'])
+  const canUseWriterWorkbench = hasAccountPermissions(session?.user || {}, ['scriptWrite'])
+  const visiblePrimaryNav = primaryNav.filter((item) => (
+    (item.key !== 'toolbox' || canUseToolbox)
+    && (item.key !== 'canvas' || canUseCanvas)
+    && (item.key !== 'screenwriter' || canUseWriterWorkbench)
+  ))
   const params = useSearchParams()
-  const initialPanel = ((): 'records' | 'feedback' | 'account' | null => {
+  const initialPanel = ((): 'feedback' | 'account' | null => {
     const p = params?.get('panel')
-    return p === 'records' || p === 'feedback' || p === 'account' ? p : null
+    return p === 'feedback' || p === 'account' ? p : null
   })()
-  const [modal, setModal] = useState<'records' | 'feedback' | 'account' | null>(initialPanel)
+  const [modal, setModal] = useState<'feedback' | 'account' | null>(initialPanel)
   const [toast, setToast] = useState(false)
 
-  const onFooter = (key: 'records' | 'feedback' | 'updates') => {
+  useEffect(() => {
+    if (!collapsed) return
+    setModal(null)
+    setToast(false)
+  }, [collapsed])
+
+  const onFooter = (key: 'feedback' | 'updates') => {
     if (key === 'updates') { setToast(true); return }
     setModal(key)
   }
 
+  const handleSignOut = () => {
+    void signOut({ callbackUrl: `/${locale}/auth/signin` })
+  }
+
   return (
-    <aside className="fos-sidebar">
+    <aside
+      className={`fos-sidebar${collapsed ? ' is-collapsed' : ''}`}
+      aria-label="主导航侧栏"
+      data-collapsed={collapsed ? 'true' : 'false'}
+      data-testid="fos-sidebar"
+      onClickCapture={(event) => {
+        if (!canvasMode || collapsed) return
+        const target = event.target
+        if (target instanceof HTMLElement && target.closest('a')) onToggle()
+      }}
+    >
       <div className="fos-sidebar-header">
-        <button type="button" className="fos-collapse-btn" title="收起菜单">
-          <AppIcon name="chevronLeft" className="h-4 w-4" />
+        <button
+          type="button"
+          className="fos-collapse-btn"
+          title={`${collapsed ? '展开' : '收起'}菜单（⌘/Ctrl+B）`}
+          aria-label={collapsed ? '展开侧边菜单' : '收起侧边菜单'}
+          aria-controls="fos-sidebar-sections"
+          aria-expanded={!collapsed}
+          data-testid="fos-sidebar-toggle"
+          onClick={onToggle}
+        >
+          <AppIcon name={collapsed ? 'chevronRight' : 'chevronLeft'} className="h-4 w-4" />
         </button>
       </div>
-      <nav className="fos-nav">
-        {primaryNav.map((item) => <NavLink key={item.key} item={item} active={item.key === activeKey} />)}
-      </nav>
-      <div className="fos-sidebar-footer">
-        {secondaryNav.map((item) => (
-          <button key={item.key} type="button" className="fos-nav-item" onClick={() => onFooter(item.key)}>
-            <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
-            <span className="min-w-0 truncate">{item.label}</span>
-          </button>
-        ))}
-        <button type="button" className="fos-user-card" onClick={() => setModal('account')}>
-          <span className="fos-user-avatar"><AppIcon name="user" className="h-4 w-4" /></span>
-          <span className="fos-user-meta">
-            <span className="fos-user-name">{account}</span>
-            <span className="fos-user-role">子账号</span>
-          </span>
-          <span className="fos-user-logout" title="退出登录（演示已禁用）">
-            <AppIcon name="logout" className="h-4 w-4" />
-          </span>
-        </button>
+      <div id="fos-sidebar-sections" className="fos-sidebar-sections" hidden={collapsed}>
+        <nav className="fos-nav">
+          {visiblePrimaryNav.map((item) => (
+            <NavLink
+              key={item.key}
+              item={item}
+              active={item.key === activeKey && !projectNavigation}
+            />
+          ))}
+          {projectNavigation ? (
+            <section className="fos-project-nav" aria-label="当前项目导航">
+              <div className="fos-project-nav-heading">
+                <span>当前项目</span>
+                <strong title={projectNavigation.projectName}>{projectNavigation.projectName}</strong>
+              </div>
+              <Link
+                href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2` }}
+                className={`fos-nav-item${projectNavigation.activeItem === 'workbench' ? ' active' : ''}`}
+                data-testid="project-workbench-nav"
+              >
+                <AppIcon name="folderOpen" className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">项目工作台</span>
+              </Link>
+              {canUseCanvas ? (
+                <Link
+                  href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2/canvas` }}
+                  className={`fos-nav-item fos-project-canvas-link${projectNavigation.activeItem === 'canvas' ? ' active' : ''}`}
+                  data-testid="project-canvas-nav"
+                >
+                  <AppIcon name="clapperboard" className="h-4 w-4 shrink-0" />
+                  <span className="min-w-0 truncate">无限画布</span>
+                  <span className="fos-project-canvas-badge">CANVAS</span>
+                </Link>
+              ) : null}
+            </section>
+          ) : null}
+        </nav>
+        <div className="fos-sidebar-footer">
+          {isAdmin ? (
+            <Link href={{ pathname: '/account-management' }} className={`fos-nav-item${activeKey === 'accounts' ? ' active' : ''}`}>
+              <AppIcon name="userRoundCog" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">子账号管理</span>
+            </Link>
+          ) : null}
+          {secondaryNav.map((item) => (
+            item.key === 'records' ? (
+              <Link key={item.key} href={{ pathname: '/service-records' }} className={`fos-nav-item${activeKey === 'records' ? ' active' : ''}`}>
+                <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">{item.label}</span>
+              </Link>
+            ) : (
+              <button key={item.key} type="button" className="fos-nav-item" onClick={() => onFooter(item.key === 'feedback' ? 'feedback' : 'updates')}>
+                <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">{item.label}</span>
+              </button>
+            )
+          ))}
+          <div className="fos-user-card">
+            <button type="button" className="flex min-w-0 flex-1 items-center gap-2.5 text-left" onClick={() => setModal('account')}>
+              <span className="fos-user-avatar"><AppIcon name="user" className="h-4 w-4" /></span>
+              <span className="fos-user-meta">
+                <span className="fos-user-name">{account}</span>
+                <span className="fos-user-role">{roleLabel}</span>
+              </span>
+            </button>
+            <button type="button" className="fos-user-logout" title="退出登录" aria-label="退出登录" onClick={handleSignOut}>
+              <AppIcon name="logout" className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {modal === 'records' ? <ServiceRecordsModal onClose={() => setModal(null)} /> : null}
-      {modal === 'feedback' ? <FeedbackModal onClose={() => setModal(null)} /> : null}
-      {modal === 'account' ? <AccountModal account={account} onClose={() => setModal(null)} /> : null}
-      {toast ? <UpdatesToast onDone={() => setToast(false)} /> : null}
+      {!collapsed && modal === 'feedback' ? <FeedbackModal onClose={() => setModal(null)} /> : null}
+      {!collapsed && modal === 'account' ? <AccountModal account={account} onLogout={handleSignOut} onClose={() => setModal(null)} /> : null}
+      {!collapsed && toast ? <UpdatesToast onDone={() => setToast(false)} /> : null}
     </aside>
   )
 }
 
 export function FosShell({
   activeKey,
-  balance = { coins: -683, points: 0 },
   children,
   hideSidebar = false,
+  canvasShell = false,
+  titlebarTitle,
   header,
+  projectNavigation,
 }: {
   activeKey: FosNavKey
-  balance?: Balance
   children: ReactNode
   hideSidebar?: boolean
+  canvasShell?: boolean
+  titlebarTitle?: string
   header?: ReactNode
+  projectNavigation?: FosProjectNavigation
 }) {
-  return (
-    <div className="fos-app">
-      <FosTitlebar />
-      <FosHeader balance={balance} />
-      <div className="fos-content">
-        {hideSidebar ? null : <Sidebar activeKey={activeKey} />}
-        <main className="fos-main">
-          {header}
-          {children}
-        </main>
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const locale = useLocale()
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(canvasShell)
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((current) => {
+      const next = !current
+      try {
+        if (canvasShell) window.localStorage.setItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY, next ? 'true' : 'false')
+        else window.localStorage.setItem(FOS_SIDEBAR_STORAGE_KEY, next ? 'true' : 'false')
+      } catch {
+        // Storage can be unavailable in private/restricted browser contexts.
+      }
+      return next
+    })
+  }, [canvasShell])
+
+  useEffect(() => {
+    if (hideSidebar) return
+    try {
+      const stored = canvasShell
+        ? window.localStorage.getItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY)
+        : window.localStorage.getItem(FOS_SIDEBAR_STORAGE_KEY)
+      setSidebarCollapsed(stored === null ? canvasShell : stored === 'true')
+    } catch {
+      setSidebarCollapsed(canvasShell)
+    }
+  }, [canvasShell, hideSidebar])
+
+  useEffect(() => {
+    if (hideSidebar) return
+    const handleShortcut = (event: KeyboardEvent) => {
+      if (event.repeat || event.altKey || event.shiftKey || (!event.metaKey && !event.ctrlKey) || event.key.toLowerCase() !== 'b') return
+      const target = event.target
+      if (target instanceof HTMLElement && (target.isContentEditable || target.closest('input, textarea, select'))) return
+      event.preventDefault()
+      toggleSidebar()
+    }
+    window.addEventListener('keydown', handleShortcut)
+    return () => window.removeEventListener('keydown', handleShortcut)
+  }, [hideSidebar, toggleSidebar])
+
+  useEffect(() => {
+    if (status === 'loading' || session || TEST_MODE) return
+    router.replace({ pathname: '/auth/signin' })
+  }, [router, session, status])
+
+  useEffect(() => {
+    if (status !== 'authenticated' || session?.user?.role !== 'super_admin') return
+    router.replace({ pathname: '/admin/accounts' })
+  }, [router, session?.user?.role, status])
+
+  useEffect(() => {
+    if (!session?.user?.status || session.user.status === 'active') return
+    void signOut({ callbackUrl: `/${locale}/auth/signin` })
+  }, [locale, session])
+
+  const canvasShellState = useMemo(() => ({
+    enabled: canvasShell,
+    sidebarCollapsed,
+    toggleSidebar,
+  }), [canvasShell, sidebarCollapsed, toggleSidebar])
+
+  if (status === 'loading' || (!session && !TEST_MODE) || session?.user?.role === 'super_admin') {
+    return <div className="fos-app"><div className="fos-loading">正在验证账号…</div></div>
+  }
+
+  const canAccess = TEST_MODE || activeKey !== 'accounts' || session?.user?.role === 'admin'
+  if (!canAccess) {
+    return (
+      <div className="fos-app flex items-center justify-center">
+        <div className="max-w-md rounded-[12px] border border-white/10 bg-white/[.035] p-8 text-center">
+          <AppIcon name="lock" className="mx-auto h-7 w-7 text-white/40" />
+          <h1 className="mt-4 text-[16px] font-bold text-white">没有访问权限</h1>
+          <p className="mt-2 text-[12px] leading-6 text-white/45">仅管理账号可以进入子账号管理。</p>
+        </div>
       </div>
-    </div>
+    )
+  }
+
+  return (
+    <FosCanvasShellContext.Provider value={canvasShellState}>
+      <div className={`fos-app${canvasShell ? ` is-canvas-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : 'is-sidebar-expanded'}` : ''}`}>
+        <FosTitlebar title={titlebarTitle} />
+        <FosHeader canvasMode={canvasShell} />
+        <div className="fos-content">
+          {hideSidebar ? null : (
+            <Sidebar
+              activeKey={activeKey}
+              projectNavigation={projectNavigation}
+              collapsed={sidebarCollapsed}
+              canvasMode={canvasShell}
+              onToggle={toggleSidebar}
+            />
+          )}
+          <main className="fos-main">
+            {header}
+            {children}
+          </main>
+        </div>
+      </div>
+    </FosCanvasShellContext.Provider>
   )
 }

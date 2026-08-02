@@ -46,10 +46,15 @@ const promptMock = vi.hoisted(() => ({
   buildPrompt: vi.fn(() => 'panel-image-prompt'),
 }))
 
+const materialMock = vi.hoisted(() => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/media/outbound-image', () => outboundMock)
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: vi.fn(async () => undefined) }))
+vi.mock('@/lib/frameos/material-service', () => materialMock)
 vi.mock('@/lib/logging/core', () => ({
   logInfo: vi.fn(),
   createScopedLogger: vi.fn(() => ({
@@ -219,6 +224,7 @@ describe('worker panel-image-task-handler behavior', () => {
         candidateImages: JSON.stringify(['cos/panel-candidate-1.png', 'cos/panel-candidate-2.png']),
       },
     })
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledTimes(2)
   })
 
   it('regeneration branch -> keeps old image in previousImageUrl and stores candidates only', async () => {
@@ -262,5 +268,6 @@ describe('worker panel-image-task-handler behavior', () => {
         candidateImages: JSON.stringify(['cos/panel-regenerated.png']),
       },
     })
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledTimes(1)
   })
 })

@@ -3,6 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  getServiceVideoRepaintConfig,
   readServiceConfig,
   resetServiceConfigCache,
   resolveServiceConfigPath,
@@ -69,6 +70,8 @@ describe('service config', () => {
       '      type: llm',
       '      provider: openai-compatible:deepseek',
       '      llmProtocol: chat-completions',
+      '  modelRouting:',
+      '    nori::nori-deepseek: openai-compatible:deepseek::deepseek-chat',
     ].join('\n'))
     vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
 
@@ -78,6 +81,7 @@ describe('service config', () => {
     expect(config.storage?.tos?.forcePathStyle).toBe(false)
     expect(config.llm?.providers?.[0]?.id).toBe('openai-compatible:deepseek')
     expect(config.llm?.models?.[0]?.modelId).toBe('deepseek-chat')
+    expect(config.llm?.modelRouting?.['nori::nori-deepseek']).toBe('openai-compatible:deepseek::deepseek-chat')
   })
 
   it('normalizes legacy GHC model keys to provider model keys', () => {
@@ -85,5 +89,30 @@ describe('service config', () => {
     expect(extractModelKey('dev_text_llm::gpt-5.5')).toBe('ghc::gpt-5.5')
     expect(normalizeProviderModelId('hfsy', 'gpt5.5')).toBe('gpt-5.5')
     expect(normalizeProviderModelId('ghc', 'gpt5.5')).toBe('gpt-5.5')
+  })
+
+  it('reloads a changed service file and exposes video repaint settings', () => {
+    const filePath = writeTempConfig('services.json', JSON.stringify({
+      videoRepaint: {
+        providerId: 'ark',
+        understandingModel: 'model-a',
+        adaptationModel: 'model-b',
+        fps: 0.5,
+      },
+    }))
+    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
+    expect(getServiceVideoRepaintConfig()?.understandingModel).toBe('model-a')
+
+    fs.writeFileSync(filePath, JSON.stringify({
+      videoRepaint: {
+        providerId: 'ark',
+        understandingModel: 'model-c',
+        adaptationModel: 'model-d',
+        fps: 1,
+      },
+    }))
+
+    expect(readServiceConfig().videoRepaint?.understandingModel).toBe('model-c')
+    expect(getServiceVideoRepaintConfig()?.fps).toBe(1)
   })
 })

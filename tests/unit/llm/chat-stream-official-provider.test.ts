@@ -35,6 +35,23 @@ const completeSiliconFlowLlmMock = vi.hoisted(() =>
   }),
 )
 
+const completeKuaiziLlmMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    id: 'chatcmpl_kuaizi_stream',
+    object: 'chat.completion',
+    created: 1,
+    model: 'gpt-5.5',
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: 'kuaizi-stream-ok' },
+        finish_reason: 'stop',
+      },
+    ],
+    usage: { prompt_tokens: 2, completion_tokens: 2, total_tokens: 4 },
+  })),
+)
+
 const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
   vi.fn(async () => {
     throw new Error('openai-compat should not be called')
@@ -42,7 +59,7 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
 )
 
 const getProviderConfigMock = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn<typeof import('@/lib/api-config').getProviderConfig>(async () => ({
     id: 'bailian',
     name: 'Alibaba Bailian',
     apiKey: 'bl-key',
@@ -71,6 +88,10 @@ vi.mock('@/lib/providers/bailian', () => ({
 
 vi.mock('@/lib/providers/siliconflow', () => ({
   completeSiliconFlowLlm: completeSiliconFlowLlmMock,
+}))
+
+vi.mock('@/lib/providers/kuaizi', () => ({
+  completeKuaiziLlm: completeKuaiziLlmMock,
 }))
 
 vi.mock('@/lib/llm/runtime-shared', () => ({
@@ -125,5 +146,43 @@ describe('llm chatCompletionStream official provider branch', () => {
     )
     expect(completion.choices[0]?.message?.content).toBe('stream-ok')
     expect(recordCompletionUsageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits Kuaizi completion text through the stream callbacks', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'kuaizi',
+      modelId: 'gpt-5.5',
+      modelKey: 'kuaizi::gpt-5.5',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'kuaizi',
+      name: 'Kuaizi',
+      apiKey: 'kuaizi-key',
+      baseUrl: 'https://aiopenapi.kuaizi.cn',
+      gatewayRoute: 'openai-compat',
+    })
+    const onChunk = vi.fn()
+    const onComplete = vi.fn()
+
+    const completion = await chatCompletionStream(
+      'user-1',
+      'kuaizi::gpt-5.5',
+      [{ role: 'user', content: 'hello' }],
+      { maxTokens: 64 },
+      { onChunk, onComplete },
+    )
+
+    expect(completeKuaiziLlmMock).toHaveBeenCalledWith(expect.objectContaining({
+      modelId: 'gpt-5.5',
+      apiKey: 'kuaizi-key',
+      maxTokens: 64,
+    }))
+    expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
+    expect(onChunk).toHaveBeenCalledWith(expect.objectContaining({
+      kind: 'text',
+      delta: 'kuaizi-stream-ok',
+    }))
+    expect(onComplete).toHaveBeenCalledWith('kuaizi-stream-ok', undefined)
+    expect(completion.choices[0]?.message?.content).toBe('kuaizi-stream-ok')
   })
 })

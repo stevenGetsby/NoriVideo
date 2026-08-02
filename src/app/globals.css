@@ -1,4 +1,4 @@
-@import "tailwindcss";
+@import "tailwindcss" source("../");
 @import "../styles/ui-tokens-glass.css";
 @import "../styles/ui-semantic-glass.css";
 @import "../styles/frameos-tokens.css";
@@ -7,6 +7,11 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+
+  /* 统一按 120% 展示产品界面；全屏壳层使用补偿后的逻辑视口。 */
+  --nori-interface-scale: 1.2;
+  --nori-interface-viewport-width: 83.333333vw;
+  --nori-interface-viewport-height: 83.333333vh;
 
   /* 设计系统 - 颜色 */
   --bg-primary: var(--glass-bg-canvas);
@@ -60,6 +65,12 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --nori-interface-viewport-height: 83.333333dvh;
+  }
 }
 
 @theme inline {
@@ -521,4 +532,13 @@ body {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* FrameOS routes mount a fixed dark application shell. Keep the document
+   canvas dark as well so client navigation or chunk hydration can never
+   expose the light default theme for a frame between two shells. */
+html,
+body {
+  min-height: 100%;
+  background-color: #0d0d0d;
 }

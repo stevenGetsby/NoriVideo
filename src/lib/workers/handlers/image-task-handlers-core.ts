@@ -33,6 +33,7 @@ import {
   readIndexedDescription,
 } from './modify-description-sync'
 import { refreshProjectPanelReferenceAssets } from '@/lib/novel-promotion/refresh-panel-reference-assets'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 
 const logger = createScopedLogger({ module: 'worker.modify-asset-image' })
 
@@ -115,6 +116,21 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     })
 
     const cosKey = await uploadImageSourceToCos(source, 'character-modify', appearance.id)
+    await registerFrameosMaterial({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      title: `${appearance.character.name} · ${appearance.changeReason || '形象'} · 改图 ${imageIndex + 1}`,
+      type: 'image',
+      source: 'creative',
+      storageKey: cosKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: 'character-modify',
+        originId: appearance.id,
+        imageIndex,
+        prompt: modifyInstruction,
+      },
+    })
 
     while (imageUrls.length <= imageIndex) imageUrls.push('')
     imageUrls[imageIndex] = cosKey
@@ -223,6 +239,20 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     })
 
     const cosKey = await uploadImageSourceToCos(source, isProp ? 'prop-modify' : 'location-modify', locationImage.id)
+    await registerFrameosMaterial({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      title: `${locationImage.location?.name || (isProp ? '物品' : '环境')} · 改图`,
+      type: 'image',
+      source: 'creative',
+      storageKey: cosKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: isProp ? 'prop-modify' : 'location-modify',
+        originId: locationImage.id,
+        prompt: modifyInstruction,
+      },
+    })
 
     let extractedDescription: {
       prompt: string
@@ -350,6 +380,20 @@ export async function handleModifyAssetImageTask(job: Job<TaskJobData>) {
     })
 
     const cosKey = await uploadImageSourceToCos(source, 'panel-modify', panel.id)
+    await registerFrameosMaterial({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      title: `分镜 ${panel.panelIndex + 1} · 改图`,
+      type: 'image',
+      source: 'production',
+      storageKey: cosKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: 'panel-modify',
+        originId: panel.id,
+        prompt: modifyPrompt,
+      },
+    })
 
     await assertTaskActive(job, 'persist_storyboard_modify')
     await prisma.novelPromotionPanel.update({

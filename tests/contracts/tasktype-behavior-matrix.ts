@@ -10,14 +10,17 @@ export type TaskTypeBehaviorMatrixEntry = {
 }
 
 function resolveChainTestByTaskType(taskType: TaskType): string {
-  if (taskType === 'video_panel' || taskType === 'lip_sync') {
+  if (taskType === 'video_panel' || taskType === 'lip_sync' || taskType === 'toolbox_video') {
     return 'tests/integration/chain/video.chain.test.ts'
   }
   if (taskType === 'voice_line' || taskType === 'voice_design' || taskType === 'asset_hub_voice_design') {
     return 'tests/integration/chain/voice.chain.test.ts'
   }
   if (
-    taskType === 'analyze_novel'
+    taskType === 'canvas_text_generation'
+    || taskType === 'canvas_storyboard_plan'
+    || taskType === 'analyze_novel'
+    || taskType === 'asset_extraction_run'
     || taskType === 'story_to_script_run'
     || taskType === 'script_to_storyboard_run'
     || taskType === 'clips_build'
@@ -47,12 +50,19 @@ function resolveChainTestByTaskType(taskType: TaskType): string {
 
 function resolveApiContractByTaskType(taskType: TaskType): string {
   if (
+    taskType === 'canvas_text_generation'
+    || taskType === 'canvas_storyboard_plan'
+  ) {
+    return 'tests/integration/api/specific/canvas-generation-tasks-route.test.ts'
+  }
+  if (
     taskType === 'episode_split_llm'
   ) {
     return 'tests/integration/api/contract/episode-split-route.test.ts'
   }
   if (
     taskType === 'analyze_novel'
+    || taskType === 'asset_extraction_run'
     || taskType === 'story_to_script_run'
     || taskType === 'script_to_storyboard_run'
     || taskType === 'clips_build'
@@ -92,8 +102,13 @@ function resolveApiContractByTaskType(taskType: TaskType): string {
     || taskType === 'asset_hub_image'
     || taskType === 'asset_hub_modify'
     || taskType === 'regenerate_storyboard_text'
+    || taskType === 'toolbox_image'
+    || taskType === 'toolbox_video'
+    || taskType === 'toolbox_model_3d'
   ) {
-    return 'tests/integration/api/contract/direct-submit-routes.test.ts'
+    return taskType === 'toolbox_image' || taskType === 'toolbox_video' || taskType === 'toolbox_model_3d'
+      ? 'tests/integration/api/specific/frameos-toolbox-generate-route.test.ts'
+      : 'tests/integration/api/contract/direct-submit-routes.test.ts'
   }
   return 'tests/integration/api/contract/task-infra-routes.test.ts'
 }

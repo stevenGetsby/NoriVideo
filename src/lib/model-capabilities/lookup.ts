@@ -3,10 +3,12 @@ import {
   type CapabilitySelections,
   type CapabilityValue,
   type CapabilityOptionValue,
+  type CapabilityInputSchema,
   type ModelCapabilities,
   type UnifiedModelType,
 } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities, findBuiltinCapabilityCatalogEntry } from '@/lib/model-capabilities/catalog'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 export type CapabilitySelectionValidationCode =
   | 'CAPABILITY_SELECTION_INVALID'
@@ -62,6 +64,15 @@ export function getCapabilityOptionFields(
     fields[field] = rawValue as CapabilityOptionValue[]
   }
   return fields
+}
+
+export function getCapabilityInputSchema(
+  modelType: UnifiedModelType,
+  capabilities: ModelCapabilities | undefined,
+): CapabilityInputSchema | null {
+  const namespace = getNamespaceCapabilities(modelType, capabilities)
+  if (!namespace || !isRecord(namespace.inputSchema)) return null
+  return JSON.parse(JSON.stringify(namespace.inputSchema)) as CapabilityInputSchema
 }
 
 export function hasCapabilityOptions(
@@ -383,7 +394,17 @@ export function resolveGenerationOptionsForModel(input: {
 }
 
 export function resolveBuiltinModelContext(modelType: UnifiedModelType, modelKey: string): CapabilityModelContext | null {
-  const parsed = parseModelKeyStrict(modelKey)
+  const direct = parseModelKeyStrict(modelKey)
+  const directEntry = direct
+    ? findBuiltinCapabilityCatalogEntry(modelType, direct.provider, direct.modelId)
+    : null
+  if (directEntry) {
+    return {
+      modelType: directEntry.modelType,
+      capabilities: directEntry.capabilities,
+    }
+  }
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
   if (!parsed) return null
   const entry = findBuiltinCapabilityCatalogEntry(modelType, parsed.provider, parsed.modelId)
   if (!entry) return null
@@ -397,7 +418,12 @@ export function resolveBuiltinCapabilitiesByModelKey(
   modelType: UnifiedModelType,
   modelKey: string,
 ): ModelCapabilities | undefined {
-  const parsed = parseModelKeyStrict(modelKey)
+  const direct = parseModelKeyStrict(modelKey)
+  if (direct) {
+    const directCapabilities = findBuiltinCapabilities(modelType, direct.provider, direct.modelId)
+    if (directCapabilities) return directCapabilities
+  }
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
   if (!parsed) return undefined
   return findBuiltinCapabilities(modelType, parsed.provider, parsed.modelId)
 }

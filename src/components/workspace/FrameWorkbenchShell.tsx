@@ -1,16 +1,16 @@
 'use client'
 
+import { useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
 import Navbar from '@/components/Navbar'
-import { Link } from '@/i18n/navigation'
+import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import type { AppIconName } from '@/components/ui/icons'
 
 export type FrameWorkbenchNavKey =
   | 'projects'
   | 'toolbox'
-  | 'seedance'
   | 'assetHub'
   | 'materialLibrary'
   | 'prompts'
@@ -70,18 +70,29 @@ function FrameNavLink({
 }
 
 export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShellProps) {
-  const { data: session } = useSession()
+  const { data: session, status } = useSession()
+  const router = useRouter()
   const t = useTranslations('workspace')
+
+  useEffect(() => {
+    if (status !== 'authenticated' || session?.user?.role !== 'super_admin') return
+    router.replace({ pathname: '/admin/accounts' })
+  }, [router, session?.user?.role, status])
 
   const navItems: FrameNavItem[] = [
     { key: 'projects', label: t('nav.projects'), icon: 'monitor', href: '/projects' },
     { key: 'toolbox', label: t('nav.toolbox'), icon: 'settingsHexMinor', href: '/toolbox' },
-    { key: 'seedance', label: t('nav.seedance'), icon: 'film', href: '/seedance', badge: 'HOT' },
     { key: 'assetHub', label: t('nav.assetHub'), icon: 'folderHeart', href: '/asset-hub' },
     { key: 'materialLibrary', label: t('nav.materialLibrary'), icon: 'package', href: '/material' },
     { key: 'prompts', label: t('nav.prompts'), icon: 'bookmark', href: '/prompts' },
-    { key: 'team', label: t('nav.team'), icon: 'userRoundCog', href: '/team' },
+    ...(session?.user?.role === 'admin'
+      ? [{ key: 'team' as const, label: '子账号管理', icon: 'userRoundCog' as AppIconName, href: '/account-management' }]
+      : []),
   ]
+
+  if (session?.user?.role === 'super_admin') {
+    return <div className="min-h-screen bg-[#090a0d] pt-24 text-center text-sm text-white/45">正在进入平台管理控制台…</div>
+  }
 
   return (
     <div data-theme="frameos-dark" className="min-h-screen bg-[var(--fos-bg-1)]">

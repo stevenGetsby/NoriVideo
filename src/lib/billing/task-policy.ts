@@ -29,7 +29,12 @@ const BILLABLE_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.REGENERATE_GROUP,
   TASK_TYPE.ASSET_HUB_IMAGE,
   TASK_TYPE.ASSET_HUB_MODIFY,
+  TASK_TYPE.TOOLBOX_IMAGE,
+  TASK_TYPE.TOOLBOX_VIDEO,
+  TASK_TYPE.CANVAS_TEXT_GENERATION,
+  TASK_TYPE.CANVAS_STORYBOARD_PLAN,
   TASK_TYPE.ANALYZE_NOVEL,
+  TASK_TYPE.ASSET_EXTRACTION_RUN,
   TASK_TYPE.STORY_TO_SCRIPT_RUN,
   TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
   TASK_TYPE.CLIPS_BUILD,
@@ -75,6 +80,10 @@ function readNumber(value: unknown): number | null {
 function toRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as Record<string, unknown>
+}
+
+function hasArrayValues(value: unknown): boolean {
+  return Array.isArray(value) && value.some((item) => typeof item === 'string' && item.trim().length > 0)
 }
 
 function pickFirstString(values: unknown[]): string | null {
@@ -166,13 +175,17 @@ function buildVideoTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillin
     ? generationOptions.generateAudio
     : undefined
   const quantity = Math.max(1, Math.floor(toNumber(payload?.count, 1)))
+  const containsVideoInput = hasArrayValues(payload?.referenceVideos)
+    || readString(payload?.inputVideoUrl) !== null
+  const inputVideoSeconds = readNumber(payload?.inputVideoSeconds)
   const metadata = {
     ...(resolution ? { resolution } : {}),
     ...(typeof duration === 'number' ? { duration } : {}),
     ...(aspectRatio ? { aspectRatio } : {}),
     generationMode,
     ...(typeof generateAudio === 'boolean' ? { generateAudio } : {}),
-    containsVideoInput: false,
+    containsVideoInput,
+    ...(containsVideoInput && inputVideoSeconds !== null ? { inputVideoSeconds } : {}),
   }
   let maxFrozenCost = 0
   try {
@@ -249,8 +262,10 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
     case TASK_TYPE.REGENERATE_GROUP:
     case TASK_TYPE.ASSET_HUB_IMAGE:
     case TASK_TYPE.ASSET_HUB_MODIFY:
+    case TASK_TYPE.TOOLBOX_IMAGE:
       return buildImageTaskInfo(taskType, payload)
     case TASK_TYPE.VIDEO_PANEL:
+    case TASK_TYPE.TOOLBOX_VIDEO:
       return buildVideoTaskInfo(taskType, payload)
     case TASK_TYPE.LIP_SYNC: {
       const lipSyncModel = pickFirstString([payload?.lipSyncModel]) || 'kling'
@@ -275,7 +290,10 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
       return buildVoiceDesignTaskInfo(taskType)
     case TASK_TYPE.REGENERATE_STORYBOARD_TEXT:
     case TASK_TYPE.INSERT_PANEL:
+    case TASK_TYPE.CANVAS_TEXT_GENERATION:
+    case TASK_TYPE.CANVAS_STORYBOARD_PLAN:
     case TASK_TYPE.ANALYZE_NOVEL:
+    case TASK_TYPE.ASSET_EXTRACTION_RUN:
     case TASK_TYPE.STORY_TO_SCRIPT_RUN:
     case TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN:
     case TASK_TYPE.CLIPS_BUILD:

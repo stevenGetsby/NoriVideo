@@ -7,7 +7,6 @@
     "projects": "项目",
     "writerWorkbench": "编剧工作台",
     "toolbox": "工具箱",
-    "seedance": "Seedance 2.0",
     "assetHub": "资产库",
     "materialLibrary": "素材库",
     "prompts": "提示词库",
@@ -153,14 +152,38 @@
     "loadFailed": "任务记录加载失败",
     "recentFailures": "最近失败",
     "usage": {
-      "title": "任务运行概览",
+      "title": "服务用量概览",
       "derived": "按任务记录派生",
-      "empty": "暂无可统计的任务运行记录。",
+      "actual": "真实计费记录",
+      "estimated": "按任务记录估算",
+      "runs": "{count} 次",
+      "empty": "暂无可统计的服务用量记录。",
       "stats": {
-        "totalTasks": "任务总数",
-        "completedRuns": "完成次数",
-        "serviceTypes": "任务类型"
+        "billableTasks": "计费记录",
+        "totalCost": "实际金额",
+        "inputTokens": "Input Token",
+        "outputTokens": "Output Token",
+        "serviceTypes": "服务类型"
       }
+    },
+    "billing": {
+      "title": "分类用量明细",
+      "realTitle": "积分账户与真实消费",
+      "realSubtitle": "金额来自账本和计费记录，不将 Token、秒数、张数等不同单位混合相加。",
+      "realSource": "账本数据",
+      "realStats": {
+        "balance": "可用余额",
+        "frozen": "冻结金额",
+        "spent": "累计消费"
+      },
+      "projectCosts": "项目消费",
+      "records": "{count} 条计费记录",
+      "noRealCosts": "暂无真实项目消费记录",
+      "transactions": "最近账本流水",
+      "noTransactions": "暂无账本流水",
+      "total": "{count} 次",
+      "cost": "金额 {value}",
+      "empty": "暂无分类用量明细"
     },
     "distribution": {
       "title": "任务类型分布",
@@ -173,11 +196,14 @@
       "title": "服务能力矩阵",
       "subtitle": "按已有任务记录归类展示视频、图像、音频、文本等能力是否被实际调用。",
       "derived": "本地任务归类",
+      "pricingVersion": "计费版本 {version}",
+      "modelCoverage": "{providers} 个服务商 · {models} 个模型",
       "runs": "{count} 次",
       "enabled": "已使用",
       "standby": "待使用",
       "table": {
         "service": "能力",
+        "priceRange": "价格范围",
         "successRate": "成功率",
         "usage": "调用",
         "status": "状态"
@@ -230,64 +256,6 @@
       "completed": "已完成",
       "failed": "失败",
       "canceled": "已取消"
-    }
-  },
-  "seedancePanel": {
-    "historyTitle": "视频任务控制台",
-    "historySubtitle": "读取当前用户的视频增强历史，集中查看 Seedance 相关视频处理任务。",
-    "openEnhance": "打开视频增强",
-    "loading": "正在加载视频任务...",
-    "empty": "暂无视频增强任务。可以先进入视频增强工具提交一个视频。",
-    "loadFailed": "视频任务加载失败",
-    "modelsTitle": "Seedance 能力",
-    "presetTitle": "模型预设",
-    "capabilityTitle": "Seedance 能力矩阵",
-    "capabilitySubtitle": "汇总视频模型、批量生成、首尾帧、音频能力和任务历史，判断当前视频生产入口是否可用。",
-    "capability": {
-      "local": "本地模型目录",
-      "columns": {
-        "module": "能力",
-        "status": "状态",
-        "count": "数量",
-        "detail": "说明"
-      },
-      "status": {
-        "ready": "可用",
-        "review": "需检查",
-        "reserved": "预留"
-      },
-      "modules": {
-        "models": "视频模型",
-        "batch": "批量镜头",
-        "firstLast": "首尾帧",
-        "audio": "音频驱动",
-        "history": "任务历史"
-      },
-      "details": {
-        "models": "Seedance 视频模型预设",
-        "batch": "批量镜头生成能力",
-        "firstLast": "首尾帧参考能力",
-        "audio": "带音频的视频模型",
-        "history": "进行中 {active} / 失败 {failed}"
-      }
-    },
-    "taskStats": {
-      "all": "全部",
-      "active": "进行中",
-      "completed": "已完成",
-      "failed": "失败"
-    },
-    "modelStats": {
-      "models": "模型",
-      "batch": "批量",
-      "firstLast": "首尾帧",
-      "audio": "音频"
-    },
-    "table": {
-      "name": "任务名称",
-      "source": "来源",
-      "status": "状态",
-      "updatedAt": "更新时间"
     }
   },
   "promptsPanel": {
@@ -461,10 +429,6 @@
       "profile": {
         "title": "模型与 API 设置",
         "hint": "配置默认模型、Provider 和并发"
-      },
-      "seedance": {
-        "title": "Seedance 控制台",
-        "hint": "查看视频任务和模型预设"
       },
       "assetHub": {
         "title": "资产库",
@@ -959,17 +923,6 @@
         { "title": "素材清洗", "description": "整理上传文件、图片、音频和视频素材，统一进入项目资产库。", "meta": "素材", "icon": "filter" },
         { "title": "提示词助手", "description": "为角色图、场景图、分镜图和视频镜头生成可编辑提示词。", "meta": "Prompt", "icon": "sparklesAlt" },
         { "title": "生产诊断", "description": "检查模型配置、任务状态和生成失败原因。", "meta": "诊断", "icon": "clipboardCheck" }
-      ]
-    },
-    "seedance": {
-      "eyebrow": "Seedance 2.0",
-      "title": "视频生成模型控制台",
-      "subtitle": "对齐 FrameOS 的 Seedance 2.0 主导航入口，用于统一查看视频模型、参考资产、批量镜头和生成配置。",
-      "cards": [
-        { "title": "模型预设", "description": "集中管理 Seedance 2.0、Fast、Pro 等视频模型配置和默认参数。", "meta": "模型", "icon": "film" },
-        { "title": "参考资产", "description": "检查角色、场景和道具参考图是否已入库并可用于镜头生成。", "meta": "Reference", "icon": "folderHeart" },
-        { "title": "批量镜头", "description": "汇总待生成、生成中、失败和已完成的镜头任务。", "meta": "批量", "icon": "clapperboard" },
-        { "title": "生成诊断", "description": "查看失败原因、模型配置和素材引用缺失状态。", "meta": "诊断", "icon": "clipboardCheck" }
       ]
     },
     "material": {

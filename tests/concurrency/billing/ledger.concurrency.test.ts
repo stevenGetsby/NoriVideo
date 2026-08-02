@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { calcText } from '@/lib/billing/cost'
+import { GENERATION_CREDIT_FLOOR_CNY } from '@/lib/billing/credit-policy'
 import {
   confirmChargeWithRecord,
   freezeBalance,
@@ -7,6 +8,7 @@ import {
   rollbackFreeze,
 } from '@/lib/billing/ledger'
 import { withTextBilling } from '@/lib/billing/service'
+import { allocateAccountPoints, rechargeAccountPoints } from '@/lib/billing/credit-ledger'
 import { prisma } from '../../helpers/prisma'
 import { resetBillingState } from '../../helpers/db-reset'
 import { createTestProject, createTestUser, seedBalance } from '../../helpers/billing-fixtures'
@@ -18,7 +20,7 @@ describe('billing/concurrency', () => {
     process.env.BILLING_MODE = 'ENFORCE'
   })
 
-  it('does not create negative balance during high-concurrency freezes', async () => {
+  it('never exceeds the configured generation credit floor under high-concurrency freezes', async () => {
     const user = await createTestUser()
     await seedBalance(user.id, 10)
 
@@ -28,10 +30,12 @@ describe('billing/concurrency', () => {
     const successCount = freezeIds.filter(Boolean).length
 
     const balance = await getBalance(user.id)
-    expect(successCount).toBeLessThanOrEqual(10)
+    const maximumSettledAttempts = Math.floor(10 - GENERATION_CREDIT_FLOOR_CNY)
+    expect(successCount).toBeLessThanOrEqual(maximumSettledAttempts)
     expect(balance.balance).toBeCloseTo(10 - successCount, 8)
     expect(balance.frozenAmount).toBeCloseTo(successCount, 8)
-    await expectNoNegativeLedger(user.id)
+    expect(balance.balance).toBeGreaterThanOrEqual(GENERATION_CREDIT_FLOOR_CNY)
+    expect(balance.frozenAmount).toBeGreaterThanOrEqual(0)
   })
 
   it('applies idempotency key correctly under concurrent duplicate requests', async () => {
@@ -48,6 +52,42 @@ describe('billing/concurrency', () => {
     expect(balance.balance).toBeCloseTo(8, 8)
     expect(balance.frozenAmount).toBeCloseTo(2, 8)
     expect(await prisma.balanceFreeze.count()).toBe(1)
+  })
+
+  it('credits one recharge exactly once under concurrent duplicate submissions', async () => {
+    const manager = await createTestUser()
+    await seedBalance(manager.id, 0)
+
+    const attempts = Array.from({ length: 12 }, () => rechargeAccountPoints(manager.id, 250, {
+      operatorId: 'platform-admin',
+      idempotencyKey: 'same_recharge_concurrency',
+    }))
+    const results = await Promise.all(attempts)
+
+    expect(results.some((result) => result.idempotent === false)).toBe(true)
+    expect((await getBalance(manager.id)).balance).toBeCloseTo(2.5, 8)
+    expect(await prisma.balanceTransaction.count({
+      where: { userId: manager.id, type: 'recharge', idempotencyKey: 'same_recharge_concurrency' },
+    })).toBe(1)
+  })
+
+  it('moves one allocation exactly once under concurrent duplicate submissions', async () => {
+    const manager = await createTestUser()
+    const member = await createTestUser()
+    await seedBalance(manager.id, 10)
+    await seedBalance(member.id, 0)
+
+    const attempts = Array.from({ length: 12 }, () => allocateAccountPoints(manager.id, member.id, 200, {
+      operatorId: manager.id,
+      idempotencyKey: 'same_allocate_concurrency',
+    }))
+    await Promise.all(attempts)
+
+    expect((await getBalance(manager.id)).balance).toBeCloseTo(8, 8)
+    expect((await getBalance(member.id)).balance).toBeCloseTo(2, 8)
+    expect(await prisma.balanceTransaction.count({
+      where: { idempotencyKey: 'same_allocate_concurrency' },
+    })).toBe(2)
   })
 
   it('keeps a valid final state when confirm and rollback race', async () => {

@@ -61,6 +61,38 @@ export function toDisplayImageUrl(input: string | null | undefined): string | nu
   return unwrapped
 }
 
+/** Audio is proxied same-origin so browser metadata/range requests work even
+ * when the private object store returns attachment-oriented headers. */
+export function toPlayableAudioUrl(input: string | null | undefined): string | null {
+  if (!input) return null
+  const raw = input.trim()
+  if (!raw) return null
+  const unwrapped = unwrapNextImageUrl(raw)
+  if (isStorageKey(unwrapped)) {
+    return `${COS_SIGN_PATH}?key=${encodeURIComponent(unwrapped)}&inline=1`
+  }
+  const parsed = tryParseUrl(unwrapped)
+  if (parsed?.pathname === COS_SIGN_PATH) {
+    const key = parsed.searchParams.get('key')
+    if (key) return `${COS_SIGN_PATH}?key=${encodeURIComponent(key)}&inline=1`
+  }
+  return unwrapped
+}
+
+/** WebGL textures require readable same-origin bytes, not a redirect to a
+ * storage origin that may intentionally omit CORS headers. */
+export function toCanvasTextureUrl(input: string | null | undefined): string | null {
+  const displayUrl = toDisplayImageUrl(input)
+  if (!displayUrl) return null
+  const parsed = tryParseUrl(displayUrl)
+  if (!parsed || parsed.pathname !== COS_SIGN_PATH) return displayUrl
+
+  parsed.searchParams.set('inline', '1')
+  return /^https?:\/\//i.test(displayUrl)
+    ? parsed.toString()
+    : `${parsed.pathname}${parsed.search}${parsed.hash}`
+}
+
 export function resolveOriginalImageUrl(input: string | null | undefined): string | null {
   if (!input) return null
   const raw = input.trim()

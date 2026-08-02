@@ -3,6 +3,10 @@ import {
   buildSeedanceReferenceImageContentItems,
   type PanelSeedanceReferenceAsset,
 } from '@/lib/novel-promotion/seedance-reference-assets'
+import {
+  compileSeedancePromptForSubmission,
+  extractSeedanceVideoPromptBody,
+} from '@/lib/novel-promotion/seedance-prompt-assets'
 
 export const DEFAULT_SEEDANCE_2_MODEL = 'doubao-seedance-2-0-260128'
 export const DEFAULT_SEEDANCE_STORYBOARD_RATIO = '9:16'
@@ -100,8 +104,8 @@ export function buildSeedanceStoryboardVideoTaskRequest(input: {
   referenceAssets?: PanelSeedanceReferenceAsset[]
   options?: SeedanceStoryboardAdapterOptions
 }): SeedanceStoryboardTaskRequest {
-  const prompt = input.segment.videoPrompt.trim()
-  if (!prompt) {
+  const editorPrompt = extractSeedanceVideoPromptBody(input.segment.videoPrompt)
+  if (!editorPrompt) {
     throw new Error('SEEDANCE_STORYBOARD_PROMPT_REQUIRED')
   }
 
@@ -110,6 +114,7 @@ export function buildSeedanceStoryboardVideoTaskRequest(input: {
     input.referenceAssets || [],
     Math.max(0, Math.min(options.maxReferenceImages ?? 9, 9)),
   )
+  const prompt = compileSeedancePromptForSubmission(editorPrompt, referenceAssets)
   const duration = normalizeSeedance2Duration(options.durationSeconds ?? input.segment.durationSeconds)
 
   return {

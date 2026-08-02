@@ -18,6 +18,7 @@ import {
 import { validateCapabilitySelectionForModel } from '@/lib/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import type { PricingApiType } from '@/lib/model-pricing/catalog'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 export const USD_TO_CNY = 7.2
 
@@ -61,7 +62,7 @@ function getMarkup(category: MarkupCategory): number {
 }
 
 function parseModelId(model: string): string {
-  const parsed = parseModelKeyStrict(model)
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(model) || model)
   return parsed?.modelId || model
 }
 
@@ -145,7 +146,7 @@ function resolveTextUnitPrice(model: string, tokenType: 'input' | 'output', cust
 }
 
 function resolveVideoCapabilities(model: string): ModelCapabilities | undefined {
-  const parsed = parseModelKeyStrict(model)
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(model) || model)
   if (parsed) {
     return findBuiltinCapabilities('video', parsed.provider, parsed.modelId)
   }

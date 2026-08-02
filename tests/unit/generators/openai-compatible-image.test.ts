@@ -1,9 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import sharp from 'sharp'
 
 const openAIState = vi.hoisted(() => ({
   generate: vi.fn(),
   edit: vi.fn(),
-  toFile: vi.fn(async () => ({ name: 'mock-file' })),
+  toFile: vi.fn(async (
+    value: Buffer | Uint8Array,
+    name: string,
+    options?: { type?: string },
+  ) => {
+    const bytes = Buffer.from(value)
+    return {
+      name,
+      type: options?.type || 'application/octet-stream',
+      size: bytes.length,
+      arrayBuffer: async () => bytes,
+    }
+  }),
 }))
 
 const getProviderConfigMock = vi.hoisted(() => vi.fn(async () => ({
@@ -33,6 +46,7 @@ vi.mock('@/lib/image-cache', () => ({
 }))
 
 import { OpenAICompatibleImageGenerator } from '@/lib/generators/image/openai-compatible'
+import { generateImageViaOpenAICompat } from '@/lib/model-gateway/openai-compat/image'
 
 describe('OpenAICompatibleImageGenerator', () => {
   beforeEach(() => {
@@ -104,6 +118,134 @@ describe('OpenAICompatibleImageGenerator', () => {
       quality: 'medium',
     })
     expect(Array.isArray((call[0] as { image?: unknown }).image)).toBe(true)
+  })
+
+  it('sends an inpaint mask as the dedicated images.edit mask field', async () => {
+    const sourcePng = await sharp({
+      create: {
+        width: 4,
+        height: 2,
+        channels: 4,
+        background: { r: 80, g: 120, b: 160, alpha: 1 },
+      },
+    }).png().toBuffer()
+    const canvasMaskPng = await sharp(Buffer.from([
+      255, 255, 255,
+      0, 0, 0,
+    ]), { raw: { width: 2, height: 1, channels: 3 } }).png().toBuffer()
+    openAIState.edit.mockResolvedValueOnce({
+      data: [{ b64_json: 'aW5wYWludA==' }],
+    })
+
+    const result = await generateImageViaOpenAICompat({
+      userId: 'user-1',
+      providerId: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      prompt: 'replace only the painted region',
+      referenceImages: [`data:image/png;base64,${sourcePng.toString('base64')}`],
+      editMode: 'inpaint',
+      maskImage: `data:image/png;base64,${canvasMaskPng.toString('base64')}`,
+      profile: 'openai-compatible',
+    })
+
+    expect(result.success).toBe(true)
+    expect(openAIState.edit).toHaveBeenCalledTimes(1)
+    expect(openAIState.generate).not.toHaveBeenCalled()
+    expect(openAIState.toFile).toHaveBeenCalledTimes(3)
+
+    const payload = openAIState.edit.mock.calls[0]?.[0] as {
+      image?: { name?: string; arrayBuffer(): Promise<ArrayBuffer | Uint8Array> }
+      mask?: { name?: string; arrayBuffer(): Promise<ArrayBuffer | Uint8Array> }
+    } | undefined
+    expect(payload?.image).toBeTruthy()
+    expect(payload?.mask).toBeTruthy()
+    expect(payload?.mask).not.toBe(payload?.image)
+    expect(payload?.mask?.name).toBe('mask.png')
+
+    const normalizedMaskData = await payload!.mask!.arrayBuffer()
+    const normalizedMask = normalizedMaskData instanceof ArrayBuffer
+      ? Buffer.from(normalizedMaskData)
+      : Buffer.from(normalizedMaskData)
+    const decoded = await sharp(normalizedMask)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+    expect(decoded.info).toMatchObject({ width: 4, height: 2, channels: 4 })
+    expect(decoded.data[3]).toBe(0)
+    expect(decoded.data[((decoded.info.width - 1) * 4) + 3]).toBe(255)
+  })
+
+  it('rejects a mask unless the request explicitly declares inpaint mode', async () => {
+    await expect(generateImageViaOpenAICompat({
+      userId: 'user-1',
+      providerId: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      prompt: 'edit this image',
+      referenceImages: ['data:image/png;base64,U09VUkNF'],
+      maskImage: 'data:image/png;base64,TUFTSw==',
+      profile: 'openai-compatible',
+    })).rejects.toThrow(/MASK.*INPAINT|INPAINT.*MASK/i)
+
+    expect(openAIState.edit).not.toHaveBeenCalled()
+    expect(openAIState.generate).not.toHaveBeenCalled()
+  })
+
+  it('rejects an all-black canvas mask with no editable pixels', async () => {
+    const sourcePng = await sharp({
+      create: {
+        width: 2,
+        height: 2,
+        channels: 4,
+        background: { r: 80, g: 120, b: 160, alpha: 1 },
+      },
+    }).png().toBuffer()
+    const emptyCanvasMaskPng = await sharp({
+      create: {
+        width: 2,
+        height: 2,
+        channels: 3,
+        background: { r: 0, g: 0, b: 0 },
+      },
+    }).png().toBuffer()
+
+    await expect(generateImageViaOpenAICompat({
+      userId: 'user-1',
+      providerId: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      prompt: 'replace only the painted region',
+      referenceImages: [`data:image/png;base64,${sourcePng.toString('base64')}`],
+      editMode: 'inpaint',
+      maskImage: `data:image/png;base64,${emptyCanvasMaskPng.toString('base64')}`,
+      profile: 'openai-compatible',
+    })).rejects.toThrow(/INPAINT_MASK_EMPTY|no editable pixels/i)
+
+    expect(openAIState.edit).not.toHaveBeenCalled()
+    expect(openAIState.generate).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: 'no source image', referenceImages: [] },
+    {
+      label: 'multiple source images',
+      referenceImages: [
+        'data:image/png;base64,U09VUkNFMQ==',
+        'data:image/png;base64,U09VUkNFMg==',
+      ],
+    },
+  ])('rejects inpaint with $label', async ({ referenceImages }) => {
+    await expect(generateImageViaOpenAICompat({
+      userId: 'user-1',
+      providerId: 'openai-compatible:oa-1',
+      modelId: 'gpt-image-1',
+      prompt: 'replace only the painted region',
+      referenceImages,
+      editMode: 'inpaint',
+      maskImage: 'data:image/png;base64,TUFTSw==',
+      profile: 'openai-compatible',
+    })).rejects.toThrow(/INPAINT.*(REFERENCE|SOURCE).*(COUNT|ONE|1)/i)
+
+    expect(openAIState.edit).not.toHaveBeenCalled()
+    expect(openAIState.generate).not.toHaveBeenCalled()
   })
 
   it('fails explicitly on unsupported option values', async () => {

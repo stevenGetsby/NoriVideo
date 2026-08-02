@@ -273,11 +273,11 @@ export function buildStoryboardJsonFromClipPanels(clipPanels: ClipPanelsResult[]
 async function resolvePanelReferenceProjectAssets(episodeId: string) {
   const episode = await prisma.novelPromotionEpisode.findUnique({
     where: { id: episodeId },
-    select: { novelPromotionProjectId: true },
+    select: { novelPromotionProjectId: true, episodeNumber: true },
   })
   if (!episode) return null
 
-  return await prisma.novelPromotionProject.findUnique({
+  const projectAssets = await prisma.novelPromotionProject.findUnique({
     where: { id: episode.novelPromotionProjectId },
     include: {
       characters: {
@@ -293,6 +293,7 @@ async function resolvePanelReferenceProjectAssets(episodeId: string) {
       },
     },
   })
+  return projectAssets ? { projectAssets, episodeNumber: episode.episodeNumber } : null
 }
 
 export async function persistStoryboardsAndPanels(params: {
@@ -318,7 +319,7 @@ export async function persistStoryboardsAndPanels(params: {
     actingNotes: string | null
     sceneType: string | null
   }
-  const projectAssets = await resolvePanelReferenceProjectAssets(episodeId)
+  const referenceContext = await resolvePanelReferenceProjectAssets(episodeId)
   return await prisma.$transaction(async (tx) => {
     const persisted: PersistedStoryboard[] = []
     for (const clipEntry of clipPanels) {
@@ -367,7 +368,7 @@ export async function persistStoryboardsAndPanels(params: {
       const persistedPanels: PersistedStoryboard['panels'] = []
       for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
         const panel = clipEntry.finalPanels[i]
-        const seedanceReferenceAssets = projectAssets
+        const seedanceReferenceAssets = referenceContext
           ? buildPanelSeedanceReferenceAssets({
             panel: {
               characters: panel.characters,
@@ -375,8 +376,10 @@ export async function persistStoryboardsAndPanels(params: {
               props: panel.props,
               videoPrompt: panel.video_prompt,
             },
-            characterAssets: projectAssets.characters,
-            locationAssets: projectAssets.locations,
+            characterAssets: referenceContext.projectAssets.characters,
+            locationAssets: referenceContext.projectAssets.locations,
+            episodeNumber: referenceContext.episodeNumber,
+            sceneId: panel.panel_id?.match(/^S\d+/i)?.[0] || null,
           })
           : []
         const actingNotes = writePanelSeedanceReferenceAssetsToActingNotes(
@@ -414,6 +417,7 @@ export async function persistStoryboardsAndPanels(params: {
             photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
             actingNotes,
             duration: panel.duration || null,
+            sceneType: panel.scene_type || null,
           },
           select: {
             id: true,
@@ -452,7 +456,7 @@ export async function persistStoryboardOutputs(params: {
   clipPanels: ClipPanelsResult[]
   voiceLineRows: JsonRecord[] | null
 }) {
-  const projectAssets = await resolvePanelReferenceProjectAssets(params.episodeId)
+  const referenceContext = await resolvePanelReferenceProjectAssets(params.episodeId)
   const persistedStoryboards = await prisma.$transaction(async (tx) => {
     const persisted: PersistedStoryboard[] = []
     const panelIdByStoryboardRef = new Map<string, string>()
@@ -523,7 +527,7 @@ export async function persistStoryboardOutputs(params: {
       const persistedPanels: PersistedStoryboard['panels'] = []
       for (let i = 0; i < clipEntry.finalPanels.length; i += 1) {
         const panel = clipEntry.finalPanels[i]
-        const seedanceReferenceAssets = projectAssets
+        const seedanceReferenceAssets = referenceContext
           ? buildPanelSeedanceReferenceAssets({
             panel: {
               characters: panel.characters,
@@ -531,8 +535,10 @@ export async function persistStoryboardOutputs(params: {
               props: panel.props,
               videoPrompt: panel.video_prompt,
             },
-            characterAssets: projectAssets.characters,
-            locationAssets: projectAssets.locations,
+            characterAssets: referenceContext.projectAssets.characters,
+            locationAssets: referenceContext.projectAssets.locations,
+            episodeNumber: referenceContext.episodeNumber,
+            sceneId: panel.panel_id?.match(/^S\d+/i)?.[0] || null,
           })
           : []
         const actingNotes = writePanelSeedanceReferenceAssetsToActingNotes(
@@ -570,6 +576,7 @@ export async function persistStoryboardOutputs(params: {
             photographyRules: panel.photographyPlan ? JSON.stringify(panel.photographyPlan) : null,
             actingNotes,
             duration: panel.duration || null,
+            sceneType: panel.scene_type || null,
           },
           select: {
             id: true,

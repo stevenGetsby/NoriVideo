@@ -1,4 +1,5 @@
 import type { Job } from 'bullmq'
+import { randomUUID } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
 import { executeAiTextStep } from '@/lib/ai-runtime'
 import {
@@ -37,6 +38,16 @@ import {
   runScriptToStoryboardAtomicRetry,
 } from './script-to-storyboard-atomic-retry'
 import { buildFrameosProductionContext } from '@/lib/novel-promotion/frameos-production-context'
+import {
+  buildEpisodeStoryboardWorkflowWithLlm,
+  EPISODE_STORYBOARD_PROMPT_PROFILE,
+} from '@/lib/novel-promotion/episode-storyboard-workflow'
+import {
+  buildEpisodeStoryboardClipPlans,
+  type EpisodeStoryboardClipPlan,
+} from '@/lib/novel-promotion/episode-storyboard-panels'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
+import { databaseAppearanceOptions } from '@/lib/novel-promotion/storyboard-character-appearance'
 
 type AnyObj = Record<string, unknown>
 const MAX_VOICE_ANALYZE_ATTEMPTS = 2
@@ -52,6 +63,19 @@ function readAssetKind(value: Record<string, unknown>): string {
 function readNullableText(value: Record<string, unknown>, key: string): string | null {
   const field = value[key]
   return typeof field === 'string' ? field : null
+}
+
+function parseStringList(value: string | null | undefined): string[] {
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!Array.isArray(parsed)) return []
+    return parsed
+      .map((item) => typeof item === 'string' ? item.trim() : '')
+      .filter(Boolean)
+  } catch {
+    return []
+  }
 }
 
 function isReasoningEffort(value: unknown): value is 'minimal' | 'low' | 'medium' | 'high' {
@@ -81,6 +105,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     select: {
       id: true,
       name: true,
+      userId: true,
     },
   })
   if (!project) {
@@ -93,7 +118,11 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
   const novelData = await prisma.novelPromotionProject.findUnique({
     where: { projectId },
     include: {
-      characters: true,
+      characters: {
+        include: {
+          appearances: { orderBy: { appearanceIndex: 'asc' } },
+        },
+      },
       locations: true,
     },
   })
@@ -111,9 +140,10 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     throw new Error('Episode not found')
   }
   const clips = episode.clips || []
-  if (clips.length === 0) {
-    throw new Error('No clips found')
-  }
+  const storyboardPromptProfile = typeof payload.storyboardPromptProfile === 'string'
+    ? payload.storyboardPromptProfile.trim()
+    : ''
+  const useCinematicEpisodeWorkflow = storyboardPromptProfile === EPISODE_STORYBOARD_PROMPT_PROFILE
   const retryTarget = parseStoryboardRetryTarget(retryStepKey)
   if (retryStepKey && retryStepKey !== 'voice_analyze' && !retryTarget) {
     throw new Error(`unsupported retry step for script_to_storyboard: ${retryStepKey}`)
@@ -259,6 +289,8 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
     }
   }
 
+  let episodeStoryboardClipPlans: EpisodeStoryboardClipPlan[] | null = null
+
   const leaseResult = await withWorkflowRunLease({
     runId,
     userId: job.data.userId,
@@ -326,6 +358,82 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
                 }
               }
 
+              if (useCinematicEpisodeWorkflow) {
+                const scriptText = episode.novelText?.trim() || ''
+                if (!scriptText) {
+                  throw new Error('No episode script found')
+                }
+                const locationAssets = (novelData.locations || [])
+                  .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) !== 'prop')
+                const propAssets = (novelData.locations || [])
+                  .filter((item) => readAssetKind(item as unknown as Record<string, unknown>) === 'prop')
+                const workflow = await buildEpisodeStoryboardWorkflowWithLlm({
+                  episodeNumber: episode.episodeNumber,
+                  scriptText,
+                  characters: (novelData.characters || []).map((item) => ({
+                    name: item.name,
+                    aliases: parseStringList(item.aliases),
+                    appearanceOptions: databaseAppearanceOptions(item.appearances || []),
+                  })),
+                  locations: locationAssets.map((item) => ({
+                    name: item.name,
+                  })),
+                  props: propAssets.map((item) => ({
+                    name: item.name,
+                    state: item.summary || undefined,
+                  })),
+                  defaultLocation: locationAssets[0]?.name,
+                  videoModel: novelData.videoModel || undefined,
+                  productionContext: projectProductionContext,
+                }, async (plannerPrompt, plannerAttempt = 1) => {
+                  const output = await runStep({
+                    stepId: 'episode_segment_plan',
+                    stepAttempt: plannerAttempt,
+                    stepTitle: '规划 Scene / Segment 与精细视频提示词',
+                    stepIndex: 1,
+                    stepTotal: 2,
+                    groupId: `episode_${episode.id}`,
+                    parallelKey: 'episode_segment_plan',
+                    retryable: true,
+                  }, plannerPrompt, 'storyboard_episode_segment_plan', 12_000)
+                  return output.text
+                })
+                episodeStoryboardClipPlans = buildEpisodeStoryboardClipPlans({
+                  workflow,
+                  createClipId: randomUUID,
+                })
+                const clipPanels = episodeStoryboardClipPlans.map((clipPlan, index) => ({
+                  clipId: clipPlan.id,
+                  clipIndex: index + 1,
+                  finalPanels: clipPlan.finalPanels,
+                }))
+                const panelsByClipId = Object.fromEntries(
+                  clipPanels.map((item) => [item.clipId, item.finalPanels]),
+                )
+                await reportTaskProgress(job, 72, {
+                  stage: 'script_to_storyboard_step',
+                  stageLabel: 'progress.stage.scriptToStoryboardStep',
+                  displayMode: 'detail',
+                  message: `已规划 ${workflow.scenes.length} 个场景、${workflow.segments.length} 个视频片段`,
+                  stepId: 'episode_segment_plan',
+                  stepTitle: 'Scene / Segment 规划完成',
+                  stepIndex: 1,
+                  stepTotal: 2,
+                })
+                return {
+                  clipPanels,
+                  phase1PanelsByClipId: panelsByClipId,
+                  phase2CinematographyByClipId: {},
+                  phase2ActingByClipId: {},
+                  phase3PanelsByClipId: panelsByClipId,
+                  summary: {
+                    clipCount: clipPanels.length,
+                    totalPanelCount: workflow.segments.length,
+                    totalStepCount: 2,
+                  },
+                }
+              }
+
               try {
                 return await runScriptToStoryboardOrchestrator({
                   concurrency: workflowConcurrency.analysis,
@@ -380,50 +488,51 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       const phase2ActingMap = orchestratorResult.phase2ActingByClipId || {}
       const phase3Map = orchestratorResult.phase3PanelsByClipId || {}
 
-      for (const clip of selectedClips) {
-        const phase1Panels = phase1Map[clip.id] || []
+      for (const clipEntry of orchestratorResult.clipPanels) {
+        const clipId = clipEntry.clipId
+        const phase1Panels = phase1Map[clipId] || []
         if (phase1Panels.length > 0) {
           await createArtifact({
             runId,
-            stepKey: `clip_${clip.id}_phase1`,
+            stepKey: `clip_${clipId}_phase1`,
             artifactType: 'storyboard.clip.phase1',
-            refId: clip.id,
+            refId: clipId,
             payload: {
               panels: phase1Panels,
             },
           })
         }
-        const phase2Cinematography = phase2CinematographyMap[clip.id] || []
+        const phase2Cinematography = phase2CinematographyMap[clipId] || []
         if (phase2Cinematography.length > 0) {
           await createArtifact({
             runId,
-            stepKey: `clip_${clip.id}_phase2_cinematography`,
+            stepKey: `clip_${clipId}_phase2_cinematography`,
             artifactType: 'storyboard.clip.phase2.cine',
-            refId: clip.id,
+            refId: clipId,
             payload: {
               rules: phase2Cinematography,
             },
           })
         }
-        const phase2Acting = phase2ActingMap[clip.id] || []
+        const phase2Acting = phase2ActingMap[clipId] || []
         if (phase2Acting.length > 0) {
           await createArtifact({
             runId,
-            stepKey: `clip_${clip.id}_phase2_acting`,
+            stepKey: `clip_${clipId}_phase2_acting`,
             artifactType: 'storyboard.clip.phase2.acting',
-            refId: clip.id,
+            refId: clipId,
             payload: {
               directions: phase2Acting,
             },
           })
         }
-        const phase3Panels = phase3Map[clip.id] || []
+        const phase3Panels = phase3Map[clipId] || []
         if (phase3Panels.length > 0) {
           await createArtifact({
             runId,
-            stepKey: `clip_${clip.id}_phase3_detail`,
+            stepKey: `clip_${clipId}_phase3_detail`,
             artifactType: 'storyboard.clip.phase3',
-            refId: clip.id,
+            refId: clipId,
             payload: {
               panels: phase3Panels,
             },
@@ -438,7 +547,37 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       })
       await assertRunActive('script_to_storyboard_persist')
 
+      let plannedClipsPersisted = false
+      const ensureEpisodeStoryboardClipsPersisted = async () => {
+        if (!episodeStoryboardClipPlans || plannedClipsPersisted) return
+        await prisma.$transaction(async (tx) => {
+          await tx.novelPromotionClip.deleteMany({ where: { episodeId } })
+          for (const clipPlan of episodeStoryboardClipPlans || []) {
+            await tx.novelPromotionClip.create({
+              data: {
+                id: clipPlan.id,
+                episodeId,
+                start: clipPlan.start,
+                end: clipPlan.end,
+                duration: clipPlan.duration,
+                summary: clipPlan.summary,
+                location: clipPlan.location,
+                content: clipPlan.content,
+                characters: clipPlan.characters,
+                props: clipPlan.props,
+                startText: clipPlan.startText,
+                endText: clipPlan.endText,
+                shotCount: clipPlan.shotCount,
+                screenplay: clipPlan.screenplay,
+              },
+            })
+          }
+        })
+        plannedClipsPersisted = true
+      }
+
       if (skipVoiceAnalyze) {
+        await ensureEpisodeStoryboardClipsPersisted()
         const persisted = await persistStoryboardOutputs({
           episodeId,
           clipPanels: orchestratorResult.clipPanels,
@@ -542,6 +681,7 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       })
 
       await assertRunActive('script_to_storyboard_voice_persist')
+      await ensureEpisodeStoryboardClipsPersisted()
       const persisted = await persistStoryboardOutputs({
         episodeId,
         clipPanels: orchestratorResult.clipPanels,
@@ -570,6 +710,11 @@ export async function handleScriptToStoryboardTask(job: Job<TaskJobData>) {
       episodeId,
     }
   }
+
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: project.userId || job.data.userId,
+  })
 
   return leaseResult.result
 }

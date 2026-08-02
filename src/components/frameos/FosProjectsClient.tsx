@@ -1,112 +1,66 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
-import { useRouter, Link } from '@/i18n/navigation'
+import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import {
+  readStyleReferenceFailureIndex,
+  submitProjectCreationWithProgress,
+  type ProjectStyleReferenceProgressUpdate,
+} from '@/lib/projects/create-project-request'
+import { PROJECT_STYLE_REFERENCE_FIELD } from '@/lib/projects/style-reference-contract'
 import { logError } from '@/lib/logging/core'
+import { hasAccountPermissions } from '@/lib/account/permissions'
 import { FosShell } from './FosShell'
 import { CreateProjectDialog, type CreateProjectDraft } from './CreateProjectDialog'
+import { WorkPanel } from './works/FosWorkPanels'
+import { fetchAllWorks } from './works/fetch-all-works'
+import { filterWorksByQuery } from './works/work-search'
+import {
+  ConfirmActionDialog,
+  CreateWorkDialog,
+  MemberManagerDialog,
+  MoveProjectsDialog,
+  projectMemberCandidatesEndpoint,
+  projectMembersEndpoint,
+  RenameDialog,
+  workMemberCandidatesEndpoint,
+  workMembersEndpoint,
+} from './works/FosWorksDialogs'
+import type { WorkProject, WorkSummary } from './works/types'
 
-interface ProjectItem {
-  id: string
-  name: string
-  description: string | null
-  createdAt: string
-  updatedAt: string
-}
-
-const PAGE_SIZE = 12
+const WORKS_REQUEST_TIMEOUT_MS = 15_000
+const WORKS_PAGE_SIZE = 50
 const TEST_MODE = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
 
-const DEMO_PROJECTS: ProjectItem[] = [
-  {
-    id: 'demo-test',
-    name: 'TEST',
-    description: '精品版 2.0 · 剧情模式 · 9:16',
-    createdAt: '2026-06-13T00:00:00.000+08:00',
-    updatedAt: '2026-06-13T00:00:00.000+08:00',
-  },
-  {
-    id: 'demo-deal',
-    name: '$50,000 Deal with the Devil',
-    description: '精品版 · 剧情模式 · 9:16 · 都市医疗冷峻风',
-    createdAt: '2026-06-09T00:00:00.000+08:00',
-    updatedAt: '2026-06-09T00:00:00.000+08:00',
-  },
-]
+type RenameTarget =
+  | { kind: 'work'; work: WorkSummary }
+  | { kind: 'project'; project: WorkProject }
 
-function formatDate(value: string) {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', timeZone: 'Asia/Shanghai' })
-}
+type MemberTarget =
+  | { kind: 'work'; work: WorkSummary }
+  | { kind: 'project'; project: WorkProject }
 
-function deriveEdition(project: ProjectItem) {
-  if ((project.description || '').includes('精品版 ·')) return '精品版'
-  if (project.name.includes('$50,000')) return '精品版'
-  return '精品版 2.0'
-}
+type MoveTarget = { projects: WorkProject[]; work: WorkSummary }
 
-function ProjectCard({ project }: { project: ProjectItem }) {
-  const desc = project.description || ''
-  const style = desc.split('·').map((s) => s.trim()).find((s) => s.endsWith('风')) ?? null
+type ConfirmTarget =
+  | { kind: 'work'; work: WorkSummary }
+  | { kind: 'project'; project: WorkProject }
+
+function WorksSkeleton() {
   return (
-    <Link href={{ pathname: `/workflow/${project.id}/workbench-premium2` }}
-      className="group block w-[255px] overflow-hidden rounded-[13px] border transition-colors hover:border-[rgba(255,255,255,.16)]"
-      style={{ borderColor: 'rgba(255,255,255,.06)', background: 'rgba(20,20,20,.92)' }}>
-      <div className="relative flex h-[180px] items-center justify-center" style={{ background: 'linear-gradient(180deg,rgba(28,45,73,.78),rgba(19,27,48,.75) 55%,rgba(18,18,18,.95))' }}>
-        <span className="absolute left-4 top-4 rounded-full border border-[#c69a30]/40 bg-[#4a3912]/80 px-3 py-1 text-[12px] font-bold text-[#f0c94a] shadow-[0_0_16px_rgba(240,201,74,.12)]">{deriveEdition(project)}</span>
-        <AppIcon name="folderOpen" className="h-16 w-16 text-[#8190ad]/45" />
-      </div>
-      <div className="px-5 pb-4 pt-4">
-        <h3 className="line-clamp-2 min-h-[44px] text-[18px] font-bold leading-[22px] text-white">{project.name}</h3>
-        <div className="mt-3 flex flex-wrap gap-2">
-          <span className="inline-flex h-6 items-center gap-1 rounded-[7px] bg-[rgba(255,255,255,.05)] px-2 py-1 text-[12px] font-medium text-[var(--fos-text-3)]">
-            <AppIcon name="film" className="h-3.5 w-3.5 text-[#4d86ff]" />剧情模式
-          </span>
-          <span className="inline-flex h-6 items-center gap-1 rounded-[7px] bg-[rgba(255,255,255,.05)] px-2 py-1 text-[12px] font-medium text-[var(--fos-text-3)]">
-            <AppIcon name="monitor" className="h-3.5 w-3.5 text-[#2ccf96]" />9:16
-          </span>
-          {style ? (
-            <span className="inline-flex h-6 items-center gap-1 rounded-[7px] bg-[rgba(255,255,255,.05)] px-2 py-1 text-[12px] font-medium text-[var(--fos-text-3)]">
-              <AppIcon name="sparkles" className="h-3.5 w-3.5 text-[#8b5cf6]" />{style}
-            </span>
-          ) : null}
+    <div className="works-skeleton" aria-label="正在加载作品">
+      {[0, 1].map((item) => (
+        <div key={item} className="works-skeleton-panel">
+          <div className="works-skeleton-head" />
+          <div className="works-skeleton-body"><div /><div /></div>
         </div>
-        <div className="mt-4 flex items-center gap-1.5 border-t border-[rgba(255,255,255,.04)] pt-3 text-[12px] text-[var(--fos-text-4)]">
-          <AppIcon name="clock" className="h-3.5 w-3.5" />{formatDate(project.createdAt)} 创建
-        </div>
-      </div>
-    </Link>
-  )
-}
-
-function WorkCollection({ projects }: { projects: ProjectItem[] }) {
-  return (
-    <section className="overflow-hidden rounded-[13px] border border-[rgba(110,87,31,.35)] bg-[rgba(10,10,10,.7)]">
-      <div
-        className="flex h-[64px] items-center justify-between px-5"
-        style={{ background: 'linear-gradient(90deg,rgba(88,35,111,.75),rgba(25,13,65,.72) 42%,rgba(16,16,18,.88))' }}
-      >
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="rounded-full bg-[#4f3a15] px-3 py-1 text-[12px] font-bold text-[#f0c94a]">作品</span>
-          <h2 className="truncate text-[18px] font-bold text-white">默认作品</h2>
-        </div>
-        <div className="flex flex-none items-center gap-5 text-[13px] font-medium text-[var(--fos-text-3)]">
-          <span className="inline-flex items-center gap-1.5"><AppIcon name="fileFold" className="h-3.5 w-3.5" />4 个项目</span>
-          <span className="inline-flex items-center gap-1.5"><AppIcon name="clock" className="h-3.5 w-3.5" />2026年6月18日 创建</span>
-        </div>
-      </div>
-      <div className="min-h-[390px] p-4">
-        <div className="flex flex-wrap gap-4">
-          {projects.map((project) => <ProjectCard key={project.id} project={project} />)}
-        </div>
-      </div>
-    </section>
+      ))}
+    </div>
   )
 }
 
@@ -114,75 +68,290 @@ export function FosProjectsClient() {
   const { data: session, status } = useSession()
   const router = useRouter()
   const urlParams = useSearchParams()
-  const [projects, setProjects] = useState<ProjectItem[]>([])
+  const [works, setWorks] = useState<WorkSummary[]>([])
+  const [worksTotal, setWorksTotal] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
   const [searchInput, setSearchInput] = useState(urlParams?.get('search') || '')
   const [searchQuery, setSearchQuery] = useState(urlParams?.get('search') || '')
-  const [showCreate, setShowCreate] = useState(false)
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null)
+  const [batchWorkId, setBatchWorkId] = useState<string | null>(null)
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([])
+  const [showCreateWork, setShowCreateWork] = useState(false)
+  const [createProjectWork, setCreateProjectWork] = useState<WorkSummary | null>(null)
+  const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
+  const [memberTarget, setMemberTarget] = useState<MemberTarget | null>(null)
+  const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null)
+  const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null)
+  const [actionBusy, setActionBusy] = useState(false)
+  const requestSequenceRef = useRef(0)
+  const requestAbortRef = useRef<AbortController | null>(null)
+  const handledCreateProjectRequestRef = useRef('')
+
+  const canCreateWorks = session?.user?.role === 'admin' || TEST_MODE
+  const canCreateProjects = hasAccountPermissions(session?.user || {}, ['projectCreate']) || TEST_MODE
 
   useEffect(() => {
     if (status === 'loading') return
-    if (!session && !TEST_MODE) router.push({ pathname: '/auth/signin' })
+    if (!session && !TEST_MODE) router.replace({ pathname: '/auth/signin' })
   }, [router, session, status])
 
-  const fetchProjects = useCallback(async (search: string) => {
-    setLoading(true)
+  useEffect(() => {
+    const timer = window.setTimeout(() => setSearchQuery(searchInput.trim()), 220)
+    return () => window.clearTimeout(timer)
+  }, [searchInput])
+
+  useEffect(() => {
+    if (!activeMenuId) return
+    const close = () => setActiveMenuId(null)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [activeMenuId])
+
+  const fetchWorks = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    requestAbortRef.current?.abort()
+    const requestId = requestSequenceRef.current + 1
+    requestSequenceRef.current = requestId
+    const controller = new AbortController()
+    requestAbortRef.current = controller
+    let timedOut = false
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true
+      controller.abort()
+    }, WORKS_REQUEST_TIMEOUT_MS)
+    if (silent) setRefreshing(true)
+    else setLoading(true)
+    setLoadError(null)
     try {
-      const params = new URLSearchParams({ page: '1', pageSize: String(PAGE_SIZE) })
-      if (search.trim()) params.set('search', search.trim())
-      const res = await apiFetch(`/api/projects?${params}`)
-      if (!res.ok) throw new Error(await readApiErrorMessage(res, '获取项目失败'))
-      const data = await res.json() as { projects?: ProjectItem[]; pagination?: { total: number } }
-      setProjects(Array.isArray(data.projects) ? data.projects : [])
-    } catch (err) {
-      logError('[FosProjectsClient] 获取项目失败', err)
-      setProjects([])
+      const normalized = await fetchAllWorks({
+        pageSize: WORKS_PAGE_SIZE,
+        search: searchQuery,
+        signal: controller.signal,
+        fallbackErrorMessage: '获取作品失败',
+      })
+      if (requestSequenceRef.current !== requestId) return
+      setWorks(normalized.works)
+      setWorksTotal(normalized.pagination.total)
+    } catch (error) {
+      if (requestSequenceRef.current !== requestId) return
+      if (controller.signal.aborted && !timedOut) return
+      logError('[FosProjectsClient] 获取作品失败', error)
+      setLoadError(timedOut
+        ? '加载作品超时，请检查网络或服务状态后重试。'
+        : error instanceof Error && error.message
+          ? `加载作品失败：${error.message}`
+          : '加载作品失败，请稍后重试。')
     } finally {
-      setLoading(false)
+      window.clearTimeout(timeoutId)
+      if (requestSequenceRef.current === requestId) {
+        requestAbortRef.current = null
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
+  }, [searchQuery])
+
+  useEffect(() => () => {
+    requestSequenceRef.current += 1
+    requestAbortRef.current?.abort()
+    requestAbortRef.current = null
   }, [])
 
   useEffect(() => {
-    if (session || TEST_MODE) void fetchProjects(searchQuery)
-  }, [fetchProjects, searchQuery, session])
+    if (session) void fetchWorks()
+    else if (TEST_MODE && status !== 'loading') setLoading(false)
+  }, [fetchWorks, session, status])
 
-  const handleSearch = () => setSearchQuery(searchInput.trim())
+  useEffect(() => {
+    const requested = urlParams?.get('create_project') === '1'
+    const requestedWorkId = urlParams?.get('work_id')?.trim() || ''
+    if (!requested) {
+      handledCreateProjectRequestRef.current = ''
+      return
+    }
+    if (!requestedWorkId || loading || status === 'loading') return
+    const requestKey = `${requestedWorkId}:${urlParams?.toString() || ''}`
+    if (handledCreateProjectRequestRef.current === requestKey) return
+    handledCreateProjectRequestRef.current = requestKey
 
-  const handleCreate = async (
+    const requestedWork = works.find((work) => work.id === requestedWorkId && !work.virtual)
+    if (!requestedWork) {
+      setActionError('目标作品不存在，或当前账号没有访问权限。')
+    } else if (!requestedWork.canCreateProjects) {
+      setActionError('当前账号没有在该作品中新建项目的权限。')
+    } else {
+      setActionError(null)
+      setCreateProjectWork(requestedWork)
+    }
+
+    const remainingParams = new URLSearchParams(urlParams?.toString() || '')
+    remainingParams.delete('create_project')
+    remainingParams.delete('work_id')
+    const query = remainingParams.toString()
+    router.replace(query ? `/works?${query}` : '/works')
+  }, [loading, router, status, urlParams, works])
+
+  const visibleWorks = useMemo(() => filterWorksByQuery(works, searchQuery), [searchQuery, works])
+  const allProjectNames = useMemo(() => works.flatMap((work) => work.projects.map((project) => project.name)), [works])
+  const clearSearch = useCallback(() => {
+    setSearchInput('')
+    setSearchQuery('')
+  }, [])
+
+  const runAction = useCallback(async (action: () => Promise<void>) => {
+    setActionBusy(true)
+    setActionError(null)
+    try {
+      await action()
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '操作失败'
+      setActionError(message)
+      throw error
+    } finally {
+      setActionBusy(false)
+    }
+  }, [])
+
+  const createWork = async (input: { name: string; memberUserIds: string[] }) => runAction(async () => {
+    const response = await apiFetch('/api/works', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (!response.ok) throw new Error(await readApiErrorMessage(response, '创建作品失败'))
+    setShowCreateWork(false)
+    await fetchWorks({ silent: true })
+  })
+
+  const createProject = async (
     draft: CreateProjectDraft,
-    setStatus: (status: string) => void,
+    setProgress: (message: string) => void,
+    onStyleReferenceProgress: (update: ProjectStyleReferenceProgressUpdate) => void,
   ): Promise<boolean> => {
-    setStatus('上传剧本并创建项目…')
+    if (!createProjectWork) throw new Error('未选择作品')
+    setProgress('上传剧本并创建项目…')
     const form = new FormData()
     form.set('name', draft.name.trim())
+    form.set('workId', createProjectWork.id)
+    form.set('collaborationMode', draft.collaborationMode)
     form.set('projectLevel', draft.projectLevel)
+    form.set('contentType', draft.projectType)
     form.set('projectStyle', draft.projectStyle)
+    form.set('materialType', draft.materialType)
+    form.set('targetEpisodeCount', String(draft.targetEpisodeCount))
     form.set('targetAudience', draft.targetAudience)
     form.set('videoRatio', draft.videoRatio)
     form.set('videoResolution', draft.videoResolution)
-    form.set('targetEpisodeDurationSeconds', String(draft.targetEpisodeDurationSeconds))
-    if (draft.artStylePrompt.trim()) form.set('artStylePrompt', draft.artStylePrompt.trim())
+    form.set('episodeDurationMode', draft.episodeDurationMode)
+    form.set('episodeDurationValue', String(draft.episodeDurationValue))
+    form.set('targetEpisodeDurationSeconds', String(draft.episodeDurationValue))
+    if (draft.artStylePrompt.trim()) form.set('customArtStylePrompt', draft.artStylePrompt.trim())
+    if (draft.referenceArtStylePrompt.trim()) form.set('referenceArtStylePrompt', draft.referenceArtStylePrompt.trim())
+    if (draft.collaborationMode === 'team') {
+      if (draft.writerAssigneeUserId) form.set('writerAssigneeUserId', draft.writerAssigneeUserId)
+      if (draft.assetAssigneeUserId) form.set('assetAssigneeUserId', draft.assetAssigneeUserId)
+      if (draft.storyboardAssigneeUserId) form.set('storyboardAssigneeUserId', draft.storyboardAssigneeUserId)
+    }
     if (draft.scriptFile) form.set('scriptFile', draft.scriptFile)
-    const res = await apiFetch('/api/projects', {
-      method: 'POST',
-      body: form,
-    })
-    if (!res.ok) throw new Error(await readApiErrorMessage(res, '创建项目失败'))
-    const payload = await res.json() as { project?: { id?: string } }
-    const id = payload.project?.id
-    if (!id) throw new Error('创建项目失败')
-    setStatus('进入工作台…')
-    router.push({ pathname: `/workflow/${id}/workbench-premium2` })
+    if (draft.importedScriptText?.trim()) {
+      form.set('initialNovelText', draft.importedScriptText.trim())
+      form.set('initialEpisodeName', draft.importedScriptTitle?.trim() || '第 1 集')
+    }
+    if (draft.initializeEpisodeRange) {
+      form.set('initialEpisodeStart', String(draft.initialEpisodeStart))
+      form.set('initialEpisodeEnd', String(draft.initialEpisodeEnd))
+    }
+    for (const reference of draft.styleReferenceFiles) {
+      form.append(PROJECT_STYLE_REFERENCE_FIELD, reference.file, reference.file.name)
+    }
+    if (draft.styleReferenceFiles.length > 0) {
+      setProgress(`上传 ${draft.styleReferenceFiles.length} 个画风参考…`)
+    }
+    const response = draft.styleReferenceFiles.length > 0
+      ? await submitProjectCreationWithProgress({
+        form,
+        references: draft.styleReferenceFiles,
+        onProgress: onStyleReferenceProgress,
+      })
+      : await apiFetch('/api/projects', { method: 'POST', body: form })
+    if (!response.ok) {
+      const errorPayload = await response.clone().json().catch(() => null) as {
+        error?: { message?: string }
+        message?: string
+      } | null
+      const failedIndex = readStyleReferenceFailureIndex(errorPayload)
+      if (failedIndex != null) {
+        const failedReference = draft.styleReferenceFiles[failedIndex]
+        if (failedReference) {
+          onStyleReferenceProgress({
+            id: failedReference.id,
+            progress: 0,
+            status: 'failed',
+            error: errorPayload?.error?.message || errorPayload?.message || '上传失败',
+          })
+        }
+      }
+      throw new Error(await readApiErrorMessage(response, '创建项目失败'))
+    }
+    const payload = await response.json() as { project?: { id?: string } }
+    const projectId = payload.project?.id
+    if (!projectId) throw new Error('创建项目失败：服务未返回项目 ID')
+    setProgress('进入工作台…')
+    setCreateProjectWork(null)
+    router.push({ pathname: `/workflow/${projectId}/workbench-premium2` })
     return true
   }
 
-  const visibleProjects = useMemo(() => {
-    const fallback = TEST_MODE && projects.length === 0 ? DEMO_PROJECTS : projects
-    if (!searchQuery.trim()) return fallback
-    const q = searchQuery.trim().toLowerCase()
-    return fallback.filter((project) => project.name.toLowerCase().includes(q))
-  }, [projects, searchQuery])
-  const worksTotal = visibleProjects.length > 0 || loading ? 1 : 0
+  const saveRename = async (name: string) => {
+    if (!renameTarget) return
+    await runAction(async () => {
+      const endpoint = renameTarget.kind === 'work'
+        ? `/api/works/${encodeURIComponent(renameTarget.work.id)}`
+        : `/api/projects/${encodeURIComponent(renameTarget.project.id)}`
+      const response = await apiFetch(endpoint, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '重命名失败'))
+      setRenameTarget(null)
+      setActiveMenuId(null)
+      await fetchWorks({ silent: true })
+    })
+  }
+
+  const moveProjects = async (targetWorkId: string) => {
+    if (!moveTarget) return
+    await runAction(async () => {
+      const response = await apiFetch('/api/works/projects/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectIds: moveTarget.projects.map((project) => project.id), targetWorkId }),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '移动项目失败'))
+      setMoveTarget(null)
+      setBatchWorkId(null)
+      setSelectedProjectIds([])
+      setActiveMenuId(null)
+      await fetchWorks({ silent: true })
+    })
+  }
+
+  const confirmDelete = async () => {
+    if (!confirmTarget) return
+    await runAction(async () => {
+      const endpoint = confirmTarget.kind === 'work'
+        ? `/api/works/${encodeURIComponent(confirmTarget.work.id)}`
+        : `/api/projects/${encodeURIComponent(confirmTarget.project.id)}`
+      const response = await apiFetch(endpoint, { method: 'DELETE' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '删除失败'))
+      setConfirmTarget(null)
+      setActiveMenuId(null)
+      await fetchWorks({ silent: true })
+    })
+  }
 
   if (status === 'loading' || (!session && !TEST_MODE)) {
     return <div className="fos-app"><div className="fos-loading">加载中…</div></div>
@@ -190,46 +359,168 @@ export function FosProjectsClient() {
 
   return (
     <FosShell activeKey="projects">
-      <div className="fos-scroll">
-        <section className="px-9 py-7">
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <h1 className="text-[24px] font-bold text-white">我的作品</h1>
-              <button type="button" onClick={() => setShowCreate(true)}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#7c5cff]/45 bg-[rgba(124,92,255,.18)] px-3 text-[13px] font-bold text-[#b49cff] hover:bg-[rgba(124,92,255,.26)]">
-                <AppIcon name="plus" className="h-3.5 w-3.5" />新建作品
-              </button>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="text-[13px] text-[var(--fos-text-3)]">{worksTotal} 个作品</span>
-              <div className="relative">
-                <AppIcon name="search" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fos-text-4)]" />
-                <input className="fos-input" style={{ width: 240, paddingLeft: 36, height: 40, background: 'var(--fos-bg-2)' }} type="search" placeholder="搜索作品或项目..."
-                  value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSearch()} aria-label="搜索作品或项目" />
-              </div>
-              {searchQuery ? (
-                <button className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => { setSearchInput(''); setSearchQuery('') }}>清除</button>
+      <div className="fos-scroll works-scroll">
+        <section className="works-view">
+          <header className="works-view-header">
+            <div className="works-heading">
+              <h1 className="works-view-title">我的作品</h1>
+              {canCreateWorks ? (
+                <button type="button" className="works-create-work" onClick={() => setShowCreateWork(true)}>
+                  <AppIcon name="plus" />新建作品
+                </button>
               ) : null}
+              {refreshing ? <span className="works-refreshing"><AppIcon name="loader" className="animate-spin" />正在刷新</span> : null}
             </div>
-          </div>
+            <div className="works-search-group">
+              <span>{worksTotal} 个作品</span>
+              <label className="works-search">
+                <AppIcon name="search" />
+                <input
+                  value={searchInput}
+                  onChange={(event) => setSearchInput(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Escape') return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    clearSearch()
+                  }}
+                  placeholder="搜索作品或项目…"
+                  aria-label="搜索作品或项目"
+                />
+                {searchInput ? <button type="button" onClick={clearSearch} aria-label="清除搜索"><AppIcon name="close" /></button> : null}
+              </label>
+            </div>
+          </header>
 
-          {loading ? (
-            <div className="animate-pulse overflow-hidden rounded-[13px] border border-[rgba(110,87,31,.25)]">
-              <div className="h-[64px] bg-[var(--fos-bg-3)]" />
-              <div className="h-[390px] bg-[var(--fos-bg-2)]" />
+          {actionError ? (
+            <div className="works-action-error" role="alert">
+              <AppIcon name="alert" />
+              <span>{actionError}</span>
+              <button type="button" onClick={() => setActionError(null)}><AppIcon name="close" /></button>
             </div>
-          ) : visibleProjects.length > 0 ? (
-            <WorkCollection projects={visibleProjects} />
+          ) : null}
+
+          {loading ? <WorksSkeleton /> : loadError ? (
+            <div className="works-state-card is-error" role="alert" data-testid="project-list-error">
+              <span><AppIcon name="alert" /></span>
+              <h2>作品加载失败</h2>
+              <p>{loadError}</p>
+              <button type="button" className="fos-btn fos-btn-primary" data-testid="project-list-retry" onClick={() => void fetchWorks()}><AppIcon name="refresh" />重新加载</button>
+            </div>
+          ) : visibleWorks.length === 0 ? searchQuery ? (
+            <div className="works-search-empty" data-testid="project-list-empty">
+              没有匹配「{searchQuery}」的作品或项目
+            </div>
           ) : (
-            <div className="fos-card mt-8 p-6 text-center">
-              <h2 className="text-[15px] font-bold text-white">{searchQuery ? '未找到匹配的作品或项目' : '暂无作品'}</h2>
-              <p className="mt-2 text-[13px] text-[var(--fos-text-3)]">{searchQuery ? '换个关键词试试，或清除搜索。' : '点击新建作品开始配置。'}</p>
+            <div className="works-state-card" data-testid="project-list-empty">
+              <span><AppIcon name="folderOpen" /></span>
+              <h2>暂无作品</h2>
+              <p>{canCreateWorks ? '创建第一部作品，再向其中添加项目。' : '管理员还没有为当前工作区创建作品。'}</p>
+              {canCreateWorks ? <button type="button" className="fos-btn fos-btn-primary" data-testid="project-list-empty-create" onClick={() => setShowCreateWork(true)}><AppIcon name="plus" />新建作品</button> : null}
+            </div>
+          ) : (
+            <div className="works-panel-list">
+              {visibleWorks.map((work) => (
+                <WorkPanel
+                  key={work.id}
+                  work={work}
+                  keyword={searchQuery}
+                  activeMenuId={activeMenuId}
+                  batchWorkId={batchWorkId}
+                  selectedProjectIds={batchWorkId === work.id ? selectedProjectIds : []}
+                  canCreateProjects={Boolean(work.canCreateProjects && canCreateProjects)}
+                  onMenuChange={setActiveMenuId}
+                  onBatchWorkChange={(id) => { setBatchWorkId(id); setSelectedProjectIds([]) }}
+                  onSelectedProjectIdsChange={setSelectedProjectIds}
+                  workActions={{
+                    createProject: setCreateProjectWork,
+                    rename: (target) => { setRenameTarget({ kind: 'work', work: target }); setActiveMenuId(null) },
+                    members: (target) => { setMemberTarget({ kind: 'work', work: target }); setActiveMenuId(null) },
+                    delete: (target) => { setConfirmTarget({ kind: 'work', work: target }); setActiveMenuId(null) },
+                    moveSelected: (projects, sourceWork) => setMoveTarget({ projects, work: sourceWork }),
+                  }}
+                  projectActions={{
+                    rename: (target) => { setRenameTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
+                    members: (target) => { setMemberTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
+                    move: (target, sourceWork) => { setMoveTarget({ projects: [target], work: sourceWork }); setActiveMenuId(null) },
+                    delete: (target) => { setConfirmTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
+                  }}
+                />
+              ))}
             </div>
           )}
         </section>
       </div>
-      {showCreate ? <CreateProjectDialog onClose={() => setShowCreate(false)} onCreate={handleCreate} /> : null}
+
+      {showCreateWork ? (
+        <CreateWorkDialog
+          busy={actionBusy}
+          existingNames={works.map((work) => work.name)}
+          onClose={() => setShowCreateWork(false)}
+          onCreate={createWork}
+        />
+      ) : null}
+      {createProjectWork ? (
+        <CreateProjectDialog
+          workName={createProjectWork.name}
+          onClose={() => setCreateProjectWork(null)}
+          onCreate={createProject}
+        />
+      ) : null}
+      {renameTarget ? (
+        <RenameDialog
+          kind={renameTarget.kind === 'work' ? '作品' : '项目'}
+          initialName={renameTarget.kind === 'work' ? renameTarget.work.name : renameTarget.project.name}
+          busy={actionBusy}
+          duplicate={renameTarget.kind === 'work'
+            ? (name) => works.some((work) => work.id !== renameTarget.work.id && work.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())
+            : (name) => allProjectNames.some((projectName) => projectName !== renameTarget.project.name && projectName.trim().toLocaleLowerCase() === name.toLocaleLowerCase())}
+          onClose={() => setRenameTarget(null)}
+          onSave={saveRename}
+        />
+      ) : null}
+      {memberTarget ? memberTarget.kind === 'work' ? (
+        <MemberManagerDialog
+          title={`${memberTarget.work.canManage ? '设置' : '查看'}作品成员 · ${memberTarget.work.name}`}
+          endpoint={workMembersEndpoint(memberTarget.work.id)}
+          candidatesPath={workMemberCandidatesEndpoint(memberTarget.work.id)}
+          readOnly={!memberTarget.work.canManage}
+          onClose={() => setMemberTarget(null)}
+          onChanged={() => void fetchWorks({ silent: true })}
+        />
+      ) : (
+        <MemberManagerDialog
+          title={`${memberTarget.project.canManage ? '设置' : '查看'}项目协作者 · ${memberTarget.project.name}`}
+          endpoint={projectMembersEndpoint(memberTarget.project.id)}
+          candidatesPath={projectMemberCandidatesEndpoint(memberTarget.project.id)}
+          readOnly={!memberTarget.project.canManage}
+          onClose={() => setMemberTarget(null)}
+          onChanged={() => void fetchWorks({ silent: true })}
+        />
+      ) : null}
+      {moveTarget ? (
+        <MoveProjectsDialog
+          projects={moveTarget.projects}
+          sourceWorkId={moveTarget.work.id}
+          works={works}
+          busy={actionBusy}
+          onClose={() => setMoveTarget(null)}
+          onMove={moveProjects}
+        />
+      ) : null}
+      {confirmTarget ? (
+        <ConfirmActionDialog
+          title={confirmTarget.kind === 'work' ? '删除作品' : '删除项目'}
+          description={confirmTarget.kind === 'work'
+            ? `确定删除空作品「${confirmTarget.work.name}」吗？此操作无法恢复。`
+            : `确定删除项目「${confirmTarget.project.name}」吗？项目内剧本、资产、分镜、画布和生成记录会一并删除，且无法恢复。`}
+          confirmLabel="确认删除"
+          danger
+          busy={actionBusy}
+          onClose={() => setConfirmTarget(null)}
+          onConfirm={confirmDelete}
+        />
+      ) : null}
     </FosShell>
   )
 }

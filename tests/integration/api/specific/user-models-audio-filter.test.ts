@@ -54,7 +54,7 @@ describe('api specific - user models audio filter', () => {
     vi.clearAllMocks()
   })
 
-  it('excludes voice design models from the audio model list', async () => {
+  it('exposes only the stable platform audio model and hides legacy provider models', async () => {
     const mod = await import('@/app/api/user/models/route')
     const req = buildMockRequest({
       path: '/api/user/models',
@@ -64,9 +64,7 @@ describe('api specific - user models audio filter', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json() as { audio: Array<{ value: string }>; vision: Array<{ value: string }> }
-    expect(body.audio.map((item) => item.value)).toEqual([
-      'bailian::qwen3-tts-vd-2026-01-26',
-    ])
+    expect(body.audio.map((item) => item.value)).toEqual(['nori::nori-audio'])
     expect(body.vision).toEqual([])
   })
 })

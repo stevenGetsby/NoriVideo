@@ -8,6 +8,7 @@ import {
   type BuiltinPricingCatalogEntry,
   type PricingApiType,
 } from '@/lib/model-pricing/catalog'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 export interface PricingResolutionResolved {
   status: 'resolved'
@@ -65,7 +66,19 @@ function matchTier(
 }
 
 function resolveEntryByModel(apiType: PricingApiType, model: string): PricingResolution {
-  const parsed = parseModelKeyStrict(model)
+  // Stable Nori business models can have a retail price that intentionally
+  // differs from the administrator-selected upstream route. Always honor the
+  // business price first, then fall back to the routed provider model.
+  const directParsed = parseModelKeyStrict(model)
+  if (directParsed) {
+    const direct = findBuiltinPricingCatalogEntry(apiType, directParsed.provider, directParsed.modelId)
+    if (direct) {
+      return { status: 'resolved', entry: direct, amount: 0, mode: direct.pricing.mode }
+    }
+  }
+
+  const routedModel = resolveRuntimeModelKey(model) || model
+  const parsed = parseModelKeyStrict(routedModel)
   if (parsed) {
     // findBuiltinPricingCatalogEntry handles alias fallback internally
     const exact = findBuiltinPricingCatalogEntry(apiType, parsed.provider, parsed.modelId)

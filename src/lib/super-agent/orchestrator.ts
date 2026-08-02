@@ -1927,12 +1927,29 @@ export class SuperAgentOrchestrator {
       }
     }
 
+    const targetWork = await prisma.work.findFirst({
+      where: { workspaceOwnerId: context.userId },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }) || await prisma.work.create({
+      data: {
+        workspaceOwnerId: context.userId,
+        createdById: context.userId,
+        // Super Agent still needs a concrete work because Project.workId is
+        // required, but it must never recreate the fixed “默认作品” container.
+        name: plan.projectConfig.name,
+      },
+      select: { id: true },
+    })
+
     // 1. 创建 Project
     const project = await prisma.project.create({
       data: {
         name: plan.projectConfig.name,
         description: `Created by Super Agent (${plan.executionMode})`,
         userId: context.userId,
+        createdById: context.userId,
+        workId: targetWork.id,
       },
     })
 

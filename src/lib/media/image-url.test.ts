@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOriginalImageUrl, toDisplayImageUrl, unwrapNextImageUrl } from './image-url'
+import { resolveOriginalImageUrl, toCanvasTextureUrl, toDisplayImageUrl, unwrapNextImageUrl } from './image-url'
 
 describe('image-url helpers', () => {
   it('unwraps next/image nested url', () => {
@@ -9,6 +9,13 @@ describe('image-url helpers', () => {
 
   it('maps storage key to display signing route', () => {
     expect(toDisplayImageUrl('images/a.png')).toBe('/api/storage/sign?key=images%2Fa.png')
+  })
+
+  it('keeps WebGL textures on the same origin instead of following a CORS-sensitive redirect', () => {
+    expect(toCanvasTextureUrl('images/a.png')).toBe('/api/storage/sign?key=images%2Fa.png&inline=1')
+    expect(toCanvasTextureUrl('/api/storage/sign?key=images%2Fb.jpg&expires=900'))
+      .toBe('/api/storage/sign?key=images%2Fb.jpg&expires=900&inline=1')
+    expect(toCanvasTextureUrl('https://cdn.example/a.png')).toBe('https://cdn.example/a.png')
   })
 
   it('resolves original url from next/image and keeps sign route normalized', () => {

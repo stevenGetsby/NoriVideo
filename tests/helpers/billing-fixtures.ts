@@ -16,10 +16,19 @@ export async function createTestUser() {
 
 export async function createTestProject(userId: string) {
   const suffix = randomUUID().slice(0, 8)
+  const work = await prisma.work.create({
+    data: {
+      name: `Billing Work ${suffix}`,
+      workspaceOwnerId: userId,
+      createdById: userId,
+    },
+  })
   return await prisma.project.create({
     data: {
       name: `Billing Project ${suffix}`,
       userId,
+      createdById: userId,
+      workId: work.id,
     },
   })
 }

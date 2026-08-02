@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { inflateSync } from 'node:zlib'
 import mammoth from 'mammoth'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
@@ -21,10 +22,35 @@ import {
 } from '@/lib/projects/validation'
 import {
   buildProjectDescription,
+  normalizeInitialEpisodeRange,
   normalizeProjectCreationConfig,
+  workflowModeForContentType,
+  type InitialEpisodeRange,
   type ProjectCreationConfig,
 } from '@/lib/projects/creation-config'
 import { logError, logInfo } from '@/lib/logging/core'
+import {
+  getWorkspaceActor,
+  projectReadScopeWhere,
+  requireWorkProjectCreator,
+  workspaceUserWhere,
+} from '@/lib/collaboration/access'
+import type { AssignmentStage } from '@/lib/collaboration/assignment-policy'
+import {
+  cleanupUploadedProjectStyleReferences,
+  persistProjectStyleReferenceMedia,
+  prepareProjectStyleReferences,
+  uploadProjectStyleReferences,
+  type PreparedStyleReference,
+} from '@/lib/projects/style-reference-upload'
+import {
+  PROJECT_ROLE_ASSIGNEE_ROLES,
+  assertProjectRoleAssignee,
+  projectAssigneeForStage,
+  readProjectRoleAssignees,
+  uniqueProjectRoleAssigneeIds,
+  type ProjectRoleAssignees,
+} from '@/lib/projects/project-role-assignments'
 
 function readProjectDraftBody(body: unknown): ProjectDraftInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -49,7 +75,9 @@ interface ParsedCreateProjectBody {
     pendingImportText: string | null
     pendingImportEpisodeName: string | null
   }
+  initialEpisodeRange: InitialEpisodeRange | null
   config: ProjectCreationConfig
+  preparedStyleReferences: PreparedStyleReference[]
 }
 
 function startInitialProjectImport(input: { projectId: string; userId: string }): void {
@@ -215,6 +243,7 @@ async function readCreateProjectBody(request: NextRequest): Promise<ParsedCreate
   const contentType = request.headers.get('content-type') || ''
   if (contentType.includes('multipart/form-data')) {
     const form = await request.formData()
+    const preparedStyleReferences = await prepareProjectStyleReferences(form)
     const rawBody: Record<string, unknown> = {}
     for (const [key, value] of form.entries()) {
       if (typeof value === 'string') rawBody[key] = value
@@ -231,7 +260,9 @@ async function readCreateProjectBody(request: NextRequest): Promise<ParsedCreate
       rawBody,
       draft: readProjectDraftBody(rawBody),
       initialImportDraft: readInitialImportDraftBody(rawBody),
+      initialEpisodeRange: normalizeInitialEpisodeRange(rawBody),
       config,
+      preparedStyleReferences,
     }
   }
 
@@ -243,7 +274,10 @@ async function readCreateProjectBody(request: NextRequest): Promise<ParsedCreate
   const config = normalizeProjectCreationConfig(rawBody)
   if (
     rawBody.projectLevel !== undefined ||
+    rawBody.contentType !== undefined ||
     rawBody.projectStyle !== undefined ||
+    rawBody.materialType !== undefined ||
+    rawBody.targetEpisodeCount !== undefined ||
     rawBody.targetAudience !== undefined ||
     rawBody.videoResolution !== undefined ||
     rawBody.targetEpisodeDurationSeconds !== undefined
@@ -254,8 +288,78 @@ async function readCreateProjectBody(request: NextRequest): Promise<ParsedCreate
     rawBody,
     draft: readProjectDraftBody(rawBody),
     initialImportDraft: readInitialImportDraftBody(rawBody),
+    initialEpisodeRange: normalizeInitialEpisodeRange(rawBody),
     config,
+    preparedStyleReferences: [],
   }
+}
+
+async function validateProjectRoleAssignees(
+  workspaceOwnerId: string,
+  assignees: ProjectRoleAssignees,
+): Promise<ProjectRoleAssignees> {
+  const userIds = uniqueProjectRoleAssigneeIds(assignees)
+  if (userIds.length === 0) return assignees
+  const users = await prisma.user.findMany({
+    where: {
+      id: { in: userIds },
+      status: 'active',
+      ...workspaceUserWhere(workspaceOwnerId),
+    },
+    select: { id: true, role: true, permissions: true, status: true },
+  })
+  const byId = new Map(users.map((user) => [user.id, user]))
+  for (const role of PROJECT_ROLE_ASSIGNEE_ROLES) {
+    const userId = assignees[role]
+    assertProjectRoleAssignee(assignees, userId ? byId.get(userId) : null, role)
+  }
+  return assignees
+}
+
+async function createInitialWorkflowAssignment(
+  tx: Prisma.TransactionClient,
+  input: {
+    workspaceOwnerId: string
+    projectId: string
+    episodeId: string | null
+    scopeId: string
+    stage: AssignmentStage
+    matched: boolean
+    createdById: string
+    assignees: ProjectRoleAssignees
+  },
+): Promise<void> {
+  const assigneeUserId = projectAssigneeForStage(input.assignees, input.stage)
+  const status = assigneeUserId ? 'in_progress' : 'unassigned'
+  const assignedAt = assigneeUserId ? new Date() : null
+  await tx.workflowAssignment.create({
+    data: {
+      workspaceOwnerId: input.workspaceOwnerId,
+      projectId: input.projectId,
+      episodeId: input.episodeId,
+      scopeId: input.scopeId,
+      stage: input.stage,
+      status,
+      matched: input.matched,
+      assigneeUserId,
+      assignedById: assigneeUserId ? input.createdById : null,
+      assignedAt,
+      events: {
+        create: {
+          workspaceOwnerId: input.workspaceOwnerId,
+          actorUserId: input.createdById,
+          eventType: assigneeUserId ? 'assigned' : 'created',
+          toStatus: status,
+          payload: {
+            source: 'project_create',
+            stage: input.stage,
+            scopeId: input.scopeId,
+            ...(assigneeUserId ? { assigneeUserId } : {}),
+          },
+        },
+      },
+    },
+  })
 }
 
 // GET - 获取用户的项目（支持分页和搜索）
@@ -272,15 +376,21 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const search = searchParams.get('search') || ''
 
   // 构建查询条件
-  const where: Record<string, unknown> = { userId: session.user.id }
+  const projectScope = projectReadScopeWhere(session)
+  let where: Prisma.ProjectWhereInput = projectScope
 
   // 如果有搜索关键词，搜索名称和描述
   // 注意：SQLite 不支持 mode: 'insensitive'，但 SQLite 的 LIKE 默认即大小写不敏感（ASCII 范围）
   if (search.trim()) {
-    where.OR = [
-      { name: { contains: search.trim() } },
-      { description: { contains: search.trim() } }
-    ]
+    where = {
+      AND: [
+        projectScope,
+        { OR: [
+          { name: { contains: search.trim() } },
+          { description: { contains: search.trim() } },
+        ] },
+      ],
+    }
   }
 
   // ⚡ 并行执行：获取总数 + 分页数据
@@ -485,7 +595,20 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
-  const { rawBody, draft, initialImportDraft, config } = await readCreateProjectBody(request)
+  const {
+    rawBody,
+    draft,
+    initialImportDraft,
+    initialEpisodeRange,
+    config,
+    preparedStyleReferences,
+  } = await readCreateProjectBody(request)
+  if (initialImportDraft.pendingImportText && initialEpisodeRange) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'INITIAL_PROJECT_SOURCE_CONFLICT',
+      message: '导入剧本与指定空白集数范围不能同时提交。',
+    })
+  }
   const validationIssue = validateProjectDraft(draft)
   if (validationIssue) {
     const locale = resolveTaskLocale(request, rawBody) ?? 'zh'
@@ -498,55 +621,182 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
 
   const { name, description } = normalizeProjectDraft(draft)
+  const actor = getWorkspaceActor(session)
+
+  const rawWorkId = rawBody.workId ?? rawBody.work_id
+  const requestedWorkId = typeof rawWorkId === 'string' ? rawWorkId.trim() : ''
+  const rawCollaborationMode = rawBody.collaborationMode ?? rawBody.collaboration_mode
+  if (rawCollaborationMode !== undefined && rawCollaborationMode !== 'solo' && rawCollaborationMode !== 'team') {
+    throw new ApiError('INVALID_PARAMS', { message: '协作模式必须为 solo 或 team。' })
+  }
+  const collaborationMode = rawCollaborationMode === 'team' ? 'team' : 'solo'
+  const requestedProjectAssignees = readProjectRoleAssignees(rawBody, collaborationMode)
+
+  if (!requestedWorkId) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'PROJECT_WORK_REQUIRED',
+      message: '请先创建或选择作品，再在该作品中创建项目。',
+    })
+  }
+  const workId = requestedWorkId
+  await requireWorkProjectCreator(session, workId)
+
+  const projectAssignees = await validateProjectRoleAssignees(
+    actor.workspaceOwnerId,
+    requestedProjectAssignees,
+  )
 
   // 获取用户偏好配置
   const userPreference = await prisma.userPreference.findUnique({
     where: { userId: session.user.id }
   })
 
-  // 创建基础项目
-  const project = await prisma.project.create({
-    data: {
-      name: name.trim(),
-      description: description?.trim() || null,
-      userId: session.user.id
-    }
-  })
+  const uploadedStyleReferences = await uploadProjectStyleReferences(
+    preparedStyleReferences,
+    actor.workspaceOwnerId,
+  )
 
-  // 创建 novel-promotion 数据表，使用用户偏好作为默认值
-  // 注意：不再自动创建默认剧集，由用户在选择界面决定：
-  // - 手动创作 → 创建第一个空白剧集
-  // - 智能导入 → AI 分析后批量创建剧集
-  // 创建时保存完整项目全局变量；后续分镜、视频、资产生成阶段从项目配置读取。
-  await prisma.novelPromotionProject.create({
-    data: {
-      projectId: project.id,
-      importStatus: initialImportDraft.pendingImportText ? 'pending' : null,
-      pendingImportText: initialImportDraft.pendingImportText,
-      pendingImportEpisodeName: initialImportDraft.pendingImportEpisodeName,
-      ...(userPreference && {
-        analysisModel: userPreference.analysisModel,
-        characterModel: userPreference.characterModel,
-        locationModel: userPreference.locationModel,
-        storyboardModel: userPreference.storyboardModel,
-        editModel: userPreference.editModel,
-        videoModel: userPreference.videoModel,
-        audioModel: userPreference.audioModel,
-        videoRatio: userPreference.videoRatio,
-        videoResolution: userPreference.videoResolution,
-        artStyle: (isArtStyleValue(userPreference.artStyle) || isCustomArtStyleValue(userPreference.artStyle)) ? userPreference.artStyle : 'american-comic',
-        ttsRate: userPreference.ttsRate
-      }),
-      projectLevel: config.projectLevel,
-      projectStyle: config.projectStyle,
-      targetAudience: config.targetAudience,
-      videoRatio: config.videoRatio,
-      videoResolution: config.videoResolution,
-      targetEpisodeDurationSeconds: config.targetEpisodeDurationSeconds,
-      artStyle: config.artStyle,
-      artStylePrompt: config.artStylePrompt,
-    }
-  })
+  // 基础项目和模式数据必须原子创建，避免任一写入失败后留下半成品项目。
+  let project
+  try {
+    project = await prisma.$transaction(async (tx) => {
+      const createdProject = await tx.project.create({
+        data: {
+          name: name.trim(),
+          description: description?.trim() || null,
+          userId: actor.workspaceOwnerId,
+          workId,
+          createdById: actor.actorId,
+          collaborationMode,
+        },
+      })
+
+      const artStyleReferences = await persistProjectStyleReferenceMedia(
+        tx.mediaObject,
+        uploadedStyleReferences,
+      )
+
+      for (const userId of uniqueProjectRoleAssigneeIds(projectAssignees)) {
+        await tx.projectMember.create({
+          data: {
+            projectId: createdProject.id,
+            userId,
+          },
+        })
+      }
+
+      // 注意：不再自动创建默认剧集，由用户在选择界面决定。
+      const novelProject = await tx.novelPromotionProject.create({
+        data: {
+          projectId: createdProject.id,
+          importStatus: initialImportDraft.pendingImportText
+            ? 'pending'
+            : initialEpisodeRange
+              ? 'completed'
+              : null,
+          pendingImportText: initialImportDraft.pendingImportText,
+          pendingImportEpisodeName: initialImportDraft.pendingImportEpisodeName,
+          ...(userPreference && {
+            analysisModel: userPreference.analysisModel,
+            characterModel: userPreference.characterModel,
+            locationModel: userPreference.locationModel,
+            storyboardModel: userPreference.storyboardModel,
+            editModel: userPreference.editModel,
+            videoModel: userPreference.videoModel,
+            audioModel: userPreference.audioModel,
+            videoRatio: userPreference.videoRatio,
+            videoResolution: userPreference.videoResolution,
+            artStyle: (isArtStyleValue(userPreference.artStyle) || isCustomArtStyleValue(userPreference.artStyle)) ? userPreference.artStyle : 'american-comic',
+            ttsRate: userPreference.ttsRate,
+          }),
+          projectLevel: config.projectLevel,
+          contentType: config.contentType,
+          materialType: config.materialType,
+          targetEpisodeCount: config.targetEpisodeCount,
+          workflowMode: workflowModeForContentType(config.contentType),
+          projectStyle: config.projectStyle,
+          targetAudience: config.targetAudience,
+          videoRatio: config.videoRatio,
+          videoResolution: config.videoResolution,
+          episodeDurationMode: config.episodeDurationMode,
+          episodeDurationValue: config.episodeDurationValue,
+          targetEpisodeDurationSeconds: config.targetEpisodeDurationSeconds,
+          artStyle: config.artStyle,
+          artStylePrompt: config.artStylePrompt,
+          ...(artStyleReferences.length > 0
+            ? { artStyleReferences: artStyleReferences as unknown as Prisma.InputJsonValue }
+            : {}),
+        },
+      })
+      if (initialEpisodeRange) {
+        let firstEpisodeId = ''
+        for (let episodeNumber = initialEpisodeRange.start; episodeNumber <= initialEpisodeRange.end; episodeNumber += 1) {
+          const episode = await tx.novelPromotionEpisode.create({
+            data: {
+              novelPromotionProjectId: novelProject.id,
+              episodeNumber,
+              name: `第 ${episodeNumber} 集`,
+              novelText: '',
+            },
+            select: { id: true },
+          })
+          if (!firstEpisodeId) firstEpisodeId = episode.id
+          if (collaborationMode === 'team') {
+            await createInitialWorkflowAssignment(tx, {
+              workspaceOwnerId: actor.workspaceOwnerId,
+              projectId: createdProject.id,
+              episodeId: episode.id,
+              scopeId: episode.id,
+              stage: 'storyboard',
+              matched: false,
+              createdById: actor.actorId,
+              assignees: projectAssignees,
+            })
+            await createInitialWorkflowAssignment(tx, {
+              workspaceOwnerId: actor.workspaceOwnerId,
+              projectId: createdProject.id,
+              episodeId: episode.id,
+              scopeId: episode.id,
+              stage: 'video',
+              matched: false,
+              createdById: actor.actorId,
+              assignees: projectAssignees,
+            })
+          }
+        }
+        await tx.novelPromotionProject.update({
+          where: { id: novelProject.id },
+          data: { lastEpisodeId: firstEpisodeId || null },
+        })
+      }
+      if (collaborationMode === 'team') {
+        await createInitialWorkflowAssignment(tx, {
+          workspaceOwnerId: actor.workspaceOwnerId,
+          projectId: createdProject.id,
+          episodeId: null,
+          scopeId: 'project',
+          stage: 'script',
+          matched: true,
+          createdById: actor.actorId,
+          assignees: projectAssignees,
+        })
+        await createInitialWorkflowAssignment(tx, {
+          workspaceOwnerId: actor.workspaceOwnerId,
+          projectId: createdProject.id,
+          episodeId: null,
+          scopeId: 'project',
+          stage: 'asset',
+          matched: true,
+          createdById: actor.actorId,
+          assignees: projectAssignees,
+        })
+      }
+      return createdProject
+    })
+  } catch (error) {
+    await cleanupUploadedProjectStyleReferences(uploadedStyleReferences)
+    throw error
+  }
 
   if (initialImportDraft.pendingImportText) {
     startInitialProjectImport({
@@ -555,5 +805,8 @@ export const POST = apiHandler(async (request: NextRequest) => {
     })
   }
 
-  return NextResponse.json({ project }, { status: 201 })
+  return NextResponse.json({
+    project,
+    initialEpisodesCreated: initialEpisodeRange?.count ?? 0,
+  }, { status: 201 })
 })

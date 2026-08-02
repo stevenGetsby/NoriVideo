@@ -18,6 +18,7 @@ import {
   InsufficientBalanceError,
   isBillableTaskType,
   prepareTaskBilling,
+  requireGenerationCredit,
 } from '@/lib/billing'
 import { ApiError } from '@/lib/api-errors'
 import { getTaskFlowMeta } from '@/lib/llm-observe/stage-pipeline'
@@ -183,6 +184,23 @@ export async function submitTask(params: {
     maxAttempts: params.maxAttempts,
     billingInfo: resolvedBillingInfo || null,
   })
+
+  // A single server-side gate covers every newly created generation task,
+  // including task types that do not yet have a price adapter. Persist the
+  // rejected task first so the UI can explain why nothing started, but stop
+  // before creating a run, reserving funds, enqueueing, or contacting a
+  // provider. Reusing an already-active task does not start another service.
+  if (!deduped && params.type !== TASK_TYPE.EXPORT_DELIVERY) {
+    try {
+      await requireGenerationCredit(params.userId)
+    } catch (error) {
+      if (error instanceof ApiError && error.code === 'INSUFFICIENT_BALANCE') {
+        await markTaskFailed(task.id, 'INSUFFICIENT_BALANCE', error.message)
+      }
+      throw error
+    }
+  }
+
   const reusableRunId = reusableRun && shouldAttachNewTaskToReusableRun(reusableRunTask?.status)
     ? (reusableRun?.id || null)
     : null

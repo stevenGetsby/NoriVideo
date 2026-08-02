@@ -1,5 +1,16 @@
 export { getBillingMode, getBootBillingEnabled } from './mode'
 export { BILLING_CURRENCY } from './currency'
+export {
+  CNY_PER_POINT,
+  GENERATION_CREDIT_FLOOR,
+  GENERATION_CREDIT_FLOOR_CNY,
+  GENERATION_CREDIT_FLOOR_POINTS,
+  POINTS_PER_CNY,
+  canStartGeneration,
+  cnyToPoints,
+  pointsToCny,
+} from './credit-policy'
+export { requireGenerationCredit } from './generation-gate'
 export { InsufficientBalanceError } from './errors'
 export {
   getProjectCostDetails,

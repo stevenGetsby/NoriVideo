@@ -1,5 +1,6 @@
 import { resolveTaskErrorMessage } from './error-message'
 import { apiFetch } from '@/lib/api-fetch'
+import { notifyBalanceChanged } from '@/lib/billing/client'
 
 type TaskStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
 
@@ -80,7 +81,15 @@ export async function resolveTaskResponse<T = Record<string, unknown>>(response:
     throw new Error(resolveTaskErrorMessage(data, 'Request failed'))
   }
   if (isAsyncTaskResponse(data)) {
-    return await waitForTaskResult(data.taskId, options) as T
+    // ENFORCE billing freezes the quoted amount when the task is accepted.
+    notifyBalanceChanged()
+    try {
+      return await waitForTaskResult(data.taskId, options) as T
+    } finally {
+      // Settlement may refund a quote or charge exact provider usage.
+      notifyBalanceChanged()
+    }
   }
+  notifyBalanceChanged()
   return (data || {}) as T
 }

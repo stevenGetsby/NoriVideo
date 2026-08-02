@@ -5,6 +5,7 @@ import { recordUsageCostOnly, buildBillingMeta } from './reporting'
 import type { ApiType, UsageUnit } from './cost'
 import { BillingOperationError } from './errors'
 import { roundMoney, toMoneyNumber, type MoneyValue } from './money'
+import { canStartGeneration, GENERATION_CREDIT_FLOOR } from './credit-policy'
 
 type LedgerRecordParams = {
   projectId: string
@@ -63,17 +64,11 @@ function toBalanceSnapshot(balance: {
 }
 
 export async function getBalance(userId: string) {
-  const balance = await prisma.userBalance.findUnique({
+  const balance = await prisma.userBalance.upsert({
     where: { userId },
+    create: { userId, balance: 0, frozenAmount: 0, totalSpent: 0 },
+    update: {},
   })
-
-  if (!balance) {
-    const created = await prisma.userBalance.create({
-      data: { userId, balance: 0, frozenAmount: 0, totalSpent: 0 },
-    })
-    return toBalanceSnapshot(created)
-  }
-
   return toBalanceSnapshot(balance)
 }
 
@@ -99,7 +94,8 @@ export async function getFreezeByIdempotencyKey(idempotencyKey: string): Promise
 
 export async function checkBalance(userId: string, requiredAmount: number): Promise<boolean> {
   const balance = await getBalance(userId)
-  return balance.balance >= requiredAmount
+  const required = Math.max(0, normalizeMoney(Number(requiredAmount) || 0))
+  return canStartGeneration(balance.balance) && balance.balance - required >= GENERATION_CREDIT_FLOOR - MONEY_EPSILON
 }
 
 export async function freezeBalance(
@@ -139,7 +135,10 @@ export async function freezeBalance(
       const updated = await tx.userBalance.updateMany({
         where: {
           userId,
-          balance: { gte: normalizedAmount },
+          // Reserve only when the complete quote fits inside the remaining
+          // evaluation credit. The previous gate checked the pre-decrement
+          // balance and could push one request arbitrarily below the floor.
+          balance: { gte: normalizeMoney(GENERATION_CREDIT_FLOOR + normalizedAmount) },
         },
         data: {
           balance: { decrement: normalizedAmount },
@@ -357,7 +356,7 @@ export async function increasePendingFreezeAmount(freezeId: string, delta: numbe
       const updated = await tx.userBalance.updateMany({
         where: {
           userId: freeze.userId,
-          balance: { gte: normalizedDelta },
+          balance: { gte: normalizeMoney(GENERATION_CREDIT_FLOOR + normalizedDelta) },
         },
         data: {
           balance: { decrement: normalizedDelta },

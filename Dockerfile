@@ -20,6 +20,13 @@ WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Prisma chooses its query-engine binary while generating the client. The
+# builder therefore needs OpenSSL as well as the final runtime image; without
+# it Prisma falls back to an OpenSSL 1.1 engine that cannot run on Bookworm.
+RUN apt-get update \
+	&& apt-get install -y --no-install-recommends ca-certificates openssl \
+	&& rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
@@ -34,9 +41,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
-# Install tini for proper signal handling
+# Install runtime media tools used by canvas video enhancement / subtitle erasing.
 RUN apt-get update \
-	&& apt-get install -y --no-install-recommends ca-certificates openssl tini \
+	&& apt-get install -y --no-install-recommends ca-certificates ffmpeg openssl tini \
 	&& rm -rf /var/lib/apt/lists/*
 
 # ---- 只安装生产依赖 ----
@@ -74,5 +81,5 @@ RUN mkdir -p /app/logs && touch /app/.env
 
 EXPOSE 3000 3010
 
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["./docker-start.sh"]

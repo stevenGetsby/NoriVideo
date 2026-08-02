@@ -1,140 +1,376 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
-import { demoCharacters } from '../fosDemoData'
-import type { FosProjectData } from '../useFosProject'
-import { AssetTabs, AssetPlaceholder } from './FosAssetShared'
+import { MediaImage } from '@/components/media/MediaImage'
+import { apiFetch } from '@/lib/api-fetch'
+import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import { hasAccountPermissions } from '@/lib/account/permissions'
+import { toDisplayImageUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
+import { resolveTaskResponse } from '@/lib/task/client'
+import type { FosAsset, FosProjectData } from '../useFosProject'
+import { AssetTabs } from './FosAssetShared'
 
-type TimbreTab = 'seedance' | 'library' | 'local'
+type TimbreTab = 'seedance' | 'local'
 
-const AUDITION_PROMPT = '图片作为角色形象参考基准；镜头：正脸机位、中近景特写；声线表现：贴合人物本身声线特质；台词："放开我！我娘卖我不算数，就算死我也不伺候你！"；音量：音量适中；无BGM，无背景音，无音效，画面中无其他人；台词必须严格按照原文语言朗读。'
+interface VideoModelItem {
+  modelKey: string
+  name: string
+}
 
-const CANDIDATES: Array<[string, string, string]> = [
-  ['克制叙事女声 A', '相似度 87%', '年轻、克制、紧张台词稳定'],
-  ['民国主角女声 B', '相似度 82%', '声线更柔，情绪起伏更明显'],
-  ['低声独白女声 C', '相似度 79%', '适合旁白式内心独白'],
-]
+interface GenerationConfig {
+  videoModels?: VideoModelItem[]
+  defaults?: { videoModel?: string | null }
+}
 
-export function FosTimbre({ data }: { data: FosProjectData }) {
-  const characters = data.usingDemo ? demoCharacters : data.characters
-  const [activeId, setActiveId] = useState(characters[0]?.id ?? '')
-  const [tab, setTab] = useState<TimbreTab>('seedance')
-  const active = characters.find((c) => c.id === activeId) ?? characters[0]
-  const total = characters.length
+function auditionPrompt(character: FosAsset) {
+  return [
+    `@${character.name} 自然说：“我是${character.name}。这一次，我会亲手拿回属于我的一切。”`,
+    '生成清晰普通话人声并准确同步口型；仅保留角色人声，无音乐、环境音、字幕或水印，5 秒。',
+  ].join('\n')
+}
+
+function formatAudioTime(value: number) {
+  if (!Number.isFinite(value) || value < 0) return '0:00'
+  const total = Math.floor(value)
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+function CompactAudioPlayer({ src, label }: { src: string; label: string }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [mediaError, setMediaError] = useState('')
+
+  useEffect(() => {
+    setPlaying(false)
+    setCurrentTime(0)
+    setDuration(0)
+    setMediaError('')
+  }, [src])
+
+  const toggle = async () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (!audio.paused) {
+      audio.pause()
+      return
+    }
+    setMediaError('')
+    try {
+      await audio.play()
+    } catch {
+      audio.load()
+      setMediaError('音频暂时无法播放，请稍后重试。')
+    }
+  }
 
   return (
-    <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '280px 1fr 280px' }}>
+    <div className="fos-voice-player">
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onLoadedMetadata={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+        onDurationChange={(event) => setDuration(Number.isFinite(event.currentTarget.duration) ? event.currentTarget.duration : 0)}
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => setPlaying(false)}
+        onError={() => setMediaError('音频加载失败，请刷新后重试。')}
+      />
+      <button type="button" className="fos-voice-player-play" aria-label={playing ? `暂停${label}` : `播放${label}`} onClick={() => void toggle()}>
+        <AppIcon name={playing ? 'pause' : 'play'} />
+      </button>
+      <span className="fos-voice-player-time">{formatAudioTime(currentTime)}</span>
+      <input
+        aria-label={`${label}播放进度`}
+        type="range"
+        min={0}
+        max={Math.max(duration, 0.01)}
+        step={0.01}
+        value={Math.min(currentTime, Math.max(duration, 0.01))}
+        disabled={duration <= 0}
+        onChange={(event) => {
+          const next = Number(event.target.value)
+          if (!audioRef.current || !Number.isFinite(next)) return
+          audioRef.current.currentTime = next
+          setCurrentTime(next)
+        }}
+      />
+      <span className="fos-voice-player-time">{formatAudioTime(duration)}</span>
+      <AppIcon name="volume" className="fos-voice-player-volume" />
+      {mediaError ? <span className="fos-voice-player-error">{mediaError}</span> : null}
+    </div>
+  )
+}
+
+export function FosTimbre({ data }: { data: FosProjectData }) {
+  const { data: session } = useSession()
+  const canEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])
+  const characters = data.characters
+  const [activeId, setActiveId] = useState(characters[0]?.id ?? '')
+  const [tab, setTab] = useState<TimbreTab>('seedance')
+  const [prompt, setPrompt] = useState('')
+  const [models, setModels] = useState<VideoModelItem[]>([])
+  const [modelKey, setModelKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState<number | null>(null)
+  const [stage, setStage] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [auditionVideoUrl, setAuditionVideoUrl] = useState<string | null>(null)
+  const [auditionAudioUrl, setAuditionAudioUrl] = useState<string | null>(null)
+  const [boundAudioUrl, setBoundAudioUrl] = useState<string | null>(null)
+  const [confirming, setConfirming] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+  const active = characters.find((character) => character.id === activeId) ?? characters[0]
+  const total = characters.length
+  const hasBoundVoice = (character: FosAsset) => Boolean(
+    character.id === active?.id
+      ? boundAudioUrl || character.customVoiceUrl || character.voiceId
+      : character.customVoiceUrl || character.voiceId,
+  )
+  const boundCount = characters.filter(hasBoundVoice).length
+
+  useEffect(() => {
+    if (!active) return
+    setPrompt(auditionPrompt(active))
+    setBoundAudioUrl(active.customVoiceUrl || null)
+    setAuditionVideoUrl(null)
+    setAuditionAudioUrl(null)
+    setError(null)
+    setNotice(null)
+  }, [active])
+
+  useEffect(() => {
+    if (!active?.id) return
+    let cancelled = false
+    void apiFetch(`/api/novel-promotion/${data.projectId}/character-audition?characterId=${encodeURIComponent(active.id)}`, { cache: 'no-store' })
+      .then(async (response) => response.ok ? await response.json() as {
+        audition?: { videoUrl?: string | null; audioUrl?: string | null } | null
+      } : null)
+      .then((payload) => {
+        if (cancelled || !payload?.audition) return
+        setAuditionVideoUrl(payload.audition.videoUrl || null)
+        setAuditionAudioUrl(payload.audition.audioUrl || null)
+      })
+      .catch(() => undefined)
+    return () => { cancelled = true }
+  }, [active?.id, data.projectId])
+
+  useEffect(() => {
+    void apiFetch(`/api/frameos/generation-config?projectId=${encodeURIComponent(data.projectId)}`)
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载视频模型失败'))
+        return await response.json() as GenerationConfig
+      })
+      .then((config) => {
+        const seedance = (config.videoModels || []).filter((model) => /seedance[\s_-]*2[\s_.-]*0/i.test(`${model.modelKey} ${model.name}`))
+        setModels(seedance)
+        const preferred = seedance.find((model) => model.modelKey === config.defaults?.videoModel) || seedance[0]
+        setModelKey(preferred?.modelKey || '')
+      })
+      .catch((loadError) => setError(loadError instanceof Error ? loadError.message : '加载视频模型失败'))
+  }, [data.projectId])
+
+  const imageUrl = toDisplayImageUrl(active?.imageUrl)
+  const audioUrl = toPlayableAudioUrl(boundAudioUrl)
+  const videoUrl = toDisplayImageUrl(auditionVideoUrl)
+  const auditionAudio = toPlayableAudioUrl(auditionAudioUrl)
+  const modelUnavailable = models.length === 0
+
+  const uploadVoice = async (file: File) => {
+    if (!active || !canEdit) return
+    if (!/\.(mp3|wav|m4a|ogg)$/i.test(file.name) && !file.type.startsWith('audio/')) {
+      setError('请选择 MP3、WAV、M4A 或 OGG 音频。')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    setNotice(null)
+    setStage('正在上传并绑定角色音色…')
+    try {
+      const formData = new FormData()
+      formData.append('characterId', active.id)
+      formData.append('file', file)
+      const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-voice`, { method: 'POST', body: formData })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '上传角色音色失败'))
+      const payload = await response.json() as { audioUrl?: string }
+      setBoundAudioUrl(payload.audioUrl || null)
+      setNotice(`已将音频绑定为 @${active.name} 的角色音色。`)
+      data.refetch()
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : '上传角色音色失败')
+    } finally {
+      setBusy(false)
+      setStage('')
+    }
+  }
+
+  const generateAudition = async () => {
+    if (!active || !canEdit || !modelKey || !prompt.trim() || busy) return
+    setBusy(true)
+    setProgress(0)
+    setError(null)
+    setNotice(null)
+    setStage('正在提交 Seedance 2.0 试镜…')
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-audition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: active.id, prompt, videoModel: modelKey, locale: 'zh' }),
+      })
+      const result = await resolveTaskResponse<{ videoUrl?: string; audioUrl?: string }>(response, {
+        onTaskUpdate: (task) => {
+          setProgress(task.progress ?? 0)
+          setStage(task.status === 'queued' ? '试镜任务排队中…' : 'Seedance 正在生成带声音的试镜视频…')
+        },
+      })
+      if (!result.videoUrl) throw new Error('试镜任务完成但没有返回视频。')
+      setAuditionVideoUrl(result.videoUrl)
+      if (!result.audioUrl) throw new Error('试镜视频已生成，但服务器没有返回提取后的角色音轨。')
+      setAuditionAudioUrl(result.audioUrl)
+      setNotice('试镜音色已生成，请先试听，满意后再确认绑定。')
+    } catch (generateError) {
+      setError(generateError instanceof Error ? generateError.message : '生成角色试镜失败')
+    } finally {
+      setBusy(false)
+      setProgress(null)
+      setStage('')
+    }
+  }
+
+  const confirmAuditionVoice = async () => {
+    if (!active || !auditionAudioUrl || !canEdit || confirming) return
+    setConfirming(true)
+    setError(null)
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-voice`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterId: active.id,
+          voiceType: 'seedance-audition',
+          voiceId: null,
+          customVoiceUrl: auditionAudioUrl,
+        }),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '绑定角色音色失败'))
+      setBoundAudioUrl(auditionAudioUrl)
+      setAuditionAudioUrl(null)
+      setNotice(`已确认并绑定为 @${active.name} 的角色音色。`)
+      data.refetch()
+    } catch (confirmError) {
+      setError(confirmError instanceof Error ? confirmError.message : '绑定角色音色失败')
+    } finally {
+      setConfirming(false)
+    }
+  }
+
+  const clearVoice = async () => {
+    if (!active || !canEdit || busy) return
+    setBusy(true)
+    setError(null)
+    try {
+      const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-voice`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ characterId: active.id, voiceType: null, voiceId: null, customVoiceUrl: null }),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '解除角色音色失败'))
+      setBoundAudioUrl(null)
+      setNotice(`已解除 @${active.name} 的角色音色。`)
+      data.refetch()
+    } catch (clearError) {
+      setError(clearError instanceof Error ? clearError.message : '解除角色音色失败')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const statusText = useMemo(() => active?.customVoiceUrl || boundAudioUrl ? '已绑定角色音色' : '尚未绑定音色', [active?.customVoiceUrl, boundAudioUrl])
+
+  return (
+    <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '280px minmax(520px,1fr) 300px' }}>
       <aside className="flex min-h-0 flex-col border-r border-[var(--fos-border-soft)]">
         <div className="flex-none p-3">
           <AssetTabs projectId={data.projectId} active="timbre" />
-          <div className="flex items-center justify-between">
-            <h2 className="text-[14px] font-bold text-white">角色列表</h2>
-            <span className="fos-pill" style={{ height: 22 }}>0/{total}</span>
-          </div>
+          <div className="flex items-center justify-between"><h2 className="text-[14px] font-bold text-white">角色音色</h2><span className="fos-pill" style={{ height: 22 }}>{boundCount}/{total}</span></div>
         </div>
-        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3">
-          {characters.map((c) => {
-            const isActive = c.id === active?.id
-            return (
-              <button key={c.id} onClick={() => setActiveId(c.id)}
-                className="w-full rounded-[10px] px-3 py-2.5 text-left"
-                style={{ border: isActive ? '1px solid var(--fos-primary)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}>
-                <div className="text-[13px] font-bold text-white">{c.name}</div>
-                <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">{c.type}</div>
-              </button>
-            )
+        <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto px-3 pb-3">
+          {characters.map((character) => {
+            const isActive = character.id === active?.id
+            const characterBound = hasBoundVoice(character)
+            return <button key={character.id} type="button" onClick={() => setActiveId(character.id)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={{ border: isActive ? '1px solid var(--fos-primary)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-bold text-white">{character.name}</span><span className={`h-2 w-2 rounded-full ${characterBound ? 'bg-[#57d49b]' : 'bg-white/15'}`} /></div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">{characterBound ? '音色已绑定' : '等待设置'} · {character.type}</div></button>
           })}
-        </div>
-        <div className="flex-none border-t border-[var(--fos-border-soft)] p-3">
-          <button className="fos-btn fos-btn-primary w-full" disabled title="一键试镜为后端/付费操作，演示已禁用">一键试镜</button>
         </div>
       </aside>
 
       <article className="min-h-0 overflow-y-auto p-6">
-        <h2 className="text-[16px] font-bold text-white">{active?.name} · 音色设置</h2>
-        <p className="mt-2 text-[13px] text-[var(--fos-text-2)]">如需为角色固定音色，可用以下三种方式进行设置；不设置音色也不影响后续使用角色生成视频。</p>
+        {active ? <>
+          <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
 
-        <div className="mt-5 flex items-center gap-6 border-b border-[var(--fos-border-soft)]">
-          {([['seedance', 'Seedance 试镜'], ['library', '音色库选择'], ['local', '本地上传']] as const).map(([key, label]) => (
-            <button key={key} onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold"
-              style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>
-              {label}
-              {tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}
-            </button>
-          ))}
-          <button className="ml-auto fos-btn fos-btn-ghost fos-btn-sm"><AppIcon name="info" className="h-3.5 w-3.5" />seedance 试镜说明</button>
-        </div>
+          <div className="mt-5 flex items-center gap-6 border-b border-[var(--fos-border-soft)]">
+            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}</button>)}
+          </div>
 
-        {tab === 'seedance' ? (
-          <section className="mt-5">
-            <h3 className="mb-3 text-[14px] font-bold text-[var(--fos-text-2)]">从 SD2 视频中提取音色</h3>
-            <div className="grid gap-5" style={{ gridTemplateColumns: '200px 1fr' }}>
-              <div>
-                <div className="mb-2 text-[13px] font-bold text-[var(--fos-text-3)]">角色设定图</div>
-                <div className="overflow-hidden rounded-lg border border-[var(--fos-border-mid)]"><div className="aspect-[16/9]"><AssetPlaceholder kind="characters" /></div></div>
-                <button className="fos-btn fos-btn-ghost fos-btn-sm mt-2">放大查看</button>
-              </div>
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="text-[13px] font-bold text-[var(--fos-text-3)]">试镜提示词</span>
-                  <span className="text-[11px] text-[var(--fos-text-4)]">video 180 + audio 60</span>
+          {tab === 'seedance' ? <section className="mt-5">
+            <div className="fos-timbre-studio-grid">
+              <div className="fos-timbre-card fos-timbre-reference-card">
+                <div className="fos-timbre-card-heading"><span>角色设定图</span><small>自动作为人物参考</small></div>
+                <div className="fos-timbre-reference-media">
+                  {imageUrl ? <MediaImage src={imageUrl} alt={active.name} fill sizes="360px" style={{ objectFit: 'contain' }} /> : <div className="fos-timbre-empty">尚无角色设定图</div>}
                 </div>
-                <textarea className="fos-textarea" style={{ minHeight: 130 }} defaultValue={AUDITION_PROMPT} />
-                <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <button className="fos-btn fos-btn-primary" disabled title="按量计费，余额不足，演示已禁用">
-                    从 SD2 视频中提取音色 <span className="ml-2 text-[#ffd27a]">240</span> <span className="ml-1 text-[11px] text-[#ff9b9b]">余额不足</span>
+              </div>
+
+              <div className="fos-timbre-card fos-timbre-control-card">
+                <div className="fos-timbre-card-heading"><span>试镜台词与声音要求</span><small>生成后先试听，再确认绑定</small></div>
+                <textarea className="fos-textarea fos-timbre-prompt" value={prompt} readOnly={!canEdit} onChange={(event) => setPrompt(event.target.value)} />
+                <div className="fos-timbre-submit-row">
+                  <select className="fos-input" value={modelKey} disabled={!canEdit || busy || modelUnavailable} onChange={(event) => setModelKey(event.target.value)}>
+                    {models.map((model) => <option key={model.modelKey} value={model.modelKey}>{model.name}</option>)}
+                    {modelUnavailable ? <option value="">未配置 Seedance 2.0</option> : null}
+                  </select>
+                  <button type="button" className="fos-btn fos-btn-primary" disabled={!canEdit || busy || modelUnavailable || !imageUrl || !prompt.trim()} onClick={() => void generateAudition()}>
+                    <AppIcon name={busy ? 'loader' : 'video'} className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
+                    {busy ? '试镜处理中…' : '生成试镜音色'}
                   </button>
-                  <span className="text-[12px] text-[#ff7777]">当前可用金币为 -683，提交前需要充值或更换费用来源。</span>
+                </div>
+                {stage ? <div className="fos-timbre-progress"><span>{stage}</span><strong>{progress ?? 0}%</strong></div> : <div className="fos-timbre-control-note">使用角色设定图生成 5 秒带人声试镜，并自动提取纯净音轨。</div>}
+              </div>
+
+              <div className="fos-timbre-card fos-timbre-video-card">
+                <div className="fos-timbre-card-heading"><span>试镜视频</span><small>{videoUrl ? '已生成' : '等待生成'}</small></div>
+                <div className="fos-timbre-video-media">
+                  {videoUrl ? <video src={videoUrl} controls playsInline preload="metadata" /> : <div className="fos-timbre-empty"><AppIcon name="video" /><span>生成后在这里预览人物口型与表演</span></div>}
                 </div>
               </div>
-            </div>
-            <div className="mt-6 fos-card p-4">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-[14px] font-bold text-white">候选音色（3 个推荐）</h3>
-                <button className="text-[12px] font-bold text-[#8fa9ff]">查看更多</button>
-              </div>
-              <div className="space-y-2.5">
-                {CANDIDATES.map(([name, score, note]) => (
-                  <div key={name} className="flex items-center justify-between gap-4 rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">
-                    <div><div className="text-[13px] font-bold text-white">{name}</div><div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">{score} · {note}</div></div>
-                    <div className="flex gap-2"><button className="fos-btn fos-btn-ghost fos-btn-sm">试听</button><button className="fos-btn fos-btn-soft fos-btn-sm">选用</button></div>
-                  </div>
-                ))}
+
+              <div className={`fos-timbre-card fos-timbre-audio-card${auditionAudio ? ' is-ready' : ''}`}>
+                <div className="fos-timbre-audio-header">
+                  <div><div className="fos-timbre-card-heading"><span>待确认的试镜音色</span><small>{auditionAudio ? '试听满意后绑定' : '等待生成'}</small></div><p>绑定前不会覆盖当前角色音色。</p></div>
+                  {auditionAudio ? <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" disabled={confirming} onClick={() => void confirmAuditionVoice()}>{confirming ? '绑定中…' : '确认并绑定音色'}</button> : null}
+                </div>
+                {auditionAudio ? <CompactAudioPlayer src={auditionAudio} label="试镜音色" /> : <div className="fos-timbre-audio-placeholder"><AppIcon name="volume" />完成视频生成后，将自动提取可绑定音轨</div>}
               </div>
             </div>
-          </section>
-        ) : null}
+          </section> : null}
 
-        {tab === 'library' ? (
-          <section className="mt-5 fos-card p-4 text-[13px] leading-7 text-[var(--fos-text-2)]">
-            从平台音色库选择预置音色绑定到当前角色。可按性别、年龄、情绪筛选并试听。
-          </section>
-        ) : null}
+          {tab === 'local' ? <section className="mt-5"><input ref={fileRef} className="hidden" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadVoice(file); event.currentTarget.value = '' }} /><button type="button" className="fos-dropzone w-full" style={{ minHeight: 150 }} disabled={!canEdit || busy} onClick={() => fileRef.current?.click()}><AppIcon name="upload" className="h-7 w-7" /><span className="text-[13px] font-semibold text-[var(--fos-text-2)]">上传 {active.name} 的角色音色</span><span className="text-[11px]">优先支持 MP3；也可上传 WAV / M4A / OGG，最大 50MB</span></button></section> : null}
 
-        {tab === 'local' ? (
-          <section className="mt-5">
-            <div className="fos-dropzone" style={{ minHeight: 110 }}>
-              <AppIcon name="upload" className="h-7 w-7" />
-              <div className="text-[13px] font-semibold text-[var(--fos-text-2)]">导入参考音频</div>
-              <div className="text-[11px]">支持 mp3 / wav，建议 10s 以上清晰人声</div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <button className="fos-btn fos-btn-ghost">试听音色</button>
-              <button className="fos-btn fos-btn-ghost">使用该音色</button>
-            </div>
-          </section>
-        ) : null}
+          {audioUrl ? <section className="fos-bound-voice-card"><div className="fos-bound-voice-heading"><div><h3>当前绑定音色 · @{active.name}</h3><p>该角色所在分镜会自动使用这段参考音频。</p></div><button type="button" className="fos-btn fos-btn-ghost fos-btn-sm text-red-200" disabled={!canEdit || busy} onClick={() => void clearVoice()}>解除绑定</button></div><CompactAudioPlayer src={audioUrl} label={`${active.name} 当前音色`} /></section> : null}
+          {error ? <div className="mt-4 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] leading-5 text-red-200">{error}</div> : null}
+          {notice ? <div className="mt-4 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[11px] leading-5 text-blue-200">{notice}</div> : null}
+        </> : <div className="fos-loading">当前项目没有角色资产。</div>}
       </article>
 
       <aside className="min-h-0 overflow-y-auto border-l border-[var(--fos-border-soft)] p-5">
         <h3 className="mb-3 text-[14px] font-bold text-white">角色画像</h3>
-        <div className="overflow-hidden rounded-lg border border-[var(--fos-border-mid)]"><div className="aspect-[16/9]"><AssetPlaceholder kind="characters" /></div></div>
-        <h3 className="mb-2 mt-5 text-[14px] font-bold text-white">角色信息</h3>
-        <div className="text-[12px] font-bold text-[var(--fos-text-4)]">角色类型</div>
-        <div className="mb-3 text-[13px] font-bold text-white">{active?.type}</div>
-        <div className="text-[12px] font-bold text-[var(--fos-text-4)]">角色背景</div>
-        <p className="mt-1 text-[13px] leading-7 text-[var(--fos-text-2)]">{active?.description ?? '暂无背景描述。'}</p>
+        <div className="relative aspect-[16/9] overflow-hidden rounded-lg border border-[var(--fos-border-mid)] bg-black/35">{imageUrl ? <MediaImage src={imageUrl} alt={active?.name || '角色'} fill sizes="300px" style={{ objectFit: 'contain' }} /> : <AppIcon name="user" className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/15" />}</div>
+        <h3 className="mb-2 mt-5 text-[14px] font-bold text-white">角色信息</h3><div className="text-[11px] font-bold text-[var(--fos-text-4)]">角色类型</div><div className="mb-3 text-[13px] font-bold text-white">{active?.type || '未设定'}</div><div className="text-[11px] font-bold text-[var(--fos-text-4)]">LLM 角色设定</div><p className="mt-1 whitespace-pre-wrap text-[12px] leading-6 text-[var(--fos-text-2)]">{active?.description || active?.prompt || '暂无角色设定。'}</p>
       </aside>
     </div>
   )

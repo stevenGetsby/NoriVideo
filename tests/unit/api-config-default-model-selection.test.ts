@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const prismaMock = vi.hoisted(() => ({
   userPreference: {
@@ -12,6 +12,7 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/lib/crypto-utils', () => ({
   decryptApiKey: vi.fn((value: string) => value),
+  encryptApiKey: vi.fn((value: string) => value),
 }))
 
 import { getModelsByType, resolveModelSelection } from '@/lib/api-config'
@@ -19,6 +20,7 @@ import { getModelsByType, resolveModelSelection } from '@/lib/api-config'
 describe('api-config default model selections', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubEnv('ARK_API_KEY', 'test-ark-key')
     prismaMock.userPreference.findUnique.mockResolvedValue({
       customModels: JSON.stringify([]),
       customProviders: JSON.stringify([
@@ -39,29 +41,29 @@ describe('api-config default model selections', () => {
     })
   })
 
-  it('treats user default video model as an enabled runtime model', async () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('routes a legacy video model through the administrator-controlled Seedance alias', async () => {
     await expect(resolveModelSelection(
       'user-1',
       'ark::doubao-seedance-1-0-pro-fast-251015',
       'video',
     )).resolves.toEqual({
       provider: 'ark',
-      modelId: 'doubao-seedance-1-0-pro-fast-251015',
-      modelKey: 'ark::doubao-seedance-1-0-pro-fast-251015',
+      modelId: 'doubao-seedance-2-0-fast-260128',
+      modelKey: 'ark::doubao-seedance-2-0-fast-260128',
       mediaType: 'video',
     })
   })
 
-  it('includes user default video model in runtime model listing', async () => {
+  it('includes the routed Seedance provider model in runtime model listing', async () => {
     const models = await getModelsByType('user-1', 'video')
 
-    expect(models).toEqual([
-      expect.objectContaining({
-        provider: 'ark',
-        modelId: 'doubao-seedance-1-0-pro-fast-251015',
-        modelKey: 'ark::doubao-seedance-1-0-pro-fast-251015',
-        type: 'video',
-      }),
-    ])
+    expect(models).toContainEqual(expect.objectContaining({
+      provider: 'ark',
+      modelId: 'doubao-seedance-2-0-260128',
+      modelKey: 'ark::doubao-seedance-2-0-260128',
+      type: 'video',
+    }))
   })
 })

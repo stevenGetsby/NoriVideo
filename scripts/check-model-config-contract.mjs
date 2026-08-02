@@ -14,16 +14,17 @@ const CAPABILITY_NAMESPACES = new Set(['llm', 'image', 'video', 'audio', 'lipsyn
 const MODEL_TYPES = new Set(['llm', 'image', 'video', 'audio', 'lipsync'])
 const CAPABILITY_NAMESPACE_ALLOWED_FIELDS = {
   llm: new Set(['reasoningEffortOptions', 'fieldI18n']),
-  image: new Set(['resolutionOptions', 'fieldI18n']),
+  image: new Set(['resolutionOptions', 'inputSchema', 'fieldI18n']),
   video: new Set([
     'durationOptions',
     'fpsOptions',
     'resolutionOptions',
     'firstlastframe',
     'supportGenerateAudio',
+    'inputSchema',
     'fieldI18n',
   ]),
-  audio: new Set(['voiceOptions', 'rateOptions', 'fieldI18n']),
+  audio: new Set(['voiceOptions', 'rateOptions', 'inputSchema', 'fieldI18n']),
   lipsync: new Set(['modeOptions', 'fieldI18n']),
 }
 

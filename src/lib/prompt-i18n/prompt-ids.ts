@@ -31,6 +31,9 @@ export const PROMPT_IDS = {
   NP_STORYBOARD_EDIT: 'np_storyboard_edit',
   NP_VOICE_ANALYSIS: 'np_voice_analysis',
   NP_VOICE_MAPPING: 'np_voice_mapping',
+  VIDEO_REPAINT_SOURCE_STORYBOARD_SYSTEM: 'video_repaint_source_storyboard_system',
+  VIDEO_REPAINT_SCRIPT_ADAPTATION_SYSTEM: 'video_repaint_script_adaptation_system',
+  VIDEO_REPAINT_VIDEO_UNDERSTANDING_SYSTEM: 'video_repaint_video_understanding_system',
 } as const
 
 export type PromptId = (typeof PROMPT_IDS)[keyof typeof PROMPT_IDS]

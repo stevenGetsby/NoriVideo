@@ -1,0 +1,174 @@
+name: norivideo
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: nori
+      MYSQL_ROOT_HOST: localhost
+      MYSQL_USER: nori_app
+      MYSQL_PASSWORD: ${MYSQL_APP_PASSWORD}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --sql_mode=STRICT_TRANS_TABLES,NO_ENGINE_SUBSTITUTION
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    logging:
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$${REDIS_PASSWORD}\""]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping | grep PONG"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+    logging:
+      options:
+        max-size: 20m
+        max-file: "3"
+
+  app:
+    image: norivideo:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+      - .env.local
+      - .deploy.env
+    environment:
+      NODE_ENV: production
+      NORI_APP_SURFACE: workspace
+      PUBLIC_ADMIN_URL: ${PUBLIC_ADMIN_URL}
+      ADMIN_PUBLIC_PORT: ${ADMIN_PUBLIC_PORT:-8080}
+      NORI_SERVICE_CONFIG: /app/data/services.prod.json
+      DATABASE_URL: mysql://nori_app:${MYSQL_APP_PASSWORD}@mysql:3306/nori
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TLS: ""
+      NEXTAUTH_URL: ${PUBLIC_APP_URL}
+      INTERNAL_APP_URL: http://127.0.0.1:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      BULL_BOARD_HOST: 127.0.0.1
+      BULL_BOARD_PORT: "3010"
+      BILLING_MODE: "ENFORCE"
+      LOG_UNIFIED_ENABLED: "true"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      LOG_DEBUG_ENABLED: "false"
+      LOG_AUDIT_ENABLED: "true"
+      LOG_SERVICE: nori
+      LOG_REDACT_KEYS: password,token,apiKey,apikey,authorization,cookie,secret,access_token,refresh_token
+    ports:
+      - "127.0.0.1:3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./downloads:/app/downloads
+      - ./docker-logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "npx prisma db push --skip-generate && ./docker-start.sh"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/zh/auth/signin').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 45s
+    logging:
+      options:
+        max-size: 50m
+        max-file: "5"
+
+  admin:
+    image: norivideo:latest
+    restart: unless-stopped
+    env_file:
+      - .env
+      - .env.local
+      - .deploy.env
+    environment:
+      NODE_ENV: production
+      SERVICE_MODE: web
+      NORI_APP_SURFACE: admin
+      PUBLIC_ADMIN_URL: ${PUBLIC_ADMIN_URL}
+      ADMIN_PUBLIC_PORT: ${ADMIN_PUBLIC_PORT:-8080}
+      NORI_SERVICE_CONFIG: /app/data/services.prod.json
+      DATABASE_URL: mysql://nori_app:${MYSQL_APP_PASSWORD}@mysql:3306/nori
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_USERNAME: ""
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      REDIS_TLS: ""
+      NEXTAUTH_URL: ${PUBLIC_ADMIN_URL}
+      INTERNAL_APP_URL: http://app:3000
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
+      CRON_SECRET: ${CRON_SECRET}
+      INTERNAL_TASK_TOKEN: ${INTERNAL_TASK_TOKEN}
+      BILLING_MODE: "ENFORCE"
+      LOG_UNIFIED_ENABLED: "true"
+      LOG_LEVEL: INFO
+      LOG_FORMAT: json
+      LOG_DEBUG_ENABLED: "false"
+      LOG_AUDIT_ENABLED: "true"
+      LOG_SERVICE: nori-admin
+      LOG_REDACT_KEYS: password,token,apiKey,apikey,authorization,cookie,secret,access_token,refresh_token
+    ports:
+      # Public traffic is terminated by nginx. Keeping the container on a
+      # loopback-only backend lets nginx multiplex HTTPS workspace fallback
+      # traffic and the HTTP Admin surface without exposing another service.
+      - "127.0.0.1:${ADMIN_BACKEND_PORT:-18080}:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./downloads:/app/downloads
+      - ./docker-logs:/app/logs
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ./docker-start.sh
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/zh/admin/signin',{headers:{'x-forwarded-port':'8080'}}).then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    logging:
+      options:
+        max-size: 30m
+        max-file: "5"
+
+volumes:
+  mysql_data:
+  redis_data:

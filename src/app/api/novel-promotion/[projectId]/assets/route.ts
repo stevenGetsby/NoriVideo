@@ -8,6 +8,7 @@ import {
     readFrameOSAppearanceMetadataFromDescriptions,
 } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 import { readFrameOSAssetMetadataFromAvailableSlots } from '@/lib/location-available-slots'
+import { buildAssetAestheticPrompt } from '@/lib/projects/creation-config'
 
 function readAssetKind(value: Record<string, unknown>): string {
     return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -53,10 +54,7 @@ function promptLooksFinal(value: string | null): boolean {
 }
 
 function formatAestheticBlock(artStylePrompt: string | null): string {
-    return joinPromptSections([
-        '真人实拍摄影质感，自然皮肤毛孔与织物纹理，影棚级光影，35mm胶片质地。',
-        artStylePrompt,
-    ])
+    return buildAssetAestheticPrompt(artStylePrompt)
 }
 
 function formatCharacterArchiveFromProfileData(profileData: Record<string, unknown>, fallback: string | null): string {
@@ -237,12 +235,15 @@ function decorateCharacterAsset(character: Record<string, unknown>, artStyleProm
             fullPrompt,
             promptKind: appearance === primaryAppearance ? 'text_to_image' : 'image_to_image_edit',
             episodes,
+            coverageScenes: readStringArray(metadata?.coverage_scenes),
         }
     }).filter((variant) => variant.description)
 
     return {
         ...character,
         mainAppearanceId: primaryAppearance ? String(primaryAppearance.id || '') : null,
+        role: readText(profileData.role) || 'supporting',
+        episodes: formatCoverageEpisodes(profileData.coverage_episodes),
         description: readText(profileData.description)
             || readText(profileData.background)
             || readText(character.introduction),
@@ -267,20 +268,29 @@ function readLocationPrompt(location: Record<string, unknown>): string | null {
 function decorateLocationBackedAsset(location: Record<string, unknown>): Record<string, unknown> {
     const images = Array.isArray(location.images) ? location.images.filter(isRecord) : []
     const prompt = readLocationPrompt(location)
+    const primaryMetadata = images[0]
+        ? readFrameOSAssetMetadataFromAvailableSlots(readText(images[0].availableSlots))
+        : null
     const variants = images.map((image) => {
         const metadata = readFrameOSAssetMetadataFromAvailableSlots(readText(image.availableSlots))
         const description = readText(image.description) || readText(metadata?.prompt) || ''
+        const imageIndex = Number(image.imageIndex ?? 0)
         return {
             id: String(image.id || image.imageIndex || ''),
-            label: readText(metadata?.name) || `方案 ${Number(image.imageIndex ?? 0) + 1}`,
+            imageIndex,
+            label: readText(metadata?.name) || `方案 ${imageIndex + 1}`,
             description,
             episodes: formatCoverageEpisodes(metadata?.coverage_episodes),
             imageUrl: readText(image.imageUrl),
+            promptKind: imageIndex === 0 ? 'text_to_image' : 'text_to_image_variant',
         }
     }).filter((variant) => variant.description)
 
     return {
         ...location,
+        type: readText(primaryMetadata?.item_type)
+            || (readAssetKind(location) === 'prop' ? '剧情道具' : '环境'),
+        episodes: formatCoverageEpisodes(primaryMetadata?.coverage_episodes),
         description: readText(location.summary),
         prompt,
         imagePrompt: prompt,

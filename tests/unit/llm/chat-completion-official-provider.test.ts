@@ -35,6 +35,23 @@ const completeSiliconFlowLlmMock = vi.hoisted(() =>
   }),
 )
 
+const completeKuaiziLlmMock = vi.hoisted(() =>
+  vi.fn(async () => ({
+    id: 'chatcmpl_kuaizi',
+    object: 'chat.completion',
+    created: 1,
+    model: 'deepseek-v4-pro',
+    choices: [
+      {
+        index: 0,
+        message: { role: 'assistant', content: 'kuaizi-ok' },
+        finish_reason: 'stop',
+      },
+    ],
+    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+  })),
+)
+
 const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
   vi.fn(async () => {
     throw new Error('openai-compat should not be called')
@@ -42,7 +59,7 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
 )
 
 const getProviderConfigMock = vi.hoisted(() =>
-  vi.fn(async () => ({
+  vi.fn<typeof import('@/lib/api-config').getProviderConfig>(async () => ({
     id: 'bailian',
     name: 'Alibaba Bailian',
     apiKey: 'bl-key',
@@ -77,6 +94,10 @@ vi.mock('@/lib/providers/bailian', () => ({
 
 vi.mock('@/lib/providers/siliconflow', () => ({
   completeSiliconFlowLlm: completeSiliconFlowLlmMock,
+}))
+
+vi.mock('@/lib/providers/kuaizi', () => ({
+  completeKuaiziLlm: completeKuaiziLlmMock,
 }))
 
 vi.mock('@/lib/llm/runtime-shared', () => ({
@@ -120,5 +141,38 @@ describe('llm chatCompletion official provider branch', () => {
     expect(completeSiliconFlowLlmMock).not.toHaveBeenCalled()
     expect(result.choices[0]?.message?.content).toBe('ok')
     expect(recordCompletionUsageMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps Kuaizi on its ApiKey-compatible official branch', async () => {
+    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
+      provider: 'kuaizi',
+      modelId: 'deepseek-v4-pro',
+      modelKey: 'kuaizi::deepseek-v4-pro',
+    })
+    getProviderConfigMock.mockResolvedValueOnce({
+      id: 'kuaizi',
+      name: 'Kuaizi',
+      apiKey: 'kuaizi-key',
+      baseUrl: 'https://aiopenapi.kuaizi.cn',
+      gatewayRoute: 'openai-compat',
+    })
+
+    const result = await chatCompletion(
+      'user-1',
+      'kuaizi::deepseek-v4-pro',
+      [{ role: 'user', content: 'hello' }],
+      { temperature: 0.2, maxTokens: 128 },
+    )
+
+    expect(completeKuaiziLlmMock).toHaveBeenCalledWith({
+      modelId: 'deepseek-v4-pro',
+      messages: [{ role: 'user', content: 'hello' }],
+      apiKey: 'kuaizi-key',
+      baseUrl: 'https://aiopenapi.kuaizi.cn',
+      temperature: 0.2,
+      maxTokens: 128,
+    })
+    expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
+    expect(result.choices[0]?.message?.content).toBe('kuaizi-ok')
   })
 })

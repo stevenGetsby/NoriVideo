@@ -5,7 +5,7 @@ import { FosShell } from './FosShell'
 import { FosToolbox } from './views/FosToolbox'
 import type { ToolTab } from './views/FosToolbox'
 
-const VALID_TABS: ToolTab[] = ['seedance', 'image', 'video', 'music', 'material']
+const VALID_TABS: ToolTab[] = ['image', 'video', 'music', 'material']
 
 export function FosToolboxClient() {
   const params = useSearchParams()

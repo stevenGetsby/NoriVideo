@@ -114,6 +114,9 @@ vi.mock('@/lib/fonts', () => fontsMock)
 vi.mock('@/lib/workers/shared', () => workersSharedMock)
 vi.mock('@/lib/workers/utils', () => workersUtilsMock)
 vi.mock('@/lib/prompt-i18n', () => promptI18nMock)
+vi.mock('@/lib/frameos/material-service', () => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
+}))
 
 import { handleReferenceToCharacterTask } from '@/lib/workers/handlers/reference-to-character'
 

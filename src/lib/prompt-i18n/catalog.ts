@@ -170,4 +170,16 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'novel-promotion/voice_mapping',
     variableKeys: ['characters_json', 'dialogue_samples_json', 'voice_library_json'],
   },
+  [PROMPT_IDS.VIDEO_REPAINT_SOURCE_STORYBOARD_SYSTEM]: {
+    pathStem: 'video-repaint/source_storyboard_system',
+    variableKeys: [],
+  },
+  [PROMPT_IDS.VIDEO_REPAINT_SCRIPT_ADAPTATION_SYSTEM]: {
+    pathStem: 'video-repaint/video_script_adaptation_system',
+    variableKeys: [],
+  },
+  [PROMPT_IDS.VIDEO_REPAINT_VIDEO_UNDERSTANDING_SYSTEM]: {
+    pathStem: 'video-repaint/video_understanding_system',
+    variableKeys: [],
+  },
 }

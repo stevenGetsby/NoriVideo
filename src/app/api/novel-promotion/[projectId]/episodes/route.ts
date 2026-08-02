@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 
 function isUniqueConstraintError(error: unknown) {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002'
@@ -22,10 +23,23 @@ export const GET = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { novelData } = authResult
 
-  const episodes = await prisma.novelPromotionEpisode.findMany({
+  const episodeRows = await prisma.novelPromotionEpisode.findMany({
     where: { novelPromotionProjectId: novelData.id },
-    orderBy: { episodeNumber: 'asc' }
+    orderBy: { episodeNumber: 'asc' },
+    include: {
+      storyboards: {
+        select: { panelCount: true },
+      },
+    },
   })
+  const episodes = episodeRows.map(({ storyboards, ...episode }) => ({
+    ...episode,
+    storyboardCount: storyboards.length,
+    storyboardPanelCount: storyboards.reduce(
+      (sum, storyboard) => sum + Math.max(0, storyboard.panelCount || 0),
+      0,
+    ),
+  }))
 
   return NextResponse.json({ episodes })
 })
@@ -42,7 +56,7 @@ export const POST = apiHandler(async (
   // 🔐 统一权限验证
   const authResult = await requireProjectAuth(projectId)
   if (isErrorResponse(authResult)) return authResult
-  const { novelData } = authResult
+  const { novelData, session } = authResult
 
   const body = await request.json()
   const { name, description, novelText } = body
@@ -101,6 +115,11 @@ export const POST = apiHandler(async (
   await prisma.novelPromotionProject.update({
     where: { id: novelData.id },
     data: updateData,
+  })
+
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: session.user.id,
   })
 
   return NextResponse.json({ episode }, { status: 201 })

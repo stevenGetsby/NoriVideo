@@ -11,8 +11,11 @@ import { withTaskUiPayload } from '@/lib/task/ui-payload'
 import { getProjectModelConfig } from '@/lib/config-service'
 import {
   buildPanelSeedanceReferenceAssets,
+  mergePanelSeedanceReferenceAssets,
+  readPanelSeedanceReferenceAssetsFromActingNotes,
   writePanelSeedanceReferenceAssetsToActingNotes,
 } from '@/lib/novel-promotion/seedance-reference-assets'
+import { readPanelFrameOSMetadataFromActingNotes } from '@/lib/novel-promotion/panel-frameos-metadata'
 import {
   parseCharacterDescriptionValues,
   readFrameOSAppearanceMetadataFromDescriptions,
@@ -700,8 +703,16 @@ async function refreshPanelReferenceAssets(panelId: string) {
     },
     characterAssets: projectAssets.characters,
     locationAssets: projectAssets.locations,
+    episodeNumber: panel.storyboard.episode.episodeNumber,
+    sceneId: readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)?.panel_id?.match(/^S\d+/i)?.[0] || null,
   })
-  return writePanelSeedanceReferenceAssetsToActingNotes(panel.actingNotes, references)
+  return writePanelSeedanceReferenceAssetsToActingNotes(
+    panel.actingNotes,
+    mergePanelSeedanceReferenceAssets(
+      references,
+      readPanelSeedanceReferenceAssetsFromActingNotes(panel.actingNotes),
+    ),
+  )
 }
 
 function taskIdFromSubmitResult(result: unknown): string | undefined {

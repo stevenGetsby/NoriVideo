@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { serializeStructuredJsonField } from '@/lib/novel-promotion/panel-ai-data-sync'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 
 function parseNullableNumberField(value: unknown): number | null {
   if (value === null || value === '') return null
@@ -85,7 +86,7 @@ export const POST = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['storyboardWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
@@ -171,6 +172,11 @@ export const POST = apiHandler(async (
     data: { panelCount }
   })
 
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: authResult.session.user.id,
+  })
+
   return NextResponse.json({ success: true, panel: newPanel })
 })
 
@@ -185,7 +191,7 @@ export const DELETE = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['storyboardWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const { searchParams } = new URL(request.url)
@@ -260,6 +266,11 @@ export const DELETE = apiHandler(async (
     timeout: 30000  // 事务执行超时：30 秒 (针对大量 panels 的批量更新)
   })
 
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: authResult.session.user.id,
+  })
+
   return NextResponse.json({ success: true })
 })
 
@@ -277,7 +288,7 @@ export const PATCH = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['storyboardWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
@@ -457,7 +468,7 @@ export const PUT = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['storyboardWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
@@ -576,6 +587,11 @@ export const PUT = apiHandler(async (
   await prisma.novelPromotionStoryboard.update({
     where: { id: storyboardId },
     data: { panelCount }
+  })
+
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: authResult.session.user.id,
   })
 
   return NextResponse.json({ success: true })

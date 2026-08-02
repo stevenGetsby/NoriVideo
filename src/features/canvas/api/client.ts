@@ -1,13 +1,54 @@
 import { apiFetch } from '@/lib/api-fetch'
 import type {
   Canvas,
-  CanvasEdge,
   CanvasGraphResponse,
   CanvasListResponse,
-  CanvasNode,
-  CanvasNodeData,
+  CanvasDocumentInput,
+  CanvasOperationsInput,
+  CanvasRevision,
   Viewport,
 } from '../types'
+
+export class CanvasRevisionConflictError extends Error {
+  readonly status = 409
+  readonly actualRevision: number | null
+
+  constructor(message = '画布已在其他标签页更新', actualRevision: number | null = null) {
+    super(message)
+    this.name = 'CanvasRevisionConflictError'
+    this.actualRevision = actualRevision
+  }
+}
+
+function readApiErrorMessage(detail: unknown): string | null {
+  const payload = detail && typeof detail === 'object' && !Array.isArray(detail)
+    ? detail as Record<string, unknown>
+    : null
+  const error = payload?.error
+  const nestedMessage = error && typeof error === 'object' && !Array.isArray(error)
+    ? (error as Record<string, unknown>).message
+    : null
+  return (
+    (typeof nestedMessage === 'string' && nestedMessage.trim()) ||
+    (typeof error === 'string' && error.trim()) ||
+    (typeof payload?.message === 'string' && payload.message.trim()) ||
+    null
+  )
+}
+
+function readActualRevision(detail: unknown): number | null {
+  const payload = detail && typeof detail === 'object' && !Array.isArray(detail)
+    ? detail as Record<string, unknown>
+    : null
+  const error = payload?.error && typeof payload.error === 'object' && !Array.isArray(payload.error)
+    ? payload.error as Record<string, unknown>
+    : null
+  const details = error?.details && typeof error.details === 'object' && !Array.isArray(error.details)
+    ? error.details as Record<string, unknown>
+    : null
+  const value = details?.actualRevision ?? payload?.actualRevision
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
+}
 
 async function asJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
@@ -17,10 +58,7 @@ async function asJson<T>(res: Response): Promise<T> {
     } catch {
       /* ignore */
     }
-    const msg =
-      detail && typeof detail === 'object' && 'error' in detail && typeof (detail as { error?: unknown }).error === 'string'
-        ? (detail as { error: string }).error
-        : `Canvas API ${res.status}`
+    const msg = readApiErrorMessage(detail) || `Canvas API ${res.status}`
     throw new Error(msg)
   }
   return (await res.json()) as T
@@ -67,79 +105,80 @@ export const canvasApi = {
     await asJson<{ success: boolean }>(res)
   },
 
-  syncProduction: async (projectId: string, canvasId: string): Promise<CanvasGraphResponse> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/production-sync`, {
-      method: 'POST',
+  saveDocument: async (
+    projectId: string,
+    canvasId: string,
+    input: CanvasDocumentInput,
+  ): Promise<CanvasGraphResponse> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/document`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
     })
+    if (res.status === 409) {
+      const payload: unknown = await res.json().catch(() => null)
+      throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
+    }
     return asJson<CanvasGraphResponse>(res)
   },
 
-  createNode: async (
+  saveOperations: async (
     projectId: string,
     canvasId: string,
-    input: {
-      type: string
-      position: { x: number; y: number }
-      size?: { width: number; height: number } | null
-      data?: CanvasNodeData
-      parentNodeId?: string | null
-    }
-  ): Promise<CanvasNode> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes`, {
+    input: CanvasOperationsInput,
+  ): Promise<CanvasGraphResponse> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/ops`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
-    const json = await asJson<{ node: CanvasNode }>(res)
-    return json.node
-  },
-
-  patchNodes: async (
-    projectId: string,
-    canvasId: string,
-    updates: Array<{
-      id: string
-      position?: { x: number; y: number }
-      size?: { width: number; height: number }
-      data?: CanvasNodeData
-    }>
-  ): Promise<void> => {
-    if (updates.length === 0) return
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates }),
-    })
-    await asJson<{ updated: number }>(res)
-  },
-
-  deleteNode: async (projectId: string, canvasId: string, nodeId: string): Promise<void> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes/${nodeId}`, { method: 'DELETE' })
-    await asJson<{ success: boolean }>(res)
-  },
-
-  createEdge: async (
-    projectId: string,
-    canvasId: string,
-    input: {
-      sourceNodeId: string
-      targetNodeId: string
-      sourceHandle?: string | null
-      targetHandle?: string | null
-      role?: string
+    if (res.status === 409) {
+      const payload: unknown = await res.json().catch(() => null)
+      throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
     }
-  ): Promise<CanvasEdge> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/edges`, {
+    return asJson<CanvasGraphResponse>(res)
+  },
+
+  listRevisions: async (
+    projectId: string,
+    canvasId: string,
+  ): Promise<CanvasRevision[]> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/revisions`)
+    const payload = await asJson<{ revisions: CanvasRevision[] }>(res)
+    return payload.revisions
+  },
+
+  restoreRevision: async (
+    projectId: string,
+    canvasId: string,
+    input: { snapshotId: string; expectedRevision: number; clientId: string },
+  ): Promise<CanvasGraphResponse> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/revisions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
-    const json = await asJson<{ edge: CanvasEdge }>(res)
-    return json.edge
+    if (res.status === 409) {
+      const payload: unknown = await res.json().catch(() => null)
+      throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
+    }
+    return asJson<CanvasGraphResponse>(res)
   },
 
-  deleteEdge: async (projectId: string, canvasId: string, edgeId: string): Promise<void> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/edges/${edgeId}`, { method: 'DELETE' })
-    await asJson<{ success: boolean }>(res)
+  syncProduction: async (
+    projectId: string,
+    canvasId: string,
+    input: { expectedRevision: number; clientId: string },
+  ): Promise<CanvasGraphResponse> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/production-sync`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    })
+    if (res.status === 409) {
+      const payload: unknown = await res.json().catch(() => null)
+      throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
+    }
+    return asJson<CanvasGraphResponse>(res)
   },
 }

@@ -2,11 +2,14 @@ import React from 'react'
 import { AbsoluteFill, Sequence, Video, Audio, useCurrentFrame, interpolate } from 'remotion'
 import { VideoClip, BgmClip, EditorConfig } from '../types/editor.types'
 import { computeClipPositions } from '../utils/time-utils'
+import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { getPlaybackTimeShiftTolerance } from '../utils/playback-sync'
 
 interface VideoCompositionProps {
     clips: VideoClip[]
     bgmTrack: BgmClip[]
     config: EditorConfig
+    playing?: boolean
 }
 
 /**
@@ -16,7 +19,8 @@ interface VideoCompositionProps {
 export const VideoComposition: React.FC<VideoCompositionProps> = ({
     clips,
     bgmTrack,
-    config
+    config,
+    playing = false,
 }) => {
     const computedClips = computeClipPositions(clips)
 
@@ -24,25 +28,65 @@ export const VideoComposition: React.FC<VideoCompositionProps> = ({
         <AbsoluteFill style={{ backgroundColor: 'black' }}>
             {/* 视频轨道 - 带转场效果 */}
             {computedClips.map((clip, index) => {
-                const transitionDuration = clip.transition?.durationInFrames || 0
+                const transitionDuration = index < computedClips.length - 1
+                    ? Math.max(0, clip.endFrame - computedClips[index + 1].startFrame)
+                    : 0
+                const incomingTransitionDuration = index > 0
+                    ? Math.max(0, computedClips[index - 1].endFrame - clip.startFrame)
+                    : 0
 
                 return (
                     <Sequence
                         key={clip.id}
                         from={clip.startFrame}
                         durationInFrames={clip.durationInFrames}
+                        premountFor={Math.min(clip.startFrame, config.fps * 2)}
+                        postmountFor={Math.min(config.fps, transitionDuration)}
                         name={`Clip ${index + 1}`}
                     >
                         <ClipRenderer
                             clip={clip}
                             config={config}
-                            transitionType={clip.transition?.type}
-                            transitionDuration={transitionDuration}
+                            outgoingTransitionType={clip.transition?.type}
+                            outgoingTransitionDuration={transitionDuration}
+                            incomingTransitionType={index > 0 ? computedClips[index - 1].transition?.type : undefined}
+                            incomingTransitionDuration={incomingTransitionDuration}
                             isLastClip={index === computedClips.length - 1}
+                            playing={playing}
                         />
                     </Sequence>
                 )
             })}
+
+            {/* 分离后的源音频使用整集绝对坐标，可独立于视频片段移动。 */}
+            {computedClips.flatMap((clip) => clip.sourceAudio?.detached
+                ? (clip.sourceAudio.segments ?? [{
+                    id: `source-audio:${clip.id}`,
+                    from: 0,
+                    to: clip.durationInFrames,
+                    volume: 1,
+                }]).map((segment) => {
+                    const timelineStartFrame = Number.isFinite(segment.timelineStartFrame)
+                        ? Math.max(0, Math.round(segment.timelineStartFrame!))
+                        : clip.startFrame + segment.from
+                    return (
+                        <Sequence
+                            key={`${clip.id}:${segment.id}`}
+                            from={timelineStartFrame}
+                            durationInFrames={Math.max(1, segment.to - segment.from)}
+                            layout="none"
+                            name={`Source audio: ${segment.id}`}
+                        >
+                            <Audio
+                                src={toDisplayImageUrl(clip.src) || clip.src}
+                                startFrom={(clip.trim?.from || 0) + segment.from}
+                                volume={clip.sourceAudio!.volume * segment.volume}
+                                pauseWhenBuffering
+                            />
+                        </Sequence>
+                    )
+                })
+                : [])}
 
             {/* BGM 轨道 */}
             {bgmTrack.map((bgm) => (
@@ -97,37 +141,44 @@ const BgmRenderer: React.FC<BgmRendererProps> = ({ bgm }) => {
 interface ClipRendererProps {
     clip: VideoClip & { startFrame: number; endFrame: number }
     config: EditorConfig
-    transitionType?: 'none' | 'dissolve' | 'fade' | 'slide'
-    transitionDuration: number
+    outgoingTransitionType?: 'none' | 'dissolve' | 'fade' | 'slide'
+    outgoingTransitionDuration: number
+    incomingTransitionType?: 'none' | 'dissolve' | 'fade' | 'slide'
+    incomingTransitionDuration: number
     isLastClip: boolean
+    playing: boolean
 }
 
 const ClipRenderer: React.FC<ClipRendererProps> = ({
     clip,
     config,
-    transitionType = 'none',
-    transitionDuration,
-    isLastClip
+    outgoingTransitionType = 'none',
+    outgoingTransitionDuration,
+    incomingTransitionType = 'none',
+    incomingTransitionDuration,
+    isLastClip,
+    playing,
 }) => {
-    void config
     const frame = useCurrentFrame()
     const clipDuration = clip.durationInFrames
+    const trimBefore = Math.max(0, clip.trim?.from || 0)
+    const trimAfter = Math.max(trimBefore + 1, clip.trim?.to || trimBefore + clip.durationInFrames)
 
     // 计算转场效果
     let opacity = 1
     let transform = 'none'
 
-    if (transitionType !== 'none' && transitionDuration > 0) {
+    if (outgoingTransitionType !== 'none' && outgoingTransitionDuration > 0) {
         // 出场转场效果 (在片段末尾)
-        if (!isLastClip && frame > clipDuration - transitionDuration) {
+        if (!isLastClip && frame > clipDuration - outgoingTransitionDuration) {
             const exitProgress = interpolate(
                 frame,
-                [clipDuration - transitionDuration, clipDuration],
+                [clipDuration - outgoingTransitionDuration, clipDuration],
                 [0, 1],
                 { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
             )
 
-            switch (transitionType) {
+            switch (outgoingTransitionType) {
                 case 'dissolve':
                 case 'fade':
                     opacity = 1 - exitProgress
@@ -138,16 +189,18 @@ const ClipRenderer: React.FC<ClipRendererProps> = ({
             }
         }
 
-        // 入场转场效果 (在片段开头)
-        if (frame < transitionDuration) {
+    }
+
+    if (incomingTransitionType !== 'none' && incomingTransitionDuration > 0) {
+        if (frame < incomingTransitionDuration) {
             const enterProgress = interpolate(
                 frame,
-                [0, transitionDuration],
+                [0, incomingTransitionDuration],
                 [0, 1],
                 { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
             )
 
-            switch (transitionType) {
+            switch (incomingTransitionType) {
                 case 'dissolve':
                 case 'fade':
                     opacity = enterProgress
@@ -163,8 +216,14 @@ const ClipRenderer: React.FC<ClipRendererProps> = ({
         <AbsoluteFill style={{ opacity, transform }}>
             {/* 视频 */}
             <Video
-                src={clip.src}
-                startFrom={clip.trim?.from || 0}
+                key={`${clip.id}:${trimBefore}:${trimAfter}`}
+                src={toDisplayImageUrl(clip.src) || clip.src}
+                trimBefore={trimBefore}
+                trimAfter={trimAfter}
+                volume={clip.sourceAudio?.detached ? 0 : clip.sourceAudio?.volume ?? 1}
+                pauseWhenBuffering
+                preload="auto"
+                acceptableTimeShiftInSeconds={getPlaybackTimeShiftTolerance(playing, clipDuration, config.fps)}
                 style={{
                     width: '100%',
                     height: '100%',

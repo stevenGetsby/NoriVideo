@@ -68,6 +68,8 @@ export function buildFrameosProductionContext(input: ProductionContextInput): st
     ['art_style', readField(sources, ['art_style', 'artStyle'])],
     ['art_style_prompt', readField(sources, ['artStylePrompt', 'art_style_prompt', 'visualStylePrompt'])],
     ['budget_level', readField(sources, ['budget_level_name', 'budgetLevelName', 'budget_level', 'budgetLevel'])],
+    ['episode_duration_mode', readField(sources, ['episodeDurationMode', 'episode_duration_mode', 'durationMode'])],
+    ['episode_duration_value', readField(sources, ['episodeDurationValue', 'episode_duration_value', 'durationValue'])],
     ['episode_duration_seconds', readField(sources, ['targetEpisodeDurationSeconds', 'episode_duration', 'episodeDuration', 'durationSeconds'])],
     ['script_kilo', readField(sources, ['script_kilo', 'scriptKilo'])],
   ].filter((row): row is [string, string] => Boolean(row[1]))

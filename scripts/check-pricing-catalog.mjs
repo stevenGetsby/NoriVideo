@@ -61,7 +61,7 @@ async function readCapabilityCatalog() {
   return parsed
 }
 
-function extractCapabilityOptionFields(modelType, capabilities) {
+function extractCapabilityPricingFields(modelType, capabilities) {
   if (!isRecord(capabilities)) return new Set()
   const namespace = capabilities[modelType]
   if (!isRecord(namespace)) return new Set()
@@ -73,10 +73,26 @@ function extractCapabilityOptionFields(modelType, capabilities) {
     const field = key.slice(0, -'Options'.length)
     fields.add(field)
   }
+
+  // Whether a request contains a reference video is derived from its media
+  // inputs; it is not a provider option and must not be exposed in model
+  // configuration UI. Seedance 2.0 prices this request shape separately, so
+  // a declared video input schema is the capability source of truth for the
+  // normalized `containsVideoInput` pricing selector.
+  if (
+    modelType === 'video'
+    && isRecord(namespace.inputSchema)
+    && isRecord(namespace.inputSchema.video)
+    && typeof namespace.inputSchema.video.max === 'number'
+    && namespace.inputSchema.video.max > 0
+  ) {
+    fields.add('containsVideoInput')
+  }
+
   return fields
 }
 
-function buildCapabilityOptionFieldMap(capabilityEntries) {
+function buildCapabilityPricingFieldMap(capabilityEntries) {
   const map = new Map()
   for (const entry of capabilityEntries) {
     if (!isRecord(entry)) continue
@@ -85,7 +101,7 @@ function buildCapabilityOptionFieldMap(capabilityEntries) {
     const modelId = typeof entry.modelId === 'string' ? entry.modelId.trim() : ''
     if (!modelType || !provider || !modelId) continue
 
-    const fields = extractCapabilityOptionFields(modelType, entry.capabilities)
+    const fields = extractCapabilityPricingFields(modelType, entry.capabilities)
     map.set(buildModelKey(modelType, provider, modelId), fields)
     const providerKey = getProviderKey(provider)
     const fallbackKey = buildModelKey(modelType, providerKey, modelId)
@@ -156,16 +172,16 @@ function validateTextCapabilityTiers(issues, file, index, tiers) {
   }
 }
 
-function validateMediaCapabilityTierFields(issues, file, index, item, tiers, capabilityOptionFieldsMap) {
+function validateMediaCapabilityTierFields(issues, file, index, item, tiers, capabilityPricingFieldsMap) {
   const modelType = item.apiType
   const provider = item.provider
   const modelId = item.modelId
   const modelKey = buildModelKey(modelType, provider, modelId)
   const fallbackKey = buildModelKey(modelType, getProviderKey(provider), modelId)
-  const optionFields = capabilityOptionFieldsMap.get(modelKey) || capabilityOptionFieldsMap.get(fallbackKey)
+  const pricingFields = capabilityPricingFieldsMap.get(modelKey) || capabilityPricingFieldsMap.get(fallbackKey)
 
-  if (!optionFields || optionFields.size === 0) {
-    pushIssue(issues, file, index, 'pricing.tiers', `no capability option fields found for ${modelType} ${provider}/${modelId}`)
+  if (!pricingFields || pricingFields.size === 0) {
+    pushIssue(issues, file, index, 'pricing.tiers', `no capability pricing fields found for ${modelType} ${provider}/${modelId}`)
     return
   }
 
@@ -173,13 +189,13 @@ function validateMediaCapabilityTierFields(issues, file, index, item, tiers, cap
     const tier = tiers[tierIndex]
     if (!isRecord(tier) || !isRecord(tier.when)) continue
     for (const field of Object.keys(tier.when)) {
-      if (!optionFields.has(field)) {
+      if (!pricingFields.has(field)) {
         pushIssue(
           issues,
           file,
           index,
           `pricing.tiers[${tierIndex}].when.${field}`,
-          `field ${field} is not declared in capabilities options for ${modelType} ${provider}/${modelId}`,
+          `field ${field} is not declared by capabilities for ${modelType} ${provider}/${modelId}`,
         )
       }
     }
@@ -200,7 +216,7 @@ function validateDuplicateCapabilityTiers(issues, file, index, tiers) {
   }
 }
 
-function validatePricing(issues, file, index, item, capabilityOptionFieldsMap) {
+function validatePricing(issues, file, index, item, capabilityPricingFieldsMap) {
   const pricing = item.pricing
   if (!isRecord(pricing)) {
     pushIssue(issues, file, index, 'pricing', 'pricing must be object')
@@ -236,7 +252,7 @@ function validatePricing(issues, file, index, item, capabilityOptionFieldsMap) {
   }
 
   if (item.apiType === 'image' || item.apiType === 'video') {
-    validateMediaCapabilityTierFields(issues, file, index, item, pricing.tiers, capabilityOptionFieldsMap)
+    validateMediaCapabilityTierFields(issues, file, index, item, pricing.tiers, capabilityPricingFieldsMap)
   }
 }
 
@@ -244,7 +260,7 @@ async function main() {
   const issues = []
   const files = await listCatalogFiles()
   const capabilityCatalog = await readCapabilityCatalog()
-  const capabilityOptionFieldsMap = buildCapabilityOptionFieldMap(capabilityCatalog)
+  const capabilityPricingFieldsMap = buildCapabilityPricingFieldMap(capabilityCatalog)
   if (files.length === 0) {
     throw new Error(`no pricing files found in ${CATALOG_DIR}`)
   }
@@ -268,7 +284,7 @@ async function main() {
         pushIssue(issues, filePath, index, 'modelId', 'modelId must be non-empty string')
       }
 
-      validatePricing(issues, filePath, index, item, capabilityOptionFieldsMap)
+      validatePricing(issues, filePath, index, item, capabilityPricingFieldsMap)
     }
   }
 

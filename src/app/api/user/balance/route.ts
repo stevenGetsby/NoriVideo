@@ -3,6 +3,13 @@ import { getBalance, getVisibleUserTotalSpent } from '@/lib/billing'
 import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
+import {
+    POINTS_PER_CNY,
+    GENERATION_CREDIT_FLOOR_CNY,
+    GENERATION_CREDIT_FLOOR_POINTS,
+    canStartGeneration,
+    cnyToPoints,
+} from '@/lib/billing/credit-policy'
 
 /**
  * GET /api/user/balance
@@ -14,9 +21,10 @@ export const GET = apiHandler(async () => {
     if (isErrorResponse(authResult)) return authResult
     const { session } = authResult
 
+    const billingUserId = session.user.actorId || session.user.id
     const [balance, visibleTotalSpent] = await Promise.all([
-        getBalance(session.user.id),
-        getVisibleUserTotalSpent(session.user.id),
+        getBalance(billingUserId),
+        getVisibleUserTotalSpent(billingUserId),
     ])
 
     return NextResponse.json({
@@ -24,6 +32,18 @@ export const GET = apiHandler(async () => {
         currency: BILLING_CURRENCY,
         balance: balance.balance,
         frozenAmount: balance.frozenAmount,
-        totalSpent: visibleTotalSpent
+        totalSpent: visibleTotalSpent,
+        balanceCny: balance.balance,
+        frozenAmountCny: balance.frozenAmount,
+        totalSpentCny: visibleTotalSpent,
+        balancePoints: cnyToPoints(balance.balance),
+        frozenPoints: cnyToPoints(balance.frozenAmount),
+        totalSpentPoints: cnyToPoints(visibleTotalSpent),
+        pointValueCny: 1 / POINTS_PER_CNY,
+        pointsPerCny: POINTS_PER_CNY,
+        generationCreditFloor: GENERATION_CREDIT_FLOOR_POINTS,
+        generationCreditFloorPoints: GENERATION_CREDIT_FLOOR_POINTS,
+        generationCreditFloorCny: GENERATION_CREDIT_FLOOR_CNY,
+        generationAllowed: canStartGeneration(balance.balance),
     })
 })

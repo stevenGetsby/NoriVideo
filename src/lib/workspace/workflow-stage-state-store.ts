@@ -18,6 +18,7 @@ const TASK_STAGE_MAP: Partial<Record<string, WorkflowStageKey>> = {
   [TASK_TYPE.EPISODE_SPLIT_LLM]: 'config',
 
   [TASK_TYPE.ANALYZE_NOVEL]: 'script',
+  [TASK_TYPE.ASSET_EXTRACTION_RUN]: 'script',
   [TASK_TYPE.ANALYZE_GLOBAL]: 'script',
   [TASK_TYPE.IMAGE_CHARACTER]: 'script',
   [TASK_TYPE.IMAGE_LOCATION]: 'script',

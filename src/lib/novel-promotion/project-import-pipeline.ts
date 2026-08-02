@@ -2,6 +2,7 @@ import { ApiError } from '@/lib/api-errors'
 import { prisma } from '@/lib/prisma'
 import { getProjectModelConfig } from '@/lib/config-service'
 import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
+import { buildAssetAestheticPrompt } from '@/lib/projects/creation-config'
 import { splitNovelIntoEpisodes, type EpisodeSplitOutput } from './episode-split'
 import { writeEpisodeFrameOSMetadataToSpeakerVoices } from './episode-frameos-metadata'
 import {
@@ -23,6 +24,7 @@ import {
   buildItemFrameOSMetadata,
 } from './asset-frameos-metadata'
 import { seedProjectLocationBackedImageSlots } from '@/lib/assets/services/location-backed-assets'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 
 type PersistAssetPackageResult = {
   characters: number
@@ -64,10 +66,7 @@ function joinPromptSections(sections: Array<string | null | undefined>): string 
 }
 
 function formatAestheticBlock(artStylePrompt: string | null) {
-  return joinPromptSections([
-    '真人实拍摄影质感，自然皮肤毛孔与织物纹理，影棚级光影，35mm胶片质地。',
-    artStylePrompt,
-  ])
+  return buildAssetAestheticPrompt(artStylePrompt)
 }
 
 function formatCharacterArchive(profile: CharacterVisualProfile): string {
@@ -523,6 +522,11 @@ export async function runProjectImportPipeline(input: {
         pendingImportText: null,
         pendingImportEpisodeName: null,
       },
+    })
+
+    await syncProjectAssignmentsForProject({
+      projectId: input.projectId,
+      workspaceOwnerId: input.userId,
     })
 
     return {

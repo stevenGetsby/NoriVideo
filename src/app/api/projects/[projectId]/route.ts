@@ -10,6 +10,7 @@ import {
   collectProjectBailianManagedVoiceIds,
   cleanupUnreferencedBailianVoices,
 } from '@/lib/providers/bailian'
+import { projectReadWhere, requireProjectManager } from '@/lib/collaboration/access'
 
 function readOptionalString(value: unknown, maxLength: number) {
   if (value === null) return undefined
@@ -40,13 +41,7 @@ export const GET = apiHandler(async (
 
   // 只获取基础项目信息，不包含模式特定数据
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    },
-    include: {
-      user: true
-    }
+    where: projectReadWhere(session, projectId)
   })
 
   if (!project) {
@@ -77,13 +72,13 @@ export const PATCH = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
+  await requireProjectManager(session, projectId)
 
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       userId: session.user.id,
-    },
-    include: { user: true }
+    }
   })
 
   if (!project) {
@@ -157,6 +152,16 @@ async function collectProjectCOSKeys(projectId: string): Promise<string[]> {
 
   if (!novelPromotion) return keys
 
+  // 项目创建时上传的画风参考使用结构化 MediaRef，删除项目时一并清理存储对象。
+  if (Array.isArray(novelPromotion.artStyleReferences)) {
+    for (const reference of novelPromotion.artStyleReferences) {
+      if (!reference || typeof reference !== 'object' || Array.isArray(reference)) continue
+      const value = reference as Record<string, unknown>
+      const key = await resolveStorageKeyFromMediaValue(value.storageKey ?? value.url)
+      if (key) keys.push(key)
+    }
+  }
+
   // 1. 收集角色形象图片
   for (const character of novelPromotion.characters) {
     for (const appearance of character.appearances) {
@@ -208,7 +213,7 @@ async function collectProjectCOSKeys(projectId: string): Promise<string[]> {
   }
 
   _ulogInfo(`[Project ${projectId}] 收集到 ${keys.length} 个 COS 文件待删除`)
-  return keys
+  return [...new Set(keys)]
 }
 
 // DELETE - 删除项目（同时清理COS文件）
@@ -221,13 +226,13 @@ export const DELETE = apiHandler(async (
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
+  await requireProjectManager(session, projectId)
 
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       userId: session.user.id,
-    },
-    include: { user: true }
+    }
   })
 
   if (!project) {

@@ -2,6 +2,7 @@ import OpenAI from 'openai'
 import { createScopedLogger } from '@/lib/logging/core'
 import { resolveModelSelection } from '../api-config'
 import { recordTextUsage as recordBillingTextUsage } from '@/lib/billing/runtime-usage'
+import { recordServiceUsageInBackground } from '@/lib/platform-services/usage'
 
 export const llmLogger = createScopedLogger({
   module: 'llm.client',
@@ -126,7 +127,18 @@ export function isRetryableError(error: unknown): boolean {
   return false
 }
 
-export function recordCompletionUsage(model: string, completion: OpenAI.Chat.Completions.ChatCompletion) {
+export function recordCompletionUsage(
+  model: string,
+  completion: OpenAI.Chat.Completions.ChatCompletion,
+  context?: {
+    userId: string
+    provider: string
+    modelKey: string
+    projectId?: string
+    operation?: string
+    latencyMs?: number
+  },
+) {
   const summary = completionUsageSummary(completion)
   if (!summary) return
 
@@ -134,6 +146,43 @@ export function recordCompletionUsage(model: string, completion: OpenAI.Chat.Com
     model,
     inputTokens: summary.promptTokens,
     outputTokens: summary.completionTokens,
+  })
+  if (context) {
+    recordServiceUsageInBackground({
+      provider: context.provider,
+      modelKey: context.modelKey,
+      serviceType: 'llm',
+      operation: context.operation || 'chat-completion',
+      userId: context.userId,
+      projectId: context.projectId,
+      inputTokens: summary.promptTokens,
+      outputTokens: summary.completionTokens,
+      latencyMs: context.latencyMs,
+      units: 1,
+    })
+  }
+}
+
+export function recordFailedCompletionUsage(context: {
+  userId: string
+  provider: string
+  modelKey: string
+  projectId?: string
+  operation?: string
+  latencyMs?: number
+  errorCode?: string
+}) {
+  recordServiceUsageInBackground({
+    provider: context.provider,
+    modelKey: context.modelKey,
+    serviceType: 'llm',
+    operation: context.operation || 'chat-completion',
+    status: 'failed',
+    userId: context.userId,
+    projectId: context.projectId,
+    latencyMs: context.latencyMs,
+    units: 0,
+    errorCode: context.errorCode || 'LLM_CALL_FAILED',
   })
 }
 

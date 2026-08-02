@@ -19,6 +19,7 @@ import {
   parsePanelCharacterReferences,
   pickFirstString,
   resolveNovelData,
+  selectPanelCharacterAppearance,
 } from './image-task-handler-shared'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import {
@@ -28,6 +29,7 @@ import {
   readActingNotesContinuityText,
   readPanelFrameOSMetadataFromActingNotes,
 } from '@/lib/novel-promotion/panel-frameos-metadata'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 
 function parseJsonUnknown(raw: string | null | undefined): unknown | null {
   if (!raw) return null
@@ -82,6 +84,7 @@ function buildPanelPromptContext(params: {
     actingNotes: string | null
   }
   projectData: Awaited<ReturnType<typeof resolveNovelData>>
+  episodeNumber: number
 }) {
   const panelCharacters = parsePanelCharacterReferences(params.panel.characters)
   const frameosMetadata = readPanelFrameOSMetadataFromActingNotes(params.panel.actingNotes)
@@ -95,11 +98,11 @@ function buildPanelPromptContext(params: {
       }
     }
 
-    const appearances = character.appearances || []
-    const matchedAppearance =
-      (reference.appearance
-        ? appearances.find((appearance) => (appearance.changeReason || '').toLowerCase() === reference.appearance!.toLowerCase())
-        : null) || appearances[0] || null
+    const matchedAppearance = selectPanelCharacterAppearance(character, reference, {
+      episodeNumber: params.episodeNumber,
+      sceneId: frameosMetadata?.panel_id?.match(/^S\d+/i)?.[0] || null,
+      sourceText: params.panel.srtSegment || params.panel.description || params.panel.videoPrompt,
+    }) || null
 
     return {
       name: character.name,
@@ -186,6 +189,11 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
 
   const panel = await prisma.novelPromotionPanel.findUnique({
     where: { id: panelId },
+    include: {
+      storyboard: {
+        select: { episode: { select: { episodeNumber: true } } },
+      },
+    },
   })
 
   if (!panel) throw new Error('Panel not found')
@@ -196,7 +204,13 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
   if (!modelKey) throw new Error('Storyboard model not configured')
 
   const candidateCount = clampCount(payload.candidateCount ?? payload.count, 1, 4, 1)
-  const refs = await collectPanelReferenceImages(projectData, panel)
+  const panelMetadata = readPanelFrameOSMetadataFromActingNotes(panel.actingNotes)
+  const episodeNumber = panel.storyboard?.episode?.episodeNumber ?? 0
+  const refs = await collectPanelReferenceImages(projectData, panel, {
+    episodeNumber,
+    sceneId: panelMetadata?.panel_id?.match(/^S\d+/i)?.[0] || null,
+    sourceText: panel.srtSegment || panel.description || panel.videoPrompt,
+  })
   const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
 
   const logger = createScopedLogger({
@@ -243,6 +257,7 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
       actingNotes: panel.actingNotes,
     },
     projectData,
+    episodeNumber,
   })
   const contextJson = JSON.stringify(promptContext, null, 2)
   const prompt = buildPanelPrompt({
@@ -281,6 +296,21 @@ export async function handlePanelImageTask(job: Job<TaskJobData>) {
     })
 
     const cosKey = await uploadImageSourceToCos(source, 'panel-candidate', `${panel.id}-${i}`)
+    await registerFrameosMaterial({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      title: `分镜 ${panel.panelNumber ?? panel.panelIndex + 1}${candidateCount > 1 ? ` · 候选 ${i + 1}` : ''}`,
+      type: 'image',
+      source: 'production',
+      storageKey: cosKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: 'panel',
+        originId: panel.id,
+        candidateIndex: i,
+        prompt,
+      },
+    })
     candidates.push(cosKey)
   }
 

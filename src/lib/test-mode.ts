@@ -206,8 +206,15 @@ async function seedTestModeUser(): Promise<AuthSession> {
     create: {
       id: TEST_USER_ID,
       name: TEST_USER_NAME,
+      role: 'super_admin',
+      status: 'active',
+      parentAccountId: null,
     },
-    update: {},
+    update: {
+      role: 'super_admin',
+      status: 'active',
+      parentAccountId: null,
+    },
     select: {
       id: true,
       name: true,

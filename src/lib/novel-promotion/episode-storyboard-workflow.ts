@@ -3,8 +3,12 @@ import {
   type PreciseSegmentCharacterRef,
   type PreciseSegmentPropRef,
 } from '@/lib/novel-promotion/short-drama-video-prompt'
-import { chatCompletion } from '@/lib/llm/chat-completion'
-import { getCompletionParts } from '@/lib/llm/completion-parts'
+import {
+  selectStoryboardCharacterAppearance,
+  type StoryboardAppearanceOption,
+} from '@/lib/novel-promotion/storyboard-character-appearance'
+
+export const EPISODE_STORYBOARD_PROMPT_PROFILE = 'short-drama-cinematic-v1' as const
 
 export const EPISODE_SEGMENT_FUNCTIONS = [
   '开场钩子',
@@ -20,6 +24,7 @@ export type EpisodeSegmentFunction = typeof EPISODE_SEGMENT_FUNCTIONS[number]
 
 export type EpisodeStoryboardWorkflowCharacter = PreciseSegmentCharacterRef & {
   aliases?: string[]
+  appearanceOptions?: StoryboardAppearanceOption[]
 }
 
 export type EpisodeStoryboardWorkflowProp = PreciseSegmentPropRef & {
@@ -42,6 +47,7 @@ export type EpisodeStoryboardWorkflowInput = {
   defaultLocation?: string
   videoModel?: string
   resolution?: string
+  productionContext?: string
 }
 
 export type EpisodeStoryboardLlmPlanSegment = {
@@ -53,14 +59,25 @@ export type EpisodeStoryboardLlmPlanSegment = {
   storyQuestion: string
   transitionOut: string
   characterNames?: string[]
+  onScreenCharacterNames?: string[]
   propNames?: string[]
+  characterAppearances?: Record<string, string>
+  narrativeEntry: string
+  narrativeExit: string
+  shotBeats: string[]
+  openingState?: string
+  endingState?: string
+  cameraAxis?: string
 }
 
 export type EpisodeStoryboardLlmPlan = {
   segments: EpisodeStoryboardLlmPlanSegment[]
 }
 
-export type EpisodeStoryboardWorkflowLlmPlanner = (prompt: string) => Promise<string>
+export type EpisodeStoryboardWorkflowLlmPlanner = (
+  prompt: string,
+  attempt?: number,
+) => Promise<string>
 
 export type EpisodeStoryboardWorkflowRuntimeLlmOptions = {
   userId: string
@@ -81,6 +98,13 @@ export type EpisodeStoryboardWorkflowSegment = {
   characters: PreciseSegmentCharacterRef[]
   props: PreciseSegmentPropRef[]
   videoPrompt: string
+  narrativeEntry: string
+  narrativeExit: string
+  shotBeats: string[]
+  openingState?: string
+  endingState?: string
+  previousEndState?: string
+  cameraAxis?: string
 }
 
 export type EpisodeStoryboardWorkflowScene = {
@@ -106,7 +130,15 @@ type BeatUnit = {
   storyQuestion: string
   transitionOut: string
   characterNames?: string[]
+  onScreenCharacterNames?: string[]
   propNames?: string[]
+  characterAppearances?: Record<string, string>
+  narrativeEntry: string
+  narrativeExit: string
+  shotBeats: string[]
+  openingState?: string
+  endingState?: string
+  cameraAxis?: string
 }
 
 const FUNCTION_INTENT: Record<EpisodeSegmentFunction, {
@@ -211,7 +243,7 @@ function buildSceneOpening(location: string, label: EpisodeSegmentFunction): str
 
 function buildLighting(location: string): string {
   if (textHasAny(location, ['柴房', '张秃子'])) {
-    return '破旧油灯暖黄实用光 2700K 作为主光，窗外雨夜冷青闪电 6500K 作为瞬间弱环境光；key:fill 约 10:1，明暗反差压抑，角色脸部、手部和银簪高光清晰。'
+    return '破旧油灯暖黄实用光 2700K 作为主光，窗外雨夜冷青闪电 6500K 作为瞬间弱环境光；key:fill 约 10:1，明暗反差压抑，角色脸部、手部和本段明确使用的关键道具清晰。'
   }
   if (textHasAny(location, ['土地庙', '庙'])) {
     return '雨夜冷青环境光 6500K 与火把暖橙实用光 2200K 交替进入土地庙；key:fill 约 8:1，阴影压迫但保留脸部、手部和关键道具状态。'
@@ -241,7 +273,78 @@ function asStringArray(value: unknown): string[] | undefined {
   return items.length > 0 ? items : undefined
 }
 
-function parseLlmStoryboardPlan(raw: string): EpisodeStoryboardLlmPlan {
+function asExplicitStringArray(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined
+  return value.map((item) => typeof item === 'string' ? compact(item) : '').filter(Boolean)
+}
+
+function requiredCompactString(value: unknown, field: string, index: number): string {
+  const result = typeof value === 'string' ? compact(value) : ''
+  if (!result) {
+    throw new Error(`EPISODE_STORYBOARD_LLM_PLAN_INVALID: segment ${index + 1} missing ${field}`)
+  }
+  return result
+}
+
+function normalizeNarrativeMatchText(value: string): string {
+  return value
+    .replace(/[\s\u200b-\u200d\ufeff]+/g, '')
+    .replace(/^[△›•·]+/g, '')
+}
+
+function narrativeClauses(value: string): string[] {
+  return value
+    .split(/[。！？!?；;\n]+/u)
+    .map((item) => normalizeNarrativeMatchText(item))
+    .filter((item) => item.length >= 10)
+}
+
+function validatePlanNarrativeBoundaries(scriptText: string, segments: EpisodeStoryboardLlmPlanSegment[]): void {
+  const script = normalizeNarrativeMatchText(scriptText)
+  let cursor = 0
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index]
+    const source = normalizeNarrativeMatchText(segment.sourceText)
+    const sourceIndex = script.indexOf(source, cursor)
+    if (sourceIndex < 0) {
+      throw new Error(
+        `EPISODE_STORYBOARD_LLM_PLAN_SOURCE_ORDER_INVALID: segment ${index + 1} sourceText must be an exact, non-overlapping excerpt in screenplay order`,
+      )
+    }
+    cursor = sourceIndex + source.length
+
+    const normalizedBeats = segment.shotBeats.map(normalizeNarrativeMatchText)
+    if (new Set(normalizedBeats).size !== normalizedBeats.length) {
+      throw new Error(`EPISODE_STORYBOARD_LLM_PLAN_INVALID: segment ${index + 1} repeats a shotBeat`)
+    }
+
+    const futureClauses = segments
+      .slice(index + 1)
+      .flatMap((future) => narrativeClauses(future.sourceText))
+    const boundaryText = normalizeNarrativeMatchText([
+      segment.narrativeEntry,
+      segment.narrativeExit,
+      ...segment.shotBeats,
+    ].join(' '))
+    const leakedClause = futureClauses.find((clause) => boundaryText.includes(clause))
+    if (leakedClause) {
+      throw new Error(
+        `EPISODE_STORYBOARD_LLM_PLAN_FUTURE_LEAK: segment ${index + 1} contains screenplay content reserved for a later segment`,
+      )
+    }
+  }
+}
+
+function asStringMap(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined
+  const entries = Object.entries(value as Record<string, unknown>)
+    .map(([key, item]) => [compact(key), typeof item === 'string' ? compact(item) : ''] as const)
+    .filter(([key, item]) => Boolean(key && item))
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined
+}
+
+function parseLlmStoryboardPlan(raw: string, scriptText: string): EpisodeStoryboardLlmPlan {
   const parsed = JSON.parse(extractJsonObject(raw)) as unknown
   const record = parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : null
   if (!record || !Array.isArray(record.segments)) {
@@ -272,6 +375,14 @@ function parseLlmStoryboardPlan(raw: string): EpisodeStoryboardLlmPlan {
       throw new Error(`EPISODE_STORYBOARD_LLM_PLAN_INVALID: segment ${index + 1} missing emotional fields`)
     }
     const durationSeconds = Math.max(4, Math.min(15, row.durationSeconds))
+    const shotBeats = asExplicitStringArray(row.shotBeats)
+    if (!shotBeats?.length || shotBeats.length > 5) {
+      throw new Error(`EPISODE_STORYBOARD_LLM_PLAN_INVALID: segment ${index + 1} shotBeats must contain 1-5 ordered beats`)
+    }
+    const onScreenCharacterNames = asExplicitStringArray(row.onScreenCharacterNames)
+    if (!onScreenCharacterNames) {
+      throw new Error(`EPISODE_STORYBOARD_LLM_PLAN_INVALID: segment ${index + 1} missing onScreenCharacterNames array`)
+    }
     return {
       functionLabel: row.functionLabel,
       sourceText,
@@ -281,13 +392,22 @@ function parseLlmStoryboardPlan(raw: string): EpisodeStoryboardLlmPlan {
       storyQuestion,
       transitionOut,
       characterNames: asStringArray(row.characterNames),
+      onScreenCharacterNames,
       propNames: asStringArray(row.propNames),
+      characterAppearances: asStringMap(row.characterAppearances),
+      narrativeEntry: requiredCompactString(row.narrativeEntry, 'narrativeEntry', index),
+      narrativeExit: requiredCompactString(row.narrativeExit, 'narrativeExit', index),
+      shotBeats,
+      openingState: typeof row.openingState === 'string' ? compact(row.openingState) : undefined,
+      endingState: typeof row.endingState === 'string' ? compact(row.endingState) : undefined,
+      cameraAxis: typeof row.cameraAxis === 'string' ? compact(row.cameraAxis) : undefined,
     }
   })
 
   if (segments.length === 0) {
     throw new Error('EPISODE_STORYBOARD_LLM_PLAN_INVALID: segments cannot be empty')
   }
+  validatePlanNarrativeBoundaries(scriptText, segments)
   return { segments }
 }
 
@@ -312,26 +432,52 @@ function buildLlmPlanningPrompt(input: EpisodeStoryboardWorkflowInput): string {
     '- emotionalIntent：本段情绪目的',
     '- storyQuestion：本段制造的追问',
     '- transitionOut：如何接到下一段',
-    '- characterNames：本段出现/被重点拍摄的角色名',
+    '- characterNames：本段剧情涉及的角色名，可包含对白里被提及但未入画的人',
+    '- onScreenCharacterNames：本段画面中真实可见的角色名；只在对白、回忆或称呼中被提到的人不得写入；允许空数组',
+    '- characterAppearances：对象，key 为角色正式名，value 必须是下方该角色的可用形象名；当前集/场景命中变体覆盖范围时必须选该变体，仅未命中任何变体时选主形象',
     '- propNames：本段需要追踪的道具名',
+    '- narrativeEntry：本段剧情从哪个明确叙事瞬间开始，只描述当前 sourceText 的入口，不重复上一段已经完成的动作',
+    '- narrativeExit：本段剧情推进到哪个明确叙事瞬间停止，不得写下一 Segment 才发生的动作',
+    '- shotBeats：1-5 条严格有序的可视动作/对白节拍。每条只拍 sourceText 内的内容；第一条从 narrativeEntry 接起，最后一条精确停在 narrativeExit',
+    '- openingState：本段第一帧的角色站位、身体姿态、朝向、持物手和道具状态',
+    '- endingState：本段最后一帧的角色站位、身体姿态、朝向、持物手和道具状态',
+    '- cameraAxis：本场戏的动作轴线和角色屏幕左右关系；同场景连续 Segment 必须保持一致',
     '',
     '拆分原则：',
     '1. 如果原文信息足够，必须至少覆盖一次：开场钩子、建立情境、情绪承载、推进信息、制造冲突、交代行动、反转钩子。不要把“开场钩子”和“建立情境”合并成一段。',
     '2. “情绪承载”用于喘息、恐惧、冷汗、眼泪、沉默、手部细节；“推进信息”用于揭示因果/交易/身份/规则；“交代行动”用于逃跑、刺、递、拿、保护、做出选择。',
     '3. 开场钩子和反转钩子不是关键词判断，而是观众继续看的悬念功能。',
-    '4. propNames 不只写明文提到的道具，也要写本段画面中需要保持连续的隐藏/随身关键道具，例如发髻里的银簪。',
+    '4. propNames 可包含需要保持状态连续的隐藏/随身关键道具；但如果 sourceText 没有使用它，shotBeats 不得让角色触碰、注视、取出或使用它。',
     '5. emotionalIntent、storyQuestion、transitionOut 每项控制在 18-32 个中文字以内；不要写长解释，避免 JSON 过长。',
-    '6. 输出必须是纯 JSON，不要 markdown，不要解释。',
+    '6. segments 必须按剧本原始顺序覆盖整集主要剧情；不得跳过场次、关键动作、对白、因果、反转或集尾钩子，也不得续写原文之后的剧情。',
+    '7. 地点、角色和道具优先且尽量只使用下方已锁定资产的正式名称，便于下游生成 @资产名 引用。',
+    '8. 一个 Segment 是一个视频生成单元，内部会继续生成多个 Shot；不要把每一句话机械拆成 Segment，也不要把整集塞进一个 Segment。',
+    '9. 输出必须是纯 JSON，不要 markdown，不要解释。',
+    '10. 连续性是硬约束：同场景中 segment[i].openingState 必须逐项承接 segment[i-1].endingState；角色不可瞬移、无故换手、换装、改变发型或恢复道具状态；下一段动作只能从上一段结尾继续。',
+    '11. characterAppearances 只能从可用形象中精确选择。覆盖场景优先于覆盖集；命中覆盖范围的变体是硬约束，不能被主形象覆盖；多个变体同时命中时选择覆盖范围最窄、最具体的一个。剧本未命中任何覆盖范围时才使用主形象。',
+    '12. sourceText 必须逐字摘自剧本中的一个连续区间；所有 Segment 的 sourceText 按原文顺序且互不重叠。不得改写、倒序、重复上一段或把后文提前到当前段。',
+    '13. shotBeats 是生视频内容合同：相邻条目必须产生新的剧情推进，禁止用不同景别重复同一个动作；禁止添加 sourceText 未发生的反击、逃跑、持物、人物入场或关系变化。',
+    '14. 每段第一条 shotBeat 承接上一段 narrativeExit，但不重新表演上一段；最后一条只完成本段 narrativeExit。transitionOut 只描述剪辑接口，不能把下一段动作写进 shotBeats。',
+    '15. onScreenCharacterNames 只列现场可见人物。比如角色说“阿婆，我不能死”，阿婆只是被称呼且未在现场，则不得让阿婆入画，也不得为她绑定现场资产。',
     '',
     `可用角色：${(input.characters || []).map((item) => item.name).join('、') || '未提供'}`,
+    `角色可用形象：${(input.characters || []).map((item) => {
+      const options = item.appearanceOptions?.length
+        ? item.appearanceOptions.map((option) => `${option.label}${option.coverageEpisodes?.length ? `[覆盖${option.coverageEpisodes.join('、')}]` : ''}${option.coverageScenes?.length ? `[场景${option.coverageScenes.join('、')}]` : ''}`).join(' / ')
+        : item.appearance || '初始形象'
+      return `${item.name} => ${options}`
+    }).join('；') || '未提供'}`,
     `可用道具：${(input.props || []).map((item) => item.name).join('、') || '未提供'}`,
     `可用场景：${(input.locations || []).map((item) => item.name).join('、') || input.defaultLocation || '未提供'}`,
+    ...(input.productionContext?.trim()
+      ? ['', '项目制作约束：', input.productionContext.trim()]
+      : []),
     '',
     '剧本：',
     normalizeScriptText(input.scriptText),
     '',
     'JSON 结构：',
-    '{"segments":[{"functionLabel":"开场钩子","sourceText":"...","location":"...","durationSeconds":12,"emotionalIntent":"...","storyQuestion":"...","transitionOut":"...","characterNames":["..."],"propNames":["..."]}]}',
+    '{"segments":[{"functionLabel":"开场钩子","sourceText":"逐字原文","location":"...","durationSeconds":12,"emotionalIntent":"...","storyQuestion":"...","transitionOut":"...","characterNames":["..."],"onScreenCharacterNames":["..."],"characterAppearances":{"角色正式名":"初始形象"},"propNames":["..."],"narrativeEntry":"...","narrativeExit":"...","shotBeats":["当前段可视节拍1","当前段可视节拍2"],"openingState":"...","endingState":"...","cameraAxis":"..."}]}',
   ].join('\n')
 }
 
@@ -349,7 +495,15 @@ function buildBeatUnitsFromLlmPlan(input: EpisodeStoryboardWorkflowInput, plan: 
       storyQuestion: segment.storyQuestion,
       transitionOut: segment.transitionOut,
       characterNames: segment.characterNames,
+      onScreenCharacterNames: segment.onScreenCharacterNames,
       propNames: segment.propNames,
+      characterAppearances: segment.characterAppearances,
+      narrativeEntry: segment.narrativeEntry,
+      narrativeExit: segment.narrativeExit,
+      shotBeats: segment.shotBeats,
+      openingState: segment.openingState,
+      endingState: segment.endingState,
+      cameraAxis: segment.cameraAxis,
     }
   })
 }
@@ -377,10 +531,37 @@ function buildScenes(segments: EpisodeStoryboardWorkflowSegment[]): EpisodeStory
 function selectCharactersByNames(
   names: string[] | undefined,
   characters: EpisodeStoryboardWorkflowCharacter[],
+  context: {
+    episodeNumber: number
+    sceneId: string
+    sourceText: string
+    requestedAppearances?: Record<string, string>
+  },
 ): PreciseSegmentCharacterRef[] {
   if (names?.length) {
     const matched = characters.filter((character) => names.some((name) => character.name === name || character.aliases?.includes(name)))
-    if (matched.length > 0) return matched.map(({ name, appearance }) => ({ name, appearance }))
+    if (matched.length > 0) return matched.map((character) => {
+      const requestedAppearance = context.requestedAppearances?.[character.name]
+        || Object.entries(context.requestedAppearances || {}).find(([key]) => character.aliases?.includes(key))?.[1]
+      const options = character.appearanceOptions?.length
+        ? character.appearanceOptions
+        : [{ label: character.appearance || '初始形象', isPrimary: true }]
+      const selected = selectStoryboardCharacterAppearance(options, {
+        episodeNumber: context.episodeNumber,
+        sceneId: context.sceneId,
+        requestedAppearance,
+        sourceText: context.sourceText,
+        // characterAppearances is planner output, not a manual user lock.
+        // Episode/scene coverage remains authoritative if the planner emits
+        // the generic primary label for a scoped variant episode.
+        preferScopedCoverageOverPrimaryRequest: true,
+      })
+      return {
+        name: character.name,
+        ...(selected?.label ? { appearance: selected.label } : {}),
+        ...(selected?.id ? { appearanceId: selected.id } : {}),
+      }
+    })
     return names.map((name) => ({ name }))
   }
   return []
@@ -402,20 +583,36 @@ function buildWorkflowFromUnits(input: EpisodeStoryboardWorkflowInput, units: Be
   const characters = input.characters || []
   const props = input.props || []
   const segments: EpisodeStoryboardWorkflowSegment[] = []
-  const sceneIndexByLocation = new Map<string, number>()
-  const segmentIndexByScene = new Map<string, number>()
+  let sceneIndex = 0
+  let segmentIndex = 0
+  let currentLocation = ''
+  let previousSegment: EpisodeStoryboardWorkflowSegment | null = null
 
   for (const unit of units) {
-    const sceneIndex = sceneIndexByLocation.get(unit.location)
-      || (sceneIndexByLocation.set(unit.location, sceneIndexByLocation.size + 1).get(unit.location) || 1)
+    if (unit.location !== currentLocation) {
+      sceneIndex += 1
+      segmentIndex = 0
+      currentLocation = unit.location
+    }
     const sceneId = `S${String(sceneIndex).padStart(2, '0')}`
-    const segmentIndex = (segmentIndexByScene.get(sceneId) || 0) + 1
-    segmentIndexByScene.set(sceneId, segmentIndex)
+    segmentIndex += 1
 
     const segmentId = `${sceneId}-SEG${String(segmentIndex).padStart(2, '0')}`
-    const segmentCharacters = selectCharactersByNames(unit.characterNames, characters)
+    const segmentCharacters = selectCharactersByNames(unit.onScreenCharacterNames ?? unit.characterNames, characters, {
+      episodeNumber: input.episodeNumber,
+      sceneId,
+      sourceText: unit.text,
+      requestedAppearances: unit.characterAppearances,
+    })
     const segmentProps = selectPropsByNames(unit.propNames, props)
     const durationSeconds = unit.durationSeconds
+    const sameScene = previousSegment?.location === unit.location
+    const previousEndState = sameScene ? previousSegment?.endingState : undefined
+    const openingState = previousEndState
+      || unit.openingState
+      || `${unit.location}内按剧本建立本场第一帧站位、朝向与道具状态。`
+    const endingState = unit.endingState || unit.narrativeExit
+    const cameraAxis = unit.cameraAxis || (sameScene ? previousSegment?.cameraAxis : undefined) || `${unit.location}主动作轴线，保持角色屏幕左右关系稳定`
     const prompt = buildPreciseBeatVideoPrompt({
       segmentId,
       location: unit.location,
@@ -429,9 +626,16 @@ function buildWorkflowFromUnits(input: EpisodeStoryboardWorkflowInput, units: Be
         videoModel: input.videoModel,
         resolution: input.resolution,
       },
+      previousEndState,
+      openingContinuity: openingState,
+      endingStateTarget: endingState,
+      narrativeEntry: unit.narrativeEntry,
+      narrativeExit: unit.narrativeExit,
+      shotBeats: unit.shotBeats,
+      cameraAxis,
     })
 
-    segments.push({
+    const workflowSegment: EpisodeStoryboardWorkflowSegment = {
       segmentId,
       functionLabel: unit.functionLabel,
       sourceText: unit.text,
@@ -443,7 +647,16 @@ function buildWorkflowFromUnits(input: EpisodeStoryboardWorkflowInput, units: Be
       characters: segmentCharacters,
       props: segmentProps,
       videoPrompt: prompt,
-    })
+      narrativeEntry: unit.narrativeEntry,
+      narrativeExit: unit.narrativeExit,
+      shotBeats: unit.shotBeats,
+      openingState,
+      endingState,
+      previousEndState,
+      cameraAxis,
+    }
+    segments.push(workflowSegment)
+    previousSegment = workflowSegment
   }
 
   return {
@@ -458,38 +671,61 @@ export async function buildEpisodeStoryboardWorkflowWithLlm(
   input: EpisodeStoryboardWorkflowInput,
   planner: EpisodeStoryboardWorkflowLlmPlanner,
 ): Promise<EpisodeStoryboardWorkflowResult> {
-  const raw = await planner(buildLlmPlanningPrompt(input))
-  const plan = parseLlmStoryboardPlan(raw)
-  return buildWorkflowFromUnits(input, buildBeatUnitsFromLlmPlan(input, plan))
+  const prompt = buildLlmPlanningPrompt(input)
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const raw = await planner(prompt, attempt)
+      const plan = parseLlmStoryboardPlan(raw, input.scriptText)
+      return buildWorkflowFromUnits(input, buildBeatUnitsFromLlmPlan(input, plan))
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+    }
+  }
+  throw lastError || new Error('EPISODE_STORYBOARD_LLM_PLAN_FAILED')
 }
 
 export async function buildEpisodeStoryboardWorkflowWithRuntimeLlm(
   input: EpisodeStoryboardWorkflowInput,
   options: EpisodeStoryboardWorkflowRuntimeLlmOptions,
 ): Promise<EpisodeStoryboardWorkflowResult> {
+  const [{ chatCompletion }, { getCompletionParts }] = await Promise.all([
+    import('@/lib/llm/chat-completion'),
+    import('@/lib/llm/completion-parts'),
+  ])
   const prompt = buildLlmPlanningPrompt(input)
-  const completion = await chatCompletion(
-    options.userId,
-    options.model,
-    [
-      {
-        role: 'system',
-        content: '你只输出符合要求的 JSON。不要 markdown，不要解释。',
-      },
-      {
-        role: 'user',
-        content: prompt,
-      },
-    ],
-    {
-      temperature: 0.2,
-      reasoning: false,
-      maxTokens: options.maxTokens || 8000,
-      projectId: options.projectId,
-      action: 'episode_storyboard_segment_plan',
-    },
-  )
-  const raw = getCompletionParts(completion).text
-  const plan = parseLlmStoryboardPlan(raw)
-  return buildWorkflowFromUnits(input, buildBeatUnitsFromLlmPlan(input, plan))
+  let lastError: Error | null = null
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const completion = await chatCompletion(
+        options.userId,
+        options.model,
+        [
+          {
+            role: 'system',
+            content: '你只输出符合要求的 JSON。不要 markdown，不要解释。严格保持剧本顺序，禁止把后续剧情提前。',
+          },
+          {
+            role: 'user',
+            content: attempt === 1
+              ? prompt
+              : `${prompt}\n\n上一次输出未通过内容边界校验：${lastError?.message || '格式或剧情顺序错误'}。请重新生成完整 JSON，重点修正 sourceText 原文顺序、shotBeats 越界和现场人物。`,
+          },
+        ],
+        {
+          temperature: 0.2,
+          reasoning: false,
+          maxTokens: options.maxTokens || 12000,
+          projectId: options.projectId,
+          action: 'episode_storyboard_segment_plan',
+        },
+      )
+      const raw = getCompletionParts(completion).text
+      const plan = parseLlmStoryboardPlan(raw, input.scriptText)
+      return buildWorkflowFromUnits(input, buildBeatUnitsFromLlmPlan(input, plan))
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+    }
+  }
+  throw lastError || new Error('EPISODE_STORYBOARD_LLM_PLAN_FAILED')
 }

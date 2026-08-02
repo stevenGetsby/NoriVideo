@@ -33,6 +33,7 @@ import type {
   TaskBillingInfo,
 } from './types'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
+import { requireGenerationCredit } from './generation-gate'
 
 type CostInput = {
   apiType: ApiType
@@ -123,6 +124,7 @@ function resolveCost(input: CostInput) {
 function resolveTextCostFromUsage(
   usage: TextUsageEntry[],
   customPricing?: ModelCustomPricing | null,
+  billingModel?: string,
 ): ResolvedActual | null {
   if (!Array.isArray(usage) || usage.length === 0) return null
 
@@ -136,7 +138,15 @@ function resolveTextCostFromUsage(
     const outTokens = Math.max(0, Math.floor(Number(item.outputTokens || 0)))
     const model = item.model || 'unknown'
     const hasBillableTokens = inTokens > 0 || outTokens > 0
-    const itemCost = hasBillableTokens ? normalizeMoney(calcText(model, inTokens, outTokens, customPricing)) : 0
+    // Provider responses commonly report only the runtime model id (for
+    // example `gpt-5.5`). Pricing, however, belongs to the stable model key
+    // selected for the task (for example `nori::nori-gpt`). Keep the runtime
+    // model in usage metadata, but never use that unqualified id as the
+    // billing identity.
+    const pricingModel = billingModel || model
+    const itemCost = hasBillableTokens
+      ? normalizeMoney(calcText(pricingModel, inTokens, outTokens, customPricing))
+      : 0
 
     inputTokens += inTokens
     outputTokens += outTokens
@@ -247,7 +257,7 @@ function resolveActualForSync<T>(
   textUsage: TextUsageEntry[],
   quotedCost: number,
 ): ResolvedActual {
-  const textResolved = resolveTextCostFromUsage(textUsage, params.customPricing)
+  const textResolved = resolveTextCostFromUsage(textUsage, params.customPricing, params.model)
   if (params.apiType === 'text' && textResolved) {
     if (textResolved.actualQuantity > 0) {
       return textResolved
@@ -291,8 +301,13 @@ function resolveTaskActual(
     result?: Record<string, unknown> | void
     textUsage?: TextUsageEntry[]
   },
+  customPricing?: ModelCustomPricing | null,
 ): ResolvedActual {
-  const textResolved = resolveTextCostFromUsage(options?.textUsage || [])
+  const textResolved = resolveTextCostFromUsage(
+    options?.textUsage || [],
+    customPricing,
+    info.model,
+  )
   if (info.apiType === 'text' && textResolved) {
     if (textResolved.actualQuantity > 0) {
       return textResolved
@@ -382,6 +397,10 @@ async function withSyncBillingCore<T>(
   recordParams: BillingRecordParams,
   execute: () => Promise<T>,
 ): Promise<T> {
+  // This preflight also applies in OFF/SHADOW modes and to zero-priced custom
+  // models. No synchronous generation path may contact a provider at zero
+  // points; ENFORCE mode then performs the stricter full-cost reservation.
+  await requireGenerationCredit(params.userId)
   const pricingVersion = BUILTIN_PRICING_VERSION
   const pricingSelections = params.metadata || {}
   const mode = await getBillingMode()
@@ -898,6 +917,19 @@ export async function settleTaskBilling(task: {
     } satisfies TaskBillingInfo
   }
 
+  // A skipped task was explicitly allowed to run without a billable price
+  // during preparation (for example a newly routed internal model). Its
+  // successful provider response must not be turned into a task failure by a
+  // second pricing lookup during settlement.
+  if (info.status === 'skipped') {
+    return {
+      ...info,
+      modeSnapshot: mode,
+      status: 'skipped',
+      chargedCost: 0,
+    } satisfies TaskBillingInfo
+  }
+
   const customPricing = await loadUserCustomPricing(task.userId, info.model)
   let quotedCost: number
   try {
@@ -933,7 +965,7 @@ export async function settleTaskBilling(task: {
 
   let actual: ResolvedActual
   try {
-    actual = resolveTaskActual(info, quotedCost, options)
+    actual = resolveTaskActual(info, quotedCost, options, customPricing)
   } catch (error) {
     if (mode === 'SHADOW' && error instanceof BillingOperationError && error.code === 'BILLING_UNKNOWN_MODEL') {
       return {
@@ -971,7 +1003,7 @@ export async function settleTaskBilling(task: {
     return {
       ...info,
       modeSnapshot: mode,
-      status: info.status === 'skipped' ? 'skipped' : 'settled',
+      status: 'settled',
       chargedCost: 0,
     } satisfies TaskBillingInfo
   }
@@ -980,7 +1012,7 @@ export async function settleTaskBilling(task: {
     return {
       ...info,
       modeSnapshot: mode,
-      status: info.status === 'skipped' ? 'skipped' : 'settled',
+      status: 'settled',
       chargedCost: 0,
     } satisfies TaskBillingInfo
   }

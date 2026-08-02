@@ -178,6 +178,9 @@ export async function handleCharacterImageTask(job: Job<TaskJobData>) {
         referenceImages: primaryReferenceImages.length > 0 ? primaryReferenceImages : undefined,
         aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
       },
+      materialTitle: `${characterName} · ${appearance.changeReason || '主形象'}${indexes.length > 1 ? ` · ${index + 1}` : ''}`,
+      materialSource: 'creative',
+      materialMetadata: { originType: 'character', originId: appearance.id, imageIndex: index },
     })
 
     while (nextImageUrls.length <= index) {

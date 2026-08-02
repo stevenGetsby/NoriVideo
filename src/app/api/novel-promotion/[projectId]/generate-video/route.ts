@@ -16,6 +16,7 @@ import {
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
 import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -39,7 +40,7 @@ function resolveVideoGenerationMode(payload: unknown): 'normal' | 'firstlastfram
 }
 
 function isSeedance2Model(modelKey: string): boolean {
-  const parsed = parseModelKeyStrict(modelKey)
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
   if (!parsed) return false
   return parsed.provider === 'ark'
     && (

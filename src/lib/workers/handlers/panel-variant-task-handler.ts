@@ -22,6 +22,7 @@ import {
   parsePanelCharacterReferences,
   pickFirstString,
   resolveNovelData,
+  selectPanelCharacterAppearance,
 } from './image-task-handler-shared'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import {
@@ -30,6 +31,7 @@ import {
   readPanelFrameOSMetadataFromActingNotes,
   writePanelFrameOSMetadataToActingNotes,
 } from '@/lib/novel-promotion/panel-frameos-metadata'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 
 // ── 构建变体提示词 ──────────────────────────────────────
 interface VariantPromptParams {
@@ -160,7 +162,8 @@ function buildVariantPromptSeed(videoPrompt: string, evidence: ReturnType<typeof
 // ── 构建角色和场景描述信息 ─────────────────────────────
 function buildCharactersInfo(
   panel: { characters: string | null },
-  projectData: { characters?: Array<{ name: string; introduction?: string | null; appearances?: Array<{ changeReason?: string | null }> }> },
+  projectData: Awaited<ReturnType<typeof resolveNovelData>>,
+  context: { episodeNumber: number; sceneId?: string | null; sourceText?: string | null },
 ): string {
   const panelCharacters = parsePanelCharacterReferences(panel.characters)
   if (panelCharacters.length === 0) return '无角色'
@@ -168,7 +171,9 @@ function buildCharactersInfo(
   return panelCharacters.map(item => {
     const character = findCharacterByName(projectData.characters || [], item.name)
     const intro = character?.introduction || ''
-    const appearance = item.appearance || '默认形象'
+    const appearance = character
+      ? selectPanelCharacterAppearance(character, item, context)?.changeReason || item.appearance || '默认形象'
+      : item.appearance || '默认形象'
     const slotText = item.slot ? `，固定位置：${item.slot}` : ''
     return `- ${item.name}（${appearance}${slotText}）${intro ? `：${intro}` : ''}`
   }).join('\n')
@@ -229,6 +234,9 @@ function buildVariantReferenceImages(params: {
   }
   sourcePanelImageUrl: string | null
   projectData: Awaited<ReturnType<typeof resolveNovelData>>
+  episodeNumber: number
+  sceneId?: string | null
+  sourceText?: string | null
 }): string[] {
   const refs: string[] = []
   if (params.sourcePanelImageUrl) refs.push(params.sourcePanelImageUrl)
@@ -239,12 +247,11 @@ function buildVariantReferenceImages(params: {
       const character = findCharacterByName(params.projectData.characters || [], item.name)
       if (!character) continue
 
-      const appearances = character.appearances || []
-      let appearance = appearances[0]
-      if (item.appearance) {
-        const matched = appearances.find((candidate) => (candidate.changeReason || '').toLowerCase() === item.appearance!.toLowerCase())
-        if (matched) appearance = matched
-      }
+      const appearance = selectPanelCharacterAppearance(character, item, {
+        episodeNumber: params.episodeNumber,
+        sceneId: params.sceneId,
+        sourceText: params.sourceText,
+      })
 
       if (!appearance) continue
       const imageUrls = parseImageUrls((appearance as { imageUrls?: string | null }).imageUrls || null, 'characterAppearance.imageUrls')
@@ -299,7 +306,14 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   }
 
   // Panel 已在 API route 中创建，这里只需获取它
-  const newPanel = await prisma.novelPromotionPanel.findUnique({ where: { id: newPanelId } })
+  const newPanel = await prisma.novelPromotionPanel.findUnique({
+    where: { id: newPanelId },
+    include: {
+      storyboard: {
+        select: { episode: { select: { episodeNumber: true } } },
+      },
+    },
+  })
   if (!newPanel) throw new Error('New panel not found (should have been created by API route)')
 
   const sourcePanel = await prisma.novelPromotionPanel.findUnique({ where: { id: sourcePanelId } })
@@ -315,18 +329,25 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
 
   // 收集参考图（与 panel-image-task-handler 共用同一链路）
   const sourcePanelImageUrl = toSignedUrlIfCos(sourcePanel.imageUrl, 3600)
+  const newPanelMetadata = readPanelFrameOSMetadataFromActingNotes(newPanel.actingNotes)
+  const appearanceContext = {
+    episodeNumber: newPanel.storyboard?.episode?.episodeNumber ?? 0,
+    sceneId: newPanelMetadata?.panel_id?.match(/^S\d+/i)?.[0] || null,
+    sourceText: newPanel.srtSegment || newPanel.description || newPanel.videoPrompt,
+  }
   const refs = buildVariantReferenceImages({
     includeCharacterAssets,
     includeLocationAsset,
     newPanel,
     sourcePanelImageUrl,
     projectData,
+    ...appearanceContext,
   })
   const normalizedRefs = await normalizeReferenceImagesForGeneration(refs)
 
   // 使用 agent_shot_variant_generate.txt 提示词模板
   const artStyle = getArtStylePrompt(modelConfig.artStyle, job.data.locale, modelConfig.artStylePrompt)
-  const charactersInfo = buildCharactersInfo(newPanel, projectData)
+  const charactersInfo = buildCharactersInfo(newPanel, projectData, appearanceContext)
   const characterAssetsDesc = includeCharacterAssets
     ? buildCharacterAssetsDescription(newPanel, projectData)
     : (job.data.locale === 'en' ? 'Character reference images disabled' : '未使用角色参考图')
@@ -373,6 +394,20 @@ export async function handlePanelVariantTask(job: Job<TaskJobData>) {
   })
 
   const cosKey = await uploadImageSourceToCos(source, 'panel-variant', newPanel.id)
+  await registerFrameosMaterial({
+    userId: job.data.userId,
+    projectId: job.data.projectId,
+    title: `分镜 ${newPanel.panelNumber ?? newPanel.panelIndex + 1} · 镜头变体`,
+    type: 'image',
+    source: 'production',
+    storageKey: cosKey,
+    metadata: {
+      taskId: job.data.taskId,
+      originType: 'panel-variant',
+      originId: newPanel.id,
+      prompt,
+    },
+  })
 
   await assertTaskActive(job, 'persist_panel_variant')
   await prisma.novelPromotionPanel.update({

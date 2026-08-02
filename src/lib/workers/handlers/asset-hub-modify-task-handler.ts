@@ -28,6 +28,7 @@ import {
   generateModifiedAssetDescription,
   readIndexedDescription,
 } from './modify-description-sync'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 
 const logger = createScopedLogger({ module: 'worker.asset-hub-modify' })
 
@@ -144,6 +145,21 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
     })
 
     const imageKey = await uploadImageSourceToCos(source, 'global-character-modify', appearance.id)
+    await registerFrameosMaterial({
+      userId,
+      projectId: 'global-asset-hub',
+      title: `${character.name} · ${appearance.changeReason || '形象'} · 改图 ${targetImageIndex + 1}`,
+      type: 'image',
+      source: 'creative',
+      storageKey: imageKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: 'global-character-modify',
+        originId: appearance.id,
+        imageIndex: targetImageIndex,
+        prompt: modifyInstruction,
+      },
+    })
 
     while (imageUrls.length <= targetImageIndex) imageUrls.push('')
     imageUrls[targetImageIndex] = imageKey
@@ -233,6 +249,20 @@ export async function handleAssetHubModifyTask(job: Job<TaskJobData>) {
     })
 
     const imageKey = await uploadImageSourceToCos(source, isProp ? 'global-prop-modify' : 'global-location-modify', locationImage.id)
+    await registerFrameosMaterial({
+      userId,
+      projectId: 'global-asset-hub',
+      title: `${location.name} · 改图`,
+      type: 'image',
+      source: 'creative',
+      storageKey: imageKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: isProp ? 'global-prop-modify' : 'global-location-modify',
+        originId: locationImage.id,
+        prompt: modifyInstruction,
+      },
+    })
 
     let extractedDescription: {
       prompt: string

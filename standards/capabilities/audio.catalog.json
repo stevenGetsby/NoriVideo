@@ -1,0 +1,56 @@
+[
+  {
+    "modelType": "audio",
+    "provider": "bailian",
+    "modelId": "qwen3-tts-vd-2026-01-26",
+    "capabilities": {
+      "audio": {
+        "modeOptions": ["tts"],
+        "inputSchema": {
+          "image": { "min": 0, "max": 0 },
+          "video": { "min": 0, "max": 0 },
+          "audio": { "min": 0, "max": 0 },
+          "requiredFields": ["prompt", "voice"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "audio",
+    "provider": "fal",
+    "modelId": "fal-ai/stable-audio-25/text-to-audio",
+    "capabilities": {
+      "audio": {
+        "modeOptions": ["music", "sfx"],
+        "minDurationSeconds": 1,
+        "maxDurationSeconds": 190,
+        "durationStepSeconds": 1,
+        "inputSchema": {
+          "image": { "min": 0, "max": 0 },
+          "video": { "min": 0, "max": 0 },
+          "audio": { "min": 0, "max": 0 },
+          "requiredFields": ["prompt", "duration"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "audio",
+    "provider": "fal",
+    "modelId": "fal-ai/elevenlabs/sound-effects/v2",
+    "capabilities": {
+      "audio": {
+        "modeOptions": ["sfx"],
+        "minDurationSeconds": 0.5,
+        "maxDurationSeconds": 22,
+        "durationStepSeconds": 0.5,
+        "inputSchema": {
+          "image": { "min": 0, "max": 0 },
+          "video": { "min": 0, "max": 0 },
+          "audio": { "min": 0, "max": 0 },
+          "requiredFields": ["prompt", "duration"]
+        }
+      }
+    }
+  }
+]

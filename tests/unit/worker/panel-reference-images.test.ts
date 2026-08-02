@@ -150,4 +150,47 @@ describe('collectPanelReferenceImages', () => {
       'signed:images/moon-lamp.png',
     ])
   })
+
+  it('uses the episode-scoped character variant instead of appearances[0]', async () => {
+    const metadata = (label: string, coverageEpisodes: number[]) => JSON.stringify({
+      _frameosAppearanceMetadata: { label, coverage_episodes: coverageEpisodes },
+    })
+    const refs = await collectPanelReferenceImages({
+      characters: [{
+        name: '苏晚卿',
+        appearances: [
+          {
+            id: 'main',
+            appearanceIndex: 0,
+            changeReason: '陆府低位姨太时期',
+            descriptions: metadata('陆府低位姨太时期', [5, 6, 7, 8]),
+            imageUrls: JSON.stringify(['images/main.png']),
+            imageUrl: null,
+            selectedIndex: 0,
+          },
+          {
+            id: 'confined',
+            appearanceIndex: 1,
+            changeReason: '陆府受辱禁足状态',
+            descriptions: metadata('陆府受辱禁足状态', [5, 6, 7, 8]),
+            imageUrls: JSON.stringify(['images/confined.png']),
+            imageUrl: null,
+            selectedIndex: 0,
+          },
+        ],
+      }],
+      locations: [],
+    }, {
+      characters: JSON.stringify([{ name: '苏晚卿' }]),
+      location: null,
+      props: null,
+      description: null,
+      videoPrompt: null,
+      srtSegment: null,
+    }, {
+      episodeNumber: 6,
+    })
+
+    expect(refs).toEqual(['signed:images/confined.png'])
+  })
 })

@@ -1,5 +1,6 @@
 import { forwardRef, type ForwardRefExoticComponent, type RefAttributes, type SVGProps } from 'react'
-import { createLucideIcon as createLucideIconBase, type IconNode, type LucideProps } from 'lucide-react'
+import type { IconNode, LucideProps } from 'lucide-react'
+import createLucideIconBase from 'lucide-react/dist/esm/createLucideIcon.js'
 
 type CustomIconComponent = ForwardRefExoticComponent<Omit<LucideProps, 'ref'> & RefAttributes<SVGSVGElement>>
 
@@ -617,6 +618,14 @@ const CustomIcon098Node: IconNode = [
 const CustomIcon098Base = createLucideIcon('CustomIcon098', CustomIcon098Node)
 export const CustomIcon098: CustomIconComponent = CustomIcon098Base
 
+const CustomIcon099Node: IconNode = [
+  ['path', { fill: 'currentColor', stroke: 'none', d: 'M704 192h160v736H160V192h160.064v64H704zM311.616 537.28l-45.312 45.248L447.36 763.52l316.8-316.8-45.312-45.184L447.36 673.024zM384 192V96h256v96z' }],
+]
+const CustomIcon099Base = createLucideIcon('CustomIcon099', CustomIcon099Node)
+export const CustomIcon099: CustomIconComponent = forwardRef<SVGSVGElement, LucideProps>(function CustomIcon099(props, ref) {
+  return <CustomIcon099Base ref={ref} {...props} viewBox="0 0 1024 1024" />
+})
+
 export const IconGradientDefs = forwardRef<SVGSVGElement, SVGProps<SVGSVGElement>>(function IconGradientDefs(props, ref) {
   return (
     <svg ref={ref} {...props}>
@@ -729,4 +738,5 @@ export const customIcons = {
   alertSolid: CustomIcon096,
   alertOutline: CustomIcon097,
   infoCircle: CustomIcon098,
+  clipboardCheckSolid: CustomIcon099,
 } as const

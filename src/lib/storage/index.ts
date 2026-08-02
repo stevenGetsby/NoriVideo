@@ -1,5 +1,6 @@
 import { createScopedLogger } from '@/lib/logging/core'
 import { createStorageProvider } from '@/lib/storage/factory'
+import { getServiceConfigRevision } from '@/lib/service-config'
 import type { DeleteObjectsResult, StorageProvider } from '@/lib/storage/types'
 import { DEFAULT_SIGNED_URL_EXPIRES_SECONDS, withRetry } from '@/lib/storage/utils'
 
@@ -11,10 +12,13 @@ const UPLOAD_MAX_RETRIES = 3
 const RETRY_DELAY_BASE_MS = 2000
 
 let providerSingleton: StorageProvider | null = null
+let providerConfigRevision: string | null = null
 
 export function getStorageProvider(): StorageProvider {
-  if (!providerSingleton) {
+  const revision = getServiceConfigRevision()
+  if (!providerSingleton || providerConfigRevision !== revision) {
     providerSingleton = createStorageProvider()
+    providerConfigRevision = revision
     storageLogger.info(`[Storage] provider initialized: ${providerSingleton.kind}`)
   }
   return providerSingleton
@@ -22,6 +26,7 @@ export function getStorageProvider(): StorageProvider {
 
 export function resetStorageProvider(): void {
   providerSingleton = null
+  providerConfigRevision = null
 }
 
 export function getStorageType(): string {

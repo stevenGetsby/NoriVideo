@@ -2,6 +2,8 @@
 
 NoriVideo 是一个基于 Next.js 的 AI 视频创作与运营工作台。项目围绕「项目 / 剧集 / 角色 / 场景 / 分镜 / 任务」组织内容，支持从文本创作、分镜生成、图片与视频生成、配音、视频增强到任务队列管理的一整套工作流。
 
+当前稳定基线：`v0.5.0`（2026-08-02）。
+
 ## 核心能力
 
 - 视频项目工作区：创建项目、管理剧集、角色、场景、道具、分镜和画布内容。
@@ -43,7 +45,7 @@ public/                   静态资源
 
 ## 环境要求
 
-- Node.js 20，项目包含 `.nvmrc`
+- Node.js 22，项目包含 `.nvmrc`（当前固定为 22.14.0）
 - npm
 - Docker / Docker Compose，用于本地 MySQL、Redis、MinIO 或完整容器部署
 - 可用的 MySQL 与 Redis
@@ -78,7 +80,15 @@ docker compose up -d mysql redis
 npx prisma db push
 ```
 
-5. 启动开发服务：
+5. 全新数据库或旧库首次升级时，初始化平台 Admin，并把未归属的旧账号纳入其工作区：
+
+```bash
+NORI_OWNER_USERNAME=xyz NORI_OWNER_PASSWORD='请替换为至少8位密码' npm run account:bootstrap
+```
+
+`xyz` 是平台 Admin，可创建多个管理账号；每个管理账号可增删改查自己的编剧、资产师和分镜师子账号。平台 Admin 可管理整棵账号树，系统不开放注册。
+
+6. 启动开发服务：
 
 ```bash
 npm run dev
@@ -90,6 +100,13 @@ npm run dev
 - Worker：处理异步任务
 - Watchdog：恢复和巡检任务状态
 - Bull Board：默认 `http://localhost:3010/admin/queues`
+
+生产部署的入口隔离：
+
+- NoriVideo 工作台：`http://<server>:80`
+- 平台 Admin：`http://<server>:8080/zh/admin/signin`
+
+`docker-compose.prod.yml` 会以同一镜像启动两个独立 Web 进程。Admin 进程只开放登录、账号和服务配置相关页面/API，不启动生产 Worker；两个端口使用独立会话 Cookie。
 
 ## Docker 部署
 

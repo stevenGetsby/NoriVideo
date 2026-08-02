@@ -18,6 +18,7 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(),
   },
   userBalance: {
+    upsert: vi.fn(),
     findUnique: vi.fn(),
     create: vi.fn(),
   },
@@ -99,6 +100,15 @@ describe('billing routes internal agent visibility', () => {
     prismaMock.project.findFirst.mockResolvedValue({ id: 'project-1', name: 'Visible Project' })
     prismaMock.novelPromotionEpisode.findMany.mockResolvedValue([])
     prismaMock.userBalance.findUnique.mockResolvedValue({
+      id: 'balance-1',
+      userId: 'user-1',
+      balance: 88,
+      frozenAmount: 0,
+      totalSpent: 12,
+      createdAt: new Date('2026-06-13T09:00:00.000Z'),
+      updatedAt: new Date('2026-06-13T12:00:00.000Z'),
+    })
+    prismaMock.userBalance.upsert.mockResolvedValue({
       id: 'balance-1',
       userId: 'user-1',
       balance: 88,
@@ -439,8 +449,10 @@ describe('billing routes internal agent visibility', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(prismaMock.userBalance.findUnique).toHaveBeenCalledWith({
+    expect(prismaMock.userBalance.upsert).toHaveBeenCalledWith({
       where: { userId: 'user-1' },
+      create: { userId: 'user-1', balance: 0, frozenAmount: 0, totalSpent: 0 },
+      update: {},
     })
     expect(prismaMock.balanceTransaction.findMany).toHaveBeenCalledWith({
       where: { userId: 'user-1', type: 'consume' },

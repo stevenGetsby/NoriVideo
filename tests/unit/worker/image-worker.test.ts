@@ -22,6 +22,9 @@ const handlerMock = vi.hoisted(() => ({
   handlePanelImageTask: vi.fn(async () => ({ ok: true })),
   handlePanelVariantTask: vi.fn(async () => ({ ok: true })),
 }))
+const canvasHandlerMock = vi.hoisted(() => ({
+  handleCanvasImageOperationTask: vi.fn(async () => ({ operation: 'superresolve' })),
+}))
 
 const configServiceMock = vi.hoisted(() => ({
   getUserWorkflowConcurrencyConfig: vi.fn(async () => ({
@@ -39,7 +42,7 @@ const gateMock = vi.hoisted(() => ({
 
 vi.mock('bullmq', () => ({
   Queue: class {
-    constructor(_name: string) {}
+    constructor(name: string) { void name }
 
     async add() {
       return { id: 'job-1' }
@@ -50,7 +53,8 @@ vi.mock('bullmq', () => ({
     }
   },
   Worker: class {
-    constructor(_name: string, processor: WorkerProcessor) {
+    constructor(name: string, processor: WorkerProcessor) {
+      void name
       workerState.processor = processor
     }
   },
@@ -61,6 +65,7 @@ vi.mock('@/lib/workers/shared', () => sharedMock)
 vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/workers/user-concurrency-gate', () => gateMock)
 vi.mock('@/lib/workers/handlers/image-task-handlers', () => handlerMock)
+vi.mock('@/lib/workers/handlers/canvas-operation-task-handler', () => canvasHandlerMock)
 
 function buildJob(type: TaskJobData['type']): Job<TaskJobData> {
   return {
@@ -101,5 +106,13 @@ describe('worker image concurrency behavior', () => {
       limit: 5,
     }))
     expect(handlerMock.handlePanelImageTask).toHaveBeenCalledWith(job)
+  })
+
+  it('dispatches canvas image processing to the persistent operation handler', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+    const job = buildJob(TASK_TYPE.CANVAS_IMAGE_OPERATION)
+    await processor!(job)
+    expect(canvasHandlerMock.handleCanvasImageOperationTask).toHaveBeenCalledWith(job)
   })
 })

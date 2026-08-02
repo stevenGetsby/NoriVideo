@@ -8,6 +8,9 @@ import {
   executeAssetExtraction,
   type AssetExtractionEpisodeInput,
 } from '@/lib/novel-promotion/asset-extraction'
+import { persistAssetExtractionPackage } from '@/lib/novel-promotion/project-import-pipeline'
+import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
+import { TASK_TYPE } from '@/lib/task/types'
 
 export const runtime = 'nodejs'
 
@@ -15,6 +18,8 @@ type RequestBody = {
   episodes?: unknown
   model?: unknown
   runId?: unknown
+  persist?: unknown
+  clearExisting?: unknown
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -120,12 +125,44 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
+  if (requestEpisodes.length === 0) {
+    const asyncTaskResponse = await maybeSubmitLLMTask({
+      request,
+      userId: session.user.id,
+      projectId,
+      type: TASK_TYPE.ASSET_EXTRACTION_RUN,
+      targetType: 'NovelPromotionProject',
+      targetId: projectId,
+      routePath: `/api/novel-promotion/${projectId}/asset-extraction`,
+      body: {
+        ...body,
+        analysisModel: model,
+        persist: body.persist !== false,
+        clearExisting: body.clearExisting !== false,
+        displayMode: 'detail',
+      },
+      dedupeKey: `asset_extraction_run:${projectId}`,
+      priority: 2,
+    })
+    if (asyncTaskResponse) return asyncTaskResponse
+  }
+
   const result = await executeAssetExtraction({
     userId: session.user.id,
     projectId,
     model,
     episodes,
   })
+
+  const shouldPersist = body.persist === true
+  const persistedAssets = shouldPersist
+    ? await persistAssetExtractionPackage({
+      projectId,
+      package: result.package,
+      clearExisting: body.clearExisting !== false,
+      artStylePrompt: readString(novelData.artStylePrompt),
+    })
+    : null
 
   const runId = readString(body.runId)
   let artifact: { id: string; runId: string } | null = null
@@ -150,6 +187,7 @@ export const POST = apiHandler(async (
 
   return NextResponse.json({
     package: result.package,
+    assets: persistedAssets,
     artifact,
     usage: result.usage,
   })

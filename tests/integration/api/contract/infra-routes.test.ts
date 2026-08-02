@@ -14,6 +14,7 @@ const loggingMock = vi.hoisted(() => ({
 
 const storageMock = vi.hoisted(() => ({
   getSignedObjectUrl: vi.fn(async (key: string, ttl: number) => `https://signed.example/${key}?expires=${ttl}`),
+  getObjectBuffer: vi.fn(async () => Buffer.from([0xff, 0xd8, 0xff, 0xd9])),
 }))
 
 vi.mock('@/lib/api-auth', () => {
@@ -134,6 +135,24 @@ describe('api contract - infra routes (behavior)', () => {
     expect(storageMock.getSignedObjectUrl).toHaveBeenCalledWith('folder/a.png', 3600)
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://signed.example/folder/a.png?expires=3600')
+  })
+
+  it('GET /api/storage/sign serves same-origin image bytes for WebGL textures', async () => {
+    const mod = await import('@/app/api/storage/sign/route')
+    const req = buildMockRequest({
+      path: '/api/storage/sign?key=images/panorama.jpg&inline=1',
+      method: 'GET',
+    })
+
+    const res = await mod.GET(req, { params: Promise.resolve({}) })
+
+    expect(storageMock.getObjectBuffer).toHaveBeenCalledWith('images/panorama.jpg')
+    expect(storageMock.getSignedObjectUrl).not.toHaveBeenCalled()
+    expect(res.status).toBe(200)
+    expect(res.headers.get('content-type')).toBe('image/jpeg')
+    expect(res.headers.get('content-disposition')).toBe('inline')
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff')
+    expect(new Uint8Array(await res.arrayBuffer())).toEqual(new Uint8Array([0xff, 0xd8, 0xff, 0xd9]))
   })
 
   it('GET /api/system/boot-id rejects unauthenticated requests', async () => {

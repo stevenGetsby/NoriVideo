@@ -9,6 +9,7 @@ import { apiFetch } from '@/lib/api-fetch'
 export interface UserModelOption {
     value: string
     label: string
+    tier?: 'mini' | 'fast' | 'standard' | 'pro'
     provider?: string
     providerName?: string
     capabilities?: ModelCapabilities

@@ -40,9 +40,15 @@ describe('/api/projects/[projectId] PATCH', () => {
     prismaMock.project.findFirst.mockResolvedValue({
       id: 'project-1',
       userId: 'user-1',
+      createdById: 'user-1',
       name: 'Project 1',
       description: 'old description',
       user: { id: 'user-1' },
+      work: {
+        createdById: 'user-1',
+        members: [],
+      },
+      members: [],
     })
     prismaMock.project.update.mockResolvedValue({
       id: 'project-1',
@@ -71,12 +77,21 @@ describe('/api/projects/[projectId] PATCH', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
-    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+    expect(prismaMock.project.findFirst).toHaveBeenNthCalledWith(1, expect.objectContaining({
       where: {
         id: 'project-1',
         userId: 'user-1',
       },
-      include: { user: true },
+      include: expect.objectContaining({
+        work: expect.any(Object),
+        members: expect.any(Object),
+      }),
+    }))
+    expect(prismaMock.project.findFirst).toHaveBeenNthCalledWith(2, {
+      where: {
+        id: 'project-1',
+        userId: 'user-1',
+      },
     })
     expect(prismaMock.project.update).toHaveBeenCalledWith({
       where: { id: 'project-1' },
@@ -104,13 +119,51 @@ describe('/api/projects/[projectId] PATCH', () => {
     )
 
     expect(response.status).toBe(404)
-    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         id: 'project-other',
         userId: 'user-1',
       },
-      include: { user: true },
-    })
+      include: expect.objectContaining({
+        work: expect.any(Object),
+        members: expect.any(Object),
+      }),
+    }))
     expect(prismaMock.project.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('/api/projects/[projectId] GET privacy', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    prismaMock.project.findFirst.mockResolvedValue({
+      id: 'project-1',
+      userId: 'user-1',
+      name: 'Project 1',
+      description: null,
+      createdAt: new Date('2026-07-17T00:00:00.000Z'),
+      updatedAt: new Date('2026-07-17T00:00:00.000Z'),
+      lastAccessedAt: null,
+    })
+    prismaMock.project.update.mockResolvedValue({ id: 'project-1' })
+  })
+
+  it('does not join or expose the owning User record', async () => {
+    const { GET } = await import('@/app/api/projects/[projectId]/route')
+    const response = await GET(
+      new NextRequest('http://localhost/api/projects/project-1'),
+      { params: Promise.resolve({ projectId: 'project-1' }) },
+    )
+    const payload = await response.json() as { project: Record<string, unknown> }
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'project-1',
+        userId: 'user-1',
+      },
+    })
+    expect(payload.project).not.toHaveProperty('user')
+    expect(payload.project).not.toHaveProperty('password')
   })
 })

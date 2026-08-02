@@ -16,7 +16,7 @@ describe('api route contract guard', () => {
       ),
     ).toEqual([
       'src/app/api/system/boot-id/route.ts missing apiHandler wrapper',
-      'src/app/api/system/boot-id/route.ts missing requireUserAuth/requireProjectAuth/requireProjectAuthLight',
+      'src/app/api/system/boot-id/route.ts missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight',
     ])
   })
 
@@ -31,6 +31,46 @@ describe('api route contract guard', () => {
     `
 
     expect(inspectRouteContract('src/app/api/user/secure/route.ts', content)).toEqual([])
+
+    const adminContent = `
+      import { requireAdminAuth } from '@/lib/api-auth'
+      import { apiHandler } from '@/lib/api-errors'
+      export const GET = apiHandler(async () => {
+        await requireAdminAuth()
+        return Response.json({ ok: true })
+      })
+    `
+    expect(inspectRouteContract('src/app/api/admin/accounts/route.ts', adminContent)).toEqual([])
+
+    const superAdminContent = `
+      import { requireSuperAdminAuth } from '@/lib/api-auth'
+      import { apiHandler } from '@/lib/api-errors'
+      export const GET = apiHandler(async () => {
+        await requireSuperAdminAuth()
+        return Response.json({ ok: true })
+      })
+    `
+    expect(inspectRouteContract('src/app/api/admin/services/route.ts', superAdminContent)).toEqual([])
+
+    const permissionContent = `
+      import { requireUserPermission } from '@/lib/api-auth'
+      import { apiHandler } from '@/lib/api-errors'
+      export const PATCH = apiHandler(async () => {
+        await requireUserPermission(['assetWrite'])
+        return Response.json({ ok: true })
+      })
+    `
+    expect(inspectRouteContract('src/app/api/frameos/materials/[materialId]/route.ts', permissionContent)).toEqual([])
+  })
+
+  it('recognizes the authenticated collaboration assignment route delegate', () => {
+    const content = `
+      import { apiHandler } from '@/lib/api-errors'
+      import { handleAssignmentGet } from '@/lib/collaboration/assignment-http'
+      export const GET = apiHandler((request) => handleAssignmentGet(request, 'my'))
+    `
+
+    expect(inspectRouteContract('src/app/api/collaboration/assignments/my/route.ts', content)).toEqual([])
   })
 
   it('flags protected routes that skip apiHandler or auth', () => {
@@ -50,7 +90,7 @@ describe('api route contract guard', () => {
       'src/app/api/user/secure/route.ts missing apiHandler wrapper',
     ])
     expect(inspectRouteContract('src/app/api/user/secure/route.ts', missingAuth)).toEqual([
-      'src/app/api/user/secure/route.ts missing requireUserAuth/requireProjectAuth/requireProjectAuthLight',
+      'src/app/api/user/secure/route.ts missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight',
     ])
   })
 })

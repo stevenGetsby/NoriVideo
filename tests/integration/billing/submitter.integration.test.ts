@@ -97,6 +97,7 @@ describe('billing/submitter integration', () => {
   it('allows billable task submission without computed billingInfo in OFF mode (regression)', async () => {
     process.env.BILLING_MODE = 'OFF'
     const user = await createTestUser()
+    await seedBalance(user.id, 10)
 
     const result = await submitTask({
       userId: user.id,
@@ -113,6 +114,28 @@ describe('billing/submitter integration', () => {
     expect(task).toBeTruthy()
     expect(task?.errorCode).toBeNull()
     expect(task?.billingInfo).toBeNull()
+  })
+
+  it('blocks a new queued generation at zero points even when billing mode is OFF', async () => {
+    process.env.BILLING_MODE = 'OFF'
+    const user = await createTestUser()
+    await seedBalance(user.id, 0)
+
+    await expect(submitTask({
+      userId: user.id,
+      locale: 'en',
+      projectId: 'project-off-zero',
+      type: TASK_TYPE.IMAGE_CHARACTER,
+      targetType: 'CharacterAppearance',
+      targetId: 'appearance-off-zero',
+      payload: {},
+    })).rejects.toMatchObject({ code: 'INSUFFICIENT_BALANCE' } satisfies Pick<ApiError, 'code'>)
+
+    const task = await prisma.task.findFirst({
+      where: { userId: user.id, targetId: 'appearance-off-zero' },
+    })
+    expect(task).toMatchObject({ status: TASK_STATUS.FAILED, errorCode: 'INSUFFICIENT_BALANCE' })
+    expect(addTaskJobMock).not.toHaveBeenCalled()
   })
 
   it('keeps strict billingInfo validation in ENFORCE mode (regression)', async () => {
@@ -260,6 +283,7 @@ describe('billing/submitter integration', () => {
   it('reattaches a new task to the existing active run when the old task is already terminal', async () => {
     process.env.BILLING_MODE = 'OFF'
     const user = await createTestUser()
+    await seedBalance(user.id, 10)
     const failedTask = await prisma.task.create({
       data: {
         userId: user.id,

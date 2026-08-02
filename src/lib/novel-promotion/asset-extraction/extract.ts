@@ -36,6 +36,18 @@ export type AssetExtractionExecutionParams = ExecuteAssetExtractionInput & {
   batchConcurrency?: number
   batchSize?: number
   enableVisualRefinement?: boolean
+  onProgress?: (event: AssetExtractionProgressEvent) => void | Promise<void>
+}
+
+export type AssetExtractionProgressEvent = {
+  phase: 'extract' | 'merge' | 'refine'
+  completed: number
+  total: number
+  completedEpisodes: number
+  totalEpisodes: number
+  characters: number
+  environments: number
+  props: number
 }
 
 export type AssetExtractionExecutionResult = {
@@ -886,6 +898,8 @@ async function executeCharacterVisualRefinement(params: {
   executeTextStep: ExecuteTextStep
   stepIndex: number
   stepTotal: number
+  totalEpisodes: number
+  onProgress?: (event: AssetExtractionProgressEvent) => void | Promise<void>
 }) {
   if (params.pkg.characters.length === 0) {
     return {
@@ -938,6 +952,16 @@ async function executeCharacterVisualRefinement(params: {
     )
     usage = addUsage(usage, completion.usage)
     rawTexts.push(rawText)
+    await params.onProgress?.({
+      phase: 'refine',
+      completed: index + 1,
+      total: params.pkg.characters.length,
+      completedEpisodes: params.totalEpisodes,
+      totalEpisodes: params.totalEpisodes,
+      characters: refinedPackage.characters.length,
+      environments: refinedPackage.environments.length,
+      props: refinedPackage.props.length,
+    })
   }
   return {
     package: refinedPackage,
@@ -958,9 +982,13 @@ async function executeAssetExtractionBatches(params: {
   episodeBatches: AssetExtractionEpisodeInput[][]
   executeTextStep: ExecuteTextStep
   concurrency: number
+  totalEpisodes: number
+  onProgress?: (event: AssetExtractionProgressEvent) => void | Promise<void>
 }) {
   const results: Array<AssetExtractionBatchResult | undefined> = []
   let nextIndex = 0
+  let completedBatches = 0
+  let completedEpisodes = 0
   async function worker() {
     while (nextIndex < params.episodeBatches.length) {
       const index = nextIndex
@@ -973,6 +1001,19 @@ async function executeAssetExtractionBatches(params: {
         executeTextStep: params.executeTextStep,
         stepIndex: index + 1,
         stepTotal: params.episodeBatches.length,
+      })
+      completedBatches += 1
+      completedEpisodes += params.episodeBatches[index].length
+      const completedResults = results.filter((result): result is AssetExtractionBatchResult => !!result)
+      await params.onProgress?.({
+        phase: 'extract',
+        completed: completedBatches,
+        total: params.episodeBatches.length,
+        completedEpisodes: Math.min(params.totalEpisodes, completedEpisodes),
+        totalEpisodes: params.totalEpisodes,
+        characters: completedResults.reduce((sum, result) => sum + result.package.characters.length, 0),
+        environments: completedResults.reduce((sum, result) => sum + result.package.environments.length, 0),
+        props: completedResults.reduce((sum, result) => sum + result.package.props.length, 0),
       })
     }
   }
@@ -1002,6 +1043,8 @@ export async function executeAssetExtraction(
     episodeBatches,
     executeTextStep,
     concurrency: normalizeBatchConcurrency(params.batchConcurrency),
+    totalEpisodes: episodes.length,
+    onProgress: params.onProgress,
   })
   let usage = results.reduce(
     (total, result) => addUsage(total, result.usage),
@@ -1013,6 +1056,16 @@ export async function executeAssetExtraction(
     : mergePackages(results.map((result) => result.package))
 
   const postProcessedPackage = postProcessAssetPackage(mergedPackage, episodes)
+  await params.onProgress?.({
+    phase: 'merge',
+    completed: 1,
+    total: 1,
+    completedEpisodes: episodes.length,
+    totalEpisodes: episodes.length,
+    characters: postProcessedPackage.characters.length,
+    environments: postProcessedPackage.environments.length,
+    props: postProcessedPackage.props.length,
+  })
   const shouldRefineVisuals = params.enableVisualRefinement !== false
   const visualRefinement = shouldRefineVisuals
     ? await executeCharacterVisualRefinement({
@@ -1023,6 +1076,8 @@ export async function executeAssetExtraction(
       executeTextStep,
       stepIndex: episodeBatches.length + 1,
       stepTotal: episodeBatches.length + postProcessedPackage.characters.length,
+      totalEpisodes: episodes.length,
+      onProgress: params.onProgress,
     })
     : null
   if (visualRefinement) {

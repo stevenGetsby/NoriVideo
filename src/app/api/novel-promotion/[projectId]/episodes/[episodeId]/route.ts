@@ -6,6 +6,7 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 
 async function getNovelPromotionProject(projectId: string) {
   const novelPromotionProject = await prisma.novelPromotionProject.findUnique({
@@ -121,6 +122,11 @@ export const PATCH = apiHandler(async (
     data: updateData
   })
 
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: authResult.session.user.id,
+  })
+
   return NextResponse.json({ episode })
 })
 
@@ -167,6 +173,11 @@ export const DELETE = apiHandler(async (
       data: { lastEpisodeId: anotherEpisode?.id || null }
     })
   }
+
+  await syncProjectAssignmentsForProject({
+    projectId,
+    workspaceOwnerId: authResult.session.user.id,
+  })
 
   return NextResponse.json({ success: true })
 })

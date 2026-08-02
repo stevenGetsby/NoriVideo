@@ -10,6 +10,7 @@ export type {
     ClipAttachment,
     ClipTransition,
     ClipMetadata,
+    SourceAudioSegment,
     EditorConfig,
     TimelineState,
     ComputedClip,

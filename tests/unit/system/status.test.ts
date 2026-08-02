@@ -83,7 +83,21 @@ describe('system status queue summary', () => {
         message: 'provider failed',
       },
     })
-    expect(rows.find((row) => row.id === 'image')?.taskTypes).toContain('image_panel')
+    expect(rows.find((row) => row.id === 'image')?.taskTypes).toEqual(expect.arrayContaining([
+      'image_panel',
+      'toolbox_model_3d',
+      'canvas_image_operation',
+    ]))
+    expect(rows.find((row) => row.id === 'video')?.taskTypes).toEqual(expect.arrayContaining([
+      'video_panel',
+      'canvas_video_operation',
+    ]))
+    expect(rows.find((row) => row.id === 'text')?.taskTypes).toEqual(expect.arrayContaining([
+      'canvas_text_generation',
+      'canvas_storyboard_plan',
+    ]))
+    expect(rows.find((row) => row.id === 'text')?.taskTypes).not.toContain('canvas_image_operation')
+    expect(rows.find((row) => row.id === 'text')?.taskTypes).not.toContain('canvas_video_operation')
     expect(rows.find((row) => row.id === 'voice')?.taskTypes).toContain('voice_line')
     expect(taskCountMock).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({ userId: 'user-1' }),

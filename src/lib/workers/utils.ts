@@ -8,7 +8,11 @@ import { pollAsyncTask } from '@/lib/async-poll'
 import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { processMediaResult } from '@/lib/media-process'
-import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
+import {
+  normalizeReferenceImagesForGeneration,
+  normalizeToPublicImageUrlForGeneration,
+} from '@/lib/media/outbound-image'
+import { getCapabilityOptionFields, resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import {
   getProjectModelConfig,
   getUserModelConfig,
@@ -26,7 +30,7 @@ const DEFAULT_POLL_INTERVAL_MS = Number.parseInt(process.env.WORKER_EXTERNAL_POL
 /**
  * 查询 DB 中任务是否已有 externalId（服务重启后续接轮询用，避免重复提交外部 API）
  */
-async function getTaskExistingExternalId(taskId: string): Promise<string | null> {
+export async function getTaskExistingExternalId(taskId: string): Promise<string | null> {
   try {
     const task = await prisma.task.findUnique({
       where: { id: taskId },
@@ -174,8 +178,11 @@ export async function resolveImageSourceFromGeneration(
     prompt: string
     options?: {
       referenceImages?: string[]
+      editMode?: 'inpaint'
+      maskImage?: string
       aspectRatio?: string
       resolution?: string
+      quality?: 'low' | 'medium' | 'high'
       size?: string
       provider?: string
     }
@@ -215,12 +222,9 @@ export async function resolveImageSourceFromGeneration(
   if (typeof params.options?.resolution === 'string') {
     runtimeSelections.resolution = params.options.resolution
   }
-  if (typeof params.options?.aspectRatio === 'string') {
-    runtimeSelections.aspectRatio = params.options.aspectRatio
-  }
-  if (typeof params.options?.size === 'string') {
-    runtimeSelections.size = params.options.size
-  }
+  // Aspect ratio, provider size and quality are canvas/provider parameters,
+  // not fields in the central capability catalog. Resolution remains strictly
+  // validated against the selected model before any provider request is made.
 
   const capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
     projectId: job.data.projectId,
@@ -238,11 +242,26 @@ export async function resolveImageSourceFromGeneration(
       },
     })
     : undefined
+  const editMode = params.options?.editMode
+  const rawMaskImage = typeof params.options?.maskImage === 'string' ? params.options.maskImage.trim() : ''
+  if (rawMaskImage && editMode !== 'inpaint') {
+    throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: maskImage requires editMode=inpaint')
+  }
+  if (editMode === 'inpaint' && normalizedReferenceImages?.length !== 1) {
+    throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires exactly one source image')
+  }
+  if (editMode === 'inpaint' && !rawMaskImage) {
+    throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires maskImage')
+  }
+  const normalizedMaskImage = rawMaskImage
+    ? await normalizeToPublicImageUrlForGeneration(rawMaskImage)
+    : undefined
   const generationOptions = {
     ...params.options,
     ...(normalizedReferenceImages && normalizedReferenceImages.length > 0
       ? { referenceImages: normalizedReferenceImages }
       : {}),
+    ...(normalizedMaskImage ? { maskImage: normalizedMaskImage } : {}),
   }
   if (normalizedReferenceImages && normalizedReferenceImages.length === 0) {
     delete generationOptions.referenceImages
@@ -327,8 +346,11 @@ export async function resolveImageSourcesFromGeneration(
     prompt: string
     options?: {
       referenceImages?: string[]
+      editMode?: 'inpaint'
+      maskImage?: string
       aspectRatio?: string
       resolution?: string
+      quality?: 'low' | 'medium' | 'high'
       size?: string
       provider?: string
     }
@@ -366,12 +388,8 @@ export async function resolveImageSourcesFromGeneration(
   if (typeof params.options?.resolution === 'string') {
     runtimeSelections.resolution = params.options.resolution
   }
-  if (typeof params.options?.aspectRatio === 'string') {
-    runtimeSelections.aspectRatio = params.options.aspectRatio
-  }
-  if (typeof params.options?.size === 'string') {
-    runtimeSelections.size = params.options.size
-  }
+  // See the single-image path above: only catalog-owned fields belong in the
+  // capability resolver; the remaining validated options still reach the provider.
 
   const capabilityOptions = await resolveProjectModelCapabilityGenerationOptions({
     projectId: job.data.projectId,
@@ -513,6 +531,9 @@ export async function resolveVideoSourceFromGeneration(
   })
 
   const runtimeSelections: Record<string, string | number | boolean> = {}
+  const videoCapabilities = resolveBuiltinCapabilitiesByModelKey('video', params.modelId)
+  const videoCapabilityFields = getCapabilityOptionFields('video', videoCapabilities)
+  const declaresVideoCapabilityField = (field: string) => videoCapabilities !== undefined && Object.hasOwn(videoCapabilityFields, field)
   if (typeof params.options?.duration === 'number') {
     runtimeSelections.duration = params.options.duration
   }
@@ -520,12 +541,15 @@ export async function resolveVideoSourceFromGeneration(
     runtimeSelections.resolution = params.options.resolution
   }
   if (
-    params.options?.generationMode === 'normal'
-    || params.options?.generationMode === 'firstlastframe'
+    params.options?.generationMode === 'firstlastframe'
+    || (params.options?.generationMode === 'normal' && declaresVideoCapabilityField('generationMode'))
   ) {
     runtimeSelections.generationMode = params.options.generationMode
   }
-  if (typeof params.options?.generateAudio === 'boolean') {
+  if (
+    typeof params.options?.generateAudio === 'boolean'
+    && (params.options.generateAudio || declaresVideoCapabilityField('generateAudio'))
+  ) {
     runtimeSelections.generateAudio = params.options.generateAudio
   }
 
@@ -542,6 +566,7 @@ export async function resolveVideoSourceFromGeneration(
   const providerRequestOptions: Record<string, string | number | boolean | string[]> = {}
   for (const [key, value] of Object.entries(params.options || {})) {
     if (key === 'generationMode' || value === undefined) continue
+    if (key === 'generateAudio' && value === false && !declaresVideoCapabilityField('generateAudio')) continue
     if (Array.isArray(value)) {
       providerRequestOptions[key] = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
     } else {

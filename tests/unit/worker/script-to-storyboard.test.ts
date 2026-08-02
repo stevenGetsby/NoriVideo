@@ -52,6 +52,9 @@ const parseVoiceLinesJsonMock = vi.hoisted(() => vi.fn())
 const persistStoryboardOutputsMock = vi.hoisted(() => vi.fn())
 const parseStoryboardRetryTargetMock = vi.hoisted(() => vi.fn())
 const runScriptToStoryboardAtomicRetryMock = vi.hoisted(() => vi.fn())
+const buildEpisodeStoryboardWorkflowWithLlmMock = vi.hoisted(() => vi.fn())
+const buildEpisodeStoryboardClipPlansMock = vi.hoisted(() => vi.fn())
+const syncProjectAssignmentsForProjectMock = vi.hoisted(() => vi.fn(async () => undefined))
 const workflowLeaseMock = vi.hoisted(() => ({
   assertWorkflowRunActive: vi.fn(async () => undefined),
   withWorkflowRunLease: vi.fn(async (params: { run: () => Promise<unknown> }) => ({
@@ -74,6 +77,11 @@ const prismaMock = vi.hoisted(() => ({
   },
   novelPromotionEpisode: {
     findUnique: vi.fn(),
+  },
+  novelPromotionClip: {
+    create: vi.fn(),
+    update: vi.fn(),
+    deleteMany: vi.fn(),
   },
   $transaction: vi.fn(),
 }))
@@ -132,6 +140,13 @@ vi.mock('@/lib/novel-promotion/script-to-storyboard/orchestrator', () => ({
     }
   },
 }))
+vi.mock('@/lib/novel-promotion/episode-storyboard-workflow', () => ({
+  EPISODE_STORYBOARD_PROMPT_PROFILE: 'short-drama-cinematic-v1',
+  buildEpisodeStoryboardWorkflowWithLlm: buildEpisodeStoryboardWorkflowWithLlmMock,
+}))
+vi.mock('@/lib/novel-promotion/episode-storyboard-panels', () => ({
+  buildEpisodeStoryboardClipPlans: buildEpisodeStoryboardClipPlansMock,
+}))
 vi.mock('@/lib/workers/handlers/llm-stream', () => ({
   createWorkerLLMStreamContext: vi.fn(() => ({ streamRunId: 'run-1', nextSeqByStepLane: {} })),
   createWorkerLLMStreamCallbacks: vi.fn(() => ({
@@ -176,6 +191,9 @@ vi.mock('@/lib/workers/handlers/script-to-storyboard-atomic-retry', () => ({
   runScriptToStoryboardAtomicRetry: runScriptToStoryboardAtomicRetryMock,
 }))
 vi.mock('@/lib/run-runtime/workflow-lease', () => workflowLeaseMock)
+vi.mock('@/lib/collaboration/assignments', () => ({
+  syncProjectAssignmentsForProject: syncProjectAssignmentsForProjectMock,
+}))
 
 import { handleScriptToStoryboardTask } from '@/lib/workers/handlers/script-to-storyboard'
 
@@ -233,6 +251,7 @@ describe('worker script-to-storyboard behavior', () => {
     prismaMock.project.findUnique.mockResolvedValue({
       id: 'project-1',
       name: 'Project One',
+      userId: 'workspace-owner-1',
     })
 
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
@@ -252,12 +271,67 @@ describe('worker script-to-storyboard behavior', () => {
           content: 'clip content',
           characters: JSON.stringify(['Narrator']),
           location: 'Office',
-          screenplay: 'Screenplay text',
+          screenplay: JSON.stringify({ scenes: [{ content: 'Screenplay text' }] }),
         },
       ],
     })
+    prismaMock.novelPromotionClip.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
+      id: 'clip-auto-1',
+      ...data,
+    }))
 
-    prismaMock.$transaction.mockReset()
+    prismaMock.$transaction.mockImplementation(async (operation: (tx: typeof prismaMock) => Promise<unknown>) => (
+      await operation(prismaMock)
+    ))
+    buildEpisodeStoryboardWorkflowWithLlmMock.mockResolvedValue({
+      episodeNumber: 1,
+      segmentFunctions: ['开场钩子'],
+      scenes: [{
+        sceneId: 'S01',
+        location: 'Office',
+        segmentIds: ['S01-SEG01'],
+        totalDurationSeconds: 8,
+      }],
+      segments: [{
+        segmentId: 'S01-SEG01',
+        functionLabel: '开场钩子',
+        sourceText: 'A complete chapter text for voice analyze.',
+        location: 'Office',
+        durationSeconds: 8,
+        emotionalIntent: '建立钩子',
+        storyQuestion: '接下来会怎样',
+        transitionOut: '进入下一段',
+        characters: [{ name: 'Narrator' }],
+        props: [],
+        videoPrompt: 'precise wrapped prompt',
+      }],
+    })
+    buildEpisodeStoryboardClipPlansMock.mockReturnValue([{
+      id: 'clip-cinematic-1',
+      start: 0,
+      end: 1,
+      duration: 8,
+      summary: 'Office · 开场钩子',
+      location: 'Office',
+      content: 'precise wrapped prompt',
+      characters: JSON.stringify(['Narrator']),
+      props: null,
+      startText: 'A complete chapter text for voice analyze.',
+      endText: 'A complete chapter text for voice analyze.',
+      shotCount: 1,
+      screenplay: JSON.stringify({ source: 'episode-storyboard-cinematic-v1' }),
+      finalPanels: [{
+        panel_id: 'S01-SEG01',
+        panel_number: 1,
+        description: '开场钩子',
+        source_text: 'A complete chapter text for voice analyze.',
+        location: 'Office',
+        characters: ['Narrator'],
+        props: [],
+        video_prompt: '开场状态：\n环境：\n@Office\n站位关系：\n@Narrator：站在中央。\n灯光：冷白主光。\n\nShot 1\nduration: 3.0s\n镜头：近景。\n画面：\n@Narrator抬头。\n光影：高反差。',
+        duration: 8,
+      }],
+    }])
 
     persistStoryboardOutputsMock.mockImplementation(async ({ voiceLineRows }: { voiceLineRows: VoiceLineInput[] | null }) => {
       const rows = voiceLineRows || []
@@ -312,6 +386,10 @@ describe('worker script-to-storyboard behavior', () => {
       panelCount: 1,
       voiceLineCount: 1,
     })
+    expect(syncProjectAssignmentsForProjectMock).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceOwnerId: 'workspace-owner-1',
+    })
 
     expect(txState.createdRows).toHaveLength(1)
     expect(txState.createdRows[0]).toEqual(expect.objectContaining({
@@ -330,6 +408,119 @@ describe('worker script-to-storyboard behavior', () => {
         notIn: [1],
       },
     })
+  })
+
+  it('旧链路没有 clips 时不再创建会破坏语义的整集 fallback clip', async () => {
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
+      id: 'episode-1',
+      name: 'Episode One',
+      description: 'Single episode description',
+      novelPromotionProjectId: 'np-project-1',
+      novelText: 'A complete chapter text for voice analyze.',
+      clips: [],
+    })
+
+    const job = buildJob({ episodeId: 'episode-1' })
+    const result = await handleScriptToStoryboardTask(job)
+
+    expect(prismaMock.novelPromotionClip.create).not.toHaveBeenCalled()
+    expect(runScriptToStoryboardOrchestratorMock).toHaveBeenCalledWith(expect.objectContaining({
+      clips: [],
+    }))
+    expect(reportTaskProgressMock).not.toHaveBeenCalledWith(job, 8, expect.objectContaining({
+      stage: 'script_to_storyboard_prepare_clip',
+    }))
+    expect(result).toEqual(expect.objectContaining({
+      episodeId: 'episode-1',
+      storyboardCount: 1,
+    }))
+  })
+
+  it('已有 clip 的纯文本 screenplay 按原文容错，不再包装成伪结构化 JSON', async () => {
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
+      id: 'episode-1',
+      novelPromotionProjectId: 'np-project-1',
+      novelText: 'Episode source text',
+      clips: [
+        {
+          id: 'clip-legacy',
+          summary: 'Legacy clip',
+          content: 'Legacy clip content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: 'Legacy screenplay plain text',
+        },
+      ],
+    })
+
+    await handleScriptToStoryboardTask(buildJob({ episodeId: 'episode-1' }))
+
+    expect(prismaMock.novelPromotionClip.update).not.toHaveBeenCalled()
+    expect(runScriptToStoryboardOrchestratorMock).toHaveBeenCalledWith(expect.objectContaining({
+      clips: [expect.objectContaining({
+        id: 'clip-legacy',
+        screenplay: 'Legacy screenplay plain text',
+      })],
+    }))
+  })
+
+  it('FrameOS 入口使用 Scene/Segment 精细提示词链路并替换旧 clips', async () => {
+    const result = await handleScriptToStoryboardTask(buildJob({
+      episodeId: 'episode-1',
+      storyboardPromptProfile: 'short-drama-cinematic-v1',
+    }))
+
+    expect(buildEpisodeStoryboardWorkflowWithLlmMock).toHaveBeenCalledTimes(1)
+    expect(buildEpisodeStoryboardClipPlansMock).toHaveBeenCalledTimes(1)
+    expect(runScriptToStoryboardOrchestratorMock).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionClip.deleteMany).toHaveBeenCalledWith({
+      where: { episodeId: 'episode-1' },
+    })
+    expect(prismaMock.novelPromotionClip.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        id: 'clip-cinematic-1',
+        episodeId: 'episode-1',
+        screenplay: expect.stringContaining('episode-storyboard-cinematic-v1'),
+      }),
+    })
+    expect(persistStoryboardOutputsMock).toHaveBeenCalledWith(expect.objectContaining({
+      clipPanels: [expect.objectContaining({
+        clipId: 'clip-cinematic-1',
+        finalPanels: [expect.objectContaining({
+          video_prompt: expect.stringContaining('开场状态：\n环境：\n@Office'),
+        })],
+      })],
+    }))
+    expect(result).toEqual(expect.objectContaining({
+      episodeId: 'episode-1',
+      panelCount: 1,
+    }))
+  })
+
+  it('已有合法 screenplay JSON 保持原值且不触发修复写入', async () => {
+    const validScreenplay = '{\n  "scenes": [{"heading":"Office"}]\n}'
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
+      id: 'episode-1',
+      novelPromotionProjectId: 'np-project-1',
+      novelText: 'Episode source text',
+      clips: [
+        {
+          id: 'clip-valid',
+          summary: 'Valid clip',
+          content: 'Valid clip content',
+          characters: JSON.stringify(['Narrator']),
+          location: 'Office',
+          screenplay: validScreenplay,
+        },
+      ],
+    })
+
+    await handleScriptToStoryboardTask(buildJob({ episodeId: 'episode-1' }))
+
+    expect(prismaMock.novelPromotionClip.update).not.toHaveBeenCalled()
+    expect(runScriptToStoryboardOrchestratorMock).toHaveBeenCalledWith(expect.objectContaining({
+      clips: [expect.objectContaining({ screenplay: validScreenplay })],
+    }))
   })
 
   it('voice 解析失败后会重试一次再成功', async () => {

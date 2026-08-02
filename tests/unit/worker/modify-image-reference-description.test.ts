@@ -16,6 +16,7 @@ const utilsMock = vi.hoisted(() => ({
 
 const outboundImageMock = vi.hoisted(() => ({
   normalizeReferenceImagesForGeneration: vi.fn(async (input?: string[]) => input?.map((item) => item.trim()) || []),
+  normalizeToOriginalMediaUrl: vi.fn(async (value: string) => value),
   normalizeToBase64ForGeneration: vi.fn(async () => 'base64-reference'),
 }))
 
@@ -79,6 +80,9 @@ vi.mock('@/lib/prompt-i18n', () => promptMock)
 vi.mock('@/lib/logging/core', () => loggingMock)
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
+}))
+vi.mock('@/lib/frameos/material-service', () => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
 }))
 
 import { handleModifyAssetImageTask } from '@/lib/workers/handlers/image-task-handlers-core'

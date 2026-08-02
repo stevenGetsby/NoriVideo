@@ -22,9 +22,16 @@ export const PUBLIC_ROUTE_ALLOWLIST = new Set([
 ])
 
 const AUTH_CALL_PATTERNS = [
+  /\brequireAdminAuth\s*\(/,
+  /\brequireSuperAdminAuth\s*\(/,
   /\brequireUserAuth\s*\(/,
+  /\brequireUserPermission\s*\(/,
   /\brequireProjectAuth\s*\(/,
   /\brequireProjectAuthLight\s*\(/,
+  // Assignment route shims delegate authentication to these shared HTTP
+  // handlers. Keep this narrow so arbitrary helper delegation cannot bypass
+  // the route auth contract.
+  /\bhandleAssignment(?:Get|Post)\s*\(/,
 ]
 
 function fail(title, details = []) {
@@ -70,7 +77,7 @@ export function inspectRouteContract(relPath, content) {
   }
 
   if (!PUBLIC_ROUTE_ALLOWLIST.has(relPath) && !hasRequiredAuth(content)) {
-    violations.push(`${relPath} missing requireUserAuth/requireProjectAuth/requireProjectAuthLight`)
+    violations.push(`${relPath} missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight`)
   }
 
   return violations

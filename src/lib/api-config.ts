@@ -28,6 +28,7 @@ import {
   isLuminaProviderId,
   isSupportedModelProvider,
   normalizeProviderModelId,
+  MODEL_PRESETS,
 } from './model-provider-contract'
 import {
   HFSY_IMAGE_MODEL_ID,
@@ -39,6 +40,11 @@ import {
   getServiceLlmConfig,
   type ServiceConfigProvider,
 } from './service-config'
+import {
+  findNoriBusinessModel,
+  normalizeProjectBusinessModelKey,
+  resolveRuntimeModelKey,
+} from './nori-model-catalog'
 
 export interface CustomModel {
   modelId: string
@@ -73,6 +79,7 @@ interface CustomProvider {
   name: string
   baseUrl?: string
   apiKey?: string
+  assetGroupId?: string
   apiMode?: 'gemini-sdk' | 'openai-official'
   gatewayRoute?: GatewayRouteType
 }
@@ -106,6 +113,9 @@ function normalizeProviderBaseUrl(providerId: string, rawBaseUrl?: string): stri
   if (getProviderKey(providerId).toLowerCase() === 'deepseek') {
     const baseUrl = readTrimmedString(rawBaseUrl) || 'https://api.deepseek.com/v1'
     return baseUrl.replace(/\/+$/, '')
+  }
+  if (getProviderKey(providerId).toLowerCase() === 'kuaizi') {
+    return (readTrimmedString(rawBaseUrl) || 'https://aiopenapi.kuaizi.cn').replace(/\/+$/, '')
   }
   if (providerKey === 'minimax') {
     return 'https://api.minimaxi.com/v1'
@@ -143,6 +153,15 @@ function readEnvHfsyApiKey(): string {
     || readTrimmedString(process.env.HFSY_API_KEY)
     || readTrimmedString(process.env.NORI_TEST_HFSY_API_KEY)
     || readTrimmedString(process.env.NORI_TEST_IMAGE_API_KEY)
+}
+
+function readEnvArkApiKey(): string {
+  const serviceArkProvider = getServiceLlmConfig()?.providers?.find(
+    (provider) => getProviderKey(provider.id).toLowerCase() === 'ark',
+  )
+  return readTrimmedString(serviceArkProvider?.apiKey)
+    || readTrimmedString(process.env.ARK_API_KEY)
+    || readTrimmedString(process.env.NORI_TEST_ARK_API_KEY)
 }
 
 function buildHfsyGptImage2Template(): OpenAICompatMediaTemplate {
@@ -265,6 +284,7 @@ function parseCustomProviders(rawProviders: string | null | undefined): CustomPr
       name,
       baseUrl: readTrimmedString(raw.baseUrl) || undefined,
       apiKey: readTrimmedString(raw.apiKey) || undefined,
+      assetGroupId: readTrimmedString(raw.assetGroupId) || undefined,
       apiMode,
       gatewayRoute,
     })
@@ -436,6 +456,48 @@ function appendEnvHfsyProvider(providers: CustomProvider[]): CustomProvider[] {
   ]
 }
 
+function appendEnvArkProvider(providers: CustomProvider[]): CustomProvider[] {
+  if (providers.some((provider) => getProviderKey(provider.id).toLowerCase() === 'ark')) {
+    return providers
+  }
+  const apiKey = readEnvArkApiKey()
+  if (!apiKey) return providers
+  return [
+    ...providers,
+    {
+      id: 'ark',
+      name: 'Volcengine Ark',
+      apiKey: encryptApiKey(apiKey),
+    },
+  ]
+}
+
+function appendEnvArkMediaModels(models: CustomModel[]): CustomModel[] {
+  if (!readEnvArkApiKey()) return models
+  const seen = new Set(models.map((model) => model.modelKey))
+  const arkMediaPresets = MODEL_PRESETS
+    .filter((preset) => preset.provider === 'ark' && (preset.type === 'image' || preset.type === 'video'))
+    .sort((left, right) => {
+      const priority = (modelId: string) => modelId.includes('seedance-2-0') ? 0 : modelId.includes('seedream-5-0') ? 1 : 2
+      return priority(left.modelId) - priority(right.modelId)
+    })
+  const next = [...models]
+  for (const preset of arkMediaPresets) {
+    const modelKey = composeModelKey(preset.provider, preset.modelId)
+    if (!modelKey || seen.has(modelKey)) continue
+    seen.add(modelKey)
+    next.push({
+      modelId: preset.modelId,
+      modelKey,
+      name: preset.name,
+      type: preset.type,
+      provider: preset.provider,
+      price: 0,
+    })
+  }
+  return next
+}
+
 function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): CustomProvider {
   const id = readTrimmedString(raw.id)
   const name = readTrimmedString(raw.name)
@@ -456,6 +518,7 @@ function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): Cu
     id,
     name,
     baseUrl: readTrimmedString(raw.baseUrl) || undefined,
+    assetGroupId: readTrimmedString(raw.assetGroupId) || undefined,
     ...(apiKey ? { apiKey: encryptApiKey(apiKey) } : {}),
     ...(apiMode ? { apiMode } : {}),
     ...(gatewayRoute ? { gatewayRoute } : {}),
@@ -466,10 +529,10 @@ function prependServiceProviders(userProviders: CustomProvider[]): CustomProvide
   const serviceProviders = getServiceLlmConfig()?.providers
   if (!Array.isArray(serviceProviders) || serviceProviders.length === 0) return userProviders
   const normalized = serviceProviders.map(normalizeServiceProvider)
-  const userIds = new Set(userProviders.map((provider) => provider.id))
+  const serviceIds = new Set(normalized.map((provider) => provider.id))
   return [
-    ...userProviders,
-    ...normalized.filter((provider) => !userIds.has(provider.id)),
+    ...normalized,
+    ...userProviders.filter((provider) => !serviceIds.has(provider.id)),
   ]
 }
 
@@ -478,7 +541,9 @@ function ensureHfsyImageModelTemplate(models: CustomModel[]): CustomModel[] {
   const now = new Date().toISOString()
   let hasImageModel = false
   const nextModels = models.map((model) => {
-    if (model.modelKey !== HFSY_IMAGE_MODEL_KEY || model.type !== 'image') return model
+    const isSupportedHfsyImage = model.provider === HFSY_PROVIDER_ID
+      && (model.modelId === HFSY_IMAGE_MODEL_ID || model.modelId === 'gpt-image-2pro')
+    if (!isSupportedHfsyImage || model.type !== 'image') return model
     hasImageModel = true
     return {
       ...model,
@@ -533,24 +598,28 @@ async function readUserConfig(userId: string): Promise<{ models: CustomModel[]; 
   })
 
   const serviceDefaults = getServiceLlmConfig()?.defaultModels || {}
-  const userModels = appendMissingModels(parseCustomModels(pref?.customModels), parseServiceModels())
-  const models = ensureHfsyImageModelTemplate(appendDefaultModelSelections(
+  // Platform models and providers are authoritative. User rows remain a legacy fallback
+  // only when they do not collide with an administrator-managed key.
+  const userModels = appendMissingModels(parseServiceModels(), parseCustomModels(pref?.customModels))
+  const models = appendEnvArkMediaModels(ensureHfsyImageModelTemplate(appendDefaultModelSelections(
     userModels,
     {
-      analysisModel: pref?.analysisModel || serviceDefaults.analysisModel,
-      characterModel: pref?.characterModel || serviceDefaults.characterModel,
-      locationModel: pref?.locationModel || serviceDefaults.locationModel,
-      storyboardModel: pref?.storyboardModel || serviceDefaults.storyboardModel,
-      editModel: pref?.editModel || serviceDefaults.editModel,
-      videoModel: pref?.videoModel || serviceDefaults.videoModel,
+      analysisModel: resolveRuntimeModelKey(pref?.analysisModel || serviceDefaults.analysisModel),
+      characterModel: resolveRuntimeModelKey(pref?.characterModel || serviceDefaults.characterModel),
+      locationModel: resolveRuntimeModelKey(pref?.locationModel || serviceDefaults.locationModel),
+      storyboardModel: resolveRuntimeModelKey(pref?.storyboardModel || serviceDefaults.storyboardModel),
+      editModel: resolveRuntimeModelKey(pref?.editModel || serviceDefaults.editModel),
+      videoModel: resolveRuntimeModelKey(pref?.videoModel || serviceDefaults.videoModel),
       audioModel: pref?.audioModel || serviceDefaults.audioModel,
       lipSyncModel: pref?.lipSyncModel || serviceDefaults.lipSyncModel,
     },
-  ))
+  )))
 
   return {
     models,
-    providers: appendEnvHfsyProvider(prependServiceProviders(parseCustomProviders(pref?.customProviders))),
+    providers: appendEnvArkProvider(
+      appendEnvHfsyProvider(prependServiceProviders(parseCustomProviders(pref?.customProviders))),
+    ),
   }
 }
 
@@ -577,8 +646,20 @@ export async function resolveModelSelection(
   model: string,
   mediaType: ModelMediaType,
 ): Promise<ModelSelection> {
-  const parsed = assertModelKey(model, `${mediaType} model`)
-  const models = await getModelsByType(userId, mediaType)
+  const requested = assertModelKey(model, `${mediaType} model`)
+  const businessModel = findNoriBusinessModel(requested.modelKey)
+  if (businessModel && businessModel.type !== mediaType) {
+    throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
+  }
+  const controlledModelKey = mediaType === 'llm' || mediaType === 'image' || mediaType === 'video'
+    ? normalizeProjectBusinessModelKey(requested.modelKey, mediaType)
+    : requested.modelKey
+  const runtimeModelKey = resolveRuntimeModelKey(controlledModelKey)
+  if (!runtimeModelKey) {
+    throw new Error(`MODEL_ROUTE_NOT_CONFIGURED: ${requested.modelKey}`)
+  }
+  const parsed = assertModelKey(runtimeModelKey, `${mediaType} routed model`)
+  const { models } = await readUserConfig(userId)
 
   const exact = findModelByKey(models, parsed.modelKey)
   if (!exact) {
@@ -663,6 +744,7 @@ export interface ProviderConfig {
   name: string
   apiKey: string
   baseUrl?: string
+  assetGroupId?: string
   apiMode?: 'gemini-sdk' | 'openai-official'
   gatewayRoute?: GatewayRouteType
 }
@@ -680,6 +762,7 @@ export async function getProviderConfig(userId: string, providerId: string): Pro
     name: provider.name,
     apiKey: decryptApiKey(provider.apiKey),
     baseUrl: normalizeProviderBaseUrl(provider.id, provider.baseUrl),
+    assetGroupId: provider.assetGroupId,
     apiMode: provider.apiMode,
     gatewayRoute: provider.gatewayRoute,
   }
@@ -698,7 +781,8 @@ export async function getUserModels(userId: string): Promise<CustomModel[]> {
  */
 export async function getModelProvider(userId: string, model: string): Promise<string | null> {
   const { models } = await readUserConfig(userId)
-  const matched = findModelByKey(models, model)
+  const runtimeModelKey = resolveRuntimeModelKey(model)
+  const matched = runtimeModelKey ? findModelByKey(models, runtimeModelKey) : null
   return matched?.provider || null
 }
 
@@ -723,7 +807,8 @@ export async function resolveModelId(userId: string, model: string): Promise<str
  */
 export async function getModelPrice(userId: string, model: string): Promise<number> {
   const { models } = await readUserConfig(userId)
-  const matched = findModelByKey(models, model)
+  const runtimeModelKey = resolveRuntimeModelKey(model)
+  const matched = runtimeModelKey ? findModelByKey(models, runtimeModelKey) : null
   if (!matched) {
     throw new Error(`MODEL_NOT_FOUND: ${model}`)
   }

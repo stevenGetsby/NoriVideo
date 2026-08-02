@@ -96,7 +96,7 @@ describe('billing/cost', () => {
       containsVideoInput: false,
     })
 
-    expect(cost).toBeCloseTo(4.968, 8)
+    expect(cost).toBeCloseTo(6.7068, 8)
   })
 
   it('applies Seedance 2.0 video-input token floor for quoted pricing', () => {
@@ -108,7 +108,7 @@ describe('billing/cost', () => {
       inputVideoSeconds: 2,
     })
 
-    expect(cost).toBeCloseTo(4.2768, 8)
+    expect(cost).toBeCloseTo(5.77368, 8)
   })
 
   it('settles Seedance 2.0 videos from exact usage tokens', () => {
@@ -116,7 +116,22 @@ describe('billing/cost', () => {
       containsVideoInput: false,
     })
 
-    expect(cost).toBeCloseTo(5.52, 8)
+    expect(cost).toBeCloseTo(7.452, 8)
+  })
+
+  it('uses Nori retail image prices before resolving upstream routes', () => {
+    expect(calcImage('nori::nori-image', 3)).toBeCloseTo(0.15, 8)
+    expect(calcImage('nori::nori-image-pro', 2)).toBeCloseTo(1, 8)
+  })
+
+  it('prices the video understanding model at official Ark rates times 1.35', () => {
+    expect(calcText('ark::doubao-seed-2-1-pro-260628', 1_000_000, 1_000_000))
+      .toBeCloseTo(48.6, 8)
+  })
+
+  it('uses explicit Nori retail text prices before proxy routes', () => {
+    expect(calcText('nori::nori-gemini', 1_000_000, 1_000_000)).toBeCloseTo(136.08, 8)
+    expect(calcText('nori::nori-deepseek', 1_000_000, 1_000_000)).toBeCloseTo(48.6, 8)
   })
 
   it('supports minimax capability-aware video pricing', () => {

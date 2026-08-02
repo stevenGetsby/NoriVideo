@@ -22,34 +22,6 @@ function ModalShell({ title, subtitle, width = 1000, children, onClose }: { titl
   )
 }
 
-export function ServiceRecordsModal({ onClose }: { onClose: () => void }) {
-  const cols = ['申诉编号', '项目', '详细信息', '模型', '申诉时间', '申诉人', '处理状态']
-  return (
-    <ModalShell title="服务记录" subtitle="查看你提交过的申诉记录及处理进度" onClose={onClose}>
-      <div className="mb-4 flex items-center justify-between">
-        <button className="flex h-9 items-center gap-2 rounded-[8px] border border-[var(--fos-border-strong)] bg-[var(--fos-bg-1)] px-3 text-[13px] text-[var(--fos-text-3)]">
-          <AppIcon name="clock" className="h-4 w-4" />按申诉日期
-        </button>
-        <span className="text-[12px] text-[var(--fos-text-4)]">共 0 条</span>
-      </div>
-      <div className="overflow-hidden rounded-[10px] border border-[var(--fos-border-soft)]">
-        <div className="grid border-b border-[var(--fos-border-soft)] px-4 py-3 text-[12px] font-bold text-[var(--fos-text-3)]" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
-          {cols.map((c) => <span key={c}>{c}</span>)}
-        </div>
-        <div className="flex flex-col items-center justify-center gap-3 py-20 text-[var(--fos-text-4)]">
-          <AppIcon name="fileText" className="h-8 w-8" />
-          <span className="text-[13px]">暂无服务记录</span>
-        </div>
-      </div>
-      <div className="mt-4 flex items-center justify-center gap-3 text-[13px] text-[var(--fos-text-4)]">
-        <button className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-[var(--fos-fill-mid)]"><AppIcon name="chevronLeft" className="h-4 w-4" /></button>
-        <span className="font-bold text-[var(--fos-primary)]">1</span>
-        <button className="flex h-7 w-7 items-center justify-center rounded-md hover:bg-[var(--fos-fill-mid)]"><AppIcon name="chevronRight" className="h-4 w-4" /></button>
-      </div>
-    </ModalShell>
-  )
-}
-
 export function FeedbackModal({ onClose }: { onClose: () => void }) {
   return (
     <ModalShell title="提交反馈" subtitle="您的意见对我们非常重要" width={620} onClose={onClose}>
@@ -90,7 +62,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
   )
 }
 
-export function AccountModal({ account, onClose }: { account: string; onClose: () => void }) {
+export function AccountModal({ account, onLogout, onClose }: { account: string; onLogout: () => void; onClose: () => void }) {
   return (
     <ModalShell title="个人中心" width={620} onClose={onClose}>
       <div className="space-y-4">
@@ -117,6 +89,9 @@ export function AccountModal({ account, onClose }: { account: string; onClose: (
             <button className="fos-btn fos-btn-primary fos-btn-sm" disabled title="演示已禁用">修改密码</button>
           </div>
         </div>
+        <button type="button" onClick={onLogout} className="fos-btn fos-btn-ghost w-full border-red-400/20 text-red-300 hover:bg-red-400/10">
+          <AppIcon name="logout" className="h-4 w-4" />退出当前账号
+        </button>
       </div>
     </ModalShell>
   )

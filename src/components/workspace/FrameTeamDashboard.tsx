@@ -6,6 +6,7 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
+import { taskTypeDisplayName } from '@/lib/task/display-label'
 
 const ROLE_KEYS = ['owner', 'writer', 'asset', 'producer'] as const
 const PERMISSION_KEYS = ['projects', 'scripts', 'assets', 'production', 'records'] as const
@@ -347,7 +348,7 @@ export function FrameTeamDashboard() {
                   return (
                     <div key={row.key} className="rounded-md border border-white/8 bg-[#10131b] px-3 py-2">
                       <div className="mb-2 flex items-center justify-between gap-3">
-                        <div className="min-w-0 truncate text-sm font-medium text-white/74">{row.key}</div>
+                        <div className="min-w-0 truncate text-sm font-medium text-white/74">{taskTypeDisplayName(row.key)}</div>
                         <span className={`rounded px-2 py-0.5 text-[11px] ${row.failed > 0 ? 'bg-[#ff6b6b]/10 text-[#ff9a9a]' : 'bg-white/6 text-white/42'}`}>
                           {t('workloadFailed', { count: row.failed })}
                         </span>

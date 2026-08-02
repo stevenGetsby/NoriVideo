@@ -18,6 +18,9 @@ export interface OpenAICompatImageRequest {
   modelId?: string
   prompt: string
   referenceImages?: string[]
+  editMode?: 'inpaint'
+  /** Mask is intentionally separate from referenceImages. */
+  maskImage?: string
   options?: Record<string, unknown>
   profile: OpenAICompatImageProfile
   template?: import('@/lib/openai-compat-media-template').OpenAICompatMediaTemplate

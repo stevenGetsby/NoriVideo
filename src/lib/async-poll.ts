@@ -23,6 +23,7 @@ import { buildRenderedTemplateRequest, buildTemplateVariables, normalizeResponse
 import { composeModelKey } from './model-config-contract'
 import { queryHfsySd2VideoTask } from './generators/hfsy-video'
 import { HFSY_PROVIDER_ID } from './hfsy-fixed-models'
+import { pollKuaiziTask } from './providers/kuaizi/poll'
 
 const OPENAI_COMPAT_PROVIDER_PREFIX = 'openai-compatible:'
 const PROVIDER_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -32,6 +33,7 @@ export interface PollResult {
     resultUrl?: string
     imageUrl?: string
     videoUrl?: string
+    audioUrl?: string
     actualVideoTokens?: number
     downloadHeaders?: Record<string, string>
     error?: string
@@ -50,8 +52,8 @@ function getErrorMessage(error: unknown): string {
  * 解析 externalId 获取 provider、type 和请求信息
  */
 export function parseExternalId(externalId: string): {
-    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'HFSY' | 'UNKNOWN'
-    type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN'
+    provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW' | 'HFSY' | 'KUAIZI' | 'UNKNOWN'
+    type: 'VIDEO' | 'IMAGE' | 'AUDIO' | 'BATCH' | 'UNKNOWN'
     endpoint?: string
     requestId: string
     providerToken?: string
@@ -61,7 +63,7 @@ export function parseExternalId(externalId: string): {
     if (externalId.startsWith('FAL:')) {
         const parts = externalId.split(':')
 
-        if (parts[1] === 'VIDEO' || parts[1] === 'IMAGE') {
+        if (parts[1] === 'VIDEO' || parts[1] === 'IMAGE' || parts[1] === 'AUDIO') {
             if (parts.length < 4) {
                 throw new Error(`无效 FAL externalId: "${externalId}"，应为 FAL:TYPE:endpoint:requestId`)
             }
@@ -72,12 +74,12 @@ export function parseExternalId(externalId: string): {
             }
             return {
                 provider: 'FAL',
-                type: parts[1] as 'VIDEO' | 'IMAGE',
+                type: parts[1] as 'VIDEO' | 'IMAGE' | 'AUDIO',
                 endpoint,
                 requestId,
             }
         }
-        throw new Error(`无效 FAL externalId: "${externalId}"，TYPE 仅支持 VIDEO/IMAGE`)
+        throw new Error(`无效 FAL externalId: "${externalId}"，TYPE 仅支持 VIDEO/IMAGE/AUDIO`)
     }
 
     if (externalId.startsWith('ARK:')) {
@@ -226,9 +228,27 @@ export function parseExternalId(externalId: string): {
         }
     }
 
+    if (externalId.startsWith('KUAIZI:')) {
+        const parts = externalId.split(':')
+        const type = parts[1]
+        const providerToken = parts[2]
+        const modelKeyToken = parts[3]
+        const requestId = parts.slice(4).join(':')
+        if ((type !== 'VIDEO' && type !== 'IMAGE' && type !== 'AUDIO') || !providerToken || !modelKeyToken || !requestId) {
+            throw new Error(`无效 KUAIZI externalId: "${externalId}"，应为 KUAIZI:TYPE:providerToken:modelToken:taskId`)
+        }
+        return {
+            provider: 'KUAIZI',
+            type: type as 'VIDEO' | 'IMAGE' | 'AUDIO',
+            providerToken,
+            modelKeyToken,
+            requestId,
+        }
+    }
+
     throw new Error(
         `无法识别的 externalId 格式: "${externalId}". ` +
-        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, HFSY:VIDEO:taskId`
+        `支持的格式: FAL:TYPE:endpoint:requestId, ARK:TYPE:requestId, GEMINI:BATCH:batchName, GOOGLE:VIDEO:operationName, MINIMAX:TYPE:taskId, VIDU:TYPE:taskId, OPENAI:VIDEO:providerToken:videoId, OCOMPAT:TYPE:providerToken:modelKeyToken:taskId, BAILIAN:TYPE:requestId, SILICONFLOW:TYPE:requestId, HFSY:VIDEO:taskId, KUAIZI:TYPE:providerToken:modelToken:taskId`
     )
 }
 
@@ -270,6 +290,20 @@ export async function pollAsyncTask(
             return await pollSiliconFlowTask(parsed.requestId)
         case 'HFSY':
             return await pollHfsyVideoTask(parsed.requestId, userId)
+        case 'KUAIZI':
+            if (parsed.type !== 'VIDEO' && parsed.type !== 'IMAGE' && parsed.type !== 'AUDIO') {
+                throw new Error(`无效的筷子任务类型: ${parsed.type}`)
+            }
+            if (!parsed.providerToken || !parsed.modelKeyToken) {
+                throw new Error('筷子任务缺少 provider/model token')
+            }
+            return await pollKuaiziTask({
+                type: parsed.type,
+                taskId: parsed.requestId,
+                userId,
+                providerToken: parsed.providerToken,
+                modelToken: parsed.modelKeyToken,
+            })
         default:
             // 🔥 移除 fallback：未知 provider 直接抛出错误
             throw new Error(`未知的 Provider: ${parsed.provider}`)
@@ -339,7 +373,7 @@ function resolveOCompatModelKey(providerId: string, token: string): string {
 }
 
 async function pollOCompatTask(
-    type: 'VIDEO' | 'IMAGE' | 'BATCH' | 'UNKNOWN',
+    type: 'VIDEO' | 'IMAGE' | 'AUDIO' | 'BATCH' | 'UNKNOWN',
     taskId: string,
     userId: string,
     providerToken?: string,
@@ -403,7 +437,9 @@ async function pollOCompatTask(
                 resultUrl: outputUrl.trim(),
                 ...(type === 'VIDEO'
                     ? { videoUrl: outputUrl.trim() }
-                    : { imageUrl: outputUrl.trim() }),
+                    : type === 'AUDIO'
+                        ? { audioUrl: outputUrl.trim() }
+                        : { imageUrl: outputUrl.trim() }),
             }
         }
         if (template.content) {
@@ -418,7 +454,9 @@ async function pollOCompatTask(
                 resultUrl: contentRequest.endpointUrl,
                 ...(type === 'VIDEO'
                     ? { videoUrl: contentRequest.endpointUrl }
-                    : { imageUrl: contentRequest.endpointUrl }),
+                    : type === 'AUDIO'
+                        ? { audioUrl: contentRequest.endpointUrl }
+                        : { imageUrl: contentRequest.endpointUrl }),
                 downloadHeaders: {
                     ...contentRequest.headers,
                 },
@@ -526,6 +564,7 @@ async function pollFalTask(
         resultUrl: result.resultUrl,
         imageUrl: result.resultUrl,
         videoUrl: result.resultUrl,
+        audioUrl: result.resultUrl,
         error: result.error
     }
 }
@@ -981,7 +1020,7 @@ async function queryViduTaskStatus(
  */
 export function formatExternalId(
     provider: 'FAL' | 'ARK' | 'GEMINI' | 'GOOGLE' | 'MINIMAX' | 'VIDU' | 'OPENAI' | 'OCOMPAT' | 'BAILIAN' | 'SILICONFLOW',
-    type: 'VIDEO' | 'IMAGE' | 'BATCH',
+    type: 'VIDEO' | 'IMAGE' | 'AUDIO' | 'BATCH',
     requestId: string,
     endpoint?: string,
     providerToken?: string,

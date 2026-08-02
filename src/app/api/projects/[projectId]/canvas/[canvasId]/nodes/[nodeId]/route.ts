@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { NextRequest } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
@@ -10,31 +9,15 @@ export const DELETE = apiHandler(async (
   context: { params: Promise<{ projectId: string; canvasId: string; nodeId: string }> }
 ) => {
   const { projectId, canvasId, nodeId } = await context.params
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   await requireCanvasInProject(canvasId, projectId)
-
-  const node = await prisma.canvasNode.findFirst({
-    where: {
-      id: nodeId,
-      canvasId,
-    },
-    select: { id: true, canvasId: true },
+  throw new ApiError('CONFLICT', {
+    message: '旧版画布节点增量写入接口已停用，以免绕过版本检查和历史快照。请改用完整文档保存接口。',
+    reason: 'CANVAS_INCREMENTAL_WRITE_DISABLED',
+    replacement: `/api/projects/${projectId}/canvas/${canvasId}/document`,
+    replacementMethod: 'PUT',
+    legacyNodeId: nodeId,
   })
-  if (!node) {
-    throw new ApiError('NOT_FOUND')
-  }
-
-  await prisma.$transaction([
-    prisma.canvasEdge.deleteMany({
-      where: {
-        canvasId,
-        OR: [{ sourceNodeId: nodeId }, { targetNodeId: nodeId }],
-      },
-    }),
-    prisma.canvasNode.delete({ where: { id: node.id } }),
-  ])
-
-  return NextResponse.json({ success: true })
 })

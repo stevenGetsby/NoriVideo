@@ -1,6 +1,20 @@
 [
   {
     "modelType": "image",
+    "provider": "openai-compatible",
+    "modelId": "gpt-image-1",
+    "capabilities": {
+      "image": {
+        "supportsInpaint": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 1 },
+          "requiredFields": ["prompt"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "image",
     "provider": "fal",
     "modelId": "banana-2",
     "capabilities": {
@@ -43,10 +57,138 @@
         ],
         "resolutionOptions": [
           "480p",
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "firstlastframe": true,
+        "supportGenerateAudio": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 9 },
+          "video": { "min": 0, "max": 3 },
+          "audio": { "min": 0, "max": 3, "maxTotalDurationSeconds": 15 },
+          "requiredFields": ["prompt"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0-mini",
+    "capabilities": {
+      "video": {
+        "generationModeOptions": [
+          "normal",
+          "firstlastframe"
+        ],
+        "durationOptions": [
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12
+        ],
+        "resolutionOptions": [
+          "480p",
           "720p"
         ],
         "firstlastframe": true,
-        "supportGenerateAudio": true
+        "supportGenerateAudio": false
+      }
+    }
+  },
+  {
+    "modelType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0-fast",
+    "capabilities": {
+      "video": {
+        "generationModeOptions": [
+          "normal",
+          "firstlastframe"
+        ],
+        "generateAudioOptions": [
+          true,
+          false
+        ],
+        "durationOptions": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "resolutionOptions": [
+          "480p",
+          "720p"
+        ],
+        "firstlastframe": true,
+        "supportGenerateAudio": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 9 },
+          "video": { "min": 0, "max": 3 },
+          "audio": { "min": 0, "max": 3, "maxTotalDurationSeconds": 15 },
+          "requiredFields": ["prompt"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0",
+    "capabilities": {
+      "video": {
+        "generationModeOptions": [
+          "normal",
+          "firstlastframe"
+        ],
+        "generateAudioOptions": [
+          true,
+          false
+        ],
+        "durationOptions": [
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15
+        ],
+        "resolutionOptions": [
+          "480p",
+          "720p",
+          "1080p",
+          "4k"
+        ],
+        "firstlastframe": true,
+        "supportGenerateAudio": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 9 },
+          "video": { "min": 0, "max": 3 },
+          "audio": { "min": 0, "max": 3, "maxTotalDurationSeconds": 15 },
+          "requiredFields": ["prompt"]
+        }
       }
     }
   },
@@ -83,7 +225,13 @@
           "720p"
         ],
         "firstlastframe": true,
-        "supportGenerateAudio": true
+        "supportGenerateAudio": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 9 },
+          "video": { "min": 0, "max": 3 },
+          "audio": { "min": 0, "max": 3, "maxTotalDurationSeconds": 15 },
+          "requiredFields": ["prompt"]
+        }
       }
     }
   },

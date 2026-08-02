@@ -22,6 +22,9 @@ export type TaskTargetState = {
   progress: number | null
   stage: string | null
   stageLabel: string | null
+  progressDetails: Record<string, unknown> | null
+  result: Record<string, unknown> | null
+  startedAt: string | null
   lastError: {
     code: string
     message: string
@@ -66,12 +69,24 @@ export function extractTaskStateFields(task: {
 }) {
   const payload = asObject(task.payload)
   const payloadUi = asObject(payload?.ui)
+  const explicitProgressDetails = asObject(payload?.progressDetails)
+  const derivedProgressDetails: Record<string, unknown> = {}
+  for (const key of ['message', 'stepTitle', 'stepIndex', 'stepTotal']) {
+    const value = payload?.[key]
+    if (typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value))) {
+      derivedProgressDetails[key] = value
+    }
+  }
+  const progressDetails = explicitProgressDetails || Object.keys(derivedProgressDetails).length > 0
+    ? { ...derivedProgressDetails, ...(explicitProgressDetails || {}) }
+    : null
   return {
     stage: asNonEmptyString(payload?.stage),
     stageLabel: asNonEmptyString(payload?.stageLabel),
     hasOutputAtStart: asBoolean(payloadUi?.hasOutputAtStart),
     intent: coerceTaskIntent(payloadUi?.intent ?? payload?.intent, task.type),
     progress: toProgress(task.progress),
+    progressDetails,
   }
 }
 
@@ -99,6 +114,9 @@ export function buildIdleState(target: TaskTargetQuery): TaskTargetState {
     progress: null,
     stage: null,
     stageLabel: null,
+    progressDetails: null,
+    result: null,
+    startedAt: null,
     lastError: null,
     updatedAt: null,
   }
@@ -115,6 +133,8 @@ export function resolveTargetState(
     errorCode: string | null
     errorMessage: string | null
     updatedAt: Date
+    result?: unknown
+    startedAt?: Date | null
   }>,
 ): TaskTargetState {
   const allowedTypes = target.types?.length ? new Set(target.types) : null
@@ -147,6 +167,9 @@ export function resolveTargetState(
       progress: runningFields.progress,
       stage: runningFields.stage,
       stageLabel: runningFields.stageLabel,
+      progressDetails: runningFields.progressDetails,
+      result: asObject(running.result),
+      startedAt: running.startedAt?.toISOString() || null,
       lastError: null,
       updatedAt: running.updatedAt.toISOString(),
     }
@@ -164,6 +187,9 @@ export function resolveTargetState(
       progress: 100,
       stage: latestFields.stage,
       stageLabel: latestFields.stageLabel,
+      progressDetails: latestFields.progressDetails,
+      result: asObject(latest.result),
+      startedAt: latest.startedAt?.toISOString() || null,
       lastError: null,
       updatedAt: latest.updatedAt.toISOString(),
     }
@@ -180,6 +206,9 @@ export function resolveTargetState(
     progress: null,
     stage: latestFields.stage,
     stageLabel: latestFields.stageLabel,
+    progressDetails: latestFields.progressDetails,
+    result: asObject(latest.result),
+    startedAt: latest.startedAt?.toISOString() || null,
     lastError: normalizeFailedError(latest),
     updatedAt: latest.updatedAt.toISOString(),
   }
@@ -228,6 +257,8 @@ export async function queryTaskTargetStates(params: {
     targetType: string
     targetId: string
     updatedAt: Date
+    result: unknown
+    startedAt: Date | null
   }> = []
 
   for (let i = 0; i < pairs.length; i += QUERY_BATCH_SIZE) {
@@ -257,6 +288,8 @@ export async function queryTaskTargetStates(params: {
         targetType: true,
         targetId: true,
         updatedAt: true,
+        result: true,
+        startedAt: true,
       },
     })
     allRows.push(...rows.filter(isPublicTaskApiVisible))

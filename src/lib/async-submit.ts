@@ -139,7 +139,9 @@ export async function queryFalStatus(endpoint: string, requestId: string, apiKey
 
             // 根据类型提取URL
             const videoUrl = resultData.video?.url
-            const audioUrl = resultData.audio?.url
+            const audioUrl = typeof resultData.audio === 'string'
+                ? resultData.audio
+                : resultData.audio?.url
             const imageUrl = resultData.images?.[0]?.url
 
             _ulogInfo(`[FAL Status] 获取结果成功: video=${!!videoUrl}, audio=${!!audioUrl}, image=${!!imageUrl}`)

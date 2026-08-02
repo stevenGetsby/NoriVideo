@@ -16,8 +16,15 @@ const modeMock = vi.hoisted(() => ({
   getBillingMode: vi.fn(),
 }))
 
+const prismaMock = vi.hoisted(() => ({
+  userPreference: {
+    findUnique: vi.fn(async () => null),
+  },
+}))
+
 vi.mock('@/lib/billing/ledger', () => ledgerMock)
 vi.mock('@/lib/billing/mode', () => modeMock)
+vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
 import { BillingOperationError, InsufficientBalanceError } from '@/lib/billing/errors'
 import {
@@ -34,7 +41,7 @@ describe('billing/service', () => {
     vi.clearAllMocks()
     ledgerMock.confirmChargeWithRecord.mockResolvedValue(true)
     ledgerMock.freezeBalance.mockResolvedValue('freeze_1')
-    ledgerMock.getBalance.mockResolvedValue({ balance: 0 })
+    ledgerMock.getBalance.mockResolvedValue({ balance: 100 })
     ledgerMock.getFreezeByIdempotencyKey.mockResolvedValue(null)
     ledgerMock.increasePendingFreezeAmount.mockResolvedValue(true)
     ledgerMock.recordShadowUsage.mockResolvedValue(true)
@@ -56,6 +63,22 @@ describe('billing/service', () => {
     expect(result).toEqual({ ok: true })
     expect(ledgerMock.freezeBalance).not.toHaveBeenCalled()
     expect(ledgerMock.confirmChargeWithRecord).not.toHaveBeenCalled()
+  })
+
+  it('blocks a provider call at zero points even when billing mode is OFF', async () => {
+    modeMock.getBillingMode.mockResolvedValue('OFF')
+    ledgerMock.getBalance.mockResolvedValue({ balance: 0 })
+    const execute = vi.fn(async () => ({ ok: true }))
+
+    await expect(withTextBilling(
+      'u1',
+      'anthropic/claude-sonnet-4',
+      1000,
+      1000,
+      { projectId: 'p1', action: 'a1' },
+      execute,
+    )).rejects.toThrow('所有生成服务已暂停')
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('records shadow usage in SHADOW mode without freezing', async () => {
@@ -378,6 +401,68 @@ describe('billing/service', () => {
       expect(ledgerMock.recordShadowUsage).not.toHaveBeenCalled()
     })
 
+    it('settleTaskBilling keeps a successful skipped text task successful in ENFORCE mode', async () => {
+      const settled = await settleTaskBilling({
+        id: 'task_enforce_skipped_unknown_text_model',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: buildTaskInfo({
+          taskType: 'canvas_text_generation',
+          apiType: 'text',
+          model: 'nori::nori-gpt',
+          quantity: 14_000,
+          unit: 'token',
+          maxFrozenCost: 0,
+          action: 'canvas_text_generation',
+          modeSnapshot: 'ENFORCE',
+          status: 'skipped',
+          freezeId: null,
+        }),
+      }, {
+        textUsage: [{ model: 'gpt-5.5', inputTokens: 1200, outputTokens: 800 }],
+      })
+
+      const settledInfo = settled as Extract<TaskBillingInfo, { billable: true }>
+      expect(settledInfo.status).toBe('skipped')
+      expect(settledInfo.chargedCost).toBe(0)
+      expect(ledgerMock.confirmChargeWithRecord).not.toHaveBeenCalled()
+    })
+
+    it('settleTaskBilling prices runtime token usage with the selected business model', async () => {
+      const quoted = calcText('nori::nori-deepseek', 1000, 1000)
+      ledgerMock.confirmChargeWithRecord.mockResolvedValueOnce(true)
+
+      const settled = await settleTaskBilling({
+        id: 'task_business_model_runtime_usage',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: buildTaskInfo({
+          taskType: 'canvas_text_generation',
+          apiType: 'text',
+          model: 'nori::nori-deepseek',
+          quantity: 2000,
+          unit: 'token',
+          maxFrozenCost: quoted,
+          action: 'canvas_text_generation',
+          modeSnapshot: 'ENFORCE',
+          status: 'frozen',
+          freezeId: 'freeze_business_model_runtime_usage',
+        }),
+      }, {
+        textUsage: [{ model: 'deepseek-chat', inputTokens: 1000, outputTokens: 1000 }],
+      })
+
+      const settledInfo = settled as Extract<TaskBillingInfo, { billable: true }>
+      expect(settledInfo.status).toBe('settled')
+      expect(settledInfo.chargedCost).toBeCloseTo(quoted, 8)
+      const recordParams = ledgerMock.confirmChargeWithRecord.mock.calls.at(-1)?.[1] as {
+        model: string
+        metadata: { actualModels?: string[] }
+      }
+      expect(recordParams.model).toBe('deepseek-chat')
+      expect(recordParams.metadata.actualModels).toEqual(['deepseek-chat'])
+    })
+
     it('settleTaskBilling skips SHADOW settlement when text model pricing is unknown', async () => {
       const settled = await settleTaskBilling({
         id: 'task_shadow_unknown_usage_model',
@@ -512,7 +597,7 @@ describe('billing/service', () => {
       })
 
       expect(ledgerMock.increasePendingFreezeAmount).toHaveBeenCalledTimes(1)
-      expect((settled as Extract<TaskBillingInfo, { billable: true }>).chargedCost).toBeCloseTo(5.52, 8)
+      expect((settled as Extract<TaskBillingInfo, { billable: true }>).chargedCost).toBeCloseTo(7.452, 8)
     })
 
     it('settleTaskBilling keeps quoted charge when text usage has no token counts', async () => {

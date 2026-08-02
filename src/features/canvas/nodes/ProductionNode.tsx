@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
+import { MediaImage } from '@/components/media/MediaImage'
 import type { CanvasNodeData } from '../types'
 
 function readNodeData(data: NodeProps['data']): CanvasNodeData {
@@ -38,6 +39,16 @@ function ProductionNodeImpl(props: NodeProps) {
   const isVideo = props.type === 'production_video'
   const isStoryboard = props.type === 'production_storyboard'
   const hasVisual = Boolean(data.imageUrl || data.videoUrl)
+  const fallbackTitle = isVideo ? '分镜视频' : isPanel ? '分镜画面' : isStoryboard ? '分镜组' : '剧集'
+  const legacyStatusLabels: Record<string, string> = {
+    Video: '视频',
+    Panel: '分镜画面',
+    Storyboard: '分镜组',
+    Episode: '剧集',
+  }
+  const statusLabel = data.statusLabel
+    ? legacyStatusLabels[data.statusLabel] || data.statusLabel
+    : isVideo ? '视频' : isPanel ? '分镜画面' : isStoryboard ? '分镜组' : '剧集'
 
   return (
     <div
@@ -53,7 +64,7 @@ function ProductionNodeImpl(props: NodeProps) {
         cursor: 'grab',
       }}
     >
-      <Handle type="target" position={Position.Left} style={{ background: '#64748b' }} />
+      <Handle type="source" id="input" position={Position.Left} style={{ background: '#64748b' }} />
 
       <div
         style={{
@@ -76,7 +87,7 @@ function ProductionNodeImpl(props: NodeProps) {
               whiteSpace: 'nowrap',
             }}
           >
-            {data.title || 'Production node'}
+            {data.title || fallbackTitle}
           </div>
           {data.subtitle ? (
             <div
@@ -94,7 +105,7 @@ function ProductionNodeImpl(props: NodeProps) {
           ) : null}
         </div>
         <Badge tone={data.hasVideo ? 'success' : data.hasImage ? 'warning' : 'neutral'}>
-          {data.statusLabel || (isVideo ? 'Video' : isPanel ? 'Panel' : isStoryboard ? 'Storyboard' : 'Episode')}
+          {statusLabel}
         </Badge>
       </div>
 
@@ -110,10 +121,12 @@ function ProductionNodeImpl(props: NodeProps) {
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           ) : (
-            <img
+            <MediaImage
               src={data.imageUrl || ''}
               alt=""
               draggable={false}
+              width={640}
+              height={360}
               style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
             />
           )}
@@ -178,7 +191,7 @@ function ProductionNodeImpl(props: NodeProps) {
         ) : null}
       </div>
 
-      <Handle type="source" position={Position.Right} style={{ background: '#64748b' }} />
+      <Handle type="source" id="output" position={Position.Right} style={{ background: '#64748b' }} />
     </div>
   )
 }

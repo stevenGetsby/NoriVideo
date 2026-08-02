@@ -16,6 +16,9 @@ type PanelRow = {
   shotType?: string | null
   cameraMove?: string | null
   actingNotes?: string | null
+  characters?: string | null
+  location?: string | null
+  props?: string | null
   duration: number | null
 }
 
@@ -30,7 +33,9 @@ const withTaskLifecycleMock = vi.hoisted(() =>
 
 const utilsMock = vi.hoisted(() => ({
   assertTaskActive: vi.fn(async () => undefined),
-  getProjectModels: vi.fn(async () => ({ videoRatio: '16:9' })),
+  getProjectModels: vi.fn<(...args: unknown[]) => Promise<{ videoRatio: string; videoResolution?: string }>>(
+    async () => ({ videoRatio: '16:9' }),
+  ),
   resolveLipSyncVideoSource: vi.fn(async () => 'https://provider.example/lipsync.mp4'),
   resolveVideoSourceFromGeneration: vi.fn<(...args: unknown[]) => Promise<{ url: string; actualVideoTokens?: number; downloadHeaders?: Record<string, string> }>>(async () => ({ url: 'https://provider.example/video.mp4' })),
   toSignedUrlIfCos: vi.fn((url: string | null) => (url ? `https://signed.example/${url}` : null)),
@@ -52,6 +57,12 @@ const concurrencyGateMock = vi.hoisted(() => ({
     run: () => Promise<T>
   }) => await input.run()),
 }))
+const frameosMaterialMock = vi.hoisted(() => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-video-1' })),
+}))
+const canvasHandlerMock = vi.hoisted(() => ({
+  handleCanvasVideoOperationTask: vi.fn(async () => ({ operation: 'video_superresolve' })),
+}))
 
 const prismaMock = vi.hoisted(() => ({
   novelPromotionPanel: {
@@ -60,6 +71,9 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(async () => undefined),
   },
   novelPromotionVoiceLine: {
+    findUnique: vi.fn(),
+  },
+  novelPromotionProject: {
     findUnique: vi.fn(),
   },
 }))
@@ -93,6 +107,8 @@ vi.mock('@/lib/workers/shared', () => ({
 }))
 vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/lib/frameos/material-service', () => frameosMaterialMock)
+vi.mock('@/lib/workers/handlers/canvas-operation-task-handler', () => canvasHandlerMock)
 vi.mock('@/lib/media/outbound-image', () => ({
   normalizeToBase64ForGeneration: vi.fn(async (input: string) => input),
 }))
@@ -157,6 +173,9 @@ function buildPanel(overrides?: Partial<PanelRow>): PanelRow {
     description: 'panel description',
     firstLastFramePrompt: null,
     actingNotes: null,
+    characters: null,
+    location: null,
+    props: null,
     duration: 5,
     ...(overrides || {}),
   }
@@ -195,6 +214,7 @@ describe('worker video processor behavior', () => {
       audioUrl: 'cos/line-1.mp3',
       audioDuration: 1200,
     })
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue(null)
 
     const mod = await import('@/lib/workers/video.worker')
     mod.createVideoWorker()
@@ -244,6 +264,18 @@ describe('worker video processor behavior', () => {
         Authorization: 'Bearer oa-key',
       },
     )
+    expect(frameosMaterialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      projectId: 'project-1',
+      type: 'video',
+      source: 'production',
+      storageKey: 'cos/lip-sync/video.mp4',
+      metadata: expect.objectContaining({
+        taskId: 'task-1',
+        originType: 'panel-video',
+        originId: 'panel-1',
+      }),
+    }))
   })
 
   it('VIDEO_PANEL: 将 Ark 返回的实际视频 token 用量透传到任务结果', async () => {
@@ -272,6 +304,33 @@ describe('worker video processor behavior', () => {
       videoUrl: 'cos/lip-sync/video.mp4',
       actualVideoTokens: 108000,
     })
+  })
+
+  it('VIDEO_PANEL: canonicalizes the project 4K default to the official Seedance 4k request value', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+    utilsMock.getProjectModels.mockResolvedValueOnce({
+      videoRatio: '16:9',
+      videoResolution: '4K',
+    })
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+      },
+    })
+
+    await processor!(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        options: expect.objectContaining({
+          resolution: '4k',
+        }),
+      }),
+    )
   })
 
   it('VIDEO_PANEL: uses panel recommended duration instead of a fixed default payload duration', async () => {
@@ -410,6 +469,129 @@ describe('worker video processor behavior', () => {
           prompt: expect.stringContaining('Ava 请求 Dr. Grayson'),
           duration: 8,
           resolution: '720p',
+        }),
+      }),
+    )
+  })
+
+  it('VIDEO_PANEL: compiles ordered @ assets and uses only Seedance reference-image mode', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValueOnce({
+      characters: [],
+      locations: [],
+    })
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValueOnce(buildPanel({
+      videoPrompt: [
+        'S01-SEG01',
+        '陆府小院',
+        '◎ 参考资产',
+        '◈ 视频提示词',
+        '开场状态：',
+        '环境：@陆府小院，夜。',
+        '@苏晚卿：位于院门内侧。',
+        '灯光：冷青月光。',
+        '',
+        'Shot 1',
+        'duration: 3.0s',
+        '镜头：近景，缓慢推近。',
+        '画面：@苏晚卿抬眼看向院门。',
+        '光影：高反差侧光。',
+        '<风声>',
+        '【本分镜负面要求】 不要字幕。',
+      ].join('\n'),
+      actingNotes: JSON.stringify({
+        _seedanceReferenceAssets: [
+          { kind: 'character', name: '苏晚卿', imageUrl: 'cos/char-su.png', role: 'reference_image' },
+          { kind: 'location', name: '陆府小院', imageUrl: 'cos/location-lu.png', role: 'reference_image' },
+        ],
+        _frameosPanelMetadata: {
+          panel_id: 'frameos-panel-body-only',
+          source_text: '苏晚卿抬眼看向院门。',
+        },
+      }),
+    }))
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+        generationOptions: { resolution: '720p' },
+      },
+    })
+
+    await processor!(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        imageUrl: '',
+        options: expect.objectContaining({
+          prompt: [
+            '开场状态：',
+            '环境：图片2所示的陆府小院，夜。',
+            '图片1中的苏晚卿：位于院门内侧。',
+            '灯光：冷青月光。',
+            '',
+            'Shot 1',
+            'duration: 3.0s',
+            '镜头：近景，缓慢推近。',
+            '画面：图片1中的苏晚卿抬眼看向院门。',
+            '光影：高反差侧光。',
+            '<风声>',
+          ].join('\n'),
+          referenceImages: [
+            'https://signed.example/cos/char-su.png',
+            'https://signed.example/cos/location-lu.png',
+          ],
+        }),
+      }),
+    )
+  })
+
+  it('VIDEO_PANEL: injects a bound character voice as Seedance reference_audio even without asset reference images', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
+      characters: [{
+        name: '苏晚卿',
+        customVoiceUrl: 'https://assets.example/su-wanqing-voice.wav',
+        appearances: [],
+      }],
+      locations: [],
+    })
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValueOnce(buildPanel({
+      characters: JSON.stringify(['苏晚卿']),
+      actingNotes: JSON.stringify({
+        _frameosPanelMetadata: {
+          voice_refs: [{ speaker: '苏晚卿', source_text: '别过来。' }],
+        },
+      }),
+    }))
+
+    const job = buildJob({
+      type: TASK_TYPE.VIDEO_PANEL,
+      payload: {
+        videoModel: 'ark::doubao-seedance-2-0-260128',
+        generationOptions: {
+          resolution: '720p',
+          generateAudio: false,
+        },
+      },
+    })
+
+    await processor!(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        imageUrl: '',
+        options: expect.objectContaining({
+          referenceImages: ['https://signed.example/cos/panel-image.png'],
+          audios: ['https://assets.example/su-wanqing-voice.wav'],
+          generateAudio: true,
         }),
       }),
     )
@@ -642,5 +824,13 @@ describe('worker video processor behavior', () => {
     })
 
     await expect(processor!(unsupportedJob)).rejects.toThrow('Unsupported video task type')
+  })
+
+  it('CANVAS_VIDEO_OPERATION: 交给可恢复的本地处理任务 handler', async () => {
+    const processor = workerState.processor
+    expect(processor).toBeTruthy()
+    const job = buildJob({ type: TASK_TYPE.CANVAS_VIDEO_OPERATION })
+    await processor!(job)
+    expect(canvasHandlerMock.handleCanvasVideoOperationTask).toHaveBeenCalledWith(job)
   })
 })

@@ -28,30 +28,30 @@ model Account {
 }
 
 model CharacterAppearance {
-  id                   String                  @id @default(uuid())
-  characterId          String
-  appearanceIndex      Int
-  changeReason         String
-  description          String?                 @db.Text
-  descriptions         String?                 @db.Text
-  imageUrl             String?                 @db.Text
-  imageUrls            String?                 @db.Text
-  selectedIndex        Int?
-  createdAt            DateTime                @default(now())
-  updatedAt            DateTime                @default(now()) @updatedAt
-  previousImageUrl     String?                 @db.Text
-  previousImageUrls    String?                 @db.Text
-  previousDescription  String?                 @db.Text // 上一次的描述词（用于撤回）
-  previousDescriptions String?                 @db.Text // 上一次的描述词数组（用于撤回）
-  imageMediaId         String?
-  seedanceAssetId      String?
-  seedanceAssetUri     String?                 @db.Text
-  seedanceAssetStatus  String?
-  seedanceAssetError   String?                 @db.Text
-  seedanceAssetImageUrl String?                @db.Text
+  id                    String                  @id @default(uuid())
+  characterId           String
+  appearanceIndex       Int
+  changeReason          String
+  description           String?                 @db.Text
+  descriptions          String?                 @db.Text
+  imageUrl              String?                 @db.Text
+  imageUrls             String?                 @db.Text
+  selectedIndex         Int?
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @default(now()) @updatedAt
+  previousImageUrl      String?                 @db.Text
+  previousImageUrls     String?                 @db.Text
+  previousDescription   String?                 @db.Text // 上一次的描述词（用于撤回）
+  previousDescriptions  String?                 @db.Text // 上一次的描述词数组（用于撤回）
+  imageMediaId          String?
+  seedanceAssetId       String?
+  seedanceAssetUri      String?                 @db.Text
+  seedanceAssetStatus   String?
+  seedanceAssetError    String?                 @db.Text
+  seedanceAssetImageUrl String?                 @db.Text
   seedanceAssetSyncedAt DateTime?
-  imageMedia           MediaObject?            @relation("CharacterAppearanceImageMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
-  character            NovelPromotionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
+  imageMedia            MediaObject?            @relation("CharacterAppearanceImageMedia", fields: [imageMediaId], references: [id], onDelete: SetNull)
+  character             NovelPromotionCharacter @relation(fields: [characterId], references: [id], onDelete: Cascade)
 
   @@unique([characterId, appearanceIndex])
   @@index([characterId])
@@ -83,25 +83,25 @@ model LocationImage {
 }
 
 model NovelPromotionCharacter {
-  id                      String                @id @default(uuid())
-  novelPromotionProjectId String
-  name                    String
-  aliases                 String?               @db.Text
-  createdAt               DateTime              @default(now())
-  updatedAt               DateTime              @default(now()) @updatedAt
-  customVoiceUrl          String?               @db.Text
-  customVoiceMediaId      String?
-  customVoiceMedia        MediaObject?          @relation("NovelPromotionCharacterVoiceMedia", fields: [customVoiceMediaId], references: [id], onDelete: SetNull)
-  voiceId                 String?
-  voiceType               String?
-  seedanceAssetGroupId    String?
+  id                        String                @id @default(uuid())
+  novelPromotionProjectId   String
+  name                      String
+  aliases                   String?               @db.Text
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @default(now()) @updatedAt
+  customVoiceUrl            String?               @db.Text
+  customVoiceMediaId        String?
+  customVoiceMedia          MediaObject?          @relation("NovelPromotionCharacterVoiceMedia", fields: [customVoiceMediaId], references: [id], onDelete: SetNull)
+  voiceId                   String?
+  voiceType                 String?
+  seedanceAssetGroupId      String?
   seedanceAssetsProjectName String?
-  profileData             String?               @db.Text
-  profileConfirmed        Boolean               @default(false)
-  introduction            String?               @db.Text // 角色介绍（身份、关系、称呼映射，如"我"对应此角色）
-  sourceGlobalCharacterId String? // 🆕 来源全局角色ID（复制时记录）
-  appearances             CharacterAppearance[]
-  novelPromotionProject   NovelPromotionProject @relation(fields: [novelPromotionProjectId], references: [id], onDelete: Cascade)
+  profileData               String?               @db.Text
+  profileConfirmed          Boolean               @default(false)
+  introduction              String?               @db.Text // 角色介绍（身份、关系、称呼映射，如"我"对应此角色）
+  sourceGlobalCharacterId   String? // 🆕 来源全局角色ID（复制时记录）
+  appearances               CharacterAppearance[]
+  novelPromotionProject     NovelPromotionProject @relation(fields: [novelPromotionProjectId], references: [id], onDelete: Cascade)
 
   @@index([novelPromotionProjectId])
   @@index([customVoiceMediaId])
@@ -146,6 +146,7 @@ model NovelPromotionEpisode {
   storyboards             NovelPromotionStoryboard[]
   voiceLines              NovelPromotionVoiceLine[]
   editorProject           VideoEditorProject?
+  workflowAssignments     WorkflowAssignment[]
 
   @@unique([novelPromotionProjectId, episodeNumber])
   @@index([novelPromotionProjectId])
@@ -157,7 +158,7 @@ model NovelPromotionEpisode {
 model VideoEditorProject {
   id           String                @id @default(uuid())
   episodeId    String                @unique
-  projectData  String                @db.Text // JSON 存储编辑项目数据
+  projectData  String                @db.LongText // JSON 存储粗剪工程数据
   renderStatus String? // pending | rendering | completed | failed
   renderTaskId String?
   outputUrl    String?               @db.Text
@@ -176,7 +177,7 @@ model NovelPromotionClip {
   duration   Int?
   summary    String                    @db.Text
   location   String?                   @db.Text
-  content    String                    @db.Text
+  content    String                    @db.LongText
   createdAt  DateTime                  @default(now())
   updatedAt  DateTime                  @default(now()) @updatedAt
   characters String?                   @db.Text
@@ -184,7 +185,7 @@ model NovelPromotionClip {
   endText    String?                   @db.Text
   shotCount  Int?
   startText  String?                   @db.Text
-  screenplay String?                   @db.Text
+  screenplay String?                   @db.LongText
   episode    NovelPromotionEpisode     @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   shots      NovelPromotionShot[]
   storyboard NovelPromotionStoryboard?
@@ -250,39 +251,45 @@ model NovelPromotionPanel {
 }
 
 model NovelPromotionProject {
-  id                  String                    @id @default(uuid())
-  projectId           String                    @unique
-  createdAt           DateTime                  @default(now())
-  updatedAt           DateTime                  @default(now()) @updatedAt
-  analysisModel       String? // 用户配置的分析模型（nullable，必须配置后才能使用）
-  imageModel          String? // 用户配置的图片模型
-  videoModel          String? // 用户配置的视频模型
-  audioModel          String? // 用户配置的语音模型
-  videoRatio          String                    @default("9:16")
-  ttsRate             String                    @default("+50%")
-  globalAssetText     String?                   @db.Text
-  artStyle            String                    @default("american-comic")
-  artStylePrompt      String?                   @db.Text
-  projectLevel        String                    @default("Nori1.0")
-  projectStyle        String                    @default("live-action")
-  targetAudience      String                    @default("zh-platform")
-  targetEpisodeDurationSeconds Int              @default(90)
-  characterModel      String? // 用户配置的角色图片模型
-  locationModel       String? // 用户配置的场景图片模型
-  storyboardModel     String? // 用户配置的分镜图片模型
-  editModel           String? // 用户配置的修图/编辑模型
-  videoResolution     String                    @default("720p")
-  capabilityOverrides String?                   @db.Text
-  workflowMode        String                    @default("srt")
-  lastEpisodeId       String?
-  imageResolution     String                    @default("2K")
-  importStatus        String?
-  pendingImportText   String?                   @db.LongText
-  pendingImportEpisodeName String?              @db.VarChar(191)
-  characters          NovelPromotionCharacter[]
-  episodes            NovelPromotionEpisode[]
-  locations           NovelPromotionLocation[]
-  project             Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                           String                    @id @default(uuid())
+  projectId                    String                    @unique
+  createdAt                    DateTime                  @default(now())
+  updatedAt                    DateTime                  @default(now()) @updatedAt
+  analysisModel                String? // 用户配置的分析模型（nullable，必须配置后才能使用）
+  imageModel                   String? // 用户配置的图片模型
+  videoModel                   String? // 用户配置的视频模型
+  audioModel                   String? // 用户配置的语音模型
+  videoRatio                   String                    @default("9:16")
+  ttsRate                      String                    @default("+50%")
+  globalAssetText              String?                   @db.Text
+  artStyle                     String                    @default("american-comic")
+  artStylePrompt               String?                   @db.Text
+  artStyleReferences           Json?
+  projectLevel                 String                    @default("Nori1.0")
+  projectStyle                 String                    @default("live-action")
+  targetAudience               String                    @default("zh-platform")
+  episodeDurationMode          String                    @default("per-episode")
+  episodeDurationValue         Int                       @default(120)
+  targetEpisodeDurationSeconds Int                       @default(120)
+  characterModel               String? // 用户配置的角色图片模型
+  locationModel                String? // 用户配置的场景图片模型
+  storyboardModel              String? // 用户配置的分镜图片模型
+  editModel                    String? // 用户配置的修图/编辑模型
+  videoResolution              String                    @default("480p")
+  capabilityOverrides          String?                   @db.Text
+  workflowMode                 String                    @default("srt")
+  contentType                  String                    @default("story") @db.VarChar(32)
+  materialType                 String                    @default("script") @db.VarChar(32)
+  targetEpisodeCount           Int                       @default(0)
+  lastEpisodeId                String?
+  imageResolution              String                    @default("2K")
+  importStatus                 String?
+  pendingImportText            String?                   @db.LongText
+  pendingImportEpisodeName     String?                   @db.VarChar(191)
+  characters                   NovelPromotionCharacter[]
+  episodes                     NovelPromotionEpisode[]
+  locations                    NovelPromotionLocation[]
+  project                      Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("novel_promotion_projects")
 }
@@ -365,23 +372,168 @@ model SupplementaryPanel {
 }
 
 model Project {
-  id                 String                 @id @default(uuid())
-  name               String
-  description        String?                @db.Text
-  userId             String
-  createdAt          DateTime               @default(now())
-  updatedAt          DateTime               @default(now()) @updatedAt
-  lastAccessedAt     DateTime?
-  novelPromotionData NovelPromotionProject?
-  user               User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  usageCosts         UsageCost[]
-  canvases           Canvas[]
-  workflowStageStates WorkflowStageState[]
-  exportHistoryRecords ExportHistoryRecord[]
-  exportQueueRecords ExportQueueRecord[]
+  id                        String                 @id @default(uuid())
+  name                      String
+  description               String?                @db.Text
+  userId                    String
+  workId                    String
+  createdById               String
+  seedanceAssetGroupId      String?
+  seedanceAssetsProjectName String?
+  collaborationMode         String                 @default("solo") @db.VarChar(32)
+  createdAt                 DateTime               @default(now())
+  updatedAt                 DateTime               @default(now()) @updatedAt
+  lastAccessedAt            DateTime?
+  novelPromotionData        NovelPromotionProject?
+  user                      User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdBy                 User                   @relation("ProjectCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  work                      Work                   @relation(fields: [workId], references: [id], onDelete: Restrict)
+  usageCosts                UsageCost[]
+  canvases                  Canvas[]
+  workflowStageStates       WorkflowStageState[]
+  exportHistoryRecords      ExportHistoryRecord[]
+  exportQueueRecords        ExportQueueRecord[]
+  members                   ProjectMember[]
+  workflowAssignments       WorkflowAssignment[]
 
   @@index([userId])
+  @@index([workId, updatedAt])
+  @@index([createdById])
   @@map("projects")
+}
+
+model Work {
+  id               String   @id @default(uuid())
+  workspaceOwnerId String
+  name             String
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  workspaceOwner User         @relation("WorkWorkspaceOwner", fields: [workspaceOwnerId], references: [id], onDelete: Cascade)
+  createdBy      User         @relation("WorkCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
+  projects       Project[]
+  members        WorkMember[]
+
+  @@index([workspaceOwnerId, updatedAt])
+  @@index([createdById])
+  @@map("works")
+}
+
+model WorkMember {
+  id        String   @id @default(uuid())
+  workId    String
+  userId    String
+  role      String   @default("member") @db.VarChar(32)
+  canManage Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+  user User @relation("WorkMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workId, userId])
+  @@index([userId, workId])
+  @@map("work_members")
+}
+
+model ProjectMember {
+  id                   String   @id @default(uuid())
+  projectId            String
+  userId               String
+  canManageAssignments Boolean  @default(false)
+  canReviewAssignments Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation("ProjectMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, userId])
+  @@index([userId, projectId])
+  @@map("project_members")
+}
+
+model WorkflowAssignment {
+  uuid                    String    @id @default(uuid())
+  workspaceOwnerId        String
+  projectId               String
+  episodeId               String?
+  scopeId                 String    @default("project") @db.VarChar(191)
+  stage                   String    @db.VarChar(32)
+  status                  String    @default("unassigned") @db.VarChar(32)
+  assigneeUserId          String?
+  assignedById            String?
+  assignedAt              DateTime?
+  submittedAt             DateTime?
+  completedAt             DateTime?
+  lastReviewNote          String?   @db.Text
+  submitCompletesDirectly Boolean   @default(false)
+  matched                 Boolean   @default(true)
+  sourceTaskId            String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @default(now()) @updatedAt
+
+  workspaceOwner         User                      @relation("AssignmentWorkspaceOwner", fields: [workspaceOwnerId], references: [id], onDelete: Cascade)
+  project                Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  episode                NovelPromotionEpisode?    @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  assignee               User?                     @relation("AssignmentAssignee", fields: [assigneeUserId], references: [id], onDelete: SetNull)
+  assignedBy             User?                     @relation("AssignmentAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  events                 WorkflowAssignmentEvent[]
+  videoReviewAnnotations VideoReviewAnnotation[]
+
+  @@unique([projectId, scopeId, stage])
+  @@index([workspaceOwnerId, assigneeUserId, status, updatedAt], map: "workflow_assignments_owner_assignee_status_idx")
+  @@index([projectId, status])
+  @@index([episodeId, stage])
+  @@index([assignedById])
+  @@map("workflow_assignments")
+}
+
+model VideoReviewAnnotation {
+  id               String    @id @default(uuid())
+  assignmentUuid   String
+  workspaceOwnerId String
+  projectId        String
+  episodeId        String?
+  panelId          String?
+  reviewerUserId   String?
+  startMs          Int
+  endMs            Int
+  note             String    @db.Text
+  status           String    @default("open") @db.VarChar(32)
+  resolvedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  assignment WorkflowAssignment @relation(fields: [assignmentUuid], references: [uuid], onDelete: Cascade)
+
+  @@index([assignmentUuid, status, startMs])
+  @@index([workspaceOwnerId, projectId, episodeId])
+  @@index([reviewerUserId, createdAt])
+  @@map("video_review_annotations")
+}
+
+model WorkflowAssignmentEvent {
+  id               String   @id @default(uuid())
+  assignmentUuid   String
+  workspaceOwnerId String
+  actorUserId      String?
+  eventType        String   @db.VarChar(64)
+  fromStatus       String?  @db.VarChar(32)
+  toStatus         String?  @db.VarChar(32)
+  note             String?  @db.Text
+  payload          Json?
+  createdAt        DateTime @default(now())
+
+  assignment     WorkflowAssignment @relation(fields: [assignmentUuid], references: [uuid], onDelete: Cascade)
+  workspaceOwner User               @relation("AssignmentEventWorkspaceOwner", fields: [workspaceOwnerId], references: [id], onDelete: Cascade)
+  actor          User?              @relation("AssignmentEventActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([assignmentUuid, createdAt])
+  @@index([workspaceOwnerId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("workflow_assignment_events")
 }
 
 // ============================================================
@@ -395,14 +547,16 @@ model Canvas {
   title        String
   themeColor   String?
   viewport     Json? // { x: number, y: number, zoom: number }
+  revision     Int      @default(0) // 乐观并发版本；每次完整文档保存递增
   visibility   String   @default("PRIVATE") // PRIVATE | UNLISTED | PUBLIC (M5)
   forkedFromId String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @default(now()) @updatedAt
 
-  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  nodes   CanvasNode[]
-  edges   CanvasEdge[]
+  project   Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  nodes     CanvasNode[]
+  edges     CanvasEdge[]
+  snapshots CanvasSnapshot[]
 
   @@index([projectId])
   @@index([userId])
@@ -424,12 +578,33 @@ model CanvasNode {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @default(now()) @updatedAt
 
-  canvas Canvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  canvas         Canvas                  @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  studioDocument CanvasStudio3DDocument?
 
   @@index([canvasId])
   @@index([parentNodeId])
   @@index([taskId])
   @@map("canvas_nodes")
+}
+
+/// 3D 导演台使用独立的、按节点版本化的文档，避免每次布景调整都重写整张无限画布。
+/// projectId/canvasId 同时落库，用于所有读写都执行完整的 project/canvas/node 范围约束。
+model CanvasStudio3DDocument {
+  id        String   @id @default(uuid())
+  projectId String
+  canvasId  String
+  nodeId    String   @unique
+  revision  Int      @default(0)
+  document  Json
+  updatedBy String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  node CanvasNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, canvasId])
+  @@index([canvasId, nodeId])
+  @@map("canvas_studio_3d_documents")
 }
 
 model CanvasEdge {
@@ -450,6 +625,73 @@ model CanvasEdge {
   @@index([sourceNodeId])
   @@index([targetNodeId])
   @@map("canvas_edges")
+}
+
+model CanvasSnapshot {
+  id            String   @id @default(uuid())
+  canvasId      String
+  revision      Int
+  userId        String
+  clientId      String?
+  changeSummary String?
+  document      Json
+  createdAt     DateTime @default(now())
+
+  canvas          Canvas                           @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  studioDocuments CanvasStudio3DDocumentSnapshot[]
+
+  @@unique([canvasId, revision])
+  @@index([canvasId, createdAt])
+  @@map("canvas_snapshots")
+}
+
+/// 画布历史中的 3D 导演台文档副本。节点本身可能在后续版本中被删除，
+/// 因此这里只绑定 CanvasSnapshot，并用 nodeId 恢复到该历史版本的稳定节点 ID。
+model CanvasStudio3DDocumentSnapshot {
+  id         String   @id @default(uuid())
+  snapshotId String
+  nodeId     String
+  revision   Int
+  document   Json
+  createdAt  DateTime @default(now())
+
+  snapshot CanvasSnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, nodeId])
+  @@index([nodeId])
+  @@map("canvas_studio_3d_document_snapshots")
+}
+
+model CanvasWorkflowTemplate {
+  id        String   @id @default(uuid())
+  projectId String
+  userId    String
+  name      String
+  nodes     Json
+  edges     Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  studioDocuments CanvasWorkflowTemplateStudio3DDocument[]
+
+  @@index([userId, projectId, updatedAt])
+  @@map("canvas_workflow_templates")
+}
+
+/// 工作流模板拥有自己的 3D 场景副本，避免模板依赖仍然存在的源画布节点。
+model CanvasWorkflowTemplateStudio3DDocument {
+  id             String   @id @default(uuid())
+  templateId     String
+  sourceNodeId   String
+  sourceRevision Int
+  document       Json
+  createdAt      DateTime @default(now())
+
+  template CanvasWorkflowTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, sourceNodeId])
+  @@index([sourceNodeId])
+  @@map("canvas_workflow_template_studio_3d_documents")
 }
 
 model Session {
@@ -485,40 +727,106 @@ model UsageCost {
   @@map("usage_costs")
 }
 
+model ServiceUsageRecord {
+  id           BigInt   @id @default(autoincrement())
+  provider     String   @db.VarChar(128)
+  modelKey     String?  @db.VarChar(255)
+  serviceType  String   @db.VarChar(32)
+  operation    String   @db.VarChar(128)
+  status       String   @default("success") @db.VarChar(32)
+  userId       String?  @db.VarChar(191)
+  projectId    String?  @db.VarChar(191)
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  units        Decimal  @default(1) @db.Decimal(18, 4)
+  latencyMs    Int?
+  errorCode    String?  @db.VarChar(128)
+  createdAt    DateTime @default(now())
+
+  @@index([provider, createdAt])
+  @@index([modelKey, createdAt])
+  @@index([serviceType, createdAt])
+  @@index([status, createdAt])
+  @@index([userId, createdAt])
+  @@map("service_usage_records")
+}
+
+model ServiceHealthCheck {
+  id         String   @id @default(uuid())
+  targetType String   @db.VarChar(32)
+  targetId   String   @db.VarChar(191)
+  status     String   @db.VarChar(32)
+  latencyMs  Int?
+  message    String?  @db.Text
+  details    Json?
+  checkedBy  String?  @db.VarChar(191)
+  checkedAt  DateTime @default(now())
+
+  @@index([targetType, targetId, checkedAt])
+  @@index([status, checkedAt])
+  @@map("service_health_checks")
+}
+
 model User {
-  id            String          @id @default(uuid())
-  name          String          @unique(map: "User_name_key")
-  email         String?
-  emailVerified DateTime?
-  image         String?
-  password      String?
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @default(now()) @updatedAt
-  accounts      Account[]
-  projects      Project[]
-  sessions      Session[]
-  usageCosts    UsageCost[]
-  balance       UserBalance?
-  preferences   UserPreference?
+  id                            String                    @id @default(uuid())
+  name                          String                    @unique(map: "User_name_key")
+  email                         String?
+  emailVerified                 DateTime?
+  image                         String?
+  password                      String?
+  role                          String                    @default("writer") @db.VarChar(32)
+  roleLabel                     String?                   @db.VarChar(64)
+  status                        String                    @default("active") @db.VarChar(32)
+  permissions                   Json?
+  sessionVersion                Int                       @default(0)
+  lastLoginAt                   DateTime?
+  workspaceOwnerId              String?                   @db.VarChar(191)
+  parentAccountId               String?                   @db.VarChar(191)
+  coinCredits                   Int                       @default(0)
+  /// Legacy compatibility only. Authoritative point balance is UserBalance.balance.
+  pointCredits                  Int                       @default(0)
+  createdAt                     DateTime                  @default(now())
+  updatedAt                     DateTime                  @default(now()) @updatedAt
+  accounts                      Account[]
+  projects                      Project[]
+  createdProjects               Project[]                 @relation("ProjectCreatedBy")
+  ownedWorks                    Work[]                    @relation("WorkWorkspaceOwner")
+  createdWorks                  Work[]                    @relation("WorkCreatedBy")
+  workMemberships               WorkMember[]              @relation("WorkMembershipUser")
+  projectMemberships            ProjectMember[]           @relation("ProjectMembershipUser")
+  assignedWorkflowAssignments   WorkflowAssignment[]      @relation("AssignmentAssignee")
+  delegatedWorkflowAssignments  WorkflowAssignment[]      @relation("AssignmentAssignedBy")
+  ownedWorkflowAssignments      WorkflowAssignment[]      @relation("AssignmentWorkspaceOwner")
+  workflowAssignmentEvents      WorkflowAssignmentEvent[] @relation("AssignmentEventActor")
+  ownedWorkflowAssignmentEvents WorkflowAssignmentEvent[] @relation("AssignmentEventWorkspaceOwner")
+  sessions                      Session[]
+  usageCosts                    UsageCost[]
+  balance                       UserBalance?
+  preferences                   UserPreference?
+  parentAccount                 User?                     @relation("AccountHierarchy", fields: [parentAccountId], references: [id], onDelete: Restrict)
+  childAccounts                 User[]                    @relation("AccountHierarchy")
 
   // 资产中心
-  globalAssetFolders GlobalAssetFolder[]
-  globalCharacters   GlobalCharacter[]
-  globalLocations    GlobalLocation[]
-  globalVoices       GlobalVoice[]
-  tasks              Task[]
-  taskEvents         TaskEvent[]
-  graphRuns          GraphRun[]
-  graphEvents        GraphEvent[]
-  videoEnhanceTasks  VideoEnhanceTask[]
-  workflowStageStates WorkflowStageState[]
-  exportHistoryRecords ExportHistoryRecord[]
-  exportQueueRecords ExportQueueRecord[]
+  globalAssetFolders       GlobalAssetFolder[]
+  globalCharacters         GlobalCharacter[]
+  globalLocations          GlobalLocation[]
+  globalVoices             GlobalVoice[]
+  tasks                    Task[]
+  taskEvents               TaskEvent[]
+  graphRuns                GraphRun[]
+  graphEvents              GraphEvent[]
+  videoEnhanceTasks        VideoEnhanceTask[]
+  workflowStageStates      WorkflowStageState[]
+  exportHistoryRecords     ExportHistoryRecord[]
+  exportQueueRecords       ExportQueueRecord[]
   workspaceFeedbackRecords WorkspaceFeedbackRecord[]
   systemUpdateCheckRecords SystemUpdateCheckRecord[]
-  workspaceTeamProfile WorkspaceTeamProfile?
-  workspaceTeamSeats WorkspaceTeamSeat[] @relation("WorkspaceTeamSeatMember")
+  workspaceTeamProfile     WorkspaceTeamProfile?
+  workspaceTeamSeats       WorkspaceTeamSeat[]       @relation("WorkspaceTeamSeatMember")
 
+  @@index([role, status])
+  @@index([workspaceOwnerId, status])
+  @@index([parentAccountId, role, status])
   @@map("user")
 }
 
@@ -532,7 +840,7 @@ model WorkspaceTeamProfile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now()) @updatedAt
 
-  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User                @relation(fields: [userId], references: [id], onDelete: Cascade)
   seats WorkspaceTeamSeat[]
 
   @@index([mode])
@@ -593,24 +901,24 @@ model WorkflowStageState {
 }
 
 model ExportHistoryRecord {
-  id        String   @id @default(uuid())
-  userId    String
-  projectId String
-  scopeId   String   @default("project") @db.VarChar(128)
-  episodeId String?  @db.VarChar(128)
-  cardId    String   @db.VarChar(64)
-  title     String
-  fileName  String   @db.Text
-  status    String   @default("completed") @db.VarChar(32)
-  source    String   @default("persistent") @db.VarChar(32)
-  stats     Json?
-  manifest  Json?
-  taskId    String?
-  outputStorageKey String? @db.Text
-  outputUrl String? @db.Text
-  contentType String? @db.VarChar(128)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id               String   @id @default(uuid())
+  userId           String
+  projectId        String
+  scopeId          String   @default("project") @db.VarChar(128)
+  episodeId        String?  @db.VarChar(128)
+  cardId           String   @db.VarChar(64)
+  title            String
+  fileName         String   @db.Text
+  status           String   @default("completed") @db.VarChar(32)
+  source           String   @default("persistent") @db.VarChar(32)
+  stats            Json?
+  manifest         Json?
+  taskId           String?
+  outputStorageKey String?  @db.Text
+  outputUrl        String?  @db.Text
+  contentType      String?  @db.VarChar(128)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -623,25 +931,25 @@ model ExportHistoryRecord {
 }
 
 model ExportQueueRecord {
-  id             String    @id @default(uuid())
-  userId         String
-  projectId      String
-  scopeId        String    @default("project") @db.VarChar(128)
-  episodeId      String?   @db.VarChar(128)
-  cardId         String    @db.VarChar(64)
-  title          String
-  status         String    @default("queued") @db.VarChar(32)
-  blocker        String?   @db.Text
-  taskId         String?
-  outputFileName String?   @db.Text
-  outputStorageKey String? @db.Text
-  outputUrl      String?   @db.Text
-  contentType    String?   @db.VarChar(128)
-  outputManifest Json?
-  stats          Json?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @default(now()) @updatedAt
-  finishedAt     DateTime?
+  id               String    @id @default(uuid())
+  userId           String
+  projectId        String
+  scopeId          String    @default("project") @db.VarChar(128)
+  episodeId        String?   @db.VarChar(128)
+  cardId           String    @db.VarChar(64)
+  title            String
+  status           String    @default("queued") @db.VarChar(32)
+  blocker          String?   @db.Text
+  taskId           String?
+  outputFileName   String?   @db.Text
+  outputStorageKey String?   @db.Text
+  outputUrl        String?   @db.Text
+  contentType      String?   @db.VarChar(128)
+  outputManifest   Json?
+  stats            Json?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+  finishedAt       DateTime?
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -724,42 +1032,42 @@ model VideoEnhanceTask {
 }
 
 model UserPreference {
-  id                  String   @id @default(uuid())
-  userId              String   @unique
-  analysisModel       String? // 用户配置的分析模型（nullable，必须配置后才能使用）
-  characterModel      String? // 用户配置的角色图片模型
-  locationModel       String? // 用户配置的场景图片模型
-  storyboardModel     String? // 用户配置的分镜图片模型
-  editModel           String? // 用户配置的修图模型
-  videoModel          String? // 用户配置的视频模型
-  audioModel          String? // 用户配置的语音模型
-  lipSyncModel        String? // 用户配置的口型同步模型
-  voiceDesignModel    String? // 用户配置的音色设计模型
-  analysisConcurrency Int? // 分析流程并发上限
-  imageConcurrency    Int? // 图像流程并发上限
-  videoConcurrency    Int? // 视频流程并发上限
-  videoRatio          String   @default("9:16")
-  videoResolution     String   @default("720p")
-  artStyle            String   @default("american-comic")
-  ttsRate             String   @default("+50%")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @default(now()) @updatedAt
-  imageResolution     String   @default("2K")
-  capabilityDefaults  String?  @db.Text
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+  analysisModel         String? // 用户配置的分析模型（nullable，必须配置后才能使用）
+  characterModel        String? // 用户配置的角色图片模型
+  locationModel         String? // 用户配置的场景图片模型
+  storyboardModel       String? // 用户配置的分镜图片模型
+  editModel             String? // 用户配置的修图模型
+  videoModel            String? // 用户配置的视频模型
+  audioModel            String? // 用户配置的语音模型
+  lipSyncModel          String? // 用户配置的口型同步模型
+  voiceDesignModel      String? // 用户配置的音色设计模型
+  analysisConcurrency   Int? // 分析流程并发上限
+  imageConcurrency      Int? // 图像流程并发上限
+  videoConcurrency      Int? // 视频流程并发上限
+  videoRatio            String   @default("9:16")
+  videoResolution       String   @default("720p")
+  artStyle              String   @default("american-comic")
+  ttsRate               String   @default("+50%")
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @default(now()) @updatedAt
+  imageResolution       String   @default("2K")
+  capabilityDefaults    String?  @db.Text
   imageGenerationCounts Json?
-  videoEnhanceSettings Json?
-  mutedUpdateVersion  String?  @db.VarChar(64)
+  videoEnhanceSettings  Json?
+  mutedUpdateVersion    String?  @db.VarChar(64)
 
   // API Key 配置（极简版）
-  llmBaseUrl  String? @default("https://openrouter.ai/api/v1")
-  llmApiKey   String? @db.Text // 加密存储
-  falApiKey   String? @db.Text // FAL（图片+视频+语音）
-  googleAiKey String? @db.Text // Google AI（Gemini 图片）
-  arkApiKey   String? @db.Text // 火山引擎（Seedream+Seedance）
-  arkAssetsAccessKeyId String? @db.Text // 火山引擎素材库 AK（加密存储）
+  llmBaseUrl               String? @default("https://openrouter.ai/api/v1")
+  llmApiKey                String? @db.Text // 加密存储
+  falApiKey                String? @db.Text // FAL（图片+视频+语音）
+  googleAiKey              String? @db.Text // Google AI（Gemini 图片）
+  arkApiKey                String? @db.Text // 火山引擎（Seedream+Seedance）
+  arkAssetsAccessKeyId     String? @db.Text // 火山引擎素材库 AK（加密存储）
   arkAssetsSecretAccessKey String? @db.Text // 火山引擎素材库 SK（加密存储）
-  arkAssetsProjectName String? @default("default") // 火山素材库 ProjectName
-  qwenApiKey  String? @db.Text // 阿里百炼（声音设计）
+  arkAssetsProjectName     String? @default("default") // 火山素材库 ProjectName
+  qwenApiKey               String? @db.Text // 阿里百炼（声音设计）
 
   // 自定义模型列表 + 价格（JSON）
   customModels String? @db.Text
@@ -1311,28 +1619,32 @@ model LegacyMediaRefBackup {
 // FrameOS — Material service
 // =====================================================
 model FrameosMaterial {
-  id                String   @id @default(uuid())
-  projectId         String
-  userId            String
-  ownerName         String?
-  title             String?
-  type              String   // image | video | audio
-  source            String   // toolbox | creative | production | upload
-  status            String   @default("ready") // ready | processing | failed
-  isFavorited       Boolean  @default(false)
-  resultUrl         String?  @db.Text
-  storageKey        String?  @db.Text
-  isSuperresolved   Boolean  @default(false)
-  isSubtitleErased  Boolean  @default(false)
-  bindingStatus     String   @default("unbound") // unbound | bound
-  isSelected        Boolean  @default(false)
-  metadata          Json?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String    @id @default(uuid())
+  projectId        String
+  userId           String
+  ownerName        String?
+  title            String?
+  type             String // image | video | audio | model3d
+  source           String // toolbox | creative | production | upload
+  status           String    @default("ready") // ready | processing | failed
+  isFavorited      Boolean   @default(false)
+  resultUrl        String?   @db.Text
+  storageKey       String?   @db.Text
+  isSuperresolved  Boolean   @default(false)
+  isSubtitleErased Boolean   @default(false)
+  bindingStatus    String    @default("unbound") // unbound | bound
+  isSelected       Boolean   @default(false)
+  metadata         Json?
+  deletedAt        DateTime?
+  deletedById      String?   @db.VarChar(191)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   @@index([projectId, createdAt])
   @@index([userId, createdAt])
   @@index([projectId, type])
+  @@index([userId, deletedAt, createdAt])
+  @@index([projectId, deletedAt, createdAt])
   @@map("frameos_materials")
 }
 
@@ -1340,20 +1652,20 @@ model FrameosMaterial {
 // FrameOS — Screenwriter service
 // =====================================================
 model FrameosScript {
-  id                  String   @id @default(uuid())
-  userId              String
-  projectId           String
-  title               String
-  content             String   @db.LongText
-  status              String   @default("draft") // available | draft | archived
-  bibleContent        Json?
-  bibleLocked         Boolean  @default(false)
-  targetBibleContent  Json?
-  targetBibleLocked   Boolean  @default(false)
-  marketRules         Json?
-  sections            Json?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  userId             String
+  projectId          String
+  title              String
+  content            String   @db.LongText
+  status             String   @default("draft") // available | draft | archived
+  bibleContent       Json?
+  bibleLocked        Boolean  @default(false)
+  targetBibleContent Json?
+  targetBibleLocked  Boolean  @default(false)
+  marketRules        Json?
+  sections           Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([userId, status])
   @@index([projectId])
@@ -1361,17 +1673,17 @@ model FrameosScript {
 }
 
 model FrameosWorld {
-  id                   String   @id @default(uuid())
-  projectId            String
-  worldLabel           String
-  worldBackground      String?  @db.Text
-  representativeFrame  String?
-  candidates           Json?
-  selectedStyleAnchor  String?
-  previewMaterials     Json?
-  isDefault            Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  projectId           String
+  worldLabel          String
+  worldBackground     String?  @db.Text
+  representativeFrame String?
+  candidates          Json?
+  selectedStyleAnchor String?
+  previewMaterials    Json?
+  isDefault           Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@unique([projectId, worldLabel])
   @@index([projectId])
@@ -1379,34 +1691,34 @@ model FrameosWorld {
 }
 
 model FrameosArtDirection {
-  id                  String   @id @default(uuid())
-  projectId           String   @unique
-  flowStatus          String   @default("idle")
-  flowId              String?
-  currentLabel        String?
-  derivedPhase        String?
-  defaultWorldLabel   String?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                String   @id @default(uuid())
+  projectId         String   @unique
+  flowStatus        String   @default("idle")
+  flowId            String?
+  currentLabel      String?
+  derivedPhase      String?
+  defaultWorldLabel String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   @@map("frameos_art_directions")
 }
 
 model FrameosScreenwriterEpisode {
-  id              String   @id @default(uuid())
-  projectId       String
-  scriptId        String?
-  episodeNumber   Int
-  title           String
-  content         String   @db.LongText
-  contentKilo     Float    @default(0)
-  infoPoints      String?  @db.Text
-  sourceAnchor    Json?
-  reasoning       Json?
-  status          String   @default("draft")
-  scenes          Json?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id            String   @id @default(uuid())
+  projectId     String
+  scriptId      String?
+  episodeNumber Int
+  title         String
+  content       String   @db.LongText
+  contentKilo   Float    @default(0)
+  infoPoints    String?  @db.Text
+  sourceAnchor  Json?
+  reasoning     Json?
+  status        String   @default("draft")
+  scenes        Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([projectId, episodeNumber])
   @@index([projectId])
@@ -1418,21 +1730,21 @@ model FrameosScreenwriterEpisode {
 // FrameOS — Director service
 // =====================================================
 model FrameosDirectorEpisode {
-  id                    String   @id @default(uuid())
-  projectId             String
-  episodeId             String   // FrameosScreenwriterEpisode.id
-  directorConfirmed     Boolean  @default(false)
-  shotStatus            String   @default("pending")
-  steps                 Json?
-  emotionArc            String?  @db.Text
-  reasoning             Json?
-  bgmPlans              Json?
-  totalSceneCount       Int      @default(0)
-  totalShotCount        Int      @default(0)
-  totalDurationSeconds  Float    @default(0)
-  scenes                Json?
-  createdAt             DateTime @default(now())
-  updatedAt             DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  projectId            String
+  episodeId            String // FrameosScreenwriterEpisode.id
+  directorConfirmed    Boolean  @default(false)
+  shotStatus           String   @default("pending")
+  steps                Json?
+  emotionArc           String?  @db.Text
+  reasoning            Json?
+  bgmPlans             Json?
+  totalSceneCount      Int      @default(0)
+  totalShotCount       Int      @default(0)
+  totalDurationSeconds Float    @default(0)
+  scenes               Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@unique([projectId, episodeId])
   @@index([projectId])
@@ -1443,12 +1755,12 @@ model FrameosDirectorEpisode {
 // FrameOS — Production service
 // =====================================================
 model FrameosProductionScene {
-  id          String   @id @default(uuid())
-  projectId   String
-  episodeId   String
-  sceneNo     Int
-  sceneTitle  String
-  createdAt   DateTime @default(now())
+  id         String   @id @default(uuid())
+  projectId  String
+  episodeId  String
+  sceneNo    Int
+  sceneTitle String
+  createdAt  DateTime @default(now())
 
   @@unique([projectId, episodeId, sceneNo])
   @@index([projectId])
@@ -1457,29 +1769,29 @@ model FrameosProductionScene {
 }
 
 model FrameosProductionShot {
-  id                   String   @id @default(uuid())
-  projectId            String
-  episodeId            String
-  sceneId              String
-  shotNo               String
-  shotTitle            String?
-  shotStatus           String   @default("pending")
-  durationSeconds      Float    @default(0)
-  needsRevision        Boolean  @default(false)
-  videoPrompt          String?  @db.Text
-  stylePrompt          String?  @db.Text
-  aspectRatio          String?
-  resolution           String?
-  currentMaterialId    String?
-  currentMaterialUrl   String?  @db.Text
-  videoStatus          String   @default("idle")
-  errorMessage         String?  @db.Text
-  characters           Json?
-  environments         Json?
-  items                Json?
-  useReferenceVideo    Boolean  @default(false)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  id                 String   @id @default(uuid())
+  projectId          String
+  episodeId          String
+  sceneId            String
+  shotNo             String
+  shotTitle          String?
+  shotStatus         String   @default("pending")
+  durationSeconds    Float    @default(0)
+  needsRevision      Boolean  @default(false)
+  videoPrompt        String?  @db.Text
+  stylePrompt        String?  @db.Text
+  aspectRatio        String?
+  resolution         String?
+  currentMaterialId  String?
+  currentMaterialUrl String?  @db.Text
+  videoStatus        String   @default("idle")
+  errorMessage       String?  @db.Text
+  characters         Json?
+  environments       Json?
+  items              Json?
+  useReferenceVideo  Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   @@index([projectId, episodeId])
   @@index([sceneId])
@@ -1487,18 +1799,18 @@ model FrameosProductionShot {
 }
 
 model FrameosProductionBgmTask {
-  id                String   @id @default(uuid())
-  projectId         String
-  sceneId           String
-  taskId            String?
-  status            String   @default("idle")
-  url               String?  @db.Text
-  errorMessage      String?  @db.Text
-  caption           String?  @db.Text
-  lyrics            String?  @db.Text
-  durationEstimate  Float?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id               String   @id @default(uuid())
+  projectId        String
+  sceneId          String
+  taskId           String?
+  status           String   @default("idle")
+  url              String?  @db.Text
+  errorMessage     String?  @db.Text
+  caption          String?  @db.Text
+  lyrics           String?  @db.Text
+  durationEstimate Float?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   @@unique([projectId, sceneId])
   @@index([projectId])
@@ -1509,22 +1821,22 @@ model FrameosProductionBgmTask {
 // FrameOS — Toolbox service
 // =====================================================
 model FrameosToolboxAsset {
-  id          String   @id @default(uuid())
-  userId      String
-  projectId   String?
-  type        String   // image | video | audio
-  source      String   @default("toolbox")
-  bizType     String?
-  modelId     String?
-  skuCode     String?
-  materialId  String?
-  params      Json?
-  status      String   @default("pending")
-  resultUrl   String?  @db.Text
-  isFavorited Boolean  @default(false)
-  errorMessage String? @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(uuid())
+  userId       String
+  projectId    String?
+  type         String // image | video | audio | model3d
+  source       String   @default("toolbox")
+  bizType      String?
+  modelId      String?
+  skuCode      String?
+  materialId   String?
+  params       Json?
+  status       String   @default("pending")
+  resultUrl    String?  @db.Text
+  isFavorited  Boolean  @default(false)
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@index([userId, createdAt])
   @@index([projectId, createdAt])
@@ -1532,13 +1844,13 @@ model FrameosToolboxAsset {
 }
 
 model FrameosToolboxPromptHistory {
-  id         String   @id @default(uuid())
-  userId     String
-  assetId    String?
-  sessionId  String?
-  variant    String   @default("default") // default | sd2
-  messages   Json
-  createdAt  DateTime @default(now())
+  id        String   @id @default(uuid())
+  userId    String
+  assetId   String?
+  sessionId String?
+  variant   String   @default("default") // default | sd2
+  messages  Json
+  createdAt DateTime @default(now())
 
   @@index([userId, assetId])
   @@index([sessionId])

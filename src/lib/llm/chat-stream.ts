@@ -32,6 +32,7 @@ import {
   logLlmRawInput,
   logLlmRawOutput,
   recordCompletionUsage,
+  recordFailedCompletionUsage,
   resolveLlmRuntimeModel,
 } from './runtime-shared'
 import { getCompletionParts } from './completion-parts'
@@ -39,9 +40,10 @@ import { withStreamChunkTimeout } from './stream-timeout'
 import { shouldUseOpenAIReasoningProviderOptions } from './reasoning-capability'
 import { completeBailianLlm } from '@/lib/providers/bailian'
 import { completeSiliconFlowLlm } from '@/lib/providers/siliconflow'
+import { completeKuaiziLlm } from '@/lib/providers/kuaizi'
 import { isLuminaProviderId } from '@/lib/model-provider-contract'
 
-const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
+const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow', 'kuaizi'])
 
 type GoogleModelClient = {
   generateContentStream?: (params: unknown) => Promise<unknown>
@@ -93,6 +95,16 @@ export async function chatCompletionStream(
     typeof options.projectId === 'string' && options.projectId.trim().length > 0
       ? options.projectId.trim()
       : undefined
+  const callStartedAt = Date.now()
+  const recordUsage = (completion: OpenAI.Chat.Completions.ChatCompletion) =>
+    recordCompletionUsage(resolvedModelId, completion, {
+      userId,
+      provider,
+      modelKey: selection.modelKey,
+      projectId,
+      operation: options.action || 'chat-completion-stream',
+      latencyMs: Date.now() - callStartedAt,
+    })
   logLlmRawInput({
     userId,
     projectId,
@@ -162,7 +174,7 @@ export async function chatCompletionStream(
         reasoning: completionParts.reasoning,
         usage: completionUsageSummary(completion),
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', compatEngine)
       callbacks?.onComplete?.(completionParts.text, streamStep)
       return completion
@@ -271,7 +283,7 @@ export async function chatCompletionStream(
         reasoning,
         usage,
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', providerKey)
       callbacks?.onComplete?.(text, streamStep)
       return completion
@@ -317,7 +329,7 @@ export async function chatCompletionStream(
         reasoning: completionParts.reasoning,
         usage: completionUsageSummary(completion),
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', providerKey)
       callbacks?.onComplete?.(completionParts.text, streamStep)
       return completion
@@ -363,7 +375,54 @@ export async function chatCompletionStream(
         reasoning: completionParts.reasoning,
         usage: completionUsageSummary(completion),
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
+      emitStreamStage(callbacks, streamStep, 'completed', providerKey)
+      callbacks?.onComplete?.(completionParts.text, streamStep)
+      return completion
+    }
+
+    if (providerKey === 'kuaizi') {
+      emitStreamStage(callbacks, streamStep, 'streaming', providerKey)
+      const completion = await completeKuaiziLlm({
+        modelId: resolvedModelId,
+        messages,
+        apiKey: providerConfig.apiKey,
+        baseUrl: providerConfig.baseUrl,
+        temperature,
+        maxTokens,
+      })
+      const completionParts = getCompletionParts(completion)
+      let seq = 1
+      if (completionParts.reasoning) {
+        emitStreamChunk(callbacks, streamStep, {
+          kind: 'reasoning',
+          delta: completionParts.reasoning,
+          seq,
+          lane: 'reasoning',
+        })
+        seq += 1
+      }
+      if (completionParts.text) {
+        emitStreamChunk(callbacks, streamStep, {
+          kind: 'text',
+          delta: completionParts.text,
+          seq,
+          lane: 'main',
+        })
+      }
+      logLlmRawOutput({
+        userId,
+        projectId,
+        provider: providerKey,
+        modelId: resolvedModelId,
+        modelKey: selection.modelKey,
+        stream: true,
+        action: options.action,
+        text: completionParts.text,
+        reasoning: completionParts.reasoning,
+        usage: completionUsageSummary(completion),
+      })
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', providerKey)
       callbacks?.onComplete?.(completionParts.text, streamStep)
       return completion
@@ -414,7 +473,7 @@ export async function chatCompletionStream(
         reasoning: completionParts.reasoning,
         usage: completionUsageSummary(completion),
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', providerKey)
       callbacks?.onComplete?.(completionParts.text, streamStep)
       return completion
@@ -476,7 +535,7 @@ export async function chatCompletionStream(
         reasoning: arkResult.reasoning,
         usage: arkResult.usage,
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', provider)
       callbacks?.onComplete?.(arkResult.text, streamStep)
       return completion
@@ -785,7 +844,7 @@ export async function chatCompletionStream(
             completionTokens: usage?.outputTokens ?? 0,
           },
         })
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         emitStreamStage(callbacks, streamStep, 'completed', providerName)
         callbacks?.onComplete?.(finalText, streamStep)
         return completion
@@ -902,13 +961,22 @@ export async function chatCompletionStream(
         reasoning,
         usage: completionUsageSummary(finalCompletion),
       })
-      recordCompletionUsage(resolvedModelId, completion)
+      recordUsage(completion)
       emitStreamStage(callbacks, streamStep, 'completed', providerName)
       callbacks?.onComplete?.(text, streamStep)
       return completion
     }
     throw new Error(`UNSUPPORTED_STREAM_PROVIDER: ${providerKey}`)
   } catch (error) {
+    recordFailedCompletionUsage({
+      userId,
+      provider,
+      modelKey: selection.modelKey,
+      projectId,
+      operation: options.action || 'chat-completion-stream',
+      latencyMs: Date.now() - callStartedAt,
+      errorCode: error instanceof Error ? error.name : 'LLM_STREAM_FAILED',
+    })
     // Detect PROHIBITED_CONTENT from Gemini and normalize to SENSITIVE_CONTENT
     // (consistent with chat-completion.ts)
     const errMsg = error instanceof Error ? error.message : String(error)

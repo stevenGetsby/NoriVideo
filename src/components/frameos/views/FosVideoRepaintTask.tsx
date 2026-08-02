@@ -1,144 +1,414 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { FosVideoRepaintProgress } from './FosVideoRepaintProgress'
+import { FosVideoRepaintRail } from './FosVideoRepaintRail'
+import { FosVideoRepaintSetup } from './FosVideoRepaintSetup'
+import {
+  validateRepaintSetup,
+  type LocalVideoItem,
+  type RepaintResultMode,
+  type RepaintRunState,
+  type RepaintSetupErrors,
+  type VideoUnderstandingEpisode,
+} from './videoRepaintState'
 
-const STEPS: Array<[string, string]> = [
-  ['视频反译', '分集并行'],
-  ['设定提炼', '提炼设定总纲'],
-  ['逐集对齐', '→ 视频转剧本'],
-  ['目标设定', '生成目标总纲'],
-  ['逐集转绘', '→ 剧本转绘'],
-]
+const VIDEO_EXTENSION = /\.(mp4|mov|avi)$/i
+const MAX_VIDEO_BYTES = 512 * 1024 * 1024
 
-const CHECKPOINTS: Array<[string, string]> = [
-  ['A', '设定总纲：审查提炼的设定，支持多轮 Feedback'],
-  ['B', '源剧本 & 转绘需求：审查对齐后的源剧本，并最终确认转绘需求'],
-  ['C', '目标设定总纲：审查转绘后的设定，支持多轮 Feedback'],
-]
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value)
+}
 
-export function FosVideoRepaintTask() {
+function readApiError(payload: unknown): string {
+  if (!isRecord(payload)) return ''
+  const error = isRecord(payload.error) ? payload.error : null
+  return typeof error?.message === 'string'
+    ? error.message
+    : typeof payload.message === 'string' ? payload.message : ''
+}
+
+function readVideoDuration(url: string, signal: AbortSignal): Promise<number> {
+  return new Promise((resolve) => {
+    if (signal.aborted) {
+      resolve(0)
+      return
+    }
+    const media = document.createElement('video')
+    let settled = false
+    const onAbort = () => finish(0)
+    const finish = (duration: number) => {
+      if (settled) return
+      settled = true
+      media.onloadedmetadata = null
+      media.onerror = null
+      signal.removeEventListener('abort', onAbort)
+      media.removeAttribute('src')
+      media.load()
+      resolve(Number.isFinite(duration) && duration > 0 ? duration : 0)
+    }
+    media.preload = 'metadata'
+    media.onloadedmetadata = () => finish(media.duration)
+    media.onerror = () => finish(0)
+    signal.addEventListener('abort', onAbort, { once: true })
+    media.src = url
+  })
+}
+
+async function understandOneVideo(
+  video: LocalVideoItem,
+  signal: AbortSignal,
+  adaptationBrief: string,
+  onPhase: (phase: 'upload' | 'script' | 'storyboard') => void,
+): Promise<VideoUnderstandingEpisode> {
+  const localDurationPromise = readVideoDuration(video.url, signal)
+  const formData = new FormData()
+  formData.append('file', video.file, video.file.name)
+  formData.append('mode', 'script')
+  formData.append('episodeNumber', '1')
+  formData.append('adaptationBrief', adaptationBrief)
+  onPhase('upload')
+  const response = await fetch('/api/video-repaint/understand', {
+    method: 'POST',
+    body: formData,
+    signal,
+  })
+  const payload: unknown = await response.json().catch(() => ({}))
+  if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
+    throw new Error(readApiError(payload) || `视频反译失败（HTTP ${response.status}）`)
+  }
+
+  onPhase('script')
+  const result = payload.result
+  const usage = isRecord(result.usage) ? result.usage : {}
+  const validation = isRecord(result.validation) ? result.validation : {}
+  const analysis = isRecord(result.analysis) ? result.analysis : null
+  const sourceEpisode = analysis && isRecord(analysis.source_episode) ? analysis.source_episode : null
+  const fallbackScript = sourceEpisode && typeof sourceEpisode.formatted_text === 'string'
+    ? sourceEpisode.formatted_text
+    : ''
+  const fileId = typeof result.fileId === 'string' ? result.fileId : ''
+  const localDuration = await localDurationPromise
+  const analyzedDuration = sourceEpisode && typeof sourceEpisode.duration_seconds === 'number'
+    ? sourceEpisode.duration_seconds
+    : 0
+  const durationSeconds = localDuration || analyzedDuration
+  if (!fileId || !analysis || !durationSeconds) {
+    throw new Error('视频反译未返回可用于分镜阶段的源数据')
+  }
+
+  onPhase('storyboard')
+  const storyboardResponse = await fetch('/api/video-repaint/understand', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      stage: 'storyboard',
+      fileId,
+      sourceAnalysis: analysis,
+      durationSeconds,
+      episodeNumber: 1,
+    }),
+    signal,
+  })
+  const storyboardPayload: unknown = await storyboardResponse.json().catch(() => ({}))
+  if (!storyboardResponse.ok || !isRecord(storyboardPayload) || !isRecord(storyboardPayload.result)) {
+    throw new Error(readApiError(storyboardPayload) || `源分镜提取失败（HTTP ${storyboardResponse.status}）`)
+  }
+  const storyboardResult = storyboardPayload.result
+  const storyboardUsage = isRecord(storyboardResult.usage) ? storyboardResult.usage : {}
+  const storyboardValidation = isRecord(storyboardResult.validation) ? storyboardResult.validation : {}
+  const scriptErrors = Array.isArray(validation.errors) ? validation.errors.filter((item): item is string => typeof item === 'string') : []
+  const storyboardErrors = Array.isArray(storyboardValidation.errors) ? storyboardValidation.errors.filter((item): item is string => typeof item === 'string') : []
+  const scriptWarnings = Array.isArray(validation.warnings) ? validation.warnings.filter((item): item is string => typeof item === 'string') : []
+  const storyboardWarnings = Array.isArray(storyboardValidation.warnings) ? storyboardValidation.warnings.filter((item): item is string => typeof item === 'string') : []
+
+  return {
+    fileName: video.file.name,
+    model: typeof storyboardResult.model === 'string' ? storyboardResult.model : typeof result.model === 'string' ? result.model : '',
+    script: typeof result.script === 'string' ? result.script : fallbackScript,
+    storyboard: typeof storyboardResult.storyboard === 'string' ? storyboardResult.storyboard : '',
+    text: typeof result.text === 'string' ? result.text : '',
+    analysis,
+    usage: {
+      inputTokens: (typeof usage.inputTokens === 'number' ? usage.inputTokens : 0) + (typeof storyboardUsage.inputTokens === 'number' ? storyboardUsage.inputTokens : 0),
+      outputTokens: (typeof usage.outputTokens === 'number' ? usage.outputTokens : 0) + (typeof storyboardUsage.outputTokens === 'number' ? storyboardUsage.outputTokens : 0),
+    },
+    validation: {
+      valid: validation.valid === true && storyboardValidation.valid === true,
+      errors: [...scriptErrors, ...storyboardErrors],
+      warnings: [...scriptWarnings, ...storyboardWarnings],
+    },
+  }
+}
+
+interface AdaptationResponse {
+  script: string
+  mode: RepaintResultMode
+  model: string
+  usage: { inputTokens: number; outputTokens: number }
+}
+
+async function requestAdaptation(input: {
+  title: string
+  brief: string
+  result: VideoUnderstandingEpisode
+  signal?: AbortSignal
+}): Promise<AdaptationResponse> {
+  const response = await fetch('/api/video-repaint/adapt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title: input.title,
+      sourceScript: input.result.script,
+      sourceAnalysis: input.result.analysis,
+      adaptationBrief: input.brief,
+    }),
+    signal: input.signal,
+  })
+  const payload: unknown = await response.json().catch(() => ({}))
+  if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
+    throw new Error(readApiError(payload) || `转绘剧本生成失败（HTTP ${response.status}）`)
+  }
+  const result = payload.result
+  const usage = isRecord(result.usage) ? result.usage : {}
+  const script = typeof result.script === 'string' ? result.script.trim() : ''
+  if (!script) throw new Error('文本模型未返回转绘剧本')
+  return {
+    script,
+    mode: result.mode === 'source_copy' ? 'source_copy' : 'llm',
+    model: typeof result.model === 'string' ? result.model : '',
+    usage: {
+      inputTokens: typeof usage.inputTokens === 'number' ? usage.inputTokens : 0,
+      outputTokens: typeof usage.outputTokens === 'number' ? usage.outputTokens : 0,
+    },
+  }
+}
+
+export function FosVideoRepaintTask({ scriptId = 'new' }: { scriptId?: string }) {
   const router = useRouter()
-  const [form, setForm] = useState<'script' | 'board'>('script')
-  const [uploadTab, setUploadTab] = useState<'file' | 'folder'>('file')
-  const [checks, setChecks] = useState<Record<string, boolean>>({ A: true, B: true, C: true })
+  const [title, setTitle] = useState(scriptId !== 'new' ? `转绘任务 ${scriptId}` : '')
+  const [brief, setBrief] = useState('')
+  const [videos, setVideos] = useState<LocalVideoItem[]>([])
+  const [errors, setErrors] = useState<RepaintSetupErrors>({})
+  const [runState, setRunState] = useState<RepaintRunState>('setup')
+  const [submitPhase, setSubmitPhase] = useState<'upload' | 'script' | 'storyboard'>('upload')
+  const [notice, setNotice] = useState('')
+  const [understandingResult, setUnderstandingResult] = useState<VideoUnderstandingEpisode | null>(null)
+  const [targetScript, setTargetScript] = useState('')
+  const [resultMode, setResultMode] = useState<RepaintResultMode>('source_copy')
+  const [targetModel, setTargetModel] = useState('')
+  const [targetUsage, setTargetUsage] = useState({ inputTokens: 0, outputTokens: 0 })
+  const [savedScriptId, setSavedScriptId] = useState('')
+  const videosRef = useRef<LocalVideoItem[]>([])
+  const requestAbortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => { videosRef.current = videos }, [videos])
+  useEffect(() => () => {
+    requestAbortRef.current?.abort()
+    videosRef.current.forEach((video) => URL.revokeObjectURL(video.url))
+  }, [])
+
+  const addFiles = (incoming: File[]) => {
+    const file = incoming.find((item) => VIDEO_EXTENSION.test(item.name))
+    if (!file) {
+      setErrors((current) => ({ ...current, videos: '仅支持 mp4 / mov / avi 视频文件' }))
+      return
+    }
+    if (file.size <= 0 || file.size > MAX_VIDEO_BYTES) {
+      setErrors((current) => ({ ...current, videos: '视频不能为空且不能超过 512 MB' }))
+      return
+    }
+    setVideos((current) => {
+      current.forEach((item) => URL.revokeObjectURL(item.url))
+      return [{ id: `${file.name}-${file.lastModified}`, file, url: URL.createObjectURL(file) }]
+    })
+    if (!title.trim()) setTitle(`${file.name.replace(VIDEO_EXTENSION, '')} · 视频转绘`.slice(0, 40))
+    setErrors((current) => ({ ...current, videos: undefined }))
+  }
+
+  const removeVideo = (id: string) => {
+    setVideos((current) => {
+      const removed = current.find((video) => video.id === id)
+      if (removed) URL.revokeObjectURL(removed.url)
+      return current.filter((video) => video.id !== id)
+    })
+  }
+
+  const applyAdaptation = (adapted: AdaptationResponse) => {
+    setTargetScript(adapted.script)
+    setResultMode(adapted.mode)
+    setTargetModel(adapted.model)
+    setTargetUsage(adapted.usage)
+  }
+
+  const submit = async () => {
+    const nextErrors = validateRepaintSetup({ title, brief, videoCount: videos.length })
+    setErrors(nextErrors)
+    if (Object.keys(nextErrors).length) {
+      setNotice('请先完成任务名称并上传一个视频')
+      return
+    }
+    const video = videos[0]
+    if (!video) return
+    setNotice('')
+    requestAbortRef.current?.abort()
+    const controller = new AbortController()
+    requestAbortRef.current = controller
+    setRunState('submitting')
+    setSubmitPhase('upload')
+    let completedSource: VideoUnderstandingEpisode | null = null
+    try {
+      const source = await understandOneVideo(video, controller.signal, brief, setSubmitPhase)
+      completedSource = source
+      if (controller.signal.aborted) return
+      setUnderstandingResult(source)
+      if (brief.trim()) {
+        setRunState('adapting')
+        applyAdaptation(await requestAdaptation({ title, brief, result: source, signal: controller.signal }))
+      } else {
+        applyAdaptation({
+          script: source.script,
+          mode: 'source_copy',
+          model: '',
+          usage: { inputTokens: 0, outputTokens: 0 },
+        })
+      }
+      if (!controller.signal.aborted) setRunState('review')
+    } catch (error) {
+      if (controller.signal.aborted) return
+      const message = error instanceof Error ? error.message : '视频转绘失败，请稍后重试'
+      if (completedSource) {
+        setUnderstandingResult(completedSource)
+        setTargetScript('')
+        setResultMode('llm')
+        setRunState('review')
+      } else {
+        setRunState('setup')
+        setErrors((current) => ({ ...current, videos: message }))
+      }
+      setNotice(message)
+    } finally {
+      if (requestAbortRef.current === controller) requestAbortRef.current = null
+    }
+  }
+
+  const regenerate = async () => {
+    if (!understandingResult) return
+    if (!brief.trim()) {
+      applyAdaptation({ script: understandingResult.script, mode: 'source_copy', model: '', usage: { inputTokens: 0, outputTokens: 0 } })
+      setNotice('未填写转绘要求，已恢复为原剧本；没有调用文本 LLM。')
+      return
+    }
+    setNotice('')
+    setRunState('adapting')
+    try {
+      applyAdaptation(await requestAdaptation({ title, brief, result: understandingResult }))
+      setRunState('review')
+    } catch (error) {
+      setRunState('review')
+      setNotice(error instanceof Error ? error.message : '转绘剧本重新生成失败')
+    }
+  }
+
+  const restoreSource = () => {
+    if (!understandingResult) return
+    applyAdaptation({ script: understandingResult.script, mode: 'source_copy', model: '', usage: { inputTokens: 0, outputTokens: 0 } })
+    setNotice('已将右侧转绘稿恢复为原剧本。')
+  }
+
+  const saveScript = async () => {
+    if (!understandingResult || !targetScript.trim()) return
+    setRunState('saving')
+    setNotice('')
+    try {
+      const response = await fetch('/api/video-repaint/scripts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          targetScript,
+          sourceScript: understandingResult.script,
+          sourceStoryboard: understandingResult.storyboard,
+          sourceAnalysis: understandingResult.analysis,
+          adaptationBrief: brief,
+          resultMode,
+          model: targetModel,
+          sourceFileName: understandingResult.fileName,
+          episodeTitle: '第 1 集',
+        }),
+      })
+      const payload: unknown = await response.json().catch(() => ({}))
+      if (!response.ok || !isRecord(payload) || !isRecord(payload.script) || typeof payload.script.id !== 'string') {
+        throw new Error(readApiError(payload) || '剧本保存失败')
+      }
+      setSavedScriptId(payload.script.id)
+      setRunState('done')
+    } catch (error) {
+      setRunState('review')
+      setNotice(error instanceof Error ? error.message : '剧本保存失败')
+    }
+  }
+
+  const goWorkbench = () => router.push({ pathname: '/writer-workbench' })
+  const submitCopy = submitPhase === 'upload'
+    ? '正在上传视频并等待火山方舟完成理解…'
+    : submitPhase === 'script'
+      ? '原剧本已返回，正在校验源数据…'
+      : '正在根据真实剪辑点提取原分镜…'
 
   return (
-    <div className="flex min-h-0 flex-1">
-      {/* left progress sidebar */}
-      <aside className="flex w-[240px] flex-none flex-col border-r border-[var(--fos-border-soft)] p-4">
-        <button onClick={() => router.push({ pathname: '/screenwriter' })}
-          className="mb-5 flex h-10 w-full items-center justify-center gap-2 rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] text-[13px] font-bold text-[var(--fos-text-2)] hover:bg-[var(--fos-bg-3)]">
-          <AppIcon name="chevronLeft" className="h-4 w-4" />返回编剧工作台
-        </button>
-        <div className="mb-3 px-1 text-[12px] font-bold text-[var(--fos-text-4)]">任务进度</div>
-        <div className="space-y-1">
-          {STEPS.map(([title, sub], i) => (
-            <div key={title} className="flex items-start gap-3 rounded-[10px] px-2 py-2">
-              <span className="flex h-6 w-6 flex-none items-center justify-center rounded-full border border-[var(--fos-border-strong)] text-[12px] font-bold text-[var(--fos-text-3)]">{i + 1}</span>
-              <span className="min-w-0">
-                <span className="block text-[13px] font-bold text-white">{title}</span>
-                <span className="block text-[12px] text-[var(--fos-text-4)]">{sub}</span>
-              </span>
-            </div>
-          ))}
+    <div className="rv2-wizard">
+      <FosVideoRepaintRail state={runState} onBack={goWorkbench} />
+      <main className={`rv2-main${runState === 'submitting' ? ' rv2-main--submitting' : ''}`}>
+        <div className={`rv2-main-scroll${runState === 'setup' || runState === 'submitting' ? ' rv2-main--setup' : ' rv2-main--has-task'}`}>
+          {runState === 'setup' || runState === 'submitting' ? (
+            <FosVideoRepaintSetup
+              title={title}
+              brief={brief}
+              videos={videos}
+              errors={errors}
+              onTitleChange={(value) => { setTitle(value); setErrors((current) => ({ ...current, title: undefined })) }}
+              onBriefChange={setBrief}
+              onFiles={addFiles}
+              onRemoveVideo={removeVideo}
+              onSubmit={submit}
+            />
+          ) : understandingResult ? (
+            <FosVideoRepaintProgress
+              state={runState}
+              title={title}
+              brief={brief}
+              sourceScript={understandingResult.script}
+              sourceStoryboard={understandingResult.storyboard}
+              targetScript={targetScript}
+              sourceFileName={understandingResult.fileName}
+              sourceModel={understandingResult.model}
+              targetModel={targetModel}
+              resultMode={resultMode}
+              usage={targetUsage}
+              savedScriptId={savedScriptId}
+              onBriefChange={setBrief}
+              onTargetScriptChange={setTargetScript}
+              onRegenerate={() => { void regenerate() }}
+              onRestoreSource={restoreSource}
+              onSave={() => { void saveScript() }}
+              onGoWorkbench={goWorkbench}
+            />
+          ) : null}
         </div>
-      </aside>
 
-      {/* main form */}
-      <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-[760px] px-8 py-8">
-          <h1 className="text-[22px] font-bold text-white">新建视频转绘 2.0 任务</h1>
-          <p className="mt-1 text-[13px] text-[var(--fos-text-3)]">一键跑完「视频 → 源剧本 → 目标剧本」完整流程，中间设有检查点供人工审核。</p>
-
-          <div className="mt-7 space-y-6">
-            <div>
-              <label className="mb-2 block text-[13px] font-bold text-white">任务名称</label>
-              <input className="fos-input" placeholder="例：夜色债 · 海外转绘版" />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-bold text-white">视频转译形式</label>
-              <div className="grid grid-cols-2 gap-3">
-                {([['script', '剧本', '视频 → 剧本 → 转绘剧本', 'fileText'], ['board', '分镜', '视频 → 分镜 → 转绘分镜', 'folderCards']] as const).map(([key, title, sub, icon]) => (
-                  <button key={key} onClick={() => setForm(key)}
-                    className="flex items-center gap-3 rounded-[12px] border px-4 py-4 text-left"
-                    style={{ borderColor: form === key ? 'var(--fos-primary)' : 'var(--fos-border-soft)', background: form === key ? 'var(--fos-primary-soft)' : 'var(--fos-bg-2)' }}>
-                    <span className="flex h-10 w-10 flex-none items-center justify-center rounded-[10px] bg-[var(--fos-fill-mid)] text-[var(--fos-primary)]"><AppIcon name={icon} className="h-5 w-5" /></span>
-                    <span>
-                      <span className="block text-[14px] font-bold text-white">{title}</span>
-                      <span className="block text-[12px] text-[var(--fos-text-4)]">{sub}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center justify-between">
-                <label className="text-[13px] font-bold text-white">参考视频</label>
-                <span className="text-[12px] text-[var(--fos-text-4)]">待上传参考视频</span>
-              </div>
-              <div className="mb-3 flex gap-2">
-                {(['file', 'folder'] as const).map((t) => (
-                  <button key={t} onClick={() => setUploadTab(t)}
-                    className="rounded-[8px] px-3 py-1.5 text-[13px] font-bold"
-                    style={{ background: uploadTab === t ? 'var(--fos-primary-soft)' : 'var(--fos-fill-soft)', color: uploadTab === t ? 'var(--fos-primary)' : 'var(--fos-text-3)' }}>
-                    {t === 'file' ? '上传视频文件' : '上传文件夹'}
-                  </button>
-                ))}
-              </div>
-              <div className="flex flex-col items-center justify-center gap-3 rounded-[12px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] py-14">
-                <span className="flex h-12 w-12 items-center justify-center rounded-[12px] bg-[var(--fos-primary-soft)] text-[var(--fos-primary)]"><AppIcon name="videoWide" className="h-6 w-6" /></span>
-                <div className="text-[14px] font-bold text-white">点击选择视频 / 拖拽视频文件至此</div>
-                <div className="text-[12px] text-[var(--fos-text-4)]">支持 mp4 / mov / avi 格式，单个不超过 1 GB</div>
-              </div>
-              <p className="mt-2 text-[12px] text-[var(--fos-text-3)]">每个已上传视频将对应 1 集，可拖动卡片调整展示顺序，最终按集号升序参与流程。</p>
-              <p className="mt-1 text-[12px] text-[#e0a23a]">请确保上传内容为您本人创作或已获得合法授权。</p>
-            </div>
-
-            <div>
-              <label className="mb-2 block text-[13px] font-bold text-white">转绘需求（将用于生成目标设定总纲，检查点 C 前可修改）</label>
-              <textarea className="fos-textarea" style={{ minHeight: 120 }}
-                placeholder="例：输出英文版本，保留现代都市设定与情感冲突，角色命名和对白表达按海外短剧语境重写" />
-            </div>
-
-            <div>
-              <label className="mb-3 block text-[13px] font-bold text-white">检查点配置</label>
-              <div className="space-y-3">
-                {CHECKPOINTS.map(([id, desc]) => (
-                  <div key={id} className="flex items-center justify-between rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] px-4 py-3">
-                    <div className="min-w-0 pr-4 text-[13px] text-[var(--fos-text-2)]">
-                      <span className="font-bold text-white">{id}</span>　{desc}
-                    </div>
-                    <div className="flex flex-none gap-1.5">
-                      <button onClick={() => setChecks((c) => ({ ...c, [id]: true }))}
-                        className="rounded-[8px] px-3 py-1.5 text-[12px] font-bold"
-                        style={{ background: checks[id] ? 'var(--fos-primary)' : 'transparent', color: checks[id] ? '#fff' : 'var(--fos-text-3)', border: checks[id] ? 'none' : '1px solid var(--fos-border-strong)' }}>停下审核</button>
-                      <button onClick={() => setChecks((c) => ({ ...c, [id]: false }))}
-                        className="rounded-[8px] px-3 py-1.5 text-[12px] font-bold"
-                        style={{ background: !checks[id] ? 'var(--fos-fill-mid)' : 'transparent', color: !checks[id] ? '#fff' : 'var(--fos-text-4)', border: !checks[id] ? 'none' : '1px solid var(--fos-border-strong)' }}>自动通过</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <p className="mt-2 text-[12px] text-[var(--fos-text-4)]">本次将有 {Object.values(checks).filter(Boolean).length} 个检查点需人工确认</p>
-            </div>
-
-            <div className="flex gap-3 rounded-[12px] border border-[var(--fos-border-soft)] bg-[rgba(59,110,242,.08)] p-4">
-              <AppIcon name="infoCircle" className="h-5 w-5 flex-none text-[var(--fos-primary)]" />
-              <div>
-                <div className="text-[13px] font-bold text-white">后计费 · 按实际消耗结算</div>
-                <p className="mt-1 text-[12px] leading-6 text-[var(--fos-text-3)]">提交后开始处理，进度可在本页查看；各 AI 环节将自动选用适合的模型进行按量计费，按实际消耗（金币/积分）于完成后从余额中结算。</p>
-              </div>
-            </div>
-
-            <div className="flex justify-end pb-4">
-              <button className="fos-btn fos-btn-primary fos-btn-lg" disabled title="演示已禁用">开始运行</button>
-            </div>
+        {runState === 'submitting' ? (
+          <div className="rv2-main-submit-overlay" role="status" aria-live="polite" aria-busy="true">
+            <AppIcon name="loader" className="rv2-main-submit-overlay-icon" />
+            <p className="rv2-main-submit-overlay-text">{submitCopy}</p>
+            <div className="rv2-main-submit-overlay-progress"><span className="rv2-main-submit-overlay-progress-bar rv2-main-submit-overlay-progress-bar--indeterminate" /></div>
+            <p className="rv2-main-submit-overlay-hint">API Key 只在服务端使用；视频反译通常比文本生成耗时更长。</p>
           </div>
-        </div>
+        ) : null}
+
+        {notice ? <div className="rv2-toast" role="status"><AppIcon name="info" className="h-4 w-4" /><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice('')}><AppIcon name="close" className="h-3.5 w-3.5" /></button></div> : null}
       </main>
     </div>
   )

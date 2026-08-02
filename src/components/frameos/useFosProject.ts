@@ -22,6 +22,8 @@ export interface FosEpisode {
   wordCount: number
   status?: string | null
   scenes?: FosScene[]
+  storyboardCount?: number
+  storyboardPanelCount?: number
 }
 
 export interface FosWorldSetting {
@@ -35,8 +37,10 @@ export interface FosWorldSetting {
 export interface FosAssetVariant {
   id?: string
   appearanceId?: string | null
+  imageIndex?: number | null
   label: string
   episodes: string | null
+  coverageScenes?: string[]
   description: string
   imageUrl?: string | null
   changeText?: string | null
@@ -53,6 +57,9 @@ export interface FosAsset {
   prompt: string | null
   imageUrl: string | null
   confirmed: boolean
+  customVoiceUrl?: string | null
+  voiceType?: string | null
+  voiceId?: string | null
   episodes?: string | null
   variants?: FosAssetVariant[]
 }
@@ -68,8 +75,6 @@ export interface FosProjectData {
   environments: FosAsset[]
   world: FosWorldSetting | null
   scriptApproved: boolean
-  /** true when the backend returned no real content and demo data is shown */
-  usingDemo: boolean
   refetch: () => void
 }
 
@@ -94,8 +99,14 @@ function mapAssetVariants(raw: unknown): FosAssetVariant[] {
     return {
       id: String(variant.id ?? index),
       appearanceId: asString(variant.appearanceId),
+      imageIndex: typeof variant.imageIndex === 'number' && Number.isFinite(variant.imageIndex)
+        ? Math.max(0, Math.floor(variant.imageIndex))
+        : null,
       label: asString(variant.label) ?? `变体 ${index + 1}`,
       episodes: asString(variant.episodes),
+      coverageScenes: Array.isArray(variant.coverageScenes)
+        ? variant.coverageScenes.filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+        : [],
       description: changeText ?? asString(variant.description) ?? asString(variant.prompt) ?? '',
       imageUrl: asString(variant.imageUrl),
       changeText,
@@ -115,6 +126,9 @@ function mapAsset(raw: Record<string, unknown>, fallbackType: string): FosAsset 
     prompt: asString(raw.prompt) ?? asString(raw.imagePrompt) ?? asString(raw.appearancePrompt) ?? null,
     imageUrl: asString(raw.imageUrl) ?? asString(raw.mainImageUrl) ?? null,
     confirmed: raw.confirmed === true || asString(raw.status) === 'confirmed',
+    customVoiceUrl: asString(raw.customVoiceUrl),
+    voiceType: asString(raw.voiceType),
+    voiceId: asString(raw.voiceId),
     episodes: asString(raw.episodes),
     variants: mapAssetVariants(raw.variants),
   }
@@ -152,14 +166,17 @@ function readEpisodeMetadata(raw: Record<string, unknown>): { status: string | n
 
 export function useFosProject(projectId: string): FosProjectData {
   const [data, setData] = useState<FosProjectData>({
-    projectId, projectName: 'TEST', loading: true,
+    projectId, projectName: '未命名项目', loading: true,
     scriptImportStatus: null,
     episodes: [], characters: [], items: [], environments: [],
-    world: null, scriptApproved: false, usingDemo: false, refetch: () => {},
+    world: null, scriptApproved: false, refetch: () => {},
   })
   const [reloadKey, setReloadKey] = useState(0)
-  const refetch = useCallback(() => setReloadKey((k) => k + 1), [])
-  const { scriptImportStatus, usingDemo } = data
+  const refetch = useCallback(() => {
+    projectDataCache.delete(projectId)
+    setReloadKey((key) => key + 1)
+  }, [projectId])
+  const { scriptImportStatus } = data
 
   useEffect(() => {
     let cancelled = false
@@ -221,6 +238,8 @@ export function useFosProject(projectId: string): FosProjectData {
             wordCount: (asString(e.novelText) ?? '').length,
             status,
             scenes,
+            storyboardCount: Math.max(0, Number(e.storyboardCount) || 0),
+            storyboardPanelCount: Math.max(0, Number(e.storyboardPanelCount) || 0),
           }
         })
       }
@@ -259,15 +278,10 @@ export function useFosProject(projectId: string): FosProjectData {
       ])
 
       const fallbackProjectName = baseResult.projectName ? null : await loadFallbackProjectName().catch(() => null)
-      const projectName = baseResult.projectName || fallbackProjectName || 'TEST'
+      const projectName = baseResult.projectName || fallbackProjectName || '未命名项目'
       const { scriptImportStatus, world } = baseResult
       const { characters, items, environments } = assets
 
-      const usingDemo = episodes.length === 0
-        && characters.length === 0
-        && environments.length === 0
-        && !scriptImportStatus
-        && !world
       if (!cancelled) {
         const snapshot: FosProjectSnapshot = {
           projectId,
@@ -279,7 +293,6 @@ export function useFosProject(projectId: string): FosProjectData {
           environments,
           world,
           scriptApproved,
-          usingDemo,
         }
         projectDataCache.set(projectId, { snapshot, storedAt: Date.now() })
         setData({
@@ -294,10 +307,10 @@ export function useFosProject(projectId: string): FosProjectData {
   }, [projectId, reloadKey, refetch])
 
   useEffect(() => {
-    if (!scriptImportStatus || usingDemo || !IMPORT_ACTIVE_STATUSES.has(scriptImportStatus)) return
+    if (!scriptImportStatus || !IMPORT_ACTIVE_STATUSES.has(scriptImportStatus)) return
     const timer = window.setInterval(refetch, 5000)
     return () => window.clearInterval(timer)
-  }, [scriptImportStatus, usingDemo, refetch])
+  }, [scriptImportStatus, refetch])
 
   return data
 }

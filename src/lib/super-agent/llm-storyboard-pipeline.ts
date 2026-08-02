@@ -12,6 +12,11 @@ import {
   type ShotSheetShot,
 } from '@/lib/novel-promotion/short-drama-video-prompt'
 import {
+  extractSeedanceVideoPromptBody,
+  formatSeedancePromptForEditor,
+  isSeedanceVideoPromptBody,
+} from '@/lib/novel-promotion/seedance-prompt-assets'
+import {
   parseAgentStoryPackageText,
   type AgentStoryPackage,
 } from './agent-story-package'
@@ -329,14 +334,14 @@ function distributeHardcodedPanelsAcrossClips(
       shotType: prompt.shotLanguage || '按视频提示词执行',
       cameraMove: prompt.shotLanguage || '按视频提示词执行',
       duration: prompt.duration,
-      videoPrompt: prompt.prompt,
+      videoPrompt: extractSeedanceVideoPromptBody(prompt.prompt),
     })
   }
   return buckets.filter((bucket) => bucket.panels.length > 0)
 }
 
 function truncate(value: string, maxChars: number): string {
-  const chars = Array.from(value.replace(/\s+\n/g, '\n').trim())
+  const chars = Array.from(value.replace(/[\t ]+\n/g, '\n').trim())
   return chars.length > maxChars ? chars.slice(0, maxChars).join('') : chars.join('')
 }
 
@@ -908,14 +913,20 @@ function normalizeVideoPrompt(rawPrompt: string, panel: Omit<NormalizedPanel, 'v
   const disallowedSection = prompt.search(/\n(?:对应原文|画面描述|说明|解释|JSON)[：:]/)
   if (disallowedSection > 0) prompt = prompt.slice(0, disallowedSection).trim()
 
-  if (isPreciseSegmentVideoPrompt(prompt)) {
-    return truncate(prompt, MAX_PROMPT_CHARS)
+  const location = panel.location || clip.location || '按剧情锁定场景'
+  const promptAssets = [
+    ...panel.characters.map((name) => ({ kind: 'character' as const, name })),
+    { kind: 'location' as const, name: location },
+    ...panel.props.map((name) => ({ kind: 'prop' as const, name })),
+  ]
+  const promptBody = extractSeedanceVideoPromptBody(prompt)
+  if (isPreciseSegmentVideoPrompt(prompt) || isSeedanceVideoPromptBody(promptBody)) {
+    return truncate(formatSeedancePromptForEditor(promptBody, promptAssets), MAX_PROMPT_CHARS)
   }
 
-  const location = panel.location || clip.location || '按剧情锁定场景'
   const duration = panel.duration || clip.duration || 6
   const beat = [prompt, panel.summary, clip.summary].map(compactText).find(Boolean) || '按当前剧情片段完成主体动作、台词、表情和情绪落点。'
-  return truncate(buildPreciseBeatVideoPrompt({
+  const precisePrompt = buildPreciseBeatVideoPrompt({
     segmentId: `S${String(clip.index).padStart(2, '0')}-SEG${String(panel.panelIndex).padStart(2, '0')}`,
     location,
     beat,
@@ -927,7 +938,11 @@ function normalizeVideoPrompt(rawPrompt: string, panel: Omit<NormalizedPanel, 'v
     dialogueInstruction: /英文|English|Dr\.|Nurse|Ava/i.test(`${beat}\n${clip.content}`)
       ? '如本片段需要台词，使用简短自然英文台词并保持英文口型同步。'
       : '如本片段需要台词，使用简短自然台词并保持口型同步。',
-  }), MAX_PROMPT_CHARS)
+  })
+  return truncate(formatSeedancePromptForEditor(
+    extractSeedanceVideoPromptBody(precisePrompt),
+    promptAssets,
+  ), MAX_PROMPT_CHARS)
 }
 
 function normalizePanel(value: unknown, clip: NormalizedClip, fallbackIndex: number): NormalizedPanel {
@@ -1020,34 +1035,29 @@ function buildStage3SystemPrompt(plan: AgentExecutionPlan): string {
     '  "panels": [{"clipIndex":1,"panelIndex":1,"summary":"本分镜剧情","location":"场景名","characters":["角色名"],"props":["道具名"],"shotType":"中景/近景/特写等","cameraMove":"固定/轻微推近等","duration":7,"video_prompt":"干净的视频提示词"}]',
     '}',
     'video_prompt 必须是纯文本，不要放 JSON，不要放“对应原文”“画面描述”“说明”。',
-    'video_prompt 必须复刻精细 Segment 结构，包含这些段落且顺序固定：',
-    'S01-SEG01',
-    '场景名',
-    '视频秒数',
-    '◎ 参考资产',
-    '角色 / 物品 / 环境',
-    '◎ 输出参数',
-    '视频模型 / 分辨率 / 视频秒数',
-    '◈ 一致性控制',
-    '◈ 视频提示词',
+    'video_prompt 只能包含视频提示词正文，第一个字符必须是“开场状态：”。',
+    '严禁输出 S01-SEG01、场景标题、总秒数、字数、◎参考资产、◎输出参数、◈一致性控制、◈视频提示词、◈画风描述、负面要求或任何解释性包装。',
+    '正文结构与顺序固定如下：',
     '开场状态：',
-    '环境：',
-    '站位关系：',
-    '灯光：',
+    '环境：@场景资产名，时间、天气、空间材质、整体声音与情绪基调。',
+    '@角色资产名：开场位置、姿态、朝向、表情和身体状态。',
+    '@道具资产名：开场位置及状态。',
+    '灯光：主光、辅光、实用光、色温、方向和明暗关系。',
+    '',
     'Shot 1',
     'duration: 3.0s',
     '镜头：景别、角度、运镜、焦段、景深、速度、稳定方式、镜头起点和落点。',
-    '画面：',
-    '角色动作、微表情、道具状态、台词或内心独白。',
-    '光影：主光、辅光、色温、阴影比例、高光细节。',
+    '画面：@角色资产名的动作、微表情、道具状态、台词或内心独白。',
+    '光影：主光、辅光、色温、阴影比例和高光细节。',
     '<必要环境声或道具声>',
-    '【本分镜负面要求】 ...',
+    '后续镜头继续使用 Shot 2、Shot 3；每个 Shot 都必须完整包含 duration、镜头、画面、光影和必要音效。',
     '规则：',
     '- 每个剧情片段可以生成 1-3 个分镜，由动作、台词、场景变化自然决定；不要机械平均。',
     '- duration 必须按台词和动作推理，范围 2-15 秒；如果剧情动作或台词超过 15 秒，必须拆成多个连续分镜。',
     '- 每个 Shot 必须推进动作、台词、表情、道具状态或情绪，不要静态摆拍。',
     '- 需要台词时写简短自然英文台词并要求英文口型同步；用户要求不要中文字幕/不要背景音乐时必须遵守。',
     '- prompt 中提到的角色、场景、道具必须能在 assets 中找到，reference image 后续会由资产系统补充。',
+    '- 每次提到已锁定的角色、场景或道具时，必须写成 @资产名，例如 @苏晚卿、@陆府小院、@银簪。不要自行写“图片1”；后端会按实际参考图顺序转换成图片1、图片2。',
     `项目视觉风格：${plan.projectConfig.artStylePrompt || plan.projectConfig.artStyle}`,
     `目标比例：${plan.projectConfig.videoRatio}`,
   ].join('\n')
@@ -1427,18 +1437,28 @@ export async function persistAgentLlmStage3(params: {
 
   const panels: NormalizedPanel[] = []
   if (clips.every((clip) => isPreciseSegmentVideoPrompt(clip.content))) {
-    panels.push(...clips.map((clip) => ({
-      clipIndex: clip.index,
-      panelIndex: 1,
-      summary: clip.summary,
-      location: clip.location,
-      characters: clip.characters,
-      props: clip.props,
-      shotType: '按 video_prompt 内部镜头语言执行',
-      cameraMove: '按 video_prompt 内部运镜执行',
-      duration: clip.duration,
-      videoPrompt: clip.content,
-    })))
+    panels.push(...clips.map((clip) => {
+      const promptAssets = [
+        ...clip.characters.map((name) => ({ kind: 'character' as const, name })),
+        { kind: 'location' as const, name: clip.location },
+        ...clip.props.map((name) => ({ kind: 'prop' as const, name })),
+      ]
+      return {
+        clipIndex: clip.index,
+        panelIndex: 1,
+        summary: clip.summary,
+        location: clip.location,
+        characters: clip.characters,
+        props: clip.props,
+        shotType: '按 video_prompt 内部镜头语言执行',
+        cameraMove: '按 video_prompt 内部运镜执行',
+        duration: clip.duration,
+        videoPrompt: formatSeedancePromptForEditor(
+          extractSeedanceVideoPromptBody(clip.content),
+          promptAssets,
+        ),
+      }
+    }))
   } else {
     for (const clip of clips) {
       try {

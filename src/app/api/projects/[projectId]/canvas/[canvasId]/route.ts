@@ -4,6 +4,8 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
 import { parseUpdateCanvasInput } from '@/lib/canvas/validators'
+import { reconcileCanvasGenerationNodes } from '@/lib/canvas/generation-reconciliation'
+import { withCanonicalCanvasStudioDocumentSource } from '@/lib/canvas/studio-document-lifecycle'
 
 // GET - 获取画布元数据 + 节点 + 边（一次性返回，前端单次加载）
 export const GET = apiHandler(async (
@@ -32,6 +34,7 @@ export const GET = apiHandler(async (
         runId: true,
         mediaObjectId: true,
         parentNodeId: true,
+        updatedAt: true,
       },
     }),
     prisma.canvasEdge.findMany({
@@ -48,8 +51,17 @@ export const GET = apiHandler(async (
       },
     }),
   ])
+  const reconciledRows = await reconcileCanvasGenerationNodes({
+    projectId,
+    canvasId,
+    nodes,
+  })
+  const reconciledNodes = reconciledRows.map(({ updatedAt, ...node }) => {
+    void updatedAt
+    return withCanonicalCanvasStudioDocumentSource(node, projectId, canvasId)
+  })
 
-  return NextResponse.json({ canvas, nodes, edges })
+  return NextResponse.json({ canvas, nodes: reconciledNodes, edges })
 })
 
 // PATCH - 更新画布元数据（标题/主题色/viewport）
@@ -58,7 +70,7 @@ export const PATCH = apiHandler(async (
   context: { params: Promise<{ projectId: string; canvasId: string }> }
 ) => {
   const { projectId, canvasId } = await context.params
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   await requireCanvasInProject(canvasId, projectId)
@@ -78,6 +90,7 @@ export const PATCH = apiHandler(async (
       title: true,
       themeColor: true,
       viewport: true,
+      revision: true,
       visibility: true,
       forkedFromId: true,
       createdAt: true,
@@ -94,7 +107,7 @@ export const DELETE = apiHandler(async (
   context: { params: Promise<{ projectId: string; canvasId: string }> }
 ) => {
   const { projectId, canvasId } = await context.params
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   await requireCanvasInProject(canvasId, projectId)

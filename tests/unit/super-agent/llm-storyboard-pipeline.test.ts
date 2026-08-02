@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { __agentLlmStoryboardPipelineTestHooks as hooks } from '@/lib/super-agent/llm-storyboard-pipeline'
+import type { AgentExecutionPlan } from '@/lib/super-agent/types'
 
 describe('agent LLM storyboard pipeline normalization', () => {
   const plan = {
@@ -15,21 +16,21 @@ describe('agent LLM storyboard pipeline normalization', () => {
       panelsPerShot: 2,
       narration: 'auto',
     },
-  } as any
+  } as unknown as AgentExecutionPlan
 
   function expectPreciseSegmentPrompt(text: string) {
-    expect(text).toMatch(/^S\d{2}-SEG\d{2}\n/)
-    expect(text).toContain('◎ 参考资产')
-    expect(text).toContain('◎ 输出参数')
-    expect(text).toContain('◈ 一致性控制')
-    expect(text).toContain('◈ 视频提示词')
-    expect(text).toContain('开场状态：')
+    expect(text).toMatch(/^开场状态：\n/)
     expect(text).toContain('Shot 1')
     expect(text).toContain('duration:')
     expect(text).toContain('镜头：')
     expect(text).toContain('画面：')
     expect(text).toContain('光影：')
-    expect(text).toContain('【本分镜负面要求】')
+    expect(text).not.toContain('S01-SEG01')
+    expect(text).not.toContain('◎ 参考资产')
+    expect(text).not.toContain('◎ 输出参数')
+    expect(text).not.toContain('◈ 一致性控制')
+    expect(text).not.toContain('◈ 视频提示词')
+    expect(text).not.toContain('【本分镜负面要求】')
     expect(text).not.toContain('剧情片段：')
     expect(text).not.toContain('角色行为拆分：')
   }
@@ -109,6 +110,10 @@ describe('agent LLM storyboard pipeline normalization', () => {
     expect(panels).toHaveLength(1)
     expect(panels[0].duration).toBe(7)
     expectPreciseSegmentPrompt(panels[0].videoPrompt)
+    expect(panels[0].videoPrompt).toContain('@Ava')
+    expect(panels[0].videoPrompt).toContain('@Dr. Grayson')
+    expect(panels[0].videoPrompt).toContain('@modern American private hospital corridor')
+    expect(panels[0].videoPrompt).toContain('@surgery schedule document')
     expect(panels[0].videoPrompt).toMatch(/\nShot 2\n/)
     expect(panels[0].videoPrompt).not.toContain('对应原文')
   })
@@ -152,6 +157,53 @@ describe('agent LLM storyboard pipeline normalization', () => {
     expectPreciseSegmentPrompt(panels[0].videoPrompt)
     expect(panels[0].videoPrompt).toMatch(/\nShot 2\n/)
     expect(panels[0].videoPrompt).toContain('Someone changed the record')
+  })
+
+  it('preserves a body-only Seedance prompt without restoring Segment packaging', () => {
+    const stage2 = hooks.normalizeStage2Response(JSON.stringify({
+      assets: {
+        characters: [{ name: '苏晚卿', summary: '逃亡孤女', visual: '湿发，古装' }],
+        locations: [{ name: '张秃子家破旧柴房', summary: '雨夜柴房', visual: '油灯与霉木墙' }],
+        props: [],
+      },
+      clips: [{
+        clipIndex: 1,
+        title: '惊醒',
+        summary: '苏晚卿在柴房惊醒。',
+        location: '张秃子家破旧柴房',
+        characters: ['苏晚卿'],
+        props: [],
+        duration: 3,
+        content: '苏晚卿在暴雨声中惊醒。',
+      }],
+    }))
+    const body = [
+      '开场状态：',
+      '环境：@张秃子家破旧柴房，夜，暴雨。',
+      '@苏晚卿：半躺在角落。',
+      '灯光：暖黄油灯与冷青闪电。',
+      '',
+      'Shot 1',
+      'duration: 3.0s',
+      '镜头：近景，低角度，固定。',
+      '画面：@苏晚卿猛地惊醒，额头满是冷汗。',
+      '光影：暖黄侧逆光，高反差。',
+      '<暴雨砸屋顶声>',
+    ].join('\n')
+
+    const panels = hooks.normalizeStage3Response(JSON.stringify({
+      panels: [{
+        clipIndex: 1,
+        panelIndex: 1,
+        location: '张秃子家破旧柴房',
+        characters: ['苏晚卿'],
+        duration: 3,
+        video_prompt: body,
+      }],
+    }), stage2.clips)
+
+    expect(panels[0].videoPrompt).toBe(body)
+    expect(panels[0].videoPrompt).not.toContain('◎ 参考资产')
   })
 
   it('generates validated SH shot script before building video prompts from a short story', async () => {
@@ -235,9 +287,12 @@ describe('agent LLM storyboard pipeline normalization', () => {
     expect(validation.ok).toBe(true)
     expect(validation.shots).toHaveLength(5)
     expect(stage2?.clips.length).toBeGreaterThan(0)
-    expect(Math.max(...(stage2?.clips.map((clip: any) => clip.duration) || [0]))).toBeLessThanOrEqual(15)
-    expectPreciseSegmentPrompt(stage2?.clips[0].content || '')
+    expect(Math.max(...(stage2?.clips.map((clip) => clip.duration) || [0]))).toBeLessThanOrEqual(15)
+    expect(stage2?.clips[0].content).toMatch(/^S\d{2}-SEG\d{2}\n/)
     expect(stage2?.clips[0].content).toContain('◎ 参考资产')
+    expect(stage2?.clips[0].content).toContain('◈ 视频提示词')
+    expect(stage2?.clips[0].content).toContain('开场状态：')
+    expect(stage2?.clips[0].content).toContain('Shot 1')
     expect(stage2?.clips[0].content).toContain('【本分镜负面要求】')
   })
 })

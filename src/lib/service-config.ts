@@ -20,11 +20,18 @@ export interface ServiceConfigStorage {
   tos?: ServiceConfigStorageTos
 }
 
+export interface ServiceConfigSeedanceAssets {
+  accessKeyId?: string
+  secretAccessKey?: string
+  projectName?: string
+}
+
 export interface ServiceConfigProvider {
   id: string
   name: string
   baseUrl?: string
   apiKey?: string
+  assetGroupId?: string
   apiMode?: 'gemini-sdk' | 'openai-official'
   gatewayRoute?: ServiceConfigGatewayRoute
 }
@@ -55,6 +62,7 @@ export interface ServiceConfigLlm {
   providers?: ServiceConfigProvider[]
   models?: ServiceConfigModel[]
   defaultModels?: ServiceConfigDefaultModels
+  modelRouting?: Record<string, string>
 }
 
 export interface ServiceConfigImage {
@@ -64,10 +72,39 @@ export interface ServiceConfigImage {
   }
 }
 
+export interface ServiceConfigVideoRepaint {
+  providerId?: string
+  understandingModel?: string
+  adaptationModel?: string
+  fps?: number
+}
+
+export interface ServiceConfigModel3DFrameos {
+  /**
+   * `tripo-v2` talks to Tripo's public async task API. `frameos-v1` is the
+   * branded Nori/FrameOS contract for a self-hosted compatible gateway.
+   */
+  protocol?: 'tripo-v2' | 'frameos-v1'
+  baseUrl?: string
+  apiKey?: string
+  modelVersion?: string
+  createPath?: string
+  taskPath?: string
+  pollIntervalMs?: number
+  timeoutMs?: number
+}
+
+export interface ServiceConfigModel3D {
+  frameos3d?: ServiceConfigModel3DFrameos
+}
+
 export interface ServiceConfig {
   storage?: ServiceConfigStorage
+  seedanceAssets?: ServiceConfigSeedanceAssets
   llm?: ServiceConfigLlm
   image?: ServiceConfigImage
+  videoRepaint?: ServiceConfigVideoRepaint
+  model3d?: ServiceConfigModel3D
 }
 
 type ParsedYamlLine = {
@@ -77,6 +114,7 @@ type ParsedYamlLine = {
 
 let cachedConfig: ServiceConfig | null = null
 let cachedPath: string | null = null
+let cachedSignature: string | null = null
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -139,9 +177,25 @@ function parseYamlScalar(raw: string): unknown {
 }
 
 function splitYamlKeyValue(content: string): [string, string] {
-  const colonIndex = content.indexOf(':')
+  let colonIndex = -1
+  let quote: '"' | "'" | null = null
+  for (let index = 0; index < content.length; index += 1) {
+    const char = content[index]
+    if ((char === '"' || char === "'") && content[index - 1] !== '\\') {
+      quote = quote === char ? null : (quote || char)
+      continue
+    }
+    if (!quote && char === ':' && (index === content.length - 1 || /\s/.test(content[index + 1] || ''))) {
+      colonIndex = index
+      break
+    }
+  }
   if (colonIndex < 0) return [content.trim(), '']
-  return [content.slice(0, colonIndex).trim(), content.slice(colonIndex + 1).trim()]
+  const rawKey = content.slice(0, colonIndex).trim()
+  const key = (rawKey.startsWith('"') && rawKey.endsWith('"')) || (rawKey.startsWith("'") && rawKey.endsWith("'"))
+    ? rawKey.slice(1, -1)
+    : rawKey
+  return [key, content.slice(colonIndex + 1).trim()]
 }
 
 function parseYamlBlock(lines: ParsedYamlLine[], startIndex: number, indent: number): { value: unknown; nextIndex: number } {
@@ -226,22 +280,39 @@ function parseServiceConfigFile(filePath: string): ServiceConfig {
   return parsed as ServiceConfig
 }
 
+function fileSignature(filePath: string): string {
+  const stat = fs.statSync(filePath)
+  return `${stat.mtimeMs}:${stat.size}:${stat.ino}`
+}
+
 export function readServiceConfig(): ServiceConfig {
   const filePath = resolveServiceConfigPath()
   if (!filePath) return {}
-  if (cachedConfig && cachedPath === filePath) return cachedConfig
+  const signature = fileSignature(filePath)
+  if (cachedConfig && cachedPath === filePath && cachedSignature === signature) return cachedConfig
   cachedConfig = parseServiceConfigFile(filePath)
   cachedPath = filePath
+  cachedSignature = signature
   return cachedConfig
 }
 
 export function resetServiceConfigCache() {
   cachedConfig = null
   cachedPath = null
+  cachedSignature = null
+}
+
+export function getServiceConfigRevision(): string {
+  const filePath = resolveServiceConfigPath()
+  return filePath ? `${filePath}:${fileSignature(filePath)}` : 'none'
 }
 
 export function getServiceStorageConfig(): ServiceConfigStorage | undefined {
   return readServiceConfig().storage
+}
+
+export function getServiceSeedanceAssetsConfig(): ServiceConfigSeedanceAssets | undefined {
+  return readServiceConfig().seedanceAssets
 }
 
 export function getServiceLlmConfig(): ServiceConfigLlm | undefined {
@@ -250,6 +321,14 @@ export function getServiceLlmConfig(): ServiceConfigLlm | undefined {
 
 export function getServiceImageConfig(): ServiceConfigImage | undefined {
   return readServiceConfig().image
+}
+
+export function getServiceVideoRepaintConfig(): ServiceConfigVideoRepaint | undefined {
+  return readServiceConfig().videoRepaint
+}
+
+export function getServiceModel3DConfig(): ServiceConfigModel3D | undefined {
+  return readServiceConfig().model3d
 }
 
 export function getServiceDefaultModel(field: keyof ServiceConfigDefaultModels): string {

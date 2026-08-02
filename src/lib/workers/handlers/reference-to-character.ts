@@ -25,6 +25,7 @@ import {
   readBoolean,
   readString,
 } from './reference-to-character-helpers'
+import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 const POLL_MAX_ATTEMPTS = 60
 const POLL_INTERVAL_MS = 2000
 async function generateReferenceImage(params: {
@@ -254,6 +255,23 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   if (successfulCosKeys.length === 0) {
     throw new Error('图片生成失败')
   }
+  await Promise.all(successfulCosKeys.map(async (storageKey, index) => {
+    await registerFrameosMaterial({
+      userId: job.data.userId,
+      projectId: isAssetHub ? 'global-asset-hub' : job.data.projectId,
+      title: `${characterName}${successfulCosKeys.length > 1 ? ` · ${index + 1}` : ''}`,
+      type: 'image',
+      source: 'creative',
+      storageKey,
+      metadata: {
+        taskId: job.data.taskId,
+        originType: isAssetHub ? 'global-reference-to-character' : 'reference-to-character',
+        ...(appearanceId ? { originId: appearanceId } : {}),
+        imageIndex: index,
+        prompt,
+      },
+    })
+  }))
 
   await assertTaskActive(job, 'reference_to_character_persist')
   if (isBackgroundJob && appearanceId) {

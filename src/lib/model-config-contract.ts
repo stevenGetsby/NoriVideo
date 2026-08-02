@@ -24,6 +24,24 @@ export interface CapabilityFieldI18n {
 
 export type CapabilityFieldI18nMap = Record<string, CapabilityFieldI18n>
 
+export interface CapabilityMediaInputLimit {
+  min?: number
+  max?: number
+  maxTotalDurationSeconds?: number
+}
+
+/**
+ * Provider input contract used by creative surfaces before a paid task is
+ * submitted. It intentionally lives beside model capabilities so the client
+ * and the API do not maintain two independent sets of reference limits.
+ */
+export interface CapabilityInputSchema {
+  image?: CapabilityMediaInputLimit
+  video?: CapabilityMediaInputLimit
+  audio?: CapabilityMediaInputLimit
+  requiredFields?: string[]
+}
+
 export interface LLMCapabilities {
   reasoningEffortOptions?: string[]
   fieldI18n?: CapabilityFieldI18nMap
@@ -31,6 +49,9 @@ export interface LLMCapabilities {
 
 export interface ImageCapabilities {
   resolutionOptions?: string[]
+  /** The provider exposes a real mask-aware image edit endpoint. */
+  supportsInpaint?: boolean
+  inputSchema?: CapabilityInputSchema
   fieldI18n?: CapabilityFieldI18nMap
 }
 
@@ -42,12 +63,21 @@ export interface VideoCapabilities {
   resolutionOptions?: string[]
   firstlastframe?: boolean
   supportGenerateAudio?: boolean
+  inputSchema?: CapabilityInputSchema
   fieldI18n?: CapabilityFieldI18nMap
 }
 
 export interface AudioCapabilities {
+  /** Explicit generation modes implemented by this exact provider model. */
+  modeOptions?: Array<'music' | 'tts' | 'sfx'>
   voiceOptions?: string[]
   rateOptions?: string[]
+  /** Optional enumerated durations. Continuous ranges use the bounds below. */
+  durationOptions?: number[]
+  minDurationSeconds?: number
+  maxDurationSeconds?: number
+  durationStepSeconds?: number
+  inputSchema?: CapabilityInputSchema
   fieldI18n?: CapabilityFieldI18nMap
 }
 
@@ -85,6 +115,8 @@ const LLM_ALLOWED_FIELDS = new Set<keyof LLMCapabilities>([
 
 const IMAGE_ALLOWED_FIELDS = new Set<keyof ImageCapabilities>([
   'resolutionOptions',
+  'supportsInpaint',
+  'inputSchema',
   'fieldI18n',
 ])
 
@@ -96,12 +128,19 @@ const VIDEO_ALLOWED_FIELDS = new Set<keyof VideoCapabilities>([
   'resolutionOptions',
   'firstlastframe',
   'supportGenerateAudio',
+  'inputSchema',
   'fieldI18n',
 ])
 
 const AUDIO_ALLOWED_FIELDS = new Set<keyof AudioCapabilities>([
+  'modeOptions',
   'voiceOptions',
   'rateOptions',
+  'durationOptions',
+  'minDurationSeconds',
+  'maxDurationSeconds',
+  'durationStepSeconds',
+  'inputSchema',
   'fieldI18n',
 ])
 
@@ -276,6 +315,92 @@ function validateLLMCapabilities(issues: CapabilityValidationIssue[], raw: unkno
   })
 }
 
+function validateCapabilityInputSchema(
+  issues: CapabilityValidationIssue[],
+  namespace: 'image' | 'video' | 'audio',
+  value: unknown,
+) {
+  if (value === undefined) return
+  const field = `capabilities.${namespace}.inputSchema`
+  if (!isRecord(value)) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field,
+      message: 'inputSchema must be an object',
+    })
+    return
+  }
+
+  const allowed = new Set(['image', 'video', 'audio', 'requiredFields'])
+  for (const key of Object.keys(value)) {
+    if (!allowed.has(key)) {
+      issues.push({
+        code: 'CAPABILITY_FIELD_INVALID',
+        field: `${field}.${key}`,
+        message: `Unknown input schema field: ${key}`,
+      })
+    }
+  }
+
+  if (value.requiredFields !== undefined && !isStringArray(value.requiredFields)) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: `${field}.requiredFields`,
+      message: 'requiredFields must be a non-empty string array',
+    })
+  }
+
+  for (const mediaType of ['image', 'video', 'audio'] as const) {
+    const limit = value[mediaType]
+    if (limit === undefined) continue
+    if (!isRecord(limit)) {
+      issues.push({
+        code: 'CAPABILITY_FIELD_INVALID',
+        field: `${field}.${mediaType}`,
+        message: 'media input limit must be an object',
+      })
+      continue
+    }
+    for (const key of Object.keys(limit)) {
+      if (key !== 'min' && key !== 'max' && key !== 'maxTotalDurationSeconds') {
+        issues.push({
+          code: 'CAPABILITY_FIELD_INVALID',
+          field: `${field}.${mediaType}.${key}`,
+          message: `Unknown media input limit: ${key}`,
+        })
+      }
+    }
+    for (const key of ['min', 'max', 'maxTotalDurationSeconds'] as const) {
+      const raw = limit[key]
+      if (raw === undefined) continue
+      const valid = typeof raw === 'number'
+        && Number.isFinite(raw)
+        && raw >= 0
+        && (key === 'maxTotalDurationSeconds' || Number.isInteger(raw))
+      if (!valid) {
+        issues.push({
+          code: 'CAPABILITY_FIELD_INVALID',
+          field: `${field}.${mediaType}.${key}`,
+          message: key === 'maxTotalDurationSeconds'
+            ? 'duration limit must be a finite non-negative number'
+            : 'reference limit must be a non-negative integer',
+        })
+      }
+    }
+    if (
+      typeof limit.min === 'number'
+      && typeof limit.max === 'number'
+      && limit.min > limit.max
+    ) {
+      issues.push({
+        code: 'CAPABILITY_FIELD_INVALID',
+        field: `${field}.${mediaType}`,
+        message: 'media input min cannot be greater than max',
+      })
+    }
+  }
+}
+
 function validateImageCapabilities(issues: CapabilityValidationIssue[], raw: unknown) {
   if (!isRecord(raw)) return
 
@@ -287,6 +412,16 @@ function validateImageCapabilities(issues: CapabilityValidationIssue[], raw: unk
       message: 'resolutionOptions must be a non-empty string array',
     })
   }
+
+  if (raw.supportsInpaint !== undefined && typeof raw.supportsInpaint !== 'boolean') {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.image.supportsInpaint',
+      message: 'supportsInpaint must be boolean',
+    })
+  }
+
+  validateCapabilityInputSchema(issues, 'image', raw.inputSchema)
 
   validateFieldI18nMap(issues, 'image', raw.fieldI18n, {
     resolution: isStringArray(resolutionOptions) ? resolutionOptions : undefined,
@@ -357,6 +492,8 @@ function validateVideoCapabilities(issues: CapabilityValidationIssue[], raw: unk
     })
   }
 
+  validateCapabilityInputSchema(issues, 'video', raw.inputSchema)
+
   validateFieldI18nMap(issues, 'video', raw.fieldI18n, {
     generationMode: isStringArray(generationModeOptions) ? generationModeOptions : undefined,
     generateAudio: isBooleanArray(generateAudioOptions) ? generateAudioOptions : undefined,
@@ -368,6 +505,20 @@ function validateVideoCapabilities(issues: CapabilityValidationIssue[], raw: unk
 
 function validateAudioCapabilities(issues: CapabilityValidationIssue[], raw: unknown) {
   if (!isRecord(raw)) return
+
+  const modeOptions = raw.modeOptions
+  const allowedModes = ['music', 'tts', 'sfx'] as const
+  if (modeOptions !== undefined && (
+    !isStringArray(modeOptions)
+    || modeOptions.some((mode) => !allowedModes.includes(mode as typeof allowedModes[number]))
+  )) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.modeOptions',
+      message: 'modeOptions must only contain music/tts/sfx',
+      allowedValues: allowedModes,
+    })
+  }
 
   const voiceOptions = raw.voiceOptions
   if (voiceOptions !== undefined && !isStringArray(voiceOptions)) {
@@ -387,9 +538,72 @@ function validateAudioCapabilities(issues: CapabilityValidationIssue[], raw: unk
     })
   }
 
+  const durationOptions = raw.durationOptions
+  if (durationOptions !== undefined && !isNumberArray(durationOptions)) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.durationOptions',
+      message: 'durationOptions must be a finite number array',
+    })
+  }
+
+  const minDurationSeconds = raw.minDurationSeconds
+  const maxDurationSeconds = raw.maxDurationSeconds
+  const durationStepSeconds = raw.durationStepSeconds
+  if (minDurationSeconds !== undefined && (
+    typeof minDurationSeconds !== 'number'
+    || !Number.isFinite(minDurationSeconds)
+    || minDurationSeconds <= 0
+  )) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.minDurationSeconds',
+      message: 'minDurationSeconds must be a finite number greater than 0',
+    })
+  }
+  if (maxDurationSeconds !== undefined && (
+    typeof maxDurationSeconds !== 'number'
+    || !Number.isFinite(maxDurationSeconds)
+    || maxDurationSeconds <= 0
+  )) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.maxDurationSeconds',
+      message: 'maxDurationSeconds must be a finite number greater than 0',
+    })
+  }
+  if (durationStepSeconds !== undefined && (
+    typeof durationStepSeconds !== 'number'
+    || !Number.isFinite(durationStepSeconds)
+    || durationStepSeconds <= 0
+  )) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.durationStepSeconds',
+      message: 'durationStepSeconds must be a finite number greater than 0',
+    })
+  }
+  if (
+    typeof minDurationSeconds === 'number'
+    && Number.isFinite(minDurationSeconds)
+    && typeof maxDurationSeconds === 'number'
+    && Number.isFinite(maxDurationSeconds)
+    && minDurationSeconds > maxDurationSeconds
+  ) {
+    issues.push({
+      code: 'CAPABILITY_FIELD_INVALID',
+      field: 'capabilities.audio.maxDurationSeconds',
+      message: 'maxDurationSeconds must be greater than or equal to minDurationSeconds',
+    })
+  }
+
+  validateCapabilityInputSchema(issues, 'audio', raw.inputSchema)
+
   validateFieldI18nMap(issues, 'audio', raw.fieldI18n, {
+    mode: isStringArray(modeOptions) ? modeOptions : undefined,
     voice: isStringArray(voiceOptions) ? voiceOptions : undefined,
     rate: isStringArray(rateOptions) ? rateOptions : undefined,
+    duration: isNumberArray(durationOptions) ? durationOptions : undefined,
   })
 }
 

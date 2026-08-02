@@ -65,6 +65,7 @@ const prismaMock = vi.hoisted(() => ({
   novelPromotionCharacter: {
     findFirst: vi.fn(),
     update: vi.fn(),
+    delete: vi.fn(),
   },
   novelPromotionLocation: {
     findFirst: vi.fn(),
@@ -74,6 +75,8 @@ const prismaMock = vi.hoisted(() => ({
   characterAppearance: {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
+    findMany: vi.fn(),
+    count: vi.fn(),
     update: vi.fn(),
     delete: vi.fn(),
   },
@@ -134,6 +137,7 @@ vi.mock('@/lib/logging/core', () => ({
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
+    event: vi.fn(),
   })),
   logError: vi.fn(),
   logInfo: vi.fn(),
@@ -220,6 +224,8 @@ describe('novel-promotion scoped entity routes', () => {
       imageUrls: JSON.stringify(['old.png']),
       selectedIndex: null,
     })
+    prismaMock.characterAppearance.count.mockResolvedValue(2)
+    prismaMock.characterAppearance.findMany.mockResolvedValue([])
     prismaMock.locationImage.findFirst.mockResolvedValue({
       id: 'location-image-1',
       locationId: 'location-1',
@@ -394,7 +400,7 @@ describe('novel-promotion scoped entity routes', () => {
   })
 
   it('GET editor does not read an editor project by a cross-project episode id', async () => {
-    prismaMock.videoEditorProject.findFirst.mockResolvedValueOnce(null)
+    prismaMock.novelPromotionEpisode.findFirst.mockResolvedValueOnce(null)
     const { GET } = await import('@/app/api/novel-promotion/[projectId]/editor/route')
 
     const res = await GET(
@@ -406,14 +412,11 @@ describe('novel-promotion scoped entity routes', () => {
       { params: Promise.resolve({ projectId: 'project-1' }) },
     )
 
-    expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ projectData: null })
-    expect(prismaMock.videoEditorProject.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+    expect(res.status).toBe(404)
+    expect(prismaMock.novelPromotionEpisode.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: {
-        episodeId: 'episode-other',
-        episode: {
-          novelPromotionProject: { projectId: 'project-1' },
-        },
+        id: 'episode-other',
+        novelPromotionProject: { projectId: 'project-1' },
       },
     }))
   })
@@ -989,6 +992,32 @@ describe('novel-promotion scoped entity routes', () => {
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 
+  it('POST script-to-storyboard-stream always enqueues the cinematic Scene/Segment prompt profile', async () => {
+    const { POST } = await import('@/app/api/novel-promotion/[projectId]/script-to-storyboard-stream/route')
+
+    const res = await POST(
+      buildMockRequest({
+        path: '/api/novel-promotion/project-1/script-to-storyboard-stream',
+        method: 'POST',
+        body: {
+          episodeId: 'episode-1',
+          async: true,
+          model: 'test-model',
+          locale: 'zh',
+          storyboardPromptProfile: 'legacy-value-must-not-win',
+        },
+      }),
+      { params: Promise.resolve({ projectId: 'project-1' }) },
+    )
+
+    expect(res.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        storyboardPromptProfile: 'short-drama-cinematic-v1',
+      }),
+    }))
+  })
+
   it('POST screenplay-conversion refuses an episode outside the current project before enqueue', async () => {
     prismaMock.novelPromotionEpisode.findFirst.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/novel-promotion/[projectId]/screenplay-conversion/route')
@@ -1309,5 +1338,68 @@ describe('novel-promotion scoped entity routes', () => {
     )
 
     expect(res.status).toBe(404)
+  })
+
+  it('DELETE location removes a project-scoped location or prop entity', async () => {
+    prismaMock.novelPromotionLocation.findFirst.mockResolvedValueOnce({ id: 'prop-1' })
+    prismaMock.novelPromotionLocation.delete.mockResolvedValueOnce({ id: 'prop-1' })
+    const { DELETE } = await import('@/app/api/novel-promotion/[projectId]/location/route')
+
+    const response = await DELETE(
+      buildMockRequest({
+        path: '/api/novel-promotion/project-1/location',
+        method: 'DELETE',
+        query: { id: 'prop-1' },
+      }),
+      { params: Promise.resolve({ projectId: 'project-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.novelPromotionLocation.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'prop-1',
+        novelPromotionProject: { projectId: 'project-1' },
+      },
+      select: { id: true },
+    })
+    expect(prismaMock.novelPromotionLocation.delete).toHaveBeenCalledWith({ where: { id: 'prop-1' } })
+  })
+
+  it('DELETE character appearance removes a non-primary variant and keeps remaining order stable', async () => {
+    prismaMock.characterAppearance.findUnique.mockResolvedValueOnce({
+      id: 'appearance-variant',
+      characterId: 'character-1',
+      imageUrl: null,
+      imageUrls: null,
+      appearanceIndex: 1,
+      changeReason: '雨夜变体',
+      character: {
+        name: '苏晚卿',
+        novelPromotionProject: { projectId: 'project-1' },
+      },
+    })
+    prismaMock.characterAppearance.count.mockResolvedValueOnce(2)
+    prismaMock.characterAppearance.delete.mockResolvedValueOnce({ id: 'appearance-variant' })
+    prismaMock.characterAppearance.findMany.mockResolvedValueOnce([
+      { id: 'appearance-main', appearanceIndex: 0 },
+    ])
+    const { DELETE } = await import('@/app/api/novel-promotion/[projectId]/character/appearance/route')
+
+    const response = await DELETE(
+      buildMockRequest({
+        path: '/api/novel-promotion/project-1/character/appearance',
+        method: 'DELETE',
+        query: { characterId: 'character-1', appearanceId: 'appearance-variant' },
+      }),
+      { params: Promise.resolve({ projectId: 'project-1' }) },
+    )
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.characterAppearance.delete).toHaveBeenCalledWith({ where: { id: 'appearance-variant' } })
+    expect(prismaMock.characterAppearance.findMany).toHaveBeenCalledWith({
+      where: { characterId: 'character-1' },
+      orderBy: { appearanceIndex: 'asc' },
+    })
+    expect(prismaMock.characterAppearance.update).not.toHaveBeenCalled()
   })
 })

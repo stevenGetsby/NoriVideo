@@ -6,6 +6,19 @@ import { decodeImageUrlsFromDb, encodeImageUrls } from '@/lib/contracts/image-ur
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import {
+  parseCharacterDescriptionValues,
+  readFrameOSAppearanceMetadataFromDescriptions,
+  stringifyCharacterDescriptionsWithFrameOSMetadata,
+} from '@/lib/novel-promotion/character-appearance-frameos-metadata'
+
+function normalizeCoverageEpisodes(value: unknown): number[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value
+    .map((item) => Number(item))
+    .filter((item) => Number.isInteger(item) && item > 0)))
+    .sort((left, right) => left - right)
+}
 
 /**
  * POST - 为现有角色添加子形象
@@ -23,6 +36,10 @@ export const POST = apiHandler(async (
 
   const body = await request.json()
   const { characterId, changeReason, description } = body
+  const coverageEpisodes = normalizeCoverageEpisodes(body.coverageEpisodes)
+  const coverageScenes = Array.isArray(body.coverageScenes)
+    ? body.coverageScenes.map((item: unknown) => typeof item === 'string' ? item.trim() : '').filter(Boolean)
+    : []
 
   if (!characterId || !changeReason || !description) {
     throw new ApiError('INVALID_PARAMS')
@@ -60,7 +77,13 @@ export const POST = apiHandler(async (
       appearanceIndex: newIndex,
       changeReason: changeReason.trim(),
       description: description.trim(),
-      descriptions: JSON.stringify([description.trim()]),
+      descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata([description.trim()], {
+        appearance_index: newIndex,
+        change_reason: changeReason.trim(),
+        label: changeReason.trim(),
+        coverage_episodes: coverageEpisodes,
+        coverage_scenes: coverageScenes,
+      }),
       imageUrls: encodeImageUrls([]),
       previousImageUrls: encodeImageUrls([])}
   })
@@ -117,12 +140,8 @@ export const PATCH = apiHandler(async (
   const trimmedDesc = description.trim()
 
   // 更新 descriptions 数组
-  let descriptions: string[] = []
-  try {
-    descriptions = appearance.descriptions ? JSON.parse(appearance.descriptions) : []
-  } catch {
-    descriptions = []
-  }
+  const descriptions = parseCharacterDescriptionValues(appearance.descriptions)
+  const metadata = readFrameOSAppearanceMetadataFromDescriptions(appearance.descriptions)
 
   // 如果指定了 descriptionIndex，更新对应位置；否则更新/添加第一个
   const idx = typeof descriptionIndex === 'number' ? descriptionIndex : 0
@@ -136,7 +155,7 @@ export const PATCH = apiHandler(async (
     where: { id: appearanceId },
     data: {
       description: trimmedDesc,
-      descriptions: JSON.stringify(descriptions)
+      descriptions: stringifyCharacterDescriptionsWithFrameOSMetadata(descriptions, metadata),
     }
   })
 

@@ -10,10 +10,16 @@ import {
 } from '../utils'
 import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
 import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
+import { registerFrameosMaterial, type FrameosMaterialSource } from '@/lib/frameos/material-service'
+import {
+  databaseAppearanceOptions,
+  selectStoryboardCharacterAppearance,
+} from '@/lib/novel-promotion/storyboard-character-appearance'
 
 export type AnyObj = Record<string, unknown>
 
 interface CharacterAppearanceLike {
+  id?: string | null
   appearanceIndex?: number
   changeReason: string | null
   description?: string | null
@@ -26,6 +32,7 @@ interface CharacterAppearanceLike {
 
 interface CharacterLike {
   name: string
+  introduction?: string | null
   appearances?: CharacterAppearanceLike[]
 }
 
@@ -64,7 +71,14 @@ interface PanelLike {
 export interface PanelCharacterReference {
   name: string
   appearance?: string
+  appearanceId?: string
   slot?: string
+}
+
+export type PanelAppearanceSelectionContext = {
+  episodeNumber?: number
+  sceneId?: string | null
+  sourceText?: string | null
 }
 
 interface NovelDataDb {
@@ -103,10 +117,18 @@ async function generateImageToStorage(params: {
   keyPrefix: string
   options?: {
     referenceImages?: string[]
+    editMode?: 'inpaint'
+    maskImage?: string
     aspectRatio?: string
     size?: string
+    resolution?: string
+    quality?: 'low' | 'medium' | 'high'
   }
   label?: string
+  materialTitle?: string
+  materialOwnerName?: string
+  materialSource?: FrameosMaterialSource
+  materialMetadata?: Record<string, unknown>
 }) {
   const source = await resolveImageSourceFromGeneration(params.job, {
     userId: params.userId,
@@ -119,6 +141,22 @@ async function generateImageToStorage(params: {
     ? await withLabelBar(source, params.label)
     : source
   const cosKey = await uploadImageSourceToCos(uploadSource, params.keyPrefix, params.targetId)
+  await registerFrameosMaterial({
+    userId: params.job.data.userId,
+    projectId: params.job.data.projectId,
+    ownerName: params.materialOwnerName,
+    title: params.materialTitle || params.label || `生成图片 · ${params.targetId}`,
+    type: 'image',
+    source: params.materialSource || (params.job.data.projectId === 'global-asset-hub' ? 'creative' : 'production'),
+    storageKey: cosKey,
+    metadata: {
+      taskId: params.job.data.taskId,
+      targetType: params.job.data.targetType,
+      targetId: params.job.data.targetId,
+      prompt: params.prompt,
+      ...(params.materialMetadata || {}),
+    },
+  })
   return cosKey
 }
 
@@ -131,9 +169,17 @@ export async function generateCleanImageToStorage(params: {
   keyPrefix: string
   options?: {
     referenceImages?: string[]
+    editMode?: 'inpaint'
+    maskImage?: string
     aspectRatio?: string
     size?: string
+    resolution?: string
+    quality?: 'low' | 'medium' | 'high'
   }
+  materialTitle?: string
+  materialOwnerName?: string
+  materialSource?: FrameosMaterialSource
+  materialMetadata?: Record<string, unknown>
 }) {
   return await generateImageToStorage(params)
 }
@@ -148,9 +194,16 @@ export async function generateProjectLabeledImageToStorage(params: {
   keyPrefix: string
   options?: {
     referenceImages?: string[]
+    editMode?: 'inpaint'
+    maskImage?: string
     aspectRatio?: string
     size?: string
+    resolution?: string
+    quality?: 'low' | 'medium' | 'high'
   }
+  materialTitle?: string
+  materialSource?: FrameosMaterialSource
+  materialMetadata?: Record<string, unknown>
 }) {
   return await generateImageToStorage(params)
 }
@@ -181,11 +234,12 @@ export function parsePanelCharacterReferences(value: string | null | undefined):
       .map((item: unknown) => {
         if (typeof item === 'string') return { name: item }
         if (!item || typeof item !== 'object') return null
-        const candidate = item as { name?: unknown; appearance?: unknown; slot?: unknown }
+        const candidate = item as { name?: unknown; appearance?: unknown; appearanceId?: unknown; slot?: unknown }
         if (typeof candidate.name === 'string') {
           return {
             name: candidate.name,
             appearance: typeof candidate.appearance === 'string' ? candidate.appearance : undefined,
+            appearanceId: typeof candidate.appearanceId === 'string' ? candidate.appearanceId : undefined,
             slot: typeof candidate.slot === 'string' ? candidate.slot : undefined,
           }
         }
@@ -239,7 +293,40 @@ export function findCharacterByName<T extends { name: string }>(characters: T[],
   return undefined
 }
 
-export async function collectPanelReferenceImages(projectData: NovelProjectData, panel: PanelLike) {
+export function selectPanelCharacterAppearance<T extends CharacterAppearanceLike>(
+  character: { appearances?: T[] },
+  reference: PanelCharacterReference,
+  context: PanelAppearanceSelectionContext = {},
+): T | undefined {
+  const appearances = character.appearances || []
+  if (appearances.length === 0) return undefined
+  const ordered = appearances
+    .map((appearance, originalIndex) => ({ appearance, originalIndex }))
+    .sort((left, right) => (
+      (left.appearance.appearanceIndex ?? left.originalIndex)
+      - (right.appearance.appearanceIndex ?? right.originalIndex)
+    ))
+  const options = databaseAppearanceOptions(ordered.map((item) => item.appearance))
+    .map((option, index) => ({ ...option, appearance: ordered[index]?.appearance }))
+  const hasValidAppearanceId = Boolean(
+    reference.appearanceId
+    && appearances.some((appearance) => appearance.id === reference.appearanceId),
+  )
+  const requestedAppearance = hasValidAppearanceId ? reference.appearanceId : reference.appearance
+  return selectStoryboardCharacterAppearance(options, {
+    episodeNumber: context.episodeNumber ?? 0,
+    sceneId: context.sceneId,
+    requestedAppearance,
+    sourceText: context.sourceText,
+    preferScopedCoverageOverPrimaryRequest: !hasValidAppearanceId,
+  })?.appearance
+}
+
+export async function collectPanelReferenceImages(
+  projectData: NovelProjectData,
+  panel: PanelLike,
+  context: PanelAppearanceSelectionContext = {},
+) {
   const refs: string[] = []
 
   const sketchRef = await resolveMediaRef(panel.sketchImageMediaId, panel.sketchImageUrl)
@@ -251,12 +338,10 @@ export async function collectPanelReferenceImages(projectData: NovelProjectData,
     const character = findCharacterByName(projectData.characters || [], item.name)
     if (!character) continue
 
-    const appearances = character.appearances || []
-    let appearance = appearances[0]
-    if (item.appearance) {
-      const matched = appearances.find((a) => (a.changeReason || '').toLowerCase() === item.appearance!.toLowerCase())
-      if (matched) appearance = matched
-    }
+    const appearance = selectPanelCharacterAppearance(character, item, {
+      ...context,
+      sourceText: context.sourceText || [panel.srtSegment, panel.description, panel.videoPrompt].filter(Boolean).join('\n'),
+    })
 
     if (!appearance) continue
 

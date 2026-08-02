@@ -11,6 +11,8 @@ import {
   type InternalLLMStreamStepMeta,
 } from '@/lib/llm-observe/internal-stream-context'
 import { getTaskFlowMeta } from '@/lib/llm-observe/stage-pipeline'
+import { requiredPermissionsForApiPath } from '@/lib/account/permissions'
+import { withAccountPermissionContext } from '@/lib/account/request-context'
 
 type RouteParamValue = string | string[] | undefined
 type RouteParams = Record<string, RouteParamValue>
@@ -444,6 +446,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
     const requestId = getRequestId(req) || createRequestId()
     setRequestId(req, requestId)
     const routeContext = await extractRouteContext(req, ctx)
+    const accountPermissions = requiredPermissionsForApiPath(req.nextUrl.pathname, req.method)
     const logger = createScopedLogger({
       module: 'api',
       requestId,
@@ -471,7 +474,10 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
         const streamCallbacks = buildInternalLLMStreamCallbacks(req)
 
         try {
-          const response = await withInternalLLMStreamCallbacks(streamCallbacks, async () => await handler(req, ctx))
+          const response = await withAccountPermissionContext(
+            accountPermissions,
+            async () => await withInternalLLMStreamCallbacks(streamCallbacks, async () => await handler(req, ctx)),
+          )
           await streamCallbacks?.flush?.()
           response.headers.set('x-request-id', requestId)
 

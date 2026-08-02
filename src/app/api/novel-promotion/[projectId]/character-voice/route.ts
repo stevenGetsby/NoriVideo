@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadObject, generateUniqueKey, getSignedUrl } from '@/lib/storage'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
 
 /**
  * PATCH /api/novel-promotion/[projectId]/character-voice
@@ -38,13 +39,18 @@ export const PATCH = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
+  const customVoiceMedia = customVoiceUrl
+    ? await resolveMediaRefFromLegacyValue(customVoiceUrl)
+    : null
+
   // 更新角色音色设置
   const character = await prisma.novelPromotionCharacter.update({
     where: { id: existingCharacter.id },
     data: {
       voiceType: voiceType || null,
       voiceId: voiceId || null,
-      customVoiceUrl: customVoiceUrl || null
+      customVoiceUrl: customVoiceUrl || null,
+      customVoiceMediaId: customVoiceMedia?.id || null,
     }
   })
 
@@ -134,6 +140,9 @@ export const POST = apiHandler(async (
   if (!file || !characterId) {
     throw new ApiError('INVALID_PARAMS')
   }
+  if (file.size > 50 * 1024 * 1024) {
+    throw new ApiError('INVALID_PARAMS', { message: '音频文件不能超过 50MB。' })
+  }
 
   const existingCharacter = await prisma.novelPromotionCharacter.findFirst({
     where: {
@@ -162,6 +171,7 @@ export const POST = apiHandler(async (
   // 上传到COS
   const key = generateUniqueKey(`voice/custom/${projectId}/${characterId}`, ext)
   const audioUrl = await uploadObject(buffer, key)
+  const voiceMedia = await resolveMediaRefFromLegacyValue(audioUrl)
 
   // 更新角色音色设置为自定义
   const character = await prisma.novelPromotionCharacter.update({
@@ -169,14 +179,15 @@ export const POST = apiHandler(async (
     data: {
       voiceType: 'uploaded',
       voiceId: null,
-      customVoiceUrl: audioUrl
+      customVoiceUrl: audioUrl,
+      customVoiceMediaId: voiceMedia?.id || null,
     }
   })
 
   _ulogInfo(`Character ${characterId} voice uploaded: ${audioUrl}`)
 
   // 返回签名URL，以便前端可以立即播放
-  const signedAudioUrl = getSignedUrl(audioUrl, 7200)
+  const signedAudioUrl = voiceMedia?.url || getSignedUrl(audioUrl, 7200)
 
   return NextResponse.json({
     success: true,

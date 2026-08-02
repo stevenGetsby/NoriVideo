@@ -24,6 +24,10 @@ const prismaMock = vi.hoisted(() => ({
   task: {
     findMany: vi.fn(),
   },
+  work: {
+    create: vi.fn(),
+    findFirst: vi.fn(),
+  },
   project: {
     create: vi.fn(),
     findFirst: vi.fn(),
@@ -151,6 +155,8 @@ describe('SuperAgentOrchestrator mock flow', () => {
       mediaType: 'image',
     })
 
+    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.work.create.mockResolvedValue({ id: 'work-1' })
     prismaMock.project.create.mockResolvedValue({ id: 'project-1' })
     prismaMock.project.findFirst.mockResolvedValue(null)
     prismaMock.project.update.mockResolvedValue({})
@@ -347,6 +353,8 @@ describe('SuperAgentOrchestrator mock flow', () => {
         name: expect.stringContaining('智能手表'),
         description: 'Created by Super Agent (mock)',
         userId: 'user-1',
+        createdById: 'user-1',
+        workId: 'work-1',
       },
     })
     expect(prismaMock.novelPromotionProject.create).toHaveBeenCalledWith({

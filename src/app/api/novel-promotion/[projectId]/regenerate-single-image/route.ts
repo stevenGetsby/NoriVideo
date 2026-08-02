@@ -40,7 +40,7 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  if (type !== 'character' && type !== 'location') {
+  if (type !== 'character' && type !== 'location' && type !== 'prop') {
     throw new ApiError('INVALID_PARAMS')
   }
 

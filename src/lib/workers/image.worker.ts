@@ -13,7 +13,10 @@ import {
   handleModifyAssetImageTask,
   handlePanelImageTask,
   handlePanelVariantTask,
+  handleToolboxImageTask,
 } from './handlers/image-task-handlers'
+import { handleCanvasImageOperationTask } from './handlers/canvas-operation-task-handler'
+import { handleToolboxModel3DTask } from './handlers/toolbox-model3d-task-handler'
 
 type AnyObj = Record<string, unknown>
 
@@ -40,6 +43,12 @@ async function processImageTask(job: Job<TaskJobData>) {
       return await handleAssetHubModifyTask(job)
     case TASK_TYPE.IMAGE_PANEL:
       return await handlePanelImageTask(job)
+    case TASK_TYPE.TOOLBOX_IMAGE:
+      return await handleToolboxImageTask(job)
+    case TASK_TYPE.TOOLBOX_MODEL_3D:
+      return await handleToolboxModel3DTask(job)
+    case TASK_TYPE.CANVAS_IMAGE_OPERATION:
+      return await handleCanvasImageOperationTask(job)
     case TASK_TYPE.PANEL_VARIANT:
       return await handlePanelVariantTask(job)
     default:

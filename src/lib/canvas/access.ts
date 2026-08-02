@@ -18,6 +18,7 @@ export async function requireCanvasInProject(canvasId: string, projectId: string
       title: true,
       themeColor: true,
       viewport: true,
+      revision: true,
       visibility: true,
       forkedFromId: true,
       createdAt: true,
@@ -31,6 +32,29 @@ export async function requireCanvasInProject(canvasId: string, projectId: string
 }
 
 /**
+ * Resolve a 3D studio node only after its parent canvas has been verified in
+ * the authorized project. Keeping this lookup scoped prevents callers from
+ * probing or updating a node by a globally-known node id.
+ */
+export async function requireStudioNodeInCanvas(nodeId: string, canvasId: string) {
+  const node = await prisma.canvasNode.findFirst({
+    where: {
+      id: nodeId,
+      canvasId,
+      type: 'studio_3d',
+    },
+    select: {
+      id: true,
+      canvasId: true,
+      type: true,
+      data: true,
+    },
+  })
+  if (!node) throw new ApiError('NOT_FOUND')
+  return node
+}
+
+/**
  * Canvas DTO（返回给前端的统一形状，剥离敏感字段）。
  */
 export type CanvasDTO = {
@@ -39,6 +63,7 @@ export type CanvasDTO = {
   title: string
   themeColor: string | null
   viewport: unknown | null
+  revision: number
   visibility: string
   forkedFromId: string | null
   createdAt: string
@@ -78,18 +103,29 @@ export const CANVAS_EDGE_ROLE_VALUES = [
   'FIRST_FRAME',
   'LAST_FRAME',
   'REF',
+  'PRODUCTION_FLOW',
+  'PANORAMA_VIEW',
+  'STUDIO_CAMERA',
 ] as const
 
-// 画布节点类型。note 是自由便签；production_* 是项目生产数据的画布投影。
-export const CANVAS_NODE_TYPES_M0 = [
+// 画布节点类型。媒体与生成节点使用通用类型，processType 放在 data 中。
+export const CANVAS_NODE_TYPES = [
   'note',
+  'text',
+  'image',
+  'video',
+  'audio',
+  'model_3d',
+  'studio_3d',
+  'group',
   'production_episode',
   'production_storyboard',
   'production_panel',
   'production_video',
+  'playlist',
 ] as const
-export type CanvasNodeTypeM0 = (typeof CANVAS_NODE_TYPES_M0)[number]
+export type CanvasNodeType = (typeof CANVAS_NODE_TYPES)[number]
 
-export function isAllowedNodeType(type: string): type is CanvasNodeTypeM0 {
-  return (CANVAS_NODE_TYPES_M0 as readonly string[]).includes(type)
+export function isAllowedNodeType(type: string): type is CanvasNodeType {
+  return (CANVAS_NODE_TYPES as readonly string[]).includes(type)
 }

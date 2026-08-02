@@ -13,6 +13,20 @@ import { extractModelKey } from '@/lib/config-service'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { getLogContext, setLogContext } from '@/lib/logging/context'
 import { getOrCreateTestModeSession, isTestModeEnabled } from '@/lib/test-mode'
+import { getAccountPermissionContext } from '@/lib/account/request-context'
+import { normalizeAccountCredit, normalizeAccountPointCredit } from '@/lib/account/credits'
+import { cnyToPoints } from '@/lib/billing/credit-policy'
+import { projectReadWhere } from '@/lib/collaboration/access'
+import {
+    effectiveAccountPermissions,
+    hasAccountPermissions,
+    isAccountPermission,
+    isManagementRole,
+    normalizeAccountRole,
+    type AccountPermission,
+    type AccountRole,
+    type AccountStatus,
+} from '@/lib/account/permissions'
 
 // ============================================================
 // 类型定义
@@ -23,6 +37,16 @@ export interface AuthSession {
         id: string
         name?: string | null
         email?: string | null
+        role?: AccountRole
+        roleLabel?: string | null
+        status?: AccountStatus | 'revoked'
+        permissions?: AccountPermission[]
+        sessionVersion?: number
+        actorId?: string
+        workspaceOwnerId?: string | null
+        parentAccountId?: string | null
+        coinCredits?: number
+        pointCredits?: number
     }
 }
 
@@ -30,24 +54,83 @@ function bindAuthLogContext(session: AuthSession, projectId?: string) {
     const context = getLogContext()
     if (!context.requestId) return
     setLogContext({
-        userId: session.user.id,
+        userId: session.user.actorId || session.user.id,
         ...(projectId ? { projectId } : {}),
     })
 }
 
-async function sessionUserExists(session: AuthSession): Promise<boolean> {
+async function validateSessionUser(
+    session: AuthSession,
+    requiredPermissions: readonly AccountPermission[] = [],
+): Promise<NextResponse | null> {
     const user = await withPrismaRetry(() =>
         prisma.user.findUnique({
-            where: { id: session.user.id },
-            select: { id: true },
+            where: { id: session.user.actorId || session.user.id },
+            select: {
+                id: true,
+                name: true,
+                email: true,
+                role: true,
+                roleLabel: true,
+                status: true,
+                permissions: true,
+                sessionVersion: true,
+                workspaceOwnerId: true,
+                parentAccountId: true,
+                parentAccount: {
+                    select: {
+                        id: true,
+                        role: true,
+                        status: true,
+                    },
+                },
+                coinCredits: true,
+                balance: {
+                    select: { balance: true },
+                },
+            },
         })
     )
-    return !!user
-}
+    if (!user) return unauthorized('登录已失效，请重新登录。')
 
-async function rejectMissingSessionUser(session: AuthSession): Promise<NextResponse | null> {
-    if (await sessionUserExists(session)) return null
-    return unauthorized('Session user no longer exists. Please sign in again.')
+    const role = normalizeAccountRole(user.role)
+    const status: AccountStatus = user.status === 'active' ? 'active' : 'disabled'
+    const permissions = effectiveAccountPermissions(role, user.permissions)
+    const sessionVersion = typeof session.user.sessionVersion === 'number'
+        ? session.user.sessionVersion
+        : user.sessionVersion
+
+    if (session.user.status === 'revoked' || sessionVersion !== user.sessionVersion) {
+        return unauthorized('密码已重置或登录已失效，请重新登录。')
+    }
+    if (user.status !== 'active') {
+        return forbidden('账号已停用，请联系管理员。')
+    }
+    if (!isManagementRole(role) && user.parentAccount?.status === 'disabled') {
+        return forbidden('所属管理账号已停用，请联系平台管理员。')
+    }
+    const contextualPermissions = getAccountPermissionContext().filter(isAccountPermission)
+    const allRequiredPermissions = Array.from(new Set([...contextualPermissions, ...requiredPermissions]))
+    if (!hasAccountPermissions({ role, permissions }, allRequiredPermissions)) {
+        return forbidden('当前账号没有执行此操作的权限。')
+    }
+
+    session.user.name = user.name
+    session.user.email = user.email
+    session.user.role = role
+    session.user.roleLabel = user.roleLabel
+    session.user.status = status
+    session.user.permissions = permissions
+    session.user.sessionVersion = user.sessionVersion
+    session.user.actorId = user.id
+    session.user.workspaceOwnerId = isManagementRole(role) ? user.id : (user.workspaceOwnerId || user.id)
+    session.user.parentAccountId = user.parentAccountId
+    session.user.coinCredits = normalizeAccountCredit(user.coinCredits)
+    session.user.pointCredits = normalizeAccountPointCredit(
+        user.balance ? cnyToPoints(Number(user.balance.balance)) : 0,
+    )
+    session.user.id = session.user.workspaceOwnerId
+    return null
 }
 
 async function getInternalTaskSession(): Promise<AuthSession | null> {
@@ -198,14 +281,14 @@ export async function getAuthSession(): Promise<AuthSession | null> {
  * 要求用户登录
  * @throws 返回 401 响应
  */
-export async function requireAuth(): Promise<AuthSession> {
+export async function requireAuth(requiredPermissions: readonly AccountPermission[] = []): Promise<AuthSession> {
     const session = await getAuthSession()
     if (!session?.user?.id) {
         throw { response: unauthorized() }
     }
-    const missingUserResponse = await rejectMissingSessionUser(session)
-    if (missingUserResponse) {
-        throw { response: missingUserResponse }
+    const invalidUserResponse = await validateSessionUser(session, requiredPermissions)
+    if (invalidUserResponse) {
+        throw { response: invalidUserResponse }
     }
     bindAuthLogContext(session)
     return session
@@ -234,15 +317,15 @@ export async function requireAuth(): Promise<AuthSession> {
  */
 export async function requireProjectAuth<T extends ProjectAuthIncludes = ProjectAuthIncludes>(
     projectId: string,
-    options?: { include?: T }
+    options?: { include?: T; permissions?: readonly AccountPermission[] }
 ): Promise<ProjectAuthContextWithIncludes<T> | NextResponse> {
     // 1. 验证 Session
     const session = await getAuthSession()
     if (!session?.user?.id) {
         return unauthorized()
     }
-    const missingUserResponse = await rejectMissingSessionUser(session)
-    if (missingUserResponse) return missingUserResponse
+    const invalidUserResponse = await validateSessionUser(session, options?.permissions)
+    if (invalidUserResponse) return invalidUserResponse
     bindAuthLogContext(session, projectId)
 
     // 2. 构建动态 include 对象
@@ -261,10 +344,7 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
     const hasIncludes = Object.keys(novelPromotionIncludes).length > 0
     const project = await withPrismaRetry(() =>
         prisma.project.findFirst({
-            where: {
-                id: projectId,
-                userId: session.user.id,
-            },
+            where: projectReadWhere(session, projectId),
             include: {
                 novelPromotionData: hasIncludes
                     ? { include: novelPromotionIncludes }
@@ -329,8 +409,8 @@ export async function requireUserAuth(): Promise<{ session: AuthSession } | Next
     if (!session?.user?.id) {
         return unauthorized()
     }
-    const missingUserResponse = await rejectMissingSessionUser(session)
-    if (missingUserResponse) return missingUserResponse
+    const invalidUserResponse = await validateSessionUser(session)
+    if (invalidUserResponse) return invalidUserResponse
     bindAuthLogContext(session)
     return { session }
 }
@@ -340,22 +420,20 @@ export async function requireUserAuth(): Promise<{ session: AuthSession } | Next
  * 适用于某些不需要 novelPromotionData 的 API
  */
 export async function requireProjectAuthLight(
-    projectId: string
+    projectId: string,
+    requiredPermissions: readonly AccountPermission[] = [],
 ): Promise<{ session: AuthSession; project: { id: string; userId: string; name: string; [key: string]: unknown } } | NextResponse> {
     const session = await getAuthSession()
     if (!session?.user?.id) {
         return unauthorized()
     }
-    const missingUserResponse = await rejectMissingSessionUser(session)
-    if (missingUserResponse) return missingUserResponse
+    const invalidUserResponse = await validateSessionUser(session, requiredPermissions)
+    if (invalidUserResponse) return invalidUserResponse
     bindAuthLogContext(session, projectId)
 
     const project = await withPrismaRetry(() =>
         prisma.project.findFirst({
-            where: {
-                id: projectId,
-                userId: session.user.id,
-            }
+            where: projectReadWhere(session, projectId)
         })
     )
 
@@ -365,6 +443,37 @@ export async function requireProjectAuthLight(
 
     return { session, project }
 }
+
+export async function requireUserPermission(
+    requiredPermissions: readonly AccountPermission[],
+): Promise<{ session: AuthSession } | NextResponse> {
+    const session = await getAuthSession()
+    if (!session?.user?.id) return unauthorized()
+    const invalidUserResponse = await validateSessionUser(session, requiredPermissions)
+    if (invalidUserResponse) return invalidUserResponse
+    bindAuthLogContext(session)
+    return { session }
+}
+
+export async function requireAdminAuth(): Promise<{ session: AuthSession } | NextResponse> {
+    const authResult = await requireUserPermission([])
+    if (authResult instanceof NextResponse) return authResult
+    if (!isManagementRole(authResult.session.user.role)) {
+        return forbidden('仅管理账号可以执行此操作。')
+    }
+    return authResult
+}
+
+export async function requireSuperAdminAuth(): Promise<{ session: AuthSession } | NextResponse> {
+    const authResult = await requireAdminAuth()
+    if (authResult instanceof NextResponse) return authResult
+    if (normalizeAccountRole(authResult.session.user.role) !== 'super_admin') {
+        return forbidden('仅平台 Admin 可以管理全局服务配置。')
+    }
+    return authResult
+}
+
+export const requireOwnerAuth = requireAdminAuth
 
 // ============================================================
 // 类型守卫

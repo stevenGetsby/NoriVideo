@@ -17,9 +17,18 @@ export async function createFixtureUser() {
 
 export async function createFixtureProject(userId: string) {
   const id = suffix()
+  const work = await prisma.work.create({
+    data: {
+      name: `work_${id}`,
+      workspaceOwnerId: userId,
+      createdById: userId,
+    },
+  })
   return await prisma.project.create({
     data: {
       userId,
+      createdById: userId,
+      workId: work.id,
       name: `project_${id}`,
     },
   })

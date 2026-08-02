@@ -1,9 +1,13 @@
+import { cnyToPoints, GENERATION_CREDIT_FLOOR_CNY } from './credit-policy'
+
 export class InsufficientBalanceError extends Error {
   public available: number
   public required: number
 
   constructor(required: number, available: number) {
-    super(`余额不足，需要 ¥${required.toFixed(4)}，当前可用 ¥${available.toFixed(4)}`)
+    super(available <= GENERATION_CREDIT_FLOOR_CNY
+      ? `积分已达到生成下限（当前 ${cnyToPoints(available).toFixed(2)} 积分），请补充积分后再生成`
+      : `积分不足，本次需要 ${cnyToPoints(required).toFixed(2)} 积分，当前剩余 ${cnyToPoints(available).toFixed(2)} 积分`)
     this.name = 'InsufficientBalanceError'
     this.required = required
     this.available = available

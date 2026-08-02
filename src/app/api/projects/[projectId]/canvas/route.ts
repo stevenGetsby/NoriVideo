@@ -13,7 +13,7 @@ export const GET = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId)
   if (isErrorResponse(authResult)) return authResult
 
-  const canvases = await prisma.canvas.findMany({
+  const rows = await prisma.canvas.findMany({
     where: { projectId },
     orderBy: { updatedAt: 'desc' },
     select: {
@@ -22,12 +22,15 @@ export const GET = apiHandler(async (
       title: true,
       themeColor: true,
       viewport: true,
+      revision: true,
       visibility: true,
       forkedFromId: true,
+      _count: { select: { nodes: true } },
       createdAt: true,
       updatedAt: true,
     },
   })
+  const canvases = rows.map(({ _count, ...canvas }) => ({ ...canvas, nodeCount: _count.nodes }))
 
   return NextResponse.json({ canvases })
 })
@@ -38,7 +41,7 @@ export const POST = apiHandler(async (
   context: { params: Promise<{ projectId: string }> }
 ) => {
   const { projectId } = await context.params
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
@@ -62,6 +65,7 @@ export const POST = apiHandler(async (
       title: true,
       themeColor: true,
       viewport: true,
+      revision: true,
       visibility: true,
       forkedFromId: true,
       createdAt: true,
@@ -69,5 +73,5 @@ export const POST = apiHandler(async (
     },
   })
 
-  return NextResponse.json({ canvas }, { status: 201 })
+  return NextResponse.json({ canvas: { ...canvas, nodeCount: 0 } }, { status: 201 })
 })

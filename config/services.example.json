@@ -33,6 +33,12 @@
         "baseUrl": "https://api.deepseek.com/v1",
         "apiKey": "your-deepseek-api-key",
         "gatewayRoute": "openai-compat"
+      },
+      {
+        "id": "ark",
+        "name": "Volcengine Ark",
+        "apiKey": "your-ark-api-key",
+        "gatewayRoute": "official"
       }
     ],
     "models": [
@@ -40,6 +46,14 @@
         "modelId": "gpt-5.5",
         "modelKey": "ghc::gpt-5.5",
         "name": "GHC GPT 5.5",
+        "type": "llm",
+        "provider": "ghc",
+        "llmProtocol": "responses"
+      },
+      {
+        "modelId": "gemini-3.1-pro-preview",
+        "modelKey": "ghc::gemini-3.1-pro-preview",
+        "name": "GHC Gemini 3.1 Pro",
         "type": "llm",
         "provider": "ghc",
         "llmProtocol": "responses"
@@ -60,20 +74,62 @@
         "provider": "hfsy"
       },
       {
-        "modelId": "deepseek-chat",
-        "modelKey": "deepseek::deepseek-chat",
-        "name": "DeepSeek Chat",
+        "modelId": "gpt-5.6-terra",
+        "modelKey": "hfsy::gpt-5.6-terra",
+        "name": "HFSY GPT 5.6 Terra",
+        "type": "llm",
+        "provider": "hfsy",
+        "llmProtocol": "chat-completions"
+      },
+      {
+        "modelId": "gpt-image-2pro",
+        "modelKey": "hfsy::gpt-image-2pro",
+        "name": "HFSY GPT Image 2 Pro",
+        "type": "image",
+        "provider": "hfsy"
+      },
+      {
+        "modelId": "deepseek-v4-pro",
+        "modelKey": "deepseek::deepseek-v4-pro",
+        "name": "DeepSeek V4 Pro",
         "type": "llm",
         "provider": "deepseek",
         "llmProtocol": "chat-completions"
+      },
+      {
+        "modelId": "doubao-seedance-2-0-260128",
+        "modelKey": "ark::doubao-seedance-2-0-260128",
+        "name": "Seedance 2.0",
+        "type": "video",
+        "provider": "ark"
       }
     ],
     "defaultModels": {
-      "analysisModel": "deepseek::deepseek-chat",
-      "characterModel": "hfsy::gpt-image-2",
-      "locationModel": "hfsy::gpt-image-2",
-      "storyboardModel": "hfsy::gpt-image-2",
-      "editModel": "hfsy::gpt-image-2"
+      "analysisModel": "nori::nori-gpt",
+      "characterModel": "nori::nori-image",
+      "locationModel": "nori::nori-image",
+      "storyboardModel": "nori::nori-image",
+      "editModel": "nori::nori-image",
+      "videoModel": "nori::seedance2.0"
+    },
+    "modelRouting": {
+      "nori::nori-gpt": "ghc::gpt-5.5",
+      "nori::nori-gpt-max": "hfsy::gpt-5.6-terra",
+      "nori::nori-gemini": "ghc::gemini-3.1-pro-preview",
+      "nori::nori-deepseek": "deepseek::deepseek-v4-pro",
+      "nori::nori-image": "hfsy::gpt-image-2",
+      "nori::nori-image-pro": "hfsy::gpt-image-2pro",
+      "nori::seedance2.0": "ark::doubao-seedance-2-0-260128"
+    }
+  },
+  "model3d": {
+    "frameos3d": {
+      "protocol": "tripo-v2",
+      "baseUrl": "https://api.tripo3d.ai/v2/openapi",
+      "apiKey": "your-tripo-api-key",
+      "modelVersion": "v3.0-20250812",
+      "pollIntervalMs": 3000,
+      "timeoutMs": 1200000
     }
   }
 }

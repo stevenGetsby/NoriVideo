@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
+import { taskStatusDisplayName, taskTypeDisplayName } from '@/lib/task/display-label'
 
 interface ApiModel {
   modelKey?: string
@@ -221,7 +222,6 @@ export function FrameToolboxDashboard() {
 
   const shortcuts = [
     { key: 'profile', href: '/profile', icon: 'settingsHexMinor' as const },
-    { key: 'seedance', href: '/seedance', icon: 'film' as const },
     { key: 'assetHub', href: '/asset-hub', icon: 'folderHeart' as const },
     { key: 'records', href: '/service-records', icon: 'receipt' as const },
   ]
@@ -440,7 +440,7 @@ export function FrameToolboxDashboard() {
               {recentTasks.map((task) => (
                 <div key={task.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 truncate font-mono text-xs text-white/72">{task.type}</div>
+                    <div className="min-w-0 truncate text-xs font-medium text-white/72">{taskTypeDisplayName(task.type)}</div>
                     <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] ${
                       task.status === 'failed'
                         ? 'border-[#ff6b6b]/35 bg-[#ff6b6b]/10 text-[#ff9a9a]'
@@ -448,7 +448,7 @@ export function FrameToolboxDashboard() {
                           ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
                           : 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                     }`}>
-                      {task.status}
+                      {taskStatusDisplayName(task.status)}
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">

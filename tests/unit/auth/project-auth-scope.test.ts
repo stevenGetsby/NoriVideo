@@ -47,7 +47,14 @@ vi.mock('@/lib/config-service', () => ({
 describe('project auth scope', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    prismaMock.user.findUnique.mockResolvedValue({ id: 'user-1' })
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      role: 'writer',
+      status: 'active',
+      workspaceOwnerId: null,
+      parentAccountId: null,
+      parentAccount: null,
+    })
   })
 
   it('scopes light project auth lookup by current user and returns not found on scoped miss', async () => {

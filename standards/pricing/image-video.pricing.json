@@ -1,6 +1,112 @@
 [
   {
     "apiType": "text",
+    "provider": "nori",
+    "modelId": "nori-gemini",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 19.44
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 116.64
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "nori",
+    "modelId": "nori-deepseek",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 16.2
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 32.4
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "ark",
+    "modelId": "doubao-seed-2-1-pro-260628",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 8.1
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 40.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "ark",
+    "modelId": "doubao-seed-2-1-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 8.1
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 40.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "nori",
+    "modelId": "nori-image",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.05
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "nori",
+    "modelId": "nori-image-pro",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.5
+    }
+  },
+  {
+    "apiType": "text",
     "provider": "openrouter",
     "modelId": "google/gemini-3.1-pro-preview",
     "pricing": {
@@ -523,13 +629,13 @@
           "when": {
             "containsVideoInput": false
           },
-          "amount": 46
+          "amount": 62.1
         },
         {
           "when": {
             "containsVideoInput": true
           },
-          "amount": 28
+          "amount": 37.8
         }
       ]
     }
@@ -545,13 +651,13 @@
           "when": {
             "containsVideoInput": false
           },
-          "amount": 37
+          "amount": 49.95
         },
         {
           "when": {
             "containsVideoInput": true
           },
-          "amount": 22
+          "amount": 29.7
         }
       ]
     }

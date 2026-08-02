@@ -7,7 +7,6 @@
     "projects": "Projects",
     "writerWorkbench": "Writer Workbench",
     "toolbox": "Toolbox",
-    "seedance": "Seedance 2.0",
     "assetHub": "Asset Library",
     "materialLibrary": "Material Library",
     "prompts": "Prompt Library",
@@ -153,14 +152,38 @@
     "loadFailed": "Failed to load task records",
     "recentFailures": "Recent Failures",
     "usage": {
-      "title": "Task Run Overview",
+      "title": "Service Usage Overview",
       "derived": "Derived from task records",
-      "empty": "No task runs to summarize yet.",
+      "actual": "Actual billing records",
+      "estimated": "Estimated from tasks",
+      "runs": "{count} runs",
+      "empty": "No service usage records to summarize yet.",
       "stats": {
-        "totalTasks": "Total Tasks",
-        "completedRuns": "Completed Runs",
-        "serviceTypes": "Task Types"
+        "billableTasks": "Billing Records",
+        "totalCost": "Actual Cost",
+        "inputTokens": "Input Tokens",
+        "outputTokens": "Output Tokens",
+        "serviceTypes": "Service Types"
       }
+    },
+    "billing": {
+      "title": "Usage by Service",
+      "realTitle": "Credit Account and Actual Spend",
+      "realSubtitle": "Amounts come from the ledger and billing records; tokens, seconds, and images are never added together as one unit.",
+      "realSource": "Ledger data",
+      "realStats": {
+        "balance": "Available Balance",
+        "frozen": "Frozen Amount",
+        "spent": "Total Spent"
+      },
+      "projectCosts": "Project Spend",
+      "records": "{count} billing records",
+      "noRealCosts": "No actual project spend records",
+      "transactions": "Recent Ledger Entries",
+      "noTransactions": "No ledger entries",
+      "total": "{count} runs",
+      "cost": "Cost {value}",
+      "empty": "No service usage details"
     },
     "distribution": {
       "title": "Task Type Distribution",
@@ -173,11 +196,14 @@
       "title": "Service Capability Matrix",
       "subtitle": "Groups existing task records to show whether video, image, audio, and text capabilities have been used.",
       "derived": "Local task grouping",
+      "pricingVersion": "Pricing version {version}",
+      "modelCoverage": "{providers} providers · {models} models",
       "runs": "{count} runs",
       "enabled": "Used",
       "standby": "Unused",
       "table": {
         "service": "Capability",
+        "priceRange": "Price Range",
         "successRate": "Success",
         "usage": "Runs",
         "status": "Status"
@@ -230,64 +256,6 @@
       "completed": "Completed",
       "failed": "Failed",
       "canceled": "Canceled"
-    }
-  },
-  "seedancePanel": {
-    "historyTitle": "Video Task Console",
-    "historySubtitle": "Reads the current user's video enhancement history and centralizes Seedance-related video processing tasks.",
-    "openEnhance": "Open Video Enhance",
-    "loading": "Loading video tasks...",
-    "empty": "No video enhancement tasks yet. Open the video enhance tool to submit a video first.",
-    "loadFailed": "Failed to load video tasks",
-    "modelsTitle": "Seedance Capabilities",
-    "presetTitle": "Model Presets",
-    "capabilityTitle": "Seedance Capability Matrix",
-    "capabilitySubtitle": "Summarizes video models, batch generation, first/last frame, audio support, and task history to check whether the video production entry is usable.",
-    "capability": {
-      "local": "Local Model Catalog",
-      "columns": {
-        "module": "Capability",
-        "status": "Status",
-        "count": "Count",
-        "detail": "Detail"
-      },
-      "status": {
-        "ready": "Ready",
-        "review": "Review",
-        "reserved": "Reserved"
-      },
-      "modules": {
-        "models": "Video Models",
-        "batch": "Batch Shots",
-        "firstLast": "First/Last Frame",
-        "audio": "Audio Driven",
-        "history": "Task History"
-      },
-      "details": {
-        "models": "Seedance video model presets",
-        "batch": "Batch shot generation support",
-        "firstLast": "First/last frame reference support",
-        "audio": "Video models with audio support",
-        "history": "{active} running / {failed} failed"
-      }
-    },
-    "taskStats": {
-      "all": "All",
-      "active": "Running",
-      "completed": "Completed",
-      "failed": "Failed"
-    },
-    "modelStats": {
-      "models": "Models",
-      "batch": "Batch",
-      "firstLast": "First/Last",
-      "audio": "Audio"
-    },
-    "table": {
-      "name": "Task Name",
-      "source": "Source",
-      "status": "Status",
-      "updatedAt": "Updated"
     }
   },
   "promptsPanel": {
@@ -461,10 +429,6 @@
       "profile": {
         "title": "Models and API",
         "hint": "Configure defaults, providers, and concurrency"
-      },
-      "seedance": {
-        "title": "Seedance Console",
-        "hint": "Review video tasks and model presets"
       },
       "assetHub": {
         "title": "Asset Library",
@@ -959,17 +923,6 @@
         { "title": "Material Cleanup", "description": "Organize uploaded files, images, audio, and video into project assets.", "meta": "Assets", "icon": "filter" },
         { "title": "Prompt Assistant", "description": "Generate editable prompts for character images, locations, storyboards, and shots.", "meta": "Prompt", "icon": "sparklesAlt" },
         { "title": "Production Diagnostics", "description": "Check model configuration, task status, and generation failure causes.", "meta": "Check", "icon": "clipboardCheck" }
-      ]
-    },
-    "seedance": {
-      "eyebrow": "Seedance 2.0",
-      "title": "Video Generation Model Console",
-      "subtitle": "FrameOS-style Seedance 2.0 entry for video models, reference assets, batch shots, and generation settings.",
-      "cards": [
-        { "title": "Model Presets", "description": "Manage Seedance 2.0, Fast, Pro, and default video generation parameters in one place.", "meta": "Model", "icon": "film" },
-        { "title": "Reference Assets", "description": "Check whether character, location, and item references are uploaded and ready for shot generation.", "meta": "Reference", "icon": "folderHeart" },
-        { "title": "Batch Shots", "description": "Summarize pending, running, failed, and completed shot generation tasks.", "meta": "Batch", "icon": "clapperboard" },
-        { "title": "Generation Diagnostics", "description": "Review failure reasons, model settings, and missing asset references.", "meta": "Check", "icon": "clipboardCheck" }
       ]
     },
     "material": {

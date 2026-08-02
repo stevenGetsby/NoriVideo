@@ -25,6 +25,9 @@ import type { NormalizedError } from '@/lib/errors/types'
 import { mapTaskSSEEventToRunEvents } from '@/lib/run-runtime/task-bridge'
 import { publishRunEvent } from '@/lib/run-runtime/publisher'
 import { RUN_EVENT_TYPE } from '@/lib/run-runtime/types'
+import { recordServiceUsage } from '@/lib/platform-services/usage'
+import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -50,6 +53,25 @@ function readPositiveIntField(payload: Record<string, unknown>, key: string): nu
     }
   }
   return null
+}
+
+function completedVideoDurationSeconds(data: TaskJobData, result: unknown): number {
+  const payload = toObject(data.payload)
+  const generationOptions = toObject(payload.generationOptions)
+  const completed = toObject(result)
+  const candidates = [
+    completed.durationSeconds,
+    completed.duration,
+    payload.durationSeconds,
+    payload.duration,
+    generationOptions.durationSeconds,
+    generationOptions.duration,
+  ]
+  for (const value of candidates) {
+    const numeric = typeof value === 'number' ? value : Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) return numeric
+  }
+  return 0
 }
 
 function extractFlowFields(jobData: TaskJobData): Record<string, unknown> {
@@ -440,6 +462,27 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
         durationMs: Date.now() - startedAt,
       })
       return
+    }
+    const actualVideoTokens = Number(toObject(result).actualVideoTokens)
+    if (
+      Number.isFinite(actualVideoTokens)
+      && actualVideoTokens > 0
+      && billingInfo?.billable
+      && billingInfo.apiType === 'video'
+    ) {
+      const runtimeModel = resolveRuntimeModelKey(billingInfo.model) || billingInfo.model
+      const parsedModel = parseModelKeyStrict(runtimeModel)
+      await recordServiceUsage({
+        provider: parsedModel?.provider || 'unknown',
+        modelKey: parsedModel?.modelKey || runtimeModel,
+        serviceType: 'video',
+        operation: `${data.type}:${billingInfo.metadata?.containsVideoInput === true ? 'video-input' : 'no-video-input'}`,
+        userId: data.userId,
+        projectId: data.projectId,
+        outputTokens: Math.floor(actualVideoTokens),
+        units: completedVideoDurationSeconds(data, result),
+        latencyMs: Date.now() - startedAt,
+      })
     }
     logger.info({
       action: 'worker.completed',

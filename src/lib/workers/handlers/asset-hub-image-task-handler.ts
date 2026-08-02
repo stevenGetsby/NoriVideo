@@ -104,6 +104,9 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
         options: {
           aspectRatio: CHARACTER_ASSET_IMAGE_RATIO,
         },
+        materialTitle: `${character.name} · ${appearance.changeReason || '主形象'}${count > 1 ? ` · ${i + 1}` : ''}`,
+        materialSource: 'creative',
+        materialMetadata: { originType: 'global-character', originId: appearance.id, imageIndex: i },
       })
       imageUrls.push(imageKey)
     }
@@ -167,6 +170,9 @@ export async function handleAssetHubImageTask(job: Job<TaskJobData>) {
         options: {
           aspectRatio,
         },
+        materialTitle: `${location.name}${targetImages.length > 1 ? ` · ${targetImages.indexOf(image) + 1}` : ''}`,
+        materialSource: 'creative',
+        materialMetadata: { originType: payload.type, originId: image.id },
       })
 
       await assertTaskActive(job, 'persist_global_location_image')

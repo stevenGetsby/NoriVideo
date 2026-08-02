@@ -61,7 +61,7 @@ describe('api specific - user models vision group', () => {
     vi.clearAllMocks()
   })
 
-  it('keeps Lumina GPT/Gemini image-understanding models separate without removing them from llm', async () => {
+  it('returns the fixed Nori text catalog and hides user-provider models', async () => {
     const mod = await import('@/app/api/user/models/route')
     const req = buildMockRequest({
       path: '/api/user/models',
@@ -76,13 +76,11 @@ describe('api specific - user models vision group', () => {
     }
 
     expect(body.llm.map((item) => item.label)).toEqual([
-      'GPT-5.5',
-      'Gemini 3 Pro',
-      'Claude Sonnet 4.6',
+      'nori-gpt',
+      'nori-gpt-max',
+      'nori-gemini',
+      'nori-deepseek',
     ])
-    expect(body.vision.map((item) => item.label)).toEqual([
-      'GPT-5.5',
-      'Gemini 3 Pro',
-    ])
+    expect(body.vision).toEqual([])
   })
 })

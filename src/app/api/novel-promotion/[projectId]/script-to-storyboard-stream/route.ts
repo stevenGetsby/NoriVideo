@@ -4,6 +4,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { TASK_TYPE } from '@/lib/task/types'
 import { maybeSubmitLLMTask } from '@/lib/llm-observe/route-task'
 import { prisma } from '@/lib/prisma'
+import { EPISODE_STORYBOARD_PROMPT_PROFILE } from '@/lib/novel-promotion/episode-storyboard-workflow'
 
 export const runtime = 'nodejs'
 
@@ -51,6 +52,7 @@ export const POST = apiHandler(async (
       ...body,
       episodeId: episode.id,
       displayMode: 'detail',
+      storyboardPromptProfile: EPISODE_STORYBOARD_PROMPT_PROFILE,
     },
     dedupeKey: `script_to_storyboard_run:${episode.id}`,
     priority: 2,

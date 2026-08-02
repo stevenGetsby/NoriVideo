@@ -71,6 +71,23 @@ describe('billing/task-policy', () => {
     expect(info.quantity).toBe(1)
   })
 
+  it('marks reference-video tasks with their input duration for Seedance pricing', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.TOOLBOX_VIDEO, {
+      videoModel: 'nori::seedance2.0',
+      referenceVideos: ['video/run.mp4'],
+      inputVideoSeconds: 6.5,
+      generationOptions: {
+        resolution: '720p',
+        duration: 5,
+        aspectRatio: '16:9',
+      },
+    }))
+    expect(info.metadata).toMatchObject({
+      containsVideoInput: true,
+      inputVideoSeconds: 6.5,
+    })
+  })
+
   it('uses explicit lip sync model from payload', () => {
     const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.LIP_SYNC, {
       lipSyncModel: 'vidu::vidu-lipsync',

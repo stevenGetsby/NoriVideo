@@ -6,6 +6,7 @@ import {
   resolveOpenAICompatClientConfig,
   toUploadFile,
 } from './common'
+import { prepareOpenAIInpaintUploads } from './inpaint-mask'
 
 type OpenAIImageResponseFormat = 'url' | 'b64_json'
 type OpenAIImageOutputFormat = 'png' | 'jpeg' | 'webp'
@@ -174,6 +175,8 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
     modelId,
     prompt,
     referenceImages = [],
+    editMode,
+    maskImage,
     options = {},
   } = request
 
@@ -187,6 +190,50 @@ export async function generateImageViaOpenAICompat(request: OpenAICompatImageReq
   const quality = normalizeGenerateQuality(options.quality)
   const rawSize = resolveRawSize(options)
   const size = normalizeOpenAIImageSize(rawSize)
+
+  if (maskImage && editMode !== 'inpaint') {
+    throw new Error('OPENAI_COMPAT_IMAGE_MASK_MODE_REQUIRED: maskImage requires editMode=inpaint')
+  }
+
+  if (editMode === 'inpaint') {
+    if (!maskImage?.trim()) {
+      throw new Error('OPENAI_COMPAT_IMAGE_INPAINT_MASK_REQUIRED: maskImage is required')
+    }
+    if (referenceImages.length !== 1) {
+      throw new Error('OPENAI_COMPAT_IMAGE_INPAINT_SOURCE_INVALID: exactly one source image is required')
+    }
+    const uploads = await prepareOpenAIInpaintUploads(referenceImages[0], maskImage)
+    const response = await client.images.edit({
+      model: normalizedModelId,
+      prompt,
+      image: uploads.image,
+      mask: uploads.mask,
+      response_format: responseFormat,
+      ...(outputFormat ? { output_format: outputFormat } : {}),
+      ...(quality ? { quality } : {}),
+      ...(size ? { size } : {}),
+    } as unknown as Parameters<typeof client.images.edit>[0])
+
+    const imagePayload = readAllImagePayloads(response)
+    const imageBase64 = imagePayload.b64Json
+    if (typeof imageBase64 === 'string' && imageBase64.trim().length > 0) {
+      const mimeType = toMimeFromOutputFormat(outputFormat)
+      return {
+        success: true,
+        imageBase64,
+        imageUrl: `data:${mimeType};base64,${imageBase64}`,
+      }
+    }
+    const imageUrl = imagePayload.url
+    if (typeof imageUrl === 'string' && imageUrl.trim().length > 0) {
+      return {
+        success: true,
+        imageUrl,
+        ...(imagePayload.urls.length > 1 ? { imageUrls: imagePayload.urls } : {}),
+      }
+    }
+    throw new Error('OPENAI_COMPAT_IMAGE_EMPTY_RESPONSE: no image data returned')
+  }
 
   if (referenceImages.length > 0) {
     const response = await client.images.edit({

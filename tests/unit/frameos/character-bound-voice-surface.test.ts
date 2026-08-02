@@ -1,0 +1,52 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { describe, expect, it } from 'vitest'
+
+function source(relativePath: string) {
+  return fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8')
+}
+
+describe('character-bound voice workflow', () => {
+  it('binds uploaded or Seedance audition audio directly to each character', () => {
+    const timbre = source('src/components/frameos/views/FosTimbre.tsx')
+    const overview = source('src/components/frameos/views/FosWorkbenchOverview.tsx')
+    const projectHook = source('src/components/frameos/useFosProject.ts')
+    const assetLibrary = source('src/components/frameos/views/FosAssetLibrary.tsx')
+    const auditionRoute = source('src/app/api/novel-promotion/[projectId]/character-audition/route.ts')
+    const characterVoiceRoute = source('src/app/api/novel-promotion/[projectId]/character-voice/route.ts')
+    const videoWorker = source('src/lib/workers/video.worker.ts')
+    const toolboxVideoWorker = source('src/lib/workers/handlers/toolbox-video-task-handler.ts')
+    const audioExtractor = source('src/lib/media/video-audio.ts')
+
+    expect(timbre).not.toContain('音色库选择')
+    expect(timbre).not.toContain('候选音色')
+    expect(timbre).toContain('本地 MP3 上传')
+    expect(timbre).toContain('/character-audition')
+    expect(timbre).toContain('/character-voice')
+    expect(auditionRoute).toContain('generateAudio: true')
+    expect(auditionRoute).toContain('referenceImages: [referenceImage]')
+    expect(auditionRoute).toContain('referenceImageNames: [character.name]')
+    expect(auditionRoute).toContain("inputMode: 'reference'")
+    expect(auditionRoute).toContain('TASK_TYPE.TOOLBOX_VIDEO')
+    expect(characterVoiceRoute).toContain('customVoiceMediaId')
+    expect(toolboxVideoWorker).toContain("asset.bizType === 'character_audition'")
+    expect(toolboxVideoWorker).toContain('extractVoiceAudioFromVideo')
+    expect(toolboxVideoWorker).not.toContain("voiceType: 'seedance-audition'")
+    expect(timbre).toContain('确认并绑定音色')
+    expect(timbre).toContain('CompactAudioPlayer')
+    expect(timbre).toContain('toPlayableAudioUrl')
+    expect(timbre).toContain('fos-timbre-studio-grid')
+    expect(audioExtractor).toContain("'-map', '0:a:0'")
+    expect(videoWorker).toContain('resolvePanelAudioReferencesForVideo')
+    expect(videoWorker).toContain('usesArkReferenceImageMode')
+    expect(videoWorker).toContain('usesArkReferenceMediaMode')
+    expect(videoWorker).toContain('generateAudio: true')
+    expect(overview).toContain('boundVoiceCount')
+    expect(overview).toContain('`角色音色 ${boundVoiceCount}/${charCount}`')
+    expect(overview).not.toContain('`角色音色 0/${charCount}`')
+    expect(projectHook).toContain('projectDataCache.delete(projectId)')
+    expect(assetLibrary).toContain('asset.voice.media?.url || asset.voice.customVoiceUrl')
+    expect(assetLibrary).toContain('音色已绑定')
+    expect(assetLibrary).toContain('<audio src={toDisplayImageUrl(asset.voice.url) || asset.voice.url}')
+  })
+})

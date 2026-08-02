@@ -7,6 +7,7 @@ import { extractStorageKey, getSignedObjectUrl, getStorageType } from '@/lib/sto
 import { getSeedanceAssetsConfig } from '@/lib/volcengine/seedance-assets-config'
 import { SeedanceAssetsClient, type SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
 import { replacePanelSeedanceReferenceAssetForCharacter } from '@/lib/novel-promotion/seedance-reference-assets'
+import { ensureSeedanceProjectAssetGroup } from '@/lib/novel-promotion/seedance-project-asset-group'
 
 type CharacterWithAppearances = NonNullable<Awaited<ReturnType<typeof loadCharacter>>>
 
@@ -92,38 +93,10 @@ function pickAppearanceImage(input: {
   return { imageUrl: selected, imageIndex: selectedIndex }
 }
 
-async function ensureAssetGroup(input: {
-  client: SeedanceAssetsClient
-  character: CharacterWithAppearances
-  projectName: string
-}) {
-  if (
-    input.character.seedanceAssetGroupId
-    && (input.character.seedanceAssetsProjectName || 'default') === input.projectName
-  ) {
-    return input.character.seedanceAssetGroupId
-  }
-
-  const group = await input.client.createAssetGroup({
-    name: input.character.name,
-    description: `Nori virtual human asset group for ${input.character.name}`,
-    projectName: input.projectName,
-  })
-  if (!group.Id) throw new Error('CreateAssetGroup did not return group id')
-
-  await prisma.novelPromotionCharacter.update({
-    where: { id: input.character.id },
-    data: {
-      seedanceAssetGroupId: group.Id,
-      seedanceAssetsProjectName: input.projectName,
-    },
-  })
-  return group.Id
-}
-
 async function syncPanelReferences(input: {
   projectId: string
   characterName: string
+  appearanceId: string
   assetUri: string
 }) {
   const panels = await prisma.novelPromotionPanel.findMany({
@@ -148,6 +121,7 @@ async function syncPanelReferences(input: {
   for (const panel of panels) {
     const nextActingNotes = replacePanelSeedanceReferenceAssetForCharacter(panel.actingNotes, {
       characterName: input.characterName,
+      appearanceId: input.appearanceId,
       assetUri: input.assetUri,
     })
     if (nextActingNotes === panel.actingNotes) continue
@@ -193,10 +167,10 @@ export const POST = apiHandler(async (
   const publicImageUrl = await resolvePublicImageUrl(imageUrl)
   const config = await getSeedanceAssetsConfig(authResult.session.user.id)
   const client = new SeedanceAssetsClient(config)
-  const groupId = await ensureAssetGroup({
+  const groupId = await ensureSeedanceProjectAssetGroup({
+    projectId,
+    volcengineProjectName: config.projectName,
     client,
-    character,
-    projectName: config.projectName,
   })
 
   const created = await client.createImageAsset({
@@ -209,22 +183,32 @@ export const POST = apiHandler(async (
 
   const assetUri = `asset://${created.Id}`
   const { status, error } = normalizeAssetStatus(created)
-  await prisma.characterAppearance.update({
-    where: { id: appearance.id },
-    data: {
-      seedanceAssetId: created.Id,
-      seedanceAssetUri: assetUri,
-      seedanceAssetStatus: status,
-      seedanceAssetError: error,
-      seedanceAssetImageUrl: imageUrl,
-      seedanceAssetSyncedAt: new Date(),
-    },
-  })
+  await prisma.$transaction([
+    prisma.novelPromotionCharacter.update({
+      where: { id: character.id },
+      data: {
+        seedanceAssetGroupId: groupId,
+        seedanceAssetsProjectName: config.projectName,
+      },
+    }),
+    prisma.characterAppearance.update({
+      where: { id: appearance.id },
+      data: {
+        seedanceAssetId: created.Id,
+        seedanceAssetUri: assetUri,
+        seedanceAssetStatus: status,
+        seedanceAssetError: error,
+        seedanceAssetImageUrl: imageUrl,
+        seedanceAssetSyncedAt: new Date(),
+      },
+    }),
+  ])
 
   if (status === 'Active') {
     await syncPanelReferences({
       projectId,
       characterName: character.name,
+      appearanceId: appearance.id,
       assetUri,
     })
   }
@@ -287,6 +271,7 @@ export const PATCH = apiHandler(async (
     await syncPanelReferences({
       projectId,
       characterName: character.name,
+      appearanceId: appearance.id,
       assetUri,
     })
   }

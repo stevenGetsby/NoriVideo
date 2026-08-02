@@ -5,10 +5,10 @@ import {
 } from '@/lib/home/default-route'
 
 describe('authenticated home default route', () => {
-  it('uses /projects as the only authenticated default pathname', () => {
-    expect(AUTHENTICATED_HOME_PATHNAME).toBe('/projects')
+  it('uses the FrameOS project area as the only authenticated default pathname', () => {
+    expect(AUTHENTICATED_HOME_PATHNAME).toBe('/works')
     expect(buildAuthenticatedHomeTarget()).toEqual({
-      pathname: '/projects',
+      pathname: '/works',
     })
   })
 })

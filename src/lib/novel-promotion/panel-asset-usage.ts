@@ -3,6 +3,7 @@ export const PANEL_ASSET_USAGE_CONFIRMATION_KEY = '_assetUsageConfirmation'
 export interface PanelCharacterAssetRef {
   name: string
   appearance?: string
+  appearanceId?: string
   slot?: string
 }
 
@@ -95,11 +96,12 @@ export function parsePanelCharacterRefs(value: unknown): PanelCharacterAssetRef[
     const name = normalizeName(item.name)
     if (!name) continue
     const appearance = normalizeName(item.appearance) ?? undefined
+    const appearanceId = normalizeName(item.appearanceId) ?? undefined
     const slot = normalizeName(item.slot) ?? undefined
-    const key = `${name}:${appearance ?? ''}:${slot ?? ''}`
+    const key = `${name}:${appearanceId ?? appearance ?? ''}:${slot ?? ''}`
     if (seen.has(key)) continue
     seen.add(key)
-    characters.push({ name, appearance, slot })
+    characters.push({ name, appearance, appearanceId, slot })
   }
   return characters
 }

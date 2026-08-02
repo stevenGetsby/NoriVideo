@@ -54,6 +54,9 @@ const promptMock = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/media/outbound-image', () => outboundMock)
+vi.mock('@/lib/frameos/material-service', () => ({
+  registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
+}))
 vi.mock('@/lib/logging/core', () => ({
   logInfo: vi.fn(),
   createScopedLogger: vi.fn(() => ({
@@ -110,6 +113,7 @@ describe('worker panel-variant-task-handler behavior', () => {
         return {
           id: 'panel-new',
           storyboardId: 'storyboard-1',
+          panelIndex: 4,
           panelNumber: 5,
           imageUrl: null,
           location: 'Old Town',

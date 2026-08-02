@@ -2,6 +2,10 @@ import {
   buildPreciseBeatVideoPrompt,
   summarizeVideoPromptBeat,
 } from '@/lib/novel-promotion/short-drama-video-prompt'
+import {
+  extractSeedanceVideoPromptBody,
+  isSeedanceVideoPromptBody,
+} from '@/lib/novel-promotion/seedance-prompt-assets'
 
 export type AgentPanelVideoPromptInput = {
   panelNumber?: number | null
@@ -61,22 +65,6 @@ function buildSegmentId(panelNumber: number | null | undefined): string {
   return `S01-SEG${String(number).padStart(2, '0')}`
 }
 
-function isPreciseSegmentVideoPrompt(prompt: string): boolean {
-  const text = prompt.trim()
-  return /^S\d{2}-SEG\d{2}\n/.test(text)
-    && text.includes('\n◎ 参考资产\n')
-    && text.includes('\n◎ 输出参数\n')
-    && text.includes('\n◈ 一致性控制\n')
-    && text.includes('\n◈ 视频提示词\n')
-    && text.includes('\n开场状态：\n')
-    && text.includes('\nShot 1\n')
-    && text.includes('\nduration: ')
-    && text.includes('\n镜头：')
-    && text.includes('\n画面：\n')
-    && text.includes('\n光影：')
-    && text.includes('\n【本分镜负面要求】')
-}
-
 function cleanLegacyPanelPrompt(value: string): string {
   const text = value
     .replace(/【Agent 视频分镜提示词】/g, '')
@@ -107,14 +95,14 @@ function buildFallbackPrecisePrompt(input: AgentPanelVideoPromptInput, duration:
   const noHuman = /不要真人|不要人脸|no\s*human|no\s*face/i.test(`${action}\n${clipContent}`)
   const noMusic = /不要背景音乐|无背景音乐|no\s*(background\s*)?music/i.test(`${action}\n${clipContent}`)
 
-  return buildPreciseBeatVideoPrompt({
+  return extractSeedanceVideoPromptBody(buildPreciseBeatVideoPrompt({
     segmentId: buildSegmentId(input.panelNumber),
     location,
     beat: action,
     durationSeconds: duration,
     characters: noHuman ? [] : characters.map((name) => ({ name })),
     props: props.map((name) => ({ name })),
-    sceneOpening: `${location}，按当前 panel 的剧情片段建立起始空间；主体、道具、入口方向和环境声保持连续<环境声、脚步声、衣料摩擦声>。`,
+    sceneOpening: `${location}，按当前 panel 的剧情片段建立起始空间；主体、道具、入口方向和环境声保持连续。${noHuman ? '不要真人、不要人脸、不要人体剪影。' : ''}<环境声、脚步声、衣料摩擦声>。`,
     lighting: `${readText(input.shotType) || '中景到近景'} 与 ${readText(input.cameraMove) || '固定或轻微推近'} 对应的主光保持稳定；主体动作区清晰，背景不抢戏。${noMusic ? '不要生成背景音乐。' : ''}`,
     dialogueInstruction: /英文|English|Dr\.|Nurse|Ava/i.test(`${action}\n${clipContent}`)
       ? '如本片段需要台词，使用简短自然英文台词并保持英文口型同步。'
@@ -123,14 +111,19 @@ function buildFallbackPrecisePrompt(input: AgentPanelVideoPromptInput, duration:
       noHuman ? '不要真人、不要人脸、不要人体剪影；只呈现锁定的产品、道具、场景和抽象视觉元素。' : '',
       noMusic ? '不要生成背景音乐，只保留必要环境声、脚步声、衣料摩擦声和道具声。' : '',
     ].filter(Boolean).join(' ') || undefined,
-  })
+  }))
 }
 
 export function ensureAgentPanelVideoPrompt(input: AgentPanelVideoPromptInput): AgentPanelVideoPromptResult {
   const currentPrompt = readText(input.videoPrompt)
   const duration = clampDuration(input.duration)
-  if (isPreciseSegmentVideoPrompt(currentPrompt)) {
-    return { videoPrompt: currentPrompt, duration, changed: false }
+  const normalizedCurrentPrompt = extractSeedanceVideoPromptBody(currentPrompt)
+  if (isSeedanceVideoPromptBody(normalizedCurrentPrompt)) {
+    return {
+      videoPrompt: normalizedCurrentPrompt,
+      duration,
+      changed: normalizedCurrentPrompt !== currentPrompt,
+    }
   }
 
   const prompt = buildFallbackPrecisePrompt(input, duration)

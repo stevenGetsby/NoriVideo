@@ -30,7 +30,7 @@ describe('api specific - user models default video', () => {
     vi.clearAllMocks()
   })
 
-  it('exposes default video model even when it is not duplicated in customModels', async () => {
+  it('exposes stable Mini, Fast and Pro Nori video tiers', async () => {
     prismaMock.userPreference.findUnique.mockResolvedValue({
       customModels: JSON.stringify([]),
       customProviders: JSON.stringify([
@@ -50,20 +50,35 @@ describe('api specific - user models default video', () => {
     })
 
     const res = await mod.GET(req, routeContext)
-    const body = await res.json() as { video: Array<{ value: string; providerName?: string }> }
+    const body = await res.json() as { video: Array<{ value: string; providerName?: string; tier?: string }> }
 
     expect(res.status).toBe(200)
     expect(body.video).toEqual([
       {
-        value: 'ark::doubao-seedance-1-0-pro-fast-251015',
-        label: 'doubao-seedance-1-0-pro-fast-251015',
-        provider: 'ark',
-        providerName: 'Volcengine Ark',
+        value: 'nori::seedance2.0-mini',
+        label: 'seedance2.0-mini',
+        provider: 'nori',
+        providerName: 'Nori Platform',
+        tier: 'mini',
+      },
+      {
+        value: 'nori::seedance2.0-fast',
+        label: 'seedance2.0-fast',
+        provider: 'nori',
+        providerName: 'Nori Platform',
+        tier: 'fast',
+      },
+      {
+        value: 'nori::seedance2.0',
+        label: 'seedance2.0-pro',
+        provider: 'nori',
+        providerName: 'Nori Platform',
+        tier: 'pro',
       },
     ])
   })
 
-  it('does not expose default video model when its provider has no api key', async () => {
+  it('does not disclose provider credential state through the business catalog', async () => {
     prismaMock.userPreference.findUnique.mockResolvedValue({
       customModels: JSON.stringify([]),
       customProviders: JSON.stringify([
@@ -85,6 +100,10 @@ describe('api specific - user models default video', () => {
     const body = await res.json() as { video: Array<{ value: string }> }
 
     expect(res.status).toBe(200)
-    expect(body.video).toEqual([])
+    expect(body.video.map((item) => item.value)).toEqual([
+      'nori::seedance2.0-mini',
+      'nori::seedance2.0-fast',
+      'nori::seedance2.0',
+    ])
   })
 })

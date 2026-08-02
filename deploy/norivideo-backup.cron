@@ -1,0 +1,1 @@
+17 3 * * * root NORI_APP_DIR=/opt/norivideo /opt/norivideo/scripts/production-backup.sh >> /opt/norivideo/docker-logs/backup.log 2>&1

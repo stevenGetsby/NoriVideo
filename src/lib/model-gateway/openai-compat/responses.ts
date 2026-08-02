@@ -10,12 +10,45 @@ type ResponsesUsage = {
 
 type ErrorWithStatus = Error & { status?: number }
 
+const OPENAI_COMPAT_RESPONSE_TIMEOUT_MS = 300_000
+const temperatureUnsupportedModels = new Set<string>()
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' ? (value as Record<string, unknown>) : null
 }
 
 function toEndpoint(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`
+}
+
+function temperatureCapabilityKey(providerId: string, modelId: string) {
+  return `${providerId.trim().toLowerCase()}::${modelId.trim().toLowerCase()}`
+}
+
+function isUnsupportedTemperatureResponse(status: number, body: string) {
+  if (status !== 400) return false
+  const normalized = body.toLowerCase()
+  return normalized.includes('temperature') && (
+    normalized.includes('unsupported parameter')
+    || normalized.includes('not supported')
+    || normalized.includes('unknown parameter')
+  )
+}
+
+async function postResponses(params: {
+  endpoint: string
+  apiKey: string
+  body: Record<string, unknown>
+}) {
+  return await fetch(params.endpoint, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${params.apiKey}`,
+    },
+    body: JSON.stringify(params.body),
+    signal: AbortSignal.timeout(OPENAI_COMPAT_RESPONSE_TIMEOUT_MS),
+  })
 }
 
 function collectText(node: unknown, acc: string[]) {
@@ -97,24 +130,50 @@ function extractResponsesUsage(payload: unknown): ResponsesUsage {
 export async function runOpenAICompatResponsesCompletion(input: OpenAICompatChatRequest) {
   const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId)
   const endpoint = toEndpoint(config.baseUrl, '/responses')
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${config.apiKey}`,
-    },
-    body: JSON.stringify({
-      model: input.modelId,
-      input: input.messages.map((message) => ({
-        role: message.role,
-        content: [{ type: 'input_text', text: message.content }],
-      })),
-      temperature: input.temperature,
-    }),
+  const capabilityKey = temperatureCapabilityKey(config.providerId, input.modelId)
+  const baseBody = {
+    model: input.modelId,
+    input: input.messages.map((message) => ({
+      role: message.role,
+      content: [{ type: 'input_text', text: message.content }],
+    })),
+  }
+  const includeTemperature = !temperatureUnsupportedModels.has(capabilityKey)
+  let response = await postResponses({
+    endpoint,
+    apiKey: config.apiKey,
+    body: includeTemperature
+      ? { ...baseBody, temperature: input.temperature }
+      : baseBody,
   })
 
   if (!response.ok) {
-    const errorBody = await response.text().catch(() => '')
+    let errorBody = await response.text().catch(() => '')
+    if (includeTemperature && isUnsupportedTemperatureResponse(response.status, errorBody)) {
+      temperatureUnsupportedModels.add(capabilityKey)
+      response = await postResponses({
+        endpoint,
+        apiKey: config.apiKey,
+        body: baseBody,
+      })
+      if (response.ok) {
+        errorBody = ''
+      } else {
+        errorBody = await response.text().catch(() => '')
+      }
+    }
+    if (response.ok) {
+      const payload = await response.json() as unknown
+      const text = extractResponsesText(payload)
+      const reasoning = extractResponsesReasoning(payload)
+      const usage = extractResponsesUsage(payload)
+
+      return buildOpenAIChatCompletion(
+        input.modelId,
+        buildReasoningAwareContent(text, reasoning),
+        usage,
+      )
+    }
     const error = new Error(
       `OPENAI_COMPAT_RESPONSES_FAILED: ${response.status} ${errorBody.slice(0, 300)}`,
     ) as ErrorWithStatus
@@ -133,4 +192,3 @@ export async function runOpenAICompatResponsesCompletion(input: OpenAICompatChat
     usage,
   )
 }
-

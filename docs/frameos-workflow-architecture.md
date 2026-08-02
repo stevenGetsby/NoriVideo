@@ -1535,9 +1535,9 @@ worker 失败更新 failed
   小屏保留原 CapsuleNav 和 EpisodeSelector。
   阶段文案改为：剧本解析、资产设定、分镜设计、镜头制作、导出交付。
 
-智能导入
+规则导入
   首次进入项目时不再显示“Agent 自动创作模式”卡片。
-  可见入口收敛为“从第一集开始创作”和“智能文本分集”。
+  可见入口收敛为“从第一集开始创作”和“按标题文本分集”。
   Agent/SuperInputBox 仅保留为内部恢复和后台能力，不作为创建项目的显式入口。
 ```
 
@@ -1585,12 +1585,12 @@ worker 失败更新 failed
   创建弹窗底部新增边界提示：智能执行能力由工作台阶段按钮触发，创建时只保留统一项目入口；页面文案不出现 Agent 模式选项。
   /super-agent 显式页面已改为重定向到 /projects；首页已删除旧 mode/agent 文案块，避免把内部自动执行能力作为外部入口。
   工作台内 Agent 修改和 Agent Workflow 浮动面板默认隐藏，仅在 NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS=true 时作为内部工具显示。
-  SmartImportWizard 已移除 Agent 创建分支和 agentCreate 文案；首次项目导入只保留手动创建与智能文本分集入口。
+  SmartImportWizard 已移除 Agent 创建分支和 agentCreate 文案；首次项目导入只保留手动创建与按标题文本分集入口。
   项目详情页已移除 Agent 运行恢复对导入向导的显式控制；普通剧本到分镜阶段运行继续以 srt workflowMode 保存，避免把阶段流标记成外部 Agent 项目。
   新增内部派生 /api/projects/:projectId/navigation-state，只读返回 navigationLocked 布尔值；该状态从 SUPER_AGENT_WORKFLOW_TYPE 的可恢复 GraphRun 派生，用于阻止后台自动执行期间的前端阶段跳转，但普通项目 API 不返回内部 runId/status/source，不作为外部 Agent 模式入口。
   工作台 useWorkspaceExecution 已优先读取 navigation-state；原 nori:super-agent-running:{projectId} 已降级为 5 分钟 sessionStorage 瞬时 hint，不再写 localStorage，刷新或跨标签页后的权威状态来自 GraphRun。
   项目详情页零状态自动建集也接入 navigation-state：后端确认内部自动执行 active 时不会抢先创建第一集；自动执行结束后刷新 projectData，若仍为空则显示导入向导而不是重复自动建集。
-  首页快速创建项目提交的故事正文已从 sessionStorage 桥接升级为 NovelPromotionProject.pendingImportText / pendingImportEpisodeName 后端持久化；工作台导入向导从 /api/projects/:projectId/data 读取 pending 初稿，手动创建单集或智能分集实际写入剧集后由后端派生 importStatus=completed 并清理 pending 字段。
+  首页快速创建项目提交的故事正文已从 sessionStorage 桥接升级为 NovelPromotionProject.pendingImportText / pendingImportEpisodeName 后端持久化；工作台导入向导从 /api/projects/:projectId/data 读取 pending 初稿，手动创建单集或按标题规则分集实际写入剧集后由后端派生 importStatus=completed 并清理 pending 字段。
   /api/projects/:projectId 主项目详情、重命名和删除已从 findUnique(id)+FORBIDDEN 收敛为按 id+当前 userId 查询；跨用户 projectId 统一按 NOT_FOUND 处理，后续 lastAccessedAt、update 和 delete 只使用已确认归属的 project.id。
   requireProjectAuth / requireProjectAuthLight 共享项目鉴权 helper 也已从 findUnique(id)+owner check 收敛为按 id+当前 userId 查询；复用这些 helper 的 workflow、novel-promotion、runs、export、canvas 等后端入口在跨用户 projectId 上统一表现为 NOT_FOUND，不再通过 403 暴露项目 ID 存在性。
   /api/projects/:projectId/data、/assets 和 /costs 也已收紧为当前 userId 作用域下的项目查询；未命中时不会继续读取 NovelPromotionProject、用户模型偏好、资产媒体签名或项目成本明细，避免通过附属接口探测其他用户项目存在性。

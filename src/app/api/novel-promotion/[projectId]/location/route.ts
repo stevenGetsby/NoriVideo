@@ -4,10 +4,15 @@ import { removeLocationPromptSuffix, isArtStyleValue, isCustomArtStyleValue, typ
 import {
   normalizeLocationAvailableSlots,
   stringifyLocationAvailableSlots,
+  stringifyLocationAvailableSlotsWithFrameOSMetadata,
 } from '@/lib/location-available-slots'
 import { requireProjectAuth, requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
+import {
+  buildEnvironmentFrameOSMetadata,
+  buildItemFrameOSMetadata,
+} from '@/lib/novel-promotion/asset-frameos-metadata'
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
   return value as Record<string, unknown>
@@ -72,6 +77,28 @@ export const POST = apiHandler(async (
   const description = normalizeString(body.description)
   const summary = normalizeString(body.summary)
   const availableSlots = normalizeLocationAvailableSlots(body.availableSlots)
+  const assetKind = normalizeString(body.assetKind) === 'prop' ? 'prop' : 'location'
+  const coverageEpisodes = Array.isArray(body.coverageEpisodes)
+    ? body.coverageEpisodes.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)
+    : []
+  const frameosMetadata = assetKind === 'prop'
+    ? buildItemFrameOSMetadata({
+        name,
+        item_type: normalizeString(body.itemType),
+        summary,
+        description,
+        background: summary,
+        coverage_episodes: coverageEpisodes,
+        prompt: description,
+      })
+    : buildEnvironmentFrameOSMetadata({
+        name,
+        summary,
+        description,
+        background: summary,
+        coverage_episodes: coverageEpisodes,
+        prompt: description,
+      })
   const count = Object.prototype.hasOwnProperty.call(body, 'count')
     ? normalizeImageGenerationCount('location', body.count)
     : 1
@@ -97,7 +124,8 @@ export const POST = apiHandler(async (
     data: {
       novelPromotionProjectId: novelData.id,
       name: name.trim(),
-      summary: summary || null
+      summary: summary || null,
+      assetKind,
     }
   })
 
@@ -107,7 +135,7 @@ export const POST = apiHandler(async (
       locationId: location.id,
       imageIndex,
       description: cleanDescription,
-      availableSlots: stringifyLocationAvailableSlots(availableSlots),
+      availableSlots: stringifyLocationAvailableSlotsWithFrameOSMetadata(availableSlots, frameosMetadata),
     })),
   })
 

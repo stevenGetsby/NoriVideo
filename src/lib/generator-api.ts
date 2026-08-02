@@ -20,10 +20,15 @@ import {
 } from './model-gateway'
 import { generateBailianAudio, generateBailianImage, generateBailianVideo } from './providers/bailian'
 import { generateSiliconFlowAudio, generateSiliconFlowImage, generateSiliconFlowVideo } from './providers/siliconflow'
+import { generateKuaiziAudio, generateKuaiziImage, generateKuaiziVideo } from './providers/kuaizi'
 import { generateHfsySd2Video } from './generators/hfsy-video'
 import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from './hfsy-fixed-models'
+import { resolveRuntimeModelKey } from './nori-model-catalog'
+import { parseModelKeyStrict } from './model-config-contract'
+import { recordServiceUsageInBackground } from './platform-services/usage'
+import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
-const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow'])
+const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow', 'kuaizi'])
 
 /**
  * 将 aspectRatio 映射为 OpenAI 兼容的 size
@@ -62,7 +67,7 @@ function withOpenAICompatSize<T extends Record<string, unknown>>(options: T): T 
  * @param prompt 提示词
  * @param options 生成选项
  */
-export async function generateImage(
+async function generateImageInternal(
     userId: string,
     modelKey: string,
     prompt: string,
@@ -70,15 +75,66 @@ export async function generateImage(
         referenceImages?: string[]
         aspectRatio?: string
         resolution?: string
+        quality?: 'low' | 'medium' | 'high'
         outputFormat?: string
         keepOriginalAspectRatio?: boolean  // 🔥 编辑时保持原图比例
         size?: string  // 🔥 直接指定像素尺寸如 "5016x3344"（优先于 aspectRatio）
+        editMode?: 'inpaint'
+        maskImage?: string
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'image')
     _ulogInfo(`[generateImage] resolved model selection: ${selection.modelKey}`)
     const providerConfig = await getProviderConfig(userId, selection.provider)
     const providerKey = getProviderKey(selection.provider).toLowerCase()
+    const { referenceImages, editMode, maskImage, ...generatorOptions } = options || {}
+    if (maskImage && editMode !== 'inpaint') {
+        throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: maskImage requires editMode=inpaint')
+    }
+    if (editMode === 'inpaint') {
+        assertCanvasImageInpaintSupported(modelKey)
+        if (!maskImage?.trim()) {
+            throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires maskImage')
+        }
+        if (referenceImages?.length !== 1) {
+            throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires exactly one source image')
+        }
+    }
+    const defaultGatewayRoute = resolveModelGatewayRoute(selection.provider)
+    let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
+        ? 'official'
+        : (providerConfig.gatewayRoute || defaultGatewayRoute)
+    if (providerKey === 'gemini-compatible') {
+        // DEPRECATED: historical rows persisted gemini-compatible as openai-compat by default.
+        // Runtime now resolves route by apiMode to avoid requiring data migration SQL.
+        gatewayRoute = providerConfig.apiMode === 'openai-official' ? 'openai-compat' : 'official'
+    }
+
+    // Mask-aware edits are a strict contract. Never downgrade a mask to a
+    // normal reference image or route it through an arbitrary media template.
+    if (editMode === 'inpaint') {
+        if (gatewayRoute !== 'openai-compat') {
+            throw new Error(`CANVAS_IMAGE_INPAINT_ROUTE_UNSUPPORTED: ${selection.modelKey}`)
+        }
+        const openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
+        if (openaiCompatOptions.aspectRatio) delete openaiCompatOptions.aspectRatio
+        return await generateImageViaOpenAICompat({
+            userId,
+            providerId: selection.provider,
+            modelId: selection.modelId,
+            prompt,
+            referenceImages,
+            editMode,
+            maskImage,
+            options: {
+                ...openaiCompatOptions,
+                provider: selection.provider,
+                modelId: selection.modelId,
+                modelKey: selection.modelKey,
+            },
+            profile: 'openai-compatible',
+        })
+    }
     if (providerKey === 'bailian') {
         return await generateBailianImage({
             userId,
@@ -105,18 +161,19 @@ export async function generateImage(
             },
         })
     }
-    const defaultGatewayRoute = resolveModelGatewayRoute(selection.provider)
-    let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
-        ? 'official'
-        : (providerConfig.gatewayRoute || defaultGatewayRoute)
-    if (providerKey === 'gemini-compatible') {
-        // DEPRECATED: historical rows persisted gemini-compatible as openai-compat by default.
-        // Runtime now resolves route by apiMode to avoid requiring data migration SQL.
-        gatewayRoute = providerConfig.apiMode === 'openai-official' ? 'openai-compat' : 'official'
+    if (providerKey === 'kuaizi') {
+        return await generateKuaiziImage({
+            userId,
+            prompt,
+            referenceImages: options?.referenceImages,
+            options: {
+                ...(generatorOptions || {}),
+                provider: selection.provider,
+                modelId: selection.modelId,
+                modelKey: selection.modelKey,
+            },
+        })
     }
-
-    // 调用生成（提取 referenceImages 单独传递，其余选项合并进 options）
-    const { referenceImages, ...generatorOptions } = options || {}
     if (gatewayRoute === 'openai-compat') {
         const compatTemplate = selection.compatMediaTemplate
         if (providerKey === 'openai-compatible' && !compatTemplate) {
@@ -143,7 +200,7 @@ export async function generateImage(
         }
 
         // OpenAI 兼容模式：将 aspectRatio 转换为 size
-        let openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
+        const openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
         if (openaiCompatOptions.aspectRatio) {
             // 移除不支持的 aspectRatio
             delete openaiCompatOptions.aspectRatio
@@ -179,6 +236,59 @@ export async function generateImage(
     })
 }
 
+export async function generateImage(
+    userId: string,
+    modelKey: string,
+    prompt: string,
+    options?: {
+        referenceImages?: string[]
+        aspectRatio?: string
+        resolution?: string
+        quality?: 'low' | 'medium' | 'high'
+        outputFormat?: string
+        keepOriginalAspectRatio?: boolean
+        size?: string
+        editMode?: 'inpaint'
+        maskImage?: string
+    },
+): Promise<GenerateResult> {
+    const startedAt = Date.now()
+    const runtimeModelKey = resolveRuntimeModelKey(modelKey) || modelKey
+    const parsed = parseModelKeyStrict(runtimeModelKey)
+    const requestedModel = parseModelKeyStrict(modelKey)
+    const usageModelKey = requestedModel?.provider === 'nori'
+        ? requestedModel.modelKey
+        : parsed?.modelKey || runtimeModelKey
+    try {
+        const result = await generateImageInternal(userId, modelKey, prompt, options)
+        recordServiceUsageInBackground({
+            provider: parsed?.provider || 'unknown',
+            modelKey: usageModelKey,
+            serviceType: 'image',
+            operation: 'generate-image',
+            status: result.success ? 'success' : 'failed',
+            userId,
+            latencyMs: Date.now() - startedAt,
+            units: result.imageUrls?.length || (result.success ? 1 : 0),
+            errorCode: result.success ? null : 'GENERATION_FAILED',
+        })
+        return result
+    } catch (error) {
+        recordServiceUsageInBackground({
+            provider: parsed?.provider || 'unknown',
+            modelKey: usageModelKey,
+            serviceType: 'image',
+            operation: 'generate-image',
+            status: 'failed',
+            userId,
+            latencyMs: Date.now() - startedAt,
+            units: 0,
+            errorCode: error instanceof Error ? error.name : 'GENERATION_ERROR',
+        })
+        throw error
+    }
+}
+
 /**
  * 生成视频（增强版）
  * 
@@ -187,7 +297,7 @@ export async function generateImage(
  * @param imageUrl 输入图片 URL
  * @param options 生成选项
  */
-export async function generateVideo(
+async function generateVideoInternal(
     userId: string,
     modelKey: string,
     imageUrl: string,
@@ -221,6 +331,19 @@ export async function generateVideo(
     }
     if (providerKey === 'siliconflow') {
         return await generateSiliconFlowVideo({
+            userId,
+            imageUrl,
+            prompt: options?.prompt,
+            options: {
+                ...(options || {}),
+                provider: selection.provider,
+                modelId: selection.modelId,
+                modelKey: selection.modelKey,
+            },
+        })
+    }
+    if (providerKey === 'kuaizi') {
+        return await generateKuaiziVideo({
             userId,
             imageUrl,
             prompt: options?.prompt,
@@ -311,6 +434,69 @@ export async function generateVideo(
     })
 }
 
+export async function generateVideo(
+    userId: string,
+    modelKey: string,
+    imageUrl: string,
+    options?: {
+        prompt?: string
+        referenceImages?: string[]
+        duration?: number
+        fps?: number
+        resolution?: string
+        aspectRatio?: string
+        generateAudio?: boolean
+        lastFrameImageUrl?: string
+        [key: string]: string | number | boolean | string[] | undefined
+    },
+): Promise<GenerateResult> {
+    const startedAt = Date.now()
+    const runtimeModelKey = resolveRuntimeModelKey(modelKey) || modelKey
+    const parsed = parseModelKeyStrict(runtimeModelKey)
+    const requestedDuration = typeof options?.duration === 'number' && Number.isFinite(options.duration) && options.duration > 0
+        ? options.duration
+        : 0
+    try {
+        const result = await generateVideoInternal(userId, modelKey, imageUrl, options)
+        const asyncSubmission = result.success
+            && !result.videoUrl
+            && Boolean(result.externalId || result.requestId || result.async)
+        // Async video generation is recorded once when the task reaches a
+        // terminal success and Ark's exact completion_tokens are available.
+        // Recording the submission here would double-count every Seedance job.
+        if (!asyncSubmission) {
+            recordServiceUsageInBackground({
+                provider: parsed?.provider || 'unknown',
+                modelKey: parsed?.modelKey || runtimeModelKey,
+                serviceType: 'video',
+                operation: 'generate-video',
+                status: result.success ? 'success' : 'failed',
+                userId,
+                latencyMs: Date.now() - startedAt,
+                // Video units are duration seconds. Call count is derived from
+                // successful record rows, so these two metrics no longer
+                // overwrite each other in the usage report.
+                units: result.success ? requestedDuration : 0,
+                errorCode: result.success ? null : 'GENERATION_FAILED',
+            })
+        }
+        return result
+    } catch (error) {
+        recordServiceUsageInBackground({
+            provider: parsed?.provider || 'unknown',
+            modelKey: parsed?.modelKey || runtimeModelKey,
+            serviceType: 'video',
+            operation: 'generate-video',
+            status: 'failed',
+            userId,
+            latencyMs: Date.now() - startedAt,
+            units: 0,
+            errorCode: error instanceof Error ? error.name : 'GENERATION_ERROR',
+        })
+        throw error
+    }
+}
+
 /**
  * 生成语音
  */
@@ -323,45 +509,83 @@ export async function generateAudio(
         rate?: number
     }
 ): Promise<GenerateResult> {
-    const selection = await resolveModelSelection(userId, modelKey, 'audio')
-    const providerKey = getProviderKey(selection.provider).toLowerCase()
-    if (providerKey === 'bailian') {
-        return await generateBailianAudio({
+    const startedAt = Date.now()
+    const runtimeModelKey = resolveRuntimeModelKey(modelKey) || modelKey
+    const parsed = parseModelKeyStrict(runtimeModelKey)
+    try {
+        const selection = await resolveModelSelection(userId, modelKey, 'audio')
+        const providerKey = getProviderKey(selection.provider).toLowerCase()
+        const result = providerKey === 'bailian'
+            ? await generateBailianAudio({
+                userId,
+                text,
+                voice: options?.voice,
+                rate: options?.rate,
+                options: {
+                    provider: selection.provider,
+                    modelId: selection.modelId,
+                    modelKey: selection.modelKey,
+                },
+            })
+            : providerKey === 'siliconflow'
+                ? await generateSiliconFlowAudio({
+                    userId,
+                    text,
+                    voice: options?.voice,
+                    rate: options?.rate,
+                    options: {
+                        provider: selection.provider,
+                        modelId: selection.modelId,
+                        modelKey: selection.modelKey,
+                    },
+                })
+                : providerKey === 'kuaizi'
+                    ? await generateKuaiziAudio({
+                        userId,
+                        text,
+                        voice: options?.voice,
+                        rate: options?.rate,
+                        options: {
+                            provider: selection.provider,
+                            modelId: selection.modelId,
+                            modelKey: selection.modelKey,
+                        },
+                    })
+                : await createAudioGenerator(selection.provider).generate({
+                    userId,
+                    text,
+                    voice: options?.voice,
+                    rate: options?.rate,
+                    options: {
+                        provider: selection.provider,
+                        modelId: selection.modelId,
+                        modelKey: selection.modelKey,
+                    },
+                })
+        recordServiceUsageInBackground({
+            provider: parsed?.provider || 'unknown',
+            modelKey: parsed?.modelKey || runtimeModelKey,
+            serviceType: 'audio',
+            operation: 'generate-audio',
+            status: result.success ? 'success' : 'failed',
             userId,
-            text,
-            voice: options?.voice,
-            rate: options?.rate,
-            options: {
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
+            latencyMs: Date.now() - startedAt,
+            units: result.success ? 1 : 0,
+            errorCode: result.success ? null : 'GENERATION_FAILED',
         })
-    }
-    if (providerKey === 'siliconflow') {
-        return await generateSiliconFlowAudio({
+        return result
+    } catch (error) {
+        recordServiceUsageInBackground({
+            provider: parsed?.provider || 'unknown',
+            modelKey: parsed?.modelKey || runtimeModelKey,
+            serviceType: 'audio',
+            operation: 'generate-audio',
+            status: 'failed',
             userId,
-            text,
-            voice: options?.voice,
-            rate: options?.rate,
-            options: {
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
+            latencyMs: Date.now() - startedAt,
+            units: 0,
+            errorCode: error instanceof Error ? error.name : 'GENERATION_ERROR',
         })
+        throw error
     }
-    const generator = createAudioGenerator(selection.provider)
-
-    return generator.generate({
-        userId,
-        text,
-        voice: options?.voice,
-        rate: options?.rate,
-        options: {
-            provider: selection.provider,
-            modelId: selection.modelId,
-            modelKey: selection.modelKey,
-        },
-    })
 }

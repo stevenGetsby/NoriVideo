@@ -5,7 +5,7 @@ import path from 'node:path'
 const CAPABILITY_NAMESPACES = new Set(['llm', 'image', 'video', 'audio', 'lipsync'])
 const CAPABILITY_NAMESPACE_ALLOWED_FIELDS = {
   llm: new Set(['reasoningEffortOptions', 'fieldI18n']),
-  image: new Set(['resolutionOptions', 'fieldI18n']),
+  image: new Set(['resolutionOptions', 'supportsInpaint', 'inputSchema', 'fieldI18n']),
   video: new Set([
     'generationModeOptions',
     'generateAudioOptions',
@@ -14,9 +14,20 @@ const CAPABILITY_NAMESPACE_ALLOWED_FIELDS = {
     'resolutionOptions',
     'firstlastframe',
     'supportGenerateAudio',
+    'inputSchema',
     'fieldI18n',
   ]),
-  audio: new Set(['voiceOptions', 'rateOptions', 'fieldI18n']),
+  audio: new Set([
+    'modeOptions',
+    'voiceOptions',
+    'rateOptions',
+    'durationOptions',
+    'minDurationSeconds',
+    'maxDurationSeconds',
+    'durationStepSeconds',
+    'inputSchema',
+    'fieldI18n',
+  ]),
   lipsync: new Set(['modeOptions', 'fieldI18n']),
 }
 const CAPABILITY_NAMESPACE_I18N_FIELDS = {
@@ -29,7 +40,12 @@ const CAPABILITY_NAMESPACE_I18N_FIELDS = {
     fps: 'fpsOptions',
     resolution: 'resolutionOptions',
   },
-  audio: { voice: 'voiceOptions', rate: 'rateOptions' },
+  audio: {
+    mode: 'modeOptions',
+    voice: 'voiceOptions',
+    rate: 'rateOptions',
+    duration: 'durationOptions',
+  },
   lipsync: { mode: 'modeOptions' },
 }
 const MODEL_TYPES = new Set(['llm', 'image', 'video', 'audio', 'lipsync'])
@@ -195,6 +211,9 @@ function validateCapabilitiesForModelType(issues, file, index, modelType, capabi
       if (image.resolutionOptions !== undefined && !isStringArray(image.resolutionOptions)) {
         pushIssue(issues, file, index, 'capabilities.image.resolutionOptions', 'must be string array')
       }
+      if (image.supportsInpaint !== undefined && typeof image.supportsInpaint !== 'boolean') {
+        pushIssue(issues, file, index, 'capabilities.image.supportsInpaint', 'must be boolean')
+      }
       validateFieldI18nMap(issues, file, index, 'image', image)
     }
   }
@@ -241,6 +260,36 @@ function validateCapabilitiesForModelType(issues, file, index, modelType, capabi
       }
       if (audio.rateOptions !== undefined && !isStringArray(audio.rateOptions)) {
         pushIssue(issues, file, index, 'capabilities.audio.rateOptions', 'must be string array')
+      }
+      if (audio.modeOptions !== undefined && (
+        !isStringArray(audio.modeOptions)
+        || audio.modeOptions.some((mode) => !['music', 'tts', 'sfx'].includes(mode))
+      )) {
+        pushIssue(issues, file, index, 'capabilities.audio.modeOptions', 'must only contain music/tts/sfx')
+      }
+      if (audio.durationOptions !== undefined && !isNumberArray(audio.durationOptions)) {
+        pushIssue(issues, file, index, 'capabilities.audio.durationOptions', 'must be number array')
+      }
+      for (const field of ['minDurationSeconds', 'maxDurationSeconds', 'durationStepSeconds']) {
+        const value = audio[field]
+        if (value !== undefined && (typeof value !== 'number' || !Number.isFinite(value) || value <= 0)) {
+          pushIssue(issues, file, index, `capabilities.audio.${field}`, 'must be a finite number greater than 0')
+        }
+      }
+      if (
+        typeof audio.minDurationSeconds === 'number'
+        && Number.isFinite(audio.minDurationSeconds)
+        && typeof audio.maxDurationSeconds === 'number'
+        && Number.isFinite(audio.maxDurationSeconds)
+        && audio.minDurationSeconds > audio.maxDurationSeconds
+      ) {
+        pushIssue(
+          issues,
+          file,
+          index,
+          'capabilities.audio.maxDurationSeconds',
+          'must be greater than or equal to minDurationSeconds',
+        )
       }
       validateFieldI18nMap(issues, file, index, 'audio', audio)
     }

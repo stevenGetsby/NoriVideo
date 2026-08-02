@@ -5,6 +5,7 @@ import { getPublicBaseUrl } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { generateUniqueKey, getSignedObjectUrl, uploadObject } from '@/lib/storage'
 import { serializeVideoEnhanceTask, toNullableJson } from '@/lib/video-enhance/history'
+import { requireGenerationCredit } from '@/lib/billing'
 import {
   MediaKitError,
   type MediaKitEnhanceVideoPayload,
@@ -222,6 +223,9 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
+  // MediaKit is a direct external generation submission rather than a queued
+  // Nori task, so it must use the same zero-credit preflight explicitly.
+  await requireGenerationCredit(session.user.id)
 
   const formData = await request.formData()
   const uploadedFile = formData.get('file')

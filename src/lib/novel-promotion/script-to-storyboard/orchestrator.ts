@@ -224,8 +224,10 @@ function parseScreenplay(raw: string | null): unknown {
   if (!raw) return null
   try {
     return JSON.parse(raw)
-  } catch (error) {
-    throw new Error(`Invalid clip screenplay JSON: ${error instanceof Error ? error.message : String(error)}`)
+  } catch {
+    // Legacy imports stored the readable screenplay directly in this column.
+    // Treat it as plain clip text; wrapping it as JSON changes prompt semantics.
+    return null
   }
 }
 
@@ -295,17 +297,17 @@ function buildShortDramaPanelFromClip(clip: ClipInput, panelNumber: number): Sto
       composition: '严格按视频提示词中的人物站位、前景遮挡、景别和构图执行',
       lighting: isFantasy
         ? '柔和月光、温暖微光和童话森林环境光保持一致'
-        : isChina
-          ? '符合中国真实生活场景的自然光或室内光，按片段场景保持一致'
-          : isWesternMedical
-            ? '现代美国医院冷白顶灯、手术区或走廊医疗灯光，英文标识环境保持一致'
+        : isWesternMedical
+          ? '现代美国医院冷白顶灯、手术区或走廊医疗灯光，英文标识环境保持一致'
+          : isChina
+            ? '符合中国真实生活场景的自然光或室内光，按片段场景保持一致'
             : '真实短剧光线，按片段场景保持一致',
       colorPalette: isFantasy
         ? '夜蓝、月光银、萤火虫暖黄绿色，温柔童话质感'
-        : isChina
-          ? '真实中国生活空间色调，自然、克制、可拍摄'
-          : isWesternMedical
-            ? '白色、浅蓝和冷绿色医疗色调，真实欧美医疗短剧质感'
+        : isWesternMedical
+          ? '白色、浅蓝和冷绿色医疗色调，真实欧美医疗短剧质感'
+          : isChina
+            ? '真实中国生活空间色调，自然、克制、可拍摄'
             : '真实真人短剧质感，色调按故事地域和场景统一',
       atmosphere: isFantasy
         ? '可爱童话短片，温柔、善良、清澈'

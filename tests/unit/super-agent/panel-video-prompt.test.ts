@@ -18,13 +18,7 @@ describe('ensureAgentPanelVideoPrompt', () => {
 
     expect(result.changed).toBe(true)
     expect(result.duration).toBe(8)
-    expect(result.videoPrompt).toMatch(/^S01-SEG02\n现代极简工作台\n8s/)
-    expect(result.videoPrompt).toContain('◎ 参考资产')
-    expect(result.videoPrompt).toContain('角色\n无')
-    expect(result.videoPrompt).toContain('物品\nNori Cube')
-    expect(result.videoPrompt).toContain('◈ 一致性控制')
-    expect(result.videoPrompt).toContain('◈ 视频提示词')
-    expect(result.videoPrompt).toContain('开场状态：')
+    expect(result.videoPrompt).toMatch(/^开场状态：\n/)
     expect(result.videoPrompt).toContain('Shot 1')
     expect(result.videoPrompt).toContain('duration:')
     expect(result.videoPrompt).toContain('镜头：')
@@ -33,6 +27,9 @@ describe('ensureAgentPanelVideoPrompt', () => {
     expect(result.videoPrompt).not.toContain('【Agent 视频分镜提示词】')
     expect(result.videoPrompt).not.toContain('本 panel 动作/台词')
     expect(result.videoPrompt).not.toContain('视频提示：')
+    expect(result.videoPrompt).not.toContain('◎ 参考资产')
+    expect(result.videoPrompt).not.toContain('◈ 视频提示词')
+    expect(result.videoPrompt).not.toContain('【本分镜负面要求】')
     expect(result.videoPrompt).toContain('不要真人、不要人脸')
     expect(result.videoPrompt).toContain('不要生成背景音乐')
   })
@@ -51,8 +48,17 @@ describe('ensureAgentPanelVideoPrompt', () => {
       duration: 4,
     })
 
-    expect(result.changed).toBe(false)
-    expect(result.videoPrompt).toBe(prompt)
+    expect(result.changed).toBe(true)
+    expect(result.videoPrompt).toMatch(/^开场状态：\n/)
+    expect(result.videoPrompt).not.toContain('S01-SEG01')
+    expect(result.videoPrompt).not.toContain('◈ 视频提示词')
+
+    const secondPass = ensureAgentPanelVideoPrompt({
+      videoPrompt: result.videoPrompt,
+      duration: 4,
+    })
+    expect(secondPass.changed).toBe(false)
+    expect(secondPass.videoPrompt).toBe(result.videoPrompt)
   })
 
   it('converts legacy double Agent wrappers into the precise segment format', () => {
@@ -71,10 +77,10 @@ describe('ensureAgentPanelVideoPrompt', () => {
     })
 
     expect(result.changed).toBe(true)
-    expect(result.videoPrompt).toMatch(/^S01-SEG01\n/)
-    expect(result.videoPrompt).toContain('◎ 参考资产')
-    expect(result.videoPrompt).toContain('◈ 视频提示词')
+    expect(result.videoPrompt).toMatch(/^开场状态：\n/)
     expect(result.videoPrompt).toContain('Shot 1')
+    expect(result.videoPrompt).not.toContain('◎ 参考资产')
+    expect(result.videoPrompt).not.toContain('◈ 视频提示词')
     expect(result.videoPrompt).not.toContain('【Agent 视频分镜提示词】')
     expect(result.videoPrompt).not.toContain('本 panel 动作/台词')
     expect(result.videoPrompt).not.toContain('视频提示：')

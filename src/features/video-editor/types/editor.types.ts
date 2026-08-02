@@ -49,8 +49,26 @@ export interface VideoClip {
     // 转场 (与下一个片段的过渡)
     transition?: ClipTransition
 
+    // 从原视频中分离出的源音频。detached=true 时视频轨静音，
+    // 同一媒体源会在独立音频轨按相同入点播放。
+    sourceAudio?: {
+        detached: boolean
+        volume: number
+        segments?: SourceAudioSegment[]
+    }
+
     // AI 元数据 (用于回溯)
     metadata: ClipMetadata
+}
+
+export interface SourceAudioSegment {
+    id: string
+    from: number
+    to: number
+    volume: number
+    // Absolute placement on the assembled episode timeline. Older projects
+    // omit this value and continue to follow their owning video clip.
+    timelineStartFrame?: number
 }
 
 /**
@@ -83,6 +101,10 @@ export interface ClipMetadata {
     panelId: string
     storyboardId: string
     description?: string
+    sceneLabel?: string
+    segmentLabel?: string
+    imageUrl?: string | null
+    sourceDurationInFrames?: number
 }
 
 /**

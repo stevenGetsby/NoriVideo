@@ -1,15 +1,6 @@
-import { FrameFeatureHubPage } from '@/components/workspace/FrameFeatureHubPage'
-import { FrameTeamDashboard } from '@/components/workspace/FrameTeamDashboard'
+import { redirect } from 'next/navigation'
 
-export default function TeamPage() {
-  return (
-    <FrameFeatureHubPage
-      activeKey="team"
-      pageKey="team"
-      icon="userRoundCog"
-      primaryAction={{ href: { pathname: '/projects' }, labelKey: 'openProjects', icon: 'monitor' }}
-    >
-      <FrameTeamDashboard />
-    </FrameFeatureHubPage>
-  )
+export default async function TeamPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params
+  redirect(`/${locale}/account-management`)
 }

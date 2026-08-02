@@ -85,6 +85,9 @@ export async function chatCompletionWithVision(
   const resolvedModelId = selection.modelId
   const provider = selection.provider
   const providerKey = getProviderKey(provider).toLowerCase()
+  const projectId = typeof options.projectId === 'string' && options.projectId.trim()
+    ? options.projectId.trim()
+    : undefined
 
   const { temperature = 0.7, maxRetries = 2, reasoning = true } = options
 
@@ -92,6 +95,15 @@ export async function chatCompletionWithVision(
 
   for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
     const attemptStartedAt = Date.now()
+    const recordUsage = (completion: OpenAI.Chat.Completions.ChatCompletion) =>
+      recordCompletionUsage(resolvedModelId, completion, {
+        userId,
+        provider,
+        modelKey: selection.modelKey,
+        projectId,
+        operation: options.action || 'vision-completion',
+        latencyMs: Date.now() - attemptStartedAt,
+      })
     try {
       const providerConfig = await getProviderConfig(userId, provider)
       if (providerKey === 'google' || providerKey === 'gemini-compatible') {
@@ -136,7 +148,7 @@ export async function chatCompletionWithVision(
           },
         })
         const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage)
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         return completion
       }
 
@@ -183,7 +195,7 @@ export async function chatCompletionWithVision(
           },
         })
         const completion = buildOpenAIChatCompletion(resolvedModelId, text, usage)
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         return completion
       }
 
@@ -212,7 +224,7 @@ export async function chatCompletionWithVision(
           baseUrl: providerConfig.baseUrl,
           temperature,
         })
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         llmLogger.info({
           action: 'llm.vision.success',
           message: 'llm vision call succeeded',
@@ -237,7 +249,7 @@ export async function chatCompletionWithVision(
           messages: [{ role: 'user', content: prompt }],
           temperature,
         })
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         llmLogger.info({
           action: 'llm.vision.success',
           message: 'llm vision call succeeded',
@@ -262,7 +274,7 @@ export async function chatCompletionWithVision(
           messages: [{ role: 'user', content: prompt }],
           temperature,
         })
-        recordCompletionUsage(resolvedModelId, completion)
+        recordUsage(completion)
         llmLogger.info({
           action: 'llm.vision.success',
           message: 'llm vision call succeeded',
@@ -312,7 +324,7 @@ export async function chatCompletionWithVision(
         messages: [{ role: 'user', content }],
         temperature,
       })
-      recordCompletionUsage(resolvedModelId, completion as OpenAI.Chat.Completions.ChatCompletion)
+      recordUsage(completion as OpenAI.Chat.Completions.ChatCompletion)
       llmLogger.info({
         action: 'llm.vision.success',
         message: 'llm vision call succeeded',

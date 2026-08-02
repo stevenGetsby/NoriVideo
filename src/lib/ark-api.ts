@@ -78,7 +78,7 @@ interface ArkVideoTaskRequest {
         role?: 'first_frame' | 'last_frame' | 'reference_image' | 'reference_video' | 'reference_audio'
         draft_task?: { id: string }
     }>
-    resolution?: '480p' | '720p' | '1080p'
+    resolution?: '480p' | '720p' | '1080p' | '4k'
     ratio?: string
     duration?: number
     frames?: number
@@ -170,7 +170,7 @@ function validateArkVideoTaskRequest(request: ArkVideoTaskRequest) {
         throw new Error(`ARK_VIDEO_REQUEST_INVALID: ratio=${request.ratio}`)
     }
 
-    if (request.resolution !== undefined && request.resolution !== '480p' && request.resolution !== '720p' && request.resolution !== '1080p') {
+    if (request.resolution !== undefined && request.resolution !== '480p' && request.resolution !== '720p' && request.resolution !== '1080p' && request.resolution !== '4k') {
         throw new Error(`ARK_VIDEO_REQUEST_INVALID: resolution=${request.resolution}`)
     }
 
@@ -305,6 +305,37 @@ function validateArkVideoTaskRequest(request: ArkVideoTaskRequest) {
         }
 
         throw new Error(`ARK_VIDEO_REQUEST_INVALID: ${path}.type=${String((item as { type?: unknown }).type)}`)
+    }
+
+    const imageItems = request.content.filter((item) => item.type === 'image_url')
+    const referenceImageCount = imageItems.filter((item) => item.role === 'reference_image').length
+    const firstFrameCount = imageItems.filter((item) => item.role === undefined || item.role === 'first_frame').length
+    const lastFrameCount = imageItems.filter((item) => item.role === 'last_frame').length
+    const referenceVideoCount = request.content.filter((item) => item.type === 'video_url').length
+    const referenceAudioCount = request.content.filter((item) => item.type === 'audio_url').length
+    const hasReferenceMedia = referenceImageCount + referenceVideoCount + referenceAudioCount > 0
+    const hasFrameMedia = firstFrameCount + lastFrameCount > 0
+
+    if (hasReferenceMedia && hasFrameMedia) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: reference media cannot be mixed with first/last frame images')
+    }
+    if (referenceImageCount > 9) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: reference images supports at most 9 images')
+    }
+    if (referenceVideoCount > 3) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: reference videos supports at most 3 videos')
+    }
+    if (referenceAudioCount > 3) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: reference audios supports at most 3 audios')
+    }
+    if (referenceAudioCount > 0 && referenceImageCount + referenceVideoCount === 0) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: reference audio requires a reference image or video')
+    }
+    if (lastFrameCount > 0 && (firstFrameCount !== 1 || lastFrameCount !== 1)) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: first/last frame mode requires exactly one first and one last frame')
+    }
+    if (lastFrameCount === 0 && firstFrameCount > 1) {
+        throw new Error('ARK_VIDEO_REQUEST_INVALID: first frame mode supports exactly one image')
     }
 }
 

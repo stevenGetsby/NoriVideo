@@ -3,6 +3,8 @@ import { getBalance } from '@/lib/billing'
 import { getVisibleUserTotalSpent } from '@/lib/billing/reporting'
 import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { toMoneyNumber } from '@/lib/billing/money'
+import { cnyToPoints } from '@/lib/billing/credit-policy'
+import { calcImage, calcText, calcVideo, calcVideoByTokens, calcVoice } from '@/lib/billing/cost'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 import { listBuiltinPricingCatalog, type PricingApiType } from '@/lib/model-pricing/catalog'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
@@ -142,8 +144,243 @@ async function readUsageCosts(userId: string) {
   return await prisma.usageCost.findMany({
     where: { userId },
     orderBy: { createdAt: 'desc' },
-    take: 200,
+    take: 5_000,
   })
+}
+
+type ReportProject = {
+  id: string
+  name: string
+  workId: string
+  work: { id: string; name: string }
+}
+
+type ReportAccount = {
+  id: string
+  name: string
+  role: string
+  roleLabel: string | null
+}
+
+type RawServiceUsage = {
+  id: bigint | number | string
+  userId: string | null
+  projectId: string | null
+  modelKey: string | null
+  serviceType: string
+  operation: string
+  status: string
+  inputTokens: number
+  outputTokens: number
+  units: number | { toString(): string }
+  createdAt: Date
+}
+
+function reportDay(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
+function reportApiType(value: string) {
+  if (value === 'llm' || value === 'video-repaint') return 'text'
+  if (value === 'audio') return 'voice'
+  return value || 'other'
+}
+
+function reportModelLabel(value: string | null) {
+  const source = value?.trim() || '未记录模型'
+  const last = source.includes('::') ? source.split('::').pop() || source : source
+  return last.replace(/^ep-[a-z0-9-]+$/i, '方舟接入点').replace(/[-_]+/g, ' ')
+}
+
+function estimateServiceUsageCost(row: RawServiceUsage) {
+  if (row.status === 'failed' || !row.modelKey) return 0
+  const units = Math.max(0, Number(row.units) || 0)
+  try {
+    const apiType = reportApiType(row.serviceType)
+    if (apiType === 'text') return calcText(row.modelKey, row.inputTokens, row.outputTokens)
+    if (apiType === 'image') return calcImage(row.modelKey, Math.max(1, units))
+    if (apiType === 'video') {
+      if (row.outputTokens > 0) return calcVideoByTokens(row.modelKey, row.outputTokens, {
+        containsVideoInput: row.operation.endsWith(':video-input'),
+      })
+      return calcVideo(row.modelKey, '720p', Math.max(1, units))
+    }
+    if (apiType === 'voice') return calcVoice(Math.max(1, units))
+  } catch {
+    // A custom model may not have a built-in price. Actual billing rows below
+    // still provide the authoritative amount when a matching record exists.
+  }
+  return 0
+}
+
+function usageBucket(userId: string | null, projectId: string | null, apiType: string, model: string | null, createdAt: Date) {
+  return [userId || 'system', projectId || 'workspace', reportApiType(apiType), model || 'unknown', reportDay(createdAt)].join('\u0000')
+}
+
+async function buildFilterableReport(userId: string) {
+  const prismaModels = prisma as unknown as {
+    user?: { findMany(args: unknown): Promise<ReportAccount[]> }
+    project?: { findMany(args: unknown): Promise<ReportProject[]> }
+    serviceUsageRecord?: { findMany(args: unknown): Promise<RawServiceUsage[]> }
+  }
+  if (!prismaModels.user?.findMany || !prismaModels.project?.findMany || !prismaModels.serviceUsageRecord?.findMany) {
+    return {
+      records: [],
+      options: { works: [], projects: [], accounts: [], services: [], models: [] },
+      generatedAt: new Date().toISOString(),
+    }
+  }
+
+  const since = new Date(Date.now() - 180 * 24 * 60 * 60 * 1_000)
+  const [accounts, projects] = await Promise.all([
+    prismaModels.user.findMany({
+      where: { OR: [{ id: userId }, { workspaceOwnerId: userId }], status: 'active' },
+      select: { id: true, name: true, role: true, roleLabel: true },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    }),
+    prismaModels.project.findMany({
+      where: { userId },
+      select: { id: true, name: true, workId: true, work: { select: { id: true, name: true } } },
+      orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
+    }),
+  ])
+  const accountIds = accounts.map((account) => account.id)
+  const [rawRecords, teamUsageCostsRaw] = accountIds.length > 0
+    ? await Promise.all([
+      prismaModels.serviceUsageRecord.findMany({
+        where: { userId: { in: accountIds }, createdAt: { gte: since } },
+        select: {
+          id: true,
+          userId: true,
+          projectId: true,
+          modelKey: true,
+          serviceType: true,
+          operation: true,
+          status: true,
+          inputTokens: true,
+          outputTokens: true,
+          units: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 5_000,
+      }),
+      prisma.usageCost.findMany({
+        where: { userId: { in: accountIds }, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 5_000,
+      }),
+    ])
+    : [[], []] as [RawServiceUsage[], UsageCostRow[]]
+  const teamUsageCosts = teamUsageCostsRaw.filter((row) => !isInternalUsageCost(row))
+
+  const accountMap = new Map(accounts.map((account) => [account.id, account]))
+  const projectMap = new Map(projects.map((project) => [project.id, project]))
+  const billedBuckets = new Map<string, { total: number; remaining: number; count: number }>()
+  for (const row of teamUsageCosts) {
+    const key = usageBucket(row.userId, row.projectId, row.apiType, row.model, row.createdAt)
+    const current = billedBuckets.get(key) || { total: 0, remaining: 0, count: 0 }
+    const amount = toMoneyNumber(row.cost)
+    current.total += amount
+    current.remaining += amount
+    current.count += 1
+    billedBuckets.set(key, current)
+  }
+  const serviceBucketCounts = new Map<string, number>()
+  for (const row of rawRecords) {
+    if (row.status === 'failed') continue
+    const key = usageBucket(row.userId, row.projectId, row.serviceType, row.modelKey, row.createdAt)
+    serviceBucketCounts.set(key, (serviceBucketCounts.get(key) || 0) + 1)
+  }
+
+  const consumedBillingBuckets = new Set<string>()
+  const records = rawRecords.map((row) => {
+    const key = usageBucket(row.userId, row.projectId, row.serviceType, row.modelKey, row.createdAt)
+    const billed = billedBuckets.get(key)
+    const divisor = Math.max(1, serviceBucketCounts.get(key) || 1)
+    const actualShare = billed ? billed.total / divisor : null
+    if (billed) consumedBillingBuckets.add(key)
+    const cost = row.status === 'failed' ? 0 : Math.max(0, actualShare ?? estimateServiceUsageCost(row))
+    const project = row.projectId ? projectMap.get(row.projectId) : null
+    const account = row.userId ? accountMap.get(row.userId) : null
+    return {
+      id: String(row.id),
+      projectId: project?.id || null,
+      projectName: project?.name || '工作区服务',
+      workId: project?.work.id || null,
+      workName: project?.work.name || '未归属作品',
+      accountId: account?.id || null,
+      accountName: account?.name || '系统任务',
+      accountRole: account?.roleLabel || account?.role || '',
+      serviceType: reportApiType(row.serviceType),
+      operation: row.operation,
+      modelKey: row.modelKey || 'unknown',
+      modelName: reportModelLabel(row.modelKey),
+      status: row.status === 'failed' ? 'failed' : 'success',
+      inputTokens: Math.max(0, row.inputTokens || 0),
+      outputTokens: Math.max(0, row.outputTokens || 0),
+      units: Math.max(0, Number(row.units) || 0),
+      cost,
+      points: cnyToPoints(cost),
+      createdAt: row.createdAt.toISOString(),
+    }
+  })
+
+  // Older records may predate service-level telemetry. Preserve their real
+  // billing amount as a friendly report row instead of silently dropping it.
+  for (const row of teamUsageCosts) {
+    const key = usageBucket(row.userId, row.projectId, row.apiType, row.model, row.createdAt)
+    if (consumedBillingBuckets.has(key)) continue
+    const project = projectMap.get(row.projectId)
+    const account = accountMap.get(row.userId)
+    const tokens = usageTokenCounts(row.metadata)
+    const cost = Math.max(0, toMoneyNumber(row.cost))
+    records.push({
+      id: `billing-${row.id}`,
+      projectId: project?.id || null,
+      projectName: project?.name || '工作区服务',
+      workId: project?.work.id || null,
+      workName: project?.work.name || '未归属作品',
+      accountId: account?.id || null,
+      accountName: account?.name || '管理账号',
+      accountRole: account?.roleLabel || account?.role || '',
+      serviceType: reportApiType(row.apiType),
+      operation: row.action,
+      modelKey: row.model || 'unknown',
+      modelName: reportModelLabel(row.model),
+      status: 'success',
+      inputTokens: tokens.inputTokens,
+      outputTokens: tokens.outputTokens,
+      units: Math.max(0, row.quantity || 0),
+      cost,
+      points: cnyToPoints(cost),
+      createdAt: row.createdAt.toISOString(),
+    })
+  }
+  records.sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+
+  const services = Array.from(new Set(records.map((record) => record.serviceType))).sort()
+  const models = Array.from(new Map(records.map((record) => [record.modelKey, {
+    id: record.modelKey,
+    name: record.modelName,
+  }])).values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
+  const works = Array.from(new Map(projects.map((project) => [project.work.id, project.work])).values())
+
+  return {
+    records,
+    options: {
+      works,
+      projects: projects.map((project) => ({ id: project.id, name: project.name, workId: project.workId })),
+      accounts: accounts.map((account) => ({
+        id: account.id,
+        name: account.name,
+        role: account.roleLabel || account.role,
+      })),
+      services,
+      models,
+    },
+    generatedAt: new Date().toISOString(),
+  }
 }
 
 function buildStats(tasks: ServiceTask[]) {
@@ -161,26 +398,91 @@ function buildStats(tasks: ServiceTask[]) {
   return totals
 }
 
+function usageTokenCounts(metadata: string | null) {
+  const parsed = parseJsonRecord(metadata) || {}
+  const inputTokens = Number(parsed.inputTokens ?? parsed.input_tokens ?? 0)
+  const outputTokens = Number(parsed.outputTokens ?? parsed.output_tokens ?? 0)
+  return {
+    inputTokens: Number.isFinite(inputTokens) ? Math.max(0, Math.floor(inputTokens)) : 0,
+    outputTokens: Number.isFinite(outputTokens) ? Math.max(0, Math.floor(outputTokens)) : 0,
+  }
+}
+
 function buildUsageRows(tasks: ServiceTask[], usageCosts: UsageCostRow[]) {
   if (usageCosts.length > 0) {
-    const rows = new Map<string, { key: string; total: number; completed: number; failed: number; units: number }>()
+    const rows = new Map<string, {
+      id: string
+      key: string
+      apiType: string
+      unit: string
+      total: number
+      completed: number
+      failed: number
+      units: number
+      cost: number
+      inputTokens: number
+      outputTokens: number
+    }>()
     for (const row of usageCosts) {
       const key = row.action || row.apiType || 'unknown'
-      const current = rows.get(key) || { key, total: 0, completed: 0, failed: 0, units: 0 }
+      const apiType = row.apiType || 'unknown'
+      const unit = row.unit || 'unit'
+      const id = `${key}:${apiType}:${unit}`
+      const current = rows.get(id) || {
+        id,
+        key,
+        apiType,
+        unit,
+        total: 0,
+        completed: 0,
+        failed: 0,
+        units: 0,
+        cost: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      }
+      const tokens = usageTokenCounts(row.metadata)
       current.total += 1
       current.completed += 1
       current.units += row.quantity || 0
-      rows.set(key, current)
+      current.cost += toMoneyNumber(row.cost)
+      current.inputTokens += tokens.inputTokens
+      current.outputTokens += tokens.outputTokens
+      rows.set(id, current)
     }
     return Array.from(rows.values())
-      .sort((a, b) => b.units - a.units || b.total - a.total)
+      .sort((a, b) => b.cost - a.cost || b.units - a.units || b.total - a.total)
       .slice(0, 6)
   }
 
-  const rows = new Map<string, { key: string; total: number; completed: number; failed: number; units: number }>()
+  const rows = new Map<string, {
+    id: string
+    key: string
+    apiType: string
+    unit: string
+    total: number
+    completed: number
+    failed: number
+    units: number
+    cost: number
+    inputTokens: number
+    outputTokens: number
+  }>()
   for (const task of tasks) {
     const key = task.type || task.targetType || 'unknown'
-    const current = rows.get(key) || { key, total: 0, completed: 0, failed: 0, units: 0 }
+    const current = rows.get(key) || {
+      id: key,
+      key,
+      apiType: 'task',
+      unit: 'run',
+      total: 0,
+      completed: 0,
+      failed: 0,
+      units: 0,
+      cost: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    }
     current.total += 1
     if (task.status === 'completed') current.completed += 1
     if (task.status === 'failed') current.failed += 1
@@ -193,13 +495,31 @@ function buildUsageRows(tasks: ServiceTask[], usageCosts: UsageCostRow[]) {
 }
 
 function buildDailyUsage(tasks: ServiceTask[], usageCosts: UsageCostRow[]) {
-  const rows = new Map<string, { day: string; total: number; units: number }>()
+  const rows = new Map<string, {
+    day: string
+    total: number
+    units: number
+    cost: number
+    inputTokens: number
+    outputTokens: number
+  }>()
   if (usageCosts.length > 0) {
     for (const row of usageCosts) {
       const day = usageCostDay(row)
-      const current = rows.get(day) || { day, total: 0, units: 0 }
+      const current = rows.get(day) || {
+        day,
+        total: 0,
+        units: 0,
+        cost: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+      }
+      const tokens = usageTokenCounts(row.metadata)
       current.total += 1
       current.units += row.quantity || 0
+      current.cost += toMoneyNumber(row.cost)
+      current.inputTokens += tokens.inputTokens
+      current.outputTokens += tokens.outputTokens
       rows.set(day, current)
     }
     return Array.from(rows.values()).slice(0, 7)
@@ -207,7 +527,14 @@ function buildDailyUsage(tasks: ServiceTask[], usageCosts: UsageCostRow[]) {
 
   for (const task of tasks) {
     const day = taskDay(task)
-    const current = rows.get(day) || { day, total: 0, units: 0 }
+    const current = rows.get(day) || {
+      day,
+      total: 0,
+      units: 0,
+      cost: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+    }
     current.total += 1
     current.units += estimateUnits(task)
     rows.set(day, current)
@@ -217,17 +544,32 @@ function buildDailyUsage(tasks: ServiceTask[], usageCosts: UsageCostRow[]) {
 
 function buildUsageSummary(tasks: ServiceTask[], usageCosts: UsageCostRow[], usageRows: Array<{ key: string }>) {
   if (usageCosts.length > 0) {
+    const tokens = usageCosts.reduce((total, row) => {
+      const current = usageTokenCounts(row.metadata)
+      return {
+        inputTokens: total.inputTokens + current.inputTokens,
+        outputTokens: total.outputTokens + current.outputTokens,
+      }
+    }, { inputTokens: 0, outputTokens: 0 })
     return {
+      source: 'billing' as const,
       billableTasks: usageCosts.length,
       estimatedUnits: usageCosts.reduce((sum, row) => sum + (row.quantity || 0), 0),
+      totalCost: usageCosts.reduce((sum, row) => sum + toMoneyNumber(row.cost), 0),
+      inputTokens: tokens.inputTokens,
+      outputTokens: tokens.outputTokens,
       serviceTypes: usageRows.length,
     }
   }
 
   const billableTasks = tasks.filter(isBillableTask)
   return {
+    source: 'tasks' as const,
     billableTasks: billableTasks.length,
     estimatedUnits: billableTasks.reduce((sum, task) => sum + estimateUnits(task), 0),
+    totalCost: 0,
+    inputTokens: 0,
+    outputTokens: 0,
     serviceTypes: usageRows.length,
   }
 }
@@ -381,6 +723,7 @@ export async function buildServiceRecordsOverview(userId: string, options: Build
   const usageRows = buildUsageRows(tasks, usageCosts)
   const dailyUsage = buildDailyUsage(tasks, usageCosts)
   const usageSummary = buildUsageSummary(tasks, usageCosts, usageRows)
+  const report = await buildFilterableReport(userId)
 
   return {
     success: true,
@@ -410,5 +753,6 @@ export async function buildServiceRecordsOverview(userId: string, options: Build
     dailyUsage,
     usageSummary,
     serviceConfigRows: buildServiceConfigRows(tasks),
+    report,
   }
 }

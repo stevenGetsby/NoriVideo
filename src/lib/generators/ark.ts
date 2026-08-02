@@ -43,6 +43,8 @@ interface ArkVideoOptions {
     frames?: number
     aspectRatio?: string
     referenceImages?: string[]
+    videos?: string[]
+    audios?: string[]
     generateAudio?: boolean
     lastFrameImageUrl?: string
     serviceTier?: 'default' | 'flex'
@@ -82,7 +84,7 @@ interface ArkSeedanceModelSpec {
     supportsGenerateAudio: boolean
     supportsDraft: boolean
     supportsFrames: boolean
-    resolutionOptions: ReadonlyArray<'480p' | '720p' | '1080p'>
+    resolutionOptions: ReadonlyArray<'480p' | '720p' | '1080p' | '4k'>
 }
 
 const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
@@ -134,7 +136,7 @@ const ARK_SEEDANCE_MODEL_SPECS: Record<string, ArkSeedanceModelSpec> = {
         supportsGenerateAudio: true,
         supportsDraft: false,
         supportsFrames: false,
-        resolutionOptions: ['480p', '720p', '1080p'],
+        resolutionOptions: ['480p', '720p', '1080p', '4k'],
     },
     'doubao-seedance-2-0-fast-260128': {
         durationMin: 4,
@@ -152,6 +154,40 @@ const ARK_VIDEO_ALLOWED_RATIOS = new Set(['16:9', '4:3', '1:1', '3:4', '9:16', '
 
 function isInteger(value: unknown): value is number {
     return typeof value === 'number' && Number.isInteger(value)
+}
+
+function normalizeReferenceMediaUrls(
+    values: unknown,
+    kind: 'video' | 'audio',
+): string[] {
+    const optionName = kind === 'video' ? 'videos' : 'audios'
+    const pluralKind = kind === 'video' ? 'videos' : 'audios'
+    if (!Array.isArray(values)) {
+        throw new Error(`ARK_VIDEO_OPTION_INVALID: ${optionName} must be an array`)
+    }
+
+    const normalized = values.flatMap((value, index) => {
+        if (typeof value !== 'string') {
+            throw new Error(`ARK_VIDEO_REFERENCE_${kind.toUpperCase()}_INVALID: ${optionName}[${index}]`)
+        }
+        const url = value.trim()
+        return url ? [{ url, index }] : []
+    })
+    if (normalized.length > 3) {
+        throw new Error(`ARK_VIDEO_OPTION_INVALID: ${optionName} supports at most 3 ${pluralKind}`)
+    }
+
+    return normalized.map(({ url, index }) => {
+        try {
+            const parsed = new URL(url)
+            if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || !parsed.hostname) {
+                throw new Error('unsupported URL')
+            }
+        } catch {
+            throw new Error(`ARK_VIDEO_REFERENCE_${kind.toUpperCase()}_INVALID: ${optionName}[${index}]`)
+        }
+        return url
+    })
 }
 
 // ============================================================
@@ -316,6 +352,8 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             frames,
             aspectRatio,
             referenceImages = [],
+            videos = [],
+            audios = [],
             generateAudio,
             lastFrameImageUrl,  // 首尾帧模式的尾帧图片
             serviceTier,
@@ -336,6 +374,8 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             'frames',
             'aspectRatio',
             'referenceImages',
+            'videos',
+            'audios',
             'generateAudio',
             'lastFrameImageUrl',
             'serviceTier',
@@ -361,7 +401,34 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             throw new Error(`ARK_VIDEO_MODEL_UNSUPPORTED: ${realModel}`)
         }
 
-        if (resolution !== undefined && !modelSpec.resolutionOptions.includes(resolution as '480p' | '720p' | '1080p')) {
+        const referenceImageInputs = referenceImages
+            .map((value) => value.trim())
+            .filter(Boolean)
+        const referenceVideoInputs = normalizeReferenceMediaUrls(videos, 'video')
+        const referenceAudioInputs = normalizeReferenceMediaUrls(audios, 'audio')
+        const hasInputImage = typeof imageUrl === 'string' && imageUrl.trim().length > 0
+        const hasLastFrameImage = typeof lastFrameImageUrl === 'string' && lastFrameImageUrl.trim().length > 0
+        const supportsReferenceMediaMode = /^doubao-seedance-2-0(?:-|$)/.test(realModel)
+        if (referenceImageInputs.length > 0 && !supportsReferenceMediaMode) {
+            throw new Error(`ARK_VIDEO_OPTION_UNSUPPORTED: referenceImages for ${realModel}`)
+        }
+        if (referenceVideoInputs.length > 0 && !supportsReferenceMediaMode) {
+            throw new Error(`ARK_VIDEO_OPTION_UNSUPPORTED: videos for ${realModel}`)
+        }
+        if (referenceAudioInputs.length > 0 && !supportsReferenceMediaMode) {
+            throw new Error(`ARK_VIDEO_OPTION_UNSUPPORTED: audios for ${realModel}`)
+        }
+        if (referenceImageInputs.length > 9) {
+            throw new Error('ARK_VIDEO_OPTION_INVALID: referenceImages supports at most 9 images')
+        }
+        const hasReferenceMedia = referenceImageInputs.length > 0
+            || referenceVideoInputs.length > 0
+            || referenceAudioInputs.length > 0
+        if (hasReferenceMedia && (hasInputImage || hasLastFrameImage)) {
+            throw new Error('ARK_VIDEO_REFERENCE_MODE_CONFLICT: reference media cannot be mixed with first/last frame images')
+        }
+
+        if (resolution !== undefined && !modelSpec.resolutionOptions.includes(resolution as '480p' | '720p' | '1080p' | '4k')) {
             throw new Error(`ARK_VIDEO_OPTION_VALUE_UNSUPPORTED: resolution=${resolution}`)
         }
         if (duration !== undefined) {
@@ -432,7 +499,6 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
 
         _ulogInfo(`[ARK Video] 模型: ${realModel}, 批量: ${isBatchMode}, 分辨率: ${resolution || '(默认)'}, 时长: ${duration ?? '(默认)'}`)
 
-        const hasInputImage = typeof imageUrl === 'string' && imageUrl.trim().length > 0
         const imageBase64 = hasInputImage ? await normalizeToBase64ForGeneration(imageUrl) : null
 
         // 构建请求体 content
@@ -461,28 +527,47 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
         } else if (imageBase64) {
             content.push({
                 type: 'image_url',
-                image_url: { url: imageBase64 }
+                image_url: { url: imageBase64 },
+                role: 'first_frame',
             })
         }
 
-        const maxReferenceImages = imageBase64 || lastFrameImageUrl ? 8 : 9
-        for (const referenceImage of referenceImages.slice(0, maxReferenceImages)) {
+        for (let index = 0; index < referenceImageInputs.length; index += 1) {
+            const referenceImage = referenceImageInputs[index]
             try {
-                const referenceImageBase64 = await normalizeToBase64ForGeneration(referenceImage)
+                const referenceImageValue = referenceImage.startsWith('asset://')
+                    ? referenceImage
+                    : await normalizeToBase64ForGeneration(referenceImage)
                 content.push({
                     type: 'image_url',
-                    image_url: { url: referenceImageBase64 },
+                    image_url: { url: referenceImageValue },
                     role: 'reference_image',
                 })
-            } catch {
-                _ulogInfo(`[ARK Video] 参考图片转换失败: ${referenceImage}`)
+            } catch (error) {
+                _ulogError(`[ARK Video] 第 ${index + 1} 张参考图片转换失败`, error)
+                throw new Error(`ARK_VIDEO_REFERENCE_IMAGE_INVALID: referenceImages[${index}]`)
             }
+        }
+
+        for (const referenceVideo of referenceVideoInputs) {
+            content.push({
+                type: 'video_url',
+                video_url: { url: referenceVideo },
+                role: 'reference_video',
+            })
+        }
+        for (const referenceAudio of referenceAudioInputs) {
+            content.push({
+                type: 'audio_url',
+                audio_url: { url: referenceAudio },
+                role: 'reference_audio',
+            })
         }
 
         const requestBody: {
             model: string
             content: ArkVideoContentItem[]
-            resolution?: '480p' | '720p' | '1080p'
+            resolution?: '480p' | '720p' | '1080p' | '4k'
             ratio?: string
             duration?: number
             frames?: number
@@ -499,7 +584,7 @@ export class ArkVideoGenerator extends BaseVideoGenerator {
             content
         }
 
-        if (resolution === '480p' || resolution === '720p' || resolution === '1080p') {
+        if (resolution === '480p' || resolution === '720p' || resolution === '1080p' || resolution === '4k') {
             requestBody.resolution = resolution
         }
         if (aspectRatio) {

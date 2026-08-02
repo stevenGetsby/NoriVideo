@@ -1,4 +1,9 @@
 import { getPanelAssetUsage } from './panel-asset-usage'
+import type { PanelCharacterAssetRef } from './panel-asset-usage'
+import {
+  databaseAppearanceOptions,
+  selectStoryboardCharacterAppearance,
+} from './storyboard-character-appearance'
 
 export type SeedanceReferenceAssetKind = 'character' | 'location' | 'prop'
 
@@ -12,6 +17,10 @@ export interface PanelReferenceSourceAsset {
   seedanceAssetStatus?: string | null
   assetKind?: string | null
   appearances?: Array<{
+    id?: string | null
+    appearanceIndex?: number | null
+    changeReason?: string | null
+    descriptions?: string | null
     imageUrl?: string | null
     imageUrls?: string | string[] | null
     selectedIndex?: number | null
@@ -32,6 +41,9 @@ export interface PanelSeedanceReferenceAsset {
   name: string
   imageUrl: string
   role: 'reference_image'
+  materialId?: string
+  appearance?: string
+  appearanceId?: string
 }
 
 export interface SeedanceReferenceImageContentItem {
@@ -54,11 +66,13 @@ interface PanelReferenceInput {
   maxCharacters?: number
   maxLocations?: number
   maxProps?: number
+  episodeNumber?: number
+  sceneId?: string | null
 }
 
 interface StoryboardSegmentReferenceInput {
   segment: {
-    characters?: Array<{ name: string }>
+    characters?: Array<{ name: string; appearance?: string; appearanceId?: string }>
     location?: string | null
     props?: Array<{ name: string }>
   }
@@ -67,6 +81,8 @@ interface StoryboardSegmentReferenceInput {
   maxCharacters?: number
   maxLocations?: number
   maxProps?: number
+  episodeNumber?: number
+  sceneId?: string | null
 }
 
 function compact(value: string | null | undefined): string {
@@ -127,7 +143,32 @@ function parseImageUrls(value: string | string[] | null | undefined): string[] {
   return splitAssetNames(trimmed)
 }
 
-function pickImageUrl(asset: PanelReferenceSourceAsset): string | null {
+function pickImageUrl(asset: PanelReferenceSourceAsset, preferredAppearance?: string | null): string | null {
+  const preferred = normalizeMatchName(compact(preferredAppearance))
+  if (preferred && asset.appearances?.length) {
+    const appearance = asset.appearances.find((item) => {
+      const id = normalizeMatchName(compact(item.id))
+      const label = normalizeMatchName(compact(item.changeReason))
+      return preferred === id || preferred === label
+    })
+    if (appearance) {
+      if (appearance.seedanceAssetStatus === 'Active') {
+        const seedanceAssetUri = compact(appearance.seedanceAssetUri)
+        if (seedanceAssetUri.startsWith('asset://')) return seedanceAssetUri
+      }
+      const resolved = pickImageUrl({
+        name: asset.name,
+        imageUrl: appearance.imageUrl,
+        imageUrls: appearance.imageUrls,
+        selectedIndex: appearance.selectedIndex,
+        seedanceAssetUri: appearance.seedanceAssetUri,
+        seedanceAssetStatus: appearance.seedanceAssetStatus,
+      })
+      // A requested appearance is a strict identity binding. Falling through
+      // to another appearance would silently attach the wrong face/costume.
+      return resolved
+    }
+  }
   if (asset.seedanceAssetStatus === 'Active') {
     const seedanceAssetUri = compact(asset.seedanceAssetUri)
     if (seedanceAssetUri.startsWith('asset://')) return seedanceAssetUri
@@ -166,6 +207,57 @@ function pickImageUrl(asset: PanelReferenceSourceAsset): string | null {
   })
 }
 
+function findCharacterAssets(
+  refs: PanelCharacterAssetRef[],
+  assets: PanelReferenceSourceAsset[],
+  maxCount: number,
+  context: {
+    episodeNumber?: number
+    sceneId?: string | null
+    sourceText?: string | null
+  },
+): PanelSeedanceReferenceAsset[] {
+  const result: PanelSeedanceReferenceAsset[] = []
+  const seenUrls = new Set<string>()
+  for (const ref of refs) {
+    const matched = assets.find((asset) => namesMatch(ref.name, asset.name))
+    if (!matched) continue
+    const hasValidAppearanceId = Boolean(
+      ref.appearanceId
+      && matched.appearances?.some((appearance) => compact(appearance.id) === compact(ref.appearanceId)),
+    )
+    const requestedAppearance = hasValidAppearanceId ? ref.appearanceId : ref.appearance
+    const selected = matched.appearances?.length
+      ? selectStoryboardCharacterAppearance(databaseAppearanceOptions(matched.appearances), {
+        episodeNumber: context.episodeNumber ?? 0,
+        sceneId: context.sceneId,
+        requestedAppearance,
+        sourceText: context.sourceText,
+        preferScopedCoverageOverPrimaryRequest: !hasValidAppearanceId,
+      })
+      : null
+    const selectedHasStableIdentity = Boolean(
+      selected?.id
+      || matched.appearances?.some((appearance) => compact(appearance.changeReason) === selected?.label),
+    )
+    const selectedAppearance = selectedHasStableIdentity ? selected?.label : ref.appearance
+    const selectedAppearanceId = selected?.id || ref.appearanceId
+    const imageUrl = pickImageUrl(matched, selectedAppearanceId || selectedAppearance)
+    if (!imageUrl || seenUrls.has(imageUrl)) continue
+    seenUrls.add(imageUrl)
+    result.push({
+      kind: 'character',
+      name: matched.name,
+      imageUrl,
+      role: 'reference_image',
+      ...(selectedAppearance ? { appearance: selectedAppearance } : {}),
+      ...(selectedAppearanceId ? { appearanceId: selectedAppearanceId } : {}),
+    })
+    if (result.length >= maxCount) break
+  }
+  return result
+}
+
 function normalizeReferenceName(value: string): string {
   return value
     .toLowerCase()
@@ -176,6 +268,7 @@ export function replacePanelSeedanceReferenceAssetForCharacter(
   actingNotes: unknown,
   input: {
     characterName: string
+    appearanceId: string
     assetUri: string
   },
 ): string | null {
@@ -184,12 +277,19 @@ export function replacePanelSeedanceReferenceAssetForCharacter(
   if (!Array.isArray(raw)) return Object.keys(record).length > 0 ? JSON.stringify(record) : null
 
   const targetName = normalizeReferenceName(input.characterName)
+  const targetAppearanceId = normalizeMatchName(input.appearanceId)
   let changed = false
   const next = raw.map((item) => {
     if (!isRecord(item)) return item
     const kind = item.kind
     const name = compact(typeof item.name === 'string' ? item.name : '')
-    if (kind !== 'character' || normalizeReferenceName(name) !== targetName) return item
+    const appearanceId = typeof item.appearanceId === 'string' ? normalizeMatchName(item.appearanceId) : ''
+    if (
+      kind !== 'character'
+      || normalizeReferenceName(name) !== targetName
+      || !appearanceId
+      || appearanceId !== targetAppearanceId
+    ) return item
     changed = true
     return {
       ...item,
@@ -248,9 +348,6 @@ export function buildPanelSeedanceReferenceAssets(input: PanelReferenceInput): P
   const locationAssets = input.locationAssets || []
   const realLocationAssets = locationAssets.filter((asset) => (asset.assetKind || 'location') !== 'prop')
   const propAssets = locationAssets.filter((asset) => asset.assetKind === 'prop')
-  const characterNames = uniqueNames([
-    ...usage.characters.map((character) => character.name),
-  ])
   const locationNames = uniqueNames([
     ...usage.locations,
   ])
@@ -259,7 +356,11 @@ export function buildPanelSeedanceReferenceAssets(input: PanelReferenceInput): P
   ])
 
   return [
-    ...findAssetsByNames('character', characterNames, input.characterAssets || [], input.maxCharacters ?? 4),
+    ...findCharacterAssets(usage.characters, input.characterAssets || [], input.maxCharacters ?? 4, {
+      episodeNumber: input.episodeNumber,
+      sceneId: input.sceneId,
+      sourceText: input.panel.videoPrompt,
+    }),
     ...findAssetsByNames('location', locationNames, realLocationAssets, input.maxLocations ?? 1),
     ...findAssetsByNames('prop', propNames, propAssets, input.maxProps ?? 3),
   ]
@@ -270,7 +371,7 @@ export function buildStoryboardSegmentSeedanceReferenceAssets(
 ): PanelSeedanceReferenceAsset[] {
   return buildPanelSeedanceReferenceAssets({
     panel: {
-      characters: input.segment.characters?.map((character) => character.name) || [],
+      characters: input.segment.characters || [],
       location: input.segment.location || '',
       props: input.segment.props?.map((prop) => prop.name) || [],
     },
@@ -279,7 +380,34 @@ export function buildStoryboardSegmentSeedanceReferenceAssets(
     maxCharacters: input.maxCharacters,
     maxLocations: input.maxLocations,
     maxProps: input.maxProps,
+    episodeNumber: input.episodeNumber,
+    sceneId: input.sceneId,
   })
+}
+
+/**
+ * Replaces automatically generated bindings with the latest contextual
+ * mapping while retaining images the user explicitly added from Materials.
+ */
+export function mergePanelSeedanceReferenceAssets(
+  generated: PanelSeedanceReferenceAsset[],
+  persisted: PanelSeedanceReferenceAsset[],
+): PanelSeedanceReferenceAsset[] {
+  const result = [...generated]
+  const seen = new Set(result.map((asset) => asset.imageUrl.trim()).filter(Boolean))
+  const generatedKeys = new Set(result.map((asset) => `${asset.kind}:${normalizeReferenceName(asset.name)}`))
+  for (const asset of persisted) {
+    const key = `${asset.kind}:${normalizeReferenceName(asset.name)}`
+    // Contextual bindings replace stale automatic refs with the same logical
+    // asset. Keep explicit Materials, and retain persisted refs only when the
+    // current project data cannot rebuild that asset at all.
+    if (!asset.materialId && generatedKeys.has(key)) continue
+    const imageUrl = asset.imageUrl.trim()
+    if (!imageUrl || seen.has(imageUrl)) continue
+    seen.add(imageUrl)
+    result.push(asset)
+  }
+  return result
 }
 
 export function buildSeedanceReferenceImageContentItems(
@@ -320,6 +448,15 @@ export function readPanelSeedanceReferenceAssetsFromActingNotes(
       name,
       imageUrl,
       role: 'reference_image',
+      ...(typeof item.materialId === 'string' && item.materialId.trim()
+        ? { materialId: item.materialId.trim() }
+        : {}),
+      ...(typeof item.appearance === 'string' && item.appearance.trim()
+        ? { appearance: item.appearance.trim() }
+        : {}),
+      ...(typeof item.appearanceId === 'string' && item.appearanceId.trim()
+        ? { appearanceId: item.appearanceId.trim() }
+        : {}),
     })
   }
   return result
@@ -338,6 +475,9 @@ export function writePanelSeedanceReferenceAssetsToActingNotes(
       name: asset.name,
       imageUrl: asset.imageUrl,
       role: asset.role,
+      ...(asset.materialId ? { materialId: asset.materialId } : {}),
+      ...(asset.appearance ? { appearance: asset.appearance } : {}),
+      ...(asset.appearanceId ? { appearanceId: asset.appearanceId } : {}),
     }))
   }
   return Object.keys(record).length > 0 ? JSON.stringify(record) : null

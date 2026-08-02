@@ -125,7 +125,7 @@ describe('service records overview', () => {
         quantity: 2,
         unit: 'second',
         cost: 3,
-        metadata: null,
+        metadata: JSON.stringify({ input_tokens: 1200, output_tokens: 340 }),
         createdAt: new Date('2026-06-13T10:00:00.000Z'),
       },
     ])
@@ -209,13 +209,38 @@ describe('service records overview', () => {
       hasMore: false,
     })
     expect(overview.usageRows).toEqual([
-      { key: 'video_panel', total: 1, completed: 1, failed: 0, units: 2 },
+      {
+        id: 'video_panel:video:second',
+        key: 'video_panel',
+        apiType: 'video',
+        unit: 'second',
+        total: 1,
+        completed: 1,
+        failed: 0,
+        units: 2,
+        cost: 3,
+        inputTokens: 1200,
+        outputTokens: 340,
+      },
     ])
     expect(overview.usageSummary).toMatchObject({
+      source: 'billing',
       billableTasks: 1,
       estimatedUnits: 2,
+      totalCost: 3,
+      inputTokens: 1200,
+      outputTokens: 340,
       serviceTypes: 1,
     })
+    expect(overview.dailyUsage).toEqual([
+      expect.objectContaining({
+        total: 1,
+        units: 2,
+        cost: 3,
+        inputTokens: 1200,
+        outputTokens: 340,
+      }),
+    ])
     expect(overview.costs).toMatchObject({
       total: 3,
       byProject: [

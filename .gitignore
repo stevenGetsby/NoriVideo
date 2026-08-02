@@ -13,6 +13,7 @@ config/services.yml
 config/services.local.json
 config/services.local.yaml
 config/services.local.yml
+config/services.prod.json
 !config/services.example.json
 !config/services.example.yaml
 
@@ -43,9 +44,17 @@ downloads/
 # Local debug artifacts
 .DS_Store
 .tmp_check_task.ts
+/.tmp-*
 debug-request.json
 final-check-*.png
 *.bundle
+
+# Local backups and generated verification evidence
+/backups/
+/test-results/
+/docs/测试素材/
+/docs/测试输出/
+/docs/*.pdf
 
 # Editor state
 .vscode/

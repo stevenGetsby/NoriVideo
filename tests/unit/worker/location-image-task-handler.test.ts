@@ -20,19 +20,22 @@ const prismaMock = vi.hoisted(() => ({
 }))
 
 const sharedMock = vi.hoisted(() => ({
-  generateProjectLabeledImageToStorage: vi.fn(async () => 'cos/location-generated-1.png'),
+  generateCleanImageToStorage: vi.fn(async () => 'cos/location-generated-1.png'),
 }))
 
 vi.mock('@/lib/workers/utils', () => utilsMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: vi.fn(async () => undefined) }))
+vi.mock('@/lib/novel-promotion/refresh-panel-reference-assets', () => ({
+  refreshProjectPanelReferenceAssets: vi.fn(async () => ({ updatedPanelCount: 0 })),
+}))
 vi.mock('@/lib/workers/handlers/image-task-handler-shared', async () => {
   const actual = await vi.importActual<typeof import('@/lib/workers/handlers/image-task-handler-shared')>(
     '@/lib/workers/handlers/image-task-handler-shared',
   )
   return {
     ...actual,
-    generateProjectLabeledImageToStorage: sharedMock.generateProjectLabeledImageToStorage,
+    generateCleanImageToStorage: sharedMock.generateCleanImageToStorage,
   }
 })
 
@@ -98,32 +101,38 @@ describe('worker location-image-task-handler behavior', () => {
     expect(result).toEqual({
       updated: 1,
       locationIds: ['location-1'],
+      images: [{
+        imageId: 'location-image-1',
+        imageIndex: 0,
+        imageUrl: 'cos/location-generated-1.png',
+      }],
+      imageUrl: 'cos/location-generated-1.png',
     })
 
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining('雨夜街道'),
-        label: 'Old Town',
         targetId: 'location-image-1',
+        materialTitle: 'Old Town',
         options: expect.objectContaining({ aspectRatio: LOCATION_IMAGE_RATIO }),
       }),
     )
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining('可站位置：'),
       }),
     )
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining('街道左侧靠墙的留白位置'),
       }),
     )
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining('必须使用宽广完整的场景全景构图'),
       }),
     )
-    const generationCall = sharedMock.generateProjectLabeledImageToStorage.mock.calls[0] as unknown as [{ prompt: string }] | undefined
+    const generationCall = sharedMock.generateCleanImageToStorage.mock.calls[0] as unknown as [{ prompt: string }] | undefined
     expect(generationCall).toBeTruthy()
     if (!generationCall) throw new Error('expected generateProjectLabeledImageToStorage call')
     const generationInput = generationCall[0]
@@ -138,7 +147,7 @@ describe('worker location-image-task-handler behavior', () => {
   it('payload artStyle overrides project artStyle in prompt', async () => {
     await handleLocationImageTask(buildJob({ imageIndex: 0, artStyle: 'realistic' }))
 
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         prompt: expect.stringContaining(getArtStylePrompt('realistic', 'zh')),
       }),
@@ -168,8 +177,14 @@ describe('worker location-image-task-handler behavior', () => {
     expect(result).toEqual({
       updated: 1,
       locationIds: ['location-1'],
+      images: [{
+        imageId: 'location-image-1',
+        imageIndex: 0,
+        imageUrl: 'cos/location-generated-1.png',
+      }],
+      imageUrl: 'cos/location-generated-1.png',
     })
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledTimes(1)
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledTimes(1)
     expect(prismaMock.locationImage.update).toHaveBeenCalledTimes(1)
     expect(prismaMock.locationImage.update).toHaveBeenCalledWith({
       where: { id: 'location-image-1' },
@@ -180,7 +195,7 @@ describe('worker location-image-task-handler behavior', () => {
   it('uses the same aspect ratio as character generation for prop images', async () => {
     await handleLocationImageTask(buildJob({ type: 'prop', imageIndex: 0 }))
 
-    expect(sharedMock.generateProjectLabeledImageToStorage).toHaveBeenCalledWith(
+    expect(sharedMock.generateCleanImageToStorage).toHaveBeenCalledWith(
       expect.objectContaining({
         options: expect.objectContaining({ aspectRatio: PROP_IMAGE_RATIO }),
       }),
