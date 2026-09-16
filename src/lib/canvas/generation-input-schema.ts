@@ -55,11 +55,16 @@ function normalizeLimit(
     ? Math.max(0, Math.floor(value.max))
     : fallback.max
   const max = Math.max(min, maxCandidate)
-  const maxTotalDurationSeconds = typeof value?.maxTotalDurationSeconds === 'number'
+  const hasConfiguredDurationLimit = value !== undefined
+    && Object.prototype.hasOwnProperty.call(value, 'maxTotalDurationSeconds')
+  const maxTotalDurationSeconds = hasConfiguredDurationLimit
+    && typeof value?.maxTotalDurationSeconds === 'number'
     && Number.isFinite(value.maxTotalDurationSeconds)
     && value.maxTotalDurationSeconds >= 0
     ? value.maxTotalDurationSeconds
-    : fallback.maxTotalDurationSeconds
+    : value === undefined
+      ? fallback.maxTotalDurationSeconds
+      : undefined
   return {
     min,
     max,
@@ -156,10 +161,11 @@ export function validateCanvasReferenceMedia(
  */
 export function validateVideoReferenceMediaCombination(
   references: ReadonlyArray<{ type: string }>,
+  options: { allowAudioOnly?: boolean } = {},
 ): string[] {
   const hasAudio = references.some((item) => item.type === 'audio')
   const hasVisualReference = references.some((item) => item.type === 'image' || item.type === 'video')
-  return hasAudio && !hasVisualReference
+  return hasAudio && !hasVisualReference && !options.allowAudioOnly
     ? ['参考音频不能单独提交，请至少同时选择 1 张参考图片或 1 个参考视频。']
     : []
 }

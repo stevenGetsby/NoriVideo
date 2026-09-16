@@ -1,4 +1,5 @@
 import { executeAiTextStep } from '@/lib/ai-runtime'
+import { withTextBilling } from '@/lib/billing'
 import { safeParseJsonObject } from '@/lib/json-repair'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import type { Locale } from '@/i18n/routing'
@@ -190,7 +191,7 @@ export async function runVoiceMappingReview(params: {
     variables: promptPayload,
   })
   const executeTextStep = params.executeTextStep || executeAiTextStep
-  const completion = await executeTextStep({
+  const runReview = async () => await executeTextStep({
     userId: params.userId,
     model: params.model,
     messages: [{ role: 'user', content: prompt }],
@@ -205,6 +206,23 @@ export async function runVoiceMappingReview(params: {
       stepTotal: 1,
     },
   })
+  const completion = params.executeTextStep
+    ? await runReview()
+    : await withTextBilling(
+        params.userId,
+        params.model,
+        Math.min(256_000, Math.max(4_000, Math.ceil(prompt.length * 1.5))),
+        4_096,
+        {
+          projectId: params.projectId,
+          action: 'voice_mapping',
+          metadata: {
+            characterCount: params.input.characters.length,
+            episodeCount: (params.input.episodes || []).length,
+          },
+        },
+        runReview,
+      )
   const mapping = parseVoiceMappingResponse(completion.text)
   const plan = buildCharacterVoiceMappingUpdates({
     mappings: mapping,
@@ -223,4 +241,3 @@ export async function runVoiceMappingReview(params: {
     reasoning: completion.reasoning,
   }
 }
-

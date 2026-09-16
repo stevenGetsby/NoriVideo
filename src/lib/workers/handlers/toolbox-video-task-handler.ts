@@ -7,10 +7,7 @@ import {
   resolveVideoSourceFromGeneration,
   uploadVideoSourceToCos,
 } from '../utils'
-import {
-  normalizeReferenceImagesForGeneration,
-  normalizeToOriginalMediaUrl,
-} from '@/lib/media/outbound-image'
+import { normalizeSeedanceImageReferences, normalizeSeedanceMediaReference } from '@/lib/media/seedance-reference'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 import { compileSeedancePromptForSubmission } from '@/lib/novel-promotion/seedance-prompt-assets'
 import { projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
@@ -25,9 +22,10 @@ import {
   ensureSeedanceToolboxReferenceAssets,
 } from '@/lib/novel-promotion/seedance-character-asset'
 import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
 
 type AnyObj = Record<string, unknown>
-type GeneratedVideo = {
+type GeneratedVideo = VideoResultMetadata & {
   url: string
   actualVideoTokens?: number
   downloadHeaders?: Record<string, string>
@@ -53,8 +51,8 @@ function readJsonObject(value: unknown): AnyObj {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as AnyObj : {}
 }
 
-async function normalizeReferenceMedia(values: string[]): Promise<string[]> {
-  return await Promise.all(values.map(async (value) => await normalizeToOriginalMediaUrl(value)))
+async function normalizeReferenceMedia(values: string[], modelKey: string): Promise<string[]> {
+  return await Promise.all(values.map(async (value) => await normalizeSeedanceMediaReference(value, modelKey)))
 }
 
 export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
@@ -96,6 +94,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         userId: job.data.userId,
         projectId: job.data.projectId,
         characterId,
+        modelKey: modelId,
         onStatus: async (status, attempt) => {
           await assertTaskActive(job, 'prepare_character_private_asset')
           await reportTaskProgress(job, Math.min(32, 18 + attempt), {
@@ -106,9 +105,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       })
       normalized = [privateAsset.assetUri]
     } else {
-      normalized = await normalizeReferenceImagesForGeneration(referenceImages, {
-        context: { projectId: job.data.projectId, taskId: job.data.taskId, usage: 'toolbox_video' },
-      })
+      normalized = await normalizeSeedanceImageReferences(referenceImages, modelId)
     }
     const prompt = compileSeedancePromptForSubmission(
       rawPrompt,
@@ -137,8 +134,8 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       throw new Error('First/last frame mode requires two images')
     }
     const useReferenceMode = !isImageToVideo && !isFirstLastFrame
-    const normalizedVideos = useReferenceMode ? await normalizeReferenceMedia(referenceVideos) : []
-    const normalizedAudios = useReferenceMode ? await normalizeReferenceMedia(referenceAudios) : []
+    const normalizedVideos = useReferenceMode ? await normalizeReferenceMedia(referenceVideos, modelId) : []
+    const normalizedAudios = useReferenceMode ? await normalizeReferenceMedia(referenceAudios, modelId) : []
     const buildGenerationOptions = (images: string[], forceReferenceMode = false) => ({
       prompt,
       ...((useReferenceMode || forceReferenceMode) && images.length > 0 ? { referenceImages: images } : {}),
@@ -173,6 +170,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         userId: job.data.userId,
         projectId: job.data.projectId,
         materialIds: readStringArray(payload.referenceMaterialIds),
+        modelKey: modelId,
         onStatus: async ({ status, attempt }) => {
           await assertTaskActive(job, 'prepare_toolbox_private_assets')
           await reportTaskProgress(job, Math.min(42, 28 + attempt), {
@@ -230,6 +228,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         referenceAudioNames,
         referenceMaterials: materialReferenceContract.references,
         referenceImageRoles,
+        ...pickVideoResultMetadata(generated),
         ...(generated.fallbackMode ? { fallbackMode: generated.fallbackMode } : {}),
       },
     })
@@ -255,7 +254,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       videoUrl: storageKey,
       ...(auditionAudioUrl ? { audioUrl: auditionAudioUrl } : {}),
       ...(generated.fallbackMode ? { fallbackMode: generated.fallbackMode } : {}),
-      ...(typeof generated.actualVideoTokens === 'number' ? { actualVideoTokens: generated.actualVideoTokens } : {}),
+      ...pickVideoResultMetadata(generated),
     }
   } catch (error) {
     const willRetry = workerTaskWillRetry(job, error)

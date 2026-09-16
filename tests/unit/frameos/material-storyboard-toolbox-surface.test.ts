@@ -65,14 +65,27 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(toolboxRoute).toContain('TASK_TYPE.TOOLBOX_IMAGE')
     expect(toolboxRoute).toContain('TASK_TYPE.TOOLBOX_VIDEO')
     expect(toolboxRoute).toContain('TASK_TYPE.TOOLBOX_MODEL_3D')
+    expect(production).toContain('useAccountBalance')
+    expect(production).toContain("if (!generationAllowed) { setError('积分不足，无法生成'); return }")
+    expect(toolbox).toContain('useAccountBalance')
+    expect(toolbox).toContain("if (!generationAllowed) { setError('积分不足，无法生成'); return }")
   })
 
-  it('uses a compact 4-15 second selector instead of a horizontal duration strip', () => {
+  it('uses a compact model-aware duration selector instead of a horizontal duration strip', () => {
     const toolbox = readSource('src/components/frameos/views/FosToolbox.tsx')
     expect(toolbox).toContain('TOOLBOX_VIDEO_DURATIONS')
     expect(toolbox).toContain('aria-label="视频时长"')
-    expect(toolbox).toContain('4–15 秒')
+    expect(toolbox).toContain('{minimum}–{maximum} 秒')
     expect(toolbox).not.toContain('durationOptions.map((value) => `${value}s`)')
+  })
+
+  it('uses model capability limits for Seedance multi-modal references', () => {
+    const toolbox = readSource('src/components/frameos/views/FosToolbox.tsx')
+
+    expect(toolbox).toContain('limit={referenceLimits.image}')
+    expect(toolbox).toContain('limit={referenceLimits.video}')
+    expect(toolbox).toContain('limit={referenceLimits.audio}')
+    expect(toolbox).toContain('Seedance 2.5 支持配合提示词单独提交音频')
   })
 
   it('shows only persisted storyboards and exposes real extraction and deletion actions', () => {
@@ -127,6 +140,8 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(assetLibrary).toContain('imageOnly')
     expect(assetLibrary).toContain('上传图片')
     expect(assetLibrary).toContain('新增资产')
+    expect(assetLibrary).not.toContain('批量操作')
+    expect(assetLibrary).not.toContain('批量下载')
     expect(assets).toContain('data-testid="asset-image-empty-state"')
     expect(assets).toContain("kind === 'characters' ? '形象设定图'")
     expect(assets).toContain('{mediaName}还未生成')

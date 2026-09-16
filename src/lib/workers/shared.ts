@@ -55,23 +55,41 @@ function readPositiveIntField(payload: Record<string, unknown>, key: string): nu
   return null
 }
 
+function firstPositiveNumber(values: unknown[]): number {
+  for (const value of values) {
+    const numeric = typeof value === 'number' ? value : Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) return numeric
+  }
+  return 0
+}
+
 function completedVideoDurationSeconds(data: TaskJobData, result: unknown): number {
   const payload = toObject(data.payload)
   const generationOptions = toObject(payload.generationOptions)
   const completed = toObject(result)
-  const candidates = [
+  return firstPositiveNumber([
     completed.durationSeconds,
     completed.duration,
     payload.durationSeconds,
     payload.duration,
     generationOptions.durationSeconds,
     generationOptions.duration,
-  ]
-  for (const value of candidates) {
-    const numeric = typeof value === 'number' ? value : Number(value)
-    if (Number.isFinite(numeric) && numeric > 0) return numeric
-  }
-  return 0
+  ])
+}
+
+function completedVoiceDurationSeconds(data: TaskJobData, result: unknown, billedQuantity: number): number {
+  const payload = toObject(data.payload)
+  const completed = toObject(result)
+  return firstPositiveNumber([
+    completed.actualDurationSeconds,
+    completed.actualSeconds,
+    completed.durationSeconds,
+    completed.duration,
+    payload.maxSeconds,
+    payload.durationSeconds,
+    payload.duration,
+    billedQuantity,
+  ])
 }
 
 function extractFlowFields(jobData: TaskJobData): Record<string, unknown> {
@@ -464,25 +482,43 @@ export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Jo
       return
     }
     const actualVideoTokens = Number(toObject(result).actualVideoTokens)
-    if (
-      Number.isFinite(actualVideoTokens)
-      && actualVideoTokens > 0
-      && billingInfo?.billable
-      && billingInfo.apiType === 'video'
-    ) {
+    if (billingInfo?.billable && (billingInfo.apiType === 'video' || billingInfo.apiType === 'voice')) {
       const runtimeModel = resolveRuntimeModelKey(billingInfo.model) || billingInfo.model
       const parsedModel = parseModelKeyStrict(runtimeModel)
-      await recordServiceUsage({
-        provider: parsedModel?.provider || 'unknown',
-        modelKey: parsedModel?.modelKey || runtimeModel,
-        serviceType: 'video',
-        operation: `${data.type}:${billingInfo.metadata?.containsVideoInput === true ? 'video-input' : 'no-video-input'}`,
-        userId: data.userId,
-        projectId: data.projectId,
-        outputTokens: Math.floor(actualVideoTokens),
-        units: completedVideoDurationSeconds(data, result),
-        latencyMs: Date.now() - startedAt,
-      })
+      if (billingInfo.apiType === 'video') {
+        const durationSeconds = firstPositiveNumber([completedVideoDurationSeconds(data, result), billingInfo.metadata?.duration])
+        const tokenCount = Number.isFinite(actualVideoTokens) && actualVideoTokens > 0
+          ? Math.floor(actualVideoTokens)
+          : 0
+        await recordServiceUsage({
+          provider: parsedModel?.provider || 'unknown',
+          modelKey: parsedModel?.modelKey || runtimeModel,
+          serviceType: 'video',
+          operation: `${data.type}:${billingInfo.metadata?.containsVideoInput === true ? 'video-input' : 'no-video-input'}`,
+          userId: data.userId,
+          projectId: data.projectId,
+          outputTokens: tokenCount,
+          units: durationSeconds,
+          metadata: {
+            ...billingInfo.metadata,
+            duration: durationSeconds || billingInfo.metadata?.duration,
+            ...(typeof toObject(result).resolution === 'string' ? { resolution: toObject(result).resolution } : {}),
+            ...(typeof toObject(result).generateAudio === 'boolean' ? { generateAudio: toObject(result).generateAudio } : {}),
+          },
+          latencyMs: Date.now() - startedAt,
+        })
+      } else {
+        await recordServiceUsage({
+          provider: parsedModel?.provider || 'unknown',
+          modelKey: parsedModel?.modelKey || runtimeModel,
+          serviceType: 'audio',
+          operation: data.type,
+          userId: data.userId,
+          projectId: data.projectId,
+          units: completedVoiceDurationSeconds(data, result, billingInfo.quantity),
+          latencyMs: Date.now() - startedAt,
+        })
+      }
     }
     logger.info({
       action: 'worker.completed',

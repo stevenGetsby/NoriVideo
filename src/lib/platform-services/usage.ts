@@ -1,7 +1,10 @@
 import { prisma } from '@/lib/prisma'
 import { logWarn } from '@/lib/logging/core'
 import { getLogContext } from '@/lib/logging/context'
-import { calcImage, calcText, calcVideoByTokens } from '@/lib/billing/cost'
+import { summarizeUsageRowsByType } from '@/lib/platform-services/model-type-usage'
+import { calculateUsageCost } from '@/lib/platform-services/usage-cost'
+
+export { calculateUsageCost } from '@/lib/platform-services/usage-cost'
 
 type ServiceUsageRow = {
   provider: string
@@ -12,28 +15,9 @@ type ServiceUsageRow = {
   inputTokens: number
   outputTokens: number
   units: number | { toString(): string }
+  metadata?: unknown
   latencyMs: number | null
   createdAt: Date
-}
-
-function calculateUsageCost(record: ServiceUsageRow): number {
-  if (record.status === 'failed' || !record.modelKey) return 0
-  try {
-    if (record.serviceType === 'llm' || record.serviceType === 'video-repaint') {
-      return calcText(record.modelKey, record.inputTokens, record.outputTokens)
-    }
-    if (record.serviceType === 'video' && record.outputTokens > 0) {
-      return calcVideoByTokens(record.modelKey, record.outputTokens, {
-        containsVideoInput: record.operation.endsWith(':video-input'),
-      })
-    }
-    if (record.serviceType === 'image' && Number(record.units) > 0) {
-      return calcImage(record.modelKey, Number(record.units))
-    }
-  } catch {
-    // Custom/代理别名没有经过管理员定价时保持 0，避免伪造成本。
-  }
-  return 0
 }
 
 type ServiceUsageModel = {
@@ -54,6 +38,7 @@ export interface ServiceUsageInput {
   inputTokens?: number
   outputTokens?: number
   units?: number
+  metadata?: Record<string, unknown>
   latencyMs?: number | null
   errorCode?: string | null
 }
@@ -84,6 +69,7 @@ export async function recordServiceUsage(input: ServiceUsageInput): Promise<void
         inputTokens: nonNegativeInteger(input.inputTokens),
         outputTokens: nonNegativeInteger(input.outputTokens),
         units: Number.isFinite(Number(input.units)) ? Math.max(0, Number(input.units)) : 1,
+        ...(input.metadata ? { metadata: input.metadata } : {}),
         latencyMs: input.latencyMs == null ? null : nonNegativeInteger(input.latencyMs),
         errorCode: compact(input.errorCode, 128) || null,
       },
@@ -118,6 +104,7 @@ export async function getPlatformServiceUsageOverview(days = 30) {
         inputTokens: true,
         outputTokens: true,
         units: true,
+        metadata: true,
         latencyMs: true,
         createdAt: true,
       },
@@ -199,6 +186,7 @@ export async function getPlatformServiceUsageOverview(days = 30) {
 
   const totalLatency = records.reduce((sum, record) => sum + (record.latencyMs || 0), 0)
   const latencyCount = records.filter((record) => typeof record.latencyMs === 'number').length
+  const byType = summarizeUsageRowsByType(rows).byType
   return {
     rangeDays: normalizedDays,
     collectedSince: since.toISOString(),
@@ -206,10 +194,9 @@ export async function getPlatformServiceUsageOverview(days = 30) {
       calls: records.length,
       success: records.filter((record) => record.status !== 'failed').length,
       failed: records.filter((record) => record.status === 'failed').length,
-      inputTokens: records.reduce((sum, record) => sum + record.inputTokens, 0),
-      outputTokens: records.reduce((sum, record) => sum + record.outputTokens, 0),
       cost: Math.round(records.reduce((sum, record) => sum + calculateUsageCost(record), 0) * 1_000_000) / 1_000_000,
       averageLatencyMs: latencyCount ? Math.round(totalLatency / latencyCount) : null,
+      byType,
     },
     rows,
     storage: {

@@ -17,7 +17,7 @@ export type CanvasOperationResult = {
 }
 
 export type CanvasOperationEngine = {
-  operation: 'superresolve' | 'video_superresolve' | 'subtitle_erase'
+  operation: 'superresolve' | 'video_superresolve' | 'subtitle_erase' | 'video_edit'
   engineKey: string
   modelKey: string
   provider: string
@@ -30,7 +30,7 @@ export type CanvasOperationEngine = {
 export type CanvasOperationTask = {
   id: string
   type: string
-  operation: 'superresolve' | 'video_superresolve' | 'subtitle_erase' | null
+  operation: 'superresolve' | 'video_superresolve' | 'subtitle_erase' | 'video_edit' | null
   engineKey: string | null
   modelKey: string | null
   sourceNodeId: string | null

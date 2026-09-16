@@ -100,6 +100,18 @@
   background: rgba(59, 130, 246, .10);
 }
 
+.nori-canvas-surface .react-flow__selection {
+  display: none !important;
+}
+
+.nori-canvas-marquee {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  border: 1px solid rgba(59, 130, 246, .9);
+  background: rgba(59, 130, 246, .10);
+}
+
 .nori-canvas-surface .react-flow__node {
   border: 0;
   background: transparent;
@@ -324,10 +336,780 @@
   opacity: 1;
 }
 
+.nori-canvas-surface .react-flow__handle-left.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-left.connecting,
+.nori-canvas-surface .react-flow__handle-top.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-top.connecting {
+  transform: translate(-50%, -50%) scale(1.18);
+}
+
+.nori-canvas-surface .react-flow__handle-right.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-right.connecting {
+  transform: translate(50%, -50%) scale(1.18);
+}
+
+.nori-canvas-surface .react-flow__handle-bottom.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-bottom.connecting {
+  transform: translate(-50%, 50%) scale(1.18);
+}
+
 .nori-canvas-handle:hover,
 .nori-canvas-surface .react-flow__handle.connecting {
-  transform: scale(1.18);
   background: #7190ff !important;
+}
+
+.nori-canvas-video-edit-node {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 10px;
+  padding: 9px;
+  background: #1c1c1c;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .24);
+}
+
+.nori-canvas-video-edit-node.is-selected {
+  border-color: rgba(119, 145, 255, .95);
+}
+
+.nori-canvas-video-edit-node .nori-canvas-node-label {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+}
+
+.nori-canvas-video-edit-source {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, .62);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-source button,
+.nori-canvas-video-edit-incoming button,
+.nori-canvas-video-edit-frames button,
+.nori-canvas-video-edit-submit {
+  display: inline-flex;
+  height: 25px;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: rgba(255, 255, 255, .78);
+  background: rgba(255, 255, 255, .05);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-source button:hover,
+.nori-canvas-video-edit-incoming button:hover,
+.nori-canvas-video-edit-frames button:hover,
+.nori-canvas-video-edit-submit:not(:disabled):hover {
+  border-color: rgba(139, 160, 255, .42);
+  background: rgba(59, 130, 246, .14);
+}
+
+.nori-canvas-video-edit-source button svg,
+.nori-canvas-video-edit-incoming button svg,
+.nori-canvas-video-edit-frames button svg,
+.nori-canvas-video-edit-submit svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-incoming {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid rgba(74, 222, 128, .18);
+  border-radius: 6px;
+  padding: 4px 7px;
+  color: rgba(255, 255, 255, .68);
+  background: rgba(74, 222, 128, .07);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-preview {
+  display: flex;
+  min-height: 128px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 7px;
+  background: #101010;
+}
+
+.nori-canvas-video-edit-preview video {
+  width: 100%;
+  height: 100%;
+  max-height: 180px;
+  object-fit: contain;
+}
+
+.nori-canvas-video-edit-preview > span {
+  padding: 12px;
+  color: rgba(255, 255, 255, .42);
+  font-size: 11px;
+  text-align: center;
+}
+
+.nori-canvas-video-edit-frames {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, .52);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-prompt {
+  width: 100%;
+  min-height: 66px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  padding: 7px;
+  color: rgba(255, 255, 255, .9);
+  background: rgba(255, 255, 255, .05);
+  font-size: 12px;
+  line-height: 1.45;
+  outline: none;
+}
+
+.nori-canvas-video-edit-audio {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .68);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-submit {
+  height: 30px;
+  border-color: rgba(139, 160, 255, .4);
+  color: white;
+  background: rgba(59, 130, 246, .16);
+}
+
+.nori-canvas-video-edit-submit:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
+.nori-canvas-video-edit-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .65);
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-progress i {
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+}
+
+.nori-canvas-video-edit-progress b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #7391ff;
+}
+
+.nori-canvas-video-edit-error {
+  border: 1px solid rgba(255, 104, 104, .3);
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: rgba(255, 180, 180, .9);
+  background: rgba(255, 104, 104, .08);
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .9);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nori-canvas-video-edit-header i {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border-radius: 6px;
+  color: #b8c8ff;
+  background: rgba(59, 130, 246, .16);
+}
+
+.nori-canvas-video-edit-header i svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-header .has-source {
+  margin-left: auto;
+  color: #4ade80;
+  font-size: 9px;
+}
+
+.nori-canvas-video-edit-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+  color: rgba(255, 255, 255, .52);
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-summary span:first-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.nori-canvas-video-edit-actions button {
+  flex: 1;
+  height: 26px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, .76);
+  background: rgba(255, 255, 255, .05);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-actions button.is-primary {
+  border-color: rgba(139, 160, 255, .42);
+  color: white;
+  background: rgba(59, 130, 246, .16);
+}
+
+.nori-canvas-video-edit-actions button:hover {
+  background: rgba(59, 130, 246, .16);
+}
+
+.nori-canvas-video-edit-ready {
+  border: 1px solid rgba(74, 222, 128, .2);
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: rgba(190, 255, 210, .82);
+  background: rgba(74, 222, 128, .07);
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-backdrop {
+  background: rgba(4, 7, 14, .72);
+}
+
+.nori-canvas-video-edit-dialog {
+  width: min(940px, 94vw);
+  max-height: 92vh;
+  overflow: hidden;
+}
+
+.nori-canvas-video-edit-sourcebar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--canvas-border);
+  border-radius: 8px;
+  padding: 7px 8px;
+  color: rgba(255, 255, 255, .58);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-sourcebar > span {
+  margin-right: auto;
+  color: rgba(255, 255, 255, .82);
+  font-weight: 700;
+}
+
+.nori-canvas-video-edit-sourcebar button {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: rgba(255, 255, 255, .78);
+  background: rgba(255, 255, 255, .05);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-sourcebar button:hover {
+  border-color: rgba(139, 160, 255, .42);
+  background: rgba(59, 130, 246, .14);
+}
+
+.nori-canvas-video-edit-sourcebar button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-sourcebar em {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-style: normal;
+}
+
+.nori-canvas-video-edit-sourcebar em svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(260px, .85fr);
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.nori-canvas-video-edit-stage {
+  min-width: 0;
+}
+
+.nori-canvas-video-edit-stage video {
+  width: 100%;
+  max-height: 460px;
+  border-radius: 8px;
+  background: #0b0d12;
+}
+
+.nori-canvas-video-edit-empty {
+  display: flex;
+  min-height: 240px;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed rgba(255, 255, 255, .14);
+  border-radius: 8px;
+  padding: 20px;
+  color: rgba(255, 255, 255, .46);
+  text-align: center;
+}
+
+.nori-canvas-video-edit-frame-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 8px;
+  color: rgba(255, 255, 255, .62);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-frame-controls button {
+  display: inline-flex;
+  height: 26px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  padding: 0 8px;
+  color: rgba(255, 255, 255, .78);
+  background: rgba(255, 255, 255, .05);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-frame-controls button:hover {
+  border-color: rgba(139, 160, 255, .42);
+  background: rgba(59, 130, 246, .14);
+}
+
+.nori-canvas-video-edit-frame-controls button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.nori-canvas-video-edit-frame-controls button svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-settings {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.nori-canvas-video-edit-settings label > span {
+  display: block;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, .68);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nori-canvas-video-edit-settings textarea {
+  width: 100%;
+  min-height: 190px;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 8px;
+  padding: 9px;
+  color: rgba(255, 255, 255, .9);
+  background: rgba(255, 255, 255, .05);
+  font-size: 12px;
+  line-height: 1.55;
+  outline: none;
+}
+
+.nori-canvas-video-edit-settings .is-check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .72);
+  font-size: 12px;
+}
+
+.nori-canvas-video-edit-settings p {
+  margin: 0;
+  color: rgba(255, 255, 255, .44);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.nori-canvas-video-edit-dialog-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(139, 160, 255, .24);
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: rgba(255, 255, 255, .68);
+  background: rgba(59, 130, 246, .08);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-dialog-error {
+  border: 1px solid rgba(255, 104, 104, .3);
+  border-radius: 7px;
+  padding: 7px 9px;
+  color: rgba(255, 180, 180, .9);
+  background: rgba(255, 104, 104, .08);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-node {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nori-canvas-video-edit-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nori-canvas-video-edit-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .92);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.nori-canvas-video-edit-title svg {
+  width: 15px;
+  height: 15px;
+  color: #aebfff;
+}
+
+.nori-canvas-video-edit-source-state {
+  overflow: hidden;
+  color: rgba(255, 255, 255, .48);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-source-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nori-canvas-video-edit-source-actions button,
+.nori-canvas-video-edit-source-actions > span,
+.nori-canvas-video-edit-incoming,
+.nori-canvas-video-edit-time-row button,
+.nori-canvas-video-edit-footer button {
+  display: inline-flex;
+  height: 24px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  padding: 0 7px;
+  color: rgba(255, 255, 255, .72);
+  background: rgba(255, 255, 255, .05);
+  font-size: 11px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-source-actions > span {
+  margin-left: auto;
+  color: rgba(255, 255, 255, .42);
+}
+
+.nori-canvas-video-edit-source-actions button:hover,
+.nori-canvas-video-edit-incoming button:hover,
+.nori-canvas-video-edit-time-row button:hover,
+.nori-canvas-video-edit-footer button:hover {
+  border-color: rgba(139, 160, 255, .42);
+  background: rgba(59, 130, 246, .14);
+}
+
+.nori-canvas-video-edit-source-actions button:disabled,
+.nori-canvas-video-edit-time-row button:disabled,
+.nori-canvas-video-edit-footer button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.nori-canvas-video-edit-source-actions svg,
+.nori-canvas-video-edit-incoming svg,
+.nori-canvas-video-edit-time-row svg,
+.nori-canvas-video-edit-footer svg {
+  width: 13px;
+  height: 13px;
+}
+
+.nori-canvas-video-edit-incoming {
+  color: rgba(190, 255, 210, .72);
+  background: rgba(74, 222, 128, .07);
+}
+
+.nori-canvas-video-edit-preview {
+  display: flex;
+  height: 150px;
+  flex: none;
+  min-height: 0;
+}
+
+.nori-canvas-video-edit-preview video {
+  width: 100%;
+  height: 100%;
+  max-height: none;
+  pointer-events: auto;
+}
+
+.nori-canvas-video-edit-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nori-canvas-video-edit-track {
+  position: relative;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+  cursor: pointer;
+  touch-action: none;
+}
+
+.nori-canvas-video-edit-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 999px;
+  background: rgba(113, 145, 255, .42);
+}
+
+.nori-canvas-video-edit-marker {
+  position: absolute;
+  top: -6px;
+  z-index: 2;
+  width: 6px;
+  height: 22px;
+  border-radius: 2px;
+  background: #9db4ff;
+  cursor: ew-resize;
+  transform: translateX(-3px);
+}
+
+.nori-canvas-video-edit-marker.is-end {
+  background: #ff9bb2;
+}
+
+.nori-canvas-video-edit-playhead {
+  position: absolute;
+  top: -3px;
+  z-index: 1;
+  width: 3px;
+  height: 16px;
+  border-radius: 2px;
+  background: #ffffff;
+  cursor: ew-resize;
+  transform: translateX(-1px);
+}
+
+.nori-canvas-video-edit-track.is-dragging {
+  user-select: none;
+}
+
+.nori-canvas-video-edit-time-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  color: rgba(255, 255, 255, .56);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-time-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-prompt {
+  min-height: 56px;
+}
+
+.nori-canvas-video-edit-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nori-canvas-video-edit-footer label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(255, 255, 255, .68);
+  font-size: 11px;
+}
+
+.nori-canvas-video-edit-footer button.is-primary {
+  min-width: 92px;
+  border-color: rgba(139, 160, 255, .42);
+  color: white;
+  background: rgba(59, 130, 246, .16);
+}
+
+.nori-canvas-video-edit-references {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+}
+
+.nori-canvas-video-edit-references > button,
+.nori-canvas-video-edit-references > span {
+  display: inline-flex;
+  height: 23px;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 999px;
+  padding: 0 7px;
+  color: rgba(255, 255, 255, .68);
+  background: rgba(255, 255, 255, .05);
+  font-size: 10px;
+}
+
+.nori-canvas-video-edit-references > button:hover {
+  border-color: rgba(139, 160, 255, .42);
+  background: rgba(59, 130, 246, .14);
+}
+
+.nori-canvas-video-edit-references > button:disabled {
+  opacity: .4;
+  cursor: not-allowed;
+}
+
+.nori-canvas-video-edit-references svg {
+  width: 12px;
+  height: 12px;
+}
+
+.nori-canvas-video-edit-references b {
+  max-width: 90px;
+  overflow: hidden;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-canvas-video-edit-references span button {
+  display: inline-flex;
+  width: 14px;
+  height: 14px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  color: rgba(255, 255, 255, .6);
+  background: rgba(255, 255, 255, .1);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.nori-canvas-video-edit-mention-wrap {
+  position: relative;
+}
+
+.nori-canvas-video-edit-mention-editor .mention-prompt-textarea {
+  min-height: 52px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 7px;
+  padding: 7px;
+  color: rgba(255, 255, 255, .9);
+  background: rgba(255, 255, 255, .05);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.nori-canvas-video-edit-mention-editor .mention-prompt-editor-layer {
+  overflow: hidden;
+  border-radius: 7px;
+  background: transparent;
+}
+
+.nori-canvas-video-edit-mention-editor .mention-prompt-highlight,
+.nori-canvas-video-edit-mention-editor .mention-prompt-textarea {
+  padding: 7px;
+  border-radius: 7px;
+  font-size: 12px;
+  line-height: 1.45;
+  letter-spacing: normal;
+  word-spacing: normal;
+}
+
+.nori-canvas-video-edit-mention-editor .mention-prompt-highlight {
+  border: 1px solid transparent;
+}
+
+.nori-canvas-video-edit-mention-editor .mention-prompt-textarea {
+  border: 1px solid rgba(255, 255, 255, .12);
+  background: rgba(255, 255, 255, .05);
 }
 
 .nori-canvas-workspace.is-readonly .react-flow__handle { display: none; }
@@ -572,6 +1354,12 @@
   backdrop-filter: blur(22px);
 }
 
+.nori-canvas-workspace.is-node-dragging .nori-canvas-generator {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .nori-canvas-generator-width-handle {
   position: absolute;
   top: 42px;
@@ -754,6 +1542,34 @@
 .nori-canvas-generator-ref > svg {
   width: 18px;
   height: 18px;
+}
+
+/* 素材库添加入口固定在引用素材行最右侧，不依赖手动画线。 */
+.nori-canvas-generator-ref-add {
+  position: sticky;
+  right: 0;
+  display: flex;
+  width: 52px;
+  height: 52px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  border: 1px dashed rgba(139, 160, 255, .5);
+  border-radius: 7px;
+  color: rgba(190, 205, 255, .82);
+  background: rgba(59, 130, 246, .1);
+}
+
+.nori-canvas-generator-ref-add:hover {
+  border-color: rgba(139, 160, 255, .85);
+  color: white;
+  background: rgba(59, 130, 246, .2);
+}
+
+.nori-canvas-generator-ref-add svg {
+  width: 20px;
+  height: 20px;
 }
 
 .nori-canvas-generator-ref img {
@@ -1001,6 +1817,16 @@
   max-width: 120px;
   padding: 0 22px 0 8px;
   appearance: none;
+  color-scheme: dark;
+}
+
+.nori-canvas-generator-controls select option {
+  color: #e7eaf2;
+  background: #181b23;
+}
+
+.nori-canvas-generator-controls select option:disabled {
+  color: #858c9c;
 }
 
 .nori-canvas-generator-select {
@@ -1899,6 +2725,31 @@
 .nori-canvas-workflow-dialog > footer button.is-primary { border-color: transparent; color: white; background: linear-gradient(145deg, #5d7fff, #705df4); }
 .nori-canvas-workflow-dialog > footer svg { width: 12px; height: 12px; }
 
+.nori-canvas-asset-library-dialog { width: min(430px, 92vw); }
+.nori-canvas-asset-library-dialog .nori-canvas-dialog-body { display: flex; flex-direction: column; gap: 12px; }
+.nori-canvas-asset-library-preview {
+  position: relative;
+  display: grid;
+  height: 168px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 10px;
+  background: rgba(8, 10, 15, .7);
+}
+.nori-canvas-asset-library-preview span { color: rgba(255, 255, 255, .35); font-size: 10px; }
+.nori-canvas-asset-library-dialog label { display: flex; flex-direction: column; gap: 7px; color: rgba(255, 255, 255, .52); font-size: 9px; }
+.nori-canvas-asset-library-dialog label input,
+.nori-canvas-asset-library-dialog label select { height: 36px; border: 1px solid rgba(255, 255, 255, .09); border-radius: 8px; outline: 0; padding: 0 10px; color: rgba(255, 255, 255, .85); background: rgba(8, 10, 15, .7); font-size: 10px; }
+.nori-canvas-asset-library-dialog label input:focus,
+.nori-canvas-asset-library-dialog label select:focus { border-color: rgba(59, 130, 246, .5); }
+.nori-canvas-asset-library-dialog .nori-canvas-dialog-body > p { margin: 0; color: rgba(255, 255, 255, .32); font-size: 9px; line-height: 1.65; }
+.nori-canvas-asset-library-dialog > footer { display: flex; height: 55px; align-items: center; justify-content: flex-end; gap: 7px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 12px; }
+.nori-canvas-asset-library-dialog > footer button { display: inline-flex; height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 7px; padding: 0 11px; color: rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .035); font-size: 9px; }
+.nori-canvas-asset-library-dialog > footer button.is-primary { border-color: transparent; color: white; background: linear-gradient(145deg, #5d7fff, #705df4); }
+.nori-canvas-asset-library-dialog > footer button:disabled { cursor: not-allowed; opacity: .45; }
+.nori-canvas-asset-library-dialog > footer svg { width: 12px; height: 12px; }
+
 .nori-canvas-viewport-controls {
   position: absolute;
   bottom: 12px;
@@ -2005,6 +2856,8 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .05);
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+.nori-canvas-menu-portal { display: contents; }
 
 .nori-canvas-context-menu > i {
   display: block;
@@ -3478,11 +4331,13 @@
 
 /* 3D director studio */
 .nori-canvas-studio-node { min-width: 300px; min-height: 220px; }
-.nori-canvas-studio-node > .nori-canvas-node-label { color: rgba(205, 214, 255, .7); }
+.nori-canvas-studio-node > .nori-canvas-node-label { width: 100%; color: rgba(205, 214, 255, .7); }
+.nori-canvas-studio-node > .nori-canvas-node-label button { flex: 1; max-width: none; padding: 0; text-align: left; line-height: 18px; }
 .nori-canvas-studio-node-body {
   position: absolute;
   inset: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr) auto;
   width: 100%;
   height: 100%;
@@ -3494,7 +4349,13 @@
   background: #12151d;
   box-shadow: 0 14px 34px rgba(0, 0, 0, .28);
   text-align: left;
+  cursor: grab;
+  user-select: none;
 }
+.nori-canvas-studio-node-body:active { cursor: grabbing; }
+.nori-canvas-studio-node-body:focus-visible { outline: 2px solid #91a6ff; outline-offset: 3px; }
+.nori-canvas-studio-node.is-readonly .nori-canvas-studio-node-body,
+.nori-canvas-studio-node.is-readonly .nori-canvas-node-drag-handle { cursor: default; }
 .nori-canvas-studio-node.is-selected .nori-canvas-studio-node-body { border-color: rgba(119, 145, 255, .95); box-shadow: 0 0 0 1px rgba(59, 130, 246, .42), 0 18px 44px rgba(0, 0, 0, .38); }
 .nori-canvas-studio-node-scene { position: relative; min-height: 0; overflow: hidden; background: radial-gradient(circle at 50% 35%, rgba(99, 116, 172, .38), transparent 38%), linear-gradient(180deg, #202534 0%, #10131b 72%); perspective: 420px; }
 .nori-canvas-studio-node-scene::after { position: absolute; right: -14%; bottom: -47%; left: -14%; height: 76%; border-radius: 50%; background: repeating-linear-gradient(90deg, transparent 0 25px, rgba(134, 151, 197, .13) 26px), repeating-linear-gradient(0deg, transparent 0 19px, rgba(134, 151, 197, .13) 20px); content: ''; transform: rotateX(62deg); transform-origin: center top; }
@@ -3503,10 +4364,11 @@
 .nori-canvas-studio-node-scene > i:nth-of-type(2) { right: 26%; bottom: 24%; color: #9eb0ff; transform: rotate(9deg) scale(.82); }
 .nori-canvas-studio-node-scene > i:nth-of-type(3) { top: 22%; right: 18%; color: rgba(255, 255, 255, .48); transform: rotate(-13deg) scale(.65); }
 .nori-canvas-studio-node-scene > i svg { width: 34px; height: 34px; }
-.nori-canvas-studio-node-meta { display: flex; min-height: 58px; flex-direction: column; justify-content: center; gap: 2px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 9px 12px; background: rgba(17, 20, 28, .97); }
-.nori-canvas-studio-node-meta strong { color: rgba(255, 255, 255, .84); font-size: 10px; font-weight: 700; }
-.nori-canvas-studio-node-meta span { color: rgba(196, 207, 255, .55); font-size: 8px; }
-.nori-canvas-studio-node-meta small { color: rgba(255, 255, 255, .29); font-size: 7px; }
+.nori-canvas-studio-node-meta { display: flex; min-width: 0; min-height: 84px; flex-direction: column; align-items: stretch; justify-content: center; gap: 4px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 10px 12px; background: rgba(17, 20, 28, .97); line-height: 1.4; }
+.nori-canvas-studio-node-meta strong { display: block; color: #e2e7f5; font-size: 13px; font-weight: 700; }
+.nori-canvas-studio-node-stats { display: flex; min-width: 0; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.nori-canvas-studio-node-stats span { color: #b8c5e9; font-size: 11px; white-space: nowrap; }
+.nori-canvas-studio-node-meta small { display: block; color: #94a0b6; font-size: 10px; overflow-wrap: anywhere; }
 
 .nori-canvas-studio-dialog {
   position: fixed;
@@ -4931,6 +5793,11 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 .nori-canvas-playlist-node.is-rejected { border-color: rgba(255, 166, 92, .42); }
 
+.nori-canvas-playlist-node.is-node-drop-target {
+  border-color: rgba(119, 158, 255, .98);
+  box-shadow: 0 0 0 3px rgba(76, 119, 255, .26), 0 28px 80px rgba(27, 55, 151, .42);
+}
+
 .nori-playlist-header {
   display: flex;
   min-width: 0;
@@ -5004,18 +5871,37 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   display: grid;
   min-width: 0;
   min-height: 0;
-  grid-template-rows: minmax(190px, 1fr) auto auto;
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
 }
 
-.nori-playlist-stage {
+.nori-playlist-node-drop-hint {
+  position: absolute;
+  z-index: 40;
+  inset: 10px;
   display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 7px;
+  border: 2px dashed rgba(156, 181, 255, .88);
+  border-radius: 12px;
+  color: #f7f9ff;
+  background: rgba(36, 62, 146, .88);
+  box-shadow: inset 0 0 48px rgba(104, 143, 255, .2);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+}
+.nori-playlist-node-drop-hint > span { display: grid; width: 44px; height: 44px; place-items: center; border-radius: 12px; color: #dbe5ff; background: rgba(255,255,255,.12); }
+.nori-playlist-node-drop-hint svg { width: 21px; height: 21px; }
+.nori-playlist-node-drop-hint strong { font-size: 15px; font-weight: 760; }
+.nori-playlist-node-drop-hint small { color: #c7d4ff; font-size: 10px; }
+
+.nori-playlist-stage {
+  display: block;
   min-width: 0;
   min-height: 0;
-  grid-template-columns: minmax(270px, 1fr) minmax(310px, .72fr);
-  gap: 10px;
   overflow: hidden;
-  padding: 10px;
+  padding: 10px 10px 0;
 }
 
 .nori-playlist-inspector {
@@ -5106,23 +5992,67 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-inspector-empty { display: flex; flex: 1; align-items: center; justify-content: center; color: #70798a; font-size: 9px; }
 
 .nori-playlist-source-restore { min-width: 0; border-top: 1px solid rgba(255,255,255,.055); }
-.nori-playlist-editor > .fac-timeline { min-height: 232px; height: 232px; flex: none; border-top: 1px solid #25272b; border-radius: 0 0 12px 12px; }
-.nori-playlist-editor > .fac-timeline .fac-timeline-head { min-height: 52px; padding-block: 6px; }
-.nori-playlist-editor > .fac-timeline .fac-timeline-viewport { height: 180px; }
-.nori-playlist-editor > .fac-timeline .fac-timeline-canvas { min-height: 178px; }
+.nori-playlist-editor > .fac-timeline {
+  display: flex;
+  min-height: 220px;
+  height: auto;
+  flex: none;
+  flex-direction: column;
+  border-top: 1px solid rgba(255,255,255,.06);
+  border-radius: 0 0 12px 12px;
+  background: #0a0b0f;
+}
+.nori-playlist-editor > .fac-timeline .fac-timeline-head {
+  flex: none;
+  min-height: 50px;
+  padding-block: 6px;
+}
+.nori-playlist-editor > .fac-timeline .fac-timeline-viewport {
+  flex: 1;
+  height: auto;
+  min-height: 168px;
+  background: #090a0e;
+}
+.nori-playlist-editor > .fac-timeline .fac-timeline-canvas { min-height: 100%; }
 
 .nori-playlist-body { position: relative; display: grid; min-width: 0; min-height: 0; grid-template-rows: minmax(120px, 1fr) auto; gap: 10px; overflow: hidden; padding: 10px 12px 12px; }
-.nori-playlist-preview { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid rgba(205, 214, 255, .11); border-radius: 10px; background: #090a0e; }
-.nori-playlist-preview > video { display: block; width: 100%; height: 100%; object-fit: contain; background: #090a0e; }
+.nori-playlist-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border: 1px solid rgba(205, 214, 255, .11);
+  border-radius: 10px 10px 0 0;
+  background: #090a0e;
+}
+.nori-playlist-preview > video { display: block; width: 100%; height: 100%; object-fit: contain; background: #050608; }
 .nori-playlist-play { position: absolute; top: 50%; left: 50%; display: grid; width: 42px; height: 42px; place-items: center; transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; color: #fff; background: rgba(18, 21, 29, .76); box-shadow: 0 10px 28px rgba(0,0,0,.36); backdrop-filter: blur(9px); }
 .nori-playlist-play:hover { background: rgba(66, 93, 181, .82); }
 .nori-playlist-play svg { width: 17px; height: 17px; }
-.nori-playlist-preview-meta { position: absolute; right: 9px; bottom: 8px; left: 9px; display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; border-radius: 7px; padding: 6px 8px; background: linear-gradient(90deg, rgba(8,10,16,.84), rgba(8,10,16,.48)); backdrop-filter: blur(8px); }
-.nori-playlist-preview-meta strong { overflow: hidden; color: #e9edf6; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.nori-playlist-preview-meta span { flex: none; color: #b6c0d2; font-size: 10px; font-variant-numeric: tabular-nums; }
+.nori-playlist-preview-meta { position: absolute; right: 9px; bottom: 8px; left: 9px; display: flex; min-width: 0; align-items: center; gap: 10px; border-radius: 7px; padding: 6px 8px; background: linear-gradient(90deg, rgba(8,10,16,.84), rgba(8,10,16,.48)); backdrop-filter: blur(8px); }
+.nori-playlist-preview-meta strong { min-width: 0; overflow: hidden; color: #e9edf6; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.nori-playlist-preview-meta span { flex: none; margin-left: auto; color: #b6c0d2; font-size: 10px; font-variant-numeric: tabular-nums; }
+.nori-playlist-add { display: inline-flex; height: 22px; flex: none; align-items: center; gap: 4px; border: 1px solid rgba(151, 175, 255, .35); border-radius: 6px; padding: 0 7px; color: #dce4ff; background: rgba(77, 115, 232, .28); font-size: 10px; font-weight: 700; }
+.nori-playlist-add:hover { border-color: rgba(171, 191, 255, .7); background: rgba(87, 125, 242, .42); }
+.nori-playlist-add svg { width: 10px; height: 10px; }
 
-.nori-playlist-empty { display: grid; min-height: 125px; place-items: center; align-content: center; gap: 5px; border: 1px dashed rgba(151, 165, 195, .26); border-radius: 11px; color: #abb4c5; background: rgba(255,255,255,.018); }
+.nori-playlist-empty {
+  display: grid;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  min-height: 0;
+  place-items: center;
+  align-content: center;
+  gap: 5px;
+  border: 1px dashed rgba(151, 165, 195, .26);
+  border-radius: 10px 10px 0 0;
+  color: #abb4c5;
+  background: rgba(255,255,255,.018);
+}
 .nori-playlist-empty:not(:disabled):hover { border-color: rgba(113, 145, 255, .55); color: #dbe3ff; background: rgba(83, 113, 220, .07); }
+.nori-playlist-empty.is-missing { border-style: solid; border-color: rgba(255, 168, 128, .22); color: #d5c4b8; background: rgba(255, 132, 84, .045); }
+.nori-playlist-empty.is-missing strong { color: #f0ddd2; }
+.nori-playlist-empty.is-missing .nori-playlist-add { margin-top: 4px; }
 .nori-playlist-empty > span { display: grid; width: 35px; height: 35px; place-items: center; border: 1px solid rgba(205,214,255,.12); border-radius: 9px; background: rgba(255,255,255,.05); }
 .nori-playlist-empty svg { width: 16px; height: 16px; }
 .nori-playlist-empty strong { font-size: 11px; font-weight: 680; }
@@ -5189,5 +6119,5 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-workspace.is-readonly .nori-canvas-playlist-node { cursor: default; }
 
 @media (max-width: 900px) {
-  .nori-playlist-stage { grid-template-columns: minmax(250px, 1fr) minmax(280px, .85fr); }
+  .nori-playlist-stage { grid-template-columns: minmax(0, 1fr); }
 }

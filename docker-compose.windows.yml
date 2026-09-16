@@ -29,7 +29,7 @@ x-nori-env: &nori-env
   TOS_ENDPOINT: ${TOS_ENDPOINT:-https://tos-cn-beijing.volces.com}
   TOS_PUBLIC_ENDPOINT: ${TOS_PUBLIC_ENDPOINT:-https://tos-cn-beijing.volces.com}
   TOS_REGION: ${TOS_REGION:-cn-beijing}
-  TOS_BUCKET: ${TOS_BUCKET:-}
+  TOS_BUCKET: ${TOS_BUCKET:-nori-test}
   TOS_ACCESS_KEY: ${TOS_ACCESS_KEY:-}
   TOS_SECRET_KEY: ${TOS_SECRET_KEY:-}
   VOLCENGINE_MEDIAKIT_API_KEY: ${VOLCENGINE_MEDIAKIT_API_KEY:-}

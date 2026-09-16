@@ -9,7 +9,7 @@ import { deleteObject, getObjectBuffer, getSignedObjectUrl, resetStorageProvider
 const ENV_FILE = path.join(process.cwd(), '.env.local')
 const DEFAULT_TOS_ENDPOINT = 'https://tos-cn-beijing.volces.com'
 const DEFAULT_TOS_REGION = 'cn-beijing'
-const DEFAULT_TOS_BUCKET = 'chaofen'
+const DEFAULT_TOS_BUCKET = 'nori-test'
 const STORAGE_CONFIG_KEYS = [
   'STORAGE_TYPE',
   'TOS_ENDPOINT',

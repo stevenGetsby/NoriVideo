@@ -19,6 +19,7 @@ import {
   type CanvasReferenceMediaSummary,
 } from '@/lib/canvas/generation-input-schema'
 import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
+import { isSeedance25VideoModelKey } from '@/lib/canvas/generator-options'
 import {
   bindCanvasToolboxTaskToNode,
   projectCanvasToolboxSubmissionFailure,
@@ -671,7 +672,9 @@ export const POST = apiHandler(async (
       enforceMinimums: true,
       requireKnownAudioDuration: true,
     }),
-    ...(type === 'video' ? validateVideoReferenceMediaCombination(referenceSummary) : []),
+    ...(type === 'video' ? validateVideoReferenceMediaCombination(referenceSummary, {
+      allowAudioOnly: isSeedance25VideoModelKey(modelKey),
+    }) : []),
   ]
   if (inputErrors.length > 0) throw new ApiError('INVALID_PARAMS', { message: inputErrors[0] })
 

@@ -13,6 +13,7 @@ import {
   type CanvasOperationTaskUpdate,
   type ResolvedCanvasOperation,
 } from '../operation-task-client'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { CanvasOperationTaskProgress } from './CanvasOperationTaskProgress'
 
 export type CanvasImageOperationMode = 'grid_split' | 'lens_focus' | 'superresolve'
@@ -57,6 +58,7 @@ export function CanvasImageOperationDialog({
   isTaskMaterialized: (taskId: string) => boolean
   onClose: () => void
 }) {
+  const { generationAllowed } = useAccountBalance()
   const imageUrl = toDisplayImageUrl(node.data.contentUrl || node.data.imageUrl || null)
   const previewRef = useRef<HTMLDivElement>(null)
   const [rows, setRows] = useState(2)
@@ -124,6 +126,7 @@ export function CanvasImageOperationDialog({
   }
 
   const submit = async () => {
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -233,7 +236,7 @@ export function CanvasImageOperationDialog({
             {mode === 'superresolve' && taskUpdate ? <CanvasOperationTaskProgress update={taskUpdate} engineLabel={selectedEngine?.label} materialized={isTaskMaterialized(taskUpdate.task.id)} actionBusy={taskActionBusy} onCancel={() => void cancelTask()} onRetry={() => void retryTask()} onRecover={() => void recoverTask()} /> : null}
             {rows * cols > 25 ? <div className="nori-canvas-generator-error">切片总数不能超过 25</div> : null}
             {error ? <div className="nori-canvas-generator-error">{error}</div> : null}
-            <div className="nori-canvas-image-operation-actions"><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={submitting || taskActive || !imageUrl || (mode === 'superresolve' && engines.length > 0 && !selectedEngine) || (mode === 'grid_split' && (rows * cols < 2 || rows * cols > 25 || selectedCells.length === 0))} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : <Icon />}{submitting || taskActive ? '后台处理中…' : mode === 'grid_split' ? `生成 ${selectedCells.length} 张` : mode === 'lens_focus' ? '创建聚焦参考' : `生成 ${scale}× 超清图`}</button></div>
+            <div className="nori-canvas-image-operation-actions"><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !imageUrl || (mode === 'superresolve' && engines.length > 0 && !selectedEngine) || (mode === 'grid_split' && (rows * cols < 2 || rows * cols > 25 || selectedCells.length === 0))} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : <Icon />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? '积分不足' : mode === 'grid_split' ? `生成 ${selectedCells.length} 张` : mode === 'lens_focus' ? '创建聚焦参考' : `生成 ${scale}× 超清图`}</button></div>
           </aside>
         </div>
       </div>

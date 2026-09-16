@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasNodeMenuType } from '../editor-types'
 
-const ICONS = { text: Type, image: ImageIcon, video: Video, box3d: Box, studio3d: Clapperboard, playlist: ListVideo }
+const ICONS = { text: Type, image: ImageIcon, video: Video, box3d: Box, studio3d: Clapperboard, playlist: ListVideo, video_edit: Video }
 
 function canvasControlTitle(label: string, disabled: boolean) {
   return disabled ? `${label} · 请先创建画布` : label

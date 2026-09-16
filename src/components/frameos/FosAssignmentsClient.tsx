@@ -32,6 +32,7 @@ import {
   assignmentNavigationBlockReason,
   isAssignmentTab,
   moveAssignmentTabIndex,
+  resolveDefaultAssignmentTab,
   type AssignmentCounts,
   type AssignmentStage,
   type AssignmentTab,
@@ -110,11 +111,15 @@ async function readJson<T>(response: Response, fallback: string): Promise<T> {
 }
 
 export function FosAssignmentsClient() {
-  const { status } = useSession()
+  const { data: session, status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
   const routeTab = searchParams?.get('tab')
-  const initialTab: AssignmentTab = isAssignmentTab(routeTab) ? routeTab : 'todo'
+  const hasExplicitTab = isAssignmentTab(routeTab)
+  const initialTab: AssignmentTab = resolveDefaultAssignmentTab({
+    routeTab,
+    role: session?.user?.role,
+  })
   const authReady = status === 'authenticated' || TEST_MODE
 
   const [activeTab, setActiveTab] = useState<AssignmentTab>(initialTab)
@@ -355,6 +360,18 @@ export function FosAssignmentsClient() {
       })
     return () => { window.clearTimeout(timeout); controller.abort() }
   }, [activeTab, authReady, currentPage, filterSignature, refreshToken])
+
+  useEffect(() => {
+    if (hasExplicitTab) return
+    const nextTab = resolveDefaultAssignmentTab({
+      role: session?.user?.role,
+      showPendingReviewTab: countsReady ? showPendingReviewTab : undefined,
+      pendingReviewCount: countsReady ? counts.pendingReview : undefined,
+    })
+    if (nextTab === activeTab) return
+    setActiveTab(nextTab)
+    router.replace({ pathname: '/my-assignments', query: { tab: nextTab } })
+  }, [activeTab, counts.pendingReview, countsReady, hasExplicitTab, router, session?.user?.role, showPendingReviewTab])
 
   useEffect(() => {
     if (!countsReady || activeTab !== 'pending_review' || showPendingReviewTab) return

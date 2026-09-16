@@ -9,6 +9,7 @@ export const CANVAS_ASYNC_OPERATIONS = [
   'superresolve',
   'video_superresolve',
   'subtitle_erase',
+  'video_edit',
 ] as const
 
 export type CanvasAsyncOperation = (typeof CANVAS_ASYNC_OPERATIONS)[number]
@@ -17,7 +18,7 @@ export type CanvasOperationEngine = {
   operation: CanvasAsyncOperation
   engineKey: string
   modelKey: string
-  provider: 'local'
+  provider: 'local' | 'kuaizi'
   label: string
   description: string
   isDefault: boolean
@@ -67,6 +68,16 @@ const ENGINES: readonly CanvasOperationEngine[] = [
     isDefault: true,
     capabilities: { modes: ['subtitle', 'text'], normalizedRegion: true },
   },
+  {
+    operation: 'video_edit',
+    engineKey: 'kuaizi-seedance25',
+    modelKey: 'doubao-seedance-2-5-260628',
+    provider: 'kuaizi',
+    label: '筷子 Seedance 2.5 视频编辑',
+    description: '裁剪首尾帧区间后，使用筷子 Seedance 2.5 依据提示词编辑视频片段。',
+    isDefault: true,
+    capabilities: { maxSegmentSeconds: 30, resolutions: ['480p', '720p'] },
+  },
 ]
 
 const ASYNC_OPERATION_SET = new Set<string>(CANVAS_ASYNC_OPERATIONS)
@@ -83,6 +94,23 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function text(value: unknown, max = 500): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
+}
+
+function normalizeVideoEditReferences(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) return []
+  const normalized: Array<Record<string, unknown>> = []
+  for (const raw of value.slice(0, 30)) {
+    const item = record(raw)
+    if (!item) continue
+    const type = item.type === 'audio' ? 'audio' : 'image'
+    const id = text(item.id, 191)
+    const title = text(item.title, 160)
+    const materialId = text(item.materialId, 191)
+    const url = text(item.url, 2_000)
+    if (!id || !title || (!materialId && !url)) continue
+    normalized.push({ id, title, type, materialId, url })
+  }
+  return normalized
 }
 
 export class CanvasOperationInputError extends Error {
@@ -169,6 +197,34 @@ export function parseCanvasAsyncOperationInput(value: unknown): {
     }
   }
 
+  if (operation === 'video_edit') {
+    const prompt = text(input.prompt, 8_000)
+    if (!prompt) throw new CanvasOperationInputError('请填写视频编辑提示词。')
+    const startMs = Number(input.startMs)
+    const endMs = Number(input.endMs)
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs) {
+      throw new CanvasOperationInputError('视频编辑区间无效，请重新选择首帧和尾帧。')
+    }
+    if (endMs - startMs < 4_000) {
+      throw new CanvasOperationInputError('视频编辑区间至少需要 4 秒。')
+    }
+    if (endMs - startMs > 30_000) {
+      throw new CanvasOperationInputError('Seedance 2.5 视频编辑区间最多支持 30 秒。')
+    }
+    return {
+      operation,
+      engineKey: engine.engineKey,
+      modelKey: engine.modelKey,
+      parameters: {
+        prompt,
+        startMs,
+        endMs,
+        generateAudio: input.generateAudio !== false,
+        references: normalizeVideoEditReferences(input.references),
+      },
+    }
+  }
+
   const regionInput = record(input.region)
   let region: CanvasVideoRegion
   try {
@@ -244,11 +300,14 @@ export async function resolveCanvasOperationSource(params: {
   operation: CanvasAsyncOperation
 }): Promise<{ sourceStorageKey: string; sourceTitle: string }> {
   const expectedType = params.operation === 'superresolve' ? 'image' : 'video'
+  const allowedNodeTypes = params.operation === 'video_edit'
+    ? ['video', 'video_edit']
+    : [expectedType]
   const sourceNode = await prisma.canvasNode.findFirst({
     where: {
       id: params.sourceNodeId,
       canvasId: params.canvasId,
-      type: expectedType,
+      type: { in: allowedNodeTypes },
       canvas: { projectId: params.projectId },
     },
     select: { data: true },

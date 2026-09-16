@@ -2,6 +2,7 @@ import path from 'node:path'
 import { NextRequest, NextResponse } from 'next/server'
 import sharp from 'sharp'
 import { ApiError } from '@/lib/api-errors'
+import { normalizeUploadedVideo } from '@/lib/media/video-audio'
 import { prisma } from '@/lib/prisma'
 import { generateUniqueKey, uploadObject } from '@/lib/storage'
 import { registerFrameosMaterial, type FrameosMaterialType } from './material-service'
@@ -10,13 +11,28 @@ import { assertSelfContainedGlbV2 } from '@/lib/model3d/glb-validation'
 import type { AuthSession } from '@/lib/api-auth'
 import { projectReadWhere } from '@/lib/collaboration/access'
 import { normalizeFrameosAssetCategory } from './material-category'
+import { readRequestFormData } from '@/lib/http/request-form-data'
 
 const MAX_FILE_BYTES = 200 * 1024 * 1024
 // Multipart boundaries and field names add a small amount around the actual
 // file. The authoritative file cap is still checked again using File.size.
 const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 256 * 1024
 const MAX_CONCURRENT_UPLOADS = 2
-const MAX_IMAGE_PIXELS = 40_000_000
+export const MAX_IMAGE_PIXELS = 40_000_000
+
+export function assertFrameosImagePixelLimit(width: number, height: number): void {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+    throw new ApiError('INVALID_PARAMS', { message: '无法读取这张图片，请更换文件。' })
+  }
+  if (width * height > MAX_IMAGE_PIXELS) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'IMAGE_PIXELS_EXCEEDED',
+      width: Math.round(width),
+      height: Math.round(height),
+      message: `图片尺寸过大（${Math.round(width)}×${Math.round(height)}），请压缩到 4000 万像素以内再上传。`,
+    })
+  }
+}
 
 let activeMaterialUploads = 0
 
@@ -24,6 +40,15 @@ type MaterialUploadSession = AuthSession
 
 function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+}
+
+function isDisabledStorageAccountError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error || '')
+  const normalized = message.toLowerCase()
+  return normalized.includes('accountdisabled')
+    || normalized.includes('account disabled')
+    || (normalized.includes('account') && normalized.includes('disabled') && normalized.includes('overdue'))
+    || normalized.includes('disabled due to overdue bills')
 }
 
 function typeFromFile(file: File): FrameosMaterialType | null {
@@ -80,7 +105,7 @@ async function processFrameosMaterialUpload(
   session: MaterialUploadSession,
   options: { expectedProjectId?: string; projectAccessVerified?: boolean } = {},
 ) {
-  const form = await request.formData()
+  const form = await readRequestFormData(request, { fileSizeLabel: '200MB' })
   const fileValue = form.get('file')
   const file = fileValue instanceof File ? fileValue : null
   const title = cleanText(form.get('title'))
@@ -129,24 +154,49 @@ async function processFrameosMaterialUpload(
     extension = 'glb'
     contentType = 'model/gltf-binary'
   }
+  if (type === 'video') {
+    try {
+      body = await normalizeUploadedVideo(original)
+      extension = 'mp4'
+      contentType = 'video/mp4'
+    } catch (error) {
+      throw new ApiError('INVALID_PARAMS', {
+        message: error instanceof Error ? error.message : '无法处理该视频，请更换文件后重试。',
+      })
+    }
+  }
   if (type === 'image') {
-    const image = sharp(original, {
-      limitInputPixels: MAX_IMAGE_PIXELS,
-      sequentialRead: true,
-    })
-    const metadata = await image.metadata().catch(() => null)
+    // 先松开像素上限读元数据，才能把“像素过大”和“文件损坏”区分开，
+    // 否则超限图片只会得到一句无法定位问题的“无法读取这张图片”。
+    const metadata = await sharp(original, { limitInputPixels: false, sequentialRead: true })
+      .metadata()
+      .catch(() => null)
     if (!metadata?.width || !metadata.height) {
       throw new ApiError('INVALID_PARAMS', { message: '无法读取这张图片，请更换文件。' })
     }
+    assertFrameosImagePixelLimit(metadata.width, metadata.height)
     width = metadata.width
     height = metadata.height
-    body = await image.rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer()
+    body = await sharp(original, {
+      limitInputPixels: MAX_IMAGE_PIXELS,
+      sequentialRead: true,
+    }).rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer()
     extension = 'jpg'
     contentType = 'image/jpeg'
   }
 
   const storageKey = generateUniqueKey(`frameos-material-${session.user.id}`, extension)
-  await uploadObject(body, storageKey, undefined, contentType)
+  try {
+    await uploadObject(body, storageKey, undefined, contentType)
+  } catch (error) {
+    if (isDisabledStorageAccountError(error)) {
+      throw new ApiError('EXTERNAL_ERROR', {
+        message: '平台素材存储暂不可用，请联系管理员检查对象存储账户状态。',
+        storageStatus: 'account_disabled',
+      })
+    }
+    throw error
+  }
   const material = await registerFrameosMaterial({
     userId: session.user.id,
     projectId,

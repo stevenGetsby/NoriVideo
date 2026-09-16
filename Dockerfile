@@ -4,10 +4,12 @@ FROM ${NODE_IMAGE} AS deps
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG DEBIAN_MIRROR_HOST=""
 
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
-RUN apt-get update \
+RUN if [ -n "$DEBIAN_MIRROR_HOST" ]; then sed -i "s|deb.debian.org|$DEBIAN_MIRROR_HOST|g" /etc/apt/sources.list.d/debian.sources; fi \
+	&& apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates openssl \
 	&& rm -rf /var/lib/apt/lists/* \
 	&& npm config set registry https://registry.npmmirror.com \
@@ -19,11 +21,13 @@ FROM ${NODE_IMAGE} AS builder
 WORKDIR /app
 
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG DEBIAN_MIRROR_HOST=""
 
 # Prisma chooses its query-engine binary while generating the client. The
 # builder therefore needs OpenSSL as well as the final runtime image; without
 # it Prisma falls back to an OpenSSL 1.1 engine that cannot run on Bookworm.
-RUN apt-get update \
+RUN if [ -n "$DEBIAN_MIRROR_HOST" ]; then sed -i "s|deb.debian.org|$DEBIAN_MIRROR_HOST|g" /etc/apt/sources.list.d/debian.sources; fi \
+	&& apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates openssl \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -40,9 +44,11 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+ARG DEBIAN_MIRROR_HOST=""
 
 # Install runtime media tools used by canvas video enhancement / subtitle erasing.
-RUN apt-get update \
+RUN if [ -n "$DEBIAN_MIRROR_HOST" ]; then sed -i "s|deb.debian.org|$DEBIAN_MIRROR_HOST|g" /etc/apt/sources.list.d/debian.sources; fi \
+	&& apt-get update \
 	&& apt-get install -y --no-install-recommends ca-certificates ffmpeg openssl tini \
 	&& rm -rf /var/lib/apt/lists/*
 
@@ -63,6 +69,7 @@ COPY --from=builder /app/dist ./dist
 
 # 生产启动脚本
 COPY --from=builder /app/scripts/docker-start.sh ./docker-start.sh
+COPY --from=builder /app/scripts/guards/fixed-tos-config-guard.mjs ./fixed-tos-config-guard.mjs
 RUN chmod +x ./docker-start.sh
 
 # 定价和配置标准

@@ -80,6 +80,40 @@ describe('FrameOS-compatible project creation', () => {
     expect(route).toContain('initialEpisodesCreated')
   })
 
+  it('offers a blank project path without importing a script or creating episodes', () => {
+    const dialog = readSource('src/components/frameos/CreateProjectDialog.tsx')
+    const client = readSource('src/components/frameos/FosProjectsClient.tsx')
+
+    expect(dialog).toContain("type ScriptSource = 'blank' | 'writer' | 'local' | 'range'")
+    expect(dialog).toContain('>空白项目</button>')
+    expect(dialog).toContain('不导入剧本、不预建剧集')
+    expect(dialog).toContain("source === 'blank'")
+    expect(dialog).toContain("source === 'blank'\n        ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false")
+    expect(client).toContain("'创建空白项目…'")
+  })
+
+  it('states that a custom style overrides the selected project style', () => {
+    const dialog = readSource('src/components/frameos/CreateProjectDialog.tsx')
+
+    expect(dialog).toContain('内置画风已被自定义画风覆盖')
+    expect(dialog).toContain('生成时完全忽略内置画风选项')
+    expect(dialog).toContain('填写后将完全覆盖上方项目风格')
+  })
+
+  it('keeps the create-project dialog fully accessible on small screens', () => {
+    const styles = readSource('src/styles/frameos-replica.css')
+
+    expect(styles).toContain('width: min(1000px,100%);')
+    expect(styles).toContain('height: min(920px,100%);')
+    expect(styles).toContain('.create-project-dialog > .create-project-body')
+    expect(styles).toContain('flex: 1 1 auto;')
+    expect(styles).toContain('overscroll-behavior: contain;')
+    expect(styles).toContain('@media (max-height: 760px)')
+    expect(styles).toContain('.create-project-dialog { height: 100%; max-height: 100%; }')
+    expect(styles).toContain('@media (max-width: 480px)')
+    expect(styles).toContain('grid-template-columns: repeat(2,minmax(0,1fr));')
+  })
+
   it('uses an independent project-creation capability without granting work administration', () => {
     const client = readSource('src/components/frameos/FosProjectsClient.tsx')
     const panels = readSource('src/components/frameos/works/FosWorkPanels.tsx')

@@ -31,18 +31,23 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+        return
+      }
       if (type !== 'image') return
       if (event.key === '+' || event.key === '=') { setFit(false); setScale((value) => clampScale(value + 0.1)) }
       if (event.key === '-') { setFit(false); setScale((value) => clampScale(value - 0.1)) }
       if (event.key === '0') { setFit(true); setScale(1); setRotation(0) }
     }
-    window.addEventListener('keydown', keydown)
-    return () => window.removeEventListener('keydown', keydown)
+    document.addEventListener('keydown', keydown, true)
+    return () => document.removeEventListener('keydown', keydown, true)
   }, [onClose, type])
 
   return (
-    <div className="nori-canvas-media-preview" onPointerDown={(event) => event.stopPropagation()}>
+    <div className="nori-canvas-media-preview" role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
       <header>
         <div><Maximize2 /><span><strong>{node.data.title || '素材预览'}</strong><small>{type === 'video' ? '视频预览' : type === 'audio' ? '音频预览' : '图片预览'}</small></span></div>
         <div>

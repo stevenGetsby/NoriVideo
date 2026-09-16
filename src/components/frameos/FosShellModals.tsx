@@ -81,12 +81,9 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
             <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[rgba(139,92,246,.16)] text-[#a78bfa]"><AppIcon name="lock" className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-white">登录密码</span>
           </div>
-          <div className="flex items-center justify-between border-t border-[var(--fos-border-soft)] pt-4">
-            <div>
-              <div className="text-[13px] font-bold text-white">已设置登录密码</div>
-              <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">可使用账号+密码方式登录</div>
-            </div>
-            <button className="fos-btn fos-btn-primary fos-btn-sm" disabled title="演示已禁用">修改密码</button>
+          <div className="border-t border-[var(--fos-border-soft)] pt-4">
+            <div className="text-[13px] font-bold text-white">已设置登录密码</div>
+            <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">可使用账号+密码方式登录</div>
           </div>
         </div>
         <button type="button" onClick={onLogout} className="fos-btn fos-btn-ghost w-full border-red-400/20 text-red-300 hover:bg-red-400/10">

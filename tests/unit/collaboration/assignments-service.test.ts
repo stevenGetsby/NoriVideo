@@ -380,7 +380,7 @@ describe('workflow assignment service authorization and audit', () => {
     })
     expect(prismaMock.workflowAssignment.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId_scopeId_stage: { projectId: 'project-1', scopeId: 'project', stage: 'script' } },
-      update: { episodeId: null, matched: true },
+      update: { episodeId: null, matched: true, submitCompletesDirectly: false },
       create: expect.objectContaining({
         stage: 'script',
         events: {
@@ -393,7 +393,7 @@ describe('workflow assignment service authorization and audit', () => {
     }))
     expect(prismaMock.workflowAssignment.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId_scopeId_stage: { projectId: 'project-1', scopeId: 'project', stage: 'asset' } },
-      update: { episodeId: null, matched: true },
+      update: { episodeId: null, matched: true, submitCompletesDirectly: false },
       create: expect.objectContaining({
         stage: 'asset',
         events: {
@@ -411,13 +411,30 @@ describe('workflow assignment service authorization and audit', () => {
       }),
     }))
     expect(prismaMock.workflowAssignment.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { projectId_scopeId_stage: { projectId: 'project-1', scopeId: 'episode-1', stage: 'storyboard' } },
+      update: { episodeId: 'episode-1', matched: true, submitCompletesDirectly: true },
+    }))
+    expect(prismaMock.workflowAssignment.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId_scopeId_stage: { projectId: 'project-1', scopeId: 'episode-1', stage: 'video' } },
-      update: { episodeId: 'episode-1', matched: false },
+      update: { episodeId: 'episode-1', matched: false, submitCompletesDirectly: false },
     }))
     expect(prismaMock.workflowAssignment.upsert).toHaveBeenCalledWith(expect.objectContaining({
       where: { projectId_scopeId_stage: { projectId: 'project-1', scopeId: 'episode-2', stage: 'video' } },
-      update: { episodeId: 'episode-2', matched: true },
+      update: { episodeId: 'episode-2', matched: true, submitCompletesDirectly: false },
     }))
+    expect(prismaMock.workflowAssignment.updateMany).toHaveBeenCalledWith({
+      where: {
+        workspaceOwnerId: 'workspace-1',
+        projectId: 'project-1',
+        stage: 'storyboard',
+        status: 'pending_review',
+      },
+      data: {
+        status: 'completed',
+        submitCompletesDirectly: true,
+        completedAt: expect.any(Date),
+      },
+    })
   })
 
   it('hides stale assignments when a project no longer uses task collaboration', async () => {
@@ -836,9 +853,10 @@ describe('workflow assignment service authorization and audit', () => {
     prismaMock.workflowAssignment.findFirst.mockResolvedValue(current)
     prismaMock.workflowAssignment.findUnique.mockResolvedValue(hydratedAssignment({
       stage: 'storyboard',
-      status: 'pending_review',
+      status: 'completed',
       episodeId: 'episode-1',
       assigneeUserId: 'actor-1',
+      submitCompletesDirectly: true,
     }))
     const transaction = {
       workflowAssignment: {
@@ -880,7 +898,25 @@ describe('workflow assignment service authorization and audit', () => {
         }),
       }),
     })
-    expect(result.status).toBe('pending_review')
+    expect(transaction.workflowAssignment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'completed' }),
+    }))
+    expect(result.status).toBe('completed')
+  })
+
+  it('rejects approve and reject on storyboard assignments', async () => {
+    prismaMock.workflowAssignment.findFirst.mockResolvedValue(assignment({
+      stage: 'storyboard',
+      status: 'pending_review',
+      episodeId: 'episode-1',
+    }))
+    const { mutateAssignment } = await import('@/lib/collaboration/assignments')
+
+    await expect(mutateAssignment(session, 'approve', { assignmentId: 'assignment-1' }))
+      .rejects.toMatchObject({ code: 'CONFLICT', message: '分镜任务不再进入审核，请在任务中标记完成。' })
+    await expect(mutateAssignment(session, 'reject', { assignmentId: 'assignment-1', note: '改一下' }))
+      .rejects.toMatchObject({ code: 'CONFLICT', message: '分镜任务不再进入审核，请在任务中标记完成。' })
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
   it('requires the assignee to save the edit before submitting video review', async () => {

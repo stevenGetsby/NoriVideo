@@ -122,6 +122,8 @@ describe('billing/cost', () => {
   it('uses Nori retail image prices before resolving upstream routes', () => {
     expect(calcImage('nori::nori-image', 3)).toBeCloseTo(0.15, 8)
     expect(calcImage('nori::nori-image-pro', 2)).toBeCloseTo(1, 8)
+    expect(calcImage('nori::nori-image-mini', 1)).toBeCloseTo(0.02, 8)
+    expect(calcImage('nori::nori-image-fast', 1)).toBeCloseTo(0.03, 8)
   })
 
   it('prices the video understanding model at official Ark rates times 1.35', () => {
@@ -132,6 +134,8 @@ describe('billing/cost', () => {
   it('uses explicit Nori retail text prices before proxy routes', () => {
     expect(calcText('nori::nori-gemini', 1_000_000, 1_000_000)).toBeCloseTo(136.08, 8)
     expect(calcText('nori::nori-deepseek', 1_000_000, 1_000_000)).toBeCloseTo(48.6, 8)
+    expect(calcText('nori::nori-gpt', 1_000_000, 1_000_000)).toBeCloseTo(108, 8)
+    expect(calcText('nori::nori-gpt-max', 1_000_000, 1_000_000)).toBeCloseTo(180, 8)
   })
 
   it('supports minimax capability-aware video pricing', () => {

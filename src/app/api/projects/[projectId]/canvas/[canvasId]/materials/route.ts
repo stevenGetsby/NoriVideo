@@ -5,6 +5,7 @@ import { requireCanvasInProject } from '@/lib/canvas/access'
 import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
 import { prisma } from '@/lib/prisma'
 import { registerFrameosMaterial, type FrameosMaterialType } from '@/lib/frameos/material-service'
+import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -48,17 +49,24 @@ export const POST = apiHandler(async (
       ? Array.from(new Set(body.nodeIds.map(text).filter(Boolean))).slice(0, 20)
       : []
     if (nodeIds.length === 0) throw new ApiError('INVALID_PARAMS', { message: '请选择要引用的画布素材。' })
+    // reference：把画布节点登记成生成引用所需的素材（默认，保持既有行为）。
+    // library：把画布图片上传到资产库并归类，供素材库和其他项目复用。
+    const mode = body?.register === 'library' ? 'library' : 'reference'
+    const assetCategory = normalizeFrameosAssetCategory(body?.assetCategory)
+    const requestedTitle = text(body?.title)
     const nodes = await prisma.canvasNode.findMany({
       where: { canvasId, id: { in: nodeIds } },
       select: { id: true, type: true, data: true },
     })
     const materialByNodeId: Record<string, string> = {}
+    const uploadedMaterials: Array<{ nodeId: string; materialId: string; title: string }> = []
     for (const nodeId of nodeIds) {
       const node = nodes.find((item) => item.id === nodeId)
       if (!node) throw new ApiError('NOT_FOUND', { message: '引用节点不存在或已被删除。' })
       const data = record(node.data)
       const existingMaterialId = text(data.materialId)
-      if (existingMaterialId) {
+      // 资产库登记必须带上归类信息，已存在的素材要重新登记才能进入分类库。
+      if (existingMaterialId && mode === 'reference') {
         materialByNodeId[node.id] = existingMaterialId
         continue
       }
@@ -67,24 +75,39 @@ export const POST = apiHandler(async (
       if (!type || !resultUrl) {
         throw new ApiError('INVALID_PARAMS', { message: `「${text(data.title) || '未命名节点'}」尚无可引用的媒体内容。` })
       }
+      if (mode === 'library' && type !== 'image') {
+        throw new ApiError('INVALID_PARAMS', { message: '资产库目前只支持归类图片素材。' })
+      }
+      const nodeTitle = text(data.title) || '画布素材'
       const material = await registerFrameosMaterial({
         userId: authResult.session.user.id,
         projectId,
         ownerName: authResult.session.user.name || null,
-        title: text(data.title) || '画布引用素材',
+        title: mode === 'library' ? (requestedTitle || nodeTitle) : nodeTitle,
         type,
-        source: 'creative',
+        source: mode === 'library' ? 'upload' : 'creative',
         resultUrl,
-        metadata: {
-          ...(record(data.sourceMetadata)),
-          canvasId,
-          canvasNodeId: node.id,
-          importedForReference: true,
-        },
+        metadata: mode === 'library'
+          ? {
+            ...(record(data.sourceMetadata)),
+            assetCategory,
+            canvasId,
+            canvasNodeId: node.id,
+            uploadedFromCanvas: true,
+          }
+          : {
+            ...(record(data.sourceMetadata)),
+            canvasId,
+            canvasNodeId: node.id,
+            importedForReference: true,
+          },
       })
       materialByNodeId[node.id] = material.id
+      if (mode === 'library') {
+        uploadedMaterials.push({ nodeId: node.id, materialId: material.id, title: material.title || nodeTitle })
+      }
     }
-    return NextResponse.json({ success: true, materialByNodeId })
+    return NextResponse.json({ success: true, materialByNodeId, materials: uploadedMaterials })
   }
 
   return await uploadFrameosMaterial(request, authResult.session, {

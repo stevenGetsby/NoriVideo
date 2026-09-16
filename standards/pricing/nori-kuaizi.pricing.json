@@ -1,0 +1,651 @@
+[
+  {
+    "apiType": "text",
+    "provider": "nori",
+    "modelId": "nori-gpt",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 21.6
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 86.4
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "nori",
+    "modelId": "nori-gpt-max",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 36.0
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 144.0
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "nori",
+    "modelId": "nori-image-mini",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.02
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "nori",
+    "modelId": "nori-image-fast",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.03
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 62.1
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 37.8
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0-fast",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 49.95
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 29.7
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "nori",
+    "modelId": "seedance2.0-mini",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "480p"
+          },
+          "amount": 0.49
+        },
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 1.03
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 2.45
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "nori",
+    "modelId": "norivideo2.5",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "480p"
+          },
+          "amount": 4.5
+        },
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 9.0
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "nori",
+    "modelId": "nori-audio",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.0144
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "nori",
+    "modelId": "nori-music",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.05
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "nori",
+    "modelId": "nori-sfx",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.05
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "kuaizi",
+    "modelId": "deepseek-v4-flash",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 4.05
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 16.2
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "kuaizi",
+    "modelId": "deepseek-v4-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 16.2
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 32.4
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "kuaizi",
+    "modelId": "gpt-5.5",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "tokenType": "input"
+          },
+          "amount": 21.6
+        },
+        {
+          "when": {
+            "tokenType": "output"
+          },
+          "amount": 86.4
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "kuaizi",
+    "modelId": "kz_gpt_image2",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.2
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "kuaizi",
+    "modelId": "seedream5.0lite",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.15
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "kuaizi",
+    "modelId": "seedream5.0pro",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.4
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "kling-v3-omni",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "duration": 3
+          },
+          "amount": 0.504
+        },
+        {
+          "when": {
+            "duration": 4
+          },
+          "amount": 0.672
+        },
+        {
+          "when": {
+            "duration": 5
+          },
+          "amount": 0.84
+        },
+        {
+          "when": {
+            "duration": 6
+          },
+          "amount": 1.008
+        },
+        {
+          "when": {
+            "duration": 7
+          },
+          "amount": 1.176
+        },
+        {
+          "when": {
+            "duration": 8
+          },
+          "amount": 1.344
+        },
+        {
+          "when": {
+            "duration": 9
+          },
+          "amount": 1.512
+        },
+        {
+          "when": {
+            "duration": 10
+          },
+          "amount": 1.68
+        },
+        {
+          "when": {
+            "duration": 11
+          },
+          "amount": 1.848
+        },
+        {
+          "when": {
+            "duration": 12
+          },
+          "amount": 2.016
+        },
+        {
+          "when": {
+            "duration": 13
+          },
+          "amount": 2.184
+        },
+        {
+          "when": {
+            "duration": 14
+          },
+          "amount": 2.352
+        },
+        {
+          "when": {
+            "duration": 15
+          },
+          "amount": 2.52
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "happyhorse-1.0-r2v",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 3.5
+        },
+        {
+          "when": {
+            "resolution": "720P"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080P"
+          },
+          "amount": 3.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "happyhorse-1.0-i2v",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 3.5
+        },
+        {
+          "when": {
+            "resolution": "720P"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080P"
+          },
+          "amount": 3.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "happyhorse-1.0-t2v",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 3.5
+        },
+        {
+          "when": {
+            "resolution": "720P"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080P"
+          },
+          "amount": 3.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "happyhorse-1.0-video-edit",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 3.5
+        },
+        {
+          "when": {
+            "resolution": "720P"
+          },
+          "amount": 2.0
+        },
+        {
+          "when": {
+            "resolution": "1080P"
+          },
+          "amount": 3.5
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "doubao-seedance-2-0-mini-260615",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "480p"
+          },
+          "amount": 0.49
+        },
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 1.03
+        },
+        {
+          "when": {
+            "resolution": "1080p"
+          },
+          "amount": 2.45
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "doubao-seedance-2-5-260628",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "resolution": "480p"
+          },
+          "amount": 4.5
+        },
+        {
+          "when": {
+            "resolution": "720p"
+          },
+          "amount": 9.0
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "seed-audio",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.02
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-2.8-hd",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.02
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-2.8-turbo",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.012
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-2.6-hd",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.018
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-2.6-turbo",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.01
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-02-hd",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.016
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-02-turbo",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.009
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-01-hd",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.014
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "kuaizi",
+    "modelId": "speech-01-turbo",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.008
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "fal",
+    "modelId": "fal-ai/stable-audio-25/text-to-audio",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.05
+    }
+  },
+  {
+    "apiType": "voice",
+    "provider": "fal",
+    "modelId": "fal-ai/elevenlabs/sound-effects/v2",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.05
+    }
+  }
+]

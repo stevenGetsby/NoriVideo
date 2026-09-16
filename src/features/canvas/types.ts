@@ -83,6 +83,16 @@ export type CanvasNodeData = {
   stats?: Record<string, number>
   /** 播放列表节点的非破坏性顺序剪辑清单。 */
   playlistItems?: CanvasPlaylistItem[]
+  /** 视频编辑节点的来源与首尾帧区间。 */
+  videoEdit?: {
+    sourceKind: 'none' | 'upload' | 'material' | 'node'
+    sourceNodeId?: string | null
+    materialId?: string | null
+    startMs?: number | null
+    endMs?: number | null
+    generateAudio?: boolean
+    references?: CanvasGenerationReferenceSummary[]
+  }
   /** 后续节点类型保留字段，避免破坏向后兼容 */
   [key: string]: unknown
 }
@@ -151,6 +161,7 @@ export type CanvasProcessType =
   | 'studio_3d'
   | 'panorama_720'
   | 'image_edit'
+  | 'video_edit'
   | 'grid_split'
   | 'lens_focus'
   | 'storyboard'
@@ -181,6 +192,8 @@ export type CanvasGenerationReferenceSummary = {
   previewUrl?: string | null
   durationSeconds?: number | null
   role?: CanvasGenerationReferenceRole
+  url?: string | null
+  materialId?: string | null
 }
 
 /**
@@ -346,6 +359,7 @@ export const CANVAS_NODE_TYPE_NOTE = 'note'
 export const CANVAS_NODE_TYPE_TEXT = 'text'
 export const CANVAS_NODE_TYPE_IMAGE = 'image'
 export const CANVAS_NODE_TYPE_VIDEO = 'video'
+export const CANVAS_NODE_TYPE_VIDEO_EDIT = 'video_edit'
 export const CANVAS_NODE_TYPE_AUDIO = 'audio'
 export const CANVAS_NODE_TYPE_MODEL_3D = 'model_3d'
 export const CANVAS_NODE_TYPE_STUDIO_3D = 'studio_3d'

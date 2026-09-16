@@ -20,6 +20,7 @@ import type { FrameosMaterialItem } from '../materials/contracts'
 import { formatVideoReviewTimecode } from '../assignments-view-model'
 import { useEpisodeVideoReview } from '../useEpisodeVideoReview'
 import { FosProductionModeTabs } from './FosProductionModeTabs'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 
 type RefKind = 'character' | 'prop' | 'location'
 interface PanelRef { materialId?: string | null; kind: '角色' | '物品' | '环境'; name: string; imageUrl?: string | null }
@@ -112,6 +113,7 @@ export function FosProductionShot({
   initialEpisodeId?: string
 }) {
   const { data: session } = useSession()
+  const { generationAllowed } = useAccountBalance()
   const roleCanEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['storyboardWrite'])
   const preferredEpisodeId = data.episodes.find((episode) => episode.id === initialEpisodeId)?.id || data.episodes[0]?.id || ''
   const [episodeId, setEpisodeId] = useState(preferredEpisodeId)
@@ -256,7 +258,7 @@ export function FosProductionShot({
       })
       .map((character) => character.name)
   }, [data.characters, prompt, refs])
-  const supportsCharacterReferenceAudio = /^(?:nori::seedance2\.0$|ark::doubao-seedance-2-0|hfsy::sd-2-vip)/i.test(modelKey)
+  const supportsCharacterReferenceAudio = /^(?:nori::(?:seedance2\.0|norivideo2\.5)$|(?:ark|kuaizi)::doubao-seedance-2-(?:0|5)|hfsy::sd-2-vip)/i.test(modelKey)
   const locksGeneratedAudio = boundVoiceNames.length > 0 && supportsCharacterReferenceAudio
   useEffect(() => {
     if (!currentModel) return
@@ -306,9 +308,10 @@ export function FosProductionShot({
 
   const generate = async () => {
     if (!canEdit || !activeShot || !modelKey) return
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     if (!prompt.trim()) { setError('视频提示词不能为空。'); return }
     if (boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio) {
-      setError(`当前模型不支持角色参考音频。请切换到 Seedance 2.0 后生成，确保 @${boundVoiceNames.join('、@')} 的音色被注入。`)
+      setError(`当前模型不支持角色参考音频。请切换到 Seedance 2.0/2.5 后生成，确保 @${boundVoiceNames.join('、@')} 的音色被注入。`)
       return
     }
     setGenerating(true); setError(null); setMessage(null)
@@ -470,7 +473,7 @@ export function FosProductionShot({
                 <label><span className="mb-1 block text-[10px] text-[var(--fos-text-4)]">视频秒数</span><select className="fos-input h-8 text-[11px]" value={duration} disabled={!canEdit} onChange={(event) => setDuration(Number(event.target.value))}>{(durations.length ? durations : [4, 5, 6, 8, 10, 12, 15]).map((item) => <option key={item} value={item}>{item}s</option>)}</select></label>
               </div>
               {currentModel?.supportGenerateAudio || locksGeneratedAudio ? <label className="mt-3 flex items-center gap-2 text-[11px] text-[var(--fos-text-3)]"><input type="checkbox" checked={generateAudio} disabled={!canEdit || locksGeneratedAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="accent-[var(--fos-primary)]" />{locksGeneratedAudio ? `已自动注入角色音色：@${boundVoiceNames.join('、@')}` : '同步生成声音'}</label> : null}
-              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[.08] px-3 py-2 text-[10px] leading-5 text-amber-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0。</div> : null}
+              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[.08] px-3 py-2 text-[10px] leading-5 text-amber-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0/2.5。</div> : null}
 
               <div className="mt-4 rounded-[10px] border border-blue-400/25 bg-blue-500/[.08] p-3">
                 <div className="flex items-center justify-between text-[11px]"><span className="font-bold text-white">下一步 · 剪辑</span><strong className="text-[#8fa9ff]">{readyVideoCount} / {shots.length} 个 Segment 可用</strong></div>
@@ -482,7 +485,7 @@ export function FosProductionShot({
               <MentionPromptEditor value={prompt} assets={mentionAssets} onChange={setPrompt} minHeight={220} placeholder="输入视频提示词；输入 @ 可引用右侧参考资产" readOnly={!canEdit} />
               <div className="mt-3 text-[12px] font-bold text-white">画风描述</div>
               <textarea className="fos-textarea mt-2" style={{ minHeight: 70 }} value={stylePrompt} readOnly={!canEdit} onChange={(event) => setStylePrompt(event.target.value)} />
-              <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>
+              <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!generationAllowed || !canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : !generationAllowed ? '积分不足' : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>
               {error || episodeReview.error ? <div className="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">{error || episodeReview.error}</div> : null}
               {message ? <div className="mt-3 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200">{message}</div> : null}
             </>

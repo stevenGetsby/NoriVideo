@@ -1,5 +1,5 @@
 import type { Job } from 'bullmq'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { canvasPlaylistFingerprint } from '@/lib/canvas/playlist'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 
@@ -14,6 +14,7 @@ const imageOperationsMock = vi.hoisted(() => ({
   upscaleCanvasImage: vi.fn(async () => ({ body: Buffer.from('image-output'), width: 200, height: 120, row: 0, col: 0 })),
 }))
 const videoOperationsMock = vi.hoisted(() => ({
+  trimCanvasVideo: vi.fn(async () => ({ body: Buffer.from('trimmed'), width: 1280, height: 720, duration: 5, fps: 24 })),
   enhanceCanvasVideo: vi.fn(async (_input: Buffer, _options: unknown, hooks?: { onProgress?: (value: number) => Promise<void> }) => {
     await hooks?.onProgress?.(0.5)
     return { body: Buffer.from('video-output'), width: 1920, height: 1080, duration: 6, fps: 30 }
@@ -26,6 +27,7 @@ const storageMock = vi.hoisted(() => ({
   uploadObject: vi.fn(async () => undefined),
   extractStorageKey: vi.fn((value: string) => value),
   getSignedUrl: vi.fn((value: string) => `https://media.example/${value}`),
+  getSignedObjectUrl: vi.fn(async (value: string) => `https://media.example/${value}`),
 }))
 const materialMock = vi.hoisted(() => ({
   registerFrameosMaterial: vi.fn(async (input: Record<string, unknown>) => ({
@@ -37,6 +39,14 @@ const materialMock = vi.hoisted(() => ({
 }))
 const reportTaskProgressMock = vi.hoisted(() => vi.fn(async () => undefined))
 const assertTaskActiveMock = vi.hoisted(() => vi.fn(async () => undefined))
+const externalMock = vi.hoisted(() => ({
+  getTaskExistingExternalId: vi.fn<() => Promise<string | null>>(async () => null),
+  waitExternalResult: vi.fn(async () => ({
+    url: 'https://result.test/edited.mp4', durationSeconds: 6.25, resolution: '720p',
+    actualVideoTokens: 120000, fps: 24,
+  })),
+  generateKuaiziVideo: vi.fn(async () => ({ success: true, externalId: 'KUAIZI:VIDEO:new-task' })),
+}))
 const materializeResultMock = vi.hoisted(() => vi.fn(async (input: { taskId: string }) => ({
   materialized: true,
   outputNodeId: `output-${input.taskId}`,
@@ -53,7 +63,8 @@ vi.mock('@/lib/canvas/video-operations', async (importOriginal) => ({
 vi.mock('@/lib/storage', () => storageMock)
 vi.mock('@/lib/frameos/material-service', () => materialMock)
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: reportTaskProgressMock }))
-vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: assertTaskActiveMock }))
+vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: assertTaskActiveMock, ...externalMock }))
+vi.mock('@/lib/providers/kuaizi', () => ({ generateKuaiziVideo: externalMock.generateKuaiziVideo }))
 vi.mock('@/lib/canvas/operation-output-nodes', () => ({
   materializeCanvasAsyncOperationResult: materializeResultMock,
 }))
@@ -88,6 +99,21 @@ describe('canvas operation task handlers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.canvasNode.findFirst.mockResolvedValue({ id: 'node-1' })
+    externalMock.getTaskExistingExternalId.mockResolvedValue(null)
+  })
+  afterEach(() => vi.unstubAllGlobals())
+
+  it.each([false, true])('video edit returns actual output duration and resumes without resubmission (resume=%s)', async (resume) => {
+    if (resume) externalMock.getTaskExistingExternalId.mockResolvedValue('KUAIZI:VIDEO:existing-task')
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('edited-video')))
+    const result = await handleCanvasVideoOperationTask(job(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'video_edit', engineKey: 'kuaizi-seedance25', modelKey: 'doubao-seedance-2-5-260628',
+      parameters: { startMs: 0, endMs: 5000, prompt: 'change color', generateAudio: false },
+    }))
+    expect(result).toMatchObject({ durationSeconds: 6.25, resolution: '720p', actualVideoTokens: 120000 })
+    expect(externalMock.generateKuaiziVideo).toHaveBeenCalledTimes(resume ? 0 : 1)
+    expect(externalMock.waitExternalResult).toHaveBeenCalledWith(expect.anything(),
+      resume ? 'KUAIZI:VIDEO:existing-task' : 'KUAIZI:VIDEO:new-task', 'user-1', expect.anything())
   })
 
   it('executes image superresolve and persists an idempotent task-keyed material', async () => {

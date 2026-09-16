@@ -2,13 +2,14 @@ import type { AuthSession } from '@/lib/api-auth'
 import type { Prisma } from '@prisma/client'
 import { ApiError } from '@/lib/api-errors'
 import { hasAccountPermissions, isManagementRole } from '@/lib/account/permissions'
-import { resolveAssignmentCapabilities } from '@/lib/collaboration/assignment-policy'
+import { projectMembershipGrantsReview, resolveAssignmentCapabilities } from '@/lib/collaboration/assignment-policy'
 import { prisma } from '@/lib/prisma'
 
 export interface WorkspaceActor {
   workspaceOwnerId: string
   actorId: string
   isManagement: boolean
+  role: string
 }
 
 export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
@@ -18,6 +19,7 @@ export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
     workspaceOwnerId,
     actorId,
     isManagement: isManagementRole(session.user.role) || actorId === workspaceOwnerId,
+    role: session.user.role || 'reviewer',
   }
 }
 
@@ -164,7 +166,10 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
     workMemberCanManage: workMembership?.canManage === true,
     workMemberRole: workMembership?.role,
     projectMemberCanManage: projectMembership?.canManageAssignments === true,
-    projectMemberCanReview: projectMembership?.canReviewAssignments === true,
+    projectMemberCanReview: projectMembershipGrantsReview({
+      membership: projectMembership,
+      accountRole: actor.role,
+    }),
   })
   const canManageAssignments = capabilities.canManage
   const canReviewAssignments = capabilities.canReview

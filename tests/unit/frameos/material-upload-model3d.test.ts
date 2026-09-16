@@ -145,6 +145,21 @@ describe('FrameOS model3d material upload', () => {
     expect(storageMock.uploadObject).not.toHaveBeenCalled()
   })
 
+  it('maps a disabled object-storage account to a safe actionable upload error', async () => {
+    storageMock.uploadObject.mockRejectedValueOnce(new Error(
+      'TOS_PUT_FAILED: 403 Forbidden <Code>AccountDisabled</Code><Message>Your account has been disabled due to overdue bills.</Message>',
+    ))
+    const file = new File([Uint8Array.from(glbBuffer())], 'model.glb', { type: 'model/gltf-binary' })
+
+    await expect(uploadFrameosMaterial(request(file), session, verifiedProject)).rejects.toMatchObject({
+      code: 'EXTERNAL_ERROR',
+      status: 502,
+      message: '平台素材存储暂不可用，请联系管理员检查对象存储账户状态。',
+      details: expect.objectContaining({ storageStatus: 'account_disabled' }),
+    })
+    expect(registerMaterialMock).not.toHaveBeenCalled()
+  })
+
   it('returns a clear 429 before parsing when all upload permits are occupied', async () => {
     const releases: Array<() => void> = []
     storageMock.uploadObject.mockImplementation(async (_body: Buffer, key: string) => {

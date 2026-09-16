@@ -29,6 +29,20 @@ describe('canvas generation input schema', () => {
     })
   })
 
+  it('allows a configured model to omit the fallback audio-duration cap', () => {
+    const schema = resolveCanvasGenerationInputSchema('video', {
+      video: {
+        inputSchema: {
+          image: { min: 0, max: 30 },
+          video: { min: 0, max: 10 },
+          audio: { min: 0, max: 10 },
+          requiredFields: ['prompt'],
+        },
+      },
+    })
+    expect(schema.audio).toEqual({ min: 0, max: 10 })
+  })
+
   it('makes first/last frame exactly two images and rejects every non-image reference', () => {
     const schema = firstLastFrameInputSchema()
     expect(validateCanvasReferenceMedia(schema, [
@@ -85,6 +99,7 @@ describe('canvas generation input schema', () => {
       audio,
       { type: 'video' },
     ])).toEqual([])
+    expect(validateVideoReferenceMediaCombination([audio], { allowAudioOnly: true })).toEqual([])
   })
 
   it('reads duration metadata produced by upload and generated-audio paths', () => {

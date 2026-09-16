@@ -12,6 +12,7 @@ import {
   type CanvasOperationTaskUpdate,
   type ResolvedCanvasOperation,
 } from '../operation-task-client'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { CanvasOperationTaskProgress } from './CanvasOperationTaskProgress'
 
 export type CanvasVideoOperationInput =
@@ -58,6 +59,7 @@ export function CanvasVideoOperationDialog({
   isTaskMaterialized: (taskId: string) => boolean
   onClose: () => void
 }) {
+  const { generationAllowed } = useAccountBalance()
   const videoUrl = toDisplayImageUrl(node.data.contentUrl || node.data.videoUrl || null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [eraseMode, setEraseMode] = useState<'subtitle' | 'text'>('subtitle')
@@ -124,6 +126,7 @@ export function CanvasVideoOperationDialog({
     : { operation: 'video_superresolve', target, interpolate, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
 
   const submit = async () => {
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -246,7 +249,7 @@ export function CanvasVideoOperationDialog({
         {taskUpdate ? <CanvasOperationTaskProgress update={taskUpdate} engineLabel={selectedEngine?.label} materialized={isTaskMaterialized(taskUpdate.task.id)} actionBusy={taskActionBusy} onCancel={() => void cancelTask()} onRetry={() => void retryTask()} onRecover={() => void recoverTask()} /> : null}
 
         {error ? <div className="nori-canvas-video-operation-error">{error}</div> : null}
-        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={submitting || taskActive || !videoUrl || (engines.length > 0 && !selectedEngine)} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : mode === 'subtitle_erase' ? '开始去字幕' : '开始增强'}</button></footer>
+        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !videoUrl || (engines.length > 0 && !selectedEngine)} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? '积分不足' : mode === 'subtitle_erase' ? '开始去字幕' : '开始增强'}</button></footer>
       </section>
     </div>
   )

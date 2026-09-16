@@ -1,8 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { extractStorageKey, getSignedObjectUrl, getStorageType } from '@/lib/storage'
-import { getSeedanceAssetsConfig } from '@/lib/volcengine/seedance-assets-config'
-import { SeedanceAssetsClient, type SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
+import { getSeedanceAssetsProvider } from '@/lib/volcengine/seedance-assets-provider'
+import type { SeedanceAssetsApi, SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
 import { ensureSeedanceProjectAssetGroup } from './seedance-project-asset-group'
 
 const ASSET_READY_TIMEOUT_MS = 3 * 60 * 1_000
@@ -70,7 +70,7 @@ function assetError(asset: SeedanceAssetResult): string {
 }
 
 async function waitForActiveAsset(input: {
-  client: SeedanceAssetsClient
+  client: SeedanceAssetsApi
   assetId: string
   projectName: string
   onStatus?: AssetStatusCallback
@@ -98,6 +98,7 @@ export async function ensureSeedanceCharacterAsset(input: {
   userId: string
   projectId: string
   characterId: string
+  modelKey?: string
   onStatus?: AssetStatusCallback
 }): Promise<{ assetId: string; assetUri: string; appearanceId: string }> {
   const character = await prisma.novelPromotionCharacter.findFirst({
@@ -115,16 +116,18 @@ export async function ensureSeedanceCharacterAsset(input: {
     throw new Error('SEEDANCE_ASSET_IMAGE_REQUIRED: 角色缺少已选定的设定图')
   }
 
-  const config = await getSeedanceAssetsConfig(input.userId)
-  const client = new SeedanceAssetsClient(config)
+  const config = await getSeedanceAssetsProvider(input)
+  const client = config.client
   const groupId = await ensureSeedanceProjectAssetGroup({
     projectId: input.projectId,
     volcengineProjectName: config.projectName,
+    ownershipScope: config.scope,
     client,
   })
   const existingMatchesImage = appearance.seedanceAssetImageUrl === imageUrl
   const existingBelongsToProjectGroup = character.seedanceAssetGroupId === groupId
-    && character.seedanceAssetsProjectName === config.projectName
+    && character.seedanceAssetsProjectName === config.scope
+    && appearance.seedanceAssetScope === config.scope
   if (
     existingBelongsToProjectGroup
     && existingMatchesImage
@@ -157,13 +160,14 @@ export async function ensureSeedanceCharacterAsset(input: {
         where: { id: character.id },
         data: {
           seedanceAssetGroupId: groupId,
-          seedanceAssetsProjectName: config.projectName,
+          seedanceAssetsProjectName: config.scope,
         },
       }),
       prisma.characterAppearance.update({
         where: { id: appearance.id },
         data: {
           seedanceAssetId: assetId,
+          seedanceAssetScope: config.scope,
           seedanceAssetUri: `asset://${assetId}`,
           seedanceAssetStatus: created.Status || 'Processing',
           seedanceAssetError: assetError(created) || null,
@@ -189,6 +193,7 @@ export async function ensureSeedanceCharacterAsset(input: {
     where: { id: appearance.id },
     data: {
       seedanceAssetId: activeId,
+      seedanceAssetScope: config.scope,
       seedanceAssetUri: assetUri,
       seedanceAssetStatus: 'Active',
       seedanceAssetError: null,
@@ -208,6 +213,7 @@ export async function ensureSeedanceToolboxReferenceAssets(input: {
   userId: string
   projectId: string
   materialIds: string[]
+  modelKey?: string
   onStatus?: (input: { materialId: string; status: string; attempt: number }) => Promise<void> | void
 }): Promise<string[]> {
   const uniqueIds = Array.from(new Set(input.materialIds.map((value) => value.trim()).filter(Boolean)))
@@ -236,11 +242,12 @@ export async function ensureSeedanceToolboxReferenceAssets(input: {
     throw new Error('SEEDANCE_ASSET_MATERIAL_REQUIRED: 没有可注册的真人图片素材')
   }
 
-  const config = await getSeedanceAssetsConfig(input.userId)
-  const client = new SeedanceAssetsClient(config)
+  const config = await getSeedanceAssetsProvider(input)
+  const client = config.client
   const groupId = await ensureSeedanceProjectAssetGroup({
     projectId: input.projectId,
     volcengineProjectName: config.projectName,
+    ownershipScope: config.scope,
     client,
   })
 
@@ -250,7 +257,7 @@ export async function ensureSeedanceToolboxReferenceAssets(input: {
     if (!imageValue) throw new Error(`SEEDANCE_ASSET_IMAGE_REQUIRED: 素材 ${material.title || material.id} 没有图片`)
     const existing = readToolboxPrivateAssetMetadata(material.metadata)
     if (
-      existing.projectName === config.projectName
+      existing.projectName === config.scope
       && existing.groupId === groupId
       && existing.sourceImage === imageValue
       && existing.status === 'Active'
@@ -276,7 +283,7 @@ export async function ensureSeedanceToolboxReferenceAssets(input: {
       assetUri: `asset://${created.Id}`,
       status: created.Status || 'Processing',
       sourceImage: imageValue,
-      projectName: config.projectName,
+      projectName: config.scope,
       syncedAt: new Date().toISOString(),
     }
     await prisma.frameosMaterial.update({

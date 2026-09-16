@@ -46,11 +46,22 @@ describe('Seedance toolbox and canvas interaction surface', () => {
     expect(generator).toContain("type === 'video' && strict ? validateVideoReferenceMediaCombination")
   })
 
+  it('derives toolbox reference limits from the active model input schema', () => {
+    const toolbox = source('src/components/frameos/views/FosToolbox.tsx')
+
+    expect(toolbox).toContain("const referenceSchema = currentModel?.inputSchema || resolveCanvasGenerationInputSchema(activeType)")
+    expect(toolbox).toContain('image: referenceSchema.image.max')
+    expect(toolbox).toContain("video: activeType === 'video' ? referenceSchema.video.max : 0")
+    expect(toolbox).toContain("audio: activeType === 'video' ? referenceSchema.audio.max : 0")
+    expect(toolbox).not.toContain('{ image: 9, video: activeType')
+  })
+
   it('prevents marquee selection while wiring and increases magnetic hit areas', () => {
     const graph = source('src/features/canvas/CanvasGraph.tsx')
     const help = source('src/features/canvas/components/CanvasHelpPanel.tsx')
 
-    expect(graph).toContain('selectionOnDrag={!connectionActive}')
+    expect(graph).toContain('selectionOnDrag={false}')
+    expect(graph).toContain('!connectionActiveRef.current')
     expect(graph).toContain('connectionRadius={64}')
     expect(graph).toContain('reconnectRadius={64}')
     expect(graph).toContain('paneClickDistance={8}')

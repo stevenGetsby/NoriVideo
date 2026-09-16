@@ -310,6 +310,13 @@ async function generateVideoInternal(
         aspectRatio?: string     // '16:9' | '9:16'
         generateAudio?: boolean  // 仅 Seedance 1.5 Pro 支持
         lastFrameImageUrl?: string  // 首尾帧模式的尾帧图片
+        returnLastFrame?: boolean
+        executionExpiresAfter?: number
+        moderationIps?: string[]
+        safetyIdentifier?: string
+        bitrateMode?: string
+        outputFormat?: string
+        omniReferenceTaskType?: 'auto' | 'reference' | 'edit' | 'extend'
         [key: string]: string | number | boolean | string[] | undefined
     }
 ): Promise<GenerateResult> {
@@ -447,6 +454,13 @@ export async function generateVideo(
         aspectRatio?: string
         generateAudio?: boolean
         lastFrameImageUrl?: string
+        returnLastFrame?: boolean
+        executionExpiresAfter?: number
+        moderationIps?: string[]
+        safetyIdentifier?: string
+        bitrateMode?: string
+        outputFormat?: string
+        omniReferenceTaskType?: 'auto' | 'reference' | 'edit' | 'extend'
         [key: string]: string | number | boolean | string[] | undefined
     },
 ): Promise<GenerateResult> {
@@ -562,17 +576,25 @@ export async function generateAudio(
                         modelKey: selection.modelKey,
                     },
                 })
-        recordServiceUsageInBackground({
-            provider: parsed?.provider || 'unknown',
-            modelKey: parsed?.modelKey || runtimeModelKey,
-            serviceType: 'audio',
-            operation: 'generate-audio',
-            status: result.success ? 'success' : 'failed',
-            userId,
-            latencyMs: Date.now() - startedAt,
-            units: result.success ? 1 : 0,
-            errorCode: result.success ? null : 'GENERATION_FAILED',
-        })
+        const asyncSubmission = result.success
+            && !result.audioUrl
+            && Boolean(result.externalId || result.requestId || result.async)
+        // Async audio is recorded when the billed task settles with the
+        // actual duration. Recording the submission here would count 1s
+        // and then double-count the completed clip.
+        if (!asyncSubmission) {
+            recordServiceUsageInBackground({
+                provider: parsed?.provider || 'unknown',
+                modelKey: parsed?.modelKey || runtimeModelKey,
+                serviceType: 'audio',
+                operation: 'generate-audio',
+                status: result.success ? 'success' : 'failed',
+                userId,
+                latencyMs: Date.now() - startedAt,
+                units: result.success ? 1 : 0,
+                errorCode: result.success ? null : 'GENERATION_FAILED',
+            })
+        }
         return result
     } catch (error) {
         recordServiceUsageInBackground({

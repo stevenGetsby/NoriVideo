@@ -440,7 +440,6 @@ function AssetThumb({ asset, onRemove }: { asset: StoryAssetRef; onRemove?: () =
       {asset.kind === '角色' ? (
         <div className="sd3-char-checks">
           <span className="sd3-check-ui">出镜</span>
-          <span className="sd3-check-ui is-off">说话</span>
         </div>
       ) : null}
     </div>
@@ -915,7 +914,7 @@ function StoryboardSuccess({
         <div className="sd3-action-bar">
           <div className="sd3-action-bar-left" />
           <div className="sd3-action-bar-right">
-            {reviewAssignmentStatus === 'rejected' ? <button type="button" className="sd3-bottom-btn" style={{ borderColor: 'rgba(239,68,68,.45)', color: '#ffaaaa' }} disabled><AppIcon name="alert" className="h-4 w-4" />标记需修改</button> : reviewAssignmentStatus === 'completed' ? <span className="sd3-confirmed-hint">✓ 审核已通过</span> : isConfirmed ? (
+            {reviewAssignmentStatus === 'rejected' ? <button type="button" className="sd3-bottom-btn" style={{ borderColor: 'rgba(239,68,68,.45)', color: '#ffaaaa' }} disabled><AppIcon name="alert" className="h-4 w-4" />标记需修改</button> : reviewAssignmentStatus === 'completed' ? <span className="sd3-confirmed-hint">✓ 任务已完成</span> : isConfirmed ? (
               <>
                 <span className="sd3-confirmed-hint">✓ 本集分镜已确认</span>
                 <button className="sd3-bottom-btn" disabled={!canEdit || reviewSubmitting} onClick={onUnconfirmEpisode}>取消确认</button>

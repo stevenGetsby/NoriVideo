@@ -16,6 +16,7 @@ const entries = {
   watchdog: "scripts/watchdog.ts",
   "bull-board": "scripts/bull-board.ts",
   "storage-init": "src/lib/storage/init.ts",
+  "fixed-tos-probe": "scripts/guards/fixed-tos-probe.ts",
 };
 
 await build({

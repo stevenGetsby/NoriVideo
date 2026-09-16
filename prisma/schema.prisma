@@ -45,6 +45,7 @@ model CharacterAppearance {
   previousDescriptions  String?                 @db.Text // 上一次的描述词数组（用于撤回）
   imageMediaId          String?
   seedanceAssetId       String?
+  seedanceAssetScope    String?                 @db.VarChar(191)
   seedanceAssetUri      String?                 @db.Text
   seedanceAssetStatus   String?
   seedanceAssetError    String?                 @db.Text
@@ -739,6 +740,7 @@ model ServiceUsageRecord {
   inputTokens  Int      @default(0)
   outputTokens Int      @default(0)
   units        Decimal  @default(1) @db.Decimal(18, 4)
+  metadata     Json?
   latencyMs    Int?
   errorCode    String?  @db.VarChar(128)
   createdAt    DateTime @default(now())

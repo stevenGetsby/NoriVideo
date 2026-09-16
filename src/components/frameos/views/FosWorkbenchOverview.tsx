@@ -13,7 +13,6 @@ import {
   useTaskTargetStateMap,
   type TaskTargetState,
 } from '@/lib/query/hooks/useTaskTargetStateMap'
-import { ExportDeliveryDialog } from '../ExportDeliveryDialog'
 import type { FosProjectData } from '../useFosProject'
 
 type Tone = 'done' | 'failed' | 'pending' | 'idle'
@@ -247,7 +246,6 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
   const accountPermissions = session?.user?.permissions
   const canEditAssets = hasAccountPermissions({ role: accountRole, permissions: accountPermissions }, ['assetWrite'])
   const canEditStoryboards = hasAccountPermissions({ role: accountRole, permissions: accountPermissions }, ['storyboardWrite'])
-  const [showExport, setShowExport] = useState(false)
   const [submittingAssets, setSubmittingAssets] = useState(false)
   const [submittingStoryboards, setSubmittingStoryboards] = useState(false)
   const [assetActionError, setAssetActionError] = useState<string | null>(null)
@@ -623,7 +621,6 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
             footer={(
               <div className="space-y-3">
                 <Link href={{ pathname: `${base}/production/episodes` }} className="fos-btn fos-btn-primary w-full">进入制作剪辑</Link>
-                <button type="button" className="fos-btn fos-btn-ghost w-full" onClick={() => setShowExport(true)}>导出交付</button>
               </div>
             )}
           >
@@ -632,7 +629,6 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
           </StageCard>
         </div>
       </section>
-      {showExport ? <ExportDeliveryDialog episodeCount={episodeCount} onClose={() => setShowExport(false)} /> : null}
     </div>
   )
 }

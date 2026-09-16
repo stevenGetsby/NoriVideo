@@ -4,7 +4,7 @@ import { getVisibleUserTotalSpent } from '@/lib/billing/reporting'
 import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { toMoneyNumber } from '@/lib/billing/money'
 import { cnyToPoints } from '@/lib/billing/credit-policy'
-import { calcImage, calcText, calcVideo, calcVideoByTokens, calcVoice } from '@/lib/billing/cost'
+import { calculateUsageCost } from '@/lib/platform-services/usage-cost'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 import { listBuiltinPricingCatalog, type PricingApiType } from '@/lib/model-pricing/catalog'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
@@ -173,6 +173,7 @@ type RawServiceUsage = {
   inputTokens: number
   outputTokens: number
   units: number | { toString(): string }
+  metadata?: unknown
   createdAt: Date
 }
 
@@ -193,24 +194,16 @@ function reportModelLabel(value: string | null) {
 }
 
 function estimateServiceUsageCost(row: RawServiceUsage) {
-  if (row.status === 'failed' || !row.modelKey) return 0
-  const units = Math.max(0, Number(row.units) || 0)
-  try {
-    const apiType = reportApiType(row.serviceType)
-    if (apiType === 'text') return calcText(row.modelKey, row.inputTokens, row.outputTokens)
-    if (apiType === 'image') return calcImage(row.modelKey, Math.max(1, units))
-    if (apiType === 'video') {
-      if (row.outputTokens > 0) return calcVideoByTokens(row.modelKey, row.outputTokens, {
-        containsVideoInput: row.operation.endsWith(':video-input'),
-      })
-      return calcVideo(row.modelKey, '720p', Math.max(1, units))
-    }
-    if (apiType === 'voice') return calcVoice(Math.max(1, units))
-  } catch {
-    // A custom model may not have a built-in price. Actual billing rows below
-    // still provide the authoritative amount when a matching record exists.
-  }
-  return 0
+  return calculateUsageCost({
+    modelKey: row.modelKey,
+    serviceType: row.serviceType,
+    operation: row.operation,
+    status: row.status,
+    inputTokens: row.inputTokens,
+    outputTokens: row.outputTokens,
+    units: row.units,
+    metadata: row.metadata,
+  })
 }
 
 function usageBucket(userId: string | null, projectId: string | null, apiType: string, model: string | null, createdAt: Date) {
@@ -260,6 +253,7 @@ async function buildFilterableReport(userId: string) {
           inputTokens: true,
           outputTokens: true,
           units: true,
+          metadata: true,
           createdAt: true,
         },
         orderBy: { createdAt: 'desc' },

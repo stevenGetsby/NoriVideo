@@ -8,6 +8,7 @@ import {
   isDevelopmentTextLlmRuntime,
   resolveTextLlmRuntime,
 } from '@/lib/llm/mode-config'
+import { withTextBilling } from '@/lib/billing'
 
 type SuperAgentLlmOptions = {
   action?: string
@@ -26,6 +27,7 @@ type LlmAttempt = {
 }
 
 const DEFAULT_TIMEOUT_MS = 45_000
+const MAX_OUTPUT_TOKENS = 16_000
 
 const logger = createScopedLogger({
   module: 'super-agent',
@@ -34,6 +36,13 @@ const logger = createScopedLogger({
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
+}
+
+function isNonRetryableBillingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const code = (error as { code?: unknown }).code
+  return code === 'INSUFFICIENT_BALANCE'
+    || (typeof code === 'string' && code.startsWith('BILLING_'))
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
@@ -95,25 +104,44 @@ export class SuperAgentLLMClient {
           },
         })
 
-        const completion = await withTimeout(
-          runModelGatewayTextCompletion({
-            userId,
-            model,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-            options: {
-              temperature: options.temperature ?? 0.2,
-              reasoning: options.reasoning ?? true,
-              reasoningEffort: options.reasoningEffort ?? 'medium',
-              maxRetries: 0,
-              projectId: options.projectId,
-              action,
+        const maxInputTokens = Math.min(
+          256_000,
+          Math.max(2_000, Math.ceil((systemPrompt.length + userPrompt.length) * 1.5)),
+        )
+        const completion = await withTextBilling(
+          userId,
+          model,
+          maxInputTokens,
+          MAX_OUTPUT_TOKENS,
+          {
+            projectId: options.projectId || 'super-agent',
+            action,
+            metadata: {
+              attempt: index + 1,
+              maxAttempts: selectedCandidates.length,
             },
-          }),
-          timeoutMs,
-          `${action}:${model}`,
+          },
+          async () => await withTimeout(
+            runModelGatewayTextCompletion({
+              userId,
+              model,
+              messages: [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: userPrompt },
+              ],
+              options: {
+                temperature: options.temperature ?? 0.2,
+                reasoning: options.reasoning ?? true,
+                reasoningEffort: options.reasoningEffort ?? 'medium',
+                maxRetries: 0,
+                maxTokens: MAX_OUTPUT_TOKENS,
+                projectId: options.projectId,
+                action,
+              },
+            }),
+            timeoutMs,
+            `${action}:${model}`,
+          ),
         )
 
         const content = getCompletionContent(completion).trim()
@@ -149,6 +177,7 @@ export class SuperAgentLLMClient {
           durationMs: attempt.durationMs,
           details: attempt,
         })
+        if (isNonRetryableBillingError(error)) throw error
       }
     }
 

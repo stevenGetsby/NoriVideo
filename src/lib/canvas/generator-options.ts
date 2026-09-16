@@ -12,10 +12,10 @@ export const CANVAS_IMAGE_QUALITIES = ['low', 'medium', 'high'] as const
 export const CANVAS_PANORAMA_ASPECT_RATIO = '21:9' as const
 export const CANVAS_LEGACY_PANORAMA_ASPECT_RATIO = '2:1' as const
 
-export const CANVAS_VIDEO_ASPECT_RATIOS = ['16:9', '9:16', '21:9'] as const
+export const CANVAS_VIDEO_ASPECT_RATIOS = ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'] as const
 export const CANVAS_VIDEO_RESOLUTIONS = ['480p', '720p', '1080p', '4k'] as const
 export const CANVAS_VIDEO_DURATION_MIN = 4
-export const CANVAS_VIDEO_DURATION_MAX = 15
+export const CANVAS_VIDEO_DURATION_MAX = 30
 export const CANVAS_VIDEO_FPS_MIN = 1
 export const CANVAS_VIDEO_FPS_MAX = 120
 
@@ -27,6 +27,24 @@ export type CanvasVideoAspectRatio = (typeof CANVAS_VIDEO_ASPECT_RATIOS)[number]
 export type CanvasVideoResolution = (typeof CANVAS_VIDEO_RESOLUTIONS)[number]
 export type CanvasVideoInputMode = 'text' | 'image' | 'firstlastframe'
 export type CanvasVideoEditorMode = CanvasVideoInputMode
+
+export function isSeedance25VideoModelKey(value: unknown): boolean {
+  if (typeof value !== 'string') return false
+  const modelKey = value.trim().toLowerCase()
+  return modelKey === 'nori::norivideo2.5'
+    || modelKey === 'kuaizi::doubao-seedance-2-5-260628'
+    || modelKey === 'doubao-seedance-2-5-260628'
+}
+
+export function canvasVideoAspectRatioOptions(
+  modelKey: unknown,
+  inputMode: CanvasVideoInputMode,
+): readonly CanvasVideoAspectRatio[] {
+  if (isSeedance25VideoModelKey(modelKey)) {
+    return inputMode === 'firstlastframe' ? ['adaptive'] : CANVAS_VIDEO_ASPECT_RATIOS
+  }
+  return CANVAS_VIDEO_ASPECT_RATIOS.filter((value) => value !== 'adaptive')
+}
 
 export type CanvasImageGenerationOptions = {
   aspectRatio: CanvasImageGenerationAspectRatio

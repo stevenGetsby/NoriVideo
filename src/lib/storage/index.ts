@@ -136,6 +136,7 @@ export async function downloadAndUploadVideo(
         'User-Agent': 'Mozilla/5.0 (compatible; VideoDownloader/1.0)',
         ...(requestHeaders || {}),
       },
+      signal: AbortSignal.timeout(180_000),
     })
 
     if (!response.ok) {

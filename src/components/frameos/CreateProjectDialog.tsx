@@ -30,7 +30,7 @@ import {
   trapCreateProjectDialogTab,
 } from './works/create-project-dialog-focus'
 
-type ScriptSource = 'writer' | 'local' | 'range'
+type ScriptSource = 'blank' | 'writer' | 'local' | 'range'
 
 interface WriterScript {
   id: string
@@ -396,9 +396,11 @@ export function CreateProjectDialog({
         ? toProjectStyleReferenceDraftFiles(styleReferenceItems)
         : []
       const normalizedDraft: CreateProjectDraft = { ...draft, episodeDurationValue: durationValue }
-      const nextDraft = variant.allowEpisodeRange && source === 'range'
-        ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: true, styleReferenceFiles }
-        : { ...normalizedDraft, initializeEpisodeRange: false, styleReferenceFiles }
+      const nextDraft = source === 'blank'
+        ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false, styleReferenceFiles }
+        : variant.allowEpisodeRange && source === 'range'
+          ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: true, styleReferenceFiles }
+          : { ...normalizedDraft, initializeEpisodeRange: false, styleReferenceFiles }
       const onStyleReferenceProgress = (update: ProjectStyleReferenceProgressUpdate) => {
         setStyleReferenceItems((current) => current.map((item) => item.id === update.id
           ? { ...item, uploadStatus: update.status, progress: update.progress, error: update.error ?? null }
@@ -567,7 +569,15 @@ export function CreateProjectDialog({
               onChange={(value) => set('videoResolution', value)}
             />
           </section>
-          <div className="create-project-base-style"><AppIcon name="sparkles" /><span><strong>内置画风基线</strong>{PROJECT_STYLE_SUMMARIES[draft.projectStyle]}</span></div>
+          <div className="create-project-base-style">
+            <AppIcon name="sparkles" />
+            <span>
+              <strong>{draft.artStylePrompt.trim() ? '内置画风已被自定义画风覆盖' : '内置画风基线'}</strong>
+              {draft.artStylePrompt.trim()
+                ? '当前项目生成时不会使用上方所选画风。'
+                : PROJECT_STYLE_SUMMARIES[draft.projectStyle]}
+            </span>
+          </div>
 
           <section className="create-project-duration">
             <div className="create-project-label">单集时长</div>
@@ -594,13 +604,18 @@ export function CreateProjectDialog({
 
           <section className="create-project-materials">
             <div className="create-project-script-column">
-              <div className="create-project-label">选择剧本</div>
-              <div className="create-project-source-tabs" role="tablist" aria-label="剧本来源">
+              <div className="create-project-label">初始内容（可选）</div>
+              <div className="create-project-source-tabs" role="tablist" aria-label="初始内容来源">
+                <button type="button" role="tab" aria-selected={source === 'blank'} className={source === 'blank' ? 'is-active' : ''} onClick={() => setSource('blank')}>空白项目</button>
                 <button type="button" role="tab" aria-selected={source === 'writer'} className={source === 'writer' ? 'is-active' : ''} onClick={() => setSource('writer')}>导入剧本</button>
                 <button type="button" role="tab" aria-selected={source === 'local'} className={source === 'local' ? 'is-active' : ''} onClick={() => setSource('local')}>本地上传</button>
                 {variant.allowEpisodeRange ? <button type="button" role="tab" aria-selected={source === 'range'} className={source === 'range' ? 'is-active' : ''} onClick={() => setSource('range')}>指定集数范围</button> : null}
               </div>
-              {source === 'writer' ? (
+              {source === 'blank' ? (
+                <div className="create-project-empty-range">
+                  <p>仅创建空白项目，不导入剧本、不预建剧集。进入工作台后可自行创建剧集并编写内容。</p>
+                </div>
+              ) : source === 'writer' ? (
                 <div className="create-project-script-picker">
                   <div className="create-project-script-search">
                     <AppIcon name="search" aria-hidden="true" />
@@ -686,10 +701,15 @@ export function CreateProjectDialog({
                   maxLength={2000}
                   value={draft.artStylePrompt}
                   onChange={(event) => set('artStylePrompt', event.target.value)}
-                  placeholder="补充你自己的画风要求，例如：90 年代港漫粗线条、高对比强阴影、主色冷调蓝灰。"
+                  placeholder="填写后将完全覆盖上方项目风格，例如：90 年代港漫粗线条、高对比强阴影、主色冷调蓝灰。"
                 />
               </label>
-              <div className="create-project-art-hint"><AppIcon name="infoCircle" />最终提示词会按“内置基础画风 → 参考图解析 → 自定义要求”合并，并统一注入资产、分镜与视频生成。</div>
+              <div className="create-project-art-hint">
+                <AppIcon name="infoCircle" />
+                {draft.artStylePrompt.trim()
+                  ? '已填写自定义画风：生成时完全忽略内置画风选项；参考图解析仅作补充，自定义要求优先。'
+                  : '未填写自定义画风时，内置基础画风与参考图解析会合并，并统一注入资产、分镜与视频生成。'}
+              </div>
             </div>
           </section>
           </fieldset>

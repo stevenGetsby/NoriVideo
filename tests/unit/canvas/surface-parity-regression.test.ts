@@ -4,6 +4,7 @@ import * as React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CanvasContextMenu } from '@/features/canvas/components/CanvasMenus'
+import { resolveCanvasMenuPortalPoint } from '@/features/canvas/components/CanvasMenuPortal'
 import { CanvasViewportControls } from '@/features/canvas/components/CanvasToolRail'
 import { clampCanvasMenuPoint } from '@/features/canvas/editor-types'
 
@@ -57,6 +58,52 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(markup).toContain('⌘ D')
     expect(markup).toContain('⌫')
     expect(buttonContaining(markup, '重新生成')).not.toContain('disabled')
+  })
+
+  it('keeps node dragging from auto-opening the generator and keeps edges on the node frame', () => {
+    const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    expect(graph).toContain('selectNodesOnDrag={false}')
+    expect(graph).toContain('selectionOnDrag={false}')
+    expect(graph).toContain('className="nori-canvas-marquee"')
+    expect(graph).toContain('wrapperLayoutPoint')
+    expect(graph).toContain('normalizedMarqueeRect')
+    expect(graph).toContain('edgeTypes={edgeTypes}')
+    expect(graph).toContain("bezier: CanvasEdge")
+    expect(graph).toContain('findCanvasTargetNodeIdAtPoint')
+    expect(graph).toContain('areaTargetId')
+    expect(readSource('src/features/canvas/canvas.css')).toContain('.nori-canvas-marquee')
+    expect(readSource('src/features/canvas/canvas.css')).toContain('translate(-50%, -50%) scale(1.18)')
+    expect(readSource('src/features/canvas/canvas.css')).toContain('translate(50%, -50%) scale(1.18)')
+
+    const edge = readSource('src/features/canvas/components/CanvasEdge.tsx')
+    expect(edge).toContain('resolveCanvasNodeEdgeEndpoint')
+    expect(edge).toContain('getBezierPath')
+    expect(readSource('src/features/canvas/connection-line-geometry.ts')).toContain('resolveCanvasNodeEdgeEndpoint')
+  })
+
+  it('exposes a self-contained video edit node with frame selection and three source modes', () => {
+    const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    const editor = readSource('src/features/canvas/editor-types.ts')
+    const node = readSource('src/features/canvas/nodes/VideoEditNode.tsx')
+
+    expect(graph).toContain('video_edit: VideoEditNode')
+    expect(editor).toContain("CANVAS_NODE_TYPE_VIDEO_EDIT, label: '视频编辑'")
+    expect(node).toContain('本地视频')
+    expect(node).toContain('素材库')
+    expect(node).toContain('CANVAS_VIDEO_EDIT_SUBMIT_EVENT')
+    expect(node).toContain('设为起始')
+    expect(node).toContain('设为结束')
+    expect(node).toContain('开始编辑')
+    expect(node).toContain('useAccountBalance')
+    expect(node).toContain('积分不足')
+    expect(node).toContain('data-role="start"')
+    expect(node).toContain('data-role="end"')
+    expect(node).toContain('data-role="playhead"')
+    expect(node).toContain('handleTimelinePointerDown')
+    expect(node).toContain('参考图')
+    expect(node).toContain('参考音频')
+    expect(node).toContain('MentionPromptEditor')
+    expect(node).toContain('CANVAS_VIDEO_EDIT_REFERENCE_EVENT')
   })
 
   it('disables regeneration without a reusable prompt/model and wires all four actions', () => {
@@ -145,9 +192,17 @@ describe('FrameOS canvas surface parity regressions', () => {
     const projectAssets = readSource('src/features/canvas/components/CanvasProjectAssets.tsx')
 
     expect(readSource('src/styles/frameos-replica.css')).toContain('zoom: var(--nori-interface-scale, 1.2)')
-    expect(portal).toContain('createPortal(children, document.body)')
-    expect((menus.match(/<CanvasMenuPortal>/g) || [])).toHaveLength(2)
-    expect(projectAssets).toContain('<CanvasMenuPortal>')
+    expect(portal).toContain('document.body')
+    expect(portal).toContain('menu.getBoundingClientRect()')
+    expect((menus.match(/<CanvasMenuPortal point={state}>/g) || [])).toHaveLength(2)
+    expect(projectAssets).toContain('<CanvasMenuPortal point={state}>')
+
+    expect(resolveCanvasMenuPortalPoint(
+      { x: 600, y: 400 },
+      { x: 720, y: 480, width: 192, height: 240 },
+      { width: 160, height: 200 },
+      { x: 0, y: 0, width: 1_000, height: 800 },
+    )).toEqual({ x: 500, y: 1000 / 3 })
   })
 
   it('does not turn a right-button canvas pan into an accidental menu open', () => {
@@ -195,7 +250,9 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('dismissTransientUi()')
     expect(graph).toContain('setAssetsOpen(false)')
     expect(graph).toContain('setPickerOpen(false)')
-    expect(graph).toContain('onPaneClick={() => { setAddOpen(false); setOrganizeOpen(false)')
+    expect(graph).toContain('onPaneClick={() => {')
+    expect(graph).toContain('setAddOpen(false)')
+    expect(graph).toContain('setOrganizeOpen(false)')
     expect(chrome).toContain("if (event.key !== 'Escape') return")
     expect(chrome).toContain("document.addEventListener('keydown', closeOnEscape)")
     expect(chrome).toContain("document.removeEventListener('keydown', closeOnEscape)")

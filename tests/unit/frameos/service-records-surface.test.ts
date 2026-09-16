@@ -15,6 +15,8 @@ describe('NoriVideo service record surface', () => {
     expect(shell).toContain("href={{ pathname: '/service-records' }}")
     expect(shell).not.toContain("modal === 'records'")
     expect(modals).not.toContain('export function ServiceRecordsModal')
+    expect(modals).not.toContain('修改密码')
+    expect(modals).not.toContain('演示已禁用')
     expect(page).toContain('<FosShell activeKey="records">')
     expect(page).toContain('<FrameServiceRecordsDashboard />')
     expect(page).toContain('查看真实任务、项目消耗、账户流水、失败原因和服务使用统计。')

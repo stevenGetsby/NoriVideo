@@ -42,10 +42,10 @@ function resolveVideoGenerationMode(payload: unknown): 'normal' | 'firstlastfram
 function isSeedance2Model(modelKey: string): boolean {
   const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
   if (!parsed) return false
-  return parsed.provider === 'ark'
+  return (parsed.provider === 'ark' || parsed.provider === 'kuaizi')
     && (
-      parsed.modelId === 'doubao-seedance-2-0-260128'
-      || parsed.modelId === 'doubao-seedance-2-0-fast-260128'
+      parsed.modelId.startsWith('doubao-seedance-2-0')
+      || parsed.modelId === 'doubao-seedance-2-5-260628'
     )
 }
 

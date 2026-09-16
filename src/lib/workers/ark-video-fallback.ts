@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import { getProviderConfig } from '@/lib/api-config'
 import { arkCreateVideoTask } from '@/lib/ark-api'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import type { TaskJobData } from '@/lib/task/types'
 import { waitExternalResult } from './utils'
 
@@ -32,7 +33,7 @@ export function isArkVideoModel(modelKey: string): boolean {
 
 export function readArkModelId(modelKey: string): string {
   const runtimeModelKey = resolveRuntimeModelKey(modelKey) || modelKey
-  return runtimeModelKey.startsWith('ark::') ? runtimeModelKey.slice('ark::'.length) : runtimeModelKey
+  return parseModelKeyStrict(runtimeModelKey)?.modelId || runtimeModelKey
 }
 
 export function buildArkTextOnlyFallbackPrompt(
@@ -59,6 +60,10 @@ export async function submitArkTextOnlyVideoFallback(
   job: Job<TaskJobData>,
   options: ArkFallbackOptions,
 ) {
+  const routed = parseModelKeyStrict(resolveRuntimeModelKey(options.modelKey) || options.modelKey)
+  if (routed && routed.provider.split(':')[0] !== 'ark') {
+    throw new Error('ARK_FALLBACK_PROVIDER_MISMATCH: 禁止将其他服务的任务转发至火山账号')
+  }
   const { apiKey } = await getProviderConfig(job.data.userId, 'ark')
   const fallbackTask = await arkCreateVideoTask({
     model: readArkModelId(options.modelKey),

@@ -1,16 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { apiHandler, ApiError } from '@/lib/api-errors'
+import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getProviderConfig } from '@/lib/api-config'
-import { adaptVideoScriptWithArk } from '@/lib/volcengine/video-script-adaptation'
+import {
+  adaptVideoScriptWithArk,
+  getVideoScriptAdaptationModel,
+} from '@/lib/volcengine/video-script-adaptation'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
-import { requireGenerationCredit } from '@/lib/billing'
+import { withTextBilling } from '@/lib/billing'
+import { recordTextUsage } from '@/lib/billing/runtime-usage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 600
 
 const MAX_SCRIPT_CHARS = 400_000
 const MAX_BRIEF_CHARS = 2_000
+const VIDEO_REPAINT_PROJECT_ID = 'video-repaint'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -38,8 +43,6 @@ export const POST = apiHandler(async (request: NextRequest) => {
     throw new ApiError('INVALID_PARAMS', { message: '源剧本内容过长，请拆分后重试' })
   }
 
-  if (adaptationBrief) await requireGenerationCredit(authResult.session.user.id)
-
   const adaptationContract = isRecord(payload.sourceAnalysis)
     ? payload.sourceAnalysis.adaptation_contract
     : payload.adaptationContract
@@ -47,13 +50,41 @@ export const POST = apiHandler(async (request: NextRequest) => {
     ? (await getProviderConfig(authResult.session.user.id, 'ark')).apiKey
     : ''
   const startedAt = Date.now()
-  const result = await adaptVideoScriptWithArk({
+  const adaptationModel = getVideoScriptAdaptationModel()
+  const runAdaptation = async () => await adaptVideoScriptWithArk({
     apiKey,
     sourceScript,
     adaptationBrief,
     adaptationContract,
     title,
+    model: adaptationModel,
   })
+  const result = adaptationBrief
+    ? await withTextBilling(
+        authResult.session.user.id,
+        `ark::${adaptationModel}`,
+        Math.min(512_000, Math.max(4_000, Math.ceil((sourceScript.length + adaptationBrief.length) * 1.25))),
+        Math.min(256_000, Math.max(4_000, Math.ceil(sourceScript.length * 1.25))),
+        {
+          projectId: VIDEO_REPAINT_PROJECT_ID,
+          action: 'video_repaint_script_adaptation',
+          requestId: getRequestId(request),
+          metadata: {
+            operation: 'script-adaptation',
+            sourceCharacters: sourceScript.length,
+          },
+        },
+        async () => {
+          const generated = await runAdaptation()
+          recordTextUsage({
+            model: `ark::${generated.model}`,
+            inputTokens: generated.usage.inputTokens,
+            outputTokens: generated.usage.outputTokens,
+          })
+          return generated
+        },
+      )
+    : await runAdaptation()
 
   if (result.mode === 'llm') {
     await recordServiceUsage({

@@ -11,6 +11,7 @@ import {
   SelectionMode,
   applyEdgeChanges,
   applyNodeChanges,
+  useStoreApi,
   type Connection,
   type EdgeChange,
   type FinalConnectionState,
@@ -42,7 +43,9 @@ import { CanvasMediaPreviewDialog } from './components/CanvasMediaPreviewDialog'
 import { CanvasVideoOperationDialog, type CanvasVideoOperationInput, type CanvasVideoOperationMode } from './components/CanvasVideoOperationDialog'
 import { CANVAS_MATERIAL_DRAG_TYPE, CANVAS_WORKFLOW_DRAG_TYPE, CanvasProjectAssets, type CanvasWorkflowTemplate } from './components/CanvasProjectAssets'
 import { CanvasWorkflowDialog } from './components/CanvasWorkflowDialog'
+import { CanvasAssetLibraryDialog } from './components/CanvasAssetLibraryDialog'
 import { CanvasPanoramaDialog } from './components/CanvasPanoramaDialog'
+import type { FrameosAssetCategory } from '@/lib/frameos/material-category'
 import {
   panoramaCaptureResultMessage,
   settlePanoramaCaptureUploads,
@@ -50,6 +53,8 @@ import {
 } from './panorama-capture'
 import { CanvasAddPanel, CanvasToolRail, CanvasViewportControls } from './components/CanvasToolRail'
 import { CanvasContextMenu, CanvasEmptyState, CanvasWireMenu } from './components/CanvasMenus'
+import { CanvasConnectionLine } from './components/CanvasConnectionLine'
+import { CanvasEdge } from './components/CanvasEdge'
 import {
   CANVAS_CLIPBOARD_PREFIX,
   isCanvasClipboardMimeAvailable,
@@ -90,6 +95,12 @@ import { GroupNode } from './nodes/GroupNode'
 import { ProductionNode } from './nodes/ProductionNode'
 import { PlaylistNode } from './nodes/PlaylistNode'
 import { Studio3DNode } from './nodes/Studio3DNode'
+import {
+  CANVAS_VIDEO_EDIT_MATERIAL_EVENT,
+  CANVAS_VIDEO_EDIT_REFERENCE_EVENT,
+  CANVAS_VIDEO_EDIT_SUBMIT_EVENT,
+  VideoEditNode,
+} from './nodes/VideoEditNode'
 import { CanvasStudio3DDialog } from './components/CanvasStudio3D'
 import { canvasApi, CanvasRevisionConflictError } from './api/client'
 import { useCanvasGraph } from './state/useCanvasSync'
@@ -102,6 +113,10 @@ import {
   normalizeScreenRect,
 } from './edge-marquee'
 import { resolveCanvasGeneratorAnchor } from './generator-anchor'
+import {
+  findCanvasTargetNodeIdAtPoint,
+  resolveCanvasRenderedScale,
+} from './connection-line-geometry'
 import {
   CANVAS_GENERATOR_PANEL_WIDTH_DEFAULT,
   CANVAS_GENERATOR_PANEL_WIDTH_STORAGE_KEY,
@@ -124,6 +139,14 @@ import {
   resolveCanvasToolboxAssetPollState,
 } from './toolbox-asset-poll-state'
 import {
+  appendCanvasVideoSourceToPlaylist,
+  canvasVideoDurationMs,
+  canvasVideoUrl,
+  findCanvasPlaylistDropTargetId,
+  isCanvasVideoSource,
+  playlistItemFromNode,
+} from './playlist-node-drop'
+import {
   cancelCanvasGenerationTask,
   canvasGenerationTaskError,
   fetchCanvasGenerationTask,
@@ -142,7 +165,6 @@ import {
   type CanvasGenerationHistoryItem,
   type CanvasGraphResponse,
   type CanvasNodeData,
-  type CanvasPlaylistItem,
   type CanvasPlaylistRenderSummary,
   type CanvasPlaylistReviewSummary,
   type CanvasProjectOption,
@@ -164,6 +186,7 @@ const nodeTypes = {
   text: CreativeNode,
   image: CreativeNode,
   video: CreativeNode,
+  video_edit: VideoEditNode,
   audio: CreativeNode,
   model_3d: CreativeNode,
   studio_3d: Studio3DNode,
@@ -175,12 +198,18 @@ const nodeTypes = {
   playlist: PlaylistNode,
 } as const
 
+const edgeTypes = {
+  bezier: CanvasEdge,
+} as const
+
 const CANVAS_NODE_SOFT_LIMIT = 500
 const CANVAS_NODE_HARD_LIMIT = 1_000
 const CANVAS_EDGE_HARD_LIMIT = 4_000
 const CANVAS_POLL_FAILURE_LIMIT = 4
 const CANVAS_UPLOAD_CONCURRENCY = 2
 const CANVAS_UPLOAD_MAX_ATTEMPTS = 4
+/** 稳定的空数组引用，避免生成器因为每次渲染新建数组而重复合并引用。 */
+const EMPTY_REFERENCE_NODE_IDS: string[] = []
 
 type Props = {
   projectId: string
@@ -200,6 +229,7 @@ type Props = {
 }
 
 type ClipboardDocument = { nodes: CanvasFlowNode[]; edges: CanvasFlowEdge[] }
+type CanvasMarqueeRect = { x: number; y: number; width: number; height: number }
 type ToolboxAsset = {
   id: string
   type: 'image' | 'video' | 'audio' | 'model3d'
@@ -233,6 +263,23 @@ function hasInputFocus() {
   return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement || (active instanceof HTMLElement && active.isContentEditable)
 }
 
+function isCanvasBlankPointerTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  if (target.closest([
+    '.react-flow__node',
+    '.react-flow__edge',
+    '.react-flow__handle',
+    '.react-flow__minimap',
+    '.react-flow__controls',
+    '.react-flow__selection',
+    '.react-flow__nodesselection',
+  ].join(','))) return false
+  return Boolean(
+    target.closest('.react-flow__pane')
+    || target.closest('.react-flow__background'),
+  )
+}
+
 function visibleMenuPoint(x: number, y: number, height: number) {
   return clampCanvasMenuPoint(
     { x, y },
@@ -241,43 +288,47 @@ function visibleMenuPoint(x: number, y: number, height: number) {
   )
 }
 
+function wrapperLayoutPoint(wrapper: HTMLElement, clientX: number, clientY: number) {
+  const bounds = wrapper.getBoundingClientRect()
+  const renderedScale = resolveCanvasRenderedScale({
+    layoutWidth: wrapper.clientWidth,
+    layoutHeight: wrapper.clientHeight,
+    renderedWidth: bounds.width,
+    renderedHeight: bounds.height,
+  })
+  return {
+    x: (clientX - bounds.left) / renderedScale.x,
+    y: (clientY - bounds.top) / renderedScale.y,
+  }
+}
+
+function clientToFlowPoint(
+  wrapper: HTMLElement,
+  clientX: number,
+  clientY: number,
+  viewport: Viewport,
+) {
+  const layout = wrapperLayoutPoint(wrapper, clientX, clientY)
+  return {
+    x: (layout.x - viewport.x) / viewport.zoom,
+    y: (layout.y - viewport.y) / viewport.zoom,
+  }
+}
+
+function normalizedMarqueeRect(
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): CanvasMarqueeRect {
+  return {
+    x: Math.min(start.x, end.x),
+    y: Math.min(start.y, end.y),
+    width: Math.abs(end.x - start.x),
+    height: Math.abs(end.y - start.y),
+  }
+}
+
 function getMediaType(node: CanvasFlowNode) {
   return node.data.mediaType || (node.type === 'note' ? 'text' : node.type === 'model_3d' ? 'model3d' : node.type) || 'image'
-}
-
-function canvasVideoUrl(node: CanvasFlowNode) {
-  return node.data.videoUrl || (node.data.mediaType === 'video' ? node.data.contentUrl : null) || null
-}
-
-function canvasVideoDurationMs(node: CanvasFlowNode) {
-  const metadata = node.data.sourceMetadata
-  const metadataMs = Number(metadata?.durationMs)
-  if (Number.isFinite(metadataMs) && metadataMs > 0) return Math.round(metadataMs)
-  const metadataSeconds = Number(metadata?.durationSeconds)
-  if (Number.isFinite(metadataSeconds) && metadataSeconds > 0) return Math.round(metadataSeconds * 1_000)
-  const generationSeconds = node.data.generation?.duration
-  return typeof generationSeconds === 'number' && Number.isFinite(generationSeconds) && generationSeconds > 0
-    ? Math.round(generationSeconds * 1_000)
-    : null
-}
-
-function isCanvasVideoSource(node: CanvasFlowNode) {
-  return getMediaType(node) === 'video' || node.type === 'production_video' || Boolean(canvasVideoUrl(node))
-}
-
-function playlistItemFromNode(node: CanvasFlowNode): CanvasPlaylistItem {
-  const durationMs = canvasVideoDurationMs(node)
-  return {
-    id: typeof crypto.randomUUID === 'function' ? crypto.randomUUID() : `playlist-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-    sourceNodeId: node.id,
-    materialId: node.data.materialId || null,
-    title: node.data.title || '视频节点',
-    videoUrl: canvasVideoUrl(node),
-    posterUrl: node.data.posterUrl || node.data.imageUrl || null,
-    sourceInMs: 0,
-    sourceOutMs: durationMs,
-    durationMs,
-  }
 }
 
 function minimapNodeColor(node: CanvasFlowNode) {
@@ -349,6 +400,7 @@ function createHistoryItem(request: CanvasGenerateRequest, assetId?: string, tas
 
 function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
+  const flowStore = useStoreApi<CanvasFlowNode, CanvasFlowEdge>()
   const readOnly = !canEditInfiniteCanvas(session?.user)
   const [nodes, setNodes] = useState<CanvasFlowNode[]>(() => initialGraph.nodes.map(canvasNodeToFlow))
   const [edges, setEdges] = useState<CanvasFlowEdge[]>(() => initialGraph.edges.map(canvasEdgeToFlow))
@@ -361,10 +413,20 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const [organizeMode, setOrganizeMode] = useState<'grid' | 'horizontal' | 'vertical'>('horizontal')
   const [organizeOpen, setOrganizeOpen] = useState(false)
   const [layoutAnimating, setLayoutAnimating] = useState(false)
+  const [nodeDragging, setNodeDragging] = useState(false)
   const [contextMenu, setContextMenu] = useState<CanvasContextMenuState | null>(null)
   const [clipboardCanPaste, setClipboardCanPaste] = useState(false)
   const [wireMenu, setWireMenu] = useState<CanvasWireMenuState | null>(null)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [videoEditMaterialNodeId, setVideoEditMaterialNodeId] = useState<string | null>(null)
+  const [videoEditReferencePicker, setVideoEditReferencePicker] = useState<{ nodeId: string; type: 'image' | 'audio' } | null>(null)
+  const [assetLibraryNodeId, setAssetLibraryNodeId] = useState<string | null>(null)
+  const [generatorReferencePicker, setGeneratorReferencePicker] = useState<{
+    nodeId: string
+    type: 'all' | 'image' | 'video' | 'audio'
+    maxSelected: number
+  } | null>(null)
+  const [generatorReferenceInjection, setGeneratorReferenceInjection] = useState<{ nodeId: string; ids: string[] }>({ nodeId: '', ids: [] })
   const [generatorPanelWidth, setGeneratorPanelWidth] = useState(CANVAS_GENERATOR_PANEL_WIDTH_DEFAULT)
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null)
   const persistentPollFailuresRef = useRef(new Map<string, number>())
@@ -389,6 +451,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const [productionSyncing, setProductionSyncing] = useState(false)
   const [toast, setToast] = useState<string | null>(null)
   const [connectionActive, setConnectionActive] = useState(false)
+  const [playlistDropTargetId, setPlaylistDropTargetId] = useState<string | null>(null)
+  const [marqueeRect, setMarqueeRect] = useState<CanvasMarqueeRect | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const uploadRef = useRef<HTMLInputElement>(null)
   const replacementUploadRef = useRef<HTMLInputElement>(null)
@@ -414,6 +478,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const edgeSelectionGestureRef = useRef<{ pointerId: number; start: { x: number; y: number }; additive: boolean } | null>(null)
   const suppressContextMenuUntilRef = useRef(0)
   const groupDragRef = useRef<{ id: string; start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null)
+  const playlistNodeDragRef = useRef<{ id: string; start: { x: number; y: number } } | null>(null)
   const altCopyRef = useRef<ClipboardDocument | null>(null)
   const materializingStoryboardTasksRef = useRef(new Set<string>())
   const layoutAnimationFrameRef = useRef<number | null>(null)
@@ -467,6 +532,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setOrganizeOpen(false)
     setWireMenu(null)
     setPickerOpen(false)
+    setVideoEditMaterialNodeId(null)
+    setVideoEditReferencePicker(null)
     setImageOperation(null)
     setVideoOperation(null)
     setStudioNodeId(null)
@@ -878,6 +945,17 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }))
   }, [])
 
+  const clearCanvasSelection = useCallback(() => {
+    setNodes((current) => current.map((node) => (
+      node.selected ? { ...node, selected: false } : node
+    )))
+    const deselectedEdges = edgesRef.current.map((edge) => (
+      edge.selected ? { ...edge, selected: false } : edge
+    ))
+    edgesRef.current = deselectedEdges
+    setEdges(deselectedEdges)
+  }, [])
+
   const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[]) => {
     if (readOnly || removedEdges.length === 0) return
     record('删除连线')
@@ -1114,6 +1192,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (source.type === 'playlist') return false
     const sourceType = getMediaType(source)
     const targetType = getMediaType(target)
+    if (target.type === 'video_edit' && sourceType === 'video' && targetType === 'video') return true
     if (target.data.origin === 'upload' && targetType !== 'text') return false
     if (targetType === 'text' && sourceType !== 'text') return false
     if (targetType === 'image' && (sourceType === 'video' || sourceType === 'audio')) return false
@@ -1135,6 +1214,22 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         const existing = Array.isArray(node.data.playlistItems) ? node.data.playlistItems : []
         if (existing.some((item) => item?.sourceNodeId === source.id)) return node
         return { ...node, data: { ...node.data, playlistItems: [...existing, playlistItemFromNode(source)] } }
+      }))
+    }
+    if (source && target?.type === 'video_edit' && isCanvasVideoSource(source)) {
+      setNodes((current) => current.map((node) => node.id !== target.id ? node : {
+        ...node,
+        data: {
+          ...node.data,
+          videoUrl: source.data.videoUrl || source.data.contentUrl || null,
+          contentUrl: source.data.contentUrl || source.data.videoUrl || null,
+          materialId: source.data.materialId || null,
+          videoEdit: {
+            ...(node.data.videoEdit || {}),
+            sourceKind: 'node',
+            sourceNodeId: source.id,
+          },
+        },
       }))
     }
     markChanged('添加连线')
@@ -1919,6 +2014,83 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     || node.data.history?.some((item) => item.taskId === taskId)
   )), [])
 
+  const submitVideoEdit = useCallback(async (input: {
+    nodeId: string
+    prompt: string
+    startMs: number
+    endMs: number
+    generateAudio: boolean
+  }) => {
+    if (readOnly) return
+    const target = nodesRef.current.find((node) => node.id === input.nodeId && node.type === 'video_edit')
+    if (!target) throw new Error('视频编辑节点不存在或已被删除')
+    const incoming = target.data.videoEdit?.sourceKind === 'node' && target.data.videoEdit.sourceNodeId
+      ? nodesRef.current.find((node) => node.id === target.data.videoEdit?.sourceNodeId) || null
+      : null
+    if (!incoming && !(target.data.videoUrl || target.data.contentUrl)) {
+      throw new Error('请先为视频编辑节点提供源视频。')
+    }
+
+    const updateFromTask = (update: CanvasOperationTaskUpdate) => {
+      setNodes((current) => current.map((node) => node.id === target.id ? {
+        ...node,
+        data: {
+          ...node.data,
+          progress: update.task.progress,
+          errorMessage: update.task.error?.message || null,
+          __server: {
+            ...node.data.__server!,
+            status: update.task.status === 'failed' ? 'FAILED' : update.task.status === 'completed' ? 'SUCCEEDED' : 'RUNNING',
+            taskId: update.task.id,
+          },
+        },
+      } : node))
+    }
+
+    record('提交视频编辑')
+    setNodes((current) => current.map((node) => node.id === target.id ? {
+      ...node,
+      data: {
+        ...node.data,
+        progress: 2,
+        errorMessage: null,
+        __server: { ...node.data.__server!, status: 'RUNNING' },
+      },
+    } : node))
+    try {
+      const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/operations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceNodeId: target.id,
+          operation: 'video_edit',
+          prompt: input.prompt,
+          startMs: input.startMs,
+          endMs: input.endMs,
+          generateAudio: input.generateAudio,
+        }),
+      })
+      await resolveCanvasOperationResponse(response, updateFromTask)
+      await mergeAutosaveServerVersion()
+      setNodes((current) => current.map((node) => node.id === target.id
+        ? { ...node, selected: true }
+        : { ...node, selected: false }))
+      markChanged('视频编辑完成')
+      setToast('视频编辑完成')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '视频编辑失败'
+      setNodes((current) => current.map((node) => node.id === target.id ? {
+        ...node,
+        data: {
+          ...node.data,
+          errorMessage: message,
+          __server: { ...node.data.__server!, status: 'FAILED' },
+        },
+      } : node))
+      throw error
+    }
+  }, [initialGraph.canvas.id, markChanged, mergeAutosaveServerVersion, projectId, readOnly, record])
+
   const handlePanoramaCapture = useCallback(async (files: File[], mode: 'current' | 'four' | 'twelve'): Promise<PanoramaCaptureCommitResult> => {
     if (!panoramaPreviewNodeId || readOnly || files.length === 0) {
       return { created: 0, failed: files.length, errors: files.length > 0 ? ['当前无法发送全景截图'] : [] }
@@ -2091,6 +2263,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const editorContext = useMemo(() => ({
     readOnly: writeLocked,
+    playlistDropTargetId,
     canUndo,
     canRedo,
     saveState: autosave.saveState,
@@ -2106,7 +2279,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     startPlaylistRender,
     loadPlaylistReview,
     submitPlaylistReview,
-  }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, redo, removeNodes, runNodeAction, startPlaylistRender, submitPlaylistReview, undo, updateNodeData, writeLocked])
+  }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, startPlaylistRender, submitPlaylistReview, undo, updateNodeData, writeLocked])
 
   const onNodesChange = useCallback((changes: NodeChange<CanvasFlowNode>[]) => {
     if (productionSyncing || (readOnly && changes.some((change) => change.type !== 'select'))) return
@@ -2150,6 +2323,14 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const onNodeDragStart = useCallback((event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
+    setNodeDragging(true)
+    const selectedNodeCount = node.selected
+      ? nodesRef.current.filter((current) => current.selected && current.type !== 'group').length
+      : 1
+    setPlaylistDropTargetId(null)
+    playlistNodeDragRef.current = !event.altKey && selectedNodeCount === 1 && isCanvasVideoSource(node)
+      ? { id: node.id, start: { ...node.position } }
+      : null
     if (!dragRecordedRef.current) { record(event.altKey ? '拖拽复制' : '移动节点'); dragRecordedRef.current = true }
     if (event.altKey) {
       const selectedIds = nodesRef.current.filter((item) => item.selected).map((item) => item.id)
@@ -2172,6 +2353,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const onNodeDrag = useCallback((_event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
+    if (playlistNodeDragRef.current?.id === node.id) {
+      const currentNodes = nodesRef.current.map((current) => current.id === node.id ? node : current)
+      setPlaylistDropTargetId(findCanvasPlaylistDropTargetId(currentNodes, node))
+    }
     const group = groupDragRef.current
     if (!group || group.id !== node.id) return
     const dx = node.position.x - group.start.x
@@ -2180,6 +2365,14 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   }, [writeLocked])
 
   const onNodeDragStop = useCallback((_event: React.MouseEvent, draggedNode: CanvasFlowNode) => {
+    setNodeDragging(false)
+    const playlistDrag = playlistNodeDragRef.current?.id === draggedNode.id ? playlistNodeDragRef.current : null
+    const currentNodes = nodesRef.current.map((node) => node.id === draggedNode.id ? draggedNode : node)
+    const playlistTargetId = playlistDrag
+      ? findCanvasPlaylistDropTargetId(currentNodes, draggedNode)
+      : null
+    playlistNodeDragRef.current = null
+    setPlaylistDropTargetId(null)
     if (writeLocked) {
       altCopyRef.current = null
       groupDragRef.current = null
@@ -2201,6 +2394,49 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       setEdges((current) => [...current, ...originals.edges.map((edge) => ({ ...structuredClone(edge), id: crypto.randomUUID(), source: idMap.get(edge.source) || edge.source, target: idMap.get(edge.target) || edge.target, selected: false }))])
       altCopyRef.current = null
     }
+    if (playlistDrag && playlistTargetId) {
+      const target = currentNodes.find((node) => node.id === playlistTargetId && node.type === 'playlist')
+      const source = currentNodes.find((node) => node.id === draggedNode.id) || draggedNode
+      const result = target
+        ? appendCanvasVideoSourceToPlaylist(target.data.playlistItems, source)
+        : null
+      const restoredNodes = currentNodes.map((node) => {
+        if (node.id === source.id) return { ...node, position: { ...playlistDrag.start } }
+        if (node.id === target?.id && result?.outcome === 'added') {
+          return { ...node, data: { ...node.data, playlistItems: result.items } }
+        }
+        return node
+      })
+      nodesRef.current = restoredNodes
+      setNodes(restoredNodes)
+
+      if (target && result?.outcome === 'added') {
+        const hasEdge = edgesRef.current.some((edge) => edge.source === source.id && edge.target === target.id)
+        if (!hasEdge && edgesRef.current.length < CANVAS_EDGE_HARD_LIMIT) {
+          const nextEdges = [...edgesRef.current, {
+            id: crypto.randomUUID(),
+            source: source.id,
+            target: target.id,
+            sourceHandle: 'output',
+            targetHandle: 'input',
+            type: 'bezier',
+            data: { role: 'INPUT_DEFAULT' },
+          } satisfies CanvasFlowEdge]
+          edgesRef.current = nextEdges
+          setEdges(nextEdges)
+        }
+        setToast(`已将“${source.data.title || '视频节点'}”加入最终审核播放列表`)
+        markChanged('添加视频到最终审核播放列表')
+      } else {
+        if (result?.outcome === 'not_ready') setToast('该视频尚未生成完成，完成后才能加入审核播放列表')
+        else if (result?.outcome === 'duplicate') setToast('该视频已在这个审核播放列表中')
+        else if (result?.outcome === 'full') setToast('审核播放列表已达到 200 个片段上限')
+        markChanged('取消视频投放')
+      }
+      groupDragRef.current = null
+      dragRecordedRef.current = false
+      return
+    }
     setNodes((current) => {
       const reconciled = reconcileDraggedNodeGroupMembership(current, [draggedNode.id])
       return draggedNode.type === 'group'
@@ -2212,8 +2448,16 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     markChanged('移动节点')
   }, [ensureNodeCapacity, markChanged, writeLocked])
 
-  const onSelectionDragStart = useCallback(() => { if (!writeLocked && !dragRecordedRef.current) { record('移动多个节点'); dragRecordedRef.current = true } }, [record, writeLocked])
+  const onSelectionDragStart = useCallback(() => {
+    if (writeLocked) return
+    setNodeDragging(true)
+    if (!dragRecordedRef.current) {
+      record('移动多个节点')
+      dragRecordedRef.current = true
+    }
+  }, [record, writeLocked])
   const onSelectionDragStop = useCallback((_event: React.MouseEvent, draggedNodes: CanvasFlowNode[]) => {
+    setNodeDragging(false)
     if (writeLocked) {
       dragRecordedRef.current = false
       return
@@ -2232,11 +2476,11 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   }, [markChanged, writeLocked])
 
   const insertMaterial = useCallback((material: FrameosMaterialItem, position?: { x: number; y: number }) => {
-    if (readOnly || !material?.id || !material.url) return
+    if (readOnly || !material?.id || !material.url) return null
     const type = material.type === 'video' ? 'video' : material.type === 'audio' ? 'audio' : material.type === 'model3d' ? 'model3d' : 'image'
     const nodeType = type === 'model3d' ? 'model_3d' : type
     const created = addNode(nodeType as CanvasNodeMenuType, position || centerPosition())
-    if (!created) return
+    if (!created) return null
     updateNodeData(created.id, {
       title: material.title || '项目资产',
       mediaType: type,
@@ -2251,6 +2495,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       __server: { ...created.data.__server!, status: 'SUCCEEDED' },
     } as Partial<CanvasNodeData>)
     setToast(`已添加「${material.title || '项目资产'}」`)
+    return created
   }, [addNode, centerPosition, readOnly, updateNodeData])
 
   const insertWorkflow = useCallback((template: CanvasWorkflowTemplate, position?: { x: number; y: number }) => {
@@ -2353,6 +2598,48 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     return () => window.removeEventListener(CANVAS_REPLACE_CONTENT_EVENT, handleReplacementRequest)
   }, [requestContentReplacement])
 
+  useEffect(() => {
+    const handleMaterialRequest = (event: Event) => {
+      const nodeId = (event as CustomEvent<{ nodeId?: unknown }>).detail?.nodeId
+      if (typeof nodeId !== 'string') return
+      const target = nodesRef.current.find((node) => node.id === nodeId && node.type === 'video_edit')
+      if (target) setVideoEditMaterialNodeId(nodeId)
+    }
+    const handleReferenceRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ nodeId?: unknown; type?: unknown }>).detail
+      if (typeof detail?.nodeId !== 'string') return
+      if (detail.type !== 'image' && detail.type !== 'audio') return
+      const target = nodesRef.current.find((node) => node.id === detail.nodeId && node.type === 'video_edit')
+      if (target) setVideoEditReferencePicker({ nodeId: detail.nodeId, type: detail.type })
+    }
+    const handleSubmitRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        nodeId?: unknown
+        prompt?: unknown
+        startMs?: unknown
+        endMs?: unknown
+        generateAudio?: unknown
+      }>).detail
+      if (typeof detail?.nodeId !== 'string' || typeof detail.prompt !== 'string') return
+      if (typeof detail.startMs !== 'number' || typeof detail.endMs !== 'number') return
+      void submitVideoEdit({
+        nodeId: detail.nodeId,
+        prompt: detail.prompt,
+        startMs: detail.startMs,
+        endMs: detail.endMs,
+        generateAudio: detail.generateAudio !== false,
+      }).catch((error) => setToast(error instanceof Error ? error.message : '视频编辑失败'))
+    }
+    window.addEventListener(CANVAS_VIDEO_EDIT_MATERIAL_EVENT, handleMaterialRequest)
+    window.addEventListener(CANVAS_VIDEO_EDIT_REFERENCE_EVENT, handleReferenceRequest)
+    window.addEventListener(CANVAS_VIDEO_EDIT_SUBMIT_EVENT, handleSubmitRequest)
+    return () => {
+      window.removeEventListener(CANVAS_VIDEO_EDIT_MATERIAL_EVENT, handleMaterialRequest)
+      window.removeEventListener(CANVAS_VIDEO_EDIT_REFERENCE_EVENT, handleReferenceRequest)
+      window.removeEventListener(CANVAS_VIDEO_EDIT_SUBMIT_EVENT, handleSubmitRequest)
+    }
+  }, [submitVideoEdit])
+
   const handleContentReplacement = useCallback(async (nodeId: string, file: File) => {
     if (writeLocked || file.size <= 0) return
     const beforeUpload = nodesRef.current.find((item) => item.id === nodeId)
@@ -2375,6 +2662,17 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       type: material.type,
       url: material.url,
     })
+    if (replacement.type === 'video_edit') {
+      replacement.data = {
+        ...replacement.data,
+        videoEdit: {
+          ...(replacement.data.videoEdit || {}),
+          sourceKind: 'upload',
+          sourceNodeId: null,
+          materialId: material.id,
+        },
+      }
+    }
     const nextNodes = nodesRef.current.map((node) => node.id === nodeId ? replacement : node)
     const removedEdges = edgesRef.current.filter((edge) => edge.target === nodeId)
     const remainingEdges = removedEdges.length > 0
@@ -2417,6 +2715,45 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     uploadRef.current?.click()
   }, [])
 
+  /** 把画布上的图片登记成本项目资产库素材，并带上角色/场景/道具归类。 */
+  const uploadNodeToAssetLibrary = useCallback(async (
+    nodeId: string,
+    input: { title: string; assetCategory: FrameosAssetCategory },
+  ) => {
+    if (readOnly) throw new Error('当前画布为只读，无法上传到资产库')
+    const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ register: 'library', nodeIds: [nodeId], ...input }),
+    })
+    if (!response.ok) throw new Error(await readApiErrorMessage(response, '上传资产库失败'))
+    const payload = await response.json().catch(() => null) as { materials?: Array<{ title?: string }> } | null
+    setAssetLibraryNodeId(null)
+    setToast(`已上传「${payload?.materials?.[0]?.title || input.title}」到资产库`)
+  }, [initialGraph.canvas.id, projectId, readOnly])
+
+  /** 从素材库直接给生成节点添加引用素材，并把它放进画布作为可复用的引用节点。 */
+  const addGeneratorReferenceMaterials = useCallback((materials: FrameosMaterialItem[]) => {
+    const picker = generatorReferencePicker
+    setGeneratorReferencePicker(null)
+    if (!picker || materials.length === 0) return
+    const anchorNode = nodesRef.current.find((node) => node.id === picker.nodeId)
+    const anchor = anchorNode
+      ? { x: anchorNode.position.x - 420, y: anchorNode.position.y + 40 }
+      : centerPosition()
+    const createdIds: string[] = []
+    materials.forEach((material, index) => {
+      const created = insertMaterial(material, { x: anchor.x, y: anchor.y + index * 280 })
+      if (created) createdIds.push(created.id)
+    })
+    if (createdIds.length === 0) {
+      setToast('引用素材未能添加到画布')
+      return
+    }
+    setGeneratorReferenceInjection({ nodeId: picker.nodeId, ids: createdIds })
+    setToast(createdIds.length > 1 ? `已引用 ${createdIds.length} 个素材` : '已引用 1 个素材')
+  }, [centerPosition, generatorReferencePicker, insertMaterial])
+
   const pasteFromSystem = useCallback(async (position?: { x: number; y: number }) => {
     if (readOnly) return
     const clipboardItems = await navigator.clipboard?.read?.().catch(() => []) || []
@@ -2455,11 +2792,23 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const selectedEdges = edges.filter((edge) => edge.selected)
   const contextNode = contextMenu?.scope === 'node' ? nodes.find((node) => node.id === contextMenu.nodeId) || null : null
   const canRegenerateContextNode = Boolean(contextNode?.data.prompt && contextNode.data.generation?.modelKey)
+  const assetLibrarySourceNode = contextNode && getMediaType(contextNode) === 'image'
+    ? contextNode
+    : null
+  const canUploadToAssetLibrary = Boolean(
+    !readOnly
+    && assetLibrarySourceNode
+    && (assetLibrarySourceNode.data.contentUrl || assetLibrarySourceNode.data.imageUrl || assetLibrarySourceNode.data.posterUrl),
+  )
+  const assetLibraryNode = assetLibraryNodeId
+    ? nodes.find((node) => node.id === assetLibraryNodeId && getMediaType(node) === 'image') || null
+    : null
   const directlySelectedCreativeNode = selectedNodes.length === 1
     && !selectedNodes[0].type?.startsWith('production_')
     && selectedNodes[0].type !== 'group'
     && selectedNodes[0].type !== 'studio_3d'
     && selectedNodes[0].type !== 'playlist'
+    && selectedNodes[0].type !== 'video_edit'
     ? selectedNodes[0]
     : null
   const selectedCreativeNode = directlySelectedCreativeNode
@@ -2780,6 +3129,12 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       // Escape always dismisses canvas chrome, including when a search field in
       // the project-assets surface owns focus. Other input shortcuts stay local.
       if (event.key === 'Escape') {
+        flowStore.getState().cancelConnection()
+        connectionActiveRef.current = false
+        setConnectionActive(false)
+        setMediaPreviewNodeId(null)
+        setModelPreviewNodeId(null)
+        setPanoramaPreviewNodeId(null)
         dismissTransientUi()
         return
       }
@@ -2826,7 +3181,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     window.addEventListener('keydown', keydown)
     return () => window.removeEventListener('keydown', keydown)
-  }, [copySelection, duplicateNodes, flow, flushAutosave, nudgeSelection, offlineRecoveryBlocking, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, undo])
+  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, nudgeSelection, offlineRecoveryBlocking, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, undo])
 
   const handleContextAction = (action: string) => {
     const menu = contextMenu
@@ -2838,6 +3193,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       if (action === 'duplicate') duplicateNodes([menu.nodeId])
       if (action === 'delete') removeNodes([menu.nodeId])
       if (action === 'regenerate') runNodeAction(menu.nodeId, 'regenerate')
+      if (action === 'upload-asset-library') setAssetLibraryNodeId(menu.nodeId)
       return
     }
     if (menu.scope === 'group') {
@@ -2934,7 +3290,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   return (
     <CanvasEditorProvider value={editorContext}>
       <div
-        className={`nori-canvas-workspace${readOnly ? ' is-readonly' : ''}${productionSyncing ? ' is-syncing' : ''}${layoutAnimating ? ' is-layout-animating' : ''}`}
+        className={`nori-canvas-workspace${readOnly ? ' is-readonly' : ''}${productionSyncing ? ' is-syncing' : ''}${layoutAnimating ? ' is-layout-animating' : ''}${nodeDragging ? ' is-node-dragging' : ''}`}
         ref={wrapperRef}
         tabIndex={0}
         onPointerDownCapture={(event) => {
@@ -2947,17 +3303,34 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             event.button === 0
             && !writeLocked
             && !connectionActiveRef.current
-            && (event.target as HTMLElement).classList.contains('react-flow__pane')
+            && isCanvasBlankPointerTarget(event.target)
           ) {
+            const wrapper = wrapperRef.current
             edgeSelectionGestureRef.current = {
               pointerId: event.pointerId,
               start: { x: event.clientX, y: event.clientY },
               additive: event.shiftKey || event.metaKey || event.ctrlKey,
             }
+            if (wrapper) {
+              const startLayout = wrapperLayoutPoint(wrapper, event.clientX, event.clientY)
+              setMarqueeRect({ x: startLayout.x, y: startLayout.y, width: 0, height: 0 })
+            }
+            try {
+              event.currentTarget.setPointerCapture(event.pointerId)
+            } catch {
+              // Pointer capture can be unavailable during synthetic events.
+            }
           }
         }}
         onPointerMoveCapture={(event) => {
           if (moveMiniMapDrag(event)) return
+          const edgeSelection = edgeSelectionGestureRef.current
+          if (edgeSelection?.pointerId === event.pointerId && wrapperRef.current) {
+            const wrapper = wrapperRef.current
+            const start = wrapperLayoutPoint(wrapper, edgeSelection.start.x, edgeSelection.start.y)
+            const current = wrapperLayoutPoint(wrapper, event.clientX, event.clientY)
+            setMarqueeRect(normalizedMarqueeRect(start, current))
+          }
           const gesture = rightPanGestureRef.current
           if (!gesture || gesture.pointerId !== event.pointerId || gesture.moved) return
           gesture.moved = Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 4
@@ -2971,9 +3344,15 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           const edgeSelection = edgeSelectionGestureRef.current
           if (edgeSelection?.pointerId === event.pointerId) {
             edgeSelectionGestureRef.current = null
+            setMarqueeRect(null)
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+              event.currentTarget.releasePointerCapture(event.pointerId)
+            }
             if (Math.hypot(event.clientX - edgeSelection.start.x, event.clientY - edgeSelection.start.y) > 5) {
               const end = { x: event.clientX, y: event.clientY }
               window.requestAnimationFrame(() => selectElementsCoveredByRect(edgeSelection.start, end, edgeSelection.additive))
+            } else if (!edgeSelection.additive) {
+              clearCanvasSelection()
             }
           }
           const gesture = rightPanGestureRef.current
@@ -2982,11 +3361,16 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           rightPanGestureRef.current = null
         }}
         onPointerCancelCapture={(event) => {
+          setNodeDragging(false)
           finishMiniMapDrag(event.pointerId)
           rightPanGestureRef.current = null
           edgeSelectionGestureRef.current = null
+          setMarqueeRect(null)
+          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId)
+          }
         }}
-        onLostPointerCapture={(event) => { finishMiniMapDrag(event.pointerId) }}
+        onLostPointerCapture={(event) => { setNodeDragging(false); finishMiniMapDrag(event.pointerId) }}
         onPointerDown={() => { setContextMenu(null); setWireMenu(null) }}
         onDoubleClick={(event) => { if (!writeLocked && (event.target as HTMLElement).classList.contains('react-flow__pane')) addNode('text', flow?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) || centerPosition()) }}
         onDragOver={(event) => { if (!writeLocked && (event.dataTransfer.types.includes(CANVAS_MATERIAL_DRAG_TYPE) || event.dataTransfer.types.includes(CANVAS_WORKFLOW_DRAG_TYPE) || event.dataTransfer.types.includes('Files'))) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' } }}
@@ -3025,10 +3409,13 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             nodes={nodes}
             edges={edges}
             nodeTypes={nodeTypes}
+            edgeTypes={edgeTypes}
             onInit={setFlow}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={connect}
+            connectOnClick={false}
+            connectionLineComponent={CanvasConnectionLine}
             onConnectStart={() => { connectionActiveRef.current = true; setConnectionActive(true); edgeSelectionGestureRef.current = null }}
             isValidConnection={validateConnection}
             onConnectEnd={(event, state: FinalConnectionState) => {
@@ -3042,6 +3429,21 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
                 const targetHandle = sourceHandle === 'input' || sourceHandle === 'left' ? 'output' : 'input'
                 connect({ source: state.fromNode.id, target: state.toNode.id, sourceHandle, targetHandle })
                 return
+              }
+              const wrapper = wrapperRef.current
+              if (wrapper) {
+                const flowPoint = clientToFlowPoint(wrapper, point.x, point.y, viewportRef.current)
+                const areaTargetId = findCanvasTargetNodeIdAtPoint({
+                  nodes: Array.from(flowStore.getState().nodeLookup.values()),
+                  point: flowPoint,
+                  excludeNodeId: state.fromNode.id,
+                })
+                if (areaTargetId) {
+                  const sourceHandle = state.fromHandle?.id || 'output'
+                  const targetHandle = sourceHandle === 'input' || sourceHandle === 'left' ? 'output' : 'input'
+                  connect({ source: state.fromNode.id, target: areaTargetId, sourceHandle, targetHandle })
+                  return
+                }
               }
               setWireMenu({ ...visibleMenuPoint(point.x, point.y, 210), flowPosition: flow?.screenToFlowPosition(point), sourceNodeId: state.fromNode.id, sourceHandle: state.fromHandle?.id || null })
             }}
@@ -3060,7 +3462,13 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               viewportRef.current = next
               if (!writeLocked && changed) markChanged('调整画布视图')
             }}
-            onPaneClick={() => { setAddOpen(false); setOrganizeOpen(false); setContextMenu(null); setWireMenu(null) }}
+            onPaneClick={() => {
+              setAddOpen(false)
+              setOrganizeOpen(false)
+              setContextMenu(null)
+              setWireMenu(null)
+              clearCanvasSelection()
+            }}
             onPaneContextMenu={(event) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setClipboardCanPaste(Boolean(clipboardRef.current?.nodes.length)); void refreshClipboardAvailability(); setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: flow?.screenToFlowPosition({ x: event.clientX, y: event.clientY }) }) }}
             onNodeContextMenu={(event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 165) }) }}
             onEdgeContextMenu={(event, edge) => { event.preventDefault(); if (!writeLocked) setContextMenu({ scope: 'edge', edgeId: edge.id, ...visibleMenuPoint(event.clientX, event.clientY, 50) }) }}
@@ -3072,7 +3480,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             reconnectRadius={64}
             nodesDraggable={!writeLocked}
             nodesConnectable={!writeLocked}
-            selectionOnDrag={!connectionActive}
+            selectNodesOnDrag={false}
+            selectionOnDrag={false}
             selectionMode={SelectionMode.Partial}
             paneClickDistance={8}
             panOnDrag={[1, 2]}
@@ -3104,6 +3513,17 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               maskStrokeWidth={2}
             /> : null}
           </ReactFlow>
+          {marqueeRect ? (
+            <div
+              className="nori-canvas-marquee"
+              style={{
+                left: marqueeRect.x,
+                top: marqueeRect.y,
+                width: marqueeRect.width,
+                height: marqueeRect.height,
+              }}
+            />
+          ) : null}
         </div>
         {productionSyncing ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在同步项目内容，请稍候…</span></div> : null}
         {autosave.offlineRecoveryState === 'loading' ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在检查本地未同步版本…</span></div> : null}
@@ -3117,8 +3537,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {nodes.length === 0 ? <CanvasEmptyState readOnly={readOnly} onAdd={(type) => addNode(type)} onUpload={() => openUploadPicker()} /> : null}
         {helpOpen ? <CanvasHelpPanel onClose={() => setHelpOpen(false)} /> : null}
         {(selectedNodes.length > 1 || selectedEdges.length > 0) && !readOnly ? <div className="nori-canvas-selection-toolbar">{selectedNodes.length > 1 ? <><button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={generatorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} /> : null}
-        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} readOnly={readOnly} onAction={handleContextAction} /> : null}
+        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={generatorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} /> : null}
+        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} readOnly={readOnly} onAction={handleContextAction} /> : null}
+        {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}
         {!readOnly && wireMenu ? <CanvasWireMenu state={wireMenu} onPick={handleWirePick} /> : null}
         {historyNode ? <CanvasHistoryDialog node={historyNode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => { const type = getMediaType(historyNode); updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本'); setHistoryNodeId(null) }} /> : null}
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
@@ -3131,6 +3552,59 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {!readOnly && workflowGroupId ? <CanvasWorkflowDialog initialName={`${nodes.find((node) => node.id === workflowGroupId)?.data.title || '工作流'} 模板`} onConfirm={saveWorkflow} onClose={() => setWorkflowGroupId(null)} /> : null}
         {!readOnly && imageEditNodeId ? (() => { const node = nodes.find((item) => item.id === imageEditNodeId); return node ? <CanvasImageEditDialog node={node} onSubmit={handleImageEdit} onClose={() => setImageEditNodeId(null)} /> : null })() : null}
         {!readOnly && pickerOpen ? <MaterialPickerDialog projectId={projectId} uploadEndpoint={`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`} allowAllTypes multiple maxSelected={100} title="从素材库选择" confirmLabel="添加到画布" onConfirm={(materials) => { const anchor = centerPosition(); const columns = Math.max(1, Math.ceil(Math.sqrt(materials.length))); materials.forEach((material, index) => insertMaterial(material, { x: anchor.x + (index % columns) * 360, y: anchor.y + Math.floor(index / columns) * 290 })); setPickerOpen(false) }} onClose={() => setPickerOpen(false)} /> : null}
+        {!readOnly && generatorReferencePicker ? (generatorReferencePicker.type === 'all'
+          ? <MaterialPickerDialog projectId={projectId} uploadEndpoint={`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`} allowAllTypes multiple maxSelected={generatorReferencePicker.maxSelected} title="选择引用素材" confirmLabel="添加引用" onConfirm={addGeneratorReferenceMaterials} onClose={() => setGeneratorReferencePicker(null)} />
+          : <MaterialPickerDialog projectId={projectId} uploadEndpoint={`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`} type={generatorReferencePicker.type} multiple maxSelected={generatorReferencePicker.maxSelected} title="选择引用素材" confirmLabel="添加引用" onConfirm={addGeneratorReferenceMaterials} onClose={() => setGeneratorReferencePicker(null)} />) : null}
+        {videoEditMaterialNodeId ? <MaterialPickerDialog projectId={projectId} uploadEndpoint={`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`} type="video" multiple={false} maxSelected={1} title="选择源视频" confirmLabel="使用该视频" onConfirm={(materials) => {
+          const material = materials[0]
+          const node = nodesRef.current.find((item) => item.id === videoEditMaterialNodeId && item.type === 'video_edit')
+          if (material && node) {
+            const removedEdges = edgesRef.current.filter((edge) => edge.target === node.id)
+            if (removedEdges.length > 0) {
+              edgesRef.current = edgesRef.current.filter((edge) => edge.target !== node.id)
+              setEdges(edgesRef.current)
+              cleanupDisconnectedReferences(removedEdges, edgesRef.current)
+            }
+            updateNodeData(node.id, {
+              videoUrl: material.url,
+              contentUrl: material.url,
+              materialId: material.id,
+              videoEdit: {
+                ...(node.data.videoEdit || {}),
+                sourceKind: 'material',
+                sourceNodeId: null,
+                materialId: material.id,
+              },
+            })
+            markChanged('选择视频编辑源视频')
+          }
+          setVideoEditMaterialNodeId(null)
+        }} onClose={() => setVideoEditMaterialNodeId(null)} /> : null}
+        {videoEditReferencePicker ? <MaterialPickerDialog projectId={projectId} uploadEndpoint={`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`} type={videoEditReferencePicker.type} multiple maxSelected={videoEditReferencePicker.type === 'image' ? 30 : 10} title={videoEditReferencePicker.type === 'image' ? '选择参考图片' : '选择参考音频'} confirmLabel="添加参考素材" onConfirm={(materials) => {
+          const node = nodesRef.current.find((item) => item.id === videoEditReferencePicker.nodeId && item.type === 'video_edit')
+          if (node && materials.length > 0) {
+            const current = Array.isArray(node.data.videoEdit?.references) ? node.data.videoEdit.references : []
+            const currentEdit = node.data.videoEdit || { sourceKind: 'none' as const, generateAudio: true }
+            const additions = materials.map((material) => ({
+              id: material.id,
+              title: material.title || (videoEditReferencePicker.type === 'image' ? '参考图片' : '参考音频'),
+              type: videoEditReferencePicker.type,
+              previewUrl: material.url,
+              url: material.url,
+              materialId: material.id,
+            }))
+            updateNodeData(node.id, {
+              videoEdit: {
+                ...currentEdit,
+                references: [
+                  ...current.filter((item) => !additions.some((addition) => addition.id === item.id)),
+                  ...additions,
+                ],
+              },
+            })
+          }
+          setVideoEditReferencePicker(null)
+        }} onClose={() => setVideoEditReferencePicker(null)} /> : null}
         {!readOnly && autosave.conflictOpen ? <CanvasConflictDialog loading={conflictLoading} onLoadServer={() => { setConflictLoading(true); void autosave.loadServerVersion().finally(() => setConflictLoading(false)) }} onMerge={() => { setConflictLoading(true); void autosave.mergeServerVersion().finally(() => setConflictLoading(false)) }} /> : null}
         {!readOnly && autosave.offlineRecoveryState === 'pending' && autosave.offlineDraft ? <CanvasOfflineRecoveryDialog draft={autosave.offlineDraft} serverRevision={autosave.revision.current} loading={offlineRecoveryLoading} onUseServer={() => { setOfflineRecoveryLoading(true); void autosave.useServerVersion().finally(() => setOfflineRecoveryLoading(false)) }} onRestoreLocal={() => { setOfflineRecoveryLoading(true); void autosave.restoreLocalVersion().finally(() => setOfflineRecoveryLoading(false)) }} /> : null}
         {!readOnly ? <input ref={uploadRef} type="file" multiple accept="image/*,video/*,audio/*,.glb,model/gltf-binary" className="hidden" onChange={(event) => { const files = event.target.files ? Array.from(event.target.files) : []; const position = pendingUploadPositionRef.current || undefined; pendingUploadPositionRef.current = null; event.target.value = ''; if (files.length > 0) void handleUploads(files, position).catch((error: unknown) => setToast(error instanceof Error ? error.message : '上传失败')) }} /> : null}

@@ -16,9 +16,9 @@ import {
   buildDefaultTaskBillingInfo,
   getBillingMode,
   InsufficientBalanceError,
-  isBillableTaskType,
   prepareTaskBilling,
   requireGenerationCredit,
+  requiresTaskBilling,
 } from '@/lib/billing'
 import { ApiError } from '@/lib/api-errors'
 import { getTaskFlowMeta } from '@/lib/llm-observe/stage-pipeline'
@@ -141,9 +141,7 @@ export async function submitTask(params: {
       locale: params.locale,
     },
   }
-  const computedBillingInfo = isBillableTaskType(params.type)
-    ? buildDefaultTaskBillingInfo(params.type, normalizedPayload)
-    : null
+  const computedBillingInfo = buildDefaultTaskBillingInfo(params.type, normalizedPayload)
   const resolvedBillingInfo = computedBillingInfo || params.billingInfo || null
   const runCentricTask = isRunCentricTaskType(params.type)
   const workflowType = workflowTypeFromTaskType(params.type)
@@ -242,7 +240,7 @@ export async function submitTask(params: {
   }
 
   let preparedBillingInfo = (task.billingInfo || resolvedBillingInfo || null) as TaskBillingInfo | null
-  if (!deduped && isBillableTaskType(params.type) && preparedBillingInfo?.billable !== true) {
+  if (!deduped && requiresTaskBilling(params.type, normalizedPayload) && preparedBillingInfo?.billable !== true) {
     const billingMode = await getBillingMode()
     if (billingMode === 'ENFORCE') {
       await markTaskFailed(task.id, 'INVALID_PARAMS', `missing server-generated billingInfo for billable task type: ${params.type}`)

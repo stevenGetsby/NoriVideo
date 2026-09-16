@@ -10,6 +10,8 @@ import {
   calcText,
   calcVideo,
   calcVideoByTokens,
+  calcVideoByDuration,
+  isSeedance2TokenPricedModel,
   calcVoice,
   calcVoiceDesign,
   type ModelCustomPricing,
@@ -79,6 +81,7 @@ function normalizeMoney(value: number): number {
 }
 
 function asNumber(value: unknown): number | null {
+  if (value == null || value === '' || typeof value === 'boolean') return null
   const n = Number(value)
   if (!Number.isFinite(n)) return null
   return n
@@ -108,7 +111,7 @@ function resolveCost(input: CostInput) {
       return asMoney(calcVideo(input.model, resolution, input.quantity, input.metadata, input.customPricing))
     }
     case 'voice':
-      return asMoney(calcVoice(input.quantity))
+      return asMoney(calcVoice(input.quantity, input.model))
     case 'voice-design':
       return asMoney(calcVoiceDesign())
     case 'lip-sync':
@@ -325,13 +328,34 @@ function resolveTaskActual(
   const actualVideoTokens = payload
     ? asNumber((payload as Record<string, unknown>).actualVideoTokens)
     : null
-  if (info.apiType === 'video' && actualVideoTokens !== null && actualVideoTokens >= 0) {
+  if (info.apiType === 'video' && isSeedance2TokenPricedModel(info.model)
+    && actualVideoTokens !== null && actualVideoTokens >= 0) {
     return {
       actualCost: calcVideoByTokens(info.model, actualVideoTokens, info.metadata),
       actualQuantity: actualVideoTokens,
       metadata: {
         actualVideoTokens,
       },
+    }
+  }
+  if (info.apiType === 'video') {
+    const duration = asNumber(payload?.durationSeconds ?? payload?.actualDurationSeconds ?? payload?.duration)
+    const resolution = typeof payload?.resolution === 'string' ? payload.resolution : info.metadata?.resolution
+    const metadata = {
+      ...info.metadata,
+      ...(typeof resolution === 'string' ? { resolution } : {}),
+      ...(duration !== null && duration > 0 ? { duration } : {}),
+      ...(typeof payload?.generateAudio === 'boolean' ? { generateAudio: payload.generateAudio } : {}),
+      ...(actualVideoTokens !== null ? { actualVideoTokens } : {}),
+    }
+    return {
+      actualCost: duration !== null && duration > 0 && !isSeedance2TokenPricedModel(info.model)
+        ? calcVideoByDuration(info.model, duration, typeof resolution === 'string' ? resolution : '720p',
+          info.quantity, metadata, customPricing)
+        : resolveCost({ apiType: 'video', model: info.model, quantity: info.quantity, unit: info.unit, metadata, customPricing }),
+      // Video count is not a duration or token count on duration-priced models.
+      actualQuantity: info.quantity,
+      metadata,
     }
   }
   const actualQuantity = payload
@@ -420,6 +444,17 @@ async function withSyncBillingCore<T>(
   })
 
   if (quotedCost <= 0) {
+    if (mode === 'ENFORCE') {
+      throw new BillingOperationError(
+        'BILLING_UNKNOWN_MODEL',
+        `Refusing unpriced ${params.apiType} model in ENFORCE mode: ${params.model}`,
+        {
+          apiType: params.apiType,
+          model: params.model,
+          quotedCost,
+        },
+      )
+    }
     return await execute()
   }
 
@@ -729,17 +764,20 @@ export async function withVoiceBilling<T>(
   recordParams: BillingRecordParams,
   generateFn: () => Promise<T>,
 ): Promise<T> {
+  const model = typeof recordParams.metadata?.model === 'string' && recordParams.metadata.model.trim()
+    ? recordParams.metadata.model.trim()
+    : 'nori::nori-audio'
   return await withSyncBillingCore(
     {
       userId,
       projectId: recordParams.projectId,
       action: recordParams.action,
       apiType: 'voice',
-      model: 'index-tts2',
+      model,
       quantity: maxFreezeSeconds,
       unit: 'second',
       metadata: recordParams.metadata,
-      maxCost: calcVoice(maxFreezeSeconds),
+      maxCost: calcVoice(maxFreezeSeconds, model),
       extractActualQuantity: (result) => {
         if (!result || typeof result !== 'object') return null
         const value =
@@ -796,6 +834,94 @@ export async function withLipSyncBilling<T>(
   )
 }
 
+export type PreparedStreamingTextBilling = {
+  id: string
+  userId: string
+  projectId: string
+  model: string
+  billingInfo: TaskBillingInfo | { billable: false } | null
+}
+
+export async function prepareStreamingTextBilling(params: {
+  id?: string
+  userId: string
+  projectId: string
+  action: string
+  model: string
+  maxInputTokens: number
+  maxOutputTokens: number
+  billingKey?: string
+  metadata?: Record<string, unknown>
+}): Promise<PreparedStreamingTextBilling> {
+  await requireGenerationCredit(params.userId)
+  const id = params.id || `stream_${randomUUID()}`
+  const maxInputTokens = Math.max(0, Math.floor(params.maxInputTokens))
+  const maxOutputTokens = Math.max(0, Math.floor(params.maxOutputTokens))
+  const billingInfo = await prepareTaskBilling({
+    id,
+    userId: params.userId,
+    projectId: params.projectId,
+    billingInfo: {
+      billable: true,
+      source: 'task',
+      taskType: params.action,
+      apiType: 'text',
+      model: params.model,
+      quantity: maxInputTokens + maxOutputTokens,
+      unit: 'token',
+      maxFrozenCost: 0,
+      pricingVersion: BUILTIN_PRICING_VERSION,
+      action: params.action,
+      metadata: {
+        ...(params.metadata || {}),
+        maxInputTokens,
+        maxOutputTokens,
+      },
+      billingKey: params.billingKey || id,
+      status: 'quoted',
+    },
+  })
+
+  return {
+    id,
+    userId: params.userId,
+    projectId: params.projectId,
+    model: params.model,
+    billingInfo,
+  }
+}
+
+export async function settleStreamingTextBilling(
+  prepared: PreparedStreamingTextBilling,
+  usage: {
+    inputTokens: number
+    outputTokens: number
+    model?: string
+  },
+) {
+  return await settleTaskBilling({
+    id: prepared.id,
+    userId: prepared.userId,
+    projectId: prepared.projectId,
+    billingInfo: prepared.billingInfo,
+  }, {
+    textUsage: [{
+      model: usage.model || prepared.model,
+      inputTokens: Math.max(0, Math.floor(usage.inputTokens || 0)),
+      outputTokens: Math.max(0, Math.floor(usage.outputTokens || 0)),
+    }],
+  })
+}
+
+export async function rollbackStreamingTextBilling(
+  prepared: PreparedStreamingTextBilling,
+) {
+  return await rollbackTaskBilling({
+    id: prepared.id,
+    billingInfo: prepared.billingInfo,
+  })
+}
+
 export function handleBillingError(error: unknown): NextResponse | null {
   if (error instanceof InsufficientBalanceError) {
     return NextResponse.json(
@@ -842,12 +968,12 @@ export async function prepareTaskBilling(task: {
       quantity: info.quantity,
       unit: info.unit,
       metadata: info.metadata,
-      quotedCost: info.maxFrozenCost,
+      quotedCost: info.maxFrozenCost > 0 ? info.maxFrozenCost : undefined,
       customPricing,
     })
   } catch (error) {
     if (mode !== 'ENFORCE' && error instanceof BillingOperationError && error.code === 'BILLING_UNKNOWN_MODEL') {
-      next.status = mode === 'SHADOW' ? 'quoted' : 'skipped'
+      next.status = 'skipped'
       next.maxFrozenCost = 0
       return next
     }
@@ -855,6 +981,17 @@ export async function prepareTaskBilling(task: {
   }
 
   if (quotedCost <= 0) {
+    if (mode === 'ENFORCE') {
+      throw new BillingOperationError(
+        'BILLING_UNKNOWN_MODEL',
+        `Refusing unpriced ${info.apiType} model in ENFORCE mode: ${info.model}`,
+        {
+          apiType: info.apiType,
+          model: info.model,
+          quotedCost,
+        },
+      )
+    }
     next.status = 'skipped'
     return next
   }

@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getProjectModelConfig } from '@/lib/config-service'
 import { LUMINA_GPT55_MODEL_KEY } from '@/lib/lumina-fixed-models'
 import { buildAssetAestheticPrompt } from '@/lib/projects/creation-config'
+import { withTextBilling } from '@/lib/billing'
 import { splitNovelIntoEpisodes, type EpisodeSplitOutput } from './episode-split'
 import { writeEpisodeFrameOSMetadataToSpeakerVoices } from './episode-frameos-metadata'
 import {
@@ -496,17 +497,32 @@ export async function runProjectImportPipeline(input: {
     })
 
     const config = await getProjectModelConfig(input.projectId, input.userId)
-    const extraction = await executeAssetExtraction({
-      userId: input.userId,
-      projectId: input.projectId,
-      model: config.analysisModel || LUMINA_GPT55_MODEL_KEY,
-      episodes: createdEpisodes.map((episode) => ({
-        episodeNumber: episode.episodeNumber,
-        title: episode.name,
-        sourceText: episode.novelText || '',
-      })),
-      batchConcurrency: 1,
-    })
+    const analysisModel = config.analysisModel || LUMINA_GPT55_MODEL_KEY
+    const extraction = await withTextBilling(
+      input.userId,
+      analysisModel,
+      Math.min(1_000_000, Math.max(8_000, Math.ceil(importText.length * 2))),
+      Math.min(500_000, Math.max(16_000, createdEpisodes.length * 17_500)),
+      {
+        projectId: input.projectId,
+        action: 'project_import_asset_extraction',
+        metadata: {
+          episodeCount: createdEpisodes.length,
+          sourceCharacters: importText.length,
+        },
+      },
+      async () => await executeAssetExtraction({
+        userId: input.userId,
+        projectId: input.projectId,
+        model: analysisModel,
+        episodes: createdEpisodes.map((episode) => ({
+          episodeNumber: episode.episodeNumber,
+          title: episode.name,
+          sourceText: episode.novelText || '',
+        })),
+        batchConcurrency: 1,
+      }),
+    )
 
     const assets = await persistAssetExtractionPackage({
       projectId: input.projectId,

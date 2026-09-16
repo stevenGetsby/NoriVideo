@@ -106,7 +106,7 @@ export type TaskBillingInfo =
   | {
     billable: true
     source: 'task'
-    taskType: TaskType
+    taskType: string
     apiType: 'text' | 'image' | 'video' | 'voice' | 'voice-design' | 'lip-sync'
     model: string
     quantity: number

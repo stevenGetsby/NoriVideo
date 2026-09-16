@@ -7,6 +7,7 @@ import {
   CANVAS_PANORAMA_ASPECT_RATIO,
   CANVAS_VIDEO_ASPECT_RATIOS,
   CANVAS_VIDEO_RESOLUTIONS,
+  canvasVideoAspectRatioOptions,
   canvasPanoramaEditorAspectRatio,
   canvasVideoEditorMode,
   normalizeCanvasImageGenerationOptions,
@@ -36,22 +37,25 @@ describe('canvas generator surface option contract', () => {
   })
 
   it('keeps the FrameOS video surface exact and validates the complete payload', () => {
-    expect(CANVAS_VIDEO_ASPECT_RATIOS).toEqual(['16:9', '9:16', '21:9'])
+    expect(CANVAS_VIDEO_ASPECT_RATIOS).toEqual(['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'])
     expect(CANVAS_VIDEO_RESOLUTIONS).toEqual(['480p', '720p', '1080p', '4k'])
     expect(normalizeCanvasVideoGenerationOptions({
       aspectRatio: '21:9',
       resolution: '4k',
-      duration: 15,
+      duration: 30,
       fps: 30,
       generateAudio: true,
     }, 'firstlastframe')).toEqual({
       aspectRatio: '21:9',
       resolution: '4k',
-      duration: 15,
+      duration: 30,
       fps: 30,
       generateAudio: true,
       inputMode: 'firstlastframe',
     })
+    expect(canvasVideoAspectRatioOptions('nori::norivideo2.5', 'firstlastframe')).toEqual(['adaptive'])
+    expect(canvasVideoAspectRatioOptions('nori::norivideo2.5', 'text')).toContain('adaptive')
+    expect(canvasVideoAspectRatioOptions('nori::seedance2.0', 'text')).not.toContain('adaptive')
   })
 
   it('maps configured resolution defaults case-insensitively without inventing unsupported tiers', () => {
@@ -89,7 +93,8 @@ describe('canvas generator surface option contract', () => {
   it('rejects values outside the replicated surface before task submission', () => {
     expect(() => normalizeCanvasImageGenerationOptions({ quality: 'ultra' })).toThrow('图片质量仅支持')
     expect(() => normalizeCanvasVideoGenerationOptions({ resolution: '2K' }, 'text')).toThrow('视频分辨率仅支持')
-    expect(() => normalizeCanvasVideoGenerationOptions({ duration: 3 }, 'text')).toThrow('4–15 秒')
+    expect(() => normalizeCanvasVideoGenerationOptions({ duration: 3 }, 'text')).toThrow('4–30 秒')
+    expect(() => normalizeCanvasVideoGenerationOptions({ duration: 31 }, 'text')).toThrow('4–30 秒')
     expect(() => normalizeCanvasVideoGenerationOptions({ generateAudio: 'yes' }, 'text')).toThrow('布尔值')
     expect(() => normalizeCanvasVideoGenerationOptions({ fps: 0 }, 'text')).toThrow('视频帧率')
     expect(() => normalizeCanvasVideoGenerationOptions({}, 'image-to-video')).toThrow('视频模式仅支持')

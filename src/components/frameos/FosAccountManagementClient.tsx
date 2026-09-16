@@ -17,6 +17,11 @@ import {
   type AccountStatus,
   type SubaccountRole,
 } from '@/lib/account/permissions'
+import {
+  emptyModelUsageSummary,
+  formatUsageMoney,
+  type ModelUsageSummary,
+} from '@/lib/platform-services/model-type-usage'
 import { FosShell } from './FosShell'
 import {
   AccountDialog,
@@ -41,21 +46,13 @@ interface ManagedAccount {
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
-  usage: TokenUsage
-}
-
-interface TokenUsage {
-  calls: number
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  lastUsedAt: string | null
+  usage: ModelUsageSummary
 }
 
 interface ManagedWorkspace {
   manager: ManagedAccount
   subaccounts: ManagedAccount[]
-  usage: TokenUsage & { projects: number; assets: number }
+  usage: ModelUsageSummary & { projects: number; assets: number }
 }
 
 interface AccountDraft {
@@ -288,15 +285,15 @@ export function FosAccountManagementClient() {
             </button>
           </div>
 
-          <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
+          <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['我的可用积分', workspace?.manager.credits.points || 0],
+              ['我的可用积分', formatNumber(workspace?.manager.credits.points || 0)],
               ['角色子账号', subaccounts.length],
               ['工作区项目', workspace?.usage.projects || 0],
               ['工作区资产', workspace?.usage.assets || 0],
-              ['输入 Token', formatNumber(workspace?.usage.inputTokens || 0)],
-              ['输出 Token', formatNumber(workspace?.usage.outputTokens || 0)],
-              ['总 Token', formatNumber(workspace?.usage.totalTokens || 0)],
+              ...((workspace?.usage.byType || emptyModelUsageSummary().byType).map((row) => (
+                [`${row.label}模型`, formatUsageMoney(row.cost)] as const
+              ))),
             ].map(([label, value]) => (
               <div key={label} className="rounded-[11px] border border-white/[.07] bg-white/[.025] px-5 py-4">
                 <span className="text-[12px] text-white/50">{label}</span>
@@ -324,7 +321,7 @@ export function FosAccountManagementClient() {
             <div className="overflow-x-auto">
               <div className="min-w-[1240px]">
                 <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_210px_minmax(180px,1fr)_130px_300px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
-                  <span>子账号</span><span>角色</span><span>状态</span><span>金币 / 积分</span><span>Token 用量</span><span>功能区权限</span><span>最后登录</span>
+                  <span>子账号</span><span>角色</span><span>状态</span><span>金币 / 积分</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
                   <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#151515] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(21,21,21,.92)]">操作</span>
                 </div>
                 {loading ? (
@@ -345,7 +342,14 @@ export function FosAccountManagementClient() {
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
                       <Credits credits={account.credits} />
-                      <span><strong className="block text-[12px] text-white">{formatNumber(account.usage.totalTokens)} total</strong><span className="mt-1 block text-[10px] text-white/40">输入 {formatNumber(account.usage.inputTokens)} · 输出 {formatNumber(account.usage.outputTokens)}</span></span>
+                      <span className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-white/55">
+                        {(account.usage.byType || emptyModelUsageSummary().byType).map((row) => (
+                          <span key={row.type}>
+                            {row.label}
+                            <strong className="ml-1 text-[12px] text-white">{formatUsageMoney(row.cost)}</strong>
+                          </span>
+                        ))}
+                      </span>
                       <span className="flex flex-wrap gap-1">
                         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.filter((item) => account.permissions.includes(item.key)).map((item) => (
                           <small key={item.key} className="rounded-full border border-blue-300/15 bg-blue-400/[.07] px-2 py-0.5 text-[9px] text-blue-100/65">{item.label}</small>

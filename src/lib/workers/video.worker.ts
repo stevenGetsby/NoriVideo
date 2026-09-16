@@ -50,12 +50,14 @@ import {
   submitArkTextOnlyVideoFallback,
 } from './ark-video-fallback'
 
+import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
+
 type AnyObj = Record<string, unknown>
 type VideoOptionValue = string | number | boolean
 type VideoOptionMap = Record<string, VideoOptionValue>
 type VideoGenerationMode = 'normal' | 'firstlastframe'
 type PanelRecord = NonNullable<Awaited<ReturnType<typeof prisma.novelPromotionPanel.findUnique>>>
-type GeneratedVideoSource = {
+type GeneratedVideoSource = VideoResultMetadata & {
   url: string
   actualVideoTokens?: number
   downloadHeaders?: Record<string, string>
@@ -88,7 +90,8 @@ function extractGenerationOptions(payload: AnyObj): VideoOptionMap {
 }
 
 function supportsArkReferenceImageMode(modelKey: string): boolean {
-  return /^doubao-seedance-2-0(?:-|$)/i.test(readArkModelId(modelKey))
+  // The Seedance reference protocol also applies when these models run on Kuaizi.
+  return /^doubao-seedance-2-(?:0|5)(?:-|$)/i.test(readArkModelId(modelKey))
 }
 
 function isHfsyVideoModel(modelKey: string): boolean {
@@ -269,7 +272,9 @@ async function resolvePanelAssetReferenceImagesForVideo(
   const panelImage = panel.imageUrl?.trim()
   const resolvedAssets: PanelSeedanceReferenceAsset[] = []
   for (const reference of references) {
-    const resolvedUrl = options?.publicFetchableUrls
+    const resolvedUrl = reference.imageUrl.startsWith('asset://')
+      ? reference.imageUrl
+      : options?.publicFetchableUrls
       ? await toProviderFetchablePublicUrl(reference.imageUrl)
       : toSignedUrlIfCos(reference.imageUrl, 3600) || reference.imageUrl
     const trimmed = (resolvedUrl || '').trim()
@@ -383,7 +388,7 @@ async function generateVideoForPanel(
   projectVideoRatio: string | null | undefined,
   projectArtStylePrompt: string | null | undefined,
   generationOptions: VideoOptionMap,
-): Promise<{
+): Promise<VideoResultMetadata & {
   cosKey: string
   generationMode: VideoGenerationMode
   actualVideoTokens?: number
@@ -576,7 +581,7 @@ async function generateVideoForPanel(
     generatedVideo = {
       url: polled.url,
       fallbackMode: 'ark_text_only_after_input_image_moderation',
-      ...(typeof polled.actualVideoTokens === 'number' ? { actualVideoTokens: polled.actualVideoTokens } : {}),
+      ...pickVideoResultMetadata(polled),
       ...(polled.downloadHeaders ? { downloadHeaders: polled.downloadHeaders } : {}),
     }
   }
@@ -601,9 +606,7 @@ async function generateVideoForPanel(
     cosKey,
     generationMode,
     ...(generatedVideo.fallbackMode ? { fallbackMode: generatedVideo.fallbackMode } : {}),
-    ...(typeof generatedVideo.actualVideoTokens === 'number'
-      ? { actualVideoTokens: generatedVideo.actualVideoTokens }
-      : {}),
+    ...pickVideoResultMetadata(generatedVideo),
   }
 }
 
@@ -626,7 +629,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     panelId: panel.id,
   })
 
-  const { cosKey, generationMode, actualVideoTokens, fallbackMode } = await generateVideoForPanel(
+  const { cosKey, generationMode, fallbackMode, ...videoMetadata } = await generateVideoForPanel(
     job,
     panel,
     payload,
@@ -656,6 +659,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
       originType: 'panel-video',
       originId: panel.id,
       generationMode,
+      ...pickVideoResultMetadata(videoMetadata),
       prompt: payload.customPrompt || panel.videoPrompt || panel.description,
     },
   })
@@ -664,7 +668,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     panelId: panel.id,
     videoUrl: cosKey,
     ...(fallbackMode ? { fallbackMode } : {}),
-    ...(typeof actualVideoTokens === 'number' ? { actualVideoTokens } : {}),
+    ...pickVideoResultMetadata(videoMetadata),
   }
 }
 

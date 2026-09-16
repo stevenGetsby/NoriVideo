@@ -75,6 +75,13 @@ describe('api specific - user models default video', () => {
         providerName: 'Nori Platform',
         tier: 'pro',
       },
+      {
+        value: 'nori::norivideo2.5',
+        label: 'norivideo2.5',
+        provider: 'nori',
+        providerName: 'Nori Platform',
+        tier: 'pro',
+      },
     ])
   })
 
@@ -104,6 +111,7 @@ describe('api specific - user models default video', () => {
       'nori::seedance2.0-mini',
       'nori::seedance2.0-fast',
       'nori::seedance2.0',
+      'nori::norivideo2.5',
     ])
   })
 })

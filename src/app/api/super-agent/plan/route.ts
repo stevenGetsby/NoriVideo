@@ -42,6 +42,20 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
     return Response.json({ plan })
   } catch (error) {
+    if (
+      error instanceof ApiError
+      || (
+        error
+        && typeof error === 'object'
+        && typeof (error as { code?: unknown }).code === 'string'
+        && (
+          (error as { code: string }).code === 'INSUFFICIENT_BALANCE'
+          || (error as { code: string }).code.startsWith('BILLING_')
+        )
+      )
+    ) {
+      throw error
+    }
     if (error instanceof Error) {
       throw new ApiError('EXTERNAL_ERROR', {
         code: 'PLAN_GENERATION_FAILED',

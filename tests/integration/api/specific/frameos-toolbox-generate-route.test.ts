@@ -975,6 +975,39 @@ describe('FrameOS toolbox generation route', () => {
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 
+  it('allows prompt-backed standalone audio for Seedance 2.5', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-audio', title: '角色音色', type: 'audio', storageKey: 'voice/character.wav', resultUrl: null, metadata: { durationSeconds: 26 } },
+    ])
+
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: {
+        projectId: 'project-1',
+        type: 'video',
+        title: '音频驱动镜头',
+        prompt: '根据角色语气生成表演镜头',
+        modelKey: 'nori::norivideo2.5',
+        referenceMaterialIds: ['material-audio'],
+        inputMode: 'text',
+        options: { aspectRatio: 'adaptive', resolution: '720p', duration: 30 },
+      },
+    }), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      type: TASK_TYPE.TOOLBOX_VIDEO,
+      payload: expect.objectContaining({
+        referenceAudios: ['voice/character.wav'],
+        generationOptions: expect.objectContaining({
+          aspectRatio: 'adaptive',
+          duration: 30,
+        }),
+      }),
+    }))
+  })
+
   it('does not validate a false audio default against models without an audio capability field', async () => {
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate',

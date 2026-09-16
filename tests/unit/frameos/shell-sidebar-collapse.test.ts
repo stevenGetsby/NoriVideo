@@ -50,6 +50,29 @@ describe('FosShell collapsible sidebar', () => {
     expect(shell).toContain("target.closest('input, textarea, select')")
   })
 
+  it('lets the left navigator drag horizontally and remembers the width', () => {
+    const shell = readSource('src/components/frameos/FosShell.tsx')
+    const resizer = readSource('src/components/frameos/FosSidebarResizer.tsx')
+    const hook = readSource('src/components/frameos/useFosSidebarResize.ts')
+    const width = readSource('src/lib/frameos/sidebar-width.ts')
+    const styles = readSource('src/styles/frameos-replica.css')
+
+    expect(shell).toContain('useFosSidebarResize')
+    expect(shell).toContain("style={{ '--fos-sidebar-width': `${sidebarWidth}px` } as CSSProperties}")
+    expect(shell).toContain("sidebarResizing ? ' is-sidebar-resizing' : ''")
+    expect(resizer).toContain('data-testid="fos-sidebar-resizer"')
+    expect(resizer).toContain('aria-label="调整导航栏宽度"')
+    expect(hook).toContain('beginSidebarResize')
+    expect(hook).toContain('writeStoredSidebarWidth')
+    expect(width).toContain("export const FOS_SIDEBAR_WIDTH_STORAGE_KEY = 'nori.fos.sidebarWidth'")
+    expect(width).toContain('export const FOS_SIDEBAR_WIDTH_MIN = 176')
+    expect(width).toContain('export const FOS_SIDEBAR_WIDTH_MAX = 420')
+    expect(styles).toContain('width: var(--fos-sidebar-width);')
+    expect(styles).toContain('flex: 0 0 var(--fos-sidebar-width);')
+    expect(styles).toContain('.fos-sidebar-resizer {')
+    expect(styles).toContain('cursor: col-resize;')
+  })
+
   it('reclaims most sidebar width without overlaying page or canvas controls', () => {
     const styles = readSource('src/styles/frameos-replica.css')
 
@@ -112,7 +135,7 @@ describe('FosShell collapsible sidebar', () => {
     expect(styles).toContain('visibility: hidden;')
     expect(styles).toContain('.fos-app.is-canvas-shell .fos-sidebar-header {')
     expect(styles).toContain('.fos-app.is-canvas-shell .fos-sidebar-sections {')
-    expect(styles).toContain('min-width: 204px;')
+    expect(styles).toContain('min-width: 0;')
     expect(shell).toContain('if (!canvasMode || collapsed) return')
     expect(shell).toContain("target instanceof HTMLElement && target.closest('a')")
     expect(shell).toContain('if (target instanceof HTMLElement && target.closest(\'a\')) onToggle()')
@@ -127,5 +150,18 @@ describe('FosShell collapsible sidebar', () => {
     expect(canvasStyles).toContain('.nori-canvas-selection-toolbar { top: var(--canvas-chrome-safe-top); }')
     expect(canvasStyles).toContain('.nori-canvas-dropdown-title { color: #aeb7ca; font-size: 11px; }')
     expect(canvasStyles).toContain('.nori-canvas-project-assets-list > article small { color: #9da6b7; font-size: 10px; }')
+  })
+
+  it('shows an assignment attention badge and does not render a fake desktop download', () => {
+    const shell = readSource('src/components/frameos/FosShell.tsx')
+    const styles = readSource('src/styles/frameos-replica.css')
+    const assignments = readSource('src/components/frameos/FosAssignmentsClient.tsx')
+
+    expect(shell).toContain("data-testid={item.key === 'assignments' ? 'assignment-nav-count' : undefined}")
+    expect(shell).toContain('useAssignmentAttention')
+    expect(shell).toContain('assignmentAttentionCount')
+    expect(shell).not.toContain('下载桌面端')
+    expect(styles).toContain('.fos-nav-count {')
+    expect(assignments).toContain('resolveDefaultAssignmentTab')
   })
 })

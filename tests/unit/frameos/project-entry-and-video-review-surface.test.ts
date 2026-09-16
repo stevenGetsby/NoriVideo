@@ -103,23 +103,17 @@ describe('project entry and video review surface', () => {
     expect(reviewService).toContain("kind: 'segment' as const")
   })
 
-  it('opens pending storyboard review in a dedicated read-only workspace', () => {
+  it('keeps storyboard as a production assignment and does not open a review workspace', () => {
     const viewModel = source('src/components/frameos/assignments-view-model.ts')
-    const table = source('src/components/frameos/FosAssignmentsTable.tsx')
-    const workspace = source('src/components/frameos/FosStoryboardReviewWorkspace.tsx')
-    const reviewPage = source('src/app/[locale]/my-assignments/[assignmentId]/storyboard-review/page.tsx')
+    const assignments = source('src/lib/collaboration/assignments.ts')
+    const policy = source('src/lib/collaboration/assignment-policy.ts')
 
-    expect(viewModel).toContain('`/my-assignments/${assignment.id}/storyboard-review`')
-    expect(viewModel).toContain("return '审核本集分镜内容'")
-    expect(reviewPage).toContain('<FosStoryboardReviewWorkspace')
-    expect(workspace).toContain('data-testid="storyboard-review-workspace"')
-    expect(workspace).toContain('只读审核')
-    expect(workspace).toContain('className="is-prompt-wide"')
-    expect(workspace).toContain('进入分镜制作')
-    expect(workspace).toContain('标记需修改')
-    expect(workspace).toContain('发布修改意见')
-    expect(workspace).toContain('审核通过')
-    expect(table).toContain("assignment.stage !== 'storyboard'")
+    expect(policy).toContain("return stage === 'storyboard'")
+    expect(assignments).toContain('assignmentStageSkipsReview(row.stage)')
+    expect(assignments).toContain("stage: { not: 'storyboard' }")
+    expect(viewModel).not.toContain('`/my-assignments/${assignment.id}/storyboard-review`')
+    expect(viewModel).not.toContain("return '审核本集分镜内容'")
+    expect(viewModel).toContain('${base}/storyboard')
   })
 
   it('submits review from a saved edit instead of the Segment generation panel', () => {
@@ -152,6 +146,8 @@ describe('project entry and video review surface', () => {
 
     expect(overview).toContain("'progress.runtime.llm.completed': '模型输出完成'")
     expect(overview).toContain('productTaskError(')
+    expect(overview).not.toContain('导出交付')
+    expect(overview).not.toContain('ExportDeliveryDialog')
     expect(storyboard).toContain("'progress.runtime.llm.completed': '模型输出完成'")
     expect(storyboard).toContain('friendlyStoryboardTaskError')
     expect(canvasProgress).toContain("/^(?:progress\\.|[a-z][\\w.-]*_[\\w.-]+)/i")

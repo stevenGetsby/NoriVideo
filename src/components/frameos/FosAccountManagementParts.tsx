@@ -104,7 +104,7 @@ export function PermissionMatrix() {
     <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#151515]">
       <div className="border-b border-white/[.07] px-5 py-4">
         <h2 className="text-[13px] font-bold text-white">功能区权限</h2>
-        <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由平台 Admin 按项目分配。</p>
+        <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由所属管理账号按项目指定。</p>
       </div>
       <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-6">
         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => (
@@ -285,7 +285,7 @@ export function AccountDialog({
               {draft.role === 'reviewer' ? (
                 <div className="mt-5 rounded-[10px] border border-cyan-300/20 bg-cyan-400/[.07] px-4 py-3">
                   <div className="flex items-center gap-2 text-[12px] font-semibold text-cyan-100"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由项目授权</div>
-                  <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。平台 Admin 在独立管理端把该账号绑定到具体项目后，账号才能查看并处理该项目的待审核任务。</p>
+                  <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。由所属管理账号在项目协作者里加入该账号后，才能查看并处理该项目的待审核任务。</p>
                 </div>
               ) : (
                 <div className="mt-5">

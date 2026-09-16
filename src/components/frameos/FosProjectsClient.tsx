@@ -231,7 +231,13 @@ export function FosProjectsClient() {
     onStyleReferenceProgress: (update: ProjectStyleReferenceProgressUpdate) => void,
   ): Promise<boolean> => {
     if (!createProjectWork) throw new Error('未选择作品')
-    setProgress('上传剧本并创建项目…')
+    setProgress(
+      draft.scriptFile || draft.importedScriptText?.trim()
+        ? '导入剧本并创建项目…'
+        : draft.initializeEpisodeRange
+          ? '创建项目和空白剧集…'
+          : '创建空白项目…',
+    )
     const form = new FormData()
     form.set('name', draft.name.trim())
     form.set('workId', createProjectWork.id)

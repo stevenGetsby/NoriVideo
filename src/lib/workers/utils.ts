@@ -23,6 +23,8 @@ import { isTaskActive, trySetTaskExternalId } from '@/lib/task/service'
 import { type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from './shared'
 import { prisma } from '@/lib/prisma'
+import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
+import { assertSeedanceAssetOwnership } from '@/lib/novel-promotion/seedance-asset-ownership'
 
 const DEFAULT_POLL_TIMEOUT_MS = Number.parseInt(process.env.WORKER_EXTERNAL_TIMEOUT_MS || String(20 * 60 * 1000), 10)
 const DEFAULT_POLL_INTERVAL_MS = Number.parseInt(process.env.WORKER_EXTERNAL_POLL_MS || '3000', 10)
@@ -131,7 +133,7 @@ export async function waitExternalResult(
       return {
         url,
         status,
-        ...(typeof status.actualVideoTokens === 'number' ? { actualVideoTokens: status.actualVideoTokens } : {}),
+        ...pickVideoResultMetadata(status),
         ...(status.downloadHeaders ? { downloadHeaders: status.downloadHeaders } : {}),
       }
     }
@@ -496,7 +498,7 @@ export async function resolveVideoSourceFromGeneration(
     }
     pollProgress?: { start?: number; end?: number }
   },
-): Promise<{ url: string; actualVideoTokens?: number; downloadHeaders?: Record<string, string> }> {
+): Promise<VideoResultMetadata & { url: string; downloadHeaders?: Record<string, string> }> {
   const logger = scopedWorkerUtilLogger(job, 'worker.video.generate_source')
   const startedAt = Date.now()
 
@@ -518,7 +520,7 @@ export async function resolveVideoSourceFromGeneration(
     })
     return {
       url: polled.url,
-      ...(typeof polled.actualVideoTokens === 'number' ? { actualVideoTokens: polled.actualVideoTokens } : {}),
+      ...pickVideoResultMetadata(polled),
       ...(polled.downloadHeaders ? { downloadHeaders: polled.downloadHeaders } : {}),
     }
   }
@@ -574,6 +576,19 @@ export async function resolveVideoSourceFromGeneration(
     }
   }
 
+  await assertSeedanceAssetOwnership({
+    userId: params.userId,
+    projectId: job.data.projectId,
+    modelKey: params.modelId,
+    references: [
+      params.imageUrl,
+      typeof params.options?.lastFrameImageUrl === 'string' ? params.options.lastFrameImageUrl : '',
+      ...(['referenceImages', 'videos', 'audios'] as const).flatMap((field) => {
+        const value = params.options?.[field]
+        return Array.isArray(value) ? value : []
+      }),
+    ],
+  })
   const result = await withLogContext(
     { projectId: job.data.projectId, taskId: job.data.taskId, userId: params.userId },
     () => generateVideo(params.userId, params.modelId, params.imageUrl, {
@@ -611,7 +626,7 @@ export async function resolveVideoSourceFromGeneration(
   })
   return {
     url: polled.url,
-    ...(typeof polled.actualVideoTokens === 'number' ? { actualVideoTokens: polled.actualVideoTokens } : {}),
+    ...pickVideoResultMetadata(polled),
     ...(polled.downloadHeaders ? { downloadHeaders: polled.downloadHeaders } : {}),
   }
 }

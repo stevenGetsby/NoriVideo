@@ -31,6 +31,14 @@ export interface AssignmentCapabilityInput {
  * Keep that relationship in one pure contract so list flags, pending-review
  * visibility, mutation authorization, and deep-link validation cannot drift.
  */
+export function projectMembershipGrantsReview(input: {
+  membership?: { canReviewAssignments?: boolean | null } | null
+  accountRole?: string | null
+}) {
+  if (!input.membership) return false
+  return input.membership.canReviewAssignments === true || input.accountRole === 'reviewer'
+}
+
 export function resolveAssignmentCapabilities(input: AssignmentCapabilityInput) {
   const managesWork = input.actorIsWorkCreator
     || input.workMemberCanManage
@@ -52,6 +60,10 @@ const ACTION_FROM_STATUSES: Record<AssignmentAction, readonly AssignmentStatus[]
   reject: ['pending_review'],
   'mark-complete': ['in_progress', 'rejected'],
   reopen: ['completed'],
+}
+
+export function assignmentStageSkipsReview(stage: string) {
+  return stage === 'storyboard'
 }
 
 export function isAssignmentStage(value: unknown): value is AssignmentStage {

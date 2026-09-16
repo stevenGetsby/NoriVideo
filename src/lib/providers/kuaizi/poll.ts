@@ -1,5 +1,6 @@
 import { getProviderConfig } from '@/lib/api-config'
 import type { PollResult } from '@/lib/async-poll'
+import { pickVideoResultMetadata } from '@/lib/video-result'
 import { getKuaiziModelDefinition } from './catalog'
 import {
   asRecord,
@@ -34,11 +35,13 @@ function mediaUrlFromStandardPayload(record: JsonRecord, type: KuaiziAsyncType):
 
 function mediaUrlFromSeedanceContent(content: unknown): string {
   const direct = asRecord(content)
-  const directUrl = readString(direct?.video_url)
+  const directUrl = readString(direct?.kz_video_url) || readString(direct?.video_url)
   if (directUrl) return directUrl
   if (!Array.isArray(content)) return ''
   for (const item of content) {
     const record = asRecord(item)
+    const durableUrl = readString(record?.kz_video_url)
+    if (durableUrl) return durableUrl
     const videoUrl = asRecord(record?.video_url)
     const url = readString(videoUrl?.url) || readString(record?.video_url)
     if (url) return url
@@ -77,9 +80,9 @@ export async function queryKuaiziTaskStatus(input: {
       const record = asRecord(payload)
       if (!record) throw new Error('KUAIZI_SEEDANCE_STATUS_RESPONSE_INVALID')
       const status = readString(record.status).toLowerCase()
-      if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+      if (status === 'failed' || status === 'cancelled' || status === 'canceled' || status === 'expired') {
         const error = asRecord(record.error)
-        return { status: 'failed', error: readString(error?.message) || readString(record.message) || 'Kuaizi Seedance task failed' }
+        return { status: 'failed', error: readString(error?.message) || readString(record.message) || `Kuaizi Seedance task ${status}` }
       }
       if (status !== 'succeeded' && status !== 'completed') return { status: 'pending' }
       const url = mediaUrlFromSeedanceContent(record.content)
@@ -90,7 +93,21 @@ export async function queryKuaiziTaskStatus(input: {
         : typeof usage?.total_tokens === 'number'
           ? usage.total_tokens
           : undefined
-      return completed(input.type, url, actualVideoTokens)
+      const content = asRecord(record.content)
+      return {
+        ...completed(input.type, url),
+        ...pickVideoResultMetadata({
+          actualVideoTokens,
+          durationSeconds: typeof record.duration === 'number' ? record.duration : undefined,
+          resolution: readString(record.resolution),
+          aspectRatio: readString(record.ratio),
+          frames: typeof record.frames === 'number' ? record.frames : undefined,
+          fps: typeof record.framespersecond === 'number' ? record.framespersecond : undefined,
+          seed: typeof record.seed === 'number' ? record.seed : undefined,
+          generateAudio: typeof record.generate_audio === 'boolean' ? record.generate_audio : undefined,
+          lastFrameUrl: readString(content?.last_frame_url),
+        }),
+      }
     }
 
     const payload = await postKuaiziApiKey({
@@ -102,7 +119,7 @@ export async function queryKuaiziTaskStatus(input: {
     const record = asRecord(payload)
     if (!record) throw new Error('KUAIZI_STATUS_RESPONSE_INVALID')
     const status = readString(record.status).toLowerCase()
-    if (status === 'failed' || status === 'cancelled' || status === 'canceled') {
+    if (status === 'failed' || status === 'cancelled' || status === 'canceled' || status === 'expired') {
       return { status: 'failed', error: readString(record.error) || readString(record.message) || 'Kuaizi task failed' }
     }
     if (status !== 'succeeded' && status !== 'completed' && status !== 'success') {

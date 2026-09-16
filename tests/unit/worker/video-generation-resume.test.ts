@@ -68,6 +68,9 @@ describe('worker utils video generation resume', () => {
     asyncPollMock.pollAsyncTask.mockResolvedValueOnce({
       status: 'completed',
       resultUrl: 'https://oa.test/v1/videos/vid_123/content',
+      durationSeconds: 6.25,
+      resolution: '480p',
+      lastFrameUrl: 'https://oa.test/last.png',
       downloadHeaders: {
         Authorization: 'Bearer oa-key',
       },
@@ -84,6 +87,9 @@ describe('worker utils video generation resume', () => {
 
     expect(result).toEqual({
       url: 'https://oa.test/v1/videos/vid_123/content',
+      durationSeconds: 6.25,
+      resolution: '480p',
+      lastFrameUrl: 'https://oa.test/last.png',
       downloadHeaders: {
         Authorization: 'Bearer oa-key',
       },

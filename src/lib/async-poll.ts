@@ -24,11 +24,12 @@ import { composeModelKey } from './model-config-contract'
 import { queryHfsySd2VideoTask } from './generators/hfsy-video'
 import { HFSY_PROVIDER_ID } from './hfsy-fixed-models'
 import { pollKuaiziTask } from './providers/kuaizi/poll'
+import type { VideoResultMetadata } from './video-result'
 
 const OPENAI_COMPAT_PROVIDER_PREFIX = 'openai-compatible:'
 const PROVIDER_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 
-export interface PollResult {
+export interface PollResult extends VideoResultMetadata {
     status: 'pending' | 'completed' | 'failed'
     resultUrl?: string
     imageUrl?: string

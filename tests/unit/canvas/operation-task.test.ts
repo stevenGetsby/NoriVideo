@@ -15,7 +15,10 @@ describe('canvas asynchronous operation contract', () => {
       expect.objectContaining({ operation: 'superresolve', engineKey: 'local-sharp', modelKey: 'local-sharp', isDefault: true }),
       expect.objectContaining({ operation: 'video_superresolve', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
       expect.objectContaining({ operation: 'subtitle_erase', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
+      expect.objectContaining({ operation: 'video_edit', engineKey: 'kuaizi-seedance25', modelKey: 'doubao-seedance-2-5-260628', isDefault: true }),
     ]))
+    expect(engines.find((engine) => engine.operation === 'video_edit')?.capabilities)
+      .toMatchObject({ maxSegmentSeconds: 30 })
 
     expect(parseCanvasAsyncOperationInput({ operation: 'superresolve', scale: 2 })).toEqual({
       operation: 'superresolve',
@@ -55,6 +58,57 @@ describe('canvas asynchronous operation contract', () => {
     }
     expect(parseCanvasOperationTaskPayload(payload)).toEqual(payload)
     expect(buildCanvasOperationDedupeKey(payload)).toBe(buildCanvasOperationDedupeKey({ ...payload }))
+  })
+
+  it('normalizes video edit segments and rejects invalid or oversized ranges', () => {
+    expect(parseCanvasAsyncOperationInput({
+      operation: 'video_edit',
+      prompt: '把背景换成黄昏',
+      startMs: 1_000,
+      endMs: 5_500,
+      generateAudio: false,
+    })).toEqual({
+      operation: 'video_edit',
+      engineKey: 'kuaizi-seedance25',
+      modelKey: 'doubao-seedance-2-5-260628',
+      parameters: {
+        prompt: '把背景换成黄昏',
+        startMs: 1_000,
+        endMs: 5_500,
+        generateAudio: false,
+        references: [],
+      },
+    })
+    expect(() => parseCanvasAsyncOperationInput({
+      operation: 'video_edit',
+      prompt: '裁剪',
+      startMs: 0,
+      endMs: 2_000,
+    })).toThrow('至少需要 4 秒')
+    expect(() => parseCanvasAsyncOperationInput({
+      operation: 'video_edit',
+      prompt: '裁剪',
+      startMs: 0,
+      endMs: 31_000,
+    })).toThrow('最多支持 30 秒')
+  })
+
+  it('keeps valid image and audio references for video editing', () => {
+    const parsed = parseCanvasAsyncOperationInput({
+      operation: 'video_edit',
+      prompt: '参考图片替换背景',
+      startMs: 0,
+      endMs: 4_000,
+      references: [
+        { id: 'ref-1', title: '参考图', type: 'image', materialId: 'm-1', url: '' },
+        { id: 'ref-2', title: '参考音', type: 'audio', url: 'https://example.com/a.mp3' },
+        { id: 'broken', title: '' },
+      ],
+    })
+    expect(parsed.parameters.references).toEqual([
+      { id: 'ref-1', title: '参考图', type: 'image', materialId: 'm-1', url: '' },
+      { id: 'ref-2', title: '参考音', type: 'audio', materialId: '', url: 'https://example.com/a.mp3' },
+    ])
   })
 
   it('serializes progress, failure reason and allowed actions without exposing source storage keys', () => {

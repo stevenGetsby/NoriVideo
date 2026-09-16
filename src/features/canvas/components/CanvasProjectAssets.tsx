@@ -85,7 +85,7 @@ export function CanvasProjectAssetContextMenu({
   if (state.kind === 'material' && !canEditAssets) return null
   if (state.kind === 'workflow' && !canEditWorkflows) return null
   return (
-    <CanvasMenuPortal>
+    <CanvasMenuPortal point={state}>
       <div
         className="nori-canvas-context-menu"
         data-canvas-project-assets-menu

@@ -15,7 +15,7 @@ import {
   findBuiltinCapabilities,
   listBuiltinCapabilityCatalog,
 } from '@/lib/model-capabilities/catalog'
-import { validateCapabilitySelectionForModel } from '@/lib/model-capabilities/lookup'
+import { getCapabilityOptionFields, validateCapabilitySelectionForModel } from '@/lib/model-capabilities/lookup'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import type { PricingApiType } from '@/lib/model-pricing/catalog'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
@@ -66,6 +66,14 @@ function parseModelId(model: string): string {
   return parsed?.modelId || model
 }
 
+function canonicalizeVideoResolution(value: string): string {
+  const trimmed = value.trim()
+  const lower = trimmed.toLowerCase()
+  if (lower === '4k' || lower === '2k') return lower
+  const matched = /^(\d+)p$/.exec(lower)
+  return matched ? `${matched[1]}p` : trimmed
+}
+
 function normalizeCapabilitySelections(
   metadata: Record<string, unknown> | undefined,
 ): Record<string, CapabilityValue> {
@@ -74,7 +82,9 @@ function normalizeCapabilitySelections(
   const selections: Record<string, CapabilityValue> = {}
   for (const [field, value] of Object.entries(metadata)) {
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-      selections[field] = value
+      selections[field] = field === 'resolution' && typeof value === 'string'
+        ? canonicalizeVideoResolution(value)
+        : value
     }
   }
   return selections
@@ -156,6 +166,20 @@ function resolveVideoCapabilities(model: string): ModelCapabilities | undefined 
   )
   if (candidates.length !== 1) return undefined
   return candidates[0].capabilities
+}
+
+function pruneUnsupportedVideoSelections(
+  model: string,
+  selections: Record<string, CapabilityValue>,
+): Record<string, CapabilityValue> {
+  const capabilities = resolveVideoCapabilities(model)
+  if (!capabilities) return selections
+  const optionFields = getCapabilityOptionFields('video', capabilities)
+  const next: Record<string, CapabilityValue> = {}
+  for (const [field, value] of Object.entries(selections)) {
+    if (optionFields[field] !== undefined) next[field] = value
+  }
+  return next
 }
 
 function videoCapabilitySupportsField(
@@ -274,7 +298,7 @@ function applyVideoDurationScaling(input: {
   return input.amount * (selectedDuration / baseDuration)
 }
 
-type Seedance2Resolution = '480p' | '720p'
+type Seedance2Resolution = '480p' | '720p' | '1080p' | '4k'
 type Seedance2AspectRatio = '16:9' | '4:3' | '1:1' | '3:4' | '9:16' | '21:9'
 
 const SEEDANCE_2_TOKEN_PRICED_MODEL_IDS = new Set([
@@ -302,9 +326,25 @@ const SEEDANCE_2_OUTPUT_DIMENSIONS: Record<
     '9:16': { width: 720, height: 1280 },
     '21:9': { width: 1470, height: 630 },
   },
+  '1080p': {
+    '16:9': { width: 1920, height: 1088 },
+    '4:3': { width: 1664, height: 1248 },
+    '1:1': { width: 1440, height: 1440 },
+    '3:4': { width: 1248, height: 1664 },
+    '9:16': { width: 1088, height: 1920 },
+    '21:9': { width: 2208, height: 944 },
+  },
+  '4k': {
+    '16:9': { width: 3840, height: 2160 },
+    '4:3': { width: 3328, height: 2496 },
+    '1:1': { width: 2880, height: 2880 },
+    '3:4': { width: 2496, height: 3328 },
+    '9:16': { width: 2160, height: 3840 },
+    '21:9': { width: 4416, height: 1888 },
+  },
 }
 
-const SEEDANCE_2_VIDEO_INPUT_MIN_TOKEN_FLOOR: Record<number, Record<Seedance2Resolution, number>> = {
+const SEEDANCE_2_VIDEO_INPUT_MIN_TOKEN_FLOOR: Record<number, Partial<Record<Seedance2Resolution, number>>> = {
   4: { '480p': 70308, '720p': 151200 },
   5: { '480p': 90396, '720p': 194400 },
   6: { '480p': 100440, '720p': 216000 },
@@ -324,7 +364,7 @@ const SEEDANCE_2_MIN_INPUT_VIDEO_SECONDS = 2
 const SEEDANCE_2_DEFAULT_ASPECT_RATIO: Seedance2AspectRatio = '16:9'
 const SEEDANCE_2_FPS = 24
 
-function isSeedance2TokenPricedModel(model: string): boolean {
+export function isSeedance2TokenPricedModel(model: string): boolean {
   return SEEDANCE_2_TOKEN_PRICED_MODEL_IDS.has(parseModelId(model))
 }
 
@@ -335,7 +375,7 @@ function readMetadataNumber(metadata: Record<string, unknown> | undefined, field
 }
 
 function resolveSeedance2Resolution(value: CapabilityValue | undefined): Seedance2Resolution {
-  if (value === '480p' || value === '720p') return value
+  if (value === '480p' || value === '720p' || value === '1080p' || value === '4k') return value
   throw new BillingOperationError(
     'BILLING_UNKNOWN_VIDEO_RESOLUTION',
     `Unsupported video resolution pricing: ${String(value)}`,
@@ -579,6 +619,14 @@ export function calcVideo(
       selections.generateAudio = defaultGenerateAudio
     }
   }
+  if (typeof selections.duration !== 'number' && videoCapabilitySupportsField(model, 'duration')) {
+    const durationRange = resolveVideoDurationRangeFromCapabilities(model)
+    if (durationRange) {
+      selections.duration = durationRange.min <= 5 && durationRange.max >= 5
+        ? 5
+        : durationRange.min
+    }
+  }
   if (
     typeof capabilitySelections.resolution !== 'string'
     && videoCapabilitySupportsField(model, 'resolution')
@@ -594,7 +642,11 @@ export function calcVideo(
   if (typeof capabilitySelections.generateAudio !== 'boolean' && typeof selections.generateAudio === 'boolean') {
     capabilitySelections.generateAudio = selections.generateAudio
   }
-  validateVideoSelectionsAgainstCapabilitiesOrThrow(model, capabilitySelections)
+  if (typeof capabilitySelections.duration !== 'number' && typeof selections.duration === 'number') {
+    capabilitySelections.duration = selections.duration
+  }
+  const prunedCapabilitySelections = pruneUnsupportedVideoSelections(model, capabilitySelections)
+  validateVideoSelectionsAgainstCapabilitiesOrThrow(model, prunedCapabilitySelections)
 
   if (isSeedance2TokenPricedModel(model)) {
     const estimatedTokens = estimateSeedance2VideoTokens(selections, metadata)
@@ -606,7 +658,7 @@ export function calcVideo(
   const resolutionResult = resolveBuiltinPricing({
     apiType: 'video',
     model,
-    selections: capabilitySelections,
+    selections: prunedCapabilitySelections,
   })
   if (resolutionResult.status === 'ambiguous_model') {
     throw new BillingOperationError(
@@ -716,11 +768,38 @@ export function calcVideoByTokens(
   return calcSeedance2VideoCostFromTokens(model, totalTokens, metadata)
 }
 
-export function calcVoice(durationSeconds: number): number {
+/** Settle measured seconds, which need not be an integer request-duration option.
+ * Only continuous-duration prices may be scaled; discrete duration tiers stay strict.
+ */
+export function calcVideoByDuration(
+  model: string,
+  durationSeconds: number,
+  resolution = '720p',
+  count = 1,
+  metadata?: Record<string, unknown>,
+  customPricing?: ModelCustomPricing | null,
+): number {
+  if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+    throw new BillingOperationError('BILLING_UNKNOWN_VIDEO_CAPABILITY_COMBINATION', 'Actual video duration must be positive')
+  }
+  const selections = { ...normalizeCapabilitySelections(metadata), resolution, duration: durationSeconds }
+  const pricing = resolveBuiltinPricing({ apiType: 'video', model, selections })
+  const entry = 'entry' in pricing ? pricing.entry : undefined
+  const durationRange = resolveVideoDurationRangeFromCapabilities(model)
+  const hasDurationTier = entry?.pricing.tiers?.some((tier) => typeof tier.when.duration === 'number')
+  if (entry && !hasDurationTier && durationRange && !isSeedance2TokenPricedModel(model)) {
+    const baseDuration = durationRange.min <= 5 && durationRange.max >= 5 ? 5 : durationRange.min
+    return calcVideo(model, resolution, count, { ...metadata, resolution, duration: baseDuration }, customPricing)
+      * durationSeconds / baseDuration
+  }
+  return calcVideo(model, resolution, count, selections, customPricing)
+}
+
+export function calcVoice(durationSeconds: number, model: string = DEFAULT_VOICE_MODEL_ID): number {
   const seconds = Math.max(0, Number(durationSeconds) || 0)
   const unitPrice = resolveModelPriceStrict({
     apiType: 'voice',
-    model: DEFAULT_VOICE_MODEL_ID,
+    model: model || DEFAULT_VOICE_MODEL_ID,
   })
   return unitPrice * seconds * getMarkup('voice')
 }

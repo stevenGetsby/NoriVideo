@@ -3,9 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const getUserModelConfigMock = vi.hoisted(() =>
   vi.fn(async () => ({ analysisModel: null })),
 )
+const billingMock = vi.hoisted(() => ({
+  prepareStreamingTextBilling: vi.fn(),
+  rollbackStreamingTextBilling: vi.fn(),
+  settleStreamingTextBilling: vi.fn(),
+}))
+const recordServiceUsageMock = vi.hoisted(() => vi.fn())
 
 vi.mock('@/lib/config-service', () => ({
   getUserModelConfig: getUserModelConfigMock,
+}))
+vi.mock('@/lib/billing/service', () => billingMock)
+vi.mock('@/lib/platform-services/usage', () => ({
+  recordServiceUsage: recordServiceUsageMock,
+}))
+vi.mock('@/lib/assistant-platform/registry', () => ({
+  getAssistantSkill: vi.fn(),
 }))
 
 import { AssistantPlatformError } from '@/lib/assistant-platform'

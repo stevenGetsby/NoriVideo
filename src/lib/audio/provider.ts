@@ -146,16 +146,6 @@ export async function generateProviderAudio(params: {
     const startedAt = Date.now()
     try {
       const requestId = await submitFalTask(selection.modelId, adapter.buildInput(params.request), config.apiKey)
-      recordServiceUsageInBackground({
-        provider: selection.provider,
-        modelKey: selection.modelKey,
-        serviceType: 'audio',
-        operation: `generate-audio-${params.request.mode}`,
-        status: 'success',
-        userId: params.userId,
-        units: params.request.durationSeconds || 1,
-        latencyMs: Date.now() - startedAt,
-      })
       return {
         kind: 'async',
         requestId,

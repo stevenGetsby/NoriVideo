@@ -2,6 +2,56 @@ import type { ComputedClip, SourceAudioSegment } from '../types/editor.types'
 
 export const ASSEMBLY_TRACK_INLINE_PADDING = 7
 export const ASSEMBLY_TRACK_CLIP_GAP = 3
+export const ASSEMBLY_MIN_CLIP_PX = 28
+export const ASSEMBLY_BASE_PX_PER_SECOND = 52
+export const ASSEMBLY_RULER_LABEL_GAP = 76
+export const ASSEMBLY_RULER_NICE_SECONDS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600] as const
+
+function clipContentWidth(widths: number[]) {
+  if (!widths.length) return 0
+  return widths.reduce((sum, width) => sum + width, 0)
+    + Math.max(0, widths.length - 1) * ASSEMBLY_TRACK_CLIP_GAP
+    + ASSEMBLY_TRACK_INLINE_PADDING * 2
+}
+
+export function assemblyClipWidths({
+  durations,
+  fps,
+  zoom,
+  fitTrackWidth,
+}: {
+  durations: number[]
+  fps: number
+  zoom: number
+  fitTrackWidth: number
+}) {
+  const safeFps = Math.max(1, fps)
+  const totalFrames = durations.reduce((sum, duration) => sum + Math.max(0, duration), 0)
+  const gaps = ASSEMBLY_TRACK_INLINE_PADDING * 2 + Math.max(0, durations.length - 1) * ASSEMBLY_TRACK_CLIP_GAP
+  const usableFit = Math.max(0, fitTrackWidth - gaps)
+  const naturalPxPerFrame = (ASSEMBLY_BASE_PX_PER_SECOND / safeFps) * Math.max(0.1, zoom)
+  const fitPxPerFrame = totalFrames > 0 ? usableFit / totalFrames : 0
+  const pxPerFrame = Math.max(naturalPxPerFrame, fitPxPerFrame)
+  return durations.map((duration) => Math.max(ASSEMBLY_MIN_CLIP_PX, Math.max(0, duration) * pxPerFrame))
+}
+
+export function assemblyTimelineWidth(widths: number[], minimum: number) {
+  return Math.max(minimum, clipContentWidth(widths))
+}
+
+export function assemblyRulerFrames(totalFrames: number, fps: number, trackWidth: number) {
+  if (totalFrames <= 0) return [0]
+  const safeFps = Math.max(1, fps)
+  const maxTicks = Math.max(2, Math.floor(Math.max(trackWidth, 1) / ASSEMBLY_RULER_LABEL_GAP) + 1)
+  const durationSec = totalFrames / safeFps
+  const stepSec = ASSEMBLY_RULER_NICE_SECONDS.find((candidate) => durationSec / candidate + 1 <= maxTicks)
+    ?? ASSEMBLY_RULER_NICE_SECONDS[ASSEMBLY_RULER_NICE_SECONDS.length - 1]
+  const stepFrames = Math.max(1, Math.round(stepSec * safeFps))
+  const frames: number[] = []
+  for (let frame = 0; frame < totalFrames; frame += stepFrames) frames.push(frame)
+  if (frames[frames.length - 1] !== totalFrames) frames.push(totalFrames)
+  return frames
+}
 
 function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value))

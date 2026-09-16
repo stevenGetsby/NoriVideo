@@ -23,8 +23,11 @@ export { addBalance, getBalance } from './ledger'
 export {
   handleBillingError,
   prepareTaskBilling,
+  prepareStreamingTextBilling,
   rollbackTaskBilling,
+  rollbackStreamingTextBilling,
   settleTaskBilling,
+  settleStreamingTextBilling,
   withImageBilling,
   withLipSyncBilling,
   withTextBilling,
@@ -32,5 +35,6 @@ export {
   withVoiceBilling,
   withVoiceDesignBilling,
 } from './service'
-export { buildDefaultTaskBillingInfo, isBillableTaskType } from './task-policy'
+export type { PreparedStreamingTextBilling } from './service'
+export { buildDefaultTaskBillingInfo, isBillableTaskType, requiresTaskBilling } from './task-policy'
 export type { BillingMode, BillingRecordParams, BillingStatus, TaskBillingInfo } from './types'

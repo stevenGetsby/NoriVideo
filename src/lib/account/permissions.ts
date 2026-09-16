@@ -30,7 +30,7 @@ export const ACCOUNT_ROLE_DEFINITIONS: ReadonlyArray<{
   { role: 'writer', label: '编剧模板', shortLabel: '编剧', description: '默认开启剧本、工具箱和无限画布；保存后仍可逐项调整' },
   { role: 'asset', label: '资产师模板', shortLabel: '资产师', description: '默认开启资产、工具箱和无限画布；保存后仍可逐项调整' },
   { role: 'storyboard', label: '分镜师模板', shortLabel: '分镜师', description: '默认开启分镜、工具箱和无限画布；保存后仍可逐项调整' },
-  { role: 'reviewer', label: '审核员模板', shortLabel: '审核员', description: '默认仅查看；由平台 Admin 按项目授予任务审核权限' },
+  { role: 'reviewer', label: '审核员模板', shortLabel: '审核员', description: '默认仅查看；由所属管理账号把该账号加入具体项目后，才能审核该项目任务' },
 ]
 
 export const ACCOUNT_PERMISSION_DEFINITIONS: ReadonlyArray<{

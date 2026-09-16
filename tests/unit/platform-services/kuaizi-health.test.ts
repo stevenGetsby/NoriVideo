@@ -46,12 +46,12 @@ describe('kuaizi service health probe', () => {
     vi.clearAllMocks()
   })
 
-  it('checks the balance endpoint with ApiKey and reports points', async () => {
+  it('checks the documented Seedance endpoint without creating a paid task', async () => {
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({
-      code: 0,
-      data: { wallet_balance: '9999' },
+      code: 'InvalidParameter',
+      message: 'model is required',
     }), {
-      status: 200,
+      status: 400,
       headers: { 'Content-Type': 'application/json' },
     }))
     vi.stubGlobal('fetch', fetchMock)
@@ -60,13 +60,13 @@ describe('kuaizi service health probe', () => {
     const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit] | undefined
     if (!call) throw new Error('missing fetch call')
 
-    expect(call[0]).toBe('https://aiopenapi.kuaizi.cn/ai-open-platform-api/v1/user/balance')
+    expect(call[0]).toBe('https://aiopenapi.kuaizi.cn/ai-open-platform-api/api/v3/contents/generations/tasks')
     expect(call[1].method).toBe('POST')
-    expect(call[1].headers).toEqual({ ApiKey: 'test-key', 'Content-Type': 'application/json' })
-    expect(call[1].headers).not.toHaveProperty('Authorization')
+    expect(call[1].headers).toEqual({ Authorization: 'Bearer test-key', 'Content-Type': 'application/json' })
+    expect(call[1].headers).not.toHaveProperty('ApiKey')
     expect(result).toMatchObject({
       status: 'healthy',
-      message: '连接正常，账户余额 99.99 点',
+      message: '连接正常，鉴权通过',
     })
     expect(persistMock).toHaveBeenCalledTimes(1)
     expect(recordUsageMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))

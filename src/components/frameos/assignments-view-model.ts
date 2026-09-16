@@ -221,9 +221,8 @@ export function assignmentStageDisplayLabel(assignment: CollaborationAssignment)
   if (isCanvasPlaylistAssignment(assignment)) {
     return assignment.status === 'pending_review' && assignment.canReview ? '播放列表最终审核' : '播放列表剪辑'
   }
-  if (assignment.status === 'pending_review' && assignment.canReview) {
-    if (assignment.stage === 'storyboard') return '分镜内容审核'
-    if (assignment.stage === 'video') return '本集视频审核'
+  if (assignment.status === 'pending_review' && assignment.canReview && assignment.stage === 'video') {
+    return '本集视频审核'
   }
   return ASSIGNMENT_STAGE_LABELS[assignment.stage]
 }
@@ -263,9 +262,6 @@ export function assignmentNavigateLabel(assignment: CollaborationAssignment): st
     return '审核本集视频'
   }
   if (assignment.stage === 'video') return assignment.canSubmit ? '进入视频制作' : '查看视频制作'
-  if (assignment.stage === 'storyboard' && assignment.status === 'pending_review' && assignment.canReview) {
-    return '审核本集分镜内容'
-  }
   if (assignment.stage === 'storyboard' && (assignment.status === 'completed' || assignment.status === 'pending_review')) {
     return '查看分镜'
   }
@@ -279,9 +275,8 @@ export function assignmentReviewNote(assignment: CollaborationAssignment): strin
 }
 
 export function assignmentDestination(assignment: CollaborationAssignment): string {
-  if (assignment.status === 'pending_review' && assignment.canReview) {
-    if (assignment.stage === 'storyboard') return `/my-assignments/${assignment.id}/storyboard-review`
-    if (assignment.stage === 'video') return `/my-assignments/${assignment.id}/video-review`
+  if (assignment.status === 'pending_review' && assignment.canReview && assignment.stage === 'video') {
+    return `/my-assignments/${assignment.id}/video-review`
   }
   const base = `/workflow/${assignment.projectId}/workbench-premium2`
   const playlistTarget = canvasPlaylistAssignmentTarget(assignment)
@@ -348,6 +343,30 @@ export function assignmentCountForTab(counts: AssignmentCounts, tab: AssignmentT
   if (tab === 'in_review') return counts.inReview
   if (tab === 'pending_review') return counts.pendingReview
   return counts[tab]
+}
+
+function finiteAssignmentCount(value: unknown): number {
+  const count = Number(value)
+  return Number.isFinite(count) && count > 0 ? Math.floor(count) : 0
+}
+
+export function assignmentAttentionCount(counts: Pick<AssignmentCounts, 'todo' | 'pendingReview'>): number {
+  return finiteAssignmentCount(counts.todo) + finiteAssignmentCount(counts.pendingReview)
+}
+
+export function resolveDefaultAssignmentTab(input: {
+  routeTab?: string | null
+  role?: string | null
+  showPendingReviewTab?: boolean
+  pendingReviewCount?: number
+}): AssignmentTab {
+  if (isAssignmentTab(input.routeTab)) return input.routeTab
+  if (input.showPendingReviewTab === false) return 'todo'
+  if (input.role === 'reviewer') return 'pending_review'
+  if (input.showPendingReviewTab === true && finiteAssignmentCount(input.pendingReviewCount) > 0) {
+    return 'pending_review'
+  }
+  return 'todo'
 }
 
 export function moveAssignmentFilterOptionIndex(

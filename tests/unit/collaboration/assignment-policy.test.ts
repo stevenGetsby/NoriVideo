@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
+  assignmentStageSkipsReview,
   assertAssignmentTransition,
   canTransitionAssignment,
   isAssignmentStage,
   nextAssignmentStatus,
+  projectMembershipGrantsReview,
   resolveAssignmentCapabilities,
   statusesForAssignmentTab,
 } from '@/lib/collaboration/assignment-policy'
@@ -43,6 +45,13 @@ describe('workflow assignment state machine', () => {
     expect(nextAssignmentStatus('mark-complete')).toBe('completed')
   })
 
+  it('skips collaboration review for storyboard assignments', () => {
+    expect(assignmentStageSkipsReview('storyboard')).toBe(true)
+    expect(assignmentStageSkipsReview('script')).toBe(false)
+    expect(assignmentStageSkipsReview('asset')).toBe(false)
+    expect(assignmentStageSkipsReview('video')).toBe(false)
+  })
+
   it('treats assignment management as a superset of review access', () => {
     expect(resolveAssignmentCapabilities({
       actorIsManagement: false,
@@ -70,5 +79,20 @@ describe('workflow assignment state machine', () => {
       projectMemberCanManage: false,
       projectMemberCanReview: true,
     })).toEqual({ canManage: false, canReview: true })
+  })
+
+  it('treats reviewer project membership as a review grant', () => {
+    expect(projectMembershipGrantsReview({
+      membership: { canReviewAssignments: false },
+      accountRole: 'reviewer',
+    })).toBe(true)
+    expect(projectMembershipGrantsReview({
+      membership: { canReviewAssignments: false },
+      accountRole: 'writer',
+    })).toBe(false)
+    expect(projectMembershipGrantsReview({
+      membership: null,
+      accountRole: 'reviewer',
+    })).toBe(false)
   })
 })

@@ -4,18 +4,13 @@ storage:
     endpoint: https://tos-cn-beijing.volces.com
     publicEndpoint: https://tos-cn-beijing.volces.com
     region: cn-beijing
-    bucket: your-tos-bucket
+    bucket: nori-test
     accessKey: your-tos-access-key
     secretKey: your-tos-secret-key
     forcePathStyle: false
 
 llm:
   providers:
-    - id: ghc
-      name: GHC API
-      baseUrl: http://localhost:8313/v1
-      apiKey: dummy
-      gatewayRoute: openai-compat
     - id: hfsy
       name: HFSY API
       baseUrl: https://www.hfsyapi.cn/v1
@@ -31,18 +26,6 @@ llm:
       apiKey: your-ark-api-key
       gatewayRoute: official
   models:
-    - modelId: gpt-5.5
-      modelKey: ghc::gpt-5.5
-      name: GHC GPT 5.5
-      type: llm
-      provider: ghc
-      llmProtocol: responses
-    - modelId: gemini-3.1-pro-preview
-      modelKey: ghc::gemini-3.1-pro-preview
-      name: GHC Gemini 3.1 Pro
-      type: llm
-      provider: ghc
-      llmProtocol: responses
     - modelId: gpt-5.5
       modelKey: hfsy::gpt-5.5
       name: HFSY GPT 5.5
@@ -71,6 +54,11 @@ llm:
       type: llm
       provider: deepseek
       llmProtocol: chat-completions
+    - modelId: doubao-seed-2-1-pro-260628
+      modelKey: ark::doubao-seed-2-1-pro-260628
+      name: Doubao Seed 2.1 Pro
+      type: llm
+      provider: ark
     - modelId: doubao-seedance-2-0-260128
       modelKey: ark::doubao-seedance-2-0-260128
       name: Seedance 2.0
@@ -84,9 +72,9 @@ llm:
     editModel: nori::nori-image
     videoModel: nori::seedance2.0
   modelRouting:
-    nori::nori-gpt: ghc::gpt-5.5
+    nori::nori-gpt: hfsy::gpt-5.5
     nori::nori-gpt-max: hfsy::gpt-5.6-terra
-    nori::nori-gemini: ghc::gemini-3.1-pro-preview
+    nori::nori-gemini: ark::doubao-seed-2-1-pro-260628
     nori::nori-deepseek: deepseek::deepseek-chat
     nori::nori-image: hfsy::gpt-image-2
     nori::nori-image-pro: hfsy::gpt-image-2pro

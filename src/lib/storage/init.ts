@@ -39,8 +39,14 @@ async function main() {
   console.log(`[storage:init] verified MinIO bucket "${bucket}"`)
 }
 
-void main().catch((error: unknown) => {
-  console.error('[storage:init] failed to prepare database/storage')
-  console.error(error)
-  process.exit(1)
-})
+void main()
+  .then(async () => {
+    await prisma.$disconnect()
+    process.exit(0)
+  })
+  .catch(async (error: unknown) => {
+    console.error('[storage:init] failed to prepare database/storage')
+    console.error(error)
+    await prisma.$disconnect()
+    process.exit(1)
+  })

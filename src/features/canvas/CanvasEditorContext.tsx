@@ -37,6 +37,7 @@ export type CanvasNodeAction =
 
 export type CanvasEditorContextValue = {
   readOnly: boolean
+  playlistDropTargetId: string | null
   canUndo: boolean
   canRedo: boolean
   saveState: CanvasSaveState

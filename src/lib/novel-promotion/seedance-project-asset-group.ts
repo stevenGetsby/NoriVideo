@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
-import type { SeedanceAssetsClient } from '@/lib/volcengine/seedance-assets-client'
+import { createHash } from 'node:crypto'
+import type { SeedanceAssetsApi } from '@/lib/volcengine/seedance-assets-client'
 
 const GROUP_NAME_MAX_LENGTH = 64
 
@@ -17,7 +18,7 @@ export function seedanceProjectAssetGroupName(input: {
   return `${prefix.slice(0, Math.max(1, GROUP_NAME_MAX_LENGTH - tail.length))}${tail}`
 }
 
-function listedGroups(result: Awaited<ReturnType<SeedanceAssetsClient['listAssetGroups']>>) {
+function listedGroups(result: Awaited<ReturnType<SeedanceAssetsApi['listAssetGroups']>>) {
   return result.AssetGroups || result.Groups || result.Items || []
 }
 
@@ -29,8 +30,10 @@ function listedGroups(result: Awaited<ReturnType<SeedanceAssetsClient['listAsset
 export async function ensureSeedanceProjectAssetGroup(input: {
   projectId: string
   volcengineProjectName: string
-  client: SeedanceAssetsClient
+  client: SeedanceAssetsApi
+  ownershipScope?: string
 }): Promise<string> {
+  const scope = input.ownershipScope || input.volcengineProjectName
   const current = await prisma.project.findUnique({
     where: { id: input.projectId },
     select: {
@@ -42,7 +45,7 @@ export async function ensureSeedanceProjectAssetGroup(input: {
   if (!current) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目不存在')
   if (
     current.seedanceAssetGroupId
-    && current.seedanceAssetsProjectName === input.volcengineProjectName
+    && current.seedanceAssetsProjectName === scope
   ) {
     return current.seedanceAssetGroupId
   }
@@ -61,15 +64,18 @@ export async function ensureSeedanceProjectAssetGroup(input: {
     if (!project) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目不存在')
     if (
       project.seedanceAssetGroupId
-      && project.seedanceAssetsProjectName === input.volcengineProjectName
+      && project.seedanceAssetsProjectName === scope
     ) {
       return project.seedanceAssetGroupId
     }
 
-    const groupName = seedanceProjectAssetGroupName({
+    const legacyName = seedanceProjectAssetGroupName({
       projectId: project.id,
       projectName: project.name,
     })
+    // Kuaizi has no ProjectName isolation. Match only a full project/account-scoped name.
+    const suffix = createHash('sha256').update(JSON.stringify([scope, project.id])).digest('hex').slice(0, 24)
+    const groupName = input.ownershipScope ? `${legacyName.slice(0, 39)}-${suffix}` : legacyName
     const groups = await input.client.listAssetGroups({
       projectName: input.volcengineProjectName,
       pageSize: 20,
@@ -89,7 +95,7 @@ export async function ensureSeedanceProjectAssetGroup(input: {
       where: { id: project.id },
       data: {
         seedanceAssetGroupId: groupId,
-        seedanceAssetsProjectName: input.volcengineProjectName,
+        seedanceAssetsProjectName: scope,
       },
     })
     return groupId

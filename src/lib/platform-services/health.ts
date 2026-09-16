@@ -28,13 +28,6 @@ function compact(value: unknown, max = 500): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
 }
 
-function finiteNumber(value: unknown): number | null {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : null
-  if (typeof value !== 'string' || !value.trim()) return null
-  const parsed = Number(value)
-  return Number.isFinite(parsed) ? parsed : null
-}
-
 function providerModelsUrl(providerId: string, baseUrl?: string): string {
   if (getRawProviderKey(providerId).toLowerCase() === 'ark') {
     return 'https://ark.cn-beijing.volces.com/api/v3/models'
@@ -44,12 +37,12 @@ function providerModelsUrl(providerId: string, baseUrl?: string): string {
   return `${normalized}/models`
 }
 
-function kuaiziBalanceUrl(baseUrl?: string): string {
+function kuaiziHealthUrl(baseUrl?: string): string {
   const normalized = (compact(baseUrl) || 'https://aiopenapi.kuaizi.cn').replace(/\/+$/, '')
   const prefix = '/ai-open-platform-api'
   return normalized.endsWith(prefix)
-    ? `${normalized}/v1/user/balance`
-    : `${normalized}${prefix}/v1/user/balance`
+    ? `${normalized}/api/v3/contents/generations/tasks`
+    : `${normalized}${prefix}/api/v3/contents/generations/tasks`
 }
 
 async function persistHealth(input: {
@@ -107,11 +100,11 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     const providerKey = getRawProviderKey(provider.id).toLowerCase()
     const isKuaizi = providerKey === 'kuaizi'
     const response = await fetch(
-      isKuaizi ? kuaiziBalanceUrl(provider.baseUrl) : providerModelsUrl(provider.id, provider.baseUrl),
+      isKuaizi ? kuaiziHealthUrl(provider.baseUrl) : providerModelsUrl(provider.id, provider.baseUrl),
       isKuaizi
         ? {
           method: 'POST',
-          headers: { ApiKey: provider.apiKey!, 'Content-Type': 'application/json' },
+          headers: { Authorization: `Bearer ${provider.apiKey}`, 'Content-Type': 'application/json' },
           body: '{}',
           signal: AbortSignal.timeout(15_000),
         }
@@ -123,31 +116,30 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     const latencyMs = Date.now() - startedAt
     const bodyText = await response.text().catch(() => '')
     let modelCount: number | null = null
-    let kuaiziBalance: number | null = null
-    let kuaiziBusinessOk = true
-    if (response.ok && bodyText) {
+    let kuaiziCode = ''
+    if (bodyText) {
       try {
         const payload = JSON.parse(bodyText) as { code?: unknown; data?: unknown; models?: unknown }
         if (isKuaizi) {
-          kuaiziBusinessOk = Number(payload.code) === 0
-          const data = payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)
-            ? payload.data as { wallet_balance?: unknown }
-            : null
-          kuaiziBalance = finiteNumber(data?.wallet_balance)
+          kuaiziCode = compact(payload.code)
         } else {
           const list = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : null
           modelCount = list?.length ?? null
         }
       } catch {
         modelCount = null
-        if (isKuaizi) kuaiziBusinessOk = false
       }
     }
-    const healthy = response.ok && (!isKuaizi || kuaiziBusinessOk)
+    // Kuaizi does not expose a stable read-only balance/models endpoint. An
+    // intentionally empty create request is rejected with InvalidParameter
+    // after successful Bearer authentication, without creating a paid task.
+    const healthy = isKuaizi
+      ? response.status === 400 && kuaiziCode === 'InvalidParameter'
+      : response.ok
     const status = healthy ? 'healthy' : 'unhealthy'
     const message = healthy
       ? (isKuaizi
-        ? (kuaiziBalance == null ? '连接正常，余额接口可用' : `连接正常，账户余额 ${(kuaiziBalance / 100).toFixed(2)} 点`)
+        ? '连接正常，鉴权通过'
         : modelCount == null ? '连接正常' : `连接正常，发现 ${modelCount} 个模型`)
       : `HTTP ${response.status}`
     await persistHealth({
@@ -157,7 +149,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
       latencyMs,
       message,
       checkedBy,
-      details: { httpStatus: response.status, modelCount, ...(isKuaizi ? { balanceAvailable: kuaiziBalance != null } : {}) },
+      details: { httpStatus: response.status, modelCount, ...(isKuaizi ? { validationCode: kuaiziCode || null } : {}) },
     })
     await recordServiceUsage({
       provider: provider.id,

@@ -3,6 +3,9 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { ComputedClip } from '@/features/video-editor/types/editor.types'
 import {
+  assemblyClipWidths,
+  assemblyRulerFrames,
+  assemblyTimelineWidth,
   clientXToCssOffset,
   sourceAudioTimelineStart,
   timelineFrameToOffset,
@@ -63,6 +66,28 @@ describe('assembly timeline geometry', () => {
     expect(source).toContain('trimAfter={trimAfter}')
     expect(source).toContain('pauseWhenBuffering')
     expect(source).toContain('acceptableTimeShiftInSeconds={getPlaybackTimeShiftTolerance(playing, clipDuration, config.fps)}')
+  })
+
+  it('stretches short sequences to fill the visible track and keeps long ones scrollable', () => {
+    const fitted = assemblyClipWidths({ durations: [76, 74], fps: 30, zoom: 1, fitTrackWidth: 1_200 })
+    expect(assemblyTimelineWidth(fitted, 1_200)).toBeCloseTo(1_200, 0)
+    expect(fitted[0]).toBeGreaterThan(500)
+    expect(fitted[1]).toBeGreaterThan(500)
+
+    const scrolled = assemblyClipWidths({ durations: [900, 900], fps: 30, zoom: 1, fitTrackWidth: 400 })
+    expect(assemblyTimelineWidth(scrolled, 400)).toBeGreaterThan(400)
+  })
+
+  it('thins ruler labels when the track is narrow and keeps endpoints readable', () => {
+    const compact = assemblyRulerFrames(150, 30, 240)
+    const spacious = assemblyRulerFrames(150, 30, 1_400)
+
+    expect(compact[0]).toBe(0)
+    expect(compact.at(-1)).toBe(150)
+    expect(compact.length).toBeLessThanOrEqual(5)
+    expect(spacious[0]).toBe(0)
+    expect(spacious.at(-1)).toBe(150)
+    expect(spacious.length).toBeGreaterThan(compact.length)
   })
 
   it('keeps save visible in both the timeline and the review workflow', () => {

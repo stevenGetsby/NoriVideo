@@ -1,24 +1,25 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { signOut, useSession } from 'next-auth/react'
 import { useLocale } from 'next-intl'
 import { useSearchParams } from 'next/navigation'
 import { Link, useRouter } from '@/i18n/navigation'
-import { AppIcon } from '@/components/ui/icons'
-import type { AppIconName } from '@/components/ui/icons'
-import { normalizeAccountPointCredit } from '@/lib/account/credits'
+import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
-import { BALANCE_CHANGED_EVENT } from '@/lib/billing/client'
 import {
   ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
   defaultSubaccountRoleLabel,
   hasAccountPermissions,
   isManagementRole,
 } from '@/lib/account/permissions'
+import { assignmentAttentionCount } from './assignments-view-model'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
 import { FosCanvasShellContext } from './FosCanvasShellContext'
+import { FosSidebarResizer } from './FosSidebarResizer'
+import { useFosSidebarResize } from './useFosSidebarResize'
 
 export type FosNavKey =
   | 'projects'
@@ -131,37 +132,7 @@ function BalancePill({ points }: { points: number }) {
 
 export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
   const { data: session } = useSession()
-  const [livePoints, setLivePoints] = useState<number | null>(null)
-  const refreshBalance = useCallback(async () => {
-    if (!session?.user?.id) return
-    try {
-      const response = await apiFetch('/api/user/balance', { cache: 'no-store' })
-      if (!response.ok) return
-      const payload = await response.json() as { balancePoints?: unknown }
-      const value = Number(payload.balancePoints)
-      if (Number.isFinite(value)) setLivePoints(value)
-    } catch {
-      // Keep the last visible value during a transient network failure.
-    }
-  }, [session?.user?.id])
-
-  useEffect(() => {
-    if (!session?.user?.id) {
-      setLivePoints(null)
-      return
-    }
-    void refreshBalance()
-    const timer = window.setInterval(() => void refreshBalance(), 15_000)
-    const refresh = () => void refreshBalance()
-    window.addEventListener(BALANCE_CHANGED_EVENT, refresh)
-    window.addEventListener('focus', refresh)
-    return () => {
-      window.clearInterval(timer)
-      window.removeEventListener(BALANCE_CHANGED_EVENT, refresh)
-      window.removeEventListener('focus', refresh)
-    }
-  }, [refreshBalance, session?.user?.id])
-  const points = livePoints ?? normalizeAccountPointCredit(session?.user?.pointCredits)
+  const { points } = useAccountBalance()
   const role = session?.user?.role
   const roleLabel = role === 'super_admin'
     ? '平台 Admin · 全部权限'
@@ -183,18 +154,14 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
             {roleLabel}
           </span>
         ) : null}
-        {!canvasMode ? (
-          <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" style={{ borderRadius: 9999 }}>
-            <AppIcon name="download" className="h-3.5 w-3.5" />下载桌面端
-          </button>
-        ) : null}
         <BalancePill points={points} />
       </div>
     </div>
   )
 }
 
-function NavLink({ item, active }: { item: NavItem; active: boolean }) {
+function NavLink({ item, active, count }: { item: NavItem; active: boolean; count?: number }) {
+  const attention = typeof count === 'number' && count > 0 ? count : 0
   return (
     <Link href={{ pathname: item.href }} className={`fos-nav-item${active ? ' active' : ''}`}>
       <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
@@ -202,8 +169,56 @@ function NavLink({ item, active }: { item: NavItem; active: boolean }) {
         {item.label}
         {item.badge ? <span className="badge-new">{item.badge}</span> : null}
       </span>
+      {attention > 0 ? (
+        <span className="fos-nav-count" data-testid={item.key === 'assignments' ? 'assignment-nav-count' : undefined} aria-label={`${attention} 条待处理任务`}>
+          {attention > 99 ? '99+' : attention}
+        </span>
+      ) : null}
     </Link>
   )
+}
+
+function useAssignmentAttention(enabled: boolean) {
+  const { data: session } = useSession()
+  const [count, setCount] = useState(0)
+
+  useEffect(() => {
+    if (!enabled || !session?.user?.id) {
+      setCount(0)
+      return
+    }
+    let cancelled = false
+    const load = async () => {
+      try {
+        const response = await apiFetch('/api/collaboration/assignments/counts', { cache: 'no-store' })
+        if (!response.ok) return
+        const payload = await response.json() as { data?: { counts?: { todo?: unknown; pendingReview?: unknown } }; counts?: { todo?: unknown; pendingReview?: unknown } }
+        const counts = payload.data?.counts ?? payload.counts
+        const next = assignmentAttentionCount({
+          todo: Number(counts?.todo) || 0,
+          pendingReview: Number(counts?.pendingReview) || 0,
+        })
+        if (!cancelled) setCount(next)
+      } catch {
+        // Keep the last visible count during a transient network failure.
+      }
+    }
+    void load()
+    const timer = window.setInterval(() => void load(), 15_000)
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
+  }, [enabled, session?.user?.id])
+
+  return count
 }
 
 function Sidebar({
@@ -212,12 +227,14 @@ function Sidebar({
   collapsed,
   canvasMode,
   onToggle,
+  resizeHandle,
 }: {
   activeKey: FosNavKey
   projectNavigation?: FosProjectNavigation
   collapsed: boolean
   canvasMode: boolean
   onToggle: () => void
+  resizeHandle: ReactNode
 }) {
   const { data: session } = useSession()
   const locale = useLocale()
@@ -229,6 +246,7 @@ function Sidebar({
   const canUseToolbox = hasAccountPermissions(session?.user || {}, ['toolboxUse'])
   const canUseCanvas = hasAccountPermissions(session?.user || {}, ['canvasWrite'])
   const canUseWriterWorkbench = hasAccountPermissions(session?.user || {}, ['scriptWrite'])
+  const assignmentAttention = useAssignmentAttention(!collapsed)
   const visiblePrimaryNav = primaryNav.filter((item) => (
     (item.key !== 'toolbox' || canUseToolbox)
     && (item.key !== 'canvas' || canUseCanvas)
@@ -290,6 +308,7 @@ function Sidebar({
               key={item.key}
               item={item}
               active={item.key === activeKey && !projectNavigation}
+              count={item.key === 'assignments' ? assignmentAttention : undefined}
             />
           ))}
           {projectNavigation ? (
@@ -358,6 +377,7 @@ function Sidebar({
       {!collapsed && modal === 'feedback' ? <FeedbackModal onClose={() => setModal(null)} /> : null}
       {!collapsed && modal === 'account' ? <AccountModal account={account} onLogout={handleSignOut} onClose={() => setModal(null)} /> : null}
       {!collapsed && toast ? <UpdatesToast onDone={() => setToast(false)} /> : null}
+      {resizeHandle}
     </aside>
   )
 }
@@ -383,6 +403,7 @@ export function FosShell({
   const router = useRouter()
   const locale = useLocale()
   const [sidebarCollapsed, setSidebarCollapsed] = useState(canvasShell)
+  const { sidebarWidth, sidebarResizing, beginSidebarResize, resetSidebarWidth } = useFosSidebarResize()
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((current) => {
@@ -462,7 +483,10 @@ export function FosShell({
 
   return (
     <FosCanvasShellContext.Provider value={canvasShellState}>
-      <div className={`fos-app${canvasShell ? ` is-canvas-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : 'is-sidebar-expanded'}` : ''}`}>
+      <div
+        className={`fos-app${canvasShell ? ` is-canvas-shell ${sidebarCollapsed ? 'is-sidebar-collapsed' : 'is-sidebar-expanded'}` : ''}${sidebarResizing ? ' is-sidebar-resizing' : ''}`}
+        style={{ '--fos-sidebar-width': `${sidebarWidth}px` } as CSSProperties}
+      >
         <FosTitlebar title={titlebarTitle} />
         <FosHeader canvasMode={canvasShell} />
         <div className="fos-content">
@@ -473,6 +497,7 @@ export function FosShell({
               collapsed={sidebarCollapsed}
               canvasMode={canvasShell}
               onToggle={toggleSidebar}
+              resizeHandle={<FosSidebarResizer collapsed={sidebarCollapsed} resizing={sidebarResizing} onPointerDown={beginSidebarResize} onDoubleClick={resetSidebarWidth} />}
             />
           )}
           <main className="fos-main">

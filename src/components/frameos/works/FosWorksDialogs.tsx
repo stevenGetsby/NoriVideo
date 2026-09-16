@@ -140,10 +140,10 @@ function CandidatePicker({
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
       }}
     >
-      <div className="relative">
-        <AppIcon name="search" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--fos-text-4)]" />
+      <div className="works-member-search">
+        <AppIcon name="search" />
         <input
-          className="fos-input pl-9"
+          className="fos-input"
           value={keyword}
           disabled={disabled}
           onChange={(event) => setKeyword(event.target.value)}
@@ -539,7 +539,7 @@ export function MemberManagerDialog({
             )
           }) : null}
         </div>
-        <p className="works-permission-note">成员沿用账号身份权限：编剧仅可编辑剧本，资产师仅可编辑资产，分镜师仅可编辑分镜；管理员拥有全部权限且不可移除。</p>
+        <p className="works-permission-note">成员沿用账号身份权限：编剧仅可编辑剧本，资产师仅可编辑资产，分镜师仅可编辑分镜；把审核员加入项目后，该账号即可审核该项目任务。管理员拥有全部权限且不可移除。</p>
         {error ? <div className="works-form-error">{error}</div> : null}
       </div>
     </Modal>

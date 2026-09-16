@@ -4,8 +4,8 @@ import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { decodeImageUrlsFromDb } from '@/lib/contracts/image-urls-contract'
 import { extractStorageKey, getSignedObjectUrl, getStorageType } from '@/lib/storage'
-import { getSeedanceAssetsConfig } from '@/lib/volcengine/seedance-assets-config'
-import { SeedanceAssetsClient, type SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
+import { getSeedanceAssetsProvider } from '@/lib/volcengine/seedance-assets-provider'
+import type { SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
 import { replacePanelSeedanceReferenceAssetForCharacter } from '@/lib/novel-promotion/seedance-reference-assets'
 import { ensureSeedanceProjectAssetGroup } from '@/lib/novel-promotion/seedance-project-asset-group'
 
@@ -165,11 +165,12 @@ export const POST = apiHandler(async (
 
   const { imageUrl } = pickAppearanceImage({ appearance, imageIndex })
   const publicImageUrl = await resolvePublicImageUrl(imageUrl)
-  const config = await getSeedanceAssetsConfig(authResult.session.user.id)
-  const client = new SeedanceAssetsClient(config)
+  const config = await getSeedanceAssetsProvider({ userId: authResult.session.user.id, projectId })
+  const client = config.client
   const groupId = await ensureSeedanceProjectAssetGroup({
     projectId,
     volcengineProjectName: config.projectName,
+    ownershipScope: config.scope,
     client,
   })
 
@@ -188,13 +189,14 @@ export const POST = apiHandler(async (
       where: { id: character.id },
       data: {
         seedanceAssetGroupId: groupId,
-        seedanceAssetsProjectName: config.projectName,
+        seedanceAssetsProjectName: config.scope,
       },
     }),
     prisma.characterAppearance.update({
       where: { id: appearance.id },
       data: {
         seedanceAssetId: created.Id,
+        seedanceAssetScope: config.scope,
         seedanceAssetUri: assetUri,
         seedanceAssetStatus: status,
         seedanceAssetError: error,
@@ -248,8 +250,14 @@ export const PATCH = apiHandler(async (
     })
   }
 
-  const config = await getSeedanceAssetsConfig(authResult.session.user.id)
-  const client = new SeedanceAssetsClient(config)
+  const config = await getSeedanceAssetsProvider({ userId: authResult.session.user.id, projectId })
+  if (appearance.seedanceAssetScope !== config.scope) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'SEEDANCE_ASSET_PROVIDER_CHANGED',
+      message: '当前视频服务或账号已切换，请重新注册角色素材。',
+    })
+  }
+  const client = config.client
   const asset = await client.getAsset({
     assetId: appearance.seedanceAssetId,
     projectName: config.projectName,

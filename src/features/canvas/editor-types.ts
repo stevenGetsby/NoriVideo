@@ -1,4 +1,5 @@
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react'
+import { STUDIO_NODE_MIN_SIZE } from './studio-types'
 import {
   prependCanvasGenerationHistory,
   type CanvasEdge,
@@ -16,6 +17,7 @@ import {
   CANVAS_NODE_TYPE_STUDIO_3D,
   CANVAS_NODE_TYPE_TEXT,
   CANVAS_NODE_TYPE_VIDEO,
+  CANVAS_NODE_TYPE_VIDEO_EDIT,
 } from './types'
 
 export type CanvasFlowNodeData = CanvasNodeData & {
@@ -89,6 +91,7 @@ export type CanvasNodeMenuType =
   | typeof CANVAS_NODE_TYPE_TEXT
   | typeof CANVAS_NODE_TYPE_IMAGE
   | typeof CANVAS_NODE_TYPE_VIDEO
+  | typeof CANVAS_NODE_TYPE_VIDEO_EDIT
   | typeof CANVAS_NODE_TYPE_AUDIO
   | typeof CANVAS_NODE_TYPE_MODEL_3D
   | typeof CANVAS_NODE_TYPE_STUDIO_3D
@@ -258,6 +261,7 @@ export const CANVAS_ADD_NODE_ITEMS: Array<{
   { type: CANVAS_NODE_TYPE_TEXT, label: '文本', description: '脚本、提示词与文案', icon: 'text' },
   { type: CANVAS_NODE_TYPE_IMAGE, label: '图片', description: '生成或引用图片', icon: 'image' },
   { type: CANVAS_NODE_TYPE_VIDEO, label: '视频', description: '生成或引用视频', icon: 'video' },
+  { type: CANVAS_NODE_TYPE_VIDEO_EDIT, label: '视频编辑', description: '裁剪片段并用提示词编辑视频', icon: 'video' },
   { type: CANVAS_NODE_TYPE_PLAYLIST, label: '播放列表', description: '顺序剪辑并提交最终审核', icon: 'playlist' },
   { type: CANVAS_NODE_TYPE_MODEL_3D, label: '3D模型', description: '生成或上传 GLB', icon: 'box3d' },
   { type: CANVAS_NODE_TYPE_STUDIO_3D, label: '3D导演台', description: '布景、机位与截图', icon: 'studio3d' },
@@ -268,10 +272,11 @@ export const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number 
   [CANVAS_NODE_TYPE_TEXT]: { width: 300, height: 200 },
   [CANVAS_NODE_TYPE_IMAGE]: { width: 300, height: 200 },
   [CANVAS_NODE_TYPE_VIDEO]: { width: 320, height: 220 },
+  [CANVAS_NODE_TYPE_VIDEO_EDIT]: { width: 520, height: 440 },
   [CANVAS_NODE_TYPE_AUDIO]: { width: 320, height: 150 },
   [CANVAS_NODE_TYPE_MODEL_3D]: { width: 320, height: 240 },
   [CANVAS_NODE_TYPE_STUDIO_3D]: { width: 360, height: 260 },
-  [CANVAS_NODE_TYPE_PLAYLIST]: { width: 1040, height: 640 },
+  [CANVAS_NODE_TYPE_PLAYLIST]: { width: 880, height: 860 },
   [CANVAS_NODE_TYPE_GROUP]: { width: 680, height: 420 },
   production_episode: { width: 300, height: 180 },
   production_storyboard: { width: 300, height: 180 },
@@ -292,6 +297,16 @@ export function defaultCanvasNodeData(type: CanvasNodeMenuType): CanvasNodeData 
   }
   if (type === CANVAS_NODE_TYPE_VIDEO) {
     return { title: '视频节点', mediaType: 'video', origin: 'empty', prompt: '', generation: { aspectRatio: '16:9', resolution: '720p', duration: 5, inputMode: 'text', generateAudio: true } }
+  }
+  if (type === CANVAS_NODE_TYPE_VIDEO_EDIT) {
+    return {
+      title: '视频编辑',
+      mediaType: 'video',
+      origin: 'empty',
+      processType: 'video_edit',
+      prompt: '',
+      videoEdit: { sourceKind: 'none', generateAudio: true },
+    }
   }
   if (type === CANVAS_NODE_TYPE_PLAYLIST) {
     return { title: '播放列表', origin: 'empty', playlistItems: [] }
@@ -316,8 +331,10 @@ export function canvasNodeToFlow(node: CanvasNode): CanvasFlowNode {
   const fallback = DEFAULT_NODE_SIZES[node.type] || DEFAULT_NODE_SIZES[CANVAS_NODE_TYPE_IMAGE]
   const requestedWidth = finite(node.size?.width) ? node.size.width : fallback.width
   const requestedHeight = finite(node.size?.height) ? node.size.height : fallback.height
-  const width = node.type === CANVAS_NODE_TYPE_PLAYLIST ? Math.max(760, requestedWidth) : requestedWidth
-  const height = node.type === CANVAS_NODE_TYPE_PLAYLIST ? Math.max(500, requestedHeight) : requestedHeight
+  const width = node.type === CANVAS_NODE_TYPE_PLAYLIST ? Math.max(760, requestedWidth)
+    : node.type === CANVAS_NODE_TYPE_STUDIO_3D ? Math.max(STUDIO_NODE_MIN_SIZE.width, requestedWidth) : requestedWidth
+  const height = node.type === CANVAS_NODE_TYPE_PLAYLIST ? Math.max(500, requestedHeight)
+    : node.type === CANVAS_NODE_TYPE_STUDIO_3D ? Math.max(STUDIO_NODE_MIN_SIZE.height, requestedHeight) : requestedHeight
   return {
     id: node.id,
     type: node.type,
@@ -427,7 +444,9 @@ export function flowNodeToCanvas(node: CanvasFlowNode, canvasId: string): Canvas
     canvasId,
     type: node.type || CANVAS_NODE_TYPE_IMAGE,
     position: node.position,
-    size: { width, height },
+    size: node.type === CANVAS_NODE_TYPE_STUDIO_3D
+      ? { width: Math.max(STUDIO_NODE_MIN_SIZE.width, width), height: Math.max(STUDIO_NODE_MIN_SIZE.height, height) }
+      : { width, height },
     data,
     status: __server?.status || 'IDLE',
     taskId: __server?.taskId || null,

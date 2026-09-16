@@ -32,7 +32,6 @@ const ROUTE_FILES = [
   'src/app/api/admin/accounts/[userId]/route.ts',
   'src/app/api/admin/accounts/route.ts',
   'src/app/api/admin/download-logs/route.ts',
-  'src/app/api/admin/reviewers/route.ts',
   'src/app/api/admin/services/models/route.ts',
   'src/app/api/admin/services/probe/route.ts',
   'src/app/api/admin/services/route.ts',

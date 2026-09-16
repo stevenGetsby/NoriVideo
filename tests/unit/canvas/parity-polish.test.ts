@@ -30,6 +30,7 @@ function serviceConfig(overrides: Partial<PlatformServiceConfigResponse> = {}): 
       'nori::seedance2.0-mini': '',
       'nori::seedance2.0-fast': '',
       'nori::seedance2.0': '',
+      'nori::norivideo2.5': '',
       'nori::nori-audio': '',
       'nori::nori-music': '',
       'nori::nori-sfx': '',
@@ -103,6 +104,19 @@ describe('canvas parity polish contracts', () => {
     expect(graph).toContain('JSON.stringify({ materialId: node.data.materialId, isFavorited: next })')
     expect(route).toContain("requireProjectAuthLight(projectId, ['canvasWrite'])")
     expect(route).toContain('export const PATCH')
+  })
+
+  it('keeps user model choices readable without exposing stale admin health cache labels', () => {
+    const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
+    const styles = source('src/features/canvas/canvas.css')
+
+    expect(generator).not.toContain('检测已过期')
+    expect(generator).not.toContain("' · 已检测'")
+    expect(generator).not.toContain("' · 未检测'")
+    expect(generator).toContain("? model.raw.healthStatus === 'unhealthy' ? ' · 服务异常' : ' · 未配置'")
+    expect(styles).toContain('.nori-canvas-generator-controls select option')
+    expect(styles).toContain('color-scheme: dark;')
+    expect(styles).toContain('background: #181b23;')
   })
 
   it('removes production nodes from persisted group membership during sync', () => {

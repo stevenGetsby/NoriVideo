@@ -31,6 +31,7 @@ const BILLABLE_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.ASSET_HUB_MODIFY,
   TASK_TYPE.TOOLBOX_IMAGE,
   TASK_TYPE.TOOLBOX_VIDEO,
+  TASK_TYPE.TOOLBOX_AUDIO,
   TASK_TYPE.CANVAS_TEXT_GENERATION,
   TASK_TYPE.CANVAS_STORYBOARD_PLAN,
   TASK_TYPE.ANALYZE_NOVEL,
@@ -213,17 +214,79 @@ function buildVideoTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillin
   }
 }
 
+function billedCanvasVideoModel(payload: AnyPayload): string | null {
+  const operation = readString(payload?.operation)
+  if (operation !== 'video_edit') return null
+  const engineKey = readString(payload?.engineKey)
+  if (engineKey === 'local-ffmpeg' || engineKey === 'local-sharp') return null
+  const model = pickFirstString([payload?.modelKey, payload?.model, payload?.videoModel])
+  if (!model || model === 'local-ffmpeg' || model === 'local-sharp') return null
+  return model.includes('::') ? model : `kuaizi::${model}`
+}
+
+function canvasVideoEditDurationSeconds(payload: AnyPayload): number {
+  const parameters = toRecord(payload?.parameters)
+  const startMs = readNumber(parameters.startMs)
+  const endMs = readNumber(parameters.endMs)
+  if (startMs === null || endMs === null || endMs <= startMs) return 5
+  return Math.min(30, Math.max(4, Math.round((endMs - startMs) / 1000)))
+}
+
+function buildCanvasOperationTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo | null {
+  const model = billedCanvasVideoModel(payload)
+  if (!model) return null
+  const parameters = toRecord(payload?.parameters)
+  const duration = canvasVideoEditDurationSeconds(payload)
+  const resolution = readString(parameters.resolution) || '720p'
+  const generateAudio = typeof parameters.generateAudio === 'boolean' ? parameters.generateAudio : undefined
+  const metadata = {
+    resolution,
+    duration,
+    generationMode: 'normal',
+    containsVideoInput: true,
+    ...(typeof generateAudio === 'boolean' ? { generateAudio } : {}),
+  }
+  let maxFrozenCost = 0
+  try {
+    maxFrozenCost = calcVideo(model, resolution, 1, metadata)
+  } catch (error) {
+    if (error instanceof BillingOperationError && error.code === 'BILLING_UNKNOWN_MODEL') {
+      // Uncatalogued model: actual cost resolved in prepareTaskBilling with user context
+    } else {
+      throw error
+    }
+  }
+  return {
+    billable: true,
+    source: 'task',
+    taskType,
+    apiType: 'video',
+    model,
+    quantity: 1,
+    unit: 'video',
+    maxFrozenCost,
+    pricingVersion: BUILTIN_PRICING_VERSION,
+    action: String(taskType),
+    metadata,
+    status: 'quoted',
+  }
+}
+
 function buildVoiceTaskInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo {
-  const maxSeconds = Math.max(1, Math.floor(toNumber(payload?.maxSeconds, 5)))
+  const maxSeconds = Math.max(1, Math.floor(toNumber(
+    payload?.maxSeconds ?? payload?.duration ?? payload?.durationSeconds,
+    5,
+  )))
+  const model = pickFirstString([payload?.audioModel, payload?.voiceModel, payload?.model]) || 'nori::nori-audio'
   return {
     billable: true,
     source: 'task',
     taskType,
     apiType: 'voice',
-    model: 'index-tts2',
+    model,
     quantity: maxSeconds,
     unit: 'second',
-    maxFrozenCost: calcVoice(maxSeconds),
+    maxFrozenCost: calcVoice(maxSeconds, model),
     pricingVersion: BUILTIN_PRICING_VERSION,
     action: String(taskType),
     metadata: { maxSeconds },
@@ -251,7 +314,20 @@ export function isBillableTaskType(taskType: TaskType) {
   return BILLABLE_TASK_TYPES.has(taskType)
 }
 
+export function requiresTaskBilling(taskType: TaskType, payload?: AnyPayload): boolean {
+  if (isBillableTaskType(taskType)) return true
+  if (taskType === TASK_TYPE.TOOLBOX_MODEL_3D) return true
+  return billedCanvasVideoModel(payload) !== null
+}
+
 export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayload): TaskBillingInfo | null {
+  if (
+    taskType === TASK_TYPE.CANVAS_VIDEO_OPERATION
+    || taskType === TASK_TYPE.CANVAS_IMAGE_OPERATION
+  ) {
+    return buildCanvasOperationTaskInfo(taskType, payload)
+  }
+
   if (!isBillableTaskType(taskType)) return null
 
   switch (taskType) {
@@ -284,6 +360,7 @@ export function buildDefaultTaskBillingInfo(taskType: TaskType, payload: AnyPayl
       }
     }
     case TASK_TYPE.VOICE_LINE:
+    case TASK_TYPE.TOOLBOX_AUDIO:
       return buildVoiceTaskInfo(taskType, payload)
     case TASK_TYPE.VOICE_DESIGN:
     case TASK_TYPE.ASSET_HUB_VOICE_DESIGN:

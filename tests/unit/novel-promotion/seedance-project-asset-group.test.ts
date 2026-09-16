@@ -105,4 +105,28 @@ describe('project-scoped Seedance asset groups', () => {
     expect(name.length).toBeLessThanOrEqual(64)
     expect(name).toContain('Nori项目素材')
   })
+
+  it('does not reuse a stored group from another provider or account scope', async () => {
+    const project = {
+      id: 'project-scoped', name: 'Project', seedanceAssetGroupId: 'old-ark-id',
+      seedanceAssetsProjectName: 'default',
+    }
+    projectFindUnique.mockResolvedValue(project)
+    const tx = {
+      $queryRaw: vi.fn(async () => []),
+      project: { findUnique: vi.fn(async () => project), update: vi.fn() },
+    }
+    transaction.mockImplementation(async (callback: (client: typeof tx) => Promise<string>) => callback(tx))
+    const client = {
+      listAssetGroups: vi.fn(async () => ({ Items: [] })),
+      createAssetGroup: vi.fn(async () => ({ Id: '1800657071180349888' })),
+    } as unknown as SeedanceAssetsClient
+    const result = await ensureSeedanceProjectAssetGroup({
+      projectId: project.id, volcengineProjectName: '', ownershipScope: 'kuaizi:account-a', client,
+    })
+    expect(result).toBe('1800657071180349888')
+    expect(tx.project.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: { seedanceAssetGroupId: result, seedanceAssetsProjectName: 'kuaizi:account-a' },
+    }))
+  })
 })

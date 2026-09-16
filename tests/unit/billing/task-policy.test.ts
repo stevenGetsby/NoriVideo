@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { TASK_TYPE } from '@/lib/task/types'
-import { buildDefaultTaskBillingInfo, isBillableTaskType } from '@/lib/billing/task-policy'
+import { buildDefaultTaskBillingInfo, isBillableTaskType, requiresTaskBilling } from '@/lib/billing/task-policy'
 import type { TaskBillingInfo } from '@/lib/task/types'
 
 function expectBillableInfo(info: TaskBillingInfo | null): Extract<TaskBillingInfo, { billable: true }> {
@@ -32,6 +32,16 @@ describe('billing/task-policy', () => {
     const fake = 'not_billable' as unknown as (typeof TASK_TYPE)[keyof typeof TASK_TYPE]
     expect(isBillableTaskType(fake)).toBe(false)
     expect(buildDefaultTaskBillingInfo(fake, {})).toBeNull()
+  })
+
+  it('requires a price adapter before external 3D generation can run', () => {
+    expect(isBillableTaskType(TASK_TYPE.TOOLBOX_MODEL_3D)).toBe(false)
+    expect(requiresTaskBilling(TASK_TYPE.TOOLBOX_MODEL_3D, {
+      model3dModel: 'frameos3d::frameos-3d-v1',
+    })).toBe(true)
+    expect(buildDefaultTaskBillingInfo(TASK_TYPE.TOOLBOX_MODEL_3D, {
+      model3dModel: 'frameos3d::frameos-3d-v1',
+    })).toBeNull()
   })
 
   it('builds text billing info from explicit model payload', () => {
@@ -88,6 +98,17 @@ describe('billing/task-policy', () => {
     })
   })
 
+  it('quotes voice tasks against the selected audio model', () => {
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.VOICE_LINE, {
+      audioModel: 'nori::nori-audio',
+      maxSeconds: 8,
+    }))
+    expect(info.apiType).toBe('voice')
+    expect(info.model).toBe('nori::nori-audio')
+    expect(info.quantity).toBe(8)
+    expect(info.maxFrozenCost).toBeGreaterThan(0)
+  })
+
   it('uses explicit lip sync model from payload', () => {
     const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.LIP_SYNC, {
       lipSyncModel: 'vidu::vidu-lipsync',
@@ -95,5 +116,56 @@ describe('billing/task-policy', () => {
     expect(info.apiType).toBe('lip-sync')
     expect(info.model).toBe('vidu::vidu-lipsync')
     expect(info.quantity).toBe(1)
+  })
+
+  it('quotes toolbox audio against duration and the selected model', () => {
+    expect(isBillableTaskType(TASK_TYPE.TOOLBOX_AUDIO)).toBe(true)
+    const info = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.TOOLBOX_AUDIO, {
+      audioModel: 'kuaizi::speech-2.8-hd',
+      duration: 12,
+    }))
+    expect(info.apiType).toBe('voice')
+    expect(info.model).toBe('kuaizi::speech-2.8-hd')
+    expect(info.quantity).toBe(12)
+    expect(info.maxFrozenCost).toBeCloseTo(0.24, 8)
+  })
+
+  it('quotes paid canvas video_edit and leaves local processing unbilled', () => {
+    expect(requiresTaskBilling(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'video_edit',
+      engineKey: 'kuaizi-seedance25',
+      modelKey: 'doubao-seedance-2-5-260628',
+    })).toBe(true)
+    expect(requiresTaskBilling(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'subtitle_erase',
+      engineKey: 'local-ffmpeg',
+      modelKey: 'local-ffmpeg',
+    })).toBe(false)
+
+    const billed = expectBillableInfo(buildDefaultTaskBillingInfo(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'video_edit',
+      engineKey: 'kuaizi-seedance25',
+      modelKey: 'doubao-seedance-2-5-260628',
+      parameters: {
+        startMs: 1_000,
+        endMs: 6_000,
+        generateAudio: false,
+      },
+    }))
+    expect(billed.apiType).toBe('video')
+    expect(billed.model).toBe('kuaizi::doubao-seedance-2-5-260628')
+    expect(billed.metadata).toMatchObject({
+      resolution: '720p',
+      duration: 5,
+      containsVideoInput: true,
+      generateAudio: false,
+    })
+    expect(billed.maxFrozenCost).toBeGreaterThan(0)
+
+    expect(buildDefaultTaskBillingInfo(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'video_superresolve',
+      engineKey: 'local-ffmpeg',
+      modelKey: 'local-ffmpeg',
+    })).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 [Unit]
-Description=NoriVideo GHC bridge for Docker containers
+Description=NoriVideo GHC API bridge for Docker containers
 After=network-online.target docker.service
 Wants=network-online.target
 Requires=docker.service
@@ -9,7 +9,7 @@ Type=simple
 # Docker Compose can allocate a gateway other than docker0's 172.17.0.1.
 # Listen on all host interfaces but only accept RFC1918 Docker bridge clients;
 # the host firewall also keeps this port private.
-ExecStart=/usr/bin/socat TCP-LISTEN:18313,bind=0.0.0.0,reuseaddr,fork,range=172.16.0.0/12 TCP:127.0.0.1:18314
+ExecStart=/usr/bin/socat TCP-LISTEN:18313,bind=0.0.0.0,reuseaddr,fork,range=172.16.0.0/12 TCP:127.0.0.1:8313
 Restart=always
 RestartSec=3
 

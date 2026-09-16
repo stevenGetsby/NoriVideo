@@ -35,6 +35,7 @@ describe('Nori business model catalog', () => {
       ['nori::seedance2.0-mini', 'mini'],
       ['nori::seedance2.0-fast', 'fast'],
       ['nori::seedance2.0', 'pro'],
+      ['nori::norivideo2.5', 'pro'],
     ])
     expect(listNoriBusinessModels('audio').map((model) => model.key)).toEqual([
       'nori::nori-audio',
@@ -53,5 +54,6 @@ describe('Nori business model catalog', () => {
     expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('nori::nori-gpt')
     expect(normalizeProjectBusinessModelKey('hfsy::gpt-image-2', 'image')).toBe('nori::nori-image')
     expect(normalizeProjectBusinessModelKey('ark::doubao-seedance-1-5-pro', 'video')).toBe('nori::seedance2.0')
+    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('nori::norivideo2.5')
   })
 })

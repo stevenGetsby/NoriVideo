@@ -4,6 +4,16 @@ const getUserModelConfigMock = vi.hoisted(() => vi.fn())
 const getProjectModelConfigMock = vi.hoisted(() => vi.fn())
 const runModelGatewayTextCompletionMock = vi.hoisted(() => vi.fn())
 const getCompletionContentMock = vi.hoisted(() => vi.fn())
+const withTextBillingMock = vi.hoisted(() =>
+  vi.fn(async (
+    _userId: string,
+    _model: string,
+    _maxInputTokens: number,
+    _maxOutputTokens: number,
+    _recordParams: unknown,
+    generateFn: () => Promise<unknown>,
+  ) => await generateFn()),
+)
 
 vi.mock('@/lib/config-service', () => ({
   getProjectModelConfig: getProjectModelConfigMock,
@@ -18,11 +28,17 @@ vi.mock('@/lib/llm-client', () => ({
   getCompletionContent: getCompletionContentMock,
 }))
 
+vi.mock('@/lib/billing', () => ({
+  withTextBilling: withTextBillingMock,
+}))
+
 import { SuperAgentLLMClient } from '@/lib/super-agent/llm-client'
 
 describe('SuperAgentLLMClient', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    process.env.LLM_RUNTIME_MODE = 'configured'
+    delete process.env.DEV_TEXT_LLM_ENABLED
     getProjectModelConfigMock.mockResolvedValue({ analysisModel: 'openai-compatible::project-gpt' })
     getUserModelConfigMock.mockResolvedValue({ analysisModel: 'openai-compatible::gpt-4.1-mini' })
     runModelGatewayTextCompletionMock.mockResolvedValue({ id: 'completion-1' })
@@ -46,6 +62,7 @@ describe('SuperAgentLLMClient', () => {
         reasoning: true,
         reasoningEffort: 'medium',
         maxRetries: 0,
+        maxTokens: 16000,
         projectId: undefined,
         action: 'super-agent.llm',
       },

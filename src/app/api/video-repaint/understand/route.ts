@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
-import { apiHandler, ApiError } from '@/lib/api-errors'
+import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { getProviderConfig } from '@/lib/api-config'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
+import { recordTextUsage } from '@/lib/billing/runtime-usage'
 import {
   getArkVideoUnderstandingConfig,
   understandSourceStoryboardWithArk,
   understandVideoWithArk,
   type VideoUnderstandingMode,
 } from '@/lib/volcengine/video-understanding'
-import { requireGenerationCredit } from '@/lib/billing'
+import { withTextBilling } from '@/lib/billing'
 
 export const runtime = 'nodejs'
 export const maxDuration = 600
+const VIDEO_REPAINT_PROJECT_ID = 'video-repaint'
+const MAX_UNDERSTANDING_INPUT_TOKENS = 256_000
+const MAX_UNDERSTANDING_OUTPUT_TOKENS = 32_000
 
 function isVideoUnderstandingMode(value: unknown): value is VideoUnderstandingMode {
   return value === 'script' || value === 'board'
@@ -51,7 +55,10 @@ export const GET = apiHandler(async () => {
 export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
-  await requireGenerationCredit(authResult.session.user.id)
+  const userId = authResult.session.user.id
+  const requestId = getRequestId(request)
+  const understandingConfig = getArkVideoUnderstandingConfig()
+  const billingModel = `ark::${understandingConfig.model}`
 
   if (request.headers.get('content-type')?.includes('application/json')) {
     const payload: unknown = await request.json().catch(() => null)
@@ -76,13 +83,38 @@ export const POST = apiHandler(async (request: NextRequest) => {
     const startedAt = Date.now()
     let storyboardResult
     try {
-      storyboardResult = await understandSourceStoryboardWithArk({
-        apiKey,
-        fileId,
-        sourceAnalysis,
-        durationSeconds,
-        episodeNumber,
-      })
+      storyboardResult = await withTextBilling(
+        userId,
+        billingModel,
+        MAX_UNDERSTANDING_INPUT_TOKENS,
+        MAX_UNDERSTANDING_OUTPUT_TOKENS,
+        {
+          projectId: VIDEO_REPAINT_PROJECT_ID,
+          action: 'video_repaint_source_storyboard',
+          requestId,
+          metadata: {
+            operation: 'source-storyboard',
+            durationSeconds,
+            episodeNumber,
+          },
+        },
+        async () => {
+          const generated = await understandSourceStoryboardWithArk({
+            apiKey,
+            fileId,
+            sourceAnalysis,
+            durationSeconds,
+            episodeNumber,
+            model: understandingConfig.model,
+          })
+          recordTextUsage({
+            model: `ark::${generated.model}`,
+            inputTokens: generated.usage.inputTokens,
+            outputTokens: generated.usage.outputTokens,
+          })
+          return generated
+        },
+      )
     } catch (error) {
       rethrowVideoUnderstandingError(error)
     }
@@ -135,13 +167,39 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const startedAt = Date.now()
   let result
   try {
-    result = await understandVideoWithArk({
-      apiKey,
-      file: fileValue,
-      mode,
-      episodeNumber,
-      adaptationBrief,
-    })
+    result = await withTextBilling(
+      userId,
+      billingModel,
+      MAX_UNDERSTANDING_INPUT_TOKENS,
+      MAX_UNDERSTANDING_OUTPUT_TOKENS,
+      {
+        projectId: VIDEO_REPAINT_PROJECT_ID,
+        action: mode === 'board'
+          ? 'video_repaint_understanding_board'
+          : 'video_repaint_understanding_script',
+        requestId,
+        metadata: {
+          operation: mode === 'board' ? 'video-understanding-board' : 'video-understanding-script',
+          episodeNumber,
+        },
+      },
+      async () => {
+        const generated = await understandVideoWithArk({
+          apiKey,
+          file: fileValue,
+          mode,
+          episodeNumber,
+          adaptationBrief,
+          model: understandingConfig.model,
+        })
+        recordTextUsage({
+          model: `ark::${generated.model}`,
+          inputTokens: generated.usage.inputTokens,
+          outputTokens: generated.usage.outputTokens,
+        })
+        return generated
+      },
+    )
   } catch (error) {
     rethrowVideoUnderstandingError(error)
   }

@@ -68,6 +68,9 @@ vi.mock('@/lib/billing', () => ({
   rollbackTaskBilling: vi.fn(async () => null),
   settleTaskBilling: vi.fn(async () => null),
 }))
+vi.mock('@/lib/prompt-i18n/user-overrides', () => ({
+  loadUserPromptOverrides: vi.fn(async () => ({})),
+}))
 
 vi.mock('@/lib/billing/runtime-usage', () => ({
   withTextUsageCollection: vi.fn(async (fn: () => Promise<unknown>) => ({

@@ -21,7 +21,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '标准文本模型',
     type: 'llm',
     tier: 'standard',
-    suggestedRoute: 'ghc::gpt-5.5',
+    suggestedRoute: 'hfsy::gpt-5.5',
   },
   {
     key: 'nori::nori-gpt-max',
@@ -39,7 +39,7 @@ export const NORI_BUSINESS_MODELS = [
     description: 'Gemini 文本模型',
     type: 'llm',
     tier: 'pro',
-    suggestedRoute: 'ghc::gemini-3.1-pro-preview',
+    suggestedRoute: 'ark::doubao-seed-2-1-pro-260628',
   },
   {
     key: 'nori::nori-deepseek',
@@ -112,6 +112,15 @@ export const NORI_BUSINESS_MODELS = [
     type: 'video',
     tier: 'pro',
     suggestedRoute: 'ark::doubao-seedance-2-0-260128',
+  },
+  {
+    key: 'nori::norivideo2.5',
+    modelId: 'norivideo2.5',
+    name: 'norivideo2.5',
+    description: 'Seedance 2.5 高质量视频（最长 30 秒，多模态参考）',
+    type: 'video',
+    tier: 'pro',
+    suggestedRoute: 'kuaizi::doubao-seedance-2-5-260628',
   },
   {
     key: 'nori::nori-audio',

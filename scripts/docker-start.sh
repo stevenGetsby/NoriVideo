@@ -30,6 +30,7 @@ run_storage_init() {
 }
 
 ensure_service_config
+node ./fixed-tos-config-guard.mjs --runtime
 
 case "$SERVICE_MODE" in
   web)

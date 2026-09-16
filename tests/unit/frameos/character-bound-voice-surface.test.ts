@@ -33,6 +33,8 @@ describe('character-bound voice workflow', () => {
     expect(toolboxVideoWorker).toContain('extractVoiceAudioFromVideo')
     expect(toolboxVideoWorker).not.toContain("voiceType: 'seedance-audition'")
     expect(timbre).toContain('确认并绑定音色')
+    expect(timbre).toContain('useAccountBalance')
+    expect(timbre).toContain("if (!generationAllowed) { setError('积分不足，无法生成'); return }")
     expect(timbre).toContain('CompactAudioPlayer')
     expect(timbre).toContain('toPlayableAudioUrl')
     expect(timbre).toContain('fos-timbre-studio-grid')

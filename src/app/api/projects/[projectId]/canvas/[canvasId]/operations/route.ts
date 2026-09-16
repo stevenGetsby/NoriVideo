@@ -66,7 +66,7 @@ export const GET = apiHandler(async (
     : null
 
   return NextResponse.json({
-    asyncOperations: ['superresolve', 'video_superresolve', 'subtitle_erase'],
+    asyncOperations: ['superresolve', 'video_superresolve', 'subtitle_erase', 'video_edit'],
     engines: listCanvasOperationEngines(),
     latestTask: latestTask ? serializeCanvasOperationTask(latestTask) : null,
     links: latestTask ? canvasOperationTaskLinks(projectId, canvasId, latestTask.id) : null,

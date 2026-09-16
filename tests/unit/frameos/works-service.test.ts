@@ -10,6 +10,10 @@ const prismaMock = vi.hoisted(() => ({
   project: {
     findMany: vi.fn(),
     updateMany: vi.fn(),
+    update: vi.fn(),
+  },
+  projectMember: {
+    upsert: vi.fn(),
   },
   user: {
     count: vi.fn(),
@@ -38,8 +42,13 @@ const accessMock = vi.hoisted(() => ({
   })),
 }))
 
+const assignmentsMock = vi.hoisted(() => ({
+  syncProjectAssignmentsForProject: vi.fn(),
+}))
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/collaboration/access', () => accessMock)
+vi.mock('@/lib/collaboration/assignments', () => assignmentsMock)
 
 const session = {
   user: {
@@ -345,5 +354,73 @@ describe('works service behavior', () => {
     await expect(removeWorkMember(session, 'work-1', 'creator-1'))
       .rejects.toMatchObject({ code: 'CONFLICT' })
     expect(prismaMock.workMember.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('grants project review when a manager adds a reviewer as a collaborator', async () => {
+    accessMock.requireProjectAssignmentManager.mockResolvedValueOnce({
+      actor: accessMock.getWorkspaceActor(),
+      project: { id: 'project-1', userId: 'workspace-1', collaborationMode: 'solo' },
+    })
+    accessMock.requireActiveWorkspaceUser.mockResolvedValueOnce({
+      id: 'reviewer-1',
+      role: 'reviewer',
+    })
+    prismaMock.projectMember.upsert.mockResolvedValueOnce({
+      userId: 'reviewer-1',
+      canReviewAssignments: true,
+    })
+    prismaMock.project.update.mockResolvedValueOnce({ id: 'project-1', collaborationMode: 'team' })
+    const { addProjectMember } = await import('@/lib/works/service')
+
+    await expect(addProjectMember(session, 'project-1', 'reviewer-1')).resolves.toMatchObject({
+      userId: 'reviewer-1',
+      canReviewAssignments: true,
+    })
+    expect(prismaMock.projectMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: {
+        projectId: 'project-1',
+        userId: 'reviewer-1',
+        canManageAssignments: false,
+        canReviewAssignments: true,
+      },
+      update: { canReviewAssignments: true },
+    }))
+    expect(prismaMock.project.update).toHaveBeenCalledWith({
+      where: { id: 'project-1' },
+      data: { collaborationMode: 'team' },
+    })
+    expect(assignmentsMock.syncProjectAssignmentsForProject).toHaveBeenCalledWith({
+      projectId: 'project-1',
+      workspaceOwnerId: 'workspace-1',
+    })
+  })
+
+  it('does not grant review when adding a production subaccount', async () => {
+    accessMock.requireProjectAssignmentManager.mockResolvedValueOnce({
+      actor: accessMock.getWorkspaceActor(),
+      project: { id: 'project-1', userId: 'workspace-1', collaborationMode: 'team' },
+    })
+    accessMock.requireActiveWorkspaceUser.mockResolvedValueOnce({
+      id: 'writer-1',
+      role: 'writer',
+    })
+    prismaMock.projectMember.upsert.mockResolvedValueOnce({
+      userId: 'writer-1',
+      canReviewAssignments: false,
+    })
+    const { addProjectMember } = await import('@/lib/works/service')
+
+    await addProjectMember(session, 'project-1', 'writer-1')
+    expect(prismaMock.projectMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: {
+        projectId: 'project-1',
+        userId: 'writer-1',
+        canManageAssignments: false,
+        canReviewAssignments: false,
+      },
+      update: {},
+    }))
+    expect(prismaMock.project.update).not.toHaveBeenCalled()
+    expect(assignmentsMock.syncProjectAssignmentsForProject).not.toHaveBeenCalled()
   })
 })

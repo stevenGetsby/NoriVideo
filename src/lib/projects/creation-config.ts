@@ -79,6 +79,10 @@ const LIVE_ACTION_ASSET_PHOTOGRAPHY_PROMPT = [
 
 export function buildAssetAestheticPrompt(artStylePrompt: string | null | undefined): string {
   const style = artStylePrompt?.trim() || ''
+  // A project-level custom style is authoritative. Do not silently inject the
+  // live-action fallback, which would reintroduce the selected preset's visual
+  // language and conflict with the user's explicit style.
+  if (style.includes('【用户自定义画风')) return style
   const isAnimationStyle = /(?:3D\s*动漫|2\.5D\s*动漫|2D\s*动漫|二次元|赛璐璐|动画制作体系)/i.test(style)
   if (isAnimationStyle) return style
   return [LIVE_ACTION_ASSET_PHOTOGRAPHY_PROMPT, style].filter(Boolean).join('\n')
@@ -128,9 +132,12 @@ export function buildUnifiedArtStylePrompt(input: {
   const reference = input.referenceArtStylePrompt?.trim() || null
   const custom = input.customArtStylePrompt?.trim() || null
   return [
-    `【Nori1.0 项目基础画风】\n${base}`,
+    custom ? null : `【Nori1.0 项目基础画风】\n${base}`,
     reference ? `【画风参考解析】\n${reference}` : null,
-    custom ? `【用户自定义画风】\n${custom}` : null,
+    custom ? `【用户自定义画风（最高优先级）】\n${custom}` : null,
+    custom
+      ? '【画风优先级】\n用户自定义画风完全覆盖创建项目时选择的内置画风；内置画风不得参与资产图、分镜图或视频生成。画风参考解析只能补充不冲突的细节，不得覆盖用户自定义要求。'
+      : null,
     '【全流程一致性】\n以上画风是本项目资产图、分镜图与视频生成的统一视觉约束；不得因镜头、角色或生成批次变化而漂移。',
   ].filter((part): part is string => Boolean(part)).join('\n\n')
 }
@@ -330,7 +337,7 @@ export function normalizeProjectCreationConfig(body: Record<string, unknown>): P
     CREATE_PROJECT_STYLE_PROMPT_MAX_LENGTH,
     'referenceArtStylePrompt',
   )
-  const baseArtStylePrompt = PROJECT_STYLE_PROMPTS[projectStyle]
+  const baseArtStylePrompt = customStylePrompt ? '' : PROJECT_STYLE_PROMPTS[projectStyle]
 
   return {
     projectLevel,
@@ -370,15 +377,17 @@ export function buildProjectDescription(
     : config.projectLevel === 'premium2'
       ? '精品版 2.0（历史）'
       : '精品版（历史）'
-  const styleLabel = config.projectStyle === 'live-action'
-    ? '仿真人'
-    : config.projectStyle === 'anime-3d'
-      ? '3D 动漫'
-      : config.projectStyle === 'anime-2.5d'
-        ? '2.5D 动漫'
-        : config.projectStyle === 'anime-2d'
-          ? '2D 动漫'
-          : '动漫'
+  const styleLabel = config.usesCustomArtStylePrompt
+    ? '自定义画风'
+    : config.projectStyle === 'live-action'
+      ? '仿真人'
+      : config.projectStyle === 'anime-3d'
+        ? '3D 动漫'
+        : config.projectStyle === 'anime-2.5d'
+          ? '2.5D 动漫'
+          : config.projectStyle === 'anime-2d'
+            ? '2D 动漫'
+            : '动漫'
   const contentTypeLabel = config.contentType === 'narration' ? '解说模式' : '剧情模式'
   const materialTypeLabel = config.materialType === 'novel-outline' ? '小说/大纲' : '剧本'
   const audienceLabel = config.targetAudience === 'global-platform' ? '出海平台' : '中文平台'

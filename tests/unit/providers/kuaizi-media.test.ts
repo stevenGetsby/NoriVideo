@@ -38,6 +38,53 @@ describe('kuaizi media providers', () => {
     vi.unstubAllGlobals()
   })
 
+  it.each(['expired', 'cancelled', 'failed'])('treats %s as terminal failure', async (status) => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({ status })))
+    const result = await queryKuaiziTaskStatus({
+      type: 'VIDEO', modelId: 'doubao-seedance-2-5-260628', taskId: 'test',
+      apiKey: 'test-only',
+    })
+    expect(result.status).toBe('failed')
+  })
+
+  it('preserves actual Seedance output parameters and prefers the durable video URL', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => jsonResponse({
+      status: 'succeeded',
+      content: { video_url: 'https://test/temporary.mp4', kz_video_url: 'https://test/durable.mp4', last_frame_url: 'https://test/last.png' },
+      duration: 6.25, resolution: '480p', ratio: '16:9', frames: 150, framespersecond: 24,
+      generate_audio: false, seed: 123, usage: { completion_tokens: 120000 },
+    })))
+    expect(await queryKuaiziTaskStatus({
+      type: 'VIDEO', modelId: 'doubao-seedance-2-5-260628', taskId: 'test',
+      apiKey: 'test-only',
+    })).toMatchObject({
+      status: 'completed', videoUrl: 'https://test/durable.mp4', lastFrameUrl: 'https://test/last.png',
+      durationSeconds: 6.25, resolution: '480p', aspectRatio: '16:9', frames: 150, fps: 24,
+      generateAudio: false, seed: 123, actualVideoTokens: 120000,
+    })
+  })
+
+  it('preserves long asset URIs for image, video and audio references without signing or fetching them', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ id: 'seedance-assets-test' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const assetUri = 'asset://1800657071180349888'
+    await generateKuaiziVideo({
+      userId: 'u1', imageUrl: '', prompt: 'test',
+      options: {
+        provider: 'kuaizi', modelId: 'doubao-seedance-2-5-260628',
+        modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+        referenceImages: [assetUri], videos: [assetUri], audios: [assetUri], duration: 5, resolution: '720p',
+      },
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    const body = JSON.parse(String(requestAt(fetchMock)[1].body))
+    expect(body.content.slice(1)).toEqual([
+      { type: 'image_url', image_url: { url: assetUri }, role: 'reference_image' },
+      { type: 'video_url', video_url: { url: assetUri }, role: 'reference_video' },
+      { type: 'audio_url', audio_url: { url: assetUri }, role: 'reference_audio' },
+    ])
+  })
+
   it('submits image generation and returns a durable task id', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({
       code: 0,
@@ -121,6 +168,101 @@ describe('kuaizi media providers', () => {
     expect(seedance).toMatchObject({ success: true, async: true, requestId: 'seedance-task-1' })
   })
 
+  it('aligns Seedance 2.5 request fields with the Kuaizi compatible API', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ id: 'seedance-25-task' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateKuaiziVideo({
+      userId: 'user-1',
+      imageUrl: 'https://example.com/first.png',
+      prompt: '让人物从清晨走到黄昏',
+      options: {
+        provider: 'kuaizi',
+        modelId: 'doubao-seedance-2-5-260628',
+        modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+        lastFrameImageUrl: 'https://example.com/last.png',
+        resolution: '1080p',
+        aspectRatio: '16:9',
+        duration: 30,
+        frames: 125,
+        seed: 42,
+        generateAudio: false,
+        watermark: false,
+        returnLastFrame: true,
+        executionExpiresAfter: 7_200,
+        moderationIps: ['ip-1'],
+        safetyIdentifier: 'user-1',
+        bitrateMode: 'standard',
+        outputFormat: 'mp4',
+      },
+    })
+
+    const [, init] = requestAt(fetchMock)
+    expect(JSON.parse(String(init.body))).toEqual({
+      model: 'doubao-seedance-2-5-260628',
+      content: [
+        { type: 'text', text: '让人物从清晨走到黄昏' },
+        { type: 'image_url', image_url: { url: 'https://example.com/first.png' }, role: 'first_frame' },
+        { type: 'image_url', image_url: { url: 'https://example.com/last.png' }, role: 'last_frame' },
+      ],
+      resolution: '1080p',
+      ratio: 'adaptive',
+      duration: 30,
+      seed: 42,
+      generate_audio: false,
+      watermark: false,
+      return_last_frame: true,
+      execution_expires_after: 7_200,
+      moderation_options: { ips: ['ip-1'] },
+      safety_identifier: 'user-1',
+      bitrate_mode: 'standard',
+      output_format: 'mp4',
+    })
+  })
+
+  it('uses explicit Seedance 2.5 edit constraints and permits prompt-backed audio-only reference', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ id: 'seedance-25-task' }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await generateKuaiziVideo({
+      userId: 'user-1',
+      imageUrl: '',
+      prompt: 'change the sky to sunset',
+      options: {
+        provider: 'kuaizi',
+        modelId: 'doubao-seedance-2-5-260628',
+        modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+        videos: ['https://example.com/source.mp4'],
+        aspectRatio: '9:16',
+        duration: 12,
+        omniReferenceTaskType: 'edit',
+      },
+    })
+    await generateKuaiziVideo({
+      userId: 'user-1',
+      imageUrl: '',
+      prompt: '根据节奏创作抽象动画',
+      options: {
+        provider: 'kuaizi',
+        modelId: 'doubao-seedance-2-5-260628',
+        modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+        audios: ['https://example.com/music.wav'],
+      },
+    })
+
+    expect(JSON.parse(String(requestAt(fetchMock, 0)[1].body))).toMatchObject({
+      ratio: 'adaptive',
+      duration: -1,
+      omni_reference_task_type: 'edit',
+    })
+    expect(JSON.parse(String(requestAt(fetchMock, 1)[1].body))).toMatchObject({
+      content: [
+        { type: 'text', text: '根据节奏创作抽象动画' },
+        { type: 'audio_url', audio_url: { url: 'https://example.com/music.wav' }, role: 'reference_audio' },
+      ],
+    })
+  })
+
   it('submits MiniMax TTS with the documented request shape', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ code: 0, data: { task_id: 'audio-task-1' } }))
     vi.stubGlobal('fetch', fetchMock)
@@ -156,7 +298,10 @@ describe('kuaizi media providers', () => {
       url.includes('/api/v3/')
         ? jsonResponse({
           status: 'succeeded',
-          content: [{ type: 'video_url', video_url: { url: 'https://example.com/seedance.mp4' } }],
+          content: {
+            video_url: 'https://example.com/temporary-seedance.mp4',
+            kz_video_url: 'https://example.com/seedance.mp4',
+          },
           usage: { total_tokens: 321 },
         })
         : jsonResponse({

@@ -152,9 +152,12 @@ vi.mock('@/lib/media/service', () => mediaServiceMock)
 vi.mock('@/lib/model-capabilities/lookup', () => ({
   resolveBuiltinCapabilitiesByModelKey: vi.fn(() => ({ video: { firstlastframe: true } })),
 }))
-vi.mock('@/lib/model-config-contract', () => ({
-  composeModelKey: vi.fn((provider: string, modelId: string) => `${provider}::${modelId}`),
-  parseModelKeyStrict: vi.fn(() => ({ provider: 'fal' })),
+vi.mock('@/lib/service-config', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/service-config')>()),
+  getServiceLlmConfig: vi.fn(() => ({ modelRouting: {
+    'nori::seedance2.0-mini': 'kuaizi::doubao-seedance-2-0-mini-260615',
+    'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
+  } })),
 }))
 vi.mock('@/lib/api-config', () => ({
   getProviderConfig: vi.fn(async () => ({ apiKey: 'api-key' })),
@@ -474,6 +477,23 @@ describe('worker video processor behavior', () => {
     )
   })
 
+  it.each(['nori::seedance2.0-mini', 'nori::norivideo2.5'])('VIDEO_PANEL: %s preserves provider asset references', async (videoModel) => {
+    const assetUri = 'asset://1800657071180349888'
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({ characters: [], locations: [] })
+    prismaMock.novelPromotionPanel.findUnique.mockResolvedValueOnce(buildPanel({
+      imageUrl: null, imageMediaId: null,
+      actingNotes: JSON.stringify({ _seedanceReferenceAssets: [
+        { kind: 'character', name: 'Hero', imageUrl: assetUri, role: 'reference_image' },
+      ] }),
+    }))
+    await workerState.processor!(buildJob({
+      type: TASK_TYPE.VIDEO_PANEL, payload: { videoModel, generationOptions: { resolution: '720p' } },
+    }))
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      imageUrl: '', options: expect.objectContaining({ referenceImages: [assetUri] }),
+    }))
+  })
+
   it('VIDEO_PANEL: compiles ordered @ assets and uses only Seedance reference-image mode', async () => {
     const processor = workerState.processor
     expect(processor).toBeTruthy()
@@ -685,7 +705,7 @@ describe('worker video processor behavior', () => {
     )
   })
 
-  it('VIDEO_PANEL: falls back to Ark text-only generation when panel image is rejected by input-image moderation', async () => {
+  it('VIDEO_PANEL: never sends a Kuaizi-routed Seedance task to the Ark account on moderation failure', async () => {
     const processor = workerState.processor
     expect(processor).toBeTruthy()
 
@@ -700,7 +720,7 @@ describe('worker video processor behavior', () => {
     const job = buildJob({
       type: TASK_TYPE.VIDEO_PANEL,
       payload: {
-        videoModel: 'ark::doubao-seedance-2-0-260128',
+        videoModel: 'kuaizi::doubao-seedance-2-0-260128',
         generationOptions: {
           duration: 5,
           resolution: '720p',
@@ -709,57 +729,9 @@ describe('worker video processor behavior', () => {
       },
     })
 
-    const result = await processor!(job) as {
-      panelId: string
-      videoUrl: string
-      fallbackMode: string
-      actualVideoTokens: number
-    }
-
-    expect(arkApiMock.arkCreateVideoTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        model: 'doubao-seedance-2-0-260128',
-        content: [
-          {
-            type: 'text',
-            text: expect.stringContaining('改用纯文本视频生成'),
-          },
-        ],
-        resolution: '720p',
-        ratio: '16:9',
-        duration: 9,
-        generate_audio: false,
-      }),
-      expect.objectContaining({
-        apiKey: 'api-key',
-      }),
-    )
-    const fallbackCalls = arkApiMock.arkCreateVideoTask.mock.calls as unknown as Array<[{
-      content: Array<{ text?: string }>
-    }]>
-    const fallbackRequest = fallbackCalls[0]?.[0]
-    expect(fallbackRequest?.content[0]?.text).toContain('本分镜使用资产：角色=Ava')
-    expect(utilsMock.waitExternalResult).toHaveBeenCalledWith(
-      expect.anything(),
-      'ARK:VIDEO:ark-fallback-task-1',
-      'user-1',
-      expect.objectContaining({
-        progressStart: 45,
-        progressEnd: 94,
-      }),
-    )
-    expect(utilsMock.uploadVideoSourceToCos).toHaveBeenCalledWith(
-      'https://provider.example/fallback-video.mp4',
-      'panel-video',
-      'panel-1',
-      undefined,
-    )
-    expect(result).toEqual({
-      panelId: 'panel-1',
-      videoUrl: 'cos/lip-sync/video.mp4',
-      fallbackMode: 'ark_text_only_after_input_image_moderation',
-      actualVideoTokens: 88000,
-    })
+    await expect(processor!(job)).rejects.toThrow('ARK_FALLBACK_PROVIDER_MISMATCH')
+    expect(arkApiMock.arkCreateVideoTask).not.toHaveBeenCalled()
+    expect(utilsMock.waitExternalResult).not.toHaveBeenCalled()
   })
 
   it('LIP_SYNC: 缺少 panel 时显式失败', async () => {

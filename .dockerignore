@@ -18,6 +18,7 @@ tsconfig.tsbuildinfo
 .npm-logs
 .env
 .env.*
+.deploy.env
 !.env.docker.example
 config/services.json
 config/services.prod.json

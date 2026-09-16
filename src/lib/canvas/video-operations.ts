@@ -286,6 +286,36 @@ export async function renderCanvasPlaylistVideo(
   }
 }
 
+/** Cut an exact frame-accurate segment between the selected start and end frames. */
+export async function trimCanvasVideo(
+  input: Buffer,
+  options: { startMs: number; endMs: number },
+  hooks?: CanvasVideoOperationHooks,
+): Promise<CanvasVideoResult> {
+  const durationSeconds = Math.max(0.034, (options.endMs - options.startMs) / 1_000)
+  const ffmpeg = process.env.FFMPEG_PATH?.trim() || 'ffmpeg'
+  const processed = await withVideoFiles(input, async (inputPath, outputPath) => {
+    const source = await probeFile(inputPath)
+    const hasAudio = await fileHasAudio(inputPath)
+    await run(ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-ss', (options.startMs / 1_000).toFixed(3),
+      '-t', durationSeconds.toFixed(3),
+      '-i', inputPath,
+      '-map', '0:v:0',
+      ...(hasAudio ? ['-map', '0:a:0'] : []),
+      '-vf', 'format=yuv420p',
+      '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+      ...(hasAudio ? ['-c:a', 'aac', '-b:a', '192k'] : []),
+      '-movflags', '+faststart',
+      '-progress', 'pipe:2', '-nostats',
+      outputPath,
+    ], { durationSeconds, hooks })
+    return await probeFile(outputPath)
+  })
+  return { ...processed.value, body: processed.output }
+}
+
 export async function eraseCanvasVideoRegion(
   input: Buffer,
   regionInput: CanvasVideoRegion,

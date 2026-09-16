@@ -30,8 +30,11 @@ import { BillingOperationError, InsufficientBalanceError } from '@/lib/billing/e
 import {
   handleBillingError,
   prepareTaskBilling,
+  prepareStreamingTextBilling,
   rollbackTaskBilling,
+  rollbackStreamingTextBilling,
   settleTaskBilling,
+  settleStreamingTextBilling,
   withTextBilling,
   withVoiceBilling,
 } from '@/lib/billing/service'
@@ -236,6 +239,50 @@ describe('billing/service', () => {
     expect(handleBillingError('x')).toBeNull()
   })
 
+  it('freezes and settles streaming text from actual token usage', async () => {
+    modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+    ledgerMock.freezeBalance.mockResolvedValue('freeze_stream')
+
+    const prepared = await prepareStreamingTextBilling({
+      id: 'stream_1',
+      userId: 'u1',
+      projectId: 'assistant:tutorial',
+      action: 'assistant_tutorial',
+      model: 'nori::nori-gpt',
+      maxInputTokens: 8_000,
+      maxOutputTokens: 4_000,
+    })
+    await settleStreamingTextBilling(prepared, {
+      model: 'kuaizi::gpt-5.5',
+      inputTokens: 1_000,
+      outputTokens: 500,
+    })
+
+    const confirmCall = ledgerMock.confirmChargeWithRecord.mock.calls.at(-1)
+    expect(confirmCall?.[2]?.chargedAmount).toBeCloseTo(
+      calcText('nori::nori-gpt', 1_000, 500),
+      8,
+    )
+  })
+
+  it('rolls back an aborted streaming text freeze', async () => {
+    modeMock.getBillingMode.mockResolvedValue('ENFORCE')
+    ledgerMock.freezeBalance.mockResolvedValue('freeze_stream_abort')
+
+    const prepared = await prepareStreamingTextBilling({
+      id: 'stream_abort',
+      userId: 'u1',
+      projectId: 'assistant:tutorial',
+      action: 'assistant_tutorial',
+      model: 'nori::nori-gpt',
+      maxInputTokens: 8_000,
+      maxOutputTokens: 4_000,
+    })
+    await rollbackStreamingTextBilling(prepared)
+
+    expect(ledgerMock.rollbackFreeze).toHaveBeenCalledWith('freeze_stream_abort')
+  })
+
   describe('task billing lifecycle helpers', () => {
     function buildTaskInfo(overrides: Partial<Extract<TaskBillingInfo, { billable: true }>> = {}): Extract<TaskBillingInfo, { billable: true }> {
       return {
@@ -311,6 +358,28 @@ describe('billing/service', () => {
       const enforceInfo = enforce as Extract<TaskBillingInfo, { billable: true }>
       expect(enforceInfo.status).toBe('frozen')
       expect(enforceInfo.freezeId).toBe('freeze_task_1')
+    })
+
+    it('prepareTaskBilling refuses unknown models in ENFORCE instead of running at 0', async () => {
+      modeMock.getBillingMode.mockResolvedValueOnce('ENFORCE')
+      await expect(prepareTaskBilling({
+        id: 'task_enforce_unknown_text_model',
+        userId: 'u1',
+        projectId: 'p1',
+        billingInfo: buildTaskInfo({
+          taskType: 'story_to_script_run',
+          apiType: 'text',
+          model: 'gpt-5.2',
+          quantity: 2400,
+          unit: 'token',
+          maxFrozenCost: 0,
+          action: 'story_to_script_run',
+        }),
+      })).rejects.toMatchObject({
+        name: 'BillingOperationError',
+        code: 'BILLING_UNKNOWN_MODEL',
+      })
+      expect(ledgerMock.freezeBalance).not.toHaveBeenCalled()
     })
 
     it('prepareTaskBilling tolerates unknown text model pricing in SHADOW mode', async () => {
@@ -598,6 +667,22 @@ describe('billing/service', () => {
 
       expect(ledgerMock.increasePendingFreezeAmount).toHaveBeenCalledTimes(1)
       expect((settled as Extract<TaskBillingInfo, { billable: true }>).chargedCost).toBeCloseTo(7.452, 8)
+    })
+
+    it.each([
+      ['nori::norivideo2.5', 5.625],
+      ['nori::seedance2.0-mini', 0.6125],
+    ])('settles %s using output seconds/resolution, not tokens or seconds-as-video-count', async (model, expected) => {
+      const settled = await settleTaskBilling({
+        id: 'task_duration_actual', userId: 'u1', projectId: 'p1',
+        billingInfo: buildSeedance2VideoTaskInfo({
+          model, modeSnapshot: 'ENFORCE', freezeId: 'freeze_duration',
+          maxFrozenCost: 9, quantity: 1,
+        }),
+      }, {
+        result: { actualVideoTokens: 120000, durationSeconds: 6.25, resolution: '480p' },
+      })
+      expect(settled).toMatchObject({ quantity: 1, chargedCost: expected })
     })
 
     it('settleTaskBilling keeps quoted charge when text usage has no token counts', async () => {

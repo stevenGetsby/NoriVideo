@@ -2,7 +2,7 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 const CATALOG_DIR = path.resolve(process.cwd(), 'standards/pricing')
-const CAPABILITY_CATALOG_FILE = path.resolve(process.cwd(), 'standards/capabilities/image-video.catalog.json')
+const CAPABILITY_CATALOG_DIR = path.resolve(process.cwd(), 'standards/capabilities')
 const API_TYPES = new Set(['text', 'image', 'video', 'voice', 'voice-design', 'lip-sync'])
 const PRICING_MODES = new Set(['flat', 'capability'])
 const TEXT_TOKEN_TYPES = new Set(['input', 'output'])
@@ -53,10 +53,21 @@ async function readCatalog(filePath) {
 }
 
 async function readCapabilityCatalog() {
-  const raw = await fs.readFile(CAPABILITY_CATALOG_FILE, 'utf8')
-  const parsed = JSON.parse(raw)
-  if (!Array.isArray(parsed)) {
-    throw new Error(`capability catalog must be an array: ${CAPABILITY_CATALOG_FILE}`)
+  const entries = await fs.readdir(CAPABILITY_CATALOG_DIR, { withFileTypes: true })
+  const files = entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .map((entry) => path.join(CAPABILITY_CATALOG_DIR, entry.name))
+  if (files.length === 0) {
+    throw new Error(`capability catalog missing in ${CAPABILITY_CATALOG_DIR}`)
+  }
+  const parsed = []
+  for (const filePath of files) {
+    const raw = await fs.readFile(filePath, 'utf8')
+    const items = JSON.parse(raw)
+    if (!Array.isArray(items)) {
+      throw new Error(`capability catalog must be an array: ${filePath}`)
+    }
+    parsed.push(...items)
   }
   return parsed
 }

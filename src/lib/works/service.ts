@@ -3,6 +3,7 @@ import type { Prisma } from '@prisma/client'
 import { ApiError } from '@/lib/api-errors'
 import { prisma } from '@/lib/prisma'
 import { effectiveAccountPermissions, hasAccountPermissions } from '@/lib/account/permissions'
+import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 import {
   getWorkspaceActor,
   requireActiveWorkspaceUser,
@@ -489,7 +490,7 @@ export async function listProjectMembers(session: AuthSession, projectId: string
     roleLabel: member.user.roleLabel,
     status: member.user.status,
     canManageAssignments: member.canManageAssignments,
-    canReviewAssignments: member.canReviewAssignments,
+    canReviewAssignments: member.canReviewAssignments || member.user.role === 'reviewer',
     isCreator: member.userId === project.createdById,
     canRemove: member.userId !== project.createdById,
   }))
@@ -510,14 +511,31 @@ export async function listProjectMembers(session: AuthSession, projectId: string
 }
 
 export async function addProjectMember(session: AuthSession, projectId: string, userId: string) {
-  const { actor } = await requireProjectAssignmentManager(session, projectId)
-  await requireActiveWorkspaceUser(actor.workspaceOwnerId, userId)
-  return prisma.projectMember.upsert({
+  const { actor, project } = await requireProjectAssignmentManager(session, projectId)
+  const user = await requireActiveWorkspaceUser(actor.workspaceOwnerId, userId)
+  const canReviewAssignments = user.role === 'reviewer'
+  const membership = await prisma.projectMember.upsert({
     where: { projectId_userId: { projectId, userId } },
-    update: {},
-    create: { projectId, userId },
+    update: canReviewAssignments ? { canReviewAssignments: true } : {},
+    create: {
+      projectId,
+      userId,
+      canManageAssignments: false,
+      canReviewAssignments,
+    },
     include: { user: { select: { id: true, name: true, role: true, status: true } } },
   })
+  if (canReviewAssignments && project.collaborationMode !== 'team') {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: { collaborationMode: 'team' },
+    })
+    await syncProjectAssignmentsForProject({
+      projectId,
+      workspaceOwnerId: project.userId || actor.workspaceOwnerId,
+    })
+  }
+  return membership
 }
 
 export async function removeProjectMember(session: AuthSession, projectId: string, userId: string) {

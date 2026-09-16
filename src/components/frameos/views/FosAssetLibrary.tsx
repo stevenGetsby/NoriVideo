@@ -191,34 +191,18 @@ function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: stri
 
 function AssetCard({
   asset,
-  batch,
-  checked,
-  onToggle,
   onOpen,
 }: {
   asset: Asset
-  batch: boolean
-  checked: boolean
-  onToggle: () => void
   onOpen: () => void
 }) {
   const color = ROLE_COLORS[asset.role]
   return (
     <div className="overflow-hidden rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)]">
       <div className="relative">
-        {batch ? (
-          <button
-            type="button"
-            onClick={onToggle}
-            className="absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-[6px] border-2"
-            style={{ borderColor: checked ? 'var(--fos-primary)' : 'rgba(255,255,255,.5)', background: checked ? 'var(--fos-primary)' : 'rgba(0,0,0,.4)' }}
-          >
-            {checked ? <AppIcon name="check" className="h-3.5 w-3.5 text-white" /> : null}
-          </button>
-        ) : null}
         <button
           type="button"
-          onClick={batch ? onToggle : onOpen}
+          onClick={onOpen}
           className="grid w-full"
           style={{ gridTemplateColumns: `1.3fr repeat(${Math.max(asset.poses - 1, 0)}, 1fr)`, aspectRatio: '16 / 7' }}
         >
@@ -273,8 +257,6 @@ export function FosAssetLibrary() {
   const { data: session } = useSession()
   const params = useSearchParams()
   const [category, setCategory] = useState<AssetCategory>('characters')
-  const [batch, setBatch] = useState(params?.get('batch') === '1')
-  const [selected, setSelected] = useState<Set<string>>(new Set())
   const [lightbox, setLightbox] = useState<Asset | null>(null)
   const [projects, setProjects] = useState<ProjectItem[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
@@ -356,7 +338,6 @@ export function FosAssetLibrary() {
   }, [loadAssets])
 
   useEffect(() => {
-    setSelected(new Set())
     setLightbox(null)
   }, [category, selectedProjectId])
 
@@ -370,13 +351,6 @@ export function FosAssetLibrary() {
     : category === 'items'
       ? 'prop'
       : 'location'
-
-  const toggle = (key: string) => setSelected((current) => {
-    const next = new Set(current)
-    if (next.has(key)) next.delete(key)
-    else next.add(key)
-    return next
-  })
 
   const selectSource = (projectId: string | null) => {
     setSelectedProjectId(projectId)
@@ -445,21 +419,8 @@ export function FosAssetLibrary() {
             <button type="button" onClick={() => void loadAssets()} className="fos-btn fos-btn-ghost fos-btn-sm" disabled={loading}>
               <AppIcon name="refresh" className={`h-3.5 w-3.5${loading ? ' animate-spin' : ''}`} />刷新
             </button>
-            <button type="button" onClick={() => { setBatch((value) => !value); setSelected(new Set()) }} className="fos-btn fos-btn-primary fos-btn-sm">
-              <AppIcon name="checkDot" className="h-3.5 w-3.5" />批量操作
-            </button>
           </div>
         </div>
-
-        {batch ? (
-          <div className="fal-batch-toolbar flex items-center gap-3 border-b border-[var(--fos-border-soft)] bg-[var(--fos-primary-soft)] px-5 py-2.5">
-            <span className="flex items-center gap-1 text-[13px] font-bold text-white"><span className="h-3 w-1 rounded bg-[var(--fos-primary)]" />已选 <span className="text-[var(--fos-primary)]">{selected.size}</span> 项</span>
-            <div className="ml-auto flex items-center gap-2">
-              <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={selected.size === 0}><AppIcon name="download" className="h-3.5 w-3.5" />下载</button>
-              <button type="button" onClick={() => { setBatch(false); setSelected(new Set()) }} className="fos-btn fos-btn-ghost fos-btn-sm"><AppIcon name="close" className="h-3.5 w-3.5" />退出</button>
-            </div>
-          </div>
-        ) : null}
 
         <div className="fal-content min-h-0 flex-1 overflow-y-auto p-5">
           {loading ? (
@@ -485,9 +446,6 @@ export function FosAssetLibrary() {
                 <AssetCard
                   key={asset.key}
                   asset={asset}
-                  batch={batch}
-                  checked={selected.has(asset.key)}
-                  onToggle={() => toggle(asset.key)}
                   onOpen={() => setLightbox(asset)}
                 />
               ))}

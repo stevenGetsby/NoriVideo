@@ -5,6 +5,7 @@ node_modules/
 # Environment and local secrets
 .env
 .env.*
+.deploy.env
 !.env.example
 !*.example
 config/services.json

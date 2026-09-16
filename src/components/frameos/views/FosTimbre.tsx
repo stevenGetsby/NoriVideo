@@ -10,6 +10,7 @@ import { hasAccountPermissions } from '@/lib/account/permissions'
 import { toDisplayImageUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
 import { resolveTaskResponse } from '@/lib/task/client'
 import type { FosAsset, FosProjectData } from '../useFosProject'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { AssetTabs } from './FosAssetShared'
 
 type TimbreTab = 'seedance' | 'local'
@@ -109,6 +110,7 @@ function CompactAudioPlayer({ src, label }: { src: string; label: string }) {
 
 export function FosTimbre({ data }: { data: FosProjectData }) {
   const { data: session } = useSession()
+  const { generationAllowed } = useAccountBalance()
   const canEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])
   const characters = data.characters
   const [activeId, setActiveId] = useState(characters[0]?.id ?? '')
@@ -211,6 +213,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
   }
 
   const generateAudition = async () => {
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     if (!active || !canEdit || !modelKey || !prompt.trim() || busy) return
     setBusy(true)
     setProgress(0)
@@ -334,9 +337,9 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
                     {models.map((model) => <option key={model.modelKey} value={model.modelKey}>{model.name}</option>)}
                     {modelUnavailable ? <option value="">未配置 Seedance 2.0</option> : null}
                   </select>
-                  <button type="button" className="fos-btn fos-btn-primary" disabled={!canEdit || busy || modelUnavailable || !imageUrl || !prompt.trim()} onClick={() => void generateAudition()}>
+                  <button type="button" className="fos-btn fos-btn-primary" disabled={!generationAllowed || !canEdit || busy || modelUnavailable || !imageUrl || !prompt.trim()} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void generateAudition()}>
                     <AppIcon name={busy ? 'loader' : 'video'} className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
-                    {busy ? '试镜处理中…' : '生成试镜音色'}
+                    {busy ? '试镜处理中…' : !generationAllowed ? '积分不足' : '生成试镜音色'}
                   </button>
                 </div>
                 {stage ? <div className="fos-timbre-progress"><span>{stage}</span><strong>{progress ?? 0}%</strong></div> : <div className="fos-timbre-control-note">使用角色设定图生成 5 秒带人声试镜，并自动提取纯净音轨。</div>}

@@ -65,6 +65,28 @@ function matchTier(
   return null
 }
 
+function resolveUniqueModelIdEntry(apiType: PricingApiType, modelId: string): PricingResolution {
+  const candidates = findBuiltinPricingCatalogEntriesByModelId(apiType, modelId)
+  if (candidates.length === 0) {
+    return { status: 'not_configured' }
+  }
+  if (candidates.length > 1) {
+    return {
+      status: 'ambiguous_model',
+      apiType,
+      modelId,
+      candidates,
+    }
+  }
+
+  return {
+    status: 'resolved',
+    entry: candidates[0],
+    amount: 0,
+    mode: candidates[0].pricing.mode,
+  }
+}
+
 function resolveEntryByModel(apiType: PricingApiType, model: string): PricingResolution {
   // Stable Nori business models can have a retail price that intentionally
   // differs from the administrator-selected upstream route. Always honor the
@@ -85,28 +107,11 @@ function resolveEntryByModel(apiType: PricingApiType, model: string): PricingRes
     if (exact) {
       return { status: 'resolved', entry: exact, amount: 0, mode: exact.pricing.mode }
     }
-    return { status: 'not_configured' }
+    // Same upstream modelId (for example Seedance on Kuaizi vs Ark) keeps one price.
+    return resolveUniqueModelIdEntry(apiType, parsed.modelId)
   }
 
-  const candidates = findBuiltinPricingCatalogEntriesByModelId(apiType, model)
-  if (candidates.length === 0) {
-    return { status: 'not_configured' }
-  }
-  if (candidates.length > 1) {
-    return {
-      status: 'ambiguous_model',
-      apiType,
-      modelId: model,
-      candidates,
-    }
-  }
-
-  return {
-    status: 'resolved',
-    entry: candidates[0],
-    amount: 0,
-    mode: candidates[0].pricing.mode,
-  }
+  return resolveUniqueModelIdEntry(apiType, model)
 }
 
 export function resolveBuiltinPricing(input: {

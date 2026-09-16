@@ -46,6 +46,26 @@ function buttonContaining(markup: string, label: string) {
 }
 
 describe('canvas editor interaction contracts', () => {
+  it('clears selected nodes and edges when the canvas pane is clicked', () => {
+    const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    const pointerUpStart = graph.indexOf('onPointerUpCapture={(event) => {')
+    const pointerUpEnd = graph.indexOf('onPointerCancelCapture=', pointerUpStart)
+    const pointerUp = graph.slice(pointerUpStart, pointerUpEnd)
+    const paneClickStart = graph.indexOf('onPaneClick={() => {')
+    const paneClickEnd = graph.indexOf('onPaneContextMenu=', paneClickStart)
+    const paneClick = graph.slice(paneClickStart, paneClickEnd)
+
+    expect(graph).toContain('const clearCanvasSelection = useCallback(() => {')
+    expect(graph).toContain('function isCanvasBlankPointerTarget(target: EventTarget | null)')
+    expect(graph).toContain("target.closest('.react-flow__background')")
+    expect(graph).toContain('&& isCanvasBlankPointerTarget(event.target)')
+    expect(graph).toContain('node.selected ? { ...node, selected: false } : node')
+    expect(graph).toContain('edge.selected ? { ...edge, selected: false } : edge')
+    expect(pointerUp).toContain('} else if (!edgeSelection.additive) {')
+    expect(pointerUp).toContain('clearCanvasSelection()')
+    expect(paneClick).toContain('clearCanvasSelection()')
+  })
+
   it('matches FrameOS bidirectional side-port wiring and canonical edge direction', () => {
     expect(normalizeCanvasConnection({ source: 'upstream', target: 'downstream', sourceHandle: 'output', targetHandle: 'input' })).toEqual({
       source: 'upstream', target: 'downstream', sourceHandle: 'output', targetHandle: 'input',
@@ -59,6 +79,7 @@ describe('canvas editor interaction contracts', () => {
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     const creativeNode = readSource('src/features/canvas/nodes/CreativeNode.tsx')
     expect(graph).toContain('connectionMode={ConnectionMode.Loose}')
+    expect(graph).toContain('connectOnClick={false}')
     expect(graph).toContain('selectionMode={SelectionMode.Partial}')
     expect(graph).toContain("multiSelectionKeyCode={['Shift', 'Meta', 'Control']}")
     expect(graph).toContain('minZoom={0.15}')
@@ -298,6 +319,21 @@ describe('canvas editor interaction contracts', () => {
     expect(graph).toContain('dismissTransientUi()')
     expect(graph).toContain('setAssetsOpen(false)')
     expect(graph).toContain('setPickerOpen(false)')
+  })
+
+  it('cancels pending wires and every media preview with Escape', () => {
+    const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    const preview = readSource('src/features/canvas/components/CanvasMediaPreviewDialog.tsx')
+
+    expect(graph).toContain('flowStore.getState().cancelConnection()')
+    expect(graph).toContain('connectionActiveRef.current = false')
+    expect(graph).toContain('setConnectionActive(false)')
+    expect(graph).toContain('setMediaPreviewNodeId(null)')
+    expect(graph).toContain('setModelPreviewNodeId(null)')
+    expect(graph).toContain('setPanoramaPreviewNodeId(null)')
+    expect(preview).toContain("document.addEventListener('keydown', keydown, true)")
+    expect(preview).toContain("document.removeEventListener('keydown', keydown, true)")
+    expect(preview).toContain('role="dialog" aria-modal="true"')
   })
 
   it('removes a disconnected source reference but keeps duplicate and unrelated references', () => {

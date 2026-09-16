@@ -19,6 +19,7 @@ import {
   Maximize2,
   Minimize2,
   Music2,
+  Plus,
   Send,
   SlidersHorizontal,
   Type,
@@ -28,6 +29,7 @@ import {
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import {
@@ -35,10 +37,11 @@ import {
   CANVAS_IMAGE_QUALITIES,
   CANVAS_IMAGE_RESOLUTIONS,
   CANVAS_PANORAMA_ASPECT_RATIO,
-  CANVAS_VIDEO_ASPECT_RATIOS,
   CANVAS_VIDEO_DURATION_MAX,
   CANVAS_VIDEO_DURATION_MIN,
   CANVAS_VIDEO_RESOLUTIONS,
+  canvasVideoAspectRatioOptions,
+  isSeedance25VideoModelKey,
   resolveSupportedResolution,
   canvasPanoramaEditorAspectRatio,
   canvasVideoEditorMode,
@@ -183,6 +186,18 @@ function modelOptions(model: ModelOption | undefined, key: string) {
   return (model?.options[key] || []).map(String)
 }
 
+/** 引用素材上限按当前输入模式取对应媒体类型的上限。 */
+export function resolveReferencePickerMax(
+  picker: 'all' | 'image' | 'video' | 'audio' | null,
+  maxes: { image: number; video: number; audio: number },
+): number {
+  let limit = maxes.image
+  if (picker === 'video') limit = maxes.video
+  else if (picker === 'audio') limit = maxes.audio
+  else if (picker === 'all') limit = maxes.image + maxes.video + maxes.audio
+  return Math.max(1, limit || 9)
+}
+
 function resolutionLabel(value: string) {
   return value.toLowerCase() === '4k' ? '4K' : value
 }
@@ -267,6 +282,8 @@ export function CanvasGenerator({
   onReplace,
   onClose,
   onFocus,
+  onAddReferences,
+  injectedReferenceNodeIds,
   anchor,
   panelWidth,
   onPanelWidthChange,
@@ -280,10 +297,13 @@ export function CanvasGenerator({
   onReplace: () => void
   onClose: () => void
   onFocus: () => void
+  onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
+  injectedReferenceNodeIds?: string[]
   anchor?: CanvasGeneratorAnchor | null
   panelWidth: number
   onPanelWidthChange: (width: number) => void
 }) {
+  const { generationAllowed } = useAccountBalance()
   const type = nodeKind(node)
   const isPanorama = type === 'image' && node.data.processType === 'panorama_720'
   const isImageEdit = type === 'image' && node.data.processType === 'image_edit'
@@ -461,6 +481,10 @@ export function CanvasGenerator({
   }, [availableModels, config, isImageEdit, loadingConfig, node.data.processType, storyboard, type])
 
   const currentModel = availableModels.find((model) => model.key === modelKey)
+  const videoAspectRatios = useMemo(
+    () => canvasVideoAspectRatioOptions(modelKey, inputMode),
+    [inputMode, modelKey],
+  )
 
   useEffect(() => {
     if (type !== 'video' || !currentModel) return
@@ -554,9 +578,18 @@ export function CanvasGenerator({
     }
     if (type === 'video' && videoDurationOptions.length > 0) setDuration((current) => videoDurationOptions.includes(current) ? current : videoDurationOptions[0])
     if (type === 'video') setFps((current) => fpsOptions.length > 0 ? current !== null && fpsOptions.includes(current) ? current : fpsOptions[0] : null)
-    if (!supportsImageToVideo && inputMode === 'image') setInputMode('text')
-    if (!currentModel?.raw?.firstLastFrame && inputMode === 'firstlastframe') setInputMode('text')
-  }, [config?.defaults.resolution, currentModel?.raw?.firstLastFrame, fpsOptions, inputMode, supportedResolutions, supportsImageToVideo, type, videoDurationOptions])
+    // 配置还没加载完或尚未解析出当前模型时，不能把「图生视频 / 首尾帧」当作不支持，
+    // 否则打开已保存的首尾帧节点会被错误降级成全能参考。等模型能力就绪后再降级。
+    if (currentModel) {
+      if (!supportsImageToVideo && inputMode === 'image') setInputMode('text')
+      if (currentModel.raw?.firstLastFrame !== true && inputMode === 'firstlastframe') setInputMode('text')
+    }
+    if (type === 'video') {
+      setAspectRatio((current) => videoAspectRatios.includes(current as (typeof videoAspectRatios)[number])
+        ? current
+        : videoAspectRatios[0] || '16:9')
+    }
+  }, [config?.defaults.resolution, currentModel?.raw?.firstLastFrame, fpsOptions, inputMode, supportedResolutions, supportsImageToVideo, type, videoAspectRatios, videoDurationOptions])
 
   useEffect(() => {
     if (type !== 'video' || inputMode === 'text') return
@@ -635,7 +668,9 @@ export function CanvasGenerator({
         enforceMinimums: strict,
         requireKnownAudioDuration: strict,
       }),
-      ...(type === 'video' && strict ? validateVideoReferenceMediaCombination(summaries) : []),
+      ...(type === 'video' && strict ? validateVideoReferenceMediaCombination(summaries, {
+        allowAudioOnly: isSeedance25VideoModelKey(modelKey),
+      }) : []),
     ]
   }
 
@@ -670,7 +705,26 @@ export function CanvasGenerator({
     })
   }
 
+  // 从素材库挑选的引用素材会先落到画布成为节点，再通过这个注入合并进来，
+  // 因此引用关系不依赖用户手动画线。
+  const injectedSignature = (injectedReferenceNodeIds || []).join('|')
+  useEffect(() => {
+    const ids = injectedReferenceNodeIds || []
+    if (ids.length === 0) return
+    setReferenceNodeIds((current) => {
+      const next = [...current]
+      for (const id of ids) if (!next.includes(id)) next.push(id)
+      if (next.length === current.length) return current
+      const errors = referenceErrors(next, false)
+      if (errors.length > 0) { setError(errors[0]); return current }
+      setError(null)
+      return next
+    })
+    // 只有新的注入批次才需要合并，签名保证同一批不会重复触发。
+  }, [injectedSignature])
+
   const submit = async () => {
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     const upstreamText = incomingNodes
       .filter((item) => item.type === 'text' || item.type === 'note' || item.data.mediaType === 'text')
       .map((item) => item.data.text?.trim() || '')
@@ -791,6 +845,18 @@ export function CanvasGenerator({
   }
 
   const TypeIcon = type === 'text' ? Type : type === 'video' ? Film : type === 'audio' ? Music2 : type === 'model3d' ? Box : ImageIcon
+  const referencePickerType: 'all' | 'image' | 'video' | 'audio' | null = type === 'video'
+    ? inputMode === 'text' ? 'all' : 'image'
+    : type === 'image'
+      ? 'image'
+      : type === 'audio'
+        ? 'audio'
+        : null
+  const referencePickerMax = resolveReferencePickerMax(referencePickerType, {
+    image: effectiveInputSchema?.image.max || 0,
+    video: effectiveInputSchema?.video.max || 0,
+    audio: effectiveInputSchema?.audio.max || 0,
+  })
   const qualityLabel = quality === 'low' ? '低' : quality === 'medium' ? '中' : '高'
   const parameterSummary = type === 'image'
     ? `${aspectRatio} · ${resolution || '默认'} · ${qualityLabel} · ${storyboard ? normalizeStoryboardCount(count) : count}${storyboard ? '镜' : '张'}`
@@ -821,17 +887,13 @@ export function CanvasGenerator({
         </div>
       </div>
 
-      {(type === 'image' || type === 'video' || type === 'audio') && displayedReferenceNodes.length > 0 ? (
+      {type === 'image' || type === 'video' || type === 'audio' ? (
         <div className="nori-canvas-generator-refs">
           <span className="nori-canvas-generator-refs-label">引用素材</span>
-          {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : '框选画面局部作为聚焦参考'} disabled={storyboard} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
+          {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
           {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} onToggle={() => toggleReferenceNode(incoming)} onHover={setHoveredReferenceId} />)}
-        </div>
-      ) : type === 'image' && !isPanorama ? (
-        <div className="nori-canvas-generator-refs">
-          <button type="button" className="nori-canvas-generator-entry" disabled title="请先连接一张图片"><Focus /><span>聚焦</span></button>
-          <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button>
+          {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /></button> : null}
         </div>
       ) : null}
 
@@ -899,25 +961,21 @@ export function CanvasGenerator({
               const disabled = model.raw?.available === false || inpaintUnsupported
               const availabilityLabel = model.raw?.available === false
                 ? model.raw.healthStatus === 'unhealthy' ? ' · 服务异常' : ' · 未配置'
-                : model.raw?.healthStatus === 'healthy'
-                  ? ' · 已检测'
-                  : model.raw?.configured
-                    ? model.raw.healthMessage?.includes('已过期') ? ' · 检测已过期' : ' · 未检测'
-                    : ''
+                : ''
               return <option key={model.key} value={model.key} disabled={disabled}>{model.label}{availabilityLabel}{inpaintUnsupported ? ' · 不支持蒙版重绘' : ''}</option>
             })}
           </select>
           <ChevronDown />
         </label>
         {(type === 'image' || type === 'video') ? <button type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-expanded={moreOpen} onClick={() => setMoreOpen((value) => !value)}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span></button> : null}
-        <button type="button" className="nori-canvas-generate-button" disabled={submitting || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成'}><Send /></button>
+        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={!generationAllowed ? '积分不足，无法生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成'}><Send /></button>
       </div>
 
       {moreOpen && (type === 'image' || type === 'video') ? (
         <div className="nori-canvas-generator-more">
           <div className="nori-canvas-generator-parameter-grid">
             {type === 'video' ? <label><span>生成模式</span><select value={inputMode} onChange={(event) => setInputMode(event.target.value as CanvasVideoEditorMode)}><option value="text">全能参考</option><option value="image" disabled={!supportsImageToVideo}>图生视频</option><option value="firstlastframe" disabled={!currentModel?.raw?.firstLastFrame}>首尾帧</option></select></label> : null}
-            <label><span>画面比例</span><select value={aspectRatio} disabled={isPanorama} onChange={(event) => setAspectRatio(event.target.value)}>{(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : CANVAS_VIDEO_ASPECT_RATIOS).map((value) => <option key={value}>{value}</option>)}</select></label>
+            <label><span>画面比例</span><select value={aspectRatio} disabled={isPanorama || (type === 'video' && videoAspectRatios.length === 1)} onChange={(event) => setAspectRatio(event.target.value)}>{(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios).map((value) => <option key={value}>{value === 'adaptive' ? '自适应' : value}</option>)}</select></label>
             <label><span>{type === 'image' ? '图片分辨率' : '视频分辨率'}</span><select aria-label={type === 'video' ? '视频分辨率' : '图片分辨率'} value={resolution} onChange={(event) => setResolution(event.target.value)}>{supportedResolutions.map((value) => <option key={value} value={value}>{type === 'video' ? resolutionLabel(value) : value}</option>)}</select></label>
             {type === 'image' ? <label><span>{storyboard ? '分镜数量' : '生成数量'}</span><select value={storyboard ? normalizeStoryboardCount(count) : count} onChange={(event) => setCount(Number(event.target.value))}>{(storyboard ? STORYBOARD_COUNTS : [1, 2, 4]).map((value) => <option key={value} value={value}>{value} {storyboard ? '镜' : '张'}</option>)}</select></label> : null}
             {type === 'image' ? <div className="nori-canvas-image-quality"><span>图片质量</span><div>{CANVAS_IMAGE_QUALITIES.map((value) => <button type="button" key={value} className={quality === value ? 'is-active' : ''} onClick={() => setQuality(value)}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>)}</div></div> : null}

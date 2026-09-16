@@ -17,7 +17,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 function session(input: {
   workspaceOwnerId: string
   actorId: string
-  role: 'admin' | 'writer'
+  role: 'admin' | 'writer' | 'reviewer'
 }): AuthSession {
   return {
     user: {
@@ -40,6 +40,7 @@ describe('work and project object access', () => {
       workspaceOwnerId: 'owner-1',
       actorId: 'owner-1',
       isManagement: true,
+      role: 'admin',
     })
     expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1' })
   })
@@ -79,6 +80,29 @@ describe('work and project object access', () => {
       canManageProject: false,
       canManageAssignments: false,
       canReviewAssignments: false,
+    })
+  })
+
+  it('lets a reviewer project member review even when the stored flag is still false', async () => {
+    const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'reviewer-1', role: 'reviewer' })
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      id: 'project-7',
+      createdById: 'owner-1',
+      work: {
+        createdById: 'owner-1',
+        members: [],
+      },
+      members: [{
+        canManageAssignments: false,
+        canReviewAssignments: false,
+      }],
+    })
+
+    await expect(getProjectCollaborationAccess(auth, 'project-7')).resolves.toMatchObject({
+      canRead: true,
+      canManageProject: false,
+      canManageAssignments: false,
+      canReviewAssignments: true,
     })
   })
 })

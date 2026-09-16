@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   assignmentAssigneeLabel,
+  assignmentAttentionCount,
   assignmentCountForTab,
   assignmentDestination,
   assignmentEventLabel,
@@ -17,6 +18,7 @@ import {
   getAssignmentTimeColumns,
   moveAssignmentFilterOptionIndex,
   moveAssignmentTabIndex,
+  resolveDefaultAssignmentTab,
   shouldDeferAssignmentFilterActivationToNestedButton,
   summarizeAssignmentBatchResult,
   type CollaborationAssignment,
@@ -59,11 +61,11 @@ describe('assignments view model', () => {
     expect(assignmentSubmitLabel({ ...base, status: 'rejected' })).toBe('重新提交')
     expect(assignmentSubmitLabel({ ...base, submitCompletesDirectly: true })).toBe('标记完成')
     expect(assignmentNavigateLabel({ ...base, status: 'completed' })).toBe('查看分镜')
-    expect(assignmentNavigateLabel({ ...base, status: 'pending_review', canReview: true })).toBe('审核本集分镜内容')
+    expect(assignmentNavigateLabel({ ...base, status: 'pending_review', canReview: true })).toBe('查看分镜')
     expect(assignmentNavigateLabel({ ...base, stage: 'video', status: 'pending_review', canReview: true })).toBe('审核本集视频')
     expect(assignmentNavigateLabel({ ...base, stage: 'video', status: 'in_progress', canSubmit: true })).toBe('进入视频制作')
     expect(assignmentNavigateLabel({ ...base, stage: 'video', status: 'in_progress', canSubmit: false })).toBe('查看视频制作')
-    expect(assignmentStageDisplayLabel({ ...base, status: 'pending_review', canReview: true })).toBe('分镜内容审核')
+    expect(assignmentStageDisplayLabel({ ...base, status: 'pending_review', canReview: true })).toBe('分镜设计')
     expect(assignmentStageDisplayLabel({ ...base, stage: 'video', status: 'pending_review', canReview: true })).toBe('本集视频审核')
   })
 
@@ -81,7 +83,7 @@ describe('assignments view model', () => {
     expect(assignmentDestination({ ...base, stage: 'video' }))
       .toBe('/workflow/project-1/workbench-premium2/production/shot')
     expect(assignmentDestination({ ...base, status: 'pending_review', canReview: true }))
-      .toBe('/my-assignments/assignment-1/storyboard-review')
+      .toBe('/workflow/project-1/workbench-premium2/storyboard')
     expect(assignmentDestination({ ...base, stage: 'video', status: 'pending_review', canReview: true }))
       .toBe('/my-assignments/assignment-1/video-review')
     expect(assignmentNavigationQuery(base, 'todo')).toEqual({
@@ -105,6 +107,28 @@ describe('assignments view model', () => {
     expect(assignmentNavigationBlockReason(base)).toBe('')
     expect(assignmentNavigationBlockReason({ ...base, matched: false })).toContain('分集已不存在')
     expect(assignmentCountForTab({ todo: 3, inReview: 2, done: 1, pendingReview: 4 }, 'pending_review')).toBe(4)
+    expect(assignmentAttentionCount({ todo: 3, pendingReview: 4 })).toBe(7)
+    expect(assignmentAttentionCount({ todo: 0, pendingReview: 0 })).toBe(0)
+  })
+
+  it('defaults reviewers and pending review work onto the review inbox', () => {
+    expect(resolveDefaultAssignmentTab({ routeTab: 'done' })).toBe('done')
+    expect(resolveDefaultAssignmentTab({ role: 'reviewer' })).toBe('pending_review')
+    expect(resolveDefaultAssignmentTab({
+      role: 'admin',
+      showPendingReviewTab: true,
+      pendingReviewCount: 2,
+    })).toBe('pending_review')
+    expect(resolveDefaultAssignmentTab({
+      role: 'admin',
+      showPendingReviewTab: true,
+      pendingReviewCount: 0,
+    })).toBe('todo')
+    expect(resolveDefaultAssignmentTab({ role: 'writer' })).toBe('todo')
+    expect(resolveDefaultAssignmentTab({
+      role: 'reviewer',
+      showPendingReviewTab: false,
+    })).toBe('todo')
   })
 
   it('routes canvas playlist production and final review as a node-level task', () => {

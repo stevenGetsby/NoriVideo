@@ -14,7 +14,11 @@ function cleanText(value: unknown, maximum: number) {
 
 function isSeedance2Model(modelKey: string) {
   const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
-  return parsed?.provider === 'ark' && /^doubao-seedance-2-0(?:-|$)/.test(parsed.modelId)
+  return (parsed?.provider === 'ark' || parsed?.provider === 'kuaizi')
+    && (
+      /^doubao-seedance-2-0(?:-|$)/.test(parsed.modelId)
+      || parsed.modelId === 'doubao-seedance-2-5-260628'
+    )
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -79,7 +83,7 @@ export const POST = apiHandler(async (
   const prompt = cleanText(body.prompt, 20_000)
   const videoModel = cleanText(body.videoModel, 500)
   if (!characterId || !prompt || !videoModel || !isSeedance2Model(videoModel)) {
-    throw new ApiError('INVALID_PARAMS', { message: '请选择 Seedance 2.0 模型并填写试镜提示词。' })
+    throw new ApiError('INVALID_PARAMS', { message: '请选择 Seedance 2.0/2.5 模型并填写试镜提示词。' })
   }
 
   const character = await prisma.novelPromotionCharacter.findFirst({

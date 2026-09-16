@@ -1,6 +1,6 @@
 'use client'
 
-import { Clipboard, Copy, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Trash2, Upload, type LucideIcon } from '@/components/ui/icons'
+import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Trash2, Upload, type LucideIcon } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -19,19 +19,21 @@ type ContextMenuItem =
     }
 
 export function CanvasWireMenu({ state, onPick }: { state: CanvasWireMenuState; onPick: (type: CanvasNodeMenuType) => void }) {
-  return <CanvasMenuPortal><div className="nori-canvas-wire-menu" role="menu" aria-label="选择连接节点类型" style={{ left: state.x, top: state.y }} onPointerDown={(event) => event.stopPropagation()}><div>选择节点类型</div>{CANVAS_ADD_NODE_ITEMS.map((item) => <button type="button" role="menuitem" key={item.type} onClick={() => onPick(item.type)}><Plus /><span>{item.label}</span></button>)}</div></CanvasMenuPortal>
+  return <CanvasMenuPortal point={state}><div className="nori-canvas-wire-menu" role="menu" aria-label="选择连接节点类型" style={{ left: state.x, top: state.y }} onPointerDown={(event) => event.stopPropagation()}><div>选择节点类型</div>{CANVAS_ADD_NODE_ITEMS.map((item) => <button type="button" role="menuitem" key={item.type} onClick={() => onPick(item.type)}><Plus /><span>{item.label}</span></button>)}</div></CanvasMenuPortal>
 }
 
 export function CanvasContextMenu({
   state,
   canPaste,
   canRegenerate,
+  canUploadToAssetLibrary,
   readOnly,
   onAction,
 }: {
   state: CanvasContextMenuState
   canPaste: boolean
   canRegenerate: boolean
+  canUploadToAssetLibrary?: boolean
   readOnly: boolean
   onAction: (action: string) => void
 }) {
@@ -52,6 +54,7 @@ export function CanvasContextMenu({
       { key: 'duplicate', label: '创建副本', icon: GitBranch, shortcut: '⌘ D', hint: '复制节点及上游连线' },
       { key: 'divider', divider: true },
       { key: 'regenerate', label: '重新生成', icon: RefreshCw, disabled: !canRegenerate },
+      ...(canUploadToAssetLibrary ? [{ key: 'upload-asset-library', label: '上传到资产库', icon: FolderHeart, hint: '归类后可复用于画布与其他项目' }] : []),
       { key: 'divider-2', divider: true },
       { key: 'delete', label: '删除', icon: Trash2, shortcut: '⌫', danger: true },
     ]
@@ -70,7 +73,7 @@ export function CanvasContextMenu({
         { key: 'reset-viewport', label: '重置视图', icon: RotateCcw, shortcut: '⌘ 0' },
       ]
   return (
-    <CanvasMenuPortal>
+    <CanvasMenuPortal point={state}>
       <div
         className="nori-canvas-context-menu"
         role="menu"

@@ -1,5 +1,7 @@
 export type StudioVector3 = [number, number, number]
 
+export const STUDIO_NODE_MIN_SIZE = { width: 300, height: 220 } as const
+
 export type StudioObjectKind =
   | 'model'
   | 'mannequin'

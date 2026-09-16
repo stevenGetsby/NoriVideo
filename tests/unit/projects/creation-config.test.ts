@@ -36,19 +36,36 @@ describe('project creation config', () => {
     expect(config.targetAudiencePrompt).toContain('出海平台视频消费者')
   })
 
-  it('layers the built-in, reference-derived and custom art style prompts', () => {
+  it('lets a custom art style fully replace the selected built-in style', () => {
     const config = normalizeProjectCreationConfig({
       projectStyle: 'live-action',
       referenceArtStylePrompt: '参考图呈现低饱和冷灰色调与硬质侧光。',
       customArtStylePrompt: '统一为写实都市夜景风格。',
     })
 
-    expect(config.artStylePrompt).toContain('Nori1.0 项目基础画风')
-    expect(config.artStylePrompt).toContain('真人实拍电影质感')
+    expect(config.artStylePrompt).not.toContain('Nori1.0 项目基础画风')
+    expect(config.artStylePrompt).not.toContain('真人实拍电影质感')
     expect(config.artStylePrompt).toContain('参考图呈现低饱和冷灰色调')
     expect(config.artStylePrompt).toContain('统一为写实都市夜景风格')
+    expect(config.artStylePrompt).toContain('用户自定义画风完全覆盖')
+    expect(config.baseArtStylePrompt).toBe('')
     expect(config.usesCustomArtStylePrompt).toBe(true)
     expect(config.usesReferenceArtStylePrompt).toBe(true)
+    expect(buildAssetAestheticPrompt(config.artStylePrompt)).toBe(config.artStylePrompt)
+    expect(buildProjectDescription(config, null)).toContain('自定义画风')
+    expect(buildProjectDescription(config, null)).not.toContain('仿真人')
+  })
+
+  it('keeps the selected built-in style when no custom style is provided', () => {
+    const config = normalizeProjectCreationConfig({
+      projectStyle: 'anime-2d',
+      referenceArtStylePrompt: '参考图使用柔和暖色。',
+    })
+
+    expect(config.artStylePrompt).toContain('Nori1.0 项目基础画风')
+    expect(config.artStylePrompt).toContain('高质量 2D 动漫短剧风格')
+    expect(config.artStylePrompt).toContain('参考图使用柔和暖色')
+    expect(config.baseArtStylePrompt).toContain('高质量 2D 动漫短剧风格')
   })
 
   it('accepts 1080p and preserves it in the project description', () => {

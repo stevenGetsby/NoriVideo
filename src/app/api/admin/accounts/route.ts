@@ -20,38 +20,17 @@ import {
   serializeManagedAccount,
   type ManagedAccountRecord,
 } from '@/lib/account/management'
+import {
+  buildModelUsageByAccount,
+  emptyModelUsageSummary,
+  mergeModelUsageSummaries,
+} from '@/lib/platform-services/model-type-usage'
 
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_MAX_LENGTH = 128
 const ROLE_LABEL_MAX_LENGTH = 64
 const DELETED_ACCOUNT_STATUS = 'deleted'
-
-type TokenUsage = {
-  calls: number
-  inputTokens: number
-  outputTokens: number
-  totalTokens: number
-  lastUsedAt: string | null
-}
-
-function emptyTokenUsage(): TokenUsage {
-  return { calls: 0, inputTokens: 0, outputTokens: 0, totalTokens: 0, lastUsedAt: null }
-}
-
-function mergeTokenUsage(rows: TokenUsage[]): TokenUsage {
-  const result = emptyTokenUsage()
-  for (const row of rows) {
-    result.calls += row.calls
-    result.inputTokens += row.inputTokens
-    result.outputTokens += row.outputTokens
-    result.totalTokens += row.totalTokens
-    if (row.lastUsedAt && (!result.lastUsedAt || row.lastUsedAt > result.lastUsedAt)) {
-      result.lastUsedAt = row.lastUsedAt
-    }
-  }
-  return result
-}
 
 function readUsername(value: unknown): string {
   const username = typeof value === 'string' ? value.trim() : ''
@@ -166,33 +145,26 @@ export const GET = apiHandler(async () => {
     orderBy: { createdAt: 'asc' },
   })
   const accountIds = Array.from(new Set([...managerIds, ...accounts.map((account) => account.id)]))
-  const [projects, characters, locations, voices, tokenRows] = await Promise.all([
+  const [projects, characters, locations, voices, costRows] = await Promise.all([
     prisma.project.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
     prisma.globalCharacter.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
     prisma.globalLocation.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
     prisma.globalVoice.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
-    prisma.serviceUsageRecord.groupBy({
-      by: ['userId'],
+    prisma.usageCost.findMany({
       where: { userId: { in: accountIds } },
-      _count: { _all: true },
-      _sum: { inputTokens: true, outputTokens: true },
-      _max: { createdAt: true },
+      select: {
+        userId: true,
+        apiType: true,
+        model: true,
+        action: true,
+        metadata: true,
+        cost: true,
+        createdAt: true,
+      },
     }),
   ])
 
-  const tokenUsageByAccount = new Map<string, TokenUsage>()
-  for (const row of tokenRows) {
-    if (!row.userId) continue
-    const inputTokens = row._sum.inputTokens || 0
-    const outputTokens = row._sum.outputTokens || 0
-    tokenUsageByAccount.set(row.userId, {
-      calls: row._count._all,
-      inputTokens,
-      outputTokens,
-      totalTokens: inputTokens + outputTokens,
-      lastUsedAt: row._max.createdAt?.toISOString() || null,
-    })
-  }
+  const usageByAccount = buildModelUsageByAccount(costRows)
 
   const usage = new Map(managerIds.map((id) => [id, { projects: 0, assets: 0 }]))
   addUsage(usage, projects, 'projects')
@@ -210,27 +182,27 @@ export const GET = apiHandler(async () => {
       .filter((account) => account.id !== manager.id)
       .map((account) => ({
         ...serializeManagedAccount(account),
-        usage: tokenUsageByAccount.get(account.id) || emptyTokenUsage(),
+        usage: usageByAccount.get(account.id) || emptyModelUsageSummary(),
       }))
-    const tokenUsage = mergeTokenUsage(
-      usageAccounts.map((account) => tokenUsageByAccount.get(account.id) || emptyTokenUsage()),
+    const modelUsage = mergeModelUsageSummaries(
+      usageAccounts.map((account) => usageByAccount.get(account.id) || emptyModelUsageSummary()),
     )
     return {
       manager: {
         ...serializeManagedAccount(manager),
-        usage: tokenUsageByAccount.get(manager.id) || emptyTokenUsage(),
+        usage: usageByAccount.get(manager.id) || emptyModelUsageSummary(),
       },
       subaccountCount: subaccounts.length,
       // 平台 Admin 的接口只返回管理账号和汇总；角色子账号明细仅向所属管理账号返回。
       subaccounts: operatorRole === 'admin' ? subaccounts : [],
       usage: {
         ...(usage.get(manager.id) || { projects: 0, assets: 0 }),
-        ...tokenUsage,
+        ...modelUsage,
       },
     }
   })
 
-  const totalTokenUsage = mergeTokenUsage(workspaces.map((workspace) => workspace.usage))
+  const totalModelUsage = mergeModelUsageSummaries(workspaces.map((workspace) => workspace.usage))
 
   return NextResponse.json({
     success: true,
@@ -244,10 +216,9 @@ export const GET = apiHandler(async () => {
       subaccounts: workspaces.reduce((total, workspace) => total + workspace.subaccountCount, 0),
       projects: projects.length,
       assets: characters.length + locations.length + voices.length,
-      calls: totalTokenUsage.calls,
-      inputTokens: totalTokenUsage.inputTokens,
-      outputTokens: totalTokenUsage.outputTokens,
-      totalTokens: totalTokenUsage.totalTokens,
+      calls: totalModelUsage.calls,
+      cost: totalModelUsage.cost,
+      byType: totalModelUsage.byType,
     },
     usageRange: 'all_time',
   })

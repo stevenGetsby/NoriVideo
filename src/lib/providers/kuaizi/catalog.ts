@@ -21,6 +21,7 @@ const KUAIZI_CATALOG: readonly KuaiziModelDefinition[] = [
   { modelId: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0 (Kuaizi)', modality: 'video', family: 'seedance' },
   { modelId: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast (Kuaizi)', modality: 'video', family: 'seedance' },
   { modelId: 'doubao-seedance-2-0-mini-260615', name: 'Seedance 2.0 Mini (Kuaizi)', modality: 'video', family: 'seedance' },
+  { modelId: 'doubao-seedance-2-5-260628', name: 'Seedance 2.5 (Kuaizi)', modality: 'video', family: 'seedance' },
 
   { modelId: 'seed-audio', name: 'Seed Audio', modality: 'audio', family: 'seed-audio' },
   { modelId: 'speech-2.8-hd', name: 'MiniMax Speech 2.8 HD', modality: 'audio', family: 'minimax-tts' },

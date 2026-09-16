@@ -5,7 +5,13 @@ import { getPublicBaseUrl } from '@/lib/env'
 import { prisma } from '@/lib/prisma'
 import { generateUniqueKey, getSignedObjectUrl, uploadObject } from '@/lib/storage'
 import { serializeVideoEnhanceTask, toNullableJson } from '@/lib/video-enhance/history'
-import { requireGenerationCredit } from '@/lib/billing'
+import {
+  InsufficientBalanceError,
+  requireGenerationCredit,
+  withVideoBilling,
+} from '@/lib/billing'
+import { BillingOperationError } from '@/lib/billing/errors'
+import { readRequestFormData } from '@/lib/http/request-form-data'
 import {
   MediaKitError,
   type MediaKitEnhanceVideoPayload,
@@ -227,7 +233,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   // Nori task, so it must use the same zero-credit preflight explicitly.
   await requireGenerationCredit(session.user.id)
 
-  const formData = await request.formData()
+  const formData = await readRequestFormData(request, { fileSizeLabel: '10GB' })
   const uploadedFile = formData.get('file')
   const directVideoUrl = readString(formData.get('videoUrl'))
   let videoUrl = directVideoUrl
@@ -291,7 +297,24 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   try {
     const apiKey = await resolveMediaKitApiKey(session.user.id)
-    const submitResult = await submitMediaKitEnhanceVideoTask(apiKey, payload)
+    const submitResult = await withVideoBilling(
+      session.user.id,
+      'mediakit::enhance-video',
+      resolution || (resolutionLimit ? `${resolutionLimit}p` : 'source'),
+      1,
+      {
+        projectId: 'video-enhance',
+        action: 'video_enhance',
+        metadata: {
+          toolVersion: toolVersion || 'standard',
+          scene: scene || 'common',
+          resolution: resolution || null,
+          resolutionLimit: resolutionLimit || null,
+          fps: fps || null,
+        },
+      },
+      async () => await submitMediaKitEnhanceVideoTask(apiKey, payload),
+    )
     const record = await prisma.videoEnhanceTask.create({
       data: {
         userId: session.user.id,
@@ -321,6 +344,9 @@ export const POST = apiHandler(async (request: NextRequest) => {
       parameters: payload,
     })
   } catch (error) {
+    if (error instanceof BillingOperationError || error instanceof InsufficientBalanceError) {
+      throw error
+    }
     throw toExternalError(error)
   }
 })

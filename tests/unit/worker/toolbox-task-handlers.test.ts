@@ -24,6 +24,8 @@ const utilsMock = vi.hoisted(() => ({
   resolveVideoSourceFromGeneration: vi.fn(async () => ({
     url: 'https://provider.example/toolbox.mp4',
     actualVideoTokens: 64000,
+    durationSeconds: 6.25,
+    resolution: '480p',
     downloadHeaders: { Authorization: 'Bearer provider-token' },
   })),
   uploadVideoSourceToCos: vi.fn(async () => 'video/toolbox-video.mp4'),
@@ -37,6 +39,10 @@ const materialMock = vi.hoisted(() => ({
 }))
 
 const outboundMock = vi.hoisted(() => ({
+  normalizeToPublicImageUrlForGeneration: vi.fn(async (value: string) => {
+    const index = /(?:reference|ref|image)[-_]?(\d)/.exec(value)?.[1] || '1'
+    return `https://public.example/reference-${index}.png`
+  }),
   normalizeReferenceImagesForGeneration: vi.fn(async (values: string[]) => (
     values.map((_, index) => `https://public.example/reference-${index + 1}.png`)
   )),
@@ -263,6 +269,8 @@ describe('toolbox task handlers', () => {
       materialId: 'material-video-1',
       videoUrl: 'video/toolbox-video.mp4',
       actualVideoTokens: 64000,
+      durationSeconds: 6.25,
+      resolution: '480p',
     })
   })
 

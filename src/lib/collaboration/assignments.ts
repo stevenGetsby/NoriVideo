@@ -14,10 +14,12 @@ import {
 } from '@/lib/collaboration/access'
 import {
   ASSIGNMENT_STAGES,
+  assignmentStageSkipsReview,
   assertAssignmentTransition,
   isAssignmentStage,
   isAssignmentTab,
   nextAssignmentStatus,
+  projectMembershipGrantsReview,
   resolveAssignmentCapabilities,
   statusesForAssignmentTab,
   type AssignmentAction,
@@ -185,7 +187,10 @@ async function loadProjectCapabilities(
       workMemberCanManage: workMember?.canManage === true,
       workMemberRole: workMember?.role,
       projectMemberCanManage: projectMember?.canManageAssignments === true,
-      projectMemberCanReview: projectMember?.canReviewAssignments === true,
+      projectMemberCanReview: projectMembershipGrantsReview({
+        membership: projectMember,
+        accountRole: actor.role,
+      }),
     })
     return [project.id, {
       canManage: capabilities.canManage,
@@ -231,7 +236,7 @@ function toAssignmentDto(
       && (row.assigneeUserId === actorId || canManage),
     canAssign: canManage && row.status !== 'completed',
     canMarkComplete: canManage && (row.status === 'in_progress' || row.status === 'rejected'),
-    canReview: canReviewProject && row.status === 'pending_review',
+    canReview: canReviewProject && row.status === 'pending_review' && !assignmentStageSkipsReview(row.stage),
     canReopen: canManage && row.status === 'completed',
     submitCompletesDirectly: row.submitCompletesDirectly,
   }
@@ -431,6 +436,19 @@ export async function syncProjectAssignmentsForProject(input: {
       },
       data: { matched: false },
     }),
+    prisma.workflowAssignment.updateMany({
+      where: {
+        workspaceOwnerId: input.workspaceOwnerId,
+        projectId: input.projectId,
+        stage: 'storyboard',
+        status: 'pending_review',
+      },
+      data: {
+        status: 'completed',
+        submitCompletesDirectly: true,
+        completedAt: new Date(),
+      },
+    }),
     ...records.map((record) => prisma.workflowAssignment.upsert({
       where: {
         projectId_scopeId_stage: {
@@ -442,6 +460,7 @@ export async function syncProjectAssignmentsForProject(input: {
       update: {
         episodeId: record.episodeId,
         matched: record.matched,
+        submitCompletesDirectly: assignmentStageSkipsReview(record.stage),
       },
       create: {
         workspaceOwnerId: input.workspaceOwnerId,
@@ -453,6 +472,7 @@ export async function syncProjectAssignmentsForProject(input: {
         assigneeUserId: record.assigneeUserId,
         assignedById: record.assigneeUserId ? project.createdById : null,
         assignedAt: record.assigneeUserId ? new Date() : null,
+        submitCompletesDirectly: assignmentStageSkipsReview(record.stage),
         matched: record.matched,
         events: {
           create: {
@@ -533,6 +553,7 @@ export async function listPendingReviewAssignments(session: AuthSession, input: 
     ...assignmentWhere(session, input.filters),
     projectId: { in: reviewableProjectIds },
     status: 'pending_review',
+    stage: { not: 'storyboard' },
   }
   const [total, rows] = reviewableProjectIds.length ? await Promise.all([
     prisma.workflowAssignment.count({ where }),
@@ -581,6 +602,7 @@ export async function getAssignmentCounts(session: AuthSession, filters: Assignm
         ...baseWhere,
         projectId: { in: reviewableProjectIds },
         status: 'pending_review',
+        stage: { not: 'storyboard' },
       } })
       : Promise.resolve(0),
   ])
@@ -640,7 +662,10 @@ export async function listAssignmentCandidates(
       isWorkspaceOwner: user.id === actor.workspaceOwnerId,
       inProject: user.id === actor.workspaceOwnerId || Boolean(member),
       canManageAssignments: member?.canManageAssignments === true,
-      canReviewAssignments: member?.canReviewAssignments === true,
+      canReviewAssignments: projectMembershipGrantsReview({
+        membership: member,
+        accountRole: user.role,
+      }),
       eligibleStages,
     }
   }).filter((candidate) => !stage || candidate.eligibleStages.includes(stage))
@@ -714,6 +739,9 @@ export async function mutateAssignment(
     : []
   let submittingAsManager = false
 
+  if ((action === 'approve' || action === 'reject') && assignmentStageSkipsReview(assignment.stage)) {
+    throw new ApiError('CONFLICT', { message: '分镜任务不再进入审核，请在任务中标记完成。' })
+  }
   if (action === 'assign' || action === 'mark-complete' || action === 'reopen') {
     await requireProjectAssignmentManager(session, assignment.projectId)
   } else if (action === 'approve' || action === 'reject') {
@@ -796,7 +824,10 @@ export async function mutateAssignment(
         || (await buildVideoReviewSubmissionSnapshot(tx, current.episodeId)).snapshot
       validateVideoReviewAnnotationsAgainstSnapshot(videoAnnotations, submittedSnapshot)
     }
-    const nextStatus = nextAssignmentStatus(action, current.submitCompletesDirectly)
+    const nextStatus = nextAssignmentStatus(
+      action,
+      current.submitCompletesDirectly || assignmentStageSkipsReview(current.stage),
+    )
     // `updatedAt` is the existing optimistic-concurrency token. Explicitly
     // advance it by at least 1 ms so same-state reassignments cannot both win.
     const now = new Date(Math.max(Date.now(), current.updatedAt.getTime() + 1))

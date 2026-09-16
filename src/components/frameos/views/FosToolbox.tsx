@@ -26,8 +26,9 @@ import {
   CANVAS_IMAGE_ASPECT_RATIOS,
   CANVAS_IMAGE_QUALITIES,
   CANVAS_IMAGE_RESOLUTIONS,
-  CANVAS_VIDEO_ASPECT_RATIOS,
   CANVAS_VIDEO_RESOLUTIONS,
+  canvasVideoAspectRatioOptions,
+  isSeedance25VideoModelKey,
   resolveSupportedResolution,
   type CanvasImageQuality,
 } from '@/lib/canvas/generator-options'
@@ -40,6 +41,7 @@ import {
   type CanvasGenerationInputSchema,
 } from '@/lib/canvas/generation-input-schema'
 import { appendToolboxTypedReference } from './toolbox-references'
+import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 
 export type ToolTab = 'image' | 'video' | 'music' | 'material'
 type ActiveGenerationTab = 'image' | 'video'
@@ -83,7 +85,7 @@ const TABS: Array<{ key: ToolTab; label: string; icon: AppIconName }> = [
   { key: 'video', label: '视频生成', icon: 'videoWide' },
   { key: 'material', label: '我的素材', icon: 'folderOpen' },
 ]
-const TOOLBOX_VIDEO_DURATIONS = Array.from({ length: 12 }, (_, index) => index + 4)
+const TOOLBOX_VIDEO_DURATIONS = Array.from({ length: 27 }, (_, index) => index + 4)
 
 const MODEL_TIER_LABELS: Record<NonNullable<ModelItem['tier']>, string> = {
   mini: 'Mini',
@@ -110,11 +112,13 @@ function SegRow({ label, options, value, onChange, formatOption }: { label: stri
 }
 
 function DurationSelect({ value, options, onChange }: { value: number; options: number[]; onChange: (value: number) => void }) {
+  const minimum = options[0] ?? 4
+  const maximum = options.at(-1) ?? minimum
   return (
     <label className="mt-4 block">
       <span className="mb-2 flex items-center justify-between text-[13px] font-medium text-white">
         <span>视频时长</span>
-        <span className="text-[11px] font-normal text-[var(--fos-text-4)]">4–15 秒</span>
+        <span className="text-[11px] font-normal text-[var(--fos-text-4)]">{minimum}–{maximum} 秒</span>
       </span>
       <div className="relative">
         <select
@@ -186,6 +190,7 @@ function ResultPane({ type, history, loading, onRefresh, onOpenMaterial }: { typ
 
 export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: ToolTab }) {
   const { data: session } = useSession()
+  const { generationAllowed } = useAccountBalance()
   const [tab, setTab] = useState<ToolTab>(initialTab === 'music' ? 'image' : initialTab ?? 'image')
   const activeType: ActiveGenerationTab = tab === 'video' ? 'video' : 'image'
   const [projects, setProjects] = useState<ProjectItem[]>([])
@@ -279,6 +284,10 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
 
   const currentModels = activeType === 'image' ? config?.imageModels || [] : config?.videoModels || []
   const currentModel = currentModels.find((model) => model.modelKey === modelKey)
+  const videoAspectRatios = useMemo(
+    () => canvasVideoAspectRatioOptions(modelKey, inputMode),
+    [inputMode, modelKey],
+  )
   const resolutionOptions = useMemo(() => {
     const configured = (currentModel?.options.resolution || []).map(String)
     const surface = activeType === 'image' ? CANVAS_IMAGE_RESOLUTIONS : CANVAS_VIDEO_RESOLUTIONS
@@ -302,9 +311,14 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const imageReferences = useMemo(() => references.filter((item) => item.type === 'image'), [references])
   const videoReferences = useMemo(() => references.filter((item) => item.type === 'video'), [references])
   const audioReferences = useMemo(() => references.filter((item) => item.type === 'audio'), [references])
+  const referenceSchema = currentModel?.inputSchema || resolveCanvasGenerationInputSchema(activeType)
   const referenceLimits = inputMode === 'firstlastframe'
     ? { image: 2, video: 0, audio: 0 }
-    : { image: 9, video: activeType === 'video' ? 3 : 0, audio: activeType === 'video' ? 3 : 0 }
+    : {
+        image: referenceSchema.image.max,
+        video: activeType === 'video' ? referenceSchema.video.max : 0,
+        audio: activeType === 'video' ? referenceSchema.audio.max : 0,
+      }
   const pickerLimit = pickerType ? referenceLimits[pickerType] : 0
 
   useEffect(() => {
@@ -312,6 +326,11 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     if (activeType === 'video' && toolboxDurationOptions.length > 0) setDuration((current) => toolboxDurationOptions.includes(current) ? current : toolboxDurationOptions[0])
     if (activeType === 'video') setFps((current) => fpsOptions.length > 0 ? current !== null && fpsOptions.includes(current) ? current : fpsOptions[0] : null)
     if (!currentModel?.firstLastFrame && inputMode === 'firstlastframe') setInputMode('text')
+    if (activeType === 'video') {
+      setRatio((current) => videoAspectRatios.includes(current as (typeof videoAspectRatios)[number])
+        ? current
+        : videoAspectRatios[0] || '16:9')
+    }
     const draft = draftKey ? readToolboxDraft(window.localStorage, draftKey) : null
     setGenerateAudio(resolveToolboxGenerateAudio({
       type: activeType,
@@ -319,7 +338,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
       supportGenerateAudio: currentModel?.supportGenerateAudio === true,
       draft,
     }))
-  }, [activeType, config?.defaults.resolution, currentModel, draftKey, fpsOptions, inputMode, modelKey, resolutionOptions, toolboxDurationOptions])
+  }, [activeType, config?.defaults.resolution, currentModel, draftKey, fpsOptions, inputMode, modelKey, resolutionOptions, toolboxDurationOptions, videoAspectRatios])
 
   useEffect(() => {
     if (activeType !== 'video' || inputMode !== 'firstlastframe') return
@@ -386,6 +405,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   }, [hasActive, loadHistory])
 
   const submit = async () => {
+    if (!generationAllowed) { setError('积分不足，无法生成'); return }
     if (!projectId || !modelKey || !title.trim() || !prompt.trim()) {
       setError('请选择项目和模型，并填写生成名称与提示词。')
       return
@@ -407,7 +427,9 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     )
     if (referenceErrors[0]) { setError(referenceErrors[0]); return }
     if (activeType === 'video') {
-      const combinationError = validateVideoReferenceMediaCombination(references)[0]
+      const combinationError = validateVideoReferenceMediaCombination(references, {
+        allowAudioOnly: isSeedance25VideoModelKey(modelKey),
+      })[0]
       if (combinationError) { setError(combinationError); return }
     }
     setSubmitting(true); setError(null); setMessage(null)
@@ -453,19 +475,19 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
               <ReferenceStrip materials={imageReferences} label="首帧 / 尾帧" limit={2} hint="按选择顺序分别作为首帧和尾帧。" onAdd={() => setPickerType('image')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
             ) : (
               <section className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] px-3 pb-3">
-                <div className="border-b border-[var(--fos-border-soft)] py-3"><div className="text-[12px] font-bold text-white">多模态参考</div><p className="mt-1 text-[10px] leading-4 text-[var(--fos-text-4)]">Seedance 2.0 可同时理解图片、参考视频和参考音频。</p></div>
-                <ReferenceStrip materials={imageReferences} label="参考图片" limit={9} onAdd={() => setPickerType('image')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
-                <ReferenceStrip materials={videoReferences} label="参考视频" limit={3} hint="用于动作、运镜或节奏参考。" onAdd={() => setPickerType('video')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
-                <ReferenceStrip materials={audioReferences} label="参考音频" limit={3} hint={`总时长不超过 15 秒 · 当前约 ${Math.round(audioReferenceDuration * 10) / 10} 秒；音频需和图片或视频一起提交。`} onAdd={() => setPickerType('audio')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
+                <div className="border-b border-[var(--fos-border-soft)] py-3"><div className="text-[12px] font-bold text-white">多模态参考</div><p className="mt-1 text-[10px] leading-4 text-[var(--fos-text-4)]">{currentModel?.name || '当前视频模型'} 可同时理解图片、参考视频和参考音频。</p></div>
+                <ReferenceStrip materials={imageReferences} label="参考图片" limit={referenceLimits.image} onAdd={() => setPickerType('image')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
+                <ReferenceStrip materials={videoReferences} label="参考视频" limit={referenceLimits.video} hint="用于动作、运镜或节奏参考。" onAdd={() => setPickerType('video')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
+                <ReferenceStrip materials={audioReferences} label="参考音频" limit={referenceLimits.audio} hint={`${referenceSchema.audio.maxTotalDurationSeconds ? `总时长不超过 ${referenceSchema.audio.maxTotalDurationSeconds} 秒 · ` : ''}当前约 ${Math.round(audioReferenceDuration * 10) / 10} 秒；${isSeedance25VideoModelKey(modelKey) ? 'Seedance 2.5 支持配合提示词单独提交音频。' : '音频需和图片或视频一起提交。'}`} onAdd={() => setPickerType('audio')} onRemove={(id) => setReferences((current) => current.filter((item) => item.id !== id))} />
               </section>
             )}
-            <SegRow label={activeType === 'image' ? '图片比例' : '视频比例'} options={[...(activeType === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : CANVAS_VIDEO_ASPECT_RATIOS)]} value={ratio} onChange={setRatio} />
+            <SegRow label={activeType === 'image' ? '图片比例' : '视频比例'} options={[...(activeType === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios)]} value={ratio} onChange={setRatio} formatOption={(value) => value === 'adaptive' ? '自适应' : value} />
             {resolutionOptions.length > 0 ? <SegRow label={activeType === 'image' ? '图片分辨率' : '视频分辨率'} options={resolutionOptions} value={resolution} onChange={setResolution} formatOption={activeType === 'video' ? resolutionLabel : undefined} /> : null}
             {activeType === 'image' ? <><SegRow label="图片质量" options={[...CANVAS_IMAGE_QUALITIES]} value={quality} onChange={(value) => setQuality(value as CanvasImageQuality)} formatOption={(value) => value === 'low' ? '低' : value === 'medium' ? '中' : '高'} /><SegRow label="生成数量" options={['1', '2', '4']} value={count} onChange={setCount} /></> : <><DurationSelect value={duration} options={toolboxDurationOptions} onChange={setDuration} />{fpsOptions.length > 0 ? <SegRow label="视频帧率" options={fpsOptions.map(String)} value={String(fps || fpsOptions[0])} onChange={(value) => setFps(Number(value))} formatOption={(value) => `${value} FPS`} /> : null}{currentModel?.supportGenerateAudio ? <label className="flex items-center gap-2 text-[12px] text-[var(--fos-text-2)]"><input type="checkbox" checked={generateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="accent-[var(--fos-primary)]" />同步生成声音</label> : null}</>}
             {error ? <div className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
             {message ? <div className="rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[12px] text-blue-200">{message}</div> : null}
           </div>
-          <div className="border-t border-[var(--fos-border-soft)] p-4"><button type="button" className="fos-btn fos-btn-primary fos-btn-lg w-full" disabled={submitting || !projectId || !modelKey || configLoading || currentModel?.available === false} onClick={() => void submit()}>{submitting ? '提交中…' : activeType === 'image' ? '生成图片' : '生成视频'}</button></div>
+          <div className="border-t border-[var(--fos-border-soft)] p-4"><button type="button" className="fos-btn fos-btn-primary fos-btn-lg w-full" disabled={!generationAllowed || submitting || !projectId || !modelKey || configLoading || currentModel?.available === false} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void submit()}>{submitting ? '提交中…' : !generationAllowed ? '积分不足' : activeType === 'image' ? '生成图片' : '生成视频'}</button></div>
         </aside>
         <ResultPane type={activeType} history={history} loading={historyLoading} onRefresh={() => void loadHistory()} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} />
       </div>

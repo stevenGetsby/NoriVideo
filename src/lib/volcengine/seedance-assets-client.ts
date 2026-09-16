@@ -41,6 +41,9 @@ export interface SeedanceAssetResult {
   ProjectName?: string
 }
 
+export type SeedanceAssetsApi = Pick<SeedanceAssetsClient,
+  'createAssetGroup' | 'listAssetGroups' | 'createImageAsset' | 'getAsset'>
+
 interface OpenApiResponse<T> {
   ResponseMetadata?: {
     RequestId?: string

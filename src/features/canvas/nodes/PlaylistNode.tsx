@@ -4,16 +4,12 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Handle, NodeResizer, Position, type NodeProps } from '@xyflow/react'
 import {
-  AppIcon,
   Check,
-  ChevronLeft,
-  ChevronRight,
   ListVideo,
   LoaderCircle,
   Pause,
   Play,
   Plus,
-  Trash2,
   Video,
   X,
 } from '@/components/ui/icons'
@@ -102,6 +98,7 @@ function renderLabel(render: CanvasPlaylistRenderSummary) {
 
 function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const acceptingNodeDrop = editor.playlistDropTargetId === id
   const videoRef = useRef<HTMLVideoElement>(null)
   const continuePlaybackRef = useRef(false)
   const pendingSeekMsRef = useRef<number | null>(null)
@@ -322,13 +319,6 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
     else seekTimeline(frame)
   }
 
-  const stepClip = (offset: number) => {
-    if (!resolvedItems.length) return
-    const nextIndex = clamp(activeIndex + offset, 0, resolvedItems.length - 1)
-    setSelection({ clipId: resolvedItems[nextIndex].id, track: 'video' })
-    selectAndSeek(nextIndex, timelineProject.timeline[nextIndex]?.trim?.from, false)
-  }
-
   const finishClip = (clipId: string) => {
     if (transitioningClipRef.current === clipId) return
     transitioningClipRef.current = clipId
@@ -531,8 +521,8 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   }
 
   return (
-    <div className={`nori-canvas-playlist-node${selected ? ' is-selected' : ''}${review.status === 'rejected' ? ' is-rejected' : ''}`}>
-      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={920} minHeight={560} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
+    <div className={`nori-canvas-playlist-node${selected ? ' is-selected' : ''}${review.status === 'rejected' ? ' is-rejected' : ''}${acceptingNodeDrop ? ' is-node-drop-target' : ''}`}>
+      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={720} minHeight={680} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
       <header className="nori-playlist-header">
         <div className="nori-playlist-heading">
           <ListVideo />
@@ -576,6 +566,7 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
           addDroppedMaterial(rawMaterial)
         }}
       >
+        {acceptingNodeDrop ? <div className="nori-playlist-node-drop-hint" role="status" aria-live="polite"><span><Video /></span><strong>松开加入最终审核</strong><small>源视频节点会留在原位，并自动建立输入关系</small></div> : null}
         <div className="nori-playlist-stage">
           {activeItem && activeUrl ? (
             <div className="nori-playlist-preview">
@@ -609,36 +600,22 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
                 onEnded={() => finishClip(activeItem.id)}
               />
               <button type="button" className="nori-playlist-play nodrag" aria-label={playing ? '暂停连续预览' : '播放连续预览'} onClick={togglePlayback}>{playing ? <Pause /> : <Play />}</button>
-              <div className="nori-playlist-preview-meta"><strong>{activeItem.title}</strong><span>{framesToTime(currentFrame, CANVAS_PLAYLIST_FPS)} / {framesToTime(totalFrames, CANVAS_PLAYLIST_FPS)}</span></div>
+              <div className="nori-playlist-preview-meta">
+                <strong>{activeItem.title}</strong>
+                <span>{framesToTime(currentFrame, CANVAS_PLAYLIST_FPS)} / {framesToTime(totalFrames, CANVAS_PLAYLIST_FPS)}</span>
+                {!editor.readOnly ? <button type="button" className="nori-playlist-add" onClick={() => setPickerOpen((open) => !open)}><Plus />添加视频</button> : null}
+              </div>
+            </div>
+          ) : resolvedItems.length ? (
+            <div className="nori-playlist-empty is-missing nodrag">
+              <span><Video /></span>
+              <strong>当前片段视频不可用</strong>
+              <small>时间线已保留剪辑，请替换失效视频后再预览</small>
+              {!editor.readOnly ? <button type="button" className="nori-playlist-add" onClick={() => setPickerOpen(true)}><Plus />添加视频</button> : null}
             </div>
           ) : (
-            <button type="button" className="nori-playlist-empty nodrag" disabled={editor.readOnly} onClick={() => setPickerOpen(true)}><span><Plus /></span><strong>添加视频到播放列表</strong><small>从画布选择视频，或把项目视频素材拖到这里</small></button>
+            <button type="button" className="nori-playlist-empty nodrag" disabled={editor.readOnly} onClick={() => setPickerOpen(true)}><span><Plus /></span><strong>添加视频到播放列表</strong><small>选择视频，或把生成视频节点 / 项目素材拖到这里</small></button>
           )}
-
-          <aside className="nori-playlist-inspector">
-            <div className="nori-playlist-transport">
-              <button type="button" title="上一片段" disabled={!activeItem || activeIndex === 0} onClick={() => stepClip(-1)}><ChevronLeft /></button>
-              <button type="button" className="is-primary" title={playing ? '暂停' : '播放'} disabled={!activeItem} onClick={togglePlayback}>{playing ? <Pause /> : <Play />}</button>
-              <button type="button" title="下一片段" disabled={!activeItem || activeIndex === resolvedItems.length - 1} onClick={() => stepClip(1)}><ChevronRight /></button>
-              <time>{framesToTime(currentFrame, CANVAS_PLAYLIST_FPS)} / {framesToTime(totalFrames, CANVAS_PLAYLIST_FPS)}</time>
-            </div>
-            {activeClip ? <>
-              <div className="nori-playlist-current">
-                <span>当前片段</span>
-                <strong>{activeClip.metadata.sceneLabel} · {activeClip.metadata.segmentLabel}</strong>
-                <small>{framesToTime(activeClip.durationInFrames, CANVAS_PLAYLIST_FPS)} · {timelineSelection?.track === 'audio' ? '已选中源音频' : '已选中视频段'}</small>
-              </div>
-              <div className="nori-playlist-cut-guide">
-                <header><span><AppIcon name="edit" /></span><div><strong>播放头切割</strong><small>和制作剪辑工作台使用同一套时间线</small></div></header>
-                <p>在下方轨道选择片段，拖动蓝色播放头定位，再点击“切割”。切开后的片段可以独立排序或删除。</p>
-                {!editor.readOnly ? <button type="button" disabled={!canCutActive} onClick={splitAtPlayhead}><AppIcon name="edit" />{canCutActive ? '在当前播放头切割' : '先把播放头移到片段中间'}</button> : null}
-              </div>
-            </> : <div className="nori-playlist-inspector-empty">加入视频后可在时间线上切割、排序和删除</div>}
-            {!editor.readOnly ? <div className="nori-playlist-edit-actions">
-              <button type="button" onClick={() => setPickerOpen((open) => !open)}><Plus />添加视频</button>
-              <button type="button" className="is-danger" disabled={!activeItem} onClick={removeActive}><Trash2 />移除片段</button>
-            </div> : null}
-          </aside>
         </div>
 
         {availableSources.length && resolvedItems.length ? <div className="fac-restore nori-playlist-source-restore"><span>可加入时间线</span>{availableSources.slice(0, 8).map((source) => <button type="button" key={source.id} disabled={editor.readOnly || !source.videoUrl} onClick={() => addSource(source)}><Plus />{source.title}</button>)}</div> : null}
@@ -678,7 +655,7 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
 
       {(review.status === 'rejected' || error) ? <div className="nori-playlist-feedback nodrag"><span>{review.status === 'rejected' ? '评审意见' : '操作失败'}</span><p>{error || review.lastReviewNote || '审核员已标注修改项，请打开“我的任务”查看时段批注。'}</p>{review.annotationCount ? <small>{review.annotationCount} 条时段批注</small> : null}</div> : null}
       {review.status === 'completed' ? <div className="nori-playlist-approved nodrag"><Check />该播放列表版本已通过最终审核</div> : null}
-      <Handle type="source" position={Position.Left} id="input" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
+      <Handle type="target" position={Position.Left} id="input" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
       <Handle type="source" position={Position.Right} id="output" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
     </div>
   )

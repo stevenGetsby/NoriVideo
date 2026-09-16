@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, MouseEvent, PointerEvent as ReactPointerEvent } from 'react'
 import {
   DndContext,
@@ -22,8 +22,9 @@ import { MediaImage } from '@/components/media/MediaImage'
 import { AppIcon } from '@/components/ui/icons'
 import type { ComputedClip, VideoClip, VideoEditorProject } from '@/features/video-editor/types/editor.types'
 import {
-  ASSEMBLY_TRACK_CLIP_GAP,
-  ASSEMBLY_TRACK_INLINE_PADDING,
+  assemblyClipWidths,
+  assemblyRulerFrames,
+  assemblyTimelineWidth,
   clientXToCssOffset,
   sourceAudioTimelineStart,
   timelineFrameToOffset,
@@ -52,9 +53,7 @@ function localCssX(element: HTMLElement, clientX: number) {
   return clientXToCssOffset(clientX, rect.left, rect.width, logicalWidth)
 }
 
-function clipWidth(clip: VideoClip, fps: number, zoom: number) {
-  return Math.max(112, (clip.durationInFrames / fps) * 52 * zoom)
-}
+const FALLBACK_TRACK_WIDTH = 720
 
 export function FosAssemblyTimeline({
   project,
@@ -108,6 +107,8 @@ export function FosAssemblyTimeline({
   resetLabel?: string
 }) {
   const canvasRef = useRef<HTMLDivElement>(null)
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const [fitTrackWidth, setFitTrackWidth] = useState(FALLBACK_TRACK_WIDTH)
   const [playheadPointerId, setPlayheadPointerId] = useState<number | null>(null)
   const [audioDrag, setAudioDrag] = useState<{
     pointerId: number
@@ -120,14 +121,35 @@ export function FosAssemblyTimeline({
   } | null>(null)
   const positions = useMemo(() => computeClipPositions(project.timeline), [project.timeline])
   const totalFrames = calculateTimelineDuration(project.timeline)
-  const widths = useMemo(() => project.timeline.map((clip) => clipWidth(clip, project.config.fps, zoom)), [project.config.fps, project.timeline, zoom])
-  const timelineWidth = Math.max(720, widths.reduce((sum, width) => sum + width, 0) + Math.max(0, widths.length - 1) * ASSEMBLY_TRACK_CLIP_GAP + ASSEMBLY_TRACK_INLINE_PADDING * 2)
+  const widths = useMemo(() => assemblyClipWidths({
+    durations: project.timeline.map((clip) => clip.durationInFrames),
+    fps: project.config.fps,
+    zoom,
+    fitTrackWidth,
+  }), [fitTrackWidth, project.config.fps, project.timeline, zoom])
+  const timelineWidth = assemblyTimelineWidth(widths, fitTrackWidth)
   const playheadLeft = TRACK_LABEL_WIDTH + timelineFrameToOffset(currentFrame, positions, widths, selection?.clipId)
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
-  const ticks = Array.from({ length: 7 }, (_, index) => Math.round((totalFrames / 6) * index))
+  const ticks = useMemo(
+    () => assemblyRulerFrames(totalFrames, project.config.fps, timelineWidth),
+    [project.config.fps, timelineWidth, totalFrames],
+  )
+
+  useEffect(() => {
+    const element = viewportRef.current
+    if (!element) return
+    const update = () => {
+      const next = Math.max(240, Math.round(element.clientWidth - TRACK_LABEL_WIDTH))
+      setFitTrackWidth((current) => Math.abs(current - next) < 2 ? current : next)
+    }
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(element)
+    return () => observer.disconnect()
+  }, [])
   const scenes = useMemo(() => {
     const result: Array<{ key: string; label: string; width: number }> = []
     project.timeline.forEach((clip, index) => {
@@ -269,9 +291,32 @@ export function FosAssemblyTimeline({
         </div>
         <label>缩放<input aria-label="组装时间线缩放" type="range" min={0.5} max={3} step={0.1} value={zoom} onChange={(event) => onZoom(Number(event.target.value))} /><small>{Math.round(zoom * 100)}%</small></label>
       </header>
-      <div className="fac-timeline-viewport">
+      <div ref={viewportRef} className="fac-timeline-viewport">
         <div ref={canvasRef} className="fac-timeline-canvas" style={{ width: timelineWidth + TRACK_LABEL_WIDTH }}>
-          <div className="fac-ruler-row"><span>时间</span><div className="fac-ruler" onClick={seekFromPointer}>{ticks.map((frame) => <time key={frame} style={{ left: timelineFrameToOffset(frame, positions, widths) }}>{framesToTime(frame, project.config.fps)}</time>)}</div></div>
+          <div className="fac-timeline-grid" aria-hidden="true">
+            {ticks.map((frame, index) => (
+              <i key={`${frame}:${index}`} style={{ left: timelineFrameToOffset(frame, positions, widths) }} />
+            ))}
+          </div>
+          <div className="fac-ruler-row">
+            <span>时间</span>
+            <div className="fac-ruler" onClick={seekFromPointer}>
+              {ticks.map((frame, index) => {
+                const edge = index === 0 ? 'start' : index === ticks.length - 1 ? 'end' : 'mid'
+                return (
+                  <span
+                    key={`${frame}:${index}`}
+                    className="fac-ruler-mark"
+                    data-edge={edge}
+                    style={{ left: timelineFrameToOffset(frame, positions, widths) }}
+                  >
+                    <time>{framesToTime(frame, project.config.fps)}</time>
+                    <i />
+                  </span>
+                )
+              })}
+            </div>
+          </div>
           <div className="fac-track-row is-scenes"><span className="fac-track-label">场景</span><div className="fac-track-lane">{scenes.map((scene) => <div key={scene.key} className="fac-scene-block" style={{ width: scene.width }}>{scene.label}</div>)}</div></div>
           <div className="fac-track-row is-video"><span className="fac-track-label">分镜</span><DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={dragEnd}><SortableContext items={project.timeline.map((clip) => clip.id)} strategy={horizontalListSortingStrategy}><div className="fac-track-lane">{positions.map((clip, index) => <SortableAssemblyClip key={clip.id} clip={clip} index={index} width={widths[index]} fps={project.config.fps} selected={selection?.clipId === clip.id && selection.track === 'video'} readOnly={readOnly} onClick={(event) => selectFromPointer(event, clip, 'video')} />)}{!positions.length ? <div className="fac-track-empty">暂无可剪辑的分镜视频</div> : null}</div></SortableContext></DndContext></div>
           <div className="fac-track-row is-audio"><span className="fac-track-label"><AppIcon name="audioWave" />音频</span><div className="fac-track-lane fac-audio-lane">{audioItems.map((item) => {
