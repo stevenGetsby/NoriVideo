@@ -1,7 +1,9 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { apiFetch } from '@/lib/api-fetch'
+import { PROJECT_CHANGED_EVENT } from '@/lib/projects/change-client'
 
 export interface FosScene {
   id: string
@@ -32,6 +34,8 @@ export interface FosWorldSetting {
   artStyle: string
   artStylePrompt: string | null
   projectStyle: string
+  videoRatio: string
+  videoResolution: string
 }
 
 export interface FosAssetVariant {
@@ -67,6 +71,8 @@ export interface FosAsset {
 export interface FosProjectData {
   projectId: string
   projectName: string
+  parentProjectId?: string | null
+  parentProjectName?: string | null
   loading: boolean
   scriptImportStatus: string | null
   episodes: FosEpisode[]
@@ -165,33 +171,49 @@ function readEpisodeMetadata(raw: Record<string, unknown>): { status: string | n
 }
 
 export function useFosProject(projectId: string): FosProjectData {
+  const { data: session } = useSession()
+  const workspaceId = session?.user?.workspaceOwnerId || session?.user?.id || ''
+  const cacheKey = `${workspaceId}:${projectId}`
+  const [snapshotCacheKey, setSnapshotCacheKey] = useState('')
   const [data, setData] = useState<FosProjectData>({
-    projectId, projectName: '未命名项目', loading: true,
+    projectId, projectName: '未命名作品', loading: true,
     scriptImportStatus: null,
     episodes: [], characters: [], items: [], environments: [],
     world: null, scriptApproved: false, refetch: () => {},
   })
   const [reloadKey, setReloadKey] = useState(0)
   const refetch = useCallback(() => {
-    projectDataCache.delete(projectId)
+    projectDataCache.delete(cacheKey)
     setReloadKey((key) => key + 1)
-  }, [projectId])
+  }, [cacheKey])
+  useEffect(() => {
+    const refresh = (event: Event) => {
+      if ((event as CustomEvent<{ projectId?: string }>).detail?.projectId === projectId) refetch()
+    }
+    window.addEventListener(PROJECT_CHANGED_EVENT, refresh)
+    return () => window.removeEventListener(PROJECT_CHANGED_EVENT, refresh)
+  }, [projectId, refetch])
   const { scriptImportStatus } = data
 
   useEffect(() => {
     let cancelled = false
     async function load() {
-      const cached = projectDataCache.get(projectId)
+      if (!workspaceId) return
+      const cached = projectDataCache.get(cacheKey)
       if (cached && Date.now() - cached.storedAt < PROJECT_DATA_CACHE_TTL_MS && reloadKey === 0) {
+        setSnapshotCacheKey(cacheKey)
         setData({ ...cached.snapshot, loading: false, refetch })
         return
       }
       if (cached && reloadKey === 0) {
+        setSnapshotCacheKey(cacheKey)
         setData({ ...cached.snapshot, loading: false, refetch })
       }
 
       const loadProjectBase = async (): Promise<{
         projectName: string | null
+        parentProjectId: string | null
+        parentProjectName: string | null
         scriptImportStatus: string | null
         world: FosWorldSetting | null
       }> => {
@@ -199,11 +221,14 @@ export function useFosProject(projectId: string): FosProjectData {
         if (res.ok) {
           const json = await res.json() as { project?: Record<string, unknown> }
           const project = json.project ?? {}
+          const parentProject = isRecord(project.parentProject) ? project.parentProject : {}
           const npd = isRecord(project.novelPromotionData) ? project.novelPromotionData : {}
           const artStyle = asString(npd.artStyle) ?? 'american-comic'
           const projectStyle = asString(npd.projectStyle) ?? 'live-action'
           return {
             projectName: asString(project.name),
+            parentProjectId: asString(parentProject.id),
+            parentProjectName: asString(parentProject.name),
             scriptImportStatus: asString(npd.importStatus),
             world: {
               label: PROJECT_STYLE_LABELS[projectStyle] ?? projectStyle,
@@ -211,10 +236,12 @@ export function useFosProject(projectId: string): FosProjectData {
               artStyle,
               artStylePrompt: asString(npd.artStylePrompt),
               projectStyle,
+              videoRatio: asString(npd.videoRatio) ?? '9:16',
+              videoResolution: asString(npd.videoResolution) ?? '480p',
             },
           }
         }
-        return { projectName: null, scriptImportStatus: null, world: null }
+        return { projectName: null, parentProjectId: null, parentProjectName: null, scriptImportStatus: null, world: null }
       }
 
       const loadFallbackProjectName = async (): Promise<string | null> => {
@@ -271,14 +298,14 @@ export function useFosProject(projectId: string): FosProjectData {
       }
 
       const [baseResult, episodes, assets, scriptApproved] = await Promise.all([
-        loadProjectBase().catch(() => ({ projectName: null, scriptImportStatus: null, world: null })),
+        loadProjectBase().catch(() => ({ projectName: null, parentProjectId: null, parentProjectName: null, scriptImportStatus: null, world: null })),
         loadEpisodes().catch(() => []),
         loadAssets().catch(() => ({ characters: [], items: [], environments: [] })),
         loadScriptApproved().catch(() => false),
       ])
 
       const fallbackProjectName = baseResult.projectName ? null : await loadFallbackProjectName().catch(() => null)
-      const projectName = baseResult.projectName || fallbackProjectName || '未命名项目'
+      const projectName = baseResult.projectName || fallbackProjectName || '未命名作品'
       const { scriptImportStatus, world } = baseResult
       const { characters, items, environments } = assets
 
@@ -286,6 +313,8 @@ export function useFosProject(projectId: string): FosProjectData {
         const snapshot: FosProjectSnapshot = {
           projectId,
           projectName,
+          parentProjectId: baseResult.parentProjectId,
+          parentProjectName: baseResult.parentProjectName,
           scriptImportStatus,
           episodes,
           characters,
@@ -294,7 +323,8 @@ export function useFosProject(projectId: string): FosProjectData {
           world,
           scriptApproved,
         }
-        projectDataCache.set(projectId, { snapshot, storedAt: Date.now() })
+        projectDataCache.set(cacheKey, { snapshot, storedAt: Date.now() })
+        setSnapshotCacheKey(cacheKey)
         setData({
           ...snapshot,
           loading: false,
@@ -304,7 +334,7 @@ export function useFosProject(projectId: string): FosProjectData {
     }
     void load()
     return () => { cancelled = true }
-  }, [projectId, reloadKey, refetch])
+  }, [cacheKey, projectId, reloadKey, refetch, workspaceId])
 
   useEffect(() => {
     if (!scriptImportStatus || !IMPORT_ACTIVE_STATUSES.has(scriptImportStatus)) return
@@ -312,5 +342,9 @@ export function useFosProject(projectId: string): FosProjectData {
     return () => window.clearInterval(timer)
   }, [scriptImportStatus, refetch])
 
-  return data
+  return snapshotCacheKey === cacheKey ? data : {
+    projectId, projectName: '未命名作品', loading: true, refetch,
+    scriptImportStatus: null, episodes: [], characters: [], items: [],
+    environments: [], world: null, scriptApproved: false,
+  }
 }

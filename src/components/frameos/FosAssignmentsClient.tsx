@@ -159,7 +159,7 @@ export function FosAssignmentsClient() {
     if (unassignedProjects.length > 0) {
       result.push({
         value: UNASSIGNED_WORK_ID,
-        label: '未归属作品',
+        label: '未归属项目',
         projects: unassignedProjects.map((project) => ({ value: project.id, label: project.name })),
         unassigned: true,
       })
@@ -171,7 +171,7 @@ export function FosAssignmentsClient() {
       if (!work) {
         const fallbackWork: WorkOption = {
           value: fallbackWorkId,
-          label: assignment.workName || '未归属作品',
+          label: assignment.workName || '未归属项目',
           projects: [],
           unassigned: !assignment.workId,
         }
@@ -249,7 +249,7 @@ export function FosAssignmentsClient() {
     void fetchAllWorks({
       pageSize: 50,
       signal: controller.signal,
-      fallbackErrorMessage: '加载作品失败',
+      fallbackErrorMessage: '加载项目失败',
     })
       .then((payload) => {
         const unassigned = payload.works.find((work) => work.virtual || work.id === UNASSIGNED_WORK_ID)
@@ -258,8 +258,8 @@ export function FosAssignmentsClient() {
       })
       .catch((error) => {
         if (controller.signal.aborted && !timedOut) return
-        logError('[FosAssignmentsClient] 获取作品筛选失败', error)
-        setWorksError(timedOut ? '作品筛选加载超时' : error instanceof Error ? error.message : '作品筛选加载失败')
+        logError('[FosAssignmentsClient] 获取项目筛选失败', error)
+        setWorksError(timedOut ? '项目筛选加载超时' : error instanceof Error ? error.message : '项目筛选加载失败')
       })
       .finally(() => {
         window.clearTimeout(timeout)
@@ -498,10 +498,10 @@ export function FosAssignmentsClient() {
 
         <div className="fa-filters">
           <div className="fa-filter-item">
-            <span>作品</span>
+            <span>项目</span>
             <AssignmentFilterSelect
               value={workId}
-              placeholder="全部作品"
+              placeholder="全部项目"
               searchable
               loading={worksLoading}
               options={workOptions.map((work) => ({ value: work.value, label: work.label }))}
@@ -510,10 +510,10 @@ export function FosAssignmentsClient() {
             />
           </div>
           <div className="fa-filter-item">
-            <span>项目</span>
+            <span>作品</span>
             <AssignmentFilterSelect
               value={projectId}
-              placeholder="全部项目"
+              placeholder="全部作品"
               searchable
               disabled={!workId}
               loading={worksLoading}

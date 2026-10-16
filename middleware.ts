@@ -75,6 +75,6 @@ export const config = {
     matcher: [
         '/',
         '/(zh|en)/:path*',
-        '/((?!m|_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.gif|.*\\.ico).*)',
+        '/((?!m|_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.gif|.*\\.ico|.*\\.webp).*)',
     ]
 };

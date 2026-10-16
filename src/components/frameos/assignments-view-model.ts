@@ -334,7 +334,7 @@ export function assignmentReturnPath(
 }
 
 export function assignmentNavigationBlockReason(assignment: CollaborationAssignment): string {
-  if (!assignment.projectId) return '该任务所属项目不存在，暂无法进入'
+  if (!assignment.projectId) return '该任务所属作品不存在，暂无法进入'
   if (assignment.matched === false) return '该任务对应分集已不存在，暂无法进入'
   return ''
 }

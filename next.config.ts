@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import createNextIntlPlugin from 'next-intl/plugin';
+import path from 'node:path';
 
 const withNextIntl = createNextIntlPlugin('./src/i18n.ts');
 
@@ -9,6 +10,16 @@ const nextConfig: NextConfig = {
   },
   typescript: {
     ignoreBuildErrors: true,
+  },
+  webpack(config, { dev }) {
+    // A local mirror may live on an iCloud-managed Desktop. Keep regenerable
+    // webpack cache on an explicitly selected local disk instead of restoring
+    // dataless cache packs. Production builds keep their existing defaults.
+    const localCacheDir = process.env.NORI_LOCAL_CACHE_DIR?.trim()
+    if (dev && localCacheDir && config.cache && typeof config.cache === 'object' && config.cache.type === 'filesystem') {
+      config.cache.cacheDirectory = path.join(path.resolve(localCacheDir), config.name || 'default')
+    }
+    return config
   },
   // Next 15 的 allowedDevOrigins 是顶层配置，不属于 experimental
   allowedDevOrigins: [

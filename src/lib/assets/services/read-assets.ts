@@ -16,19 +16,19 @@ import {
   listProjectLocationBackedAssets,
 } from '@/lib/assets/services/location-backed-assets'
 
-async function readProjectAssets(projectId: string): Promise<AssetSummary[]> {
+async function readProjectAssets(projectId: string, kind?: AssetKind | null): Promise<AssetSummary[]> {
   const project = await prisma.novelPromotionProject.findUnique({
     where: { projectId },
     select: {
       id: true,
-      characters: {
+      characters: !kind || kind === 'character' ? {
         include: {
           appearances: {
             orderBy: { appearanceIndex: 'asc' },
           },
         },
         orderBy: { createdAt: 'asc' },
-      },
+      } : false,
     },
   })
   if (!project) {
@@ -36,12 +36,12 @@ async function readProjectAssets(projectId: string): Promise<AssetSummary[]> {
   }
 
   const [locations, props] = await Promise.all([
-    listProjectLocationBackedAssets(project.id, 'location'),
-    listProjectLocationBackedAssets(project.id, 'prop'),
+    !kind || kind === 'location' ? listProjectLocationBackedAssets(project.id, 'location') : Promise.resolve([]),
+    !kind || kind === 'prop' ? listProjectLocationBackedAssets(project.id, 'prop') : Promise.resolve([]),
   ])
 
   const withMedia = await attachMediaFieldsToProject({
-    characters: project.characters,
+    characters: project.characters || [],
     locations: [...locations, ...props],
   })
   const projectCharacters = (withMedia.characters as unknown as Parameters<typeof mapProjectCharacterToAsset>[0][])
@@ -56,14 +56,14 @@ async function readProjectAssets(projectId: string): Promise<AssetSummary[]> {
   return [...projectCharacters, ...projectLocations, ...projectProps]
 }
 
-async function readGlobalAssets(input: { folderId?: string | null; userId: string }): Promise<AssetSummary[]> {
+async function readGlobalAssets(input: { folderId?: string | null; userId: string; kind?: AssetKind | null }): Promise<AssetSummary[]> {
   const folderFilter = input.folderId ? { folderId: input.folderId } : {}
   const where = {
     userId: input.userId,
     ...folderFilter,
   }
   const [characters, locations, props, voices] = await Promise.all([
-    prisma.globalCharacter.findMany({
+    !input.kind || input.kind === 'character' ? prisma.globalCharacter.findMany({
       where,
       include: {
         appearances: {
@@ -71,21 +71,21 @@ async function readGlobalAssets(input: { folderId?: string | null; userId: strin
         },
       },
       orderBy: { createdAt: 'asc' },
-    }),
-    listGlobalLocationBackedAssets({
+    }) : Promise.resolve([]),
+    !input.kind || input.kind === 'location' ? listGlobalLocationBackedAssets({
       userId: input.userId,
       folderId: input.folderId,
       kind: 'location',
-    }),
-    listGlobalLocationBackedAssets({
+    }) : Promise.resolve([]),
+    !input.kind || input.kind === 'prop' ? listGlobalLocationBackedAssets({
       userId: input.userId,
       folderId: input.folderId,
       kind: 'prop',
-    }),
-    prisma.globalVoice.findMany({
+    }) : Promise.resolve([]),
+    !input.kind || input.kind === 'voice' ? prisma.globalVoice.findMany({
       where,
       orderBy: { createdAt: 'asc' },
-    }),
+    }) : Promise.resolve([]),
   ])
 
   const [globalCharacters, globalLocations, globalProps, globalVoices] = await Promise.all([
@@ -108,10 +108,11 @@ export async function readAssets(
   access?: { userId?: string | null },
 ): Promise<AssetSummary[]> {
   const assets = input.scope === 'project'
-    ? await readProjectAssets(assertProjectId(input.projectId))
+    ? await readProjectAssets(assertProjectId(input.projectId), input.kind)
     : await readGlobalAssets({
       folderId: input.folderId,
       userId: assertUserId(access?.userId),
+      kind: input.kind,
     })
   return filterMappedAssetsByKind(assets, input.kind as AssetKind | null | undefined)
 }

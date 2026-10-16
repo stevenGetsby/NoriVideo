@@ -19,6 +19,6 @@ describe('NoriVideo service record surface', () => {
     expect(modals).not.toContain('演示已禁用')
     expect(page).toContain('<FosShell activeKey="records">')
     expect(page).toContain('<FrameServiceRecordsDashboard />')
-    expect(page).toContain('查看真实任务、项目消耗、账户流水、失败原因和服务使用统计。')
+    expect(page).toContain('查看真实任务、作品消耗、账户流水、失败原因和服务使用统计。')
   })
 })

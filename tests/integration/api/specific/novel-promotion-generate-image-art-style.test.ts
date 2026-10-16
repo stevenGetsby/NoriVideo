@@ -49,7 +49,14 @@ const billingMock = vi.hoisted(() => ({
   buildDefaultTaskBillingInfo: vi.fn(() => ({ billable: false })),
 }))
 
+const prismaMock = vi.hoisted(() => ({
+  characterAppearance: {
+    findFirst: vi.fn(async () => ({ id: 'appearance-1' })),
+  },
+}))
+
 vi.mock('@/lib/api-auth', () => authMock)
+vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/task/submitter', () => ({ submitTask: submitTaskMock }))
 vi.mock('@/lib/config-service', () => configServiceMock)
 vi.mock('@/lib/task/has-output', () => hasOutputMock)
@@ -78,6 +85,13 @@ describe('api specific - novel promotion generate image art style', () => {
 
     const res = await mod.POST(req, { params: Promise.resolve({ projectId: 'project-1' }) })
     expect(res.status).toBe(200)
+    expect(prismaMock.characterAppearance.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'appearance-1', characterId: 'character-1',
+        character: { novelPromotionProject: { projectId: 'project-1' } },
+      },
+      select: { id: true },
+    })
 
     const submitArg = submitTaskMock.mock.calls[0]?.[0] as { payload?: Record<string, unknown> } | undefined
     expect(submitArg?.payload?.artStyle).toBe('realistic')

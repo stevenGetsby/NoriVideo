@@ -4,7 +4,7 @@ import { buildMockRequest } from '../../../helpers/request'
 const prismaMock = vi.hoisted(() => ({
   project: {
     findFirst: vi.fn(async () => ({ id: 'project-1' })),
-    findMany: vi.fn(async () => [{ id: 'project-1', name: '短剧项目' }]),
+    findMany: vi.fn(async () => [{ id: 'project-1', name: '短剧作品' }]),
   },
   user: {
     findMany: vi.fn(async () => [
@@ -47,6 +47,10 @@ vi.mock('@/lib/frameos/material-upload', () => ({ uploadFrameosMaterial: vi.fn()
 vi.mock('@/lib/frameos/material-service', () => ({
   syncGeneratedImagesToMaterialLibrary,
 }))
+vi.mock('@/lib/storage', () => ({
+  extractStorageKey: (value: string | null) => value?.startsWith('images/') || value?.startsWith('voice/') ? value : null,
+  getSignedUrl: (key: string) => `/api/storage/sign?key=${encodeURIComponent(key)}`,
+}))
 
 import { GET } from '@/app/api/frameos/materials/route'
 
@@ -63,8 +67,8 @@ describe('FrameOS material list filters', () => {
       },
     }
     requireUserAuthMock.mockResolvedValue({ session })
-    requireProjectAuthLightMock.mockResolvedValue({ session, project: { id: 'project-1', userId: 'user-1', name: '短剧项目' } })
-    prismaMock.project.findMany.mockResolvedValue([{ id: 'project-1', name: '短剧项目' }])
+    requireProjectAuthLightMock.mockResolvedValue({ session, project: { id: 'project-1', userId: 'user-1', name: '短剧作品' } })
+    prismaMock.project.findMany.mockResolvedValue([{ id: 'project-1', name: '短剧作品' }])
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'user-1', name: '管理员' },
       { id: 'creator-1', name: '资产师甲' },
@@ -108,10 +112,27 @@ describe('FrameOS material list filters', () => {
           lte: new Date('2026-07-18T00:00:00.000Z'),
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 200,
     })
-    expect(payload.materials?.[0]?.projectName).toBe('短剧项目')
+    expect(payload.materials?.[0]?.projectName).toBe('短剧作品')
+  })
+
+  it('returns real creator choices and performs exact dropdown filtering', async () => {
+    const response = await GET(buildMockRequest({
+      path: '/api/frameos/materials', method: 'GET',
+      query: { creator: '资产师甲', creatorExact: '1', projectId: 'project-1', available: '0' },
+    }), { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        projectId: { in: ['project-1'] },
+        OR: [{ ownerName: { equals: '资产师甲' } }, { userId: { in: ['creator-1'] }, OR: [{ ownerName: null }, { ownerName: '' }] }],
+      }),
+    }))
+    expect(await response.json()).toMatchObject({
+      creators: [{ id: 'user-1', name: '管理员' }, { id: 'creator-1', name: '资产师甲' }, { id: 'storyboard-child', name: '分镜师' }],
+    })
   })
 
   it('limits an unscoped child-account query to its management workspace plus account materials', async () => {
@@ -126,7 +147,7 @@ describe('FrameOS material list filters', () => {
         },
       },
     })
-    prismaMock.project.findMany.mockResolvedValueOnce([{ id: 'project-1', name: '短剧项目' }])
+    prismaMock.project.findMany.mockResolvedValueOnce([{ id: 'project-1', name: '短剧作品' }])
 
     const response = await GET(buildMockRequest({
       path: '/api/frameos/materials',
@@ -138,6 +159,7 @@ describe('FrameOS material list filters', () => {
     expect(prismaMock.project.findMany).toHaveBeenCalledWith({
       where: {
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true, name: true },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
@@ -150,5 +172,17 @@ describe('FrameOS material list filters', () => {
       }),
     }))
     expect(syncGeneratedImagesToMaterialLibrary).not.toHaveBeenCalled()
+  })
+
+  it('keeps cursor pagination inside the authenticated project scope', async () => {
+    const response = await GET(buildMockRequest({
+      path: '/api/frameos/materials', method: 'GET', query: { projectId: 'project-1', cursor: 'material-older', limit: '1' },
+    }), { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: { in: ['project-1'] }, userId: { in: ['user-1', 'creator-1', 'storyboard-child'] } }),
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], cursor: { id: 'material-older' }, skip: 1, take: 1,
+    }))
+    expect((await response.json()).pagination.nextCursor).toBe('material-1')
   })
 })

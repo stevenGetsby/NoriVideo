@@ -79,9 +79,9 @@ export function submitProjectCreationWithProgress(input: {
           error: '网络中断，未能上传这个参考文件。',
         })
       }
-      reject(new Error('网络中断，项目创建请求未完成，请重试。'))
+      reject(new Error('网络中断，作品创建请求未完成，请重试。'))
     }
-    xhr.onabort = () => reject(new Error('项目创建请求已取消。'))
+    xhr.onabort = () => reject(new Error('作品创建请求已取消。'))
     xhr.send(input.form)
   })
 }

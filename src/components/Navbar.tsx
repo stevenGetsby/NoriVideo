@@ -11,6 +11,7 @@ import UpdateNoticeModal from './UpdateNoticeModal'
 import { useGithubReleaseUpdate } from '@/hooks/common/useGithubReleaseUpdate'
 import { Link } from '@/i18n/navigation'
 import { buildAuthenticatedHomeTarget } from '@/lib/home/default-route'
+import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 
 const AUTH_NAV_LINKS: Array<{ href: ComponentProps<typeof Link>['href']; labelKey: string; icon: AppIconName }> = [
   { href: { pathname: '/projects' }, labelKey: 'workspace', icon: 'monitor' },
@@ -66,9 +67,7 @@ export default function Navbar() {
           <div className="flex h-16 min-w-0 items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-2">
               <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group flex items-center gap-2">
-                <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]">
-                  N
-                </span>
+                <NoriBrandMark size={36} />
                 <span className="hidden leading-tight sm:block">
                   <span className="block text-sm font-semibold text-[var(--glass-text-primary)]">NoriVideo</span>
                   <span className="block text-[11px] text-[var(--glass-text-tertiary)]">{t('console')}</span>

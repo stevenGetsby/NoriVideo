@@ -58,7 +58,7 @@ export function CanvasImageOperationDialog({
   isTaskMaterialized: (taskId: string) => boolean
   onClose: () => void
 }) {
-  const { generationAllowed } = useAccountBalance()
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const imageUrl = toDisplayImageUrl(node.data.contentUrl || node.data.imageUrl || null)
   const previewRef = useRef<HTMLDivElement>(null)
   const [rows, setRows] = useState(2)
@@ -126,7 +126,7 @@ export function CanvasImageOperationDialog({
   }
 
   const submit = async () => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -232,11 +232,11 @@ export function CanvasImageOperationDialog({
               <p>点击左侧格子选择需要切出的画面；结果会作为一组新图片节点落在源图右侧，并自动加入素材库。</p>
             </> : null}
             {mode === 'lens_focus' ? <><h3>框选聚焦区域</h3><p>在左侧图片上拖拽一个矩形。系统会裁出局部参考图并自动连接到当前生成节点，适合强化人物面部、服饰或关键物件细节。</p><div className="nori-canvas-focus-values"><span>X {Math.round(crop.x * 100)}%</span><span>Y {Math.round(crop.y * 100)}%</span><span>W {Math.round(crop.width * 100)}%</span><span>H {Math.round(crop.height * 100)}%</span></div></> : null}
-            {mode === 'superresolve' ? <><h3>处理引擎</h3><label className="nori-canvas-operation-engine"><select aria-label="图片超清处理引擎" value={engineKey} onChange={(event) => setEngineKey(event.target.value)}>{engines.map((engine) => <option key={engine.engineKey} value={engine.engineKey}>{engine.label}</option>)}</select><small>{selectedEngine?.description || '使用项目服务配置中的可用超清引擎'}</small></label><h3>放大倍数</h3><div className="nori-canvas-scale-options">{([2, 4] as const).map((value) => <button type="button" key={value} className={scale === value ? 'is-active' : ''} onClick={() => setScale(value)}><b>{value}×</b><span>{value === 2 ? '适合常规交付' : '适合裁切与大屏'}</span></button>)}</div><p>任务会在后台异步处理，最长边限制为 8192px；关闭画布后仍可恢复进度和失败原因。</p></> : null}
+            {mode === 'superresolve' ? <><h3>处理引擎</h3><label className="nori-canvas-operation-engine"><select aria-label="图片超清处理引擎" value={engineKey} onChange={(event) => setEngineKey(event.target.value)}>{engines.map((engine) => <option key={engine.engineKey} value={engine.engineKey}>{engine.label}</option>)}</select><small>{selectedEngine?.description || '使用作品服务配置中的可用超清引擎'}</small></label><h3>放大倍数</h3><div className="nori-canvas-scale-options">{([2, 4] as const).map((value) => <button type="button" key={value} className={scale === value ? 'is-active' : ''} onClick={() => setScale(value)}><b>{value}×</b><span>{value === 2 ? '适合常规交付' : '适合裁切与大屏'}</span></button>)}</div><p>任务会在后台异步处理，最长边限制为 8192px；关闭画布后仍可恢复进度和失败原因。</p></> : null}
             {mode === 'superresolve' && taskUpdate ? <CanvasOperationTaskProgress update={taskUpdate} engineLabel={selectedEngine?.label} materialized={isTaskMaterialized(taskUpdate.task.id)} actionBusy={taskActionBusy} onCancel={() => void cancelTask()} onRetry={() => void retryTask()} onRecover={() => void recoverTask()} /> : null}
             {rows * cols > 25 ? <div className="nori-canvas-generator-error">切片总数不能超过 25</div> : null}
             {error ? <div className="nori-canvas-generator-error">{error}</div> : null}
-            <div className="nori-canvas-image-operation-actions"><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !imageUrl || (mode === 'superresolve' && engines.length > 0 && !selectedEngine) || (mode === 'grid_split' && (rows * cols < 2 || rows * cols > 25 || selectedCells.length === 0))} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : <Icon />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? '积分不足' : mode === 'grid_split' ? `生成 ${selectedCells.length} 张` : mode === 'lens_focus' ? '创建聚焦参考' : `生成 ${scale}× 超清图`}</button></div>
+            <div className="nori-canvas-image-operation-actions"><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !imageUrl || (mode === 'superresolve' && engines.length > 0 && !selectedEngine) || (mode === 'grid_split' && (rows * cols < 2 || rows * cols > 25 || selectedCells.length === 0))} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : <Icon />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? generationDisabledLabel : mode === 'grid_split' ? `生成 ${selectedCells.length} 张` : mode === 'lens_focus' ? '创建聚焦参考' : `生成 ${scale}× 超清图`}</button></div>
           </aside>
         </div>
       </div>

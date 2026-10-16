@@ -69,7 +69,7 @@ describe('canvas deep links and production sync contracts', () => {
     expect(syncButtonEnd).toBeGreaterThan(syncButtonStart)
     expect(syncButton).toContain("disabled={!canSyncProduction || syncingProduction}")
     expect(syncButton).toContain('onClick={() => { onSyncProduction(); setMenu(null) }}')
-    expect(syncButton).toContain("syncingProduction ? '同步中' : '同步项目'")
+    expect(syncButton).toContain("syncingProduction ? '同步中' : '同步作品'")
     expect(graph).toContain("import { canEditInfiniteCanvas } from './permissions'")
     expect(graph).toContain('const readOnly = !canEditInfiniteCanvas(session?.user)')
     expect(graph).toContain('canSyncProduction={!readOnly}')

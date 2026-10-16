@@ -2,6 +2,7 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { ensureMediaObjectFromStorageKey } from '@/lib/media/service'
 import { extractStorageKey } from '@/lib/storage'
+import { withCharacterVoiceMaterial } from './character-voice-reference'
 
 export type FrameosMaterialType = 'image' | 'video' | 'audio' | 'model3d'
 export type FrameosMaterialSource = 'toolbox' | 'creative' | 'production' | 'upload'
@@ -63,6 +64,7 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
   const explicitStorageKey = cleanText(input.storageKey)
   const explicitResultUrl = cleanText(input.resultUrl)
   const resolvedStorageKey = explicitStorageKey || extractStorageKey(explicitResultUrl) || null
+  const projectId = cleanText(input.projectId) || 'global'
   let resultUrl = explicitResultUrl || resolvedStorageKey || ''
 
   if (resolvedStorageKey) {
@@ -74,11 +76,11 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
   }
 
   const where = resolvedStorageKey
-    ? { userId: input.userId, storageKey: resolvedStorageKey }
-    : { userId: input.userId, resultUrl }
+    ? { userId: input.userId, projectId, storageKey: resolvedStorageKey }
+    : { userId: input.userId, projectId, resultUrl }
   const existing = await prisma.frameosMaterial.findFirst({ where: { ...where, deletedAt: null } })
   const data = {
-    projectId: cleanText(input.projectId) || 'global',
+    projectId,
     ownerName: cleanText(input.ownerName) || null,
     title: safeTitle(input.title, '未命名素材'),
     type: input.type,
@@ -90,9 +92,13 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
   }
 
   if (existing) {
+    const previousMetadata = existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata) ? existing.metadata as Record<string, unknown> : {}
+    const mergedMetadata = { ...previousMetadata, ...input.metadata }
+    const metadata = mergedMetadata.assetCategory && mergedMetadata.assetCategory !== 'character'
+      ? withCharacterVoiceMaterial(mergedMetadata, null) : mergedMetadata
     return await prisma.frameosMaterial.update({
       where: { id: existing.id },
-      data,
+      data: { ...data, metadata: toPrismaJson(metadata) },
     })
   }
 
@@ -139,6 +145,7 @@ export async function syncGeneratedImagesToMaterialLibrary(input: {
   const [projects, owner] = await Promise.all([prisma.project.findMany({
     where: {
       userId: input.userId,
+      deletedAt: null,
       ...(input.projectId ? { id: input.projectId } : {}),
     },
     select: {
@@ -342,14 +349,17 @@ export async function syncGeneratedImagesToMaterialLibrary(input: {
         ...(resultUrls.length > 0 ? [{ resultUrl: { in: resultUrls } }] : []),
       ],
     },
-    select: { storageKey: true, resultUrl: true },
+    select: { projectId: true, storageKey: true, resultUrl: true },
   })
-  const existingKeys = new Set(existing.map((item) => cleanText(item.storageKey)).filter(Boolean))
-  const existingUrls = new Set(existing.map((item) => cleanText(item.resultUrl)).filter(Boolean))
+  const existingKeys = new Set(existing.filter((item) => item.storageKey).map((item) => JSON.stringify([item.projectId, cleanText(item.storageKey)])))
+  const existingUrls = new Set(existing.filter((item) => item.resultUrl).map((item) => JSON.stringify([item.projectId, cleanText(item.resultUrl)])))
   const seen = new Set<string>()
   const missing = normalized.filter((item) => {
-    const identity = item.storageKey || item.resultUrl
-    if (!identity || seen.has(identity) || existingKeys.has(item.storageKey || '') || existingUrls.has(item.resultUrl)) {
+    const value = item.storageKey || item.resultUrl
+    const identity = JSON.stringify([item.projectId, value])
+    if (!value || seen.has(identity)
+      || existingKeys.has(JSON.stringify([item.projectId, item.storageKey || '']))
+      || existingUrls.has(JSON.stringify([item.projectId, item.resultUrl]))) {
       return false
     }
     seen.add(identity)

@@ -42,12 +42,12 @@ describe('work and project object access', () => {
       isManagement: true,
       role: 'admin',
     })
-    expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1' })
+    expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1', deletedAt: null })
   })
 
   it('lets a direct subaccount read every work and project in its management workspace', () => {
     const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'writer-1', role: 'writer' })
-    expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1' })
+    expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1', deletedAt: null })
     expect(projectReadWhere(auth, 'project-7')).toMatchObject({
       id: 'project-7',
       userId: 'owner-1',
@@ -73,6 +73,7 @@ describe('work and project object access', () => {
       where: {
         id: 'project-7',
         userId: 'owner-1',
+        deletedAt: null,
       },
     }))
     expect(access).toMatchObject({

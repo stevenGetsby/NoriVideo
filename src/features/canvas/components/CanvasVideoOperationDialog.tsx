@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { Captions, LoaderCircle, Maximize2, RotateCcw, ScanText, X } from '@/components/ui/icons'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 import {
   cancelCanvasOperationTask,
@@ -59,8 +59,8 @@ export function CanvasVideoOperationDialog({
   isTaskMaterialized: (taskId: string) => boolean
   onClose: () => void
 }) {
-  const { generationAllowed } = useAccountBalance()
-  const videoUrl = toDisplayImageUrl(node.data.contentUrl || node.data.videoUrl || null)
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
+  const videoUrl = toPlayableVideoUrl(node.data.videoUrl || node.data.contentUrl || null)
   const stageRef = useRef<HTMLDivElement>(null)
   const [eraseMode, setEraseMode] = useState<'subtitle' | 'text'>('subtitle')
   const [region, setRegion] = useState(SUBTITLE_REGION)
@@ -126,7 +126,7 @@ export function CanvasVideoOperationDialog({
     : { operation: 'video_superresolve', target, interpolate, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
 
   const submit = async () => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     setSubmitting(true)
     setError(null)
     try {
@@ -243,13 +243,13 @@ export function CanvasVideoOperationDialog({
 
         <div className="nori-canvas-video-operation-engine">
           <label><span>处理引擎</span><select value={engineKey} onChange={(event) => setEngineKey(event.target.value)}>{engines.map((engine) => <option key={engine.engineKey} value={engine.engineKey}>{engine.label}</option>)}</select></label>
-          <small>{selectedEngine?.description || '使用项目服务配置中的可用视频处理引擎'}</small>
+          <small>{selectedEngine?.description || '使用作品服务配置中的可用视频处理引擎'}</small>
         </div>
 
         {taskUpdate ? <CanvasOperationTaskProgress update={taskUpdate} engineLabel={selectedEngine?.label} materialized={isTaskMaterialized(taskUpdate.task.id)} actionBusy={taskActionBusy} onCancel={() => void cancelTask()} onRetry={() => void retryTask()} onRecover={() => void recoverTask()} /> : null}
 
         {error ? <div className="nori-canvas-video-operation-error">{error}</div> : null}
-        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !videoUrl || (engines.length > 0 && !selectedEngine)} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? '积分不足' : mode === 'subtitle_erase' ? '开始去字幕' : '开始增强'}</button></footer>
+        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !videoUrl || (engines.length > 0 && !selectedEngine)} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? generationDisabledLabel : mode === 'subtitle_erase' ? '开始去字幕' : '开始增强'}</button></footer>
       </section>
     </div>
   )

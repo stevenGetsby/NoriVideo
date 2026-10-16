@@ -64,6 +64,8 @@ export function buildMaterialPickerQuery({
   createdTo,
   favoriteOnly = false,
   sync = false,
+  projectOnly = false,
+  creatorExact = false,
 }: {
   projectId?: string | null
   scope: MaterialPickerScope
@@ -74,9 +76,11 @@ export function buildMaterialPickerQuery({
   createdTo?: string
   favoriteOnly?: boolean
   sync?: boolean
+  projectOnly?: boolean
+  creatorExact?: boolean
 }): URLSearchParams {
   const params = new URLSearchParams({
-    available: scope === 'project' ? '0' : '1',
+    available: scope === 'project' || projectOnly ? '0' : '1',
     limit: '300',
   })
   if (projectId?.trim()) params.set('projectId', projectId.trim())
@@ -87,6 +91,7 @@ export function buildMaterialPickerQuery({
   if (scope === 'favorites' || favoriteOnly) params.set('favorite', '1')
   if (query?.trim()) params.set('query', query.trim())
   if (creator?.trim()) params.set('creator', creator.trim())
+  if (creator?.trim() && creatorExact) params.set('creatorExact', '1')
   const from = createdFrom ? dateBoundary(createdFrom, false) : ''
   const to = createdTo ? dateBoundary(createdTo, true) : ''
   if (from) params.set('createdFrom', from)

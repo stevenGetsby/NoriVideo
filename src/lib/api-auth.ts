@@ -1,6 +1,6 @@
 /**
  * 🔐 API 权限验证工具
- * 集中管理 Session 验证、项目权限检查等通用逻辑
+ * 集中管理 Session 验证、作品权限检查等通用逻辑
  */
 
 import { getServerSession } from 'next-auth/next'
@@ -13,9 +13,9 @@ import { extractModelKey } from '@/lib/config-service'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { getLogContext, setLogContext } from '@/lib/logging/context'
 import { getOrCreateTestModeSession, isTestModeEnabled } from '@/lib/test-mode'
-import { getAccountPermissionContext } from '@/lib/account/request-context'
-import { normalizeAccountCredit, normalizeAccountPointCredit } from '@/lib/account/credits'
-import { cnyToPoints } from '@/lib/billing/credit-policy'
+import { getAccountPermissionContext, setAccountActorContext } from '@/lib/account/request-context'
+import { normalizeAccountCredit } from '@/lib/account/credits'
+import { getGenerationWalletPoints } from '@/lib/account/generation-wallet'
 import { projectReadWhere } from '@/lib/collaboration/access'
 import {
     effectiveAccountPermissions,
@@ -126,10 +126,9 @@ async function validateSessionUser(
     session.user.workspaceOwnerId = isManagementRole(role) ? user.id : (user.workspaceOwnerId || user.id)
     session.user.parentAccountId = user.parentAccountId
     session.user.coinCredits = normalizeAccountCredit(user.coinCredits)
-    session.user.pointCredits = normalizeAccountPointCredit(
-        user.balance ? cnyToPoints(Number(user.balance.balance)) : 0,
-    )
+    session.user.pointCredits = await getGenerationWalletPoints(user)
     session.user.id = session.user.workspaceOwnerId
+    setAccountActorContext(user.id, session.user.workspaceOwnerId)
     return null
 }
 
@@ -295,10 +294,10 @@ export async function requireAuth(requiredPermissions: readonly AccountPermissio
 }
 
 /**
- * 验证项目访问权限
- * 包含：Session 验证 + 项目存在检查 + 所有权验证 + NovelPromotionData 检查
+ * 验证作品访问权限
+ * 包含：Session 验证 + 作品存在检查 + 所有权验证 + NovelPromotionData 检查
  * 
- * @param projectId 项目 ID
+ * @param projectId 作品 ID
  * @param options 可选配置，支持按需加载关联数据
  * @returns 验证上下文（session, project, novelData）
  * @throws 返回对应的错误响应
@@ -340,7 +339,7 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
         novelPromotionIncludes.episodes = true
     }
 
-    // 3. 获取项目（包含 novelPromotionData 及其可选关联）
+    // 3. 获取作品（包含 novelPromotionData 及其可选关联）
     const hasIncludes = Object.keys(novelPromotionIncludes).length > 0
     const project = await withPrismaRetry(() =>
         prisma.project.findFirst({
@@ -353,7 +352,7 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
         })
     )
 
-    // 4. 项目存在检查
+    // 4. 作品存在检查
     if (!project) {
         return notFound('Project')
     }
@@ -393,7 +392,7 @@ export async function requireProjectAuth<T extends ProjectAuthIncludes = Project
 }
 
 /**
- * 仅验证 Session，不检查项目权限
+ * 仅验证 Session，不检查作品权限
  * 适用于用户级 API（如资产库）
  * 
  * @example
@@ -416,7 +415,7 @@ export async function requireUserAuth(): Promise<{ session: AuthSession } | Next
 }
 
 /**
- * 验证项目权限（不要求 NovelPromotionData）
+ * 验证作品权限（不要求 NovelPromotionData）
  * 适用于某些不需要 novelPromotionData 的 API
  */
 export async function requireProjectAuthLight(

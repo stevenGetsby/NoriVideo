@@ -381,7 +381,7 @@ function AssetImageModifyDialog({
 
 export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Exclude<AssetTab, 'timbre'> }) {
   const { data: session } = useSession()
-  const { generationAllowed } = useAccountBalance()
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const canEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])
   const meta = PAGE_META[tab]
   const list = useAssetList(data, tab)
@@ -519,7 +519,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
   }
 
   const handleGenerateOne = async (target: AssetImageTarget) => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     if (!canEdit || generatingAll || generatingKeys.has(target.key)) return
     updateKeySet(setGeneratingKeys, target.key, true)
     setError(null)
@@ -599,7 +599,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
   }
 
   const handleGenerateAll = async () => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     if (!canEdit || !canGenerate || generatingAll || generatingKeys.size > 0) return
     setGeneratingAll(true)
     setError(null)
@@ -636,7 +636,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
   const handleExtractAssets = async () => {
     if (!canEdit || !canExtract || extracting) return
     if (data.characters.length + data.items.length + data.environments.length > 0) {
-      const confirmed = window.confirm('重新解析会替换当前项目的角色、物品和环境资产，已有资产设定图也可能被移除。确定继续吗？')
+      const confirmed = window.confirm('重新解析会替换当前作品的角色、物品和环境资产，已有资产设定图也可能被移除。确定继续吗？')
       if (!confirmed) return
     }
     setExtracting(true)
@@ -751,7 +751,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
         <article className="flex min-h-0 items-center justify-center overflow-y-auto p-8">
           <div className="w-full max-w-[560px] rounded-2xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] p-8 text-center">
             <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fos-primary-soft)] text-[#7ea4ff]"><AppIcon name="sparkles" className="h-7 w-7" /></span>
-            <h2 className="mt-5 text-[20px] font-bold text-white">尚未解析项目资产</h2>
+            <h2 className="mt-5 text-[20px] font-bold text-white">尚未解析作品资产</h2>
             <p className="mt-3 text-[13px] leading-6 text-[var(--fos-text-3)]">资产解析会读取全部分集剧本，生成角色、物品、环境及其标准生图提示词。不会在解析前展示示例资产。</p>
             {error ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">{error}</div> : null}
             {notice ? <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[13px] text-blue-200">{notice}</div> : null}
@@ -836,13 +836,13 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
             <button
               className="fos-btn fos-btn-primary fos-btn-sm"
               disabled={!generationAllowed || !canEdit || !canGenerate || generatingAll || generatingKeys.size > 0}
-              title={!generationAllowed ? '积分不足，无法生成' : undefined}
+              title={!generationAllowed ? generationDisabledReason || undefined : undefined}
               onClick={() => void handleGenerateAll()}
             >
               {!canEdit
                 ? '资产师可生成图片'
                 : !generationAllowed
-                ? '积分不足'
+                ? generationDisabledLabel
                 : generatingAll
                 ? `正在提交 ${allImageTargets.length} 张…`
                 : tab === 'characters'
@@ -903,10 +903,10 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                 <button
                   className="fos-btn fos-btn-primary fos-btn-sm"
                   disabled={!generationAllowed || !canEdit || generatingAll || generatingKeys.has(mainImageTarget.key)}
-                  title={!generationAllowed ? '积分不足，无法生成' : undefined}
+                  title={!generationAllowed ? generationDisabledReason || undefined : undefined}
                   onClick={() => void handleGenerateOne(mainImageTarget)}
                 >
-                  {!generationAllowed ? '积分不足' : generatingKeys.has(mainImageTarget.key) ? '提交中…' : mainImageTarget.imageUrl ? '重新生成主图' : '生成主图'}
+                  {!generationAllowed ? generationDisabledLabel : generatingKeys.has(mainImageTarget.key) ? '提交中…' : mainImageTarget.imageUrl ? '重新生成主图' : '生成主图'}
                 </button>
               ) : null}
               {mainImageTarget ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={!canEdit || !mainImageTarget.imageUrl || Boolean(modifyingKey)} title={mainImageTarget.imageUrl ? '以当前生成图为参考进行图生图修改' : '请先生成或导入一张图片'} onClick={() => setModifyTarget(mainImageTarget)}>AI 修改图片</button> : null}
@@ -955,7 +955,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                     <div className="aspect-[16/9]"><AssetPreview kind={tab} imageUrl={v.imageUrl} alt={`${active?.name ?? ''} ${v.label}`} /></div>
                   </div>
                   {target ? <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" disabled={!generationAllowed || !canEdit || generatingAll || generatingKeys.has(target.key)} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void handleGenerateOne(target)}>{!generationAllowed ? '积分不足' : generatingKeys.has(target.key) ? '提交中…' : target.imageUrl ? '重新生成' : '生成图片'}</button>
+                    <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" disabled={!generationAllowed || !canEdit || generatingAll || generatingKeys.has(target.key)} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void handleGenerateOne(target)}>{!generationAllowed ? generationDisabledLabel : generatingKeys.has(target.key) ? '提交中…' : target.imageUrl ? '重新生成' : '生成图片'}</button>
                     <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={!canEdit || !target.imageUrl || Boolean(modifyingKey)} title={target.imageUrl ? '以当前图片为参考进行图生图修改' : '请先生成或导入一张图片'} onClick={() => setModifyTarget(target)}>AI 修改</button>
                     <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={!canEdit || Boolean(importingKey) || (tab === 'characters' && !target.appearanceId)} title="从素材库选择或本地上传" onClick={() => setImportTarget(target)}>{importingKey === target.key ? '导入中…' : '导入素材'}</button>
                   </div> : null}

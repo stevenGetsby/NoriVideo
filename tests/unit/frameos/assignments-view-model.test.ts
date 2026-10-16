@@ -27,9 +27,9 @@ import {
 const base: CollaborationAssignment = {
   id: 'assignment-1',
   projectId: 'project-1',
-  projectName: '演示项目',
+  projectName: '演示作品',
   workId: 'work-1',
-  workName: '演示作品',
+  workName: '演示项目',
   stage: 'storyboard',
   status: 'in_progress',
   assigneeUserId: 'user-1',

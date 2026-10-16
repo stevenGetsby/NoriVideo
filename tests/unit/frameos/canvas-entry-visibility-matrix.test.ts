@@ -61,9 +61,9 @@ describe('infinite canvas entry visibility matrix', () => {
     expect(workspace).toContain("canEdit ? '创建第一张画布' : '暂无可查看的画布'")
     expect(workspace).toContain('请联系管理账号或分镜师创建。')
     expect(workspace).toContain("{canEdit ? <button type=\"button\"")
-    expect(hub).toContain("canCreateProjects ? '暂无可用作品' : '暂无已分配项目'")
-    expect(hub).toContain('当前账号尚未分配可访问的作品或项目，请联系管理账号完成分配。')
-    expect(hub).toContain("canCreateProjects ? '创建或管理作品' : '查看我的作品'")
+    expect(hub).toContain("canCreateProjects ? '暂无可用项目' : '暂无已分配作品'")
+    expect(hub).toContain('当前账号尚未分配可访问的项目或作品，请联系管理账号完成分配。')
+    expect(hub).toContain("canCreateProjects ? '创建或管理项目' : '查看我的项目'")
   })
 
   it('supports both global and project-scoped direct canvas deep links', () => {

@@ -1,4 +1,5 @@
 import type { CANVAS_DOCUMENT_SCHEMA_VERSION } from '@/lib/canvas/document-version'
+import type { CanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
 import type { CanvasGenerationReferenceRole } from '@/lib/canvas/generation-reference-contract'
 import { isCanvasPanoramaProcessType } from '@/lib/canvas/panorama-contract'
 
@@ -171,6 +172,7 @@ export type CanvasProcessType =
 export type CanvasGenerationConfig = {
   modelKey?: string
   modelLabel?: string
+  inputSchema?: CanvasGenerationInputSchema | null
   assetId?: string
   taskId?: string
   inputMode?: 'text' | 'image' | 'firstlastframe'
@@ -234,6 +236,8 @@ export type CanvasGenerationHistoryItem = {
   source?: 'generation' | 'upload' | 'canvas' | 'project'
   status: 'pending' | 'processing' | 'ready' | 'failed'
   errorMessage?: string | null
+  quotedCostPoints?: number | null
+  actualCostPoints?: number | null
   createdAt: string
 }
 
@@ -319,6 +323,22 @@ export function canvasHistoryHasRestorableValue(item: CanvasGenerationHistoryIte
 export function isCanvasHistoryItemCurrent(item: CanvasGenerationHistoryItem, data: CanvasNodeData, mediaType: string) {
   if (mediaType === 'text') return typeof item.text === 'string' && item.text === (data.text ?? '')
   return Boolean(item.url && [data.contentUrl, data.imageUrl, data.videoUrl, data.audioUrl, data.modelUrl].includes(item.url))
+}
+
+export function getCanvasCurrentCostLabel(
+  history: CanvasGenerationHistoryItem[] | undefined,
+  data: CanvasNodeData,
+  mediaType: string,
+) {
+  const current = history?.find((item) => isCanvasHistoryItemCurrent(item, data, mediaType))
+  if (!current) return null
+  if (typeof current.actualCostPoints === 'number' && current.actualCostPoints >= 0) {
+    return { kind: 'actual' as const, points: current.actualCostPoints }
+  }
+  if (typeof current.quotedCostPoints === 'number' && current.quotedCostPoints >= 0) {
+    return { kind: 'quoted' as const, points: current.quotedCostPoints }
+  }
+  return null
 }
 
 export type CanvasDocumentInput = {

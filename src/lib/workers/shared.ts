@@ -28,6 +28,7 @@ import { RUN_EVENT_TYPE } from '@/lib/run-runtime/types'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { withTaskQuotaContext } from '@/lib/account/request-context'
 
 function toObject(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
@@ -359,6 +360,10 @@ async function resolveProjectNameForLogging(projectId: string): Promise<void> {
 }
 
 export async function withTaskLifecycle(job: Job<TaskJobData>, handler: (job: Job<TaskJobData>) => Promise<Record<string, unknown> | void>) {
+  return await withTaskQuotaContext(job.data.userId, job.data.payload, () => runTaskLifecycle(job, handler))
+}
+
+async function runTaskLifecycle(job: Job<TaskJobData>, handler: (job: Job<TaskJobData>) => Promise<Record<string, unknown> | void>) {
   const data = job.data
   const taskId = data.taskId
   const logger = buildWorkerLogger(data, job.queueName)

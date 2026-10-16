@@ -59,8 +59,8 @@ describe('FrameOS material project scopes', () => {
     authMock.requireUserPermission.mockResolvedValue({ session })
     readScope.projectReadScopeWhere.mockReturnValue(readScope.where)
     prismaMock.project.findMany.mockResolvedValue([
-      { id: 'project-a', name: '甲项目' },
-      { id: 'project-b', name: '乙项目' },
+      { id: 'project-a', name: '甲作品' },
+      { id: 'project-b', name: '乙作品' },
     ])
     prismaMock.user.findMany.mockResolvedValue([
       { id: 'workspace-1', name: '管理员' },
@@ -94,8 +94,8 @@ describe('FrameOS material project scopes', () => {
     }))
     await expect(response.json()).resolves.toMatchObject({
       projects: [
-        { id: 'project-a', name: '甲项目' },
-        { id: 'project-b', name: '乙项目' },
+        { id: 'project-a', name: '甲作品' },
+        { id: 'project-b', name: '乙作品' },
       ],
       capabilities: {
         trash: { supported: true, count: 0, reason: null },

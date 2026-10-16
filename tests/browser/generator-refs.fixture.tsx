@@ -9,6 +9,7 @@ const params = new URLSearchParams(location.search)
 const mediaType = (params.get('type') || 'video') as 'image' | 'video' | 'audio'
 const inputMode = (params.get('mode') || 'text') as 'text' | 'image' | 'firstlastframe'
 const withThumbs = params.get('refs') === '1'
+const withStale = params.get('stale') === '1'
 
 function node(id: string, type: string, data: Record<string, unknown>): CanvasFlowNode {
   return { id, type, position: { x: 0, y: 0 }, data } as unknown as CanvasFlowNode
@@ -24,14 +25,14 @@ function Fixture() {
     mediaType,
     generation: {
       inputMode,
-      ...(withThumbs ? { referenceNodeIds: ['img-1'] } : {}),
+      ...(withStale ? { referenceNodeIds: ['deleted-reference'] } : withThumbs ? { referenceNodeIds: ['img-1'] } : {}),
     },
   })
 
   return (
     <>
-      <main className="fos-app" style={{ height: '100vh' }}>
-        <div className="nori-canvas-workspace" style={{ height: '100vh' }}>
+      <main className="fos-app">
+        <div className="nori-canvas-workspace">
           <CanvasGenerator
             projectId="project-1"
             node={generator}

@@ -21,7 +21,7 @@ describe('FrameOS account and asset isolation wiring', () => {
   it('loads assets from authenticated APIs instead of bundled demo constants', () => {
     const assetLibrary = readSource('src/components/frameos/views/FosAssetLibrary.tsx')
 
-    expect(assetLibrary).toContain("apiFetch('/api/projects?page=1&pageSize=100')")
+    expect(assetLibrary).toContain('fetchAllProjectOptions()')
     expect(assetLibrary).toContain("'/api/assets?scope=global'")
     expect(assetLibrary).toContain('scope=project&projectId=')
     expect(assetLibrary).not.toContain('const ASSETS')

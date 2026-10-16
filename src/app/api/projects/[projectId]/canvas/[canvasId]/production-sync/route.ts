@@ -239,6 +239,7 @@ export const POST = apiHandler(async (
     where: {
       id: projectId,
       userId: authResult.session.user.id,
+      deletedAt: null,
     },
     include: {
       novelPromotionData: {
@@ -422,7 +423,7 @@ export const POST = apiHandler(async (
       revision: nextRevision,
       userId: authResult.session.user.actorId || authResult.session.user.id,
       clientId: input.clientId,
-      changeSummary: '同步项目内容',
+      changeSummary: '同步作品内容',
       document: {
         viewport: canvas.viewport || { x: 0, y: 0, zoom: 1 },
         nodes: syncedNodes,

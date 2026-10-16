@@ -27,7 +27,7 @@ function material(id: string, createdAt: string, assetCategory?: string): Frameo
   return {
     id,
     projectId: 'project-1',
-    projectName: '短剧项目',
+    projectName: '短剧作品',
     ownerName: '管理员',
     title: id,
     type: 'image',
@@ -46,7 +46,7 @@ function material(id: string, createdAt: string, assetCategory?: string): Frameo
 describe('FrameOS material picker filters', () => {
   it('locks direct asset-library uploads to the active project category and image files', () => {
     const markup = renderToStaticMarkup(React.createElement(MaterialUploadDialog, {
-      projects: [{ id: 'project-1', name: '短剧项目' }],
+      projects: [{ id: 'project-1', name: '短剧作品' }],
       initialProjectId: 'project-1',
       initialAssetCategory: 'character',
       lockAssetCategory: true,
@@ -59,7 +59,7 @@ describe('FrameOS material picker filters', () => {
     expect(markup).toContain('accept="image/*"')
     expect(markup).toContain('请选择图片文件')
     expect(markup).toContain('disabled=""')
-    expect(markup).toContain('<option value="project-1" selected="">短剧项目</option>')
+    expect(markup).toContain('<option value="project-1" selected="">短剧作品</option>')
   })
 
   it('renders the real scope tree, filters, and a capability-gated trash scope', () => {
@@ -79,18 +79,19 @@ describe('FrameOS material picker filters', () => {
     expect(markup).toContain('已删除')
     expect(markup).toContain('正在确认回收站能力')
     expect(markup).toContain('data-testid="material-trash-scope"')
+    expect(markup).toContain('material-picker-overlay fos-viewport-theme')
     expect(markup).toContain('disabled=""')
   })
 
   it('deduplicates readable projects, keeps the current project first, and never invents a project', () => {
     expect(normalizeMaterialProjectOptions([
-      { id: 'project-b', name: '乙项目' },
-      { id: ' project-a ', name: ' 甲项目 ' },
-      { id: 'project-b', name: '重复项目' },
-      { id: '', name: '无效项目' },
+      { id: 'project-b', name: '乙作品' },
+      { id: ' project-a ', name: ' 甲作品 ' },
+      { id: 'project-b', name: '重复作品' },
+      { id: '', name: '无效作品' },
     ], 'project-b')).toEqual([
-      { id: 'project-b', name: '乙项目' },
-      { id: 'project-a', name: '甲项目' },
+      { id: 'project-b', name: '乙作品' },
+      { id: 'project-a', name: '甲作品' },
     ])
   })
 
@@ -149,6 +150,18 @@ describe('FrameOS material picker filters', () => {
     const trash = buildMaterialPickerQuery({ scope: 'trash', type: 'all' })
     expect(trash.get('state')).toBe('deleted')
     expect(trash.get('available')).toBe('1')
+  })
+
+  it('keeps favorites, sources, and trash inside the project until the user explicitly browses all projects', () => {
+    for (const scope of ['favorites', 'toolbox', 'canvas', 'upload', 'trash'] as MaterialPickerScope[]) {
+      const params = buildMaterialPickerQuery({ projectId: 'project-1', scope, type: 'image', projectOnly: true })
+      expect(params.get('projectId')).toBe('project-1')
+      expect(params.get('available')).toBe('0')
+    }
+    const all = buildMaterialPickerQuery({ scope: 'all', type: 'image' })
+    expect(all.get('available')).toBe('1')
+    expect(all.has('projectId')).toBe(false)
+    expect(buildMaterialPickerQuery({ scope: 'all', type: 'image', creator: '张', creatorExact: true }).get('creatorExact')).toBe('1')
   })
 
   it('sorts creation time locally in either direction without mutating API results', () => {

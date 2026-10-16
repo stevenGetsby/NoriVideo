@@ -363,7 +363,7 @@ export function FosProjectAssignmentsDialog({
                 return (
                   <tr key={assignment.id}>
                     {canManage ? <td className="fpa-select-col"><input type="checkbox" aria-label={`选择 ${ASSIGNMENT_STAGE_LABELS[assignment.stage]}${assignmentEpisodeLabel(assignment)}`} checked={selected.has(assignment.id)} disabled={!assignment.canAssign} onChange={() => setSelected((current) => { const next = new Set(current); if (next.has(assignment.id)) next.delete(assignment.id); else next.add(assignment.id); return next })} /></td> : null}
-                    <td><strong>{ASSIGNMENT_STAGE_LABELS[assignment.stage]}</strong><span>{assignmentEpisodeLabel(assignment) || '项目级'}</span></td>
+                    <td><strong>{ASSIGNMENT_STAGE_LABELS[assignment.stage]}</strong><span>{assignmentEpisodeLabel(assignment) || '作品级'}</span></td>
                     <td><AssignmentStatusChip status={assignment.status} compact /></td>
                     <td>{assignment.assigneeName || '待分配'}{assignment.assigneeDisabled ? <em>已停用</em> : null}</td>
                     <td>
@@ -395,7 +395,7 @@ export function FosProjectAssignmentsDialog({
         </div>
 
         <footer className="fpa-foot">
-          <span>{canManage ? '你可以分配、重新分配和恢复任务。' : '当前为只读查看；任务分配由项目管理员处理。'}{canReview ? ' 你也拥有审核权限。' : ''}</span>
+          <span>{canManage ? '你可以分配、重新分配和恢复任务。' : '当前为只读查看；任务分配由作品管理员处理。'}{canReview ? ' 你也拥有审核权限。' : ''}</span>
           <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={interactionBusy} onClick={onClose}>关闭</button>
         </footer>
       </section>

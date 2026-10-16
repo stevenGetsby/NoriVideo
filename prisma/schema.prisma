@@ -284,6 +284,8 @@ model NovelPromotionProject {
   targetEpisodeCount           Int                       @default(0)
   lastEpisodeId                String?
   imageResolution              String                    @default("2K")
+  exportNamingTemplate         String?                   @db.VarChar(191)
+  exportDirectoryHint          String?                   @db.Text
   importStatus                 String?
   pendingImportText            String?                   @db.LongText
   pendingImportEpisodeName     String?                   @db.VarChar(191)
@@ -372,6 +374,9 @@ model SupplementaryPanel {
   @@map("supplementary_panels")
 }
 
+// Compatibility storage name: this row is a business 作品 (child work).
+// workId references its business 项目 (parent project), stored in Work.
+// Retain table/column names and IDs to keep task, media and ledger links intact.
 model Project {
   id                        String                 @id @default(uuid())
   name                      String
@@ -379,6 +384,8 @@ model Project {
   userId                    String
   workId                    String
   createdById               String
+  deletedAt                 DateTime?
+  deletedById               String?                @db.VarChar(191)
   seedanceAssetGroupId      String?
   seedanceAssetsProjectName String?
   collaborationMode         String                 @default("solo") @db.VarChar(32)
@@ -400,9 +407,13 @@ model Project {
   @@index([userId])
   @@index([workId, updatedAt])
   @@index([createdById])
+  @@index([userId, deletedAt, updatedAt])
+  @@index([deletedAt])
   @@map("projects")
 }
 
+// Compatibility storage name: this row is a business 项目 (parent project).
+// projects contains its business 作品 rows, historically stored as Project.
 model Work {
   id               String   @id @default(uuid())
   workspaceOwnerId String
@@ -787,6 +798,8 @@ model User {
   coinCredits                   Int                       @default(0)
   /// Legacy compatibility only. Authoritative point balance is UserBalance.balance.
   pointCredits                  Int                       @default(0)
+  /// 每日用量上限（积分，100 积分 = ¥1）。0 禁止生成，NULL 表示 unlimited。
+  dailyPointLimit               Int?
   createdAt                     DateTime                  @default(now())
   updatedAt                     DateTime                  @default(now()) @updatedAt
   accounts                      Account[]

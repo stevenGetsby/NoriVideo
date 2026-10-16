@@ -1,11 +1,14 @@
 'use client'
 
+import { chooseProjectDownloadDirectory, getProjectDownloadDirectory, saveProjectDownload, writeProjectDownload } from '@/lib/media/project-download-directory'
+
 import { type ChangeEvent, type DragEvent as ReactDragEvent, type MouseEvent as ReactMouseEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import Navbar from '@/components/Navbar'
 import { AppIcon, IconGradientDefs } from '@/components/ui/icons'
 import { SegmentedControl } from '@/components/ui/SegmentedControl'
 import { useRouter } from '@/i18n/navigation'
+import { useSearchParams } from 'next/navigation'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { normalizeVideoEnhanceSettings } from '@/lib/video-enhance/settings'
@@ -412,6 +415,9 @@ async function saveBytesWithPicker(data: Uint8Array, fileName: string) {
 export default function VideoEnhanceClient() {
   const { data: session, status } = useSession()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const projectId = searchParams?.get('projectId')?.trim() || ''
+  const settingsStorageKey = `${VIDEO_ENHANCE_SETTINGS_KEY}:${session?.user?.id || 'guest'}:${projectId || 'global'}`
   const [sourceMode, setSourceMode] = useState<SourceMode>('file')
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [videoUrls, setVideoUrls] = useState('')
@@ -476,7 +482,7 @@ export default function VideoEnhanceClient() {
 
     void (async () => {
       try {
-        const raw = window.localStorage.getItem(VIDEO_ENHANCE_SETTINGS_KEY)
+        const raw = window.localStorage.getItem(settingsStorageKey)
         if (raw) {
           const parsed = JSON.parse(raw) as Record<string, unknown>
           applyPersistedSettings(parsed)
@@ -491,7 +497,7 @@ export default function VideoEnhanceClient() {
           }
         }
       } catch {
-        window.localStorage.removeItem(VIDEO_ENHANCE_SETTINGS_KEY)
+        window.localStorage.removeItem(settingsStorageKey)
       }
 
       if (status === 'authenticated') {
@@ -514,7 +520,7 @@ export default function VideoEnhanceClient() {
     })()
 
     return () => { cancelled = true }
-  }, [applyPersistedSettings, status])
+  }, [applyPersistedSettings, settingsStorageKey, status])
 
   useEffect(() => {
     if (!settingsLoaded) return
@@ -534,7 +540,7 @@ export default function VideoEnhanceClient() {
       submitConcurrency,
       downloadDirectoryPath,
     }
-    window.localStorage.setItem(VIDEO_ENHANCE_SETTINGS_KEY, JSON.stringify(localSettings))
+    window.localStorage.setItem(settingsStorageKey, JSON.stringify(localSettings))
     if (status !== 'authenticated') return
 
     const timer = window.setTimeout(() => {
@@ -548,7 +554,7 @@ export default function VideoEnhanceClient() {
     }, 500)
 
     return () => window.clearTimeout(timer)
-  }, [callbackArgs, clientToken, downloadDirectoryPath, fps, resolution, resolutionLimit, resolutionMode, scene, settingsLoaded, showAdvanced, sourceMode, status, submitConcurrency, toolVersion, videoUrls])
+  }, [callbackArgs, clientToken, downloadDirectoryPath, fps, resolution, resolutionLimit, resolutionMode, scene, settingsLoaded, settingsStorageKey, showAdvanced, sourceMode, status, submitConcurrency, toolVersion, videoUrls])
 
   useEffect(() => {
     if (status !== 'authenticated' || !session) return
@@ -838,6 +844,17 @@ export default function VideoEnhanceClient() {
     const resultUrl = activeItem?.result?.videoUrl
     if (!activeItem || !resultUrl || savingResult) return
     const fileName = resultFileName(activeItem)
+    if (projectId) {
+      setSavingResult(true); setError(null)
+      try {
+        const directory = await getProjectDownloadDirectory(session?.user?.id || '', projectId, true)
+        const response = await fetch(resultUrl)
+        if (!response.ok) throw new Error(`下载失败：HTTP ${response.status}`)
+        await saveProjectDownload(session?.user?.id || '', projectId, fileName, await response.blob(), directory)
+      } catch (cause) { setError(cause instanceof Error ? cause.message : '保存文件失败') }
+      finally { setSavingResult(false) }
+      return
+    }
     const picker = (window as WindowWithSavePicker).showSaveFilePicker
 
     if (!picker) {
@@ -876,7 +893,9 @@ export default function VideoEnhanceClient() {
     try {
       const picker = (window as WindowWithDirectoryPicker).showDirectoryPicker
       if (picker) {
-        const directoryHandle = await picker({ id: 'nori-video-enhance-downloads', mode: 'readwrite', startIn: 'downloads' })
+        const directoryHandle = projectId
+          ? await chooseProjectDownloadDirectory(session?.user?.id || '', projectId) as unknown as BrowserDirectoryHandle
+          : await picker({ id: 'nori-video-enhance-downloads', mode: 'readwrite', startIn: 'downloads' })
         const allowed = await ensureDirectoryPermission(directoryHandle).catch(() => false)
         if (!allowed) throw new Error(`浏览器未获得目录写入权限。${DOWNLOAD_DIRECTORY_HELP_TEXT}`)
         browserDownloadDirectoryHandleRef.current = directoryHandle
@@ -959,6 +978,7 @@ export default function VideoEnhanceClient() {
     }
     const picker = (window as WindowWithDirectoryPicker).showDirectoryPicker
     let directoryHandle = browserDownloadDirectoryHandleRef.current
+    if (projectId) directoryHandle = await getProjectDownloadDirectory(session?.user?.id || '', projectId, true) as unknown as BrowserDirectoryHandle | null
     if (!directoryHandle && !picker) {
       setError('当前浏览器不支持选择下载目录，请使用 Chrome 或 Edge 后再批量下载。')
       return
@@ -972,7 +992,9 @@ export default function VideoEnhanceClient() {
           setError('当前浏览器不支持选择下载目录，请使用 Chrome 或 Edge 后再批量下载。')
           return
         }
-        directoryHandle = await picker({ id: 'nori-video-enhance-downloads', mode: 'readwrite', startIn: 'downloads' })
+        directoryHandle = projectId
+          ? await chooseProjectDownloadDirectory(session?.user?.id || '', projectId) as unknown as BrowserDirectoryHandle
+          : await picker({ id: 'nori-video-enhance-downloads', mode: 'readwrite', startIn: 'downloads' })
         browserDownloadDirectoryHandleRef.current = directoryHandle
         setBrowserDownloadDirectoryName(directoryHandle.name || '所选目录')
       }
@@ -1005,7 +1027,8 @@ export default function VideoEnhanceClient() {
             if (usedSavePickerFallback) {
               await saveBytesWithPicker(data, fileName)
             } else {
-              await writeBytesToDirectory(directoryHandle, fileName, data)
+              if (projectId) await writeProjectDownload(directoryHandle as unknown as import('@/lib/media/project-download-directory').DownloadDirectoryHandle, fileName, new Blob([data as BlobPart]))
+              else await writeBytesToDirectory(directoryHandle, fileName, data)
             }
           } catch (writeError) {
             if (!usedSavePickerFallback && isDirectoryWriteBlockedError(writeError)) {

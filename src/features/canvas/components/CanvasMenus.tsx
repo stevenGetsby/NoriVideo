@@ -54,7 +54,7 @@ export function CanvasContextMenu({
       { key: 'duplicate', label: '创建副本', icon: GitBranch, shortcut: '⌘ D', hint: '复制节点及上游连线' },
       { key: 'divider', divider: true },
       { key: 'regenerate', label: '重新生成', icon: RefreshCw, disabled: !canRegenerate },
-      ...(canUploadToAssetLibrary ? [{ key: 'upload-asset-library', label: '上传到资产库', icon: FolderHeart, hint: '归类后可复用于画布与其他项目' }] : []),
+      ...(canUploadToAssetLibrary ? [{ key: 'upload-asset-library', label: '上传到资产库', icon: FolderHeart, hint: '归类后可复用于画布与其他作品' }] : []),
       { key: 'divider-2', divider: true },
       { key: 'delete', label: '删除', icon: Trash2, shortcut: '⌫', danger: true },
     ]

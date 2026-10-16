@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { withAccountPermissionContext } from '@/lib/account/request-context'
+import { requiredPermissionsForApiPath } from '@/lib/account/permissions'
 
 const getServerSessionMock = vi.hoisted(() => vi.fn(async () => ({
   user: { id: 'user-1', name: 'User 1', email: 'user1@test.local' },
@@ -71,6 +73,7 @@ describe('project auth scope', () => {
       where: {
         id: 'project-other',
         userId: 'user-1',
+        deletedAt: null,
       },
     })
   })
@@ -96,6 +99,7 @@ describe('project auth scope', () => {
       where: {
         id: 'project-1',
         userId: 'user-1',
+        deletedAt: null,
       },
       include: {
         novelPromotionData: {
@@ -107,4 +111,34 @@ describe('project auth scope', () => {
       },
     })
   })
+
+  it.each(['writer', 'asset', 'storyboard', 'reviewer'])(
+    'lets %s pass the actual secondary-edit auth gate while keeping deletion protected',
+    async (role) => {
+      prismaMock.user.findUnique.mockResolvedValue({
+        id: 'user-1', role, permissions: [], status: 'active',
+        workspaceOwnerId: null, parentAccountId: null, parentAccount: null,
+      })
+      prismaMock.project.findFirst.mockResolvedValue({
+        id: 'project-1', userId: 'user-1', name: 'Project 1',
+      })
+      const { requireProjectAuthLight, isErrorResponse } = await import('@/lib/api-auth')
+      const edited = await withAccountPermissionContext(
+        requiredPermissionsForApiPath('/api/projects/project-1', 'PATCH'),
+        () => requireProjectAuthLight('project-1'),
+      )
+      expect(isErrorResponse(edited)).toBe(false)
+      expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+        where: { id: 'project-1', userId: 'user-1', deletedAt: null },
+      })
+      prismaMock.project.findFirst.mockClear()
+      const deleted = await withAccountPermissionContext(
+        requiredPermissionsForApiPath('/api/projects/project-1', 'DELETE'),
+        () => requireProjectAuthLight('project-1'),
+      )
+      expect(isErrorResponse(deleted)).toBe(true)
+      expect((deleted as Response).status).toBe(403)
+      expect(prismaMock.project.findFirst).not.toHaveBeenCalled()
+    },
+  )
 })

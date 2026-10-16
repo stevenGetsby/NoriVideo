@@ -13,6 +13,7 @@ import {
 } from './member-candidates'
 import { buildMemberChangeSet, isProtectedMember } from './member-change-set'
 import { eligibleMoveTargets } from './move-targets'
+import { ViewportDialogLayer } from '../ViewportDialogLayer'
 
 export { eligibleMoveTargets } from './move-targets'
 
@@ -37,6 +38,7 @@ function Modal({
 }) {
   const variantClassName = variant ? ` works-${variant}-modal` : ''
   return (
+    <ViewportDialogLayer>
     <div
       className={`fos-overlay works-modal-overlay${variantClassName}`}
       role="presentation"
@@ -64,6 +66,7 @@ function Modal({
         <footer className="fos-dialog-foot">{footer}</footer>
       </section>
     </div>
+    </ViewportDialogLayer>
   )
 }
 
@@ -203,19 +206,19 @@ export function CreateWorkDialog({
     event.preventDefault()
     const normalized = name.trim()
     if (!normalized) {
-      setError('请输入作品名称')
+      setError('请输入项目名称')
       return
     }
     setError(null)
     try {
       await onCreate({ name: normalized, memberUserIds: selected.map((member) => member.id) })
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '创建作品失败')
+      setError(submitError instanceof Error ? submitError.message : '创建项目失败')
     }
   }
   return (
     <Modal
-      title="新建作品"
+      title="新建项目"
       variant="create-work"
       width={480}
       busy={busy}
@@ -237,15 +240,15 @@ export function CreateWorkDialog({
           if (event.key === 'Enter' && (event.target as HTMLElement).closest('.works-member-picker')) event.preventDefault()
         }}
       >
-        <p className="works-dialog-intro">作品是一部完整的剧，可包含多个项目</p>
+        <p className="works-dialog-intro">项目用于管理多个作品，每个作品独立保存剧本、资产和画布。</p>
         <label className="works-field">
-          <span>作品名称</span>
+          <span>项目名称</span>
           <span className="works-counted-input">
-            <input autoFocus className="fos-input" maxLength={50} value={name} onChange={(event) => { setName(event.target.value); setError(null) }} placeholder="请输入作品名称" />
+            <input autoFocus className="fos-input" maxLength={50} value={name} onChange={(event) => { setName(event.target.value); setError(null) }} placeholder="请输入项目名称" />
             <small>{name.length} / 50</small>
           </span>
         </label>
-        {duplicate ? <div className="works-inline-notice">已存在同名作品，仍可继续创建。</div> : null}
+        {duplicate ? <div className="works-inline-notice">已存在同名项目，仍可继续创建。</div> : null}
         <label className="works-field"><span>成员（可选）</span></label>
         <CandidatePicker
           candidatesPath="/api/works/member-candidates"
@@ -263,7 +266,7 @@ export function CreateWorkDialog({
             ))}
           </div>
         ) : null}
-        <p className="works-permission-note">成员可查看作品下所有项目；作品重命名、成员管理与删除仅作品创建者、作品管理员或工作区管理员可操作。</p>
+        <p className="works-permission-note">成员可查看项目下的作品；项目重命名、成员管理与删除仅管理账号可操作。</p>
         {error ? <div className="works-form-error">{error}</div> : null}
       </form>
     </Modal>
@@ -278,7 +281,7 @@ export function RenameDialog({
   onClose,
   onSave,
 }: {
-  kind: '作品' | '项目'
+  kind: '项目' | '作品' | '素材'
   initialName: string
   busy: boolean
   duplicate?: (name: string) => boolean
@@ -315,9 +318,9 @@ export function RenameDialog({
       <form id="rename-work-form" className="works-form" onSubmit={(event) => void save(event)}>
         <label className="works-field">
           <span>请输入新的{kind}名称</span>
-          <input autoFocus className="fos-input" maxLength={kind === '作品' ? 50 : 40} value={name} onChange={(event) => setName(event.target.value)} />
+          <input autoFocus aria-label={`新的${kind}名称`} className="fos-input" maxLength={kind === '素材' ? 160 : kind === '项目' ? 50 : 40} disabled={busy} value={name} onChange={(event) => setName(event.target.value)} />
         </label>
-        {hasDuplicate ? <div className="works-inline-notice">已有同名作品，保存后仍会保留两个独立作品。</div> : null}
+        {hasDuplicate ? <div className="works-inline-notice">已有同名{kind}，保存后仍会保留两个独立{kind}。</div> : null}
         {error ? <div className="works-form-error">{error}</div> : null}
       </form>
     </Modal>
@@ -348,12 +351,12 @@ export function MoveProjectsDialog({
     try {
       await onMove(target)
     } catch (moveError) {
-      setError(moveError instanceof Error ? moveError.message : '移动项目失败')
+      setError(moveError instanceof Error ? moveError.message : '移动作品失败')
     }
   }
   return (
     <Modal
-      title={projects.length > 1 ? '批量移动项目' : '移动项目'}
+      title={projects.length > 1 ? '批量移动作品' : '移动作品'}
       busy={busy}
       onClose={onClose}
       footer={(
@@ -364,15 +367,15 @@ export function MoveProjectsDialog({
       )}
     >
       <div className="works-form">
-        <p className="works-dialog-intro">{projects.length > 1 ? `将已选 ${projects.length} 个项目移动到：` : `将项目「${projects[0]?.name || ''}」移动到：`}</p>
+        <p className="works-dialog-intro">{projects.length > 1 ? `将已选 ${projects.length} 个作品移动到：` : `将作品「${projects[0]?.name || ''}」移动到：`}</p>
         <label className="works-field">
-          <span className="sr-only">目标作品</span>
-          <select className="fos-input" aria-label="搜索并选择目标作品" value={target} onChange={(event) => setTarget(event.target.value)}>
-            <option value="" disabled>搜索并选择目标作品</option>
+          <span className="sr-only">目标项目</span>
+          <select className="fos-input" aria-label="搜索并选择目标项目" value={target} onChange={(event) => setTarget(event.target.value)}>
+            <option value="" disabled>搜索并选择目标项目</option>
             {targets.map((work) => <option key={work.id} value={work.id}>{work.name}</option>)}
           </select>
         </label>
-        {targets.length === 0 ? <div className="works-inline-notice">没有其他可管理的目标作品。</div> : null}
+        {targets.length === 0 ? <div className="works-inline-notice">没有其他可管理的目标项目。</div> : null}
         {error ? <div className="works-form-error">{error}</div> : null}
       </div>
     </Modal>
@@ -539,7 +542,7 @@ export function MemberManagerDialog({
             )
           }) : null}
         </div>
-        <p className="works-permission-note">成员沿用账号身份权限：编剧仅可编辑剧本，资产师仅可编辑资产，分镜师仅可编辑分镜；把审核员加入项目后，该账号即可审核该项目任务。管理员拥有全部权限且不可移除。</p>
+        <p className="works-permission-note">成员沿用账号身份权限：编剧仅可编辑剧本，资产师仅可编辑资产，分镜师仅可编辑分镜；把审核员加入作品后，该账号即可审核该作品任务。管理员拥有全部权限且不可移除。</p>
         {error ? <div className="works-form-error">{error}</div> : null}
       </div>
     </Modal>

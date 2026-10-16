@@ -428,7 +428,7 @@ export function FosVideoReviewWorkspace({
         <header className="fvr-header">
           <button type="button" className="fvr-back" onClick={backToTasks}><AppIcon name="chevronLeft" />返回我的任务</button>
           <div className="fvr-heading">
-            <span>{context?.assignment.workName || '作品'} / {context?.assignment.projectName || '项目'}</span>
+            <span>{context?.assignment.workName || '项目'} / {context?.assignment.projectName || '作品'}</span>
             <h1>{isCanvasPlaylist ? '播放列表最终审核' : `第 ${context?.assignment.episodeNumber ?? '—'} 集视频审核`}</h1>
             <p>{context?.assignment.episodeName || (isCanvasPlaylist ? '画布播放列表' : '未命名分集')} · {segmentSources.length} 个 {isCanvasPlaylist ? 'Clip' : 'Segment'}</p>
           </div>

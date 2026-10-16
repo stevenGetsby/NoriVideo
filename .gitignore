@@ -20,6 +20,7 @@ config/services.prod.json
 
 # Next.js and build output
 .next/
+/.next
 out/
 dist/
 build/

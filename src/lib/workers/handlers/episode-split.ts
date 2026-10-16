@@ -13,12 +13,14 @@ export async function handleEpisodeSplitTask(job: Job<TaskJobData>) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      deletedAt: true,
       id: true,
     },
   })
   if (!project) {
     throw new Error('Project not found')
   }
+  if (project.deletedAt) throw new Error('Project is deleted')
 
   const novelProject = await prisma.novelPromotionProject.findFirst({
     where: { projectId },

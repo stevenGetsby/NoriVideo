@@ -16,6 +16,9 @@ import {
   type SubaccountRole,
 } from '@/lib/account/permissions'
 import type { AccountCredits } from '@/lib/account/credits'
+import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
+import { isValidDailyPointLimitInput } from '@/lib/billing/daily-limit-policy'
+import { ViewportDialogLayer } from './ViewportDialogLayer'
 
 interface ManagedAccount {
   id: string
@@ -29,6 +32,10 @@ interface ManagedAccount {
   parentAccountId: string | null
   workspaceOwnerId: string | null
   credits: AccountCredits
+  /** 每日用量上限（积分），null 表示不限制。 */
+  dailyLimitPoints: number | null
+  /** 今日（上海自然日）已用积分，读接口返回。 */
+  usageToday?: DailyUsagePayload | null
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
@@ -69,6 +76,8 @@ interface AccountDraft {
   status: AccountStatus
   coinCredits: string
   pointCredits: string
+  /** 每日用量上限（积分），unlimited 表示不限制，0 禁止生成。 */
+  dailyPointLimit: string
 }
 
 const ROLE_TONES: Record<AccountRole, string> = {
@@ -99,12 +108,56 @@ function roleLabelAfterPreset(current: string, role: SubaccountRole) {
   return !normalized || isDefaultLabel ? defaultSubaccountRoleLabel(role) : current
 }
 
+function formatPointsValue(value: number) {
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+}
+
+/**
+ * 账号列表里的「今日用量 / 上限」单元格，平台管理台与工作区账号页共用。
+ */
+export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) {
+  const usedPoints = usage?.usedPoints ?? 0
+  const limitPoints = usage?.limitPoints ?? null
+  if (limitPoints === null) {
+    return (
+      <span className="grid gap-1 text-[10px] text-white/45">
+        <span>今日 <strong className="text-[12px] text-white/85">{formatPointsValue(usedPoints)}</strong> 积分</span>
+        <small className="text-emerald-300/80">unlimited · 不限量</small>
+      </span>
+    )
+  }
+  if (limitPoints === 0) {
+    return <span className="grid gap-1 text-[10px] text-white/45">
+      <span>今日 <strong className="text-[12px] text-white/85">{formatPointsValue(usedPoints)}</strong> 积分</span>
+      <small className="text-red-300">禁止生成 · 上限 0</small>
+    </span>
+  }
+
+  const ratio = limitPoints > 0 ? usedPoints / limitPoints : 1
+  const barTone = ratio >= 1 ? 'bg-red-400' : ratio >= 0.8 ? 'bg-amber-400' : 'bg-emerald-400'
+  const textTone = ratio >= 1 ? 'text-red-300' : ratio >= 0.8 ? 'text-amber-300' : 'text-emerald-300'
+  return (
+    <span className="grid gap-1 text-[10px] text-white/45">
+      <span>
+        <strong className={`text-[12px] ${textTone}`}>{formatPointsValue(usedPoints)}</strong>
+        <span className="text-white/35"> / {formatPointsValue(limitPoints)} 积分</span>
+      </span>
+      <span className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+        <i className={`block h-full rounded-full ${barTone}`} style={{ width: `${Math.min(100, Math.max(2, Math.round(ratio * 100)))}%` }} />
+      </span>
+      <small className={usage?.exceeded ? 'text-red-300/80' : 'text-white/30'}>
+        {usage?.exceeded ? '今日额度已用尽' : `剩余 ${formatPointsValue(usage?.remainingPoints ?? 0)} 积分`}
+      </small>
+    </span>
+  )
+}
+
 export function PermissionMatrix() {
   return (
     <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#151515]">
       <div className="border-b border-white/[.07] px-5 py-4">
         <h2 className="text-[13px] font-bold text-white">功能区权限</h2>
-        <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由所属管理账号按项目指定。</p>
+        <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由所属管理账号按作品指定。</p>
       </div>
       <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-6">
         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => (
@@ -284,14 +337,14 @@ export function AccountDialog({
 
               {draft.role === 'reviewer' ? (
                 <div className="mt-5 rounded-[10px] border border-cyan-300/20 bg-cyan-400/[.07] px-4 py-3">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-cyan-100"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由项目授权</div>
-                  <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。由所属管理账号在项目协作者里加入该账号后，才能查看并处理该项目的待审核任务。</p>
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-cyan-100"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由作品授权</div>
+                  <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。由所属管理账号在作品协作者里加入该账号后，才能查看并处理该作品的待审核任务。</p>
                 </div>
               ) : (
                 <div className="mt-5">
                   <div className="mb-2 flex items-end justify-between gap-3">
                     <span className="block text-[11px] font-semibold text-white/60">功能区权限</span>
-                    <span className="text-[10px] text-white/35">团队项目默认可读</span>
+                    <span className="text-[10px] text-white/35">团队作品默认可读</span>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => {
@@ -315,7 +368,7 @@ export function AccountDialog({
                       )
                     })}
                   </div>
-                  <div className="mt-2 flex items-center gap-2 rounded-[9px] border border-emerald-400/15 bg-emerald-400/[.055] px-3 py-2 text-[10px] text-emerald-100/65"><AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />读取团队全部项目与资产（固定开启）</div>
+                  <div className="mt-2 flex items-center gap-2 rounded-[9px] border border-emerald-400/15 bg-emerald-400/[.055] px-3 py-2 text-[10px] text-emerald-100/65"><AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />读取团队全部作品与资产（固定开启）</div>
                 </div>
               )}
             </>
@@ -344,6 +397,35 @@ export function AccountDialog({
             </label>
           ) : null}
 
+          <div className="mt-5 block">
+            <label className="mb-3 block">
+              <span className="mb-2 block text-[11px] font-semibold text-white/60">每日用量模式</span>
+              <select className="fos-input w-full" aria-label="每日用量模式"
+                value={draft.dailyPointLimit === 'unlimited' ? 'unlimited' : draft.dailyPointLimit === '0' ? 'blocked' : 'limited'}
+                onChange={(event) => onDraft({ ...draft, dailyPointLimit: event.target.value === 'unlimited' ? 'unlimited' : event.target.value === 'blocked' ? '0' : '1000' })}
+              >
+                <option value="unlimited">unlimited · 不限量</option>
+                <option value="blocked">0 · 禁止生成</option>
+                <option value="limited">设置每日积分上限</option>
+              </select>
+            </label>
+            <label className="block">
+            <span className="mb-2 block text-[11px] font-semibold text-white/60">每日用量上限（积分）</span>
+            <input
+              className="fos-input w-full"
+              inputMode="numeric"
+              disabled={draft.dailyPointLimit === 'unlimited'}
+              value={draft.dailyPointLimit === 'unlimited' ? '' : draft.dailyPointLimit}
+              onChange={(event) => onDraft({ ...draft, dailyPointLimit: event.target.value.replace(/[^\d]/g, '') })}
+              placeholder={draft.dailyPointLimit === 'unlimited' ? 'unlimited · 不限量' : '0 禁止生成，正数为每日额度'}
+            />
+            </label>
+            <span className="mt-1.5 block text-[10px] leading-4 text-white/35">
+              100 积分 = ¥1。0 禁止生成；unlimited 不限量；正数按上海时间每天 00:00 重置。
+              保存后立即生效，不清空已用积分、不补充余额；已提交的任务不会被强制取消。
+            </span>
+          </div>
+
           {mode === 'create' ? (
             <div className="mt-5 rounded-[10px] border border-blue-400/15 bg-blue-400/[.06] px-4 py-3">
               <p className="text-[11px] leading-5 text-blue-100/70">新账号积分默认为 0。创建后请使用独立的充值、分配或收回操作，所有变动都会记录到账本。</p>
@@ -360,7 +442,7 @@ export function AccountDialog({
 
         <div className="flex justify-end gap-2 border-t border-white/[.07] px-6 py-4">
           <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
-          <button type="button" className="fos-btn fos-btn-primary" onClick={onSubmit} disabled={saving}>
+          <button type="button" className="fos-btn fos-btn-primary" onClick={onSubmit} disabled={saving || !isValidDailyPointLimitInput(draft.dailyPointLimit)}>
             {saving ? '保存中…' : mode === 'create' ? '创建账号' : '保存修改'}
           </button>
         </div>
@@ -381,9 +463,9 @@ const CREDIT_OPERATION_COPY: Record<CreditOperationKind, { title: string; action
     hint: '积分将从管理账号余额转入该子账号。',
   },
   reclaim: {
-    title: '收回积分',
+    title: '收回历史个人积分',
     action: '确认收回',
-    hint: '只能收回子账号当前可用的积分，已消耗积分不能收回。',
+    hint: '将旧版分配在子账号个人钱包中的可用积分收回管理账号共享钱包；已消耗或被冻结积分不能收回，不改变该账号的每日用量上限。',
   },
 }
 
@@ -494,25 +576,33 @@ export function CreditOperationDialog({
   const [note, setNote] = useState('')
   const copy = CREDIT_OPERATION_COPY[operation]
   const parsedPoints = Number(points)
-  const valid = Number.isSafeInteger(parsedPoints) && parsedPoints > 0 && parsedPoints <= 2_000_000_000
+  const precisionValid = operation === 'reclaim'
+    ? Number.isFinite(parsedPoints) && Math.abs(parsedPoints * 10_000 - Math.round(parsedPoints * 10_000)) <= 0.00001
+    : Number.isSafeInteger(parsedPoints)
+  const valid = precisionValid && parsedPoints > 0 && parsedPoints <= 2_000_000_000
+  const unlimitedAvailable = (operation === 'allocate' || operation === 'reclaim') && typeof sourceBalancePoints === 'number'
+    && sourceBalancePoints > 0
+    && Number.isFinite(sourceBalancePoints)
+    && sourceBalancePoints <= 2_000_000_000
   const currentTargetPoints = target.credits.points
   const projectedTargetPoints = operation === 'recharge' && valid
     ? currentTargetPoints + parsedPoints
     : currentTargetPoints
 
   return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="credit-operation-dialog w-full max-w-[500px] overflow-hidden rounded-[14px] border border-white/10 bg-[#171717] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[.07] px-6 py-4">
+    <ViewportDialogLayer>
+    <div className="fos-overlay">
+      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px] rounded-[14px] border border-white/10 bg-[#171717] shadow-2xl">
+        <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{copy.title}</h2>
             <p className="mt-1 text-[11px] text-white/40">目标账号：{target.username}</p>
           </div>
-          <button type="button" className="fos-icon-btn" onClick={onClose} aria-label="关闭">
+          <button type="button" className="fos-icon-btn" disabled={saving} onClick={onClose} aria-label="关闭">
             <AppIcon name="close" className="h-4 w-4" />
           </button>
         </div>
-        <div className="px-6 py-5">
+        <div className="fos-dialog-body">
           <div className="rounded-[10px] border border-blue-400/15 bg-blue-400/[.06] px-4 py-3 text-[11px] leading-5 text-blue-100/65">
             {copy.hint} 换算标准：¥1 = 100 积分。
           </div>
@@ -531,20 +621,35 @@ export function CreditOperationDialog({
               <strong className="text-[15px] text-white">{sourceBalancePoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })} 积分</strong>
             </div>
           ) : null}
+          {unlimitedAvailable ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="fos-btn fos-btn-ghost"
+                disabled={saving}
+                onClick={() => setPoints(String(sourceBalancePoints))}
+              >
+                全部
+              </button>
+              <small className="text-[10px] leading-4 text-white/35">
+                「全部」按当前可操作余额填写；收回历史积分可保留 4 位小数，避免遗漏余额零头，完整保留账本流水。
+              </small>
+            </div>
+          ) : null}
           <label className="mt-4 block">
             <span className="mb-2 block text-[11px] font-semibold text-white/60">积分数量</span>
             <input
               className="fos-input w-full"
               type="number"
-              min={1}
-              step={1}
+              min={operation === 'reclaim' ? 0.0001 : 1}
+              step={operation === 'reclaim' ? 0.0001 : 1}
               inputMode="numeric"
               autoFocus
               value={points}
               onChange={(event) => setPoints(event.target.value)}
-              placeholder="请输入正整数积分"
+              placeholder={operation === 'reclaim' ? '可输入小数积分，或点击全部' : '请输入正整数积分'}
             />
-            {valid ? <span className="mt-2 block text-[10px] text-white/35">人民币等值 ¥{(parsedPoints / 100).toFixed(2)}</span> : null}
+            {valid ? <span className="mt-2 block text-[10px] text-white/35">人民币等值 ¥{(parsedPoints / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span> : null}
           </label>
           <label className="mt-4 block">
             <span className="mb-2 block text-[11px] font-semibold text-white/60">备注（选填）</span>
@@ -553,12 +658,12 @@ export function CreditOperationDialog({
               maxLength={200}
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              placeholder="例如：7 月项目额度"
+              placeholder="例如：7 月作品额度"
             />
           </label>
           {error ? <p className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
         </div>
-        <div className="flex justify-end gap-2 border-t border-white/[.07] px-6 py-4">
+        <div className="fos-dialog-foot">
           <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
           <button
             type="button"
@@ -569,7 +674,8 @@ export function CreditOperationDialog({
             {saving ? '处理中…' : copy.action}
           </button>
         </div>
-      </div>
+      </section>
     </div>
+    </ViewportDialogLayer>
   )
 }

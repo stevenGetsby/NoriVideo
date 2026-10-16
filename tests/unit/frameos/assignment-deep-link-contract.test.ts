@@ -38,7 +38,7 @@ describe('FrameOS collaboration assignment deep links', () => {
     expect(workflow).toContain('<FosStoryboard data={data} initialEpisodeId={initialEpisodeId} />')
     expect(workflow).toContain('<FosAssemblyEditor data={data} initialEpisodeId={initialEpisodeId} />')
     expect(workflow).toContain('<FosProductionShot data={data} initialEpisodeId={initialEpisodeId} />')
-    expect(workflow).toContain("backTo={assignmentReturnTo ?? '/works'}")
+    expect(workflow).toContain("backTo={assignmentReturnTo ?? '/projects'}")
     expect(workflow).toContain('backTo={assignmentReturnTo ?? parentBackTo}')
     expect(workflow).toContain("backLabel={assignmentReturnTo ? '返回我的任务' : parentBackLabel}")
     expect(storyboard).toContain('episodes.find((episode) => episode.id === initialEpisodeId)')

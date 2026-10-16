@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, NodeResizer, Position, useStore, type NodeProps } from '@xyflow/react'
 import { Clapperboard, FolderOpen, GitBranch, ImageIcon, Music2, Sparkles, Upload } from '@/components/ui/icons'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { useCanvasEditor } from '../CanvasEditorContext'
@@ -27,7 +27,7 @@ function sourceUrlFor(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null)
   const raw = incoming
     ? incoming.data.videoUrl || incoming.data.contentUrl
     : data.videoUrl || data.contentUrl
-  return toDisplayImageUrl(raw || null)
+  return toPlayableVideoUrl(raw || null)
 }
 
 function sourceLabel(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null) {
@@ -39,7 +39,7 @@ function sourceLabel(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null) 
 
 export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
-  const { generationAllowed } = useAccountBalance()
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const graphNodes = useStore((state) => state.nodes) as CanvasFlowNode[]
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -87,6 +87,12 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
         imageUrl: node.data.imageUrl || node.data.contentUrl || null,
         mediaType: node.type as 'image' | 'audio',
       }))
+    assets.sort((left, right) => {
+      const leftConnected = references.some((reference) => reference.id === left.id)
+      const rightConnected = references.some((reference) => reference.id === right.id)
+      if (leftConnected !== rightConnected) return leftConnected ? -1 : 1
+      return left.name.localeCompare(right.name, 'zh-Hans-CN')
+    })
     for (const reference of references) {
       if (assets.some((asset) => asset.id === reference.id)) continue
       assets.push({
@@ -330,7 +336,7 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
 
       <div className="nori-canvas-video-edit-footer nodrag">
         <label><input type="checkbox" checked={generateAudio} disabled={running || editor.readOnly} onChange={(event) => setGenerateAudio(event.target.checked)} /><span>同步生成声音</span></label>
-        <button type="button" className="is-primary" disabled={!canSubmit} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={submit}><Sparkles />{running ? '编辑中…' : !generationAllowed ? '积分不足' : '开始编辑'}</button>
+        <button type="button" className="is-primary" disabled={!canSubmit} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={submit}><Sparkles />{running ? '编辑中…' : !generationAllowed ? generationDisabledLabel : '开始编辑'}</button>
       </div>
 
       {data.progress && running ? (

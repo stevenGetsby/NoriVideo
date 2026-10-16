@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { buildNovelVideoExportFileName } from '@/lib/novel-promotion/video-export-name'
+import { resolveGenerationExportMetadata } from '@/lib/novel-promotion/generation-export-metadata'
 
 interface PanelData {
     panelIndex: number | null
@@ -21,6 +23,8 @@ interface ClipData {
 }
 
 interface EpisodeData {
+    name?: string | null
+    episodeNumber?: number | null
     storyboards?: StoryboardData[]
     clips?: ClipData[]
 }
@@ -100,6 +104,10 @@ export const POST = apiHandler(async (
     if (episodes.length === 0) {
         throw new ApiError('NOT_FOUND')
     }
+    const exportSettings = await prisma.novelPromotionProject.findUnique({
+      where: { projectId },
+      select: { exportNamingTemplate: true },
+    })
 
     // 收集所有有视频的 panel
     interface VideoItem {
@@ -109,23 +117,17 @@ export const POST = apiHandler(async (
         panelIndex: number
     }
 
-    // 从 episodes 中获取所有 storyboards 和 clips
-    const allStoryboards: StoryboardData[] = []
-    const allClips: ClipData[] = []
-    for (const episode of episodes) {
-        allStoryboards.push(...(episode.storyboards || []))
-        allClips.push(...(episode.clips || []))
-    }
-
     interface VideoCandidate extends VideoItem {
         videoKey: string
         desc: string
+        episodeName: string | null
     }
     const videoCandidates: VideoCandidate[] = []
 
     // 遍历所有 storyboard 和 panel
-    for (const storyboard of allStoryboards) {
-        const clipIndex = allClips.findIndex((clip) => clip.id === storyboard.clipId)
+    for (const episode of episodes) {
+      for (const storyboard of episode.storyboards || []) {
+        const clipIndex = (episode.clips || []).findIndex((clip) => clip.id === storyboard.clipId)
 
         const panels = storyboard.panels || []
         for (const panel of panels) {
@@ -151,10 +153,13 @@ export const POST = apiHandler(async (
                     videoUrl: '',
                     clipIndex: clipIndex >= 0 ? clipIndex : 999,
                     panelIndex: panel.panelIndex || 0,
-                    videoKey,
-                    desc: safeDesc})
+                videoKey,
+                desc: safeDesc,
+                episodeName: episode.name || (episode.episodeNumber ? `第${String(episode.episodeNumber).padStart(3, '0')}集` : null),
+              })
             }
         }
+      }
     }
 
     // 按 clipIndex 和 panelIndex 排序
@@ -166,11 +171,20 @@ export const POST = apiHandler(async (
     })
 
     // 重新分配连续的全局索引并生成代理URL
-    const result = videoCandidates.map((video, idx) => {
+    const exportProject = await prisma.project.findUnique({ where: { id: projectId }, select: { work: { select: { name: true } } } })
+    const result = await Promise.all(videoCandidates.map(async (video, idx) => {
         const videoKey = video.videoKey
         const safeDesc = video.desc
         const index = idx + 1
-        const fileName = `${String(index).padStart(3, '0')}_${safeDesc}.mp4`
+        const metadata = await resolveGenerationExportMetadata(projectId, videoKey)
+        const fileName = buildNovelVideoExportFileName({
+            projectName: exportProject?.work.name || project.name,
+            episodeName: video.episodeName,
+            sequence: index,
+            generationName: safeDesc,
+            ...metadata,
+            template: exportSettings?.exportNamingTemplate,
+        })
 
         // 使用代理 URL，避免 CORS 问题
         const proxyUrl = `/api/novel-promotion/${projectId}/video-proxy?key=${encodeURIComponent(videoKey)}`
@@ -180,7 +194,7 @@ export const POST = apiHandler(async (
             fileName,
             videoUrl: proxyUrl
         }
-    })
+    }))
 
     if (result.length === 0) {
         throw new ApiError('INVALID_PARAMS')

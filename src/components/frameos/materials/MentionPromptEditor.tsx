@@ -4,6 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { findActiveMention, insertPromptMention, splitPromptMentionParts } from './mention-prompt'
 
 export { findActiveMention, insertPromptMention, splitPromptMentionParts } from './mention-prompt'
@@ -67,10 +68,18 @@ export function MentionPromptEditor({
     return assets
       .filter((asset, index, list) => list.findIndex((item) => assetKey(item) === assetKey(asset)) === index)
       .filter((asset) => !query || asset.name.toLowerCase().includes(query))
-      .slice(0, 8)
   }, [assets, mention])
 
   useEffect(() => setActiveIndex(0), [mention?.query, mention?.start])
+  useEffect(() => {
+    const popup = document.getElementById(listboxId)
+    const option = document.getElementById(`${listboxId}-${activeIndex}`)
+    if (!popup || !option) return
+    const bounds = popup.getBoundingClientRect()
+    const item = option.getBoundingClientRect()
+    if (item.bottom > bounds.bottom) popup.scrollTop += item.bottom - bounds.bottom
+    if (item.top < bounds.top + 36) popup.scrollTop -= bounds.top + 36 - item.top
+  }, [activeIndex, listboxId, mention])
 
   const refreshMention = (nextValue: string, cursor: number | null) => {
     if (readOnly) {
@@ -126,6 +135,7 @@ export function MentionPromptEditor({
             if (!mention) return
             if (event.key === 'Escape') {
               event.preventDefault()
+              event.stopPropagation()
               setMention(null)
               return
             }
@@ -160,8 +170,8 @@ export function MentionPromptEditor({
         />
       </div>
       {!readOnly && mention ? (
-        <div id={listboxId} role="listbox" className="mention-prompt-options absolute left-2 right-2 top-full z-30 mt-1 max-h-64 overflow-y-auto rounded-[10px] border border-[var(--fos-border-strong)] bg-[var(--fos-bg-2)] p-1 shadow-2xl">
-          <div className="px-2 py-1.5 text-[10px] font-bold uppercase tracking-wide text-[var(--fos-text-4)]">{menuLabel}</div>
+        <ViewportPopover anchorRef={textareaRef} onClose={() => setMention(null)} maxHeight={340} id={listboxId} role="listbox" aria-label={menuLabel} className="mention-prompt-options">
+          <div className="mention-prompt-options-heading">{menuLabel}<small>{options.length} 项</small></div>
           {options.length === 0 ? <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">{assets.length === 0 ? '画布中暂无可引用素材' : '没有匹配的素材'}</div> : options.map((asset, index) => {
             const src = toDisplayImageUrl(asset.imageUrl)
             return (
@@ -173,7 +183,7 @@ export function MentionPromptEditor({
               </button>
             )
           })}
-        </div>
+        </ViewportPopover>
       ) : null}
       {hint ? <div className="mention-prompt-hint mt-1 text-[11px] text-[var(--fos-text-4)]">{hint}</div> : null}
     </div>

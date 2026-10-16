@@ -38,7 +38,8 @@ describe('CapsuleNav layering', () => {
       ),
     )
 
-    expect(html).toContain('fixed top-20 left-1/2 -translate-x-1/2 z-40')
+    expect(html).toContain('fixed left-1/2 top-32 z-40')
+    expect(html).toContain('md:top-20')
     expect(html).toContain('fixed top-20 left-6 z-40')
     expect(html).not.toContain('z-50 animate-fadeInDown')
     expect(html).not.toContain('z-[60]')

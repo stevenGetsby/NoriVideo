@@ -321,6 +321,9 @@ describe('SuperAgentOrchestrator mock flow', () => {
     }
 
     const plan = await orchestrator.createExecutionPlan(context)
+    // This fixture explicitly exercises Chinese assets; don't let incidental
+    // English labels in a serialized mock story override the intended style.
+    plan.projectConfig.artStylePrompt = '中国场景，中文环境，写实商品宣传风格'
     expect(plan.executionMode).toBe('mock')
     expect(plan.selectedSkill).toBe('product-promo')
     expect(plan.projectConfig.videoRatio).toBe('16:9')
@@ -570,7 +573,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
       type: 'story_to_script_run',
       targetType: 'episode',
       targetId: 'episode-1',
-      payload: { episodeId: 'episode-1' },
+      payload: expect.objectContaining({ episodeId: 'episode-1', content: expect.stringContaining('【NORI_AGENT_STORY_PACKAGE】') }),
     }))
     expect(submitTaskMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
       type: 'image_character',
@@ -1128,6 +1131,7 @@ describe('SuperAgentOrchestrator mock flow', () => {
       where: {
         id: 'target-project-1',
         userId: 'user-1',
+        deletedAt: null,
       },
       include: {
         novelPromotionData: true,

@@ -1,16 +1,13 @@
 import { logInfo as _ulogInfo, logError as _ulogError } from '@/lib/logging/core'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { addSignedUrlsToProject, deleteObjects } from '@/lib/storage'
-import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
+import { addSignedUrlsToProject } from '@/lib/storage'
 import { logProjectAction } from '@/lib/logging/semantic'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import {
-  collectProjectBailianManagedVoiceIds,
-  cleanupUnreferencedBailianVoices,
-} from '@/lib/providers/bailian'
-import { projectReadWhere, requireProjectManager } from '@/lib/collaboration/access'
+import { getWorkspaceActor, projectReadWhere, requireProjectManager, requireProjectReader } from '@/lib/collaboration/access'
+import { PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
+import { toProductionWork } from '@/lib/projects/hierarchy'
 
 function readOptionalString(value: unknown, maxLength: number) {
   if (value === null) return undefined
@@ -28,7 +25,7 @@ function readNullableOptionalString(value: unknown, maxLength: number) {
   return trimmed.slice(0, maxLength)
 }
 
-// GET - 获取项目详情
+// GET - 获取作品详情
 export const GET = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> }
@@ -39,7 +36,7 @@ export const GET = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
-  // 只获取基础项目信息，不包含模式特定数据
+  // 只获取基础作品信息，不包含模式特定数据
   const project = await prisma.project.findFirst({
     where: projectReadWhere(session, projectId)
   })
@@ -54,14 +51,14 @@ export const GET = apiHandler(async (
     data: { lastAccessedAt: new Date() }
   }).catch(err => _ulogError('更新访问时间失败:', err))
 
-  // 这个 API 只返回基础项目信息
-  // 项目附属业务数据通过各自的 API 获取（如 /api/novel-promotion/[projectId]）
-  const projectWithSignedUrls = addSignedUrlsToProject(project)
+  // 这个 API 只返回基础作品信息
+  // 作品附属业务数据通过各自的 API 获取（如 /api/novel-promotion/[projectId]）
+  const projectWithSignedUrls = { ...project, ...addSignedUrlsToProject(project) }
 
-  return NextResponse.json({ project: projectWithSignedUrls })
+  return NextResponse.json({ work: toProductionWork(projectWithSignedUrls), project: projectWithSignedUrls })
 })
 
-// PATCH - 更新项目配置
+// PATCH - 更新作品配置
 export const PATCH = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> }
@@ -72,13 +69,10 @@ export const PATCH = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
-  await requireProjectManager(session, projectId)
+  await requireProjectReader(session, projectId)
 
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    }
+    where: projectReadWhere(session, projectId)
   })
 
   if (!project) {
@@ -97,7 +91,7 @@ export const PATCH = apiHandler(async (
     throw new ApiError('INVALID_PARAMS')
   }
 
-  // 更新项目
+  // 更新作品
   const updatedProject = await prisma.project.update({
     where: { id: project.id },
     data: updateData
@@ -112,111 +106,10 @@ export const PATCH = apiHandler(async (
     { changes: updateData }
   )
 
-  return NextResponse.json({ project: updatedProject })
+  return NextResponse.json({ work: toProductionWork(updatedProject), project: updatedProject })
 })
 
-/**
- * 收集项目的所有COS文件Key
- */
-async function collectProjectCOSKeys(projectId: string): Promise<string[]> {
-  const keys: string[] = []
-
-  // 获取 NovelPromotionProject
-  const novelPromotion = await prisma.novelPromotionProject.findUnique({
-    where: { projectId },
-    include: {
-      // 角色及其形象图片
-      characters: {
-        include: {
-          appearances: true
-        }
-      },
-      // 场景及其图片
-      locations: {
-        include: {
-          images: true
-        }
-      },
-      // 剧集（包含音频、分镜等）
-      episodes: {
-        include: {
-          storyboards: {
-            include: {
-              panels: true
-            }
-          }
-        }
-      }
-    }
-  })
-
-  if (!novelPromotion) return keys
-
-  // 项目创建时上传的画风参考使用结构化 MediaRef，删除项目时一并清理存储对象。
-  if (Array.isArray(novelPromotion.artStyleReferences)) {
-    for (const reference of novelPromotion.artStyleReferences) {
-      if (!reference || typeof reference !== 'object' || Array.isArray(reference)) continue
-      const value = reference as Record<string, unknown>
-      const key = await resolveStorageKeyFromMediaValue(value.storageKey ?? value.url)
-      if (key) keys.push(key)
-    }
-  }
-
-  // 1. 收集角色形象图片
-  for (const character of novelPromotion.characters) {
-    for (const appearance of character.appearances) {
-      const key = await resolveStorageKeyFromMediaValue(appearance.imageUrl)
-      if (key) keys.push(key)
-    }
-  }
-
-  // 2. 收集场景图片
-  for (const location of novelPromotion.locations) {
-    for (const image of location.images) {
-      const key = await resolveStorageKeyFromMediaValue(image.imageUrl)
-      if (key) keys.push(key)
-    }
-  }
-
-  // 3. 收集剧集相关文件
-  for (const episode of novelPromotion.episodes) {
-    // 音频文件
-    const audioKey = await resolveStorageKeyFromMediaValue(episode.audioUrl)
-    if (audioKey) keys.push(audioKey)
-
-    // 分镜图片
-    for (const storyboard of episode.storyboards) {
-      // 分镜整体图
-      const sbKey = await resolveStorageKeyFromMediaValue(storyboard.storyboardImageUrl)
-      if (sbKey) keys.push(sbKey)
-
-      // 候选图片（JSON数组）
-      if (storyboard.candidateImages) {
-        try {
-          const candidates = JSON.parse(storyboard.candidateImages)
-          for (const url of candidates) {
-            const key = await resolveStorageKeyFromMediaValue(url)
-            if (key) keys.push(key)
-          }
-        } catch { }
-      }
-
-      // Panel 表中的图片和视频
-      for (const panel of storyboard.panels) {
-        const imgKey = await resolveStorageKeyFromMediaValue(panel.imageUrl)
-        if (imgKey) keys.push(imgKey)
-
-        const videoKey = await resolveStorageKeyFromMediaValue(panel.videoUrl)
-        if (videoKey) keys.push(videoKey)
-      }
-    }
-  }
-
-  _ulogInfo(`[Project ${projectId}] 收集到 ${keys.length} 个 COS 文件待删除`)
-  return [...new Set(keys)]
-}
-
-// DELETE - 删除项目（同时清理COS文件）
+// DELETE - 将作品移入回收站，15 天内可恢复；到期后由后台清理器硬删除。
 export const DELETE = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ projectId: string }> }
@@ -229,38 +122,21 @@ export const DELETE = apiHandler(async (
   await requireProjectManager(session, projectId)
 
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-    }
+    where: projectReadWhere(session, projectId)
   })
 
   if (!project) {
     throw new ApiError('NOT_FOUND')
   }
 
-  // 1. 先收集所有 COS 文件 Key
-  _ulogInfo(`[DELETE] 开始删除项目: ${project.name} (${projectId})`)
-  const projectVoiceIds = await collectProjectBailianManagedVoiceIds(projectId)
-  const voiceCleanupResult = await cleanupUnreferencedBailianVoices({
-    voiceIds: projectVoiceIds,
-    scope: {
-      userId: session.user.id,
-      excludeProjectId: projectId,
+  const deletedAt = new Date()
+  const restoreDeadline = new Date(deletedAt.getTime() + PROJECT_RECYCLE_RETENTION_MS)
+  await prisma.project.update({
+    where: { id: project.id },
+    data: {
+      deletedAt,
+      deletedById: getWorkspaceActor(session).actorId,
     },
-  })
-  const cosKeys = await collectProjectCOSKeys(projectId)
-
-  // 2. 批量删除 COS 文件
-  let cosResult = { success: 0, failed: 0 }
-  if (cosKeys.length > 0) {
-    _ulogInfo(`[DELETE] 正在删除 ${cosKeys.length} 个 COS 文件...`)
-    cosResult = await deleteObjects(cosKeys)
-  }
-
-  // 3. 删除数据库记录 (级联删除所有关联数据)
-  await prisma.project.delete({
-    where: { id: project.id }
   })
 
   logProjectAction(
@@ -271,22 +147,18 @@ export const DELETE = apiHandler(async (
     project.name,
     {
       projectName: project.name,
-      cosFilesDeleted: cosResult.success,
-      cosFilesFailed: cosResult.failed,
-      bailianVoicesDeleted: voiceCleanupResult.deletedVoiceIds.length,
-      bailianVoicesSkippedReferenced: voiceCleanupResult.skippedReferencedVoiceIds.length,
+      recycleBin: {
+        deletedAt: deletedAt.toISOString(),
+        restoreDeadline: restoreDeadline.toISOString(),
+      },
     }
   )
 
-  _ulogInfo(`[DELETE] 项目删除完成: ${project.name}`)
-  _ulogInfo(`[DELETE] COS 文件: 成功 ${cosResult.success}, 失败 ${cosResult.failed}`)
-  _ulogInfo(`[DELETE] Bailian 音色: 删除 ${voiceCleanupResult.deletedVoiceIds.length}, 跳过(仍被引用) ${voiceCleanupResult.skippedReferencedVoiceIds.length}`)
+  _ulogInfo(`[DELETE] 作品已移入回收站: ${project.name}`)
 
   return NextResponse.json({
     success: true,
-    cosFilesDeleted: cosResult.success,
-    cosFilesFailed: cosResult.failed,
-    bailianVoicesDeleted: voiceCleanupResult.deletedVoiceIds.length,
-    bailianVoicesSkippedReferenced: voiceCleanupResult.skippedReferencedVoiceIds.length,
+    deletedAt: deletedAt.toISOString(),
+    restoreDeadline: restoreDeadline.toISOString(),
   })
 })

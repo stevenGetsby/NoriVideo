@@ -12,6 +12,10 @@ const authMock = vi.hoisted(() => ({
 
 const createCalls = vi.hoisted((): Array<Record<string, unknown>> => [])
 
+const assignmentsMock = vi.hoisted(() => ({
+  syncProjectAssignmentsForProject: vi.fn(async () => undefined),
+}))
+
 const prismaMock = vi.hoisted(() => ({
   novelPromotionProject: {
     findFirst: vi.fn(async () => ({ id: 'np-project-1' })),
@@ -30,6 +34,7 @@ const prismaMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/api-auth', () => authMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/lib/collaboration/assignments', () => assignmentsMock)
 
 describe('api specific - episode batch FrameOS metadata', () => {
   beforeEach(() => {
@@ -63,6 +68,9 @@ describe('api specific - episode batch FrameOS metadata', () => {
 
     const res = await mod.POST(req, { params: Promise.resolve({ projectId: 'project-1' }) })
     expect(res.status).toBe(200)
+    expect(assignmentsMock.syncProjectAssignmentsForProject).toHaveBeenCalledWith({
+      projectId: 'project-1', workspaceOwnerId: 'user-1',
+    })
 
     const createArg = createCalls[0] as { data?: { speakerVoices?: string } } | undefined
     expect(createArg).toBeTruthy()

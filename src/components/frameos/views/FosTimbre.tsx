@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { useSearchParams } from 'next/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { apiFetch } from '@/lib/api-fetch'
@@ -12,8 +13,9 @@ import { resolveTaskResponse } from '@/lib/task/client'
 import type { FosAsset, FosProjectData } from '../useFosProject'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { AssetTabs } from './FosAssetShared'
+import { characterPairName, validateCharacterAudioFile } from '@/lib/frameos/character-voice-reference'
 
-type TimbreTab = 'seedance' | 'local'
+type TimbreTab = 'seedance' | 'local' | 'batch'
 
 interface VideoModelItem {
   modelKey: string
@@ -110,11 +112,15 @@ function CompactAudioPlayer({ src, label }: { src: string; label: string }) {
 
 export function FosTimbre({ data }: { data: FosProjectData }) {
   const { data: session } = useSession()
-  const { generationAllowed } = useAccountBalance()
+  const searchParams = useSearchParams()
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const canEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])
   const characters = data.characters
   const [activeId, setActiveId] = useState(characters[0]?.id ?? '')
   const [tab, setTab] = useState<TimbreTab>('seedance')
+  const [batchFiles, setBatchFiles] = useState<File[]>([])
+  const [batchBusy, setBatchBusy] = useState(false)
+  const [batchReport, setBatchReport] = useState<string | null>(null)
   const [prompt, setPrompt] = useState('')
   const [models, setModels] = useState<VideoModelItem[]>([])
   const [modelKey, setModelKey] = useState('')
@@ -129,6 +135,8 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
   const [confirming, setConfirming] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const active = characters.find((character) => character.id === activeId) ?? characters[0]
+  const activeIdentity = useRef('')
+  activeIdentity.current = `${data.projectId}:${active?.id || ''}`
   const total = characters.length
   const hasBoundVoice = (character: FosAsset) => Boolean(
     character.id === active?.id
@@ -136,6 +144,11 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
       : character.customVoiceUrl || character.voiceId,
   )
   const boundCount = characters.filter(hasBoundVoice).length
+
+  useEffect(() => {
+    const requested = searchParams?.get('characterId')?.trim()
+    if (requested && characters.some((character) => character.id === requested)) setActiveId(requested)
+  }, [characters, searchParams])
 
   useEffect(() => {
     if (!active) return
@@ -185,9 +198,11 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
   const modelUnavailable = models.length === 0
 
   const uploadVoice = async (file: File) => {
-    if (!active || !canEdit) return
-    if (!/\.(mp3|wav|m4a|ogg)$/i.test(file.name) && !file.type.startsWith('audio/')) {
-      setError('请选择 MP3、WAV、M4A 或 OGG 音频。')
+    if (!active || !canEdit || busy || batchBusy) return
+    const identity = activeIdentity.current
+    const invalid = validateCharacterAudioFile(file)
+    if (invalid) {
+      setError(invalid)
       return
     }
     setBusy(true)
@@ -201,6 +216,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
       const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-voice`, { method: 'POST', body: formData })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '上传角色音色失败'))
       const payload = await response.json() as { audioUrl?: string }
+      if (activeIdentity.current !== identity) { data.refetch(); return }
       setBoundAudioUrl(payload.audioUrl || null)
       setNotice(`已将音频绑定为 @${active.name} 的角色音色。`)
       data.refetch()
@@ -213,7 +229,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
   }
 
   const generateAudition = async () => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     if (!active || !canEdit || !modelKey || !prompt.trim() || busy) return
     setBusy(true)
     setProgress(0)
@@ -294,10 +310,50 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
     }
   }
 
+  const uploadBatchVoices = async () => {
+    if (!canEdit || batchBusy || batchFiles.length === 0) return
+    setBatchBusy(true)
+    setBatchReport(null)
+    const characterByName = new Map<string, FosAsset[]>()
+    for (const character of characters) {
+      const name = character.name.normalize('NFKC').trim().toLocaleLowerCase()
+      characterByName.set(name, [...(characterByName.get(name) || []), character])
+    }
+    const successes: string[] = []
+    const failures: string[] = []
+    const failedFiles: File[] = []
+    const names = batchFiles.map((file) => characterPairName(file.name))
+    try {
+      for (const file of batchFiles) {
+        try {
+          const baseName = characterPairName(file.name)
+          const matches = characterByName.get(baseName) || []
+          const invalid = validateCharacterAudioFile(file)
+          if (invalid) throw new Error(invalid)
+          if (matches.length !== 1) throw new Error(matches.length ? '存在多个同名角色，请先修改名称再绑定' : '未找到同名角色')
+          if (names.filter((name) => name === baseName).length > 1) throw new Error('多个音色文件匹配同一角色，请只保留一个')
+          const formData = new FormData()
+          formData.append('characterId', matches[0].id); formData.append('file', file)
+          const response = await apiFetch(`/api/novel-promotion/${data.projectId}/character-voice`, { method: 'POST', body: formData })
+          if (!response.ok) throw new Error(await readApiErrorMessage(response, '上传失败'))
+          successes.push(matches[0].name)
+        } catch (cause) {
+          failures.push(`${file.name}：${cause instanceof Error ? cause.message : '上传失败'}`)
+          failedFiles.push(file)
+        }
+      }
+      if (successes.length > 0) data.refetch()
+      setBatchReport(`成功绑定 ${successes.length} 个角色${failures.length ? `；失败 ${failures.length} 个（${failures.slice(0, 3).join('；')}）` : ''}。`)
+      setBatchFiles(failedFiles)
+    } finally {
+      setBatchBusy(false)
+    }
+  }
+
   const statusText = useMemo(() => active?.customVoiceUrl || boundAudioUrl ? '已绑定角色音色' : '尚未绑定音色', [active?.customVoiceUrl, boundAudioUrl])
 
   return (
-    <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '280px minmax(520px,1fr) 300px' }}>
+    <div className="fos-timbre-layout grid min-h-0 min-w-0 flex-1">
       <aside className="flex min-h-0 flex-col border-r border-[var(--fos-border-soft)]">
         <div className="flex-none p-3">
           <AssetTabs projectId={data.projectId} active="timbre" />
@@ -316,8 +372,8 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
         {active ? <>
           <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
 
-          <div className="mt-5 flex items-center gap-6 border-b border-[var(--fos-border-soft)]">
-            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}</button>)}
+          <div className="fos-timbre-tabs mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-[var(--fos-border-soft)]">
+            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}</button>)}
           </div>
 
           {tab === 'seedance' ? <section className="mt-5">
@@ -337,9 +393,9 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
                     {models.map((model) => <option key={model.modelKey} value={model.modelKey}>{model.name}</option>)}
                     {modelUnavailable ? <option value="">未配置 Seedance 2.0</option> : null}
                   </select>
-                  <button type="button" className="fos-btn fos-btn-primary" disabled={!generationAllowed || !canEdit || busy || modelUnavailable || !imageUrl || !prompt.trim()} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void generateAudition()}>
+                  <button type="button" className="fos-btn fos-btn-primary" disabled={!generationAllowed || !canEdit || busy || modelUnavailable || !imageUrl || !prompt.trim()} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void generateAudition()}>
                     <AppIcon name={busy ? 'loader' : 'video'} className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`} />
-                    {busy ? '试镜处理中…' : !generationAllowed ? '积分不足' : '生成试镜音色'}
+                    {busy ? '试镜处理中…' : !generationAllowed ? generationDisabledLabel : '生成试镜音色'}
                   </button>
                 </div>
                 {stage ? <div className="fos-timbre-progress"><span>{stage}</span><strong>{progress ?? 0}%</strong></div> : <div className="fos-timbre-control-note">使用角色设定图生成 5 秒带人声试镜，并自动提取纯净音轨。</div>}
@@ -363,11 +419,25 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
           </section> : null}
 
           {tab === 'local' ? <section className="mt-5"><input ref={fileRef} className="hidden" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadVoice(file); event.currentTarget.value = '' }} /><button type="button" className="fos-dropzone w-full" style={{ minHeight: 150 }} disabled={!canEdit || busy} onClick={() => fileRef.current?.click()}><AppIcon name="upload" className="h-7 w-7" /><span className="text-[13px] font-semibold text-[var(--fos-text-2)]">上传 {active.name} 的角色音色</span><span className="text-[11px]">优先支持 MP3；也可上传 WAV / M4A / OGG，最大 50MB</span></button></section> : null}
+          {tab === 'batch' ? <section className="mt-5 space-y-4">
+            <div className="rounded-[10px] border border-blue-300/15 bg-blue-400/[.06] px-4 py-3 text-[12px] leading-5 text-blue-100/80">选择多个音频，系统按“文件名 = 角色名”自动绑定。例如：<code>关羽.mp3</code> 会绑定角色“关羽”；也支持 <code>关羽_voice.wav</code>。</div>
+            <input className="hidden" id="batch-character-voices" type="file" multiple disabled={!canEdit || batchBusy || busy} accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" onChange={(event) => {
+              const files = Array.from(event.target.files || [])
+              event.currentTarget.value = ''
+              if (files.length > 100) { setError('每批最多 100 个音色文件'); return }
+              const invalid = files.find((file) => validateCharacterAudioFile(file))
+              if (invalid) { setError(`${invalid.name}：${validateCharacterAudioFile(invalid)}`); return }
+              setBatchFiles(files); setBatchReport(null); setError(null)
+            }} />
+            <label htmlFor="batch-character-voices" className="fos-dropzone flex w-full cursor-pointer flex-col" style={{ minHeight: 150 }}><AppIcon name="upload" className="h-7 w-7" /><span className="text-[13px] font-semibold text-[var(--fos-text-2)]">选择多个角色音频</span><span className="text-[11px]">{batchFiles.length ? `已选择 ${batchFiles.length} 个文件` : '文件名请使用角色名称，便于自动匹配'}</span></label>
+            <button type="button" className="fos-btn fos-btn-primary" disabled={!canEdit || batchBusy || batchFiles.length === 0} onClick={() => void uploadBatchVoices()}>{batchBusy ? '批量绑定中…' : '开始批量绑定音色'}</button>
+            {batchReport ? <div className="rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[12px] text-blue-100">{batchReport}</div> : null}
+          </section> : null}
 
           {audioUrl ? <section className="fos-bound-voice-card"><div className="fos-bound-voice-heading"><div><h3>当前绑定音色 · @{active.name}</h3><p>该角色所在分镜会自动使用这段参考音频。</p></div><button type="button" className="fos-btn fos-btn-ghost fos-btn-sm text-red-200" disabled={!canEdit || busy} onClick={() => void clearVoice()}>解除绑定</button></div><CompactAudioPlayer src={audioUrl} label={`${active.name} 当前音色`} /></section> : null}
           {error ? <div className="mt-4 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] leading-5 text-red-200">{error}</div> : null}
           {notice ? <div className="mt-4 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[11px] leading-5 text-blue-200">{notice}</div> : null}
-        </> : <div className="fos-loading">当前项目没有角色资产。</div>}
+        </> : <div className="fos-loading">当前作品没有角色资产。</div>}
       </article>
 
       <aside className="min-h-0 overflow-y-auto border-l border-[var(--fos-border-soft)] p-5">

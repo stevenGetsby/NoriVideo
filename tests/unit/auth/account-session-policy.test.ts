@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const getServerSessionMock = vi.hoisted(() => vi.fn())
 const userFindUniqueMock = vi.hoisted(() => vi.fn())
+const walletFindUniqueMock = vi.hoisted(() => vi.fn(async () => ({ balance: 2 })))
 
 vi.mock('next-auth/next', () => ({ getServerSession: getServerSessionMock }))
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()) }))
@@ -9,6 +10,7 @@ vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     user: { findUnique: userFindUniqueMock },
+    userBalance: { findUnique: walletFindUniqueMock },
   },
 }))
 vi.mock('@/lib/prisma-retry', () => ({
@@ -52,6 +54,7 @@ function account(overrides: Record<string, unknown> = {}) {
 describe('account session policy', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    walletFindUniqueMock.mockResolvedValue({ balance: 2 })
     getServerSessionMock.mockResolvedValue(session())
     userFindUniqueMock.mockResolvedValue(account())
   })
@@ -123,7 +126,19 @@ describe('account session policy', () => {
     expect(result.session.user.actorId).toBe('user-1')
     expect(result.session.user.id).toBe('manager-1')
     expect(result.session.user.role).toBe('writer')
-    expect(result.session.user.pointCredits).toBe(125)
+    expect(result.session.user.pointCredits).toBe(200)
+    expect(walletFindUniqueMock).toHaveBeenCalledWith({ where: { userId: 'manager-1' }, select: { balance: true } })
+  })
+  it('keeps the authenticated operator as quota principal, without changing the shared data scope', async () => {
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const { withAccountPermissionContext, getGenerationQuotaUserId } = await import('@/lib/account/request-context')
+    await withAccountPermissionContext([], async () => {
+      const result = await requireUserAuth()
+      expect(isErrorResponse(result)).toBe(false)
+      expect(getGenerationQuotaUserId('manager-1')).toBe('user-1')
+      expect(getGenerationQuotaUserId('another-manager')).toBe('another-manager')
+    })
+    expect(getGenerationQuotaUserId('manager-1')).toBe('manager-1')
   })
 
   it('uses the current database role for permission checks after a role change', async () => {

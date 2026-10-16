@@ -31,6 +31,7 @@ export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhere
   // Project membership remains relevant only to assignment/review capabilities.
   return {
     userId: actor.workspaceOwnerId,
+    deletedAt: null,
   }
 }
 
@@ -93,10 +94,13 @@ export async function getWorkAccess(session: AuthSession, workId: string) {
       workspaceOwnerId: actor.workspaceOwnerId,
     },
     include: {
-      _count: { select: { projects: true } },
+      projects: {
+        where: { deletedAt: null },
+        select: { id: true },
+      },
     },
   })
-  if (!work) throw new ApiError('NOT_FOUND', { message: '作品不存在。' })
+  if (!work) throw new ApiError('NOT_FOUND', { message: '项目不存在。' })
   // Subaccounts share workspace visibility but never become workspace-content
   // administrators. Work membership is retained for assignment context only.
   const canManage = actor.isManagement
@@ -107,7 +111,7 @@ export async function getWorkAccess(session: AuthSession, workId: string) {
 export async function requireWorkManager(session: AuthSession, workId: string) {
   const access = await getWorkAccess(session, workId)
   if (!access.canManage) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有管理该作品的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有管理该项目的权限。' })
   }
   return access
 }
@@ -120,7 +124,7 @@ export async function requireWorkManager(session: AuthSession, workId: string) {
 export async function requireWorkProjectCreator(session: AuthSession, workId: string) {
   const access = await getWorkAccess(session, workId)
   if (!access.canCreateProjects) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有在该作品中新建项目的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有在该项目中新建作品的权限。' })
   }
   return access
 }
@@ -131,6 +135,7 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
     where: {
       id: projectId,
       userId: actor.workspaceOwnerId,
+      deletedAt: null,
     },
     include: {
       work: {
@@ -152,7 +157,7 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
       },
     },
   })
-  if (!project) throw new ApiError('NOT_FOUND', { message: '项目不存在。' })
+  if (!project) throw new ApiError('NOT_FOUND', { message: '作品不存在。' })
 
   const workMembership = project.work.members[0]
   const projectMembership = project.members[0]
@@ -173,7 +178,9 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
   })
   const canManageAssignments = capabilities.canManage
   const canReviewAssignments = capabilities.canReview
-  const canManageProject = actor.isManagement
+  // A legacy standalone member may have actorId === workspaceOwnerId.
+  // Ownership/creation and functional permissions never replace an admin role.
+  const canManageProject = isManagementRole(session.user.role)
 
   return {
     actor,
@@ -188,7 +195,7 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
 export async function requireProjectReader(session: AuthSession, projectId: string) {
   const access = await getProjectCollaborationAccess(session, projectId)
   if (!access.canRead) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有访问该项目的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有访问该作品的权限。' })
   }
   return access
 }
@@ -196,7 +203,7 @@ export async function requireProjectReader(session: AuthSession, projectId: stri
 export async function requireProjectManager(session: AuthSession, projectId: string) {
   const access = await getProjectCollaborationAccess(session, projectId)
   if (!access.canManageProject) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有管理该项目的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有管理该作品的权限。' })
   }
   return access
 }
@@ -204,7 +211,7 @@ export async function requireProjectManager(session: AuthSession, projectId: str
 export async function requireProjectAssignmentManager(session: AuthSession, projectId: string) {
   const access = await getProjectCollaborationAccess(session, projectId)
   if (!access.canManageAssignments) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有分配该项目任务的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有分配该作品任务的权限。' })
   }
   return access
 }
@@ -212,7 +219,7 @@ export async function requireProjectAssignmentManager(session: AuthSession, proj
 export async function requireProjectAssignmentReviewer(session: AuthSession, projectId: string) {
   const access = await getProjectCollaborationAccess(session, projectId)
   if (!access.canReviewAssignments) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有审核该项目任务的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有审核该作品任务的权限。' })
   }
   return access
 }

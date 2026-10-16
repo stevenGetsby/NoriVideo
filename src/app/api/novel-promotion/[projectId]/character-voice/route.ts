@@ -5,6 +5,7 @@ import { uploadObject, generateUniqueKey, getSignedUrl } from '@/lib/storage'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
+import { validateCharacterAudioFile } from '@/lib/frameos/character-voice-reference'
 
 /**
  * PATCH /api/novel-promotion/[projectId]/character-voice
@@ -18,7 +19,7 @@ export const PATCH = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['assetWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const body = await request.json()
@@ -70,7 +71,7 @@ export const POST = apiHandler(async (
   const { projectId } = await context.params
 
   // 🔐 统一权限验证
-  const authResult = await requireProjectAuthLight(projectId)
+  const authResult = await requireProjectAuthLight(projectId, ['assetWrite'])
   if (isErrorResponse(authResult)) return authResult
 
   const contentType = request.headers.get('content-type') || ''
@@ -140,6 +141,8 @@ export const POST = apiHandler(async (
   if (!file || !characterId) {
     throw new ApiError('INVALID_PARAMS')
   }
+  const fileError = validateCharacterAudioFile(file)
+  if (fileError) throw new ApiError('INVALID_PARAMS', { message: fileError })
   if (file.size > 50 * 1024 * 1024) {
     throw new ApiError('INVALID_PARAMS', { message: '音频文件不能超过 50MB。' })
   }

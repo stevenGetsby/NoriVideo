@@ -95,7 +95,8 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(node).toContain('设为结束')
     expect(node).toContain('开始编辑')
     expect(node).toContain('useAccountBalance')
-    expect(node).toContain('积分不足')
+    expect(node).toContain('generationDisabledReason')
+    expect(node).toContain('generationDisabledLabel')
     expect(node).toContain('data-role="start"')
     expect(node).toContain('data-role="end"')
     expect(node).toContain('data-role="playhead"')
@@ -208,7 +209,7 @@ describe('FrameOS canvas surface parity regressions', () => {
   it('does not turn a right-button canvas pan into an accidental menu open', () => {
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     expect(graph).toContain('rightPanGestureRef')
-    expect(graph).toContain('Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 4')
+    expect(graph).toContain('Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8')
     expect(graph).toContain('suppressContextMenuUntilRef.current = Date.now() + 250')
     expect(graph).toContain('if (shouldSuppressContextMenu()) return')
     expect(graph).toContain('panOnDrag={[1, 2]}')

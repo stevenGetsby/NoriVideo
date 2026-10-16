@@ -38,11 +38,13 @@ export async function ensureSeedanceProjectAssetGroup(input: {
     where: { id: input.projectId },
     select: {
       id: true,
+      deletedAt: true,
       seedanceAssetGroupId: true,
       seedanceAssetsProjectName: true,
     },
   })
   if (!current) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目不存在')
+  if (current.deletedAt) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目已删除')
   if (
     current.seedanceAssetGroupId
     && current.seedanceAssetsProjectName === scope
@@ -57,11 +59,13 @@ export async function ensureSeedanceProjectAssetGroup(input: {
       select: {
         id: true,
         name: true,
+        deletedAt: true,
         seedanceAssetGroupId: true,
         seedanceAssetsProjectName: true,
       },
     })
     if (!project) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目不存在')
+    if (project.deletedAt) throw new Error('SEEDANCE_ASSET_PROJECT_NOT_FOUND: 项目已删除')
     if (
       project.seedanceAssetGroupId
       && project.seedanceAssetsProjectName === scope

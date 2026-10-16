@@ -113,7 +113,7 @@ export function FosProductionShot({
   initialEpisodeId?: string
 }) {
   const { data: session } = useSession()
-  const { generationAllowed } = useAccountBalance()
+  const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const roleCanEdit = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['storyboardWrite'])
   const preferredEpisodeId = data.episodes.find((episode) => episode.id === initialEpisodeId)?.id || data.episodes[0]?.id || ''
   const [episodeId, setEpisodeId] = useState(preferredEpisodeId)
@@ -308,7 +308,7 @@ export function FosProductionShot({
 
   const generate = async () => {
     if (!canEdit || !activeShot || !modelKey) return
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     if (!prompt.trim()) { setError('视频提示词不能为空。'); return }
     if (boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio) {
       setError(`当前模型不支持角色参考音频。请切换到 Seedance 2.0/2.5 后生成，确保 @${boundVoiceNames.join('、@')} 的音色被注入。`)
@@ -342,7 +342,7 @@ export function FosProductionShot({
   const mentionAssets = useMemo(() => refs.map((ref) => ({ id: ref.materialId || `${ref.kind}:${ref.name}`, name: ref.name, imageUrl: ref.imageUrl })), [refs])
   const selectedMaterialIds = refs.map((ref) => ref.materialId).filter((id): id is string => Boolean(id))
 
-  if (!episodeId || data.episodes.length === 0) return <div className="fos-loading">当前项目还没有可制作的分集。</div>
+  if (!episodeId || data.episodes.length === 0) return <div className="fos-loading">当前作品还没有可制作的分集。</div>
 
   const activeReviewSource = episodeReview.context?.sources.find((source) => source.panelId === activeShot?.id)
 
@@ -485,7 +485,7 @@ export function FosProductionShot({
               <MentionPromptEditor value={prompt} assets={mentionAssets} onChange={setPrompt} minHeight={220} placeholder="输入视频提示词；输入 @ 可引用右侧参考资产" readOnly={!canEdit} />
               <div className="mt-3 text-[12px] font-bold text-white">画风描述</div>
               <textarea className="fos-textarea mt-2" style={{ minHeight: 70 }} value={stylePrompt} readOnly={!canEdit} onChange={(event) => setStylePrompt(event.target.value)} />
-              <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!generationAllowed || !canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} title={!generationAllowed ? '积分不足，无法生成' : undefined} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : !generationAllowed ? '积分不足' : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>
+              <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!generationAllowed || !canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : !generationAllowed ? generationDisabledLabel : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>
               {error || episodeReview.error ? <div className="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">{error || episodeReview.error}</div> : null}
               {message ? <div className="mt-3 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[11px] text-blue-200">{message}</div> : null}
             </>

@@ -125,7 +125,7 @@ describe('image provider smoke tests', () => {
       response_format: 'url',
       stream: false,
       watermark: false,
-      size: '3544x4728',
+      size: '768x1024',
       image: ['UkVG'],
     }, {
       apiKey: 'ark-key',

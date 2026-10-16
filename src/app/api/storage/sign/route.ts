@@ -109,9 +109,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const key = searchParams.get('key')
   const expiresRaw = searchParams.get('expires')
   const inline = searchParams.get('inline') === '1'
+  const playback = searchParams.get('playback') === '1'
 
   if (!key) {
     throw new ApiError('INVALID_PARAMS')
+  }
+  const videoType = getMimeType(key)
+  if (playback && !videoType.startsWith('video/')) {
+    throw new ApiError('INVALID_PARAMS', { message: '视频预览仅支持 MP4、WebM 和 MOV 文件。' })
   }
 
   const expires = expiresRaw ? Number.parseInt(expiresRaw, 10) : DEFAULT_EXPIRES_SECONDS
@@ -139,9 +144,40 @@ export const GET = apiHandler(async (request: NextRequest) => {
   }
 
   try {
-    const signedUrl = await getSignedObjectUrl(key, ttl)
+    const signedUrl = playback
+      ? await getSignedObjectUrl(key, ttl, { responseContentType: videoType, responseContentDisposition: 'inline' })
+      : await getSignedObjectUrl(key, ttl)
+    if (playback) {
+      const range = request.headers.get('range')
+      if (range && !/^bytes=(?:\d+-\d*|-\d+)$/i.test(range)) {
+        throw new ApiError('INVALID_PARAMS', { message: '无效的视频字节范围。' })
+      }
+      const upstream = await fetch(signedUrl, {
+        headers: range ? { Range: range } : undefined,
+        signal: request.signal,
+      })
+      if (![200, 206, 416].includes(upstream.status)) {
+        await upstream.body?.cancel()
+        throw new ApiError('EXTERNAL_ERROR', { message: '视频暂时无法读取，请稍后重新加载。' })
+      }
+      const headers = new Headers({
+        'Content-Type': videoType,
+        'Content-Disposition': 'inline',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'private, max-age=300',
+        'X-Content-Type-Options': 'nosniff',
+      })
+      for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
+        const value = upstream.headers.get(name)
+        if (value) headers.set(name, value)
+      }
+      // Default TOS domains may force "attachment" even with a signed override.
+      // Forward the stream and byte range, not a fully buffered video in RAM.
+      return new NextResponse(upstream.body, { status: upstream.status, headers })
+    }
     return NextResponse.redirect(signedUrl)
   } catch (error) {
+    if (error instanceof ApiError) throw error
     const localFile = await readLocalFile(key)
     if (localFile) {
       return new NextResponse(new Uint8Array(localFile.buffer), {
@@ -149,9 +185,13 @@ export const GET = apiHandler(async (request: NextRequest) => {
         headers: {
           'Content-Type': localFile.mimeType,
           'Content-Length': localFile.buffer.length.toString(),
+          ...(playback ? { 'Content-Disposition': 'inline' } : {}),
           'Cache-Control': 'public, max-age=31536000',
         },
       })
+    }
+    if (playback) {
+      throw new ApiError('EXTERNAL_ERROR', { message: '视频暂时无法读取，请稍后重新加载。' })
     }
     throw error
   }

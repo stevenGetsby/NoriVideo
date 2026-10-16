@@ -18,6 +18,8 @@ import {
   buildMemberCandidateExclusionWhere,
   buildWorkSearchWhere,
 } from './filters'
+import { productionHierarchy } from '@/lib/projects/hierarchy'
+import { normalizeMoveWorkInput } from './move-input'
 
 const WORK_NAME_MAX_LENGTH = 50
 
@@ -28,9 +30,9 @@ function normalizeName(value: unknown): string {
 
 function validateWorkName(value: unknown): string {
   const name = normalizeName(value)
-  if (!name) throw new ApiError('INVALID_PARAMS', { message: '请输入作品名称。' })
+  if (!name) throw new ApiError('INVALID_PARAMS', { message: '请输入项目名称。' })
   if (name.length > WORK_NAME_MAX_LENGTH) {
-    throw new ApiError('INVALID_PARAMS', { message: `作品名称不能超过 ${WORK_NAME_MAX_LENGTH} 个字符。` })
+    throw new ApiError('INVALID_PARAMS', { message: `项目名称不能超过 ${WORK_NAME_MAX_LENGTH} 个字符。` })
   }
   return name
 }
@@ -122,16 +124,17 @@ export async function listWorks(session: AuthSession, input: {
       skip: (page - 1) * pageSize,
       take: pageSize,
       include: {
+        _count: { select: { projects: true } },
         createdBy: { select: { id: true, name: true, role: true } },
         members: {
           orderBy: { createdAt: 'asc' },
           include: { user: { select: { id: true, name: true, role: true, status: true } } },
         },
         projects: {
+          where: { deletedAt: null },
           orderBy: { updatedAt: 'desc' },
           select: workProjectSelect,
         },
-        _count: { select: { projects: true } },
       },
     }),
   ])
@@ -167,8 +170,8 @@ export async function listWorks(session: AuthSession, input: {
       createdById: work.createdById,
       canManage,
       canCreateProjects,
-      canDelete: canManage && work._count.projects === 0,
-      projectCount: work._count.projects,
+      canDelete: canManage && (work._count?.projects ?? work.projects.length) === 0,
+      projectCount: work.projects.length,
       members: canManage ? memberRows : [],
       projects: work.projects.map((project) => {
         const canManageProject = actor.isManagement
@@ -183,6 +186,8 @@ export async function listWorks(session: AuthSession, input: {
   })
 
   return {
+    projectHierarchy: productionHierarchy(works),
+    // Legacy protocol retained for existing task/asset clients.
     works,
     unassignedProjects: [],
     pagination: {
@@ -248,8 +253,8 @@ export async function updateWork(session: AuthSession, workId: string, input: {
 
 export async function deleteWork(session: AuthSession, workId: string) {
   const { work } = await requireWorkManager(session, workId)
-  if (work._count.projects > 0) {
-    throw new ApiError('CONFLICT', { message: '作品下仍有项目，请先移动或删除项目。' })
+  if (work.projects.length > 0) {
+    throw new ApiError('CONFLICT', { message: '项目下仍有作品，请先移动作品，或彻底清理已删除作品。' })
   }
   // Re-assert emptiness in the delete predicate. A project may be created or
   // moved into the work after the permission/count read; relying only on the
@@ -257,32 +262,32 @@ export async function deleteWork(session: AuthSession, workId: string) {
   const deleted = await prisma.work.deleteMany({
     where: {
       id: workId,
+      // Recycled child works still need their parent for restoration.
       projects: { none: {} },
     },
   })
   if (deleted.count !== 1) {
     throw new ApiError('CONFLICT', {
-      message: '作品内容已变化，请刷新后确认作品为空再删除。',
+      message: '项目仍有作品（含回收站）或内容已变化，请刷新后确认项目为空再删除。',
     })
   }
 }
 
 export async function moveProjects(session: AuthSession, input: {
+  workIds?: unknown
+  targetProjectId?: unknown
   projectIds?: unknown
   targetWorkId?: unknown
 }) {
   const actor = getWorkspaceActor(session)
-  const projectIds = uniqueStringIds(input.projectIds)
-  const targetWorkId = typeof input.targetWorkId === 'string' ? input.targetWorkId.trim() : ''
-  if (!projectIds.length || !targetWorkId) {
-    throw new ApiError('INVALID_PARAMS', { message: '请选择项目和目标作品。' })
-  }
+  const { workIds: projectIds, targetProjectId: targetWorkId } = normalizeMoveWorkInput(input)
   await requireWorkManager(session, targetWorkId)
 
   const projects = await prisma.project.findMany({
     where: {
       id: { in: projectIds },
       userId: actor.workspaceOwnerId,
+      deletedAt: null,
     },
     include: {
       work: {
@@ -302,7 +307,7 @@ export async function moveProjects(session: AuthSession, input: {
     },
   })
   if (projects.length !== projectIds.length) {
-    throw new ApiError('NOT_FOUND', { message: '部分项目不存在或不属于当前工作区。' })
+    throw new ApiError('NOT_FOUND', { message: '部分作品不存在或不属于当前工作区。' })
   }
   const unauthorized = projects.some((project) => {
     if (actor.isManagement || project.createdById === actor.actorId) return false
@@ -314,7 +319,7 @@ export async function moveProjects(session: AuthSession, input: {
       && projectMember?.canManageAssignments !== true
   })
   if (unauthorized) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有移动部分项目的权限。' })
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有移动部分作品的权限。' })
   }
 
   await prisma.$transaction(async (tx) => {
@@ -333,15 +338,18 @@ export async function moveProjects(session: AuthSession, input: {
           id: { in: sourceProjectIds },
           userId: actor.workspaceOwnerId,
           workId: sourceWorkId,
+          // A delete may commit after the read above. Recheck inside the
+          // atomic update so recycled works never change their parent.
+          deletedAt: null,
         },
         data: { workId: targetWorkId },
       })
       if (result.count !== sourceProjectIds.length) {
-        throw new ApiError('CONFLICT', { message: '项目已被移动，请刷新后重试。' })
+        throw new ApiError('CONFLICT', { message: '作品已被移动或删除，请刷新后重试。' })
       }
     }
   })
-  return { moved: projectIds.length, targetWorkId }
+  return { moved: projectIds.length, targetProjectId: targetWorkId, targetWorkId }
 }
 
 export async function listMemberCandidates(session: AuthSession, input: {
@@ -443,7 +451,7 @@ async function requireWorkManagerOrReader(session: AuthSession, workId: string) 
     where: workReadWhere(session, workId),
     select: { id: true, createdById: true },
   })
-  if (!work) throw new ApiError('NOT_FOUND', { message: '作品不存在。' })
+  if (!work) throw new ApiError('NOT_FOUND', { message: '项目不存在。' })
   return { actor, work }
 }
 
@@ -461,7 +469,7 @@ export async function addWorkMember(session: AuthSession, workId: string, userId
 export async function removeWorkMember(session: AuthSession, workId: string, userId: string) {
   const { work } = await requireWorkManager(session, workId)
   if (userId === work.createdById) {
-    throw new ApiError('CONFLICT', { message: '不能移除作品创建者。' })
+    throw new ApiError('CONFLICT', { message: '不能移除项目创建者。' })
   }
   await prisma.workMember.deleteMany({ where: { workId, userId } })
 }
@@ -470,14 +478,14 @@ export async function listProjectMembers(session: AuthSession, projectId: string
   const actor = getWorkspaceActor(session)
   await requireProjectReader(session, projectId)
   const project = await prisma.project.findFirst({
-    where: { id: projectId, userId: actor.workspaceOwnerId },
+    where: { id: projectId, userId: actor.workspaceOwnerId, deletedAt: null },
     select: {
       id: true,
       createdById: true,
       createdBy: { select: { id: true, name: true, role: true, roleLabel: true, status: true } },
     },
   })
-  if (!project) throw new ApiError('NOT_FOUND', { message: '项目不存在。' })
+  if (!project) throw new ApiError('NOT_FOUND', { message: '作品不存在。' })
   const members = await prisma.projectMember.findMany({
     where: { projectId },
     orderBy: { createdAt: 'asc' },
@@ -541,7 +549,7 @@ export async function addProjectMember(session: AuthSession, projectId: string, 
 export async function removeProjectMember(session: AuthSession, projectId: string, userId: string) {
   const { project } = await requireProjectAssignmentManager(session, projectId)
   if (userId === project.createdById) {
-    throw new ApiError('CONFLICT', { message: '不能移除项目创建者。' })
+    throw new ApiError('CONFLICT', { message: '不能移除作品创建者。' })
   }
   await prisma.projectMember.deleteMany({ where: { projectId, userId } })
 }

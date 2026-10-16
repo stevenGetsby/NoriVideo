@@ -30,7 +30,7 @@ export const ACCOUNT_ROLE_DEFINITIONS: ReadonlyArray<{
   { role: 'writer', label: '编剧模板', shortLabel: '编剧', description: '默认开启剧本、工具箱和无限画布；保存后仍可逐项调整' },
   { role: 'asset', label: '资产师模板', shortLabel: '资产师', description: '默认开启资产、工具箱和无限画布；保存后仍可逐项调整' },
   { role: 'storyboard', label: '分镜师模板', shortLabel: '分镜师', description: '默认开启分镜、工具箱和无限画布；保存后仍可逐项调整' },
-  { role: 'reviewer', label: '审核员模板', shortLabel: '审核员', description: '默认仅查看；由所属管理账号把该账号加入具体项目后，才能审核该项目任务' },
+  { role: 'reviewer', label: '审核员模板', shortLabel: '审核员', description: '默认仅查看；由所属管理账号把该账号加入具体作品后，才能审核该作品任务' },
 ]
 
 export const ACCOUNT_PERMISSION_DEFINITIONS: ReadonlyArray<{
@@ -38,8 +38,8 @@ export const ACCOUNT_PERMISSION_DEFINITIONS: ReadonlyArray<{
   label: string
   description: string
 }> = [
-  { key: 'read', label: '读取团队内容', description: '查看所属管理账号下的全部项目和资产' },
-  { key: 'projectCreate', label: '创建项目', description: '在管理账号已有作品中创建新项目并完成初始配置' },
+  { key: 'read', label: '读取团队内容', description: '查看所属管理账号下的全部作品和资产' },
+  { key: 'projectCreate', label: '创建作品', description: '在管理账号已有项目中创建新作品并完成初始配置' },
   { key: 'scriptWrite', label: '剧本', description: '编辑剧本、解析剧本及使用视频转绘' },
   { key: 'assetWrite', label: '资产', description: '编辑角色、场景、道具、音色及生成资产' },
   { key: 'storyboardWrite', label: '分镜', description: '解析分镜、编辑镜头、生成和提交视频' },
@@ -246,6 +246,9 @@ export function requiredPermissionsForApiPath(
   if (path.startsWith('/api/video-repaint')) return ['scriptWrite']
 
   if (path.startsWith('/api/novel-promotion')) {
+    // Project settings are shared by active project participants. This exact
+    // PATCH does not grant deletion or any other administrative route.
+    if (normalizedMethod === 'PATCH' && /^\/api\/novel-promotion\/[^/]+\/?$/.test(path)) return ['read']
     // Exact cross-named routes must be classified before the broad patterns:
     // asset image regeneration contains “regenerate”, while panel materials
     // are storyboard bindings even though the path does not end in /panel.
@@ -259,7 +262,7 @@ export function requiredPermissionsForApiPath(
 
   if (path.startsWith('/api/projects')) {
     if (/^\/api\/projects\/?$/.test(path)) return normalizedMethod === 'POST' ? ['projectCreate'] : ['admin']
-    if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return ['admin']
+    if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return normalizedMethod === 'PATCH' ? ['read'] : ['admin']
     if (path.includes('/canvas')) return ['canvasWrite']
     return ['admin']
   }

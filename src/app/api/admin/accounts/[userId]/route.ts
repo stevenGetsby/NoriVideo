@@ -21,6 +21,10 @@ import {
   serializeManagedAccount,
   type ManagedAccountRecord,
 } from '@/lib/account/management'
+import {
+  isValidDailyPointLimitInput,
+  normalizeDailyPointLimit,
+} from '@/lib/billing/daily-limit'
 
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
@@ -60,6 +64,15 @@ function readRoleLabel(value: unknown): string | undefined {
     throw new ApiError('INVALID_PARAMS', { message: '角色名称需为 1–64 个字符，且不能包含控制字符。' })
   }
   return roleLabel
+}
+
+function readDailyPointLimit(value: unknown): number | null {
+  if (!isValidDailyPointLimitInput(value)) {
+    throw new ApiError('INVALID_PARAMS', {
+      message: '每日上限必须是 0–100000000 的整数积分或 unlimited（0 禁止生成，unlimited 不限量）。',
+    })
+  }
+  return normalizeDailyPointLimit(value)
 }
 
 function readSubaccountPermissions(value: unknown, role: SubaccountRole) {
@@ -130,6 +143,8 @@ export const PATCH = apiHandler(async (
   const requestedManagerId = body.managerId === undefined
     ? undefined
     : typeof body.managerId === 'string' ? body.managerId.trim() : ''
+  const dailyPointLimitProvided = body.dailyPointLimit !== undefined
+  const dailyPointLimit = dailyPointLimitProvided ? readDailyPointLimit(body.dailyPointLimit) : undefined
 
   if (role === null) throw new ApiError('INVALID_PARAMS', { message: '角色模板只能是编剧、资产师、分镜师或审核员。' })
   if (status === null) throw new ApiError('INVALID_PARAMS', { message: '无效的账号状态。' })
@@ -159,6 +174,7 @@ export const PATCH = apiHandler(async (
     && roleLabel === undefined
     && requestedPermissions === undefined
     && status === undefined
+    && !dailyPointLimitProvided
   ) {
     throw new ApiError('INVALID_PARAMS', { message: '没有可更新的账号字段。' })
   }
@@ -178,6 +194,7 @@ export const PATCH = apiHandler(async (
             ? { permissions: requestedPermissions }
             : role !== undefined ? { permissions: effectiveAccountPermissions(role) } : {}),
           ...(status !== undefined ? { status } : {}),
+          ...(dailyPointLimitProvided ? { dailyPointLimit } : {}),
           ...(passwordHash ? { password: passwordHash, sessionVersion: { increment: 1 } } : {}),
         },
       })
@@ -195,10 +212,14 @@ export const PATCH = apiHandler(async (
       changedRoleLabel: roleLabel !== undefined,
       changedPermissions: requestedPermissions !== undefined,
       changedStatus: status !== undefined,
+      changedDailyPointLimit: dailyPointLimitProvided,
+      dailyPointLimit: dailyPointLimitProvided ? dailyPointLimit : undefined,
       resetPassword: password !== undefined,
     })
 
-    return NextResponse.json({ success: true, account: serializeManagedAccount(account) })
+    return NextResponse.json({ success: true, account: serializeManagedAccount(account) }, {
+      headers: { 'Cache-Control': 'private, no-store, max-age=0' },
+    })
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
       throw new ApiError('CONFLICT', { message: '该账号已存在。' })
@@ -257,6 +278,15 @@ async function permanentlyRemoveSubaccount(account: ManagedAccountRecord) {
     })
     if (deleted.count !== 1) {
       throw new ApiError('CONFLICT', { message: '账号状态已变化，请刷新后重试。' })
+    }
+    const wallet = await tx.userBalance.findUnique({
+      where: { userId: account.id },
+      select: { balance: true, frozenAmount: true },
+    })
+    if (Number(wallet?.balance || 0) > 0 || Number(wallet?.frozenAmount || 0) > 0) {
+      throw new ApiError('CONFLICT', {
+        message: '该子账号仍有历史个人积分或冻结积分，请先收回可用积分并等待冻结结算；也可先停用账号。删除已取消，积分不会丢失。',
+      })
     }
 
     await tx.workMember.deleteMany({ where: { userId: account.id } })

@@ -49,7 +49,7 @@ describe('video review context', () => {
       assigneeUserId: 'artist-1',
       submittedAt: new Date('2026-07-21T00:00:00.000Z'),
       lastReviewNote: null,
-      project: { name: '项目一', work: { name: '作品一' } },
+      project: { name: '作品一', work: { name: '项目一' } },
       episode: { id: 'episode-1', episodeNumber: 2, name: '第二集' },
     })
     mocks.findEpisode.mockResolvedValue({
@@ -220,7 +220,7 @@ describe('video review context', () => {
       assigneeUserId: 'artist-1',
       submittedAt: new Date('2026-07-30T00:00:00.000Z'),
       lastReviewNote: null,
-      project: { name: '项目一', work: { name: '作品一' } },
+      project: { name: '作品一', work: { name: '项目一' } },
       episode: null,
     })
     mocks.findSubmission.mockResolvedValue({
@@ -263,7 +263,7 @@ describe('video review context', () => {
     mocks.findAssignment.mockResolvedValue({
       uuid: 'assignment-1', projectId: 'project-1', episodeId: 'episode-1', status: 'rejected',
       assigneeUserId: 'artist-1', submittedAt: new Date('2026-07-21T00:00:00.000Z'),
-      lastReviewNote: '需要修改', project: { name: '项目一', work: { name: '作品一' } },
+      lastReviewNote: '需要修改', project: { name: '作品一', work: { name: '项目一' } },
       episode: { id: 'episode-1', episodeNumber: 2, name: '第二集' },
     })
     mocks.findSubmission.mockResolvedValue({

@@ -2,6 +2,9 @@
 // https://nextjs.org/docs/app/building-your-application/optimizing/instrumentation
 
 export async function registerProductionInstrumentation() {
+  // The admin/Web-only process shares the live database but does not own the
+  // workers. Restarting it must never reset another process's running tasks.
+  if (process.env.NORI_APP_SURFACE === 'admin' || process.env.SERVICE_MODE === 'web') return
   // 在 Edge Runtime 中直接返回，避免加载 Prisma（它使用了动态代码生成）
   if (process.env.NEXT_RUNTIME === 'edge') {
     return

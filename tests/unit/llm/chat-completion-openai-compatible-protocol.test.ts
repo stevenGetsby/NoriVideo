@@ -92,6 +92,7 @@ vi.mock('@/lib/llm/runtime-shared', () => ({
   logLlmRawInput: logLlmRawInputMock,
   logLlmRawOutput: logLlmRawOutputMock,
   recordCompletionUsage: recordCompletionUsageMock,
+  recordFailedCompletionUsage: vi.fn(async () => undefined),
   resolveLlmRuntimeModel: resolveLlmRuntimeModelMock,
 }))
 

@@ -315,7 +315,7 @@ describe('workflow assignment service authorization and audit', () => {
       assignee: { id: 'actor-1', name: 'Writer', role: 'writer', status: 'active' },
     })
     accessMock.requireProjectReader.mockRejectedValueOnce(
-      Object.assign(new Error('无权访问项目'), { code: 'FORBIDDEN' }),
+      Object.assign(new Error('无权访问作品'), { code: 'FORBIDDEN' }),
     )
     const { getAssignmentDetail } = await import('@/lib/collaboration/assignments')
 
@@ -327,7 +327,7 @@ describe('workflow assignment service authorization and audit', () => {
 
   it('does not synchronize or list project assignments without project read access', async () => {
     accessMock.requireProjectReader.mockRejectedValueOnce(
-      Object.assign(new Error('无权访问项目'), { code: 'FORBIDDEN' }),
+      Object.assign(new Error('无权访问作品'), { code: 'FORBIDDEN' }),
     )
     const { getProjectAssignmentOverview } = await import('@/lib/collaboration/assignments')
 
@@ -518,7 +518,7 @@ describe('workflow assignment service authorization and audit', () => {
     await expect(mutateAssignment(session, 'submit', { assignmentId: 'assignment-1' }))
       .rejects.toMatchObject({
         code: 'CONFLICT',
-        message: '该任务已失效或项目已关闭任务分工，请刷新任务列表。',
+        message: '该任务已失效或作品已关闭任务分工，请刷新任务列表。',
       })
     expect(accessMock.requireProjectReader).not.toHaveBeenCalled()
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
@@ -555,7 +555,7 @@ describe('workflow assignment service authorization and audit', () => {
   it('does not let a removed project member submit through a known assignment id', async () => {
     prismaMock.workflowAssignment.findFirst.mockResolvedValue(assignment({ assigneeUserId: 'actor-1' }))
     accessMock.requireProjectReader.mockRejectedValueOnce(
-      new ApiError('FORBIDDEN', { message: '当前账号没有访问该项目的权限。' }),
+      new ApiError('FORBIDDEN', { message: '当前账号没有访问该作品的权限。' }),
     )
     const { mutateAssignment } = await import('@/lib/collaboration/assignments')
 

@@ -15,20 +15,26 @@ export function CanvasModel3DViewer({ src, compact = false }: { src: string; com
   const [ready, setReady] = useState(false)
   const [autoRotate, setAutoRotate] = useState(true)
   const [moduleReady, setModuleReady] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     let active = true
-    void import('@google/model-viewer').then(() => { if (active) setModuleReady(true) })
+    void import('@google/model-viewer')
+      .then(() => { if (active) setModuleReady(true) })
+      .catch(() => { if (active) setLoadError('当前浏览器无法初始化 3D 预览，请开启硬件加速或更换浏览器。') })
     return () => { active = false }
   }, [])
 
   useEffect(() => {
     setReady(false)
+    if (moduleReady) setLoadError(null)
     const viewer = viewerRef.current
     if (!viewer) return
     const loaded = () => setReady(true)
+    const failed = () => setLoadError('3D 模型读取失败，请确认素材有效后重试。')
     viewer.addEventListener('load', loaded)
-    return () => viewer.removeEventListener('load', loaded)
+    viewer.addEventListener('error', failed)
+    return () => { viewer.removeEventListener('load', loaded); viewer.removeEventListener('error', failed) }
   }, [moduleReady, src])
 
   const resetCamera = () => {
@@ -67,7 +73,7 @@ export function CanvasModel3DViewer({ src, compact = false }: { src: string; com
         'touch-action': 'pan-y',
         alt: '3D 模型预览',
       }) : null}
-      {!ready ? <div className="nori-canvas-model-loading"><LoaderCircle className="animate-spin" /><span>正在载入 3D 模型…</span></div> : null}
+      {!ready ? <div className="nori-canvas-model-loading">{loadError ? <span role="status">{loadError}</span> : <><LoaderCircle className="animate-spin" /><span>正在载入 3D 模型…</span></>}</div> : null}
       {!compact && ready ? <div className="nori-canvas-model-controls"><button type="button" title={autoRotate ? '暂停自动旋转' : '继续自动旋转'} onClick={() => setAutoRotate((value) => !value)}>{autoRotate ? <Pause /> : <Play />}</button><button type="button" title="重置机位" onClick={resetCamera}><RotateCcw /></button><button type="button" title="保存当前视角" onClick={() => void capture()}><Camera /></button></div> : null}
     </div>
   )

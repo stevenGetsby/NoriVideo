@@ -327,7 +327,8 @@ describe('canvas editor interaction contracts', () => {
 
     expect(graph).toContain('flowStore.getState().cancelConnection()')
     expect(graph).toContain('connectionActiveRef.current = false')
-    expect(graph).toContain('setConnectionActive(false)')
+    expect(graph).toContain('connectionActiveRef.current = false')
+    expect(graph).toContain('batchWireSourcesRef.current = []')
     expect(graph).toContain('setMediaPreviewNodeId(null)')
     expect(graph).toContain('setModelPreviewNodeId(null)')
     expect(graph).toContain('setPanoramaPreviewNodeId(null)')

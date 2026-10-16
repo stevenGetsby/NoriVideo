@@ -159,7 +159,7 @@ describe('canvas parity polish contracts', () => {
     expect(library).toContain("setProjectId('global')")
     expect(library).toContain('canFavorite={canEditAssets}')
     expect(library).toContain('disabled={!canEditAssets}')
-    expect(route).toContain('ownerName: { contains: creator }')
+    expect(route).toContain('ownerName: creatorExact ? { equals: creator } : { contains: creator }')
     expect(route).toContain('createdAt: {')
     expect(route).toContain('ALLOWED_SOURCES')
     expect(route).toContain('deletedAt: deleted ? { not: null } : null')

@@ -3,9 +3,11 @@ import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { recordUsageCostOnly, buildBillingMeta } from './reporting'
 import type { ApiType, UsageUnit } from './cost'
-import { BillingOperationError } from './errors'
+import { BillingOperationError, DailyLimitExceededError } from './errors'
 import { roundMoney, toMoneyNumber, type MoneyValue } from './money'
 import { canStartGeneration, GENERATION_CREDIT_FLOOR } from './credit-policy'
+import { assertDailyLimit } from './daily-limit'
+import { getGenerationQuotaUserId } from '@/lib/account/request-context'
 
 type LedgerRecordParams = {
   projectId: string
@@ -106,6 +108,8 @@ export async function freezeBalance(
     taskId?: string
     requestId?: string
     idempotencyKey?: string
+    /** Sync callers must claim execution once, not replay a pending freeze. */
+    rejectExisting?: boolean
     metadata?: Record<string, unknown>
   },
 ): Promise<string | null> {
@@ -113,17 +117,49 @@ export async function freezeBalance(
   if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) {
     return null
   }
+  const reuseFreeze = (existing: { id: string; userId: string; status: string }) => {
+    if (existing.userId !== userId) {
+      throw new BillingOperationError('BILLING_INVALID_FREEZE', 'Idempotency key belongs to another wallet')
+    }
+    if (options?.rejectExisting) {
+      const code = existing.status === 'confirmed' ? 'BILLING_IDEMPOTENT_ALREADY_CONFIRMED'
+        : existing.status === 'rolled_back' ? 'BILLING_IDEMPOTENT_ROLLED_BACK' : 'BILLING_IDEMPOTENT_IN_PROGRESS'
+      throw new BillingOperationError(code, 'Billing request already claimed', { freezeId: existing.id })
+    }
+    return existing.id
+  }
+
+  // 幂等重放沿用原冻结，不再消耗一次当日额度；其余请求在动账前先校验每日上限。
+  if (options?.idempotencyKey) {
+    const existingFreeze = await prisma.balanceFreeze.findUnique({
+      where: { idempotencyKey: options.idempotencyKey },
+      select: { id: true, userId: true, status: true },
+    })
+    if (existingFreeze) return reuseFreeze(existingFreeze)
+  }
+  await assertDailyLimit(userId, { additionalCostCny: normalizedAmount })
+  const quotaUserId = getGenerationQuotaUserId(userId)
+  const freezeMetadata = { ...(options?.metadata || {}) }
+  delete freezeMetadata.quotaUserId
+  if (quotaUserId !== userId) freezeMetadata.quotaUserId = quotaUserId
 
   try {
     const result = await prisma.$transaction(async (tx) => {
+      // Serialize reservations for this wallet/operator. The preflight above
+      // alone races: two quotes can both observe the same remaining daily cap.
+      // Lock before any consistent read so MySQL's snapshot includes the
+      // previous reservation that just committed while this one waited.
+      const quotaOwners = Array.from(new Set([userId, quotaUserId])).sort()
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM user WHERE id IN (${Prisma.join(quotaOwners)}) ORDER BY id FOR UPDATE`)
       if (options?.idempotencyKey) {
         const existing = await tx.balanceFreeze.findUnique({
           where: { idempotencyKey: options.idempotencyKey },
         })
         if (existing) {
-          return existing.id
+          return reuseFreeze(existing)
         }
       }
+      await assertDailyLimit(userId, { additionalCostCny: normalizedAmount }, tx)
 
       const balance = await tx.userBalance.findUnique({ where: { userId } })
       if (!balance) {
@@ -160,7 +196,7 @@ export async function freezeBalance(
           taskId: options?.taskId || null,
           requestId: options?.requestId || null,
           idempotencyKey: options?.idempotencyKey || null,
-          metadata: options?.metadata ? JSON.stringify(options.metadata) : null,
+          metadata: Object.keys(freezeMetadata).length ? JSON.stringify(freezeMetadata) : null,
         },
       })
 
@@ -169,6 +205,9 @@ export async function freezeBalance(
 
     return result
   } catch (error) {
+    // A limit changed after preflight must keep its quota error; treating it as
+    // insufficient wallet balance hides the administrator's updated setting.
+    if (error instanceof DailyLimitExceededError || error instanceof BillingOperationError) throw error
     if (
       options?.idempotencyKey
       && error instanceof Prisma.PrismaClientKnownRequestError
@@ -176,14 +215,16 @@ export async function freezeBalance(
     ) {
       const existing = await prisma.balanceFreeze.findUnique({
         where: { idempotencyKey: options.idempotencyKey },
-        select: { id: true },
+        select: { id: true, userId: true, status: true },
       })
       if (existing?.id) {
-        return existing.id
+        return reuseFreeze(existing)
       }
     }
     _ulogError('[Billing] freeze failed:', error)
-    return null
+    // Only an atomic "not enough balance" result returns null. Database errors
+    // must not be misreported to the user as a depleted wallet.
+    throw error
   }
 }
 
@@ -253,8 +294,15 @@ export async function confirmChargeWithRecord(
       })
 
       if (chargedAmount > 0) {
+        const metadata = { ...(recordParams.metadata || {}) }
+        delete metadata.quotaUserId
+        try {
+          const actor = JSON.parse(freeze.metadata || '{}').quotaUserId
+          if (typeof actor === 'string' && actor) metadata.quotaUserId = actor
+        } catch { /* Old freezes without attribution keep their existing behavior. */ }
         await recordUsageCostOnly(tx, {
           ...recordParams,
+          ...(recordParams.metadata || Object.keys(metadata).length ? { metadata } : {}),
           userId: freeze.userId,
           cost: chargedAmount,
           balanceAfter: toMoneyNumber(updatedBalance.balance),

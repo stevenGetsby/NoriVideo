@@ -68,7 +68,7 @@ describe('canvas project asset context menus', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/components/CanvasProjectAssets.tsx'), 'utf8')
     const graph = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/CanvasGraph.tsx'), 'utf8')
     expect(source).toContain("available: '1'")
-    expect(source).toContain('来源项目')
+    expect(source).toContain('来源作品')
     expect(source).toContain('<article')
     expect(source).toContain('draggable')
     expect(source).toContain("event.dataTransfer.setData(CANVAS_MATERIAL_DRAG_TYPE, JSON.stringify(material))")

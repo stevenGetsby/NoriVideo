@@ -86,6 +86,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
                 where: {
                     id: { in: projectIds },
                     userId: session.user.id,
+                    deletedAt: null,
                 },
                 select: { id: true, name: true },
             })

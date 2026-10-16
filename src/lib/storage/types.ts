@@ -18,6 +18,8 @@ export interface DeleteObjectsResult {
 export interface SignedUrlParams {
   key: string
   expiresInSeconds: number
+  responseContentType?: string
+  responseContentDisposition?: string
 }
 
 export interface StorageProvider {

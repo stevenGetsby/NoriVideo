@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
+import { cnyToPoints } from '@/lib/billing'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 import { prisma } from '@/lib/prisma'
 import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
@@ -64,6 +65,7 @@ type CanvasTaskRow = {
   result: unknown
   errorCode: string | null
   errorMessage: string | null
+  billingInfo: unknown
   queuedAt: Date
   startedAt: Date | null
   finishedAt: Date | null
@@ -100,6 +102,17 @@ export function isCanvasGenerationTaskType(value: unknown): value is CanvasGener
 
 export function taskTypeForCanvasGeneration(kind: CanvasGenerationTaskKind): CanvasGenerationTaskType {
   return kind === 'text' ? TASK_TYPE.CANVAS_TEXT_GENERATION : TASK_TYPE.CANVAS_STORYBOARD_PLAN
+}
+
+function taskCost(billingInfo: unknown, taskStatus: string) {
+  const info = record(billingInfo)
+  if (!info || info.billable !== true || taskStatus !== TASK_STATUS.COMPLETED) return null
+  const costCny = Number(info.chargedCost)
+  if (!Number.isFinite(costCny) || costCny < 0) return null
+  return {
+    costCny,
+    points: cnyToPoints(costCny),
+  }
 }
 
 export function parseCanvasGenerationTaskPayload(
@@ -298,6 +311,7 @@ export function serializeCanvasGenerationTask(task: CanvasTaskRow) {
     attempt: task.attempt,
     maxAttempts: task.maxAttempts,
     result: record(task.result),
+    cost: taskCost(task.billingInfo, task.status),
     error: normalizedError
       ? { code: normalizedError.code, message: normalizedError.message, retryable: normalizedError.retryable }
       : null,

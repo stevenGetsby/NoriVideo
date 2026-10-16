@@ -46,9 +46,10 @@ export const POST = apiHandler(async (
   if (request.headers.get('content-type')?.includes('application/json')) {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null
     const nodeIds = Array.isArray(body?.nodeIds)
-      ? Array.from(new Set(body.nodeIds.map(text).filter(Boolean))).slice(0, 20)
+      ? Array.from(new Set(body.nodeIds.map(text).filter(Boolean)))
       : []
     if (nodeIds.length === 0) throw new ApiError('INVALID_PARAMS', { message: '请选择要引用的画布素材。' })
+    if (nodeIds.length > 20) throw new ApiError('INVALID_PARAMS', { message: '每次最多登记 20 个引用节点，请减少引用素材。' })
     // reference：把画布节点登记成生成引用所需的素材（默认，保持既有行为）。
     // library：把画布图片上传到资产库并归类，供素材库和其他项目复用。
     const mode = body?.register === 'library' ? 'library' : 'reference'
@@ -58,17 +59,33 @@ export const POST = apiHandler(async (
       where: { canvasId, id: { in: nodeIds } },
       select: { id: true, type: true, data: true },
     })
+    const nodesById = new Map(nodes.map((node) => [node.id, node]))
+    // Validate the whole batch before registering anything. A stale/missing id
+    // must not leave an unintended partially registered selection behind.
+    const missingReferenceNodeIds = nodeIds.filter((id) => !nodesById.has(id))
+    if (missingReferenceNodeIds.length > 0) {
+      throw new ApiError('INVALID_PARAMS', {
+        message: '引用节点尚未保存或已被删除，请保存画布并清除失效引用或重新选择素材。',
+        missingReferenceNodeIds,
+      })
+    }
     const materialByNodeId: Record<string, string> = {}
     const uploadedMaterials: Array<{ nodeId: string; materialId: string; title: string }> = []
     for (const nodeId of nodeIds) {
-      const node = nodes.find((item) => item.id === nodeId)
-      if (!node) throw new ApiError('NOT_FOUND', { message: '引用节点不存在或已被删除。' })
+      const node = nodesById.get(nodeId)!
       const data = record(node.data)
       const existingMaterialId = text(data.materialId)
       // 资产库登记必须带上归类信息，已存在的素材要重新登记才能进入分类库。
       if (existingMaterialId && mode === 'reference') {
-        materialByNodeId[node.id] = existingMaterialId
-        continue
+        const existing = await prisma.frameosMaterial.findFirst({
+          where: { id: existingMaterialId, userId: authResult.session.user.id, deletedAt: null, status: 'ready' },
+          select: { id: true },
+        })
+        if (existing) {
+          materialByNodeId[node.id] = existing.id
+          continue
+        }
+        throw new ApiError('INVALID_PARAMS', { message: `「${text(data.title) || '未命名节点'}」的原素材已删除或不可用，请重新选择素材。` })
       }
       const type = materialType(node.type, data)
       const resultUrl = type ? materialUrl(type, data) : ''

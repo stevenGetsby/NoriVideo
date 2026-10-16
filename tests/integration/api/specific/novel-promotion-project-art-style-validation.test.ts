@@ -58,7 +58,12 @@ const capabilityLookupMock = vi.hoisted(() => ({
   validateCapabilitySelectionsPayload: vi.fn(() => []),
 }))
 
+const accessMock = vi.hoisted(() => ({
+  requireProjectReader: vi.fn(async () => ({})),
+}))
+
 vi.mock('@/lib/api-auth', () => authMock)
+vi.mock('@/lib/collaboration/access', () => accessMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/media/attach', () => mediaAttachMock)
 vi.mock('@/lib/logging/semantic', () => logMock)
@@ -82,6 +87,9 @@ describe('api specific - novel promotion project art style validation', () => {
 
     const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
     expect(res.status).toBe(200)
+    expect(accessMock.requireProjectReader).toHaveBeenCalledWith(
+      { user: { id: 'user-1', name: 'User 1' } }, 'project-1',
+    )
     expect(prismaMock.novelPromotionProject.update).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ artStyle: 'realistic' }),

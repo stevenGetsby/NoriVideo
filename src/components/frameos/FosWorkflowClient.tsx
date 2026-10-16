@@ -3,16 +3,19 @@
 import { FosShell, type FosProjectNavigation } from './FosShell'
 import { FosProjectHeader } from './FosProjectHeader'
 import { useFosProject } from './useFosProject'
-import { FosWorkbenchOverview } from './views/FosWorkbenchOverview'
-import { FosScriptReview } from './views/FosScriptReview'
-import { FosAssetSetting } from './views/FosAssetSetting'
-import { FosTimbre } from './views/FosTimbre'
-import { FosStoryboard } from './views/FosStoryboard'
-import { FosProductionEpisodes } from './views/FosProduction'
-import { FosProductionShot } from './views/FosProductionShot'
-import { FosAssemblyEditor } from './views/FosAssemblyEditor'
-import { CanvasWorkspace } from '@/features/canvas/CanvasWorkspace'
+import dynamic from 'next/dynamic'
 import { workflowNavigationSurfaceKey } from '@/lib/frameos/navigation-surface-key'
+
+const loadingView = () => <div className="fos-loading">正在加载工作台…</div>
+const FosWorkbenchOverview = dynamic(() => import('./views/FosWorkbenchOverview').then((module) => module.FosWorkbenchOverview), { loading: loadingView })
+const FosScriptReview = dynamic(() => import('./views/FosScriptReview').then((module) => module.FosScriptReview), { loading: loadingView })
+const FosAssetSetting = dynamic(() => import('./views/FosAssetSetting').then((module) => module.FosAssetSetting), { loading: loadingView })
+const FosTimbre = dynamic(() => import('./views/FosTimbre').then((module) => module.FosTimbre), { loading: loadingView })
+const FosStoryboard = dynamic(() => import('./views/FosStoryboard').then((module) => module.FosStoryboard), { loading: loadingView })
+const FosProductionEpisodes = dynamic(() => import('./views/FosProduction').then((module) => module.FosProductionEpisodes), { loading: loadingView })
+const FosProductionShot = dynamic(() => import('./views/FosProductionShot').then((module) => module.FosProductionShot), { loading: loadingView })
+const FosAssemblyEditor = dynamic(() => import('./views/FosAssemblyEditor').then((module) => module.FosAssemblyEditor), { loading: loadingView })
+const CanvasWorkspace = dynamic(() => import('@/features/canvas/CanvasWorkspace').then((module) => module.CanvasWorkspace), { ssr: false, loading: loadingView })
 
 export type FosView = 'overview' | 'script-review' | 'assets' | 'storyboard' | 'production' | 'canvas'
 
@@ -37,6 +40,26 @@ const HEADER_TITLES: Record<string, string> = {
   shot: '制作剪辑工作台',
 }
 
+const PROJECT_STYLE_HEADER_LABELS: Record<string, string> = {
+  'live-action': '仿真人',
+  'anime-3d': '3D 动漫',
+  'anime-2.5d': '2.5D 动漫',
+  'anime-2d': '2D 动漫',
+  anime: '动漫',
+}
+
+function projectMetaTags(data: ReturnType<typeof useFosProject>): string[] {
+  return [
+    data.world?.artStylePrompt?.includes('【用户自定义画风（最高优先级）】')
+      ? '自定义画风'
+      : data.world
+        ? PROJECT_STYLE_HEADER_LABELS[data.world.projectStyle] ?? data.world.label
+        : null,
+    data.world?.videoRatio,
+    data.world?.videoResolution,
+  ].filter((tag): tag is string => Boolean(tag))
+}
+
 export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, initialCanvasNodeId, assignmentReturnTo }: Props) {
   const data = useFosProject(projectId)
   const navigationSurfaceKey = workflowNavigationSurfaceKey(projectId, view, focus)
@@ -57,7 +80,7 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
   if (view === 'overview') {
     return (
       <FosShell activeKey="projects" projectNavigation={projectNavigation}
-        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} backTo={assignmentReturnTo ?? '/works'} backLabel={assignmentReturnTo ? '返回我的任务' : '返回我的作品'} />}>
+        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectName={data.parentProjectName} backTo={assignmentReturnTo ?? '/projects'} backLabel={assignmentReturnTo ? '返回我的任务' : '返回我的项目'} projectMetaTags={projectMetaTags(data)} />}>
         <div key={navigationSurfaceKey} className="contents">{data.loading ? <div className="fos-loading">加载中…</div> : <FosWorkbenchOverview data={data} />}</div>
       </FosShell>
     )
@@ -70,7 +93,7 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
     : base
   const parentBackLabel = focus === 'timeline' || focus === 'shot' || focus === 'shot-detail'
     ? '返回制作剪辑'
-    : '返回项目工作台'
+    : '返回作品工作台'
 
   const renderView = () => {
     if (data.loading) return <div className="fos-loading">加载中…</div>
@@ -89,8 +112,8 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
   }
 
   return (
-    <FosShell activeKey="projects" projectNavigation={projectNavigation}
-      header={<FosProjectHeader projectId={projectId} projectName={data.projectName} title={title} backTo={assignmentReturnTo ?? parentBackTo} backLabel={assignmentReturnTo ? '返回我的任务' : parentBackLabel} />}>
+      <FosShell activeKey="projects" projectNavigation={projectNavigation}
+        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectName={data.parentProjectName} title={title} backTo={assignmentReturnTo ?? parentBackTo} backLabel={assignmentReturnTo ? '返回我的任务' : parentBackLabel} projectMetaTags={projectMetaTags(data)} />}>
       <div key={navigationSurfaceKey} className="contents">{renderView()}</div>
     </FosShell>
   )

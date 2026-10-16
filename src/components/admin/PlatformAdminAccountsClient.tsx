@@ -1,9 +1,14 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
-import { AccountDialog, CreditLedgerDialog, CreditOperationDialog } from '@/components/frameos/FosAccountManagementParts'
+import {
+  AccountDialog,
+  CreditLedgerDialog,
+  CreditOperationDialog,
+  DailyUsageCell,
+} from '@/components/frameos/FosAccountManagementParts'
 import { AdminAlert, AdminMetric, AdminSearch, PlatformAdminShell } from '@/components/admin/PlatformAdminShell'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
@@ -15,7 +20,11 @@ import type {
   AccountStatus,
   SubaccountRole,
 } from '@/lib/account/permissions'
-import { createCreditIdempotencyKey } from '@/lib/billing/client'
+import { createCreditIdempotencyKey, notifyBalanceChanged, subscribeBalanceChanges } from '@/lib/billing/client'
+import { createLatestRequestTracker } from '@/lib/api/latest-request'
+import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
+import { updateDailyUsageLimit } from '@/lib/billing/daily-limit-display'
+import { dailyLimitSaveMessage } from '@/lib/billing/daily-limit-policy'
 import {
   emptyModelUsageSummary,
   formatUsageMoney,
@@ -35,6 +44,8 @@ interface ManagedAccount {
   parentAccountId: string | null
   workspaceOwnerId: string | null
   credits: AccountCredits
+  dailyLimitPoints: number | null
+  usageToday?: DailyUsagePayload | null
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
@@ -59,6 +70,7 @@ interface AccountDraft {
   status: AccountStatus
   coinCredits: string
   pointCredits: string
+  dailyPointLimit: string
 }
 
 interface AccountTotals {
@@ -91,6 +103,7 @@ const NEW_MANAGER_DRAFT: AccountDraft = {
   status: 'active',
   coinCredits: '0',
   pointCredits: '0',
+  dailyPointLimit: 'unlimited',
 }
 
 function formatDate(value: string | null) {
@@ -154,28 +167,38 @@ export function PlatformAdminAccountsClient() {
   const [rechargeRequestKey, setRechargeRequestKey] = useState('')
   const [creditSaving, setCreditSaving] = useState(false)
   const [creditError, setCreditError] = useState('')
+  const accountsRequests = useRef(createLatestRequestTracker())
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (session?.user?.role !== 'super_admin') return
+    const request = accountsRequests.current.begin()
     if (!silent) setLoading(true)
     setPageError('')
     try {
-      const response = await apiFetch('/api/admin/accounts')
+      const response = await apiFetch(`/api/admin/accounts?refresh=${Date.now()}`, { cache: 'no-store' })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '获取管理账号失败'))
       const payload = await response.json() as {
         workspaces?: ManagedWorkspace[]
         totals?: AccountTotals
       }
+      if (!accountsRequests.current.isCurrent(request)) return
       setWorkspaces(Array.isArray(payload.workspaces) ? payload.workspaces : [])
       setTotals(payload.totals || EMPTY_TOTALS)
     } catch (error) {
+      if (!accountsRequests.current.isCurrent(request)) return
       setPageError(error instanceof Error ? error.message : '获取管理账号失败')
     } finally {
-      if (!silent) setLoading(false)
+      if (accountsRequests.current.isCurrent(request)) setLoading(false)
     }
   }, [session?.user?.role])
 
   useEffect(() => { void loadAccounts() }, [loadAccounts])
+  useEffect(() => {
+    const refresh = () => void loadAccounts(true)
+    const unsubscribe = subscribeBalanceChanges(refresh)
+    window.addEventListener('focus', refresh)
+    return () => { unsubscribe(); window.removeEventListener('focus', refresh); accountsRequests.current.invalidate() }
+  }, [loadAccounts])
 
   const visibleWorkspaces = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -201,6 +224,7 @@ export function PlatformAdminAccountsClient() {
       status: account.status,
       coinCredits: String(account.credits.coins),
       pointCredits: String(account.credits.points),
+      dailyPointLimit: account.dailyLimitPoints === null ? 'unlimited' : String(account.dailyLimitPoints),
     })
     setDialogError('')
     setMode('edit')
@@ -219,14 +243,25 @@ export function PlatformAdminAccountsClient() {
           body: JSON.stringify({
             ...(creating ? { accountType: 'manager' } : {}),
             username: draft.username.trim(),
+            dailyPointLimit: draft.dailyPointLimit === 'unlimited' ? 'unlimited' : Number(draft.dailyPointLimit),
             ...(!creating ? { status: draft.status } : {}),
             ...(draft.password ? { password: draft.password } : {}),
           }),
         },
       )
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '保存管理账号失败'))
+      const payload = await response.json() as { account?: ManagedAccount }
+      accountsRequests.current.invalidate()
+      const updated = payload.account
+      if (updated && !creating) {
+        setWorkspaces((current) => current.map((workspace) => workspace.manager.id === updated.id
+          ? { ...workspace, manager: { ...workspace.manager, ...updated, usageToday: updateDailyUsageLimit(workspace.manager.usageToday, updated.dailyLimitPoints) } }
+          : workspace))
+      }
+      setPageNotice(dailyLimitSaveMessage(updated?.dailyLimitPoints ?? null))
       setMode(null)
-      await loadAccounts()
+      notifyBalanceChanged()
+      await loadAccounts(true)
     } catch (error) {
       setDialogError(error instanceof Error ? error.message : '保存管理账号失败')
     } finally {
@@ -360,12 +395,17 @@ export function PlatformAdminAccountsClient() {
                   <div className="nori-admin-stat">
                     <span>团队与内容</span>
                     <strong>{subaccountCount} 个子账号</strong>
-                    <small>{usage.projects} 个项目 · {usage.assets} 项资产</small>
+                    <small>{usage.projects} 个作品 · {usage.assets} 项资产</small>
                   </div>
                   <div className="nori-admin-stat">
                     <span>模型用量（金额）</span>
                     <TypeCosts rows={usage.byType} />
                     <small>{usage.calls} 次计费</small>
+                  </div>
+                  <div className="nori-admin-stat">
+                    <span>今日用量（积分）</span>
+                    <DailyUsageCell usage={manager.usageToday} />
+                    <small>按上海时间每天 00:00 重置</small>
                   </div>
                   <div className="nori-admin-stat">
                     <span>最后登录</span>

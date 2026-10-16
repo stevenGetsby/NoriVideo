@@ -129,6 +129,13 @@ export const ERROR_CATALOG = {
     userMessageKey: 'errors.INSUFFICIENT_BALANCE',
     defaultMessage: 'Insufficient balance',
   },
+  DAILY_LIMIT_EXCEEDED: {
+    httpStatus: 402,
+    retryable: false,
+    category: ERROR_CATEGORY.BILLING,
+    userMessageKey: 'errors.DAILY_LIMIT_EXCEEDED',
+    defaultMessage: 'Daily usage limit reached',
+  },
   SENSITIVE_CONTENT: {
     httpStatus: 422,
     retryable: false,

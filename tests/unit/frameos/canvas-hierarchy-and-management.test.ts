@@ -17,7 +17,7 @@ describe('global infinite canvas hierarchy', () => {
     expect(types).toContain('workName?: string | null')
 
     expect(hub).toContain('workId: work.id')
-    expect(hub).toContain("workName: work.virtual ? '未归属作品' : work.name")
+    expect(hub).toContain("workName: work.virtual ? '未归属项目' : work.name")
     expect(hub).toContain('project.workId === selectedWork.id')
     expect(hub).toContain('data-testid="global-canvas-work-picker"')
     expect(hub).toContain('data-testid="global-canvas-project-picker"')
@@ -28,8 +28,8 @@ describe('global infinite canvas hierarchy', () => {
     expect(chrome).toContain('const activeWorkId = activeProject?.workId || null')
     expect(chrome).toContain('project.workId === activeWorkId')
     expect(chrome).toContain('href={`${canvasHomeHref}?work_id=${encodeURIComponent(work.id)}`}')
-    expect(chrome).toContain('placeholder="搜索作品"')
     expect(chrome).toContain('placeholder="搜索项目"')
+    expect(chrome).toContain('placeholder="搜索作品"')
   })
 
   it('keeps project-scoped and global canvas routes distinct', () => {
@@ -100,7 +100,7 @@ describe('create project deep link from the canvas hierarchy', () => {
     const workspace = readSource('src/features/canvas/CanvasWorkspace.tsx')
     const chrome = readSource('src/features/canvas/components/CanvasChrome.tsx')
 
-    expect(hub).toContain('return `/works?create_project=1&work_id=${encodeURIComponent(workId)}`')
+    expect(hub).toContain('return createWorkInProjectHref(workId)')
     expect(hub).toContain('href={createProjectHref(selectedWork.id)}')
     expect(hub).toContain('data-testid="global-canvas-create-project"')
     expect(hub).toContain('canCreateProjects && selectedWork.id !== UNASSIGNED_WORK_ID')

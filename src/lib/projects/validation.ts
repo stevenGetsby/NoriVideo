@@ -69,14 +69,14 @@ export function validateProjectDraft(input: ProjectDraftInput): ProjectValidatio
 export function formatProjectValidationIssue(issue: ProjectValidationIssue, locale: Locale): string {
   switch (issue.code) {
     case 'PROJECT_NAME_REQUIRED':
-      return locale === 'en' ? 'Project name is required.' : '项目名称不能为空。'
+      return locale === 'en' ? 'Project name is required.' : '作品名称不能为空。'
     case 'PROJECT_NAME_TOO_LONG':
       return locale === 'en'
         ? `Project name cannot exceed ${PROJECT_NAME_MAX_LENGTH} characters.`
-        : `项目名称不能超过 ${PROJECT_NAME_MAX_LENGTH} 个字符。`
+        : `作品名称不能超过 ${PROJECT_NAME_MAX_LENGTH} 个字符。`
     case 'PROJECT_DESCRIPTION_TOO_LONG':
       return locale === 'en'
         ? `Project description cannot exceed ${PROJECT_DESCRIPTION_MAX_LENGTH} characters.`
-        : `项目描述不能超过 ${PROJECT_DESCRIPTION_MAX_LENGTH} 个字符。`
+        : `作品描述不能超过 ${PROJECT_DESCRIPTION_MAX_LENGTH} 个字符。`
   }
 }

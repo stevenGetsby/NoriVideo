@@ -23,6 +23,10 @@ vi.mock('@/lib/api-auth', () => ({
   isErrorResponse: (value: unknown) => value instanceof Response,
 }))
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/lib/storage', () => ({
+  extractStorageKey: (value: string | null) => value?.startsWith('video/') || value?.startsWith('images/') ? value : null,
+  getSignedUrl: (key: string) => `/api/storage/sign?key=${encodeURIComponent(key)}&expires=3600`,
+}))
 
 import { GET } from '@/app/api/frameos/toolbox/assets/route'
 
@@ -45,6 +49,17 @@ function request(query: Record<string, string> = {}) {
 }
 
 describe('FrameOS toolbox asset list access', () => {
+  it('refreshes playable media from storage keys and disables history caching', async () => {
+    prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([{
+      id: 'video-1', type: 'video', userId: 'owner-1', projectId: 'project-assigned', resultUrl: 'video/clip.mp4', materialId: null,
+      errorMessage: 'HTTP 400 https://media.test/a?X-Tos-Signature=TEST_SECRET',
+    }])
+    const response = await GET(request({ projectId: 'project-assigned' }), { params: Promise.resolve({}) })
+    expect(response.headers.get('cache-control')).toContain('no-store')
+    const payload = await response.json()
+    expect(payload.assets[0].url).toBe('/api/storage/sign?key=video%2Fclip.mp4&expires=3600')
+    expect(payload.assets[0].errorMessage).not.toContain('TEST_SECRET')
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     requireUserAuthMock.mockResolvedValue({ session: childSession })
@@ -97,7 +112,7 @@ describe('FrameOS toolbox asset list access', () => {
         userId: 'owner-1',
         projectId: 'project-assigned',
         type: 'image',
-        params: { prompt: '已分配项目提示词' },
+        params: { prompt: '已分配作品提示词' },
         resultUrl: 'https://assets.test/assigned.png',
         materialId: null,
       },
@@ -106,7 +121,7 @@ describe('FrameOS toolbox asset list access', () => {
         userId: 'owner-1',
         projectId: 'project-secret',
         type: 'image',
-        params: { prompt: '团队其他项目提示词' },
+        params: { prompt: '团队其他作品提示词' },
         resultUrl: 'https://assets.test/team-project.png',
         materialId: null,
       },
@@ -152,7 +167,7 @@ describe('FrameOS toolbox asset list access', () => {
       take: 25,
     })
     expect(payload.assets.map((asset) => asset.id)).toEqual(['account-asset', 'assigned-asset', 'secret-asset'])
-    expect(JSON.stringify(payload)).toContain('团队其他项目提示词')
+    expect(JSON.stringify(payload)).toContain('团队其他作品提示词')
     expect(JSON.stringify(payload)).toContain('https://assets.test/team-project.png')
   })
 

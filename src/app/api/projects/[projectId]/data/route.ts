@@ -4,6 +4,7 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 import { extractModelKey } from '@/lib/config-service'
+import { toProductionWork } from '@/lib/projects/hierarchy'
 
 const USER_MODEL_DEFAULT_SELECT = {
   analysisModel: true,
@@ -51,8 +52,10 @@ export const GET = apiHandler(async (
     where: {
       id: projectId,
       userId: session.user.id,
+      deletedAt: null,
     },
     include: {
+      work: { select: { id: true, name: true } },
       novelPromotionData: {
         include: {
           characters: {
@@ -112,14 +115,14 @@ export const GET = apiHandler(async (
   const locations = (novelPromotionDataWithMedia.locations || []).filter((item) => readAssetKind(item) !== 'prop')
   const props = (novelPromotionDataWithMedia.locations || []).filter((item) => readAssetKind(item) === 'prop')
 
-  return NextResponse.json({
-    project: {
-      ...project,
-      novelPromotionData: {
-        ...effectiveNovelPromotionData,
-        locations,
-        props,
-      },
+  const data = {
+    ...project,
+    parentProject: project.work ? { id: project.work.id, name: project.work.name } : null,
+    novelPromotionData: {
+      ...effectiveNovelPromotionData,
+      locations,
+      props,
     },
-  })
+  }
+  return NextResponse.json({ work: toProductionWork(data), project: data })
 })

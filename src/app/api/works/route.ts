@@ -23,5 +23,5 @@ export const POST = apiHandler(async (request: NextRequest) => {
     name: body.name,
     memberUserIds: body.memberUserIds,
   })
-  return NextResponse.json({ work }, { status: 201 })
+  return NextResponse.json({ project: { ...work, kind: 'project' }, work }, { status: 201 })
 })

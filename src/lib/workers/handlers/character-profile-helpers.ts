@@ -24,6 +24,7 @@ export async function resolveProjectModel(projectId: string) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      deletedAt: true,
       id: true,
       novelPromotionData: {
         select: {
@@ -34,6 +35,7 @@ export async function resolveProjectModel(projectId: string) {
     },
   })
   if (!project) throw new Error('Project not found')
+  if (project.deletedAt) throw new Error('Project is deleted')
   if (!project.novelPromotionData) throw new Error('Novel promotion data not found')
   return {
     ...project,

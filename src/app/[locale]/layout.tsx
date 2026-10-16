@@ -9,6 +9,7 @@ import "../globals.css";
 import { Providers } from "./providers";
 
 import { locales } from '@/i18n/routing';
+import { BRAND_ASSETS } from '@/lib/brand';
 
 
 
@@ -25,9 +26,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
         title: t('title'),
         description: t('description'),
         icons: {
-            icon: '/icon.svg?v=3',
-            shortcut: '/icon.svg?v=3',
-            apple: '/logo.png?v=3',
+            icon: [{ url: BRAND_ASSETS.icon, type: 'image/png', sizes: '128x128' }],
+            shortcut: BRAND_ASSETS.icon,
+            apple: [{ url: BRAND_ASSETS.apple, type: 'image/png', sizes: '180x180' }],
         },
     };
 }

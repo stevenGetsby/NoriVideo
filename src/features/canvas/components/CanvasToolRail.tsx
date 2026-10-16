@@ -53,7 +53,7 @@ export function CanvasToolRail({ editable, disabled = false, addOpen, assetsOpen
       {editable || disabled ? <>
         <button type="button" className={addOpen ? 'is-primary is-open' : 'is-primary'} title={canvasControlTitle('添加节点', disabled)} disabled={disabled} onClick={onToggleAdd}><Plus /></button>
         <i />
-        {editable ? <button type="button" className={`nori-canvas-project-assets-rail-action${assetsOpen ? ' is-open' : ''}`} title="项目资产" onClick={onToggleAssets}><Boxes /></button> : null}
+        {editable ? <button type="button" className={`nori-canvas-project-assets-rail-action${assetsOpen ? ' is-open' : ''}`} title="作品资产" onClick={onToggleAssets}><Boxes /></button> : null}
         <button type="button" title={canvasControlTitle('从素材库选择', disabled)} disabled={disabled} onClick={onOpenLibrary}><FolderOpen /></button>
         <button type="button" title={canvasControlTitle('本地上传', disabled)} disabled={disabled} onClick={onUpload}><Upload /></button>
         <i />

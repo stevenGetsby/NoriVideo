@@ -67,7 +67,7 @@ describe('infinite canvas creative surface parity', () => {
     expect(pickerInvocation).toContain('allowAllTypes')
     expect(pickerInvocation).toMatch(/\bmultiple\b/)
     expect(pickerInvocation).toContain('onConfirm={(materials)')
-    expect(pickerInvocation).toContain('materials.forEach((material, index) => insertMaterial(material')
+    expect(pickerInvocation).toContain('insertMaterials(materials.map((material, index)')
     expect(pickerInvocation).toContain('setPickerOpen(false)')
 
     const picker = renderToStaticMarkup(React.createElement(MaterialPickerDialog, {
@@ -81,7 +81,7 @@ describe('infinite canvas creative surface parity', () => {
     for (const label of ['全部', '图片', '视频', '音频', '3D']) {
       expect(enabledButtonContaining(picker, `>${label}</button>`)).toContain(label)
     }
-    expect(picker).toContain('添加到画布 · 0')
+    expect(picker).toContain('>添加到画布</button>')
   })
 
   it('exposes in-place replacement for every editable media node, including empty nodes', () => {
@@ -170,7 +170,9 @@ describe('infinite canvas creative surface parity', () => {
     expect(generator).toContain('>全能参考</option>')
     expect(generator).toContain('>图生视频</option>')
     expect(generator).toContain('>首尾帧</option>')
-    expect(generator).toContain('<span>同步生成声音</span>')
+    expect(generator).toContain('<span>生成声音</span>')
+    expect(generator).toContain('nori-canvas-generator-sound')
+    expect(generator).toContain('node.data.generation?.generateAudio ?? true')
     expect(generator).toContain('<span>视频帧率</span>')
     expect(generator).toContain('nori-canvas-generator-parameter-grid')
     expect(generator).toContain('isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO]')

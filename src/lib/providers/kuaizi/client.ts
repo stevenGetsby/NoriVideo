@@ -1,3 +1,5 @@
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+
 export const KUAIZI_DEFAULT_BASE_URL = 'https://aiopenapi.kuaizi.cn'
 
 export type JsonRecord = Record<string, unknown>
@@ -26,11 +28,11 @@ function responseMessage(payload: unknown, fallback: string): string {
   const record = asRecord(payload)
   if (!record) return fallback
   const nestedError = asRecord(record.error)
-  return readString(record.message)
+  return sanitizePublicError(readString(record.message)
     || readString(record.reason)
     || readString(record.error)
     || readString(nestedError?.message)
-    || fallback
+    || fallback)
 }
 
 async function readJsonResponse(response: Response): Promise<unknown> {

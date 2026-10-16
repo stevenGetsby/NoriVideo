@@ -7,6 +7,7 @@ import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
 import { prisma } from '../../helpers/prisma'
 import { resetBillingState } from '../../helpers/db-reset'
 import { createTestUser, seedBalance } from '../../helpers/billing-fixtures'
+import { setAccountActorContext, withAccountPermissionContext } from '@/lib/account/request-context'
 
 const queueState = vi.hoisted(() => ({
   mode: 'success' as 'success' | 'fail',
@@ -59,6 +60,34 @@ describe('billing/submitter integration', () => {
     const billing = task?.billingInfo as { billable?: boolean; source?: string } | null
     expect(billing?.billable).toBe(true)
     expect(billing?.source).toBe('task')
+  })
+
+  it('persists the trusted child quota principal in the task and queued job, ignoring forged input', async () => {
+    const manager = await createTestUser()
+    const child = await createTestUser()
+    await prisma.user.update({ where: { id: manager.id }, data: { role: 'admin' } })
+    await prisma.user.update({
+      where: { id: child.id },
+      data: { role: 'storyboard', workspaceOwnerId: manager.id, parentAccountId: manager.id, dailyPointLimit: null },
+    })
+    await seedBalance(manager.id, 10)
+    await seedBalance(child.id, 0)
+    const result = await withAccountPermissionContext([], () => {
+      setAccountActorContext(child.id, manager.id)
+      return submitTask({
+        userId: manager.id, locale: 'en', projectId: 'project-shared',
+        type: TASK_TYPE.VOICE_LINE, targetType: 'VoiceLine', targetId: 'shared-line',
+        payload: { maxSeconds: 5, meta: { quotaUserId: 'forged-operator' } },
+      })
+    })
+    const task = await prisma.task.findUnique({ where: { id: result.taskId } })
+    expect(task).toMatchObject({ userId: manager.id, payload: { meta: { quotaUserId: child.id } } })
+    expect(addTaskJobMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: manager.id, payload: expect.objectContaining({ meta: expect.objectContaining({ quotaUserId: child.id }) }),
+    }), expect.anything())
+    const freeze = await prisma.balanceFreeze.findFirst({ where: { taskId: result.taskId } })
+    expect(freeze?.userId).toBe(manager.id)
+    expect(JSON.parse(freeze?.metadata || '{}').quotaUserId).toBe(child.id)
   })
 
   it('marks task as failed when balance is insufficient', async () => {

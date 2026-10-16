@@ -119,7 +119,7 @@ export const POST = apiHandler(async (
   const [node, project] = await Promise.all([
     requirePlaylistNode(canvasId, nodeId),
     prisma.project.findFirst({
-      where: { id: projectId, userId: actor.workspaceOwnerId },
+      where: { id: projectId, userId: actor.workspaceOwnerId, deletedAt: null },
       select: { id: true, name: true, collaborationMode: true },
     }),
   ])

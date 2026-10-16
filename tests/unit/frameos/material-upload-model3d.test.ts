@@ -111,6 +111,22 @@ describe('FrameOS model3d material upload', () => {
     }))
   })
 
+  it('uploads a scene immediately after a character, including a generic-MIME image', async () => {
+    await uploadFrameosMaterial(await categorizedImageRequest(), session, verifiedProject)
+    const png = await sharp({ create: { width: 4, height: 3, channels: 3, background: '#123456' } }).png().toBuffer()
+    const form = new FormData()
+    form.set('file', new File([Uint8Array.from(png)], '工厂夜景.PNG'))
+    form.set('title', '工厂夜景')
+    form.set('projectId', 'project-1')
+    form.set('assetCategory', 'location')
+    const response = await uploadFrameosMaterial(new NextRequest('http://localhost/api/frameos/materials', { method: 'POST', body: form }), session, verifiedProject)
+    expect(response.status).toBe(200)
+    expect(registerMaterialMock).toHaveBeenLastCalledWith(expect.objectContaining({
+      projectId: 'project-1', type: 'image', title: '工厂夜景',
+      metadata: expect.objectContaining({ assetCategory: 'location', mimeType: 'image/jpeg' }),
+    }))
+  })
+
   it('rejects an oversized Content-Length before buffering multipart form data', async () => {
     const body = glbBuffer()
     const file = new File([Uint8Array.from(body)], 'model.glb', { type: 'model/gltf-binary' })

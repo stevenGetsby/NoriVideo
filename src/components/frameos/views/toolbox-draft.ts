@@ -14,8 +14,7 @@ export interface ToolboxDraft {
   ratio: string
   resolution: string
   quality: 'low' | 'medium' | 'high'
-  count: string
-  inputMode: 'text' | 'image' | 'firstlastframe'
+  inputMode: 'text' | 'reference' | 'image' | 'firstlastframe'
   duration: number
   fps: number | null
   generateAudio: boolean
@@ -66,9 +65,8 @@ export function readToolboxDraft(
     const source = record(JSON.parse(storage.getItem(key) || 'null'))
     if (source.version !== 1) return null
     const rawMode = source.inputMode
-    const inputMode = rawMode === 'image' || rawMode === 'firstlastframe' ? rawMode : 'text'
     const rawDuration = Number(source.duration)
-    const duration = Number.isInteger(rawDuration) && rawDuration >= 4 && rawDuration <= 15
+    const duration = Number.isInteger(rawDuration) && rawDuration >= 4 && rawDuration <= 30
       ? rawDuration
       : 5
     const rawFps = Number(source.fps)
@@ -76,6 +74,11 @@ export function readToolboxDraft(
     const references = Array.isArray(source.references)
       ? source.references.filter(isReference).slice(0, 15)
       : []
+    // Older drafts labelled multimodal references as "text". Preserve those
+    // inputs by reopening them as all-in-one reference, not pure text-to-video.
+    const inputMode = rawMode === 'image' || rawMode === 'firstlastframe' || rawMode === 'reference'
+      ? rawMode
+      : references.length > 0 && source.inputModeVersion !== 2 ? 'reference' : 'text'
     return {
       version: 1,
       title: text(source.title),
@@ -84,7 +87,6 @@ export function readToolboxDraft(
       ratio: text(source.ratio) || '16:9',
       resolution: text(source.resolution),
       quality: source.quality === 'low' || source.quality === 'medium' ? source.quality : 'high',
-      count: ['1', '2', '4'].includes(text(source.count)) ? text(source.count) : '1',
       inputMode,
       duration,
       fps,
@@ -104,7 +106,7 @@ export function writeToolboxDraft(
 ): void {
   if (!key) return
   try {
-    storage.setItem(key, JSON.stringify(draft))
+    storage.setItem(key, JSON.stringify({ ...draft, inputModeVersion: 2 }))
   } catch {
     // Draft persistence must never block generation when storage is unavailable.
   }

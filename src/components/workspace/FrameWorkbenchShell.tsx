@@ -7,6 +7,7 @@ import Navbar from '@/components/Navbar'
 import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import type { AppIconName } from '@/components/ui/icons'
+import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 
 export type FrameWorkbenchNavKey =
   | 'projects'
@@ -101,9 +102,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
       <div className="mx-auto flex max-w-[1680px] gap-6 px-4 py-6 sm:px-6 lg:px-8">
         <aside className="sticky top-24 hidden h-[calc(100vh-7rem)] w-64 shrink-0 flex-col rounded-[10px] border border-[var(--fos-border-lighter)] bg-[var(--fos-bg-2)] p-4 shadow-[var(--fos-shadow-inset-hi)] lg:flex">
           <Link href={{ pathname: '/projects' }} className="mb-5 flex items-center gap-3 border-b border-[var(--fos-border-lighter)] pb-4">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--fos-primary-interactive)] text-sm font-bold text-white">
-              N
-            </div>
+            <NoriBrandMark size={36} />
             <div className="min-w-0">
               <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
               <div className="text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>
@@ -164,9 +163,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
           <div className="mb-4 rounded-[10px] border border-[var(--fos-border-lighter)] bg-[var(--fos-bg-2)] p-3 shadow-[var(--fos-shadow-inset-hi)] lg:hidden">
             <div className="mb-3 flex items-center justify-between gap-3">
               <Link href={{ pathname: '/projects' }} className="flex min-w-0 items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--fos-primary-interactive)] text-sm font-bold text-white">
-                  N
-                </div>
+                <NoriBrandMark size={36} />
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
                   <div className="truncate text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>

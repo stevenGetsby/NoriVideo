@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 
 function mediaType(node: CanvasFlowNode) {
@@ -26,7 +26,7 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
       : type === 'audio'
         ? node.data.audioUrl || node.data.contentUrl
         : node.data.imageUrl || node.data.contentUrl
-    return toDisplayImageUrl(raw || null) || raw || ''
+    return (type === 'video' ? toPlayableVideoUrl(raw) : toDisplayImageUrl(raw)) || ''
   }, [node.data.audioUrl, node.data.contentUrl, node.data.imageUrl, node.data.videoUrl, type])
 
   useEffect(() => {

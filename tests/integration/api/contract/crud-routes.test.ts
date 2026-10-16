@@ -16,6 +16,10 @@ const authState = vi.hoisted<AuthState>(() => ({
   authenticated: false,
 }))
 
+const assignmentsMock = vi.hoisted(() => ({
+  syncProjectAssignmentsForProject: vi.fn(async () => undefined),
+}))
+
 const prismaMock = vi.hoisted(() => ({
   globalCharacter: {
     findUnique: vi.fn(),
@@ -92,6 +96,7 @@ vi.mock('@/lib/api-auth', () => {
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
 }))
+vi.mock('@/lib/collaboration/assignments', () => assignmentsMock)
 
 vi.mock('@/lib/storage', () => ({
   getSignedUrl: vi.fn((key: string) => `https://signed.example/${key}`),
@@ -505,6 +510,9 @@ describe('api contract - crud routes (behavior)', () => {
         props: JSON.stringify(['Bronze Dagger']),
         description: 'panel description',
       },
+    })
+    expect(assignmentsMock.syncProjectAssignmentsForProject).toHaveBeenCalledWith({
+      projectId: 'project-1', workspaceOwnerId: 'user-1',
     })
   })
 })

@@ -1,9 +1,12 @@
 'use client'
 
-import { Fragment } from 'react'
+import { Fragment, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
+import { isManagementRole } from '@/lib/account/permissions'
 import type { WorkProject, WorkSummary } from './types'
 import { UNASSIGNED_WORK_ID } from './types'
 import { canMoveFromWork } from './FosWorksDialogs'
@@ -84,7 +87,9 @@ function projectStyle(project: WorkProject) {
 
 function focusMenuEdge(trigger: HTMLElement, edge: 'first' | 'last') {
   window.requestAnimationFrame(() => {
-    const menu = trigger.parentElement?.querySelector<HTMLElement>('[role="menu"]')
+    const menuId = trigger.getAttribute('aria-controls')
+    const menu = (menuId ? document.getElementById(menuId) : null)
+      || trigger.parentElement?.querySelector<HTMLElement>('[role="menu"]')
     const items = menu
       ? Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)'))
       : []
@@ -118,7 +123,9 @@ function handleMenuKeyDown(
   const menu = event.currentTarget
   const items = Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)'))
   if (event.key === 'Escape') {
-    const trigger = menu.parentElement?.querySelector<HTMLElement>('[aria-haspopup="menu"]')
+    const trigger = Array.from(document.querySelectorAll<HTMLElement>('[aria-haspopup="menu"]'))
+      .find((element) => element.getAttribute('aria-controls') === menu.id)
+      || menu.parentElement?.querySelector<HTMLElement>('[aria-haspopup="menu"]')
     event.preventDefault()
     event.stopPropagation()
     onClose()
@@ -143,6 +150,7 @@ function generationRunning(project: WorkProject) {
 }
 
 export interface ProjectActionHandlers {
+  edit: (project: WorkProject) => void
   rename: (project: WorkProject) => void
   members: (project: WorkProject) => void
   move: (project: WorkProject, work: WorkSummary) => void
@@ -172,6 +180,8 @@ function ProjectCard({
   onToggleSelected: () => void
   actions: ProjectActionHandlers
 }) {
+  const { data: session } = useSession()
+  const menuTrigger = useRef<HTMLButtonElement>(null)
   const style = projectStyle(project)
   const genre = projectGenreLabel(project)
   const aspectRatio = projectAspectRatio(project)
@@ -179,13 +189,15 @@ function ProjectCard({
     ? project.collaborationMode === 'team' ? '任务分工' : '自由协作'
     : null
   const canMove = canMoveFromWork(work) || project.canMove
-  const canManage = Boolean(project.canManage)
+  const canManage = Boolean(project.canManage) && isManagementRole(session?.user?.role)
   const canMembers = canManage || Boolean(project.canManageMembers)
   const running = generationRunning(project)
   const workbenchHref = `/workflow/${project.id}/workbench-premium2`
   const menuId = `project-actions-${project.id}`
   return (
     <article
+      data-production-work-id={project.id}
+      data-parent-project-id={work.id}
       className={`works-project-card${selected ? ' is-selected' : ''}${selectable ? ' is-selectable' : ''}`}
       onClick={selectable ? onToggleSelected : undefined}
       style={{ '--works-card-index': index + 1 } as CSSProperties}
@@ -203,8 +215,8 @@ function ProjectCard({
       {running ? (
         <div className="works-project-running" aria-live="polite" data-testid="project-background-task-status">
           <AppIcon name="loader" className="h-6 w-6 animate-spin" />
-          <p>AI 正在拆解剧集<br /><span>后台任务不影响进入项目</span></p>
-          <Link href={{ pathname: workbenchHref }} className="works-project-running-enter">进入项目</Link>
+          <p>AI 正在拆解剧集<br /><span>后台任务不影响进入作品</span></p>
+          <Link href={{ pathname: workbenchHref }} className="works-project-running-enter">进入作品</Link>
         </div>
       ) : null}
       <Link
@@ -248,13 +260,9 @@ function ProjectCard({
       {!selectable ? (
         <div
           className={`works-project-menu-wrap${menuOpen ? ' is-open' : ''}`}
-          onMouseEnter={() => { if (!menuOpen) onToggleMenu() }}
-          onMouseLeave={() => { if (menuOpen) onToggleMenu() }}
-          onBlurCapture={(event) => {
-            if (menuOpen && !event.currentTarget.contains(event.relatedTarget as Node | null)) onToggleMenu()
-          }}
         >
           <button
+            ref={menuTrigger}
             type="button"
             className="works-more-button"
             aria-label={`打开 ${project.name} 菜单`}
@@ -270,20 +278,23 @@ function ProjectCard({
             )}
           >•••</button>
           {menuOpen ? (
+            <ViewportPopover anchorRef={menuTrigger} width={184} onClose={onToggleMenu} className="fos-menu works-project-popover fos-viewport-theme">
             <div
               id={menuId}
-              className="fos-menu works-card-menu"
+              className="works-project-menu-items"
               role="menu"
-              aria-label={`${project.name} 项目操作`}
+              aria-label={`${project.name} 作品操作`}
               onClick={(event) => event.stopPropagation()}
               onKeyDown={(event) => handleMenuKeyDown(event, onToggleMenu)}
             >
+              <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.edit(project)}><AppIcon name="settingsHex" />编辑作品</button>
               {canManage ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.rename(project)}><AppIcon name="edit" />重命名</button> : null}
               {canMembers ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.members(project)}><AppIcon name="usersRound" />{canManage ? '设置协作者' : '查看协作者'}</button> : null}
-              {canMove ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.move(project, work)}><AppIcon name="arrowRight" />移动到作品</button> : null}
+              {canMove ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.move(project, work)}><AppIcon name="arrowRight" />移动到项目</button> : null}
               <Link role="menuitem" href={{ pathname: `/workflow/${project.id}/workbench-premium2/canvas` }} className="fos-menu-item" data-testid="project-card-canvas-menu-entry"><AppIcon name="clapperboard" />进入无限画布</Link>
-              {canManage ? <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => actions.delete(project)}><AppIcon name="trash" />删除项目</button> : null}
+              {canManage ? <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => actions.delete(project)}><AppIcon name="trash" />删除作品</button> : null}
             </div>
+            </ViewportPopover>
           ) : null}
         </div>
       ) : null}
@@ -329,15 +340,16 @@ export function WorkPanel({
   const workMenuOpen = activeMenuId === `work:${work.id}`
   const canManage = Boolean(work.canManage)
   const workMenuId = `work-actions-${work.id}`
+  const workMenuTrigger = useRef<HTMLButtonElement>(null)
   const exitBatch = () => {
     onBatchWorkChange(null)
     onSelectedProjectIdsChange([])
   }
   return (
-    <section className="works-panel" data-work-id={work.id}>
+    <section className="works-panel" data-project-id={work.id} data-work-id={work.id} aria-label={`项目 · ${work.name}`}>
       <header className="works-panel-header">
         <div className="works-panel-title">
-          <span className="works-panel-badge">作品</span>
+          <span className="works-panel-badge">项目</span>
           <h2><Highlight text={work.name} keyword={keyword} /></h2>
         </div>
         <div className="works-panel-tools">
@@ -347,23 +359,24 @@ export function WorkPanel({
               <div className="works-batch-tools">
                 <button type="button" onClick={() => onSelectedProjectIdsChange(work.projects.map((project) => project.id))}>全选</button>
                 <button type="button" disabled={selectedProjectIds.length === 0} onClick={() => onSelectedProjectIdsChange([])}>清空</button>
-                <button className="is-primary" type="button" disabled={selectedProjectIds.length === 0} onClick={() => workActions.moveSelected(work.projects.filter((project) => selectedProjectIds.includes(project.id)), work)}><AppIcon name="arrowRight" />移动到作品</button>
+                <button className="is-primary" type="button" disabled={selectedProjectIds.length === 0} onClick={() => workActions.moveSelected(work.projects.filter((project) => selectedProjectIds.includes(project.id)), work)}><AppIcon name="arrowRight" />移动到项目</button>
                 <button type="button" onClick={exitBatch}>退出</button>
               </div>
             </>
           ) : (
             <>
-              <span><AppIcon name="fileFold" />{work.projectCount} 个项目</span>
+              <span><AppIcon name="fileFold" />{work.projectCount} 个作品</span>
               {!work.virtual ? <span><AppIcon name="clock" />{formatDate(work.createdAt)} 创建</span> : null}
               {!work.virtual && canCreateProjects ? (
-                <button type="button" className="works-new-project" onClick={() => workActions.createProject(work)}><AppIcon name="plus" />新建项目</button>
+                <button type="button" className="works-new-project" onClick={() => workActions.createProject(work)}><AppIcon name="plus" />新建作品</button>
               ) : null}
               {work.virtual && canMove && work.projects.length ? (
-                <button type="button" className="works-new-project" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]) }}><AppIcon name="arrowRight" />批量移动项目</button>
+                <button type="button" className="works-new-project" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]) }}><AppIcon name="arrowRight" />批量移动作品</button>
               ) : null}
               {!work.virtual && (canManage || canMove) ? (
                 <div className="relative">
                   <button
+                    ref={workMenuTrigger}
                     type="button"
                     className="works-panel-more"
                     onClick={(event) => { event.stopPropagation(); onMenuChange(workMenuOpen ? null : `work:${work.id}`) }}
@@ -379,21 +392,28 @@ export function WorkPanel({
                     aria-controls={workMenuOpen ? workMenuId : undefined}
                   >•••</button>
                   {workMenuOpen ? (
+                    <ViewportPopover
+                      anchorRef={workMenuTrigger}
+                      width={184}
+                      onClose={() => onMenuChange(null)}
+                      className="fos-menu works-project-popover fos-viewport-theme"
+                    >
                     <div
                       id={workMenuId}
-                      className="fos-menu works-panel-menu"
+                      className="works-project-menu-items"
                       role="menu"
-                      aria-label={`${work.name} 作品操作`}
+                      aria-label={`${work.name} 项目操作`}
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => handleMenuKeyDown(event, () => onMenuChange(null))}
                     >
                       {!work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.members(work)}><AppIcon name="usersRound" />{canManage ? '设置成员' : '查看成员'}</button> : null}
                       {canManage && !work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.rename(work)}><AppIcon name="edit" />重命名</button> : null}
-                      {canMove && work.projects.length ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]); onMenuChange(null) }}><AppIcon name="arrowRight" />批量移动项目</button> : null}
+                      {canMove && work.projects.length ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]); onMenuChange(null) }}><AppIcon name="arrowRight" />批量移动作品</button> : null}
                       {canManage && !work.virtual ? (
-                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" disabled={work.projectCount > 0 || !work.canDelete} title={work.projectCount > 0 ? '请先移动或删除作品内项目' : undefined} onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除作品</button>
+                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" disabled={work.projectCount > 0 || !work.canDelete} title={work.projectCount > 0 || !work.canDelete ? '请先移动或处理项目内作品（含回收站）' : undefined} onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除项目</button>
                       ) : null}
                     </div>
+                    </ViewportPopover>
                   ) : null}
                 </div>
               ) : null}
@@ -402,7 +422,7 @@ export function WorkPanel({
         </div>
       </header>
       <div className={`works-project-body${work.projects.length === 0 ? ' is-empty' : ''}`}>
-        {work.projects.length === 0 ? <div className="works-panel-empty">暂无项目</div> : (
+        {work.projects.length === 0 ? <div className="works-panel-empty">暂无作品</div> : (
           <div className="works-project-grid">
             {work.projects.map((project, index) => (
               <ProjectCard

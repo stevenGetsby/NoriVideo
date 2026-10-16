@@ -14,6 +14,7 @@ import {
 import { TASK_EVENT_TYPE, TASK_STATUS, TASK_TYPE, type TaskBillingInfo, type TaskType } from './types'
 import {
   buildDefaultTaskBillingInfo,
+  DailyLimitExceededError,
   getBillingMode,
   InsufficientBalanceError,
   prepareTaskBilling,
@@ -26,6 +27,7 @@ import type { Locale } from '@/i18n/routing'
 import { attachTaskToRun, createRun, findReusableActiveRun } from '@/lib/run-runtime/service'
 import { isAiTaskType, workflowTypeFromTaskType } from '@/lib/run-runtime/workflow'
 import { invalidateDownstreamWorkflowStagesForTask } from '@/lib/workspace/workflow-stage-state-store'
+import { buildTrustedTaskQuotaMeta } from '@/lib/account/request-context'
 
 const RUN_CENTRIC_TASK_TYPES = new Set<TaskType>([
   TASK_TYPE.STORY_TO_SCRIPT_RUN,
@@ -137,7 +139,7 @@ export async function submitTask(params: {
   const normalizedPayload = {
     ...normalizedPayloadBase,
     meta: {
-      ...normalizedPayloadMeta,
+      ...buildTrustedTaskQuotaMeta(params.userId, normalizedPayloadMeta),
       locale: params.locale,
     },
   }
@@ -192,8 +194,8 @@ export async function submitTask(params: {
     try {
       await requireGenerationCredit(params.userId)
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'INSUFFICIENT_BALANCE') {
-        await markTaskFailed(task.id, 'INSUFFICIENT_BALANCE', error.message)
+      if (error instanceof ApiError && (error.code === 'INSUFFICIENT_BALANCE' || error.code === 'DAILY_LIMIT_EXCEEDED')) {
+        await markTaskFailed(task.id, error.code, error.message)
       }
       throw error
     }
@@ -277,6 +279,16 @@ export async function submitTask(params: {
           message: error.message,
           required: error.required,
           available: error.available,
+        })
+      }
+      if (error instanceof DailyLimitExceededError) {
+        await markTaskFailed(task.id, 'DAILY_LIMIT_EXCEEDED', error.message)
+        throw new ApiError('DAILY_LIMIT_EXCEEDED', {
+          message: error.message,
+          limitPoints: error.limitPoints,
+          usedPoints: error.usedPoints,
+          requestedPoints: error.requestedPoints,
+          resetsAt: error.windowEnd,
         })
       }
       await markTaskFailed(task.id, 'INTERNAL_ERROR', error instanceof Error ? error.message : String(error))

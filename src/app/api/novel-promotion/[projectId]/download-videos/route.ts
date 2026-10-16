@@ -7,6 +7,8 @@ import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { resolveExportScope } from '@/lib/novel-promotion/export-scope'
+import { buildNovelVideoExportFileName } from '@/lib/novel-promotion/video-export-name'
+import { resolveGenerationExportMetadata } from '@/lib/novel-promotion/generation-export-metadata'
 
 interface PanelData {
   panelIndex: number | null
@@ -26,6 +28,8 @@ interface ClipData {
 }
 
 interface EpisodeData {
+  name?: string | null
+  episodeNumber?: number | null
   storyboards?: StoryboardData[]
   clips?: ClipData[]
 }
@@ -54,6 +58,7 @@ export const POST = apiHandler(async (
   if (!scope) {
     throw new ApiError('NOT_FOUND')
   }
+  const exportProject = await prisma.project.findUnique({ where: { id: projectId }, select: { work: { select: { name: true } } } })
   const { episodeId } = scope
 
   // 根据是否指定 episodeId 来获取数据
@@ -107,6 +112,10 @@ export const POST = apiHandler(async (
   if (episodes.length === 0) {
     throw new ApiError('NOT_FOUND')
   }
+  const exportSettings = await prisma.novelPromotionProject.findUnique({
+    where: { projectId },
+    select: { exportNamingTemplate: true },
+  })
 
   // 收集所有有视频的 panel
   interface VideoItem {
@@ -115,15 +124,23 @@ export const POST = apiHandler(async (
     clipIndex: number  // 使用 clip 在数组中的索引
     panelIndex: number
     isLipSync?: boolean  // 是否为口型同步视频
+    episodeName?: string | null
   }
   const videos: VideoItem[] = []
 
   // 从 episodes 中获取所有 storyboards 和 clips
   const allStoryboards: StoryboardData[] = []
   const allClips: ClipData[] = []
+  const storyboardEpisodeNames = new Map<string, string | null>()
   for (const episode of episodes) {
     allStoryboards.push(...(episode.storyboards || []))
     allClips.push(...(episode.clips || []))
+    for (const storyboard of episode.storyboards || []) {
+      storyboardEpisodeNames.set(
+        storyboard.id,
+        episode.name || (episode.episodeNumber ? `第${String(episode.episodeNumber).padStart(3, '0')}集` : null),
+      )
+    }
   }
 
   // 遍历所有 storyboard 和 panel
@@ -159,7 +176,8 @@ export const POST = apiHandler(async (
           videoUrl: videoUrl,
           clipIndex: clipIndex >= 0 ? clipIndex : 999,  // 找不到时排最后
           panelIndex: panel.panelIndex || 0,
-          isLipSync
+          isLipSync,
+          episodeName: storyboardEpisodeNames.get(storyboard.id) || null,
         })
       }
     }
@@ -204,7 +222,7 @@ export const POST = apiHandler(async (
   // 处理视频并打包
   for (const video of indexedVideos) {
     try {
-      _ulogInfo(`Downloading video ${video.index}: ${video.videoUrl}`)
+      _ulogInfo(`Downloading video ${video.index}`)
 
       let videoData: Buffer
       const storageKey = await resolveStorageKeyFromMediaValue(video.videoUrl)
@@ -229,7 +247,14 @@ export const POST = apiHandler(async (
 
       // 文件名使用描述，清理非法字符
       const safeDesc = video.description.slice(0, 50).replace(/[\\/:*?"<>|]/g, '_')
-      const fileName = `${String(video.index).padStart(3, '0')}_${safeDesc}.mp4`
+      const fileName = buildNovelVideoExportFileName({
+        projectName: exportProject?.work.name || project.name,
+        episodeName: video.episodeName,
+        sequence: video.index,
+        generationName: safeDesc,
+        ...await resolveGenerationExportMetadata(projectId, video.videoUrl),
+        template: exportSettings?.exportNamingTemplate,
+      })
       archive.append(videoData, { name: fileName })
       _ulogInfo(`Added ${fileName} to archive`)
     } catch (error) {

@@ -74,7 +74,7 @@ export function buildCanvasMentionAssets(
   })
   const occurrence = new Map<string, number>()
 
-  return candidates.map(({ node, mediaType, title }) => {
+  const assets = candidates.map(({ node, mediaType, title }) => {
     const titleTypeKey = `${title}\u0000${mediaType}`
     const current = (occurrence.get(titleTypeKey) || 0) + 1
     occurrence.set(titleTypeKey, current)
@@ -93,6 +93,13 @@ export function buildCanvasMentionAssets(
       imageUrl: referencePreview(node, mediaType),
       description: `${mediaLabel(mediaType)} · ${incomingNodeIds.has(node.id) ? '已连接上游' : '画布素材'}${node.data.materialId ? '' : ' · 将自动建立引用'}`,
     }
+  })
+
+  return assets.sort((a, b) => {
+    const priority = (id: string) => (incomingNodeIds.has(id) ? 0 : 1)
+    const priorityDifference = priority(a.id) - priority(b.id)
+    if (priorityDifference !== 0) return priorityDifference
+    return a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' })
   })
 }
 

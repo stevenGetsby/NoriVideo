@@ -14,6 +14,7 @@ export interface FrameosMaterialItem {
   storageKey: string | null
   url: string | null
   metadata?: Record<string, unknown> | null
+  voice?: { materialId: string; title: string | null; url: string | null } | null
   deletedAt?: string | null
   deletedById?: string | null
   createdAt: string
@@ -21,6 +22,11 @@ export interface FrameosMaterialItem {
 }
 
 export interface FrameosMaterialProjectOption {
+  id: string
+  name: string
+}
+
+export interface FrameosMaterialCreatorOption {
   id: string
   name: string
 }
@@ -36,6 +42,6 @@ export interface FrameosMaterialLibraryCapabilities {
 export const MATERIAL_SOURCE_LABELS: Record<FrameosMaterialItem['source'], string> = {
   toolbox: '工具箱',
   creative: '资产生成',
-  production: '项目制作',
+  production: '作品制作',
   upload: '本地上传',
 }

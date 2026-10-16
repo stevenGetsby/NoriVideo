@@ -29,7 +29,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
         return
       }
       if (result?.error === SURFACE_LOGIN_ERRORS.workspaceRequired) {
-        setError('账号密码正确，但管理账号和角色子账号必须从 NoriVideo 项目端登录。')
+        setError('账号密码正确，但管理账号和角色子账号必须从 NoriVideo 作品端登录。')
         return
       }
       if (result?.error || !result?.ok) {

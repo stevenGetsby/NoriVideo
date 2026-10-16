@@ -10,6 +10,7 @@ import { isArtStyleValue, isCustomArtStyleValue } from '@/lib/constants'
 import { resolveTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_STATUS } from '@/lib/task/types'
 import { buildProjectWorkflowSummary } from '@/lib/projects/workflow-summary'
+import { toProductionWork } from '@/lib/projects/hierarchy'
 import {
   containsInternalRecordMarker,
   isInternalUsageCostRecord,
@@ -362,7 +363,7 @@ async function createInitialWorkflowAssignment(
   })
 }
 
-// GET - 获取用户的项目（支持分页和搜索）
+// GET - 获取用户的作品（支持分页和搜索）
 export const GET = apiHandler(async (request: NextRequest) => {
   // 🔐 统一权限验证
   const authResult = await requireUserAuth()
@@ -399,15 +400,15 @@ export const GET = apiHandler(async (request: NextRequest) => {
     prisma.project.count({ where }),
     prisma.project.findMany({
       where,
-      orderBy: { updatedAt: 'desc' },  // 先按更新时间排序获取所有匹配项目
+      orderBy: { updatedAt: 'desc' },  // 先按更新时间排序获取所有匹配作品
       skip: (page - 1) * pageSize,
       take: pageSize
     })
   ])
 
   // 在应用层重新排序：
-  // 1. 新创建但未访问过的项目（无 lastAccessedAt）按创建时间降序排在最前
-  // 2. 访问过的项目按访问时间降序
+  // 1. 新创建但未访问过的作品（无 lastAccessedAt）按创建时间降序排在最前
+  // 2. 访问过的作品按访问时间降序
   const projects = [...allProjects].sort((a, b) => {
     // 两个都没有访问时间，按创建时间降序（新创建的排前面）
     if (!a.lastAccessedAt && !b.lastAccessedAt) {
@@ -421,12 +422,12 @@ export const GET = apiHandler(async (request: NextRequest) => {
     return new Date(b.lastAccessedAt!).getTime() - new Date(a.lastAccessedAt!).getTime()
   })
 
-  // 获取项目 ID 列表
+  // 获取作品 ID 列表
   const projectIds = projects.map(p => p.id)
 
-  // ⚡ 并行获取：费用 + 项目统计 + 后端工作流状态
+  // ⚡ 并行获取：费用 + 作品统计 + 后端工作流状态
   const [costsByProject, novelProjects, workflowStageRows, activeTasksByProject] = await Promise.all([
-    // 一次性获取所有项目的费用（代替 N+1 查询）
+    // 一次性获取所有作品的费用（代替 N+1 查询）
     projectIds.length > 0 ? prisma.usageCost.findMany({
       where: {
         userId: session.user.id,
@@ -441,7 +442,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
         metadata: true,
       },
     }) : Promise.resolve([]),
-    // 一次性获取所有项目的统计数据
+    // 一次性获取所有作品的统计数据
     projectIds.length > 0 ? prisma.novelPromotionProject.findMany({
       where: { projectId: { in: projectIds } },
       select: {
@@ -565,7 +566,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     activeTaskCountMap.set(task.projectId, (activeTaskCountMap.get(task.projectId) ?? 0) + 1)
   }
 
-  // 合并项目、费用与统计
+  // 合并作品、费用与统计
   const projectsWithStats = projects.map(project => ({
     ...project,
     totalCost: costMap.get(project.id) ?? 0,
@@ -578,6 +579,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   }))
 
   return NextResponse.json({
+    works: projectsWithStats.map((project) => toProductionWork(project)),
     projects: projectsWithStats,
     pagination: {
       page,
@@ -588,7 +590,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   })
 })
 
-// POST - 创建新项目
+// POST - 创建新作品
 export const POST = apiHandler(async (request: NextRequest) => {
   // 🔐 统一权限验证
   const authResult = await requireUserAuth()
@@ -623,8 +625,17 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const { name, description } = normalizeProjectDraft(draft)
   const actor = getWorkspaceActor(session)
 
-  const rawWorkId = rawBody.workId ?? rawBody.work_id
+  const rawWorkId = rawBody.parentProjectId ?? rawBody.workId ?? rawBody.work_id
   const requestedWorkId = typeof rawWorkId === 'string' ? rawWorkId.trim() : ''
+  const parentIds = [rawBody.parentProjectId, rawBody.workId, rawBody.work_id]
+    .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+    .map((value) => value.trim())
+  if (new Set(parentIds).size > 1) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'PARENT_PROJECT_CONFLICT',
+      message: '所属项目不一致，请重新选择项目。',
+    })
+  }
   const rawCollaborationMode = rawBody.collaborationMode ?? rawBody.collaboration_mode
   if (rawCollaborationMode !== undefined && rawCollaborationMode !== 'solo' && rawCollaborationMode !== 'team') {
     throw new ApiError('INVALID_PARAMS', { message: '协作模式必须为 solo 或 team。' })
@@ -635,7 +646,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (!requestedWorkId) {
     throw new ApiError('INVALID_PARAMS', {
       code: 'PROJECT_WORK_REQUIRED',
-      message: '请先创建或选择作品，再在该作品中创建项目。',
+      message: '请先创建或选择项目，再在该项目中创建作品。',
     })
   }
   const workId = requestedWorkId
@@ -656,7 +667,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
     actor.workspaceOwnerId,
   )
 
-  // 基础项目和模式数据必须原子创建，避免任一写入失败后留下半成品项目。
+  // 基础作品和模式数据必须原子创建，避免任一写入失败后留下半成品作品。
   let project
   try {
     project = await prisma.$transaction(async (tx) => {
@@ -806,6 +817,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
 
   return NextResponse.json({
+    work: toProductionWork(project, workId),
     project,
     initialEpisodesCreated: initialEpisodeRange?.count ?? 0,
   }, { status: 201 })

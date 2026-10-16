@@ -63,6 +63,7 @@ describe('/api/projects/[projectId]/assets scope', () => {
       where: {
         id: 'project-1',
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true },
     })
@@ -91,6 +92,7 @@ describe('/api/projects/[projectId]/assets scope', () => {
       where: {
         id: 'project-other',
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true },
     })

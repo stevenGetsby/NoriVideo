@@ -69,5 +69,7 @@ describe('service record account/model export', () => {
     expect(csv).toContain('"\'=HYPERLINK(""https://example.com"")"')
     expect(csv).toContain('"模型,甲\n第二行"')
     expect(csv).toContain('"Input Token"')
+    expect(csv).toContain('"作品数"')
+    expect(csv).not.toContain('"项目数"')
   })
 })

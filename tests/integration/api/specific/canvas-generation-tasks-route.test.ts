@@ -68,6 +68,7 @@ function taskRow(params: {
   status?: string
   errorCode?: string | null
   errorMessage?: string | null
+  billingInfo?: Record<string, unknown>
 }) {
   const status = params.status || 'queued'
   return {
@@ -93,7 +94,7 @@ function taskRow(params: {
       : null,
     errorCode: params.errorCode ?? null,
     errorMessage: params.errorMessage ?? null,
-    billingInfo: null,
+    billingInfo: params.billingInfo ?? null,
     billedAt: null,
     queuedAt: new Date('2026-07-17T00:00:00.000Z'),
     startedAt: status === 'queued' ? null : new Date('2026-07-17T00:00:01.000Z'),
@@ -216,6 +217,7 @@ describe('canvas persistent generation task routes', () => {
     }
     state.tasks.set('task-complete', taskRow({
       id: 'task-complete', type: TASK_TYPE.CANVAS_TEXT_GENERATION, payload, status: 'completed',
+      billingInfo: { billable: true, chargedCost: 0.1234 },
     }))
     const latestResponse = await getLatestTask(buildMockRequest({
       path: '/api/projects/project-1/canvas/canvas-1/generation-tasks',
@@ -223,7 +225,7 @@ describe('canvas persistent generation task routes', () => {
       query: { nodeId: 'node-1' },
     }), canvasContext)
     const latest = await latestResponse.json() as { task: Record<string, unknown> }
-    expect(latest.task).toMatchObject({ id: 'task-complete', status: 'completed', result: { text: '生成正文' } })
+    expect(latest.task).toMatchObject({ id: 'task-complete', status: 'completed', result: { text: '生成正文' }, cost: { costCny: 0.1234, points: 12.34 } })
 
     state.tasks.set('task-failed', taskRow({
       id: 'task-failed', type: TASK_TYPE.CANVAS_TEXT_GENERATION, payload, status: 'failed',

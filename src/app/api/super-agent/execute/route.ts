@@ -69,6 +69,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
       where: {
         id: executionContext.targetProjectId,
         userId: executionContext.userId,
+        deletedAt: null,
       },
       select: { id: true },
     })

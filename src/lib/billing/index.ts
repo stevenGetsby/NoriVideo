@@ -11,7 +11,17 @@ export {
   pointsToCny,
 } from './credit-policy'
 export { requireGenerationCredit } from './generation-gate'
-export { InsufficientBalanceError } from './errors'
+export { DailyLimitExceededError, InsufficientBalanceError } from './errors'
+export {
+  DAILY_LIMIT_TIME_ZONE,
+  MAX_DAILY_POINT_LIMIT,
+  assertDailyLimit,
+  getDailyUsageSnapshot,
+  isValidDailyPointLimitInput,
+  normalizeDailyPointLimit,
+  resolveDailyUsageWindow,
+} from './daily-limit'
+export type { DailyUsageSnapshot } from './daily-limit'
 export {
   getProjectCostDetails,
   getProjectTotalCost,

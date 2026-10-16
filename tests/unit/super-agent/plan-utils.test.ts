@@ -52,7 +52,7 @@ describe('super-agent plan utils', () => {
     expect(analysis.videoType).toBe('generic')
     expect(params.sellingPoints).toBeUndefined()
     expect(params.callToAction).toBeUndefined()
-    expect(params.panelsPerShot).toBeGreaterThan(1)
+    expect(params.panelsPerShot).toBe(1)
   })
 
   it('strips commercial fields when an LLM wrongly adds them to a generic story', () => {
@@ -82,14 +82,14 @@ describe('super-agent plan utils', () => {
   it('infers fallback creative parameters for UGC口播 prompts', () => {
     const analysis = createDeterministicAnalysis('制作一个口播视频介绍我们的UGC平台')
 
-    expect(analysis.videoType).toBe('ugc-platform-promo')
+    expect(analysis.videoType).toBe('digital-avatar-ad')
     expect(analysis.creativeParameters).toMatchObject({
       durationSeconds: 30,
-      targetAudience: expect.stringContaining('内容创作者'),
       narration: 'on',
       shotCount: 4,
       panelsPerShot: 1,
     })
+    expect(analysis.creativeParameters?.targetAudience).toBeUndefined()
   })
 
   it('keeps role-asset short drama prompts on the generic workflow', () => {

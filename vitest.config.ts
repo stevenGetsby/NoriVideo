@@ -25,6 +25,11 @@ export default defineConfig({
     setupFiles: ['./tests/setup/env.ts'],
     globalSetup: ['./tests/setup/global-setup.ts'],
     include: ['**/*.test.ts'],
+    // Release snapshots and generated artifacts are not additional test
+    // projects; scanning them repeats old fixtures and slows local regression.
+    exclude: ['**/node_modules/**', '**/.git/**', '**/.runtime/**', '**/test-results/**', '**/coverage/**',
+      // This file uses node:test; execute it with tsx --test, not Vitest.
+      'src/lib/contracts/image-urls-contract.test.ts'],
     testTimeout: 30_000,
     hookTimeout: 60_000,
     coverage: {

@@ -42,6 +42,6 @@ describe('injected super-agent skills', () => {
       },
     })
     expect(skillLibrary.findSkillByKeywords(['帮我做一个在线教育训练营宣传视频'])).toBe('course-promo')
-    expect(skillLibrary.findSkillByKeywords(['制作一个口播视频介绍我们的UGC平台'])).toBe('ugc-platform-promo')
+    expect(skillLibrary.findSkillByKeywords(['制作一个口播视频介绍我们的UGC平台'])).toBe('digital-avatar-ad')
   })
 })

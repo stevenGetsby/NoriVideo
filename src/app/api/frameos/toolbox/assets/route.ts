@@ -3,7 +3,10 @@ import type { Prisma } from '@prisma/client'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getWorkspaceActor, projectReadScopeWhere, projectReadWhere } from '@/lib/collaboration/access'
+import { cnyToPoints } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
+import { extractStorageKey, getSignedUrl } from '@/lib/storage'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 
 const TOOLBOX_GENERATION_BIZ_TYPES = [
   'image_generation',
@@ -18,6 +21,16 @@ function toolboxBizTypesFor(type: string | null): string[] {
   if (type === 'audio') return ['audio_generation']
   if (type === 'model3d') return ['model3d_generation']
   return [...TOOLBOX_GENERATION_BIZ_TYPES]
+}
+
+function taskCostPoints(billingInfo: unknown, taskStatus: string): number | null {
+  const info = billingInfo && typeof billingInfo === 'object' && !Array.isArray(billingInfo)
+    ? billingInfo as Record<string, unknown>
+    : null
+  if (!info || info.billable !== true || taskStatus !== 'completed') return null
+  const cost = Number(info.chargedCost)
+  if (!Number.isFinite(cost) || cost < 0) return null
+  return cnyToPoints(cost)
 }
 
 export const GET = apiHandler(async (request: NextRequest) => {
@@ -109,20 +122,23 @@ export const GET = apiHandler(async (request: NextRequest) => {
     : []
   const materialMetadata = new Map(materials.map((material) => [material.id, material.metadata]))
   return NextResponse.json({
-    assets: assets.map((asset) => {
+    assets: await Promise.all(assets.map(async (asset) => {
       const task = latestTask.get(asset.id)
+      const storageKey = extractStorageKey(asset.resultUrl)
       return {
         ...asset,
-        url: asset.resultUrl,
+        url: storageKey ? await getSignedUrl(storageKey, 3600) : asset.resultUrl,
+        errorMessage: asset.errorMessage ? sanitizePublicError(asset.errorMessage) : null,
         materialMetadata: asset.materialId ? materialMetadata.get(asset.materialId) || null : null,
         task: task ? {
           id: task.id,
           status: task.status,
           progress: task.progress,
           errorCode: task.errorCode,
-          errorMessage: task.errorMessage,
+          errorMessage: task.errorMessage ? sanitizePublicError(task.errorMessage) : null,
+          costPoints: taskCostPoints(task.billingInfo, task.status),
         } : null,
       }
-    }),
-  })
+    })),
+  }, { headers: { 'Cache-Control': 'private, no-store' } })
 })

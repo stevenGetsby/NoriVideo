@@ -15,11 +15,12 @@ import {
   isManagementRole,
 } from '@/lib/account/permissions'
 import { assignmentAttentionCount } from './assignments-view-model'
-import { useAccountBalance } from '@/hooks/common/useAccountBalance'
+import { useAccountBalance, type DailyBalanceUsage } from '@/hooks/common/useAccountBalance'
 import { FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
 import { FosCanvasShellContext } from './FosCanvasShellContext'
 import { FosSidebarResizer } from './FosSidebarResizer'
 import { useFosSidebarResize } from './useFosSidebarResize'
+import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 
 export type FosNavKey =
   | 'projects'
@@ -49,7 +50,7 @@ interface NavItem {
 }
 
 const primaryNav: NavItem[] = [
-  { key: 'projects', label: '我的作品', href: '/works', icon: 'folder' },
+  { key: 'projects', label: '我的项目', href: '/projects', icon: 'folder' },
   { key: 'assignments', label: '我的任务', href: '/my-assignments', icon: 'clipboardCheck' },
   { key: 'screenwriter', label: '编剧工作台', href: '/writer-workbench', icon: 'edit' },
   { key: 'toolbox', label: '工具箱', href: '/toolbox', icon: 'settingsHexMinor' },
@@ -81,7 +82,7 @@ export function FosTitlebar({ title }: { title?: string }) {
   )
 }
 
-function BalancePill({ points }: { points: number }) {
+function BalancePill({ points, dailyUsage, walletScope }: { points: number; dailyUsage: DailyBalanceUsage | null; walletScope: 'personal' | 'workspace' }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const display = (value: number) => Number.isInteger(value)
@@ -108,7 +109,7 @@ function BalancePill({ points }: { points: number }) {
     <div ref={rootRef} className="relative">
       <button type="button" className="fos-credits" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span className="fos-cr-badge blue">◆</span>
-        <span className="fos-cr-label">积分</span>
+        <span className="fos-cr-label">{walletScope === 'workspace' ? '共享积分' : '积分'}</span>
         <span className={points <= 0 ? 'text-red-300' : ''}>{display(points)}</span>
       </button>
       {open ? (
@@ -116,11 +117,28 @@ function BalancePill({ points }: { points: number }) {
           <h3>积分账户</h3>
           <div className="fos-bp-cards is-single">
             <div className="fos-bp-card">
-              <div className="fos-bp-card-label">可用积分</div>
+              <div className="fos-bp-card-label">{walletScope === 'workspace' ? '管理账号共享可用积分' : '可用积分'}</div>
               <div className={`fos-bp-card-value${points <= 0 ? ' text-red-300' : ''}`}>{display(points)}</div>
-              <div className="fos-bp-card-desc">¥1 = 100 积分 · 积分不足会停止全部生成服务</div>
+              <div className="fos-bp-card-desc">¥1 = 100 积分 · {walletScope === 'workspace' ? '从管理账号共享钱包扣费，另按个人每日限额校验' : '积分不足会停止全部生成服务'}</div>
             </div>
           </div>
+          {dailyUsage?.limitPoints != null ? (
+            <div className="fos-bp-cards is-single">
+              <div className="fos-bp-card">
+                <div className="fos-bp-card-label">今日用量（管理账号设置）</div>
+                <div className={`fos-bp-card-value${dailyUsage.exceeded ? ' text-red-300' : ''}`}>
+                  {display(dailyUsage.usedPoints)} / {display(dailyUsage.limitPoints)}
+                </div>
+                <div className="fos-bp-card-desc">
+                  {dailyUsage.exceeded
+                    ? dailyUsage.limitPoints === 0
+                      ? '管理账号已禁止生成，请联系管理账号调整为正数或 unlimited'
+                      : '今日额度已用尽，明天 00:00 重置后可继续生成'
+                    : `今日还剩 ${display(dailyUsage.remainingPoints ?? 0)} 积分 · 每天 00:00 重置`}
+                </div>
+              </div>
+            </div>
+          ) : null}
           <div className="fos-bp-actions">
             <Link href={{ pathname: '/service-records' }} role="menuitem" className="fos-btn fos-btn-primary fos-btn-sm flex-1" onClick={() => setOpen(false)}>查看明细</Link>
           </div>
@@ -132,7 +150,7 @@ function BalancePill({ points }: { points: number }) {
 
 export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
   const { data: session } = useSession()
-  const { points } = useAccountBalance()
+  const { points, dailyUsage, walletScope } = useAccountBalance()
   const role = session?.user?.role
   const roleLabel = role === 'super_admin'
     ? '平台 Admin · 全部权限'
@@ -144,8 +162,8 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
         .join(' / ') || '仅查看'}`
   return (
     <div className="fos-header">
-      <Link href={{ pathname: '/works' }} className="fos-logo">
-        <span className="fos-logo-mark"><i /><i /><i /></span>
+      <Link href={{ pathname: '/projects' }} className="fos-logo">
+        <NoriBrandMark className="fos-logo-mark" />
         <span className="fos-logo-text"><span className="a">Nori</span><span className="b">Video</span></span>
       </Link>
       <div className={`fos-header-actions flex items-center${canvasMode ? '' : ' gap-4'}`}>
@@ -154,7 +172,7 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
             {roleLabel}
           </span>
         ) : null}
-        <BalancePill points={points} />
+        <BalancePill points={points} dailyUsage={dailyUsage} walletScope={walletScope} />
       </div>
     </div>
   )
@@ -312,9 +330,9 @@ function Sidebar({
             />
           ))}
           {projectNavigation ? (
-            <section className="fos-project-nav" aria-label="当前项目导航">
+            <section className="fos-project-nav" aria-label="当前作品导航">
               <div className="fos-project-nav-heading">
-                <span>当前项目</span>
+                <span>当前作品</span>
                 <strong title={projectNavigation.projectName}>{projectNavigation.projectName}</strong>
               </div>
               <Link
@@ -323,7 +341,7 @@ function Sidebar({
                 data-testid="project-workbench-nav"
               >
                 <AppIcon name="folderOpen" className="h-4 w-4 shrink-0" />
-                <span className="min-w-0 truncate">项目工作台</span>
+                <span className="min-w-0 truncate">作品工作台</span>
               </Link>
               {canUseCanvas ? (
                 <Link
@@ -420,14 +438,26 @@ export function FosShell({
 
   useEffect(() => {
     if (hideSidebar) return
-    try {
-      const stored = canvasShell
-        ? window.localStorage.getItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY)
-        : window.localStorage.getItem(FOS_SIDEBAR_STORAGE_KEY)
-      setSidebarCollapsed(stored === null ? canvasShell : stored === 'true')
-    } catch {
-      setSidebarCollapsed(canvasShell)
+    const narrowViewport = window.matchMedia('(max-width: 760px)')
+    const restoreSidebar = () => {
+      // A desktop "expanded" preference must not squeeze the project/work
+      // hierarchy into a narrow strip on a small display.
+      if (narrowViewport.matches) {
+        setSidebarCollapsed(true)
+        return
+      }
+      try {
+        const stored = canvasShell
+          ? window.localStorage.getItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY)
+          : window.localStorage.getItem(FOS_SIDEBAR_STORAGE_KEY)
+        setSidebarCollapsed(stored === null ? canvasShell : stored === 'true')
+      } catch {
+        setSidebarCollapsed(canvasShell)
+      }
     }
+    restoreSidebar()
+    narrowViewport.addEventListener('change', restoreSidebar)
+    return () => narrowViewport.removeEventListener('change', restoreSidebar)
   }, [canvasShell, hideSidebar])
 
   useEffect(() => {

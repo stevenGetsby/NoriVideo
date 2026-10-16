@@ -39,9 +39,9 @@ export const GET = apiHandler(async () => {
   const { session } = authResult
 
   const [projectTotal, projects, tasks, teamState] = await Promise.all([
-    prisma.project.count({ where: { userId: session.user.id } }),
+    prisma.project.count({ where: { userId: session.user.id, deletedAt: null } }),
     prisma.project.findMany({
-      where: { userId: session.user.id },
+      where: { userId: session.user.id, deletedAt: null },
       orderBy: { updatedAt: 'desc' },
       take: 6,
       select: {

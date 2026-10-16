@@ -83,6 +83,61 @@ import { POST } from '@/app/api/frameos/toolbox/generate/route'
 const routeContext = { params: Promise.resolve({}) }
 
 describe('FrameOS toolbox generation route', () => {
+  it('automatically reuses saved character-card audio for multimodal video without duplicating it', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+    ]).mockResolvedValueOnce([
+      { id: 'voice-1', title: '关羽音色', type: 'audio', storageKey: 'voice/guanyu.wav', metadata: { durationSeconds: 6 } },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
+      projectId: 'project-1', type: 'video', title: '试镜', prompt: '关羽说话', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
+    } }), routeContext)
+    expect(response.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceAudios: ['voice/guanyu.wav'], referenceMaterialIds: ['material-1', 'voice-1'] }) }))
+  })
+
+  it('never attaches a role voice to an explicitly silent video', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
+      projectId: 'project-1', type: 'video', title: '静默', prompt: '关羽静坐', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: false },
+    } }), routeContext)
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledTimes(1)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceAudios: [] }) }))
+  })
+
+  it('rejects unavailable saved voices without creating a paid task', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-1', type: 'image', storageKey: 'images/role.png', metadata: { voiceMaterialId: 'deleted-voice' } },
+    ]).mockResolvedValueOnce([])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
+      projectId: 'project-1', type: 'video', title: '试镜', prompt: '说话', modelKey: 'nori::norivideo2.5', inputMode: 'text', referenceMaterialIds: ['material-1'],
+    } }), routeContext)
+    expect(response.status).toBe(400)
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+  it('rejects media attached to explicit pure text video without charging or queuing', async () => {
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, referenceMaterialIds: ['material-1'] },
+    }), routeContext)
+    expect(response.status).toBe(400)
+    expect(submitTaskMock).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+  })
+
+  it('submits explicit pure text video with no media arrays', async () => {
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, options: { duration: 5, resolution: '720p' } },
+    }), routeContext)
+    expect(response.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: [], referenceVideos: [], referenceAudios: [] }) }))
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     state.nextAsset = 1

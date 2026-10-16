@@ -42,9 +42,9 @@ const session = {
 const assignment = {
   id: 'assignment-1',
   projectId: 'project-1',
-  projectName: '项目一',
+  projectName: '作品一',
   workId: 'work-1',
-  workName: '作品一',
+  workName: '项目一',
   stage: 'storyboard',
   status: 'in_progress',
   assigneeUserId: 'actor-1',

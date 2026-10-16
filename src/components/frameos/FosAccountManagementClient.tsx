@@ -1,12 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import type { AccountCredits } from '@/lib/account/credits'
-import { createCreditIdempotencyKey, notifyBalanceChanged } from '@/lib/billing/client'
+import { createCreditIdempotencyKey, notifyBalanceChanged, subscribeBalanceChanges } from '@/lib/billing/client'
+import { createLatestRequestTracker } from '@/lib/api/latest-request'
 import {
   ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
   ACCOUNT_ROLE_DEFINITIONS,
@@ -27,9 +28,12 @@ import {
   AccountDialog,
   CreditLedgerDialog,
   CreditOperationDialog,
+  DailyUsageCell,
   PermissionMatrix,
-  type CreditOperationKind,
 } from './FosAccountManagementParts'
+import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
+import { updateDailyUsageLimit } from '@/lib/billing/daily-limit-display'
+import { dailyLimitSaveMessage } from '@/lib/billing/daily-limit-policy'
 
 interface ManagedAccount {
   id: string
@@ -43,6 +47,8 @@ interface ManagedAccount {
   parentAccountId: string | null
   workspaceOwnerId: string | null
   credits: AccountCredits
+  dailyLimitPoints: number | null
+  usageToday?: DailyUsagePayload | null
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
@@ -66,6 +72,7 @@ interface AccountDraft {
   status: AccountStatus
   coinCredits: string
   pointCredits: string
+  dailyPointLimit: string
 }
 
 const NEW_ACCOUNT_DRAFT: AccountDraft = {
@@ -79,6 +86,7 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
   status: 'active',
   coinCredits: '0',
   pointCredits: '0',
+  dailyPointLimit: 'unlimited',
 }
 
 const ROLE_TONES: Record<AccountRole, string> = {
@@ -126,36 +134,48 @@ export function FosAccountManagementClient() {
   const [workspace, setWorkspace] = useState<ManagedWorkspace | null>(null)
   const [loading, setLoading] = useState(true)
   const [pageError, setPageError] = useState('')
+  const [pageNotice, setPageNotice] = useState('')
   const [mode, setMode] = useState<'create' | 'edit' | null>(null)
   const [target, setTarget] = useState<ManagedAccount | null>(null)
   const [draft, setDraft] = useState<AccountDraft>(NEW_ACCOUNT_DRAFT)
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState('')
   const [dialogError, setDialogError] = useState('')
-  const [creditOperation, setCreditOperation] = useState<Exclude<CreditOperationKind, 'recharge'> | null>(null)
+  const [creditOperation, setCreditOperation] = useState<'reclaim' | null>(null)
   const [creditTarget, setCreditTarget] = useState<ManagedAccount | null>(null)
   const [ledgerTarget, setLedgerTarget] = useState<ManagedAccount | null>(null)
   const [creditRequestKey, setCreditRequestKey] = useState('')
   const [creditSaving, setCreditSaving] = useState(false)
   const [creditError, setCreditError] = useState('')
+  const accountsRequests = useRef(createLatestRequestTracker())
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (session?.user?.role !== 'admin') return
+    const request = accountsRequests.current.begin()
     if (!silent) setLoading(true)
     setPageError('')
     try {
-      const response = await apiFetch('/api/admin/accounts')
+      const response = await apiFetch(`/api/admin/accounts?refresh=${Date.now()}`, { cache: 'no-store' })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '获取子账号失败'))
       const payload = await response.json() as { workspaces?: ManagedWorkspace[] }
+      if (!accountsRequests.current.isCurrent(request)) return
       setWorkspace(Array.isArray(payload.workspaces) ? payload.workspaces[0] || null : null)
     } catch (error) {
+      if (!accountsRequests.current.isCurrent(request)) return
       setPageError(error instanceof Error ? error.message : '获取子账号失败')
     } finally {
-      if (!silent) setLoading(false)
+      if (accountsRequests.current.isCurrent(request)) setLoading(false)
     }
   }, [session?.user?.role])
 
   useEffect(() => { void loadAccounts() }, [loadAccounts])
+  useEffect(() => {
+    const requests = accountsRequests.current
+    const refresh = () => void loadAccounts(true)
+    const unsubscribe = subscribeBalanceChanges(refresh)
+    window.addEventListener('focus', refresh)
+    return () => { unsubscribe(); window.removeEventListener('focus', refresh); requests.invalidate() }
+  }, [loadAccounts])
 
   const openCreate = () => {
     setTarget(null)
@@ -180,6 +200,7 @@ export function FosAccountManagementClient() {
       status: account.status,
       coinCredits: String(account.credits.coins),
       pointCredits: String(account.credits.points),
+      dailyPointLimit: account.dailyLimitPoints === null ? 'unlimited' : String(account.dailyLimitPoints),
     })
     setDialogError('')
     setMode('edit')
@@ -201,14 +222,28 @@ export function FosAccountManagementClient() {
             role: draft.role,
             roleLabel: draft.roleLabel.trim(),
             permissions: draft.permissions,
+            dailyPointLimit: draft.dailyPointLimit === 'unlimited' ? 'unlimited' : Number(draft.dailyPointLimit),
             ...(!isCreate ? { status: draft.status } : {}),
             ...(draft.password ? { password: draft.password } : {}),
           }),
         },
       )
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '保存子账号失败'))
+      const payload = await response.json() as { account?: ManagedAccount }
+      accountsRequests.current.invalidate()
+      const updated = payload.account
+      if (updated && !isCreate) {
+        setWorkspace((current) => current ? {
+          ...current,
+          subaccounts: current.subaccounts.map((item) => item.id === updated.id
+            ? { ...item, ...updated, usageToday: updateDailyUsageLimit(item.usageToday, updated.dailyLimitPoints) }
+            : item),
+        } : current)
+      }
+      setPageNotice(dailyLimitSaveMessage(updated?.dailyLimitPoints ?? null))
       setMode(null)
-      await loadAccounts()
+      notifyBalanceChanged()
+      await loadAccounts(true)
     } catch (error) {
       setDialogError(error instanceof Error ? error.message : '保存子账号失败')
     } finally {
@@ -216,7 +251,7 @@ export function FosAccountManagementClient() {
     }
   }
 
-  const openCreditOperation = (operation: 'allocate' | 'reclaim', account: ManagedAccount) => {
+  const openCreditOperation = (operation: 'reclaim', account: ManagedAccount) => {
     setCreditOperation(operation)
     setCreditTarget(account)
     setCreditRequestKey(createCreditIdempotencyKey(operation, account.id))
@@ -238,7 +273,7 @@ export function FosAccountManagementClient() {
         signal: AbortSignal.timeout(15_000),
       })
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, creditOperation === 'allocate' ? '分配积分失败' : '收回积分失败'))
+        throw new Error(await readApiErrorMessage(response, '收回历史积分失败'))
       }
       setCreditOperation(null)
       setCreditTarget(null)
@@ -287,9 +322,9 @@ export function FosAccountManagementClient() {
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              ['我的可用积分', formatNumber(workspace?.manager.credits.points || 0)],
+              ['共享可用积分', formatNumber(workspace?.manager.credits.points || 0)],
               ['角色子账号', subaccounts.length],
-              ['工作区项目', workspace?.usage.projects || 0],
+              ['工作区作品', workspace?.usage.projects || 0],
               ['工作区资产', workspace?.usage.assets || 0],
               ...((workspace?.usage.byType || emptyModelUsageSummary().byType).map((row) => (
                 [`${row.label}模型`, formatUsageMoney(row.cost)] as const
@@ -303,6 +338,7 @@ export function FosAccountManagementClient() {
           </div>
 
           <PermissionMatrix />
+          {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-[12px] text-emerald-200">{pageNotice}</div> : null}
 
           {pageError ? (
             <div className="mb-4 flex items-center justify-between rounded-[9px] border border-red-400/20 bg-red-400/10 px-4 py-3 text-[12px] text-red-200">
@@ -315,13 +351,13 @@ export function FosAccountManagementClient() {
             <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
               <div>
                 <h2 className="text-[13px] font-bold text-white">{workspace?.manager.username || '当前管理账号'}的子账号</h2>
-                <p className="mt-1 text-[9px] text-white/30">所有子账号共享当前管理账号的项目和资产读取范围。</p>
+                <p className="mt-1 text-[11px] leading-5 text-white/45">所有子账号从管理账号共享钱包扣费；个人每日额度 0 禁止生成，unlimited 不限每日用量。历史个人积分不参与共享生成，可收回共享钱包。</p>
               </div>
             </div>
             <div className="overflow-x-auto">
-              <div className="min-w-[1240px]">
-                <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_210px_minmax(180px,1fr)_130px_300px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
-                  <span>子账号</span><span>角色</span><span>状态</span><span>金币 / 积分</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
+              <div className="min-w-[1370px]">
+                <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
+                  <span>子账号</span><span>角色</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
                   <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#151515] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(21,21,21,.92)]">操作</span>
                 </div>
                 {loading ? (
@@ -331,7 +367,7 @@ export function FosAccountManagementClient() {
                 ) : subaccounts.map((account) => {
                   const definition = roleDefinition(account.role)
                   return (
-                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_210px_minmax(180px,1fr)_130px_300px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
+                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#31528d]/25 text-[#8aa8ff]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
@@ -342,6 +378,7 @@ export function FosAccountManagementClient() {
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
                       <Credits credits={account.credits} />
+                      <DailyUsageCell usage={account.usageToday} />
                       <span className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-white/55">
                         {(account.usage.byType || emptyModelUsageSummary().byType).map((row) => (
                           <span key={row.type}>
@@ -359,8 +396,8 @@ export function FosAccountManagementClient() {
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
                       <span className="sticky right-0 z-10 -my-4 flex items-center justify-end gap-2 border-l border-white/[.055] bg-[#151515] py-4 pl-3 shadow-[-12px_0_18px_rgba(21,21,21,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
-                        <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => openCreditOperation('allocate', account)}>分配</button>
-                        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openCreditOperation('reclaim', account)}>收回</button>
+                        <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => openEdit(account)}>设置额度</button>
+                        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="将历史个人积分收回共享钱包" onClick={() => openCreditOperation('reclaim', account)}>收回</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openEdit(account)}>编辑</button>
                         <button type="button" className="fos-btn fos-btn-danger fos-btn-sm" title="删除子账号" aria-label={`删除子账号 ${account.username}`} disabled={deletingId === account.id} onClick={() => void deleteAccount(account)}>
                           <AppIcon name="trash" className="h-3.5 w-3.5" />
@@ -394,9 +431,7 @@ export function FosAccountManagementClient() {
         <CreditOperationDialog
           operation={creditOperation}
           target={creditTarget}
-          sourceBalancePoints={creditOperation === 'allocate'
-            ? workspace?.manager.credits.points
-            : creditTarget.credits.points}
+          sourceBalancePoints={creditTarget.credits.points}
           saving={creditSaving}
           error={creditError}
           onClose={() => { setCreditOperation(null); setCreditTarget(null); setCreditRequestKey('') }}

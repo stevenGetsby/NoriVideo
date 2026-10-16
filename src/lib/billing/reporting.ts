@@ -80,6 +80,7 @@ export function buildBillingMeta(params: {
     model: modelShort,
     apiType: params.apiType,
   }
+  if (typeof params.metadata?.quotaUserId === 'string') meta.quotaUserId = params.metadata.quotaUserId
 
   // 从 pricingSelections 提取 capability 字段（图片分辨率、视频时长/分辨率等）
   const selections = params.metadata?.pricingSelections

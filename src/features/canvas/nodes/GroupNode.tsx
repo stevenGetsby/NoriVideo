@@ -6,6 +6,7 @@ import { NodeResizer, NodeToolbar, Position, useReactFlow, type NodeProps, type 
 import { useCanvasEditor } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
 
 const DEFAULT_GROUP_COLOR = '#64748b'
 const GROUP_COLORS: Array<string | null> = [
@@ -28,11 +29,14 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const [title, setTitle] = useState(data.title || '组')
   const [openMenu, setOpenMenu] = useState<'color' | 'arrange' | null>(null)
   const toolbarRef = useRef<HTMLDivElement>(null)
+  const colorRef = useRef<HTMLButtonElement>(null)
+  const arrangeRef = useRef<HTMLButtonElement>(null)
   useEffect(() => setTitle(data.title || '组'), [data.title])
   useEffect(() => {
     if (!openMenu) return
     const closeOutside = (event: PointerEvent) => {
-      if (!toolbarRef.current?.contains(event.target as Node)) setOpenMenu(null)
+      if (!toolbarRef.current?.contains(event.target as Node)
+        && !(event.target instanceof Element && event.target.closest('[data-canvas-group-menu]'))) setOpenMenu(null)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpenMenu(null)
@@ -66,12 +70,12 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
         {!editor.readOnly ? <>
           <div ref={toolbarRef} className="nori-canvas-group-toolbar-inner">
             <div className="nori-canvas-group-toolbar-item">
-              <button type="button" className={`is-icon-only${openMenu === 'color' ? ' is-active' : ''}`} aria-label="切换背景色" title="切换背景色" onClick={() => setOpenMenu((current) => current === 'color' ? null : 'color')}><span className="nori-canvas-group-color-dot" style={{ '--swatch': data.groupColor || DEFAULT_GROUP_COLOR } as React.CSSProperties} /></button>
-              {openMenu === 'color' ? <div className="nori-canvas-group-popover is-colors">{GROUP_COLORS.map((color) => <button type="button" key={color || 'default'} aria-label={color ? `背景色 ${color}` : '默认色'} className={(data.groupColor ?? null) === color ? 'is-current' : ''} style={{ '--swatch': color || DEFAULT_GROUP_COLOR } as React.CSSProperties} onClick={() => { editor.updateNodeData(id, { groupColor: color }, '修改组背景色'); setOpenMenu(null) }}><span /></button>)}</div> : null}
+              <button ref={colorRef} type="button" className={`is-icon-only${openMenu === 'color' ? ' is-active' : ''}`} aria-label="切换背景色" title="切换背景色" onClick={() => setOpenMenu((current) => current === 'color' ? null : 'color')}><span className="nori-canvas-group-color-dot" style={{ '--swatch': data.groupColor || DEFAULT_GROUP_COLOR } as React.CSSProperties} /></button>
+              {openMenu === 'color' ? <ViewportPopover anchorRef={colorRef} onClose={() => setOpenMenu(null)} width={170} className="nori-canvas-group-popover is-colors" data-canvas-group-menu>{GROUP_COLORS.map((color) => <button type="button" key={color || 'default'} aria-label={color ? `背景色 ${color}` : '默认色'} className={(data.groupColor ?? null) === color ? 'is-current' : ''} style={{ '--swatch': color || DEFAULT_GROUP_COLOR } as React.CSSProperties} onClick={() => { editor.updateNodeData(id, { groupColor: color }, '修改组背景色'); setOpenMenu(null) }}><span /></button>)}</ViewportPopover> : null}
             </div>
             <div className="nori-canvas-group-toolbar-item">
-              <button type="button" className={`is-icon-only${openMenu === 'arrange' ? ' is-active' : ''}`} aria-label="整理组内节点" title="整理组内节点" onClick={() => setOpenMenu((current) => current === 'arrange' ? null : 'arrange')}><Rows3 /></button>
-              {openMenu === 'arrange' ? <div className="nori-canvas-group-popover is-arrange"><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_vertical'); setOpenMenu(null) }}><Rows3 /><span>纵向整理（推荐）</span></button><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_grid'); setOpenMenu(null) }}><Grid2X2 /><span>宫格排列</span></button><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_horizontal'); setOpenMenu(null) }}><ListTree /><span>水平排列</span></button></div> : null}
+              <button ref={arrangeRef} type="button" className={`is-icon-only${openMenu === 'arrange' ? ' is-active' : ''}`} aria-label="整理组内节点" title="整理组内节点" onClick={() => setOpenMenu((current) => current === 'arrange' ? null : 'arrange')}><Rows3 /></button>
+              {openMenu === 'arrange' ? <ViewportPopover anchorRef={arrangeRef} onClose={() => setOpenMenu(null)} width={200} className="nori-canvas-group-popover is-arrange" data-canvas-group-menu><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_vertical'); setOpenMenu(null) }}><Rows3 /><span>纵向整理（推荐）</span></button><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_grid'); setOpenMenu(null) }}><Grid2X2 /><span>宫格排列</span></button><button type="button" onClick={() => { editor.runNodeAction(id, 'arrange_horizontal'); setOpenMenu(null) }}><ListTree /><span>水平排列</span></button></ViewportPopover> : null}
             </div>
           </div>
           <i className="nori-canvas-group-toolbar-divider" />

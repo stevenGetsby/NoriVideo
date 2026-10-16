@@ -103,7 +103,7 @@ export function FosAssemblyEditor({ data, initialEpisodeId }: { data: FosProject
     return () => controller.abort()
   }, [load])
 
-  if (!episodeId || data.episodes.length === 0) return <div className="fos-loading">当前项目还没有可组装的分集。</div>
+  if (!episodeId || data.episodes.length === 0) return <div className="fos-loading">当前作品还没有可组装的分集。</div>
 
   return (
     <div className="fac-page">

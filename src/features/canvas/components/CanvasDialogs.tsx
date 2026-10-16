@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AlertTriangle, Check, Clock3, Copy, History, LoaderCircle, RefreshCw, Server, X } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 import {
   canvasHistoryHasRestorableValue,
@@ -72,7 +72,7 @@ function historyPreview(item: CanvasGenerationHistoryItem, mediaType: string) {
   }
   const url = toDisplayImageUrl(item.url)
   if (!url) return <div className="nori-canvas-history-empty"><History /></div>
-  if (mediaType === 'video') return <video src={url} muted playsInline />
+  if (mediaType === 'video') return <video src={toPlayableVideoUrl(item.url) || url} muted playsInline preload="metadata" />
   if (mediaType === 'audio') return <audio src={url} controls />
   return <MediaImage src={url} alt="" width={320} height={180} />
 }
@@ -80,7 +80,7 @@ function historyPreview(item: CanvasGenerationHistoryItem, mediaType: string) {
 export function canvasHistorySourceLabel(item: CanvasGenerationHistoryItem) {
   if (item.source === 'generation') return '生成'
   if (item.source === 'upload') return '本地上传'
-  if (item.source === 'project') return '项目同步'
+  if (item.source === 'project') return '作品同步'
   if (item.source === 'canvas') return '画布版本'
   if (item.taskId || item.assetId || item.modelKey) return '生成'
   if (item.prompt === '本地替换内容') return '本地上传'
@@ -181,10 +181,21 @@ export function CanvasHistoryDialog({ node, canUse = true, onUse, onClose }: { n
                 const parameters = historyParameterSummary(item)
                 const references = historyReferenceSummary(item)
                 const currentCopyState = copyState?.id === item.id ? copyState.status : null
+                const actualCost = typeof item.actualCostPoints === 'number' && item.actualCostPoints >= 0
+                  ? item.actualCostPoints
+                  : null
+                const quotedCost = typeof item.quotedCostPoints === 'number' && item.quotedCostPoints >= 0
+                  ? item.quotedCostPoints
+                  : null
+                const costLabel = actualCost !== null
+                  ? `实际 ${actualCost.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分`
+                  : quotedCost !== null
+                    ? `预计 ${quotedCost.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分`
+                  : null
                 return (
                   <article key={item.id}>
                     <div className="nori-canvas-history-preview">{historyPreview(item, mediaType)}<span className={`is-${item.status}`}>{item.status === 'ready' ? '完成' : item.status === 'failed' ? '失败' : item.status === 'processing' ? '生成中' : '排队中'}</span></div>
-                    <div className="nori-canvas-history-meta"><div><b>版本 {history.length - index}</b><em>{canvasHistorySourceLabel(item)}</em></div><span><Clock3 />{new Date(item.createdAt).toLocaleString('zh-CN')}</span><small>{item.modelKey || '未记录模型'}</small></div>
+                    <div className="nori-canvas-history-meta"><div><b>版本 {history.length - index}</b><em>{canvasHistorySourceLabel(item)}</em></div><span><Clock3 />{new Date(item.createdAt).toLocaleString('zh-CN')}</span><small>{item.modelKey || '未记录模型'}</small>{costLabel ? <strong className="nori-canvas-history-cost">{costLabel}</strong> : null}</div>
                     <div className="nori-canvas-history-prompt">
                       <div><span>提示词</span><button type="button" disabled={!prompt} title={prompt ? '复制提示词' : '未记录提示词'} aria-label={`复制版本 ${history.length - index} 提示词`} onClick={() => void copyPrompt(item)}>{currentCopyState === 'copied' ? <Check /> : <Copy />}{currentCopyState === 'copied' ? '已复制' : currentCopyState === 'failed' ? '复制失败' : '复制'}</button></div>
                       <p title={prompt || undefined}>{prompt || '（未记录提示词）'}</p>

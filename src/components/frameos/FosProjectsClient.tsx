@@ -17,6 +17,8 @@ import { logError } from '@/lib/logging/core'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { FosShell } from './FosShell'
 import { CreateProjectDialog, type CreateProjectDraft } from './CreateProjectDialog'
+import { FosProjectModelConfigDialog } from './FosProjectModelConfigDialog'
+import { notifyProjectChanged } from '@/lib/projects/change-client'
 import { WorkPanel } from './works/FosWorkPanels'
 import { fetchAllWorks } from './works/fetch-all-works'
 import { filterWorksByQuery } from './works/work-search'
@@ -32,6 +34,7 @@ import {
   workMembersEndpoint,
 } from './works/FosWorksDialogs'
 import type { WorkProject, WorkSummary } from './works/types'
+import type { RecycleBinProject } from './works/types'
 
 const WORKS_REQUEST_TIMEOUT_MS = 15_000
 const WORKS_PAGE_SIZE = 50
@@ -53,7 +56,7 @@ type ConfirmTarget =
 
 function WorksSkeleton() {
   return (
-    <div className="works-skeleton" aria-label="正在加载作品">
+    <div className="works-skeleton" aria-label="正在加载项目">
       {[0, 1].map((item) => (
         <div key={item} className="works-skeleton-panel">
           <div className="works-skeleton-head" />
@@ -82,9 +85,15 @@ export function FosProjectsClient() {
   const [showCreateWork, setShowCreateWork] = useState(false)
   const [createProjectWork, setCreateProjectWork] = useState<WorkSummary | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
+  const [editingProject, setEditingProject] = useState<WorkProject | null>(null)
   const [memberTarget, setMemberTarget] = useState<MemberTarget | null>(null)
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null)
+  const [recycleOpen, setRecycleOpen] = useState(false)
+  const [recycleProjects, setRecycleProjects] = useState<RecycleBinProject[]>([])
+  const [recycleLoading, setRecycleLoading] = useState(false)
+  const [recycleError, setRecycleError] = useState<string | null>(null)
+  const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState(false)
   const requestSequenceRef = useRef(0)
   const requestAbortRef = useRef<AbortController | null>(null)
@@ -127,9 +136,10 @@ export function FosProjectsClient() {
     try {
       const normalized = await fetchAllWorks({
         pageSize: WORKS_PAGE_SIZE,
-        search: searchQuery,
+        // Keep the authoritative project directory complete. Search is a
+        // display projection below, not the source for move/create actions.
         signal: controller.signal,
-        fallbackErrorMessage: '获取作品失败',
+        fallbackErrorMessage: '获取项目失败',
       })
       if (requestSequenceRef.current !== requestId) return
       setWorks(normalized.works)
@@ -137,12 +147,12 @@ export function FosProjectsClient() {
     } catch (error) {
       if (requestSequenceRef.current !== requestId) return
       if (controller.signal.aborted && !timedOut) return
-      logError('[FosProjectsClient] 获取作品失败', error)
+      logError('[FosProjectsClient] 获取项目失败', error)
       setLoadError(timedOut
-        ? '加载作品超时，请检查网络或服务状态后重试。'
+        ? '加载项目超时，请检查网络或服务状态后重试。'
         : error instanceof Error && error.message
-          ? `加载作品失败：${error.message}`
-          : '加载作品失败，请稍后重试。')
+          ? `加载项目失败：${error.message}`
+          : '加载项目失败，请稍后重试。')
     } finally {
       window.clearTimeout(timeoutId)
       if (requestSequenceRef.current === requestId) {
@@ -151,7 +161,7 @@ export function FosProjectsClient() {
         setRefreshing(false)
       }
     }
-  }, [searchQuery])
+  }, [])
 
   useEffect(() => () => {
     requestSequenceRef.current += 1
@@ -165,8 +175,8 @@ export function FosProjectsClient() {
   }, [fetchWorks, session, status])
 
   useEffect(() => {
-    const requested = urlParams?.get('create_project') === '1'
-    const requestedWorkId = urlParams?.get('work_id')?.trim() || ''
+    const requested = urlParams?.get('create_work') === '1' || urlParams?.get('create_project') === '1'
+    const requestedWorkId = urlParams?.get('parent_project_id')?.trim() || urlParams?.get('work_id')?.trim() || ''
     if (!requested) {
       handledCreateProjectRequestRef.current = ''
       return
@@ -178,9 +188,9 @@ export function FosProjectsClient() {
 
     const requestedWork = works.find((work) => work.id === requestedWorkId && !work.virtual)
     if (!requestedWork) {
-      setActionError('目标作品不存在，或当前账号没有访问权限。')
+      setActionError('目标项目不存在，或当前账号没有访问权限。')
     } else if (!requestedWork.canCreateProjects) {
-      setActionError('当前账号没有在该作品中新建项目的权限。')
+      setActionError('当前账号没有在该项目中新建作品的权限。')
     } else {
       setActionError(null)
       setCreateProjectWork(requestedWork)
@@ -189,8 +199,10 @@ export function FosProjectsClient() {
     const remainingParams = new URLSearchParams(urlParams?.toString() || '')
     remainingParams.delete('create_project')
     remainingParams.delete('work_id')
+    remainingParams.delete('create_work')
+    remainingParams.delete('parent_project_id')
     const query = remainingParams.toString()
-    router.replace(query ? `/works?${query}` : '/works')
+    router.replace(query ? `/projects?${query}` : '/projects')
   }, [loading, router, status, urlParams, works])
 
   const visibleWorks = useMemo(() => filterWorksByQuery(works, searchQuery), [searchQuery, works])
@@ -220,7 +232,7 @@ export function FosProjectsClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(input),
     })
-    if (!response.ok) throw new Error(await readApiErrorMessage(response, '创建作品失败'))
+    if (!response.ok) throw new Error(await readApiErrorMessage(response, '创建项目失败'))
     setShowCreateWork(false)
     await fetchWorks({ silent: true })
   })
@@ -230,16 +242,17 @@ export function FosProjectsClient() {
     setProgress: (message: string) => void,
     onStyleReferenceProgress: (update: ProjectStyleReferenceProgressUpdate) => void,
   ): Promise<boolean> => {
-    if (!createProjectWork) throw new Error('未选择作品')
+    if (!createProjectWork) throw new Error('未选择项目')
     setProgress(
       draft.scriptFile || draft.importedScriptText?.trim()
-        ? '导入剧本并创建项目…'
+        ? '导入剧本并创建作品…'
         : draft.initializeEpisodeRange
-          ? '创建项目和空白剧集…'
-          : '创建空白项目…',
+          ? '创建作品和空白剧集…'
+          : '创建空白作品…',
     )
     const form = new FormData()
     form.set('name', draft.name.trim())
+    form.set('parentProjectId', createProjectWork.id)
     form.set('workId', createProjectWork.id)
     form.set('collaborationMode', draft.collaborationMode)
     form.set('projectLevel', draft.projectLevel)
@@ -299,11 +312,11 @@ export function FosProjectsClient() {
           })
         }
       }
-      throw new Error(await readApiErrorMessage(response, '创建项目失败'))
+      throw new Error(await readApiErrorMessage(response, '创建作品失败'))
     }
-    const payload = await response.json() as { project?: { id?: string } }
-    const projectId = payload.project?.id
-    if (!projectId) throw new Error('创建项目失败：服务未返回项目 ID')
+    const payload = await response.json() as { work?: { id?: string }; project?: { id?: string } }
+    const projectId = payload.work?.id || payload.project?.id
+    if (!projectId) throw new Error('创建作品失败：服务未返回作品 ID')
     setProgress('进入工作台…')
     setCreateProjectWork(null)
     router.push({ pathname: `/workflow/${projectId}/workbench-premium2` })
@@ -322,6 +335,7 @@ export function FosProjectsClient() {
         body: JSON.stringify({ name }),
       })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '重命名失败'))
+      if (renameTarget.kind === 'project') notifyProjectChanged(renameTarget.project.id)
       setRenameTarget(null)
       setActiveMenuId(null)
       await fetchWorks({ silent: true })
@@ -334,9 +348,12 @@ export function FosProjectsClient() {
       const response = await apiFetch('/api/works/projects/move', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ projectIds: moveTarget.projects.map((project) => project.id), targetWorkId }),
+        body: JSON.stringify({
+          workIds: moveTarget.projects.map((project) => project.id), targetProjectId: targetWorkId,
+          projectIds: moveTarget.projects.map((project) => project.id), targetWorkId,
+        }),
       })
-      if (!response.ok) throw new Error(await readApiErrorMessage(response, '移动项目失败'))
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '移动作品失败'))
       setMoveTarget(null)
       setBatchWorkId(null)
       setSelectedProjectIds([])
@@ -359,6 +376,41 @@ export function FosProjectsClient() {
     })
   }
 
+  const loadRecycleBin = useCallback(async () => {
+    setRecycleLoading(true)
+    setRecycleError(null)
+    try {
+      const response = await apiFetch('/api/projects/recycle-bin', { cache: 'no-store' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载回收站失败'))
+      const payload = await response.json() as { projects?: RecycleBinProject[] }
+      setRecycleProjects(Array.isArray(payload.projects) ? payload.projects : [])
+    } catch (error) {
+      setRecycleError(error instanceof Error ? error.message : '加载回收站失败')
+    } finally {
+      setRecycleLoading(false)
+    }
+  }, [])
+
+  const openRecycleBin = () => {
+    setRecycleOpen(true)
+    void loadRecycleBin()
+  }
+
+  const restoreProject = async (projectId: string) => {
+    setRestoringProjectId(projectId)
+    setRecycleError(null)
+    try {
+      const response = await apiFetch(`/api/projects/recycle-bin/${encodeURIComponent(projectId)}/restore`, { method: 'POST' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '恢复作品失败'))
+      setRecycleProjects((current) => current.filter((project) => project.id !== projectId))
+      await fetchWorks({ silent: true })
+    } catch (error) {
+      setRecycleError(error instanceof Error ? error.message : '恢复作品失败')
+    } finally {
+      setRestoringProjectId(null)
+    }
+  }
+
   if (status === 'loading' || (!session && !TEST_MODE)) {
     return <div className="fos-app"><div className="fos-loading">加载中…</div></div>
   }
@@ -369,16 +421,19 @@ export function FosProjectsClient() {
         <section className="works-view">
           <header className="works-view-header">
             <div className="works-heading">
-              <h1 className="works-view-title">我的作品</h1>
+              <h1 className="works-view-title">我的项目</h1>
               {canCreateWorks ? (
                 <button type="button" className="works-create-work" onClick={() => setShowCreateWork(true)}>
-                  <AppIcon name="plus" />新建作品
+                  <AppIcon name="plus" />新建项目
                 </button>
               ) : null}
+              <button type="button" className="works-recycle-trigger" onClick={openRecycleBin}>
+                <AppIcon name="trash" />回收站
+              </button>
               {refreshing ? <span className="works-refreshing"><AppIcon name="loader" className="animate-spin" />正在刷新</span> : null}
             </div>
             <div className="works-search-group">
-              <span>{worksTotal} 个作品</span>
+              <span>{worksTotal} 个项目</span>
               <label className="works-search">
                 <AppIcon name="search" />
                 <input
@@ -390,8 +445,8 @@ export function FosProjectsClient() {
                     event.stopPropagation()
                     clearSearch()
                   }}
-                  placeholder="搜索作品或项目…"
-                  aria-label="搜索作品或项目"
+                  placeholder="搜索项目或作品…"
+                  aria-label="搜索项目或作品"
                 />
                 {searchInput ? <button type="button" onClick={clearSearch} aria-label="清除搜索"><AppIcon name="close" /></button> : null}
               </label>
@@ -409,20 +464,20 @@ export function FosProjectsClient() {
           {loading ? <WorksSkeleton /> : loadError ? (
             <div className="works-state-card is-error" role="alert" data-testid="project-list-error">
               <span><AppIcon name="alert" /></span>
-              <h2>作品加载失败</h2>
+              <h2>项目加载失败</h2>
               <p>{loadError}</p>
               <button type="button" className="fos-btn fos-btn-primary" data-testid="project-list-retry" onClick={() => void fetchWorks()}><AppIcon name="refresh" />重新加载</button>
             </div>
           ) : visibleWorks.length === 0 ? searchQuery ? (
             <div className="works-search-empty" data-testid="project-list-empty">
-              没有匹配「{searchQuery}」的作品或项目
+              没有匹配「{searchQuery}」的项目或作品
             </div>
           ) : (
             <div className="works-state-card" data-testid="project-list-empty">
               <span><AppIcon name="folderOpen" /></span>
-              <h2>暂无作品</h2>
-              <p>{canCreateWorks ? '创建第一部作品，再向其中添加项目。' : '管理员还没有为当前工作区创建作品。'}</p>
-              {canCreateWorks ? <button type="button" className="fos-btn fos-btn-primary" data-testid="project-list-empty-create" onClick={() => setShowCreateWork(true)}><AppIcon name="plus" />新建作品</button> : null}
+              <h2>暂无项目</h2>
+              <p>{canCreateWorks ? '创建第一个项目，再向其中添加作品。' : '管理员还没有为当前工作区创建项目。'}</p>
+              {canCreateWorks ? <button type="button" className="fos-btn fos-btn-primary" data-testid="project-list-empty-create" onClick={() => setShowCreateWork(true)}><AppIcon name="plus" />新建项目</button> : null}
             </div>
           ) : (
             <div className="works-panel-list">
@@ -446,6 +501,7 @@ export function FosProjectsClient() {
                     moveSelected: (projects, sourceWork) => setMoveTarget({ projects, work: sourceWork }),
                   }}
                   projectActions={{
+                    edit: (target) => { setEditingProject(target); setActiveMenuId(null) },
                     rename: (target) => { setRenameTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
                     members: (target) => { setMemberTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
                     move: (target, sourceWork) => { setMoveTarget({ projects: [target], work: sourceWork }); setActiveMenuId(null) },
@@ -475,7 +531,7 @@ export function FosProjectsClient() {
       ) : null}
       {renameTarget ? (
         <RenameDialog
-          kind={renameTarget.kind === 'work' ? '作品' : '项目'}
+          kind={renameTarget.kind === 'work' ? '项目' : '作品'}
           initialName={renameTarget.kind === 'work' ? renameTarget.work.name : renameTarget.project.name}
           busy={actionBusy}
           duplicate={renameTarget.kind === 'work'
@@ -485,9 +541,15 @@ export function FosProjectsClient() {
           onSave={saveRename}
         />
       ) : null}
+      {editingProject ? <FosProjectModelConfigDialog
+        projectId={editingProject.id}
+        open
+        onClose={() => setEditingProject(null)}
+        onSaved={() => void fetchWorks({ silent: true })}
+      /> : null}
       {memberTarget ? memberTarget.kind === 'work' ? (
         <MemberManagerDialog
-          title={`${memberTarget.work.canManage ? '设置' : '查看'}作品成员 · ${memberTarget.work.name}`}
+          title={`${memberTarget.work.canManage ? '设置' : '查看'}项目成员 · ${memberTarget.work.name}`}
           endpoint={workMembersEndpoint(memberTarget.work.id)}
           candidatesPath={workMemberCandidatesEndpoint(memberTarget.work.id)}
           readOnly={!memberTarget.work.canManage}
@@ -496,7 +558,7 @@ export function FosProjectsClient() {
         />
       ) : (
         <MemberManagerDialog
-          title={`${memberTarget.project.canManage ? '设置' : '查看'}项目协作者 · ${memberTarget.project.name}`}
+          title={`${memberTarget.project.canManage ? '设置' : '查看'}作品协作者 · ${memberTarget.project.name}`}
           endpoint={projectMembersEndpoint(memberTarget.project.id)}
           candidatesPath={projectMemberCandidatesEndpoint(memberTarget.project.id)}
           readOnly={!memberTarget.project.canManage}
@@ -516,16 +578,49 @@ export function FosProjectsClient() {
       ) : null}
       {confirmTarget ? (
         <ConfirmActionDialog
-          title={confirmTarget.kind === 'work' ? '删除作品' : '删除项目'}
+          title={confirmTarget.kind === 'work' ? '删除项目' : '删除作品'}
           description={confirmTarget.kind === 'work'
-            ? `确定删除空作品「${confirmTarget.work.name}」吗？此操作无法恢复。`
-            : `确定删除项目「${confirmTarget.project.name}」吗？项目内剧本、资产、分镜、画布和生成记录会一并删除，且无法恢复。`}
+            ? `确定删除空项目「${confirmTarget.work.name}」吗？此操作无法恢复。`
+            : `确定删除作品「${confirmTarget.project.name}」吗？作品会移入回收站，15 天内可恢复。`}
           confirmLabel="确认删除"
           danger
           busy={actionBusy}
           onClose={() => setConfirmTarget(null)}
           onConfirm={confirmDelete}
         />
+      ) : null}
+      {recycleOpen ? (
+        <div className="fos-overlay works-modal-overlay" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !restoringProjectId) setRecycleOpen(false) }}>
+          <section className="fos-dialog works-dialog" style={{ maxWidth: 720 }} role="dialog" aria-modal="true" aria-label="作品回收站">
+            <header className="fos-dialog-head">
+              <div>
+                <h2 className="fos-dialog-title">作品回收站</h2>
+                <p className="works-recycle-subtitle">已删除作品保留 15 天，到期后自动彻底清理。</p>
+              </div>
+              <button type="button" className="fos-dialog-x" disabled={Boolean(restoringProjectId)} onClick={() => setRecycleOpen(false)} aria-label="关闭"><AppIcon name="close" /></button>
+            </header>
+            <div className="works-dialog-body">
+              {recycleLoading ? <div className="works-recycle-state">正在加载回收站…</div> : recycleError ? <div className="works-form-error">{recycleError}</div> : recycleProjects.length === 0 ? <div className="works-recycle-state">回收站为空</div> : (
+                <div className="works-recycle-list">
+                  {recycleProjects.map((project) => (
+                    <article key={project.id} className="works-recycle-item">
+                      <div>
+                        <strong>{project.name}</strong>
+                        <small>{project.workName || '未归属项目'} · 删除于 {project.deletedAt ? new Date(project.deletedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—'}</small>
+                      </div>
+                      <div>
+                        <span>{project.expired ? '已到期' : `剩 ${project.remainingDays ?? 0} 天`}</span>
+                        <button type="button" className="fos-btn fos-btn-primary" disabled={project.expired || restoringProjectId === project.id} onClick={() => void restoreProject(project.id)}>
+                          {restoringProjectId === project.id ? '恢复中…' : '恢复'}
+                        </button>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </div>
+          </section>
+        </div>
       ) : null}
     </FosShell>
   )

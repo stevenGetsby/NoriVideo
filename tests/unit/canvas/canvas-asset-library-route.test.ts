@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { NextResponse } from 'next/server'
 import { buildMockRequest } from '../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
@@ -16,6 +15,7 @@ const scopeMock = vi.hoisted(() => ({
 
 const prismaMock = vi.hoisted(() => ({
   canvasNode: { findMany: vi.fn() },
+  frameosMaterial: { findFirst: vi.fn() },
 }))
 
 const materialMock = vi.hoisted(() => ({
@@ -50,6 +50,7 @@ describe('画布节点登记到资产库', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.canvasNode.findMany.mockResolvedValue([imageNode])
+    prismaMock.frameosMaterial.findFirst.mockResolvedValue({ id: 'material-existing' })
     materialMock.registerFrameosMaterial.mockResolvedValue({ id: 'material-1', title: '主角定妆照' })
   })
 
@@ -105,5 +106,28 @@ describe('画布节点登记到资产库', () => {
     const response = await post({ nodeIds: ['node-1'] })
     await expect(response.json()).resolves.toMatchObject({ materialByNodeId: { 'node-1': 'material-existing' } })
     expect(materialMock.registerFrameosMaterial).not.toHaveBeenCalled()
+  })
+
+  it('失效节点整批拒绝，不先登记有效项', async () => {
+    const response = await post({ nodeIds: ['node-1', 'deleted-node'] })
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: 'INVALID_PARAMS', details: { missingReferenceNodeIds: ['deleted-node'] } },
+    })
+    expect(materialMock.registerFrameosMaterial).not.toHaveBeenCalled()
+  })
+
+  it('已删除素材不能因为节点缓存了 materialId 就继续复用', async () => {
+    prismaMock.canvasNode.findMany.mockResolvedValue([
+      { ...imageNode, data: { ...imageNode.data, materialId: 'material-deleted' } },
+    ])
+    prismaMock.frameosMaterial.findFirst.mockResolvedValue(null)
+    expect((await post({ nodeIds: ['node-1'] })).status).toBe(400)
+    expect(materialMock.registerFrameosMaterial).not.toHaveBeenCalled()
+  })
+
+  it('超过登记上限要明确拒绝，不能截掉末尾引用', async () => {
+    expect((await post({ nodeIds: Array.from({ length: 21 }, (_, i) => `node-${i}`) })).status).toBe(400)
+    expect(prismaMock.canvasNode.findMany).not.toHaveBeenCalled()
   })
 })

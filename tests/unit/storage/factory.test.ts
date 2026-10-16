@@ -1,6 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createStorageProvider } from '@/lib/storage/factory'
 import { StorageConfigError, StorageProviderNotImplementedError } from '@/lib/storage/errors'
+// These provider unit tests explicitly opt out of the fixed application
+// config; no running app, bucket or credentials are changed.
+vi.mock('@/lib/service-config', () => ({ getServiceStorageConfig: vi.fn(() => undefined) }))
 
 describe('storage factory', () => {
   afterEach(() => {
@@ -16,7 +19,7 @@ describe('storage factory', () => {
 
   it('uses local storage by default in test mode', () => {
     process.env.NORI_TEST_MODE = 'true'
-    process.env.STORAGE_TYPE = 'cos'
+    delete process.env.STORAGE_TYPE
 
     const provider = createStorageProvider()
 

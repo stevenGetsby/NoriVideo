@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import type { Canvas } from '../types'
+import { CanvasViewportLayer } from './CanvasViewportLayer'
 
 export type CanvasManagementIntent =
   | { type: 'create'; defaultTitle: string }
@@ -77,6 +78,7 @@ export function CanvasManagementDialog({
       : `确定删除「${intent.canvas.title}」吗？画布内的节点、连线和历史版本将一并删除。`
 
   return (
+    <CanvasViewportLayer>
     <div
       className="nori-canvas-dialog-scrim nori-canvas-management-scrim"
       data-testid={`canvas-${intent.type}-dialog`}
@@ -110,7 +112,7 @@ export function CanvasManagementDialog({
           ) : (
             <div className="nori-canvas-management-warning">
               <AppIcon name="alert" />
-              <span><b>此操作无法撤销</b><small>当前画布包含 {intent.canvas.nodeCount ?? 0} 个节点。删除后，如果这是项目最后一张画布，将返回创建引导。</small></span>
+              <span><b>此操作无法撤销</b><small>当前画布包含 {intent.canvas.nodeCount ?? 0} 个节点。删除后，如果这是作品最后一张画布，将返回创建引导。</small></span>
             </div>
           )}
           {validationError || error ? <div className="nori-canvas-management-error" role="alert"><AppIcon name="alert" />{validationError || error}</div> : null}
@@ -123,5 +125,6 @@ export function CanvasManagementDialog({
         </footer>
       </form>
     </div>
+    </CanvasViewportLayer>
   )
 }

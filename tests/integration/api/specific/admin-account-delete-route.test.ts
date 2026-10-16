@@ -4,6 +4,7 @@ import { buildMockRequest } from '../../../helpers/request'
 const requireAdminAuthMock = vi.hoisted(() => vi.fn())
 const transactionMock = vi.hoisted(() => ({
   user: { updateMany: vi.fn() },
+  userBalance: { findUnique: vi.fn() },
   workMember: { deleteMany: vi.fn() },
   projectMember: { deleteMany: vi.fn() },
   workflowAssignment: { updateMany: vi.fn() },
@@ -70,6 +71,7 @@ describe('management account subaccount deletion', () => {
     prismaMock.user.findFirst.mockResolvedValue(childAccount)
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof transactionMock) => unknown) => callback(transactionMock))
     transactionMock.user.updateMany.mockResolvedValue({ count: 1 })
+    transactionMock.userBalance.findUnique.mockResolvedValue({ balance: 0, frozenAmount: 0 })
     transactionMock.workMember.deleteMany.mockResolvedValue({ count: 0 })
     transactionMock.projectMember.deleteMany.mockResolvedValue({ count: 0 })
     transactionMock.workflowAssignment.updateMany.mockResolvedValue({ count: 0 })
@@ -129,6 +131,14 @@ describe('management account subaccount deletion', () => {
 
     expect(response.status).toBe(409)
     expect(transactionMock.workMember.deleteMany).not.toHaveBeenCalled()
+  })
+  it.each([{ balance: 2, frozenAmount: 0 }, { balance: 0, frozenAmount: 1 }])('preserves legacy funds before deleting a subaccount: %j', async (wallet) => {
+    transactionMock.userBalance.findUnique.mockResolvedValueOnce(wallet)
+    const response = await deleteChild()
+    expect(response.status).toBe(409)
+    expect((await response.json()).message).toContain('收回')
+    expect(transactionMock.workMember.deleteMany).not.toHaveBeenCalled()
+    expect(transactionMock.session.deleteMany).not.toHaveBeenCalled()
   })
 
   it('does not let a manager delete another workspace child', async () => {

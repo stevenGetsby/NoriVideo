@@ -11,6 +11,9 @@ export async function resetBillingState() {
   await prisma.session.deleteMany()
   await prisma.account.deleteMany()
   await prisma.userPreference.deleteMany()
+  // Self-referential parent accounts use RESTRICT, including in MySQL's
+  // multi-row DELETE. Detach the test hierarchy before deleting its users.
+  await prisma.user.updateMany({ data: { parentAccountId: null } })
   await prisma.user.deleteMany()
 }
 
@@ -56,5 +59,6 @@ export async function resetSystemState() {
   await prisma.userBalance.deleteMany()
   await prisma.balanceFreeze.deleteMany()
   await prisma.balanceTransaction.deleteMany()
+  await prisma.user.updateMany({ data: { parentAccountId: null } })
   await prisma.user.deleteMany()
 }

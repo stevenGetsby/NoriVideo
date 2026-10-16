@@ -70,7 +70,7 @@ describe('FrameOS project material categories', () => {
     expect(assets).toContain('新增资产')
     expect(assets).toContain('initialAssetCategory={uploadCategory}')
     expect(canvas).toContain('aria-label="资产归类"')
-    expect(materials).toContain('绑定项目角色')
+    expect(materials).toContain('绑定作品角色')
     expect(materials).toContain('同一角色的图片与音频会在资产库聚合显示')
     expect(assets).toContain('mergeBoundCharacterMaterials')
     expect(canvas).toContain('updateMaterialCategory')

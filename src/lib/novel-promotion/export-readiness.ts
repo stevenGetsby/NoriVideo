@@ -115,6 +115,7 @@ export async function resolveExportReadiness(params: {
     where: {
       id: params.projectId,
       userId: params.userId,
+      deletedAt: null,
     },
     select: {
       id: true,

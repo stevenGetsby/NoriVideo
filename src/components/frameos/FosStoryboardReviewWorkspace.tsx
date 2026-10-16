@@ -156,7 +156,7 @@ export function FosStoryboardReviewWorkspace({
         <header className="fvr-header">
           <button type="button" className="fvr-back" onClick={backToTasks}><AppIcon name="chevronLeft" />返回我的任务</button>
           <div className="fvr-heading">
-            <span>{context?.assignment.workName || '作品'} / {context?.assignment.projectName || '项目'}</span>
+            <span>{context?.assignment.workName || '项目'} / {context?.assignment.projectName || '作品'}</span>
             <h1>第 {context?.assignment.episodeNumber ?? '—'} 集分镜内容审核</h1>
             <p>{context?.assignment.episodeName || '未命名分集'} · {scenes} 个场景 · {panels.length} 个 Segment · 不含视频成片</p>
           </div>
@@ -186,7 +186,7 @@ export function FosStoryboardReviewWorkspace({
               ))}
               <div className={`fvr-snapshot-note${context.snapshotSource === 'live' ? ' is-warning' : ''}`}>
                 <AppIcon name={context.snapshotSource === 'submission' ? 'check' : 'alert'} />
-                <span>{context.snapshotSource === 'submission' ? '当前展示提交时的分镜版本快照，不会被后续编辑覆盖。' : '这是旧任务，提交时未保存快照；当前展示项目中的现有分镜内容。'}</span>
+                <span>{context.snapshotSource === 'submission' ? '当前展示提交时的分镜版本快照，不会被后续编辑覆盖。' : '这是旧任务，提交时未保存快照；当前展示作品中的现有分镜内容。'}</span>
               </div>
             </aside>
 

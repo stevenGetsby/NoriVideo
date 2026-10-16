@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { logProjectAction } from '@/lib/logging/semantic'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
+import { requireProjectReader } from '@/lib/collaboration/access'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { validateVideoExportTemplate } from '@/lib/novel-promotion/video-export-name'
 import { isArtStyleValue, isCustomArtStyleValue, parseCustomArtStyles, resolveCustomArtStylePrompt } from '@/lib/constants'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 import { extractModelKey, getProjectModelConfig } from '@/lib/config-service'
@@ -17,9 +19,15 @@ import {
   type CapabilityModelContext} from '@/lib/model-capabilities/lookup'
 import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
 import {
+  type ProjectStyle,
   EPISODE_DURATION_MODES,
-  PROJECT_LEVELS,
   PROJECT_STYLES,
+  TARGET_AUDIENCES,
+  VIDEO_RATIOS,
+  VIDEO_RESOLUTIONS,
+  CREATE_PROJECT_STYLE_PROMPT_MAX_LENGTH,
+  buildUnifiedArtStylePrompt,
+  PROJECT_LEVELS,
 } from '@/lib/projects/creation-config'
 
 const MODEL_FIELDS = [
@@ -53,6 +61,18 @@ const USER_MODEL_DEFAULT_SELECT = {
   videoModel: true,
   audioModel: true,
 } as const
+
+const PROJECT_SETTING_ENUMS = {
+  projectStyle: PROJECT_STYLES,
+  targetAudience: TARGET_AUDIENCES,
+  videoRatio: VIDEO_RATIOS,
+  videoResolution: VIDEO_RESOLUTIONS,
+} as const
+
+type ProjectSettingEnumField = keyof typeof PROJECT_SETTING_ENUMS
+type ProjectSettingEnumValue = (typeof PROJECT_SETTING_ENUMS)[ProjectSettingEnumField][number]
+
+const CUSTOM_ART_STYLE_MARKER = '【用户自定义画风（最高优先级）】'
 
 type ProjectModelFields = Record<typeof MODEL_FIELDS[number], string | null | undefined>
 
@@ -171,6 +191,30 @@ function validateWorkflowModeField(value: unknown): typeof WORKFLOW_MODES[number
     })
   }
   return value as typeof WORKFLOW_MODES[number]
+}
+
+function validateProjectSettingEnum(field: ProjectSettingEnumField, value: unknown): ProjectSettingEnumValue {
+  const allowed = PROJECT_SETTING_ENUMS[field]
+  if (typeof value !== 'string' || !(allowed as readonly string[]).includes(value)) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: `${field.replace(/([A-Z])/g, '_$1').toUpperCase()}_INVALID`,
+      field,
+      allowedValues: [...allowed],
+      message: `${field} must be one of: ${allowed.join(', ')}`,
+    })
+  }
+  return value as ProjectSettingEnumValue
+}
+
+function editableArtStylePrompt(value: string | null | undefined): string {
+  if (!value) return ''
+  const markerIndex = value.indexOf(CUSTOM_ART_STYLE_MARKER)
+  if (markerIndex < 0) return ''
+  const start = markerIndex + CUSTOM_ART_STYLE_MARKER.length
+  const rest = value.slice(start)
+  const nextSection = rest.indexOf('\n\n【')
+  const custom = (nextSection >= 0 ? rest.slice(0, nextSection) : rest).trim()
+  return custom
 }
 
 function resolveEffectiveModelFields(
@@ -298,6 +342,15 @@ export const GET = apiHandler(async (
       editModel: true,
       videoModel: true,
       audioModel: true,
+      projectStyle: true,
+      targetAudience: true,
+      videoRatio: true,
+      videoResolution: true,
+      episodeDurationMode: true,
+      episodeDurationValue: true,
+      artStylePrompt: true,
+      exportNamingTemplate: true,
+      exportDirectoryHint: true,
     }})
   const storedOverrides = parseStoredCapabilitySelections(projectData?.capabilityOverrides)
   const projectModelConfig = projectData
@@ -322,6 +375,15 @@ export const GET = apiHandler(async (
   return NextResponse.json({
     capabilityOverrides: cleanedOverrides,
     modelConfig: effectiveModelFields,
+    projectStyle: projectData?.projectStyle,
+    targetAudience: projectData?.targetAudience,
+    videoRatio: projectData?.videoRatio,
+    videoResolution: projectData?.videoResolution,
+    episodeDurationMode: projectData?.episodeDurationMode,
+    episodeDurationValue: projectData?.episodeDurationValue,
+    artStylePrompt: editableArtStylePrompt(projectData?.artStylePrompt),
+    exportNamingTemplate: projectData?.exportNamingTemplate || null,
+    exportDirectoryHint: projectData?.exportDirectoryHint || null,
   })
 })
 
@@ -337,6 +399,8 @@ export const PATCH = apiHandler(async (
   const session = authResult.session
   const project = authResult.project
 
+  await requireProjectReader(session, projectId)
+
   const body = await request.json()
 
   const currentProjectConfig = await prisma.novelPromotionProject.findUnique({
@@ -349,6 +413,8 @@ export const PATCH = apiHandler(async (
       editModel: true,
       videoModel: true,
       audioModel: true,
+      projectStyle: true,
+      artStylePrompt: true,
     }})
   if (!currentProjectConfig) {
     throw new ApiError('NOT_FOUND')
@@ -365,6 +431,7 @@ export const PATCH = apiHandler(async (
     'ttsRate', 'lipSyncEnabled', 'lipSyncMode', 'capabilityOverrides', 'workflowMode',
     'projectLevel', 'projectStyle', 'targetAudience', 'episodeDurationMode',
     'episodeDurationValue', 'targetEpisodeDurationSeconds',
+    'exportNamingTemplate', 'exportDirectoryHint',
   ] as const
 
   const updateData: Record<string, unknown> = {}
@@ -413,26 +480,22 @@ export const PATCH = apiHandler(async (
     }
 
     if (field === 'projectStyle') {
-      if (!(PROJECT_STYLES as readonly unknown[]).includes(body[field])) {
-        throw new ApiError('INVALID_PARAMS', {
-          code: 'PROJECT_STYLE_INVALID',
-          field,
-          message: `projectStyle must be one of: ${PROJECT_STYLES.join(', ')}`,
-        })
-      }
-      updateData.projectStyle = body[field]
+      updateData.projectStyle = validateProjectSettingEnum('projectStyle', body[field])
       continue
     }
 
     if (field === 'targetAudience') {
-      if (body[field] !== 'zh-platform' && body[field] !== 'global-platform') {
-        throw new ApiError('INVALID_PARAMS', {
-          code: 'TARGET_AUDIENCE_INVALID',
-          field,
-          message: 'targetAudience must be zh-platform or global-platform',
-        })
-      }
-      updateData.targetAudience = body[field]
+      updateData.targetAudience = validateProjectSettingEnum('targetAudience', body[field])
+      continue
+    }
+
+    if (field === 'videoRatio') {
+      updateData.videoRatio = validateProjectSettingEnum('videoRatio', body[field])
+      continue
+    }
+
+    if (field === 'videoResolution') {
+      updateData.videoResolution = validateProjectSettingEnum('videoResolution', body[field])
       continue
     }
 
@@ -462,6 +525,52 @@ export const PATCH = apiHandler(async (
       }
       updateData.episodeDurationValue = seconds
       updateData.targetEpisodeDurationSeconds = seconds
+      continue
+    }
+
+    if (field === 'artStylePrompt') {
+      if (typeof body[field] !== 'string') {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'FIELD_TYPE_INVALID',
+          field,
+          message: 'artStylePrompt must be a string',
+        })
+      }
+      const customPrompt = body[field].trim()
+      if (customPrompt.length > CREATE_PROJECT_STYLE_PROMPT_MAX_LENGTH) {
+        throw new ApiError('INVALID_PARAMS', {
+          code: 'FIELD_TOO_LONG',
+          field,
+          limit: CREATE_PROJECT_STYLE_PROMPT_MAX_LENGTH,
+          message: `${field} is too long`,
+        })
+      }
+      const nextProjectStyle = validateProjectSettingEnum(
+        'projectStyle',
+        body.projectStyle ?? currentProjectConfig.projectStyle,
+      )
+      updateData.artStylePrompt = buildUnifiedArtStylePrompt({
+        projectStyle: nextProjectStyle as ProjectStyle,
+        referenceArtStylePrompt: null,
+        customArtStylePrompt: customPrompt || null,
+      })
+      continue
+    }
+
+    if (field === 'exportNamingTemplate') {
+      if (typeof body[field] !== 'string' || body[field].length > 191) {
+        throw new ApiError('INVALID_PARAMS', { code: 'FIELD_TOO_LONG', field, message: 'exportNamingTemplate must be a string up to 191 characters' })
+      }
+      if (!validateVideoExportTemplate(body[field].trim())) throw new ApiError('INVALID_PARAMS', { message: '导出命名规则不能包含路径或未知占位符。' })
+      updateData.exportNamingTemplate = body[field].trim() || null
+      continue
+    }
+
+    if (field === 'exportDirectoryHint') {
+      if (typeof body[field] !== 'string' || body[field].length > 500) {
+        throw new ApiError('INVALID_PARAMS', { code: 'FIELD_TOO_LONG', field, message: 'exportDirectoryHint must be a string up to 500 characters' })
+      }
+      updateData.exportDirectoryHint = body[field].trim() || null
       continue
     }
 

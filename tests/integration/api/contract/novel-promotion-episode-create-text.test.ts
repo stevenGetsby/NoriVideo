@@ -4,6 +4,7 @@ import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
   requireProjectAuth: vi.fn(async () => ({
+    session: { user: { id: 'user-1' } },
     novelData: { id: 'np-1', projectId: 'project-1', importStatus: 'pending', pendingImportText: '第一章内容', pendingImportEpisodeName: null },
   })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
@@ -29,8 +30,13 @@ const prismaMock = vi.hoisted(() => ({
   },
 }))
 
+const assignmentsMock = vi.hoisted(() => ({
+  syncProjectAssignmentsForProject: vi.fn(async () => undefined),
+}))
+
 vi.mock('@/lib/api-auth', () => authMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
+vi.mock('@/lib/collaboration/assignments', () => assignmentsMock)
 
 describe('api specific - novel promotion episode create text', () => {
   beforeEach(() => {
@@ -64,6 +70,9 @@ describe('api specific - novel promotion episode create text', () => {
     const res = await mod.POST(req, { params: Promise.resolve({ projectId: 'project-1' }) })
 
     expect(res.status).toBe(201)
+    expect(assignmentsMock.syncProjectAssignmentsForProject).toHaveBeenCalledWith({
+      projectId: 'project-1', workspaceOwnerId: 'user-1',
+    })
     expect(prismaMock.novelPromotionEpisode.create).toHaveBeenCalledWith({
       data: {
         novelPromotionProjectId: 'np-1',

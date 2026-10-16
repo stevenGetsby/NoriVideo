@@ -188,7 +188,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
       return {
         tone: 'error',
         title: '审核未通过',
-        detail: scriptAssignment.lastReviewNote?.trim() || '审核人员未填写修改意见，请联系项目管理员。',
+        detail: scriptAssignment.lastReviewNote?.trim() || '审核人员未填写修改意见，请联系作品管理员。',
       }
     }
     if (scriptAssignment.status === 'pending_review') {
@@ -204,12 +204,12 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
       return { tone: 'success', title: '剧本已审核通过', detail: scriptAssignment.lastReviewNote?.trim() || '该剧本任务已完成。' }
     }
     if (scriptAssignment.status === 'unassigned') {
-      return { tone: 'neutral', title: '剧本任务待分配', detail: '请由管理账号在项目协作任务中指定编剧。' }
+      return { tone: 'neutral', title: '剧本任务待分配', detail: '请由管理账号在作品协作任务中指定编剧。' }
     }
     if (!scriptAssignment.canSubmit && !isManagement) {
       return { tone: 'neutral', title: '当前为只读模式', detail: `该任务已分配给${scriptAssignment.assigneeName || '其他账号'}。` }
     }
-    return { tone: 'info', title: '剧本任务进行中', detail: '完成本项目剧本修改后，点击底部“提交”进入审核。' }
+    return { tone: 'info', title: '剧本任务进行中', detail: '完成本作品剧本修改后，点击底部“提交”进入审核。' }
   })()
 
   const assignmentToneClass = assignmentState?.tone === 'error'

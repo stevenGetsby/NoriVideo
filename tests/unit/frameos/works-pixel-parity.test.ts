@@ -12,7 +12,7 @@ describe('FrameOS works pixel-parity contract', () => {
     const panels = readSource('src/components/frameos/works/FosWorkPanels.tsx')
     const styles = readSource('src/styles/frameos-replica.css')
 
-    expect(client).toContain('<h1 className="works-view-title">我的作品</h1>')
+    expect(client).toContain('<h1 className="works-view-title">我的项目</h1>')
     expect(styles).toContain('line-height: 26px;')
     expect(styles).toContain('grid-template-columns: repeat(auto-fill,minmax(220px,231px))')
     expect(styles).toMatch(/\.works-project-card\s*\{[^}]*height:\s*342px;/)
@@ -21,9 +21,9 @@ describe('FrameOS works pixel-parity contract', () => {
     expect(styles).toContain('.works-panel-menu,.works-card-menu { width: 158px; min-width: 158px; padding: 4px; }')
     expect(styles).toContain('min-height: 44px;')
 
-    expect(panels).toContain('移动到作品')
+    expect(panels).toContain('移动到项目')
     expect(panels).toContain('进入无限画布')
-    expect(panels).toContain('删除项目')
+    expect(panels).toContain('删除作品')
   })
 
   it('uses the evidenced create and rename message-box geometry', () => {

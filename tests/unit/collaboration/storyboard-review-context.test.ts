@@ -37,7 +37,7 @@ describe('storyboard review context', () => {
       assigneeUserId: 'storyboard-1',
       submittedAt: new Date('2026-07-21T00:00:00.000Z'),
       lastReviewNote: null,
-      project: { name: '项目一', work: { name: '作品一' } },
+      project: { name: '作品一', work: { name: '项目一' } },
       episode: { episodeNumber: 1, name: '第一集' },
     })
     mocks.findEpisode.mockResolvedValue({

@@ -157,7 +157,7 @@ describe('canvas-scoped upload and generation routes', () => {
         projectId: 'project-1',
         type: 'video',
         inputMode: 'text',
-        options: { aspectRatio: '1:1', resolution: '720p', duration: 5 },
+        options: { aspectRatio: '7:5', resolution: '720p', duration: 5 },
       },
     }), {
       params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }),

@@ -183,7 +183,7 @@ export function AddAssetDialog({
                     })}
                   >E{n}</button>
                 ))}
-                {episodeNumbers.length === 0 ? <span className="text-[11px] text-[var(--fos-text-4)]">项目暂无分集，可稍后补充出场集。</span> : null}
+                {episodeNumbers.length === 0 ? <span className="text-[11px] text-[var(--fos-text-4)]">作品暂无分集，可稍后补充出场集。</span> : null}
               </div>
             ) : null}
           </div>

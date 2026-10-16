@@ -3,6 +3,7 @@
 @import "../styles/ui-semantic-glass.css";
 @import "../styles/frameos-tokens.css";
 @import "../styles/frameos-replica.css";
+@import "../styles/nori-auth.css";
 
 @custom-variant dark (&:is(.dark *));
 

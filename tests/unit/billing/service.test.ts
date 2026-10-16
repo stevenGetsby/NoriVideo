@@ -20,6 +20,16 @@ const prismaMock = vi.hoisted(() => ({
   userPreference: {
     findUnique: vi.fn(async () => null),
   },
+  // 每日用量上限在真实实现里会读取这三张表；此处默认「今日零用量、未设置上限」。
+  user: {
+    findMany: vi.fn(async () => []),
+  },
+  balanceTransaction: {
+    groupBy: vi.fn(async () => []),
+  },
+  balanceFreeze: {
+    groupBy: vi.fn(async () => []),
+  },
 }))
 
 vi.mock('@/lib/billing/ledger', () => ledgerMock)

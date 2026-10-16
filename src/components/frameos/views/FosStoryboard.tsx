@@ -669,7 +669,7 @@ function StoryboardRunProgress({ state, hideCompleted = false }: { state: TaskTa
         <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-gradient-to-r from-[#4f7cff] via-[#8d74ff] to-[#5bd5c4]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
       </div>
       {failed && state.lastError?.message ? <p className="mt-2 text-[11px] leading-5 text-red-200">{friendlyStoryboardTaskError(state.lastError.message)}</p> : null}
-      {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，项目工作台的“分镜设计”进度会同步显示。</p> : null}
+      {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，作品工作台的“分镜设计”进度会同步显示。</p> : null}
     </div>
   )
 }
@@ -1102,7 +1102,7 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
         }),
       })
       if (!submitRes.ok) throw new Error(await readApiErrorMessage(submitRes, '提交分镜设计失败'))
-      setNotice('已提交本集分镜设计任务；本页与项目工作台将同步显示进度。')
+      setNotice('已提交本集分镜设计任务；本页与作品工作台将同步显示进度。')
       await storyboardTaskQuery.refetch()
       scheduleRefreshes()
     } catch (err) {
@@ -1204,12 +1204,12 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
             <h2 className="mt-5 text-[20px] font-bold text-white">本集尚未解析分镜</h2>
             <p className="mt-2 text-[14px] font-semibold text-[var(--fos-text-2)]">E{activeEpisode.episodeNumber} · {activeEpisode.name}</p>
             <p className="mt-3 text-[13px] leading-6 text-[var(--fos-text-3)]">可以让 AI 解析本集，也可以直接进入自由创作面板，从空 Segment 开始选择资产并编写视频提示词。</p>
-            <div className="mt-5 flex justify-center gap-3 text-[12px] text-[var(--fos-text-3)]"><span>{activeEpisode.wordCount} 字剧本</span><span>·</span><span>{assetCount} 个项目资产</span></div>
-            {assetCount === 0 ? <p className="mt-3 text-[11px] text-amber-200/80">AI 解析需要先完成项目资产；手动制作仍可直接开始。</p> : null}
+            <div className="mt-5 flex justify-center gap-3 text-[12px] text-[var(--fos-text-3)]"><span>{activeEpisode.wordCount} 字剧本</span><span>·</span><span>{assetCount} 个作品资产</span></div>
+            {assetCount === 0 ? <p className="mt-3 text-[11px] text-amber-200/80">AI 解析需要先完成作品资产；手动制作仍可直接开始。</p> : null}
             {error ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">{error}</div> : null}
             {notice ? <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[13px] text-blue-200">{notice}</div> : null}
             {loading ? <div className="mt-5 text-[13px] text-[var(--fos-text-3)]">正在检查本集分镜状态…</div> : <div className="mt-6 flex flex-wrap justify-center gap-3">
-              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" title={assetCount === 0 ? '请先完成项目资产解析' : undefined} disabled={!canEdit || submitting || waitingForResult || assetCount === 0} onClick={() => void handleStartDesign()}>
+              <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" title={assetCount === 0 ? '请先完成作品资产解析' : undefined} disabled={!canEdit || submitting || waitingForResult || assetCount === 0} onClick={() => void handleStartDesign()}>
                 <AppIcon name={submitting || waitingForResult ? 'loader' : 'sparkles'} className={`h-4 w-4 ${submitting || waitingForResult ? 'animate-spin' : ''}`} />
                 {!canEdit ? '只读 · 分镜师可操作' : submitting ? '正在提交…' : waitingForResult ? `正在生成 ${Math.max(1, storyboardTaskState?.progress || 0)}%` : '解析本集分镜'}
               </button>

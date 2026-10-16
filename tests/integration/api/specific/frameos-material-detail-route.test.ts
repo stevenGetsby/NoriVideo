@@ -68,6 +68,33 @@ function request(method: 'PATCH' | 'DELETE', body?: unknown) {
 }
 
 describe('FrameOS material detail route', () => {
+  it('binds a ready same-project voice to an uploaded role card without changing file type', async () => {
+    const card = { ...globalMaterial, type: 'image', projectId: 'project-1', metadata: { assetCategory: 'character', prompt: '角色' } }
+    prismaMock.frameosMaterial.findFirst.mockReset()
+    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce(card).mockResolvedValueOnce({ id: 'voice-1' }).mockResolvedValueOnce(card)
+    const response = await PATCH(request('PATCH', { voiceMaterialId: 'voice-1' }), context)
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { metadata: { assetCategory: 'character', prompt: '角色', voiceMaterialId: 'voice-1' } } }))
+    expect(prismaMock.frameosMaterial.findFirst).toHaveBeenNthCalledWith(2, expect.objectContaining({ where: expect.objectContaining({ type: 'audio', status: 'ready', deletedAt: null, projectId: { in: ['project-1', 'global', 'global-asset-hub'] } }) }))
+  })
+
+  it('rejects missing/other-project voice ids before modifying the role card', async () => {
+    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce({ ...globalMaterial, type: 'image', metadata: { assetCategory: 'character' } }).mockResolvedValueOnce(null)
+    expect((await PATCH(request('PATCH', { voiceMaterialId: 'voice-private' }), context)).status).toBe(404)
+    expect(prismaMock.frameosMaterial.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('does not permit scenes or videos to masquerade as character cards', async () => {
+    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce({ ...globalMaterial, type: 'image', metadata: { assetCategory: 'location' } })
+    expect((await PATCH(request('PATCH', { voiceMaterialId: 'voice-1' }), context)).status).toBe(400)
+    expect(prismaMock.frameosMaterial.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('blocks deletion of audio still bound by a role card', async () => {
+    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce({ ...globalMaterial, type: 'audio' }).mockResolvedValueOnce({ id: 'role-card', title: '关羽' })
+    expect((await DELETE(request('DELETE'), context)).status).toBe(409)
+    expect(prismaMock.frameosMaterial.updateMany).not.toHaveBeenCalled()
+  })
   beforeEach(() => {
     vi.clearAllMocks()
     authMock.mockResolvedValue({
@@ -108,6 +135,14 @@ describe('FrameOS material detail route', () => {
       data: { title: '新名称', isFavorited: true },
     })
   })
+
+  it.each([null, [], 'text', { title: '' }, { title: 1 }, { title: ' '.repeat(5) }, { title: '长'.repeat(161) }])(
+    'rejects invalid names and request bodies without changes: %j', async (body) => {
+      const response = await PATCH(request('PATCH', body), context)
+      expect(response.status).toBe(400)
+      expect(prismaMock.frameosMaterial.updateMany).not.toHaveBeenCalled()
+    },
+  )
 
   it('reclassifies an existing material without discarding its metadata', async () => {
     const current = { ...globalMaterial, metadata: { prompt: '雨夜角色' } }
@@ -200,6 +235,7 @@ describe('FrameOS material detail route', () => {
       where: {
         id: 'project-1',
         userId: 'owner-1',
+        deletedAt: null,
       },
       select: { id: true },
     })

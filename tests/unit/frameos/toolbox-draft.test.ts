@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   createToolboxDraftKey,
   readToolboxDraft,
@@ -22,6 +23,15 @@ describe('toolbox draft persistence', () => {
     expect(createToolboxDraftKey('', 'project-1', 'video')).toBe('')
   })
 
+  it('uses the logged-in actor rather than the shared wallet owner for draft isolation', () => {
+    const toolbox = readFileSync('src/components/frameos/views/FosToolbox.tsx', 'utf8')
+    expect(toolbox).toContain('session?.user?.id || session?.user?.name')
+    const browserAuth = readFileSync('src/lib/auth.ts', 'utf8')
+    expect(browserAuth).toContain('session.user.id = token.id as string')
+    expect(browserAuth).not.toContain('session.user.id = session.user.workspaceOwnerId')
+    expect(createToolboxDraftKey('child-a', 'project-1', 'video')).not.toBe(createToolboxDraftKey('child-b', 'project-1', 'video'))
+  })
+
   it('restores prompt, model options, sound selection, and ordered references', () => {
     const storage = memoryStorage()
     const key = createToolboxDraftKey('user-1', 'project-1', 'video')
@@ -33,7 +43,6 @@ describe('toolbox draft persistence', () => {
       ratio: '9:16',
       resolution: '1080p',
       quality: 'high',
-      count: '1',
       inputMode: 'text',
       duration: 8,
       fps: 24,
@@ -52,6 +61,18 @@ describe('toolbox draft persistence', () => {
     expect(readToolboxDraft(storage, 'bad')).toBeNull()
   })
 
+  it('migrates old text-labelled references without losing inputs and supports 30 seconds', () => {
+    const storage = memoryStorage()
+    storage.setItem('old', JSON.stringify({ version: 1, inputMode: 'text', duration: 30, references: [{ id: 'image-1', type: 'image' }] }))
+    expect(readToolboxDraft(storage, 'old')).toMatchObject({ inputMode: 'reference', duration: 30 })
+  })
+
+  it('keeps explicit pure text mode even when other mode references are cached', () => {
+    const storage = memoryStorage()
+    storage.setItem('new', JSON.stringify({ version: 1, inputModeVersion: 2, inputMode: 'text', references: [{ id: 'image-1', type: 'image' }] }))
+    expect(readToolboxDraft(storage, 'new')?.inputMode).toBe('text')
+  })
+
   it('defaults sound on for a new capable model but preserves an explicit draft choice', () => {
     const draft = {
       version: 1,
@@ -61,7 +82,6 @@ describe('toolbox draft persistence', () => {
       ratio: '9:16',
       resolution: '720p',
       quality: 'high',
-      count: '1',
       inputMode: 'text',
       duration: 5,
       fps: null,

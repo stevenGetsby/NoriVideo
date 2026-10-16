@@ -30,7 +30,7 @@ export function EmptyCanvasChrome({
   const activeWorkId = activeProject?.workId || null
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = useMemo(() => Array.from(new Map((projectOptions || []).flatMap((project) => (
-    project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属作品' }] as const] : []
+    project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
   ))).values()), [projectOptions])
   const projectChoices = hasGlobalHierarchy
     ? (projectOptions || []).filter((project) => project.workId === activeWorkId)
@@ -108,9 +108,9 @@ export function EmptyCanvasChrome({
         <Link
           href={{ pathname: canvasHomeHref || `/workflow/${projectId}/workbench-premium2` }}
           className="nori-canvas-parent-back"
-          title={canvasHomeHref ? '返回无限画布首页' : '返回项目工作台'}
+          title={canvasHomeHref ? '返回无限画布首页' : '返回作品工作台'}
           data-testid="empty-canvas-parent-back"
-        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '项目工作台'}</span></Link>
+        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '作品工作台'}</span></Link>
         <span className="nori-canvas-nav-divider" />
         {hasGlobalHierarchy ? (
           <>
@@ -120,7 +120,7 @@ export function EmptyCanvasChrome({
               disabled={!canPickWork}
               onClick={() => toggleMenu('work')}
             >
-              <span>{activeProject?.workName || '作品'}</span><AppIcon name="chevronDown" />
+              <span>{activeProject?.workName || '项目'}</span><AppIcon name="chevronDown" />
             </button>
             <i>/</i>
           </>
@@ -141,8 +141,8 @@ export function EmptyCanvasChrome({
 
         {menu === 'work' && canPickWork ? (
           <div className="nori-canvas-dropdown nori-canvas-project-dropdown nori-canvas-work-dropdown">
-            <div className="nori-canvas-dropdown-title">选择作品</div>
-            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
+            <div className="nori-canvas-dropdown-title">选择项目</div>
+            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
             <div className="nori-canvas-dropdown-scroll">
               {filteredWorks.map((work) => (
                 <Link
@@ -152,19 +152,19 @@ export function EmptyCanvasChrome({
                   onClick={() => setMenu(null)}
                 >
                   <span>{work.name}</span>
-                  <small>{(projectOptions || []).filter((project) => project.workId === work.id).length} 个项目</small>
+                  <small>{(projectOptions || []).filter((project) => project.workId === work.id).length} 个作品</small>
                   {work.id === activeWorkId ? <AppIcon name="check" /> : null}
                 </Link>
               ))}
-              {filteredWorks.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的作品</p> : null}
+              {filteredWorks.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的项目</p> : null}
             </div>
           </div>
         ) : null}
 
         {menu === 'project' && canPickProject ? (
           <div className="nori-canvas-dropdown nori-canvas-project-dropdown">
-            <div className="nori-canvas-dropdown-title">选择项目</div>
-            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
+            <div className="nori-canvas-dropdown-title">选择作品</div>
+            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
             <div className="nori-canvas-dropdown-scroll">
               {filteredProjects.map((project) => (
                 <button
@@ -174,11 +174,11 @@ export function EmptyCanvasChrome({
                   onClick={() => { onSelectProject?.(project.id); setMenu(null) }}
                 >
                   <span>{project.name}</span>
-                  <small>{project.workName || '未归属作品'}</small>
+                  <small>{project.workName || '未归属项目'}</small>
                   {project.id === projectId ? <AppIcon name="check" /> : null}
                 </button>
               ))}
-              {filteredProjects.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的项目</p> : null}
+              {filteredProjects.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的作品</p> : null}
             </div>
           </div>
         ) : null}

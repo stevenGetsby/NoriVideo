@@ -100,7 +100,7 @@ describe('FrameOS empty-project canvas shell', () => {
     expect(hierarchyGuard).toBeGreaterThan(-1)
     expect(hierarchyGuard).toBeLessThan(workPicker)
     expect(workPicker).toBeLessThan(projectPicker)
-    expect(chrome).not.toContain("'我的作品'")
+    expect(chrome).not.toContain("'我的项目'")
 
     expect(emptyBranch).toContain('<EmptyCanvasChrome')
     expect(emptyBranch).toContain('<EmptyCanvasSurfaceControls />')
@@ -115,7 +115,7 @@ describe('FrameOS empty-project canvas shell', () => {
     const styles = readSource('src/features/canvas/canvas.css')
 
     expect(workspace).toContain("canEdit ? '创建第一张画布' : '暂无可查看的画布'")
-    expect(workspace).toContain('当前账号拥有查看权限，但项目还没有画布。请联系管理账号或分镜师创建。')
+    expect(workspace).toContain('当前账号拥有查看权限，但作品还没有画布。请联系管理账号或分镜师创建。')
     expect(workspace).toContain('{canEdit ? <button type="button" disabled={managementBusy} onClick={requestCreateCanvas}>')
     expect(styles).toContain('.nori-canvas-empty-grid')
     expect(styles).toContain('.nori-canvas-tool-rail button:disabled')

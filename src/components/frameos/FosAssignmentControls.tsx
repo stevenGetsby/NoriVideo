@@ -356,7 +356,7 @@ export function AssignmentDetailDrawer({
             <div><dt>阶段</dt><dd>{ASSIGNMENT_STAGE_LABELS[assignment.stage]}</dd></div>
             <div><dt>状态</dt><dd><AssignmentStatusChip status={assignment.status} compact /></dd></div>
             <div><dt>执行人</dt><dd>{assignmentDrawerAssigneeLabel(assignment)}</dd></div>
-            <div><dt>所属项目</dt><dd>{assignment.projectName || assignment.projectId || '—'}</dd></div>
+            <div><dt>所属作品</dt><dd>{assignment.projectName || assignment.projectId || '—'}</dd></div>
             {assignment.stage !== 'asset' && assignment.episodeNumber != null ? <div><dt>关联集</dt><dd>第 {assignment.episodeNumber} 集</dd></div> : null}
             {assignment.assignedAt ? <div><dt>分配时间</dt><dd>{formatAssignmentDate(assignment.assignedAt)}</dd></div> : null}
             {assignment.submittedAt ? <div><dt>提交时间</dt><dd>{formatAssignmentDate(assignment.submittedAt)}</dd></div> : null}

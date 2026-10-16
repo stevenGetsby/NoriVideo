@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
 import Box from 'lucide-react/dist/esm/icons/box.js'
 import Camera from 'lucide-react/dist/esm/icons/camera.js'
 import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js'
@@ -821,6 +822,10 @@ export function CanvasStudio3DDialog({
   readOnly?: boolean
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const addMenuRef = useRef<HTMLButtonElement>(null)
+  const panoramaMenuRef = useRef<HTMLButtonElement>(null)
+  const cameraMenuRef = useRef<HTMLButtonElement>(null)
+  const ratioMenuRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const modelInputRef = useRef<HTMLInputElement>(null)
   const panoramaInputRef = useRef<HTMLInputElement>(null)
@@ -2122,6 +2127,9 @@ export function CanvasStudio3DDialog({
       <div
         ref={dialogRef}
         className={'nori-canvas-studio-dialog' + (fullscreen ? ' is-fullscreen' : '') + (!studioDocumentReady || studioConflict || closing ? ' is-document-blocked' : '')}
+        role="dialog"
+        aria-modal="true"
+        aria-label="3D 导演台"
         onPointerDown={(event) => {
           event.stopPropagation()
           if (!(event.target instanceof Element) || !event.target.closest('.nori-canvas-studio-context-menu')) setContextMenu(null)
@@ -2267,7 +2275,7 @@ export function CanvasStudio3DDialog({
             {message ? <div className="nori-canvas-studio-message">{message}</div> : null}
 
             <div className="nori-canvas-studio-dock-shell" onPointerDown={(event) => event.stopPropagation()}>
-              {dockMenu === 'add' ? <div className="nori-canvas-studio-dock-menu is-add" role="menu" aria-label="添加对象">
+              {dockMenu === 'add' ? <ViewportPopover anchorRef={addMenuRef} onClose={() => setDockMenu(null)} preferredSide="above" width={260} maxHeight={440} className="nori-canvas-studio-dock-menu is-add" role="menu" aria-label="添加对象">
                 <button type="button" onClick={() => modelInputRef.current?.click()}><Upload />本地上传</button>
                 <button type="button" onClick={() => { setPickerType('model3d'); setDockMenu(null) }}><Box />素材库选择</button>
                 {MANNEQUIN_VARIANTS.map((variant) => <button type="button" key={variant.value} onClick={() => {
@@ -2300,32 +2308,32 @@ export function CanvasStudio3DDialog({
                     ].map(([kind, label, Icon]) => <button type="button" key={String(kind)} onClick={() => { addObject(kind as StudioObjectKind); setDockMenu(null); setAddFlyout(null) }}><Icon />{String(label)}</button>)}
                   </div> : null}
                 </div>
-              </div> : null}
+              </ViewportPopover> : null}
 
-              {dockMenu === 'panorama' ? <div className="nori-canvas-studio-dock-menu is-panorama" role="menu" aria-label="720 全景">
+              {dockMenu === 'panorama' ? <ViewportPopover anchorRef={panoramaMenuRef} onClose={() => setDockMenu(null)} preferredSide="above" width={220} className="nori-canvas-studio-dock-menu is-panorama" role="menu" aria-label="720 全景">
                 <button type="button" onClick={() => panoramaInputRef.current?.click()}><Upload />本地上传</button>
                 <button type="button" onClick={() => { setPickerType('image'); setDockMenu(null) }}><ImageIcon />素材库选择</button>
-              </div> : null}
+              </ViewportPopover> : null}
 
-              {dockMenu === 'camera' ? <div className="nori-canvas-studio-dock-menu is-camera-presets" role="menu" aria-label="添加机位预设">
+              {dockMenu === 'camera' ? <ViewportPopover anchorRef={cameraMenuRef} onClose={() => setDockMenu(null)} preferredSide="above" width={330} className="nori-canvas-studio-dock-menu is-camera-presets" role="menu" aria-label="添加机位预设">
                 <button type="button" className="is-current" onClick={() => { addCamera(); setDockMenu(null) }}><Camera />当前视角</button>
                 {CAMERA_PRESETS.map((preset) => <button type="button" key={preset.name} onClick={() => { addCamera(preset); setDockMenu(null) }}>{preset.name}</button>)}
-              </div> : null}
+              </ViewportPopover> : null}
 
-              {dockMenu === 'ratio' ? <div className="nori-canvas-studio-dock-menu is-ratio" role="menu" aria-label="截图比例">
+              {dockMenu === 'ratio' ? <ViewportPopover anchorRef={ratioMenuRef} onClose={() => setDockMenu(null)} preferredSide="above" width={180} className="nori-canvas-studio-dock-menu is-ratio" role="menu" aria-label="截图比例">
                 {CAPTURE_RATIOS.map((ratio) => <button type="button" key={ratio} className={studio.screenshotAspectRatio === ratio ? 'is-active' : ''} onClick={() => {
                   commit((current) => ({ ...current, screenshotAspectRatio: ratio }))
                   setDockMenu(null)
                 }}><span>{ratio === 'auto' ? 'Auto' : ratio}</span>{studio.screenshotAspectRatio === ratio ? <b>✓</b> : null}</button>)}
-              </div> : null}
+              </ViewportPopover> : null}
 
               <div className="nori-canvas-studio-dock">
                 {!readOnly ? <>
-                  <button type="button" title="添加对象" className={dockMenu === 'add' ? 'is-active' : ''} onClick={() => { setDockMenu((value) => value === 'add' ? null : 'add'); setAddFlyout(null) }}><UserRound /></button>
-                  <button type="button" title="720 全景" className={dockMenu === 'panorama' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'panorama' ? null : 'panorama')}><span className="is-720">720</span></button>
-                  <button type="button" title="添加机位预设" className={dockMenu === 'camera' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'camera' ? null : 'camera')}><Camera /></button>
+                  <button ref={addMenuRef} type="button" title="添加对象" className={dockMenu === 'add' ? 'is-active' : ''} onClick={() => { setDockMenu((value) => value === 'add' ? null : 'add'); setAddFlyout(null) }}><UserRound /></button>
+                  <button ref={panoramaMenuRef} type="button" title="720 全景" className={dockMenu === 'panorama' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'panorama' ? null : 'panorama')}><span className="is-720">720</span></button>
+                  <button ref={cameraMenuRef} type="button" title="添加机位预设" className={dockMenu === 'camera' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'camera' ? null : 'camera')}><Camera /></button>
                   <button type="button" title="截图" disabled={capturing || !ready} onClick={() => void capture(false)}>{capturing ? <LoaderCircle className="animate-spin" /> : <ImageIcon />}</button>
-                  <button type="button" title="截图比例" className={dockMenu === 'ratio' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'ratio' ? null : 'ratio')}><span className="is-aspect" /></button>
+                  <button ref={ratioMenuRef} type="button" title="截图比例" className={dockMenu === 'ratio' ? 'is-active' : ''} onClick={() => setDockMenu((value) => value === 'ratio' ? null : 'ratio')}><span className="is-aspect" /></button>
                 </> : null}
                 <button type="button" title={fullscreen ? '退出全屏' : '全屏'} onClick={() => void toggleFullscreen()}>{fullscreen ? <Minimize2 /> : <Maximize2 />}</button>
                 {!readOnly ? <>

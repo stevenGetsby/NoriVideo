@@ -692,7 +692,7 @@ async function refreshPanelReferenceAssets(panelId: string) {
       },
     },
   })
-  if (!panel) return null
+  if (!panel || !panel.storyboard?.episode?.novelPromotionProject) return null
   const projectAssets = panel.storyboard.episode.novelPromotionProject
   const references = buildPanelSeedanceReferenceAssets({
     panel: {

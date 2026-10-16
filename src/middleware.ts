@@ -83,6 +83,6 @@ export const config = {
         '/',
         '/(zh|en)/:path*',
         // 匹配所有其他路径（用于重定向到带语言前缀的路径）
-        '/((?!m|_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.gif|.*\\.ico).*)'
+        '/((?!m|_next/static|_next/image|favicon.ico|.*\\.png|.*\\.jpg|.*\\.jpeg|.*\\.svg|.*\\.gif|.*\\.ico|.*\\.webp).*)'
     ]
 };

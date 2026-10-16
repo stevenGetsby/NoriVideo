@@ -11,7 +11,7 @@ export const PATCH = apiHandler(async (request: NextRequest, context: Context) =
   const { workId } = await context.params
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const work = await updateWork(authResult.session, workId, { name: body.name })
-  return NextResponse.json({ work })
+  return NextResponse.json({ project: { ...work, kind: 'project' }, work })
 })
 
 export const DELETE = apiHandler(async (_request: NextRequest, context: Context) => {

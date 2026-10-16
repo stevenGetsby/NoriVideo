@@ -22,6 +22,11 @@ const ACTIVE_STATUSES = [TASK_STATUS.QUEUED, TASK_STATUS.PROCESSING]
 /** watchdog 巡检间隔 */
 const WATCHDOG_INTERVAL_MS = 60_000
 
+/** 回收站到期清理只需低频执行；失败后 10 分钟再试。 */
+const RECYCLE_BIN_PURGE_INTERVAL_MS = 60 * 60_000
+const RECYCLE_BIN_PURGE_RETRY_MS = 10 * 60_000
+let nextRecycleBinPurgeAt = 0
+
 /** processing 心跳超时阈值 */
 const PROCESSING_TIMEOUT_MS = 5 * 60_000
 
@@ -250,12 +255,23 @@ export function startTaskWatchdog() {
             const reconciled = await reconcileActiveTasks()
             const { reconcileActiveRunsFromTasks } = await import('@/lib/run-runtime/reconcile')
             const reconciledRuns = await reconcileActiveRunsFromTasks()
+            const now = Date.now()
+            const shouldPurgeRecycleBin = now >= nextRecycleBinPurgeAt
+            const { purgeExpiredRecycleBinProjects } = shouldPurgeRecycleBin
+              ? await import('@/lib/projects/recycle-bin')
+              : { purgeExpiredRecycleBinProjects: null }
+            const purgedProjects = shouldPurgeRecycleBin && purgeExpiredRecycleBinProjects
+              ? await purgeExpiredRecycleBinProjects()
+              : { purged: [], failed: [] }
+            nextRecycleBinPurgeAt = Date.now() + (purgedProjects.failed.length > 0
+              ? RECYCLE_BIN_PURGE_RETRY_MS
+              : RECYCLE_BIN_PURGE_INTERVAL_MS)
 
-            const total = sweptProcessing.length + reconciled.length + reconciledRuns.length
+            const total = sweptProcessing.length + reconciled.length + reconciledRuns.length + purgedProjects.purged.length
             if (total > 0) {
                 logger.info({
                     action: 'watchdog.cycle',
-                    message: `Watchdog: ${sweptProcessing.length} heartbeat-timeout, ${reconciled.length} orphan-reconciled, ${reconciledRuns.length} run-reconciled`,
+                    message: `Watchdog: ${sweptProcessing.length} heartbeat-timeout, ${reconciled.length} orphan-reconciled, ${reconciledRuns.length} run-reconciled, ${purgedProjects.purged.length} recycle-purged`,
                 })
             }
         } catch (error) {

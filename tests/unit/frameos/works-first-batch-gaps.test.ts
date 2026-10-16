@@ -49,7 +49,7 @@ describe('works search and move contracts', () => {
           { id: 'project-b', name: '第二集', description: '无关内容', createdAt: '', updatedAt: '' },
         ],
       }),
-      work({ id: 'work-b', name: '其他作品' }),
+      work({ id: 'work-b', name: '其他项目' }),
     ]
 
     const result = filterWorksByQuery(works, '  伦敦  ')
@@ -61,9 +61,9 @@ describe('works search and move contracts', () => {
 
   it('only offers manageable, real, non-source works as move targets', () => {
     const targets = eligibleMoveTargets([
-      work({ id: 'source', name: '当前作品', canManage: true }),
-      work({ id: 'manageable', name: '可管理作品', canManage: true }),
-      work({ id: 'read-only', name: '只读作品', canManage: false }),
+      work({ id: 'source', name: '当前项目', canManage: true }),
+      work({ id: 'manageable', name: '可管理项目', canManage: true }),
+      work({ id: 'read-only', name: '只读项目', canManage: false }),
       work({ id: 'unknown', name: '未知权限' }),
       work({ id: 'virtual', name: '未归属', virtual: true, canManage: true }),
     ], 'source')
@@ -78,7 +78,7 @@ describe('works search and move contracts', () => {
         { projects: { some: { OR: [
           { name: { contains: '海外风格' } },
           { description: { contains: '海外风格' } },
-        ] } } },
+        ], deletedAt: null } } },
       ],
     })
     expect(buildWorkSearchWhere('   ')).toBeNull()
@@ -172,7 +172,7 @@ describe('works surface wiring', () => {
     const dialogs = readSource('src/components/frameos/works/FosWorksDialogs.tsx')
     const styles = readSource('src/styles/frameos-replica.css')
 
-    expect(client).toContain('没有匹配「{searchQuery}」的作品或项目')
+    expect(client).toContain('没有匹配「{searchQuery}」的项目或作品')
     expect(styles).toContain('grid-template-columns: repeat(auto-fill,minmax(220px,231px))')
     expect(styles).toContain('.works-project-body.is-empty { display: flex; min-height: 112px;')
     expect(styles).toMatch(/\.works-project-canvas-entry\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?pointer-events:\s*auto;/)
@@ -186,8 +186,8 @@ describe('works surface wiring', () => {
     expect(dialogs).toContain('{open ? <div id={listboxId} className="works-candidate-list" role="listbox"')
     expect(dialogs).toContain('if (!open) {')
     expect(dialogs).toContain('onFocusCapture={() => setOpen(true)}')
-    expect(dialogs).toContain("title={projects.length > 1 ? '批量移动项目' : '移动项目'}")
-    expect(dialogs).toContain('搜索并选择目标作品')
+    expect(dialogs).toContain("title={projects.length > 1 ? '批量移动作品' : '移动作品'}")
+    expect(dialogs).toContain('搜索并选择目标项目')
     expect(dialogs).toContain('>确定</button>')
     expect(dialogs).toContain('disabled={saving || loading || !hasChanges}')
     expect(dialogs).toContain('<span className="works-role-badge">管理员</span>')
@@ -208,7 +208,7 @@ describe('works surface wiring', () => {
   it('uses real project metadata and preserves FrameOS empty-field behavior', () => {
     const normalized = normalizeWorkProject({
       id: 'project-a',
-      name: '项目 A',
+      name: '作品 A',
       created_at: '2026-07-18T00:00:00.000Z',
       updated_at: '2026-07-18T00:00:00.000Z',
       budget_level: 'premium2',
@@ -227,18 +227,18 @@ describe('works surface wiring', () => {
     })
     expect(projectGenreLabel(normalized!)).toBe('都市悬疑')
     expect(projectAspectRatio(normalized!)).toBe('16:9')
-    expect(projectGenreLabel({ id: 'empty', name: '空项目', createdAt: '', updatedAt: '' })).toBe('未分类')
-    expect(projectAspectRatio({ id: 'empty', name: '空项目', createdAt: '', updatedAt: '' })).toBeNull()
+    expect(projectGenreLabel({ id: 'empty', name: '空作品', createdAt: '', updatedAt: '' })).toBe('未分类')
+    expect(projectAspectRatio({ id: 'empty', name: '空作品', createdAt: '', updatedAt: '' })).toBeNull()
     expect(projectGenreLabel({
       id: 'narration',
-      name: '解说项目',
+      name: '解说作品',
       createdAt: '',
       updatedAt: '',
       novelPromotionData: { contentType: 'narration', workflowMode: 'narration' },
     })).toBe('解说模式')
     expect(normalizeWorkProject({
       id: 'narration-normalized',
-      name: '结构化解说项目',
+      name: '结构化解说作品',
       novel_promotion_data: {
         content_type: 'narration',
         material_type: 'novel-outline',
@@ -264,8 +264,9 @@ describe('works surface wiring', () => {
     expect(panels).toContain("event.key === 'Escape'")
     expect(panels).toContain("if (!menuOpen) onToggleMenu()")
     expect(panels).toContain("if (menuOpen) onToggleMenu()")
-    expect(panels).toContain('onMouseEnter={() => { if (!menuOpen) onToggleMenu() }}')
-    expect(panels).toContain('onMouseLeave={() => { if (menuOpen) onToggleMenu() }}')
+    expect(panels).not.toContain('onMouseEnter={() => { if (!menuOpen) onToggleMenu() }}')
+    expect(panels).toContain('<ViewportPopover anchorRef={menuTrigger}')
+    expect(panels).not.toContain('onMouseLeave={() => { if (menuOpen) onToggleMenu() }}')
     expect(panels).toContain('data-testid="project-card-canvas-entry"')
     expect(styles).toContain('.works-project-card:focus-within .works-project-menu-wrap')
     expect(styles).toContain('.fos-menu-item:focus-visible')
@@ -278,7 +279,7 @@ describe('works surface wiring', () => {
     expect(panels).toContain('className="works-batch-count">已选 <strong>{selectedProjectIds.length}</strong> 项')
     expect(panels).toContain('>全选</button>')
     expect(panels).toContain('>清空</button>')
-    expect(panels).toContain('批量移动项目')
+    expect(panels).toContain('批量移动作品')
     expect(panels).toContain("if (!level) return ' is-toolbox'")
     expect(panels).toContain("if (level === 'efficient') return ' is-efficient'")
     expect(styles).toContain('.works-project-edition.is-efficient')
@@ -290,7 +291,7 @@ describe('works surface wiring', () => {
     const service = readSource('src/lib/works/service.ts')
 
     expect(client).toContain('filterWorksByQuery(works, searchQuery)')
-    expect(client).toContain('<span>{worksTotal} 个作品</span>')
+    expect(client).toContain('<span>{worksTotal} 个项目</span>')
     expect(service).toContain('const matchedTotal = searchedTotal ?? total')
     expect(service).toContain('totalPages: Math.ceil(matchedTotal / pageSize)')
   })

@@ -92,6 +92,7 @@ vi.mock('@/lib/run-runtime/publisher', () => ({
 }))
 
 import { reportTaskProgress, reportTaskStreamChunk, withTaskLifecycle } from '@/lib/workers/shared'
+import { getGenerationQuotaUserId } from '@/lib/account/request-context'
 
 function buildJob(taskType: TaskJobData['type']): Job<TaskJobData> {
   return {
@@ -121,6 +122,16 @@ describe('worker shared direct run events', () => {
     publishTaskStreamEventMock.mockReset()
     publishRunEventMock.mockReset()
     mapTaskSSEEventToRunEventsMock.mockClear()
+  })
+  it('restores the operator for nested billing inside a shared-wallet worker', async () => {
+    const job = buildJob('story_to_script_run')
+    job.data.payload = { runId: 'run-1', meta: { quotaUserId: 'child' } }
+    await withTaskLifecycle(job, async () => {
+      await Promise.resolve()
+      expect(getGenerationQuotaUserId('user-1')).toBe('child')
+      return { ok: true }
+    })
+    expect(getGenerationQuotaUserId('user-1')).toBe('user-1')
   })
 
   it('publishes run events directly for core analysis progress updates', async () => {

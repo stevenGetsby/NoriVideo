@@ -10,6 +10,7 @@ import { asRecord, postKuaiziApiKey, readString, requestKuaiziBearer } from './c
 import { formatKuaiziExternalId } from './external-id'
 import type { KuaiziGenerateRequestOptions } from './types'
 import { normalizeSeedanceImageReference, normalizeSeedanceImageReferences, normalizeSeedanceMediaReference } from '@/lib/media/seedance-reference'
+import { prepareKuaiziSeedanceImage } from '@/lib/media/kuaizi-seedance-image'
 
 export interface KuaiziVideoGenerateParams {
   userId: string
@@ -178,7 +179,7 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   if (firstFrame) {
     content.push({
       type: 'image_url',
-      image_url: { url: await normalizeSeedanceImageReference(firstFrame, modelKey) },
+      image_url: { url: await prepareKuaiziSeedanceImage(await normalizeSeedanceImageReference(firstFrame, modelKey)) },
       role: 'first_frame',
     })
   }
@@ -186,12 +187,12 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
     if (!firstFrame) throw new Error('KUAIZI_SEEDANCE_FIRST_FRAME_REQUIRED')
     content.push({
       type: 'image_url',
-      image_url: { url: await normalizeSeedanceImageReference(lastFrame, modelKey) },
+      image_url: { url: await prepareKuaiziSeedanceImage(await normalizeSeedanceImageReference(lastFrame, modelKey)) },
       role: 'last_frame',
     })
   }
   for (const imageUrl of await normalizeSeedanceImageReferences(referenceImages, modelKey)) {
-    content.push({ type: 'image_url', image_url: { url: imageUrl }, role: 'reference_image' })
+    content.push({ type: 'image_url', image_url: { url: await prepareKuaiziSeedanceImage(imageUrl) }, role: 'reference_image' })
   }
   for (const videoUrl of stringArray(params.options.videos)) {
     content.push({

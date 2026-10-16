@@ -1,7 +1,7 @@
 import { createScopedLogger } from '@/lib/logging/core'
 import { createStorageProvider } from '@/lib/storage/factory'
 import { getServiceConfigRevision } from '@/lib/service-config'
-import type { DeleteObjectsResult, StorageProvider } from '@/lib/storage/types'
+import type { DeleteObjectsResult, SignedUrlParams, StorageProvider } from '@/lib/storage/types'
 import { DEFAULT_SIGNED_URL_EXPIRES_SECONDS, withRetry } from '@/lib/storage/utils'
 
 const storageLogger = createScopedLogger({
@@ -76,10 +76,15 @@ export async function getObjectBuffer(key: string): Promise<Buffer> {
   return await getStorageProvider().getObjectBuffer(key)
 }
 
-export async function getSignedObjectUrl(key: string, expiresInSeconds: number = DEFAULT_SIGNED_URL_EXPIRES_SECONDS): Promise<string> {
+export async function getSignedObjectUrl(
+  key: string,
+  expiresInSeconds: number = DEFAULT_SIGNED_URL_EXPIRES_SECONDS,
+  response?: Pick<SignedUrlParams, 'responseContentType' | 'responseContentDisposition'>,
+): Promise<string> {
   return await getStorageProvider().getSignedObjectUrl({
     key,
     expiresInSeconds,
+    ...response,
   })
 }
 
@@ -144,7 +149,9 @@ export async function downloadAndUploadVideo(
     }
 
     const buffer = Buffer.from(await response.arrayBuffer())
-    return await uploadObject(buffer, key, 1)
+    // Some providers return a generic binary MIME type. Videos uploaded without
+    // an explicit type become attachments and may not load in HTML players.
+    return await uploadObject(buffer, key, 1, 'video/mp4')
   }, maxRetries, RETRY_DELAY_BASE_MS)
 }
 

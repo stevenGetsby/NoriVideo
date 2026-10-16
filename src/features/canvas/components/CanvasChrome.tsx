@@ -5,6 +5,7 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { useFosCanvasShell } from '@/components/frameos/FosCanvasShellContext'
 import type { Canvas, CanvasProjectOption } from '../types'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
 
 export type CanvasSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'conflict' | 'error' | 'offline' | 'recovery'
 
@@ -80,11 +81,14 @@ export function CanvasChrome({
   const [menu, setMenu] = useState<'work' | 'project' | 'canvas' | null>(null)
   const [keyword, setKeyword] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
+  const workPickerRef = useRef<HTMLButtonElement>(null)
+  const projectPickerRef = useRef<HTMLButtonElement>(null)
+  const canvasPickerRef = useRef<HTMLButtonElement>(null)
   const activeProject = projectOptions?.find((project) => project.id === projectId) || null
   const activeWorkId = activeProject?.workId || null
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = Array.from(new Map((projectOptions || []).flatMap((project) => (
-    project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属作品' }] as const] : []
+    project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
   ))).values())
   const visibleProjects = hasGlobalHierarchy
     ? (projectOptions || []).filter((project) => project.workId === activeWorkId)
@@ -102,7 +106,8 @@ export function CanvasChrome({
   }
   useEffect(() => {
     const close = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setMenu(null)
+      if (!rootRef.current?.contains(event.target as Node)
+        && !(event.target instanceof Element && event.target.closest('[data-canvas-navigation-menu]'))) setMenu(null)
     }
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -158,23 +163,23 @@ export function CanvasChrome({
         <Link
           href={{ pathname: canvasHomeHref || `/workflow/${projectId}/workbench-premium2` }}
           className="nori-canvas-parent-back"
-          title={canvasHomeHref ? '返回无限画布首页' : '返回项目工作台'}
+          title={canvasHomeHref ? '返回无限画布首页' : '返回作品工作台'}
           data-testid="canvas-parent-back"
-        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '项目工作台'}</span></Link>
+        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '作品工作台'}</span></Link>
         <span className="nori-canvas-nav-divider" />
         {hasGlobalHierarchy ? (
           <>
-            <button type="button" data-testid="global-canvas-active-work-picker" onClick={() => toggleMenu('work')}><span>{activeProject?.workName || '未归属作品'}</span><AppIcon name="chevronDown" /></button>
+            <button ref={workPickerRef} type="button" data-testid="global-canvas-active-work-picker" onClick={() => toggleMenu('work')}><span>{activeProject?.workName || '未归属项目'}</span><AppIcon name="chevronDown" /></button>
             <i>/</i>
           </>
         ) : null}
-        <button type="button" className="nori-canvas-project-picker" onClick={() => toggleMenu('project')}><span>{projectName}</span><AppIcon name="chevronDown" /></button>
+        <button ref={projectPickerRef} type="button" className="nori-canvas-project-picker" onClick={() => toggleMenu('project')}><span>{projectName}</span><AppIcon name="chevronDown" /></button>
         <i>/</i>
-        <button type="button" className="nori-canvas-active-picker" onClick={() => toggleMenu('canvas')}><span>{activeCanvas.title}</span><AppIcon name="chevronDown" /></button>
+        <button ref={canvasPickerRef} type="button" className="nori-canvas-active-picker" onClick={() => toggleMenu('canvas')}><span>{activeCanvas.title}</span><AppIcon name="chevronDown" /></button>
         {menu === 'work' && hasGlobalHierarchy ? (
-          <div className="nori-canvas-dropdown nori-canvas-project-dropdown nori-canvas-work-dropdown">
-            <div className="nori-canvas-dropdown-title">选择作品</div>
-            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
+          <ViewportPopover anchorRef={workPickerRef} onClose={() => setMenu(null)} width={360} maxHeight={480} className="nori-canvas-dropdown nori-canvas-project-dropdown nori-canvas-work-dropdown" data-canvas-navigation-menu>
+            <div className="nori-canvas-dropdown-title">选择项目</div>
+            <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
             <div className="nori-canvas-dropdown-scroll">
               {filteredWorkOptions.map((work) => (
                 <Link
@@ -184,20 +189,20 @@ export function CanvasChrome({
                   onClick={() => setMenu(null)}
                 >
                   <span>{work.name}</span>
-                  <small>{(projectOptions || []).filter((project) => project.workId === work.id).length} 个项目</small>
+                  <small>{(projectOptions || []).filter((project) => project.workId === work.id).length} 个作品</small>
                   {work.id === activeWorkId ? <AppIcon name="check" /> : null}
                 </Link>
               ))}
-              {filteredWorkOptions.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的作品</p> : null}
+              {filteredWorkOptions.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的项目</p> : null}
             </div>
-          </div>
+          </ViewportPopover>
         ) : null}
         {menu === 'project' ? (
-          <div className="nori-canvas-dropdown nori-canvas-project-dropdown">
-            <div className="nori-canvas-dropdown-title">{visibleProjects?.length ? `${hasGlobalHierarchy ? `${activeProject?.workName || '作品'} · ` : ''}选择项目` : '当前项目'}</div>
+          <ViewportPopover anchorRef={projectPickerRef} onClose={() => setMenu(null)} width={360} maxHeight={480} className="nori-canvas-dropdown nori-canvas-project-dropdown" data-canvas-navigation-menu>
+            <div className="nori-canvas-dropdown-title">{visibleProjects?.length ? `${hasGlobalHierarchy ? `${activeProject?.workName || '项目'} · ` : ''}选择作品` : '当前作品'}</div>
             {visibleProjects?.length && onSelectProject ? (
               <>
-                <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
+                <label className="nori-canvas-dropdown-search"><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
                 <div className="nori-canvas-dropdown-scroll">
                   {filteredProjects?.map((project) => (
                     <button
@@ -207,25 +212,25 @@ export function CanvasChrome({
                       onClick={() => { onSelectProject(project.id); setMenu(null) }}
                     >
                       <span>{project.name}</span>
-                      <small>{project.workName || '未归属作品'}</small>
+                      <small>{project.workName || '未归属项目'}</small>
                       {project.id === projectId ? <AppIcon name="check" /> : null}
                     </button>
                   ))}
-                  {filteredProjects?.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的项目</p> : null}
+                  {filteredProjects?.length === 0 ? <p className="nori-canvas-dropdown-empty">没有匹配的作品</p> : null}
                 </div>
               </>
             ) : (
-              <Link href={{ pathname: '/works' }}><span>{projectName}</span><small>返回作品列表切换项目</small></Link>
+              <Link href={{ pathname: '/projects' }}><span>{projectName}</span><small>返回项目列表切换作品</small></Link>
             )}
             {hasGlobalHierarchy && createProjectHref ? (
               <div className="nori-canvas-dropdown-actions nori-canvas-project-actions">
-                <Link href={createProjectHref} data-testid="global-canvas-active-create-project" onClick={() => setMenu(null)}><AppIcon name="plus" />在此作品中新建项目</Link>
+                <Link href={createProjectHref} data-testid="global-canvas-active-create-project" onClick={() => setMenu(null)}><AppIcon name="plus" />在此项目中新建作品</Link>
               </div>
             ) : null}
-          </div>
+          </ViewportPopover>
         ) : null}
         {menu === 'canvas' ? (
-          <div className="nori-canvas-dropdown nori-canvas-list-dropdown">
+          <ViewportPopover anchorRef={canvasPickerRef} onClose={() => setMenu(null)} width={360} maxHeight={480} className="nori-canvas-dropdown nori-canvas-list-dropdown" data-canvas-navigation-menu>
             <div className="nori-canvas-dropdown-title">选择画布</div>
             <div className="nori-canvas-dropdown-scroll">
               {canvases.map((canvas) => (
@@ -244,14 +249,14 @@ export function CanvasChrome({
               </div>
             )}
             <div className="nori-canvas-dropdown-utilities">
-              <button type="button" className="nori-canvas-project-assets-button" title={readOnly ? '当前账号只有查看权限' : '打开项目资产'} disabled={readOnly} onClick={() => { onOpenProjectAssets(); setMenu(null) }}><AppIcon name="folderOpen" /><span>项目资产</span></button>
-              <button type="button" className="nori-canvas-sync-button" title={canSyncProduction ? '同步项目剧本、分镜、图片和视频到当前画布' : '当前账号只有查看权限'} disabled={!canSyncProduction || syncingProduction} onClick={() => { onSyncProduction(); setMenu(null) }}>
-                <AppIcon name="refresh" className={syncingProduction ? 'animate-spin' : ''} /><span>{syncingProduction ? '同步中' : '同步项目'}</span>
+              <button type="button" className="nori-canvas-project-assets-button" title={readOnly ? '当前账号只有查看权限' : '打开作品资产'} disabled={readOnly} onClick={() => { onOpenProjectAssets(); setMenu(null) }}><AppIcon name="folderOpen" /><span>作品资产</span></button>
+              <button type="button" className="nori-canvas-sync-button" title={canSyncProduction ? '同步作品剧本、分镜、图片和视频到当前画布' : '当前账号只有查看权限'} disabled={!canSyncProduction || syncingProduction} onClick={() => { onSyncProduction(); setMenu(null) }}>
+                <AppIcon name="refresh" className={syncingProduction ? 'animate-spin' : ''} /><span>{syncingProduction ? '同步中' : '同步作品'}</span>
               </button>
               <button type="button" className="nori-canvas-history-button" title="历史版本" onClick={() => { onOpenRevisions(); setMenu(null) }}><AppIcon name="history" /><span>历史</span></button>
               {readOnly ? <span className="nori-canvas-readonly-state" title="当前账号只有查看权限"><AppIcon name="lock" /><span>只读</span></span> : <SaveStatus state={saveState} onRetry={onRetrySave} />}
             </div>
-          </div>
+          </ViewportPopover>
         ) : null}
       </div>
       <div className="nori-canvas-chrome-actions">

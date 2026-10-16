@@ -138,6 +138,7 @@ describe('billing/concurrency', () => {
     const project = await createTestProject(user.id)
     await seedBalance(user.id, 5)
 
+    let providerCalls = 0
     const attempt = () =>
       withTextBilling(
         user.id,
@@ -149,11 +150,12 @@ describe('billing/concurrency', () => {
           action: 'retry_no_double_charge',
           requestId: 'fixed_request_id',
         },
-        async () => ({ ok: true }),
+        async () => { providerCalls++; return { ok: true } },
       )
 
     const results = await Promise.allSettled([attempt(), attempt(), attempt()])
     expect(results.some((item) => item.status === 'fulfilled')).toBe(true)
+    expect(providerCalls).toBe(1)
 
     const balance = await getBalance(user.id)
     const expected = calcText('anthropic/claude-sonnet-4', 1000, 500)

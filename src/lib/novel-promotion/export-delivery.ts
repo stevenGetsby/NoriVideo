@@ -7,6 +7,8 @@ import {
   uploadObject,
 } from '@/lib/storage'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
+import { buildNovelVideoExportFileName } from './video-export-name'
+import { resolveGenerationExportMetadata } from './generation-export-metadata'
 
 export type ExportDeliveryCardId = 'final-video' | 'asset-package' | 'voice-package' | 'jianying-draft'
 
@@ -134,8 +136,17 @@ async function buildFinalVideoZip(output: ExportDeliveryOutput) {
     const media = await readMediaBuffer(videoUrl)
     const description = readString(panel, 'description') || `shot_${index + 1}`
     const ext = extensionFromSource(media.storageKey || videoUrl, 'mp4', ['mp4', 'mov', 'webm'])
+    const project = isRecord(output.manifest.project) ? output.manifest.project : {}
+    const episode = isRecord(output.manifest.episode) ? output.manifest.episode : {}
+    const projectId = readString(project, 'id')
+    const attribution = projectId ? await resolveGenerationExportMetadata(projectId, videoUrl) : { creatorName: '未记录创建者', generationIndex: null }
+    const fileName = buildNovelVideoExportFileName({
+      projectName: readString(project, 'businessProjectName') || readString(project, 'name'),
+      episodeName: readString(episode, 'name'), sequence: entries.length + 1, generationName: description,
+      template: readString(project, 'exportNamingTemplate'), ...attribution,
+    }).replace(/\.mp4$/, `.${ext}`)
     entries.push({
-      name: `videos/${String(entries.length + 1).padStart(3, '0')}_${safeZipEntrySegment(description)}.${ext}`,
+      name: `videos/${fileName}`,
       buffer: media.buffer,
     })
   }
@@ -426,13 +437,16 @@ export async function buildExportDeliveryOutput(params: {
     where: {
       id: params.projectId,
       userId: params.userId,
+      deletedAt: null,
     },
     select: {
       id: true,
       name: true,
       description: true,
+      work: { select: { name: true } },
       novelPromotionData: {
         select: {
+          exportNamingTemplate: true,
           episodes: {
             where: { id: params.episodeId },
             include: {
@@ -532,6 +546,8 @@ export async function buildExportDeliveryOutput(params: {
         id: project.id,
         name: project.name,
         description: project.description,
+        businessProjectName: project.work?.name || project.name,
+        exportNamingTemplate: project.novelPromotionData?.exportNamingTemplate || null,
       },
       episode: {
         id: episode.id,

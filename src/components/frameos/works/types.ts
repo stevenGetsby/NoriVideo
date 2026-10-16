@@ -43,6 +43,24 @@ export interface WorkProject {
   novelPromotionData?: WorkProjectConfig | null
 }
 
+/** Business names; legacy DTO names remain for existing workflow clients. */
+export type ProductionWorkSummary = Omit<WorkProject, 'workId'> & {
+  kind: 'work'
+  projectId: string | null
+}
+
+export interface RecycleBinProject {
+  id: string
+  name: string
+  workId?: string | null
+  workName?: string | null
+  deletedAt?: string | null
+  deletedByName?: string | null
+  restoreDeadline?: string | null
+  remainingDays?: number
+  expired?: boolean | null
+}
+
 export interface WorkMember {
   id?: string
   userId: string
@@ -72,6 +90,14 @@ export interface WorkSummary {
   virtual?: boolean
 }
 
+export type ProductionProjectSummary = Omit<WorkSummary, 'projectCount' | 'projects' | 'canCreateProjects' | 'canMoveProjects'> & {
+  kind: 'project'
+  workCount: number
+  canCreateWorks?: boolean
+  canMoveWorks?: boolean
+  works: ProductionWorkSummary[]
+}
+
 export interface WorkPagination {
   page: number
   pageSize: number
@@ -80,6 +106,7 @@ export interface WorkPagination {
 }
 
 export interface WorksResponse {
+  projectHierarchy?: { version: 2; projects: ProductionProjectSummary[] }
   works?: WorkSummary[]
   unassignedProjects?: WorkProject[]
   pagination?: Partial<WorkPagination>
@@ -130,11 +157,11 @@ export function normalizeWorkProject(value: unknown): WorkProject | null {
   const mode = optionalText(source.collaborationMode || source.collaboration_mode)
   return {
     id,
-    name: text(source.name).trim() || '未命名项目',
+    name: text(source.name).trim() || '未命名作品',
     description: optionalText(source.description),
     createdAt: text(source.createdAt || source.created_at),
     updatedAt: text(source.updatedAt || source.updated_at),
-    workId: optionalText(source.workId || source.work_id),
+    workId: optionalText(source.kind === 'work' ? source.projectId : source.workId || source.work_id),
     createdById: optionalText(source.createdById || source.created_by_id),
     collaborationMode: mode === 'team' ? 'team' : 'solo',
     canManage: bool(source.canManage ?? source.can_manage),
@@ -213,23 +240,24 @@ export function normalizeWork(value: unknown): WorkSummary | null {
   const source = record(value)
   const id = text(source.id || source.uuid).trim()
   if (!id) return null
-  const projects = Array.isArray(source.projects)
-    ? source.projects.flatMap((project) => normalizeWorkProject(project) || [])
+  const rawProjects = source.kind === 'project' ? source.works : source.projects
+  const projects = Array.isArray(rawProjects)
+    ? rawProjects.flatMap((project) => normalizeWorkProject(project) || [])
     : []
   const members = Array.isArray(source.members)
     ? source.members.flatMap((member) => normalizeWorkMember(member) || [])
     : []
   return {
     id,
-    name: text(source.name).trim() || '未命名作品',
+    name: text(source.name).trim() || '未命名项目',
     createdAt: text(source.createdAt || source.created_at),
     updatedAt: text(source.updatedAt || source.updated_at),
     createdById: optionalText(source.createdById || source.created_by_id),
     canManage: bool(source.canManage ?? source.can_manage),
-    canCreateProjects: bool(source.canCreateProjects ?? source.can_create_projects),
+    canCreateProjects: bool(source.canCreateWorks ?? source.canCreateProjects ?? source.can_create_projects),
     canDelete: bool(source.canDelete ?? source.can_delete, projects.length === 0),
-    canMoveProjects: bool(source.canMoveProjects ?? source.can_move_projects),
-    projectCount: integer(source.projectCount ?? source.project_count, projects.length),
+    canMoveProjects: bool(source.canMoveWorks ?? source.canMoveProjects ?? source.can_move_projects),
+    projectCount: integer(source.workCount ?? source.projectCount ?? source.project_count, projects.length),
     memberCount: integer(source.memberCount ?? source.member_count, members.length),
     members,
     projects,
@@ -242,9 +270,12 @@ export function normalizeWorksResponse(value: unknown): {
 } {
   const source = record(value)
   const payload = record(source.data)
-  const rawWorks = Array.isArray(source.works) ? source.works : Array.isArray(payload.works) ? payload.works : []
+  const hierarchy = record(source.projectHierarchy || payload.projectHierarchy)
+  const rawWorks = hierarchy.version === 2 && Array.isArray(hierarchy.projects)
+    ? hierarchy.projects
+    : Array.isArray(source.works) ? source.works : Array.isArray(payload.works) ? payload.works : []
   const works = rawWorks.flatMap((work) => normalizeWork(work) || [])
-  const rawUnassigned = Array.isArray(source.unassignedProjects)
+  const rawUnassigned = hierarchy.version === 2 ? [] : Array.isArray(source.unassignedProjects)
     ? source.unassignedProjects
     : Array.isArray(source.unassigned_projects)
       ? source.unassigned_projects
@@ -253,7 +284,7 @@ export function normalizeWorksResponse(value: unknown): {
   if (unassigned.length) {
     works.push({
       id: UNASSIGNED_WORK_ID,
-      name: '未归属作品',
+      name: '未归属项目',
       createdAt: '',
       updatedAt: '',
       projectCount: unassigned.length,

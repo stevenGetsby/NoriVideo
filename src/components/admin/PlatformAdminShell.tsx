@@ -4,6 +4,7 @@ import type { ReactNode } from 'react'
 import { signOut, useSession } from 'next-auth/react'
 import { useLocale } from 'next-intl'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
+import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 
 export type AdminNavKey = 'accounts' | 'services'
 
@@ -15,7 +16,7 @@ const NAV: Array<{ key: AdminNavKey; href: string; label: string; icon: AppIconN
 const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; text: string }> = {
   accounts: {
     icon: 'infoCircle',
-    text: '此处创建管理账号并查看整个工作区用量。角色子账号、功能区权限和项目审核员由对应管理账号在 NoriVideo 内维护。',
+    text: '此处创建管理账号并查看整个工作区用量。角色子账号、功能区权限和作品审核员由对应管理账号在 NoriVideo 内维护。',
   },
   services: {
     icon: 'alert',
@@ -27,7 +28,7 @@ const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; tex
 export function AdminBrand() {
   return (
     <div className="nori-admin-brand">
-      <span className="fos-logo-mark" aria-hidden="true"><i /><i /><i /></span>
+      <NoriBrandMark className="fos-logo-mark" />
       <span className="fos-logo-text"><span className="a">Nori</span><span className="b">Video</span></span>
       <span className="nori-admin-brand-badge">Admin</span>
     </div>

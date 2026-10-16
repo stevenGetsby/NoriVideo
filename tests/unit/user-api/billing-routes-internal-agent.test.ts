@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextRequest, NextResponse } from 'next/server'
 
 const authMock = vi.hoisted(() => ({
-  requireUserAuth: vi.fn(async () => ({
+  requireUserAuth: vi.fn(async (): Promise<{ session: { user: { id: string; actorId?: string; workspaceOwnerId?: string; role?: string } } }> => ({
     session: { user: { id: 'user-1' } },
   })),
   isErrorResponse: (value: unknown) => value instanceof NextResponse,
@@ -24,6 +24,14 @@ const prismaMock = vi.hoisted(() => ({
   },
   balanceTransaction: {
     findMany: vi.fn(),
+    groupBy: vi.fn(async () => []),
+  },
+  // 每日用量上限：默认「未设置上限、今日零用量」。
+  user: {
+    findMany: vi.fn(async (): Promise<Array<{ id: string; dailyPointLimit: number | null }>> => []),
+  },
+  balanceFreeze: {
+    groupBy: vi.fn(async () => []),
   },
   novelPromotionEpisode: {
     findMany: vi.fn(),
@@ -92,6 +100,7 @@ function transaction(input: {
 describe('billing routes internal agent visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    prismaMock.user.findMany.mockResolvedValue([])
     authMock.requireUserAuth.mockResolvedValue({
       session: { user: { id: 'user-1' } },
     })
@@ -166,6 +175,7 @@ describe('billing routes internal agent visibility', () => {
       where: {
         id: { in: ['project-1'] },
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true, name: true },
     })
@@ -194,6 +204,7 @@ describe('billing routes internal agent visibility', () => {
       where: {
         id: { in: ['other-project'] },
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true, name: true },
     })
@@ -351,6 +362,7 @@ describe('billing routes internal agent visibility', () => {
       where: {
         id: { in: ['project-1'] },
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true, name: true },
     })
@@ -381,6 +393,7 @@ describe('billing routes internal agent visibility', () => {
       where: {
         id: { in: ['other-project'] },
         userId: 'user-1',
+        deletedAt: null,
       },
       select: { id: true, name: true },
     })
@@ -424,6 +437,41 @@ describe('billing routes internal agent visibility', () => {
       totalPages: 1,
     })
     expect(Number.isFinite(payload.pagination.totalPages)).toBe(true)
+  })
+
+  it('/api/user/balance disables generation at 0 even with a funded wallet; unlimited restores it', async () => {
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([])
+    const { GET } = await import('@/app/api/user/balance/route')
+    for (const limit of [0, null]) {
+      prismaMock.user.findMany.mockResolvedValue([{ id: 'user-1', dailyPointLimit: limit }])
+      const response = await GET(new NextRequest('http://localhost/api/user/balance') as never, { params: Promise.resolve({}) })
+      expect(await response.json()).toMatchObject({
+        balance: 88, generationAllowed: limit === null,
+        dailyLimitPoints: limit, dailyLimitExceeded: limit === 0,
+      })
+    }
+  })
+  it('/api/user/balance reads shared wallet funds but applies the child quota', async () => {
+    authMock.requireUserAuth.mockResolvedValue({
+      session: { user: { id: 'manager', actorId: 'child', role: 'storyboard', workspaceOwnerId: 'manager' } },
+    })
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([])
+    const { GET } = await import('@/app/api/user/balance/route')
+    for (const limit of [null, 0, 300]) {
+      prismaMock.user.findMany.mockResolvedValue([{ id: 'child', dailyPointLimit: limit }])
+      const response = await GET(new NextRequest('http://localhost/api/user/balance') as never, { params: Promise.resolve({}) })
+      expect(await response.json()).toMatchObject({
+        balance: 88, balancePoints: 8800, walletUserId: 'manager', quotaUserId: 'child', walletScope: 'workspace',
+        dailyLimitPoints: limit, generationAllowed: limit !== 0,
+      })
+      expect(prismaMock.userBalance.upsert).toHaveBeenLastCalledWith({
+        where: { userId: 'manager' }, create: { userId: 'manager', balance: 0, frozenAmount: 0, totalSpent: 0 }, update: {},
+      })
+    }
+    prismaMock.userBalance.upsert.mockResolvedValue({ id: 'b1', userId: 'manager', balance: 0, frozenAmount: 0, totalSpent: 0, createdAt: new Date(), updatedAt: new Date() })
+    prismaMock.user.findMany.mockResolvedValue([{ id: 'child', dailyPointLimit: null }])
+    expect(await (await GET(new NextRequest('http://localhost/api/user/balance') as never, { params: Promise.resolve({}) })).json())
+      .toMatchObject({ generationAllowed: false, balancePoints: 0, dailyLimitPoints: null })
   })
 
   it('/api/user/balance reports visible totalSpent while keeping wallet balance from ledger', async () => {

@@ -33,4 +33,16 @@ describe('generation entrypoint billing coverage', () => {
     expect(voiceMapping.indexOf('await withTextBilling(')).toBeLessThan(voiceMapping.indexOf('runReview,'))
     expect(taskPolicy).toContain('taskType === TASK_TYPE.TOOLBOX_MODEL_3D')
   })
+
+  it('每日用量上限在动账之前生效，覆盖同步与异步两条路径', () => {
+    const ledger = source('src/lib/billing/ledger.ts')
+    const gate = source('src/lib/billing/generation-gate.ts')
+    const submitter = source('src/lib/task/submitter.ts')
+
+    // freezeBalance 是同步与异步共用的唯一预留入口，上限校验必须排在事务之前。
+    expect(ledger).toContain('await assertDailyLimit(userId, { additionalCostCny: normalizedAmount })')
+    expect(ledger.indexOf('await assertDailyLimit(userId')).toBeLessThan(ledger.indexOf('const result = await prisma.$transaction'))
+    expect(gate).toContain('await assertDailyLimit(userId)')
+    expect(submitter).toContain("error.code === 'DAILY_LIMIT_EXCEEDED'")
+  })
 })

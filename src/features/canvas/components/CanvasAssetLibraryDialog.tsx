@@ -55,7 +55,7 @@ export function CanvasAssetLibraryDialog({
           </div>
           <label><span>素材名称</span><input ref={inputRef} value={title} maxLength={100} onChange={(event) => setTitle(event.target.value)} placeholder="例如：主角定妆照" /></label>
           <label><span>资产归类</span><select aria-label="资产归类" value={assetCategory} onChange={(event) => setAssetCategory(event.target.value as FrameosAssetCategory)}>{LIBRARY_CATEGORIES.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select></label>
-          <p>图片会上传为本项目资产库素材，并按所选归类出现在资产库与素材库中，可继续用于画布、工具箱和分镜。</p>
+          <p>图片会上传为本作品资产库素材，并按所选归类出现在资产库与素材库中，可继续用于画布、工具箱和分镜。</p>
           {error ? <div className="nori-canvas-generator-error">{error}</div> : null}
         </div>
         <footer><button type="button" disabled={saving} onClick={onClose}>取消</button><button type="submit" className="is-primary" disabled={saving || !imageUrl}>{saving ? <LoaderCircle className="animate-spin" /> : <FolderHeart />}{saving ? '正在上传…' : '上传到资产库'}</button></footer>

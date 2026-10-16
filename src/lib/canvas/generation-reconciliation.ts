@@ -1,4 +1,5 @@
 import type { Prisma } from '@prisma/client'
+import { cnyToPoints } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
 import {
   isCanvasGenerationTaskType,
@@ -29,6 +30,7 @@ type ToolboxTaskState = {
   status: string
   progress: number
   errorMessage: string | null
+  billingInfo: unknown
 }
 
 type TerminalGenerationState =
@@ -57,6 +59,14 @@ function record(value: unknown): Record<string, unknown> | null {
 
 function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
+}
+
+function completedTaskCostPoints(task: { billingInfo: unknown; status: string }): number | null {
+  const info = record(task.billingInfo)
+  if (!info || info.billable !== true || task.status !== TASK_STATUS.COMPLETED) return null
+  const cost = Number(info.chargedCost)
+  if (!Number.isFinite(cost) || cost < 0) return null
+  return cnyToPoints(cost)
 }
 
 function generationAssetId(node: ReconciliableCanvasNode): string {
@@ -129,6 +139,7 @@ function reconcileNodeData(
   value: Prisma.JsonValue | null,
   assetId: string,
   terminal: TerminalGenerationState,
+  costPoints: number | null,
 ): Prisma.InputJsonValue {
   const current = record(value) || {}
   const history = Array.isArray(current.history)
@@ -142,6 +153,7 @@ function reconcileNodeData(
               url: terminal.resultUrl,
               materialId: terminal.materialId,
               errorMessage: null,
+              ...(costPoints !== null ? { actualCostPoints: costPoints } : {}),
             }
           : {
               ...entry,
@@ -213,6 +225,7 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
         status: true,
         progress: true,
         errorMessage: true,
+        billingInfo: true,
       },
     }),
   ])
@@ -233,7 +246,7 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
     const task = taskByAssetId.get(assetId)
     const terminal = terminalState(assetById.get(assetId), task)
     if (!terminal) continue
-    const data = reconcileNodeData(node.data, assetId, terminal)
+    const data = reconcileNodeData(node.data, assetId, terminal, task ? completedTaskCostPoints(task) : null)
     const next = {
       ...node,
       data,
@@ -275,6 +288,7 @@ type CanvasGenerationTaskState = {
   payload: Prisma.JsonValue | null
   result: Prisma.JsonValue | null
   errorMessage: string | null
+  billingInfo: unknown
   finishedAt: Date | null
 }
 
@@ -283,6 +297,7 @@ function reconcileTextTaskHistory(
   task: CanvasGenerationTaskState,
   textValue: string | null,
   errorMessage: string | null,
+  actualCostPoints: number | null,
 ) {
   const source = Array.isArray(value) ? value : []
   let matched = false
@@ -291,7 +306,7 @@ function reconcileTextTaskHistory(
     if (!entry || cleanText(entry.taskId) !== task.id) return item
     matched = true
     return textValue !== null
-      ? { ...entry, text: textValue, status: 'ready', errorMessage: null }
+      ? { ...entry, text: textValue, status: 'ready', errorMessage: null, ...(actualCostPoints !== null ? { actualCostPoints } : {}) }
       : { ...entry, status: 'failed', errorMessage }
   })
   if (matched) return mapped
@@ -305,6 +320,7 @@ function reconcileTextTaskHistory(
     source: 'generation',
     status: textValue !== null ? 'ready' : 'failed',
     errorMessage,
+    ...(textValue !== null && actualCostPoints !== null ? { actualCostPoints } : {}),
     createdAt: task.finishedAt?.toISOString() || new Date().toISOString(),
   }, ...mapped].slice(0, 40)
 }
@@ -337,7 +353,7 @@ function terminalCanvasTextTaskProjection(
           progress: 100,
           errorMessage: null,
           generationTask: { ...currentGenerationTask, taskId: task.id, kind: payload.kind, completed: true },
-          history: reconcileTextTaskHistory(current.history, task, textValue, null),
+          history: reconcileTextTaskHistory(current.history, task, textValue, null, completedTaskCostPoints(task)),
         } as Prisma.InputJsonValue,
       }
     }
@@ -358,7 +374,7 @@ function terminalCanvasTextTaskProjection(
       errorMessage,
       generationTask: { ...currentGenerationTask, taskId: task.id, kind: payload.kind, completed: true },
       ...(payload.kind === 'text'
-        ? { history: reconcileTextTaskHistory(current.history, task, null, errorMessage) }
+        ? { history: reconcileTextTaskHistory(current.history, task, null, errorMessage, null) }
         : {}),
     } as Prisma.InputJsonValue,
   }
@@ -390,6 +406,7 @@ async function reconcileCanvasTextGenerationNodes<T extends ReconciliableCanvasN
       payload: true,
       result: true,
       errorMessage: true,
+      billingInfo: true,
       finishedAt: true,
     },
   })

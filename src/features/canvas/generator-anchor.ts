@@ -46,7 +46,7 @@ export function resolveCanvasGeneratorAnchor(input: {
   const safeTop = Math.max(0, input.safeTop ?? 116)
   const safeBottom = Math.max(0, input.safeBottom ?? 28)
   const availableSurfaceHeight = Math.max(120, input.surface.height - safeTop - safeBottom)
-  const minimumVisiblePanelHeight = Math.min(220, availableSurfaceHeight)
+  const minimumVisiblePanelHeight = Math.min(340, availableSurfaceHeight)
   const belowStart = nodeBottom + gap
   const aboveEnd = nodeTop - aboveGap
   const belowSpace = Math.max(0, input.surface.height - safeBottom - Math.max(safeTop, belowStart))

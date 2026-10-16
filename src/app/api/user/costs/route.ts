@@ -26,6 +26,7 @@ export const GET = apiHandler(async () => {
     where: {
       id: { in: projectIds },
       userId,
+      deletedAt: null,
     },
     select: { id: true, name: true }
   })

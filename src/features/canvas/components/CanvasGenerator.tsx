@@ -8,6 +8,8 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from 'react'
+import { flushSync } from 'react-dom'
+import { requireExistingReferenceNodeIds } from '../reference-resolution'
 import {
   ArrowLeft,
   Box,
@@ -28,9 +30,10 @@ import {
 } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import {
   CANVAS_IMAGE_ASPECT_RATIOS,
@@ -100,6 +103,7 @@ type ModelOption = {
 
 type VoiceOption = { value: string; label: string }
 type AudioMode = 'music' | 'tts' | 'sfx'
+type GenerationQuote = { points: number; costCny: number }
 
 const AUDIO_MODES: Array<{ value: AudioMode; label: string }> = [
   { value: 'music', label: '音乐' },
@@ -152,6 +156,7 @@ export type CanvasGenerateRequest = {
   nodeId: string
   type: 'text' | 'image' | 'video' | 'audio' | 'model3d'
   prompt: string
+  quotedCostPoints?: number | null
   modelKey: string
   modelLabel: string
   referenceNodeIds: string[]
@@ -183,7 +188,7 @@ function nodeKind(node: CanvasFlowNode): CanvasGenerateRequest['type'] {
 }
 
 function modelOptions(model: ModelOption | undefined, key: string) {
-  return (model?.options[key] || []).map(String)
+  return (model?.options?.[key] || []).map(String)
 }
 
 /** 引用素材上限按当前输入模式取对应媒体类型的上限。 */
@@ -230,14 +235,23 @@ function mediaTypeForReference(node: CanvasFlowNode): CanvasReferenceMediaSummar
   return type === 'image' || type === 'video' || type === 'audio' ? type : null
 }
 
+function nodeMediaDurationSeconds(node: CanvasFlowNode): number | null {
+  const metadata = node.data.sourceMetadata
+  const generationDuration = node.data.generation?.duration
+  const generationSeconds = typeof generationDuration === 'number' && Number.isFinite(generationDuration) && generationDuration > 0
+    ? generationDuration
+    : null
+  return readMediaDurationSeconds(metadata) ?? generationSeconds
+}
+
 function referenceSummary(
   node: CanvasFlowNode,
   role?: CanvasGenerationReferenceRole,
 ): CanvasReferenceMediaSummary | null {
   const type = mediaTypeForReference(node)
   if (!type) return null
-  const durationSeconds = type === 'audio'
-    ? readMediaDurationSeconds(node.data.sourceMetadata)
+  const durationSeconds = type === 'audio' || type === 'video'
+    ? nodeMediaDurationSeconds(node)
     : null
   return {
     id: node.id,
@@ -250,12 +264,36 @@ function referenceSummary(
       || node.data.audioUrl
       || null,
     ...(role ? { role } : {}),
-    ...(type === 'audio' ? { durationSeconds } : {}),
+    ...(durationSeconds !== null ? { durationSeconds } : {}),
   }
 }
 
+export function quoteInputVideoSeconds(referenceNodeIds: string[], referenceNodes: CanvasFlowNode[]): number {
+  const seconds = referenceNodeIds.flatMap((id) => {
+    const node = referenceNodes.find((item) => item.id === id)
+    if (!node || mediaTypeForReference(node) !== 'video') return []
+    const value = nodeMediaDurationSeconds(node)
+    return typeof value === 'number' && Number.isFinite(value) && value > 0 ? [value] : []
+  })
+  return seconds.reduce((sum, value) => sum + value, 0)
+}
+
+export function estimateTtsSeconds(prompt: string): number {
+  const text = prompt.trim()
+  if (!text) return 1
+  const cjkCharacters = text.match(/[\u3400-\u4dbf\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g)?.length || 0
+  const words = text.match(/[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*/g)?.length || 0
+  // Conservative speech estimate: CJK about 4 characters/second, English about
+  // 2.6 words/second, plus a short leading/trailing allowance.
+  return Math.max(1, Math.ceil((cjkCharacters / 4 + words / 2.6) * 1.15))
+}
+
 function ReferenceThumb({ node, selected, onToggle, onHover }: { node: CanvasFlowNode; selected: boolean; onToggle: () => void; onHover: (nodeId: string | null) => void }) {
-  const image = toDisplayImageUrl(node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null)
+  const mediaType = mediaTypeForReference(node)
+  const image = toDisplayImageUrl(mediaType === 'video'
+    ? node.data.posterUrl || node.data.imageUrl || null
+    : mediaType === 'image' ? node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null : null)
+  const video = mediaType === 'video' ? toPlayableVideoUrl(node.data.videoUrl || node.data.contentUrl) : null
   const Icon = node.type === 'text' ? Type : node.type === 'video' ? Film : node.type === 'audio' ? Music2 : ImageIcon
   return (
     <button
@@ -266,7 +304,7 @@ function ReferenceThumb({ node, selected, onToggle, onHover }: { node: CanvasFlo
       onPointerEnter={() => onHover(node.id)}
       onPointerLeave={() => onHover(null)}
     >
-      {image ? <MediaImage src={image} alt="" width={52} height={52} /> : <Icon />}
+      {image ? <MediaImage src={image} alt="" width={52} height={52} /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
       <span>{node.data.title || '未命名'}</span>
     </button>
   )
@@ -303,7 +341,7 @@ export function CanvasGenerator({
   panelWidth: number
   onPanelWidthChange: (width: number) => void
 }) {
-  const { generationAllowed } = useAccountBalance()
+  const { generationAllowed, generationDisabledReason } = useAccountBalance()
   const type = nodeKind(node)
   const isPanorama = type === 'image' && node.data.processType === 'panorama_720'
   const isImageEdit = type === 'image' && node.data.processType === 'image_edit'
@@ -316,6 +354,7 @@ export function CanvasGenerator({
         ? incomingNodes.filter((item) => mediaTypeForReference(item) === 'image')
         : incomingNodes.filter((item) => mediaTypeForReference(item) !== null)
   const incomingSignature = compatibleIncomingNodes.map((item) => item.id).join('|')
+  const nodeReferenceSignature = (node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id)).join('|')
   const mentionAllowedTypes: readonly CanvasMentionMediaType[] = type === 'video'
     ? inputMode === 'text' ? VIDEO_MENTION_TYPES : IMAGE_MENTION_TYPES
     : type === 'image'
@@ -362,6 +401,10 @@ export function CanvasGenerator({
   const [autoReferencePreview, setAutoReferencePreview] = useState(true)
   const [hoveredReferenceId, setHoveredReferenceId] = useState<string | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
+  const parameterTriggerRef = useRef<HTMLButtonElement>(null)
+  const [quote, setQuote] = useState<GenerationQuote | null>(null)
+  const [quoteError, setQuoteError] = useState<string | null>(null)
+  const [quoteLoading, setQuoteLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const onDraftChangeRef = useRef(onDraftChange)
@@ -372,6 +415,59 @@ export function CanvasGenerator({
   const closeEditorRef = useRef<() => void>(() => undefined)
 
   useEffect(() => { onDraftChangeRef.current = onDraftChange }, [onDraftChange])
+
+  const quotable = (type === 'image' || type === 'video' || type === 'audio') && Boolean(modelKey)
+  const quoteKey = useMemo(() => {
+    if (!quotable) return ''
+    const params = new URLSearchParams({ type, model: modelKey })
+    if (type === 'image') {
+      params.set('count', String(storyboard ? normalizeStoryboardCount(count) : count))
+      params.set('resolution', resolution)
+      params.set('quality', quality)
+    } else if (type === 'video') {
+      params.set('resolution', resolution)
+      params.set('duration', String(duration))
+      params.set('generationMode', inputMode === 'firstlastframe' ? 'firstlastframe' : 'normal')
+      params.set('generateAudio', String(generateAudio))
+      const inputVideoSeconds = quoteInputVideoSeconds(referenceNodeIds, referenceNodes)
+      if (inputVideoSeconds > 0) {
+        params.set('containsVideoInput', 'true')
+        params.set('inputVideoSeconds', String(inputVideoSeconds))
+      }
+    } else {
+      params.set('duration', String(audioMode === 'tts' ? estimateTtsSeconds(prompt) : duration))
+    }
+    return params.toString()
+  }, [audioMode, count, duration, generateAudio, inputMode, modelKey, prompt, quality, quotable, referenceNodeIds, referenceNodes, resolution, storyboard, type])
+
+  useEffect(() => {
+    if (!quoteKey) {
+      setQuote(null)
+      setQuoteError(null)
+      return
+    }
+    let active = true
+    setQuoteLoading(true)
+    apiFetch(`/api/frameos/generation-quote?${quoteKey}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(await readApiErrorMessage(response, '获取积分报价失败'))
+        return await response.json() as GenerationQuote
+      })
+      .then((payload) => {
+        if (!active) return
+        setQuote(payload)
+        setQuoteError(null)
+      })
+      .catch((error: unknown) => {
+        if (!active) return
+        setQuote(null)
+        setQuoteError(error instanceof Error ? error.message : '获取积分报价失败')
+      })
+      .finally(() => {
+        if (active) setQuoteLoading(false)
+      })
+    return () => { active = false }
+  }, [quoteKey])
 
   useEffect(() => () => panelResizeCleanupRef.current?.(), [])
 
@@ -432,6 +528,13 @@ export function CanvasGenerator({
   }, [incomingSignature, node.id])
 
   useEffect(() => {
+    // Bulk drops and undo/redo may change references without changing the
+    // active node or wires. Sync only ids, not the user's in-progress prompt.
+    const next = nodeReferenceSignature ? nodeReferenceSignature.split('|') : []
+    setReferenceNodeIds((current) => current.join('|') === nodeReferenceSignature ? current : next)
+  }, [node.id, nodeReferenceSignature])
+
+  useEffect(() => {
     setLoadingConfig(true)
     Promise.all([
       apiFetch(`/api/frameos/generation-config?projectId=${encodeURIComponent(projectId)}`).then(async (response) => {
@@ -442,6 +545,7 @@ export function CanvasGenerator({
         ? await response.json() as { voices?: Array<{ name?: string | null; voiceId?: string | null }> }
         : { voices: [] }),
     ]).then(([next, voicePayload]) => {
+      if (!next?.defaults || typeof next.defaults !== 'object') throw new Error('生成模型配置不完整，请刷新后重试')
       setConfig(next)
       const voices = (voicePayload.voices || []).flatMap((voice) => {
         const value = voice.voiceId?.trim()
@@ -547,6 +651,7 @@ export function CanvasGenerator({
     const summary = selected ? referenceSummary(selected, role) : null
     return summary ? [summary] : []
   }), [inputMode, referenceNodeIds, referenceNodes, type])
+  const missingReferenceCount = referenceNodeIds.filter((id) => !referenceNodes.some((item) => item.id === id)).length
   const visibleIncomingNodes = type === 'video' && inputMode !== 'text'
     ? compatibleIncomingNodes.filter((item) => mediaTypeForReference(item) === 'image')
     : compatibleIncomingNodes
@@ -589,7 +694,7 @@ export function CanvasGenerator({
         ? current
         : videoAspectRatios[0] || '16:9')
     }
-  }, [config?.defaults.resolution, currentModel?.raw?.firstLastFrame, fpsOptions, inputMode, supportedResolutions, supportsImageToVideo, type, videoAspectRatios, videoDurationOptions])
+  }, [config?.defaults.resolution, currentModel, fpsOptions, inputMode, supportedResolutions, supportsImageToVideo, type, videoAspectRatios, videoDurationOptions])
 
   useEffect(() => {
     if (type !== 'video' || inputMode === 'text') return
@@ -619,6 +724,7 @@ export function CanvasGenerator({
         ...(node.data.generation || {}),
         modelKey,
         modelLabel: currentModel?.label || '',
+        inputSchema: currentModel?.raw?.inputSchema || null,
         referenceNodeIds,
         referenceSummary: selectedReferenceSummaries,
         aspectRatio,
@@ -636,7 +742,7 @@ export function CanvasGenerator({
               ? videoGenerationParameters(node.data.generation?.parameters, fps)
               : node.data.generation?.parameters,
       },
-    }), [aspectRatio, audioGenre, audioMode, audioSfxKind, audioVoice, count, currentModel?.label, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, type])
+    }), [aspectRatio, audioGenre, audioMode, audioSfxKind, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -658,6 +764,10 @@ export function CanvasGenerator({
 
   const referenceErrors = (ids: string[], strict: boolean) => {
     if (!effectiveInputSchema) return []
+    if (strict) {
+      try { requireExistingReferenceNodeIds(ids, referenceNodes) }
+      catch (error) { return [error instanceof Error ? error.message : '引用素材失效，请重新选择。'] }
+    }
     const summaries = ids.flatMap((id) => {
       const selected = referenceNodes.find((item) => item.id === id)
       const summary = selected ? referenceSummary(selected) : null
@@ -708,14 +818,16 @@ export function CanvasGenerator({
   // 从素材库挑选的引用素材会先落到画布成为节点，再通过这个注入合并进来，
   // 因此引用关系不依赖用户手动画线。
   const injectedSignature = (injectedReferenceNodeIds || []).join('|')
+  const injectionRef = useRef({ ids: injectedReferenceNodeIds, validate: referenceErrors })
+  injectionRef.current = { ids: injectedReferenceNodeIds, validate: referenceErrors }
   useEffect(() => {
-    const ids = injectedReferenceNodeIds || []
+    const ids = injectionRef.current.ids || []
     if (ids.length === 0) return
     setReferenceNodeIds((current) => {
       const next = [...current]
       for (const id of ids) if (!next.includes(id)) next.push(id)
       if (next.length === current.length) return current
-      const errors = referenceErrors(next, false)
+      const errors = injectionRef.current.validate(next, false)
       if (errors.length > 0) { setError(errors[0]); return current }
       setError(null)
       return next
@@ -724,7 +836,7 @@ export function CanvasGenerator({
   }, [injectedSignature])
 
   const submit = async () => {
-    if (!generationAllowed) { setError('积分不足，无法生成'); return }
+    if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     const upstreamText = incomingNodes
       .filter((item) => item.type === 'text' || item.type === 'note' || item.data.mediaType === 'text')
       .map((item) => item.data.text?.trim() || '')
@@ -738,6 +850,7 @@ export function CanvasGenerator({
     if (effectiveInputSchema) {
       const requiredErrors = validateCanvasRequiredFields(effectiveInputSchema, {
         prompt: cleanPrompt,
+        quotedCostPoints: quote?.points ?? null,
         voice: audioVoice,
         inputMode,
         aspectRatio,
@@ -757,11 +870,14 @@ export function CanvasGenerator({
     }
     setSubmitting(true)
     setError(null)
-    persistDraft({
+    // Commit the current draft before autosave builds the generation snapshot.
+    // Otherwise the revision may be acknowledged before newly added references
+    // or the current settings have reached nodesRef.
+    flushSync(() => persistDraft({
       ...draftPatch,
       prompt: cleanPrompt,
       generation: { ...draftPatch.generation, referenceNodeIds },
-    })
+    }))
     try {
       await onGenerate({
         nodeId: node.id,
@@ -816,12 +932,16 @@ export function CanvasGenerator({
     panelResizeCleanupRef.current?.()
     const startWidth = panelWidth
     const startClientX = event.clientX
+    const panel = event.currentTarget.closest<HTMLElement>('.nori-canvas-generator')
+    const interfaceScale = panel ? panel.getBoundingClientRect().width / panelWidth : 1
+    const viewportWidth = panel?.closest<HTMLElement>('.nori-canvas-workspace')?.clientWidth || window.innerWidth
     const move = (moveEvent: PointerEvent) => {
       onPanelWidthChange(resizeCanvasGeneratorPanelWidth({
         startWidth,
         startClientX,
         clientX: moveEvent.clientX,
-        viewportWidth: window.innerWidth,
+        viewportWidth,
+        interfaceScale,
       }))
     }
     const cleanup = () => {
@@ -887,6 +1007,7 @@ export function CanvasGenerator({
         </div>
       </div>
 
+      <div className="nori-canvas-generator-content">
       {type === 'image' || type === 'video' || type === 'audio' ? (
         <div className="nori-canvas-generator-refs">
           <span className="nori-canvas-generator-refs-label">引用素材</span>
@@ -897,7 +1018,28 @@ export function CanvasGenerator({
         </div>
       ) : null}
 
-      {hoveredReference && hoveredReferenceUrl ? <div className="nori-canvas-generator-ref-preview" onPointerEnter={() => setHoveredReferenceId(hoveredReference.id)} onPointerLeave={() => setHoveredReferenceId(null)}><strong>{hoveredReference.data.title || '参考素材'}</strong>{mediaTypeForReference(hoveredReference) === 'video' ? <video src={hoveredReferenceUrl} muted autoPlay loop playsInline /> : <MediaImage src={hoveredReferenceUrl} alt={hoveredReference.data.title || '参考素材'} fill sizes="360px" style={{ objectFit: 'contain' }} />}</div> : null}
+      {missingReferenceCount > 0 ? <div role="alert" className="nori-canvas-generator-reference-warning">
+        <span>有 {missingReferenceCount} 个引用节点已删除。请清除失效引用或重新添加素材；不会自动提交缺少素材的生成。</span>
+        <button type="button" onClick={() => {
+          const existing = new Set(referenceNodes.map((item) => item.id))
+          const nextIds = referenceNodeIds.filter((id) => existing.has(id))
+          setReferenceNodeIds(nextIds)
+          persistDraft({
+            ...draftPatch,
+            generation: {
+              ...draftPatch.generation,
+              referenceNodeIds: nextIds,
+              referenceSummary: selectedReferenceSummaries.map((summary, index) => ({
+                ...summary,
+                role: type === 'video' && inputMode === 'firstlastframe' ? index === 0 ? 'FIRST_FRAME' : 'LAST_FRAME' : 'REF',
+              })),
+            },
+          })
+          setError(null)
+        }}>清除失效引用</button>
+      </div> : null}
+
+      {hoveredReference && hoveredReferenceUrl ? <div className="nori-canvas-generator-ref-preview" onPointerEnter={() => setHoveredReferenceId(hoveredReference.id)} onPointerLeave={() => setHoveredReferenceId(null)}><strong>{hoveredReference.data.title || '参考素材'}</strong>{mediaTypeForReference(hoveredReference) === 'video' ? <video src={toPlayableVideoUrl(hoveredReferenceUrl) || hoveredReferenceUrl} muted autoPlay loop playsInline /> : <MediaImage src={hoveredReferenceUrl} alt={hoveredReference.data.title || '参考素材'} fill sizes="360px" style={{ objectFit: 'contain' }} />}</div> : null}
 
       {storyboard ? <p className="nori-canvas-storyboard-hint">描述一个 10–15 秒内能演完的小剧情片段，系统会生成 {normalizeStoryboardCount(count)} 个连续分镜。</p> : null}
       {isImageEdit ? <p className="nori-canvas-storyboard-hint">白色涂抹区域会作为独立蒙版提交；仅可选择明确支持 Inpaint 的图片模型。</p> : null}
@@ -953,7 +1095,11 @@ export function CanvasGenerator({
         <div className="nori-canvas-model3d-option"><span>角色姿势</span><div><button type="button" className={model3dPose === 'none' ? 'is-active' : ''} onClick={() => setModel3dPose('none')}>无</button><button type="button" className={model3dPose === 'a_pose' ? 'is-active' : ''} onClick={() => setModel3dPose('a_pose')}>A 姿势</button><button type="button" className={model3dPose === 't_pose' ? 'is-active' : ''} onClick={() => setModel3dPose('t_pose')}>T 姿势</button></div></div>
       </div> : null}
 
+      {currentModel?.raw?.available === false ? <div className="nori-canvas-generator-error">{currentModel.raw.unavailableReason || '当前模型服务尚未配置。'}</div> : null}
+      {error ? <div className="nori-canvas-generator-error">{error}</div> : null}
+      </div>
       <div className="nori-canvas-generator-controls">
+        <div className="nori-canvas-generator-settings-row">
         <label className="nori-canvas-generator-select">
           <select value={modelKey} onChange={(event) => setModelKey(event.target.value)} disabled={loadingConfig || availableModels.length === 0}>
             {availableModels.length === 0 ? <option value="">{loadingConfig ? '正在加载模型…' : type === 'audio' ? '音频模型未配置' : type === 'model3d' ? '3D 模型未配置' : '暂无模型'}</option> : availableModels.map((model) => {
@@ -967,12 +1113,25 @@ export function CanvasGenerator({
           </select>
           <ChevronDown />
         </label>
-        {(type === 'image' || type === 'video') ? <button type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-expanded={moreOpen} onClick={() => setMoreOpen((value) => !value)}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span></button> : null}
-        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={!generationAllowed ? '积分不足，无法生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成'}><Send /></button>
+        {(type === 'image' || type === 'video') ? <button ref={parameterTriggerRef} type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-label="生成参数" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen((value) => !value)}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span><ChevronDown /></button> : null}
+        </div>
+        <div className="nori-canvas-generator-submit-row">
+        {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} /><span>生成声音</span></label> : null}
+        {quotable ? (
+          <span
+            className="nori-canvas-generator-quote"
+            title={quoteError || undefined}
+          >
+            {quoteLoading ? '报价中…' : quoteError ? '暂无法报价' : quote ? `预计 ${quote.points.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分` : '—'}
+          </span>
+        ) : null}
+        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成'}><Send /><span>{submitting ? '提交中…' : '生成'}</span></button>
+        </div>
       </div>
 
       {moreOpen && (type === 'image' || type === 'video') ? (
-        <div className="nori-canvas-generator-more">
+        <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={400} maxHeight={420} role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover">
+          <header><div><strong>生成参数</strong><small>修改后自动保存到当前节点</small></div><button type="button" aria-label="关闭生成参数" onClick={() => { persistDraft(); setMoreOpen(false); parameterTriggerRef.current?.focus() }}><X /></button></header>
           <div className="nori-canvas-generator-parameter-grid">
             {type === 'video' ? <label><span>生成模式</span><select value={inputMode} onChange={(event) => setInputMode(event.target.value as CanvasVideoEditorMode)}><option value="text">全能参考</option><option value="image" disabled={!supportsImageToVideo}>图生视频</option><option value="firstlastframe" disabled={!currentModel?.raw?.firstLastFrame}>首尾帧</option></select></label> : null}
             <label><span>画面比例</span><select value={aspectRatio} disabled={isPanorama || (type === 'video' && videoAspectRatios.length === 1)} onChange={(event) => setAspectRatio(event.target.value)}>{(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios).map((value) => <option key={value}>{value === 'adaptive' ? '自适应' : value}</option>)}</select></label>
@@ -981,13 +1140,10 @@ export function CanvasGenerator({
             {type === 'image' ? <div className="nori-canvas-image-quality"><span>图片质量</span><div>{CANVAS_IMAGE_QUALITIES.map((value) => <button type="button" key={value} className={quality === value ? 'is-active' : ''} onClick={() => setQuality(value)}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>)}</div></div> : null}
             {type === 'video' ? <label><span>视频时长</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{videoDurationOptions.map((value) => <option key={value} value={value}>{value} 秒</option>)}</select></label> : null}
             {type === 'video' && fpsOptions.length > 0 ? <label><span>视频帧率</span><select value={fps || fpsOptions[0]} onChange={(event) => setFps(Number(event.target.value))}>{fpsOptions.map((value) => <option key={value} value={value}>{value} FPS</option>)}</select></label> : null}
-            {type === 'video' ? <label className="nori-canvas-generator-switch" title={currentModel?.raw?.supportGenerateAudio ? '生成有声视频' : '当前模型不支持有声视频'}><span>同步生成声音</span><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} /></label> : null}
           </div>
           <p>{type === 'video' && inputMode === 'firstlastframe' ? '首尾帧模式固定接收按顺序选择的两张图片。' : type === 'video' && inputMode === 'image' ? '图生视频至少需要一张参考图片，不接收视频或音频参考。' : `当前模型允许图片 ${effectiveInputSchema?.image.min || 0}–${effectiveInputSchema?.image.max || 0}、视频 ${effectiveInputSchema?.video.min || 0}–${effectiveInputSchema?.video.max || 0}、音频 ${effectiveInputSchema?.audio.min || 0}–${effectiveInputSchema?.audio.max || 0}${effectiveInputSchema?.audio.maxTotalDurationSeconds ? `（总计不超过 ${effectiveInputSchema.audio.maxTotalDurationSeconds}s）` : ''}。`}</p>
-        </div>
+        </ViewportPopover>
       ) : null}
-      {currentModel?.raw?.available === false ? <div className="nori-canvas-generator-error">{currentModel.raw.unavailableReason || '当前模型服务尚未配置。'}</div> : null}
-      {error ? <div className="nori-canvas-generator-error">{error}</div> : null}
       </div>
     </aside>
   )

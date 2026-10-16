@@ -65,12 +65,23 @@ describe('account role permission policy', () => {
 
   it('keeps project creation independently assignable while reserving project administration', () => {
     expect(requiredPermissionsForApiPath('/api/projects', 'POST')).toEqual(['projectCreate'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1', 'PATCH')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'PATCH')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/novel-promotion/p1', 'PATCH')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/novel-promotion/p1', 'DELETE')).toEqual(['admin'])
     expect(requiredPermissionsForApiPath('/api/user/api-config', 'GET')).toEqual(['admin'])
     expect(requiredPermissionsForApiPath('/api/super-agent/execute', 'POST')).toEqual(['admin'])
     expect(requiredPermissionsForApiPath('/api/frameos/toolbox/generate', 'POST')).toEqual(['toolboxUse'])
     expect(requiredPermissionsForApiPath('/api/frameos/toolbox/materials', 'POST')).toEqual(['toolboxUse'])
     expect(requiredPermissionsForApiPath('/api/frameos/materials', 'POST')).toEqual(['assetWrite'])
+  })
+
+  it('allows participant edits without granting adjacent administrative mutations', () => {
+    expect(requiredPermissionsForApiPath('/api/projects/p1/', 'PATCH')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'PUT')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'PATCH')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/recycle-bin/p1', 'PATCH')).toEqual(['admin'])
   })
 
   it('lets the screenwriter role run and save video repaint scripts', () => {

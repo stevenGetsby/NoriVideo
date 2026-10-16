@@ -11,6 +11,12 @@ vi.mock('@/lib/api-config', () => ({
   getProviderConfig: getProviderConfigMock,
 }))
 
+// Wire/protocol cases stay independent of image decoding. Real image resizing
+// and final request-boundary behavior have dedicated Sharp-backed tests.
+vi.mock('@/lib/media/kuaizi-seedance-image', () => ({
+  prepareKuaiziSeedanceImage: vi.fn(async (url: string) => url),
+}))
+
 import { generateKuaiziAudio } from '@/lib/providers/kuaizi/audio'
 import { generateKuaiziImage } from '@/lib/providers/kuaizi/image'
 import { queryKuaiziTaskStatus } from '@/lib/providers/kuaizi/poll'

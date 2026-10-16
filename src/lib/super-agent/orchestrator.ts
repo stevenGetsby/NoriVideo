@@ -977,6 +977,7 @@ export class SuperAgentOrchestrator {
       where: {
         userId: params.userId,
         name: RECORDING_REPLAY_SOURCE_PROJECT_NAME,
+        deletedAt: null,
       },
       include: includePayload,
       orderBy: { updatedAt: 'desc' },
@@ -1047,6 +1048,7 @@ export class SuperAgentOrchestrator {
       where: {
         id: params.targetProjectId,
         userId: params.userId,
+        deletedAt: null,
       },
       select: { id: true },
     })
@@ -1831,6 +1833,7 @@ export class SuperAgentOrchestrator {
         where: {
           id: context.targetProjectId,
           userId: context.userId,
+          deletedAt: null,
         },
         include: {
           novelPromotionData: true,

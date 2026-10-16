@@ -1,22 +1,19 @@
 import { describe, expect, it } from 'vitest'
 import { PRESET_MODELS, PRESET_PROVIDERS } from '@/app/[locale]/profile/components/api-config/types'
+import { MODEL_PRESETS, MODEL_PROVIDER_PRESETS } from '@/lib/model-provider-contract'
 
 describe('api-config minimax preset', () => {
-  it('uses official minimax baseUrl in preset provider', () => {
-    const minimaxProvider = PRESET_PROVIDERS.find((provider) => provider.id === 'minimax')
-    expect(minimaxProvider).toBeDefined()
-    expect(minimaxProvider?.baseUrl).toBe('https://api.minimaxi.com/v1')
+  it('does not reintroduce an unsupported MiniMax provider into the current registry', () => {
+    expect(PRESET_PROVIDERS.some((provider) => String(provider.id) === 'minimax')).toBe(false)
+    expect(PRESET_PROVIDERS.map((provider) => provider.id)).toEqual(MODEL_PROVIDER_PRESETS.map((provider) => provider.id))
   })
 
-  it('includes all required minimax official llm preset models', () => {
+  it('projects exactly the supported model registry instead of advertising retired models', () => {
     const minimaxLlmModelIds = PRESET_MODELS
       .filter((model) => model.provider === 'minimax' && model.type === 'llm')
       .map((model) => model.modelId)
 
-    expect(minimaxLlmModelIds).toContain('MiniMax-M2.5')
-    expect(minimaxLlmModelIds).toContain('MiniMax-M2.5-highspeed')
-    expect(minimaxLlmModelIds).toContain('MiniMax-M2.1')
-    expect(minimaxLlmModelIds).toContain('MiniMax-M2.1-highspeed')
-    expect(minimaxLlmModelIds).toContain('MiniMax-M2')
+    expect(minimaxLlmModelIds).toEqual([])
+    expect(PRESET_MODELS).toEqual(MODEL_PRESETS.map(({ modelId, name, type, provider }) => ({ modelId, name, type, provider })))
   })
 })

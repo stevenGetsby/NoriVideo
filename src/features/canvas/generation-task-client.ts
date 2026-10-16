@@ -4,6 +4,11 @@ import { resolveTaskErrorMessage } from '@/lib/task/error-message'
 export type CanvasGenerationTaskStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'canceled'
 export type CanvasGenerationTaskKind = 'text' | 'storyboard_plan'
 
+export type CanvasGenerationTaskCost = {
+  points: number
+  costCny: number
+}
+
 export type CanvasStoryboardPlanShot = {
   index: number
   title: string
@@ -53,6 +58,7 @@ export type CanvasGenerationTask = {
       }>
     }
   } | null
+  cost: CanvasGenerationTaskCost | null
   error: { code: string; message: string; retryable: boolean } | null
   canCancel: boolean
   canRetry: boolean

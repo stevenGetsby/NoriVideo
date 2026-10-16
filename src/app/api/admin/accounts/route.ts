@@ -25,6 +25,13 @@ import {
   emptyModelUsageSummary,
   mergeModelUsageSummaries,
 } from '@/lib/platform-services/model-type-usage'
+import {
+  getDailyUsageSnapshotMap,
+  isValidDailyPointLimitInput,
+  normalizeDailyPointLimit,
+  serializeDailyUsage,
+  type DailyUsagePayload,
+} from '@/lib/billing/daily-limit'
 
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
@@ -42,6 +49,15 @@ function readUsername(value: unknown): string {
     throw new ApiError('INVALID_PARAMS', { message: '账号长度需为 2–64 个字符，且不能包含控制字符。' })
   }
   return username
+}
+
+function readDailyPointLimit(value: unknown): number | null {
+  if (!isValidDailyPointLimitInput(value)) {
+    throw new ApiError('INVALID_PARAMS', {
+      message: '每日上限必须是 0–100000000 的整数积分或 unlimited（0 禁止生成，unlimited 不限量）。',
+    })
+  }
+  return normalizeDailyPointLimit(value)
 }
 
 function readPassword(value: unknown): string {
@@ -146,7 +162,7 @@ export const GET = apiHandler(async () => {
   })
   const accountIds = Array.from(new Set([...managerIds, ...accounts.map((account) => account.id)]))
   const [projects, characters, locations, voices, costRows] = await Promise.all([
-    prisma.project.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
+    prisma.project.findMany({ where: { userId: { in: managerIds }, deletedAt: null }, select: { userId: true } }),
     prisma.globalCharacter.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
     prisma.globalLocation.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
     prisma.globalVoice.findMany({ where: { userId: { in: managerIds } }, select: { userId: true } }),
@@ -163,6 +179,11 @@ export const GET = apiHandler(async () => {
       },
     }),
   ])
+  const dailyUsageByAccount = await getDailyUsageSnapshotMap(accountIds)
+  const dailyUsageFor = (accountId: string): DailyUsagePayload | null => {
+    const snapshot = dailyUsageByAccount.get(accountId)
+    return snapshot ? serializeDailyUsage(snapshot) : null
+  }
 
   const usageByAccount = buildModelUsageByAccount(costRows)
 
@@ -183,6 +204,7 @@ export const GET = apiHandler(async () => {
       .map((account) => ({
         ...serializeManagedAccount(account),
         usage: usageByAccount.get(account.id) || emptyModelUsageSummary(),
+        usageToday: dailyUsageFor(account.id),
       }))
     const modelUsage = mergeModelUsageSummaries(
       usageAccounts.map((account) => usageByAccount.get(account.id) || emptyModelUsageSummary()),
@@ -191,6 +213,7 @@ export const GET = apiHandler(async () => {
       manager: {
         ...serializeManagedAccount(manager),
         usage: usageByAccount.get(manager.id) || emptyModelUsageSummary(),
+        usageToday: dailyUsageFor(manager.id),
       },
       subaccountCount: subaccounts.length,
       // 平台 Admin 的接口只返回管理账号和汇总；角色子账号明细仅向所属管理账号返回。
@@ -221,7 +244,7 @@ export const GET = apiHandler(async () => {
       byType: totalModelUsage.byType,
     },
     usageRange: 'all_time',
-  })
+  }, { headers: { 'Cache-Control': 'private, no-store, max-age=0', Pragma: 'no-cache' } })
 })
 
 export const POST = apiHandler(async (request: NextRequest) => {
@@ -250,6 +273,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const permissions = accountType === 'subaccount'
     ? readSubaccountPermissions(body.permissions, role as SubaccountRole)
     : effectiveAccountPermissions(role)
+  const dailyPointLimit = readDailyPointLimit(body.dailyPointLimit)
   if (accountType === 'subaccount') {
     const requestedManagerId = typeof body.managerId === 'string' ? body.managerId.trim() : ''
     if (requestedManagerId && requestedManagerId !== actorId) {
@@ -271,6 +295,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           workspaceOwnerId: accountType === 'manager' ? null : managerId,
           parentAccountId: accountType === 'manager' ? actorId : managerId,
           coinCredits: 0,
+          dailyPointLimit,
         },
         select: managedAccountSelect,
       })
@@ -293,6 +318,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
       role,
       roleLabel,
       permissions,
+      dailyPointLimit,
     })
 
     return NextResponse.json({ success: true, account: serializeManagedAccount(account) }, { status: 201 })

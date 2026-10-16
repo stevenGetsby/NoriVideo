@@ -28,6 +28,7 @@ export const GET = apiHandler(async (
         where: {
             id: projectId,
             userId: session.user.id,
+            deletedAt: null,
         },
         select: { id: true }
     })

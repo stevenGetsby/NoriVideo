@@ -100,7 +100,7 @@ export class TosStorageProvider implements StorageProvider {
     const canonicalRequest = [
       input.method.toUpperCase(),
       input.url.pathname,
-      canonicalQuery(input.url.searchParams),
+      canonicalTosQuery(input.url.searchParams),
       canonicalHeaders(headersToSign),
       signedHeaders,
       payloadHash,
@@ -180,6 +180,8 @@ export class TosStorageProvider implements StorageProvider {
 
   async getSignedObjectUrl(params: SignedUrlParams): Promise<string> {
     const url = this.objectUrl(normalizeKey(params.key), this.publicEndpoint || this.endpoint)
+    if (params.responseContentType) url.searchParams.set('response-content-type', params.responseContentType)
+    if (params.responseContentDisposition) url.searchParams.set('response-content-disposition', params.responseContentDisposition)
     const now = new Date()
     const amzDate = toAmzDate(now)
     const dateStamp = amzDate.slice(0, 8)
@@ -193,7 +195,7 @@ export class TosStorageProvider implements StorageProvider {
     const canonicalRequest = [
       'GET',
       url.pathname,
-      canonicalQuery(url.searchParams),
+      canonicalTosQuery(url.searchParams),
       `host:${url.host}\n`,
       'host',
       'UNSIGNED-PAYLOAD',
@@ -297,10 +299,13 @@ function pickTosSignedHeaders(headers: Record<string, string>): Record<string, s
   )
 }
 
-function canonicalQuery(params: URLSearchParams): string {
+export function canonicalTosQuery(params: URLSearchParams): string {
+  const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0
   return [...params.entries()]
     .map(([key, value]) => [encodeRfc3986(key), encodeRfc3986(value)] as const)
-    .sort(([keyA, valueA], [keyB, valueB]) => keyA === keyB ? valueA.localeCompare(valueB) : keyA.localeCompare(keyB))
+    // TOS signing requires byte/ASCII ordering, not locale collation. The
+    // latter puts lowercase response overrides before uppercase X-Tos keys.
+    .sort(([keyA, valueA], [keyB, valueB]) => keyA === keyB ? compare(valueA, valueB) : compare(keyA, keyB))
     .map(([key, value]) => `${key}=${value}`)
     .join('&')
 }

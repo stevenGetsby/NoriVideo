@@ -13,7 +13,7 @@ describe('project role panel permissions', () => {
     const projectsClient = readSource('src/components/frameos/FosProjectsClient.tsx')
 
     expect(access).toContain('userId: actor.workspaceOwnerId')
-    expect(access).toContain('const canManageProject = actor.isManagement')
+    expect(access).toContain('const canManageProject = isManagementRole(session.user.role)')
     expect(access).toContain("hasAccountPermissions(session.user, ['projectCreate'])")
     expect(works).toContain('const canManage = actor.isManagement')
     expect(works).toContain('canCreateProjects,')

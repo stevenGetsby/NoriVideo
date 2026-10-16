@@ -134,7 +134,7 @@ describe('assignment navigation gate', () => {
   it('rejects a stale assignment or a missing cross-project episode', async () => {
     mocks.findAssignment.mockResolvedValueOnce({ ...assetAssignment, matched: false })
     await expect(validateAssignmentNavigation(session as never, 'assignment-1', 'view'))
-      .rejects.toThrow('不再匹配当前项目内容')
+      .rejects.toThrow('不再匹配当前作品内容')
 
     mocks.findAssignment.mockResolvedValueOnce({
       ...assetAssignment,
@@ -147,7 +147,7 @@ describe('assignment navigation gate', () => {
       },
     })
     await expect(validateAssignmentNavigation({ ...session, user: { ...session.user, role: 'storyboard' } } as never, 'assignment-1', 'view'))
-      .rejects.toThrow('不属于当前项目')
+      .rejects.toThrow('不属于当前作品')
   })
 
   it('requires a generated and confirmed storyboard Panel before video navigation', async () => {

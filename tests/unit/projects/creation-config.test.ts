@@ -43,7 +43,7 @@ describe('project creation config', () => {
       customArtStylePrompt: '统一为写实都市夜景风格。',
     })
 
-    expect(config.artStylePrompt).not.toContain('Nori1.0 项目基础画风')
+    expect(config.artStylePrompt).not.toContain('Nori1.0 作品基础画风')
     expect(config.artStylePrompt).not.toContain('真人实拍电影质感')
     expect(config.artStylePrompt).toContain('参考图呈现低饱和冷灰色调')
     expect(config.artStylePrompt).toContain('统一为写实都市夜景风格')
@@ -62,6 +62,7 @@ describe('project creation config', () => {
       referenceArtStylePrompt: '参考图使用柔和暖色。',
     })
 
+    // Durable prompt headers retain their legacy spelling for old records.
     expect(config.artStylePrompt).toContain('Nori1.0 项目基础画风')
     expect(config.artStylePrompt).toContain('高质量 2D 动漫短剧风格')
     expect(config.artStylePrompt).toContain('参考图使用柔和暖色')
@@ -107,7 +108,7 @@ describe('project creation config', () => {
       episodeDurationValue: 60,
     })
 
-    expect(buildProjectDescription(config, '测试项目')).toBe('Nori1.0 · 仿真人 · 中文平台 · 9:16 · 720p · 60s/集 · 测试项目')
+    expect(buildProjectDescription(config, '测试作品')).toBe('Nori1.0 · 仿真人 · 中文平台 · 9:16 · 720p · 60s/集 · 测试作品')
   })
 
   it('accepts the FrameOS episode range and rejects reversed ranges', () => {

@@ -194,7 +194,7 @@ export function CanvasWorkspace({
             <i><AppIcon name={canEdit ? 'clapperboard' : 'lock'} /></i>
             {!canEdit ? <span className="nori-canvas-onboarding-access"><AppIcon name="lock" />只读账号</span> : null}
             <h1 id="empty-canvas-title">{canEdit ? '创建第一张画布' : '暂无可查看的画布'}</h1>
-            <p>{canEdit ? '把文本、图片、视频和项目素材自由连接成可执行的创作工作流。' : '当前账号拥有查看权限，但项目还没有画布。请联系管理账号或分镜师创建。'}</p>
+            <p>{canEdit ? '把文本、图片、视频和作品素材自由连接成可执行的创作工作流。' : '当前账号拥有查看权限，但作品还没有画布。请联系管理账号或分镜师创建。'}</p>
             {canEdit ? <button type="button" disabled={managementBusy} onClick={requestCreateCanvas}><AppIcon name="plus" />创建第一张画布</button> : null}
             {error ? <small>{error}</small> : null}
           </section>

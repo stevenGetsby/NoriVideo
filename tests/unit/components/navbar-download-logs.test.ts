@@ -86,7 +86,7 @@ describe('Navbar download logs entry', () => {
     useSessionMock.mockReset()
   })
 
-  it('renders the download logs entry on the far-right action group for signed-in users', () => {
+  it('keeps a signed-in content account on the work surface without exposing an admin log download', () => {
     Reflect.set(globalThis, 'React', React)
     useSessionMock.mockReturnValue({
       data: { user: { name: 'Earth' } },
@@ -95,10 +95,9 @@ describe('Navbar download logs entry', () => {
 
     const html = renderWithIntl(createElement(Navbar))
 
-    expect(html).toContain('下载日志')
-    expect(html).toContain('href="/home"')
-    expect(html).toContain('href="/api/admin/download-logs"')
-    expect(html).toContain('download=""')
+    expect(html).toContain('href="/works"')
+    expect(html).toContain('href="/service-records"')
+    expect(html).not.toContain('href="/api/admin/download-logs"')
   })
 
   it('does not render the download logs entry for signed-out users', () => {

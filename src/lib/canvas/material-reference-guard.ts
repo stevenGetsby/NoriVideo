@@ -114,11 +114,10 @@ export function summarizeCanvasMaterialReferences(
  * uploads are usable in multiple projects, so limiting this lookup to the
  * material's original project could miss a valid cross-project reference.
  */
-export async function findCanvasMaterialReferences(
+async function readCanvasMaterialReferences(
   tx: Prisma.TransactionClient,
   workspaceOwnerId: string,
-  material: DeletableCanvasMaterialIdentity,
-): Promise<CanvasMaterialReferenceSummary> {
+) {
   const canvases = await tx.canvas.findMany({
     where: { userId: workspaceOwnerId },
     select: {
@@ -147,11 +146,33 @@ export async function findCanvasMaterialReferences(
       studioDocuments: { select: { document: true } },
     },
   })
-  return summarizeCanvasMaterialReferences(
-    [material.id, material.resultUrl || '', material.storageKey || ''],
-    canvases,
-    templates,
-  )
+  return { canvases, templates }
+}
+
+/** Batch deletion reads the durable documents once, not once per selected asset. */
+export async function findCanvasMaterialsReferences(
+  tx: Prisma.TransactionClient,
+  workspaceOwnerId: string,
+  materials: readonly DeletableCanvasMaterialIdentity[],
+): Promise<Map<string, CanvasMaterialReferenceSummary>> {
+  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId)
+  return new Map(materials.map((material) => [
+    material.id,
+    summarizeCanvasMaterialReferences(
+      [material.id, material.resultUrl || '', material.storageKey || ''],
+      canvases,
+      templates,
+    ),
+  ]))
+}
+
+export async function findCanvasMaterialReferences(
+  tx: Prisma.TransactionClient,
+  workspaceOwnerId: string,
+  material: DeletableCanvasMaterialIdentity,
+): Promise<CanvasMaterialReferenceSummary> {
+  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId)
+  return summarizeCanvasMaterialReferences([material.id, material.resultUrl || '', material.storageKey || ''], canvases, templates)
 }
 
 export function canvasMaterialReferenceConflictMessage(counts: CanvasMaterialReferenceCounts): string {

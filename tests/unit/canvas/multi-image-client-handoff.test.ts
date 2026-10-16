@@ -36,7 +36,9 @@ describe('canvas multi-image client handoff', () => {
     const submission = source.slice(endpoint, source.indexOf("if (!response.ok)", endpoint))
 
     expect(endpoint).toBeGreaterThanOrEqual(0)
-    expect(submission).toContain('count: activeType === \'image\' ? Number(count) : 1')
+    // Toolbox output count was intentionally removed; canvas multi-output
+    // generation keeps its own count/idempotency contract above.
+    expect(submission).not.toContain('Number(count)')
     expect(submission).toContain('idempotencyKey: crypto.randomUUID()')
   })
 })

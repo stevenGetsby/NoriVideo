@@ -54,7 +54,7 @@ describe('api specific - user models audio filter', () => {
     vi.clearAllMocks()
   })
 
-  it('exposes only the stable platform audio model and hides legacy provider models', async () => {
+  it('exposes platform speech, music and sound-effects models and hides legacy providers', async () => {
     const mod = await import('@/app/api/user/models/route')
     const req = buildMockRequest({
       path: '/api/user/models',
@@ -64,7 +64,9 @@ describe('api specific - user models audio filter', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json() as { audio: Array<{ value: string }>; vision: Array<{ value: string }> }
-    expect(body.audio.map((item) => item.value)).toEqual(['nori::nori-audio'])
+    expect(body.audio.map((item) => item.value)).toEqual([
+      'nori::nori-audio', 'nori::nori-music', 'nori::nori-sfx',
+    ])
     expect(body.vision).toEqual([])
   })
 })

@@ -143,7 +143,7 @@ export function buildAccountModelUsageCsv(rows: AccountModelUsageRow[]) {
   const headers = [
     '账号', '岗位', '模型', '服务类型', '调用次数', '成功次数', '失败次数',
     'Input Token', 'Output Token', 'Total Token', '生成单位', '积分消耗',
-    '人民币成本', '项目数', '最近使用时间',
+    '人民币成本', '作品数', '最近使用时间',
   ]
   const body = rows.map((row) => [
     row.accountName,

@@ -151,6 +151,7 @@ async function loadProjectCapabilities(
   const projects = await prisma.project.findMany({
     where: {
       userId: actor.workspaceOwnerId,
+      deletedAt: null,
       collaborationMode: 'team',
       ...(projectIds ? { id: { in: projectIds } } : filters.projectId
         ? { id: filters.projectId }
@@ -327,7 +328,7 @@ export async function syncProjectAssignmentsForProject(input: {
   workspaceOwnerId: string
 }) {
   const project = await prisma.project.findFirst({
-    where: { id: input.projectId, userId: input.workspaceOwnerId },
+    where: { id: input.projectId, userId: input.workspaceOwnerId, deletedAt: null },
     select: {
       id: true,
       createdById: true,
@@ -358,7 +359,7 @@ export async function syncProjectAssignmentsForProject(input: {
       },
     },
   })
-  if (!project) throw new ApiError('NOT_FOUND', { message: '项目不存在。' })
+  if (!project) throw new ApiError('NOT_FOUND', { message: '作品不存在。' })
   if (project.collaborationMode !== 'team') {
     await prisma.workflowAssignment.updateMany({
       where: {
@@ -730,7 +731,7 @@ export async function mutateAssignment(
   const { actor, assignment } = await getScopedAssignment(session, assignmentId)
   if (!assignment.matched || assignment.project.collaborationMode !== 'team') {
     throw new ApiError('CONFLICT', {
-      message: '该任务已失效或项目已关闭任务分工，请刷新任务列表。',
+      message: '该任务已失效或作品已关闭任务分工，请刷新任务列表。',
     })
   }
   const note = normalizeNote(input.note)
@@ -753,7 +754,7 @@ export async function mutateAssignment(
     const access = await requireProjectReader(session, assignment.projectId)
     if (assignment.assigneeUserId !== actor.actorId) {
       if (!access.canManageAssignments) {
-        throw new ApiError('FORBIDDEN', { message: '只有当前任务执行人或项目管理账号可以提交任务。' })
+        throw new ApiError('FORBIDDEN', { message: '只有当前任务执行人或作品管理账号可以提交任务。' })
       }
       submittingAsManager = true
     } else {
@@ -797,11 +798,11 @@ export async function mutateAssignment(
     })
     if (!current) {
       throw new ApiError('CONFLICT', {
-        message: '该任务已失效或项目已关闭任务分工，请刷新任务列表。',
+        message: '该任务已失效或作品已关闭任务分工，请刷新任务列表。',
       })
     }
     if (action === 'submit' && current.assigneeUserId !== actor.actorId && !submittingAsManager) {
-      throw new ApiError('FORBIDDEN', { message: '只有当前任务执行人或项目管理账号可以提交任务。' })
+      throw new ApiError('FORBIDDEN', { message: '只有当前任务执行人或作品管理账号可以提交任务。' })
     }
     assertAssignmentTransition(action, current.status)
     const videoReviewSubmission = action === 'submit' && current.stage === 'video'

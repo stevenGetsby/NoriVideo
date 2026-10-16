@@ -9,7 +9,7 @@ export function buildWorkSearchWhere(search: string): Prisma.WorkWhereInput | nu
       { projects: { some: { OR: [
         { name: { contains: normalized } },
         { description: { contains: normalized } },
-      ] } } },
+      ], deletedAt: null } } },
     ],
   }
 }

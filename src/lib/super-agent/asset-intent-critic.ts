@@ -24,12 +24,16 @@ function countLatinWords(text: string): number {
 }
 
 export function inferAgentAssetIntentCritic(parts: Array<string | null | undefined>): AgentAssetIntentCritic {
-  const text = normalizeText(parts)
+  const storyPackage = parts.map((part) => typeof part === 'string' ? parseAgentStoryPackageText(part) : null)
+    .find((item) => item?.settingRegion === 'china' || item?.settingRegion === 'western')
+  // Serialized safety rules mention both regions ("Chinese story: do not use
+  // Western streets"). These are not positive creative requirements.
+  const text = normalizeText(parts).replace(/(?:不要|不得|禁止|避免|不许|do\s+not|don't|avoid)[^。；;\n]*/gi, '')
   const westernPattern = /\b(english|american|united\s+states|western|european|foreign|overseas|new\s+york|los\s+angeles|london)\b|欧美|美国|英文口型|英文环境|国外|海外|现代美国|西方/i
   const chinaPattern = /中国故事|中国场景|中文环境|中国生活|现代中国|国风|中式|北京|上海|深圳|广州|成都|杭州|中国|中文|国内/
 
-  const hasWestern = westernPattern.test(text)
-  const hasChina = chinaPattern.test(text)
+  const hasWestern = storyPackage ? storyPackage.settingRegion === 'western' : westernPattern.test(text)
+  const hasChina = storyPackage ? storyPackage.settingRegion === 'china' : chinaPattern.test(text)
   const mostlyEnglish = countLatinWords(text) >= 16 && countLatinWords(text) > countCjk(text)
   const mostlyChinese = countCjk(text) >= 16
 
@@ -79,3 +83,4 @@ export function decorateLocationSummaryWithIntent(summary: string, critic: Agent
   if (base.includes('地域/语言 critic：')) return base
   return `${base}${base.endsWith('。') ? '' : '。'}${constraint}`
 }
+import { parseAgentStoryPackageText } from './agent-story-package'

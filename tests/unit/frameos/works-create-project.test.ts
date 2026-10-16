@@ -42,7 +42,7 @@ describe('FrameOS-compatible project creation', () => {
     expect(dialog.indexOf('>每千字</button>')).toBeLessThan(dialog.indexOf('>每集</button>'))
     expect(dialog).toContain("if (event.key !== 'Escape') return")
     expect(dialog).toContain('if (!submittingRef.current) onClose()')
-    expect(dialog).toContain('aria-label="关闭创建项目"')
+    expect(dialog).toContain('aria-label="关闭创建作品"')
   })
 
   it('wires initial focus, a modal Tab loop, and trigger-focus restoration', () => {
@@ -85,11 +85,11 @@ describe('FrameOS-compatible project creation', () => {
     const client = readSource('src/components/frameos/FosProjectsClient.tsx')
 
     expect(dialog).toContain("type ScriptSource = 'blank' | 'writer' | 'local' | 'range'")
-    expect(dialog).toContain('>空白项目</button>')
+    expect(dialog).toContain('>空白作品</button>')
     expect(dialog).toContain('不导入剧本、不预建剧集')
     expect(dialog).toContain("source === 'blank'")
     expect(dialog).toContain("source === 'blank'\n        ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false")
-    expect(client).toContain("'创建空白项目…'")
+    expect(client).toContain("'创建空白作品…'")
   })
 
   it('states that a custom style overrides the selected project style', () => {
@@ -97,7 +97,7 @@ describe('FrameOS-compatible project creation', () => {
 
     expect(dialog).toContain('内置画风已被自定义画风覆盖')
     expect(dialog).toContain('生成时完全忽略内置画风选项')
-    expect(dialog).toContain('填写后将完全覆盖上方项目风格')
+    expect(dialog).toContain('填写后将完全覆盖上方作品风格')
   })
 
   it('keeps the create-project dialog fully accessible on small screens', () => {
@@ -134,7 +134,7 @@ describe('FrameOS-compatible project creation', () => {
     expect(client).toContain("session?.user?.role === 'admin'")
     expect(route).toContain('requireWorkProjectCreator(session, workId)')
     expect(route).toContain("code: 'PROJECT_WORK_REQUIRED'")
-    expect(route).not.toContain("createWork(session, { name: '默认作品' })")
-    expect(agent).not.toContain("name: '默认作品'")
+    expect(route).not.toContain("createWork(session, { name: '默认项目' })")
+    expect(agent).not.toContain("name: '默认项目'")
   })
 })

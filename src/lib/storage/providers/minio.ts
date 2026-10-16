@@ -140,6 +140,8 @@ export class MinioStorageProvider implements StorageProvider {
       new sdk.GetObjectCommand({
         Bucket: this.bucket,
         Key: params.key,
+        ResponseContentType: params.responseContentType,
+        ResponseContentDisposition: params.responseContentDisposition,
       }),
       {
         expiresIn: params.expiresInSeconds,

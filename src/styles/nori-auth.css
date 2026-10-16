@@ -1,0 +1,187 @@
+/* Public auth scrolls with the document, independently of the fixed,
+   120%-zoomed .fos-app workspace. All visual rules are auth-scoped. */
+.nori-auth {
+  /* Inherit the exact workspace palette, without its fixed/zoomed layout. */
+  --auth-bg: var(--fos-bg-1);
+  --auth-panel: var(--fos-bg-2);
+  --auth-text: var(--fos-text-1);
+  --auth-muted: var(--fos-text-2);
+  --auth-accent: var(--fos-primary);
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  flex-direction: column;
+  overflow: clip;
+  background: var(--auth-bg);
+  color: var(--auth-text);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.nori-auth *, .nori-auth *::before, .nori-auth *::after,
+.nori-auth-help-dialog *, .nori-auth-help-dialog *::before { box-sizing: border-box; }
+.nori-auth button, .nori-auth input, .nori-auth-help-dialog button { font: inherit; }
+.nori-auth a { color: inherit; text-decoration: none; }
+.nori-auth button { cursor: pointer; }
+.nori-auth :focus-visible, .nori-auth-help-dialog :focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 4px; }
+.nori-auth-ambient { position: absolute; z-index: -1; inset: 0; pointer-events: none; background: none; }
+.nori-auth-header, .nori-auth-layout, .nori-auth-footer { width: 100%; max-width: 1536px; margin: 0 auto; padding-right: 64px; padding-left: 64px; }
+.nori-auth-header { display: flex; min-height: 100px; flex: none; align-items: center; gap: 24px; }
+.nori-auth-brand { display: inline-flex; flex: none; align-items: center; gap: 12px; font-size: 23px; font-weight: 720; letter-spacing: -.8px; }
+.nori-auth-brand > span:last-child { display: inline-flex; align-items: baseline; }
+.nori-auth-brand-name { color: #52d7ff; }
+.nori-auth-brand-light { color: var(--fos-text-1); font-weight: 700; }
+.nori-auth-brand sup { align-self: center; margin: 1px 0 0 12px; border-left: 1px solid #ffffff23; padding-left: 12px; color: var(--fos-text-2); font-family: var(--font-geist-mono), monospace; font-size: 9px; font-weight: 450; letter-spacing: 1.8px; }
+.nori-auth-brand-cat { align-self: center; }
+.nori-auth-header-label { margin-left: 24px; padding-left: 28px; border-left: 1px solid #ffffff13; color: var(--fos-text-4); font-size: 11px; letter-spacing: 1px; }
+.nori-auth-header-actions { display: flex; align-items: center; gap: 30px; margin-left: auto; }
+.nori-auth-help-trigger { display: inline-flex; align-items: center; gap: 6px; border: 0; padding: 6px 0; color: var(--fos-text-2); background: transparent; font-size: 12px !important; }
+.nori-auth-help-trigger:hover { color: var(--fos-text-1); }
+.nori-auth-header-enter { display: inline-flex; min-height: 35px; align-items: center; gap: 13px; border: 1px solid var(--fos-border-strong); border-radius: 6px; padding: 0 13px; color: var(--fos-text-1) !important; font-size: 11px; transition: background .18s, border-color .18s; }
+.nori-auth-header-enter:hover { border-color: var(--fos-primary-border); background: var(--fos-primary-soft); }
+.nori-auth-layout { display: grid; flex: 1 0 auto; grid-template-columns: minmax(0, 1.5fr) minmax(350px, .88fr); align-items: center; gap: clamp(56px, 7.1vw, 116px); padding-top: 32px; padding-bottom: 54px; }
+.nori-auth-story { min-width: 0; }
+.nori-auth-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; color: #8db2ff; font-family: var(--font-geist-mono), monospace; font-size: 10px; font-weight: 450; letter-spacing: 2.1px; }
+.nori-auth-eyebrow-line { width: 52px; height: 1px; margin-left: 5px; background: var(--fos-primary-border); }
+.nori-auth-story h1 { margin: 0; font-size: clamp(44px, 4.35vw, 69px); font-weight: 550; line-height: 1.17; letter-spacing: -.045em; }
+.nori-auth-story h1 > span { color: var(--fos-text-1); }
+.nori-auth-story-description { max-width: 440px; margin: 21px 0 30px; color: var(--fos-text-2); font-size: 13px; line-height: 1.95; letter-spacing: .25px; }
+.nori-auth-cinema { position: relative; height: clamp(240px, 22vw, 340px); margin: 0; overflow: hidden; border: 1px solid var(--fos-border-strong); border-radius: 12px; background: var(--auth-panel); }
+.nori-auth-cinema > img { object-fit: cover; object-position: center 47%; filter: saturate(.57) brightness(.77); transform: scale(1.01); transition: transform 1.4s cubic-bezier(.2,.7,.3,1); }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) { .nori-auth-cinema:hover > img { transform: scale(1.055); } }
+.nori-auth-cinema-shade { position: absolute; inset: 0; background: linear-gradient(180deg, #0d0d0d30, #0d0d0d06 35%, #0d0d0db0 100%), linear-gradient(90deg, #0d0d0d46, transparent 70%); }
+.nori-auth-frame-corner { position: absolute; z-index: 1; width: 14px; height: 14px; border-color: #ffffff64; border-style: solid; }
+.nori-auth-frame-corner.is-top-left { top: 15px; left: 15px; border-width: 1px 0 0 1px; }
+.nori-auth-frame-corner.is-top-right { top: 15px; right: 15px; border-width: 1px 1px 0 0; }
+.nori-auth-frame-corner.is-bottom-left { bottom: 15px; left: 15px; border-width: 0 0 1px 1px; }
+.nori-auth-frame-corner.is-bottom-right { bottom: 15px; right: 15px; border-width: 0 1px 1px 0; }
+.nori-auth-scene-top { position: absolute; top: 23px; right: 26px; left: 26px; display: flex; align-items: center; justify-content: space-between; color: #ffffffd9; font-family: var(--font-geist-mono), monospace; font-size: 8px; letter-spacing: 1.5px; }
+.nori-auth-scene-top > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
+.nori-auth-scene-top i { width: 4px; height: 4px; border-radius: 50%; background: #8db2ff; box-shadow: 0 0 8px #3b82f670; }
+.nori-auth-cinema figcaption { position: absolute; right: 26px; bottom: 33px; left: 26px; display: flex; flex-direction: column; align-items: flex-start; }
+.nori-auth-scene-index { color: #ffffffab; font-family: var(--font-geist-mono), monospace; font-size: 8px; letter-spacing: 1.7px; }
+.nori-auth-cinema figcaption strong { margin-top: 9px; color: #ffffff; font-size: clamp(15px, 1.4vw, 20px); font-weight: 500; letter-spacing: .5px; }
+.nori-auth-scene-note { margin-top: 6px; color: #ffffff9c; font-size: 10px; }
+.nori-auth-scene-format { position: absolute; right: 26px; bottom: 27px; display: flex; align-items: flex-end; gap: 17px; color: #ffffffa6; font-family: var(--font-geist-mono), monospace; font-size: 7px; letter-spacing: 1px; }
+.nori-auth-scene-cross { font-size: 22px; font-weight: 200; line-height: 1; }
+.nori-auth-workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
+.nori-auth-workflow-item { position: relative; display: flex; min-width: 0; align-items: center; gap: 11px; }
+.nori-auth-workflow-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #8db2ff; background: var(--fos-primary-soft); }
+.nori-auth-workflow-item > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
+.nori-auth-workflow-item strong { color: var(--fos-text-1); font-size: 11px; font-weight: 500; }
+.nori-auth-workflow-item > div > span { color: var(--fos-text-4); font-size: 10px; }
+.nori-auth-workflow-connector { margin-left: auto; padding-right: 12px; color: #ffffff40; font-size: 12px; }
+.nori-auth-access { min-width: 0; scroll-margin-top: 24px; outline: none; }
+.nori-auth-card { position: relative; width: 100%; max-width: 416px; margin: 0 auto; border: 1px solid var(--fos-border-mid); border-radius: 18px; padding: 37px 33px 25px; background: var(--auth-panel); box-shadow: 0 30px 70px #00000020, inset 0 1px 0 #ffffff04; }
+.nori-auth-card::before { position: absolute; top: -1px; right: 32px; left: 32px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff29, transparent); content: ""; }
+.nori-auth-card-kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 27px; color: var(--fos-text-4); font-family: var(--font-geist-mono), monospace; font-size: 8px; font-weight: 450; letter-spacing: 1.6px; }
+.nori-auth-card-kicker > span:first-child { width: 5px; height: 5px; border-radius: 50%; background: var(--fos-indigo); box-shadow: 0 0 0 3px #6366f114; }
+.nori-auth-card h2 { margin: 0; color: var(--fos-text-1); font-size: 28px; font-weight: 550; letter-spacing: -.7px; line-height: 1.35; }
+.nori-auth-card-description { margin: 10px 0 0; color: var(--fos-text-2); font-size: 13px; line-height: 1.8; }
+.nori-auth-card-content { margin-top: 29px; }
+.nori-auth-card-footer { margin-top: 23px; border-top: 1px solid #ffffff0b; padding-top: 20px; color: var(--fos-text-4); font-size: 11px; line-height: 1.9; }
+.nori-auth-access-note { display: flex; align-items: center; justify-content: center; gap: 7px; margin: 18px 0 0; color: var(--fos-text-4); font-size: 10px; }
+.nori-auth-access-note > span:first-child { width: 3px; height: 3px; border-radius: 50%; background: var(--fos-text-4); }
+.nori-auth-form { display: flex; min-width: 0; flex-direction: column; gap: 21px; }
+.nori-auth-field { display: flex; min-width: 0; flex-direction: column; gap: 9px; }
+.nori-auth-field > label { color: #d4d4d4; font-size: 12px; font-weight: 500; }
+.nori-auth-input-wrap { position: relative; display: flex; min-width: 0; align-items: center; }
+.nori-auth-input-icon { position: absolute; left: 14px; width: 16px; height: 16px; color: var(--fos-text-4); pointer-events: none; }
+.nori-auth-input-wrap input { width: 100%; min-width: 0; height: 49px; border: 1px solid var(--fos-border-strong); border-radius: 7px; outline: none; padding: 0 42px; color: var(--fos-text-1); background: var(--auth-bg); font-size: 14px; transition: border-color .18s, box-shadow .18s; }
+.nori-auth-input-wrap input::placeholder { color: var(--fos-text-4); }
+.nori-auth-input-wrap input:hover { border-color: #ffffff3d; }
+.nori-auth-input-wrap input:focus { border-color: var(--fos-primary); box-shadow: 0 0 0 3px var(--fos-primary-soft); }
+.nori-auth-input-wrap input:disabled { cursor: wait; opacity: .65; }
+.nori-auth-input-wrap input:-webkit-autofill { -webkit-text-fill-color: var(--fos-text-1); box-shadow: 0 0 0 1000px var(--auth-bg) inset; }
+.nori-auth-password-toggle { position: absolute; right: 7px; display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 5px; color: var(--fos-text-4); background: transparent; }
+.nori-auth-password-toggle:hover { color: var(--fos-text-1); background: var(--fos-fill-mid); }
+.nori-auth-caps-lock { margin: -2px 0 0; color: #fbbf24; font-size: 10px; }
+.nori-auth-form-info { display: flex; align-items: center; gap: 6px; margin-top: -8px; color: var(--fos-text-4); font-size: 10px; }
+.nori-auth-form-info svg { flex: none; }
+.nori-auth-form-info .nori-auth-help-trigger { margin-left: auto; font-size: 10px !important; }
+.nori-auth-error { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #ef444436; border-radius: 7px; padding: 11px 12px; color: #fca5a5; background: #ef44440d; font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
+.nori-auth-error svg { flex: none; margin-top: 3px; }
+.nori-auth-submit { display: flex; min-height: 48px; width: 100%; align-items: center; justify-content: center; gap: 10px; border: 1px solid transparent; border-radius: 8px; padding: 10px 18px; color: #ffffff; background: var(--fos-primary); font-size: 12px !important; font-weight: 650 !important; box-shadow: 0 5px 20px #3b82f614; transition: background .18s, transform .18s, box-shadow .18s; }
+.nori-auth-submit > svg:last-child:not(.nori-auth-spinner) { margin-left: auto; }
+.nori-auth-submit > span { margin-left: auto; }
+.nori-auth-submit:hover:not(:disabled) { background: var(--fos-primary-hover); box-shadow: 0 5px 24px #3b82f626; transform: translateY(-1px); }
+.nori-auth-submit:active:not(:disabled) { transform: translateY(0); }
+.nori-auth-submit:disabled { cursor: wait; opacity: .65; }
+.nori-auth-spinner { animation: nori-auth-spin .8s linear infinite; }
+.nori-auth-admin-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; align-self: center; margin-top: -5px; color: var(--fos-text-4) !important; font-size: 10px; transition: color .18s; }
+.nori-auth-admin-link:hover { color: #8db2ff !important; }
+.nori-auth-footer { position: relative; display: flex; min-height: 66px; flex: none; align-items: center; justify-content: space-between; gap: 16px; color: var(--fos-text-4); font-family: var(--font-geist-mono), monospace; font-size: 9px; letter-spacing: .6px; }
+.nori-auth-footer::before { position: absolute; top: 0; right: 64px; left: 64px; height: 1px; background: #ffffff09; pointer-events: none; content: ""; }
+.nori-auth-footer-center { color: var(--fos-text-3); font-size: 10px; letter-spacing: 3px; }
+.nori-auth-managed-note { border: 1px solid var(--fos-border-mid); border-radius: 8px; padding: 17px; color: var(--fos-text-2); background: var(--fos-fill-soft); font-size: 12px; line-height: 1.9; }
+.nori-auth-managed-actions { display: grid; gap: 22px; }
+.nori-auth-help-dialog { width: min(460px, calc(100% - 32px)); max-width: none; max-height: calc(100dvh - 40px); margin: auto; overflow-y: auto; overscroll-behavior: contain; border: 1px solid var(--fos-border-strong); border-radius: 15px; padding: 0; color: var(--fos-text-1); background: var(--fos-bg-3); box-shadow: 0 30px 100px #00000077; font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; }
+.nori-auth-help-dialog::backdrop { background: #050505c9; backdrop-filter: blur(6px); }
+.nori-auth-help-panel { padding: 28px; }
+.nori-auth-help-panel header { display: flex; align-items: flex-start; gap: 14px; }
+.nori-auth-help-panel header > div { min-width: 0; flex: 1; }
+.nori-auth-help-panel header p { margin: 0 0 10px; color: #8db2ff; font-family: monospace; font-size: 9px; letter-spacing: 1.4px; }
+.nori-auth-help-panel h2 { margin: 0; font-size: 23px; font-weight: 550; line-height: 1.5; }
+.nori-auth-help-panel header > button { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border: 0; border-radius: 6px; color: var(--fos-text-2); background: var(--fos-fill-mid); cursor: pointer; }
+.nori-auth-help-panel ol { display: grid; gap: 24px; margin: 30px 0; padding: 0; list-style: none; }
+.nori-auth-help-panel li { display: flex; gap: 13px; }
+.nori-auth-help-panel li > span { display: grid; width: 37px; height: 37px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 9px; color: #8db2ff; background: var(--fos-primary-soft); }
+.nori-auth-help-panel li h3 { margin: 0 0 6px; font-size: 13px; font-weight: 550; }
+.nori-auth-help-panel li p { margin: 0; color: var(--fos-text-2); font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
+.nori-auth-help-done { display: block; min-height: 43px; width: 100%; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #ffffff; background: var(--fos-primary); font-size: 12px; cursor: pointer; }
+@keyframes nori-auth-spin { to { transform: rotate(360deg); } }
+@media (min-width: 1700px) { .nori-auth-layout { padding-top: 48px; padding-bottom: 72px; } .nori-auth-cinema { height: 360px; } }
+@media (max-width: 1180px) {
+  .nori-auth-header, .nori-auth-layout, .nori-auth-footer { padding-right: 36px; padding-left: 36px; }
+  .nori-auth-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, .88fr); gap: 48px; }
+  .nori-auth-header-label { display: none; }
+  .nori-auth-card { padding: 32px 25px 24px; }
+  .nori-auth-workflow-connector { padding-right: 0; }
+  .nori-auth-footer::before { right: 36px; left: 36px; }
+  .nori-auth-scene-format > span:first-child { display: none; }
+}
+@media (max-width: 900px) {
+  .nori-auth-header { min-height: 84px; }
+  .nori-auth-layout { max-width: 600px; grid-template-columns: minmax(0, 1fr); gap: 36px; padding-top: 24px; padding-bottom: 35px; }
+  .nori-auth-story h1 { font-size: 46px; }
+  .nori-auth-story-description { max-width: 100%; font-size: 12px; }
+  .nori-auth-cinema { height: 220px; }
+  .nori-auth-workflow { margin-top: 20px; }
+  .nori-auth-card { max-width: none; padding: 32px; }
+  .nori-auth-footer-center { display: none; }
+}
+@media (max-width: 540px) {
+  .nori-auth-header, .nori-auth-layout, .nori-auth-footer { padding-right: 24px; padding-left: 24px; }
+  .nori-auth-header { min-height: 76px; gap: 16px; }
+  .nori-auth-brand { gap: 8px; font-size: 20px; }
+  .nori-auth-brand sup { display: none; }
+  .nori-auth-header-actions { gap: 0; }
+  .nori-auth-header-enter { display: none; }
+  .nori-auth-header-actions .nori-auth-help-trigger { font-size: 11px !important; }
+  .nori-auth-layout { gap: 27px; padding-top: 13px; padding-bottom: 26px; }
+  .nori-auth-eyebrow { margin-bottom: 14px; gap: 7px; font-size: 8px; letter-spacing: 1.4px; }
+  .nori-auth-eyebrow-line { width: 24px; }
+  .nori-auth-story h1 { font-size: 37px; line-height: 1.16; }
+  .nori-auth-story-description { margin: 14px 0 0; font-size: 11px; line-height: 1.9; }
+  .nori-auth-cinema, .nori-auth-workflow { display: none; }
+  .nori-auth-card { border-radius: 13px; padding: 27px 23px 22px; }
+  .nori-auth-card-kicker { margin-bottom: 19px; font-size: 7px; letter-spacing: 1.1px; }
+  .nori-auth-card h2 { font-size: 25px; }
+  .nori-auth-card-content { margin-top: 23px; }
+  .nori-auth-form { gap: 20px; }
+  .nori-auth-input-wrap input { height: 49px; font-size: 16px; }
+  .nori-auth-form-info { flex-wrap: wrap; row-gap: 4px; }
+  .nori-auth-form-info .nori-auth-help-trigger { margin-left: 0; }
+  .nori-auth-card-footer { margin-top: 19px; padding-top: 17px; font-size: 10px; }
+  .nori-auth-access-note { font-size: 9px; }
+  .nori-auth-footer { min-height: 59px; font-size: 8px; letter-spacing: 0; }
+  .nori-auth-footer > span:last-child { max-width: 145px; text-align: right; font-size: 7px; letter-spacing: .6px; }
+  .nori-auth-footer::before { right: 24px; left: 24px; }
+  .nori-auth-help-panel { padding: 24px 20px; }
+  .nori-auth-help-panel h2 { font-size: 20px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nori-auth *, .nori-auth *::before { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

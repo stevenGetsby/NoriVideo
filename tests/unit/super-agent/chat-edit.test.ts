@@ -9,6 +9,11 @@ const prismaMock = vi.hoisted(() => ({
     update: episodeUpdateMock,
   },
   novelPromotionPanel: {
+    findUnique: vi.fn(async () => ({
+      id: 'panel-1', storyboardId: 'storyboard-1', panelIndex: 0, videoPrompt: null,
+      characters: '[]', props: '[]', location: null, actingNotes: null,
+      storyboard: { episode: { novelPromotionProject: { characters: [], locations: [] } } },
+    })),
     update: panelUpdateMock,
   },
   $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
@@ -21,6 +26,9 @@ const prismaMock = vi.hoisted(() => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: prismaMock,
+}))
+vi.mock('@/lib/config-service', () => ({
+  getProjectModelConfig: vi.fn(async () => ({ analysisModel: null, characterModel: null, locationModel: null, editModel: null })),
 }))
 
 vi.mock('@/lib/super-agent/workflow-store', () => ({
@@ -37,6 +45,8 @@ describe('applyAgentChatEdit', () => {
       novelPromotionProject: {
         projectId: 'project-1',
         workflowMode: 'agent',
+        characters: [],
+        locations: [],
       },
       storyboards: [{
         panels: [{
@@ -54,7 +64,7 @@ describe('applyAgentChatEdit', () => {
     recordAgentChatEditWorkflowMock.mockResolvedValue({ id: 'chat-edit-run-1' })
   })
 
-  it('applies deterministic mock edits to editable episode and panel artifacts', async () => {
+  it('updates the requested video prompt without rewriting the locked source script', async () => {
     const { applyAgentChatEdit } = await import('@/lib/super-agent/chat-edit')
 
     const result = await applyAgentChatEdit({
@@ -66,17 +76,11 @@ describe('applyAgentChatEdit', () => {
       selectedSkill: 'product-promo',
     })
 
-    expect(episodeUpdateMock).toHaveBeenCalledWith({
-      where: { id: 'episode-1' },
-      data: {
-        novelText: expect.stringContaining('语气更年轻，突出环保卖点'),
-      },
-    })
+    expect(episodeUpdateMock).not.toHaveBeenCalled()
     expect(panelUpdateMock).toHaveBeenCalledWith({
       where: { id: 'panel-1' },
       data: expect.objectContaining({
-        description: expect.stringContaining('语气更年轻，突出环保卖点'),
-        imagePrompt: expect.stringContaining('语气更年轻，突出环保卖点'),
+        videoPrompt: expect.stringContaining('语气更年轻，突出环保卖点'),
       }),
     })
     expect(recordAgentChatEditWorkflowMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -86,15 +90,15 @@ describe('applyAgentChatEdit', () => {
       selectedSkill: 'product-promo',
       instruction: '语气更年轻，突出环保卖点',
       appliedChanges: expect.objectContaining({
-        episodeUpdated: true,
+        episodeUpdated: false,
       }),
     }))
-    expect(result).toEqual({
-      summary: '已记录修改要求，并更新第一集文本与首个分镜说明。',
-      episodeUpdated: true,
+    expect(result).toMatchObject({
+      summary: '已记录修改要求，并更新首个分镜视频提示词。',
+      episodeUpdated: false,
       panelChanges: [{
         id: 'panel-1',
-        changedFields: ['description', 'imagePrompt'],
+        changedFields: ['videoPrompt'],
       }],
       workflowRunId: 'chat-edit-run-1',
     })

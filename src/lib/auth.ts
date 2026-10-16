@@ -5,7 +5,7 @@ import { logAuthAction } from './logging/semantic'
 import { prisma } from './prisma'
 import { effectiveAccountPermissions, isManagementRole, normalizeAccountRole } from './account/permissions'
 import { normalizeAccountCredit, normalizeAccountPointCredit } from './account/credits'
-import { cnyToPoints } from './billing/credit-policy'
+import { getGenerationWalletPoints } from './account/generation-wallet'
 import {
   authCookieNamespace,
   isRoleAllowedOnSurface,
@@ -125,9 +125,7 @@ export const authOptions: any = {
           workspaceOwnerId: user.workspaceOwnerId,
           parentAccountId: user.parentAccountId,
           coinCredits: user.coinCredits,
-          pointCredits: normalizeAccountPointCredit(
-            user.balance ? cnyToPoints(Number(user.balance.balance)) : 0,
-          ),
+          pointCredits: await getGenerationWalletPoints(user),
         }
       }
     })
@@ -191,9 +189,7 @@ export const authOptions: any = {
       token.workspaceOwnerId = account.workspaceOwnerId
       token.parentAccountId = account.parentAccountId
       token.coinCredits = normalizeAccountCredit(account.coinCredits)
-      token.pointCredits = normalizeAccountPointCredit(
-        account.balance ? cnyToPoints(Number(account.balance.balance)) : 0,
-      )
+      token.pointCredits = await getGenerationWalletPoints({ ...account, id: userId })
       return token
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

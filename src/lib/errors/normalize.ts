@@ -1,4 +1,4 @@
-import { InsufficientBalanceError } from '@/lib/billing/errors'
+import { DailyLimitExceededError, InsufficientBalanceError } from '@/lib/billing/errors'
 import { getPrismaErrorCode, isLikelyPrismaDisconnectError, isPrismaRetryableCode } from '@/lib/prisma-error'
 import { DEFAULT_ERROR_CODE, getErrorSpec, isKnownErrorCode, resolveUnifiedErrorCode, type UnifiedErrorCode } from './codes'
 import type { ErrorContext, NormalizedError, NormalizedErrorDetails } from './types'
@@ -236,6 +236,16 @@ export function normalizeAnyError(input: unknown, options: NormalizeOptions = {}
     return buildNormalizedError('INSUFFICIENT_BALANCE', message || input.message, {
       required: input.required,
       available: input.available,
+      ...(options.details || {}),
+    })
+  }
+
+  if (input instanceof DailyLimitExceededError) {
+    return buildNormalizedError('DAILY_LIMIT_EXCEEDED', message || input.message, {
+      limitPoints: input.limitPoints,
+      usedPoints: input.usedPoints,
+      requestedPoints: input.requestedPoints,
+      resetsAt: input.windowEnd,
       ...(options.details || {}),
     })
   }

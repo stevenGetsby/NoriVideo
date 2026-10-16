@@ -12,8 +12,8 @@ describe('FrameOS assignment page replica contract', () => {
     const table = readSource('src/components/frameos/FosAssignmentsTable.tsx')
     const viewModel = readSource('src/components/frameos/assignments-view-model.ts')
 
-    expect(client).toContain('placeholder="全部作品"')
     expect(client).toContain('placeholder="全部项目"')
+    expect(client).toContain('placeholder="全部作品"')
     expect(client).toContain('placeholder="全部类型"')
     expect(client).toContain("tab.key !== 'pending_review' || showPendingReviewTab")
     expect(client).toContain('onKeyDown={(event) => handleTabKeyDown(event, tab.key)}')

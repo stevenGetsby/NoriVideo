@@ -3,7 +3,6 @@ import { withLogContext } from '@/lib/logging/context'
 import { NextRequest, NextResponse } from 'next/server'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { normalizeAnyError } from '@/lib/errors/normalize'
-import { publishTaskEvent, publishTaskStreamEvent } from '@/lib/task/publisher'
 import { TASK_EVENT_TYPE } from '@/lib/task/types'
 import {
   withInternalLLMStreamCallbacks,
@@ -192,6 +191,7 @@ function buildInternalLLMStreamCallbacks(req: NextRequest): InternalLLMStreamCal
     publishQueue = publishQueue
       .catch(() => undefined)
       .then(async () => {
+        const { publishTaskEvent } = await import('@/lib/task/publisher')
         await publishTaskEvent({
           taskId,
           projectId,
@@ -215,6 +215,7 @@ function buildInternalLLMStreamCallbacks(req: NextRequest): InternalLLMStreamCal
     publishQueue = publishQueue
       .catch(() => undefined)
       .then(async () => {
+        const { publishTaskStreamEvent } = await import('@/lib/task/publisher')
         await publishTaskStreamEvent({
           taskId,
           projectId,

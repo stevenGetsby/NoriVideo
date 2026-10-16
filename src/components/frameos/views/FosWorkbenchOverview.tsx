@@ -77,7 +77,7 @@ function stageText(state: TaskTargetState | null, fallback: string) {
     asset_extraction_analyze: '从剧本识别资产',
     asset_extraction_merge: '合并与校验资产',
     asset_extraction_refine: '完善角色视觉设定',
-    asset_extraction_persist: '保存项目资产',
+    asset_extraction_persist: '保存作品资产',
     asset_extraction_done: '资产解析完成',
     script_to_storyboard_prepare_clip: '从单集剧本准备分镜片段',
     script_to_storyboard_prepare: '准备分镜生成',
@@ -426,7 +426,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
   const handleAssetExtraction = async () => {
     if (!canEditAssets || !scriptReady || assetActive) return
     if (assetReady) {
-      const confirmed = window.confirm('重新解析会替换当前项目的角色、物品和环境资产，已有资产图片可能被移除。确定继续吗？')
+      const confirmed = window.confirm('重新解析会替换当前作品的角色、物品和环境资产，已有资产图片可能被移除。确定继续吗？')
       if (!confirmed) return
     }
     setSubmittingAssets(true)
@@ -493,7 +493,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
     <div className="fos-scroll">
       <section className="px-6 py-7">
         <div className="mb-6 flex items-center justify-between gap-4">
-          <h2 className="text-[18px] font-bold text-white">项目工作台</h2>
+          <h2 className="text-[18px] font-bold text-white">作品工作台</h2>
           <div className="ml-auto flex items-center gap-3">
             <p className="hidden text-[13px] text-[var(--fos-text-3)] xl:block">按主流程从左到右推进；任务在后台可靠执行，刷新页面后会恢复实时进度。</p>
             <Link href={{ pathname: `${base}/canvas` }} className="fos-btn fos-btn-soft shrink-0"><AppIcon name="clapperboard" className="h-4 w-4" />无限画布</Link>
@@ -531,7 +531,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                   data-testid="asset-extraction-action"
                 >
                   <AppIcon name={assetActive ? 'loader' : 'sparkles'} className={`h-4 w-4 ${assetActive ? 'animate-spin' : ''}`} />
-                  {!canEditAssets ? '只读 · 资产师可操作' : assetActive ? '正在解析项目资产' : assetReady ? '重新解析项目资产' : '解析项目资产'}
+                  {!canEditAssets ? '只读 · 资产师可操作' : assetActive ? '正在解析作品资产' : assetReady ? '重新解析作品资产' : '解析作品资产'}
                 </button>
                 <Link href={{ pathname: `${base}/assets/characters` }} className="fos-btn fos-btn-soft w-full">进入资产设定</Link>
               </div>
@@ -582,7 +582,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                   data-testid="storyboard-generation-action"
                 >
                   <AppIcon name={storyboardActive ? 'loader' : 'sparkles'} className={`h-4 w-4 ${storyboardActive ? 'animate-spin' : ''}`} />
-                  {!canEditStoryboards ? '只读 · 分镜师可操作' : storyboardActive ? '正在生成项目分镜' : storyboardDone ? '重新生成项目分镜' : '生成项目分镜'}
+                  {!canEditStoryboards ? '只读 · 分镜师可操作' : storyboardActive ? '正在生成作品分镜' : storyboardDone ? '重新生成作品分镜' : '生成作品分镜'}
                 </button>
                 <Link href={{ pathname: `${base}/storyboard` }} className="fos-btn fos-btn-soft w-full">进入分镜设计</Link>
               </div>
@@ -608,7 +608,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                   ? storyboardDone
                     ? `共生成 ${generatedPanelCount || storyboardPanelCount} 个可制作镜头，可进入分镜设计继续调整。`
                     : '系统会逐集提交并自动防止重复任务；单集失败不影响其他已提交分集。'
-                  : '前置：完成剧本解析和资产设定后，可生成项目分镜。'}
+                  : '前置：完成剧本解析和资产设定后，可生成作品分镜。'}
               </p>
             </div>
           </StageCard>

@@ -12,8 +12,9 @@ import type { AuthSession } from '@/lib/api-auth'
 import { projectReadWhere } from '@/lib/collaboration/access'
 import { normalizeFrameosAssetCategory } from './material-category'
 import { readRequestFormData } from '@/lib/http/request-form-data'
+import { isImageUpload, MAX_MATERIAL_FILE_BYTES } from './upload-file-policy'
 
-const MAX_FILE_BYTES = 200 * 1024 * 1024
+const MAX_FILE_BYTES = MAX_MATERIAL_FILE_BYTES
 // Multipart boundaries and field names add a small amount around the actual
 // file. The authoritative file cap is still checked again using File.size.
 const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 256 * 1024
@@ -52,9 +53,9 @@ function isDisabledStorageAccountError(error: unknown): boolean {
 }
 
 function typeFromFile(file: File): FrameosMaterialType | null {
-  if (file.type.startsWith('image/')) return 'image'
+  if (isImageUpload(file)) return 'image'
   if (file.type.startsWith('video/')) return 'video'
-  if (file.type.startsWith('audio/')) return 'audio'
+  if (file.type.startsWith('audio/') || /\.(mp3|wav|m4a|ogg)$/i.test(file.name)) return 'audio'
   if (file.type === 'model/gltf-binary' || /\.glb$/i.test(file.name)) return 'model3d'
   return null
 }

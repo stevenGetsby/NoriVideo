@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { CanvasContextMenu } from '@/features/canvas/components/CanvasMenus'
-import { resolveReferencePickerMax } from '@/features/canvas/components/CanvasGenerator'
+import {
+  estimateTtsSeconds,
+  quoteInputVideoSeconds,
+  resolveReferencePickerMax,
+} from '@/features/canvas/components/CanvasGenerator'
 
 function source(path: string) {
   return readFileSync(path, 'utf8')
@@ -23,7 +27,7 @@ describe('画布素材上传资产库入口', () => {
       onAction: vi.fn(),
     }))
     expect(menu).toContain('上传到资产库')
-    expect(menu).toContain('归类后可复用于画布与其他项目')
+    expect(menu).toContain('归类后可复用于画布与其他作品')
   })
 
   it('只读或不可上传的节点不显示该入口', () => {
@@ -74,6 +78,9 @@ describe('生成节点引用素材加号', () => {
     expect(generator).toContain('export function resolveReferencePickerMax(')
     expect(generator).toContain("? inputMode === 'text' ? 'all' : 'image'")
     expect(generator).toContain('const injectedSignature = (injectedReferenceNodeIds || []).join(\'|\')')
+    const graph = source('src/features/canvas/CanvasGraph.tsx')
+    expect(graph).toContain("if (node.id !== picker.nodeId) return node.selected ? { ...node, selected: false } : node")
+    expect(graph).toContain('...(node.data.generation?.referenceNodeIds || []), ...createdIds')
     expect(generator).toContain('if (!next.includes(id)) next.push(id)')
   })
 
@@ -100,7 +107,7 @@ describe('生成节点引用素材加号', () => {
   it('素材库选择后插入画布并注入为引用，不依赖连线', () => {
     const graph = source('src/features/canvas/CanvasGraph.tsx')
     expect(graph).toContain('const addGeneratorReferenceMaterials = useCallback(')
-    expect(graph).toContain('const created = insertMaterial(material, { x: anchor.x, y: anchor.y + index * 280 })')
+    expect(graph).toContain('const createdIds = insertMaterials(validMaterials.map')
     expect(graph).toContain('setGeneratorReferenceInjection({ nodeId: picker.nodeId, ids: createdIds })')
     expect(graph).toContain('allowAllTypes multiple maxSelected={generatorReferencePicker.maxSelected}')
     expect(graph).toContain('injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id')
@@ -114,5 +121,28 @@ describe('生成节点引用素材加号', () => {
     expect(generator).toContain("if (currentModel.raw?.firstLastFrame !== true && inputMode === 'firstlastframe') setInputMode('text')")
     // 旧写法在 currentModel 尚未解析时也会判定为“不支持”，会把保存的首尾帧模式冲掉。
     expect(generator).not.toContain("!currentModel?.raw?.firstLastFrame && inputMode === 'firstlastframe'")
+  })
+})
+
+describe('生成积分报价输入估算', () => {
+  it('多个参考视频按时长求和，而不是取最长一个', () => {
+    const node = (id: string, metadata: unknown) => ({
+      id,
+      type: 'video',
+      data: { mediaType: 'video', sourceMetadata: metadata },
+    }) as Parameters<typeof quoteInputVideoSeconds>[1][number]
+
+    expect(quoteInputVideoSeconds(['a', 'b', 'c'], [
+      node('a', { durationSeconds: 3 }),
+      node('b', { duration: 4.5 }),
+      node('c', { durationMs: 1500 }),
+      node('d', { durationSeconds: 99 }),
+    ])).toBe(9)
+  })
+
+  it('TTS 按中英文字数给出保守预估而不是固定 1 秒', () => {
+    expect(estimateTtsSeconds('')).toBe(1)
+    expect(estimateTtsSeconds('你好，世界。')).toBeGreaterThan(1)
+    expect(estimateTtsSeconds('Hello beautiful world')).toBeGreaterThan(1)
   })
 })

@@ -189,4 +189,39 @@ describe('three-level account management wiring', () => {
     expect(subaccounts).toContain("deletingId === account.id ? '删除中…' : '删除'")
     expect(subaccounts).toContain('sticky right-0')
   })
+
+  it('lets both management levels cap a child account daily usage', () => {
+    const createRoute = readSource('src/app/api/admin/accounts/route.ts')
+    const updateRoute = readSource('src/app/api/admin/accounts/[userId]/route.ts')
+    const management = readSource('src/lib/account/management.ts')
+    const dialog = readSource('src/components/frameos/FosAccountManagementParts.tsx')
+    const platform = readSource('src/components/admin/PlatformAdminAccountsClient.tsx')
+    const subaccounts = readSource('src/components/frameos/FosAccountManagementClient.tsx')
+    const balanceRoute = readSource('src/app/api/user/balance/route.ts')
+
+    // 账号读接口带回上限与今日用量，创建与更新接口都能写入上限。
+    expect(management).toContain('dailyPointLimit: true')
+    expect(management).toContain('dailyLimitPoints: normalizeDailyPointLimit(account.dailyPointLimit)')
+    expect(createRoute).toContain('dailyPointLimit')
+    expect(createRoute).toContain('getDailyUsageSnapshotMap')
+    expect(createRoute).toContain('usageToday: dailyUsageFor(')
+    expect(updateRoute).toContain('dailyPointLimitProvided')
+    expect(updateRoute).toContain('...(dailyPointLimitProvided ? { dailyPointLimit } : {})')
+    // 两个入口共用同一个编辑弹窗与用量单元格。
+    expect(dialog).toContain('每日用量上限（积分）')
+    expect(dialog).toContain('export function DailyUsageCell')
+    expect(platform).toContain('DailyUsageCell usage={manager.usageToday}')
+    expect(subaccounts).toContain('DailyUsageCell usage={account.usageToday}')
+    // 被限制的账号在余额接口里能看到自己的今日额度。
+    expect(balanceRoute).toContain('dailyLimitPoints: dailyUsage.limitPoints')
+  })
+  it('uses explicit daily limits instead of allocating funds away from the shared wallet', () => {
+    const subaccounts = readSource('src/components/frameos/FosAccountManagementClient.tsx')
+    const route = readSource('src/app/api/admin/accounts/[userId]/credits/route.ts')
+    expect(subaccounts).toContain('>设置额度</button>')
+    expect(subaccounts).toContain('历史个人积分')
+    expect(subaccounts).not.toContain("openCreditOperation('allocate'")
+    expect(route).not.toContain('allocateAccountPoints(')
+    expect(route).toContain('不再向子账号个人钱包转入积分')
+  })
 })

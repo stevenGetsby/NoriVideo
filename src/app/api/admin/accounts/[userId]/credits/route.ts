@@ -6,7 +6,6 @@ import { normalizeAccountRole, isSubaccountRole } from '@/lib/account/permission
 import { isDirectSubaccountOf, managedAccountSelect, serializeManagedAccount } from '@/lib/account/management'
 import {
   CreditLedgerError,
-  allocateAccountPoints,
   reclaimAccountPoints,
   rechargeAccountPoints,
   type CreditOperation,
@@ -23,10 +22,21 @@ function readOperation(value: unknown): CreditOperation {
   throw new ApiError('INVALID_PARAMS', { message: '积分操作只能是充值、分配或收回。' })
 }
 
-function readPoints(value: unknown) {
+function readPoints(value: unknown, operation: CreditOperation) {
+  const pattern = operation === 'reclaim' ? /^\d+(?:\.\d{1,4})?$/ : /^\d+$/
+  if (typeof value !== 'number' && !(typeof value === 'string' && pattern.test(value.trim()))) {
+    throw new ApiError('INVALID_PARAMS', { message: operation === 'reclaim'
+      ? '收回积分须为正数（最多 4 位小数），不能使用空值或布尔值。'
+      : '积分必须是正整数，不能使用空值或布尔值。' })
+  }
   const points = Number(value)
-  if (!Number.isSafeInteger(points) || points <= 0 || points > MAX_OPERATION_POINTS) {
-    throw new ApiError('INVALID_PARAMS', { message: `积分必须是 1–${MAX_OPERATION_POINTS} 的整数。` })
+  const validPrecision = operation === 'reclaim'
+    ? Number.isFinite(points) && Math.abs(points * 10_000 - Math.round(points * 10_000)) <= 0.00001
+    : Number.isSafeInteger(points)
+  if (!validPrecision || points <= 0 || points > MAX_OPERATION_POINTS) {
+    throw new ApiError('INVALID_PARAMS', { message: operation === 'reclaim'
+      ? `收回积分须为正数，最多 ${MAX_OPERATION_POINTS} 积分、4 位小数。`
+      : `积分必须是 1–${MAX_OPERATION_POINTS} 的整数。` })
   }
   return points
 }
@@ -124,7 +134,7 @@ export const POST = apiHandler(async (
   const { userId } = await context.params
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const operation = readOperation(body.operation)
-  const points = readPoints(body.points)
+  const points = readPoints(body.points, operation)
   const note = readOptionalText(body.note, 200)
   const requestedKey = readOptionalText(body.idempotencyKey ?? getIdempotencyKey(request), 128)
   const idempotencyKey = requestedKey || `credits:${operation}:${operatorId}:${userId}:${randomUUID()}`
@@ -153,7 +163,9 @@ export const POST = apiHandler(async (
             return null
           }
           return operation === 'allocate'
-            ? allocateAccountPoints(operatorId, target.id, points, { operatorId, idempotencyKey, note })
+            ? (() => { throw new ApiError('INVALID_PARAMS', {
+                message: '子账号使用管理账号共享钱包，请通过“设置额度”配置每日积分上限或 unlimited；不再向子账号个人钱包转入积分。',
+              }) })()
             : reclaimAccountPoints(operatorId, target.id, points, { operatorId, idempotencyKey, note })
         })()
 

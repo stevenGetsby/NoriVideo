@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOriginalImageUrl, toCanvasTextureUrl, toDisplayImageUrl, unwrapNextImageUrl } from './image-url'
+import { resolveOriginalImageUrl, toCanvasTextureUrl, toDisplayImageUrl, toPlayableVideoUrl, unwrapNextImageUrl } from './image-url'
 
 describe('image-url helpers', () => {
   it('unwraps next/image nested url', () => {
@@ -26,5 +26,14 @@ describe('image-url helpers', () => {
   it('returns null for empty values', () => {
     expect(toDisplayImageUrl('')).toBeNull()
     expect(resolveOriginalImageUrl(null)).toBeNull()
+  })
+
+  it('uses range-capable video playback for storage keys and existing signing URLs', () => {
+    expect(toPlayableVideoUrl('images/toolbox-video.mp4'))
+      .toBe('/api/storage/sign?key=images%2Ftoolbox-video.mp4&playback=1')
+    expect(toPlayableVideoUrl('/api/storage/sign?key=video%2Ffoo.webm&expires=900'))
+      .toBe('/api/storage/sign?key=video%2Ffoo.webm&expires=900&playback=1')
+    expect(toPlayableVideoUrl('https://cdn.example/clip.mp4')).toBe('https://cdn.example/clip.mp4')
+    expect(toPlayableVideoUrl(null)).toBeNull()
   })
 })

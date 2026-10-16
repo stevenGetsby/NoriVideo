@@ -65,7 +65,7 @@ describe('infinite canvas permission-aware UI', () => {
     }))
     expect(rail).toContain('帮助')
     expect(rail).not.toContain('添加节点')
-    expect(rail).not.toContain('项目资产')
+    expect(rail).not.toContain('作品资产')
     expect(rail).not.toContain('从素材库选择')
     expect(rail).not.toContain('本地上传')
 

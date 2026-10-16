@@ -27,7 +27,7 @@ import {
 } from './ledger'
 import type { ApiType, UsageUnit } from './cost'
 import { getBillingMode } from './mode'
-import { BillingOperationError, InsufficientBalanceError } from './errors'
+import { BillingOperationError, DailyLimitExceededError, InsufficientBalanceError } from './errors'
 import { roundMoney } from './money'
 import { withTextUsageCollection, type TextUsageEntry } from './runtime-usage'
 import type {
@@ -36,6 +36,7 @@ import type {
 } from './types'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 import { requireGenerationCredit } from './generation-gate'
+import { getGenerationQuotaUserId } from '@/lib/account/request-context'
 
 type CostInput = {
   apiType: ApiType
@@ -407,7 +408,7 @@ function buildSyncBillingKey<T>(params: SyncBillingParams<T>, recordParams: Bill
 
   if (requestId) {
     const digest = createHash('sha1')
-      .update(`${params.userId}:${params.projectId}:${params.action}:${params.apiType}:${params.model}:${params.quantity}:${metadataFingerprint}:${requestId}`)
+      .update(`${params.userId}:${getGenerationQuotaUserId(params.userId)}:${params.projectId}:${params.action}:${params.apiType}:${params.model}:${params.quantity}:${metadataFingerprint}:${requestId}`)
       .digest('hex')
       .slice(0, 16)
     return `sync_${requestId}_${digest}`
@@ -514,6 +515,7 @@ async function withSyncBillingCore<T>(
     source: 'sync',
     requestId,
     idempotencyKey: billingKey,
+    rejectExisting: true,
     metadata: {
       projectId: params.projectId,
       action: params.action,
@@ -934,6 +936,21 @@ export function handleBillingError(error: unknown): NextResponse | null {
       { status: 402 },
     )
   }
+
+  if (error instanceof DailyLimitExceededError) {
+    return NextResponse.json(
+      {
+        error: error.message,
+        code: 'DAILY_LIMIT_EXCEEDED',
+        limitPoints: error.limitPoints,
+        usedPoints: error.usedPoints,
+        requestedPoints: error.requestedPoints,
+        resetsAt: error.windowEnd,
+      },
+      { status: 402 },
+    )
+  }
+
   return null
 }
 

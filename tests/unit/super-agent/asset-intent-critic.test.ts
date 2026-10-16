@@ -3,6 +3,8 @@ import {
   decorateLocationSummaryWithIntent,
   inferAgentAssetIntentCritic,
 } from '@/lib/super-agent/asset-intent-critic'
+import { buildAgentStoryPackage, serializeAgentStoryPackage } from '@/lib/super-agent/agent-story-package'
+import { createDeterministicAnalysis } from '@/lib/super-agent/plan-utils'
 
 describe('Agent asset intent critic', () => {
   it('locks western context for English or American short-drama prompts', () => {
@@ -36,5 +38,19 @@ describe('Agent asset intent critic', () => {
 
     expect(summary).toContain('现代医院走廊。地域/语言 critic：')
     expect(decorateLocationSummaryWithIntent(summary, critic)).toBe(summary)
+  })
+  it('does not classify negated Western requirements as positive region intent', () => {
+    expect(inferAgentAssetIntentCritic(['中国场景，中文环境；不要欧美街景或英文环境标识。']).regionIntent).toBe('china')
+    expect(inferAgentAssetIntentCritic(['American hospital. Do not use Chinese streets.']).regionIntent).toBe('western')
+  })
+  it('prioritizes the explicit story package region over serialized safety rules mentioning both regions', () => {
+    const input = '中国小镇的中文故事'
+    const story = buildAgentStoryPackage({ userInput: input, analysis: createDeterministicAnalysis(input) })
+    story.settingRegion = 'china'
+    story.criticRules = ['不要误生成欧美街景或英文环境']
+    expect(inferAgentAssetIntentCritic([serializeAgentStoryPackage(story)]).regionIntent).toBe('china')
+    story.settingRegion = 'western'
+    story.criticRules = ['不得误生成中国场景、中文招牌']
+    expect(inferAgentAssetIntentCritic([serializeAgentStoryPackage(story)]).regionIntent).toBe('western')
   })
 })

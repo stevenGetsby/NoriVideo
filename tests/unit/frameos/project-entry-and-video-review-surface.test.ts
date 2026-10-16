@@ -12,7 +12,7 @@ describe('project entry and video review surface', () => {
     const styles = source('src/styles/frameos-replica.css')
     expect(panels).toContain('data-testid="project-background-task-status"')
     expect(panels).toContain('className="works-project-running-enter"')
-    expect(panels).toContain('后台任务不影响进入项目')
+    expect(panels).toContain('后台任务不影响进入作品')
     expect(panels).toContain('episodeCount === 0')
     expect(styles).toMatch(/\.works-project-running \{[^}]*pointer-events: none/)
     expect(styles).toMatch(/\.works-project-running-enter \{[^}]*pointer-events: auto/)
@@ -36,7 +36,8 @@ describe('project entry and video review surface', () => {
 
     expect(header).toContain('className="fos-stage-context')
     expect(header).toContain('className="fos-stage-actions')
-    expect(styles).toContain('.fos-stage-context > h1,.fos-meta-tag { flex: none; white-space: nowrap; }')
+    expect(styles).toContain('.fos-stage-context > h1 { min-width: 0; max-width: 100%; flex: 0 1 auto; white-space: normal; overflow-wrap: anywhere; }')
+    expect(styles).toContain('.fos-meta-tag { flex: none; white-space: nowrap; }')
     expect(styles).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.fos-stage-header \{[\s\S]*?grid-template-columns: auto minmax\(0,1fr\)/)
     expect(styles).toMatch(/\.fos-stage-actions \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?flex-wrap: wrap;/)
   })

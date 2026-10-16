@@ -167,6 +167,7 @@ describe('api specific - project data route', () => {
       where: {
         id: 'project-1',
         userId: 'user-1',
+        deletedAt: null,
       },
     }))
     expect(prismaMock.project.update).not.toHaveBeenCalled()

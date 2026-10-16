@@ -5,6 +5,7 @@ vi.mock('react', async () => {
   return {
     ...actual,
     useMemo: <T,>(factory: () => T) => factory(),
+    useCallback: <T,>(callback: T) => callback,
   }
 })
 

@@ -75,6 +75,7 @@ describe('canvas generation reconciliation', () => {
       status: 'completed',
       progress: 100,
       errorMessage: null,
+      billingInfo: { billable: true, chargedCost: 0.1234 },
     }])
 
     const [node] = await reconcileCanvasGenerationNodes({
@@ -98,6 +99,7 @@ describe('canvas generation reconciliation', () => {
           url: 'images/final.png',
           materialId: 'material-1',
           errorMessage: null,
+          actualCostPoints: 12.34,
         }],
       },
     })
@@ -295,6 +297,7 @@ describe('canvas generation reconciliation', () => {
       },
       result: { text: '新的持久文本' },
       errorMessage: null,
+      billingInfo: { billable: true, chargedCost: 0.125 },
       finishedAt: new Date('2026-07-17T01:02:00.000Z'),
     }])
 
@@ -313,7 +316,7 @@ describe('canvas generation reconciliation', () => {
         progress: 100,
         errorMessage: null,
         generationTask: { completed: true },
-        history: [{ taskId: 'task-text-1', text: '新的持久文本', status: 'ready' }],
+        history: [{ taskId: 'task-text-1', text: '新的持久文本', status: 'ready', actualCostPoints: 12.5 }],
       },
     })
     expect(prismaMock.canvasNode.updateMany).toHaveBeenCalledWith(expect.objectContaining({

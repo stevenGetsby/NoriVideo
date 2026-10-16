@@ -103,6 +103,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
   const project = await prisma.project.findUnique({
     where: { id: projectId },
     select: {
+      deletedAt: true,
       id: true,
       name: true,
     },
@@ -110,6 +111,7 @@ export async function handleScreenplayConvertTask(job: Job<TaskJobData>) {
   if (!project) {
     throw new Error('Project not found')
   }
+  if (project.deletedAt) throw new Error('Project is deleted')
 
   const novelData = await prisma.novelPromotionProject.findUnique({
     where: { projectId },

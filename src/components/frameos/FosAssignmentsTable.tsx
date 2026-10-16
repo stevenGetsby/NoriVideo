@@ -126,7 +126,7 @@ export function FosAssignmentsTable({
                     <div className="fa-task-cell">
                       <span className="fa-stage-badge"><AppIcon name={STAGE_ICONS[assignment.stage]} className="h-[11px] w-[11px]" />{assignmentStageDisplayLabel(assignment)}</span>
                       <div className="fa-task-names">
-                        <strong>{assignment.workName || '未归属作品'}</strong>
+                        <strong>{assignment.workName || '未归属项目'}</strong>
                         <AppIcon name="chevronRight" className="h-[11px] w-[11px]" />
                         <span>{assignment.projectName || assignment.projectId}</span>
                         {assignmentEpisodeLabel(assignment) ? <><AppIcon name="chevronRight" className="h-[11px] w-[11px]" /><em>{assignmentEpisodeLabel(assignment)}</em></> : null}

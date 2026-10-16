@@ -61,6 +61,16 @@ export function toDisplayImageUrl(input: string | null | undefined): string | nu
   return unwrapped
 }
 
+/** Signed playback URLs fix legacy videos stored with download-only headers. */
+export function toPlayableVideoUrl(input: string | null | undefined): string | null {
+  const displayUrl = toDisplayImageUrl(input)
+  if (!displayUrl) return null
+  const parsed = tryParseUrl(displayUrl)
+  if (parsed?.pathname !== COS_SIGN_PATH) return displayUrl
+  parsed.searchParams.set('playback', '1')
+  return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
+}
+
 /** Audio is proxied same-origin so browser metadata/range requests work even
  * when the private object store returns attachment-oriented headers. */
 export function toPlayableAudioUrl(input: string | null | undefined): string | null {

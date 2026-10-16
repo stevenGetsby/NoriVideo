@@ -12,11 +12,12 @@ import { fetchAllWorks } from './works/fetch-all-works'
 import { UNASSIGNED_WORK_ID } from './works/types'
 import { canvasNavigationSurfaceKey } from '@/lib/frameos/navigation-surface-key'
 import { hasAccountPermissions } from '@/lib/account/permissions'
+import { createWorkInProjectHref } from '@/lib/projects/hierarchy'
 
 const TEST_MODE = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
 
 function createProjectHref(workId: string) {
-  return `/works?create_project=1&work_id=${encodeURIComponent(workId)}`
+  return createWorkInProjectHref(workId)
 }
 
 function CanvasProjectChooser({
@@ -76,44 +77,44 @@ function CanvasProjectChooser({
   return (
     <div className="nori-canvas-workspace nori-canvas-hub-empty">
       <div className="nori-canvas-hub-breadcrumbs" ref={rootRef}>
-        <Link href={{ pathname: '/works' }} title="返回我的作品"><AppIcon name="chevronLeft" /></Link>
+        <Link href={{ pathname: '/projects' }} title="返回我的项目"><AppIcon name="chevronLeft" /></Link>
         <button type="button" data-testid="global-canvas-work-picker" onClick={() => togglePicker('work')}>
-          <span>{selectedWork?.name || '选择作品'}</span><AppIcon name="chevronDown" />
+          <span>{selectedWork?.name || '选择项目'}</span><AppIcon name="chevronDown" />
         </button>
         <i>/</i>
         <button type="button" data-testid="global-canvas-project-picker" disabled={!selectedWork} onClick={() => togglePicker('project')}>
-          <span>选择项目</span><AppIcon name="chevronDown" />
+          <span>选择作品</span><AppIcon name="chevronDown" />
         </button>
         <i>/</i><span aria-current="step"><span>选择画布</span></span>
         {picker === 'work' ? (
           <div className="nori-canvas-hub-project-menu nori-canvas-hub-work-menu">
-            <header><strong>选择作品</strong><span>{works.length} 个</span></header>
-            <label><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
+            <header><strong>选择项目</strong><span>{works.length} 个</span></header>
+            <label><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
             <div>
               {visibleWorks.map((work) => (
                 <button type="button" key={work.id} className={work.id === selectedWork?.id ? 'is-active' : ''} onClick={() => { onSelectWork(work.id); setPicker(null) }}>
-                  <span>{work.name}</span><small>{work.projectCount} 个项目</small>
+                  <span>{work.name}</span><small>{work.projectCount} 个作品</small>
                 </button>
               ))}
-              {visibleWorks.length === 0 ? <p>没有匹配的作品</p> : null}
+              {visibleWorks.length === 0 ? <p>没有匹配的项目</p> : null}
             </div>
           </div>
         ) : null}
         {picker === 'project' && selectedWork ? (
           <div className="nori-canvas-hub-project-menu nori-canvas-hub-project-picker-menu">
-            <header><strong>{selectedWork.name} · 项目</strong><span>{workProjects.length} 个</span></header>
-            <label><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索项目" autoFocus /></label>
+            <header><strong>{selectedWork.name} · 作品</strong><span>{workProjects.length} 个</span></header>
+            <label><AppIcon name="search" /><input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="搜索作品" autoFocus /></label>
             <div>
               {visibleProjects.map((project) => (
                 <button type="button" key={project.id} onClick={() => onSelect(project.id)}>
                   <span>{project.name}</span><small>进入画布列表</small>
                 </button>
               ))}
-              {visibleProjects.length === 0 ? <p>{workProjects.length ? '没有匹配的项目' : '该作品下暂无项目'}</p> : null}
+              {visibleProjects.length === 0 ? <p>{workProjects.length ? '没有匹配的作品' : '该项目下暂无作品'}</p> : null}
             </div>
             {canCreateProjects && selectedWork.id !== UNASSIGNED_WORK_ID ? (
               <div className="nori-canvas-hub-menu-actions">
-                <Link href={createProjectHref(selectedWork.id)} data-testid="global-canvas-create-project"><AppIcon name="plus" />在此作品中新建项目</Link>
+                <Link href={createProjectHref(selectedWork.id)} data-testid="global-canvas-create-project"><AppIcon name="plus" />在此项目中新建作品</Link>
               </div>
             ) : null}
           </div>
@@ -123,29 +124,29 @@ function CanvasProjectChooser({
       <div className="nori-canvas-hub-content">
         <section className="nori-canvas-hub-message">
           <i><AppIcon name="monitor" /></i>
-          <h1>{loading ? '正在加载作品' : error ? '作品加载失败' : !works.length ? (canCreateProjects ? '暂无可用作品' : '暂无已分配项目') : selectedWork ? '选择项目进入画布' : '进入无限画布'}</h1>
+          <h1>{loading ? '正在加载项目' : error ? '项目加载失败' : !works.length ? (canCreateProjects ? '暂无可用项目' : '暂无已分配作品') : selectedWork ? '选择作品进入画布' : '进入无限画布'}</h1>
           <p>{loading
-            ? '正在读取当前账号可以访问的作品、项目与画布…'
+            ? '正在读取当前账号可以访问的项目、作品与画布…'
             : error
               ? error
               : !works.length
                 ? canCreateProjects
-                  ? '请先在“我的作品”中创建作品和项目，再进入无限画布。'
-                  : '当前账号尚未分配可访问的作品或项目，请联系管理账号完成分配。'
+                  ? '请先在“我的项目”中创建项目和作品，再进入无限画布。'
+                  : '当前账号尚未分配可访问的项目或作品，请联系管理账号完成分配。'
                 : selectedWork
-                  ? `已选择作品「${selectedWork.name}」，可直接从下方项目进入画布。`
-                  : '直接选择一个项目进入画布，或先按作品筛选项目。'}</p>
-          {error ? <button type="button" onClick={onRetry}><AppIcon name="refresh" />重新加载</button> : !works.length ? <Link href={{ pathname: '/works' }}><AppIcon name="folder" />{canCreateProjects ? '创建或管理作品' : '查看我的作品'}</Link> : selectedWork ? <button type="button" onClick={() => togglePicker('project')}><AppIcon name="folderOpen" />选择项目</button> : <button type="button" onClick={() => togglePicker('work')}><AppIcon name="folderOpen" />按作品筛选</button>}
+                  ? `已选择项目「${selectedWork.name}」，可直接从下方作品进入画布。`
+                  : '直接选择一个作品进入画布，或先按项目筛选作品。'}</p>
+          {error ? <button type="button" onClick={onRetry}><AppIcon name="refresh" />重新加载</button> : !works.length ? <Link href={{ pathname: '/projects' }}><AppIcon name="folder" />{canCreateProjects ? '创建或管理项目' : '查看我的项目'}</Link> : selectedWork ? <button type="button" onClick={() => togglePicker('project')}><AppIcon name="folderOpen" />选择作品</button> : <button type="button" onClick={() => togglePicker('work')}><AppIcon name="folderOpen" />按项目筛选</button>}
         </section>
 
         {!loading && !error && directProjects.length > 0 ? (
-          <section className="nori-canvas-hub-direct-projects" aria-label="可进入无限画布的项目">
+          <section className="nori-canvas-hub-direct-projects" aria-label="可进入无限画布的作品">
             <header>
               <div>
-                <strong>{selectedWork ? `${selectedWork.name} · 项目` : '可用项目'}</strong>
+                <strong>{selectedWork ? `${selectedWork.name} · 作品` : '可用作品'}</strong>
                 <span>{directProjects.length} 个</span>
               </div>
-              {selectedWork ? <button type="button" onClick={() => onSelectWork('')}>查看全部项目</button> : <Link href={{ pathname: '/works' }}>管理作品</Link>}
+              {selectedWork ? <button type="button" onClick={() => onSelectWork('')}>查看全部作品</button> : <Link href={{ pathname: '/projects' }}>管理项目</Link>}
             </header>
             <div>
               {directProjects.map((project) => (
@@ -157,7 +158,7 @@ function CanvasProjectChooser({
                   onClick={() => onSelect(project.id)}
                 >
                   <i><AppIcon name="clapperboard" /></i>
-                  <span><strong>{project.name}</strong><small>{project.workName || '未归属作品'} · 打开或创建画布</small></span>
+                  <span><strong>{project.name}</strong><small>{project.workName || '未归属项目'} · 打开或创建画布</small></span>
                   <AppIcon name="arrowRight" />
                 </button>
               ))}
@@ -168,8 +169,8 @@ function CanvasProjectChooser({
         {!loading && !error && selectedWork && directProjects.length === 0 ? (
           <section className="nori-canvas-hub-no-projects">
             <AppIcon name="folderOpen" />
-            <span><strong>这个作品还没有项目</strong><small>创建项目后即可使用无限画布。</small></span>
-            {canCreateProjects && selectedWork.id !== UNASSIGNED_WORK_ID ? <Link href={createProjectHref(selectedWork.id)}><AppIcon name="plus" />新建项目</Link> : null}
+            <span><strong>这个项目还没有作品</strong><small>创建作品后即可使用无限画布。</small></span>
+            {canCreateProjects && selectedWork.id !== UNASSIGNED_WORK_ID ? <Link href={createProjectHref(selectedWork.id)}><AppIcon name="plus" />新建作品</Link> : null}
           </section>
         ) : null}
       </div>
@@ -202,18 +203,18 @@ export function FosCanvasHubClient({
     const controller = new AbortController()
     setLoading(true)
     setError(null)
-    void fetchAllWorks({ pageSize: 50, signal: controller.signal, fallbackErrorMessage: '加载项目失败' })
+    void fetchAllWorks({ pageSize: 50, signal: controller.signal, fallbackErrorMessage: '加载作品失败' })
       .then((payload) => {
         const seen = new Set<string>()
         const nextWorks = payload.works.map((work) => ({
           id: work.id,
-          name: work.virtual ? '未归属作品' : work.name,
+          name: work.virtual ? '未归属项目' : work.name,
           projectCount: work.projectCount,
         }))
         const nextProjects = payload.works.flatMap((work) => work.projects.flatMap((project) => {
           if (seen.has(project.id)) return []
           seen.add(project.id)
-          return [{ id: project.id, name: project.name, workId: work.id, workName: work.virtual ? '未归属作品' : work.name }]
+          return [{ id: project.id, name: project.name, workId: work.id, workName: work.virtual ? '未归属项目' : work.name }]
         }))
         setWorks(nextWorks)
         setProjects(nextProjects)
@@ -222,7 +223,7 @@ export function FosCanvasHubClient({
         if (controller.signal.aborted) return
         setWorks([])
         setProjects([])
-        setError(loadError instanceof Error ? loadError.message : '加载项目失败')
+        setError(loadError instanceof Error ? loadError.message : '加载作品失败')
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
@@ -270,7 +271,7 @@ export function FosCanvasHubClient({
             selectedWork={selectedWork}
             canCreateProjects={canCreateProjects}
             loading={loading}
-            error={!loading && initialProjectId && !error ? '该项目不存在，或当前账号没有访问权限。' : error}
+            error={!loading && initialProjectId && !error ? '该作品不存在，或当前账号没有访问权限。' : error}
             onRetry={() => setRefreshKey((current) => current + 1)}
             onSelectWork={selectWork}
             onSelect={selectProject}

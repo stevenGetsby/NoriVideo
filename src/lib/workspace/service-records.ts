@@ -232,7 +232,7 @@ async function buildFilterableReport(userId: string) {
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     }),
     prismaModels.project.findMany({
-      where: { userId },
+      where: { userId, deletedAt: null },
       select: { id: true, name: true, workId: true, work: { select: { id: true, name: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     }),
@@ -302,7 +302,7 @@ async function buildFilterableReport(userId: string) {
       projectId: project?.id || null,
       projectName: project?.name || '工作区服务',
       workId: project?.work.id || null,
-      workName: project?.work.name || '未归属作品',
+      workName: project?.work.name || '未归属项目',
       accountId: account?.id || null,
       accountName: account?.name || '系统任务',
       accountRole: account?.roleLabel || account?.role || '',
@@ -334,7 +334,7 @@ async function buildFilterableReport(userId: string) {
       projectId: project?.id || null,
       projectName: project?.name || '工作区服务',
       workId: project?.work.id || null,
-      workName: project?.work.name || '未归属作品',
+      workName: project?.work.name || '未归属项目',
       accountId: account?.id || null,
       accountName: account?.name || '管理账号',
       accountRole: account?.roleLabel || account?.role || '',
@@ -594,6 +594,7 @@ async function buildCostSummary(userId: string, usageCosts: UsageCostRow[]) {
       where: {
         id: { in: projectIds },
         userId,
+        deletedAt: null,
       },
       select: { id: true, name: true },
     })
@@ -618,7 +619,7 @@ async function buildCostSummary(userId: string, usageCosts: UsageCostRow[]) {
     byProject: Array.from(byProjectMap.values())
       .map((project) => ({
         projectId: project.projectId,
-        projectName: projectMap.get(project.projectId) || '未知项目',
+        projectName: projectMap.get(project.projectId) || '未知作品',
         totalCost: project.totalCost,
         recordCount: project.recordCount,
       }))
@@ -641,6 +642,7 @@ async function buildTransactions(userId: string) {
         where: {
           id: { in: projectIds },
           userId,
+          deletedAt: null,
         },
         select: { id: true, name: true },
       })

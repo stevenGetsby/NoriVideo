@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Image from 'next/image'
+import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 import { AlertCircle, CheckCircle2, Loader2, Send } from '@/components/ui/icons'
 import type {
   AgentExecutionMode,
@@ -516,13 +516,7 @@ export function SuperInputBox({
         <div className="relative rounded-[26px] border border-[rgba(14,14,44,.08)] bg-[#fafcfe]/90 p-4 shadow-[0_22px_54px_rgba(14,14,44,.095),0_4px_12px_rgba(14,14,44,.055)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,44,.08)] bg-white/84 px-3 py-2 shadow-[0_1px_2px_rgba(14,14,44,.035),0_1px_5px_rgba(14,14,44,.025)]">
-              <Image
-                src="/nori-view/nori-onion-logo.png"
-                alt="Nori"
-                width={24}
-                height={24}
-                className="h-6 w-6 rounded-lg object-contain"
-              />
+              <NoriBrandMark size={24} />
               <span className="text-sm font-bold text-[#0e0e2c]">Nori Agent</span>
             </div>
             <span className="rounded-full bg-[#EFEFFD] px-3 py-1 text-xs font-semibold text-[#4B4DED]">
@@ -1002,13 +996,7 @@ function SuperExecutingPanel({
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(14,14,44,.08)] bg-white shadow-sm">
-              <Image
-                src="/nori-view/nori-onion-logo.png"
-                alt="Nori"
-                width={28}
-                height={28}
-                className="h-7 w-7 object-contain"
-              />
+              <NoriBrandMark size={28} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">

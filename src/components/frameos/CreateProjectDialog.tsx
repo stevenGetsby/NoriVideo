@@ -348,7 +348,7 @@ export function CreateProjectDialog({
   const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (submittingRef.current) return
-    if (!draft.name.trim()) { setError('项目名称必填'); return }
+    if (!draft.name.trim()) { setError('作品名称必填'); return }
     if (draft.materialType === 'script' && source === 'writer' && !draft.importedScriptText.trim()) { setError('请选择一个状态为“可用”的剧本'); return }
     if (source === 'local' && !draft.scriptFile) { setError(`请上传 txt、docx 或 pdf ${draft.materialType === 'script' ? '剧本' : '小说/大纲'}文件`); return }
     if (variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'validating')) { setError('画风参考视频仍在读取，请稍候。'); return }
@@ -383,7 +383,7 @@ export function CreateProjectDialog({
     }
     submittingRef.current = true
     setSubmitting(true)
-    setSubmitStatus('创建项目…')
+    setSubmitStatus('创建作品…')
     setError(null)
     setStyleReferenceItems((current) => current.map((item) => ({
       ...item,
@@ -409,7 +409,7 @@ export function CreateProjectDialog({
       const ok = await onCreate(nextDraft, setSubmitStatus, onStyleReferenceProgress)
       if (ok) onClose()
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : '创建项目失败')
+      setError(submitError instanceof Error ? submitError.message : '创建作品失败')
       setStyleReferenceItems((current) => current.map((item) => item.uploadStatus === 'failed'
         ? item
         : { ...item, uploadStatus: 'idle', progress: 0 }))
@@ -433,7 +433,7 @@ export function CreateProjectDialog({
         className="fos-dialog create-project-dialog"
         role="dialog"
         aria-modal="true"
-        aria-label="创建项目"
+        aria-label="创建作品"
         aria-busy={submitting}
         tabIndex={-1}
         noValidate
@@ -454,25 +454,25 @@ export function CreateProjectDialog({
         }}
       >
         <header className="fos-dialog-head">
-          <div><div className="fos-dialog-title">创建项目</div>{workName ? <div className="create-project-work-name">所属作品 · {workName}</div> : null}</div>
-          <button type="button" className="fos-dialog-x" disabled={submitting} onClick={onClose} aria-label="关闭创建项目"><AppIcon name="close" className="h-4 w-4" /></button>
+          <div><div className="fos-dialog-title">创建作品</div>{workName ? <div className="create-project-work-name">所属项目 · {workName}</div> : null}</div>
+          <button type="button" className="fos-dialog-x" disabled={submitting} onClick={onClose} aria-label="关闭创建作品"><AppIcon name="close" className="h-4 w-4" /></button>
         </header>
         <div className="fos-dialog-body create-project-body" onClick={stopWhileSubmitting}>
           <fieldset className="create-project-payload-fields" disabled={submitting}>
           <label className="create-project-field">
-            <span className="create-project-label">项目名称 <small>{draft.name.length} / 40</small></span>
-            <input ref={initialFocusRef} className="fos-input" placeholder="请输入项目名称" required maxLength={40} value={draft.name} onChange={(event) => { set('name', event.target.value); setError(null) }} />
+            <span className="create-project-label">作品名称 <small>{draft.name.length} / 40</small></span>
+            <input ref={initialFocusRef} className="fos-input" placeholder="请输入作品名称" required maxLength={40} value={draft.name} onChange={(event) => { set('name', event.target.value); setError(null) }} />
           </label>
 
           <section className="create-project-section">
-            <div className="create-project-label">项目版本</div>
+            <div className="create-project-label">作品版本</div>
             <div className="create-project-level-grid is-single">
               <div className="create-project-level is-selected" data-testid="nori-project-level">
                 <span className="create-project-radio is-on" />
                 <strong>Nori1.0</strong>
                 <span className="create-project-level-kicker">统一的短剧工业化生产工作流</span>
                 <ul>
-                  <li>剧本、资产、分镜与视频使用同一项目配置</li>
+                  <li>剧本、资产、分镜与视频使用同一作品配置</li>
                   <li>支持自由协作或按角色分工、提交与审核</li>
                   <li>统一画风持续注入资产图、分镜图和视频生成</li>
                 </ul>
@@ -481,7 +481,7 @@ export function CreateProjectDialog({
           </section>
 
           <section className="create-project-section" data-testid="nori-collaboration-mode">
-            <div className="create-project-label">项目协作方式</div>
+            <div className="create-project-label">作品协作方式</div>
             <div className="create-project-mode-grid">
               <button type="button" className={draft.collaborationMode === 'solo' ? 'is-selected' : ''} onClick={() => set('collaborationMode', 'solo')}>
                 <span><AppIcon name="link" />自由协作</span><small>所有协作者均可按账号权限操作，不分配任务（默认）</small>
@@ -528,7 +528,7 @@ export function CreateProjectDialog({
 
           <section className="create-project-config-grid">
             <ProjectPillGroup
-              label="项目风格"
+              label="作品风格"
               className="is-style"
               value={draft.projectStyle}
               options={[
@@ -574,7 +574,7 @@ export function CreateProjectDialog({
             <span>
               <strong>{draft.artStylePrompt.trim() ? '内置画风已被自定义画风覆盖' : '内置画风基线'}</strong>
               {draft.artStylePrompt.trim()
-                ? '当前项目生成时不会使用上方所选画风。'
+                ? '当前作品生成时不会使用上方所选画风。'
                 : PROJECT_STYLE_SUMMARIES[draft.projectStyle]}
             </span>
           </div>
@@ -606,14 +606,14 @@ export function CreateProjectDialog({
             <div className="create-project-script-column">
               <div className="create-project-label">初始内容（可选）</div>
               <div className="create-project-source-tabs" role="tablist" aria-label="初始内容来源">
-                <button type="button" role="tab" aria-selected={source === 'blank'} className={source === 'blank' ? 'is-active' : ''} onClick={() => setSource('blank')}>空白项目</button>
+                <button type="button" role="tab" aria-selected={source === 'blank'} className={source === 'blank' ? 'is-active' : ''} onClick={() => setSource('blank')}>空白作品</button>
                 <button type="button" role="tab" aria-selected={source === 'writer'} className={source === 'writer' ? 'is-active' : ''} onClick={() => setSource('writer')}>导入剧本</button>
                 <button type="button" role="tab" aria-selected={source === 'local'} className={source === 'local' ? 'is-active' : ''} onClick={() => setSource('local')}>本地上传</button>
                 {variant.allowEpisodeRange ? <button type="button" role="tab" aria-selected={source === 'range'} className={source === 'range' ? 'is-active' : ''} onClick={() => setSource('range')}>指定集数范围</button> : null}
               </div>
               {source === 'blank' ? (
                 <div className="create-project-empty-range">
-                  <p>仅创建空白项目，不导入剧本、不预建剧集。进入工作台后可自行创建剧集并编写内容。</p>
+                  <p>仅创建空白作品，不导入剧本、不预建剧集。进入工作台后可自行创建剧集并编写内容。</p>
                 </div>
               ) : source === 'writer' ? (
                 <div className="create-project-script-picker">
@@ -701,7 +701,7 @@ export function CreateProjectDialog({
                   maxLength={2000}
                   value={draft.artStylePrompt}
                   onChange={(event) => set('artStylePrompt', event.target.value)}
-                  placeholder="填写后将完全覆盖上方项目风格，例如：90 年代港漫粗线条、高对比强阴影、主色冷调蓝灰。"
+                  placeholder="填写后将完全覆盖上方作品风格，例如：90 年代港漫粗线条、高对比强阴影、主色冷调蓝灰。"
                 />
               </label>
               <div className="create-project-art-hint">

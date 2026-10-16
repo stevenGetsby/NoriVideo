@@ -614,7 +614,7 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
               {!editor.readOnly ? <button type="button" className="nori-playlist-add" onClick={() => setPickerOpen(true)}><Plus />添加视频</button> : null}
             </div>
           ) : (
-            <button type="button" className="nori-playlist-empty nodrag" disabled={editor.readOnly} onClick={() => setPickerOpen(true)}><span><Plus /></span><strong>添加视频到播放列表</strong><small>选择视频，或把生成视频节点 / 项目素材拖到这里</small></button>
+            <button type="button" className="nori-playlist-empty nodrag" disabled={editor.readOnly} onClick={() => setPickerOpen(true)}><span><Plus /></span><strong>添加视频到播放列表</strong><small>选择视频，或把生成视频节点 / 作品素材拖到这里</small></button>
           )}
         </div>
 

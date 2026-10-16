@@ -14,6 +14,42 @@ export class InsufficientBalanceError extends Error {
   }
 }
 
+function formatLimitPoints(value: number) {
+  return Number.isInteger(value) ? value.toLocaleString('zh-CN') : value.toFixed(2)
+}
+
+/**
+ * 管理账号为该用户设置的每日用量上限已用尽。
+ * 上限按上海自然日重置，因此这里提示的是「明日再试」而不是补充积分。
+ */
+export class DailyLimitExceededError extends Error {
+  public readonly limitPoints: number
+  public readonly usedPoints: number
+  public readonly requestedPoints: number
+  public readonly windowEnd: string | null
+
+  constructor(params: {
+    limitPoints: number
+    usedPoints: number
+    requestedPoints?: number
+    windowEnd?: string | null
+  }) {
+    const requestedPoints = params.requestedPoints && params.requestedPoints > 0 ? params.requestedPoints : 0
+    const limitText = formatLimitPoints(params.limitPoints)
+    const usedText = formatLimitPoints(params.usedPoints)
+    super(params.limitPoints === 0
+      ? '管理账号已禁止该账号生成（每日上限为 0），请联系管理账号调整为正数或 unlimited'
+      : requestedPoints > 0
+      ? `今日用量已达上限（已用 ${usedText} / 上限 ${limitText} 积分），本次还需要 ${formatLimitPoints(requestedPoints)} 积分，请明日再试或联系管理账号调整上限`
+      : `今日用量已达上限（已用 ${usedText} / 上限 ${limitText} 积分），请明日再试或联系管理账号调整上限`)
+    this.name = 'DailyLimitExceededError'
+    this.limitPoints = params.limitPoints
+    this.usedPoints = params.usedPoints
+    this.requestedPoints = requestedPoints
+    this.windowEnd = params.windowEnd ?? null
+  }
+}
+
 export type BillingOperationErrorCode =
   | 'BILLING_CONFIRM_FAILED'
   | 'BILLING_INVALID_FREEZE'

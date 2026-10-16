@@ -1,5 +1,7 @@
 'use client'
 
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -30,12 +32,13 @@ import {
   type NodeProps,
 } from '@xyflow/react'
 import { MediaImage } from '@/components/media/MediaImage'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { useCanvasEditor, type CanvasNodeAction } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
 import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog'
-import { isCanvasPanoramaNodeData } from '../types'
+import { ViewportPopover } from '@/components/ui/viewport-popover'
+import { getCanvasCurrentCostLabel, isCanvasPanoramaNodeData } from '../types'
 import type { CanvasGenerationReferenceSummary } from '../types'
 
 const ICONS = {
@@ -136,7 +139,7 @@ function ReferencePreview({ reference }: { reference: CanvasGenerationReferenceS
     return <MediaImage src={src} alt="" fill sizes="34px" style={{ objectFit: 'cover' }} />
   }
   if (src && reference.type === 'video') {
-    return <video src={src} muted playsInline preload="metadata" />
+    return <video src={toPlayableVideoUrl(reference.previewUrl) || src} muted playsInline preload="metadata" />
   }
   const Icon = reference.type === 'audio' ? Music2 : reference.type === 'video' ? Film : ImageIcon
   return <Icon />
@@ -148,12 +151,17 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const mediaType = displayType(props as unknown as CanvasFlowNode)
   const Icon = ICONS[mediaType as keyof typeof ICONS] || ImageIcon
   const status = data.__server?.status || 'IDLE'
-  const imageUrl = toDisplayImageUrl(data.contentUrl || data.imageUrl || data.posterUrl || null)
-  const videoUrl = toDisplayImageUrl(data.contentUrl || data.videoUrl || null)
+  const imageUrl = toDisplayImageUrl(mediaType === 'image'
+    ? data.contentUrl || data.imageUrl || data.posterUrl || null
+    : data.posterUrl || data.imageUrl || null)
+  const videoUrl = toPlayableVideoUrl(data.videoUrl || data.contentUrl || null)
   const audioUrl = toDisplayImageUrl(data.audioUrl || data.contentUrl || null)
   const hasContent = mediaType === 'text'
     ? Boolean(data.text?.trim())
-    : Boolean(imageUrl || videoUrl || audioUrl || data.modelUrl)
+    : mediaType === 'video' ? Boolean(videoUrl)
+      : mediaType === 'audio' ? Boolean(audioUrl)
+        : mediaType === 'model3d' ? Boolean(data.modelUrl)
+          : Boolean(imageUrl)
   const canReplaceContent = !editor.readOnly && ['image', 'video', 'audio', 'model3d'].includes(mediaType)
   const isPanorama = mediaType === 'image' && isCanvasPanoramaNodeData(data)
   const canPreviewPanorama = Boolean(isPanorama && imageUrl && status !== 'RUNNING')
@@ -182,10 +190,15 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(data.title || '未命名节点')
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
+  const moreActionsRef = useRef<HTMLButtonElement>(null)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
+  const [videoFailed, setVideoFailed] = useState(false)
+  const [videoAttempt, setVideoAttempt] = useState(0)
+  useEffect(() => { setVideoFailed(false); setVideoAttempt(0) }, [videoUrl])
   const inlineActions = actions.filter(({ action }) => action === 'preview' || action === 'download')
   const overflowActions = actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
+  const currentCost = getCanvasCurrentCostLabel(data.history, data, mediaType)
   const previewReferenceNode = previewReference
     ? {
         id: `reference-preview:${previewReference.id}`,
@@ -248,6 +261,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         {overflowActions.length > 0 ? (
           <div className="nori-canvas-node-toolbar-more">
             <button
+              ref={moreActionsRef}
               type="button"
               title="更多操作"
               aria-label="更多操作"
@@ -257,7 +271,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
               <MoreHorizontal />
             </button>
             {moreActionsOpen ? (
-              <div role="menu" aria-label="节点更多操作" className="nori-canvas-node-toolbar-menu">
+              <ViewportPopover anchorRef={moreActionsRef} onClose={() => setMoreActionsOpen(false)} width={200} role="menu" aria-label="节点更多操作" className="nori-canvas-node-toolbar-menu">
                 {overflowActions.map(({ action, title: actionTitle, icon: ActionIcon }) => (
                   <button
                     type="button"
@@ -273,7 +287,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
                     <span>{actionTitle}</span>
                   </button>
                 ))}
-              </div>
+              </ViewportPopover>
             ) : null}
           </div>
         ) : null}
@@ -281,6 +295,11 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
 
       <header className="nori-canvas-node-label">
         <Icon />
+        {currentCost ? (
+          <span className="nori-canvas-node-cost" title={currentCost.kind === 'actual' ? `实际消耗 ${currentCost.points} 积分` : `预计消耗 ${currentCost.points} 积分`}>
+            {currentCost.kind === 'actual' ? '实际' : '预计'} {currentCost.points} 积分
+          </span>
+        ) : null}
         {renaming && !editor.readOnly ? (
           <input
             className="nodrag"
@@ -317,7 +336,12 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
             <small>720°</small>
           </button>
         ) : null}
-        {mediaType === 'video' && videoUrl ? <video src={videoUrl} poster={imageUrl || undefined} controls playsInline className="nodrag nowheel" /> : null}
+        {mediaType === 'video' && videoUrl ? (
+          <>
+            <video key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} controls playsInline preload="metadata" className="nodrag nowheel" onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} />
+            {videoFailed ? <div className="nori-canvas-video-load-error nodrag nowheel" role="status"><Film /><span>视频已生成，播放加载失败</span><button type="button" onClick={(event) => { event.stopPropagation(); setVideoFailed(false); setVideoAttempt((value) => value + 1) }}><RefreshCw />重新加载</button><button type="button" onClick={() => editor.runNodeAction(id, 'preview')}>打开预览</button></div> : null}
+          </>
+        ) : null}
         {mediaType === 'video' && references.length > 0 ? (
           <div className="nori-canvas-reference-strip" aria-label="视频引用素材">
             {references.slice(0, 4).map((reference) => (
@@ -357,8 +381,8 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         ) : null}
         {status === 'FAILED' ? (
           editor.readOnly
-            ? <div className="nodrag nori-canvas-node-error"><RefreshCw />{data.errorMessage || '生成失败'}</div>
-            : <button type="button" className="nodrag nori-canvas-node-error" onClick={() => editor.runNodeAction(id, data.generationTask?.taskId ? 'retry_generation_task' : 'regenerate')}><RefreshCw />{data.errorMessage || '生成失败，点击重试'}</button>
+            ? <div className="nodrag nori-canvas-node-error"><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败')}</div>
+            : <button type="button" className="nodrag nori-canvas-node-error" onClick={() => editor.runNodeAction(id, data.generationTask?.taskId ? 'retry_generation_task' : 'regenerate')}><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败，点击重试')}</button>
         ) : null}
       </div>
 

@@ -73,7 +73,7 @@ export async function validateAssignmentNavigation(
 
   await requireProjectReader(session, assignment.projectId)
   if (!assignment.matched) {
-    throw new ApiError('CONFLICT', { message: '该任务已不再匹配当前项目内容，请刷新任务列表。' })
+    throw new ApiError('CONFLICT', { message: '该任务已不再匹配当前作品内容，请刷新任务列表。' })
   }
 
   const stagePermission = STAGE_PERMISSION[assignment.stage]
@@ -138,7 +138,7 @@ export async function validateAssignmentNavigation(
       || resolvedEpisode.id !== resolvedEpisodeId
       || resolvedEpisode.novelPromotionProject.projectId !== assignment.projectId
     ) {
-      throw new ApiError('CONFLICT', { message: '任务对应分集已不存在或不属于当前项目。' })
+      throw new ApiError('CONFLICT', { message: '任务对应分集已不存在或不属于当前作品。' })
     }
   }
 

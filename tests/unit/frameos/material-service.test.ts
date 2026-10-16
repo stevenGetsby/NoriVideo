@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 type StoredMaterial = {
+  projectId?: string
   storageKey: string | null
   resultUrl: string | null
 }
@@ -64,6 +65,7 @@ describe('FrameOS material service', () => {
     }))
     prismaMock.frameosMaterial.createMany.mockImplementation(async ({ data }: { data: StoredMaterial[] }) => {
       state.stored.push(...data.map((item) => ({
+        projectId: item.projectId,
         storageKey: item.storageKey,
         resultUrl: item.resultUrl,
       })))
@@ -90,7 +92,7 @@ describe('FrameOS material service', () => {
 
     expect(mediaMock.ensureMediaObjectFromStorageKey).toHaveBeenCalledWith('images/su-wanqing.png')
     expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
-      where: { userId: 'user-1', storageKey: 'images/su-wanqing.png', deletedAt: null },
+      where: { userId: 'user-1', projectId: 'project-1', storageKey: 'images/su-wanqing.png', deletedAt: null },
     })
     expect(prismaMock.frameosMaterial.update).toHaveBeenCalledWith({
       where: { id: 'material-existing' },
@@ -104,6 +106,18 @@ describe('FrameOS material service', () => {
       }),
     })
     expect(result).toEqual(expect.objectContaining({ id: 'material-existing' }))
+  })
+
+  it('registers a shared image per project without moving the old project record', async () => {
+    const result = await registerFrameosMaterial({
+      userId: 'user-1', projectId: 'project-2', title: '复用图片', type: 'image',
+      source: 'upload', storageKey: 'images/shared.png',
+    })
+    expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
+      where: { userId: 'user-1', projectId: 'project-2', storageKey: 'images/shared.png', deletedAt: null },
+    })
+    expect(prismaMock.frameosMaterial.update).not.toHaveBeenCalled()
+    expect(result.projectId).toBe('project-2')
   })
 
   it('backfills every persisted project/global generated image and is idempotent', async () => {

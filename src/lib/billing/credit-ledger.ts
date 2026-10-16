@@ -43,6 +43,14 @@ function readPositiveIntegerPoints(points: number) {
   return points
 }
 
+function readPositiveReclaimPoints(points: number) {
+  if (!Number.isFinite(points) || points <= 0 || points > 2_000_000_000
+    || Math.abs(points * 10_000 - Math.round(points * 10_000)) > 0.00001) {
+    throw new CreditLedgerError('INVALID_POINTS', '收回积分须为正数，最多保留 4 位小数。')
+  }
+  return Math.round(points * 10_000) / 10_000
+}
+
 function snapshot(userId: string, balance: Prisma.Decimal | number): BalanceResult {
   const balanceCny = toMoneyNumber(balance)
   return { userId, balanceCny, balancePoints: cnyToPoints(balanceCny) }
@@ -82,7 +90,7 @@ function prismaErrorCode(error: unknown): string {
 }
 
 function assertIdempotentAmount(stored: Prisma.Decimal | number, expectedCny: number) {
-  if (Math.abs(Math.abs(toMoneyNumber(stored)) - expectedCny) > 0.000001) {
+  if (Math.round(Math.abs(toMoneyNumber(stored)) * 1_000_000) !== Math.round(expectedCny * 1_000_000)) {
     throw new CreditLedgerError(
       'IDEMPOTENCY_CONFLICT',
       '同一积分请求编号不能用于不同的积分数量。请关闭弹窗后重新操作。',
@@ -197,7 +205,9 @@ async function transferPoints(input: {
   pointsInput: number
   options: CreditMutationOptions
 }): Promise<CreditMutationResult> {
-  const points = readPositiveIntegerPoints(input.pointsInput)
+  const points = input.operation === 'reclaim'
+    ? readPositiveReclaimPoints(input.pointsInput)
+    : readPositiveIntegerPoints(input.pointsInput)
   const amountCny = pointsToCny(points)
   const sourceType = input.operation === 'allocate' ? 'allocate_out' : 'reclaim_out'
   const targetType = input.operation === 'allocate' ? 'allocate_in' : 'reclaim_in'

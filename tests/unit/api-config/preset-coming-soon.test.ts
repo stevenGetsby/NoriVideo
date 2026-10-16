@@ -7,12 +7,11 @@ import {
 } from '@/app/[locale]/profile/components/api-config/types'
 
 describe('api-config preset coming soon', () => {
-  it('registers Nano Banana 2 under Google AI Studio presets', () => {
+  it('does not advertise Google-only image presets outside the supported provider registry', () => {
     const model = PRESET_MODELS.find(
       (entry) => entry.provider === 'google' && entry.modelId === 'gemini-3.1-flash-image-preview',
     )
-    expect(model).toBeDefined()
-    expect(model?.name).toBe('Nano Banana 2')
+    expect(model).toBeUndefined()
   })
 
   it('registers Seedance 2.0 and Seedance 2.0 Fast as preset video models', () => {
@@ -44,19 +43,11 @@ describe('api-config preset coming soon', () => {
     expect(isPresetComingSoonModelKey(modelKey)).toBe(false)
   })
 
-  it('registers Bailian Wan i2v preset models', () => {
+  it('does not advertise Bailian presets outside the current provider registry', () => {
     const modelIds = PRESET_MODELS
       .filter((entry) => entry.provider === 'bailian' && entry.type === 'video')
       .map((entry) => entry.modelId)
 
-    expect(modelIds).toEqual(expect.arrayContaining([
-      'wan2.7-i2v',
-      'wan2.6-i2v-flash',
-      'wan2.6-i2v',
-      'wan2.5-i2v-preview',
-      'wan2.2-i2v-plus',
-      'wan2.2-kf2v-flash',
-      'wanx2.1-kf2v-plus',
-    ]))
+    expect(modelIds).toEqual([])
   })
 })

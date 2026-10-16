@@ -35,14 +35,14 @@ describe('canvas @mention references', () => {
 
     expect(assets.map(({ id, mediaType, name }) => ({ id, mediaType, name }))).toEqual([
       { id: 'image-1', mediaType: 'image', name: '雨夜参考·图片' },
-      { id: 'video-1', mediaType: 'video', name: '雨夜参考·视频' },
       { id: 'audio-1', mediaType: 'audio', name: '环境雷声' },
       { id: 'url-only', mediaType: 'image', name: '尚未绑定素材' },
+      { id: 'video-1', mediaType: 'video', name: '雨夜参考·视频' },
     ])
     expect(assets[0]).toMatchObject({ imageUrl: '/image.webp', description: '图片 · 已连接上游' })
-    expect(assets[1]).toMatchObject({ imageUrl: '/poster.webp', description: '视频 · 画布素材' })
-    expect(assets[2]).toMatchObject({ imageUrl: null, description: '音频 · 画布素材' })
-    expect(assets[3]).toMatchObject({ materialId: null, imageUrl: '/orphan.webp', description: '图片 · 画布素材 · 将自动建立引用' })
+    expect(assets[3]).toMatchObject({ imageUrl: '/poster.webp', description: '视频 · 画布素材' })
+    expect(assets[1]).toMatchObject({ imageUrl: null, description: '音频 · 画布素材' })
+    expect(assets[2]).toMatchObject({ materialId: null, imageUrl: '/orphan.webp', description: '图片 · 画布素材 · 将自动建立引用' })
   })
 
   it('adds a mentioned entity id without dropping or reordering wired references', () => {
@@ -56,6 +56,17 @@ describe('canvas @mention references', () => {
     expect(shouldBindCanvasMentionReference('video')).toBe(true)
     expect(shouldBindCanvasMentionReference('image')).toBe(true)
     expect(shouldBindCanvasMentionReference('audio')).toBe(false)
+  })
+
+  it('puts connected upstream entities before unconnected canvas assets', () => {
+    const assets = buildCanvasMentionAssets([
+      node('canvas-audio', 'audio', '画布音频', { audioUrl: '/canvas.wav' }),
+      node('canvas-image', 'image', '画布图片', { contentUrl: '/canvas.webp' }),
+      node('wired-audio', 'audio', '连线音频', { audioUrl: '/wired.wav' }),
+      node('wired-image', 'image', '连线图片', { contentUrl: '/wired.webp' }),
+    ], 'target', ['image', 'audio'], new Set(['wired-audio', 'wired-image']))
+
+    expect(assets.map((asset) => asset.id)).toEqual(['wired-image', 'wired-audio', 'canvas-image', 'canvas-audio'])
   })
 
   it('replaces only the active query and preserves ordinary prompt text', () => {

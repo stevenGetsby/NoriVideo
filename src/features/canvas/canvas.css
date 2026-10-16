@@ -186,6 +186,22 @@
 .nori-canvas-node-label .nori-canvas-node-drag-handle { cursor: grab; user-select: none; }
 .nori-canvas-node-label .nori-canvas-node-drag-handle:active { cursor: grabbing; }
 
+.nori-canvas-node-cost {
+  min-width: 0;
+  overflow: hidden;
+  flex: none;
+  max-width: 86px;
+  border: 1px solid rgba(247, 215, 116, .22);
+  border-radius: 999px;
+  padding: 2px 6px;
+  color: #f7d774;
+  background: rgba(247, 215, 116, .08);
+  font-size: 8px;
+  line-height: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .nori-canvas-node-label input {
   width: 150px;
   border-bottom: 1px solid rgba(59, 130, 246, .8);
@@ -1345,6 +1361,7 @@
   bottom: 92px;
   z-index: 30;
   width: min(840px, calc(100vw - 80px));
+  max-width: calc(100% - 24px);
   overflow: hidden;
   border: 1px solid var(--canvas-border);
   border-radius: 13px;
@@ -1871,6 +1888,20 @@
   background: rgba(59, 130, 246, .12);
 }
 
+.nori-canvas-generator-quote {
+  display: inline-flex;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  padding: 0 9px;
+  border: 1px solid rgba(250, 204, 21, .16);
+  border-radius: 7px;
+  color: #fde68a;
+  background: rgba(250, 204, 21, .08);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
 .nori-canvas-generator-controls .nori-canvas-generate-button {
   width: 36px;
   flex: none;
@@ -2041,6 +2072,39 @@
   color: #ffb5b5;
   background: rgba(92, 25, 35, .28);
   font-size: 10px;
+}
+
+.nori-canvas-generator-reference-warning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin: 0 12px 10px;
+  border: 1px solid rgba(251, 191, 36, .35);
+  border-radius: 7px;
+  padding: 8px 10px;
+  color: #fde68a;
+  background: #322817;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.nori-canvas-generator-reference-warning > span {
+  flex: 1 1 220px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.nori-canvas-generator-reference-warning > button {
+  flex: 0 0 auto;
+  max-width: 100%;
+  border: 1px solid rgba(251, 191, 36, .4);
+  border-radius: 5px;
+  padding: 5px 8px;
+  color: #fef3c7;
+  background: #53401c;
+  cursor: pointer;
 }
 
 @media (max-width: 720px) {
@@ -2689,9 +2753,21 @@
 .nori-canvas-project-assets-project { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 8px; border-bottom: 1px solid rgba(255, 255, 255, .055); padding: 7px 10px; color: #8993a5; font-size: 10px; }
 .nori-canvas-project-assets-project select { min-width: 0; height: 29px; border: 1px solid rgba(205, 214, 255, .12); border-radius: 7px; padding: 0 24px 0 8px; color: #d7deeb; background: #171a22; font-size: 10px; outline: none; }
 .nori-canvas-project-assets-project select:focus { border-color: rgba(112, 143, 255, .56); }
-.nori-canvas-project-assets-list > article { display: grid; grid-template-columns: 66px minmax(0, 1fr) auto; gap: 9px; align-items: center; margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, .055); border-radius: 9px; padding: 7px; background: rgba(255, 255, 255, .018); cursor: grab; transition: border-color .14s ease, background .14s ease, transform .14s ease; }
+.nori-canvas-project-assets-select { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 7px 8px; border: 1px solid rgba(255,255,255,.06); border-radius: 8px; padding: 6px 7px; background: rgba(255,255,255,.022); }
+.nori-canvas-project-assets-select button { display: inline-flex; height: 24px; align-items: center; gap: 5px; border: 1px solid rgba(59,130,246,.24); border-radius: 6px; padding: 0 8px; color: #93c5fd; font-size: 10px; }
+.nori-canvas-project-assets-select button:hover { border-color: rgba(59,130,246,.48); background: rgba(59,130,246,.1); }
+.nori-canvas-project-assets-select svg { width: 11px; height: 11px; }
+.nori-canvas-project-assets-select > span { color: rgba(255,255,255,.38); font-size: 9px; text-align: right; }
+.nori-canvas-project-assets-select .nori-canvas-material-batch-handle { width: 100%; justify-content: center; height: 32px; cursor: grab; background: rgba(59,130,246,.12); border-style: dashed; }
+.nori-canvas-project-assets-select .nori-canvas-material-batch-handle:active { cursor: grabbing; }
+.nori-canvas-project-assets-list > article { position: relative; display: grid; grid-template-columns: 66px minmax(0, 1fr) auto; gap: 9px; align-items: center; margin-bottom: 6px; border: 1px solid rgba(255, 255, 255, .055); border-radius: 9px; padding: 7px; background: rgba(255, 255, 255, .018); cursor: grab; transition: border-color .14s ease, background .14s ease, transform .14s ease; }
 .nori-canvas-project-assets-list > article:hover { border-color: rgba(59, 130, 246, .28); background: rgba(59, 130, 246, .055); transform: translateY(-1px); }
 .nori-canvas-project-assets-list > article:active { cursor: grabbing; }
+.nori-canvas-project-assets-list > article.is-selected { border-color: rgba(59,130,246,.55); box-shadow: 0 0 0 1px rgba(59,130,246,.28); }
+.nori-canvas-project-assets-check { position: absolute; z-index: 2; top: 7px; right: 7px; display: flex; width: 21px; height: 21px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.18); border-radius: 5px; color: transparent; background: rgba(3,7,18,.74); }
+.nori-canvas-project-assets-check:hover { border-color: rgba(59,130,246,.55); color: rgba(255,255,255,.7); }
+.nori-canvas-project-assets-check.is-selected { border-color: #3b82f6; color: #fff; background: #2563eb; }
+.nori-canvas-project-assets-check svg { width: 12px; height: 12px; }
 .nori-canvas-project-assets-thumb { position: relative; display: grid; width: 66px; height: 51px; overflow: hidden; place-items: center; border-radius: 7px; color: rgba(255, 255, 255, .2); background: #0c0e14; }
 .nori-canvas-project-assets-thumb > svg { width: 23px; height: 23px; }
 .nori-canvas-project-assets-thumb > span { position: absolute; right: 3px; bottom: 3px; border-radius: 4px; padding: 2px 4px; color: rgba(255, 255, 255, .8); background: rgba(0, 0, 0, .72); font-size: 6px; font-weight: 750; }
@@ -2971,7 +3047,10 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 28px;
+  align-items: safe center;
+  justify-content: safe center;
+  overflow: auto;
+  padding: 14px;
   background: rgba(3, 5, 10, .66);
   backdrop-filter: blur(6px);
 }
@@ -2979,7 +3058,7 @@
 .nori-canvas-dialog {
   position: relative;
   width: min(920px, 92vw);
-  max-height: 86vh;
+  max-height: min(86vh, calc(100dvh - 28px));
   overflow: hidden;
   border: 1px solid var(--canvas-border);
   border-radius: 13px;
@@ -3002,7 +3081,7 @@
 .nori-canvas-dialog > header button { display: flex; width: 29px; height: 29px; align-items: center; justify-content: center; border: 0; border-radius: 7px; color: rgba(255, 255, 255, .4); background: transparent; }
 .nori-canvas-dialog > header button:hover { color: white; background: rgba(255, 255, 255, .06); }
 .nori-canvas-dialog > header button svg { width: 15px; height: 15px; }
-.nori-canvas-dialog-body { max-height: calc(86vh - 52px); overflow-y: auto; padding: 18px; }
+.nori-canvas-dialog-body { max-height: calc(min(86vh, 100dvh - 28px) - 52px); overflow-y: auto; padding: 18px; }
 
 .nori-canvas-management-scrim {
   z-index: 142;
@@ -3284,6 +3363,7 @@
 .nori-canvas-history-meta span { display: flex; align-items: center; gap: 4px; color: rgba(255, 255, 255, .35); font-size: 8px; }
 .nori-canvas-history-meta span svg { width: 10px; height: 10px; }
 .nori-canvas-history-meta small { overflow: hidden; color: rgba(255, 255, 255, .3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-history-cost { color: #f7d774; font-size: 8px; font-weight: 600; }
 .nori-canvas-history-prompt { margin: 0 10px 8px; border: 1px solid rgba(255, 255, 255, .06); border-radius: 7px; padding: 8px; background: rgba(5, 7, 12, .3); }
 .nori-canvas-history-prompt > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; color: rgba(255, 255, 255, .34); font-size: 8px; }
 .nori-canvas-history-prompt button { display: inline-flex; height: 22px; align-items: center; gap: 4px; border: 0; border-radius: 5px; padding: 0 6px; color: #aebdff; background: rgba(59, 130, 246, .1); font-size: 7px; }
@@ -3845,6 +3925,9 @@
   left: 50%;
   z-index: 38;
   display: flex;
+  flex-wrap: wrap;
+  width: max-content;
+  max-width: calc(100% - 32px);
   gap: 3px;
   border: 1px solid var(--canvas-border);
   border-radius: 9px;
@@ -3860,6 +3943,8 @@
 .nori-canvas-selection-toolbar button.is-primary:hover { color: #fff; background: rgba(59, 130, 246, .28); }
 .nori-canvas-selection-toolbar button.is-danger { color: #ffb0b0; }
 .nori-canvas-selection-toolbar button.is-danger:hover { color: #ffe2e2; background: rgba(239, 68, 68, .14); }
+.nori-canvas-selection-toolbar .nori-canvas-batch-connect-handle { cursor: grab; touch-action: none; user-select: none; }
+.nori-canvas-selection-toolbar .nori-canvas-batch-connect-handle:active { cursor: grabbing; }
 
 .nori-canvas-toast {
   position: absolute;
@@ -6120,4 +6205,231 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 @media (max-width: 900px) {
   .nori-playlist-stage { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Generation editor: stable header/footer, independently scrolling content,
+   body-portalled popups, and no fixed minimums that push controls off-screen. */
+.nori-canvas-generator-scroll,
+.nori-canvas-generator.is-node-anchored .nori-canvas-generator-scroll,
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-scroll {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+.nori-canvas-generator-head { flex: none; }
+.nori-canvas-generator:not(.is-node-anchored):not(.is-fullscreen) .nori-canvas-generator-scroll {
+  max-height: calc(100dvh / var(--nori-interface-scale, 1.2) - 116px);
+}
+.nori-canvas-generator-content { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-content { display: flex; flex-direction: column; }
+.nori-canvas-generator-controls { display: flex; min-width: 0; flex: none; flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 14px; background: #1c202a; }
+.nori-canvas-generator-settings-row { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: stretch; gap: 8px; }
+.nori-canvas-generator-settings-row .nori-canvas-generator-select { min-width: 0; height: 38px; }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger { display: flex; min-width: 0; width: 100%; height: 38px; align-items: center; gap: 7px; border: 1px solid rgba(145, 164, 210, .17); border-radius: 9px; padding: 0 9px; color: #dfe7f7; background: rgba(114, 139, 199, .08); cursor: pointer; }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger > span { align-items: flex-start; flex-direction: column; gap: 1px; }
+.nori-canvas-parameter-trigger b { font-size: 11px; }
+.nori-canvas-parameter-trigger small { display: block; width: 100%; color: #94a2bc; font-size: 9px; }
+.nori-canvas-parameter-trigger > svg { width: 14px; height: 14px; flex: none; }
+.nori-canvas-parameter-trigger.is-active { border-color: #6d91fa; background: rgba(104, 142, 255, .14); }
+.nori-canvas-generator-submit-row { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 8px; }
+.nori-canvas-generator-sound { display: inline-flex; flex: none; align-items: center; gap: 6px; color: #b6c4dd; font-size: 11px; cursor: pointer; }
+.nori-canvas-generator-sound input { width: 14px; height: 14px; margin: 0; accent-color: #7698ff; }
+.nori-canvas-generator-quote { min-width: 0; height: auto; border: 0; padding: 0; color: #c5d2ee; background: transparent; font-size: 10px; }
+.nori-canvas-generator-controls .nori-canvas-generate-button { display: inline-flex; width: auto; min-height: 36px; height: auto; flex: none; align-items: center; gap: 6px; margin-left: auto; border-radius: 9px; padding: 0 14px; font-size: 12px; font-weight: 650; box-shadow: 0 5px 14px rgba(90, 118, 225, .22); }
+.nori-canvas-generate-button svg { width: 14px; height: 14px; }
+.nori-canvas-generator-head > span { min-width: 0; }
+.nori-canvas-generator-refs { min-width: 0; flex-wrap: wrap; padding: 10px 14px; gap: 7px; }
+.nori-canvas-generator-prompt { padding: 10px 14px; }
+.nori-canvas-generator-prompt .mention-prompt-hint { color: #8998b2; font-size: 10px; line-height: 1.6; }
+.nori-canvas-generator-prompt textarea,
+.nori-canvas-generator-prompt .mention-prompt-highlight { padding: 12px; font-size: 13px; }
+.nori-canvas-parameter-popover { padding: 14px; color-scheme: dark; }
+.nori-canvas-parameter-popover > header { position: sticky; top: -14px; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 8px 0 12px; border-bottom: 1px solid #333b4b; background: #1b202b; }
+.nori-canvas-parameter-popover > header strong { display: block; color: #edf2fc; font-size: 14px; font-weight: 650; }
+.nori-canvas-parameter-popover > header small { display: block; margin-top: 3px; color: #9aa6ba; font-size: 11px; }
+.nori-canvas-parameter-popover > header button { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border: 1px solid #3a4355; border-radius: 8px; color: #bac8e1; background: #252d3c; cursor: pointer; }
+.nori-canvas-parameter-popover > header button svg { width: 16px; height: 16px; }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 12px; }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select { height: 38px; border-color: #3a4355; background: #131924; font-size: 13px; }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid option { color: #edf2fc; background: #1b202b; }
+.nori-canvas-parameter-popover p { margin: 14px 0 0; color: #9aa6ba; font-size: 11px; line-height: 1.7; }
+.nori-canvas-video-load-error { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 12px; color: #b9c8e5; background: rgba(14, 19, 29, .92); font-size: 12px; text-align: center; }
+.nori-canvas-video-load-error > svg { width: 24px; height: 24px; }
+.nori-canvas-video-load-error button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #485d87; border-radius: 7px; padding: 5px 10px; color: #dce7ff; background: #253450; cursor: pointer; font-size: 11px; }
+.nori-canvas-video-load-error button svg { width: 12px; height: 12px; }
+.nori-canvas-generator { z-index: 60; }
+.nori-canvas-generator-refs { align-items: center; }
+.nori-canvas-generator-refs-label { min-width: 54px; height: 44px; padding-right: 4px; color: #9facbf; font-size: 11px; font-weight: 550; white-space: nowrap; writing-mode: horizontal-tb; }
+.nori-canvas-generator-ref-add { position: static; }
+.nori-canvas-generator-ref-add,
+.nori-canvas-generator-entry,
+.nori-canvas-generator-ref { width: 44px; height: 44px; border-radius: 9px; }
+.nori-canvas-generator-ref > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+
+/* Viewport safety: modal coordinates are in physical viewport pixels, not in
+   the 120%-zoomed canvas. Scroll content instead of losing controls or text. */
+.nori-canvas-viewport-layer {
+  --canvas-border: rgba(255, 255, 255, .14);
+  --canvas-text: #eaf0fa;
+  --canvas-muted: #a7b4c9;
+  --canvas-primary: #7194ff;
+  display: contents;
+  color: var(--canvas-text);
+  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+}
+.nori-canvas-viewport-layer *,
+.nori-canvas-viewport-layer *::before,
+.nori-canvas-viewport-layer *::after { box-sizing: border-box; }
+.nori-canvas-viewport-layer .nori-canvas-dialog-scrim { z-index: 2400; padding: 12px; }
+.nori-canvas-viewport-layer .nori-canvas-dialog {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100dvh - 24px);
+  flex-direction: column;
+}
+.nori-canvas-viewport-layer .nori-canvas-dialog > header {
+  min-width: 0;
+  min-height: 52px;
+  height: auto;
+  max-height: min(160px, 30dvh);
+  flex: none;
+  gap: 12px;
+  overflow-y: auto;
+  padding: 12px 14px;
+}
+.nori-canvas-dialog > header span { min-width: 0; flex: 1; overflow-wrap: anywhere; white-space: normal; }
+.nori-canvas-dialog > header button,
+.nori-canvas-dialog > header svg { flex: none; }
+.nori-canvas-dialog-body { min-height: 0; max-height: none; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; }
+.nori-canvas-dialog > footer { min-height: 52px; height: auto; flex: none; flex-wrap: wrap; gap: 8px; padding: 10px 14px; }
+.nori-canvas-dialog button { white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-history-grid { grid-template-columns: repeat(auto-fit, minmax(min(230px, 100%), 1fr)); }
+.nori-canvas-history-prompt p { display: block; max-height: none; overflow: visible; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-line-clamp: unset; }
+.nori-canvas-history-meta small,
+.nori-canvas-revision-list span,
+.nori-canvas-video-operation-dialog > header small { max-width: none; overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; }
+.nori-canvas-history-meta span { flex-wrap: wrap; }
+.nori-canvas-history-zero { min-height: min(260px, 45dvh); }
+.nori-canvas-image-operation-body,
+.nori-canvas-image-edit-body { min-height: 0; max-height: none; overflow: auto; flex: 1 1 auto; }
+.nori-canvas-image-operation-preview-shell { min-height: 180px; padding: 16px; }
+.nori-canvas-image-operation-settings,
+.nori-canvas-image-edit-settings { min-height: 0; overflow: auto; }
+.nori-canvas-image-operation-actions { position: sticky; bottom: 0; flex: none; padding: 10px 0; background: #1a1d26; }
+.nori-canvas-image-operation-actions button { min-height: 36px; height: auto; padding: 7px; }
+.nori-canvas-image-edit-stage { min-height: 240px; }
+.nori-canvas-image-edit-toolbar { min-height: 48px; height: auto; flex-wrap: wrap; overflow: visible; padding: 8px; }
+.nori-canvas-video-operation-dialog { display: block !important; overflow: auto; }
+.nori-canvas-video-operation-dialog > header,
+.nori-canvas-video-operation-dialog > footer { position: sticky; flex-shrink: 0; }
+.nori-canvas-video-operation-dialog > footer { bottom: 0; }
+.nori-canvas-video-operation-stage-wrap { min-height: 180px; max-height: none; }
+.nori-canvas-video-operation-stage { max-height: none; }
+.nori-canvas-video-operation-modes,
+.nori-canvas-video-operation-region-info,
+.nori-canvas-video-operation-engine { min-width: 0; flex-wrap: wrap; }
+.nori-canvas-video-enhance-body { min-height: 0; }
+.nori-canvas-model-dialog > .nori-canvas-model-viewer { height: min(620px, 65dvh); min-height: 180px; }
+.nori-canvas-media-preview { grid-template-rows: auto minmax(0, 1fr) auto; }
+.nori-canvas-media-preview > header { min-height: 52px; flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
+.nori-canvas-media-preview > header > div:last-child { min-width: 0; flex-wrap: wrap; }
+.nori-canvas-media-preview > header strong,
+.nori-canvas-media-preview-audio strong { max-width: none; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-media-preview > footer { min-height: 38px; flex-wrap: wrap; padding: 8px 14px; }
+.nori-canvas-media-preview > footer small { display: block; max-width: 100%; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-project-assets { max-width: calc(100% - 24px); min-width: 0; }
+.nori-canvas-project-assets > header,
+.nori-canvas-project-assets-select { min-width: 0; height: auto; flex: none; flex-wrap: wrap; }
+.nori-canvas-project-assets-list { min-height: 0; }
+.nori-canvas-project-assets-tabs { flex-wrap: wrap; height: auto; }
+.nori-canvas-project-assets-list article strong,
+.nori-canvas-project-assets-list article small { max-height: none; overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; }
+.nori-canvas-project-assets-list article { min-width: 0; }
+.nori-canvas-project-assets > footer { min-height: 32px; height: auto; flex: none; white-space: normal; }
+.nori-canvas-add-panel,
+.nori-canvas-help-panel,
+.nori-canvas-organize-menu { max-width: calc(100% - 24px); max-height: calc(100% - 145px); overflow: auto; }
+.nori-canvas-context-menu button,
+.nori-canvas-wire-menu button { min-height: 32px; height: auto; }
+.nori-canvas-context-menu button span { min-width: 0; flex: 1; overflow-wrap: anywhere; white-space: normal; }
+.nori-canvas-context-menu button kbd { flex: none; }
+.nori-canvas-node-toolbar-menu.nori-viewport-popover { padding: 6px; }
+.nori-canvas-node-toolbar-menu.nori-viewport-popover button { display: flex; width: 100%; min-height: 36px; align-items: center; gap: 8px; border: 0; border-radius: 7px; padding: 7px 9px; color: #dce7fa; background: transparent; text-align: left; cursor: pointer; }
+.nori-canvas-node-toolbar-menu.nori-viewport-popover button:hover { background: #303b50; }
+.nori-canvas-node-toolbar-menu.nori-viewport-popover svg { width: 15px; height: 15px; flex: none; }
+.nori-canvas-node-label { width: 100%; min-width: 0; flex-wrap: wrap; }
+.nori-canvas-node-label button { max-width: none; flex: 1; overflow: visible; white-space: normal; text-align: left; overflow-wrap: anywhere; }
+.nori-canvas-node-cost { max-width: 100%; flex-shrink: 1; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger { height: auto; min-height: 40px; padding-top: 6px; padding-bottom: 6px; }
+.nori-canvas-parameter-trigger small { overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; }
+.nori-canvas-generator-entry span,
+.nori-canvas-generator-ref span { overflow-wrap: anywhere; }
+.nori-canvas-generator-ref { overflow: visible; height: auto; min-height: 44px; }
+.nori-canvas-generator-ref span { position: relative; inset: auto; z-index: 1; margin-top: 28px; max-width: 100%; overflow: visible; white-space: normal; text-overflow: clip; }
+.nori-canvas-reference-strip b { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.nori-canvas-dropdown.nori-viewport-popover { margin: 0; transform: none; }
+.nori-canvas-dropdown.nori-viewport-popover .nori-canvas-dropdown-scroll { max-height: none; }
+.nori-canvas-dropdown.nori-viewport-popover span,
+.nori-canvas-dropdown.nori-viewport-popover small { min-width: 0; white-space: normal; overflow-wrap: anywhere; overflow: visible; }
+.nori-canvas-dropdown.nori-viewport-popover .nori-canvas-dropdown-actions button { min-height: 32px; height: auto; }
+.nori-canvas-chrome { max-width: calc(100% - 24px); }
+.nori-canvas-breadcrumbs { min-width: 0; max-width: 100%; height: auto; flex-wrap: wrap; }
+.nori-canvas-breadcrumbs > button span { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-toast { max-width: calc(100% - 32px); overflow-wrap: anywhere; white-space: normal; }
+.react-flow__node.nori-canvas-batch-connect-target { outline: 3px solid #7ca3ff; outline-offset: 7px; border-radius: 14px; }
+.react-flow__node.nori-canvas-batch-connect-target::after { content: "松开以批量连接"; position: absolute; left: 50%; top: -38px; transform: translateX(-50%); white-space: nowrap; padding: 6px 12px; border-radius: 8px; background: #3663c4; color: #fff; font-size: 12px; font-weight: 650; pointer-events: none; }
+.nori-canvas-panorama-dialog { grid-template-rows: auto minmax(0, 1fr) auto; }
+.nori-canvas-panorama-dialog > header,
+.nori-canvas-panorama-dialog > footer { min-height: 50px; flex-wrap: wrap; padding: 10px 12px; }
+.nori-canvas-panorama-dialog > header small,
+.nori-canvas-panorama-dialog > footer > b { max-width: 100%; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
+.nori-canvas-panorama-dialog > footer > span { display: block; flex-basis: 100%; }
+.nori-canvas-studio-dialog { grid-template-rows: auto minmax(0, 1fr) auto; }
+.nori-canvas-studio-dialog > header { min-height: 54px; max-height: 25dvh; overflow-y: auto; gap: 10px; padding: 10px; }
+.nori-canvas-studio-dialog > header strong,
+.nori-canvas-studio-items article strong,
+.nori-canvas-studio-items article small,
+.nori-canvas-studio-capture-list article strong,
+.nori-canvas-studio-capture-list article small { overflow: visible; white-space: normal; overflow-wrap: anywhere; text-overflow: clip; }
+.nori-canvas-studio-dialog > footer { min-width: 0; flex-wrap: wrap; min-height: 46px; height: auto; }
+.nori-canvas-studio-layout { overflow: auto; }
+.nori-canvas-model-loading { max-width: 100%; padding: 12px; text-align: center; overflow-wrap: anywhere; }
+.nori-canvas-viewport-layer .nori-canvas-media-preview > header strong { max-height: 15dvh; overflow-y: auto; }
+.nori-canvas-group-popover.nori-viewport-popover { transform: none; }
+.nori-canvas-group-popover.is-colors.nori-viewport-popover { justify-content: center; padding: 10px; }
+.nori-canvas-group-popover.is-colors.nori-viewport-popover button { width: 22px; height: 22px; border: 2px solid transparent; border-radius: 50%; background: var(--swatch); cursor: pointer; }
+.nori-canvas-group-popover.is-colors.nori-viewport-popover button.is-current { border-color: #8cb1ff; }
+.nori-canvas-group-popover.is-arrange.nori-viewport-popover button { display: flex; align-items: center; gap: 8px; min-height: 36px; border: 0; border-radius: 6px; padding: 6px 8px; color: #dbe5f7; background: transparent; text-align: left; cursor: pointer; }
+.nori-canvas-group-popover.is-arrange.nori-viewport-popover button:hover { background: #303b50; }
+.nori-canvas-group-popover.is-arrange.nori-viewport-popover svg { width: 15px; height: 15px; }
+.nori-canvas-studio-dock-shell { width: min(620px, calc(100% - 16px)); }
+.nori-canvas-studio-dock { width: 100%; min-height: 52px; height: auto; flex-wrap: wrap; justify-content: center; }
+.nori-canvas-studio-dock > button { flex: none; }
+.nori-canvas-studio-dock-menu { max-width: 100%; max-height: min(440px, 65dvh); overflow: auto; }
+.nori-canvas-studio-dock-menu.nori-viewport-popover { max-width: none; }
+.nori-canvas-studio-dock-menu.nori-viewport-popover .nori-canvas-studio-add-flyout { position: static; width: 100%; max-width: 100%; margin-top: 8px; }
+@media (max-width: 900px), (max-height: 650px) {
+  .nori-canvas-image-operation-body,
+  .nori-canvas-image-edit-body { grid-template-columns: minmax(0, 1fr); }
+  .nori-canvas-image-operation-settings,
+  .nori-canvas-image-edit-settings { overflow: visible; }
+  .nori-canvas-image-operation-preview-shell { min-height: 180px; max-height: 40dvh; }
+  .nori-canvas-image-edit-stage { min-height: 220px; max-height: 55dvh; }
+  .nori-canvas-video-enhance-body { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 900px) {
+  .nori-canvas-studio-layout,
+  .nori-canvas-studio-layout.is-properties-collapsed { grid-template-columns: minmax(160px, 28%) minmax(200px, 1fr); }
+  .nori-canvas-studio-properties { grid-column: 1 / -1; display: block; max-height: 260px; overflow: auto; }
+}
+@media (max-width: 540px) {
+  .nori-canvas-studio-layout,
+  .nori-canvas-studio-layout.is-properties-collapsed { display: flex; flex-direction: column; }
+  .nori-canvas-studio-left { flex: none; min-height: 140px; max-height: 220px; overflow: auto; }
+  .nori-canvas-studio-stage { min-height: 220px; flex: none; }
+  .nori-canvas-revision-list article { grid-template-columns: 28px minmax(0, 1fr); }
+  .nori-canvas-revision-list article > button { grid-column: 2; }
 }

@@ -390,7 +390,7 @@ async function handleRegenerateStoryboardTextTask(job: Job<TaskJobData>) {
   if (!storyboard.clip) throw new Error('Storyboard clip not found')
 
   const project = await prisma.project.findUnique({ where: { id: projectId } })
-  if (!project) throw new Error('Project not found')
+  if (!project || project.deletedAt) throw new Error('Project not found')
 
   const novelPromotionData = await prisma.novelPromotionProject.findUnique({
     where: { projectId },

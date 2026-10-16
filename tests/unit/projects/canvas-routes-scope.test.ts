@@ -311,6 +311,7 @@ describe('project canvas route scope', () => {
       where: {
         id: 'project-1',
         userId: 'user-1',
+        deletedAt: null,
       },
     }))
     expect(prismaMock.canvasNode.deleteMany).not.toHaveBeenCalled()
@@ -349,7 +350,7 @@ describe('project canvas route scope', () => {
         canvasId: 'canvas-1',
         revision: 5,
         clientId: 'tab-1',
-        changeSummary: '同步项目内容',
+        changeSummary: '同步作品内容',
       }),
     }))
   })

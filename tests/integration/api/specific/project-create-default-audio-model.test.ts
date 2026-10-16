@@ -118,9 +118,39 @@ describe('api specific - project create default audio model', () => {
 
     expect(res.status).toBe(400)
     expect(body.error?.code).toBe('INVALID_PARAMS')
-    expect(body.error?.message).toBe('项目描述不能超过 500 个字符。')
+    expect(body.error?.message).toBe('作品描述不能超过 500 个字符。')
     expect(body.error?.details?.field).toBe('description')
     expect(body.error?.details?.limit).toBe(500)
     expect(prismaMock.project.create).not.toHaveBeenCalled()
+  })
+
+  it('accepts the business parentProjectId and returns the unchanged production work ID', async () => {
+    const mod = await import('@/app/api/projects/route')
+    const response = await mod.POST(buildMockRequest({
+      path: '/api/projects', method: 'POST',
+      body: { name: 'My Work', parentProjectId: 'work-1' },
+    }), routeContext)
+    expect(response.status).toBe(201)
+    const payload = await response.json()
+    expect(payload.work).toMatchObject({
+      id: 'project-1', kind: 'work', projectId: 'work-1',
+    })
+    expect(payload.project.id).toBe(payload.work.id)
+    expect(prismaMock.project.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ workId: 'work-1' }),
+    })
+  })
+
+  it('rejects conflicting parent associations before creating any work', async () => {
+    const mod = await import('@/app/api/projects/route')
+    const response = await mod.POST(buildMockRequest({
+      path: '/api/projects', method: 'POST',
+      body: { name: 'My Work', parentProjectId: 'work-1', workId: 'another-parent' },
+    }), routeContext)
+    expect(response.status).toBe(400)
+    const payload = await response.json()
+    expect(payload.error.details.code).toBe('PARENT_PROJECT_CONFLICT')
+    expect(prismaMock.project.create).not.toHaveBeenCalled()
+    expect(prismaMock.work.findFirst).not.toHaveBeenCalled()
   })
 })

@@ -18,6 +18,7 @@ export const USER_ERROR_MESSAGES_ZH: Record<UnifiedErrorCode, string> = {
   NETWORK_ERROR: '网络异常，请稍后重试。',
   EMPTY_RESPONSE: '模型返回空响应（无有效内容），请稍后重试。',
   INSUFFICIENT_BALANCE: '余额不足，请先充值。',
+  DAILY_LIMIT_EXCEEDED: '今日用量已达上限，请明日再试，或联系管理账号调整上限。',
   SENSITIVE_CONTENT: '内容可能涉及敏感信息，请修改后重试。',
   GENERATION_TIMEOUT: '生成超时，请重试。',
   VIDEO_API_FORMAT_UNSUPPORTED: '当前视频接口格式暂不支持。',

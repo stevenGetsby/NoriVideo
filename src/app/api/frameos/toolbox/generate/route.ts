@@ -46,6 +46,8 @@ import {
 } from '@/lib/canvas/panorama-contract'
 import { prepareCanvasToolboxImageOutputs } from '@/lib/canvas/toolbox-output-nodes'
 import { isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
+import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
 
 type GenerateType = 'image' | 'video' | 'audio' | 'model3d'
 
@@ -97,6 +99,7 @@ const TRUSTED_GENERATION_FIELDS = new Set([
   'audioModel',
   'model3dModel',
   'inputMode',
+  'textOnly',
   'count',
   'processType',
   'editMode',
@@ -588,6 +591,14 @@ export const POST = apiHandler(async (
   }
   const referenceMaterials = referenceContract.references
   const materialIds = referenceMaterials.map((item) => item.materialId)
+  // Keep legacy canvas "text" multimodal behavior; only the toolbox's explicit
+  // pure-text mode disallows media. Reject contradictory requests, never drop.
+  if (body.textOnly !== undefined && typeof body.textOnly !== 'boolean') {
+    throw new ApiError('INVALID_PARAMS', { message: 'textOnly 必须为布尔值。' })
+  }
+  if (body.textOnly === true && (type !== 'video' || inputMode !== 'text' || materialIds.length > 0)) {
+    throw new ApiError('INVALID_PARAMS', { message: '纯文生视频不能提交参考素材，请切换全能参考或图生视频。' })
+  }
   if (imageEdit && materialIds.includes(maskMaterialId)) {
     throw new ApiError('INVALID_PARAMS', { message: '蒙版必须通过 maskMaterialId 单独提交，不能混入普通参考图片。' })
   }
@@ -625,6 +636,37 @@ export const POST = apiHandler(async (
     throw new ApiError('INVALID_PARAMS', { message: '蒙版素材不存在、未就绪或当前账号无权使用。' })
   }
 
+  const capabilityFields = getCapabilityOptionFields(type, capabilities)
+  const options = cleanOptions(type, body.options, capabilityFields)
+  // Resolve saved character-card voices on the server, not from browser URLs.
+  // Pure text, first/last frames, still images and explicitly silent videos
+  // must never receive hidden audio inputs.
+  if (type === 'video' && inputMode === 'text' && body.textOnly !== true && options.generateAudio !== false
+    && resolveCanvasGenerationInputSchema(type, capabilities).audio.max > 0) {
+    const structuredVoices = await materializeStructuredCharacterVoices({
+      userId: session.user.id, projectId, images: orderedMaterials.filter((material) => material.type === 'image'),
+    })
+    for (const voice of structuredVoices) {
+      if (materialIds.includes(voice.id)) continue
+      referenceMaterials.push({ materialId: voice.id, role: 'REF' })
+      materialIds.push(voice.id); orderedMaterials.push(voice)
+    }
+    const voiceIds = [...new Set(orderedMaterials.filter((material) => material.type === 'image')
+      .map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
+      .filter((id) => !materialIds.includes(id))
+    if (voiceIds.length) {
+      const voices = await prisma.frameosMaterial.findMany({
+        where: { id: { in: voiceIds }, userId: session.user.id, projectId: { in: [projectId, 'global', 'global-asset-hub'] }, type: 'audio', status: 'ready', deletedAt: null },
+      })
+      for (const id of voiceIds) {
+        const voice = voices.find((material) => material.id === id)
+        if (!voice) throw new ApiError('INVALID_PARAMS', { message: '角色绑定音色已删除或不可用，请在角色卡中重新设置音色。' })
+        referenceMaterials.push({ materialId: id, role: 'REF' })
+        materialIds.push(id)
+        orderedMaterials.push(voice)
+      }
+    }
+  }
   const referenceImages = orderedMaterials.filter((material) => material.type === 'image')
   const referenceVideos = orderedMaterials.filter((material) => material.type === 'video')
   const referenceAudios = orderedMaterials.filter((material) => material.type === 'audio')
@@ -633,8 +675,6 @@ export const POST = apiHandler(async (
   }
 
   const referenceRoleByMaterialId = new Map(referenceMaterials.map((item) => [item.materialId, item.role]))
-  const capabilityFields = getCapabilityOptionFields(type, capabilities)
-  const options = cleanOptions(type, body.options, capabilityFields)
   const idempotencyKey = resolveIdempotencyKey(body.idempotencyKey)
   if (type === 'video' && inputMode !== 'text' && inputMode !== 'image' && inputMode !== 'firstlastframe') {
     throw new ApiError('INVALID_PARAMS', { message: '视频模式仅支持全能参考或首尾帧。' })

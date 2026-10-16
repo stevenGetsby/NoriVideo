@@ -59,6 +59,14 @@ vi.mock('@/lib/billing/mode', () => ({
 
 const routeContext = { params: Promise.resolve({}) }
 
+async function expectUnsupportedProvider(response: Response) {
+  expect(response.status).toBe(400)
+  const body = await response.json() as { error?: { code?: string; details?: { code?: string } } }
+  expect(body.error?.code).toBe('INVALID_PARAMS')
+  expect(body.error?.details?.code).toBe('PROVIDER_NOT_SUPPORTED')
+  expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
+}
+
 function readSavedProvidersFromUpsert(): SavedProvider[] {
   const firstCall = prismaMock.userPreference.upsert.mock.calls[0]
   if (!firstCall) {
@@ -123,8 +131,8 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
         providers: [
           { id: 'openai-compatible:oa-1', name: 'OpenAI A', baseUrl: 'https://oa-a.test', apiKey: 'oa-key-a' },
           { id: 'openai-compatible:oa-2', name: 'OpenAI B', baseUrl: 'https://oa-b.test', apiKey: 'oa-key-b' },
-          { id: 'gemini-compatible:gm-1', name: 'Gemini A', baseUrl: 'https://gm-a.test', apiKey: 'gm-key-a' },
-          { id: 'gemini-compatible:gm-2', name: 'Gemini B', baseUrl: 'https://gm-b.test', apiKey: 'gm-key-b' },
+          { id: 'openai-compatible:oa-3', name: 'OpenAI C', baseUrl: 'https://oa-c.test', apiKey: 'oa-key-c' },
+          { id: 'openai-compatible:oa-4', name: 'OpenAI D', baseUrl: 'https://oa-d.test', apiKey: 'oa-key-d' },
         ],
       },
     })
@@ -137,8 +145,8 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(savedProviders.map((provider) => provider.id)).toEqual([
       'openai-compatible:oa-1',
       'openai-compatible:oa-2',
-      'gemini-compatible:gm-1',
-      'gemini-compatible:gm-2',
+      'openai-compatible:oa-3',
+      'openai-compatible:oa-4',
     ])
   })
 
@@ -152,7 +160,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       method: 'PUT',
       body: {
         providers: [
-          { id: 'google', name: 'Google AI Studio', apiKey: 'google-key' },
+          { id: 'kuaizi', name: 'Kuaizi', apiKey: 'test-kuaizi-key' },
           { id: 'ark', name: 'Volcengine Ark', apiKey: 'ark-key' },
           { id: 'openai-compatible:oa-2', name: 'OpenAI B', baseUrl: 'https://oa-b.test', apiKey: 'oa-key-b' },
         ],
@@ -165,7 +173,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
 
     const savedProviders = readSavedProvidersFromUpsert()
     expect(savedProviders.map((provider) => provider.id)).toEqual([
-      'google',
+      'kuaizi',
       'ark',
       'openai-compatible:oa-2',
     ])
@@ -181,7 +189,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       method: 'PUT',
       body: {
         providers: [
-          { id: 'google', name: 'Google AI Studio', apiKey: 'google-key', hidden: true },
+          { id: 'kuaizi', name: 'Kuaizi', apiKey: 'test-kuaizi-key', hidden: true },
           { id: 'ark', name: 'Volcengine Ark', apiKey: 'ark-key', hidden: false },
         ],
       },
@@ -191,9 +199,9 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(res.status).toBe(200)
 
     const savedProviders = readSavedProvidersFromUpsert()
-    const googleProvider = savedProviders.find((provider) => provider.id === 'google')
+    const kuaiziProvider = savedProviders.find((provider) => provider.id === 'kuaizi')
     const arkProvider = savedProviders.find((provider) => provider.id === 'ark')
-    expect(googleProvider?.hidden).toBe(true)
+    expect(kuaiziProvider?.hidden).toBe(true)
     expect(arkProvider?.hidden).toBe(false)
   })
 
@@ -207,7 +215,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       method: 'PUT',
       body: {
         providers: [
-          { id: 'google', name: 'Google AI Studio', apiKey: 'google-key', hidden: 'yes' },
+          { id: 'kuaizi', name: 'Kuaizi', apiKey: 'test-kuaizi-key', hidden: 'yes' },
         ],
       },
     })
@@ -217,7 +225,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
   })
 
-  it('pins minimax provider baseUrl to official endpoint when baseUrl is omitted', async () => {
+  it('rejects the retired minimax provider even when baseUrl is omitted', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
@@ -233,14 +241,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-
-    const savedProviders = readSavedProvidersFromUpsert()
-    expect(savedProviders).toHaveLength(1)
-    expect(savedProviders[0]).toMatchObject({
-      id: 'minimax',
-      baseUrl: 'https://api.minimaxi.com/v1',
-    })
+    await expectUnsupportedProvider(res)
   })
 
   it('rejects minimax provider custom baseUrl', async () => {
@@ -700,7 +701,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(model?.customPricing?.llm?.outputPerMillion).toBe(5.5)
   })
 
-  it('defaults gemini-compatible provider to official route when apiMode is gemini-sdk', async () => {
+  it('rejects the retired gemini-compatible provider even with gemini-sdk mode', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
@@ -722,12 +723,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-
-    const savedProviders = readSavedProvidersFromUpsert()
-    expect(savedProviders).toHaveLength(1)
-    expect(savedProviders[0]?.gatewayRoute).toBe('official')
-    expect(savedProviders[0]?.apiMode).toBe('gemini-sdk')
+    await expectUnsupportedProvider(res)
   })
 
   it('rejects gemini-compatible provider when apiMode is openai-official', async () => {
@@ -811,7 +807,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(savedProviders[0]?.gatewayRoute).toBe('openai-compat')
   })
 
-  it('bailian provider always persists gatewayRoute as official', async () => {
+  it('rejects the retired bailian provider even with an official gateway route', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
@@ -832,12 +828,10 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-    const savedProviders = readSavedProvidersFromUpsert()
-    expect(savedProviders[0]?.gatewayRoute).toBe('official')
+    await expectUnsupportedProvider(res)
   })
 
-  it('accepts bailian lipsync models and persists them', async () => {
+  it('rejects retired bailian lipsync model registration without persisting it', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
@@ -866,16 +860,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-
-    const savedModels = readSavedModelsFromUpsert()
-    expect(savedModels).toHaveLength(1)
-    expect(savedModels[0]).toMatchObject({
-      type: 'lipsync',
-      provider: 'bailian',
-      modelId: 'videoretalk',
-      modelKey: 'bailian::videoretalk',
-    })
+    await expectUnsupportedProvider(res)
   })
 
   it('siliconflow provider rejects litellm gatewayRoute', async () => {
@@ -903,7 +888,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
   })
 
-  it('allows bailian default model in ENFORCE mode without built-in pricing entry', async () => {
+  it('rejects a retired bailian default model in ENFORCE mode', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     getBillingModeMock.mockResolvedValue('ENFORCE')
@@ -932,14 +917,10 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-    const firstCall = prismaMock.userPreference.upsert.mock.calls[0]?.[0] as {
-      update?: { analysisModel?: unknown }
-    }
-    expect(firstCall?.update?.analysisModel).toBe('bailian::qwen3.5-flash')
+    await expectUnsupportedProvider(res)
   })
 
-  it('allows bailian lipsync model in ENFORCE mode', async () => {
+  it('rejects retired bailian lipsync models in ENFORCE mode', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     getBillingModeMock.mockResolvedValue('ENFORCE')
@@ -968,11 +949,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
 
     const res = await route.PUT(req, routeContext)
-    expect(res.status).toBe(200)
-    const firstCall = prismaMock.userPreference.upsert.mock.calls[0]?.[0] as {
-      update?: { lipSyncModel?: unknown }
-    }
-    expect(firstCall?.update?.lipSyncModel).toBe('bailian::videoretalk')
+    await expectUnsupportedProvider(res)
   })
 
   it('saves default audio model in user preference', async () => {
@@ -998,7 +975,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     expect(firstCall?.update?.audioModel).toBe('bailian::qwen3-tts-vd-2026-01-26')
   })
 
-  it('keeps bailian model and default model in GET sanitize flow under ENFORCE mode', async () => {
+  it('hides retired bailian models and defaults during GET sanitization', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     getBillingModeMock.mockResolvedValue('ENFORCE')
@@ -1030,8 +1007,8 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       defaultModels?: { analysisModel?: string }
       models?: Array<{ modelKey?: string }>
     }
-    expect(json.defaultModels?.analysisModel).toBe('bailian::qwen3.5-flash')
-    expect(json.models?.some((model) => model.modelKey === 'bailian::qwen3.5-flash')).toBe(true)
+    expect(json.defaultModels?.analysisModel).toBe('')
+    expect(json.models?.some((model) => model.modelKey === 'bailian::qwen3.5-flash')).toBe(false)
   })
 
   it('accepts workflow concurrency payload and returns normalized values on GET', async () => {
@@ -1091,7 +1068,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
     })
   })
 
-  it('migrated bailian provider id is accepted and qwen is rejected', async () => {
+  it('rejects both retired bailian and qwen provider ids', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
@@ -1106,7 +1083,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       },
     })
     const acceptedRes = await route.PUT(acceptedReq, routeContext)
-    expect(acceptedRes.status).toBe(200)
+    await expectUnsupportedProvider(acceptedRes)
 
     vi.clearAllMocks()
     prismaMock.userPreference.findUnique.mockResolvedValue({
@@ -1124,8 +1101,7 @@ describe('api specific - user api-config PUT provider uniqueness', () => {
       },
     })
     const rejectedRes = await route.PUT(rejectedReq, routeContext)
-    expect(rejectedRes.status).toBe(400)
-    expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
+    await expectUnsupportedProvider(rejectedRes)
   })
 
   it('rejects compatMediaTemplate on non-openai-compatible media model', async () => {

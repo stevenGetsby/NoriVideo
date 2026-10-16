@@ -66,9 +66,11 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(toolboxRoute).toContain('TASK_TYPE.TOOLBOX_VIDEO')
     expect(toolboxRoute).toContain('TASK_TYPE.TOOLBOX_MODEL_3D')
     expect(production).toContain('useAccountBalance')
-    expect(production).toContain("if (!generationAllowed) { setError('积分不足，无法生成'); return }")
+    expect(production).toContain("if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }")
+    expect(production).toContain('generationDisabledLabel')
     expect(toolbox).toContain('useAccountBalance')
-    expect(toolbox).toContain("if (!generationAllowed) { setError('积分不足，无法生成'); return }")
+    expect(toolbox).toContain("if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }")
+    expect(toolbox).toContain('generationDisabledLabel')
   })
 
   it('uses a compact model-aware duration selector instead of a horizontal duration strip', () => {
@@ -84,8 +86,8 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
 
     expect(toolbox).toContain('limit={referenceLimits.image}')
     expect(toolbox).toContain('limit={referenceLimits.video}')
-    expect(toolbox).toContain('limit={referenceLimits.audio}')
-    expect(toolbox).toContain('Seedance 2.5 支持配合提示词单独提交音频')
+    expect(toolbox).toContain("limit={inputMode === 'reference' ? referenceLimits.audio : 0}")
+    expect(toolbox).toContain('Seedance 2.5 支持音色配合提示词单独提交')
   })
 
   it('shows only persisted storyboards and exposes real extraction and deletion actions', () => {
@@ -98,7 +100,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
 
     expect(projects).toContain("method: 'DELETE'")
     expect(projects).toContain('<ConfirmActionDialog')
-    expect(projects).toContain("title={confirmTarget.kind === 'work' ? '删除作品' : '删除项目'}")
+    expect(projects).toContain("title={confirmTarget.kind === 'work' ? '删除项目' : '删除作品'}")
     expect(projects).toContain('confirmLabel="确认删除"')
     expect(projects).toContain('onConfirm={confirmDelete}')
     expect(assets).toContain('解析剧本资产')
@@ -136,7 +138,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(library).toContain('export function MaterialUploadDialog')
     expect(assetLibrary).toContain('<MaterialUploadDialog')
     expect(assetLibrary).toContain('initialAssetCategory={uploadCategory}')
-    expect(assetLibrary).toContain('lockAssetCategory')
+    expect(assetLibrary).toContain("assetCategoryOptions={['character', 'location', 'prop']}")
     expect(assetLibrary).toContain('imageOnly')
     expect(assetLibrary).toContain('上传图片')
     expect(assetLibrary).toContain('新增资产')

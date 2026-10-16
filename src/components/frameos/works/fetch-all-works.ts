@@ -6,7 +6,7 @@ export async function fetchAllWorks({
   pageSize = 50,
   search = '',
   signal,
-  fallbackErrorMessage = '加载作品失败',
+  fallbackErrorMessage = '加载项目失败',
 }: {
   pageSize?: number
   search?: string
