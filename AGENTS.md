@@ -2,8 +2,10 @@
 
 ## Production target
 
-- The only active production server is `45.76.215.9` (`lanmiao-test.xyz`).
-- Do not access or deploy to the retired `118.196.6.130` server.
+- The only active production server is the 备案机 `14.103.65.61`, serving `lanmiaoai.com`: workbench at `https://lanmiaoai.com/zh/auth/signin`, admin at `https://lanmiaoai.com:8080/zh/admin/signin`.
+- Retired servers, never access, deploy to, probe, or restore them: `45.76.215.9` (`lanmiao-test.xyz`) and `118.196.6.130`.
+- `.deploy.env` pins the release targets through `PUBLIC_APP_URL` and `PUBLIC_ADMIN_URL`; keep both pointed at the 备案机 and never repoint them at a retired host.
+- Everything under `deploy/` documents the retired `lanmiao-test.xyz` / `118.196.6.130` setup. Do not apply those configs to the 备案机; see `deploy/README.md`.
 
 ## Fixed TOS storage policy
 
