@@ -20,6 +20,11 @@ vi.mock('next-auth/react', () => ({
   }),
 }))
 
+vi.mock('@/i18n/navigation', () => ({
+  Link: ({ href, children, ...props }: { href: string; children: React.ReactNode } & Record<string, unknown>) =>
+    React.createElement('a', { href, ...props }, children),
+}))
+
 beforeAll(() => vi.stubGlobal('React', React))
 afterAll(() => vi.unstubAllGlobals())
 

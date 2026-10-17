@@ -204,6 +204,15 @@ function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: stri
   )
 }
 
+function VoiceBadge({ bound }: { bound: boolean }) {
+  return (
+    <span className={`nori-voice-badge ${bound ? 'nori-voice-badge-bound' : 'nori-voice-badge-missing'}`}>
+      <AppIcon name={bound ? 'audioWave' : 'infoCircle'} className="h-3 w-3" />
+      {bound ? '有音色' : '缺音色'}
+    </span>
+  )
+}
+
 function AssetCard({
   asset,
   onOpen,
@@ -229,13 +238,14 @@ function AssetCard({
             </div>
           ))}
         </button>
+        {asset.category === 'characters' ? <span className="fal-voice-badge"><VoiceBadge bound={Boolean(asset.voice?.bound)} /></span> : null}
       </div>
       <div className="flex min-h-[68px] flex-col justify-center gap-2 border-t border-[var(--fos-border-soft)] px-3 py-2.5">
         <div className="flex min-w-0 items-center justify-between gap-3">
           <span className="min-w-0 truncate text-[13px] font-bold leading-5 text-white" title={asset.name}>{asset.name}</span>
           <span className="flex-none rounded-md px-2 py-0.5 text-[11px] font-bold leading-4" style={{ background: `${color}26`, color }}>{asset.role}</span>
         </div>
-        <div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-[var(--fos-text-4)]"><span className="min-w-0 flex-1 truncate">{asset.sourceLabel}</span>{asset.voice?.bound ? <span className="shrink-0 rounded bg-violet-400/10 px-1.5 py-0.5 font-bold text-violet-200">音色已绑定</span> : null}</div>
+        <div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-[var(--fos-text-4)]"><span className="min-w-0 flex-1 truncate">{asset.sourceLabel}</span></div>
         {onVoice ? <button type="button" className="mt-1 self-start text-[11px] font-bold text-violet-200 hover:text-violet-100" onClick={(event) => { event.stopPropagation(); onVoice() }}>{asset.voice?.bound ? '管理角色音色' : '设置角色音色'}</button> : null}
       </div>
     </div>
@@ -297,6 +307,7 @@ export function FosAssetLibrary() {
   const [batchDeleteTarget, setBatchDeleteTarget] = useState<string[]>([])
   const [batchDeleting, setBatchDeleting] = useState(false)
   const [voiceTarget, setVoiceTarget] = useState<Asset | null>(null)
+  const [missingVoiceOnly, setMissingVoiceOnly] = useState(false)
   const [renameTarget, setRenameTarget] = useState<Asset | null>(null)
   const [renaming, setRenaming] = useState(false)
   const mutationBusy = useRef(false)
@@ -402,14 +413,27 @@ export function FosAssetLibrary() {
     setLightbox(null)
     setSelectedAssetKeys([])
     setRenameTarget(null)
+    setMissingVoiceOnly(false)
   }, [category, selectedProjectId])
 
   const displayed = useMemo(
     () => loadedScope === scopeKey ? assets.filter((asset) => asset.category === category) : [],
     [assets, category, loadedScope, scopeKey],
   )
+  const voiceBoundCount = useMemo(
+    () => category === 'characters' ? displayed.filter((asset) => asset.voice?.bound).length : 0,
+    [category, displayed],
+  )
+  const voiceMissingCount = category === 'characters' ? displayed.length - voiceBoundCount : 0
+  const allCharactersVoiced = missingVoiceOnly && displayed.length > 0
+  const visibleAssets = useMemo(
+    () => category === 'characters' && missingVoiceOnly
+      ? displayed.filter((asset) => !asset.voice?.bound)
+      : displayed,
+    [category, displayed, missingVoiceOnly],
+  )
   const showingLoading = loading || loadedScope !== scopeKey
-  const deletableAssets = displayed.filter((asset) => Boolean(asset.uploadMaterialId))
+  const deletableAssets = visibleAssets.filter((asset) => Boolean(asset.uploadMaterialId))
   const selectedMaterialIds = deletableAssets
     .filter((asset) => selectedAssetKeys.includes(asset.key))
     .map((asset) => asset.uploadMaterialId!)
@@ -523,6 +547,15 @@ export function FosAssetLibrary() {
             </select>
           </div>
           <span className="fal-count text-[12px] text-[var(--fos-text-4)]">{CATEGORY_LABELS[category]} {displayed.length} 项</span>
+          {category === 'characters' ? <>
+            <span className="fal-count text-[12px] text-[var(--fos-text-4)]">音色 {voiceBoundCount}/{displayed.length}</span>
+            <button
+              type="button"
+              aria-pressed={missingVoiceOnly}
+              className={`fos-btn fos-btn-sm ${missingVoiceOnly ? 'fos-btn-primary' : 'fos-btn-ghost'}`}
+              onClick={() => setMissingVoiceOnly((current) => !current)}
+            >只看缺音色{voiceMissingCount > 0 ? ` (${voiceMissingCount})` : ''}</button>
+          </> : null}
           <div className="fal-toolbar-actions ml-auto flex items-center gap-2">
             {canEditAssets ? <>
               <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={showingLoading || deletableAssets.length === 0 || mutationBusy.current} onClick={() => setSelectedAssetKeys(allDeletableSelected ? [] : deletableAssets.map((asset) => asset.key))}>{allDeletableSelected ? '取消全选' : '全选上传资产'}</button>
@@ -534,6 +567,11 @@ export function FosAssetLibrary() {
               <AppIcon name="refresh" className={`h-3.5 w-3.5${loading ? ' animate-spin' : ''}`} />刷新
             </button>
           </div>
+        </div>
+
+        <div className="flex items-center gap-1.5 border-b border-[var(--fos-border-soft)] px-5 py-1.5 text-[11px] text-[var(--fos-text-4)]">
+          <AppIcon name="infoCircle" className="h-3.5 w-3.5 flex-none" />
+          <span>资产库按角色 / 场景 / 道具聚合设定并绑定音色；原始图片、视频和音频文件在<Link href="/material" className="mx-1 font-bold text-[var(--fos-primary)] hover:underline">素材库</Link>。</span>
         </div>
 
         <div className="fal-content min-h-0 flex-1 overflow-y-auto p-5">
@@ -549,15 +587,15 @@ export function FosAssetLibrary() {
               <div className="max-w-[520px] text-[12px] text-[var(--fos-text-4)]">{error}</div>
               <button type="button" onClick={() => void loadAssets()} className="fos-btn fos-btn-primary fos-btn-sm">重试</button>
             </div>
-          ) : displayed.length === 0 ? (
+          ) : visibleAssets.length === 0 ? (
             <div className="flex h-full min-h-[320px] flex-col items-center justify-center gap-3 text-center">
-              <AppIcon name={category === 'characters' ? 'user' : category === 'items' ? 'package' : 'imageLandscape'} className="h-9 w-9 text-white/15" />
-              <div className="text-[14px] font-bold text-white">当前账号暂无{CATEGORY_LABELS[category]}资产</div>
-              <div className="text-[12px] text-[var(--fos-text-4)]">可直接上传到当前分类；选择作品后也可新增可绑定变体与音色的完整资产。</div>
+              <AppIcon name={allCharactersVoiced ? 'badgeCheck' : category === 'characters' ? 'user' : category === 'items' ? 'package' : 'imageLandscape'} className="h-9 w-9 text-white/15" />
+              <div className="text-[14px] font-bold text-white">{allCharactersVoiced ? '当前角色都已绑定音色' : `当前账号暂无${CATEGORY_LABELS[category]}资产`}</div>
+              <div className="text-[12px] text-[var(--fos-text-4)]">{allCharactersVoiced ? '可以关闭「只看缺音色」查看全部角色，或继续完善现有音色。' : '可直接上传到当前分类；选择作品后也可新增可绑定变体与音色的完整资产。'}</div>
             </div>
           ) : (
             <div className="fal-grid grid grid-cols-3 gap-4">
-              {displayed.map((asset) => (
+              {visibleAssets.map((asset) => (
                 <div key={asset.key} className="fal-asset-card relative">
                 <AssetCard
                   key={asset.key}

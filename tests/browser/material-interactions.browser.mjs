@@ -220,6 +220,8 @@ try {
 
   const library = await open('materials', { width: 768, height: 480 })
   await library.getByRole('button', { name: '重命名素材 自己的角色一' }).waitFor()
+  await library.locator('.fml-voice-badge').first().waitFor()
+  assert.ok(await library.getByText('缺音色', { exact: true }).count() > 0)
   await library.getByRole('combobox', { name: '创建人', exact: true }).selectOption('其他创建人')
   await library.getByText('暂无匹配素材', { exact: false }).waitFor()
   assert.equal(library.state.reads.at(-1).creatorExact, '1')
@@ -260,6 +262,8 @@ try {
   for (const viewport of [{ width: 768, height: 480 }, { width: 390, height: 700 }]) {
     const assets = await open('assets', viewport)
     await assets.getByRole('checkbox', { name: '选择资产 账号角色' }).waitFor()
+    await assets.getByText('缺音色', { exact: true }).first().waitFor()
+    assert.equal(await assets.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), true, 'Asset library toolbar must not overflow horizontally')
     const cardBox = await assets.locator('.fal-asset-card').first().boundingBox()
     const checkBox = await assets.getByRole('checkbox', { name: '选择资产 账号角色' }).boundingBox()
     assert.ok(checkBox.y >= cardBox.y && checkBox.y + checkBox.height <= cardBox.y + cardBox.height, 'Selection checkbox must remain inside its own card')
@@ -290,6 +294,26 @@ try {
     await assets.close()
     cases.push(`${viewport.width}:upload-auto-close-partial-failure-retry-and-asset-bulk-delete`)
   }
+
+  const voiceBadge = await open('assets', { width: 1280, height: 720 })
+  await voiceBadge.getByText('缺音色', { exact: true }).first().waitFor()
+  assert.equal(await voiceBadge.locator('.fal-asset-card').first().locator('.fal-voice-badge').count(), 1)
+  const badgeBox = await voiceBadge.locator('.fal-voice-badge').first().boundingBox()
+  const badgeCardBox = await voiceBadge.locator('.fal-asset-card').first().boundingBox()
+  assert.ok(badgeBox && badgeCardBox && badgeBox.y >= badgeCardBox.y && badgeBox.y + badgeBox.height <= badgeCardBox.y + badgeCardBox.height, 'Voice badge must stay inside its card')
+  assert.equal(await voiceBadge.getByRole('button', { name: /只看缺音色/ }).count(), 1)
+  voiceBadge.state.materials.push(material('badge-voice', 'global', '账号角色音色', { type: 'audio', metadata: { assetCategory: 'voice' } }))
+  voiceBadge.state.materials = voiceBadge.state.materials.map((item) => item.id === 'account'
+    ? { ...item, metadata: { ...item.metadata, voiceMaterialId: 'badge-voice' } }
+    : item)
+  await voiceBadge.reload()
+  await voiceBadge.getByText('有音色', { exact: true }).first().waitFor()
+  assert.equal(await voiceBadge.getByText('缺音色', { exact: true }).count(), 0)
+  await voiceBadge.getByRole('button', { name: /只看缺音色/ }).click()
+  await voiceBadge.getByText('当前角色都已绑定音色', { exact: true }).waitFor()
+  await voiceBadge.screenshot({ path: path.join(output, 'voice-badges.png') })
+  await voiceBadge.close()
+  cases.push('character-voice-badges-and-missing-voice-filter')
 
   const child = await open('assets', { width: 768, height: 480 }, true)
   await child.getByText('账号角色', { exact: true }).waitFor()

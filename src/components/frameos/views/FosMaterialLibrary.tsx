@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
+import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { apiFetch } from '@/lib/api-fetch'
@@ -110,6 +111,7 @@ function MaterialCard({
 }) {
   const assetCategory = frameosAssetCategoryFromMetadata(item.metadata)
   const characterBinding = frameosCharacterBindingFromMetadata(item.metadata)
+  const showVoiceBadge = assetCategory === 'character' && item.type === 'image'
   return (
     <article className={`relative overflow-hidden rounded-[10px] border bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)] ${selected ? 'border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary)]/30' : 'border-[var(--fos-border-soft)]'}`}>
       {item.source === 'upload' && canFavorite ? <button
@@ -123,6 +125,12 @@ function MaterialCard({
         <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-b from-[#181820] to-[#0e0e12]">
           <MaterialPreview item={item} />
           <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : item.type === 'audio' ? '音频' : '3D'}</span>
+          {showVoiceBadge ? <span className="fml-voice-badge">
+            <span className={`nori-voice-badge ${item.voice ? 'nori-voice-badge-bound' : 'nori-voice-badge-missing'}`}>
+              <AppIcon name={item.voice ? 'audioWave' : 'infoCircle'} className="h-3 w-3" />
+              {item.voice ? '有音色' : '缺音色'}
+            </span>
+          </span> : null}
         </div>
         <div className="truncate px-3 pt-2.5 text-[13px] font-bold text-white" title={item.title || ''}>{item.title || '未命名素材'}</div>
         <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1 text-[11px] text-[var(--fos-text-4)]">
@@ -642,7 +650,7 @@ export function FosMaterialLibrary({
 
       <main className="fml-main flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="fml-header flex flex-wrap items-center gap-3 border-b border-[var(--fos-border-soft)] px-5 py-3">
-          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">生成结果会自动收录；本地素材上传时必须填写名称</div></div>
+          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">所有生成与上传的原始文件；归类为角色后会在<Link href="/workspace/asset-hub" className="mx-1 font-bold text-[var(--fos-primary)] hover:underline">资产库</Link>按角色聚合并绑定音色。</div></div>
           <div className="fml-header-actions ml-auto flex items-center gap-2">
             <label className="fos-material-search"><AppIcon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索素材名称" /></label>
             <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={loading} onClick={() => void load(true)}><AppIcon name="refresh" className="h-3.5 w-3.5" />刷新</button>
