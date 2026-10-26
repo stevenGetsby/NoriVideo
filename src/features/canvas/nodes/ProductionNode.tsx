@@ -66,10 +66,10 @@ function ProductionNodeImpl(props: NodeProps) {
           ? 'linear-gradient(rgb(42,42,42), rgb(34,34,34))'
           : '#1f1f1f',
         border: props.selected
-          ? '1px solid rgba(70,151,255,0.92)'
+          ? '1px solid #7a7a7a'
           : '0.5px solid #3d3d3d',
         boxShadow: props.selected
-          ? '0 0 0 1px rgba(70,151,255,0.48), 0 16px 42px rgba(0,0,0,0.42), 0 0 34px rgba(70,151,255,0.34)'
+          ? '0 6px 18px rgba(0,0,0,0.28)'
           : '0 2px 8px rgba(0,0,0,0.18)',
         overflow: 'hidden',
         cursor: 'grab',

@@ -423,7 +423,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const [addOpen, setAddOpen] = useState(false)
   const [assetsOpen, setAssetsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
-  const [minimapVisible, setMinimapVisible] = useState(true)
+  const [minimapVisible, setMinimapVisible] = useState(false)
   const [organizeMode, setOrganizeMode] = useState<'grid' | 'horizontal' | 'vertical'>('horizontal')
   const [organizeOpen, setOrganizeOpen] = useState(false)
   const [layoutAnimating, setLayoutAnimating] = useState(false)
@@ -3832,8 +3832,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             proOptions={{ hideAttribution: true }}
             colorMode="dark"
           >
-            <Background id="minor-grid" color="rgba(255,255,255,.055)" gap={22} size={1} />
-            <Background id="major-grid" color="rgba(255,255,255,.10)" gap={44} size={1.2} />
+            <Background id="minor-grid" color="rgba(255,255,255,.045)" gap={24} size={1} />
             {minimapVisible ? <MiniMap<CanvasFlowNode>
               position="bottom-left"
               pannable={false}

@@ -107,7 +107,7 @@ describe('infinite canvas creative surface parity', () => {
     expect(creativeNode).toContain('nori-canvas-node-toolbar-menu')
     expect(generator).toContain('返回画布')
     expect(generator).toContain("data-editor-mode={fullscreen ? 'expanded' : 'anchored'}")
-    expect(generator).toContain('minHeight={fullscreen ? 280 : 150}')
+    expect(generator).toContain('minHeight={fullscreen ? 280 : 96}')
   })
 
   it('keeps the node editor stationary, bounded below chrome, and dismissible without moving its node', () => {

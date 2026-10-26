@@ -295,11 +295,6 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
 
       <header className="nori-canvas-node-label">
         <Icon />
-        {currentCost ? (
-          <span className="nori-canvas-node-cost" title={currentCost.kind === 'actual' ? `实际消耗 ${currentCost.points} 积分` : `预计消耗 ${currentCost.points} 积分`}>
-            {currentCost.kind === 'actual' ? '实际' : '预计'} {currentCost.points} 积分
-          </span>
-        ) : null}
         {renaming && !editor.readOnly ? (
           <input
             className="nodrag"
@@ -315,6 +310,11 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         ) : (
           <button type="button" className="nori-canvas-node-drag-handle" title={editor.readOnly ? title : '拖动节点 · 双击重命名'} onDoubleClick={() => !editor.readOnly && setRenaming(true)}>{title}</button>
         )}
+        {currentCost ? (
+          <span className="nori-canvas-node-cost" title={currentCost.kind === 'actual' ? `实际消耗 ${currentCost.points} 积分` : `预计消耗 ${currentCost.points} 积分`}>
+            {currentCost.kind === 'actual' ? '实际' : '预计'} {currentCost.points} 积分
+          </span>
+        ) : null}
       </header>
 
       <div className="nori-canvas-node-body">

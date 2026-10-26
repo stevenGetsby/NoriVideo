@@ -1030,7 +1030,13 @@ export function CanvasGenerator({
       <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `${anchor.maxHeight}px` } : undefined}>
       {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
       <div className="nori-canvas-generator-head">
-        <span><TypeIcon />{type === 'text' ? '文本生成' : type === 'video' ? '视频生成' : type === 'audio' ? '音频生成' : type === 'model3d' ? '3D 模型生成' : isPanorama ? '720 全景生成' : '图像生成'}</span>
+        {type === 'video' ? (
+          <div className="nori-canvas-generator-mode-tabs" role="group" aria-label="视频生成方式">
+            {([['text', '全能参考', true], ['image', '图生视频', supportsImageToVideo], ['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]] as const).map(([value, label, enabled]) => (
+              <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => setInputMode(value)}>{label}</button>
+            ))}
+          </div>
+        ) : <span><TypeIcon />{type === 'text' ? '文本生成' : type === 'audio' ? '音频生成' : type === 'model3d' ? '3D 模型生成' : isPanorama ? '720 全景生成' : '图像生成'}</span>}
         {(type === 'image' || type === 'video') && displayedReferenceNodes.length > 0 ? <label className="nori-canvas-generator-auto-preview" title="开启后，鼠标悬停引用素材会自动放大预览"><input type="checkbox" checked={autoReferencePreview} onChange={(event) => { const checked = event.target.checked; window.localStorage.setItem('nori.canvas.auto-reference-preview', checked ? '1' : '0'); setAutoReferencePreview(checked); if (!checked) setHoveredReferenceId(null) }} /><span>自动放大</span></label> : null}
         <div className="nori-canvas-generator-head-actions">
           {fullscreen ? <button type="button" className="nori-canvas-generator-back" title="返回画布" onClick={() => { persistDraft(); setFullscreen(false) }}><ArrowLeft /><span>返回画布</span></button> : null}
@@ -1047,7 +1053,7 @@ export function CanvasGenerator({
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
           {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} onToggle={() => toggleReferenceNode(incoming)} onHover={setHoveredReferenceId} />)}
-          {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /></button> : null}
+          {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /><span aria-hidden="true">参考</span></button> : null}
         </div>
       ) : null}
       {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
@@ -1098,7 +1104,7 @@ export function CanvasGenerator({
               : type === 'audio'
                 ? '输入 @ 可插入画布音频素材名；当前音频模型仅接收文本，不会把它作为声音条件输入。'
                 : '输入 @ 可引用画布图片；蓝色素材名会与实体引用一并保存。'}
-            minHeight={fullscreen ? 280 : 150}
+            minHeight={fullscreen ? 280 : 96}
             placeholder={type === 'video' ? '描述你想要的视频，@引用素材' : type === 'audio' ? '描述音乐 / 配音 / 音效，@引用素材' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，@引用素材'}
           />
         ) : (

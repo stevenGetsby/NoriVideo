@@ -6512,88 +6512,379 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   .nori-canvas-revision-list article > button { grid-column: 2; }
 }
 
-/* 2026-10 Dreamo-inspired canvas pass: darker glass panels, softer borders,
-   blue selection glow, pill controls. */
-.nori-canvas-generator {
-  border: .5px solid rgba(61, 61, 61, .9);
-  border-radius: 16px;
-  background: rgba(31, 31, 31, .92);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .5), inset 0 1px rgba(255, 255, 255, .04);
+/* 2026-10 Dreamo design pass. Measurements follow dreamo.tv's canvas divided
+   by the 1.2 interface zoom; neutral greys, glass pills, hover-only affordances. */
+:root {
+  --dm-bg: #070707;
+  --dm-card: #1f1f1f;
+  --dm-glass: rgba(31, 31, 31, .85);
+  --dm-line: #3d3d3d;
+  --dm-line-strong: #7a7a7a;
+  --dm-text: #f2f2f2;
+  --dm-muted: rgba(255, 255, 255, .72);
+  --dm-dim: #999;
+  --dm-hover: rgba(255, 255, 255, .06);
+  --dm-cta: linear-gradient(90deg, #4f6bff 0%, #7d5cff 55%, #a65bff 100%);
 }
 
-.nori-canvas-generator-head {
-  height: 44px;
-  border-bottom: .5px solid rgba(255, 255, 255, .07);
+.nori-canvas-workspace {
+  --canvas-bg: var(--dm-bg);
+  --canvas-border: rgba(61, 61, 61, .9);
+  --canvas-border-strong: var(--dm-line-strong);
 }
 
-.nori-canvas-generator-head-actions > button {
-  border-radius: 10px;
-  transition: background-color .14s ease, color .14s ease;
-}
+.nori-canvas-surface .react-flow__pane { background-image: none; }
 
-.nori-canvas-generator-head-actions > button:hover {
-  background: rgba(255, 255, 255, .08);
-  color: #fff;
-}
+/* Edges and selection */
+.nori-canvas-surface .react-flow__edge-path { stroke: rgba(255, 255, 255, .26); stroke-width: 1.4; }
+.nori-canvas-surface .react-flow__edge.selected .react-flow__edge-path,
+.nori-canvas-surface .react-flow__edge:hover .react-flow__edge-path { stroke: rgba(255, 255, 255, .72); stroke-width: 1.8; }
+.nori-canvas-surface .react-flow__nodesselection-rect,
+.nori-canvas-marquee { border: 1px solid rgba(255, 255, 255, .42); background: rgba(255, 255, 255, .035); }
 
-.nori-canvas-generator-controls select,
-.nori-canvas-generator-controls > button,
-.nori-canvas-generator-select {
-  border-radius: 999px;
-  border: .5px solid rgba(255, 255, 255, .1);
-  background: rgba(255, 255, 255, .05);
-  color: rgba(255, 255, 255, .82);
+/* Node card */
+.nori-canvas-node-body {
+  border: .5px solid var(--dm-line);
+  border-radius: 14px;
+  background: var(--dm-card);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .18);
 }
+.nori-canvas-node:hover .nori-canvas-node-body { border: 1px solid var(--dm-line-strong); box-shadow: 0 4px 14px rgba(0, 0, 0, .24); }
+.nori-canvas-node.is-selected .nori-canvas-node-body { border: 1px solid var(--dm-line-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
+.nori-canvas-node.is-error .nori-canvas-node-body { border-color: rgba(255, 104, 104, .7); }
+.nori-canvas-node--video .nori-canvas-node-body,
+.nori-canvas-node--image .nori-canvas-node-body { background: linear-gradient(#2a2a2a, #222); }
+.nori-canvas-node-body > img,
+.nori-canvas-node-body > video { background: transparent; }
+.nori-canvas-node:hover .nori-canvas-node-drag-frame,
+.nori-canvas-node.is-selected .nori-canvas-node-drag-frame { background: transparent; }
 
-.nori-canvas-generator-controls > button:hover:not(:disabled),
-.nori-canvas-generator-select:hover {
-  border-color: rgba(122, 122, 122, .8);
-  color: #fff;
+.nori-canvas-node-label { bottom: calc(100% + 5px); gap: 4px; color: var(--dm-muted); font-size: 11px; font-weight: 500; }
+.nori-canvas-node-label > svg { width: 12px; height: 12px; color: var(--dm-muted); }
+.nori-canvas-node-label button { flex: 0 1 auto; color: var(--dm-muted); font-size: 11px; font-weight: 500; }
+.nori-canvas-node.is-selected .nori-canvas-node-label button,
+.nori-canvas-node:hover .nori-canvas-node-label button { color: #fff; }
+.nori-canvas-node-cost { border: 0; padding: 0 6px; border-radius: 999px; color: rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .06); font-size: 9px; }
+
+/* Connection handles: a 14px hit target on the edge, drawn as an 18px "+"
+   button 22px outside the card (pseudo-elements still hit-test as the handle). */
+.nori-canvas-handle {
+  width: 14px !important;
+  height: 14px !important;
+  min-width: 0;
+  min-height: 0;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
 }
-
-.nori-canvas-parameter-trigger {
-  border-radius: 999px;
-  border: .5px solid rgba(255, 255, 255, .1);
-  background: rgba(255, 255, 255, .05);
+.nori-canvas-handle::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 18px;
+  border: .5px solid rgba(255, 255, 255, .16);
+  border-radius: 50%;
+  background:
+    linear-gradient(rgba(255, 255, 255, .84), rgba(255, 255, 255, .84)) center / 8px 1.4px no-repeat,
+    linear-gradient(rgba(255, 255, 255, .84), rgba(255, 255, 255, .84)) center / 1.4px 8px no-repeat,
+    rgba(18, 18, 18, .72);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, .28);
+  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
 }
-
-.nori-canvas-generator-prompt .mention-prompt-editor-layer {
-  border-radius: 12px;
-  border: .5px solid rgba(255, 255, 255, .08);
-  background: rgba(10, 10, 12, .72);
-}
-
-.nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within {
-  border-color: rgba(70, 151, 255, .65);
-  box-shadow: 0 0 0 3px rgba(70, 151, 255, .12);
-}
-
-.nori-canvas-generator-refs {
-  border-bottom: .5px solid rgba(255, 255, 255, .06);
-}
-
-.nori-canvas-generator-ref {
-  border: .5px solid rgba(255, 255, 255, .09);
-  border-radius: 10px;
-}
-
-.nori-canvas-generator-ref.is-selected {
-  border-color: rgba(70, 151, 255, .85);
-  box-shadow: 0 0 0 2px rgba(70, 151, 255, .18);
-}
-
-/* Production node handles: hover-reveal like Dreamo */
-.react-flow__node[data-id] .nori-canvas-handle {
-  opacity: 0;
-  transition: opacity .15s ease;
-}
-
+.nori-canvas-surface .react-flow__handle-left.nori-canvas-handle::after { transform: translate(calc(-50% - 22px), -50%); }
+.nori-canvas-surface .react-flow__handle-right.nori-canvas-handle::after { transform: translate(calc(-50% + 22px), -50%); }
+.nori-canvas-surface .react-flow__handle-left.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-left.connecting { transform: translate(-50%, -50%); }
+.nori-canvas-surface .react-flow__handle-right.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle-right.connecting { transform: translate(50%, -50%); }
+.nori-canvas-handle:hover,
+.nori-canvas-surface .react-flow__handle.connecting { background: transparent !important; }
+.nori-canvas-handle:hover::after,
+.nori-canvas-surface .react-flow__handle.connecting::after { border-color: rgba(255, 255, 255, .9); background-color: rgba(28, 28, 28, .92); }
+.react-flow__node[data-id] .nori-canvas-handle { opacity: 0; transition: opacity .16s ease; }
 .react-flow__node:hover .nori-canvas-handle,
-.react-flow__node.selected .nori-canvas-handle {
-  opacity: 1;
-}
+.react-flow__node.selected .nori-canvas-handle { opacity: 1; }
 
-/* Viewport bar pill (Dreamo's bottom control pill) */
-.nori-canvas-viewport-controls {
-  border-radius: 999px;
+/* Resize: invisible edges, quiet corner dots */
+.nori-canvas-resize-line { border-color: transparent !important; opacity: 1; }
+.nori-canvas-resize-handle {
+  width: 8px !important;
+  height: 8px !important;
+  border: 1px solid rgba(0, 0, 0, .5) !important;
+  border-radius: 50% !important;
+  background: rgba(255, 255, 255, .78) !important;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .4);
+  opacity: 0;
+  transition: opacity .16s ease;
 }
+.react-flow__node:hover .nori-canvas-resize-handle,
+.nori-canvas-resize-handle:hover { opacity: 1; }
+
+/* Selection tools pill */
+.nori-canvas-node-toolbar,
+.nori-canvas-group-toolbar {
+  gap: 2px;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding: 3px;
+  background: var(--dm-glass);
+  box-shadow: 0 0 10px rgba(0, 0, 0, .3);
+  backdrop-filter: blur(20px);
+}
+.nori-canvas-node-toolbar > button,
+.nori-canvas-node-toolbar-more > button { width: 28px; min-width: 28px; height: 28px; border-radius: 999px; color: #fff; }
+.nori-canvas-group-toolbar button { border-radius: 999px; color: rgba(255, 255, 255, .86); }
+.nori-canvas-node-toolbar button:hover,
+.nori-canvas-node-toolbar button.is-active,
+.nori-canvas-group-toolbar button:hover,
+.nori-canvas-group-toolbar button.is-active {
+  color: #fff;
+  background: rgba(255, 255, 255, .05);
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, .2), inset 0 4px 10px rgba(255, 255, 255, .08);
+}
+.nori-canvas-node-toolbar-menu.nori-viewport-popover { border: .5px solid var(--dm-line); border-radius: 12px; background: rgba(31, 31, 31, .96); backdrop-filter: blur(20px); }
+.nori-canvas-node-toolbar-menu.nori-viewport-popover button:hover { background: var(--dm-hover); }
+
+/* Floating chrome: glass pills */
+.nori-canvas-breadcrumbs,
+.nori-canvas-history-button,
+.nori-canvas-sync-button,
+.nori-canvas-save-state,
+.nori-canvas-readonly-state,
+.nori-canvas-undo-redo,
+.nori-canvas-tool-rail,
+.nori-canvas-viewport-controls {
+  border: .5px solid var(--dm-line);
+  background: var(--dm-glass);
+  box-shadow: none;
+  backdrop-filter: blur(20px) saturate(100%);
+}
+.nori-canvas-breadcrumbs,
+.nori-canvas-undo-redo { border-radius: 999px; }
+.nori-canvas-undo-redo button { border-radius: 999px; }
+.nori-canvas-undo-redo button:hover:not(:disabled) { background: var(--dm-hover); }
+
+.nori-canvas-tool-rail { left: 13px; width: 44px; gap: 3px; border-radius: 999px; padding: 5px; }
+.nori-canvas-tool-rail button { width: 34px; height: 34px; border-radius: 50%; color: rgba(255, 255, 255, .9); }
+.nori-canvas-tool-rail button:hover,
+.nori-canvas-tool-rail button.is-open { color: #fff; background: rgba(255, 255, 255, .08); }
+.nori-canvas-tool-rail button.is-primary {
+  width: 34px;
+  height: 34px;
+  color: #1f1f1f;
+  background: linear-gradient(270deg, #79baff, #d9feff 68%, #eeebaa 99%);
+  box-shadow: none;
+}
+.nori-canvas-tool-rail button.is-primary:hover,
+.nori-canvas-tool-rail button.is-primary.is-open { color: #1f1f1f; background: linear-gradient(270deg, #8fc6ff, #e6feff 68%, #f4f1bd 99%); }
+.nori-canvas-tool-rail button.is-primary:disabled,
+.nori-canvas-tool-rail button.is-primary:disabled:hover { color: rgba(31, 31, 31, .5); background: linear-gradient(270deg, #79baff, #d9feff 68%, #eeebaa 99%); opacity: .4; }
+.nori-canvas-tool-rail button.is-primary svg { width: 17px; height: 17px; stroke-width: 2.2; }
+.nori-canvas-tool-rail i { width: 18px; background: rgba(255, 255, 255, .1); }
+
+.nori-canvas-add-panel {
+  left: 66px;
+  width: 220px;
+  border: .5px solid var(--dm-line);
+  border-radius: 18px;
+  padding: 6px;
+  background: rgba(31, 31, 31, .92);
+  box-shadow: 0 0 10px rgba(0, 0, 0, .3);
+  backdrop-filter: blur(20px);
+}
+.nori-canvas-add-panel li button,
+.nori-canvas-add-upload { gap: 10px; border-radius: 20px; padding: 5px; color: rgba(255, 255, 255, .9); }
+.nori-canvas-add-panel li button:hover,
+.nori-canvas-add-upload:hover { background: rgba(255, 255, 255, .05); }
+.nori-canvas-add-panel button > svg {
+  width: 30px;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .1);
+}
+.nori-canvas-add-panel button > span { font-size: 11.5px; }
+.nori-canvas-add-panel button small { color: rgba(255, 255, 255, .4); font-size: 9px; }
+
+.nori-canvas-viewport-controls { bottom: 13px; left: 13px; height: 32px; gap: 3px; border-radius: 999px; padding: 3px; }
+.nori-canvas-viewport-controls > button { width: 26px; height: 26px; border-radius: 50%; color: #e5e5e5; }
+.nori-canvas-viewport-controls > button:hover,
+.nori-canvas-viewport-controls > button.is-active { color: #fff; background: rgba(255, 255, 255, .08); }
+.nori-canvas-viewport-controls > span { height: 12px; margin: 0 2px; background: rgba(255, 255, 255, .16); }
+.nori-canvas-viewport-controls > b { width: 40px; height: 26px; color: #e5e5e5; font-size: 10px; font-weight: 500; }
+.nori-canvas-organize-controls button { border-radius: 999px; }
+.nori-canvas-organize-controls button:hover,
+.nori-canvas-organize-controls button.is-active { background: rgba(255, 255, 255, .08); }
+.nori-canvas-surface .react-flow__minimap { border: .5px solid var(--dm-line); border-radius: 12px; overflow: hidden; background: var(--dm-glass); }
+
+/* Generator: a compact Dreamo composer — tabs, reference tiles, a borderless
+   prompt and one row of pills ending in the gradient call to action. */
+.nori-canvas-generator {
+  border: .5px solid var(--dm-line);
+  border-radius: 14px;
+  background: var(--dm-card);
+  box-shadow: 0 0 10px rgba(0, 0, 0, .3);
+}
+.nori-canvas-generator-tether { background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, .32)); box-shadow: none; }
+
+.nori-canvas-generator-head,
+.nori-canvas-generator.is-node-anchored .nori-canvas-generator-head {
+  height: auto;
+  min-height: 0;
+  gap: 8px;
+  border-bottom: 0;
+  padding: 10px 10px 0;
+  background: transparent;
+}
+.nori-canvas-generator-head > span { color: var(--dm-text); font-size: 11px; font-weight: 600; }
+.nori-canvas-generator-head-actions > button { width: 26px; height: 26px; border-radius: 8px; color: rgba(255, 255, 255, .7); }
+.nori-canvas-generator-head-actions > button:hover { color: #fff; background: var(--dm-hover); }
+
+.nori-canvas-generator-mode-tabs { display: flex; min-width: 0; flex: 1 1 auto; gap: 5px; }
+.nori-canvas-generator-mode-tabs > button {
+  min-width: 0;
+  height: 30px;
+  overflow: hidden;
+  border: .5px solid var(--dm-line);
+  border-radius: 7px;
+  padding: 0 10px;
+  color: var(--dm-dim);
+  background: transparent;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  transition: background-color .16s ease, color .16s ease;
+}
+.nori-canvas-generator-mode-tabs > button:hover:not(:disabled) { color: rgba(255, 255, 255, .9); background: rgba(255, 255, 255, .06); }
+.nori-canvas-generator-mode-tabs > button.is-active { border-color: var(--dm-line-strong); color: #fff; background: rgba(255, 255, 255, .1); }
+.nori-canvas-generator-mode-tabs > button:disabled { cursor: not-allowed; opacity: .45; }
+
+.nori-canvas-generator-refs { gap: 6px; border-bottom: 0; padding: 8px 10px 0; }
+.nori-canvas-generator-refs-label { min-width: 0; height: auto; padding-right: 2px; color: rgba(255, 255, 255, .42); font-size: 10px; font-weight: 500; }
+.nori-canvas-generator-ref-add,
+.nori-canvas-generator-entry,
+.nori-canvas-generator-ref { width: 42px; height: 42px; border-radius: 8px; }
+.nori-canvas-generator-ref,
+.nori-canvas-generator-entry:not(.is-active):not(:disabled) { border: .5px solid var(--dm-line); color: rgba(255, 255, 255, .7); background: rgba(255, 255, 255, .03); }
+.nori-canvas-generator-entry:not(.is-active):not(:disabled):hover { border-color: var(--dm-line-strong); color: #fff; background: rgba(255, 255, 255, .06); }
+.nori-canvas-generator-entry.is-active,
+.nori-canvas-generator-ref.is-selected { border: 1px solid rgba(255, 255, 255, .78); color: #fff; background: rgba(255, 255, 255, .08); box-shadow: none; }
+.nori-canvas-generator-ref-add {
+  flex-direction: column;
+  gap: 1px;
+  border: .5px solid var(--dm-line);
+  color: rgba(255, 255, 255, .78);
+  background: transparent;
+}
+.nori-canvas-generator-ref-add:hover { border-color: var(--dm-line-strong); color: #fff; background: rgba(255, 255, 255, .05); }
+.nori-canvas-generator-ref-add svg { width: 16px; height: 16px; }
+.nori-canvas-generator-ref-add span { font-size: 9px; line-height: 1; }
+
+.nori-canvas-generator-prompt { padding: 8px 10px 4px; }
+.nori-canvas-generator-prompt .mention-prompt-editor-layer,
+.nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.nori-canvas-generator-prompt textarea,
+.nori-canvas-generator-prompt .mention-prompt-highlight { border: 0; border-radius: 0; padding: 2px 0; background: transparent; font-size: 12px; line-height: 1.65; }
+.nori-canvas-generator-prompt textarea:focus { border: 0; box-shadow: none; }
+.nori-canvas-generator-prompt textarea::placeholder { color: rgba(255, 255, 255, .36); }
+.nori-canvas-generator-prompt .mention-prompt-hint { color: rgba(255, 255, 255, .34); }
+
+.nori-canvas-generator-controls {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  border-top: 0;
+  padding: 6px 10px 10px;
+  background: transparent;
+}
+.nori-canvas-generator-settings-row { display: flex; min-width: 0; flex: 1 1 260px; align-items: center; gap: 6px; }
+.nori-canvas-generator-submit-row { flex: 0 0 auto; margin-left: auto; gap: 6px; }
+.nori-canvas-generator-settings-row .nori-canvas-generator-select { width: auto; max-width: 46%; height: 28px; flex: 0 1 auto; }
+.nori-canvas-generator-controls select,
+.nori-canvas-generator-select select {
+  height: 28px;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding-left: 11px;
+  color: rgba(255, 255, 255, .9);
+  background: transparent;
+  font-size: 11px;
+}
+.nori-canvas-generator-select:hover select { border-color: var(--dm-line-strong); }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger {
+  width: auto;
+  min-width: 0;
+  height: 28px;
+  min-height: 28px;
+  flex: 0 1 auto;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: transparent;
+}
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger:hover,
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger.is-active { border-color: var(--dm-line-strong); background: rgba(255, 255, 255, .04); }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger > span { min-width: 0; flex-direction: row; }
+.nori-canvas-parameter-trigger b { display: none; }
+.nori-canvas-parameter-trigger small { overflow: hidden; color: rgba(255, 255, 255, .9); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-generator-sound {
+  height: 28px;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding: 0 10px;
+  color: rgba(255, 255, 255, .86);
+  font-size: 11px;
+}
+.nori-canvas-generator-sound input { accent-color: #fff; }
+.nori-canvas-generator-quote { color: rgba(255, 255, 255, .78); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nori-canvas-generator-controls .nori-canvas-generate-button {
+  min-height: 28px;
+  height: 28px;
+  gap: 5px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 14px;
+  color: #fff;
+  background: var(--dm-cta);
+  box-shadow: 0 4px 14px rgba(110, 92, 255, .28);
+  font-size: 11px;
+  font-weight: 600;
+}
+.nori-canvas-generator-controls .nori-canvas-generate-button:hover:not(:disabled) { filter: brightness(1.08); }
+.nori-canvas-generator-controls .nori-canvas-generate-button:disabled { color: rgba(255, 255, 255, .55); background: var(--dm-cta); box-shadow: none; opacity: .45; }
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-head,
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-controls { background: var(--dm-card); }
+
+.nori-canvas-parameter-popover.nori-viewport-popover { border: .5px solid var(--dm-line); border-radius: 14px; background: rgba(31, 31, 31, .97); backdrop-filter: blur(20px); }
+.nori-canvas-parameter-popover > header { border-bottom: .5px solid rgba(255, 255, 255, .08); background: #1f1f1f; }
+.nori-canvas-parameter-popover > header strong { color: #fff; font-weight: 600; }
+.nori-canvas-parameter-popover > header small,
+.nori-canvas-parameter-popover p { color: var(--dm-dim); }
+.nori-canvas-parameter-popover > header button { border: .5px solid var(--dm-line); border-radius: 999px; color: var(--dm-muted); background: transparent; }
+.nori-canvas-parameter-popover > header button:hover { color: #fff; background: rgba(255, 255, 255, .08); }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid > label > span,
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid > .nori-canvas-image-quality > span { color: var(--dm-dim); font-weight: 500; }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select { height: 34px; border: .5px solid var(--dm-line); border-radius: 8px; color: #fff; background: rgba(255, 255, 255, .04); }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select:hover,
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select:focus { border-color: var(--dm-line-strong); outline: none; box-shadow: none; }
+.nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid option { color: #fff; background: #1f1f1f; }
+.nori-canvas-image-quality button.is-active { border-color: var(--dm-line-strong); color: #fff; background: rgba(255, 255, 255, .1); }
+.nori-canvas-generator-tether::after { border: 1px solid rgba(255, 255, 255, .6); background: #2a2a2a; box-shadow: none; }
+.nori-canvas-generator-head .nori-canvas-generator-mode-tabs > button { display: inline-flex; width: auto; height: 30px; flex: 0 1 auto; align-items: center; justify-content: center; border-radius: 7px; }
+.nori-canvas-generator-ref-add { margin-left: 0; }
+.nori-canvas-generator-refs-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+.nori-canvas-generator-refs { position: relative; }
+.nori-canvas-generator-scroll,
+.nori-canvas-generator-content { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent; }
