@@ -58,7 +58,7 @@ interface Asset {
 
 const ROLE_COLORS: Record<RoleTag, string> = {
   '角色': '#e0a23a',
-  '道具': '#3b82f6',
+  '道具': '#3265ff',
   '环境': '#10b981',
 }
 
@@ -194,7 +194,7 @@ function mergeBoundCharacterMaterials(
 function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: string }) {
   const src = toDisplayImageUrl(imageUrl)
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-b from-[#1a1a20] to-[#101014]">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-b from-[#1b1b1b] to-[#101014]">
       {src ? (
         <MediaImage src={src} alt="" fill sizes="280px" style={{ objectFit: 'cover' }} />
       ) : (
@@ -277,7 +277,7 @@ function TreeRow({
       aria-current={active ? 'page' : undefined}
       title={path || label}
       className="flex w-full items-center gap-2 rounded-[8px] py-2 pr-3 text-left text-[13px]"
-      style={{ paddingLeft: 12 + depth * 16, background: active ? 'var(--fos-primary-soft)' : 'transparent', color: active ? '#8fb0ff' : 'var(--fos-text-2)', fontWeight: active ? 700 : 500 }}
+      style={{ paddingLeft: 12 + depth * 16, background: active ? 'var(--fos-primary-soft)' : 'transparent', color: active ? '#e5e5e5' : 'var(--fos-text-2)', fontWeight: active ? 700 : 500 }}
     >
       {caret ? <AppIcon name="chevronDown" className="h-3 w-3 shrink-0 text-[var(--fos-text-4)]" /> : <span className="w-3 shrink-0" />}
       {icon ? <AppIcon name={icon as never} className="h-4 w-4 shrink-0" /> : null}
@@ -571,7 +571,7 @@ export function FosAssetLibrary() {
 
         <div className="flex items-center gap-1.5 border-b border-[var(--fos-border-soft)] px-5 py-1.5 text-[11px] text-[var(--fos-text-4)]">
           <AppIcon name="infoCircle" className="h-3.5 w-3.5 flex-none" />
-          <span>资产库按角色 / 场景 / 道具聚合设定并绑定音色；原始图片、视频和音频文件在<Link href="/material" className="mx-1 font-bold text-[var(--fos-primary)] hover:underline">素材库</Link>。</span>
+          <span>资产库按角色 / 场景 / 道具聚合设定并绑定音色；原始图片、视频和音频文件在<Link href="/material" className="mx-1 font-bold text-white hover:underline">素材库</Link>。</span>
         </div>
 
         <div className="fal-content min-h-0 flex-1 overflow-y-auto p-5">

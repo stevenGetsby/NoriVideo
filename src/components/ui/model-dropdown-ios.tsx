@@ -117,7 +117,7 @@ function DefaultParamsRenderer({ fields, overrides, onChange, className }: { fie
                                 const s = String(opt)
                                 const active = s === val
                                 return (
-                                    <button key={s} onClick={() => onChange(field.field, s, field.options[0])} className={`px-4 py-1.5 text-[12px] font-medium rounded-md transition-all ${active ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold' : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ebebf5]'}`}>
+                                    <button key={s} onClick={() => onChange(field.field, s, field.options[0])} className={`px-4 py-1.5 text-[12px] font-medium rounded-md transition-all ${active ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold' : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'}`}>
                                         {s}
                                     </button>
                                 )

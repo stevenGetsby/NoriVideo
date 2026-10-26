@@ -559,10 +559,10 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
         <section className="sd3-right-section sd3-right-section--prompt">
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
             <span className="sd3-right-section-title">◈ 视频提示词</span>
-            <span className="flex items-center gap-2"><span className="sd3-prompt-charcount">{Array.from(displayPrompt.replace(/\s+/g, '')).length} 字</span><button type="button" className="text-[11px] font-bold text-[#8fa9ff]" disabled={!canEdit || saving || !seg.panelId} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></span>
+            <span className="flex items-center gap-2"><span className="sd3-prompt-charcount">{Array.from(displayPrompt.replace(/\s+/g, '')).length} 字</span><button type="button" className="text-[11px] font-bold text-[#e5e5e5]" disabled={!canEdit || saving || !seg.panelId} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></span>
           </div>
           <MentionPromptEditor value={displayPrompt} assets={mentionAssets} onChange={setDisplayPrompt} minHeight={260} placeholder="输入视频提示词；键入 @ 可选择当前分镜素材" readOnly={!canEdit} />
-          {notice ? <div className="mt-2 text-[11px] text-[#8fb0ff]">{notice}</div> : null}
+          {notice ? <div className="mt-2 text-[11px] text-[#e5e5e5]">{notice}</div> : null}
           {panelError ? <div className="mt-2 text-[11px] text-[#ff8b8b]">{panelError}</div> : null}
         </section>
 
@@ -660,13 +660,13 @@ function StoryboardRunProgress({ state, hideCompleted = false }: { state: TaskTa
   const failed = state.phase === 'failed'
   const progress = state.phase === 'completed' ? 100 : Math.max(1, state.progress || 0)
   return (
-    <div className={`mx-4 my-3 rounded-xl border px-4 py-3 ${failed ? 'border-red-400/30 bg-red-500/10' : 'border-blue-400/25 bg-blue-500/[.08]'}`} data-testid="episode-storyboard-progress">
+    <div className={`mx-4 my-3 rounded-xl border px-4 py-3 ${failed ? 'border-red-400/30 bg-red-500/10' : 'border-white/15 bg-white/[.08]'}`} data-testid="episode-storyboard-progress">
       <div className="flex items-center justify-between gap-3 text-[12px]">
         <span className={`font-bold ${failed ? 'text-red-200' : 'text-white'}`}>{storyboardTaskStage(state)}</span>
-        <span className={`font-mono font-bold ${failed ? 'text-red-300' : 'text-[#8fa9ff]'}`}>{failed ? '失败' : `${Math.min(100, progress)}%`}</span>
+        <span className={`font-mono font-bold ${failed ? 'text-red-300' : 'text-[#e5e5e5]'}`}>{failed ? '失败' : `${Math.min(100, progress)}%`}</span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-gradient-to-r from-[#4f7cff] via-[#8d74ff] to-[#5bd5c4]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
+        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-gradient-to-r from-[#3265ff] via-[#3265ff] to-[#5bd5c4]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
       </div>
       {failed && state.lastError?.message ? <p className="mt-2 text-[11px] leading-5 text-red-200">{friendlyStoryboardTaskError(state.lastError.message)}</p> : null}
       {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，作品工作台的“分镜设计”进度会同步显示。</p> : null}
@@ -849,7 +849,7 @@ function StoryboardSuccess({
       {(error || manualError || notice || loading) ? (
         <div className="border-b border-[var(--fos-border-soft)] px-4 py-2 text-[12px] font-semibold">
           {loading ? <span className="text-[var(--fos-text-3)]">正在加载本集分镜…</span> : null}
-          {notice ? <span className="text-[#8fb0ff]">{notice}</span> : null}
+          {notice ? <span className="text-[#e5e5e5]">{notice}</span> : null}
           {error || manualError ? <span className="text-[#ff7777]">{error || manualError}</span> : null}
         </div>
       ) : null}
@@ -899,7 +899,7 @@ function StoryboardSuccess({
                         onMove={(direction) => { if (segment.panelId) void moveSegment(segment.panelId, direction) }}
                         onDelete={() => { if (segment.panelId) void deleteSegment(segment.panelId) }}
                       />
-                      {canEdit && segment.panelId ? <div className="my-2 flex items-center gap-2 px-2"><span className="h-px flex-1 bg-[var(--fos-border-soft)]" /><button type="button" className="inline-flex items-center gap-1 rounded-full border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] px-3 py-1 text-[11px] font-bold text-[#8fa9ff] hover:border-[var(--fos-primary)]" disabled={creatingManual} onClick={() => void createFreeformSegment({ storyboardId: scene.storyboardId, panelId: segment.panelId! })}><AppIcon name="plus" className="h-3 w-3" />在此后添加自由 Segment</button><span className="h-px flex-1 bg-[var(--fos-border-soft)]" /></div> : null}
+                      {canEdit && segment.panelId ? <div className="my-2 flex items-center gap-2 px-2"><span className="h-px flex-1 bg-[var(--fos-border-soft)]" /><button type="button" className="inline-flex items-center gap-1 rounded-full border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] px-3 py-1 text-[11px] font-bold text-[#e5e5e5] hover:border-white/40" disabled={creatingManual} onClick={() => void createFreeformSegment({ storyboardId: scene.storyboardId, panelId: segment.panelId! })}><AppIcon name="plus" className="h-3 w-3" />在此后添加自由 Segment</button><span className="h-px flex-1 bg-[var(--fos-border-soft)]" /></div> : null}
                     </div>
                   ))}
                 </div>
@@ -1200,14 +1200,14 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
         <StoryboardRunProgress state={storyboardTaskState} />
         <div className="flex flex-1 items-center justify-center overflow-y-auto p-8">
           <div className="w-full max-w-[620px] rounded-2xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] p-8 text-center">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fos-primary-soft)] text-[#7ea4ff]"><AppIcon name="film" className="h-7 w-7" /></span>
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fos-primary-soft)] text-[#e5e5e5]"><AppIcon name="film" className="h-7 w-7" /></span>
             <h2 className="mt-5 text-[20px] font-bold text-white">本集尚未解析分镜</h2>
             <p className="mt-2 text-[14px] font-semibold text-[var(--fos-text-2)]">E{activeEpisode.episodeNumber} · {activeEpisode.name}</p>
             <p className="mt-3 text-[13px] leading-6 text-[var(--fos-text-3)]">可以让 AI 解析本集，也可以直接进入自由创作面板，从空 Segment 开始选择资产并编写视频提示词。</p>
             <div className="mt-5 flex justify-center gap-3 text-[12px] text-[var(--fos-text-3)]"><span>{activeEpisode.wordCount} 字剧本</span><span>·</span><span>{assetCount} 个作品资产</span></div>
             {assetCount === 0 ? <p className="mt-3 text-[11px] text-amber-200/80">AI 解析需要先完成作品资产；手动制作仍可直接开始。</p> : null}
             {error ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">{error}</div> : null}
-            {notice ? <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[13px] text-blue-200">{notice}</div> : null}
+            {notice ? <div className="mt-4 rounded-lg border border-white/25 bg-white/8 px-3 py-2 text-[13px] text-neutral-200">{notice}</div> : null}
             {loading ? <div className="mt-5 text-[13px] text-[var(--fos-text-3)]">正在检查本集分镜状态…</div> : <div className="mt-6 flex flex-wrap justify-center gap-3">
               <button type="button" className="fos-btn fos-btn-primary fos-btn-lg" title={assetCount === 0 ? '请先完成作品资产解析' : undefined} disabled={!canEdit || submitting || waitingForResult || assetCount === 0} onClick={() => void handleStartDesign()}>
                 <AppIcon name={submitting || waitingForResult ? 'loader' : 'sparkles'} className={`h-4 w-4 ${submitting || waitingForResult ? 'animate-spin' : ''}`} />

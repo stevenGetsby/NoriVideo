@@ -513,13 +513,13 @@ export function SuperInputBox({
   return (
     <div className="mx-auto w-full max-w-5xl">
       <div>
-        <div className="relative rounded-[26px] border border-[rgba(14,14,44,.08)] bg-[#fafcfe]/90 p-4 shadow-[0_22px_54px_rgba(14,14,44,.095),0_4px_12px_rgba(14,14,44,.055)]">
+        <div className="relative rounded-[26px] border border-[rgba(17,17,17,.08)] bg-[#fafcfe]/90 p-4 shadow-[0_22px_54px_rgba(17,17,17,.095),0_4px_12px_rgba(17,17,17,.055)]">
           <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(14,14,44,.08)] bg-white/84 px-3 py-2 shadow-[0_1px_2px_rgba(14,14,44,.035),0_1px_5px_rgba(14,14,44,.025)]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(17,17,17,.08)] bg-white/84 px-3 py-2 shadow-[0_1px_2px_rgba(17,17,17,.035),0_1px_5px_rgba(17,17,17,.025)]">
               <NoriBrandMark size={24} />
-              <span className="text-sm font-bold text-[#0e0e2c]">Nori Agent</span>
+              <span className="text-sm font-bold text-[#111111]">Nori Agent</span>
             </div>
-            <span className="rounded-full bg-[#EFEFFD] px-3 py-1 text-xs font-semibold text-[#4B4DED]">
+            <span className="rounded-full bg-[#f1f1f1] px-3 py-1 text-xs font-semibold text-[#e5e5e5]">
               Workflow
             </span>
           </div>
@@ -530,13 +530,13 @@ export function SuperInputBox({
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder || '描述你想要的视频...'}
-              className="h-36 w-full resize-none p-5 pr-16 text-base leading-relaxed transition-all duration-200 placeholder:text-[#8c8ca1]"
+              className="h-36 w-full resize-none p-5 pr-16 text-base leading-relaxed transition-all duration-200 placeholder:text-[#8e8e8e]"
               style={{
                 background: '#ffffff',
-                color: '#0e0e2c',
-                border: '1px solid rgba(14,14,44,.10)',
+                color: '#111111',
+                border: '1px solid rgba(17,17,17,.1)',
                 borderRadius: '22px',
-                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.92), 0 12px 28px rgba(14,14,44,.055)',
+                boxShadow: 'inset 0 1px 0 rgba(255,255,255,.92), 0 12px 28px rgba(17,17,17,.055)',
                 outline: 'none',
               }}
               disabled={status !== 'idle'}
@@ -549,9 +549,9 @@ export function SuperInputBox({
                 background: status === 'idle' && input.trim()
                   ? '#D6FF00'
                   : '#ECF1F4',
-                color: '#0e0e2c',
-                border: '1px solid rgba(14,14,44,.10)',
-                boxShadow: status === 'idle' && input.trim() ? '0 7px 18px rgba(14,14,44,.08), inset 0 -1px 0 rgba(14,14,44,.10)' : 'none',
+                color: '#111111',
+                border: '1px solid rgba(17,17,17,.1)',
+                boxShadow: status === 'idle' && input.trim() ? '0 7px 18px rgba(17,17,17,.08), inset 0 -1px 0 rgba(17,17,17,.1)' : 'none',
                 opacity: status !== 'idle' || !input.trim() ? 0.5 : 1,
                 cursor: status !== 'idle' || !input.trim() ? 'not-allowed' : 'pointer',
               }}
@@ -572,8 +572,8 @@ export function SuperInputBox({
       </div>
 
       {isAgentRunning && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#f4f7fa]/78 px-4 py-6 backdrop-blur-md">
-          <div className="h-[min(760px,calc(100vh-48px))] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[rgba(214,255,0,.75)] bg-[#fafcfe] shadow-[0_28px_80px_rgba(14,14,44,.20),0_6px_18px_rgba(14,14,44,.08)]">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#f6f6f6]/78 px-4 py-6 backdrop-blur-md">
+          <div className="h-[min(760px,calc(100vh-48px))] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[rgba(214,255,0,.75)] bg-[#fafcfe] shadow-[0_28px_80px_rgba(17,17,17,.2),0_6px_18px_rgba(17,17,17,.08)]">
             <SuperExecutingPanel
               plan={plan}
               runSnapshot={runSnapshot}
@@ -986,28 +986,28 @@ function SuperExecutingPanel({
         background: '#fafcfe',
         borderRadius: isModal ? '28px' : '22px',
         border: isModal ? 'none' : '1px solid rgba(214,255,0,.72)',
-        boxShadow: isModal ? 'none' : '0 22px 54px rgba(14,14,44,.095), 0 4px 12px rgba(14,14,44,.055)',
+        boxShadow: isModal ? 'none' : '0 22px 54px rgba(17,17,17,.095), 0 4px 12px rgba(17,17,17,.055)',
       }}
     >
       <div
-        className={isModal ? 'shrink-0 border-b border-[rgba(14,14,44,.08)] p-5 sm:p-6' : 'mb-4'}
+        className={isModal ? 'shrink-0 border-b border-[rgba(17,17,17,.08)] p-5 sm:p-6' : 'mb-4'}
         style={isModal ? { background: 'rgba(250,252,254,.96)' } : undefined}
       >
         <div className="mb-4 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(14,14,44,.08)] bg-white shadow-sm">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[16px] border border-[rgba(17,17,17,.08)] bg-white shadow-sm">
               <NoriBrandMark size={28} />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h3 className="truncate text-xl font-semibold" style={{ color: '#0e0e2c' }}>{title}</h3>
+                <h3 className="truncate text-xl font-semibold" style={{ color: '#111111' }}>{title}</h3>
                 {hasFailed ? (
                   <AlertCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--glass-tone-danger-fg)' }} />
                 ) : (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: '#4B4DED' }} />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: '#e5e5e5' }} />
                 )}
               </div>
-              <p className="truncate text-sm font-medium" style={{ color: '#7a8491' }}>
+              <p className="truncate text-sm font-medium" style={{ color: '#828282' }}>
                 Nori 会先锁定资产，再生成视频提示词，并用资产参考图直出单镜视频。
               </p>
             </div>
@@ -1021,15 +1021,15 @@ function SuperExecutingPanel({
                 className="rounded-full border px-4 py-2 text-sm font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-45"
                 style={{
                   background: '#ffffff',
-                  borderColor: 'rgba(14,14,44,.10)',
-                  color: '#0e0e2c',
-                  boxShadow: '0 6px 16px rgba(14,14,44,.06)',
+                  borderColor: 'rgba(17,17,17,.1)',
+                  color: '#111111',
+                  boxShadow: '0 6px 16px rgba(17,17,17,.06)',
                 }}
               >
                 进入工作区查看
               </button>
             )}
-            <span className="rounded-full bg-[#D6FF00] px-3 py-1 text-xs font-bold text-[#0e0e2c]">
+            <span className="rounded-full bg-[#D6FF00] px-3 py-1 text-xs font-bold text-[#111111]">
               Live
             </span>
           </div>
@@ -1037,10 +1037,10 @@ function SuperExecutingPanel({
 
         <div>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-sm" style={{ color: '#8c8ca1' }}>
+            <span className="text-sm" style={{ color: '#8e8e8e' }}>
               {activeStage?.title || '执行中'}
             </span>
-            <span className="text-sm font-medium" style={{ color: '#0e0e2c' }}>{progress}%</span>
+            <span className="text-sm font-medium" style={{ color: '#111111' }}>{progress}%</span>
           </div>
           <div className="w-full rounded-full h-2 overflow-hidden" style={{ background: '#ECF1F4' }}>
             <div
@@ -1048,7 +1048,7 @@ function SuperExecutingPanel({
               style={{ width: `${progress}%`, background: hasFailed ? 'var(--glass-tone-danger-fg)' : '#D6FF00' }}
             />
           </div>
-          <p className="mt-2 text-xs leading-relaxed" style={{ color: hasFailed ? 'var(--glass-tone-danger-fg)' : '#6a7280' }}>
+          <p className="mt-2 text-xs leading-relaxed" style={{ color: hasFailed ? 'var(--glass-tone-danger-fg)' : '#717171' }}>
             {phaseMessage || activeStage?.message || '正在执行 Agent 工作流。'}
           </p>
           {activeStageMetrics.length > 0 && (
@@ -1059,8 +1059,8 @@ function SuperExecutingPanel({
                   className="rounded-full border px-2.5 py-1 text-[11px] font-semibold"
                   style={{
                     background: '#ffffff',
-                    borderColor: 'rgba(14,14,44,.08)',
-                    color: '#4f5b68',
+                    borderColor: 'rgba(17,17,17,.08)',
+                    color: '#595959',
                   }}
                 >
                   {metric}
@@ -1073,11 +1073,11 @@ function SuperExecutingPanel({
 
       <div className={isModal ? 'min-h-0 flex-1 space-y-4 overflow-y-auto p-5 sm:p-6' : 'space-y-4'}>
         {activeArtifactSummary.length > 0 && (
-          <div className="rounded-[18px] border p-4" style={{ background: '#ffffff', borderColor: 'rgba(14,14,44,.08)' }}>
-            <p className="mb-2 text-xs font-bold" style={{ color: '#7a8491' }}>实时产物</p>
+          <div className="rounded-[18px] border p-4" style={{ background: '#ffffff', borderColor: 'rgba(17,17,17,.08)' }}>
+            <p className="mb-2 text-xs font-bold" style={{ color: '#828282' }}>实时产物</p>
             <div className="grid gap-1.5">
               {activeArtifactSummary.map((item) => (
-                <p key={item} className="text-sm leading-relaxed" style={{ color: '#384253' }}>
+                <p key={item} className="text-sm leading-relaxed" style={{ color: '#414141' }}>
                   {item}
                 </p>
               ))}
@@ -1088,7 +1088,7 @@ function SuperExecutingPanel({
           className={`grid gap-3 rounded-[18px] border p-4 ${layout === 'side' ? '' : 'md:grid-cols-[1.1fr_.9fr]'}`}
           style={{
             background: '#ffffff',
-            borderColor: 'rgba(75,77,237,.16)',
+            borderColor: 'rgba(255,255,255,.16)',
             boxShadow: 'inset 0 1px 0 rgba(255,255,255,.86)',
           }}
         >
@@ -1096,33 +1096,33 @@ function SuperExecutingPanel({
             <div className="mb-2 flex items-center gap-2">
               <span
                 className="h-2 w-2 rounded-full"
-                style={{ background: hasFailed ? 'var(--glass-tone-danger-fg)' : '#4B4DED' }}
+                style={{ background: hasFailed ? 'var(--glass-tone-danger-fg)' : '#3265ff' }}
               />
-              <span className="text-xs font-bold uppercase" style={{ color: '#4B4DED' }}>
+              <span className="text-xs font-bold uppercase" style={{ color: '#e5e5e5' }}>
                 {activeInsight.modelAction}
               </span>
             </div>
-            <p className="text-sm leading-relaxed" style={{ color: '#243042' }}>
+            <p className="text-sm leading-relaxed" style={{ color: '#2e2e2e' }}>
               {activeInsight.analyzing}
             </p>
             <div className={`mt-3 grid gap-2 ${layout === 'side' ? '' : 'sm:grid-cols-2'}`}>
-              <div className="rounded-[14px] p-3" style={{ background: '#f4f7fa' }}>
-                <p className="mb-1 text-[11px] font-bold" style={{ color: '#7a8491' }}>阶段产物</p>
-                <p className="text-xs leading-relaxed" style={{ color: '#384253' }}>{activeInsight.output}</p>
+              <div className="rounded-[14px] p-3" style={{ background: '#f6f6f6' }}>
+                <p className="mb-1 text-[11px] font-bold" style={{ color: '#828282' }}>阶段产物</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#414141' }}>{activeInsight.output}</p>
               </div>
-              <div className="rounded-[14px] p-3" style={{ background: '#f4f7fa' }}>
-                <p className="mb-1 text-[11px] font-bold" style={{ color: '#7a8491' }}>质量检查</p>
-                <p className="text-xs leading-relaxed" style={{ color: '#384253' }}>{activeInsight.qualityGate}</p>
+              <div className="rounded-[14px] p-3" style={{ background: '#f6f6f6' }}>
+                <p className="mb-1 text-[11px] font-bold" style={{ color: '#828282' }}>质量检查</p>
+                <p className="text-xs leading-relaxed" style={{ color: '#414141' }}>{activeInsight.qualityGate}</p>
               </div>
             </div>
           </div>
-          <div className="rounded-[14px] p-3" style={{ background: '#f4f7fa' }}>
-            <p className="mb-2 text-[11px] font-bold" style={{ color: '#7a8491' }}>当前创作意图</p>
-            <p className="text-xs leading-relaxed" style={{ color: '#384253' }}>
+          <div className="rounded-[14px] p-3" style={{ background: '#f6f6f6' }}>
+            <p className="mb-2 text-[11px] font-bold" style={{ color: '#828282' }}>当前创作意图</p>
+            <p className="text-xs leading-relaxed" style={{ color: '#414141' }}>
               {runInput || '正在读取 prompt 和项目配置。'}
             </p>
             {runStyle && (
-              <p className="mt-2 text-xs leading-relaxed" style={{ color: '#6a7280' }}>
+              <p className="mt-2 text-xs leading-relaxed" style={{ color: '#717171' }}>
                 风格：{runStyle}
               </p>
             )}
@@ -1139,35 +1139,35 @@ function SuperExecutingPanel({
                 key={stage.stageId}
                 className="rounded-[16px] border p-3 transition-colors"
                 style={{
-                  background: isActive ? '#ffffff' : '#f4f7fa',
+                  background: isActive ? '#ffffff' : '#f6f6f6',
                   borderColor: isFailed
                     ? 'var(--glass-stroke-danger)'
-                    : (isActive ? 'rgba(75,77,237,.28)' : 'rgba(14,14,44,.07)'),
+                    : (isActive ? 'rgba(255,255,255,.14)' : 'rgba(17,17,17,.07)'),
                 }}
               >
                 <div className="mb-1 flex items-center gap-2">
                   <span
                     className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
                     style={{
-                      background: isFailed ? 'var(--glass-tone-danger-bg)' : (isDone ? '#e0faf4' : (isActive ? '#EFEFFD' : '#ECF1F4')),
-                      color: isFailed ? 'var(--glass-tone-danger-fg)' : (isDone ? '#1a957c' : '#4B4DED'),
+                      background: isFailed ? 'var(--glass-tone-danger-bg)' : (isDone ? '#e0faf4' : (isActive ? '#f1f1f1' : '#ECF1F4')),
+                      color: isFailed ? 'var(--glass-tone-danger-fg)' : (isDone ? '#1a957c' : '#e5e5e5'),
                     }}
                   >
                     {isFailed ? '!' : (isDone ? '✓' : stage.stageNumber)}
                   </span>
-                  <span className="text-sm font-semibold" style={{ color: '#0e0e2c' }}>{stage.title}</span>
+                  <span className="text-sm font-semibold" style={{ color: '#111111' }}>{stage.title}</span>
                 </div>
-                <p className="pl-8 text-xs leading-relaxed" style={{ color: '#6a7280' }}>
+                <p className="pl-8 text-xs leading-relaxed" style={{ color: '#717171' }}>
                   {stage.message || stage.description}
                 </p>
-                <p className="mt-2 pl-8 text-[11px] leading-relaxed" style={{ color: '#8c8ca1' }}>
+                <p className="mt-2 pl-8 text-[11px] leading-relaxed" style={{ color: '#8e8e8e' }}>
                   {insight.modelAction}，{insight.output}
                 </p>
               </div>
             )
           })}
         </div>
-        <p className="text-xs" style={{ color: '#8c8ca1' }}>
+        <p className="text-xs" style={{ color: '#8e8e8e' }}>
           未进入工作区时，Agent 全部完成后会直接打开成片总览；进入工作区后，后台仍会继续处理并刷新产物。
         </p>
       </div>
@@ -1204,30 +1204,30 @@ function SuperResultPanel({ result }: { result: AgentExecutionResult }) {
         background: '#fafcfe',
         borderRadius: '22px',
         border: '1px solid rgba(49,208,170,.28)',
-        boxShadow: '0 22px 54px rgba(14,14,44,.08), 0 4px 12px rgba(14,14,44,.045)',
+        boxShadow: '0 22px 54px rgba(17,17,17,.08), 0 4px 12px rgba(17,17,17,.045)',
       }}
     >
       <div className="flex items-center gap-3 mb-4">
         <div className="p-2 rounded-xl" style={{ background: '#e0faf4' }}>
           <CheckCircle2 className="w-5 h-5" style={{ color: '#31D0AA' }} />
         </div>
-        <h3 className="text-lg font-semibold" style={{ color: '#0e0e2c' }}>执行完成</h3>
+        <h3 className="text-lg font-semibold" style={{ color: '#111111' }}>执行完成</h3>
       </div>
 
       {[...scriptItems, ...assetItems, ...storyboardItems].map((text) => (
-        <div key={text} className="flex items-center gap-2 text-sm mb-2" style={{ color: '#4a4a68' }}>
+        <div key={text} className="flex items-center gap-2 text-sm mb-2" style={{ color: '#4d4d4d' }}>
           <CheckCircle2 className="w-4 h-4" />
           <span>{text}</span>
         </div>
       ))}
 
-      <div className="p-3 rounded-[16px] my-4" style={{ background: '#ffffff', border: '1px solid rgba(14,14,44,.08)' }}>
-        <p className="text-sm whitespace-pre-wrap" style={{ color: '#4a4a68' }}>
+      <div className="p-3 rounded-[16px] my-4" style={{ background: '#ffffff', border: '1px solid rgba(17,17,17,.08)' }}>
+        <p className="text-sm whitespace-pre-wrap" style={{ color: '#4d4d4d' }}>
           {result.summary}
         </p>
       </div>
 
-      <div className="text-sm flex items-center gap-2" style={{ color: '#4B4DED' }}>
+      <div className="text-sm flex items-center gap-2" style={{ color: '#e5e5e5' }}>
         <Loader2 className="w-4 h-4 animate-spin" />
         <span>正在跳转到工作区...</span>
       </div>

@@ -92,7 +92,7 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
 const ROLE_TONES: Record<AccountRole, string> = {
   super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
   admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
-  writer: 'border-blue-400/25 bg-blue-400/[.08] text-blue-200',
+  writer: 'border-white/15 bg-white/[.08] text-neutral-200',
   asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
   storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
   reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
@@ -124,7 +124,7 @@ function Credits({ credits }: { credits: AccountCredits }) {
   return (
     <span className="flex items-center gap-2 text-[10px] text-white/55">
       <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>{credits.coins}</span>
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-blue-400 text-[8px] not-italic text-blue-950">◆</i>{credits.points}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
     </span>
   )
 }
@@ -369,7 +369,7 @@ export function FosAccountManagementClient() {
                   return (
                     <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#31528d]/25 text-[#8aa8ff]"><AppIcon name="user" className="h-4 w-4" /></span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4f4f4f]/25 text-[#e5e5e5]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
                       </div>
                       <span className={`w-fit max-w-full truncate rounded-full border px-2 py-1 text-[10px] font-semibold ${ROLE_TONES[account.role]}`} title={account.roleLabel || definition.shortLabel}>{account.roleLabel || definition.shortLabel}</span>
@@ -389,7 +389,7 @@ export function FosAccountManagementClient() {
                       </span>
                       <span className="flex flex-wrap gap-1">
                         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.filter((item) => account.permissions.includes(item.key)).map((item) => (
-                          <small key={item.key} className="rounded-full border border-blue-300/15 bg-blue-400/[.07] px-2 py-0.5 text-[9px] text-blue-100/65">{item.label}</small>
+                          <small key={item.key} className="rounded-full border border-white/15 bg-white/[.07] px-2 py-0.5 text-[9px] text-neutral-200/65">{item.label}</small>
                         ))}
                         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.every((item) => !account.permissions.includes(item.key)) ? <small className="text-[10px] text-white/30">仅查看</small> : null}
                       </span>

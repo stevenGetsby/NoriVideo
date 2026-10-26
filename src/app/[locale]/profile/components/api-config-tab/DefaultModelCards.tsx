@@ -264,7 +264,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
     return (
         <div className="p-8 rounded-3xl bg-[var(--glass-bg-base)] shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_8px_30px_rgb(0,0,0,0.1)] relative overflow-hidden">
             {/* Background glow effects */}
-            <div className="absolute -top-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-[100px] pointer-events-none" />
+            <div className="absolute -top-40 -right-40 w-96 h-96 bg-white/8 rounded-full blur-[100px] pointer-events-none" />
             <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-purple-500/10 rounded-full blur-[100px] pointer-events-none" />
 
             <div className="relative z-10">
@@ -281,15 +281,15 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
 
                 {/* ===== Section 1: Core Foundation ===== */}
                 <h3 className="text-[17px] font-bold text-[var(--glass-text-primary)] mb-5 flex items-center gap-2">
-                    <AppIcon name="bolt" className="w-5 h-5 text-blue-500" />
+                    <AppIcon name="bolt" className="w-5 h-5 text-neutral-200" />
                     {t('defaultModelSection.coreFoundation')}
                 </h3>
                 <div className="flex flex-col md:flex-row gap-4 mb-8">
                     {/* Text Model Card */}
-                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-blue-500/30 transition-colors shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent">
+                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-white/25 transition-colors shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent">
                         <div className="flex items-start justify-between mb-2">
-                            <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center shrink-0">
-                                <AppIcon name="fileText" className="w-4 h-4 text-blue-500" />
+                            <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
+                                <AppIcon name="fileText" className="w-4 h-4 text-neutral-200" />
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-medium text-[var(--glass-text-secondary)] whitespace-nowrap">
@@ -350,7 +350,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                 {/* ===== Section 2: Global Image Model Config ===== */}
                 <div className="mb-5 flex items-center justify-between gap-3">
                     <h3 className="text-[17px] font-bold text-[var(--glass-text-primary)] flex items-center gap-2">
-                        <AppIcon name="sparklesAlt" className="w-5 h-5 text-indigo-500" />
+                        <AppIcon name="sparklesAlt" className="w-5 h-5 text-neutral-200" />
                         {t('defaultModelSection.creativePipeline')}
                     </h3>
                     <div className="flex items-center gap-1.5">
@@ -367,13 +367,13 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                         />
                     </div>
                 </div>
-                <div className="glass-surface p-6 rounded-3xl border border-indigo-500/20 bg-indigo-500/[0.02] shadow-sm mb-8">
+                <div className="glass-surface p-6 rounded-3xl border border-white/15 bg-white/[0.02] shadow-sm mb-8">
                     <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-700 dark:text-amber-400">
                         <AppIcon name="alert" className="w-4 h-4 shrink-0 mt-0.5" />
                         <span className="text-[12px] leading-relaxed">{t('imageModelTip')}</span>
                     </div>
                     {/* Batch config header */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-indigo-500/10">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 pb-6 border-b border-white/15">
                         <div>
                             <div className="text-[14px] font-semibold text-[var(--glass-text-primary)]">{t('defaultModelSection.unifiedOverride')}</div>
                             <div className="text-[12px] text-[var(--glass-text-tertiary)] mt-0.5">{t('defaultModelSection.unifiedOverrideHint')}</div>

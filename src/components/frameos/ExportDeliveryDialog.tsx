@@ -46,9 +46,9 @@ export function ExportDeliveryDialog({
             {([['assets', '资产包'], ['jianying', '剪映草稿'], ['finished', '成片']] as const).map(([key, label]) => (
               <button key={key} type="button" onClick={() => setTab(key)}
                 className="relative h-9 text-[13px] font-bold"
-                style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>
+                style={{ color: tab === key ? '#fff' : 'var(--fos-text-2)' }}>
                 {label}
-                {tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}
+                {tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}
               </button>
             ))}
           </div>
@@ -69,7 +69,7 @@ export function ExportDeliveryDialog({
                   <button key={n} type="button" onClick={() => toggleEpisode(n)}
                     className="h-7 rounded-full px-3 text-[12px] font-bold"
                     style={{
-                      background: active ? 'var(--fos-primary)' : 'var(--fos-bg-3)',
+                      background: active ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)',
                       color: active ? '#fff' : 'var(--fos-text-3)',
                     }}>
                     E{n}
@@ -89,12 +89,12 @@ export function ExportDeliveryDialog({
                     <button key={t} type="button" onClick={() => toggleType(t)}
                       className="flex items-center justify-between rounded-[10px] border px-3 py-2.5 text-[13px] font-semibold"
                       style={{
-                        borderColor: active ? 'var(--fos-primary)' : 'var(--fos-border-mid)',
+                        borderColor: active ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)',
                         background: active ? 'var(--fos-primary-soft)' : 'var(--fos-bg-2)',
                         color: active ? '#fff' : 'var(--fos-text-2)',
                       }}>
                       {t}
-                      {active ? <AppIcon name="check" className="h-4 w-4 text-[var(--fos-primary)]" /> : null}
+                      {active ? <AppIcon name="check" className="h-4 w-4 text-white" /> : null}
                     </button>
                   )
                 })}
@@ -120,7 +120,7 @@ export function ExportDeliveryDialog({
                 <div className="mb-2 flex items-center justify-between text-[13px] font-semibold text-white">
                   <span>BGM 混音强度</span><span className="text-[var(--fos-text-3)]">{bgmMix}%</span>
                 </div>
-                <input type="range" min={0} max={100} value={bgmMix} onChange={(e) => setBgmMix(Number(e.target.value))} className="w-full accent-[var(--fos-primary)]" />
+                <input type="range" min={0} max={100} value={bgmMix} onChange={(e) => setBgmMix(Number(e.target.value))} className="w-full accent-[#e5e5e5]" />
               </div>
             </div>
           ) : null}

@@ -363,7 +363,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
           {characters.map((character) => {
             const isActive = character.id === active?.id
             const characterBound = hasBoundVoice(character)
-            return <button key={character.id} type="button" onClick={() => setActiveId(character.id)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={{ border: isActive ? '1px solid var(--fos-primary)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-bold text-white">{character.name}</span><span className={`h-2 w-2 rounded-full ${characterBound ? 'bg-[#57d49b]' : 'bg-white/15'}`} /></div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">{characterBound ? '音色已绑定' : '等待设置'} · {character.type}</div></button>
+            return <button key={character.id} type="button" onClick={() => setActiveId(character.id)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={{ border: isActive ? '1px solid rgba(255,255,255,.4)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-bold text-white">{character.name}</span><span className={`h-2 w-2 rounded-full ${characterBound ? 'bg-[#57d49b]' : 'bg-white/15'}`} /></div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">{characterBound ? '音色已绑定' : '等待设置'} · {character.type}</div></button>
           })}
         </div>
       </aside>
@@ -373,7 +373,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
           <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
 
           <div className="fos-timbre-tabs mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-[var(--fos-border-soft)]">
-            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? 'var(--fos-primary)' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}</button>)}
+            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? '#fff' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}</button>)}
           </div>
 
           {tab === 'seedance' ? <section className="mt-5">
@@ -420,7 +420,7 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
 
           {tab === 'local' ? <section className="mt-5"><input ref={fileRef} className="hidden" type="file" accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" onChange={(event) => { const file = event.target.files?.[0]; if (file) void uploadVoice(file); event.currentTarget.value = '' }} /><button type="button" className="fos-dropzone w-full" style={{ minHeight: 150 }} disabled={!canEdit || busy} onClick={() => fileRef.current?.click()}><AppIcon name="upload" className="h-7 w-7" /><span className="text-[13px] font-semibold text-[var(--fos-text-2)]">上传 {active.name} 的角色音色</span><span className="text-[11px]">优先支持 MP3；也可上传 WAV / M4A / OGG，最大 50MB</span></button></section> : null}
           {tab === 'batch' ? <section className="mt-5 space-y-4">
-            <div className="rounded-[10px] border border-blue-300/15 bg-blue-400/[.06] px-4 py-3 text-[12px] leading-5 text-blue-100/80">选择多个音频，系统按“文件名 = 角色名”自动绑定。例如：<code>关羽.mp3</code> 会绑定角色“关羽”；也支持 <code>关羽_voice.wav</code>。</div>
+            <div className="rounded-[10px] border border-white/15 bg-white/[.06] px-4 py-3 text-[12px] leading-5 text-neutral-200/80">选择多个音频，系统按“文件名 = 角色名”自动绑定。例如：<code>关羽.mp3</code> 会绑定角色“关羽”；也支持 <code>关羽_voice.wav</code>。</div>
             <input className="hidden" id="batch-character-voices" type="file" multiple disabled={!canEdit || batchBusy || busy} accept="audio/mpeg,audio/mp3,audio/wav,audio/mp4,audio/ogg,.mp3,.wav,.m4a,.ogg" onChange={(event) => {
               const files = Array.from(event.target.files || [])
               event.currentTarget.value = ''
@@ -431,12 +431,12 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
             }} />
             <label htmlFor="batch-character-voices" className="fos-dropzone flex w-full cursor-pointer flex-col" style={{ minHeight: 150 }}><AppIcon name="upload" className="h-7 w-7" /><span className="text-[13px] font-semibold text-[var(--fos-text-2)]">选择多个角色音频</span><span className="text-[11px]">{batchFiles.length ? `已选择 ${batchFiles.length} 个文件` : '文件名请使用角色名称，便于自动匹配'}</span></label>
             <button type="button" className="fos-btn fos-btn-primary" disabled={!canEdit || batchBusy || batchFiles.length === 0} onClick={() => void uploadBatchVoices()}>{batchBusy ? '批量绑定中…' : '开始批量绑定音色'}</button>
-            {batchReport ? <div className="rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[12px] text-blue-100">{batchReport}</div> : null}
+            {batchReport ? <div className="rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-[12px] text-neutral-200">{batchReport}</div> : null}
           </section> : null}
 
           {audioUrl ? <section className="fos-bound-voice-card"><div className="fos-bound-voice-heading"><div><h3>当前绑定音色 · @{active.name}</h3><p>该角色所在分镜会自动使用这段参考音频。</p></div><button type="button" className="fos-btn fos-btn-ghost fos-btn-sm text-red-200" disabled={!canEdit || busy} onClick={() => void clearVoice()}>解除绑定</button></div><CompactAudioPlayer src={audioUrl} label={`${active.name} 当前音色`} /></section> : null}
           {error ? <div className="mt-4 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] leading-5 text-red-200">{error}</div> : null}
-          {notice ? <div className="mt-4 rounded-lg border border-blue-400/25 bg-blue-500/10 px-3 py-2 text-[11px] leading-5 text-blue-200">{notice}</div> : null}
+          {notice ? <div className="mt-4 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-[11px] leading-5 text-neutral-200">{notice}</div> : null}
         </> : <div className="fos-loading">当前作品没有角色资产。</div>}
       </article>
 

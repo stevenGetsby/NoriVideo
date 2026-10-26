@@ -48,9 +48,9 @@ export default function ProfilePage() {
 
       <main className="mx-auto max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-          <aside className="rounded-lg border border-white/10 bg-[#15161b] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+          <aside className="rounded-lg border border-white/10 bg-[#161616] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-sm font-bold text-white">
                 {(session.user?.name || session.user?.email || 'N').slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0">
@@ -61,14 +61,14 @@ export default function ProfilePage() {
 
             <div className="mb-5 rounded-md border border-white/10 bg-white/4 p-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="userRoundCog" className="h-4 w-4 text-[#7eb0ff]" />
+                <AppIcon name="userRoundCog" className="h-4 w-4 text-[#e5e5e5]" />
                 {t('settingsTitle')}
               </div>
               <div className="mt-2 text-xs leading-5 text-white/42">{t('settingsSubtitle')}</div>
             </div>
 
             <nav className="space-y-2">
-              <div className="flex w-full items-center gap-3 rounded-md bg-[#2c6ef2] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(44,110,242,.24)]">
+              <div className="flex w-full items-center gap-3 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]">
                 <AppIcon name="settingsHexAlt" className="h-4 w-4" />
                 {t('apiConfig')}
               </div>
@@ -78,7 +78,7 @@ export default function ProfilePage() {
                   href={item.href}
                   className="flex items-start gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-2.5 transition-colors hover:bg-white/8"
                 >
-                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[#7eb0ff]" />
+                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[#e5e5e5]" />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-white/72">{item.label}</span>
                     <span className="mt-0.5 block text-xs leading-5 text-white/36">{item.detail}</span>
@@ -96,10 +96,10 @@ export default function ProfilePage() {
             </button>
           </aside>
 
-          <section className="min-w-0 rounded-lg border border-white/10 bg-[#15161b] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+          <section className="min-w-0 rounded-lg border border-white/10 bg-[#161616] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[#7eb0ff]" />
+                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[#e5e5e5]" />
                 {t('apiConfig')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/45">{t('apiConfigHint')}</p>

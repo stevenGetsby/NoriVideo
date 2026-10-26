@@ -433,7 +433,7 @@ export function StylePresetBadge({
       <div
         className="pointer-events-none absolute inset-0"
         style={{
-          background: 'linear-gradient(135deg, rgba(59,130,246,0.08), rgba(99,102,241,0.1))',
+          background: 'linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.08))',
         }}
       />
       <AppIcon name="clapperboard" className="relative h-4 w-4 shrink-0 text-[var(--glass-accent-from)]" />

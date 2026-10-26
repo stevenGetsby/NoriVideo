@@ -103,7 +103,7 @@ export default function VariantClearBreath({ children }: { children?: React.Reac
           <div
             className="absolute -inset-10 rounded-[48px] pointer-events-none"
             style={{
-              background: 'radial-gradient(ellipse 70% 80% at 70% 60%, rgba(139, 92, 246, 0.35), transparent 70%)',
+              background: 'radial-gradient(ellipse 70% 80% at 70% 60%, rgba(255,255,255,.14), transparent 70%)',
               animation: 'breathe-drift-2 10s ease-in-out infinite',
               filter: 'blur(35px)',
             }}
@@ -111,7 +111,7 @@ export default function VariantClearBreath({ children }: { children?: React.Reac
           <div
             className="absolute -inset-12 rounded-[56px] pointer-events-none"
             style={{
-              background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(59, 130, 246, 0.3), transparent 70%)',
+              background: 'radial-gradient(ellipse 60% 50% at 50% 50%, rgba(255,255,255,.14), transparent 70%)',
               animation: 'breathe-drift-3 12s ease-in-out infinite',
               filter: 'blur(40px)',
             }}

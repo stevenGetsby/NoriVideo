@@ -85,7 +85,7 @@ export function FosProjectHeader({
       <div className="fos-stage-actions ml-auto flex shrink-0 items-center gap-2">
         <button
           type="button"
-          className="fos-btn fos-btn-soft fos-btn-sm"
+          className="fos-btn fos-btn-soft"
           onClick={() => setAssignmentsOpen(true)}
           data-testid="project-assignments-entry"
         >
@@ -94,14 +94,14 @@ export function FosProjectHeader({
         </button>
         <Link
           href={{ pathname: `/workflow/${projectId}/workbench-premium2/canvas` }}
-          className="fos-btn fos-btn-soft fos-btn-sm"
+          className="fos-btn fos-btn-soft"
           data-testid="project-stage-canvas-entry"
         >
           <AppIcon name="clapperboard" className="h-3.5 w-3.5" />
           无限画布
         </Link>
-        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setModelConfigOpen(true)}><AppIcon name="settingsHex" className="h-3.5 w-3.5" />作品设置</button>
-        {canManage ? <button ref={actionTrigger} type="button" className="fos-btn fos-btn-soft fos-btn-sm" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>作品操作<AppIcon name="chevronDown" className="h-3.5 w-3.5" /></button> : null}
+        <button type="button" className="fos-btn fos-btn-ghost" onClick={() => setModelConfigOpen(true)}><AppIcon name="settingsHex" className="h-3.5 w-3.5" />作品设置</button>
+        {canManage ? <button ref={actionTrigger} type="button" className="fos-btn fos-btn-soft" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>作品操作<AppIcon name="chevronDown" className="h-3.5 w-3.5" /></button> : null}
         {canManage && menuOpen ? <ViewportPopover anchorRef={actionTrigger} width={184} onClose={() => setMenuOpen(false)} className="fos-menu works-project-popover fos-viewport-theme" role="menu" aria-label="作品操作">
           <button role="menuitem" className="fos-menu-item" onClick={() => { setMenuOpen(false); setModelConfigOpen(true) }}><AppIcon name="edit" />编辑作品</button>
           <button role="menuitem" className="fos-menu-item" onClick={() => { setMenuOpen(false); setAction('rename') }}><AppIcon name="edit" />重命名</button>

@@ -20,23 +20,23 @@
   --fos-mask: rgba(0, 0, 0, 0.8);
 
   /* ---- 1.2 文字色层级 ---- */
-  --fos-text-title: #e5eaf3;     /* 标题 / 主文字 */
-  --fos-text-regular: #cfd3dc;   /* 常规正文 */
-  --fos-text-secondary: #a3a6ad; /* 次级文字 */
-  --fos-text-tertiary: #8d9095;  /* 占位符 / 三级文字 */
-  --fos-text-disabled: #6c6e72;  /* 禁用文字 */
+  --fos-text-title: #ebebeb;     /* 标题 / 主文字 */
+  --fos-text-regular: #d4d4d4;   /* 常规正文 */
+  --fos-text-secondary: #a6a6a6; /* 次级文字 */
+  --fos-text-tertiary: #8c8c8c;  /* 占位符 / 三级文字 */
+  --fos-text-disabled: #6c6c6c;  /* 禁用文字 */
 
   /* ---- 1.3 主题色 / 品牌色 ---- */
-  --fos-primary: #2563eb;          /* token 源头品牌主色 */
-  --fos-primary-interactive: #3b82f6; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
-  --fos-primary-light-5: #60a5fa;  /* hover 高亮 */
-  --fos-primary-light-7: #93c5fd;
-  --fos-primary-light-8: #bfdbfe;
-  --fos-primary-light-9: #dbeafe;
-  --fos-primary-dark-2: #1d4ed8;   /* 按下态 / 渐变终点 */
+  --fos-primary: #3265ff;          /* token 源头品牌主色 */
+  --fos-primary-interactive: #3265ff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
+  --fos-primary-light-5: #7d9dff;  /* hover 高亮 */
+  --fos-primary-light-7: #a9bfff;
+  --fos-primary-light-8: #cbd8ff;
+  --fos-primary-light-9: #e6ecff;
+  --fos-primary-dark-2: #2a56d6;   /* 按下态 / 渐变终点 */
 
-  --fos-gradient-primary: linear-gradient(135deg, #2563eb, #1d4ed8);
-  --fos-gradient-primary-hover: linear-gradient(135deg, #1d4ed8, #2563eb);
+  --fos-gradient-primary: linear-gradient(270deg, #8109ff 15%, #3265ff);
+  --fos-gradient-primary-hover: linear-gradient(270deg, #7107e0 15%, #2a56d6);
   --fos-gradient-purple: linear-gradient(135deg, #9333ea, #7c3aed);
   --fos-gradient-success: linear-gradient(135deg, #10b981, #059669);
 
@@ -54,7 +54,7 @@
 
   /* ---- 1.5 边框色 ---- */
   --fos-border: #4c4d4f;
-  --fos-border-hover: rgba(64, 158, 255, 0.5);
+  --fos-border-hover: rgba(255, 255, 255, 0.3);
   --fos-border-darker: #636466;
   --fos-border-dark: #58585b;
   --fos-border-light: #414243;
@@ -90,7 +90,7 @@
   /* ---- 5 阴影 ---- */
   --fos-shadow-inset-hi: inset 0 0 0 1px rgba(255, 255, 255, 0.1); /* 卡片高光描边 */
   --fos-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
-  --fos-shadow-btn-glow: 0 6px 20px rgba(59, 130, 246, 0.4);
+  --fos-shadow-btn-glow: 0 6px 20px rgba(0, 0, 0, 0.35);
   --fos-shadow-overlay: 0px 12px 32px 4px rgba(0, 0, 0, 0.36), 0px 8px 20px rgba(0, 0, 0, 0.72);
 
   /* ---- 6 过渡 ---- */
@@ -172,13 +172,13 @@
 }
 
 .fos-btn-primary {
-  background: var(--fos-primary-interactive);
-  border-color: var(--fos-primary-interactive);
+  background: var(--fos-gradient-primary);
+  border-color: transparent;
   color: #fff;
 }
 .fos-btn-primary:hover {
-  background: var(--fos-primary-dark-2);
-  border-color: var(--fos-primary-dark-2);
+  background: var(--fos-gradient-primary-hover);
+  border-color: transparent;
   box-shadow: var(--fos-shadow-btn-glow);
 }
 
@@ -197,7 +197,7 @@
 }
 .fos-input:focus {
   outline: none;
-  border-color: var(--fos-primary-interactive);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .fos-tag {

@@ -20,7 +20,7 @@ export function FosProductionEpisodes({ data }: { data: FosProjectData }) {
             const ready = episode.status === 'completed' || episode.status === 'confirmed' || episode.status === 'approved'
             return (
               <div key={episode.id} className="grid items-center border-t border-[var(--fos-border-soft)] px-5 py-3.5 text-[13px]" style={{ gridTemplateColumns: '64px 1fr 140px 300px' }}>
-                <div className="font-bold text-[#4f85ff]">E{episode.episodeNumber}</div>
+                <div className="font-bold text-[#e5e5e5]">E{episode.episodeNumber}</div>
                 <div className="truncate pr-4 font-bold text-white">{episode.name}</div>
                 <div>{failed ? <span className="fos-status failed">制作异常</span> : ready ? <span className="fos-status done">可制作</span> : <span className="fos-status idle">待制作</span>}</div>
                 <div className="flex gap-2">

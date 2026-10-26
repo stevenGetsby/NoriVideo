@@ -21,7 +21,7 @@ export function AssetTabs({ projectId, active }: { projectId: string; active: As
         <Link key={tab} href={{ pathname: `${base}/${tab}` }}
           className="h-8 rounded-lg px-3 text-[13px] font-bold leading-8"
           style={{
-            background: tab === active ? 'var(--fos-primary)' : 'var(--fos-bg-3)',
+            background: tab === active ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)',
             color: tab === active ? '#fff' : 'var(--fos-text-3)',
           }}>
           {label}
@@ -172,7 +172,7 @@ export function AddAssetDialog({
                     aria-pressed={selectedEpisodes.has(n)}
                     className="h-7 w-9 rounded-md text-[11px] font-bold"
                     style={{
-                      background: selectedEpisodes.has(n) ? 'var(--fos-primary)' : 'var(--fos-bg-3)',
+                      background: selectedEpisodes.has(n) ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)',
                       color: selectedEpisodes.has(n) ? '#fff' : 'var(--fos-text-3)',
                     }}
                     onClick={() => setSelectedEpisodes((current) => {
@@ -258,7 +258,7 @@ export function AddCharacterVariantDialog({
         </div>
         <div className="fos-dialog-body grid gap-4">
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">变体名称</span><input className="fos-input" autoFocus value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：雨夜逃亡、受伤后、宴会礼服" /></label>
-          <div><span className="mb-1.5 block text-[13px] font-semibold text-white">对应分集</span><div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">{episodeNumbers.map((episodeNumber) => <button key={episodeNumber} type="button" aria-pressed={selectedEpisodes.has(episodeNumber)} className="h-7 w-10 rounded-md text-[11px] font-bold" style={{ background: selectedEpisodes.has(episodeNumber) ? 'var(--fos-primary)' : 'var(--fos-bg-3)', color: selectedEpisodes.has(episodeNumber) ? '#fff' : 'var(--fos-text-3)' }} onClick={() => setSelectedEpisodes((current) => { const next = new Set(current); if (next.has(episodeNumber)) next.delete(episodeNumber); else next.add(episodeNumber); return next })}>E{episodeNumber}</button>)}</div></div>
+          <div><span className="mb-1.5 block text-[13px] font-semibold text-white">对应分集</span><div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">{episodeNumbers.map((episodeNumber) => <button key={episodeNumber} type="button" aria-pressed={selectedEpisodes.has(episodeNumber)} className="h-7 w-10 rounded-md text-[11px] font-bold" style={{ background: selectedEpisodes.has(episodeNumber) ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)', color: selectedEpisodes.has(episodeNumber) ? '#fff' : 'var(--fos-text-3)' }} onClick={() => setSelectedEpisodes((current) => { const next = new Set(current); if (next.has(episodeNumber)) next.delete(episodeNumber); else next.add(episodeNumber); return next })}>E{episodeNumber}</button>)}</div></div>
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">形象变化与生图提示词</span><textarea className="fos-textarea" style={{ minHeight: 150 }} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="例如：保持脸型、五官和体型不变；服装被暴雨浸湿，发丝贴脸，右手掌有擦伤……" /></label>
           {error ? <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
         </div>

@@ -160,11 +160,11 @@ export function FrameFeedbackDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="rounded-lg border border-white/10 bg-[#151820] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="infoCircle" className="h-4 w-4 text-[#7eb0ff]" />
+              <AppIcon name="infoCircle" className="h-4 w-4 text-[#e5e5e5]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
@@ -198,7 +198,7 @@ export function FrameFeedbackDashboard() {
                   onClick={() => setType(item)}
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     type === item
-                      ? 'border-[#2c6ef2]/70 bg-[#2c6ef2]/18 text-white'
+                      ? 'border-white/35 bg-white/10 text-white'
                       : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
                   }`}
                 >
@@ -217,7 +217,7 @@ export function FrameFeedbackDashboard() {
                 onChange={(event) => setTitle(event.target.value)}
                 onInput={(event) => setTitle(event.currentTarget.value)}
                 maxLength={80}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#0f1117] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-[#2c6ef2]/70"
+                className="h-10 w-full rounded-md border border-white/10 bg-[#111111] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder={t('placeholders.title')}
               />
             </div>
@@ -228,7 +228,7 @@ export function FrameFeedbackDashboard() {
                 value={route}
                 onChange={(event) => setRoute(event.target.value)}
                 onInput={(event) => setRoute(event.currentTarget.value)}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#0f1117] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-[#2c6ef2]/70"
+                className="h-10 w-full rounded-md border border-white/10 bg-[#111111] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder="/zh/workspace"
               />
             </div>
@@ -243,7 +243,7 @@ export function FrameFeedbackDashboard() {
               onInput={(event) => setDescription(event.currentTarget.value)}
               rows={5}
               maxLength={1200}
-              className="w-full resize-none rounded-md border border-white/10 bg-[#0f1117] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-[#2c6ef2]/70"
+              className="w-full resize-none rounded-md border border-white/10 bg-[#111111] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
               placeholder={t('placeholders.description')}
             />
           </div>
@@ -258,7 +258,7 @@ export function FrameFeedbackDashboard() {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
               data-ready={title.trim() && description.trim() ? 'true' : 'false'}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2c6ef2] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd] data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
               {saved ? t('saved') : t('submit')}
@@ -275,16 +275,16 @@ export function FrameFeedbackDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#9bc3ff]" />
+                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
                 {t('triageTitle')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('triageSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('serverTriage')}
             </span>
           </div>
-          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#10131b] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('triage.columns.type')}</div>
             <div>{t('triage.columns.total')}</div>
             <div>{t('triage.columns.open')}</div>
@@ -308,9 +308,9 @@ export function FrameFeedbackDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#151820] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="infoCircle" className="h-4 w-4 text-[#7eb0ff]" />
+            <AppIcon name="infoCircle" className="h-4 w-4 text-[#e5e5e5]" />
             {t('contextTitle')}
           </div>
           <div className="space-y-2">
@@ -325,9 +325,9 @@ export function FrameFeedbackDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#151820] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="clock" className="h-4 w-4 text-[#7eb0ff]" />
+            <AppIcon name="clock" className="h-4 w-4 text-[#e5e5e5]" />
             {t('recentTitle')}
           </div>
           {records.length === 0 ? (
@@ -340,7 +340,7 @@ export function FrameFeedbackDashboard() {
                 <article key={record.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="truncate text-sm font-medium text-white/78">{record.title}</div>
-                    <span className="shrink-0 rounded border border-[#7eb0ff]/30 bg-[#2c6ef2]/10 px-1.5 py-0.5 text-[11px] text-[#9bc3ff]">
+                    <span className="shrink-0 rounded border border-white/25 bg-white/8 px-1.5 py-0.5 text-[11px] text-[#e5e5e5]">
                       {t(`types.${record.type}`)}
                     </span>
                   </div>

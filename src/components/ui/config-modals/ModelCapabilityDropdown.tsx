@@ -398,7 +398,7 @@ export function ModelCapabilityDropdown({
                                                                             ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
                                                                             : disabled
                                                                                 ? 'text-[#8e8e93] opacity-75 hover:opacity-95'
-                                                                                : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ebebf5]'
+                                                                                : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
                                                                             }`}
                                                                     >
                                                                         {isR && isValidRatioText(s) && <RatioIcon ratio={s} size={10} selected={on} />}
@@ -422,7 +422,7 @@ export function ModelCapabilityDropdown({
                                                         onClick={() => toggle.onChange(true)}
                                                         className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-all ${toggle.value
                                                             ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
-                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ebebf5]'
+                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
                                                             }`}
                                                     >
                                                         {toggle.onLabel || 'On'}
@@ -432,7 +432,7 @@ export function ModelCapabilityDropdown({
                                                         onClick={() => toggle.onChange(false)}
                                                         className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-all ${!toggle.value
                                                             ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
-                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ebebf5]'
+                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
                                                             }`}
                                                     >
                                                         {toggle.offLabel || 'Off'}

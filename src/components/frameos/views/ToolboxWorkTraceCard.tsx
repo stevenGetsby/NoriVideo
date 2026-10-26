@@ -5,13 +5,13 @@ import type { ToolboxWorkTrace } from './toolbox-work-trace'
 function traceStatusToneClass(tone: ToolboxWorkTrace['statusTone']) {
   if (tone === 'success') return 'border-emerald-300/35 bg-emerald-500/10 text-emerald-200'
   if (tone === 'failure') return 'border-red-400/30 bg-red-500/10 text-red-200'
-  if (tone === 'active') return 'border-blue-400/35 bg-blue-500/10 text-blue-200'
+  if (tone === 'active') return 'border-white/25 bg-white/8 text-neutral-200'
   return 'border-[var(--fos-border-soft)] bg-[var(--fos-bg-3)] text-[var(--fos-text-3)]'
 }
 
 function traceReferenceToneClass(type: string) {
   if (type === 'image') return 'border-emerald-300/25 bg-emerald-500/10 text-emerald-200'
-  if (type === 'video') return 'border-blue-300/25 bg-blue-500/10 text-blue-200'
+  if (type === 'video') return 'border-white/15 bg-white/8 text-neutral-200'
   if (type === 'audio') return 'border-violet-300/25 bg-violet-500/10 text-violet-200'
   return 'border-[var(--fos-border-soft)] bg-[var(--fos-bg-3)] text-[var(--fos-text-3)]'
 }

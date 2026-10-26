@@ -37,10 +37,10 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
 
   return (
     <FrameWorkbenchShell activeKey={activeKey}>
-      <section className="mb-5 rounded-lg border border-white/10 bg-[#15161b] p-4 shadow-[0_14px_34px_rgba(0,0,0,.18)]">
+      <section className="mb-5 rounded-lg border border-white/10 bg-[#161616] p-4 shadow-[0_14px_34px_rgba(0,0,0,.18)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-[#7eb0ff]">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-[#e5e5e5]">
               <AppIcon name={icon} className="h-5 w-5" />
             </div>
             <div className="min-w-0">
@@ -52,7 +52,7 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           {action ? (
             <Link
               href={action.href}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-[#2c6ef2] px-3 text-sm font-semibold text-white transition-colors hover:bg-[#1f5edd]"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white transition-colors hover:brightness-110"
             >
               <AppIcon name={action.icon} className="h-4 w-4" />
               {t(`common.${action.labelKey}`)}
@@ -68,10 +68,10 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           {cards.map((card) => (
             <article
               key={card.title}
-              className="rounded-md border border-white/10 bg-[#151820] p-3 transition-colors hover:border-[#2c6ef2]/50 hover:bg-[#181d28]"
+              className="rounded-md border border-white/10 bg-[#181818] p-3 transition-colors hover:border-white/35 hover:bg-[#1d1d1d]"
             >
               <div className="mb-2 flex items-center justify-between gap-3">
-                <AppIcon name={card.icon} className="h-4 w-4 shrink-0 text-[#7eb0ff]" />
+                <AppIcon name={card.icon} className="h-4 w-4 shrink-0 text-[#e5e5e5]" />
                 <span className="rounded border border-white/10 bg-white/5 px-2 py-1 text-[11px] font-medium text-white/45">
                   {card.meta}
                 </span>
@@ -82,15 +82,15 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           ))}
         </div>
 
-        <aside className="rounded-md border border-white/10 bg-[#151820] p-3">
+        <aside className="rounded-md border border-white/10 bg-[#181818] p-3">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/78">
-            <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#7eb0ff]" />
+            <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
             {t('common.workflowTitle')}
           </div>
           <div className="space-y-2">
             {['script', 'assets', 'storyboard', 'shots', 'delivery'].map((step, index) => (
               <div key={step} className="flex items-center gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-2">
-                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-[#2c6ef2]/16 text-[11px] font-bold text-[#8ab8ff]">
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded bg-white/10 text-[11px] font-bold text-[#e5e5e5]">
                   {index + 1}
                 </div>
                 <div className="min-w-0">

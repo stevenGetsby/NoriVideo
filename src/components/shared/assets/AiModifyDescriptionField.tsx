@@ -79,7 +79,7 @@ export function AiModifyDescriptionField({
                 <span
                   className="font-medium"
                   style={{
-                    background: 'linear-gradient(135deg, #3b82f6, #7c3aed)',
+                    background: 'linear-gradient(135deg, #3265ff, #7c3aed)',
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                   }}

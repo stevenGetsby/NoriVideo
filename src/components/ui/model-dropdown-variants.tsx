@@ -269,9 +269,9 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
             <button
                 ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className={`relative flex items-center justify-between w-full h-[54px] px-4 rounded-[16px] transition-all duration-300 overflow-hidden group bg-[var(--glass-bg-surface)] backdrop-blur-xl ${isOpen ? 'shadow-[0_0_0_2px_#3B82F6]' : 'hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] border border-[var(--glass-stroke-base)]'}`}
+                className={`relative flex items-center justify-between w-full h-[54px] px-4 rounded-[16px] transition-all duration-300 overflow-hidden group bg-[var(--glass-bg-surface)] backdrop-blur-xl ${isOpen ? 'shadow-[0_0_0_2px_#3265ff]' : 'hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] border border-[var(--glass-stroke-base)]'}`}
             >
-                {isOpen && <div className="absolute inset-0 bg-blue-500/5 transition-opacity duration-300" />}
+                {isOpen && <div className="absolute inset-0 bg-white/5 transition-opacity duration-300" />}
                 <div className="relative flex flex-col items-start min-w-0 pr-4 z-10">
                     <div className="flex items-center gap-2 w-full">
                         <span className="font-bold text-[15px] truncate text-[var(--glass-text-primary)]" style={{ fontFamily: 'Inter, sans-serif' }}>
@@ -283,10 +283,10 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
                             </span>
                         )}
                     </div>
-                    {summary && <span className="text-[12px] mt-0.5 font-medium text-blue-500 dark:text-blue-400 opacity-80">{summary}</span>}
+                    {summary && <span className="text-[12px] mt-0.5 font-medium text-neutral-200 dark:text-neutral-200 opacity-80">{summary}</span>}
                 </div>
                 <div className="relative w-8 h-8 rounded-full bg-[var(--glass-bg-muted)] flex items-center justify-center shrink-0 group-hover:bg-[var(--glass-bg-surface-strong)] transition-colors z-10">
-                    <AppIcon name="chevronDown" className={`w-4 h-4 text-[var(--glass-text-secondary)] transition-transform duration-300 ${isOpen ? 'rotate-180 text-blue-500' : ''}`} />
+                    <AppIcon name="chevronDown" className={`w-4 h-4 text-[var(--glass-text-secondary)] transition-transform duration-300 ${isOpen ? 'rotate-180 text-neutral-200' : ''}`} />
                 </div>
             </button>
 
@@ -299,7 +299,7 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
                                 <button
                                     key={m.value}
                                     onClick={() => props.onModelChange(m.value)}
-                                    className={`w-full flex items-center px-4 py-3 rounded-xl transition-all ${active ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-lg' : 'hover:bg-[var(--glass-bg-hover)] text-[var(--glass-text-secondary)]'}`}
+                                    className={`w-full flex items-center px-4 py-3 rounded-xl transition-all ${active ? 'bg-gradient-to-r from-[#8109ff] to-[#3265ff] text-white shadow-lg' : 'hover:bg-[var(--glass-bg-hover)] text-[var(--glass-text-secondary)]'}`}
                                 >
                                     <div className="w-5 h-5 mr-3 shrink-0 flex items-center justify-center">
                                         {active ? <AppIcon name="check" className="w-4 h-4 text-white" /> : <div className="w-1.5 h-1.5 rounded-full bg-[var(--glass-text-tertiary)] opacity-30" />}
@@ -324,7 +324,7 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
                                                     <button
                                                         key={s}
                                                         onClick={() => props.onCapabilityChange(field.field, s, field.options[0])}
-                                                        className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all border ${active ? 'bg-blue-500/10 border-blue-500 text-blue-600 dark:text-blue-400' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:border-[var(--glass-text-tertiary)]'}`}
+                                                        className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all border ${active ? 'bg-white/8 border-white/25 text-blue-600 dark:text-neutral-200' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:border-[var(--glass-text-tertiary)]'}`}
                                                     >
                                                         {s}
                                                     </button>
@@ -359,7 +359,7 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
             <button
                 ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className={`flex items-center justify-between w-full h-[50px] px-4 rounded-[12px] bg-[var(--glass-bg-surface)] border transition-shadow duration-200 ${isOpen ? 'border-[#8B5CF6] shadow-[0_0_0_4px_rgba(139,92,246,0.15)] ring-0' : 'border-[var(--glass-stroke-base)] hover:border-gray-400 dark:hover:border-gray-500'}`}
+                className={`flex items-center justify-between w-full h-[50px] px-4 rounded-[12px] bg-[var(--glass-bg-surface)] border transition-shadow duration-200 ${isOpen ? 'border-[rgba(255,255,255,.38)] shadow-[0_0_0_4px_rgba(255,255,255,.1)] ring-0' : 'border-[var(--glass-stroke-base)] hover:border-gray-400 dark:hover:border-gray-500'}`}
             >
                 <div className="flex items-center gap-3">
                     <span className="font-semibold text-[15px] text-[var(--glass-text-primary)]">{activeModel ? activeModel.label : props.placeholder}</span>
@@ -387,13 +387,13 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
                                     <button
                                         key={m.value}
                                         onClick={() => props.onModelChange(m.value)}
-                                        className={`w-full flex items-center px-3 py-2.5 rounded-[10px] transition-all border ${active ? 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                        className={`w-full flex items-center px-3 py-2.5 rounded-[10px] transition-all border ${active ? 'bg-blue-50/50 dark:bg-white/10 border-blue-200 dark:border-blue-800' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
                                     >
-                                        <span className={`text-[14px] flex-1 text-left ${active ? 'font-semibold text-blue-600 dark:text-blue-400' : 'text-[var(--glass-text-primary)] font-medium'}`}>{m.label}</span>
+                                        <span className={`text-[14px] flex-1 text-left ${active ? 'font-semibold text-blue-600 dark:text-neutral-200' : 'text-[var(--glass-text-primary)] font-medium'}`}>{m.label}</span>
                                         {m.providerName && (
                                             <span className="px-1.5 py-0.5 rounded text-[10px] bg-black/5 dark:bg-white/10 text-[var(--glass-text-secondary)] ml-2">{m.providerName}</span>
                                         )}
-                                        {active && <div className="w-1.5 h-6 rounded-full bg-blue-500 ml-3" />}
+                                        {active && <div className="w-1.5 h-6 rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] ml-3" />}
                                     </button>
                                 )
                             })}
@@ -418,7 +418,7 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
                                                 <select
                                                     value={val}
                                                     onChange={e => props.onCapabilityChange(field.field, e.target.value, field.options[0])}
-                                                    className="w-full h-[36px] appearance-none bg-[var(--glass-bg-base)] border border-[var(--glass-stroke-base)] rounded-[8px] px-3 font-medium text-[13px] text-[var(--glass-text-primary)] focus:outline-none focus:border-blue-500"
+                                                    className="w-full h-[36px] appearance-none bg-[var(--glass-bg-base)] border border-[var(--glass-stroke-base)] rounded-[8px] px-3 font-medium text-[13px] text-[var(--glass-text-primary)] focus:outline-none focus:border-white/25"
                                                 >
                                                     {field.options.map(opt => <option key={String(opt)} value={String(opt)}>{opt}</option>)}
                                                 </select>
@@ -433,7 +433,7 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
                                                         <button
                                                             key={s}
                                                             onClick={() => props.onCapabilityChange(field.field, s, field.options[0])}
-                                                            className={`px-3 py-1.5 text-[13px] font-medium rounded-[7px] transition-all min-w-[50px] text-center ${active ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 shadow-sm' : 'text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                                            className={`px-3 py-1.5 text-[13px] font-medium rounded-[7px] transition-all min-w-[50px] text-center ${active ? 'bg-blue-100 dark:bg-white/10 text-blue-700 dark:text-neutral-200 shadow-sm' : 'text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'}`}
                                                         >
                                                             {s}
                                                         </button>

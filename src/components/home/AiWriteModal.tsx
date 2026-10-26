@@ -55,7 +55,7 @@ export default function AiWriteModal({
             <div className="flex items-center gap-3">
               <div
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.15), rgba(139,92,246,0.15))' }}
+                style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.1))' }}
               >
                 <AppIcon name="sparkles" className="w-5 h-5 text-[#7c3aed]" />
               </div>
@@ -95,7 +95,7 @@ export default function AiWriteModal({
           {/* 提示文案 */}
           <div
             className="px-3 py-2 rounded-lg text-xs text-[var(--glass-text-tertiary)] leading-relaxed"
-            style={{ background: 'linear-gradient(135deg, rgba(59,130,246,0.06), rgba(139,92,246,0.06))' }}
+            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.05), rgba(255,255,255,.05))' }}
           >
             {t('hint')}
           </div>
@@ -113,7 +113,7 @@ export default function AiWriteModal({
               onClick={handleStart}
               disabled={!promptText.trim() || loading}
               className="flex-1 py-3 rounded-xl text-white font-semibold text-sm flex items-center justify-center gap-2 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-50"
-              style={{ background: 'linear-gradient(135deg, #3b82f6, #7c3aed)' }}
+              style={{ background: 'linear-gradient(135deg, #3265ff, #7c3aed)' }}
             >
               <AppIcon name="sparkles" className="w-4 h-4" />
               <span>{loading ? '...' : t('startAiWrite')}</span>

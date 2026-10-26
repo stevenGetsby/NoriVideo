@@ -175,21 +175,21 @@ export function PlatformAdminServicesPanels({
             <tbody>
               {config.models.map((model, index) => (
                 <tr key={`${modelKey(model)}-${index}`}>
-                  <td><input className="fos-input h-9" value={model.name || ''} onChange={(event) => updateModel(index, { name: event.target.value })} /></td>
-                  <td><input className="fos-input h-9" value={model.modelId} onChange={(event) => updateModel(index, { modelId: event.target.value })} /></td>
+                  <td><input className="fos-input h-8" value={model.name || ''} onChange={(event) => updateModel(index, { name: event.target.value })} /></td>
+                  <td><input className="fos-input h-8" value={model.modelId} onChange={(event) => updateModel(index, { modelId: event.target.value })} /></td>
                   <td>
-                    <select className="fos-input h-9" value={model.provider} onChange={(event) => updateModel(index, { provider: event.target.value })}>
+                    <select className="fos-input h-8" value={model.provider} onChange={(event) => updateModel(index, { provider: event.target.value })}>
                       {config.providers.map((provider) => <option key={provider.id} value={provider.id}>{provider.name}</option>)}
                     </select>
                   </td>
                   <td>
-                    <select className="fos-input h-9" value={model.type} onChange={(event) => updateModel(index, { type: event.target.value as ModelType })}>
+                    <select className="fos-input h-8" value={model.type} onChange={(event) => updateModel(index, { type: event.target.value as ModelType })}>
                       {Object.entries(MODEL_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                     </select>
                   </td>
                   <td>
                     {model.type === 'llm' ? (
-                      <select className="fos-input h-9" value={model.llmProtocol || ''} onChange={(event) => updateModel(index, { llmProtocol: event.target.value as ModelDraft['llmProtocol'] })}>
+                      <select className="fos-input h-8" value={model.llmProtocol || ''} onChange={(event) => updateModel(index, { llmProtocol: event.target.value as ModelDraft['llmProtocol'] })}>
                         <option value="">官方协议</option>
                         <option value="responses">Responses API</option>
                         <option value="chat-completions">Chat Completions</option>
@@ -230,7 +230,7 @@ export function PlatformAdminServicesPanels({
                     <span className="mt-1 block text-[12px] text-white/50">{businessModel.description}</span>
                   </span>
                   <span>
-                    <select className="fos-input h-9 w-full" value={targetKey} onChange={(event) => markConfig((current) => ({ ...current, modelRouting: { ...current.modelRouting, [businessModel.key]: event.target.value } }))}>
+                    <select className="fos-input h-8 w-full" value={targetKey} onChange={(event) => markConfig((current) => ({ ...current, modelRouting: { ...current.modelRouting, [businessModel.key]: event.target.value } }))}>
                       <option value="">未接入</option>
                       {config.models.filter((model) => model.type === businessModel.type).map((model) => (
                         <option key={modelKey(model)} value={modelKey(model)}>{model.name || model.modelId} · {model.provider}</option>
@@ -306,7 +306,7 @@ export function PlatformAdminServicesPanels({
             <h2>服务用量</h2>
             <p>按文本、图片、视频、语音统计已计价金额，不再把不同类型模型折成一个 Token 总数。</p>
           </div>
-          <select className="fos-input h-9 w-auto" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))}>
+          <select className="fos-input h-8 w-auto" value={rangeDays} onChange={(event) => setRangeDays(Number(event.target.value))}>
             <option value={7}>近 7 天</option>
             <option value={30}>近 30 天</option>
             <option value={90}>近 90 天</option>

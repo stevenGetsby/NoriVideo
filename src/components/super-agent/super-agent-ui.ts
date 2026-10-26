@@ -27,9 +27,9 @@ export function numberValue(value: number | undefined): string {
 
 export const fieldStyle = {
   background: '#ffffff',
-  border: '1px solid rgba(14,14,44,.10)',
+  border: '1px solid rgba(17,17,17,.1)',
   borderRadius: '14px',
-  color: '#0e0e2c',
-  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.86), 0 1px 2px rgba(14,14,44,.035)',
+  color: '#111111',
+  boxShadow: 'inset 0 1px 0 rgba(255,255,255,.86), 0 1px 2px rgba(17,17,17,.035)',
   outline: 'none',
 }

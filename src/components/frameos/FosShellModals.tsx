@@ -68,7 +68,7 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
       <div className="space-y-4">
         <div className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-5">
           <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--fos-primary-soft)] text-[var(--fos-primary)]"><AppIcon name="userCircle" className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--fos-primary-soft)] text-white"><AppIcon name="userCircle" className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-white">账号信息</span>
           </div>
           <div className="flex items-center justify-between border-t border-[var(--fos-border-soft)] pt-4">
@@ -78,7 +78,7 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
         </div>
         <div className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-5">
           <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[rgba(139,92,246,.16)] text-[#a78bfa]"><AppIcon name="lock" className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[rgba(255,255,255,.1)] text-[#e5e5e5]"><AppIcon name="lock" className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-white">登录密码</span>
           </div>
           <div className="border-t border-[var(--fos-border-soft)] pt-4">

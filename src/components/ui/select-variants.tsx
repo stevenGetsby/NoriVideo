@@ -148,7 +148,7 @@ export function SelectVariantCard({
                                             setIsOpen(false)
                                         }}
                                         className={`flex items-center w-full px-3 py-2 my-0.5 rounded-lg text-left transition-all ${isSelected
-                                                ? 'bg-[var(--glass-tone-info-bg)] text-[var(--glass-tone-info-fg)] shadow-[0_0_0_1px_rgba(79,128,255,0.35)]'
+                                                ? 'bg-[var(--glass-tone-info-bg)] text-[var(--glass-tone-info-fg)] shadow-[0_0_0_1px_rgba(255,255,255,.14)]'
                                                 : opt.disabled
                                                     ? 'text-[var(--glass-text-tertiary)] opacity-60 cursor-not-allowed'
                                                     : 'hover:bg-[var(--glass-bg-muted)] text-[var(--glass-text-secondary)]'

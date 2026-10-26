@@ -431,7 +431,7 @@ export function MaterialPickerDialog({
                 { value: 'all' as const, label: '全部素材', hint: '当前可用', icon: 'folderOpen' as const },
                 { value: 'favorites' as const, label: '我的收藏', hint: '收藏内容', icon: 'bookmark' as const },
               ]).map((item) => (
-                <button key={item.value} type="button" className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${activeScope === item.value ? 'bg-[var(--fos-primary-soft)] text-[#9bb6ff]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setActiveScope(item.value); if (item.value === 'all') setBrowseAllProjects(true); setFavoriteOnly(item.value === 'favorites') }}>
+                <button key={item.value} type="button" className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${activeScope === item.value ? 'bg-[var(--fos-primary-soft)] text-[#e5e5e5]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setActiveScope(item.value); if (item.value === 'all') setBrowseAllProjects(true); setFavoriteOnly(item.value === 'favorites') }}>
                   <AppIcon name={item.icon} className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{item.label}</span><small className="hidden text-[9px] text-[var(--fos-text-4)] md:block">{item.hint}</small>
                 </button>
               ))}
@@ -440,7 +440,7 @@ export function MaterialPickerDialog({
                 const active = activeScope === 'project' && selectedProjectId === project.id
                 const current = project.id === projectId
                 return (
-                  <button key={project.id} type="button" className={`col-span-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${active ? 'bg-[var(--fos-primary-soft)] text-[#9bb6ff]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setSelectedProjectId(project.id); setActiveScope('project'); setBrowseAllProjects(false); setFavoriteOnly(false) }}>
+                  <button key={project.id} type="button" className={`col-span-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${active ? 'bg-[var(--fos-primary-soft)] text-[#e5e5e5]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setSelectedProjectId(project.id); setActiveScope('project'); setBrowseAllProjects(false); setFavoriteOnly(false) }}>
                     <AppIcon name="folder" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1"><b className="block truncate text-[12px]">{project.name}</b><small className="block truncate text-[9px] font-normal text-[var(--fos-text-4)]">{current ? '当前作品' : '可访问作品'}</small></span>
                   </button>
                 )
@@ -449,12 +449,12 @@ export function MaterialPickerDialog({
                   <AppIcon name="folder" className="h-4 w-4 shrink-0" /><span className="text-[12px]">暂无可访问作品</span>
                 </button>
               )}
-              <button type="button" disabled={!trashCapability.supported} aria-disabled={!trashCapability.supported} title={trashCapability.reason || '已删除素材'} data-testid="material-trash-scope" className={`col-span-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-55 md:mb-1 ${browsingTrash ? 'bg-[var(--fos-primary-soft)] text-[#9bb6ff]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setActiveScope('trash'); setFavoriteOnly(false); setShowUpload(false) }}>
+              <button type="button" disabled={!trashCapability.supported} aria-disabled={!trashCapability.supported} title={trashCapability.reason || '已删除素材'} data-testid="material-trash-scope" className={`col-span-2 flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-55 md:mb-1 ${browsingTrash ? 'bg-[var(--fos-primary-soft)] text-[#e5e5e5]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => { setActiveScope('trash'); setFavoriteOnly(false); setShowUpload(false) }}>
                 <AppIcon name="trash" className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1"><b className="block truncate text-[12px]">已删除</b><small className="block truncate text-[9px] font-normal">{trashCapability.supported ? `${trashCapability.count} 个素材` : '正在确认回收站能力'}</small></span>
               </button>
               <div className="col-span-2 mb-1 mt-4 px-2 text-[11px] font-bold uppercase tracking-[.08em] text-[var(--fos-text-4)]">素材来源</div>
               {SOURCE_SCOPES.map((item) => (
-                <button key={item.value} type="button" className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${activeScope === item.value ? 'bg-[var(--fos-primary-soft)] text-[#9bb6ff]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => setActiveScope(item.value)}>
+                <button key={item.value} type="button" className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left transition-colors md:mb-1 ${activeScope === item.value ? 'bg-[var(--fos-primary-soft)] text-[#e5e5e5]' : 'text-[var(--fos-text-2)] hover:bg-[var(--fos-fill-soft)]'}`} onClick={() => setActiveScope(item.value)}>
                   <AppIcon name={item.icon} className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1 truncate text-[12px] font-semibold">{item.label}</span><small className="hidden text-[9px] text-[var(--fos-text-4)] md:block">{item.hint}</small>
                 </button>
               ))}
@@ -465,7 +465,7 @@ export function MaterialPickerDialog({
             <div className="material-picker-type-filters flex shrink-0 flex-wrap items-center gap-2 border-b border-[var(--fos-border-soft)] px-4 py-2.5">
               <div className="flex items-center gap-1.5" aria-label="素材类型">
                 {(allowAllTypes ? TYPE_FILTERS : TYPE_FILTERS.filter((item) => item.value === type)).map((item) => (
-                  <button key={item.value} type="button" className={`rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${activeType === item.value ? 'border-[rgba(111,140,255,.48)] bg-[rgba(111,140,255,.18)] text-white' : 'border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] text-[var(--fos-text-3)]'}`} onClick={() => { setActiveType(item.value); if (categoryFilter === 'voice' && item.value !== 'audio') setCategoryFilter('all') }}>{item.label}</button>
+                  <button key={item.value} type="button" className={`rounded-md border px-2.5 py-1.5 text-[11px] font-semibold transition-colors ${activeType === item.value ? 'border-[rgba(255,255,255,.26)] bg-[rgba(255,255,255,.1)] text-white' : 'border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] text-[var(--fos-text-3)]'}`} onClick={() => { setActiveType(item.value); if (categoryFilter === 'voice' && item.value !== 'audio') setCategoryFilter('all') }}>{item.label}</button>
                 ))}
               </div>
               <select aria-label="资产分类" className="fos-input" style={{ width: 128 }} value={categoryFilter} disabled={Boolean(assetCategory)} onChange={(event) => {
@@ -517,20 +517,20 @@ export function MaterialPickerDialog({
                   const src = toDisplayImageUrl(material.url)
                   const characterVoice = characterVoiceBindingState(material)
                   return (
-                    <article key={material.id} className="material-picker-card relative overflow-hidden rounded-[10px] border transition-colors" style={{ borderColor: selected ? 'var(--fos-primary)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+                    <article key={material.id} className="material-picker-card relative overflow-hidden rounded-[10px] border transition-colors" style={{ borderColor: selected ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
                       <button type="button" disabled={browsingTrash || uploading || disabled || material.status !== 'ready' || !material.url || (!multiple && selected && Boolean(onSelect))} title={material.status !== 'ready' || !material.url ? '素材尚未就绪，暂不可引用' : undefined} onClick={() => chooseMaterial(material)} className="block w-full text-left disabled:opacity-55">
                         <div className="material-picker-card-media relative aspect-[4/3] overflow-hidden bg-black/40">
                           {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || '素材'} fill sizes="220px" style={{ objectFit: 'cover' }} /> : <AppIcon name={material.type === 'video' ? 'video' : material.type === 'audio' ? 'audioWave' : material.type === 'model3d' ? 'cube' : 'image'} className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/15" />}
                           <span className="material-picker-type-label absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">{material.type === 'image' ? '图片' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'}</span>
                           {characterVoice ? <span className="material-picker-voice-badge" title={characterVoice === 'bound' ? `已绑定角色音色${material.voice?.title ? `：${material.voice.title}` : ''}；视频全能参考且开启声音时会自动带入` : '该角色未绑定音色；视频全能参考时不会带入音频'}><span className={`nori-voice-badge ${characterVoice === 'bound' ? 'nori-voice-badge-bound' : 'nori-voice-badge-missing'}`}><AppIcon name={characterVoice === 'bound' ? 'audioWave' : 'infoCircle'} className="h-3 w-3" />{characterVoice === 'bound' ? '有音色' : '缺音色'}</span></span> : null}
-                          {selected ? <span className="absolute right-2 top-2 rounded-md bg-[var(--fos-primary)] px-2 py-1 text-[10px] font-bold text-white">{multiple ? '已选择' : '已添加'}</span> : null}
+                          {selected ? <span className="absolute right-2 top-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-2 py-1 text-[10px] font-bold text-white">{multiple ? '已选择' : '已添加'}</span> : null}
                         </div>
                         <div className="truncate px-2.5 pt-2 text-[12px] font-bold text-white" title={material.title || ''}>{material.title || '未命名素材'}</div>
                         <div className="flex items-center justify-between gap-2 px-2.5 pt-1 text-[10px] text-[var(--fos-text-4)]"><span className="min-w-0 truncate">{material.projectName}</span><span className="shrink-0 rounded bg-[var(--fos-fill-mid)] px-1.5 py-0.5">{MATERIAL_SOURCE_LABELS[material.source]}</span></div>
                         <div className="flex items-center justify-between gap-2 px-2.5 pb-2 pt-1.5 text-[9px] text-[var(--fos-text-4)]"><span className="min-w-0 truncate">{material.ownerName || '未记录创建者'}</span><span className="shrink-0">{formatDate(material.createdAt)}</span></div>
                       </button>
                       {browsingTrash ? (
-                        <button type="button" disabled={!canManageFavorites} aria-label={`恢复 ${material.title || '素材'}`} title={canManageFavorites ? '恢复素材' : '恢复需要资产编辑权限'} className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/70 px-2 py-1.5 text-[10px] font-semibold text-white/85 hover:text-[#9bb6ff] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void restoreMaterial(material)}><AppIcon name="refresh" className="h-3.5 w-3.5" />恢复</button>
+                        <button type="button" disabled={!canManageFavorites} aria-label={`恢复 ${material.title || '素材'}`} title={canManageFavorites ? '恢复素材' : '恢复需要资产编辑权限'} className="absolute left-2 top-2 flex items-center gap-1 rounded-md bg-black/70 px-2 py-1.5 text-[10px] font-semibold text-white/85 hover:text-[#e5e5e5] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void restoreMaterial(material)}><AppIcon name="refresh" className="h-3.5 w-3.5" />恢复</button>
                       ) : (
                         <button type="button" disabled={!canManageFavorites} aria-label={material.isFavorited ? `取消收藏 ${material.title || '素材'}` : `收藏 ${material.title || '素材'}`} title={canManageFavorites ? material.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="absolute left-2 top-2 rounded-md bg-black/65 p-1.5 text-white/80 hover:text-[#ffd166] disabled:cursor-not-allowed disabled:opacity-40" onClick={() => void toggleFavorite(material)}><AppIcon name="bookmark" className="h-3.5 w-3.5" style={{ color: material.isFavorited ? '#ffd166' : undefined, fill: material.isFavorited ? '#ffd166' : 'none' }} /></button>
                       )}

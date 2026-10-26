@@ -208,18 +208,18 @@ export function FrameTeamDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="rounded-lg border border-white/10 bg-[#151820] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="usersRound" className="h-4 w-4 text-[#7eb0ff]" />
+              <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={{ pathname: '/projects' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2c6ef2] px-3 text-sm font-semibold text-white hover:bg-[#1f5edd]"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="monitor" className="h-4 w-4" />
             {t('openProjects')}
@@ -234,7 +234,7 @@ export function FrameTeamDashboard() {
 
         <div className="mb-4 rounded-lg border border-white/10 bg-white/4 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[#2c6ef2] text-sm font-bold text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-sm font-bold text-white">
               {(session?.user?.name || session?.user?.email || 'N').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -247,7 +247,7 @@ export function FrameTeamDashboard() {
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-3">
             {(['seat', 'workspace', 'security'] as const).map((key) => (
-              <div key={key} className="rounded-md border border-white/8 bg-[#10131b] px-3 py-2">
+              <div key={key} className="rounded-md border border-white/8 bg-[#131313] px-3 py-2">
                 <div className="text-[11px] text-white/38">{t(`profile.${key}.label`)}</div>
                 <div className="mt-1 truncate text-sm font-semibold text-white/72">{t(`profile.${key}.value`)}</div>
               </div>
@@ -268,16 +268,16 @@ export function FrameTeamDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="usersRound" className="h-4 w-4 text-[#9bc3ff]" />
+                <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
                 {t('seatMatrix.title')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('seatMatrix.subtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('seatMatrix.personalMode')}
             </span>
           </div>
-          <div className="grid grid-cols-[.75fr_.65fr_.65fr_.65fr_.9fr_.65fr] gap-2 border-b border-white/10 bg-[#10131b] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.75fr_.65fr_.65fr_.65fr_.9fr_.65fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('seatMatrix.columns.role')}</div>
             <div>{t('seatMatrix.columns.status')}</div>
             <div>{t('seatMatrix.columns.projects')}</div>
@@ -338,7 +338,7 @@ export function FrameTeamDashboard() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="rounded-md border border-white/10 bg-white/4 p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/76">
-              <AppIcon name="chart" className="h-4 w-4 text-[#9bc3ff]" />
+              <AppIcon name="chart" className="h-4 w-4 text-[#e5e5e5]" />
               {t('workloadTitle')}
             </div>
             {workloadRows.length > 0 ? (
@@ -346,7 +346,7 @@ export function FrameTeamDashboard() {
                 {workloadRows.map((row) => {
                   const maxCount = Math.max(...workloadRows.map((item) => item.count), 1)
                   return (
-                    <div key={row.key} className="rounded-md border border-white/8 bg-[#10131b] px-3 py-2">
+                    <div key={row.key} className="rounded-md border border-white/8 bg-[#131313] px-3 py-2">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="min-w-0 truncate text-sm font-medium text-white/74">{taskTypeDisplayName(row.key)}</div>
                         <span className={`rounded px-2 py-0.5 text-[11px] ${row.failed > 0 ? 'bg-[#ff6b6b]/10 text-[#ff9a9a]' : 'bg-white/6 text-white/42'}`}>
@@ -354,7 +354,7 @@ export function FrameTeamDashboard() {
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[#2c6ef2]" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
+                        <div className="h-full rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)]" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
                       </div>
                       <div className="mt-1 text-[11px] text-white/38">{t('workloadTasks', { count: row.count })}</div>
                     </div>
@@ -393,9 +393,9 @@ export function FrameTeamDashboard() {
       </section>
 
       <aside className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-[#151820] p-4">
+      <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="lock" className="h-4 w-4 text-[#7eb0ff]" />
+          <AppIcon name="lock" className="h-4 w-4 text-[#e5e5e5]" />
           {t('rolesTitle')}
         </div>
         <div className="space-y-2">
@@ -417,9 +417,9 @@ export function FrameTeamDashboard() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-[#151820] p-4">
+      <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="usersRound" className="h-4 w-4 text-[#7eb0ff]" />
+          <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
           {t('permissionsTitle')}
         </div>
         <div className="overflow-hidden rounded-md border border-white/10">

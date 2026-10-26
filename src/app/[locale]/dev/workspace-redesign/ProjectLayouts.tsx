@@ -14,7 +14,7 @@ function ProjectStats({ project, t }: { project: MockProject; t: (key: string) =
     <div className="flex items-center gap-2">
       <IconGradientDefs className="w-0 h-0 absolute" aria-hidden="true" />
       <AppIcon name="statsBarGradient" className="w-4 h-4 flex-shrink-0" />
-      <div className="flex items-center gap-3 text-sm font-semibold bg-gradient-to-r from-blue-500 to-cyan-500 bg-clip-text text-transparent">
+      <div className="flex items-center gap-3 text-sm font-semibold bg-gradient-to-r from-[#8109ff] to-cyan-500 bg-clip-text text-transparent">
         {project.stats.episodes > 0 && (
           <span className="flex items-center gap-1" title={t('episodes')}>
             <AppIcon name="statsEpisodeGradient" className="w-3.5 h-3.5" />
@@ -52,7 +52,7 @@ export function LayoutGrid({ projects, t }: { projects: MockProject[]; t: (key: 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {projects.map((p) => (
           <div key={p.id} className="glass-surface cursor-pointer group hover:border-[var(--glass-tone-info-fg)]/40 transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             <div className="p-5 relative z-10">
               <h3 className="text-sm font-bold text-[var(--glass-text-primary)] mb-2 group-hover:text-[var(--glass-tone-info-fg)] transition-colors line-clamp-1">
                 {p.name}
@@ -88,7 +88,7 @@ export function LayoutScroll({ projects, t }: { projects: MockProject[]; t: (key
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x snap-mandatory">
         {projects.map((p) => (
           <div key={p.id} className="min-w-[300px] max-w-[300px] snap-start glass-surface cursor-pointer group hover:border-[var(--glass-tone-info-fg)]/40 transition-all duration-300 overflow-hidden relative flex-shrink-0">
-            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             <div className="p-5 relative z-10">
               <h3 className="text-base font-bold text-[var(--glass-text-primary)] mb-2 group-hover:text-[var(--glass-tone-info-fg)] transition-colors line-clamp-1">
                 {p.name}
@@ -162,7 +162,7 @@ export function LayoutFeatured({ projects, t }: { projects: MockProject[]; t: (k
         {/* 大卡片 */}
         {first && (
           <div className="lg:col-span-1 glass-surface cursor-pointer group hover:border-[var(--glass-tone-info-fg)]/40 transition-all duration-300 overflow-hidden relative">
-            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+            <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             <div className="p-6 relative z-10 flex flex-col justify-between h-full">
               <div>
                 <div className="glass-chip glass-chip-info text-[10px] mb-3 w-fit">{t('latestUpdate')}</div>
@@ -188,7 +188,7 @@ export function LayoutFeatured({ projects, t }: { projects: MockProject[]; t: (k
         <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4">
           {rest.map((p) => (
             <div key={p.id} className="glass-surface cursor-pointer group hover:border-[var(--glass-tone-info-fg)]/40 transition-all duration-300 overflow-hidden relative">
-              <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-blue-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+              <div className="absolute inset-0 rounded-[inherit] bg-gradient-to-br from-white/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
               <div className="p-4 relative z-10">
                 <h3 className="text-sm font-bold text-[var(--glass-text-primary)] mb-1 group-hover:text-[var(--glass-tone-info-fg)] transition-colors line-clamp-1">
                   {p.name}
@@ -222,7 +222,7 @@ export function LayoutMinimalList({ projects, t }: { projects: MockProject[]; t:
         {projects.map((p) => (
           <div key={p.id} className="flex items-center justify-between py-3 px-4 rounded-xl hover:bg-[var(--glass-bg-muted)] cursor-pointer transition-colors group">
             <div className="flex items-center gap-3 min-w-0 flex-1">
-              <span className="w-2 h-2 rounded-full bg-gradient-to-br from-blue-500 to-cyan-500 group-hover:scale-125 transition-transform flex-shrink-0" />
+              <span className="w-2 h-2 rounded-full bg-gradient-to-br from-[#8109ff] to-cyan-500 group-hover:scale-125 transition-transform flex-shrink-0" />
               <span className="text-sm font-medium text-[var(--glass-text-primary)] group-hover:text-[var(--glass-tone-info-fg)] transition-colors truncate">{p.name}</span>
             </div>
             <div className="flex items-center gap-4 text-xs text-[var(--glass-text-tertiary)] flex-shrink-0">

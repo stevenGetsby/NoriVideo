@@ -263,7 +263,7 @@ function HistoryPanel({
     <div className="fos-card overflow-hidden">
       <div className="flex items-center justify-between border-b border-[var(--fos-border-soft)] px-4 py-2.5">
         <h4 className="text-[13px] font-bold text-white">生图历史</h4>
-        <button type="button" className="text-[12px] font-bold text-[#8fa9ff]" onClick={() => setShowFailed((value) => !value)}>
+        <button type="button" className="text-[12px] font-bold text-[#e5e5e5]" onClick={() => setShowFailed((value) => !value)}>
           {showFailed ? '隐藏失败记录' : '展示失败记录'}
         </button>
       </div>
@@ -286,7 +286,7 @@ function HistoryPanel({
                 <div className="truncate text-[var(--fos-text-4)]">{historyModel(task)} · {new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</div>
                 {failed && task.errorMessage ? <div className="mt-0.5 line-clamp-1 text-[#ff8e8e]" title={task.errorMessage}>{task.errorMessage}</div> : null}
               </div>
-              <div className={failed ? 'text-right font-bold text-[#ff7777]' : completed ? 'text-right font-bold text-[#5bd08f]' : 'text-right font-bold text-[#8fa9ff]'}>{status}</div>
+              <div className={failed ? 'text-right font-bold text-[#ff7777]' : completed ? 'text-right font-bold text-[#5bd08f]' : 'text-right font-bold text-[#e5e5e5]'}>{status}</div>
             </div>
           )
         })}
@@ -365,9 +365,9 @@ function AssetImageModifyDialog({
         <div className="fos-dialog-body grid gap-5 md:grid-cols-[240px_minmax(0,1fr)]">
           <div>
             <div className="mb-2 text-[12px] font-bold text-[var(--fos-text-3)]">基础参考图</div>
-            <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] border border-[rgba(111,140,255,.32)] bg-black">
+            <div className="relative aspect-[4/3] overflow-hidden rounded-[10px] border border-[rgba(255,255,255,.26)] bg-black">
               {src ? <MediaImage src={src} alt={target.label} fill sizes="240px" style={{ objectFit: 'contain' }} /> : null}
-              <span className="absolute bottom-2 left-2 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-[#a9bdff]">自动作为 Reference 1</span>
+              <span className="absolute bottom-2 left-2 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-[#e5e5e5]">自动作为 Reference 1</span>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">系统会把当前生成图作为首张参考图，保留主体身份与构图连续性。</p>
           </div>
@@ -743,18 +743,18 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
             <AssetTabs projectId={data.projectId} active={tab} />
             <div className="flex items-center justify-between">
               <h2 className="text-[14px] font-bold text-white">{meta.listTitle}</h2>
-              {canEdit ? <button className="text-[12px] font-bold text-[#4f85ff]" onClick={() => setShowAdd(true)}>+手动新增</button> : <span className="text-[11px] text-[var(--fos-text-4)]">只读</span>}
+              {canEdit ? <button className="text-[12px] font-bold text-[#e5e5e5]" onClick={() => setShowAdd(true)}>+手动新增</button> : <span className="text-[11px] text-[var(--fos-text-4)]">只读</span>}
             </div>
           </div>
           <div className="px-4 py-6 text-[13px] leading-6 text-[var(--fos-text-3)]">尚未生成任何{meta.listTitle}。</div>
         </aside>
         <article className="flex min-h-0 items-center justify-center overflow-y-auto p-8">
           <div className="w-full max-w-[560px] rounded-2xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] p-8 text-center">
-            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fos-primary-soft)] text-[#7ea4ff]"><AppIcon name="sparkles" className="h-7 w-7" /></span>
+            <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[var(--fos-primary-soft)] text-[#e5e5e5]"><AppIcon name="sparkles" className="h-7 w-7" /></span>
             <h2 className="mt-5 text-[20px] font-bold text-white">尚未解析作品资产</h2>
             <p className="mt-3 text-[13px] leading-6 text-[var(--fos-text-3)]">资产解析会读取全部分集剧本，生成角色、物品、环境及其标准生图提示词。不会在解析前展示示例资产。</p>
             {error ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">{error}</div> : null}
-            {notice ? <div className="mt-4 rounded-lg border border-blue-400/30 bg-blue-500/10 px-3 py-2 text-[13px] text-blue-200">{notice}</div> : null}
+            {notice ? <div className="mt-4 rounded-lg border border-white/25 bg-white/8 px-3 py-2 text-[13px] text-neutral-200">{notice}</div> : null}
             <button type="button" className="fos-btn fos-btn-primary fos-btn-lg mt-6" disabled={!canEdit || !canExtract || extracting} onClick={() => void handleExtractAssets()}>
               <AppIcon name={extracting ? 'loader' : 'sparkles'} className={`h-4 w-4 ${extracting ? 'animate-spin' : ''}`} />
               {extracting
@@ -776,7 +776,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
           <div className="flex items-center justify-between">
             <h2 className="text-[14px] font-bold text-white">{meta.listTitle}</h2>
             <div className="flex items-center gap-2">
-              {canEdit ? <button className="text-[12px] font-bold text-[#4f85ff]" onClick={() => setShowAdd(true)}>+新增</button> : <span className="text-[11px] text-[var(--fos-text-4)]">只读</span>}
+              {canEdit ? <button className="text-[12px] font-bold text-[#e5e5e5]" onClick={() => setShowAdd(true)}>+新增</button> : <span className="text-[11px] text-[var(--fos-text-4)]">只读</span>}
               <span className="fos-pill" style={{ height: 22 }}>{count}/{count}</span>
             </div>
           </div>
@@ -787,7 +787,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
             return (
               <div key={a.id}
                 className="group flex w-full items-start gap-1.5 rounded-[10px]"
-                style={{ border: isActive ? '1px solid var(--fos-primary)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}>
+                style={{ border: isActive ? '1px solid rgba(255,255,255,.4)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}>
                 <button
                   type="button"
                   onClick={() => setActiveId(a.id)}
@@ -801,7 +801,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                   {isActive && a.variants?.length ? (
                     <div className="mt-1.5 flex flex-wrap gap-1">
                       {a.variants.map((v) => (
-                        <span key={v.label} className="rounded bg-[var(--fos-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[#8fb0ff]">{v.label}</span>
+                        <span key={v.label} className="rounded bg-[var(--fos-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[#e5e5e5]">{v.label}</span>
                       ))}
                     </div>
                   ) : null}
@@ -828,7 +828,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
         <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
           <h2 className="flex items-center gap-2 text-[16px] font-bold text-white">
             {active?.name}
-            <span className="rounded-md bg-[rgba(59,130,246,.18)] px-2.5 py-1 text-[12px] text-[#6ea0ff]">{active?.type}</span>
+            <span className="rounded-md bg-[rgba(255,255,255,.1)] px-2.5 py-1 text-[12px] text-[#e5e5e5]">{active?.type}</span>
             {active?.episodes ? <span className="rounded-md bg-[var(--fos-fill-mid)] px-2.5 py-1 text-[12px] text-[var(--fos-text-3)]">{active.episodes}</span> : null}
           </h2>
           <div className="flex flex-wrap gap-2">
@@ -856,7 +856,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
           <div className="mb-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[#ff7777]">{error}</div>
         ) : null}
         {notice ? (
-          <div className="mb-4 rounded-[10px] border border-[rgba(59,130,246,.35)] bg-[rgba(59,130,246,.1)] px-3 py-2 text-[13px] font-semibold text-[#8fb0ff]">{notice}</div>
+          <div className="mb-4 rounded-[10px] border border-[rgba(255,255,255,.26)] bg-[rgba(255,255,255,.08)] px-3 py-2 text-[13px] font-semibold text-[#e5e5e5]">{notice}</div>
         ) : null}
 
         <div className="grid gap-6" style={{ gridTemplateColumns: '0.9fr 1.1fr' }}>
@@ -939,7 +939,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                   <div className="mb-3 rounded-[8px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <h4 className="text-[12px] font-bold text-[var(--fos-text-3)]">{meta.variantPromptTitle}</h4>
-                      {target ? <button type="button" className="text-[11px] font-bold text-[#8fa9ff]" disabled={!canEdit || savingKeys.has(target.key)} onClick={() => void handleSavePrompt(target)}>{savingKeys.has(target.key) ? '保存中…' : '保存提示词'}</button> : null}
+                      {target ? <button type="button" className="text-[11px] font-bold text-[#e5e5e5]" disabled={!canEdit || savingKeys.has(target.key)} onClick={() => void handleSavePrompt(target)}>{savingKeys.has(target.key) ? '保存中…' : '保存提示词'}</button> : null}
                     </div>
                     {target ? (
                       <textarea

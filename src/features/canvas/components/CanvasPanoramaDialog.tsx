@@ -107,7 +107,7 @@ export function CanvasPanoramaDialog({
         const { OrbitControls } = await import('three/examples/jsm/controls/OrbitControls.js')
         if (disposed) return
         const scene = new THREE.Scene()
-        scene.background = new THREE.Color('#05070b')
+        scene.background = new THREE.Color('#070707')
         const camera = new THREE.PerspectiveCamera(72, 16 / 9, 0.05, 100)
         camera.position.set(0, 0, 0.01)
         camera.lookAt(0, 0, -1)

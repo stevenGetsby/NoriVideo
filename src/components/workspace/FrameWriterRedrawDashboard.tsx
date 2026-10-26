@@ -129,18 +129,18 @@ export function FrameWriterRedrawDashboard({ scriptId }: { scriptId: string }) {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <section className="rounded-lg border border-white/10 bg-[#151820] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="wandOff" className="h-4 w-4 text-[#7eb0ff]" />
+              <AppIcon name="wandOff" className="h-4 w-4 text-[#e5e5e5]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={`/workspace/${scriptId}/script`}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#2c6ef2] px-3 text-sm font-semibold text-white hover:bg-[#1f5edd]"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="fileText" className="h-4 w-4" />
             {t('openScript')}
@@ -180,16 +180,16 @@ export function FrameWriterRedrawDashboard({ scriptId }: { scriptId: string }) {
               <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#9bc3ff]" />
+                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
                     {t('readinessTitle')}
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('readinessSubtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-white/10 bg-[#10131b] px-2 py-1 text-[11px] font-medium text-white/42">
+                <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
                   {t('readiness.local')}
                 </span>
               </div>
-              <div className="grid grid-cols-[.8fr_.55fr_.6fr_1.2fr] gap-2 border-b border-white/10 bg-[#10131b] px-3 py-2 text-[11px] font-medium text-white/42">
+              <div className="grid grid-cols-[.8fr_.55fr_.6fr_1.2fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
                 <div>{t('readiness.columns.item')}</div>
                 <div>{t('readiness.columns.status')}</div>
                 <div>{t('readiness.columns.count')}</div>
@@ -242,16 +242,16 @@ export function FrameWriterRedrawDashboard({ scriptId }: { scriptId: string }) {
         )}
       </section>
 
-      <aside className="rounded-lg border border-white/10 bg-[#151820] p-4">
+      <aside className="rounded-lg border border-white/10 bg-[#181818] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#7eb0ff]" />
+          <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
           {t('checklistTitle')}
         </div>
         <div className="space-y-2">
           {(['source', 'structure', 'assets', 'sync'] as const).map((step, index) => (
             <div key={step} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
               <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded bg-[#2c6ef2]/16 text-xs font-bold text-[#8ab8ff]">
+                <div className="flex h-7 w-7 items-center justify-center rounded bg-white/10 text-xs font-bold text-[#e5e5e5]">
                   {index + 1}
                 </div>
                 <div>

@@ -135,7 +135,7 @@ function SegmentedGradientUnderline({ options, value, onChange }: {
       </div>
       {/* 渐变下划线 */}
       <div
-        className="absolute bottom-0 h-[2.5px] rounded-full bg-gradient-to-r from-[#6366f1] via-[#a855f7] to-[#ec4899] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        className="absolute bottom-0 h-[2.5px] rounded-full bg-gradient-to-r from-[#3265ff] via-[#3265ff] to-[#ec4899] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
         style={{ left: lineStyle.left, width: lineStyle.width }}
       />
       <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-[#e5e5ea] dark:bg-[#38383a]" />
@@ -198,8 +198,8 @@ function SegmentedNeonCard({ options, value, onChange }: {
           style={{
             left: indicatorStyle.left,
             width: indicatorStyle.width,
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%)',
-            boxShadow: '0 0 20px rgba(99, 102, 241, 0.3), 0 0 40px rgba(139, 92, 246, 0.15), inset 0 1px 0 rgba(255,255,255,0.15)',
+            background: 'linear-gradient(135deg, #3265ff 0%, #3265ff 50%, #3265ff 100%)',
+            boxShadow: '0 0 20px rgba(0,0,0,.35), 0 0 40px rgba(255,255,255,.1), inset 0 1px 0 rgba(255,255,255,0.15)',
           }}
         />
         {options.map((opt) => (
@@ -209,7 +209,7 @@ function SegmentedNeonCard({ options, value, onChange }: {
             onClick={() => onChange(opt.value)}
             className={`relative z-10 flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-semibold transition-all duration-200 cursor-pointer ${value === opt.value
               ? 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.3)]'
-              : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#68686e] dark:hover:text-[#98989d]'
+              : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#696969] dark:hover:text-[#98989d]'
               }`}
           >
             {opt.label}
@@ -282,7 +282,7 @@ function SegmentedEmbossed({ options, value, onChange }: {
           onClick={() => onChange(opt.value)}
           className={`flex items-center justify-center px-3 py-1.5 text-[13px] font-semibold rounded-[10px] transition-all duration-200 cursor-pointer ${value === opt.value
             ? 'bg-gradient-to-b from-white to-[#f8f8fa] dark:from-[#3a3a3e] dark:to-[#2e2e32] text-[#1d1d1f] dark:text-white shadow-[0_1px_3px_rgba(0,0,0,0.1),0_4px_12px_rgba(0,0,0,0.05),inset_0_1px_0_rgba(255,255,255,0.8)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.3),0_4px_12px_rgba(0,0,0,0.15),inset_0_1px_0_rgba(255,255,255,0.06)]'
-            : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#68686e] dark:hover:text-[#98989d]'
+            : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#696969] dark:hover:text-[#98989d]'
             }`}
         >
           {opt.label}
@@ -324,8 +324,8 @@ function SegmentedGlassNeonSlide({ options, value, onChange }: {
           style={{
             left: indicatorStyle.left,
             width: indicatorStyle.width,
-            background: 'linear-gradient(135deg, rgba(99,102,241,0.85) 0%, rgba(139,92,246,0.85) 50%, rgba(168,85,247,0.85) 100%)',
-            boxShadow: '0 0 16px rgba(99,102,241,0.25), 0 0 32px rgba(139,92,246,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
+            background: 'linear-gradient(135deg, #3265ff 0%, #3265ff 50%, #3265ff 100%)',
+            boxShadow: '0 0 16px rgba(0,0,0,.35), 0 0 32px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,0.2)',
             backdropFilter: 'blur(8px)',
           }}
         />
@@ -368,7 +368,7 @@ function SegmentedAuroraPill({ options, value, onChange }: {
   }, [value, options])
 
   return (
-    <div className="rounded-full p-[2px]" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7, #ec4899, #6366f1)' }}>
+    <div className="rounded-full p-[2px]" style={{ background: 'linear-gradient(135deg, #3265ff, #3265ff, #ec4899, #3265ff)' }}>
       <div className="rounded-full p-[2px] bg-[#f5f5f7] dark:bg-[#141418]">
         <div className="rounded-full bg-[#f5f5f7]/90 dark:bg-[#141418]/90 backdrop-blur-sm">
           <div ref={containerRef} className="relative grid" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
@@ -376,8 +376,8 @@ function SegmentedAuroraPill({ options, value, onChange }: {
               className="absolute inset-y-0 rounded-full transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
               style={{ left: indicatorStyle.left, width: indicatorStyle.width }}
             >
-              <div className="h-full rounded-full p-[1.5px]" style={{ background: 'linear-gradient(135deg, #6366f1, #a855f7, #ec4899)' }}>
-                <div className="h-full rounded-full bg-white dark:bg-[#2a2a2e] shadow-[0_2px_8px_rgba(99,102,241,0.2)]" />
+              <div className="h-full rounded-full p-[1.5px]" style={{ background: 'linear-gradient(135deg, #3265ff, #3265ff, #ec4899)' }}>
+                <div className="h-full rounded-full bg-white dark:bg-[#2a2a2e] shadow-[0_2px_8px_rgba(255,255,255,.1)]" />
               </div>
             </div>
             {options.map((opt) => (
@@ -387,7 +387,7 @@ function SegmentedAuroraPill({ options, value, onChange }: {
                 onClick={() => onChange(opt.value)}
                 className={`relative z-10 flex items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-all duration-200 cursor-pointer ${value === opt.value
                   ? 'text-[#1d1d1f] dark:text-white'
-                  : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#68686e] dark:hover:text-[#98989d]'
+                  : 'text-[#86868b] hover:text-[#6e6e73] dark:text-[#696969] dark:hover:text-[#98989d]'
                   }`}
               >
                 {opt.label}
@@ -421,15 +421,15 @@ function SegmentedIceNeon({ options, value, onChange }: {
   }, [value, options])
 
   return (
-    <div className="rounded-xl p-[3px] bg-[#eef2ff] dark:bg-[#0c0a1a] border border-[#c7d2fe]/50 dark:border-[#312e81]/40 shadow-[0_1px_12px_rgba(99,102,241,0.06)] dark:shadow-[0_1px_12px_rgba(99,102,241,0.08)]">
+    <div className="rounded-xl p-[3px] bg-[#f2f2f2] dark:bg-[#0c0c0c] border border-[#d4d4d4]/50 dark:border-[#383838]/40 shadow-[0_1px_12px_rgba(255,255,255,.05)] dark:shadow-[0_1px_12px_rgba(255,255,255,.08)]">
       <div ref={containerRef} className="relative grid" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
         <div
           className="absolute top-0 bottom-0 rounded-[10px] transition-all duration-350 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
           style={{
             left: indicatorStyle.left,
             width: indicatorStyle.width,
-            background: 'linear-gradient(135deg, #3b82f6 0%, #6366f1 40%, #8b5cf6 100%)',
-            boxShadow: '0 0 14px rgba(59,130,246,0.3), 0 0 28px rgba(99,102,241,0.12), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
+            background: 'linear-gradient(135deg, #3265ff 0%, #3265ff 40%, #3265ff 100%)',
+            boxShadow: '0 0 14px rgba(0,0,0,.35), 0 0 28px rgba(255,255,255,.08), 0 2px 4px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
           }}
         />
         {options.map((opt) => (
@@ -439,7 +439,7 @@ function SegmentedIceNeon({ options, value, onChange }: {
             onClick={() => onChange(opt.value)}
             className={`relative z-10 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-semibold transition-all duration-200 cursor-pointer ${value === opt.value
               ? 'text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.2)]'
-              : 'text-[#6366f1]/60 hover:text-[#6366f1]/80 dark:text-[#818cf8]/40 dark:hover:text-[#818cf8]/60'
+              : 'text-[#e5e5e5]/60 hover:text-[#e5e5e5]/80 dark:text-[#e5e5e5]/40 dark:hover:text-[#e5e5e5]/60'
               }`}
           >
             {opt.label}
@@ -521,8 +521,8 @@ function SegmentedStellarGlass({ options, value, onChange }: {
 
   return (
     <div
-      className="rounded-2xl p-[3px] border border-[#c7d2fe]/20 dark:border-[#4338ca]/25"
-      style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #0f172a 50%, #1e1b4b 100%)' }}
+      className="rounded-2xl p-[3px] border border-[#d4d4d4]/20 dark:border-white/15"
+      style={{ background: 'linear-gradient(135deg, #212121 0%, #171717 50%, #212121 100%)' }}
     >
       <div ref={containerRef} className="relative grid" style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}>
         <div
@@ -533,7 +533,7 @@ function SegmentedStellarGlass({ options, value, onChange }: {
             background: 'rgba(255,255,255,0.1)',
             backdropFilter: 'blur(12px)',
             border: '1px solid rgba(255,255,255,0.15)',
-            boxShadow: '0 0 12px rgba(139,92,246,0.15), inset 0 1px 0 rgba(255,255,255,0.1)',
+            boxShadow: '0 0 12px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,0.1)',
           }}
         />
         {options.map((opt) => (
@@ -542,8 +542,8 @@ function SegmentedStellarGlass({ options, value, onChange }: {
             type="button"
             onClick={() => onChange(opt.value)}
             className={`relative z-10 flex items-center justify-center gap-1.5 rounded-xl px-3 py-1.5 text-[13px] font-semibold transition-all duration-200 cursor-pointer ${value === opt.value
-              ? 'text-white drop-shadow-[0_0_8px_rgba(139,92,246,0.4)]'
-              : 'text-[#a5b4fc]/40 hover:text-[#a5b4fc]/60'
+              ? 'text-white drop-shadow-[0_0_8px_rgba(255,255,255,.14)]'
+              : 'text-[#e5e5e5]/40 hover:text-[#e5e5e5]/60'
               }`}
           >
             {opt.label}
@@ -633,8 +633,8 @@ function SegmentedBlueNeonFinal({ options, value, onChange }: {
           style={{
             left: indicatorStyle.left,
             width: indicatorStyle.width,
-            background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 50%, #1d4ed8 100%)',
-            boxShadow: '0 0 12px rgba(59,130,246,0.25), 0 0 24px rgba(37,99,235,0.1), inset 0 1px 0 rgba(255,255,255,0.15)',
+            background: 'linear-gradient(135deg, #3265ff 0%, #3265ff 50%, #3265ff 100%)',
+            boxShadow: '0 0 12px rgba(0,0,0,.35), 0 0 24px rgba(255,255,255,.08), inset 0 1px 0 rgba(255,255,255,0.15)',
           }}
         />
         {options.map((opt) => (
@@ -724,7 +724,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── A. Sliding Pill ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold tracking-wider">A</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/8 text-blue-600 dark:text-neutral-200 text-xs font-bold tracking-wider">A</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">滑动药丸 · Sliding Pill</h2>
             <span className="text-xs text-[#86868b]">平滑的滑动动画指示器</span>
           </div>
@@ -781,7 +781,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── D. Neon Card ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold tracking-wider">D</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/8 text-indigo-600 dark:text-neutral-200 text-xs font-bold tracking-wider">D</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">霓虹卡片 · Neon Card</h2>
             <span className="text-xs text-[#86868b]">渐变紫色指示器, 发光效果</span>
           </div>
@@ -840,8 +840,8 @@ export default function SegmentedControlTestPage() {
         {/* ═══════════════════════════════════════════════════ */}
 
         <div className="text-center space-y-2 pt-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#6366f1]/10 via-[#a855f7]/10 to-[#ec4899]/10 border border-[#6366f1]/20">
-            <span className="text-sm font-bold text-[#6366f1] dark:text-[#818cf8]">🆕 Round 2</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#3265ff]/10 via-[#3265ff]/10 to-[#ec4899]/10 border border-white/15">
+            <span className="text-sm font-bold text-[#e5e5e5] dark:text-[#e5e5e5]">🆕 Round 2</span>
             <span className="text-xs text-[#86868b]">基于 Sliding Pill + Neon Card + Glass 融合</span>
           </div>
         </div>
@@ -887,7 +887,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── I. Ice Neon ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-bold tracking-wider">I</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/8 text-blue-600 dark:text-neutral-200 text-xs font-bold tracking-wider">I</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">冰晶霓虹 · Ice Neon</h2>
             <span className="text-xs text-[#86868b]">冷调蓝紫渐变发光 + 弹性滑动 + 淡蓝底色</span>
           </div>
@@ -925,7 +925,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── K. Stellar Glass ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 text-xs font-bold tracking-wider">K</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/8 text-indigo-600 dark:text-neutral-200 text-xs font-bold tracking-wider">K</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">星辰玻璃 · Stellar Glass</h2>
             <span className="text-xs text-[#86868b]">深色宇宙渐变底 + 发光玻璃指示器 + 紫色辉光文字</span>
           </div>
@@ -1008,8 +1008,8 @@ export default function SegmentedControlTestPage() {
         {/* ═══════════════════════════════════════════════════ */}
 
         <div className="text-center space-y-2 pt-4">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#3b82f6]/10 to-[#2563eb]/10 border border-[#3b82f6]/20">
-            <span className="text-sm font-bold text-[#3b82f6] dark:text-[#60a5fa]">🏆 Final Round</span>
+          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#3265ff]/10 to-[#3265ff]/10 border border-white/15">
+            <span className="text-sm font-bold text-[#e5e5e5] dark:text-[#e5e5e5]">🏆 Final Round</span>
             <span className="text-xs text-[#86868b]">对齐系统 px-3 py-1.5 间距 · 霓虹改蓝色</span>
           </div>
         </div>
@@ -1017,7 +1017,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── Final 1: Sliding Pill ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 text-xs font-bold tracking-wider">F1</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/10 text-blue-600 dark:text-neutral-200 text-xs font-bold tracking-wider">F1</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">滑动药丸 · Sliding Pill Final</h2>
             <span className="text-xs text-[#86868b]">对齐系统间距 px-3 py-1.5 + 滑动动画</span>
           </div>
@@ -1041,7 +1041,7 @@ export default function SegmentedControlTestPage() {
         {/* ─── Final 2: Blue Neon ─── */}
         <section className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400 text-xs font-bold tracking-wider">F2</span>
+            <span className="px-2.5 py-1 rounded-md bg-white/10 text-blue-600 dark:text-neutral-200 text-xs font-bold tracking-wider">F2</span>
             <h2 className="text-lg font-bold text-[#1d1d1f] dark:text-white">蓝色霓虹 · Blue Neon Final</h2>
             <span className="text-xs text-[#86868b]">蓝色渐变发光 + 对齐系统间距 px-3 py-1.5</span>
           </div>

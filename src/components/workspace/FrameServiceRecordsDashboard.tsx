@@ -84,7 +84,7 @@ const ACTION_LABELS: Record<string, string> = {
   'generate-audio': '音频生成',
 }
 
-const CHART_COLORS = ['#6f72ff', '#17b890', '#f59e0b', '#e0529a', '#53a5ff', '#8b5cf6']
+const CHART_COLORS = ['#3265ff', '#17b890', '#f59e0b', '#e0529a', '#3265ff', '#3265ff']
 
 function pad(value: number) {
   return String(value).padStart(2, '0')
@@ -363,14 +363,14 @@ export function FrameServiceRecordsDashboard() {
     URL.revokeObjectURL(href)
   }
 
-  const selectClass = 'h-9 min-w-0 rounded-[7px] border border-white/[.085] bg-[#0b0d0f] px-2.5 text-[12px] text-white/72 outline-none focus:border-[#4f79ef]'
+  const selectClass = 'h-9 min-w-0 rounded-[7px] border border-white/[.085] bg-[#0b0d0f] px-2.5 text-[12px] text-white/72 outline-none focus:border-[rgba(255,255,255,.38)]'
 
   return (
     <div className="min-h-full space-y-3 bg-[#090b0d] p-4 text-white">
       <header className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div><h1 className="flex items-center gap-2 text-[17px] font-semibold"><AppIcon name="barChart" className="h-5 w-5 text-[#6d94ff]" />用量报表</h1><p className="mt-1 text-[11px] text-white/36">按项目、作品、账号、服务与模型查看真实生成用量</p></div>
+        <div><h1 className="flex items-center gap-2 text-[17px] font-semibold"><AppIcon name="barChart" className="h-5 w-5 text-[#e5e5e5]" />用量报表</h1><p className="mt-1 text-[11px] text-white/36">按项目、作品、账号、服务与模型查看真实生成用量</p></div>
         <div className="flex items-center gap-2">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[#5f82e8]/35 bg-[#315ab8]/20 px-3 text-[12px] text-[#a9c3ff] hover:bg-[#315ab8]/30 disabled:cursor-not-allowed disabled:opacity-40" disabled={loading || accountModelRows.length === 0} onClick={exportAccountModelUsage}><AppIcon name="download" className="h-4 w-4" />导出表格</button>
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-white/25 bg-white/10 px-3 text-[12px] text-[#e5e5e5] hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" disabled={loading || accountModelRows.length === 0} onClick={exportAccountModelUsage}><AppIcon name="download" className="h-4 w-4" />导出表格</button>
           <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-white/10 bg-white/[.035] px-3 text-[12px] text-white/62 hover:bg-white/[.07]" disabled={loading} onClick={() => setRefreshKey((key) => key + 1)}><AppIcon name="refresh" className={`h-4 w-4${loading ? ' animate-spin' : ''}`} />刷新</button>
         </div>
       </header>
@@ -389,7 +389,7 @@ export function FrameServiceRecordsDashboard() {
           <input aria-label="报表开始日期" type="date" className={selectClass} value={startDate} onChange={(event) => { setRangePreset('custom'); setStartDate(event.target.value) }} />
           <span className="text-[11px] text-white/28">至</span>
           <input aria-label="报表结束日期" type="date" className={selectClass} value={endDate} onChange={(event) => { setRangePreset('custom'); setEndDate(event.target.value) }} />
-          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-[#254b9d] text-[#9fc1ff]' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
+          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-[#e5e5e5]' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
           <span className="ml-auto text-[10px] text-white/28">{filtered.length} 条服务记录</span>
         </div>
       </section>
@@ -399,7 +399,7 @@ export function FrameServiceRecordsDashboard() {
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
           { title: '积分消耗', value: number(points, 2), hint: '筛选范围内的实际/估算积分', color: '#f3a10b' },
-          { title: '文本 Token', value: number(inputTokens + outputTokens), hint: `输入 ${number(inputTokens)} · 输出 ${number(outputTokens)}`, color: '#6f72ff' },
+          { title: '文本 Token', value: number(inputTokens + outputTokens), hint: `输入 ${number(inputTokens)} · 输出 ${number(outputTokens)}`, color: '#e5e5e5' },
           { title: '生图（次）', value: number(imageCount), hint: '成功产出的图片数量', color: '#19b77e' },
           { title: '生视频', value: `${number(videoCount)} 次`, hint: `${number(videoSeconds, 2)} 秒 · ${number(videoTokens)} tokens${failureCount ? ` · ${failureCount} 次失败` : ''}`, color: '#d84d91' },
         ].map((item) => <article key={item.title} className="rounded-[12px] border border-white/[.075] bg-[#121416] p-4"><div className="flex items-center gap-2 text-[11px] text-white/42"><i className="h-7 w-7 rounded-[7px]" style={{ background: `${item.color}19`, boxShadow: `inset 0 0 0 1px ${item.color}28` }} />{item.title}</div><strong className="mt-3 block text-[24px] font-semibold tracking-tight text-white">{loading ? '—' : item.value}</strong><small className="mt-1 block text-[10px] text-white/28">{item.hint}</small></article>)}

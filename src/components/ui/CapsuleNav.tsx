@@ -75,7 +75,7 @@ function NavItem({
                     ${disabled
                         ? 'cursor-not-allowed'
                         : active
-                            ? 'bg-[#2c6ef2] text-white shadow-[0_10px_24px_rgba(44,110,242,.22)]'
+                            ? 'bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]'
                             : 'text-white/66 hover:bg-white/7 hover:text-white'}
                     ${!disabled && 'active:scale-[0.98]'}
                 `}
@@ -130,7 +130,7 @@ export function CapsuleNav({ items, activeId, onItemClick, projectId, episodeId 
             <div
                 className="flex min-w-max gap-1 rounded-lg px-2 py-2"
                 style={{
-                    background: '#15161b',
+                    background: '#161616',
                     border: '1px solid rgba(255,255,255,.10)',
                     boxShadow: '0 18px 50px rgba(0,0,0,.22)',
                 }}

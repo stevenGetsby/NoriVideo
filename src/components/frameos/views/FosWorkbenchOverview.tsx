@@ -138,8 +138,8 @@ function StageCard({
       className="flex min-w-0 flex-col rounded-[12px] border p-5"
       style={{
         background: 'var(--fos-bg-2)',
-        borderColor: emphasized ? 'var(--fos-primary)' : 'var(--fos-border-mid)',
-        boxShadow: emphasized ? '0 0 0 1px var(--fos-primary-border), 0 18px 42px rgba(13, 22, 50, .22)' : 'none',
+        borderColor: emphasized ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)',
+        boxShadow: emphasized ? '0 0 0 1px var(--fos-primary-border), 0 18px 42px rgba(23,23,23,.22)' : 'none',
         minHeight: 600,
       }}
     >
@@ -177,7 +177,7 @@ function WorkflowProgress({
     ? '#ff7272'
     : tone === 'done'
       ? '#5bd39a'
-      : '#6f8cff'
+      : '#3265ff'
   const statusLabel = running
     ? '实时处理中'
     : tone === 'done'
@@ -190,10 +190,10 @@ function WorkflowProgress({
     <div
       className="relative overflow-hidden rounded-[12px] border px-3.5 py-3.5"
       style={{
-        borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(112, 139, 255, .28)',
+        borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(255,255,255,.14)',
         background: tone === 'failed'
-          ? 'linear-gradient(145deg, rgba(92, 28, 42, .28), rgba(23, 27, 48, .88))'
-          : 'radial-gradient(circle at 92% 0%, rgba(92, 112, 255, .18), transparent 42%), linear-gradient(145deg, rgba(31, 39, 72, .92), rgba(19, 24, 45, .94))',
+          ? 'linear-gradient(145deg, rgba(92, 28, 42, .28), rgba(28,28,28,.88))'
+          : 'radial-gradient(circle at 92% 0%, rgba(255,255,255,.1), transparent 42%), linear-gradient(145deg, rgba(40,40,40,.92), rgba(25,25,25,.94))',
       }}
       data-testid="workflow-progress-card"
     >
@@ -214,8 +214,8 @@ function WorkflowProgress({
             width: `${safeProgress}%`,
             background: tone === 'failed'
               ? 'linear-gradient(90deg, #ff6464, #ff8a8a)'
-              : 'linear-gradient(90deg, #4f7cff, #8d74ff 58%, #5bd5c4)',
-            boxShadow: running ? '0 0 16px rgba(104, 128, 255, .55)' : 'none',
+              : 'linear-gradient(90deg, #3265ff, #3265ff 58%, #5bd5c4)',
+            boxShadow: running ? '0 0 16px rgba(0,0,0,.35)' : 'none',
           }}
         />
       </div>
@@ -546,7 +546,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
               etaText={assetActive ? assetEta : assetReady ? '已完成' : '—'}
               errorText={productTaskError(assetActionError || assetTaskState?.lastError?.message, '资产解析未完成，请重新提交。')}
             />
-            {assetNotice ? <p className="mt-2 text-[11px] leading-5 text-[#8fa9ff]">{assetNotice}</p> : null}
+            {assetNotice ? <p className="mt-2 text-[11px] leading-5 text-[#e5e5e5]">{assetNotice}</p> : null}
             <div className="mt-3 space-y-2">
               {assetRows.map(([label, statusText, detail, href]) => (
                 <div
@@ -597,11 +597,11 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
               etaText={storyboardActive ? storyboardEta : storyboardDone ? '已完成' : '—'}
               errorText={productTaskError(storyboardActionError || storyboardFailedState?.lastError?.message, '分镜生成未完成，请重新提交对应分集。')}
             />
-            {storyboardNotice ? <p className="mt-2 text-[11px] leading-5 text-[#8fa9ff]">{storyboardNotice}</p> : null}
+            {storyboardNotice ? <p className="mt-2 text-[11px] leading-5 text-[#e5e5e5]">{storyboardNotice}</p> : null}
             <div className="mt-4 rounded-[10px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-3)] p-3">
               <div className="flex items-center justify-between text-[12px]">
                 <span className="font-bold text-white">分集完成度</span>
-                <span className="font-mono font-bold text-[#8fa9ff]">{completedStoryboardEpisodes}/{episodeCount}</span>
+                <span className="font-mono font-bold text-[#e5e5e5]">{completedStoryboardEpisodes}/{episodeCount}</span>
               </div>
               <p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">
                 {canStartStoryboard

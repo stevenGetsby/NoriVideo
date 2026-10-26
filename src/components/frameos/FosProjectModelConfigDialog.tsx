@@ -126,7 +126,7 @@ function ProjectSettingsSelect<T extends string>({
   return (
     <label className="rounded-xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-3)] p-4 transition-colors focus-within:border-[var(--fos-primary-border)]">
       <span className="block text-[13px] font-bold text-white">{label}</span>
-      <select className="fos-input mt-3 h-10 w-full text-[13px]" value={value} onChange={(event) => onChange(event.target.value as T)}>
+      <select className="fos-input mt-3 w-full text-[13px]" value={value} onChange={(event) => onChange(event.target.value as T)}>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
@@ -289,9 +289,9 @@ export function FosProjectModelConfigDialog({
     <ViewportDialogLayer>
     <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
       <section role="dialog" aria-modal="true" aria-label="编辑作品" className="fos-dialog w-full max-w-[760px] rounded-2xl shadow-[0_28px_90px_rgba(0,0,0,.62)]">
-        <header className="fos-dialog-head flex items-start justify-between bg-[linear-gradient(110deg,rgba(59,130,246,.14),rgba(124,92,255,.08),transparent_70%)]">
+        <header className="fos-dialog-head flex items-start justify-between bg-[linear-gradient(110deg,rgba(255,255,255,.1),rgba(255,255,255,.08),transparent_70%)]">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[#8fb0ff]"><AppIcon name="settingsHex" className="h-5 w-5" /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[#e5e5e5]"><AppIcon name="settingsHex" className="h-5 w-5" /></span>
             <div><h2 className="text-[18px] font-bold text-white">编辑作品</h2><p className="mt-1 text-[12px] leading-5 text-[var(--fos-text-3)]">作品参与人员可修改名称、简介和后续生成配置，不会删除已有剧本与资产；删除作品由管理员维护。</p></div>
           </div>
           <button type="button" className="fos-icon-btn" aria-label="关闭" disabled={saving} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
@@ -340,7 +340,7 @@ export function FosProjectModelConfigDialog({
                   <span className="block text-[13px] font-bold text-white">单集时长</span>
                   <span className="mt-1 block text-[12px] text-[var(--fos-text-3)]">{settings.episodeDurationMode === 'per-episode' ? '秒 / 集' : '秒 / 千字'}</span>
                   <input
-                    className="fos-input mt-3 h-10 w-full text-[13px]"
+                    className="fos-input mt-3 w-full text-[13px]"
                     type="number"
                     min={durationBounds(settings.episodeDurationMode).minimum}
                     max={durationBounds(settings.episodeDurationMode).maximum}
@@ -365,13 +365,13 @@ export function FosProjectModelConfigDialog({
                 <label className="rounded-xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-3)] p-4">
                   <span className="block text-[13px] font-bold text-white">导出视频命名规则</span>
                   <span className="mt-1 block text-[12px] leading-5 text-[var(--fos-text-3)]">可用：{'{project}'} {'{episode}'} {'{sequence}'} {'{generation}'} {'{creator}'} {'{attempt}'}</span>
-                  <input className="fos-input mt-3 h-10 w-full text-[13px]" maxLength={191} value={settings.exportNamingTemplate} onChange={(event) => setSettings((current) => ({ ...current, exportNamingTemplate: event.target.value }))} />
+                  <input className="fos-input mt-3 w-full text-[13px]" maxLength={191} value={settings.exportNamingTemplate} onChange={(event) => setSettings((current) => ({ ...current, exportNamingTemplate: event.target.value }))} />
                   <span className="mt-2 block text-[11px] text-[var(--fos-text-4)]">默认：项目_生成名_视频001_创建者.mp4；详细规则可设置为 {'{project}_{episode}_{generation}_{attempt}次生成_{creator}'}。</span>
                 </label>
                 <label className="rounded-xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-3)] p-4">
                   <span className="block text-[13px] font-bold text-white">成员本地下载目录提示</span>
                   <span className="mt-1 block text-[12px] leading-5 text-[var(--fos-text-3)]">每位成员首次导出时选择自己电脑的目录；系统会按作品记住该成员的选择。</span>
-                  <input className="fos-input mt-3 h-10 w-full text-[13px]" maxLength={500} placeholder="例如：D:\NoriVideoDownloads\机甲三国" value={settings.exportDirectoryHint} onChange={(event) => setSettings((current) => ({ ...current, exportDirectoryHint: event.target.value }))} />
+                  <input className="fos-input mt-3 w-full text-[13px]" maxLength={500} placeholder="例如：D:\NoriVideoDownloads\机甲三国" value={settings.exportDirectoryHint} onChange={(event) => setSettings((current) => ({ ...current, exportDirectoryHint: event.target.value }))} />
                   <div className="mt-3"><ProjectDownloadDirectory projectId={projectId} /></div>
                   <p className="mt-2 text-[11px] text-[var(--fos-text-4)]">此路径是团队提示，不会让服务器写入本机。每位成员需要点击选择自己设备的目录；其它账号和电脑不会继承授权。</p>
                 </label>
@@ -384,7 +384,7 @@ export function FosProjectModelConfigDialog({
                 <label key={definition.field} className="rounded-xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-3)] p-4 transition-colors focus-within:border-[var(--fos-primary-border)]">
                   <span className="block text-[13px] font-bold text-white">{definition.label}</span>
                   <span className="mt-1 block text-[12px] leading-5 text-[var(--fos-text-3)]">{definition.description}</span>
-                  <select className="fos-input mt-3 h-10 w-full text-[13px]" disabled={models[definition.type].length === 0} value={config[definition.field] || ''} onChange={(event) => setConfig((current) => ({ ...current, [definition.field]: event.target.value || null }))}>
+                  <select className="fos-input mt-3 w-full text-[13px]" disabled={models[definition.type].length === 0} value={config[definition.field] || ''} onChange={(event) => setConfig((current) => ({ ...current, [definition.field]: event.target.value || null }))}>
                     <option value="">{models[definition.type].length ? '请选择模型' : '平台尚未接入此类模型'}</option>
                     {models[definition.type].map((model) => <option key={model.value} value={model.value}>{modelOptionLabel(model)}</option>)}
                   </select>
@@ -392,7 +392,7 @@ export function FosProjectModelConfigDialog({
               ))}
             </div>
           )}
-          <div className="mt-4 rounded-xl border border-blue-400/15 bg-blue-500/[.06] px-4 py-3 text-[12px] leading-5 text-[#9eb8ff]">分镜设计只生成结构化镜头文本；作品不会单独生成“分镜静态图”。镜头制作阶段直接使用“分镜视频”模型。</div>
+          <div className="mt-4 rounded-xl border border-white/15 bg-white/[.06] px-4 py-3 text-[12px] leading-5 text-[#e5e5e5]">分镜设计只生成结构化镜头文本；作品不会单独生成“分镜静态图”。镜头制作阶段直接使用“分镜视频”模型。</div>
           {error ? <div className="mt-4 rounded-lg border border-red-400/20 bg-red-400/[.08] px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
         </div>
         <footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={saving} onClick={onClose}>取消</button><button type="button" className="fos-btn fos-btn-primary" disabled={!loaded || loading || saving || !details.name.trim()} onClick={() => void save()}>{saving ? '保存中…' : '保存作品'}</button></footer>

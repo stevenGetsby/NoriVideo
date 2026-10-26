@@ -83,7 +83,7 @@ interface AccountDraft {
 const ROLE_TONES: Record<AccountRole, string> = {
   super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
   admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
-  writer: 'border-blue-400/25 bg-blue-400/[.08] text-blue-200',
+  writer: 'border-white/15 bg-white/[.08] text-neutral-200',
   asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
   storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
   reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
@@ -161,9 +161,9 @@ export function PermissionMatrix() {
       </div>
       <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-6">
         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => (
-          <article key={permission.key} className="rounded-[10px] border border-blue-300/10 bg-blue-400/[.045] p-3.5">
+          <article key={permission.key} className="rounded-[10px] border border-white/15 bg-white/[.045] p-3.5">
             <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-blue-500/15 text-blue-200">
+              <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-white/10 text-neutral-200">
                 <AppIcon name="check" className="h-3.5 w-3.5" />
               </span>
               <strong className="text-[12px] font-semibold text-white/85">{permission.label}</strong>
@@ -360,9 +360,9 @@ export function AccountDialog({
                               ? draft.permissions.filter((item) => item !== permission.key)
                               : [...draft.permissions, permission.key],
                           })}
-                          className={`flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors ${checked ? 'border-blue-400/35 bg-blue-400/[.09]' : 'border-white/[.07] bg-white/[.025] hover:bg-white/[.05]'}`}
+                          className={`flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors ${checked ? 'border-white/25 bg-white/[.09]' : 'border-white/[.07] bg-white/[.025] hover:bg-white/[.05]'}`}
                         >
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${checked ? 'border-blue-300/45 bg-blue-500 text-white' : 'border-white/15 bg-black/10 text-transparent'}`}><AppIcon name="check" className="h-3.5 w-3.5" /></span>
+                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${checked ? 'border-white/25 bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-white' : 'border-white/15 bg-black/10 text-transparent'}`}><AppIcon name="check" className="h-3.5 w-3.5" /></span>
                           <span><strong className="block text-[12px] font-semibold text-white/85">{permission.label}</strong><small className="mt-1 block text-[10px] leading-4 text-white/40">{permission.description}</small></span>
                         </button>
                       )
@@ -427,8 +427,8 @@ export function AccountDialog({
           </div>
 
           {mode === 'create' ? (
-            <div className="mt-5 rounded-[10px] border border-blue-400/15 bg-blue-400/[.06] px-4 py-3">
-              <p className="text-[11px] leading-5 text-blue-100/70">新账号积分默认为 0。创建后请使用独立的充值、分配或收回操作，所有变动都会记录到账本。</p>
+            <div className="mt-5 rounded-[10px] border border-white/15 bg-white/[.06] px-4 py-3">
+              <p className="text-[11px] leading-5 text-neutral-200/70">新账号积分默认为 0。创建后请使用独立的充值、分配或收回操作，所有变动都会记录到账本。</p>
             </div>
           ) : null}
 
@@ -525,7 +525,7 @@ export function CreditLedgerDialog({
 
   return (
     <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#151a27] shadow-2xl">
+      <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#1a1a1a] shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/[.08] px-6 py-4">
           <div><h2 className="text-[16px] font-bold text-white">积分账户流水</h2><p className="mt-1 text-[11px] text-white/45">{target.username} · 最近 50 条不可变账本记录</p></div>
           <button type="button" className="fos-icon-btn" onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
@@ -603,15 +603,15 @@ export function CreditOperationDialog({
           </button>
         </div>
         <div className="fos-dialog-body">
-          <div className="rounded-[10px] border border-blue-400/15 bg-blue-400/[.06] px-4 py-3 text-[11px] leading-5 text-blue-100/65">
+          <div className="rounded-[10px] border border-white/15 bg-white/[.06] px-4 py-3 text-[11px] leading-5 text-neutral-200/65">
             {copy.hint} 换算标准：¥1 = 100 积分。
           </div>
           {operation === 'recharge' ? (
-            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-blue-300/15 bg-[#101827] px-4 py-4 text-center">
+            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-white/15 bg-[#171717] px-4 py-4 text-center">
               <span><small className="block text-[10px] text-white/45">当前余额</small><strong className="mt-1 block text-[15px] text-white">{currentTargetPoints.toLocaleString('zh-CN')}</strong></span>
-              <span className="text-[15px] text-blue-200/55">+</span>
-              <span><small className="block text-[10px] text-white/45">本次充值</small><strong className="mt-1 block text-[15px] text-blue-200">{valid ? parsedPoints.toLocaleString('zh-CN') : '—'}</strong></span>
-              <span className="text-[15px] text-blue-200/55">=</span>
+              <span className="text-[15px] text-neutral-200/55">+</span>
+              <span><small className="block text-[10px] text-white/45">本次充值</small><strong className="mt-1 block text-[15px] text-neutral-200">{valid ? parsedPoints.toLocaleString('zh-CN') : '—'}</strong></span>
+              <span className="text-[15px] text-neutral-200/55">=</span>
               <span><small className="block text-[10px] text-white/45">充值后余额</small><strong className="mt-1 block text-[15px] text-emerald-300">{projectedTargetPoints.toLocaleString('zh-CN')}</strong></span>
             </div>
           ) : null}
