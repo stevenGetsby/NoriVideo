@@ -42,8 +42,54 @@ describe('canvas generator node anchoring', () => {
       surface: { width: 1400, height: 650 },
     })
 
+    if (!anchor) throw new Error('expected anchor')
     expect(anchor.placement).toBe('above')
     expect(anchor.y - anchor.maxHeight).toBe(116)
     expect(anchor.x).toBe(460)
+  })
+
+  it('shrinks below the node instead of covering it on a short viewport', () => {
+    const anchor = resolveCanvasGeneratorAnchor({
+      nodePosition: { x: 440, y: 140 },
+      nodeSize: { width: 320, height: 180 },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      surface: { width: 1280, height: 720 },
+      safeBottom: 96,
+    })
+
+    expect(anchor).not.toBeNull()
+    if (!anchor) return
+    expect(anchor.placement).toBe('below')
+    const nodeBottom = 140 + 180
+    expect(anchor.y).toBeGreaterThanOrEqual(nodeBottom + 16)
+    expect(anchor.y + anchor.maxHeight).toBeLessThanOrEqual(720 - 96 + 1)
+  })
+
+  it('falls back to the bottom-docked panel when neither side fits at all', () => {
+    const anchor = resolveCanvasGeneratorAnchor({
+      nodePosition: { x: 440, y: 260 },
+      nodeSize: { width: 320, height: 180 },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      surface: { width: 1280, height: 560 },
+      safeBottom: 96,
+    })
+
+    expect(anchor).toBeNull()
+  })
+
+  it('keeps a below-panel clear of the node when the node sits high', () => {
+    const anchor = resolveCanvasGeneratorAnchor({
+      nodePosition: { x: 440, y: 40 },
+      nodeSize: { width: 320, height: 180 },
+      viewport: { x: 0, y: 0, zoom: 1 },
+      surface: { width: 1280, height: 1080 },
+      safeBottom: 96,
+    })
+
+    expect(anchor).not.toBeNull()
+    if (!anchor) return
+    const nodeBottom = 40 + 180
+    expect(anchor.placement).toBe('below')
+    expect(anchor.y).toBeGreaterThanOrEqual(nodeBottom + 16)
   })
 })

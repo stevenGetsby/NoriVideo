@@ -11,20 +11,27 @@ function readNodeData(data: NodeProps['data']): CanvasNodeData {
 
 function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'success' | 'warning' }) {
   const colors = {
-    neutral: 'rgba(71,85,105,0.12)',
-    success: 'rgba(16,185,129,0.16)',
-    warning: 'rgba(245,158,11,0.18)',
+    neutral: 'rgba(255,255,255,0.055)',
+    success: 'rgba(82,196,26,0.12)',
+    warning: 'rgba(250,173,20,0.12)',
+  }
+  const textColors = {
+    neutral: 'rgba(255,255,255,0.55)',
+    success: '#8ed06c',
+    warning: '#f2c063',
   }
 
   return (
     <span
       style={{
+        flex: 'none',
         borderRadius: 999,
         background: colors[tone],
-        color: '#334155',
+        color: textColors[tone],
         fontSize: 11,
-        fontWeight: 700,
-        padding: '3px 8px',
+        fontWeight: 600,
+        lineHeight: '18px',
+        padding: '2px 9px',
         whiteSpace: 'nowrap',
       }}
     >
@@ -54,63 +61,25 @@ function ProductionNodeImpl(props: NodeProps) {
     <div
       style={{
         width: isPanel || isVideo ? 260 : 300,
-        borderRadius: 14,
-        background: 'rgba(255,255,255,0.92)',
-        border: props.selected ? '2px solid #2563eb' : '1px solid rgba(148,163,184,0.42)',
+        borderRadius: 16,
+        background: props.selected
+          ? 'linear-gradient(rgb(42,42,42), rgb(34,34,34))'
+          : '#1f1f1f',
+        border: props.selected
+          ? '1px solid rgba(70,151,255,0.92)'
+          : '0.5px solid #3d3d3d',
         boxShadow: props.selected
-          ? '0 18px 48px rgba(37,99,235,0.22)'
-          : '0 14px 34px rgba(15,23,42,0.14)',
+          ? '0 0 0 1px rgba(70,151,255,0.48), 0 16px 42px rgba(0,0,0,0.42), 0 0 34px rgba(70,151,255,0.34)'
+          : '0 2px 8px rgba(0,0,0,0.18)',
         overflow: 'hidden',
         cursor: 'grab',
+        transition: 'border-color .15s ease, box-shadow .15s ease',
       }}
     >
-      <Handle type="source" id="input" position={Position.Left} style={{ background: '#64748b' }} />
-
-      <div
-        style={{
-          padding: 12,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          borderBottom: '1px solid rgba(226,232,240,0.9)',
-        }}
-      >
-        <div style={{ minWidth: 0 }}>
-          <div
-            style={{
-              color: '#0f172a',
-              fontSize: 13,
-              fontWeight: 800,
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-            }}
-          >
-            {data.title || fallbackTitle}
-          </div>
-          {data.subtitle ? (
-            <div
-              style={{
-                color: '#64748b',
-                fontSize: 11,
-                marginTop: 3,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {data.subtitle}
-            </div>
-          ) : null}
-        </div>
-        <Badge tone={data.hasVideo ? 'success' : data.hasImage ? 'warning' : 'neutral'}>
-          {statusLabel}
-        </Badge>
-      </div>
+      <Handle type="source" id="input" position={Position.Left} style={{ background: '#5a5a5a' }} />
 
       {hasVisual ? (
-        <div style={{ aspectRatio: '16 / 9', background: '#0f172a', position: 'relative' }}>
+        <div style={{ aspectRatio: '16 / 9', background: '#0a0a0a', position: 'relative' }}>
           {data.videoUrl ? (
             <video
               src={data.videoUrl}
@@ -135,26 +104,69 @@ function ProductionNodeImpl(props: NodeProps) {
         <div
           style={{
             height: isPanel ? 120 : 92,
-            background: 'linear-gradient(135deg, #f8fafc, #e2e8f0)',
+            background: 'linear-gradient(145deg, rgba(34,34,34,0.96), rgba(26,26,26,0.99))',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#64748b',
+            color: 'rgba(255,255,255,0.28)',
             fontSize: 12,
-            fontWeight: 700,
+            fontWeight: 600,
+            borderBottom: '0.5px solid rgba(255,255,255,0.06)',
           }}
         >
           {isVideo ? '等待视频结果' : isPanel ? '等待分镜图' : '生产数据节点'}
         </div>
       )}
 
-      <div style={{ padding: 12 }}>
+      <div style={{ padding: '10px 12px 12px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 8,
+          }}
+        >
+          <div
+            style={{
+              minWidth: 0,
+              color: 'rgba(255,255,255,0.92)',
+              fontSize: 13,
+              fontWeight: 600,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {data.title || fallbackTitle}
+          </div>
+          <Badge tone={data.hasVideo ? 'success' : data.hasImage ? 'warning' : 'neutral'}>
+            {statusLabel}
+          </Badge>
+        </div>
+
+        {data.subtitle ? (
+          <div
+            style={{
+              color: 'rgba(255,255,255,0.4)',
+              fontSize: 11,
+              marginTop: 4,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {data.subtitle}
+          </div>
+        ) : null}
+
         {data.description ? (
           <div
             style={{
-              color: '#334155',
+              color: 'rgba(255,255,255,0.55)',
               fontSize: 12,
-              lineHeight: 1.45,
+              lineHeight: 1.5,
+              marginTop: 7,
               display: '-webkit-box',
               WebkitLineClamp: 3,
               WebkitBoxOrient: 'vertical',
@@ -168,10 +180,10 @@ function ProductionNodeImpl(props: NodeProps) {
         {data.prompt ? (
           <div
             style={{
-              color: '#64748b',
+              color: 'rgba(255,255,255,0.32)',
               fontSize: 11,
-              lineHeight: 1.4,
-              marginTop: data.description ? 8 : 0,
+              lineHeight: 1.45,
+              marginTop: data.description ? 8 : 6,
               display: '-webkit-box',
               WebkitLineClamp: 2,
               WebkitBoxOrient: 'vertical',
@@ -183,7 +195,7 @@ function ProductionNodeImpl(props: NodeProps) {
         ) : null}
 
         {data.stats ? (
-          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 6, marginTop: 10, flexWrap: 'wrap' }}>
             {Object.entries(data.stats).map(([key, value]) => (
               <Badge key={key}>{key}: {value}</Badge>
             ))}
@@ -191,7 +203,7 @@ function ProductionNodeImpl(props: NodeProps) {
         ) : null}
       </div>
 
-      <Handle type="source" id="output" position={Position.Right} style={{ background: '#64748b' }} />
+      <Handle type="source" id="output" position={Position.Right} style={{ background: '#5a5a5a' }} />
     </div>
   )
 }

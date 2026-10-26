@@ -31,6 +31,8 @@ import {
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
+import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
+import { frameosAssetCategoryFromMetadata } from '@/lib/frameos/material-category'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
@@ -295,17 +297,26 @@ function ReferenceThumb({ node, selected, onToggle, onHover }: { node: CanvasFlo
     : mediaType === 'image' ? node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null : null)
   const video = mediaType === 'video' ? toPlayableVideoUrl(node.data.videoUrl || node.data.contentUrl) : null
   const Icon = node.type === 'text' ? Type : node.type === 'video' ? Film : node.type === 'audio' ? Music2 : ImageIcon
+  const isCharacter = mediaType === 'image' && frameosAssetCategoryFromMetadata(node.data.sourceMetadata) === 'character'
+  const characterVoiceBound = isCharacter && Boolean(characterVoiceMaterialId(node.data.sourceMetadata))
+  const title = node.data.title || '上游节点'
+  const voiceHint = isCharacter
+    ? characterVoiceBound
+      ? ' · 角色已绑定音色，全能参考且开启声音时会自动带入'
+      : ' · 角色未绑定音色，全能参考时不会带入音频'
+    : ''
   return (
     <button
       type="button"
       className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}`}
-      title={node.data.title || '上游节点'}
+      title={`${title}${voiceHint}`}
       onClick={onToggle}
       onPointerEnter={() => onHover(node.id)}
       onPointerLeave={() => onHover(null)}
     >
       {image ? <MediaImage src={image} alt="" width={52} height={52} /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
-      <span>{node.data.title || '未命名'}</span>
+      {isCharacter ? <em className={`nori-canvas-generator-ref-voice${characterVoiceBound ? ' is-bound' : ' is-missing'}`}>{characterVoiceBound ? '音色' : '缺音色'}</em> : null}
+      <span>{title}</span>
     </button>
   )
 }
@@ -666,6 +677,28 @@ export function CanvasGenerator({
     })
     return [...visibleIncomingNodes, ...selected]
   }, [inputMode, referenceNodeIds, referenceNodes, type, visibleIncomingNodes])
+  const characterVoiceSummary = useMemo(() => {
+    if (type !== 'video') return null
+    const characterRefs = displayedReferenceNodes.filter((item) => (
+      (item.data.mediaType || item.type) === 'image'
+      && frameosAssetCategoryFromMetadata(item.data.sourceMetadata) === 'character'
+    ))
+    if (characterRefs.length === 0) return null
+    const bound = characterRefs.filter((item) => Boolean(characterVoiceMaterialId(item.data.sourceMetadata))).length
+    return { total: characterRefs.length, bound, missing: characterRefs.length - bound }
+  }, [displayedReferenceNodes, type])
+  const characterVoiceHint = characterVoiceSummary
+    ? inputMode !== 'text'
+      ? `${inputMode === 'image' ? '图生视频' : '首尾帧'}不提交角色音色；当前 ${characterVoiceSummary.total} 个角色中 ${characterVoiceSummary.bound} 个已绑定。`
+      : !generateAudio
+        ? `已关闭「同步生成声音」，本次不会提交角色音色${characterVoiceSummary.bound > 0 ? `（已绑定 ${characterVoiceSummary.bound} 个）` : ''}。`
+        : characterVoiceSummary.bound > 0
+          ? `全能参考将自动带入 ${characterVoiceSummary.bound} 个角色音色${characterVoiceSummary.missing > 0 ? `；另有 ${characterVoiceSummary.missing} 个角色缺音色` : ''}。`
+          : `当前 ${characterVoiceSummary.total} 个角色均未绑定音色，生成时不会带入角色音频。`
+    : null
+  const characterVoiceHintTone = characterVoiceSummary && inputMode === 'text' && generateAudio
+    ? characterVoiceSummary.missing > 0 ? ' is-warning' : ''
+    : ' is-muted'
   const hoveredReference = autoReferencePreview && hoveredReferenceId
     ? displayedReferenceNodes.find((item) => item.id === hoveredReferenceId) || null
     : null
@@ -1017,6 +1050,7 @@ export function CanvasGenerator({
           {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /></button> : null}
         </div>
       ) : null}
+      {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
 
       {missingReferenceCount > 0 ? <div role="alert" className="nori-canvas-generator-reference-warning">
         <span>有 {missingReferenceCount} 个引用节点已删除。请清除失效引用或重新添加素材；不会自动提交缺少素材的生成。</span>

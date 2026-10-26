@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
   createToolboxDraftKey,
+  defaultToolboxInputMode,
   readToolboxDraft,
   resolveToolboxGenerateAudio,
+  TOOLBOX_DRAFT_INPUT_MODE_VERSION,
   writeToolboxDraft,
   type ToolboxDraft,
 } from '@/components/frameos/views/toolbox-draft'
@@ -61,16 +63,56 @@ describe('toolbox draft persistence', () => {
     expect(readToolboxDraft(storage, 'bad')).toBeNull()
   })
 
+  it('defaults video to all-in-one reference while keeping image drafts text-first', () => {
+    expect(defaultToolboxInputMode('video')).toBe('reference')
+    expect(defaultToolboxInputMode('image')).toBe('text')
+    const storage = memoryStorage()
+    storage.setItem('empty-video', JSON.stringify({ version: 1, prompt: '雨夜奔跑' }))
+    expect(readToolboxDraft(storage, 'empty-video')?.inputMode).toBe('reference')
+    expect(readToolboxDraft(storage, 'empty-video', 'text')?.inputMode).toBe('text')
+  })
+
   it('migrates old text-labelled references without losing inputs and supports 30 seconds', () => {
     const storage = memoryStorage()
     storage.setItem('old', JSON.stringify({ version: 1, inputMode: 'text', duration: 30, references: [{ id: 'image-1', type: 'image' }] }))
     expect(readToolboxDraft(storage, 'old')).toMatchObject({ inputMode: 'reference', duration: 30 })
   })
 
-  it('keeps explicit pure text mode even when other mode references are cached', () => {
+  it('migrates drafts that captured the old default but keeps explicit new-mode text', () => {
     const storage = memoryStorage()
-    storage.setItem('new', JSON.stringify({ version: 1, inputModeVersion: 2, inputMode: 'text', references: [{ id: 'image-1', type: 'image' }] }))
-    expect(readToolboxDraft(storage, 'new')?.inputMode).toBe('text')
+    storage.setItem('auto-old', JSON.stringify({ version: 1, inputModeVersion: 2, inputMode: 'text', references: [{ id: 'image-1', type: 'image' }] }))
+    expect(readToolboxDraft(storage, 'auto-old')?.inputMode).toBe('reference')
+    storage.setItem('explicit-new', JSON.stringify({
+      version: 1,
+      inputModeVersion: TOOLBOX_DRAFT_INPUT_MODE_VERSION,
+      inputMode: 'text',
+      references: [{ id: 'image-1', type: 'image' }],
+    }))
+    expect(readToolboxDraft(storage, 'explicit-new')?.inputMode).toBe('text')
+  })
+
+  it('stamps the current input-mode version when persisting a draft', () => {
+    const storage = memoryStorage()
+    const draft: ToolboxDraft = {
+      version: 1,
+      title: '',
+      prompt: '',
+      modelKey: '',
+      ratio: '16:9',
+      resolution: '',
+      quality: 'high',
+      inputMode: 'text',
+      duration: 5,
+      fps: null,
+      generateAudio: true,
+      assetCategory: 'other',
+      references: [],
+    }
+    writeToolboxDraft(storage, 'key', draft)
+    expect(JSON.parse(storage.getItem('key') || '{}')).toMatchObject({
+      inputMode: 'text',
+      inputModeVersion: TOOLBOX_DRAFT_INPUT_MODE_VERSION,
+    })
   })
 
   it('defaults sound on for a new capable model but preserves an explicit draft choice', () => {

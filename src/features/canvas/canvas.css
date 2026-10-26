@@ -216,6 +216,33 @@
   background: rgba(0, 0, 0, .22);
 }
 
+/* Dreamo-style drag frame: interactive media (video/audio) stays nodrag, so a
+   perimeter band around it gives the whole card a grabbable edge. */
+.nori-canvas-node-drag-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: inherit;
+  cursor: grab;
+  clip-path: polygon(
+    evenodd,
+    0 0, 100% 0, 100% 100%, 0 100%, 0 0,
+    14px 14px, calc(100% - 14px) 14px, calc(100% - 14px) calc(100% - 14px), 14px calc(100% - 14px), 14px 14px
+  );
+}
+
+.nori-canvas-node.is-selected .nori-canvas-node-drag-frame {
+  outline: 1px solid rgba(70, 151, 255, .0);
+}
+
+.nori-canvas-node:hover .nori-canvas-node-drag-frame {
+  background: rgba(255, 255, 255, .028);
+}
+
+.nori-canvas-node.is-selected .nori-canvas-node-drag-frame {
+  background: rgba(70, 151, 255, .05);
+}
+
 .nori-canvas-panorama-preview {
   position: absolute;
   right: 9px;
@@ -1361,7 +1388,8 @@
   bottom: 92px;
   z-index: 30;
   width: min(840px, calc(100vw - 80px));
-  max-width: calc(100% - 24px);
+  /* Keep clear of the left tool rail (50px + margins) on narrow viewports. */
+  max-width: calc(100% - 148px);
   overflow: hidden;
   border: 1px solid var(--canvas-border);
   border-radius: 13px;
@@ -1609,6 +1637,53 @@
   background: rgba(0, 0, 0, .7);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.nori-canvas-generator-ref-voice {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  z-index: 2;
+  border-radius: 4px;
+  padding: 1px 4px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 700;
+  line-height: 12px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.nori-canvas-generator-ref-voice.is-bound {
+  border: 1px solid rgba(196, 181, 253, .4);
+  color: #ddd6fe;
+  background: rgba(76, 29, 149, .86);
+}
+
+.nori-canvas-generator-ref-voice.is-missing {
+  border: 1px solid rgba(251, 191, 36, .45);
+  color: #fde68a;
+  background: rgba(69, 26, 3, .88);
+}
+
+.nori-canvas-generator-voice-hint {
+  margin: 4px 12px 0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: #c4b5fd;
+  background: rgba(76, 29, 149, .16);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.nori-canvas-generator-voice-hint.is-warning {
+  color: #fde68a;
+  background: rgba(120, 53, 15, .2);
+}
+
+.nori-canvas-generator-voice-hint.is-muted {
+  color: rgba(255, 255, 255, .5);
+  background: rgba(255, 255, 255, .05);
 }
 
 .nori-canvas-generator-ref-preview {
@@ -2771,6 +2846,9 @@
 .nori-canvas-project-assets-thumb { position: relative; display: grid; width: 66px; height: 51px; overflow: hidden; place-items: center; border-radius: 7px; color: rgba(255, 255, 255, .2); background: #0c0e14; }
 .nori-canvas-project-assets-thumb > svg { width: 23px; height: 23px; }
 .nori-canvas-project-assets-thumb > span { position: absolute; right: 3px; bottom: 3px; border-radius: 4px; padding: 2px 4px; color: rgba(255, 255, 255, .8); background: rgba(0, 0, 0, .72); font-size: 6px; font-weight: 750; }
+.nori-canvas-project-assets-voice { position: absolute; top: 3px; left: 3px; z-index: 2; border-radius: 4px; padding: 1px 4px; font-size: 7px; font-style: normal; font-weight: 750; line-height: 11px; white-space: nowrap; pointer-events: none; }
+.nori-canvas-project-assets-voice.is-bound { border: 1px solid rgba(196, 181, 253, .4); color: #ddd6fe; background: rgba(76, 29, 149, .86); }
+.nori-canvas-project-assets-voice.is-missing { border: 1px solid rgba(251, 191, 36, .45); color: #fde68a; background: rgba(69, 26, 3, .88); }
 .nori-canvas-project-assets-list > article > div:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .nori-canvas-project-assets-list > article strong { overflow: hidden; color: rgba(255, 255, 255, .73); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-project-assets-list > article small { overflow: hidden; color: rgba(255, 255, 255, .28); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
@@ -6219,7 +6297,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 }
 .nori-canvas-generator-head { flex: none; }
 .nori-canvas-generator:not(.is-node-anchored):not(.is-fullscreen) .nori-canvas-generator-scroll {
-  max-height: calc(100dvh / var(--nori-interface-scale, 1.2) - 116px);
+  max-height: calc(100dvh / var(--nori-interface-scale, 1.2) - 180px);
 }
 .nori-canvas-generator-content { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .nori-canvas-generator.is-fullscreen .nori-canvas-generator-content { display: flex; flex-direction: column; }
@@ -6432,4 +6510,90 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   .nori-canvas-studio-stage { min-height: 220px; flex: none; }
   .nori-canvas-revision-list article { grid-template-columns: 28px minmax(0, 1fr); }
   .nori-canvas-revision-list article > button { grid-column: 2; }
+}
+
+/* 2026-10 Dreamo-inspired canvas pass: darker glass panels, softer borders,
+   blue selection glow, pill controls. */
+.nori-canvas-generator {
+  border: .5px solid rgba(61, 61, 61, .9);
+  border-radius: 16px;
+  background: rgba(31, 31, 31, .92);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .5), inset 0 1px rgba(255, 255, 255, .04);
+}
+
+.nori-canvas-generator-head {
+  height: 44px;
+  border-bottom: .5px solid rgba(255, 255, 255, .07);
+}
+
+.nori-canvas-generator-head-actions > button {
+  border-radius: 10px;
+  transition: background-color .14s ease, color .14s ease;
+}
+
+.nori-canvas-generator-head-actions > button:hover {
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+}
+
+.nori-canvas-generator-controls select,
+.nori-canvas-generator-controls > button,
+.nori-canvas-generator-select {
+  border-radius: 999px;
+  border: .5px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .05);
+  color: rgba(255, 255, 255, .82);
+}
+
+.nori-canvas-generator-controls > button:hover:not(:disabled),
+.nori-canvas-generator-select:hover {
+  border-color: rgba(122, 122, 122, .8);
+  color: #fff;
+}
+
+.nori-canvas-parameter-trigger {
+  border-radius: 999px;
+  border: .5px solid rgba(255, 255, 255, .1);
+  background: rgba(255, 255, 255, .05);
+}
+
+.nori-canvas-generator-prompt .mention-prompt-editor-layer {
+  border-radius: 12px;
+  border: .5px solid rgba(255, 255, 255, .08);
+  background: rgba(10, 10, 12, .72);
+}
+
+.nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within {
+  border-color: rgba(70, 151, 255, .65);
+  box-shadow: 0 0 0 3px rgba(70, 151, 255, .12);
+}
+
+.nori-canvas-generator-refs {
+  border-bottom: .5px solid rgba(255, 255, 255, .06);
+}
+
+.nori-canvas-generator-ref {
+  border: .5px solid rgba(255, 255, 255, .09);
+  border-radius: 10px;
+}
+
+.nori-canvas-generator-ref.is-selected {
+  border-color: rgba(70, 151, 255, .85);
+  box-shadow: 0 0 0 2px rgba(70, 151, 255, .18);
+}
+
+/* Production node handles: hover-reveal like Dreamo */
+.react-flow__node[data-id] .nori-canvas-handle {
+  opacity: 0;
+  transition: opacity .15s ease;
+}
+
+.react-flow__node:hover .nori-canvas-handle,
+.react-flow__node.selected .nori-canvas-handle {
+  opacity: 1;
+}
+
+/* Viewport bar pill (Dreamo's bottom control pill) */
+.nori-canvas-viewport-controls {
+  border-radius: 999px;
 }

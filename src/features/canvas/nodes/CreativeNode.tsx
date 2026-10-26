@@ -318,6 +318,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       </header>
 
       <div className="nori-canvas-node-body">
+        {mediaType !== 'text' ? <span className="nori-canvas-node-drag-frame" title="拖动节点" aria-hidden="true" /> : null}
         {mediaType === 'text' ? <TextContent id={id} value={data.text || ''} readOnly={editor.readOnly} /> : null}
         {mediaType === 'image' && imageUrl ? <MediaImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} /> : null}
         {canPreviewPanorama ? (

@@ -25,7 +25,7 @@ export function resolveCanvasGeneratorAnchor(input: {
   aboveGap?: number
   safeTop?: number
   safeBottom?: number
-}): CanvasGeneratorAnchor {
+}): CanvasGeneratorAnchor | null {
   const zoom = Number.isFinite(input.viewport.zoom) && input.viewport.zoom > 0
     ? input.viewport.zoom
     : 1
@@ -56,12 +56,21 @@ export function resolveCanvasGeneratorAnchor(input: {
     : aboveSpace >= minimumPanelHeight
       ? 'above'
       : belowSpace >= aboveSpace ? 'below' : 'above'
+  // When neither side can even fit a usable panel, the anchored panel would be
+  // clamped onto the node it belongs to — stealing its pointer events and
+  // making the node impossible to drag. Fall back to null: the caller renders
+  // the fixed bottom-docked panel instead, which never covers the node area.
+  const compactPanelHeight = Math.min(220, availableSurfaceHeight)
+  if (belowSpace < compactPanelHeight && aboveSpace < compactPanelHeight) return null
+  // The panel must never cover its anchored node: a node underneath loses all
+  // pointer events and becomes impossible to drag or interact with. When space
+  // is short the panel shrinks (scrollable) instead of sliding over the node.
   const y = placement === 'below'
-    ? clamp(belowStart, safeTop, Math.max(safeTop, input.surface.height - safeBottom - minimumVisiblePanelHeight))
-    : clamp(aboveEnd, Math.min(input.surface.height - safeBottom, safeTop + minimumVisiblePanelHeight), input.surface.height - safeBottom)
-  const maxHeight = placement === 'below'
-    ? Math.max(minimumVisiblePanelHeight, input.surface.height - safeBottom - y)
-    : Math.max(minimumVisiblePanelHeight, y - safeTop)
+    ? clamp(belowStart, safeTop, input.surface.height - safeBottom)
+    : clamp(aboveEnd, safeTop, input.surface.height - safeBottom)
+  const maxHeight = Math.max(160, placement === 'below'
+    ? input.surface.height - safeBottom - y
+    : y - safeTop)
   const tetherX = clamp(nodeCenterX - (x - halfPanel), 28, panelWidth - 28)
   const tetherLength = placement === 'below'
     ? Math.max(8, y - nodeBottom)

@@ -70,7 +70,11 @@ const errors = []
 page.on('pageerror', (error) => errors.push(error.message))
 await page.route('**/*', async (route) => {
   const url = new URL(route.request().url())
-  if (['127.0.0.1', 'localhost'].includes(url.hostname) && url.port === base.split(':')[2]) return await route.continue()
+  const isLocal = ['127.0.0.1', 'localhost'].includes(url.hostname) && url.port === base.split(':')[2]
+  if (isLocal && !url.pathname.startsWith('/api/')) {
+    if (route.request().resourceType() === 'image') return await route.fulfill({ status: 204, contentType: 'image/png', body: '' })
+    return await route.continue()
+  }
   const videoModel = {
     modelKey: 'nori::norivideo2.5',
     name: 'NoriVideo 2.5',
@@ -93,7 +97,9 @@ await page.route('**/*', async (route) => {
       requiredFields: ['prompt'],
     },
   }
-  const body = url.pathname.includes('generation-config')
+  const body = url.pathname.includes('generation-quote')
+    ? { points: 120, costCny: 1.2 }
+    : url.pathname.includes('generation-config')
     ? {
       textModels: [],
       imageModels: [{ ...videoModel, modelKey: 'nori::nori-image', name: 'Nori Image' }],
@@ -121,6 +127,7 @@ try {
     ['?type=audio', 'audio'],
     ['?type=image', 'image'],
     ['?refs=1', 'all'],
+    ['?refs=1&voice=1', 'all'],
   ]) {
     await page.goto(`${base}/${query}`)
     const row = page.locator('.nori-canvas-generator-refs')
@@ -136,6 +143,32 @@ try {
     const others = boxes.filter((box) => box.label !== '添加引用素材')
     if (others.length > 0) {
       assert.ok(boxes[addIndex].x >= Math.max(...others.map((box) => box.x)), `add button must sit at the right edge for ${query || 'video'}`)
+    }
+    if (query === '?refs=1&voice=1') {
+      const badges = page.locator('.nori-canvas-generator-ref-voice')
+      assert.equal(await badges.count(), 2, 'bound and missing character voices must both show a badge')
+      const badgeState = await badges.evaluateAll((items) => items.map((item) => {
+        const card = item.closest('.nori-canvas-generator-ref')
+        const badge = item.getBoundingClientRect()
+        const cardBox = card?.getBoundingClientRect()
+        return {
+          text: item.textContent?.trim(),
+          tone: item.className,
+          insideCard: Boolean(cardBox
+            && badge.top >= cardBox.top && badge.left >= cardBox.left
+            && badge.right <= cardBox.right && badge.bottom <= cardBox.bottom),
+        }
+      }))
+      assert.deepEqual(badgeState.map((item) => item.text).sort(), ['缺音色', '音色'], 'unexpected voice badge labels')
+      assert.ok(badgeState.every((item) => item.insideCard), 'voice badges must not be clipped by the 52px reference card')
+      assert.ok(badgeState.some((item) => item.tone.includes('is-bound')))
+      assert.ok(badgeState.some((item) => item.tone.includes('is-missing')))
+      const hint = page.locator('.nori-canvas-generator-voice-hint')
+      await hint.waitFor()
+      const hintText = await hint.textContent()
+      assert.match(hintText, /全能参考将自动带入 1 个角色音色/)
+      assert.match(hintText, /另有 1 个角色缺音色/)
+      assert.ok((await hint.getAttribute('class'))?.includes('is-warning'), 'missing voice in reference mode must be warned')
     }
     await page.screenshot({ path: path.join(artifacts, `refs-${results.length}.png`) })
     if (query === '?mode=firstlastframe') {

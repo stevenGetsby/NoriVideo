@@ -521,7 +521,25 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (!target) return
     focusAppliedRef.current = true
     setNodes((current) => current.map((node) => ({ ...node, selected: node.id === focusNodeId })))
-    window.requestAnimationFrame(() => void flow.fitView({ nodes: [target], padding: 0.58, duration: 320 }))
+    window.requestAnimationFrame(() => {
+      const width = target.measured?.width ?? target.width ?? 0
+      const height = target.measured?.height ?? target.height ?? 0
+      const surface = wrapperRef.current
+        ? { width: wrapperRef.current.clientWidth, height: wrapperRef.current.clientHeight }
+        : { width: window.innerWidth, height: window.innerHeight }
+      if (!width || !height || !surface.width || !surface.height) {
+        void flow.fitView({ nodes: [target], padding: 0.58, duration: 320 })
+        return
+      }
+      // Leave room under the node so the anchored generator never has to cover it.
+      const availableHeight = Math.max(96, surface.height - 116 - 96 - 316 - 8)
+      const zoom = Math.min(1.2, Math.max(0.2, Math.min(surface.width * 0.5 / width, availableHeight / height)))
+      void flow.setViewport({
+        x: surface.width / 2 - (target.position.x + width / 2) * zoom,
+        y: 124 - target.position.y * zoom,
+        zoom,
+      }, { duration: 320 })
+    })
   }, [flow, focusNodeId])
   useEffect(() => () => {
     if (layoutAnimationFrameRef.current !== null) window.cancelAnimationFrame(layoutAnimationFrameRef.current)
@@ -3051,7 +3069,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         viewport,
         surface: canvasSurfaceSize,
         panelWidth: renderedGeneratorPanelWidth,
-        safeBottom: 80,
+        safeBottom: 96,
       })
     : null
   const incomingNodes = selectedCreativeNode ? edges.filter((edge) => edge.target === selectedCreativeNode.id).map((edge) => nodes.find((node) => node.id === edge.source)).filter((node): node is CanvasFlowNode => Boolean(node)) : []

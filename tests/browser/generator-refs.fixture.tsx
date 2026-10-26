@@ -9,6 +9,7 @@ const params = new URLSearchParams(location.search)
 const mediaType = (params.get('type') || 'video') as 'image' | 'video' | 'audio'
 const inputMode = (params.get('mode') || 'text') as 'text' | 'image' | 'firstlastframe'
 const withThumbs = params.get('refs') === '1'
+const withVoice = params.get('voice') === '1'
 const withStale = params.get('stale') === '1'
 
 function node(id: string, type: string, data: Record<string, unknown>): CanvasFlowNode {
@@ -18,14 +19,25 @@ function node(id: string, type: string, data: Record<string, unknown>): CanvasFl
 function Fixture() {
   const [added, setAdded] = useState<string>('none')
   const referenceImage = node('img-1', 'image', {
-    title: '角色参考图', mediaType: 'image', contentUrl: '/placeholder.png',
+    title: '苏晚卿',
+    mediaType: 'image',
+    contentUrl: '/placeholder.png',
+    sourceMetadata: withVoice ? { assetCategory: 'character', voiceMaterialId: 'audio-1' } : null,
+  })
+  const missingVoiceImage = node('img-2', 'image', {
+    title: '顾北辰',
+    mediaType: 'image',
+    contentUrl: '/placeholder.png',
+    sourceMetadata: { assetCategory: 'character' },
   })
   const generator = node('gen-1', mediaType === 'image' ? 'image' : mediaType === 'audio' ? 'audio' : 'video', {
     title: '视频生成',
     mediaType,
     generation: {
       inputMode,
-      ...(withStale ? { referenceNodeIds: ['deleted-reference'] } : withThumbs ? { referenceNodeIds: ['img-1'] } : {}),
+      ...(withStale
+        ? { referenceNodeIds: ['deleted-reference'] }
+        : withThumbs ? { referenceNodeIds: withVoice ? ['img-1', 'img-2'] : ['img-1'] } : {}),
     },
   })
 
@@ -37,7 +49,7 @@ function Fixture() {
             projectId="project-1"
             node={generator}
             incomingNodes={[]}
-            referenceNodes={withThumbs ? [referenceImage, generator] : [generator]}
+            referenceNodes={withThumbs ? [referenceImage, ...(withVoice ? [missingVoiceImage] : []), generator] : [generator]}
             onDraftChange={() => undefined}
             onGenerate={async () => undefined}
             onReplace={() => undefined}

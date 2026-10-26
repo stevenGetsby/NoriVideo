@@ -5,6 +5,14 @@ import {
 } from '@/lib/frameos/material-category'
 
 export type ToolboxDraftType = 'image' | 'video'
+export type ToolboxInputMode = 'text' | 'reference' | 'image' | 'firstlastframe'
+
+export const TOOLBOX_DRAFT_INPUT_MODE_VERSION = 3
+export const TOOLBOX_DEFAULT_VIDEO_INPUT_MODE = 'reference' as const
+
+export function defaultToolboxInputMode(type: ToolboxDraftType): 'text' | 'reference' {
+  return type === 'video' ? TOOLBOX_DEFAULT_VIDEO_INPUT_MODE : 'text'
+}
 
 export interface ToolboxDraft {
   version: 1
@@ -14,7 +22,7 @@ export interface ToolboxDraft {
   ratio: string
   resolution: string
   quality: 'low' | 'medium' | 'high'
-  inputMode: 'text' | 'reference' | 'image' | 'firstlastframe'
+  inputMode: ToolboxInputMode
   duration: number
   fps: number | null
   generateAudio: boolean
@@ -59,6 +67,7 @@ export function createToolboxDraftKey(
 export function readToolboxDraft(
   storage: ToolboxDraftStorage,
   key: string,
+  fallbackInputMode: 'text' | 'reference' = TOOLBOX_DEFAULT_VIDEO_INPUT_MODE,
 ): ToolboxDraft | null {
   if (!key) return null
   try {
@@ -74,11 +83,14 @@ export function readToolboxDraft(
     const references = Array.isArray(source.references)
       ? source.references.filter(isReference).slice(0, 15)
       : []
-    // Older drafts labelled multimodal references as "text". Preserve those
-    // inputs by reopening them as all-in-one reference, not pure text-to-video.
+    // Drafts written before input-mode version 3 captured the old default
+    // rather than an explicit choice. Reopen them in the new default mode so
+    // returning users see the all-in-one reference workflow immediately.
     const inputMode = rawMode === 'image' || rawMode === 'firstlastframe' || rawMode === 'reference'
       ? rawMode
-      : references.length > 0 && source.inputModeVersion !== 2 ? 'reference' : 'text'
+      : rawMode === 'text' && source.inputModeVersion === TOOLBOX_DRAFT_INPUT_MODE_VERSION
+        ? 'text'
+        : fallbackInputMode
     return {
       version: 1,
       title: text(source.title),
@@ -106,7 +118,7 @@ export function writeToolboxDraft(
 ): void {
   if (!key) return
   try {
-    storage.setItem(key, JSON.stringify({ ...draft, inputModeVersion: 2 }))
+    storage.setItem(key, JSON.stringify({ ...draft, inputModeVersion: TOOLBOX_DRAFT_INPUT_MODE_VERSION }))
   } catch {
     // Draft persistence must never block generation when storage is unavailable.
   }

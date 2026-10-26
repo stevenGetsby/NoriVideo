@@ -29,6 +29,7 @@ import {
   frameosAssetCategoryFromMetadata,
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
+import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import type { CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -64,6 +65,14 @@ const FILTERS: Array<{ value: 'all' | MaterialType; label: string }> = [
 function MaterialIcon({ type }: { type: MaterialType }) {
   const Icon = type === 'video' ? Film : type === 'audio' ? Music2 : type === 'model3d' ? Box : ImageIcon
   return <Icon />
+}
+
+function isCharacterImage(material: FrameosMaterialItem) {
+  return material.type === 'image' && frameosAssetCategoryFromMetadata(material.metadata) === 'character'
+}
+
+function hasCharacterVoice(material: FrameosMaterialItem) {
+  return Boolean(material.voice || characterVoiceMaterialId(material.metadata))
 }
 
 export function CanvasProjectAssetContextMenu({
@@ -131,7 +140,7 @@ export function CanvasProjectAssets({
   const [templates, setTemplates] = useState<CanvasWorkflowTemplate[]>([])
   const [section, setSection] = useState<'assets' | 'workflows'>('assets')
   const [filter, setFilter] = useState<'all' | MaterialType>('all')
-  const [categoryFilter, setCategoryFilter] = useState<'all' | 'voice' | FrameosAssetCategory>('all')
+  const [categoryFilter, setCategoryFilter] = useState<'all' | 'voice' | 'missingVoice' | FrameosAssetCategory>('all')
   const [projectFilter, setProjectFilter] = useState(projectId)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -230,12 +239,26 @@ export function CanvasProjectAssets({
     setRenameValue(material.title || '未命名素材')
   }
 
+  const missingVoiceCount = useMemo(() => {
+    const keyword = query.trim().toLowerCase()
+    return materials.filter((material) => (
+      isCharacterImage(material)
+      && !hasCharacterVoice(material)
+      && (projectFilter === 'all' || material.projectId === projectFilter)
+      && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
+    )).length
+  }, [materials, projectFilter, query])
   const visible = useMemo(() => {
     const keyword = query.trim().toLowerCase()
     return materials.filter((material) => (
       (filter === 'all' || material.type === filter)
       && (projectFilter === 'all' || material.projectId === projectFilter)
-      && (categoryFilter === 'all' || (categoryFilter === 'voice' ? material.type === 'audio' : frameosAssetCategoryFromMetadata(material.metadata) === categoryFilter))
+      && (categoryFilter === 'all'
+        || (categoryFilter === 'voice'
+          ? material.type === 'audio'
+          : categoryFilter === 'missingVoice'
+            ? isCharacterImage(material) && !hasCharacterVoice(material)
+            : frameosAssetCategoryFromMetadata(material.metadata) === categoryFilter))
       && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
     ))
   }, [categoryFilter, filter, materials, projectFilter, query])
@@ -329,7 +352,7 @@ export function CanvasProjectAssets({
       <div className="nori-canvas-project-assets-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={section === 'assets' ? '搜索资产…' : '搜索工作流…'} /><button type="button" title="刷新" disabled={loading} onClick={() => void (section === 'assets' ? load(true) : loadTemplates())}><RefreshCw className={loading ? 'animate-spin' : ''} /></button></div>
       {section === 'assets' ? <div className="nori-canvas-project-assets-tabs">{FILTERS.map((item) => <button type="button" key={item.value} className={filter === item.value ? 'is-active' : ''} onClick={() => setFilter(item.value)}>{item.label}</button>)}</div> : null}
       {section === 'assets' ? <label className="nori-canvas-project-assets-project"><span>来源作品（默认当前作品）</span><select aria-label="来源作品" value={projectFilter} onChange={(event) => { setProjectFilter(event.target.value); setSelectedIds([]) }}><option value={projectId}>当前作品</option><option value="all">全部可读作品</option>{materialProjects.filter((project) => project.id !== projectId).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label> : null}
-      {section === 'assets' ? <div className="nori-canvas-project-assets-tabs" aria-label="资产归类"><button type="button" className={categoryFilter === 'all' ? 'is-active' : ''} onClick={() => setCategoryFilter('all')}>全部归类</button>{FRAMEOS_ASSET_CATEGORIES.map((category) => <button type="button" key={category} className={categoryFilter === category ? 'is-active' : ''} onClick={() => setCategoryFilter(category)}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</button>)}<button type="button" className={categoryFilter === 'voice' ? 'is-active' : ''} onClick={() => { setCategoryFilter('voice'); setFilter('all') }}>音色</button></div> : null}
+      {section === 'assets' ? <div className="nori-canvas-project-assets-tabs" aria-label="资产归类"><button type="button" className={categoryFilter === 'all' ? 'is-active' : ''} onClick={() => setCategoryFilter('all')}>全部归类</button>{FRAMEOS_ASSET_CATEGORIES.map((category) => <button type="button" key={category} className={categoryFilter === category ? 'is-active' : ''} onClick={() => setCategoryFilter(category)}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</button>)}<button type="button" className={categoryFilter === 'voice' ? 'is-active' : ''} onClick={() => { setCategoryFilter('voice'); setFilter('all') }}>音色</button><button type="button" className={categoryFilter === 'missingVoice' ? 'is-active' : ''} onClick={() => { setCategoryFilter('missingVoice'); setFilter('all') }}>缺音色{missingVoiceCount > 0 ? ` (${missingVoiceCount})` : ''}</button></div> : null}
       {section === 'assets' ? (
         <div className="nori-canvas-project-assets-select">
           <button type="button" onClick={() => setAllVisibleSelected(!allVisibleSelected)}><Check />{allVisibleSelected ? '取消全选' : '全选'}</button>
@@ -370,6 +393,7 @@ export function CanvasProjectAssets({
               <div className="nori-canvas-project-assets-thumb">
                 {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || '作品资产'} fill sizes="120px" draggable={false} style={{ objectFit: 'cover' }} /> : <MaterialIcon type={material.type} />}
                 <span>{material.type === 'model3d' ? '3D' : material.type.toUpperCase()}</span>
+                {isCharacterImage(material) ? <em className={`nori-canvas-project-assets-voice${hasCharacterVoice(material) ? ' is-bound' : ' is-missing'}`} title={hasCharacterVoice(material) ? `已绑定音色${material.voice?.title ? `：${material.voice.title}` : ''}；视频全能参考且开启声音时会自动带入` : '该角色未绑定音色；视频全能参考时不会带入音频'}>{hasCharacterVoice(material) ? '有音色' : '缺音色'}</em> : null}
               </div>
               <button
                 type="button"

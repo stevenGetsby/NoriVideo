@@ -11,6 +11,7 @@ import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { FosMaterialLibrary } from './FosMaterialLibrary'
 import { MaterialPickerDialog } from '../materials/MaterialPickerDialog'
 import { MentionPromptEditor } from '../materials/MentionPromptEditor'
+import { characterVoiceBindingState, characterVoiceBindingStats } from '../materials/character-voice'
 import type { FrameosMaterialItem } from '../materials/contracts'
 import {
   FRAMEOS_ASSET_CATEGORY_LABELS,
@@ -19,10 +20,17 @@ import {
 } from '@/lib/frameos/material-category'
 import {
   createToolboxDraftKey,
+  defaultToolboxInputMode,
   readToolboxDraft,
   resolveToolboxGenerateAudio,
   writeToolboxDraft,
+  type ToolboxInputMode,
 } from './toolbox-draft'
+import {
+  buildToolboxWorkTrace,
+  formatToolboxWorkTrace,
+} from './toolbox-work-trace'
+import { WorkTraceCard } from './ToolboxWorkTraceCard'
 import {
   CANVAS_IMAGE_ASPECT_RATIOS,
   CANVAS_IMAGE_QUALITIES,
@@ -76,12 +84,13 @@ interface ToolboxAsset {
   materialId: string | null
   type: 'image' | 'video'
   status: string
+  modelId?: string | null
   resultUrl: string | null
   url: string | null
   errorMessage: string | null
   params?: Record<string, unknown> | null
   createdAt: string
-  task?: { id: string; status: string; progress: number; errorCode: string | null; errorMessage: string | null } | null
+  task?: { id: string; status: string; progress: number; errorCode: string | null; errorMessage: string | null; costPoints?: number | null } | null
 }
 
 const TABS: Array<{ key: ToolTab; label: string; icon: AppIconName }> = [
@@ -140,25 +149,69 @@ function DurationSelect({ value, options, onChange }: { value: number; options: 
   )
 }
 
-function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, disabled = false }: { materials: FrameosMaterialItem[]; onAdd: () => void; onRemove: (id: string) => void; label: string; limit: number; hint?: string; disabled?: boolean }) {
+async function copyTraceText(value: string): Promise<void> {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value)
+      return
+    }
+  } catch {
+    // Fall through to the legacy selection-based copy path.
+  }
+  if (typeof document === 'undefined') throw new Error('clipboard unavailable')
+  const area = document.createElement('textarea')
+  area.value = value
+  area.setAttribute('readonly', '')
+  area.style.position = 'fixed'
+  area.style.left = '-9999px'
+  document.body.appendChild(area)
+  area.select()
+  const copied = document.execCommand('copy')
+  area.remove()
+  if (!copied) throw new Error('copy failed')
+}
+
+function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintTone = 'default', disabled = false }: { materials: FrameosMaterialItem[]; onAdd: () => void; onRemove: (id: string) => void; label: string; limit: number; hint?: string; hintTone?: 'default' | 'warning'; disabled?: boolean }) {
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-center justify-between"><span className="text-[13px] font-medium text-white">{label}</span><span className="text-[11px] text-[var(--fos-text-4)]">{materials.length}/{limit}</span></div>
       <div className="flex flex-wrap gap-2">
         {materials.map((material, index) => {
           const src = material.type === 'video' ? toPlayableVideoUrl(material.url) : toDisplayImageUrl(material.url)
-          return <div key={material.id} className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-[var(--fos-border-mid)] bg-black/30" title={`${index + 1}. ${material.title || '未命名素材'} · ${material.type}`}>{src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : src && material.type === 'video' ? <video src={src} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-blue-200/55" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-violet-200/55" /> : <AppIcon name="image" className="h-7 w-7 text-white/25" />}<span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[8px] text-white/70">{material.type === 'image' ? '图' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'}</span><span className="absolute bottom-1 left-1 max-w-[54px] truncate rounded bg-black/70 px-1 text-[9px] text-white">{index + 1}. {material.title}</span><button type="button" className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-white" onClick={() => onRemove(material.id)}><AppIcon name="close" className="h-3 w-3" /></button></div>
+          const voiceState = characterVoiceBindingState(material)
+          const typeLabel = material.type === 'image' ? '图' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'
+          return (
+            <div key={material.id} className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-[var(--fos-border-mid)] bg-black/30" title={`${index + 1}. ${material.title || '未命名素材'} · ${material.type}`}>
+              {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : src && material.type === 'video' ? <video src={src} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-blue-200/55" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-violet-200/55" /> : <AppIcon name="image" className="h-7 w-7 text-white/25" />}
+              {voiceState ? (
+                <span
+                  className={`toolbox-ref-voice-badge absolute left-1 top-1 z-[2] inline-flex max-w-[44px] items-center gap-px overflow-hidden rounded border px-0.5 py-0.5 text-[8px] font-bold leading-none${voiceState === 'bound' ? ' border-violet-300/40 bg-violet-950/90 text-violet-100' : ' border-amber-300/45 bg-amber-950/90 text-amber-200'}`}
+                  title={voiceState === 'bound'
+                    ? `已绑定角色音色${material.voice?.title ? `：${material.voice.title}` : ''}；全能参考且开启声音时会自动带入`
+                    : '该角色未绑定音色；全能参考时不会带入音频'}
+                >
+                  <AppIcon name={voiceState === 'bound' ? 'audioWave' : 'infoCircle'} className="h-2 w-2 shrink-0" />
+                  <span className="truncate">{voiceState === 'bound' ? '音色' : '缺音色'}</span>
+                </span>
+              ) : (
+                <span className="absolute left-1 top-1 rounded bg-black/70 px-1 text-[8px] text-white/70">{typeLabel}</span>
+              )}
+              <span className="absolute bottom-1 left-1 max-w-[54px] truncate rounded bg-black/70 px-1 text-[9px] text-white">{index + 1}. {material.title}</span>
+              <button type="button" className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/75 text-white" onClick={() => onRemove(material.id)}><AppIcon name="close" className="h-3 w-3" /></button>
+            </div>
+          )
         })}
         <button type="button" disabled={disabled || limit <= 0 || materials.length >= limit} aria-label={`选择${label.replace(/（.*?）/g, '')}`} onClick={onAdd} className="flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--fos-border-strong)] text-[var(--fos-text-4)] hover:border-[var(--fos-primary)] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="plus" className="h-5 w-5" /><span className="text-[10px]">{disabled ? '模型不支持' : '素材库/本地'}</span></button>
       </div>
-      {hint ? <p className="mt-1.5 text-[10px] leading-4 text-[var(--fos-text-4)]">{hint}</p> : null}
+      {hint ? <p className={`mt-1.5 text-[10px] leading-4${hintTone === 'warning' ? ' text-amber-300/90' : ' text-[var(--fos-text-4)]'}`}>{hint}</p> : null}
     </div>
   )
 }
 
-function ResultPane({ type, history, loading, refreshRevision, onRefresh, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; loading: boolean; refreshRevision: number; onRefresh: () => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
+function ResultPane({ type, history, loading, refreshRevision, modelNames, onRefresh, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; loading: boolean; refreshRevision: number; modelNames: Record<string, string>; onRefresh: () => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
   const [downloading, setDownloading] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [traceCopyState, setTraceCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const selected = history.find((asset) => asset.id === selectedId) || history[0] || null
   useEffect(() => {
     if (history.length === 0) {
@@ -167,12 +220,30 @@ function ResultPane({ type, history, loading, refreshRevision, onRefresh, onOpen
     }
     if (!selectedId || !history.some((asset) => asset.id === selectedId)) setSelectedId(history[0].id)
   }, [history, selectedId])
+  useEffect(() => { setTraceCopyState('idle') }, [selected?.id])
   const latestActive = history.find((asset) => asset.status === 'pending' || asset.status === 'processing' || asset.task?.status === 'queued' || asset.task?.status === 'processing')
   const selectedStatus = selected?.task?.status || selected?.status || ''
   const selectedFailureMessage = selected?.task?.errorMessage || selected?.errorMessage
   const selectedFailureCode = selected?.task?.errorCode
+  const preparedHistory = useMemo(() => history.slice(0, 12).map((asset) => ({
+    asset,
+    trace: buildToolboxWorkTrace(asset, { modelName: asset.modelId ? modelNames[asset.modelId] : '' }),
+  })), [history, modelNames])
+  const selectedTrace = selected
+    ? buildToolboxWorkTrace(selected, { modelName: selected.modelId ? modelNames[selected.modelId] : '' })
+    : null
   const src = selectedStatus === 'ready' || selectedStatus === 'completed'
     ? type === 'video' ? toPlayableVideoUrl(selected?.url) : toDisplayImageUrl(selected?.url) : null
+  const copySelectedTrace = async () => {
+    if (!selectedTrace) return
+    try {
+      await copyTraceText(formatToolboxWorkTrace(selectedTrace))
+      setTraceCopyState('copied')
+      window.setTimeout(() => setTraceCopyState('idle'), 2200)
+    } catch {
+      setTraceCopyState('failed')
+    }
+  }
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-y-auto p-6">
       <div className="relative flex min-h-[390px] flex-1 items-center justify-center overflow-hidden rounded-[12px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)]">
@@ -184,14 +255,14 @@ function ResultPane({ type, history, loading, refreshRevision, onRefresh, onOpen
         setDownloading(true)
         void onDownload(selected.materialId!).finally(() => setDownloading(false))
       }}>{downloading ? '下载中…' : type === 'video' ? '按项目规则下载视频' : '下载生成图片'}</button> : null}
+      {selectedTrace ? <WorkTraceCard trace={selectedTrace} copyState={traceCopyState} onCopy={() => void copySelectedTrace()} /> : null}
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3"><div><span className="text-[14px] font-bold text-white">生成历史</span><span className="ml-2 text-[11px] text-[var(--fos-text-4)]">仅展示当前作品的工具箱任务</span></div><div className="flex flex-wrap items-center gap-2">{selected?.materialId && (selectedStatus === 'ready' || selectedStatus === 'completed') ? <button type="button" className="fos-btn fos-btn-soft fos-btn-sm" onClick={() => onOpenMaterial(selected.materialId!)}><AppIcon name="folderOpen" className="h-3.5 w-3.5" />在作品素材库查看</button> : null}<button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={loading} onClick={onRefresh}><AppIcon name="refresh" className={`h-3.5 w-3.5${loading ? ' animate-spin' : ''}`} />{loading ? '刷新中…' : '刷新'}</button></div></div>
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {history.slice(0, 12).map((asset) => {
+        {preparedHistory.map(({ asset, trace }) => {
           const resultSrc = asset.type === 'video' ? toPlayableVideoUrl(asset.url) : toDisplayImageUrl(asset.url)
-          const title = typeof asset.params?.title === 'string' ? asset.params.title : '未命名生成'
           const status = asset.task?.status || asset.status
-          const failureMessage = asset.task?.errorMessage || asset.errorMessage
-          return <button type="button" key={asset.id} aria-pressed={selected?.id === asset.id} onClick={() => setSelectedId(asset.id)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-blue-400/70 ring-1 ring-blue-400/25' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultSrc && asset.type === 'video' ? <video src={resultSrc} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={title}>{title}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={failureMessage || '生成服务未返回错误详情。'}>{failureMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
+          const summary = [trace.mode, trace.references.length > 0 ? `${trace.references.length} 个参考` : '', trace.costPoints !== null ? trace.costLabel : ''].filter(Boolean).join(' · ')
+          return <button type="button" key={asset.id} aria-pressed={selected?.id === asset.id} onClick={() => setSelectedId(asset.id)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-blue-400/70 ring-1 ring-blue-400/25' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={trace.title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultSrc && asset.type === 'video' ? <video src={resultSrc} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={trace.title}>{trace.title}</div><div className="truncate px-2 pt-0.5 text-[9px] text-[var(--fos-text-4)]" title={summary}>{summary}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={trace.errorMessage || '生成服务未返回错误详情。'}>{trace.errorMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
         })}
       </div>
     </main>
@@ -216,7 +287,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const [ratio, setRatio] = useState('16:9')
   const [resolution, setResolution] = useState('')
   const [quality, setQuality] = useState<CanvasImageQuality>('high')
-  const [inputMode, setInputMode] = useState<'text' | 'reference' | 'image' | 'firstlastframe'>('text')
+  const [inputMode, setInputMode] = useState<ToolboxInputMode>(() => defaultToolboxInputMode(activeType))
   const apiInputMode = inputMode === 'reference' ? 'text' : inputMode
   const [duration, setDuration] = useState(5)
   const [fps, setFps] = useState<number | null>(null)
@@ -279,7 +350,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
 
   useEffect(() => {
     if (!draftKey) return
-    const draft = readToolboxDraft(window.localStorage, draftKey)
+    const draft = readToolboxDraft(window.localStorage, draftKey, defaultToolboxInputMode(activeType))
     hydratedDraftKeyRef.current = draftKey
     skipDraftWriteRef.current = true
     setTitle(draft?.title || '')
@@ -288,7 +359,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     setRatio(draft?.ratio || '16:9')
     setResolution(draft?.resolution || '')
     setQuality(draft?.quality || 'high')
-    setInputMode(draft?.inputMode || 'text')
+    setInputMode(draft?.inputMode || defaultToolboxInputMode(activeType))
     setDuration(draft?.duration || 5)
     setFps(draft?.fps || null)
     setGenerateAudio(draft?.generateAudio ?? true)
@@ -359,6 +430,27 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const imageReferences = useMemo(() => references.filter((item) => item.type === 'image'), [references])
   const videoReferences = useMemo(() => references.filter((item) => item.type === 'video'), [references])
   const audioReferences = useMemo(() => references.filter((item) => item.type === 'audio'), [references])
+  const characterVoiceStats = useMemo(() => characterVoiceBindingStats(imageReferences), [imageReferences])
+  const characterVoiceHint = useMemo(() => {
+    if (characterVoiceStats.total === 0) return null
+    const progress = `角色音色 ${characterVoiceStats.bound}/${characterVoiceStats.total}`
+    if (activeType !== 'video') return { text: `${progress}；声音只用于视频全能参考。`, tone: 'default' as const }
+    if (inputMode !== 'reference') {
+      const modeLabel = inputMode === 'image' ? '图生视频' : inputMode === 'firstlastframe' ? '首尾帧' : '文生视频'
+      return { text: `${progress}；${modeLabel}不提交角色音色。`, tone: 'default' as const }
+    }
+    if (!generateAudio) return { text: `${progress}；已关闭“同步生成声音”，不会提交。`, tone: 'default' as const }
+    if (characterVoiceStats.missing > 0) {
+      return {
+        text: `${progress}；自动带入 ${characterVoiceStats.bound} 个已绑定音色，${characterVoiceStats.missing} 个缺音色。`,
+        tone: 'warning' as const,
+      }
+    }
+    return { text: `${progress}；全能参考会自动带入全部音色。`, tone: 'default' as const }
+  }, [activeType, characterVoiceStats, generateAudio, inputMode])
+  const modelNames = useMemo<Record<string, string>>(() => Object.fromEntries(
+    [...(config?.imageModels || []), ...(config?.videoModels || [])].map((model) => [model.modelKey, model.name]),
+  ), [config])
   const referenceSchema = currentModel?.inputSchema || resolveCanvasGenerationInputSchema(activeType)
   const referenceLimits = inputMode === 'firstlastframe'
     ? { image: 2, video: 0, audio: 0 }
@@ -373,7 +465,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     setResolution((current) => resolveSupportedResolution(current, config?.defaults.resolution, resolutionOptions))
     if (activeType === 'video' && toolboxDurationOptions.length > 0) setDuration((current) => toolboxDurationOptions.includes(current) ? current : toolboxDurationOptions[0])
     if (activeType === 'video') setFps((current) => fpsOptions.length > 0 ? current !== null && fpsOptions.includes(current) ? current : fpsOptions[0] : null)
-    if (!currentModel?.firstLastFrame && inputMode === 'firstlastframe') setInputMode('text')
+    if (!currentModel?.firstLastFrame && inputMode === 'firstlastframe') setInputMode(activeType === 'video' ? 'reference' : 'text')
     if (activeType === 'video') {
       setRatio((current) => videoAspectRatios.includes(current as (typeof videoAspectRatios)[number])
         ? current
@@ -538,7 +630,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   )
   const categorizedImageReferences = (
     <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2" aria-label="分类参考素材">
-      {([['character', '人物'], ['location', '场景'], ['prop', '道具']] as const).map(([category, label]) => <ReferenceStrip key={category} materials={imageReferences.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === category)} label={label} limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} onAdd={() => openReferencePicker('image', category)} onRemove={removeReference} />)}
+      {([['character', '人物'], ['location', '场景'], ['prop', '道具']] as const).map(([category, label]) => <ReferenceStrip key={category} materials={imageReferences.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === category)} label={label} limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} hint={category === 'character' ? characterVoiceHint?.text : undefined} hintTone={category === 'character' ? characterVoiceHint?.tone : undefined} onAdd={() => openReferencePicker('image', category)} onRemove={removeReference} />)}
       <ReferenceStrip materials={audioReferences} label="音色" limit={inputMode === 'reference' ? referenceLimits.audio : 0} disabled={activeType !== 'video' || inputMode !== 'reference' || referenceLimits.audio <= 0} hint={activeType !== 'video' ? '音色用于视频全能参考，图片生成不传音频。' : inputMode !== 'reference' ? '使用音色请切换全能参考。' : `当前约 ${Math.round(audioReferenceDuration * 10) / 10} 秒`} onAdd={() => openReferencePicker('audio')} onRemove={removeReference} />
       <ReferenceStrip materials={imageReferences.filter((item) => !['character', 'location', 'prop'].includes(frameosAssetCategoryFromMetadata(item.metadata)))} label="其他参考图片" limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} onAdd={() => openReferencePicker('image')} onRemove={removeReference} />
     </div>
@@ -610,7 +702,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         </aside>
         <div className="fos-toolbox-results flex min-h-0 min-w-0 flex-col">
           {historyRefreshMessage ? <p role="status" className="shrink-0 px-6 pt-3 text-[11px] text-[var(--fos-text-3)]">{historyRefreshMessage}</p> : null}
-          <ResultPane type={activeType} history={history} loading={historyLoading} refreshRevision={historyRefreshRevision} onRefresh={() => void loadHistory(true)} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} onDownload={async (materialId) => {
+          <ResultPane type={activeType} history={history} loading={historyLoading} refreshRevision={historyRefreshRevision} modelNames={modelNames} onRefresh={() => void loadHistory(true)} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} onDownload={async (materialId) => {
             setError(null)
             try { const saved = await downloadFrameosMaterial(session?.user?.id || '', projectId, materialId); setMessage(saved.method === 'directory' ? `已保存到本地固定目录：${saved.name}` : `下载已开始：${saved.name}`) }
             catch (cause) { setError(cause instanceof Error ? cause.message : '下载失败') }

@@ -32,6 +32,7 @@ import {
   FRAMEOS_ASSET_CATEGORIES,
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
+import { characterVoiceBindingState, characterVoiceBindingStats } from './character-voice'
 
 interface Props {
   projectId?: string | null
@@ -146,6 +147,10 @@ export function MaterialPickerDialog({
       ? materials.filter((material) => material.type === 'audio')
       : filterMaterialPickerItemsByCategory(materials, categoryFilter === 'all' ? undefined : categoryFilter), sort),
     [categoryFilter, materials, sort],
+  )
+  const visibleVoiceStats = useMemo(
+    () => characterVoiceBindingStats(visibleMaterials),
+    [visibleMaterials],
   )
   const browsingTrash = activeScope === 'trash'
   const hasFilters = activeScope !== 'all'
@@ -489,7 +494,7 @@ export function MaterialPickerDialog({
               <span className="text-[11px] text-[var(--fos-text-4)]">至</span>
               <input type="date" className="fos-input" style={{ width: 145 }} aria-label="结束日期" min={createdFrom || undefined} value={createdTo} onChange={(event) => setCreatedTo(event.target.value)} />
               {hasFilters ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={clearFilters}>清除筛选</button> : null}
-              <span className="ml-auto text-[11px] text-[var(--fos-text-4)]">{loading ? '读取中…' : `${visibleMaterials.length} 个结果`}</span>
+              <span className="ml-auto text-[11px] text-[var(--fos-text-4)]">{loading ? '读取中…' : `${visibleMaterials.length} 个结果`}{!loading && visibleVoiceStats.total > 0 ? <span className={`ml-2 font-semibold${visibleVoiceStats.missing > 0 ? ' text-amber-300/85' : ' text-violet-200/85'}`}>角色音色 {visibleVoiceStats.bound}/{visibleVoiceStats.total}</span> : null}</span>
             </div>
 
             {showUpload && canUpload ? (
@@ -510,12 +515,14 @@ export function MaterialPickerDialog({
                   const selected = selectedIdSet.has(material.id)
                   const disabled = maxSelected <= 0 || (!selected && selectedCount >= maxSelected && (multiple || Boolean(onSelect)))
                   const src = toDisplayImageUrl(material.url)
+                  const characterVoice = characterVoiceBindingState(material)
                   return (
-                    <article key={material.id} className="relative overflow-hidden rounded-[10px] border transition-colors" style={{ borderColor: selected ? 'var(--fos-primary)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+                    <article key={material.id} className="material-picker-card relative overflow-hidden rounded-[10px] border transition-colors" style={{ borderColor: selected ? 'var(--fos-primary)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
                       <button type="button" disabled={browsingTrash || uploading || disabled || material.status !== 'ready' || !material.url || (!multiple && selected && Boolean(onSelect))} title={material.status !== 'ready' || !material.url ? '素材尚未就绪，暂不可引用' : undefined} onClick={() => chooseMaterial(material)} className="block w-full text-left disabled:opacity-55">
-                        <div className="relative aspect-[4/3] overflow-hidden bg-black/40">
+                        <div className="material-picker-card-media relative aspect-[4/3] overflow-hidden bg-black/40">
                           {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || '素材'} fill sizes="220px" style={{ objectFit: 'cover' }} /> : <AppIcon name={material.type === 'video' ? 'video' : material.type === 'audio' ? 'audioWave' : material.type === 'model3d' ? 'cube' : 'image'} className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/15" />}
-                          <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">{material.type === 'image' ? '图片' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'}</span>
+                          <span className="material-picker-type-label absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">{material.type === 'image' ? '图片' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'}</span>
+                          {characterVoice ? <span className="material-picker-voice-badge" title={characterVoice === 'bound' ? `已绑定角色音色${material.voice?.title ? `：${material.voice.title}` : ''}；视频全能参考且开启声音时会自动带入` : '该角色未绑定音色；视频全能参考时不会带入音频'}><span className={`nori-voice-badge ${characterVoice === 'bound' ? 'nori-voice-badge-bound' : 'nori-voice-badge-missing'}`}><AppIcon name={characterVoice === 'bound' ? 'audioWave' : 'infoCircle'} className="h-3 w-3" />{characterVoice === 'bound' ? '有音色' : '缺音色'}</span></span> : null}
                           {selected ? <span className="absolute right-2 top-2 rounded-md bg-[var(--fos-primary)] px-2 py-1 text-[10px] font-bold text-white">{multiple ? '已选择' : '已添加'}</span> : null}
                         </div>
                         <div className="truncate px-2.5 pt-2 text-[12px] font-bold text-white" title={material.title || ''}>{material.title || '未命名素材'}</div>
