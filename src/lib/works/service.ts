@@ -10,6 +10,8 @@ import {
   requireProjectAssignmentManager,
   requireProjectReader,
   requireWorkManager,
+  projectReadScopeWhere,
+  visibleProjectsWhere,
   workReadScopeWhere,
   workReadWhere,
   workspaceUserWhere,
@@ -131,7 +133,7 @@ export async function listWorks(session: AuthSession, input: {
           include: { user: { select: { id: true, name: true, role: true, status: true } } },
         },
         projects: {
-          where: { deletedAt: null },
+          where: { deletedAt: null, ...visibleProjectsWhere(session) },
           orderBy: { updatedAt: 'desc' },
           select: workProjectSelect,
         },
@@ -285,9 +287,8 @@ export async function moveProjects(session: AuthSession, input: {
 
   const projects = await prisma.project.findMany({
     where: {
+      ...projectReadScopeWhere(session),
       id: { in: projectIds },
-      userId: actor.workspaceOwnerId,
-      deletedAt: null,
     },
     include: {
       work: {
@@ -478,7 +479,7 @@ export async function listProjectMembers(session: AuthSession, projectId: string
   const actor = getWorkspaceActor(session)
   await requireProjectReader(session, projectId)
   const project = await prisma.project.findFirst({
-    where: { id: projectId, userId: actor.workspaceOwnerId, deletedAt: null },
+    where: { ...projectReadScopeWhere(session), id: projectId },
     select: {
       id: true,
       createdById: true,

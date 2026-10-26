@@ -23,21 +23,65 @@ export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
   }
 }
 
+/**
+ * 作品 (Project row) participation for a subaccount. Management accounts see
+ * the whole workspace; everyone else only sees 作品 they created, were invited
+ * to, were assigned a stage of, or that sit in a 项目 they lead.
+ */
+export function projectParticipantWhere(actorId: string): Prisma.ProjectWhereInput {
+  return {
+    OR: [
+      { createdById: actorId },
+      { members: { some: { userId: actorId } } },
+      { workflowAssignments: { some: { assigneeUserId: actorId } } },
+      { work: { createdById: actorId } },
+      { work: { members: { some: { userId: actorId, OR: [{ canManage: true }, { role: 'manager' }] } } } },
+    ],
+  }
+}
+
+export function canActorSeeProject(actor: WorkspaceActor, project: {
+  createdById: string
+  isMember: boolean
+  isAssignee: boolean
+  workCreatedById: string
+  isWorkManager: boolean
+}): boolean {
+  if (actor.isManagement) return true
+  return project.createdById === actor.actorId
+    || project.isMember
+    || project.isAssignee
+    || project.workCreatedById === actor.actorId
+    || project.isWorkManager
+}
+
+export function visibleProjectsWhere(session: AuthSession): Prisma.ProjectWhereInput {
+  const actor = getWorkspaceActor(session)
+  return actor.isManagement ? {} : projectParticipantWhere(actor.actorId)
+}
+
 export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhereInput {
   const actor = getWorkspaceActor(session)
-  // Project visibility belongs to the workspace, not to an explicit project
-  // membership. A validated subaccount resolves to its management account via
-  // workspaceOwnerId, so every direct subaccount can read the same projects.
-  // Project membership remains relevant only to assignment/review capabilities.
   return {
     userId: actor.workspaceOwnerId,
     deletedAt: null,
+    ...visibleProjectsWhere(session),
   }
 }
 
 export function workReadScopeWhere(session: AuthSession): Prisma.WorkWhereInput {
   const actor = getWorkspaceActor(session)
-  return { workspaceOwnerId: actor.workspaceOwnerId }
+  if (actor.isManagement) return { workspaceOwnerId: actor.workspaceOwnerId }
+  // A 项目 is visible to its members and to anyone who can see one of its 作品,
+  // but the 作品 list inside it is still filtered by projectParticipantWhere.
+  return {
+    workspaceOwnerId: actor.workspaceOwnerId,
+    OR: [
+      { createdById: actor.actorId },
+      { members: { some: { userId: actor.actorId } } },
+      { projects: { some: { deletedAt: null, ...projectParticipantWhere(actor.actorId) } } },
+    ],
+  }
 }
 
 export function workReadWhere(session: AuthSession, workId: string): Prisma.WorkWhereInput {
@@ -86,13 +130,61 @@ export async function requireActiveWorkspaceUser(workspaceOwnerId: string, userI
   return user
 }
 
+/**
+ * True only when the id is a 作品 in the actor's workspace that the actor may
+ * not see. Unknown ids return false so routes keep their own 404 handling and
+ * non-作品 ids (global asset hub, account material scopes) pass through.
+ */
+export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId: string): Promise<boolean> {
+  if (actor.isManagement) return false
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: actor.workspaceOwnerId },
+    select: {
+      createdById: true,
+      members: { where: { userId: actor.actorId }, select: { id: true }, take: 1 },
+      workflowAssignments: { where: { assigneeUserId: actor.actorId }, select: { uuid: true }, take: 1 },
+      work: {
+        select: {
+          createdById: true,
+          members: {
+            where: { userId: actor.actorId, OR: [{ canManage: true }, { role: 'manager' }] },
+            select: { id: true },
+            take: 1,
+          },
+        },
+      },
+    },
+  })
+  if (!project) return false
+  return !canActorSeeProject(actor, {
+    createdById: project.createdById,
+    isMember: project.members.length > 0,
+    isAssignee: project.workflowAssignments.length > 0,
+    workCreatedById: project.work.createdById,
+    isWorkManager: project.work.members.length > 0,
+  })
+}
+
+/** Workspace 作品 ids among `projectIds` that the actor may not see. */
+export async function findHiddenProjectIds(session: AuthSession, projectIds: readonly string[]): Promise<Set<string>> {
+  const actor = getWorkspaceActor(session)
+  const ids = Array.from(new Set(projectIds.filter(Boolean)))
+  if (actor.isManagement || ids.length === 0) return new Set()
+  const hidden = await prisma.project.findMany({
+    where: {
+      id: { in: ids },
+      userId: actor.workspaceOwnerId,
+      NOT: projectParticipantWhere(actor.actorId),
+    },
+    select: { id: true },
+  })
+  return new Set(hidden.map((project) => project.id))
+}
+
 export async function getWorkAccess(session: AuthSession, workId: string) {
   const actor = getWorkspaceActor(session)
   const work = await prisma.work.findFirst({
-    where: {
-      id: workId,
-      workspaceOwnerId: actor.workspaceOwnerId,
-    },
+    where: workReadWhere(session, workId),
     include: {
       projects: {
         where: { deletedAt: null },
@@ -132,11 +224,7 @@ export async function requireWorkProjectCreator(session: AuthSession, workId: st
 export async function getProjectCollaborationAccess(session: AuthSession, projectId: string) {
   const actor = getWorkspaceActor(session)
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: actor.workspaceOwnerId,
-      deletedAt: null,
-    },
+    where: projectReadWhere(session, projectId),
     include: {
       work: {
         include: {
@@ -161,8 +249,7 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
 
   const workMembership = project.work.members[0]
   const projectMembership = project.members[0]
-  // The query above already proves that this project belongs to the actor's
-  // resolved workspace. Explicit membership must not gate basic visibility.
+  // projectReadWhere already restricts subaccounts to 作品 they participate in.
   const canRead = true
   const capabilities = resolveAssignmentCapabilities({
     actorIsManagement: actor.isManagement,

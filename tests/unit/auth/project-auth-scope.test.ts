@@ -13,6 +13,9 @@ const prismaMock = vi.hoisted(() => ({
   project: {
     findFirst: vi.fn(),
   },
+  userBalance: {
+    findUnique: vi.fn(),
+  },
 }))
 
 vi.mock('next-auth/next', () => ({
@@ -110,6 +113,29 @@ describe('project auth scope', () => {
         },
       },
     })
+  })
+
+  it('returns 404 to a subaccount on a teammate 作品 named by the route, even via requireUserAuth', async () => {
+    prismaMock.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1', role: 'writer', permissions: [], status: 'active', sessionVersion: 0,
+      workspaceOwnerId: 'owner-1', parentAccountId: 'owner-1',
+      parentAccount: { id: 'owner-1', role: 'admin', status: 'active' },
+      coinCredits: null, balance: null,
+    })
+    prismaMock.userBalance.findUnique.mockResolvedValueOnce({ balance: 0 })
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      createdById: 'user-2',
+      members: [],
+      workflowAssignments: [],
+      work: { createdById: 'owner-1', members: [] },
+    })
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const result = await withAccountPermissionContext([], () => requireUserAuth(), 'project-other')
+    expect(isErrorResponse(result)).toBe(true)
+    expect((result as Response).status).toBe(404)
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'project-other', userId: 'owner-1' },
+    }))
   })
 
   it.each(['writer', 'asset', 'storyboard', 'reviewer'])(

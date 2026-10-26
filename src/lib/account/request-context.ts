@@ -5,18 +5,25 @@ type AccountRequestContext = {
   permissions: readonly AccountPermission[]
   actorId?: string
   workspaceOwnerId?: string
+  routeProjectId?: string
 }
 const accountPermissionStorage = new AsyncLocalStorage<AccountRequestContext>()
 
 export function withAccountPermissionContext<T>(
   permissions: readonly AccountPermission[],
   callback: () => T,
+  routeProjectId?: string,
 ): T {
-  return accountPermissionStorage.run({ permissions }, callback)
+  return accountPermissionStorage.run({ permissions, routeProjectId }, callback)
 }
 
 export function getAccountPermissionContext(): readonly AccountPermission[] {
   return accountPermissionStorage.getStore()?.permissions || []
+}
+
+/** The 作品 id named by the route path or `?projectId=`, checked against 作品 visibility at auth time. */
+export function getRouteProjectIdContext(): string | undefined {
+  return accountPermissionStorage.getStore()?.routeProjectId
 }
 
 /** Set only after the session principal has been checked against the database. */

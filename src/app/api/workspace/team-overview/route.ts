@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import { prisma } from '@/lib/prisma'
+import { findHiddenProjectIds, projectReadScopeWhere } from '@/lib/collaboration/access'
 import { containsInternalRecordMarker } from '@/lib/workspace/internal-record-visibility'
 import {
   countWorkspaceTeamPermissions,
@@ -38,10 +39,11 @@ export const GET = apiHandler(async () => {
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
 
+  const projectScope = projectReadScopeWhere(session)
   const [projectTotal, projects, tasks, teamState] = await Promise.all([
-    prisma.project.count({ where: { userId: session.user.id, deletedAt: null } }),
+    prisma.project.count({ where: projectScope }),
     prisma.project.findMany({
-      where: { userId: session.user.id, deletedAt: null },
+      where: projectScope,
       orderBy: { updatedAt: 'desc' },
       take: 6,
       select: {
@@ -88,7 +90,8 @@ export const GET = apiHandler(async () => {
     }),
   ])
 
-  const visibleTasks = tasks.filter((task) => !isInternalTask(task))
+  const hiddenProjectIds = await findHiddenProjectIds(session, tasks.map((task) => task.projectId))
+  const visibleTasks = tasks.filter((task) => !isInternalTask(task) && !hiddenProjectIds.has(task.projectId))
   const projectRows = projects.map((project) => {
     const episodes = project.novelPromotionData?.episodes || []
     let panels = 0

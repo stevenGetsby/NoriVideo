@@ -35,6 +35,8 @@ const accessMock = vi.hoisted(() => ({
   requireProjectAssignmentManager: vi.fn(),
   requireProjectReader: vi.fn(),
   requireWorkManager: vi.fn(),
+  projectReadScopeWhere: vi.fn(() => ({ userId: 'workspace-1', deletedAt: null })),
+  visibleProjectsWhere: vi.fn(() => ({ OR: [{ createdById: 'actor-1' }] })),
   workReadScopeWhere: vi.fn(() => ({ workspaceOwnerId: 'workspace-1' })),
   workReadWhere: vi.fn(),
   workspaceUserWhere: vi.fn(() => ({
@@ -83,7 +85,7 @@ describe('works service behavior', () => {
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
-  it('keeps the workspace total stable and returns every project to a direct subaccount', async () => {
+  it('keeps the visible total stable and filters nested 作品 by participation', async () => {
     prismaMock.work.count
       .mockResolvedValueOnce(7)
       .mockResolvedValueOnce(1)
@@ -146,6 +148,10 @@ describe('works service behavior', () => {
       take: 2,
     }))
     const listQuery = prismaMock.work.findMany.mock.calls[0]?.[0]
+    expect(listQuery?.include?.projects?.where).toEqual({
+      deletedAt: null,
+      OR: [{ createdById: 'actor-1' }],
+    })
     expect(listQuery?.include?.projects?.select?.novelPromotionData?.select?._count).toEqual({
       select: { episodes: true },
     })

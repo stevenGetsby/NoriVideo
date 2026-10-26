@@ -13,10 +13,10 @@ import { extractModelKey } from '@/lib/config-service'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { getLogContext, setLogContext } from '@/lib/logging/context'
 import { getOrCreateTestModeSession, isTestModeEnabled } from '@/lib/test-mode'
-import { getAccountPermissionContext, setAccountActorContext } from '@/lib/account/request-context'
+import { getAccountPermissionContext, getRouteProjectIdContext, setAccountActorContext } from '@/lib/account/request-context'
 import { normalizeAccountCredit } from '@/lib/account/credits'
 import { getGenerationWalletPoints } from '@/lib/account/generation-wallet'
-import { projectReadWhere } from '@/lib/collaboration/access'
+import { getWorkspaceActor, isProjectHiddenFromActor, projectReadWhere } from '@/lib/collaboration/access'
 import {
     effectiveAccountPermissions,
     hasAccountPermissions,
@@ -129,6 +129,13 @@ async function validateSessionUser(
     session.user.pointCredits = await getGenerationWalletPoints(user)
     session.user.id = session.user.workspaceOwnerId
     setAccountActorContext(user.id, session.user.workspaceOwnerId)
+
+    // Route-level 作品 isolation: covers every handler that names a 作品 in its
+    // path or query, including ones that only call requireUserAuth().
+    const routeProjectId = getRouteProjectIdContext()
+    if (routeProjectId && await isProjectHiddenFromActor(getWorkspaceActor(session), routeProjectId)) {
+        return notFound('Project')
+    }
     return null
 }
 

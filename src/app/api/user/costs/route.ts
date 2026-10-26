@@ -4,6 +4,7 @@ import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
+import { findHiddenProjectIds } from '@/lib/collaboration/access'
 
 /**
  * GET /api/user/costs
@@ -18,7 +19,15 @@ export const GET = apiHandler(async () => {
   const userId = session.user.id
 
   // 获取用户费用汇总
-  const costSummary = await getUserCostSummary(userId)
+  const fullSummary = await getUserCostSummary(userId)
+  const hiddenProjectIds = await findHiddenProjectIds(session, fullSummary.byProject.map(p => p.projectId))
+  const visibleByProject = fullSummary.byProject.filter(p => !hiddenProjectIds.has(p.projectId))
+  const costSummary = {
+    total: hiddenProjectIds.size > 0
+      ? visibleByProject.reduce((sum, p) => sum + (p._sum.cost || 0), 0)
+      : fullSummary.total,
+    byProject: visibleByProject,
+  }
 
   // 获取项目名称
   const projectIds = costSummary.byProject.map(p => p.projectId)

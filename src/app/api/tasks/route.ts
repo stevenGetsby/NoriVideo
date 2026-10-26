@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api-errors'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { queryTasks } from '@/lib/task/service'
+import { findHiddenProjectIds } from '@/lib/collaboration/access'
 import { type TaskStatus } from '@/lib/task/types'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 import {
@@ -46,6 +47,10 @@ export const GET = apiHandler(async (request: NextRequest) => {
     limit: readLimit,
   })
 
-  const filtered = tasks.filter(isPublicTaskApiVisible).slice(0, responseLimit).map(withTaskError)
+  const hiddenProjectIds = await findHiddenProjectIds(session, tasks.map((task) => task.projectId))
+  const filtered = tasks
+    .filter((task) => isPublicTaskApiVisible(task) && !hiddenProjectIds.has(task.projectId))
+    .slice(0, responseLimit)
+    .map(withTaskError)
   return NextResponse.json({ tasks: filtered })
 })
