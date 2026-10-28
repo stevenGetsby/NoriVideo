@@ -124,7 +124,7 @@ describe('FrameOS assignment page replica contract', () => {
   it('matches the verified solid empty icon and fixed/flexible table column contract', () => {
     const table = readSource('src/components/frameos/FosAssignmentsTable.tsx')
     const styles = readSource('src/styles/frameos-replica.css')
-    const icons = readSource('src/components/ui/icons/custom.tsx')
+    const icons = readSource('src/components/ui/icons/registry.ts')
 
     expect(table).toContain('name="clipboardCheckSolid"')
     expect(table).toContain('className="fa-col-status"')
@@ -132,6 +132,6 @@ describe('FrameOS assignment page replica contract', () => {
     expect(styles).toContain('.fa-table col.fa-col-status { width: 92px; }')
     expect(styles).toContain('.fa-table col.fa-col-time { width: 168px; }')
     expect(styles).toContain('.fa-table.has-double-time { min-width: 1256px; }')
-    expect(icons).toContain('clipboardCheckSolid: CustomIcon099')
+    expect(icons).toContain('clipboardCheckSolid: ClipboardText')
   })
 })

@@ -52,7 +52,7 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           {action ? (
             <Link
               href={action.href}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white transition-colors hover:brightness-110"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black transition-colors hover:brightness-110"
             >
               <AppIcon name={action.icon} className="h-4 w-4" />
               {t(`common.${action.labelKey}`)}

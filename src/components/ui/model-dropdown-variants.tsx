@@ -269,7 +269,7 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
             <button
                 ref={triggerRef}
                 onClick={() => setIsOpen(!isOpen)}
-                className={`relative flex items-center justify-between w-full h-[54px] px-4 rounded-[16px] transition-all duration-300 overflow-hidden group bg-[var(--glass-bg-surface)] backdrop-blur-xl ${isOpen ? 'shadow-[0_0_0_2px_#3265ff]' : 'hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] border border-[var(--glass-stroke-base)]'}`}
+                className={`relative flex items-center justify-between w-full h-[54px] px-4 rounded-[16px] transition-all duration-300 overflow-hidden group bg-[var(--glass-bg-surface)] backdrop-blur-xl ${isOpen ? 'shadow-[0_0_0_2px_#737373]' : 'hover:shadow-[0_4px_24px_rgba(0,0,0,0.05)] border border-[var(--glass-stroke-base)]'}`}
             >
                 {isOpen && <div className="absolute inset-0 bg-white/5 transition-opacity duration-300" />}
                 <div className="relative flex flex-col items-start min-w-0 pr-4 z-10">
@@ -299,7 +299,7 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
                                 <button
                                     key={m.value}
                                     onClick={() => props.onModelChange(m.value)}
-                                    className={`w-full flex items-center px-4 py-3 rounded-xl transition-all ${active ? 'bg-gradient-to-r from-[#8109ff] to-[#3265ff] text-white shadow-lg' : 'hover:bg-[var(--glass-bg-hover)] text-[var(--glass-text-secondary)]'}`}
+                                    className={`w-full flex items-center px-4 py-3 rounded-xl transition-all ${active ? 'bg-white text-black' : 'hover:bg-[var(--glass-bg-hover)] text-[var(--glass-text-secondary)]'}`}
                                 >
                                     <div className="w-5 h-5 mr-3 shrink-0 flex items-center justify-center">
                                         {active ? <AppIcon name="check" className="w-4 h-4 text-white" /> : <div className="w-1.5 h-1.5 rounded-full bg-[var(--glass-text-tertiary)] opacity-30" />}
@@ -324,7 +324,7 @@ export function ModelDropdownV3(props: ModelDropdownTestProps) {
                                                     <button
                                                         key={s}
                                                         onClick={() => props.onCapabilityChange(field.field, s, field.options[0])}
-                                                        className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all border ${active ? 'bg-white/8 border-white/25 text-blue-600 dark:text-neutral-200' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:border-[var(--glass-text-tertiary)]'}`}
+                                                        className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all border ${active ? 'bg-white/8 border-white/25 text-neutral-400 dark:text-neutral-200' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:border-[var(--glass-text-tertiary)]'}`}
                                                     >
                                                         {s}
                                                     </button>
@@ -387,13 +387,13 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
                                     <button
                                         key={m.value}
                                         onClick={() => props.onModelChange(m.value)}
-                                        className={`w-full flex items-center px-3 py-2.5 rounded-[10px] transition-all border ${active ? 'bg-blue-50/50 dark:bg-white/10 border-blue-200 dark:border-blue-800' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                        className={`w-full flex items-center px-3 py-2.5 rounded-[10px] transition-all border ${active ? 'bg-white/[0.12] dark:bg-white/10 border-white/40 dark:border-white/40' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
                                     >
-                                        <span className={`text-[14px] flex-1 text-left ${active ? 'font-semibold text-blue-600 dark:text-neutral-200' : 'text-[var(--glass-text-primary)] font-medium'}`}>{m.label}</span>
+                                        <span className={`text-[14px] flex-1 text-left ${active ? 'font-semibold text-neutral-400 dark:text-neutral-200' : 'text-[var(--glass-text-primary)] font-medium'}`}>{m.label}</span>
                                         {m.providerName && (
                                             <span className="px-1.5 py-0.5 rounded text-[10px] bg-black/5 dark:bg-white/10 text-[var(--glass-text-secondary)] ml-2">{m.providerName}</span>
                                         )}
-                                        {active && <div className="w-1.5 h-6 rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] ml-3" />}
+                                        {active && <div className="w-1.5 h-6 rounded-full bg-white ml-3" />}
                                     </button>
                                 )
                             })}
@@ -433,7 +433,7 @@ export function ModelDropdownV4(props: ModelDropdownTestProps) {
                                                         <button
                                                             key={s}
                                                             onClick={() => props.onCapabilityChange(field.field, s, field.options[0])}
-                                                            className={`px-3 py-1.5 text-[13px] font-medium rounded-[7px] transition-all min-w-[50px] text-center ${active ? 'bg-blue-100 dark:bg-white/10 text-blue-700 dark:text-neutral-200 shadow-sm' : 'text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                                            className={`px-3 py-1.5 text-[13px] font-medium rounded-[7px] transition-all min-w-[50px] text-center ${active ? 'bg-white dark:bg-white/10 text-neutral-500 dark:text-neutral-200 shadow-sm' : 'text-[var(--glass-text-secondary)] hover:text-[var(--glass-text-primary)] hover:bg-black/5 dark:hover:bg-white/5'}`}
                                                         >
                                                             {s}
                                                         </button>

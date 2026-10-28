@@ -43,7 +43,7 @@ export function FosProductionModeTabs({
             aria-current={selected ? 'page' : undefined}
             className={`group relative flex min-w-[190px] items-center gap-3 rounded-t-[10px] border border-b-0 px-4 py-2.5 transition ${selected ? 'border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] text-white' : 'border-transparent text-[var(--fos-text-3)] hover:bg-white/[.035] hover:text-white'}`}
           >
-            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-black ${selected ? 'bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-white' : 'bg-white/[.06] text-[var(--fos-text-3)]'}`}>{index + 1}</span>
+            <span className={`flex h-7 w-7 items-center justify-center rounded-md text-[11px] font-black ${selected ? 'bg-white text-black' : 'bg-white/[.06] text-[var(--fos-text-3)]'}`}>{index + 1}</span>
             <AppIcon name={item.icon} className="h-4 w-4 text-[#e5e5e5]" />
             <span className="min-w-0"><strong className="block text-[13px]">{item.label}</strong><small className="block truncate text-[10px] font-medium text-[var(--fos-text-4)]">{item.detail}</small></span>
             {selected ? <i className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}

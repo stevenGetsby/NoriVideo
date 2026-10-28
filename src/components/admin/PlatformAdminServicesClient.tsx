@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
@@ -105,8 +106,13 @@ export function PlatformAdminServicesClient() {
     }))
   }
 
-  const removeProvider = (providerId: string) => {
-    if (!window.confirm(`删除服务“${providerId}”及其模型配置？`)) return
+  const removeProvider = async (providerId: string) => {
+    if (!await confirmAction({
+      title: `删除服务「${providerId}」？`,
+      message: '该服务下的模型配置会一并移除，引用这些模型的默认配置也会被清空。',
+      confirmLabel: '删除',
+      danger: true,
+    })) return
     markConfig((current) => {
       const removedKeys = new Set(current.models.filter((model) => model.provider === providerId).map(modelKey))
       const nextDefaults = Object.fromEntries(Object.entries(current.defaultModels).filter(([, value]) => !removedKeys.has(value || ''))) as ServiceConfig['defaultModels']

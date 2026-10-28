@@ -1,12 +1,12 @@
 'use client'
 
 import Image from 'next/image'
-import CameraIcon from 'lucide-react/dist/esm/icons/camera.js'
-import Images from 'lucide-react/dist/esm/icons/images.js'
-import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle.js'
-import Send from 'lucide-react/dist/esm/icons/send.js'
-import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js'
-import X from 'lucide-react/dist/esm/icons/x.js'
+import CameraIcon from '@/components/ui/icons/ph/camera'
+import Images from '@/components/ui/icons/ph/images'
+import LoaderCircle from '@/components/ui/icons/ph/circle-notch'
+import Send from '@/components/ui/icons/ph/paper-plane-tilt'
+import Trash2 from '@/components/ui/icons/ph/trash'
+import X from '@/components/ui/icons/ph/x'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import type { CanvasStudioCapture } from '../studio-types'
 

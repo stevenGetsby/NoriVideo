@@ -7,6 +7,11 @@ const MEMBER_Y_GAP = 48
 export const CANVAS_GROUP_PADDING = { left: 42, right: 42, top: 64, bottom: 42 } as const
 const MIN_GROUP_WIDTH = 260
 const MIN_GROUP_HEIGHT = 180
+const LANE_COLUMN_GAP = 64
+const GROUP_LANE = 7
+
+export type CanvasArrangeMode = 'grid' | 'horizontal' | 'vertical'
+export type CanvasOrganizeMode = CanvasArrangeMode | 'type' | 'tidy'
 
 export function canvasNodeWidth(node: CanvasFlowNode) {
   return node.width || node.measured?.width || (node.type === 'group' ? 680 : 300)
@@ -101,7 +106,7 @@ export function canResizeCanvasGroupToMembers(
   return nextViolations.every((violation, index) => violation <= currentViolations[index] + tolerance)
 }
 
-function spatialNodeOrder(mode: 'grid' | 'horizontal' | 'vertical') {
+function spatialNodeOrder(mode: CanvasArrangeMode) {
   return (left: CanvasFlowNode, right: CanvasFlowNode) => {
     if (mode === 'horizontal') {
       return left.position.x - right.position.x || left.position.y - right.position.y || left.id.localeCompare(right.id)
@@ -117,7 +122,7 @@ function spatialNodeOrder(mode: 'grid' | 'horizontal' | 'vertical') {
 function orderedLayoutNodes(
   nodes: CanvasFlowNode[],
   edges: CanvasFlowEdge[],
-  mode: 'grid' | 'horizontal' | 'vertical',
+  mode: CanvasArrangeMode,
 ) {
   const fallbackOrder = spatialNodeOrder(mode)
   if (mode === 'grid' || edges.length === 0) return [...nodes].sort(fallbackOrder)
@@ -216,6 +221,20 @@ type LayoutUnit = {
   height: number
   offsets: Map<string, { x: number; y: number }>
   originalOrder: number
+  lane: number
+}
+
+/** Production order of a unit's content: script, image, video, audio, 3D, edit list, other, then groups. */
+function layoutLane(node: CanvasFlowNode) {
+  if (node.type === 'group') return GROUP_LANE
+  const kind = String(node.data.mediaType || node.type || '')
+  if (kind === 'text' || kind === 'note') return 0
+  if (kind === 'image') return 1
+  if (kind === 'video' || kind === 'video_edit') return 2
+  if (kind === 'audio') return 3
+  if (kind === 'model3d' || kind === 'model_3d' || kind === 'studio_3d') return 4
+  if (kind === 'playlist') return 5
+  return 6
 }
 
 function overlapArea(left: CanvasNodeBounds, right: CanvasNodeBounds) {
@@ -310,6 +329,7 @@ function buildLayoutUnits(nodes: CanvasFlowNode[]) {
       height: Math.max(MIN_GROUP_HEIGHT, bottom - top),
       offsets,
       originalOrder: groupIndex,
+      lane: GROUP_LANE,
     }
     units.push(unit)
     unit.nodeIds.forEach((id) => unitByNodeId.set(id, unit.id))
@@ -327,6 +347,7 @@ function buildLayoutUnits(nodes: CanvasFlowNode[]) {
       height: canvasNodeHeight(node),
       offsets: new Map([[node.id, { x: 0, y: 0 }]]),
       originalOrder: index,
+      lane: layoutLane(node),
     }
     units.push(unit)
     unitByNodeId.set(node.id, unit.id)
@@ -433,6 +454,81 @@ function gridUnitPositions(units: LayoutUnit[]) {
   return new Map(arranged.map((unit, index) => [unit.id, { x: xOffsets[index % columns], y: yOffsets[Math.floor(index / columns)] }]))
 }
 
+function readingOrder(left: LayoutUnit, right: LayoutUnit) {
+  return left.origin.y - right.origin.y || left.origin.x - right.origin.x || left.originalOrder - right.originalOrder
+}
+
+/**
+ * One kanban-style column per content type, in production order. Within a
+ * column units keep their on-canvas reading order; a crowded type wraps into
+ * evenly filled sub-columns so no single column grows into a long strip.
+ */
+function typeUnitPositions(units: LayoutUnit[]) {
+  const lanes = new Map<number, LayoutUnit[]>()
+  for (const unit of [...units].sort(readingOrder)) lanes.set(unit.lane, [...(lanes.get(unit.lane) || []), unit])
+  const busiest = Math.max(...Array.from(lanes.values(), (members) => members.length))
+  const rowsPerColumn = Math.max(4, Math.ceil(Math.sqrt(busiest * 1.6)))
+  const top = Math.min(...units.map((unit) => unit.origin.y))
+  const positions = new Map<string, { x: number; y: number }>()
+  let x = Math.min(...units.map((unit) => unit.origin.x))
+
+  for (const lane of Array.from(lanes.keys()).sort((left, right) => left - right)) {
+    const members = lanes.get(lane)!
+    const columnCount = Math.ceil(members.length / rowsPerColumn)
+    const perColumn = Math.ceil(members.length / columnCount)
+    for (let index = 0; index < columnCount; index += 1) {
+      const column = members.slice(index * perColumn, (index + 1) * perColumn)
+      const width = Math.max(...column.map((unit) => unit.width))
+      let y = top
+      for (const unit of column) {
+        positions.set(unit.id, { x: x + (width - unit.width) / 2, y })
+        y += unit.height + Y_GAP
+      }
+      x += width + (index < columnCount - 1 ? LANE_COLUMN_GAP : 0)
+    }
+    x += X_GAP
+  }
+  return positions
+}
+
+/**
+ * Keep the author's rows and left-to-right order, but make them tidy: units
+ * that already share a horizontal band become one row, rows are stacked with
+ * even gaps, left-aligned and centred on the row's tallest unit.
+ */
+function tidyUnitPositions(units: LayoutUnit[]) {
+  const centreY = (unit: LayoutUnit) => unit.origin.y + unit.height / 2
+  const byCentre = [...units].sort((left, right) => centreY(left) - centreY(right) || readingOrder(left, right))
+  const rows: LayoutUnit[][] = []
+  let anchor: LayoutUnit | null = null
+  for (const unit of byCentre) {
+    const shared = anchor
+      ? Math.min(anchor.origin.y + anchor.height, unit.origin.y + unit.height) - Math.max(anchor.origin.y, unit.origin.y)
+      : 0
+    if (anchor && shared >= Math.min(anchor.height, unit.height) * 0.5) {
+      rows[rows.length - 1].push(unit)
+    } else {
+      rows.push([unit])
+      anchor = unit
+    }
+  }
+
+  const left = Math.min(...units.map((unit) => unit.origin.x))
+  let y = Math.min(...units.map((unit) => unit.origin.y))
+  const positions = new Map<string, { x: number; y: number }>()
+  for (const row of rows) {
+    row.sort((a, b) => a.origin.x - b.origin.x || a.originalOrder - b.originalOrder)
+    const rowHeight = Math.max(...row.map((unit) => unit.height))
+    let x = left
+    for (const unit of row) {
+      positions.set(unit.id, { x, y: y + (rowHeight - unit.height) / 2 })
+      x += unit.width + X_GAP
+    }
+    y += rowHeight + Y_GAP
+  }
+  return positions
+}
+
 /**
  * Arrange the entire graph as compound units. A group and its members move as
  * one block, so automatic layout can never leave a group behind or scatter its
@@ -441,7 +537,7 @@ function gridUnitPositions(units: LayoutUnit[]) {
 export function arrangeCanvasNodes(
   nodes: CanvasFlowNode[],
   edges: CanvasFlowEdge[],
-  mode: 'grid' | 'horizontal' | 'vertical',
+  mode: CanvasOrganizeMode,
 ) {
   if (nodes.length === 0) return nodes
   const preparedNodes = fitCanvasGroupsToMembers(normalizeCanvasGroupMemberships(nodes))
@@ -449,7 +545,11 @@ export function arrangeCanvasNodes(
   if (units.length === 0) return nodes
   const positions = mode === 'grid'
     ? gridUnitPositions(units)
-    : layeredUnitPositions(units, edges, unitByNodeId, mode)
+    : mode === 'type'
+      ? typeUnitPositions(units)
+      : mode === 'tidy'
+        ? tidyUnitPositions(units)
+        : layeredUnitPositions(units, edges, unitByNodeId, mode)
   const placement = new Map<string, { unit: LayoutUnit; position: { x: number; y: number } }>()
   units.forEach((unit) => {
     const position = positions.get(unit.id) || unit.origin
@@ -473,7 +573,7 @@ export function arrangeCanvasNodes(
 
 export function arrangeCanvasGroupNodes(
   nodes: CanvasFlowNode[],
-  mode: 'grid' | 'horizontal' | 'vertical',
+  mode: CanvasArrangeMode,
   edges: CanvasFlowEdge[] = [],
 ) {
   if (nodes.length === 0) return nodes
@@ -527,7 +627,7 @@ export function arrangeCanvasGroupNodes(
 export function arrangeCanvasGroupMembers(
   nodes: CanvasFlowNode[],
   groupId: string,
-  mode: 'grid' | 'horizontal' | 'vertical',
+  mode: CanvasArrangeMode,
   edges: CanvasFlowEdge[] = [],
 ) {
   const group = nodes.find((node) => node.id === groupId && node.type === 'group')

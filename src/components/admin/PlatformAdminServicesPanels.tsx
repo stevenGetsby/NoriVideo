@@ -138,7 +138,7 @@ export function PlatformAdminServicesPanels({
                   <label className="nori-admin-field sm:col-span-2">
                     <span className="nori-admin-field-label">
                       <span>API Key</span>
-                      <span className={hasPendingSecret ? 'text-amber-300' : provider.hasApiKey ? 'text-emerald-300' : 'text-red-300'}>
+                      <span className={hasPendingSecret ? 'text-neutral-300' : provider.hasApiKey ? 'text-neutral-300' : 'text-red-300'}>
                         {hasPendingSecret ? '待保存' : provider.hasApiKey ? '已配置' : '未配置'}
                       </span>
                     </span>

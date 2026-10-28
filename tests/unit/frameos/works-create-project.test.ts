@@ -41,7 +41,8 @@ describe('FrameOS-compatible project creation', () => {
 
     expect(dialog.indexOf('>每千字</button>')).toBeLessThan(dialog.indexOf('>每集</button>'))
     expect(dialog).toContain("if (event.key !== 'Escape') return")
-    expect(dialog).toContain('if (!submittingRef.current) onClose()')
+    expect(dialog).toContain('void requestClose()')
+    expect(dialog).toContain("title: '放弃创建作品？'")
     expect(dialog).toContain('aria-label="关闭创建作品"')
   })
 

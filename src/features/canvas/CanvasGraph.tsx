@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import {
@@ -39,6 +40,7 @@ import type { FrameosMaterialItem } from '@/components/frameos/materials/contrac
 import { CanvasEditorProvider, type CanvasNodeAction, type CanvasPlaylistVideoSource } from './CanvasEditorContext'
 import { CanvasGenerator, type CanvasGenerateRequest } from './components/CanvasGenerator'
 import { CanvasChrome } from './components/CanvasChrome'
+import { canvasOrganizeOption } from './components/CanvasOrganizeMenu'
 import { CanvasConflictDialog, CanvasHistoryDialog, CanvasOfflineRecoveryDialog, CanvasRevisionDialog } from './components/CanvasDialogs'
 import { CanvasHelpPanel } from './components/CanvasHelpPanel'
 import { CanvasImageOperationDialog, type CanvasImageOperationInput, type CanvasImageOperationMode } from './components/CanvasImageOperationDialog'
@@ -99,6 +101,7 @@ import {
   arrangeCanvasGroupNodes,
   arrangeCanvasNodes,
   canvasGroupIdsContainingMembers,
+  type CanvasOrganizeMode,
   fitCanvasGroupsToMembers,
 } from './actions/layout'
 import { reconcileDraggedNodeGroupMembership } from './actions/grouping'
@@ -424,7 +427,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const [assetsOpen, setAssetsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const [minimapVisible, setMinimapVisible] = useState(false)
-  const [organizeMode, setOrganizeMode] = useState<'grid' | 'horizontal' | 'vertical'>('horizontal')
+  const [organizeMode, setOrganizeMode] = useState<CanvasOrganizeMode>('horizontal')
   const [organizeOpen, setOrganizeOpen] = useState(false)
   const [layoutAnimating, setLayoutAnimating] = useState(false)
   const [nodeDragging, setNodeDragging] = useState(false)
@@ -1170,7 +1173,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     markChanged('创建组')
   }, [ensureNodeCapacity, markChanged, readOnly, record])
 
-  const organize = useCallback((mode: 'grid' | 'horizontal' | 'vertical') => {
+  const organize = useCallback((mode: CanvasOrganizeMode) => {
     if (readOnly || nodesRef.current.filter((node) => node.type !== 'group').length === 0) return
     record('整理画布')
     animateNodeLayout(
@@ -1180,7 +1183,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setOrganizeMode(mode)
     markChanged('整理画布')
     setOrganizeOpen(false)
-    setToast(mode === 'horizontal' ? '已按连线从左到右整理画布' : mode === 'vertical' ? '已按连线从上到下整理画布' : '已完成网格整理')
+    setToast(canvasOrganizeOption(mode).toast)
   }, [animateNodeLayout, flow, markChanged, readOnly, record])
 
   const organizeSelection = useCallback((mode: 'horizontal' | 'vertical') => {
@@ -3458,7 +3461,14 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       if (action === 'delete') {
         const group = nodesRef.current.find((node) => node.id === menu.groupId && node.type === 'group')
         const count = group?.data.memberIds?.length || 0
-        if (group && window.confirm(`将删除「${group.data.title || '组'}」及组内 ${count} 个节点，此操作可以通过撤销恢复。是否继续？`)) removeGroupsWithMembers([menu.groupId])
+        if (group) {
+          void confirmAction({
+            title: `删除「${group.data.title || '组'}」？`,
+            message: `组内 ${count} 个节点会一并删除，删除后可以撤销恢复。`,
+            confirmLabel: '删除',
+            danger: true,
+          }).then((confirmed) => { if (confirmed) removeGroupsWithMembers([menu.groupId]) })
+        }
       }
       return
     }

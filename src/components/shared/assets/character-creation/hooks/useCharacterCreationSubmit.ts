@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useCallback, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { shouldShowError } from '@/lib/error-utils'
@@ -134,7 +135,7 @@ export function useCharacterCreationSubmit({
       }
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.extractDescriptionFailed')))
+        notify(getErrorMessage(error, t('errors.extractDescriptionFailed')))
       }
     } finally {
       setIsExtracting(false)
@@ -190,7 +191,7 @@ export function useCharacterCreationSubmit({
       onClose()
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.createFailed')))
+        notify(getErrorMessage(error, t('errors.createFailed')))
       }
     } finally {
       setIsSubmitting(false)
@@ -228,7 +229,7 @@ export function useCharacterCreationSubmit({
       }
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.aiDesignFailed')))
+        notify(getErrorMessage(error, t('errors.aiDesignFailed')))
       }
     } finally {
       setIsAiDesigning(false)
@@ -249,7 +250,7 @@ export function useCharacterCreationSubmit({
         onClose()
       } catch (error: unknown) {
         if (shouldShowError(error)) {
-          alert(getErrorMessage(error, t('errors.addSubAppearanceFailed')))
+          notify(getErrorMessage(error, t('errors.addSubAppearanceFailed')))
         }
       } finally {
         setIsSubmitting(false)
@@ -277,7 +278,7 @@ export function useCharacterCreationSubmit({
       onClose()
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.createFailed')))
+        notify(getErrorMessage(error, t('errors.createFailed')))
       }
     } finally {
       setIsSubmitting(false)
@@ -350,7 +351,7 @@ export function useCharacterCreationSubmit({
       onClose()
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.createFailed')))
+        notify(getErrorMessage(error, t('errors.createFailed')))
       }
     } finally {
       setIsSubmitting(false)
@@ -402,7 +403,7 @@ export function useCharacterCreationSubmit({
       onClose()
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(getErrorMessage(error, t('errors.createFailed')))
+        notify(getErrorMessage(error, t('errors.createFailed')))
       }
     } finally {
       setIsSubmitting(false)

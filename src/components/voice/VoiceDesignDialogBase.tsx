@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslations } from 'next-intl'
@@ -79,7 +80,7 @@ export default function VoiceDesignDialogBase({
       const status = err instanceof Error ? (err as Error & { status?: number }).status : undefined
       if (status === 402) {
         const detail = err instanceof Error ? (err as Error & { detail?: string }).detail : undefined
-        alert(t('insufficientBalance') + '\n\n' + (detail || t('insufficientBalanceDetail')))
+        notify(t('insufficientBalance') + '\n\n' + (detail || t('insufficientBalanceDetail')), 'warning')
         setError('INSUFFICIENT_BALANCE')
         return
       }

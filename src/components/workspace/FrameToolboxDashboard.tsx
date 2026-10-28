@@ -292,7 +292,7 @@ export function FrameToolboxDashboard() {
           </div>
           <Link
             href={{ pathname: '/service-records' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
           >
             <AppIcon name="receipt" className="h-4 w-4" />
             {t('openRecords')}
@@ -323,8 +323,8 @@ export function FrameToolboxDashboard() {
                     <div className="text-sm font-medium text-white/76">{t(`checks.${check.key}.title`)}</div>
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       check.ok
-                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
-                        : 'border-[#ffcc66]/35 bg-[#ffcc66]/10 text-[#ffd98a]'
+                        ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                        : 'border-[#d3d3d3]/35 bg-[#ffffff]/10 text-[#dedede]'
                     }`}>
                       {check.ok ? t('status.ok') : t('status.review')}
                     </span>
@@ -384,8 +384,8 @@ export function FrameToolboxDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.status === 'ok'
-                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
-                          : 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                          : 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
                       }`}>
                         {t(`status.${row.status}`)}
                       </span>
@@ -445,14 +445,14 @@ export function FrameToolboxDashboard() {
                       task.status === 'failed'
                         ? 'border-[#ff6b6b]/35 bg-[#ff6b6b]/10 text-[#ff9a9a]'
                         : activeStatuses(task.status)
-                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
-                          : 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                          ? 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
+                          : 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
                     }`}>
                       {taskStatusDisplayName(task.status)}
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
-                    <div className="h-full rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)]" style={{ width: `${Math.min(100, Math.max(4, task.progress || 0))}%` }} />
+                    <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, Math.max(4, task.progress || 0))}%` }} />
                   </div>
                 </div>
               ))}

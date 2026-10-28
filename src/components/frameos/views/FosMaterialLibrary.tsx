@@ -118,11 +118,11 @@ function MaterialCard({
         type="button"
         aria-label={selected ? `取消选择 ${item.title || '未命名素材'}` : `选择 ${item.title || '未命名素材'}`}
         aria-pressed={selected}
-        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-white' : 'border-white/25 bg-black/65 text-white/60'}`}
+        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-white text-black' : 'border-white/25 bg-black/65 text-white/60'}`}
         onClick={(event) => { event.stopPropagation(); onToggleSelect() }}
       >{selected ? '✓' : ''}</button> : null}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-b from-[#191919] to-[#0e0e12]">
+        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-[#181818]">
           <MaterialPreview item={item} />
           <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : item.type === 'audio' ? '音频' : '3D'}</span>
           {showVoiceBadge ? <span className="fml-voice-badge">
@@ -143,8 +143,8 @@ function MaterialCard({
         <div className="flex items-center gap-2">
           {item.source === 'upload' && canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title="删除上传资产" aria-label={`删除上传资产 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
           {canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onRename() }} title="重命名素材" aria-label={`重命名素材 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-neutral-200"><AppIcon name="edit" className="h-4 w-4" /></button> : null}
-          <button type="button" disabled={!canFavorite} onClick={onFavorite} title={canFavorite ? item.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="text-[var(--fos-text-4)] hover:text-[#ffd166] disabled:cursor-not-allowed disabled:opacity-35">
-            <AppIcon name="bookmark" className="h-4 w-4" style={{ color: item.isFavorited ? '#ffd166' : undefined, fill: item.isFavorited ? '#ffd166' : 'none' }} />
+          <button type="button" disabled={!canFavorite} onClick={onFavorite} title={canFavorite ? item.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="text-[var(--fos-text-4)] hover:text-[#d7d7d7] disabled:cursor-not-allowed disabled:opacity-35">
+            <AppIcon name="bookmark" className="h-4 w-4" weight={item.isFavorited ? 'fill' : 'regular'} />
           </button>
         </div>
       </div>
@@ -289,7 +289,7 @@ export function MaterialUploadDialog({
             <button type="button" disabled={saving} className="flex min-h-20 w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-[var(--fos-border-strong)] bg-[var(--fos-bg-1)] px-4 text-[13px] text-[var(--fos-text-3)] hover:border-white/40" onClick={() => inputRef.current?.click()}><AppIcon name="folderOpen" className="h-5 w-5" /><span>{imageOnly ? '选择多张资产图片' : '选择多个图片、视频、音频或自包含 GLB'}</span></button>
             <input ref={inputRef} type="file" multiple accept={imageOnly ? 'image/*' : 'image/*,video/*,audio/*,.glb,model/gltf-binary'} title={imageOnly ? '请选择图片文件' : '3D 模型仅支持自包含 GLB 2.0'} className="hidden" onChange={(event) => { addFiles(Array.from(event.target.files || [])); event.target.value = '' }} />
           </div>
-          {assetCategory === 'character' && entries.every((entry) => isImageUpload(entry.file)) ? <div className="rounded-lg border border-violet-300/20 bg-[var(--fos-bg-2)] p-3">
+          {assetCategory === 'character' && entries.every((entry) => isImageUpload(entry.file)) ? <div className="rounded-lg border border-white/20 bg-[var(--fos-bg-2)] p-3">
             <label className="block text-[12px] font-bold text-white">角色音色配对（选填）<input aria-label="批量角色音色文件" className="fos-input mt-2 w-full" type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.ogg" disabled={saving} onChange={(event) => {
               const files = Array.from(event.target.files || [])
               event.target.value = ''

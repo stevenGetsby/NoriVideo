@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { ProviderCardProps, ProviderCardTranslator } from './types'
@@ -36,7 +37,7 @@ export function getCompatibilityLayerBadgeLabel(
 // 连接状态图标
 function StatusIcon({ connected }: { connected: boolean }) {
   if (connected) {
-    return <AppIcon name="bolt" className="h-3.5 w-3.5 text-green-500" />
+    return <AppIcon name="bolt" className="h-3.5 w-3.5 text-neutral-400" />
   }
   return <AppIcon name="unplug" className="h-3.5 w-3.5 text-red-400" />
 }
@@ -77,15 +78,11 @@ export function ProviderCardShell({
               type="button"
               title={hiddenToggleLabel}
               aria-label={hiddenToggleLabel}
-              onClick={() => {
+              onClick={async () => {
                 if (isHidden) {
-                  // Restoring — no confirmation needed
                   onToggleProviderHidden(provider.id, false)
-                } else {
-                  // Hiding — confirm first
-                  if (window.confirm(t('hideProviderConfirm'))) {
-                    onToggleProviderHidden(provider.id, true)
-                  }
+                } else if (await confirmAction({ message: t('hideProviderConfirm') })) {
+                  onToggleProviderHidden(provider.id, true)
                 }
               }}
               className="inline-flex h-6 w-6 items-center justify-center rounded-md text-[var(--glass-text-tertiary)] transition-colors hover:text-[var(--glass-text-secondary)]"

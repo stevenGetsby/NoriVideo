@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { useSession } from 'next-auth/react'
@@ -286,7 +287,7 @@ function HistoryPanel({
                 <div className="truncate text-[var(--fos-text-4)]">{historyModel(task)} · {new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</div>
                 {failed && task.errorMessage ? <div className="mt-0.5 line-clamp-1 text-[#ff8e8e]" title={task.errorMessage}>{task.errorMessage}</div> : null}
               </div>
-              <div className={failed ? 'text-right font-bold text-[#ff7777]' : completed ? 'text-right font-bold text-[#5bd08f]' : 'text-right font-bold text-[#e5e5e5]'}>{status}</div>
+              <div className={failed ? 'text-right font-bold text-[#ff7777]' : completed ? 'text-right font-bold text-[#bababa]' : 'text-right font-bold text-[#e5e5e5]'}>{status}</div>
             </div>
           )
         })}
@@ -636,7 +637,12 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
   const handleExtractAssets = async () => {
     if (!canEdit || !canExtract || extracting) return
     if (data.characters.length + data.items.length + data.environments.length > 0) {
-      const confirmed = window.confirm('重新解析会替换当前作品的角色、物品和环境资产，已有资产设定图也可能被移除。确定继续吗？')
+      const confirmed = await confirmAction({
+        title: '重新解析资产？',
+        message: '会替换当前作品的角色、物品和环境资产，已有资产设定图也可能被移除。',
+        confirmLabel: '重新解析',
+        danger: true,
+      })
       if (!confirmed) return
     }
     setExtracting(true)
@@ -671,7 +677,12 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
     if (!canEdit || deletingId) return
     const kindLabel = tab === 'characters' ? '角色' : tab === 'items' ? '物品' : '环境'
     const cascadeHint = tab === 'characters' ? '该角色的主形象、变体和音色绑定会一并移除。' : '该资产的全部设定图会一并移除。'
-    const confirmed = window.confirm(`确定删除${kindLabel}「${asset.name}」吗？${cascadeHint}`)
+    const confirmed = await confirmAction({
+      title: `删除${kindLabel}「${asset.name}」？`,
+      message: cascadeHint,
+      confirmLabel: '删除',
+      danger: true,
+    })
     if (!confirmed) return
 
     setDeletingId(asset.id)
@@ -700,7 +711,12 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
   const handleDeleteCharacterVariant = async (variant: FosAssetVariant) => {
     const appearanceId = variant.appearanceId?.trim() || ''
     if (!canEdit || tab !== 'characters' || !active || !appearanceId || deletingVariantId) return
-    if (!window.confirm(`确定删除「${active.name}」的变体「${variant.label}」吗？该变体的设定图也会一并移除。`)) return
+    if (!await confirmAction({
+      title: `删除变体「${variant.label}」？`,
+      message: `「${active.name}」的这个变体及其设定图会一并移除。`,
+      confirmLabel: '删除',
+      danger: true,
+    })) return
 
     setDeletingVariantId(appearanceId)
     setError(null)
@@ -795,7 +811,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-[13px] font-bold text-white">{a.name}</span>
-                    <AppIcon name="check" className="h-4 w-4 shrink-0 text-[#5bd08f]" />
+                    <AppIcon name="check" className="h-4 w-4 shrink-0 text-[#bababa]" />
                   </div>
                   <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">{a.type}</div>
                   {isActive && a.variants?.length ? (

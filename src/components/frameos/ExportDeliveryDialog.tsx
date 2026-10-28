@@ -1,5 +1,6 @@
 'use client'
 
+import { useDismissableDialog } from '@/components/ui/useDismissableDialog'
 import { useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 
@@ -33,13 +34,14 @@ export function ExportDeliveryDialog({
   })
 
   const exportDisabled = selectedEpisodes.size === 0
+  const { onBackdropMouseDown } = useDismissableDialog({ onClose })
 
   return (
-    <div className="fos-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="fos-dialog" style={{ maxWidth: 760 }}>
+    <div className="fos-overlay" onMouseDown={onBackdropMouseDown}>
+      <div className="fos-dialog" style={{ maxWidth: 760 }} role="dialog" aria-modal="true" aria-label="导出交付">
         <div className="fos-dialog-head">
           <div className="fos-dialog-title">导出交付</div>
-          <button type="button" className="fos-dialog-x" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
+          <button type="button" className="fos-dialog-x" aria-label="关闭" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
         <div className="px-5 pt-4">
           <div className="flex gap-6 border-b border-[var(--fos-border-soft)]">

@@ -22,7 +22,7 @@ export function FosAccountCreditsFields({
       <div className="grid gap-3 sm:grid-cols-2">
         <label className="block">
           <span className="mb-2 flex items-center gap-1.5 text-[10px] text-white/45">
-            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>
+            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] not-italic text-black">¥</i>
             金币
           </span>
           <input
@@ -38,7 +38,7 @@ export function FosAccountCreditsFields({
         </label>
         <label className="block">
           <span className="mb-2 flex items-center gap-1.5 text-[10px] text-white/45">
-            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-[8px] not-italic text-white">◆</i>
+            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[8px] not-italic text-black">◆</i>
             积分
           </span>
           <input

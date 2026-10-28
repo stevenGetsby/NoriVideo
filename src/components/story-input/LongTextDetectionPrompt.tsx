@@ -62,9 +62,9 @@ export default function LongTextDetectionPrompt({
           <div className="flex items-center gap-3">
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
-              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.1))' }}
+              style={{ background: 'rgba(255,255,255,.1)' }}
             >
-              <AppIcon name="sparkles" className="h-5 w-5 text-[#7c3aed]" />
+              <AppIcon name="sparkles" className="h-5 w-5 text-[#676767]" />
             </div>
             <h3 className="text-lg font-bold text-[var(--glass-text-primary)]">
               {copy.title}
@@ -77,15 +77,11 @@ export default function LongTextDetectionPrompt({
 
           <div
             className="rounded-xl p-4 text-sm leading-relaxed"
-            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.08))' }}
+            style={{ background: 'rgba(255,255,255,.08)' }}
           >
             <p
               className="font-semibold"
-              style={{
-                background: 'linear-gradient(135deg, #3265ff, #7c3aed)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
+              style={{ color: '#ffffff' }}
             >
               {copy.strongRecommend}
             </p>
@@ -95,12 +91,12 @@ export default function LongTextDetectionPrompt({
             <button
               type="button"
               onClick={onSmartSplit}
-              className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-              style={{ background: 'linear-gradient(135deg, #3265ff, #7c3aed)' }}
+              className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-semibold text-black transition-all hover:opacity-90 active:scale-[0.98]"
+              style={{ background: '#ffffff' }}
             >
               <AppIcon name="sparkles" className="h-5 w-5" />
               <span>{copy.smartSplitLabel}</span>
-              <span className="rounded-full bg-white/20 px-2 py-0.5 text-xs">
+              <span className="rounded-full bg-black/10 px-2 py-0.5 text-xs">
                 {copy.smartSplitBadge}
               </span>
             </button>

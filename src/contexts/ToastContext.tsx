@@ -21,9 +21,11 @@
  * ```
  */
 
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { AppIcon } from '@/components/ui/icons'
+import { ConfirmHost } from '@/components/ui/ConfirmHost'
+import { registerNoticeHandler } from '@/lib/ui/feedback'
 
 // ============================================================
 // 类型定义
@@ -111,10 +113,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
         setToasts(prev => prev.filter(toast => toast.id !== id))
     }, [])
 
+    useEffect(() => registerNoticeHandler((message, tone) => showToast(message, tone, tone === 'error' ? 8000 : 5000)), [showToast])
+
     return (
         <ToastContext.Provider value={{ toasts, showToast, showError, dismissToast }}>
             {children}
             <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+            <ConfirmHost />
         </ToastContext.Provider>
     )
 }
@@ -151,31 +156,33 @@ function ToastContainer({
     if (toasts.length === 0) return null
 
     return (
-        <div className="fixed bottom-4 md:bottom-6 left-4 md:left-6 z-[9999] flex flex-col gap-2 pointer-events-none">
+        <div className="fixed bottom-4 md:bottom-6 left-1/2 -translate-x-1/2 z-[100200] flex flex-col items-center gap-2 pointer-events-none" role="status" aria-live="polite">
             {toasts.map(toast => (
                 <div
                     key={toast.id}
                     className={`
                         pointer-events-auto
-                        flex items-center gap-3 
-                        px-4 py-3 
+                        flex items-start gap-3
+                        px-4 py-3
                         rounded-xl
-                        animate-in slide-in-from-right-full duration-300
+                        animate-in fade-in slide-in-from-bottom-2 duration-300
                         max-w-md
-                        border
-                        ${getToastStyle(toast.type)}
+                        border border-[#313131] bg-[#1f1f1f] text-white
+                        shadow-[0_16px_48px_rgba(0,0,0,.6)]
                     `}
                 >
                     {/* 图标 */}
-                    <span className="w-5 h-5 flex items-center justify-center">{getToastIcon(toast.type)}</span>
+                    <span className={`mt-px w-5 h-5 flex shrink-0 items-center justify-center ${getToastTone(toast.type)}`}>{getToastIcon(toast.type)}</span>
 
                     {/* 消息 */}
-                    <span className="text-sm font-medium flex-1">{toast.message}</span>
+                    <span className="text-sm leading-5 flex-1 whitespace-pre-line">{toast.message}</span>
 
                     {/* 关闭按钮 */}
                     <button
+                        type="button"
+                        aria-label="关闭"
                         onClick={() => onDismiss(toast.id)}
-                        className="glass-btn-base glass-btn-ghost w-6 h-6 rounded-md p-0 opacity-70 hover:opacity-100 transition-opacity"
+                        className="flex w-6 h-6 shrink-0 items-center justify-center rounded-md text-[#9b9b9b] transition-colors hover:bg-white/10 hover:text-white"
                     >
                         <AppIcon name="close" className="w-4 h-4" />
                     </button>
@@ -189,17 +196,16 @@ function ToastContainer({
 // 工具函数
 // ============================================================
 
-function getToastStyle(type: Toast['type']): string {
+function getToastTone(type: Toast['type']): string {
     switch (type) {
-        case 'success':
-            return 'bg-[var(--glass-tone-success-bg)] text-[var(--glass-tone-success-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-success-fg)_22%,transparent)]'
         case 'error':
-            return 'bg-[var(--glass-tone-danger-bg)] text-[var(--glass-tone-danger-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-danger-fg)_22%,transparent)]'
+            return 'text-[#ff8589]'
         case 'warning':
-            return 'bg-[var(--glass-tone-warning-bg)] text-[var(--glass-tone-warning-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-warning-fg)_22%,transparent)]'
+            return 'text-[#d6d6d6]'
         case 'info':
+            return 'text-[#9b9b9b]'
         default:
-            return 'bg-[var(--glass-tone-info-bg)] text-[var(--glass-tone-info-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-info-fg)_22%,transparent)]'
+            return 'text-white'
     }
 }
 
@@ -211,7 +217,7 @@ function getToastIcon(type: Toast['type']) {
             )
         case 'error':
             return (
-                <AppIcon name="close" className="w-4 h-4" />
+                <AppIcon name="alert" className="w-4 h-4" />
             )
         case 'warning':
             return (

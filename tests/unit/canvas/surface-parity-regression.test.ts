@@ -135,11 +135,15 @@ describe('FrameOS canvas surface parity regressions', () => {
       onOrganize: vi.fn(),
     }))
     expect(markup).toContain('title="适应画布"')
-    expect(markup).toContain('title="重置视图"')
-    expect(markup).toContain('title="一键整理 · 按连线横向"')
+    expect(markup).toContain('<b>重置视图</b>')
+    expect(markup).toContain('title="一键整理 · 从左到右"')
     expect(markup).toContain('<em>一键整理</em>')
-    expect(readSource('src/features/canvas/components/CanvasToolRail.tsx'))
-      .toContain("className={organizeMode === 'horizontal' ? 'is-active' : ''}")
+    const labels = ['从左到右', '从上到下', '宫格排列', '按类型分栏', '对齐行列', '重置视图']
+    const positions = labels.map((label) => markup.indexOf(`<b>${label}</b>`))
+    expect(positions.every((position) => position > 0)).toBe(true)
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions)
+    expect(markup.match(/aria-checked="true"/g)).toHaveLength(1)
+    expect(markup).toMatch(/aria-checked="true"[^>]*><span class="nori-canvas-organize-glyph">.*?<\/span><span class="nori-canvas-organize-copy"><b>从左到右<\/b>/)
 
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     expect(graph).toContain('onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })}')

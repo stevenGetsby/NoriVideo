@@ -1,4 +1,5 @@
 'use client'
+import { notify } from '@/lib/ui/feedback'
 import { useTranslations } from 'next-intl'
 import { MediaImageWithLoading } from '@/components/media/MediaImageWithLoading'
 
@@ -41,7 +42,7 @@ export default function ImageEditModal({
 
     const handleSubmit = () => {
         if (!modifyPrompt.trim()) {
-            alert(t('modal.designInstruction'))
+            notify(t('modal.designInstruction'), 'warning')
             return
         }
         onConfirm(modifyPrompt, editImages.length > 0 ? editImages : undefined)

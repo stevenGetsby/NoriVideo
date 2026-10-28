@@ -1,7 +1,7 @@
 import { iconRegistry, type AppIconName } from './registry'
-import type { LucideProps } from 'lucide-react'
+import type { IconProps } from './ph/createIcon'
 
-export interface AppIconProps extends Omit<LucideProps, 'ref'> {
+export interface AppIconProps extends IconProps {
   name: AppIconName
 }
 

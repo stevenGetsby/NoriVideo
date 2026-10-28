@@ -140,7 +140,7 @@ export function FrameWriterRedrawDashboard({ scriptId }: { scriptId: string }) {
           </div>
           <Link
             href={`/workspace/${scriptId}/script`}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
           >
             <AppIcon name="fileText" className="h-4 w-4" />
             {t('openScript')}
@@ -202,8 +202,8 @@ export function FrameWriterRedrawDashboard({ scriptId }: { scriptId: string }) {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.ready
-                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
-                          : 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                          : 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
                       }`}>
                         {row.ready ? t('readiness.status.ready') : t('readiness.status.review')}
                       </span>

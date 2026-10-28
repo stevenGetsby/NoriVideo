@@ -1,6 +1,6 @@
 'use client'
 
-import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Trash2, Upload, type LucideIcon } from '@/components/ui/icons'
+import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -11,7 +11,7 @@ type ContextMenuItem =
   | {
       key: string
       label: string
-      icon: LucideIcon
+      icon: IconComponent
       shortcut?: string
       hint?: string
       danger?: boolean

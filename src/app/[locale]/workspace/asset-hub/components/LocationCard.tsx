@@ -1,4 +1,5 @@
 'use client'
+import { notify } from '@/lib/ui/feedback'
 import { resolveErrorDisplay } from '@/lib/errors/display'
 
 import { useRef, useState } from 'react'
@@ -130,7 +131,7 @@ export function LocationCard({ location, assetType = 'location', onImageClick, o
       artStyle: location.artStyle || undefined,
       count,
     }, {
-      onError: (error) => alert(error.message || t('generateFailed'))
+      onError: (error) => notify(error.message || t('generateFailed'))
     })
   }
 
@@ -146,7 +147,7 @@ export function LocationCard({ location, assetType = 'location', onImageClick, o
     }, {
       onError: (error) => {
         if (latestSelectRequestRef.current !== requestId) return
-        alert(error.message || t('selectFailed'))
+        notify(error.message || t('selectFailed'))
       }
     })
   }
@@ -163,7 +164,7 @@ export function LocationCard({ location, assetType = 'location', onImageClick, o
     }, {
       onError: (error) => {
         if (latestSelectRequestRef.current !== requestId) return
-        alert(error.message || t('selectFailed'))
+        notify(error.message || t('selectFailed'))
       }
     })
   }
@@ -186,7 +187,7 @@ export function LocationCard({ location, assetType = 'location', onImageClick, o
         imageIndex: currentImageIndex
       },
       {
-        onError: (error) => alert(error.message || t('uploadFailed')),
+        onError: (error) => notify(error.message || t('uploadFailed')),
         onSettled: () => {
           if (fileInputRef.current) fileInputRef.current.value = ''
         }

@@ -215,7 +215,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
   const assignmentToneClass = assignmentState?.tone === 'error'
     ? 'border-red-400/35 bg-red-500/10 text-red-100'
     : assignmentState?.tone === 'success'
-      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
+      ? 'border-white/[0.24] bg-white/10 text-white'
       : assignmentState?.tone === 'info'
         ? 'border-white/25 bg-white/8 text-neutral-200'
         : 'border-white/10 bg-white/[.035] text-[var(--fos-text-2)]'

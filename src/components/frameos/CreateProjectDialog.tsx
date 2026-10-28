@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DragEvent, FormEvent } from 'react'
 import { AppIcon } from '@/components/ui/icons'
@@ -420,6 +421,18 @@ export function CreateProjectDialog({
   }
 
   const filteredScripts = scripts.filter((script) => script.title.toLocaleLowerCase().includes(scriptSearch.trim().toLocaleLowerCase()))
+  const hasUnsavedInput = Boolean(draft.name.trim() || draft.scriptFile || draft.importedScriptText || draft.artStylePrompt.trim() || styleReferenceItems.length)
+  const requestClose = async () => {
+    if (submittingRef.current) return
+    if (hasUnsavedInput && !await confirmAction({
+      title: '放弃创建作品？',
+      message: '已填写的名称、剧本和风格参考不会保存。',
+      confirmLabel: '放弃',
+      cancelLabel: '继续编辑',
+      danger: true,
+    })) return
+    onClose()
+  }
   const stopWhileSubmitting = (event: React.SyntheticEvent) => {
     if (!submittingRef.current) return
     event.preventDefault()
@@ -427,7 +440,7 @@ export function CreateProjectDialog({
   }
 
   return (
-    <div className="fos-overlay create-project-overlay" onMouseDown={(event) => { if (!submittingRef.current && event.target === event.currentTarget) onClose() }}>
+    <div className="fos-overlay create-project-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) void requestClose() }}>
       <form
         ref={dialogRef}
         className="fos-dialog create-project-dialog"
@@ -450,12 +463,12 @@ export function CreateProjectDialog({
           if (event.key !== 'Escape') return
           event.preventDefault()
           event.stopPropagation()
-          if (!submittingRef.current) onClose()
+          void requestClose()
         }}
       >
         <header className="fos-dialog-head">
           <div><div className="fos-dialog-title">创建作品</div>{workName ? <div className="create-project-work-name">所属项目 · {workName}</div> : null}</div>
-          <button type="button" className="fos-dialog-x" disabled={submitting} onClick={onClose} aria-label="关闭创建作品"><AppIcon name="close" className="h-4 w-4" /></button>
+          <button type="button" className="fos-dialog-x" disabled={submitting} onClick={() => void requestClose()} aria-label="关闭创建作品"><AppIcon name="close" className="h-4 w-4" /></button>
         </header>
         <div className="fos-dialog-body create-project-body" onClick={stopWhileSubmitting}>
           <fieldset className="create-project-payload-fields" disabled={submitting}>
@@ -717,7 +730,8 @@ export function CreateProjectDialog({
           {error ? <div className="create-project-error" role="alert"><AppIcon name="alert" />{error}</div> : null}
         </div>
         <footer className="fos-dialog-foot">
-          <button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={onClose}>取消</button>
+          {!submitting && !draft.name.trim() ? <span className="create-project-foot-hint"><AppIcon name="info" />填写作品名称后即可创建</span> : null}
+          <button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={() => void requestClose()}>取消</button>
           <button type="submit" className="fos-btn fos-btn-primary fos-btn-lg" disabled={submitting || !draft.name.trim()}>{submitting ? <><AppIcon name="loader" className="animate-spin" />{submitStatus}</> : '确认创建并进入工作台'}</button>
         </footer>
       </form>

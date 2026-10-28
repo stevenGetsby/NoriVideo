@@ -1,36 +1,37 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import Box from 'lucide-react/dist/esm/icons/box.js'
-import Camera from 'lucide-react/dist/esm/icons/camera.js'
-import ChevronDown from 'lucide-react/dist/esm/icons/chevron-down.js'
-import ChevronRight from 'lucide-react/dist/esm/icons/chevron-right.js'
-import CircleHelp from 'lucide-react/dist/esm/icons/circle-help.js'
-import CircleDot from 'lucide-react/dist/esm/icons/circle-dot.js'
-import Sphere from 'lucide-react/dist/esm/icons/circle.js'
-import Copy from 'lucide-react/dist/esm/icons/copy.js'
-import Cylinder from 'lucide-react/dist/esm/icons/cylinder.js'
-import Eye from 'lucide-react/dist/esm/icons/eye.js'
-import EyeOff from 'lucide-react/dist/esm/icons/eye-off.js'
-import ImageIcon from 'lucide-react/dist/esm/icons/image.js'
-import LoaderCircle from 'lucide-react/dist/esm/icons/loader-circle.js'
-import Lock from 'lucide-react/dist/esm/icons/lock.js'
-import Maximize2 from 'lucide-react/dist/esm/icons/maximize-2.js'
-import Minimize2 from 'lucide-react/dist/esm/icons/minimize-2.js'
-import Move3D from 'lucide-react/dist/esm/icons/move-3d.js'
-import Rotate3D from 'lucide-react/dist/esm/icons/rotate-3d.js'
-import Scale3D from 'lucide-react/dist/esm/icons/scale-3d.js'
-import Search from 'lucide-react/dist/esm/icons/search.js'
-import Shapes from 'lucide-react/dist/esm/icons/shapes.js'
-import Trash2 from 'lucide-react/dist/esm/icons/trash-2.js'
-import Triangle from 'lucide-react/dist/esm/icons/triangle.js'
-import Unlock from 'lucide-react/dist/esm/icons/unlock.js'
-import Upload from 'lucide-react/dist/esm/icons/upload.js'
-import UserRound from 'lucide-react/dist/esm/icons/user-round.js'
-import UsersRound from 'lucide-react/dist/esm/icons/users-round.js'
-import X from 'lucide-react/dist/esm/icons/x.js'
+import Box from '@/components/ui/icons/ph/cube'
+import Camera from '@/components/ui/icons/ph/camera'
+import ChevronDown from '@/components/ui/icons/ph/caret-down'
+import ChevronRight from '@/components/ui/icons/ph/caret-right'
+import CircleHelp from '@/components/ui/icons/ph/question'
+import CircleDot from '@/components/ui/icons/ph/radio-button'
+import Sphere from '@/components/ui/icons/ph/circle'
+import Copy from '@/components/ui/icons/ph/copy'
+import Cylinder from '@/components/ui/icons/ph/cylinder'
+import Eye from '@/components/ui/icons/ph/eye'
+import EyeOff from '@/components/ui/icons/ph/eye-slash'
+import ImageIcon from '@/components/ui/icons/ph/image'
+import LoaderCircle from '@/components/ui/icons/ph/circle-notch'
+import Lock from '@/components/ui/icons/ph/lock-simple'
+import Maximize2 from '@/components/ui/icons/ph/arrows-out-simple'
+import Minimize2 from '@/components/ui/icons/ph/arrows-in-simple'
+import Move3D from '@/components/ui/icons/ph/arrows-out-cardinal'
+import Rotate3D from '@/components/ui/icons/ph/arrows-clockwise'
+import Scale3D from '@/components/ui/icons/ph/arrows-out'
+import Search from '@/components/ui/icons/ph/magnifying-glass'
+import Shapes from '@/components/ui/icons/ph/shapes'
+import Trash2 from '@/components/ui/icons/ph/trash'
+import Triangle from '@/components/ui/icons/ph/triangle'
+import Unlock from '@/components/ui/icons/ph/lock-simple-open'
+import Upload from '@/components/ui/icons/ph/upload-simple'
+import UserRound from '@/components/ui/icons/ph/user'
+import UsersRound from '@/components/ui/icons/ph/users'
+import X from '@/components/ui/icons/ph/x'
 import { MaterialPickerDialog } from '@/components/frameos/materials/MaterialPickerDialog'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { apiFetch } from '@/lib/api-fetch'
@@ -2001,8 +2002,15 @@ export function CanvasStudio3DDialog({
     if (readOnly) return
     commit((current) => ({ ...current, captures: current.captures.filter((capture) => capture.id !== id) }))
   }
-  const clearCaptures = () => {
-    if (readOnly || studioRef.current.captures.length === 0) return
+  const clearCaptures = async () => {
+    const total = studioRef.current.captures.length
+    if (readOnly || total === 0) return
+    if (!await confirmAction({
+      title: '清空全部机位截图？',
+      message: `将移除 ${total} 张截图，已发送到画布的图片不受影响。`,
+      confirmLabel: '清空',
+      danger: true,
+    })) return
     commit((current) => ({ ...current, captures: [] }))
     setMessage('已清空全部截图')
   }
@@ -2369,7 +2377,7 @@ export function CanvasStudio3DDialog({
                 onCaptureCurrent={() => void capture(false)}
                 onCaptureAll={() => void capture(true)}
                 onDelete={deleteCapture}
-                onClear={clearCaptures}
+                onClear={() => void clearCaptures()}
                 onSendAll={() => void sendAllCaptures()}
               /> : activePanel === 'cameras' && selectedCamera ? <>
                 <button type="button" className="nori-canvas-studio-camera-preview" style={{ aspectRatio: selectedCameraAspectRatio === 'auto' ? '16 / 9' : selectedCameraAspectRatio.replace(':', ' / ') }} onClick={() => activateCamera(selectedCamera)}>

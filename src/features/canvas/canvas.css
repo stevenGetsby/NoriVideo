@@ -1,12 +1,12 @@
 .nori-canvas-workspace {
-  --canvas-bg: #0d0d0d;
-  --canvas-panel: rgba(28, 28, 28, .97);
-  --canvas-panel-2: rgba(36, 36, 36, .98);
+  --canvas-bg: #000000;
+  --canvas-panel: rgba(24, 24, 24, .97);
+  --canvas-panel-2: rgba(31, 31, 31, .98);
   --canvas-border: rgba(255, 255, 255, .08);
   --canvas-border-strong: rgba(255, 255, 255, .28);
   --canvas-text: rgba(255, 255, 255, .92);
   --canvas-muted: rgba(255, 255, 255, .48);
-  --canvas-primary: #3265ff;
+  --canvas-primary: #ffffff;
   position: relative;
   display: flex;
   min-height: 0;
@@ -52,11 +52,12 @@
   background: var(--fos-gradient-cta);
   box-shadow: 0 0 0 0 rgba(255,255,255,.14);
   animation: nori-canvas-sync-pulse 1.2s ease-out infinite;
+  color: var(--fos-on-cta);
 }
 
 @keyframes nori-canvas-sync-pulse {
-  70% { box-shadow: 0 0 0 7px rgba(130, 155, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(130, 155, 255, 0); }
+  70% { box-shadow: 0 0 0 7px rgba(161,161,161,0); }
+  100% { box-shadow: 0 0 0 0 rgba(161,161,161,0); }
 }
 
 .nori-canvas-surface {
@@ -70,7 +71,7 @@
 
 .nori-canvas-surface .react-flow__pane {
   cursor: default;
-  background-image: radial-gradient(ellipse at center, transparent 58%, rgba(0, 0, 0, .26) 100%);
+  background-image: none;
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -191,11 +192,11 @@
   overflow: hidden;
   flex: none;
   max-width: 86px;
-  border: 1px solid rgba(247, 215, 116, .22);
+  border: 1px solid rgba(217,217,217,.22);
   border-radius: 999px;
   padding: 2px 6px;
-  color: #f7d774;
-  background: rgba(247, 215, 116, .08);
+  color: #d9d9d9;
+  background: rgba(217,217,217,.08);
   font-size: 8px;
   line-height: 12px;
   text-overflow: ellipsis;
@@ -232,7 +233,7 @@
 }
 
 .nori-canvas-node.is-selected .nori-canvas-node-drag-frame {
-  outline: 1px solid rgba(70, 151, 255, .0);
+  outline: 1px solid rgba(150,150,150,.0);
 }
 
 .nori-canvas-node:hover .nori-canvas-node-drag-frame {
@@ -351,7 +352,7 @@
   width: 100%;
   height: min(72vh, 720px);
   overflow: hidden;
-  background: radial-gradient(circle at 50% 42%, #303030 0, #191919 42%, #0b0b0b 100%);
+  background: #1c1c1c;
 }
 
 .nori-canvas-model-viewer.is-compact { height: 100%; min-height: 120px; }
@@ -399,6 +400,7 @@
 .nori-canvas-handle:hover,
 .nori-canvas-surface .react-flow__handle.connecting {
   background: var(--fos-gradient-cta) !important;
+  color: var(--fos-on-cta) !important;
 }
 
 .nori-canvas-video-edit-node {
@@ -470,11 +472,11 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border: 1px solid rgba(74, 222, 128, .18);
+  border: 1px solid rgba(196,196,196,.18);
   border-radius: 6px;
   padding: 4px 7px;
   color: rgba(255, 255, 255, .68);
-  background: rgba(74, 222, 128, .07);
+  background: rgba(196,196,196,.07);
   font-size: 11px;
 }
 
@@ -567,6 +569,7 @@
   height: 100%;
   border-radius: inherit;
   background: var(--fos-gradient-cta);
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-video-edit-error {
@@ -604,7 +607,7 @@
 
 .nori-canvas-video-edit-header .has-source {
   margin-left: auto;
-  color: #4ade80;
+  color: #c4c4c4;
   font-size: 9px;
 }
 
@@ -648,11 +651,11 @@
 }
 
 .nori-canvas-video-edit-ready {
-  border: 1px solid rgba(74, 222, 128, .2);
+  border: 1px solid rgba(196,196,196,.2);
   border-radius: 6px;
   padding: 5px 7px;
-  color: rgba(190, 255, 210, .82);
-  background: rgba(74, 222, 128, .07);
+  color: rgba(240,240,240,.82);
+  background: rgba(196,196,196,.07);
   font-size: 10px;
 }
 
@@ -942,8 +945,8 @@
 }
 
 .nori-canvas-video-edit-incoming {
-  color: rgba(190, 255, 210, .72);
-  background: rgba(74, 222, 128, .07);
+  color: rgba(240,240,240,.72);
+  background: rgba(196,196,196,.07);
 }
 
 .nori-canvas-video-edit-preview {
@@ -993,6 +996,7 @@
   background: var(--fos-gradient-cta);
   cursor: ew-resize;
   transform: translateX(-3px);
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-video-edit-marker.is-end {
@@ -1168,6 +1172,7 @@
   border: 2px solid #141414 !important;
   border-radius: 3px !important;
   background: var(--fos-gradient-cta) !important;
+  color: var(--fos-on-cta) !important;
 }
 
 .nori-canvas-node-toolbar,
@@ -1260,7 +1265,7 @@
   display: block;
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #3265ff, #3265ff, #55d4c3);
+  background: #ffffff;
 }
 
 .nori-canvas-node-progress > button {
@@ -1661,9 +1666,9 @@
 }
 
 .nori-canvas-generator-ref-voice.is-missing {
-  border: 1px solid rgba(251, 191, 36, .45);
-  color: #fde68a;
-  background: rgba(69, 26, 3, .88);
+  border: 1px solid rgba(200,200,200,.45);
+  color: #e6e6e6;
+  background: rgba(39,39,39,.88);
 }
 
 .nori-canvas-generator-voice-hint {
@@ -1677,8 +1682,8 @@
 }
 
 .nori-canvas-generator-voice-hint.is-warning {
-  color: #fde68a;
-  background: rgba(120, 53, 15, .2);
+  color: #e6e6e6;
+  background: rgba(73,73,73,.2);
 }
 
 .nori-canvas-generator-voice-hint.is-muted {
@@ -1744,7 +1749,7 @@
   outline: 0;
   padding: 11px 12px;
   color: rgba(255, 255, 255, .9);
-  background: rgba(8, 9, 13, .78);
+  background: rgba(9,9,9,.78);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -1765,14 +1770,14 @@
 
 .nori-canvas-generator-prompt .mention-prompt-editor-layer {
   border-radius: 8px;
-  background: rgba(8, 9, 13, .78);
+  background: rgba(9,9,9,.78);
 }
 
 .nori-canvas-generator-prompt .mention-prompt-highlight {
   padding: 11px 12px;
   border-radius: 8px;
   color: rgba(255, 255, 255, .9);
-  background: rgba(8, 9, 13, .78);
+  background: rgba(9,9,9,.78);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -1824,7 +1829,7 @@
   gap: 8px;
   border-top: 1px solid rgba(255, 255, 255, .06);
   padding: 9px 12px;
-  background: linear-gradient(90deg, rgba(255,255,255,.05), transparent 72%);
+  background: rgba(255,255,255,0.025);
 }
 
 .nori-canvas-model3d-option {
@@ -1969,10 +1974,10 @@
   flex: none;
   align-items: center;
   padding: 0 9px;
-  border: 1px solid rgba(250, 204, 21, .16);
+  border: 1px solid rgba(209,209,209,.16);
   border-radius: 7px;
-  color: #fde68a;
-  background: rgba(250, 204, 21, .08);
+  color: #e6e6e6;
+  background: rgba(209,209,209,.08);
   font-size: 10px;
   white-space: nowrap;
 }
@@ -1984,7 +1989,7 @@
   border: 0;
   border-radius: 999px;
   padding: 0;
-  color: white;
+  color: var(--fos-on-cta);
   background: var(--fos-gradient-cta);
   box-shadow: 0 7px 20px rgba(0,0,0,.35);
 }
@@ -2127,7 +2132,7 @@
 }
 
 .nori-canvas-image-quality button.is-active {
-  color: white;
+  color: var(--fos-on-cta);
   background: var(--fos-gradient-cta);
   box-shadow: 0 3px 10px rgba(0,0,0,.35);
 }
@@ -2156,11 +2161,11 @@
   gap: 8px;
   min-width: 0;
   margin: 0 12px 10px;
-  border: 1px solid rgba(251, 191, 36, .35);
+  border: 1px solid rgba(200,200,200,.35);
   border-radius: 7px;
   padding: 8px 10px;
-  color: #fde68a;
-  background: #322817;
+  color: #e6e6e6;
+  background: #292929;
   font-size: 11px;
   line-height: 1.5;
 }
@@ -2174,11 +2179,11 @@
 .nori-canvas-generator-reference-warning > button {
   flex: 0 0 auto;
   max-width: 100%;
-  border: 1px solid rgba(251, 191, 36, .4);
+  border: 1px solid rgba(200,200,200,.4);
   border-radius: 5px;
   padding: 5px 8px;
-  color: #fef3c7;
-  background: #53401c;
+  color: #f3f3f3;
+  background: #434343;
   cursor: pointer;
 }
 
@@ -2596,11 +2601,11 @@
   height: 13px;
 }
 
-.nori-canvas-save-state.is-saved { color: #72d4a2; }
+.nori-canvas-save-state.is-saved { color: #c1c1c1; }
 .nori-canvas-save-state.is-conflict,
 .nori-canvas-save-state.is-error,
 .nori-canvas-save-state.is-offline,
-.nori-canvas-save-state.is-recovery { color: #ffb06b; }
+.nori-canvas-save-state.is-recovery { color: #c1c1c1; }
 
 .nori-canvas-undo-redo {
   height: 38px;
@@ -2712,7 +2717,7 @@
   width: 36px;
   height: 36px;
   border-radius: 9999px;
-  color: white;
+  color: var(--fos-on-cta);
   background: var(--fos-gradient-cta);
   box-shadow: 0 7px 18px rgba(0,0,0,.35);
 }
@@ -2841,20 +2846,20 @@
 .nori-canvas-project-assets-list > article.is-selected { border-color: rgba(255,255,255,.38); box-shadow: 0 0 0 1px rgba(255,255,255,.14); }
 .nori-canvas-project-assets-check { position: absolute; z-index: 2; top: 7px; right: 7px; display: flex; width: 21px; height: 21px; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,.18); border-radius: 5px; color: transparent; background: rgba(7,7,7,.74); }
 .nori-canvas-project-assets-check:hover { border-color: rgba(255,255,255,.38); color: rgba(255,255,255,.7); }
-.nori-canvas-project-assets-check.is-selected { border-color: rgba(255,255,255,.38); color: #fff; background: var(--fos-gradient-cta-hover); }
+.nori-canvas-project-assets-check.is-selected { border-color: rgba(255,255,255,.38); color: var(--fos-on-cta); background: var(--fos-gradient-cta-hover); }
 .nori-canvas-project-assets-check svg { width: 12px; height: 12px; }
 .nori-canvas-project-assets-thumb { position: relative; display: grid; width: 66px; height: 51px; overflow: hidden; place-items: center; border-radius: 7px; color: rgba(255, 255, 255, .2); background: #0e0e0e; }
 .nori-canvas-project-assets-thumb > svg { width: 23px; height: 23px; }
 .nori-canvas-project-assets-thumb > span { position: absolute; right: 3px; bottom: 3px; border-radius: 4px; padding: 2px 4px; color: rgba(255, 255, 255, .8); background: rgba(0, 0, 0, .72); font-size: 6px; font-weight: 750; }
 .nori-canvas-project-assets-voice { position: absolute; top: 3px; left: 3px; z-index: 2; border-radius: 4px; padding: 1px 4px; font-size: 7px; font-style: normal; font-weight: 750; line-height: 11px; white-space: nowrap; pointer-events: none; }
 .nori-canvas-project-assets-voice.is-bound { border: 1px solid rgba(194,194,194,.4); color: #dddddd; background: rgba(57,57,57,.86); }
-.nori-canvas-project-assets-voice.is-missing { border: 1px solid rgba(251, 191, 36, .45); color: #fde68a; background: rgba(69, 26, 3, .88); }
+.nori-canvas-project-assets-voice.is-missing { border: 1px solid rgba(200,200,200,.45); color: #e6e6e6; background: rgba(39,39,39,.88); }
 .nori-canvas-project-assets-list > article > div:nth-child(2) { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .nori-canvas-project-assets-list > article strong { overflow: hidden; color: rgba(255, 255, 255, .73); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-project-assets-list > article small { overflow: hidden; color: rgba(255, 255, 255, .28); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-project-assets-list > article > button { height: 26px; border: 1px solid rgba(255,255,255,.16); border-radius: 6px; padding: 0 7px; color: #d5d5d5; background: rgba(255,255,255,.08); font-size: 8px; }
 .nori-canvas-project-assets-list > article.is-workflow { min-height: 70px; }
-.nori-canvas-project-assets-list > article.is-workflow .nori-canvas-project-assets-thumb { color: #e5e5e5; background: linear-gradient(145deg, rgba(255,255,255,.1), rgba(255,255,255,.08)); }
+.nori-canvas-project-assets-list > article.is-workflow .nori-canvas-project-assets-thumb { color: #e5e5e5; background: rgba(255,255,255,.08); }
 .nori-canvas-project-assets-list > article input { width: 100%; height: 25px; border: 1px solid rgba(255,255,255,.26); border-radius: 5px; outline: 0; padding: 0 6px; color: white; background: rgba(10,10,10,.72); font-size: 8px; }
 .nori-canvas-workflow-actions { display: flex !important; flex-direction: row !important; align-items: center; gap: 2px !important; }
 .nori-canvas-workflow-actions button { display: grid; min-width: 25px; height: 26px; place-items: center; border: 1px solid transparent; border-radius: 5px; padding: 0 6px; color: rgba(255, 255, 255, .35); background: transparent; font-size: 7px; }
@@ -2876,7 +2881,7 @@
 .nori-canvas-workflow-dialog .nori-canvas-dialog-body > p { margin: 11px 0 0; color: rgba(255, 255, 255, .28); font-size: 8px; line-height: 1.65; }
 .nori-canvas-workflow-dialog > footer { display: flex; height: 55px; align-items: center; justify-content: flex-end; gap: 7px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 12px; }
 .nori-canvas-workflow-dialog > footer button { display: inline-flex; height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 7px; padding: 0 11px; color: rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .035); font-size: 9px; }
-.nori-canvas-workflow-dialog > footer button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-workflow-dialog > footer button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-workflow-dialog > footer svg { width: 12px; height: 12px; }
 
 .nori-canvas-asset-library-dialog { width: min(430px, 92vw); }
@@ -2900,7 +2905,7 @@
 .nori-canvas-asset-library-dialog .nori-canvas-dialog-body > p { margin: 0; color: rgba(255, 255, 255, .32); font-size: 9px; line-height: 1.65; }
 .nori-canvas-asset-library-dialog > footer { display: flex; height: 55px; align-items: center; justify-content: flex-end; gap: 7px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 12px; }
 .nori-canvas-asset-library-dialog > footer button { display: inline-flex; height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 7px; padding: 0 11px; color: rgba(255, 255, 255, .5); background: rgba(255, 255, 255, .035); font-size: 9px; }
-.nori-canvas-asset-library-dialog > footer button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-asset-library-dialog > footer button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-asset-library-dialog > footer button:disabled { cursor: not-allowed; opacity: .45; }
 .nori-canvas-asset-library-dialog > footer svg { width: 12px; height: 12px; }
 
@@ -3008,7 +3013,7 @@
   padding: 6px;
   background: rgba(24, 24, 24, .95);
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .05);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 .nori-canvas-menu-portal { display: contents; }
@@ -3173,18 +3178,14 @@
   width: min(468px, 92vw);
   max-height: min(620px, 88vh);
   border-color: rgba(255,255,255,.16);
-  background:
-    linear-gradient(155deg, rgba(255,255,255,.05), transparent 35%),
-    #1c1c1c;
+  background: #1c1c1c;
   box-shadow: 0 34px 100px rgba(0, 0, 0, .66), 0 0 0 1px rgba(0, 0, 0, .18);
   animation: nori-canvas-management-dialog-in .2s cubic-bezier(.2, .82, .24, 1);
 }
 
 .nori-canvas-management-dialog.is-danger {
   border-color: rgba(255, 119, 119, .23);
-  background:
-    linear-gradient(155deg, rgba(143, 43, 57, .11), transparent 35%),
-    #1c1c1c;
+  background: #1c1c1c;
 }
 
 .nori-canvas-management-dialog.is-danger > header span svg {
@@ -3361,7 +3362,7 @@
 .nori-canvas-management-dialog > footer button.is-primary {
   min-width: 92px;
   border-color: transparent;
-  color: white;
+  color: var(--fos-on-cta);
   background: var(--fos-gradient-cta);
   box-shadow: 0 8px 22px rgba(0,0,0,.35);
 }
@@ -3369,6 +3370,7 @@
 .nori-canvas-management-dialog > footer button.is-primary:hover:not(:disabled) {
   border-color: transparent;
   background: var(--fos-gradient-cta);
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-management-dialog > footer button.is-danger {
@@ -3431,7 +3433,7 @@
 .nori-canvas-history-preview video { width: 100%; height: 100%; object-fit: contain; }
 .nori-canvas-history-preview audio { width: 90%; }
 .nori-canvas-history-preview > span { position: absolute; top: 7px; right: 7px; border-radius: 5px; padding: 3px 6px; color: white; background: rgba(0, 0, 0, .68); font-size: 8px; }
-.nori-canvas-history-preview > span.is-ready { color: #92e0b6; }
+.nori-canvas-history-preview > span.is-ready { color: #d0d0d0; }
 .nori-canvas-history-preview > span.is-failed { color: #ff9e9e; }
 .nori-canvas-history-empty svg { width: 28px; height: 28px; color: rgba(255, 255, 255, .18); }
 .nori-canvas-history-meta { display: flex; min-width: 0; flex-direction: column; gap: 4px; padding: 10px 11px 7px; }
@@ -3441,7 +3443,7 @@
 .nori-canvas-history-meta span { display: flex; align-items: center; gap: 4px; color: rgba(255, 255, 255, .35); font-size: 8px; }
 .nori-canvas-history-meta span svg { width: 10px; height: 10px; }
 .nori-canvas-history-meta small { overflow: hidden; color: rgba(255, 255, 255, .3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.nori-canvas-history-cost { color: #f7d774; font-size: 8px; font-weight: 600; }
+.nori-canvas-history-cost { color: #d9d9d9; font-size: 8px; font-weight: 600; }
 .nori-canvas-history-prompt { margin: 0 10px 8px; border: 1px solid rgba(255, 255, 255, .06); border-radius: 7px; padding: 8px; background: rgba(7,7,7,.3); }
 .nori-canvas-history-prompt > div { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 5px; color: rgba(255, 255, 255, .34); font-size: 8px; }
 .nori-canvas-history-prompt button { display: inline-flex; height: 22px; align-items: center; gap: 4px; border: 0; border-radius: 5px; padding: 0 6px; color: #e5e5e5; background: rgba(255,255,255,.08); font-size: 7px; }
@@ -3479,8 +3481,8 @@
 
 .nori-canvas-image-operation-dialog { width: min(1040px, 94vw); }
 .nori-canvas-image-operation-body { display: grid; grid-template-columns: minmax(0, 1fr) 290px; min-height: 500px; max-height: calc(90vh - 52px); }
-.nori-canvas-image-operation-preview-shell { display: flex; min-width: 0; align-items: center; justify-content: center; overflow: auto; border-right: 1px solid rgba(255, 255, 255, .07); padding: 24px; background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.08), transparent 42%), #121212; }
-.nori-canvas-image-operation-preview { position: relative; width: min(100%, 680px); max-height: calc(90vh - 112px); overflow: hidden; border: 1px solid rgba(255, 255, 255, .15); border-radius: 8px; background: #050609; box-shadow: 0 18px 52px rgba(0, 0, 0, .45); user-select: none; }
+.nori-canvas-image-operation-preview-shell { display: flex; min-width: 0; align-items: center; justify-content: center; overflow: auto; border-right: 1px solid rgba(255, 255, 255, .07); padding: 24px; background: #121212; }
+.nori-canvas-image-operation-preview { position: relative; width: min(100%, 680px); max-height: calc(90vh - 112px); overflow: hidden; border: 1px solid rgba(255, 255, 255, .15); border-radius: 8px; background: #060606; box-shadow: 0 18px 52px rgba(0, 0, 0, .45); user-select: none; }
 .nori-canvas-image-operation-preview.is-lens_focus { cursor: crosshair; touch-action: none; }
 .nori-canvas-image-operation-preview > img { display: block; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
 .nori-canvas-grid-overlay { position: absolute; inset: 0; display: grid; }
@@ -3492,7 +3494,7 @@
 .nori-canvas-grid-selection span { margin-right: auto; }
 .nori-canvas-grid-selection button { border: 1px solid rgba(255, 255, 255, .08); border-radius: 6px; padding: 5px 8px; color: rgba(255, 255, 255, .58); background: rgba(255, 255, 255, .035); }
 .nori-canvas-focus-box { position: absolute; z-index: 3; border: 2px solid rgba(255,255,255,.38); background: rgba(255,255,255,.08); box-shadow: 0 0 0 9999px rgba(0, 0, 0, .58), 0 0 22px rgba(0,0,0,.35); pointer-events: none; }
-.nori-canvas-focus-box::before, .nori-canvas-focus-box::after { position: absolute; width: 8px; height: 8px; border: 2px solid white; background: var(--fos-gradient-cta); content: ''; }
+.nori-canvas-focus-box::before, .nori-canvas-focus-box::after { position: absolute; width: 8px; height: 8px; border: 2px solid white; background: var(--fos-gradient-cta); content: ''; color: var(--fos-on-cta); }
 .nori-canvas-focus-box::before { top: -5px; left: -5px; }
 .nori-canvas-focus-box::after { right: -5px; bottom: -5px; }
 .nori-canvas-focus-box span { position: absolute; top: 7px; left: 7px; border-radius: 5px; padding: 3px 6px; color: white; background: rgba(12,12,12,.75); font-size: 8px; }
@@ -3518,14 +3520,14 @@
 .nori-canvas-scale-options button { min-height: 58px; }
 .nori-canvas-image-operation-actions { display: grid; grid-template-columns: .8fr 1.5fr; gap: 7px; margin-top: auto; padding-top: 18px; }
 .nori-canvas-image-operation-actions button { display: inline-flex; height: 36px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px; color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .035); font-size: 9px; }
-.nori-canvas-image-operation-actions button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); box-shadow: 0 9px 22px rgba(0,0,0,.35); }
+.nori-canvas-image-operation-actions button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); box-shadow: 0 9px 22px rgba(0,0,0,.35); }
 .nori-canvas-image-operation-actions button:disabled { opacity: .38; }
 .nori-canvas-image-operation-actions svg { width: 13px; height: 13px; }
 
 .nori-canvas-image-edit-dialog { width: min(1120px, 95vw); }
 .nori-canvas-image-edit-body { display: grid; grid-template-columns: minmax(0, 1fr) 310px; min-height: 540px; max-height: calc(92vh - 52px); }
-.nori-canvas-image-edit-stage { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid rgba(255, 255, 255, .07); background: radial-gradient(circle at 50% 44%, rgba(255,255,255,.08), transparent 44%), #0f0f0f; }
-.nori-canvas-image-edit-wrap { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; margin: 20px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; background: #050609; }
+.nori-canvas-image-edit-stage { display: flex; min-width: 0; flex-direction: column; border-right: 1px solid rgba(255, 255, 255, .07); background: #0f0f0f; }
+.nori-canvas-image-edit-wrap { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; margin: 20px; border: 1px solid rgba(255, 255, 255, .12); border-radius: 8px; background: #060606; }
 .nori-canvas-image-edit-wrap img { display: block; max-width: 100%; max-height: calc(92vh - 155px); object-fit: contain; pointer-events: none; user-select: none; }
 .nori-canvas-image-edit-wrap canvas { position: absolute; opacity: .48; cursor: crosshair; touch-action: none; mix-blend-mode: screen; }
 .nori-canvas-image-edit-toolbar { display: flex; height: 48px; flex: none; align-items: center; gap: 8px; overflow-x: auto; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 14px; color: rgba(255, 255, 255, .46); background: rgba(23,23,23,.92); font-size: 9px; scrollbar-width: none; }
@@ -3579,9 +3581,7 @@
 
 .nori-canvas-empty-shell {
   isolation: isolate;
-  background:
-    radial-gradient(circle at 50% 48%, rgba(82,82,82,.08), transparent 32%),
-    #0d0d0d;
+  background: #0d0d0d;
 }
 
 .nori-canvas-empty-grid {
@@ -3605,9 +3605,7 @@
   border: 1px solid var(--canvas-border);
   border-radius: 15px;
   padding: 40px 42px 41px;
-  background:
-    radial-gradient(circle at 50% 0%, rgba(255,255,255,.08), transparent 49%),
-    rgba(23, 23, 23, .9);
+  background: rgba(23, 23, 23, .9);
   box-shadow: 0 24px 72px rgba(0, 0, 0, .24), inset 0 1px rgba(255, 255, 255, .025);
   text-align: center;
   backdrop-filter: blur(16px);
@@ -3617,7 +3615,7 @@
 .nori-canvas-onboarding-card > i svg { width: 25px; height: 25px; }
 .nori-canvas-onboarding-card h1 { margin: 0; color: white; font-size: 17px; font-weight: 700; }
 .nori-canvas-onboarding-card p { margin: 10px 0 22px; color: rgba(255, 255, 255, .4); font-size: 11px; line-height: 1.8; }
-.nori-canvas-onboarding-card > button { display: inline-flex; height: 38px; align-items: center; gap: 7px; border: 0; border-radius: 8px; padding: 0 16px; color: white; background: var(--fos-gradient-cta); font-size: 11px; font-weight: 700; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
+.nori-canvas-onboarding-card > button { display: inline-flex; height: 38px; align-items: center; gap: 7px; border: 0; border-radius: 8px; padding: 0 16px; color: var(--fos-on-cta); background: var(--fos-gradient-cta); font-size: 11px; font-weight: 700; box-shadow: 0 10px 28px rgba(0,0,0,.35); }
 .nori-canvas-onboarding-card > button:hover:not(:disabled) { filter: brightness(1.06); transform: translateY(-1px); }
 .nori-canvas-onboarding-card > button:disabled { cursor: wait; opacity: .55; }
 .nori-canvas-onboarding-card > button svg { width: 14px; height: 14px; }
@@ -3813,7 +3811,7 @@
   border: 1px solid var(--canvas-border);
   border-radius: 15px;
   padding: 14px;
-  background: linear-gradient(145deg, rgba(31,31,31,.92), rgba(20,20,20,.94));
+  background: rgba(24,24,24,.94);
   box-shadow: 0 18px 46px rgba(0, 0, 0, .24);
 }
 
@@ -4020,7 +4018,7 @@
 .nori-canvas-selection-toolbar button.is-primary { color: #e7e7e7; background: rgba(255,255,255,.1); }
 .nori-canvas-selection-toolbar button.is-primary:hover { color: #fff; background: rgba(255,255,255,.14); }
 .nori-canvas-selection-toolbar button.is-danger { color: #ffb0b0; }
-.nori-canvas-selection-toolbar button.is-danger:hover { color: #ffe2e2; background: rgba(239, 68, 68, .14); }
+.nori-canvas-selection-toolbar button.is-danger:hover { color: #ffe2e2; background: rgba(229,72,77, .14); }
 .nori-canvas-selection-toolbar .nori-canvas-batch-connect-handle { cursor: grab; touch-action: none; user-select: none; }
 .nori-canvas-selection-toolbar .nori-canvas-batch-connect-handle:active { cursor: grabbing; }
 
@@ -4102,13 +4100,13 @@
 .nori-canvas-video-operation-modes button.is-active { border-color: rgba(255,255,255,.26); color: #e4e4e4; background: rgba(255,255,255,.08); }
 .nori-canvas-video-operation-modes button svg { width: 13px; height: 13px; }
 .nori-canvas-video-operation-modes > span { margin-left: auto; color: rgba(255, 255, 255, .34); font-size: 9px; }
-.nori-canvas-video-operation-stage-wrap { display: flex; min-height: 470px; max-height: calc(92vh - 205px); align-items: center; justify-content: center; overflow: auto; padding: 22px; background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.08), transparent 45%), #0f0f0f; }
-.nori-canvas-video-operation-stage { position: relative; width: min(100%, 860px); max-height: calc(92vh - 250px); overflow: hidden; border: 1px solid rgba(255, 255, 255, .13); border-radius: 9px; background: #020305; box-shadow: 0 20px 54px rgba(0, 0, 0, .42); cursor: crosshair; touch-action: none; }
+.nori-canvas-video-operation-stage-wrap { display: flex; min-height: 470px; max-height: calc(92vh - 205px); align-items: center; justify-content: center; overflow: auto; padding: 22px; background: #0f0f0f; }
+.nori-canvas-video-operation-stage { position: relative; width: min(100%, 860px); max-height: calc(92vh - 250px); overflow: hidden; border: 1px solid rgba(255, 255, 255, .13); border-radius: 9px; background: #030303; box-shadow: 0 20px 54px rgba(0, 0, 0, .42); cursor: crosshair; touch-action: none; }
 .nori-canvas-video-operation-stage > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; pointer-events: none; }
 .nori-canvas-video-operation-missing { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(255, 255, 255, .35); font-size: 11px; }
 .nori-canvas-video-operation-shade { position: absolute; inset: 0; pointer-events: none; background: rgba(5,5,5,.22); }
-.nori-canvas-video-operation-region { position: absolute; min-width: 2%; min-height: 2%; border: 1px solid rgba(255,255,255,.38); pointer-events: none; background: rgba(255,255,255,.1); box-shadow: 0 0 0 9999px rgba(2, 3, 6, .25), inset 0 0 20px rgba(0,0,0,.35); }
-.nori-canvas-video-operation-region::before, .nori-canvas-video-operation-region::after { position: absolute; width: 7px; height: 7px; border: 1px solid #dedede; background: var(--fos-gradient-cta); content: ''; }
+.nori-canvas-video-operation-region { position: absolute; min-width: 2%; min-height: 2%; border: 1px solid rgba(255,255,255,.38); pointer-events: none; background: rgba(255,255,255,.1); box-shadow: 0 0 0 9999px rgba(3,3,3,.25), inset 0 0 20px rgba(0,0,0,.35); }
+.nori-canvas-video-operation-region::before, .nori-canvas-video-operation-region::after { position: absolute; width: 7px; height: 7px; border: 1px solid #dedede; background: var(--fos-gradient-cta); content: ''; color: var(--fos-on-cta); }
 .nori-canvas-video-operation-region::before { top: -4px; left: -4px; }
 .nori-canvas-video-operation-region::after { right: -4px; bottom: -4px; }
 .nori-canvas-video-operation-region span { position: absolute; top: 5px; left: 6px; border-radius: 5px; padding: 3px 5px; color: white; background: rgba(35,35,35,.84); font-size: 8px; }
@@ -4118,13 +4116,13 @@
 .nori-canvas-video-operation-region-info button svg { width: 11px; height: 11px; }
 .nori-canvas-video-operation-dialog > footer { position: sticky; bottom: 0; z-index: 7; display: flex; height: 58px; align-items: center; justify-content: flex-end; gap: 8px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 16px; background: rgba(15,15,15,.94); backdrop-filter: blur(16px); }
 .nori-canvas-video-operation-dialog > footer button { display: inline-flex; height: 34px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px; padding: 0 13px; color: rgba(255, 255, 255, .55); background: rgba(255, 255, 255, .035); font-size: 9px; font-weight: 650; }
-.nori-canvas-video-operation-dialog > footer button.is-primary { min-width: 118px; border-color: transparent; color: white; background: var(--fos-gradient-cta); box-shadow: 0 9px 24px rgba(0,0,0,.35); }
+.nori-canvas-video-operation-dialog > footer button.is-primary { min-width: 118px; border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); box-shadow: 0 9px 24px rgba(0,0,0,.35); }
 .nori-canvas-video-operation-dialog > footer button:disabled { opacity: .38; }
 .nori-canvas-video-operation-dialog > footer button svg { width: 13px; height: 13px; }
 .nori-canvas-video-operation-error { margin: 0 16px 10px; border: 1px solid rgba(255, 112, 112, .2); border-radius: 7px; padding: 8px 10px; color: #ffb4b4; background: rgba(255, 77, 77, .07); font-size: 9px; }
 .nori-canvas-video-enhance-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; min-height: 520px; }
-.nori-canvas-video-enhance-preview { display: flex; min-width: 0; align-items: center; justify-content: center; border-right: 1px solid rgba(255, 255, 255, .07); padding: 22px; background: radial-gradient(circle at 50% 45%, rgba(255,255,255,.08), transparent 46%), #0f0f0f; }
-.nori-canvas-video-enhance-preview video { display: block; width: 100%; max-height: 530px; border-radius: 9px; background: #030406; box-shadow: 0 18px 48px rgba(0, 0, 0, .4); }
+.nori-canvas-video-enhance-preview { display: flex; min-width: 0; align-items: center; justify-content: center; border-right: 1px solid rgba(255, 255, 255, .07); padding: 22px; background: #0f0f0f; }
+.nori-canvas-video-enhance-preview video { display: block; width: 100%; max-height: 530px; border-radius: 9px; background: #040404; box-shadow: 0 18px 48px rgba(0, 0, 0, .4); }
 .nori-canvas-video-enhance-settings { display: flex; flex-direction: column; gap: 16px; padding: 20px 17px; }
 .nori-canvas-video-enhance-settings > label:not(.is-check) { display: flex; flex-direction: column; gap: 8px; color: rgba(255, 255, 255, .68); font-size: 10px; }
 .nori-canvas-video-enhance-settings select { height: 36px; border: 1px solid rgba(255, 255, 255, .09); border-radius: 8px; outline: 0; padding: 0 10px; color: rgba(255, 255, 255, .8); background: #141414; font-size: 10px; }
@@ -4205,7 +4203,7 @@
 }
 
 .nori-canvas-operation-task {
-  --operation-task-accent: #829aff;
+  --operation-task-accent: #a0a0a0;
   position: relative;
   display: flex;
   flex: none;
@@ -4216,9 +4214,7 @@
   border-radius: 10px;
   padding: 11px;
   color: rgba(246,246,246,.82);
-  background:
-    linear-gradient(135deg, rgba(255,255,255,.08), transparent 48%),
-    rgba(13,13,13,.68);
+  background: rgba(13,13,13,.68);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
 }
 
@@ -4226,21 +4222,21 @@
 .nori-canvas-video-operation-dialog > .nori-canvas-operation-task { margin: 12px 16px; }
 
 .nori-canvas-operation-task.is-completed {
-  --operation-task-accent: #61d6a4;
-  border-color: rgba(97, 214, 164, .2);
-  background: linear-gradient(135deg, rgba(55, 179, 129, .09), transparent 48%), rgba(10, 18, 18, .68);
+  --operation-task-accent: #c1c1c1;
+  border-color: rgba(193,193,193,.2);
+  background: rgba(17,17,17,.68);
 }
 
 .nori-canvas-operation-task.is-failed {
   --operation-task-accent: #ff858f;
   border-color: rgba(255, 112, 126, .23);
-  background: linear-gradient(135deg, rgba(220, 71, 88, .1), transparent 48%), rgba(20, 11, 16, .7);
+  background: rgba(14,14,14,.7);
 }
 
 .nori-canvas-operation-task.is-canceled {
-  --operation-task-accent: #c1a977;
-  border-color: rgba(210, 183, 125, .19);
-  background: linear-gradient(135deg, rgba(191, 157, 91, .08), transparent 48%), rgba(18, 16, 13, .68);
+  --operation-task-accent: #acacac;
+  border-color: rgba(186,186,186,.19);
+  background: rgba(16,16,16,.68);
 }
 
 .nori-canvas-operation-task > header {
@@ -4412,7 +4408,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  color: rgba(130, 222, 180, .7);
+  color: rgba(204,204,204,.7);
   font-size: 9px;
 }
 
@@ -4446,7 +4442,7 @@
 }
 
 /* Equirectangular panorama viewer */
-.nori-canvas-panorama-overlay { --canvas-text: rgba(255, 255, 255, .92); position: fixed; inset: 0; z-index: 100300; background: rgba(2, 3, 7, .72); backdrop-filter: blur(4px); }
+.nori-canvas-panorama-overlay { --canvas-text: rgba(255, 255, 255, .92); position: fixed; inset: 0; z-index: 100300; background: rgba(3,3,3,.72); backdrop-filter: blur(4px); }
 .nori-canvas-panorama-dialog { position: absolute; inset: 26px; z-index: 1; display: grid; grid-template-rows: 54px minmax(0, 1fr) 62px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .11); border-radius: 14px; color: var(--canvas-text); background: #0a0a0a; box-shadow: 0 35px 110px rgba(0, 0, 0, .72); }
 .nori-canvas-panorama-dialog.is-fullscreen { inset: 0; border: 0; border-radius: 0; }
 .nori-canvas-panorama-dialog > header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(255, 255, 255, .07); padding: 0 12px 0 17px; background: rgba(23,23,23,.96); }
@@ -4457,7 +4453,7 @@
 .nori-canvas-panorama-dialog > header button { display: grid; width: 31px; height: 31px; place-items: center; border: 0; border-radius: 7px; color: rgba(255, 255, 255, .45); background: transparent; }
 .nori-canvas-panorama-dialog > header button:hover, .nori-canvas-panorama-dialog > header button.is-active { color: white; background: rgba(255,255,255,.08); }
 .nori-canvas-panorama-dialog > header button svg { width: 14px; height: 14px; }
-.nori-canvas-panorama-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: radial-gradient(circle at center, #1a1a1a 0, #070707 62%); }
+.nori-canvas-panorama-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #101010; }
 .nori-canvas-panorama-webgl { display: block; width: 100%; height: 100%; cursor: grab; }
 .nori-canvas-panorama-webgl:active { cursor: grabbing; }
 .nori-canvas-panorama-fallback { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #070707; }
@@ -4480,7 +4476,7 @@
 .nori-canvas-panorama-dialog > footer > b { max-width: 300px; overflow: hidden; color: #ffaaaa; font-size: 8px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-panorama-dialog > footer button { display: inline-flex; height: 34px; align-items: center; gap: 6px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 8px; padding: 0 10px; color: rgba(255, 255, 255, .56); background: rgba(255, 255, 255, .03); font-size: 9px; }
 .nori-canvas-panorama-dialog > footer button:hover:not(:disabled) { color: white; border-color: rgba(255,255,255,.26); background: rgba(255,255,255,.08); }
-.nori-canvas-panorama-dialog > footer button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-panorama-dialog > footer button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-panorama-dialog > footer button:disabled { opacity: .35; }
 .nori-canvas-panorama-dialog > footer button svg { width: 13px; height: 13px; }
 
@@ -4520,7 +4516,7 @@
 .nori-canvas-studio-node.is-readonly .nori-canvas-studio-node-body,
 .nori-canvas-studio-node.is-readonly .nori-canvas-node-drag-handle { cursor: default; }
 .nori-canvas-studio-node.is-selected .nori-canvas-studio-node-body { border-color: rgba(255,255,255,.38); box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 18px 44px rgba(0, 0, 0, .38); }
-.nori-canvas-studio-node-scene { position: relative; min-height: 0; overflow: hidden; background: radial-gradient(circle at 50% 35%, rgba(255,255,255,.14), transparent 38%), linear-gradient(180deg, #252525 0%, #131313 72%); perspective: 420px; }
+.nori-canvas-studio-node-scene { position: relative; min-height: 0; overflow: hidden; background: rgba(43,43,43,0.535); perspective: 420px; }
 .nori-canvas-studio-node-scene::after { position: absolute; right: -14%; bottom: -47%; left: -14%; height: 76%; border-radius: 50%; background: repeating-linear-gradient(90deg, transparent 0 25px, rgba(255,255,255,.08) 26px), repeating-linear-gradient(0deg, transparent 0 19px, rgba(255,255,255,.08) 20px); content: ''; transform: rotateX(62deg); transform-origin: center top; }
 .nori-canvas-studio-node-scene > i { position: absolute; z-index: 2; display: grid; place-items: center; color: rgba(217,217,217,.72); filter: drop-shadow(0 8px 8px rgba(0, 0, 0, .38)); }
 .nori-canvas-studio-node-scene > i:nth-of-type(1) { bottom: 27%; left: 29%; width: 48px; height: 48px; border: 1px solid rgba(255,255,255,.26); background: rgba(255,255,255,.14); transform: rotate(-8deg); }
@@ -4553,8 +4549,8 @@
 .nori-canvas-studio-dialog > header span { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
 .nori-canvas-studio-dialog > header strong { overflow: hidden; color: rgba(255, 255, 255, .91); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-studio-dialog > header small { color: rgba(255, 255, 255, .32); font-size: 8px; font-weight: 500; }
-.nori-canvas-studio-dialog > header small.is-saved { color: rgba(112, 218, 164, .65); }
-.nori-canvas-studio-dialog > header small.is-dirty, .nori-canvas-studio-dialog > header small.is-saving { color: rgba(255, 207, 111, .72); }
+.nori-canvas-studio-dialog > header small.is-saved { color: rgba(198,198,198,.65); }
+.nori-canvas-studio-dialog > header small.is-dirty, .nori-canvas-studio-dialog > header small.is-saving { color: rgba(214,214,214,.72); }
 .nori-canvas-studio-dialog > header small.is-conflict, .nori-canvas-studio-dialog > header small.is-error { color: rgba(255, 143, 143, .78); }
 .nori-canvas-studio-dialog > header button { display: grid; width: 31px; height: 31px; place-items: center; border: 0; border-radius: 7px; color: rgba(255, 255, 255, .45); background: transparent; }
 .nori-canvas-studio-dialog > header button:hover { color: white; background: rgba(255,255,255,.08); }
@@ -4612,7 +4608,7 @@
 .nori-canvas-studio-crowd input { min-width: 0; width: 100%; height: 28px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 6px; outline: 0; padding: 0 7px; color: rgba(255, 255, 255, .78); background: rgba(7,7,7,.45); font-size: 9px; }
 .nori-canvas-studio-crowd > div { display: flex; grid-column: 1 / -1; justify-content: flex-end; }
 .nori-canvas-studio-crowd > div button { width: auto; min-width: 54px; padding: 0 9px; }
-.nori-canvas-studio-crowd > div button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-crowd > div button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-search { display: grid; height: 32px; grid-template-columns: 18px minmax(0, 1fr) 22px; align-items: center; gap: 3px; margin: 8px 8px 0; border: 1px solid rgba(255, 255, 255, .075); border-radius: 7px; padding: 0 5px 0 7px; color: rgba(255, 255, 255, .28); background: rgba(255, 255, 255, .025); }
 .nori-canvas-studio-search:focus-within { border-color: rgba(255,255,255,.26); color: #e5e5e5; }
 .nori-canvas-studio-search > svg { width: 12px; height: 12px; }
@@ -4653,7 +4649,7 @@
 .nori-canvas-studio-camera-presets > span { color: rgba(255, 255, 255, .34); font-size: 8px; }
 .nori-canvas-studio-camera-presets > div { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
 .nori-canvas-studio-camera-presets button { min-height: 29px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 6px; padding: 0 6px; color: rgba(255, 255, 255, .48); background: rgba(255, 255, 255, .025); font-size: 8px; }
-.nori-canvas-studio-camera-presets > button.is-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-camera-presets > button.is-primary { display: inline-flex; align-items: center; justify-content: center; gap: 5px; border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-camera-presets > button svg { width: 12px; height: 12px; }
 .nori-canvas-studio-captures { display: grid; min-height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; }
 .nori-canvas-studio-capture-heading { display: flex; min-height: 43px; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid rgba(255, 255, 255, .055); padding: 7px 9px; }
@@ -4681,19 +4677,19 @@
 .nori-canvas-studio-capture-image > img { object-fit: cover; }
 .nori-canvas-studio-capture-image > i { position: absolute; top: 6px; left: 6px; z-index: 2; display: grid; width: 21px; height: 21px; place-items: center; border-radius: 5px; color: #e5e5e5; background: rgba(13,13,13,.76); backdrop-filter: blur(5px); }
 .nori-canvas-studio-capture-image > i svg { width: 12px; height: 12px; }
-.nori-canvas-studio-capture-image > b { position: absolute; right: 6px; bottom: 6px; z-index: 2; border: 1px solid rgba(82, 211, 156, .25); border-radius: 999px; padding: 3px 6px; color: #9fe6c5; background: rgba(13, 67, 46, .74); font-size: 6px; }
+.nori-canvas-studio-capture-image > b { position: absolute; right: 6px; bottom: 6px; z-index: 2; border: 1px solid rgba(189,189,189,.25); border-radius: 999px; padding: 3px 6px; color: #d7d7d7; background: rgba(58,58,58,.74); font-size: 6px; }
 .nori-canvas-studio-capture-list article > span { display: flex; min-width: 0; flex-direction: column; gap: 2px; padding: 7px 8px 8px; }
 .nori-canvas-studio-capture-list article strong { overflow: hidden; color: rgba(255, 255, 255, .72); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-studio-capture-list article small, .nori-canvas-studio-capture-list article time { overflow: hidden; color: rgba(255, 255, 255, .29); font-size: 7px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-studio-capture-actions { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 6px; border-top: 1px solid rgba(255, 255, 255, .055); padding: 8px; }
 .nori-canvas-studio-capture-actions button { display: inline-flex; height: 31px; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 7px; color: rgba(255, 255, 255, .46); background: rgba(255, 255, 255, .025); font-size: 7px; }
-.nori-canvas-studio-capture-actions button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-capture-actions button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-capture-actions button:disabled { opacity: .32; }
 .nori-canvas-studio-capture-actions button svg { width: 11px; height: 11px; }
 .nori-canvas-studio-captures.is-compact { min-height: calc(100% - 44px); margin: -2px -7px -12px; }
 .nori-canvas-studio-captures.is-compact .nori-canvas-studio-capture-heading { padding-right: 7px; padding-left: 7px; }
 .nori-canvas-studio-captures.is-compact .nori-canvas-studio-capture-list { padding-right: 0; padding-left: 0; }
-.nori-canvas-studio-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: radial-gradient(circle at 50% 42%, #282828, #090909 67%); }
+.nori-canvas-studio-stage { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #181818; }
 .nori-canvas-studio-webgl { display: block; width: 100%; height: 100%; cursor: grab; outline: 0; }
 .nori-canvas-studio-webgl:active { cursor: grabbing; }
 .nori-canvas-studio-composition { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -4710,7 +4706,7 @@
 .nori-canvas-studio-dialog.is-document-blocked .nori-canvas-studio-left,
 .nori-canvas-studio-dialog.is-document-blocked .nori-canvas-studio-properties,
 .nori-canvas-studio-dialog.is-document-blocked > footer { pointer-events: none; opacity: .56; }
-.nori-canvas-studio-document-alert { position: absolute; top: 50%; left: 50%; z-index: 9; display: flex; width: min(430px, calc(100% - 36px)); flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid rgba(255, 138, 112, .28); border-radius: 12px; padding: 16px; color: rgba(255, 255, 255, .76); background: rgba(21, 19, 24, .96); box-shadow: 0 22px 60px rgba(0, 0, 0, .55); transform: translate(-50%, -50%); }
+.nori-canvas-studio-document-alert { position: absolute; top: 50%; left: 50%; z-index: 9; display: flex; width: min(430px, calc(100% - 36px)); flex-direction: column; align-items: flex-start; gap: 8px; border: 1px solid rgba(255, 138, 112, .28); border-radius: 12px; padding: 16px; color: rgba(255, 255, 255, .76); background: rgba(20,20,20,.96); box-shadow: 0 22px 60px rgba(0, 0, 0, .55); transform: translate(-50%, -50%); }
 .nori-canvas-studio-document-alert strong { color: #ffd2c4; font-size: 11px; }
 .nori-canvas-studio-document-alert span { color: rgba(255, 255, 255, .48); font-size: 8px; line-height: 1.65; }
 .nori-canvas-studio-document-alert > div { display: flex; align-self: stretch; justify-content: flex-end; gap: 7px; }
@@ -4748,10 +4744,10 @@
 .nori-canvas-studio-rig-status { display: flex; flex-direction: column; gap: 3px; margin: -5px 0 13px; border: 1px solid rgba(255,255,255,.16); border-radius: 8px; padding: 9px 10px; background: rgba(255,255,255,.05); }
 .nori-canvas-studio-rig-status strong { color: #e5e5e5; font-size: 9px; }
 .nori-canvas-studio-rig-status span { color: rgba(255, 255, 255, .38); font-size: 7px; line-height: 1.55; }
-.nori-canvas-studio-rig-status.is-complete { border-color: rgba(68, 205, 154, .2); background: rgba(46, 175, 126, .06); }
-.nori-canvas-studio-rig-status.is-complete strong { color: #85dfb9; }
-.nori-canvas-studio-rig-status.is-none, .nori-canvas-studio-rig-status.is-error { border-color: rgba(255, 146, 104, .19); background: rgba(255, 112, 72, .055); }
-.nori-canvas-studio-rig-status.is-none strong, .nori-canvas-studio-rig-status.is-error strong { color: #ffb18f; }
+.nori-canvas-studio-rig-status.is-complete { border-color: rgba(183,183,183,.2); background: rgba(155,155,155,.06); }
+.nori-canvas-studio-rig-status.is-complete strong { color: #cdcdcd; }
+.nori-canvas-studio-rig-status.is-none, .nori-canvas-studio-rig-status.is-error { border-color: rgba(175,175,175,.19); background: rgba(255, 112, 72, .055); }
+.nori-canvas-studio-rig-status.is-none strong, .nori-canvas-studio-rig-status.is-error strong { color: #c3c3c3; }
 .nori-canvas-studio-pose { padding-bottom: 18px; }
 .nori-canvas-studio-pose-presets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
 .nori-canvas-studio-pose-presets button { min-width: 0; height: 27px; overflow: hidden; border: 1px solid rgba(255, 255, 255, .07); border-radius: 6px; padding: 0 3px; color: rgba(255, 255, 255, .47); background: rgba(255, 255, 255, .025); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
@@ -4766,17 +4762,17 @@
 .nori-canvas-studio-camera-action { display: inline-flex; width: 100%; height: 32px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,.16); border-radius: 7px; color: #e4e4e4; background: rgba(255,255,255,.08); font-size: 9px; }
 .nori-canvas-studio-camera-action:hover { background: rgba(255,255,255,.1); }
 .nori-canvas-studio-camera-action svg { width: 12px; height: 12px; }
-.nori-canvas-studio-camera-preview { position: relative; width: 100%; min-height: 112px; overflow: hidden; margin: -3px 0 13px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: radial-gradient(circle at 50% 42%, #282828, #090909 70%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .025); }
+.nori-canvas-studio-camera-preview { position: relative; width: 100%; min-height: 112px; overflow: hidden; margin: -3px 0 13px; border: 1px solid rgba(255,255,255,.16); border-radius: 9px; background: #181818; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .025); }
 .nori-canvas-studio-camera-preview > div { position: absolute; inset: 0; }
 .nori-canvas-studio-camera-preview-webgl { display: block; width: 100%; height: 100%; }
 .nori-canvas-studio-camera-preview > span { position: absolute; top: 7px; left: 7px; z-index: 2; display: inline-flex; align-items: center; gap: 4px; border: 1px solid rgba(255, 255, 255, .09); border-radius: 999px; padding: 4px 6px; color: rgba(255, 255, 255, .7); background: rgba(11,11,11,.68); backdrop-filter: blur(6px); font-size: 7px; }
 .nori-canvas-studio-camera-preview > span svg { width: 10px; height: 10px; color: #e5e5e5; }
-.nori-canvas-studio-camera-preview > span b { color: #75dfaa; font-size: 6px; letter-spacing: .06em; }
+.nori-canvas-studio-camera-preview > span b { color: #cbcbcb; font-size: 6px; letter-spacing: .06em; }
 .nori-canvas-studio-dialog > footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid rgba(255, 255, 255, .07); padding: 0 12px; background: rgba(23,23,23,.98); }
 .nori-canvas-studio-dialog > footer > div { display: flex; gap: 5px; }
 .nori-canvas-studio-dialog > footer button { display: inline-flex; height: 32px; align-items: center; gap: 5px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 7px; padding: 0 9px; color: rgba(255, 255, 255, .48); background: rgba(255, 255, 255, .025); font-size: 8px; }
 .nori-canvas-studio-dialog > footer button:hover:not(:disabled), .nori-canvas-studio-dialog > footer button.is-active { color: white; border-color: rgba(255,255,255,.16); background: rgba(255,255,255,.08); }
-.nori-canvas-studio-dialog > footer button.is-primary { border-color: transparent; color: white; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-dialog > footer button.is-primary { border-color: transparent; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-dialog > footer button:disabled { opacity: .35; }
 .nori-canvas-studio-dialog > footer svg { width: 12px; height: 12px; }
 .nori-canvas-studio-ratio { display: inline-flex; height: 32px; align-items: center; gap: 6px; border: 1px solid rgba(255, 255, 255, .07); border-radius: 7px; padding: 0 7px; color: rgba(255, 255, 255, .36); background: rgba(255, 255, 255, .025); font-size: 8px; }
@@ -4815,7 +4811,7 @@
 .nori-canvas-media-preview > main > img { display: block; width: auto; height: auto; max-width: none; max-height: none; transform-origin: center; transition: transform .12s ease; user-select: none; }
 .nori-canvas-media-preview > main > img.is-fit { max-width: calc(100% - 42px); max-height: calc(100% - 42px); object-fit: contain; }
 .nori-canvas-media-preview > main > video { display: block; width: min(100% - 48px, 1280px); max-height: calc(100% - 48px); border-radius: 8px; background: black; box-shadow: 0 24px 70px rgba(0, 0, 0, .48); }
-.nori-canvas-media-preview-audio { display: flex; width: min(560px, calc(100% - 48px)); flex-direction: column; align-items: center; gap: 15px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 16px; padding: 36px 28px 31px; background: linear-gradient(150deg, rgba(255,255,255,.08), rgba(255, 255, 255, .018)); box-shadow: 0 24px 70px rgba(0, 0, 0, .35); }
+.nori-canvas-media-preview-audio { display: flex; width: min(560px, calc(100% - 48px)); flex-direction: column; align-items: center; gap: 15px; border: 1px solid rgba(255, 255, 255, .08); border-radius: 16px; padding: 36px 28px 31px; background: rgba(255,255,255,0.049); box-shadow: 0 24px 70px rgba(0, 0, 0, .35); }
 .nori-canvas-media-preview-audio > i { display: grid; width: 64px; height: 64px; place-items: center; border-radius: 18px; color: #e5e5e5; background: rgba(255,255,255,.1); box-shadow: inset 0 0 0 1px rgba(255,255,255,.065); }
 .nori-canvas-media-preview-audio > i svg { width: 29px; height: 29px; }
 .nori-canvas-media-preview-audio strong { max-width: 100%; overflow: hidden; color: rgba(255, 255, 255, .74); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -4834,11 +4830,11 @@
  * Keep every floating surface below the 102px canvas chrome, raise secondary
  * text to a readable contrast, and leave the collapsed sidebar visually clean. */
 .nori-canvas-workspace {
-  --canvas-panel: rgba(26, 29, 38, .99);
-  --canvas-panel-2: rgba(34, 38, 49, .99);
-  --canvas-border: rgba(205, 214, 255, .15);
-  --canvas-text: #f5f7fb;
-  --canvas-muted: #aeb6c8;
+  --canvas-panel: rgba(29,29,29,.99);
+  --canvas-panel-2: rgba(38,38,38,.99);
+  --canvas-border: rgba(215,215,215,.15);
+  --canvas-text: #f7f7f7;
+  --canvas-muted: #b6b6b6;
   --canvas-chrome-safe-top: 116px;
 }
 
@@ -5098,7 +5094,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   color: #f4f4f5;
   background: #090909;
   box-shadow: none;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Microsoft YaHei", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-family: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 13px;
   line-height: 1.42;
   text-rendering: optimizeLegibility;
@@ -5147,7 +5143,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   min-width: 78px;
   height: 32px;
   border-radius: 7px;
-  color: #b4b4b8;
+  color: #b4b4b4;
   font-size: 13px;
   font-weight: 600;
 }
@@ -5220,14 +5216,14 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-studio-items article.is-active > i { color: #e5e5e5; }
 .nori-canvas-studio-items article > i svg { width: 14px; height: 14px; }
 .nori-canvas-studio-items article > span { padding-left: 1px; }
-.nori-canvas-studio-items article strong { color: #c9c9cd; font-size: 13px; font-weight: 400; line-height: 1.35; }
+.nori-canvas-studio-items article strong { color: #c9c9c9; font-size: 13px; font-weight: 400; line-height: 1.35; }
 .nori-canvas-studio-items article.is-active strong { color: #e5e5e5; }
 .nori-canvas-studio-items article > button {
   width: 25px;
   height: 25px;
   color: #787878;
 }
-.nori-canvas-studio-items article > button:hover { color: #ececef; background: #303030; }
+.nori-canvas-studio-items article > button:hover { color: #ececec; background: #303030; }
 .nori-canvas-studio-items article > button svg { width: 13px; height: 13px; }
 .nori-canvas-studio-items article.is-readonly { grid-template-columns: 25px minmax(0, 1fr); }
 .nori-canvas-studio-items .nori-canvas-studio-crowd-group > article.is-crowd {
@@ -5258,7 +5254,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   height: 76px;
   border-radius: 50%;
   pointer-events: none;
-  background: radial-gradient(circle at 38% 38%, #212121 0 16%, #121217 17% 62%, #08080b 63%);
+  background: #141414;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .025), 0 10px 28px rgba(0, 0, 0, .32);
 }
 .nori-canvas-studio-orientation i,
@@ -5267,10 +5263,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-studio-orientation b::after { position: absolute; top: -5px; right: -3px; width: 13px; height: 13px; border-radius: 50%; content: ''; }
 .nori-canvas-studio-orientation i:nth-child(1) { background: #ff496c; transform: rotate(-23deg); }
 .nori-canvas-studio-orientation i:nth-child(1)::after { background: #ff496c; }
-.nori-canvas-studio-orientation i:nth-child(2) { background: var(--fos-gradient-cta); transform: rotate(25deg); }
-.nori-canvas-studio-orientation i:nth-child(2)::after { background: var(--fos-gradient-cta); }
-.nori-canvas-studio-orientation i:nth-child(3) { width: 31px; background: #79f33d; transform: rotate(-90deg); }
-.nori-canvas-studio-orientation i:nth-child(3)::after { background: #79f33d; }
+.nori-canvas-studio-orientation i:nth-child(2) { background: var(--fos-gradient-cta); transform: rotate(25deg); color: var(--fos-on-cta); }
+.nori-canvas-studio-orientation i:nth-child(2)::after { background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
+.nori-canvas-studio-orientation i:nth-child(3) { width: 31px; background: #d8d8d8; transform: rotate(-90deg); }
+.nori-canvas-studio-orientation i:nth-child(3)::after { background: #d8d8d8; }
 .nori-canvas-studio-orientation b { display: none; }
 .nori-canvas-studio-reset-view {
   position: absolute;
@@ -5282,7 +5278,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   border-radius: 999px;
   padding: 0 12px;
   color: #aaaaaa;
-  background: rgba(28, 28, 31, .9);
+  background: rgba(28,28,28,.9);
   font-size: 12px !important;
   font-weight: 500;
 }
@@ -5316,7 +5312,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   color: #b2b2b2;
   background: transparent;
 }
-.nori-canvas-studio-dock > button:hover { color: #fff; background: #303033; }
+.nori-canvas-studio-dock > button:hover { color: #fff; background: #303030; }
 .nori-canvas-studio-dock > button.is-active { color: #e5e5e5; background: #404040; }
 .nori-canvas-studio-dock > button:disabled { opacity: .4; }
 .nori-canvas-studio-dock > button svg { width: 18px; height: 18px; }
@@ -5336,10 +5332,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   width: 205px;
   flex-direction: column;
   gap: 2px;
-  border: 1px solid #37373b;
+  border: 1px solid #373737;
   border-radius: 11px;
   padding: 6px;
-  color: #d6d6da;
+  color: #d6d6d6;
   background: rgba(30, 30, 32, .985);
   box-shadow: 0 20px 54px rgba(0, 0, 0, .58);
 }
@@ -5354,13 +5350,13 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   border: 0;
   border-radius: 7px;
   padding: 0 9px;
-  color: #d1d1d5;
+  color: #d1d1d1;
   background: transparent;
   font-size: 13px !important;
   font-weight: 400;
   text-align: left;
 }
-.nori-canvas-studio-dock-menu button:hover { color: #fff; background: #39393c; }
+.nori-canvas-studio-dock-menu button:hover { color: #fff; background: #393939; }
 .nori-canvas-studio-dock-menu button svg { width: 15px; height: 15px; flex: none; }
 .nori-canvas-studio-add-flyout-anchor { position: relative; }
 .nori-canvas-studio-add-flyout-anchor > button svg:last-child { margin-left: auto; }
@@ -5369,7 +5365,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   bottom: -6px;
   left: calc(100% + 9px);
   width: 226px;
-  border: 1px solid #37373b;
+  border: 1px solid #373737;
   border-radius: 11px;
   padding: 7px;
   background: #1e1e20;
@@ -5377,15 +5373,15 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 }
 .nori-canvas-studio-add-flyout.is-crowd { display: flex; width: 244px; flex-direction: column; gap: 9px; padding: 12px; }
 .nori-canvas-studio-add-flyout.is-crowd header { display: flex; align-items: center; justify-content: space-between; }
-.nori-canvas-studio-add-flyout.is-crowd header strong { color: #ececef; font-size: 13px; font-weight: 600; }
+.nori-canvas-studio-add-flyout.is-crowd header strong { color: #ececec; font-size: 13px; font-weight: 600; }
 .nori-canvas-studio-add-flyout.is-crowd header span { color: #e5e5e5; font-size: 12px; }
 .nori-canvas-studio-add-flyout.is-crowd label { display: flex; min-width: 0; flex-direction: column; gap: 5px; color: #b3b3b3; font-size: 12px; }
-.nori-canvas-studio-add-flyout.is-crowd input { width: 100%; height: 31px; border: 1px solid #3b3b3f; border-radius: 7px; padding: 0 7px; color: #eee; background: #151517; text-align: center; }
+.nori-canvas-studio-add-flyout.is-crowd input { width: 100%; height: 31px; border: 1px solid #3b3b3b; border-radius: 7px; padding: 0 7px; color: #eee; background: #151517; text-align: center; }
 .nori-canvas-studio-add-flyout .is-crowd-grid { display: grid; grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); align-items: end; gap: 5px; }
 .nori-canvas-studio-add-flyout .is-crowd-grid b { padding-bottom: 8px; color: #787878; text-align: center; }
 .nori-canvas-studio-add-flyout.is-crowd footer { display: flex; justify-content: flex-end; gap: 6px; }
-.nori-canvas-studio-add-flyout.is-crowd footer button { height: 31px; border: 1px solid #3a3a3e; border-radius: 7px; padding: 0 12px; color: #bbb; background: #27272a; }
-.nori-canvas-studio-add-flyout.is-crowd footer button.is-primary { border-color: rgba(255,255,255,.38); color: #fff; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-add-flyout.is-crowd footer button { height: 31px; border: 1px solid #3a3a3a; border-radius: 7px; padding: 0 12px; color: #bbb; background: #272727; }
+.nori-canvas-studio-add-flyout.is-crowd footer button.is-primary { border-color: rgba(255,255,255,.38); color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-dock-menu.is-panorama { left: 46px; }
 .nori-canvas-studio-dock-menu.is-camera-presets {
   left: 82px;
@@ -5394,8 +5390,8 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 5px;
 }
-.nori-canvas-studio-dock-menu.is-camera-presets button { justify-content: center; border: 1px solid #36363a; background: #252527; }
-.nori-canvas-studio-dock-menu.is-camera-presets button.is-current { grid-column: 1 / -1; color: #fff; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-dock-menu.is-camera-presets button { justify-content: center; border: 1px solid #363636; background: #252527; }
+.nori-canvas-studio-dock-menu.is-camera-presets button.is-current { grid-column: 1 / -1; color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-dock-menu.is-ratio { left: 164px; width: 126px; }
 .nori-canvas-studio-dock-menu.is-ratio button { justify-content: space-between; }
 .nori-canvas-studio-dock-menu.is-ratio button.is-active { color: #e5e5e5; background: #333333; }
@@ -5427,16 +5423,16 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   backdrop-filter: none;
 }
 .nori-canvas-studio-inspector-tabs button { height: 28px; border-radius: 5px; color: #a4a4a4; font-size: 13px !important; font-weight: 500; }
-.nori-canvas-studio-inspector-tabs button.is-active { color: #fff; background: #3a3a3d; box-shadow: none; }
+.nori-canvas-studio-inspector-tabs button.is-active { color: #fff; background: #3a3a3a; box-shadow: none; }
 .nori-canvas-studio-inspector-scroll { min-height: 0; flex: 1; overflow: auto; padding: 13px 12px 24px; scrollbar-color: #444 transparent; scrollbar-width: thin; }
 .nori-canvas-studio-inspector-scroll h3 { margin: 1px 0 15px; color: #f1f1f2; font-size: 14px; font-weight: 600; }
-.nori-canvas-studio-inspector-scroll h4 { margin: 15px 0 7px; color: #c1c1c6; font-size: 12px; font-weight: 600; }
-.nori-canvas-studio-inspector-scroll > label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; color: #c7c7cc; font-size: 12px; }
+.nori-canvas-studio-inspector-scroll h4 { margin: 15px 0 7px; color: #c1c1c1; font-size: 12px; font-weight: 600; }
+.nori-canvas-studio-inspector-scroll > label { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; color: #c7c7c7; font-size: 12px; }
 .nori-canvas-studio-inspector-scroll input:not([type='checkbox']):not([type='range']):not([type='color']),
 .nori-canvas-studio-inspector-scroll select {
   width: 100%;
   height: 32px;
-  border: 1px solid #38383c;
+  border: 1px solid #383838;
   border-radius: 7px;
   outline: 0;
   padding: 0 8px;
@@ -5454,34 +5450,34 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-studio-range-field > span:first-child small { color: #9c9c9c; font-size: 11px; }
 .nori-canvas-studio-range-control { display: grid; grid-template-columns: minmax(0, 1fr) 70px; align-items: center; gap: 9px; }
 .nori-canvas-studio-range-control input[type='range'] { width: 100%; accent-color: #e5e5e5; }
-.nori-canvas-studio-range-control input[type='number'] { height: 30px !important; border-color: #333 !important; color: #ececef !important; background: #0f0f10 !important; text-align: center; }
+.nori-canvas-studio-range-control input[type='number'] { height: 30px !important; border-color: #333 !important; color: #ececec !important; background: #0f0f10 !important; text-align: center; }
 .nori-canvas-studio-color-field { position: relative; display: flex; flex-direction: column; gap: 7px; margin: 13px 0; color: #bebebe; font-size: 12px; }
 .nori-canvas-studio-color-field > div:not(.nori-canvas-studio-color-popover) { display: flex; align-items: center; gap: 9px; }
-.nori-canvas-studio-color-field > div > button { display: flex; width: 50px; height: 31px; align-items: center; justify-content: space-between; border: 1px solid #3a3a3e; border-radius: 7px; padding: 4px 6px; color: #a8a8a8; background: #222225; }
+.nori-canvas-studio-color-field > div > button { display: flex; width: 50px; height: 31px; align-items: center; justify-content: space-between; border: 1px solid #3a3a3a; border-radius: 7px; padding: 4px 6px; color: #a8a8a8; background: #222222; }
 .nori-canvas-studio-color-field > div > button i { width: 22px; height: 19px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .13); }
 .nori-canvas-studio-color-field > div > button svg { width: 12px; }
-.nori-canvas-studio-color-field code { color: #c9c9cd; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
-.nori-canvas-studio-color-popover { position: absolute; top: 58px; right: 0; z-index: 20; display: grid; width: 238px; grid-template-columns: 44px minmax(0, 1fr) 52px; gap: 7px; border: 1px solid #3b3b3e; border-radius: 10px; padding: 9px; background: #232326; box-shadow: 0 18px 45px rgba(0, 0, 0, .5); }
+.nori-canvas-studio-color-field code { color: #c9c9c9; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.nori-canvas-studio-color-popover { position: absolute; top: 58px; right: 0; z-index: 20; display: grid; width: 238px; grid-template-columns: 44px minmax(0, 1fr) 52px; gap: 7px; border: 1px solid #3b3b3b; border-radius: 10px; padding: 9px; background: #232323; box-shadow: 0 18px 45px rgba(0, 0, 0, .5); }
 .nori-canvas-studio-color-popover input[type='color'] { width: 44px; height: 31px; border: 0; padding: 0; background: transparent; }
-.nori-canvas-studio-color-popover button { border: 1px solid #3b3b3e; border-radius: 6px; color: #bbb; background: #2d2d30; }
+.nori-canvas-studio-color-popover button { border: 1px solid #3b3b3b; border-radius: 6px; color: #bbb; background: #2d2d2d; }
 .nori-canvas-studio-color-popover button:disabled { opacity: .4; }
 .nori-canvas-studio-inspector-scroll label.is-toggle { display: grid; height: 38px; grid-template-columns: 18px minmax(0, 1fr); align-items: center; gap: 8px; margin: 2px 0; border-bottom: 1px solid #242426; }
 .nori-canvas-studio-inspector-scroll label.is-toggle input { width: 15px; height: 15px; accent-color: #e5e5e5; }
-.nori-canvas-studio-switch { margin: 14px 0; border-color: #343438; background: #202023; }
-.nori-canvas-studio-switch > span { color: #d0d0d4; font-size: 12px; }
+.nori-canvas-studio-switch { margin: 14px 0; border-color: #343434; background: #202020; }
+.nori-canvas-studio-switch > span { color: #d0d0d0; font-size: 12px; }
 .nori-canvas-studio-switch small { color: #999999; font-size: 10px; }
-.nori-canvas-studio-switch button { color: #c7c7cb; background: #303034; font-size: 11px; }
+.nori-canvas-studio-switch button { color: #c7c7c7; background: #303030; font-size: 11px; }
 .nori-canvas-studio-remove-bg { color: #e6a0a0; font-size: 11px; }
 
 .nori-canvas-studio-pose-presets { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
-.nori-canvas-studio-pose-presets button { height: 32px; border-color: #36363a; color: #c6c6ca; background: #2a2a2d; font-size: 12px; }
+.nori-canvas-studio-pose-presets button { height: 32px; border-color: #363636; color: #c6c6c6; background: #2a2a2a; font-size: 12px; }
 .nori-canvas-studio-pose-presets button.is-active { border-color: rgba(255,255,255,.38); color: #fff; background: #474747; }
 .nori-canvas-studio-pose-title { margin: 16px 0 5px; }
 .nori-canvas-studio-pose-title span { color: #ededee; font-size: 13px; font-weight: 600; }
 .nori-canvas-studio-pose-title button { color: #e5e5e5; font-size: 11px; }
-.nori-canvas-studio-pose section { border-top-color: #29292c; padding: 7px 0 5px; }
-.nori-canvas-studio-pose section.is-active { border-radius: 8px; padding-right: 7px; padding-left: 7px; background: rgba(255,255,255,.08); box-shadow: inset 2px 0 #47d9f7; }
-.nori-canvas-studio-pose section h4 { margin: 3px 0 4px; color: #c8c8cd; }
+.nori-canvas-studio-pose section { border-top-color: #292929; padding: 7px 0 5px; }
+.nori-canvas-studio-pose section.is-active { border-radius: 8px; padding-right: 7px; padding-left: 7px; background: rgba(255,255,255,.08); box-shadow: inset 2px 0 #c8c8c8; }
+.nori-canvas-studio-pose section h4 { margin: 3px 0 4px; color: #c8c8c8; }
 .nori-canvas-studio-pose section .nori-canvas-studio-range-field { margin: 7px 0; }
 .nori-canvas-studio-camera-preview {
   position: relative;
@@ -5490,42 +5486,42 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   min-height: 135px;
   overflow: hidden;
   margin: 0 0 10px;
-  border: 1px solid #35353a;
+  border: 1px solid #353535;
   border-radius: 9px;
   padding: 0;
   background: #050506;
 }
 .nori-canvas-studio-camera-preview > div { position: absolute; inset: 0; }
 .nori-canvas-studio-camera-preview > span { top: auto; right: 7px; bottom: 7px; left: auto; color: #f1f1f2; background: rgba(5, 5, 6, .72); font-size: 11px; }
-.nori-canvas-studio-camera-action { height: 36px; margin-bottom: 15px; border-color: rgba(255,255,255,.38); color: #fff; background: var(--fos-gradient-cta); font-size: 12px; }
-.nori-canvas-studio-camera-action:hover { background: var(--fos-gradient-cta); }
+.nori-canvas-studio-camera-action { height: 36px; margin-bottom: 15px; border-color: rgba(255,255,255,.38); color: var(--fos-on-cta); background: var(--fos-gradient-cta); font-size: 12px; }
+.nori-canvas-studio-camera-action:hover { background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
 
 .nori-canvas-studio-captures { min-height: 100%; grid-template-rows: auto minmax(0, 1fr) auto; }
 .nori-canvas-studio-capture-create { display: flex; flex-direction: column; gap: 8px; padding-bottom: 13px; }
-.nori-canvas-studio-capture-create button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; border: 1px solid #37373b; border-radius: 8px; color: #c8c8cd; background: #202023; font-size: 12px; }
-.nori-canvas-studio-capture-create button.is-primary { border-color: rgba(255,255,255,.38); color: #fff; background: var(--fos-gradient-cta); }
+.nori-canvas-studio-capture-create button { display: inline-flex; min-height: 36px; align-items: center; justify-content: center; gap: 7px; border: 1px solid #373737; border-radius: 8px; color: #c8c8c8; background: #202020; font-size: 12px; }
+.nori-canvas-studio-capture-create button.is-primary { border-color: rgba(255,255,255,.38); color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-canvas-studio-capture-create button svg { width: 14px; height: 14px; }
 .nori-canvas-studio-capture-list { gap: 9px; padding: 0 0 12px; }
-.nori-canvas-studio-capture-group { gap: 7px; border-color: #303034; background: #151517; }
-.nori-canvas-studio-capture-group > header span { color: #d0d0d4; font-size: 12px; }
+.nori-canvas-studio-capture-group { gap: 7px; border-color: #303030; background: #151517; }
+.nori-canvas-studio-capture-group > header span { color: #d0d0d0; font-size: 12px; }
 .nori-canvas-studio-capture-group > header small { color: #8f8f8f; font-size: 10px; }
-.nori-canvas-studio-capture-list article { cursor: default; border-color: #323236; border-radius: 7px; }
+.nori-canvas-studio-capture-list article { cursor: default; border-color: #323232; border-radius: 7px; }
 .nori-canvas-studio-capture-image > button { position: absolute; top: 5px; right: 5px; z-index: 3; display: grid; width: 22px; height: 22px; place-items: center; border: 0; border-radius: 50%; color: #fff; background: rgba(5, 5, 6, .78); }
 .nori-canvas-studio-capture-image > button svg { width: 12px; height: 12px; }
 .nori-canvas-studio-capture-image > span { position: absolute; right: 0; bottom: 0; left: 0; z-index: 2; padding: 14px 7px 5px; color: #fff; background: linear-gradient(transparent, rgba(0, 0, 0, .82)); font-size: 11px; }
-.nori-canvas-studio-capture-actions { grid-template-columns: 1fr 1fr; margin: 0 -12px -24px; border-top-color: #2c2c2f; padding: 9px 12px; background: #18181a; }
-.nori-canvas-studio-capture-actions button { height: 35px; color: #c5c5ca; font-size: 11px; }
-.nori-canvas-studio-capture-actions button.is-primary { background: var(--fos-gradient-cta); }
-.nori-canvas-studio-capture-empty strong { color: #d5d5d9; font-size: 13px; }
+.nori-canvas-studio-capture-actions { grid-template-columns: 1fr 1fr; margin: 0 -12px -24px; border-top-color: #2c2c2c; padding: 9px 12px; background: #18181a; }
+.nori-canvas-studio-capture-actions button { height: 35px; color: #c5c5c5; font-size: 11px; }
+.nori-canvas-studio-capture-actions button.is-primary { background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
+.nori-canvas-studio-capture-empty strong { color: #d5d5d5; font-size: 13px; }
 .nori-canvas-studio-capture-empty span { color: #929292; font-size: 11px; }
 
-.nori-canvas-studio-context-menu { width: 178px; border-color: #3b3b3f; background: #202023; }
-.nori-canvas-studio-context-menu button { color: #d1d1d5; font-size: 13px; }
-.nori-canvas-studio-help { top: 54px; right: 54px; border-color: #39393d; color: #d2d2d6; background: #202023; }
+.nori-canvas-studio-context-menu { width: 178px; border-color: #3b3b3b; background: #202020; }
+.nori-canvas-studio-context-menu button { color: #d1d1d1; font-size: 13px; }
+.nori-canvas-studio-help { top: 54px; right: 54px; border-color: #393939; color: #d2d2d2; background: #202020; }
 .nori-canvas-studio-help > strong { font-size: 13px; }
 .nori-canvas-studio-help dt,
 .nori-canvas-studio-help dd { font-size: 11px; }
-.nori-canvas-studio-message { top: 18px; color: #ececef; background: rgba(30, 30, 33, .94); font-size: 12px; }
+.nori-canvas-studio-message { top: 18px; color: #ececec; background: rgba(30,30,30,.94); font-size: 12px; }
 .nori-canvas-studio-properties-toggle,
 .nori-canvas-studio-dialog > footer { display: none !important; }
 
@@ -5541,9 +5537,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-node-body {
   border-color: rgba(216,216,216,.14);
   border-radius: 14px;
-  background:
-    linear-gradient(145deg, rgba(43,43,43,.96), rgba(22,22,22,.99)),
-    #191919;
+  background: #191919;
   box-shadow: 0 18px 48px rgba(0, 0, 0, .34), inset 0 1px rgba(255, 255, 255, .035);
 }
 
@@ -5564,6 +5558,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   border-radius: 50% !important;
   background: var(--fos-gradient-cta) !important;
   box-shadow: 0 0 0 2px rgba(255,255,255,.09), 0 3px 9px rgba(0, 0, 0, .45);
+  color: var(--fos-on-cta) !important;
 }
 
 .nori-canvas-node-toolbar {
@@ -5572,7 +5567,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   border-color: rgba(216,216,216,.15);
   border-radius: 11px;
   padding: 5px;
-  background: linear-gradient(180deg, rgba(44,44,44,.98), rgba(31,31,31,.98));
+  background: rgba(38,38,38,0.98);
   box-shadow: 0 14px 36px rgba(0, 0, 0, .48), inset 0 1px rgba(255, 255, 255, .04);
 }
 
@@ -5700,9 +5695,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator {
   border-color: rgba(255,255,255,.16);
   border-radius: 17px;
-  background:
-    radial-gradient(circle at 18% -20%, rgba(255,255,255,.08), transparent 38%),
-    linear-gradient(160deg, rgba(35,35,35,.995), rgba(24,24,24,.995));
+  background: rgba(38,38,38,0.517);
   box-shadow: 0 30px 90px rgba(0, 0, 0, .58), inset 0 1px rgba(255, 255, 255, .045);
 }
 
@@ -5743,12 +5736,14 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   box-shadow: 0 0 8px rgba(0,0,0,.35);
   transform: translateX(-.5px);
   transform-origin: center;
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether { bottom: 100%; }
 .nori-canvas-generator[data-anchor-placement='above'] .nori-canvas-generator-tether {
   top: 100%;
   background: var(--fos-gradient-cta);
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-generator-tether::after {
@@ -5762,6 +5757,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   box-shadow: 0 0 0 3px rgba(255,255,255,.075), 0 0 12px rgba(0,0,0,.35);
   content: '';
   transform: translateX(-50%);
+  color: var(--fos-on-cta);
 }
 
 .nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether::after { top: -3px; }
@@ -5944,7 +5940,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   border: 1px solid rgba(216,216,216,.15);
   border-radius: 15px;
   color: #f1f1f1;
-  background: linear-gradient(180deg, rgba(34,34,34,.99), rgba(22,22,22,.99));
+  background: rgba(28,28,28,0.99);
   box-shadow: 0 20px 54px rgba(0, 0, 0, .4), inset 0 1px 0 rgba(255, 255, 255, .035);
   transition: border-color .16s ease, box-shadow .16s ease;
 }
@@ -5954,7 +5950,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   box-shadow: 0 0 0 1px rgba(255,255,255,.14), 0 24px 64px rgba(0, 0, 0, .48);
 }
 
-.nori-canvas-playlist-node.is-rejected { border-color: rgba(255, 166, 92, .42); }
+.nori-canvas-playlist-node.is-rejected { border-color: rgba(186,186,186,.42); }
 
 .nori-canvas-playlist-node.is-node-drop-target {
   border-color: rgba(255,255,255,.38);
@@ -5994,10 +5990,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-heading > span { color: #a3a3a3; font-size: 11px; font-weight: 600; white-space: nowrap; }
 .nori-playlist-review-actions > span { border: 1px solid rgba(216,216,216,.12); border-radius: 999px; padding: 4px 8px; color: #bbbbbb; background: rgba(255,255,255,.035); font-size: 10px; font-weight: 700; white-space: nowrap; }
 .nori-playlist-review-actions > span.is-pending_review { border-color: rgba(255,255,255,.26); color: #e5e5e5; background: rgba(255,255,255,.08); }
-.nori-playlist-review-actions > span.is-completed { border-color: rgba(77, 201, 150, .3); color: #9de4c7; background: rgba(42, 157, 112, .13); }
-.nori-playlist-review-actions > span.is-rejected { border-color: rgba(255, 159, 85, .34); color: #ffc395; background: rgba(196, 102, 35, .14); }
-.nori-playlist-review-actions .is-submit { display: inline-flex; height: 30px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,.38); border-radius: 8px; padding: 0 11px; color: white; background: var(--fos-gradient-cta); box-shadow: 0 7px 18px rgba(0,0,0,.35); font-size: 11px; font-weight: 720; white-space: nowrap; }
-.nori-playlist-review-actions .is-submit:hover:not(:disabled) { border-color: rgba(255,255,255,.38); background: var(--fos-gradient-cta); }
+.nori-playlist-review-actions > span.is-completed { border-color: rgba(180,180,180,.3); color: #d5d5d5; background: rgba(139,139,139,.13); }
+.nori-playlist-review-actions > span.is-rejected { border-color: rgba(182,182,182,.34); color: #cfcfcf; background: rgba(127,127,127,.14); }
+.nori-playlist-review-actions .is-submit { display: inline-flex; height: 30px; align-items: center; justify-content: center; gap: 6px; border: 1px solid rgba(255,255,255,.38); border-radius: 8px; padding: 0 11px; color: var(--fos-on-cta); background: var(--fos-gradient-cta); box-shadow: 0 7px 18px rgba(0,0,0,.35); font-size: 11px; font-weight: 720; white-space: nowrap; }
+.nori-playlist-review-actions .is-submit:hover:not(:disabled) { border-color: rgba(255,255,255,.38); background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
 .nori-playlist-review-actions .is-submit:disabled { cursor: not-allowed; filter: grayscale(.25); opacity: .45; box-shadow: none; }
 .nori-playlist-review-actions .is-submit svg { width: 13px; height: 13px; }
 
@@ -6013,7 +6009,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-render > div { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
 .nori-playlist-render strong { color: #e1e1e1; font-size: 11px; font-weight: 720; }
 .nori-playlist-render small { overflow: hidden; color: #8e8e8e; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.nori-playlist-render.is-completed strong { color: #91dfbd; }
+.nori-playlist-render.is-completed strong { color: #cfcfcf; }
 .nori-playlist-render.is-failed strong,
 .nori-playlist-render.is-failed small { color: #ffad9e; }
 .nori-playlist-render > a,
@@ -6106,7 +6102,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 }
 
 .nori-playlist-transport button:hover:not(:disabled) { color: #fff; background: rgba(255,255,255,.08); }
-.nori-playlist-transport button.is-primary { color: #fff; background: var(--fos-gradient-cta); }
+.nori-playlist-transport button.is-primary { color: var(--fos-on-cta); background: var(--fos-gradient-cta); }
 .nori-playlist-transport button:disabled { opacity: .28; }
 .nori-playlist-transport button svg { width: 12px; height: 12px; }
 .nori-playlist-transport time { min-width: 0; margin-left: auto; overflow: hidden; color: #e5e5e5; font: 9px ui-monospace,SFMono-Regular,Menlo,monospace; text-overflow: ellipsis; white-space: nowrap; }
@@ -6119,7 +6115,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-current strong { margin-top: 4px; color: #f2f2f2; font-size: 13px; }
 .nori-playlist-current small { margin-top: 4px; color: #e5e5e5; font-size: 10px; }
 
-.nori-playlist-cut-guide { margin-top: 10px; border: 1px solid #2b2b2b; border-radius: 9px; background: #17181b; padding: 10px; }
+.nori-playlist-cut-guide { margin-top: 10px; border: 1px solid #2b2b2b; border-radius: 9px; background: #181818; padding: 10px; }
 .nori-playlist-cut-guide header { display: flex; align-items: center; gap: 9px; }
 .nori-playlist-cut-guide header > span { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 7px; color: #e5e5e5; background: rgba(255,255,255,.08); }
 .nori-playlist-cut-guide header > span svg { width: 13px; height: 13px; }
@@ -6129,8 +6125,8 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-cut-guide header strong { color: #eaeaea; font-size: 11px; }
 .nori-playlist-cut-guide header small { margin-top: 2px; color: #7a7a7a; font-size: 8px; }
 .nori-playlist-cut-guide p { margin: 9px 0; color: #979797; font-size: 9px; line-height: 1.6; }
-.nori-playlist-cut-guide > button { display: inline-flex; width: 100%; min-height: 30px; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(255,255,255,.38); border-radius: 7px; color: #fff; background: var(--fos-gradient-cta); font-size: 9px; font-weight: 720; }
-.nori-playlist-cut-guide > button:hover:not(:disabled) { border-color: rgba(255,255,255,.38); background: var(--fos-gradient-cta); }
+.nori-playlist-cut-guide > button { display: inline-flex; width: 100%; min-height: 30px; align-items: center; justify-content: center; gap: 5px; border: 1px solid rgba(255,255,255,.38); border-radius: 7px; color: var(--fos-on-cta); background: var(--fos-gradient-cta); font-size: 9px; font-weight: 720; }
+.nori-playlist-cut-guide > button:hover:not(:disabled) { border-color: rgba(255,255,255,.38); background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
 .nori-playlist-cut-guide > button:disabled { cursor: not-allowed; border-color: rgba(255,255,255,.08); color: #7d7d7d; background: #242424; }
 .nori-playlist-cut-guide > button svg { width: 11px; height: 11px; }
 
@@ -6150,7 +6146,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-point-actions button:disabled,
 .nori-playlist-edit-actions button:disabled { opacity: .3; }
 .nori-playlist-edit-actions { margin-top: auto; padding-top: 7px; }
-.nori-playlist-edit-actions button.is-danger { border-color: rgba(239,96,96,.18); color: #e8a4a4; background: rgba(239,68,68,.06); }
+.nori-playlist-edit-actions button.is-danger { border-color: rgba(239,96,96,.18); color: #e8a4a4; background: rgba(229,72,77,.06); }
 .nori-playlist-edit-actions svg { width: 10px; height: 10px; }
 .nori-playlist-inspector-empty { display: flex; flex: 1; align-items: center; justify-content: center; color: #787878; font-size: 9px; }
 
@@ -6163,7 +6159,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   flex-direction: column;
   border-top: 1px solid rgba(255,255,255,.06);
   border-radius: 0 0 12px 12px;
-  background: #0a0b0f;
+  background: #0b0b0b;
 }
 .nori-playlist-editor > .fac-timeline .fac-timeline-head {
   flex: none;
@@ -6174,7 +6170,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   flex: 1;
   height: auto;
   min-height: 168px;
-  background: #090a0e;
+  background: #0a0a0a;
 }
 .nori-playlist-editor > .fac-timeline .fac-timeline-canvas { min-height: 100%; }
 
@@ -6186,11 +6182,11 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   overflow: hidden;
   border: 1px solid rgba(216,216,216,.11);
   border-radius: 10px 10px 0 0;
-  background: #090a0e;
+  background: #0a0a0a;
 }
-.nori-playlist-preview > video { display: block; width: 100%; height: 100%; object-fit: contain; background: #050608; }
+.nori-playlist-preview > video { display: block; width: 100%; height: 100%; object-fit: contain; background: #060606; }
 .nori-playlist-play { position: absolute; top: 50%; left: 50%; display: grid; width: 42px; height: 42px; place-items: center; transform: translate(-50%, -50%); border: 1px solid rgba(255,255,255,.22); border-radius: 999px; color: #fff; background: rgba(21,21,21,.76); box-shadow: 0 10px 28px rgba(0,0,0,.36); backdrop-filter: blur(9px); }
-.nori-playlist-play:hover { background: var(--fos-gradient-cta); }
+.nori-playlist-play:hover { background: var(--fos-gradient-cta); color: var(--fos-on-cta); }
 .nori-playlist-play svg { width: 17px; height: 17px; }
 .nori-playlist-preview-meta { position: absolute; right: 9px; bottom: 8px; left: 9px; display: flex; min-width: 0; align-items: center; gap: 10px; border-radius: 7px; padding: 6px 8px; background: linear-gradient(90deg, rgba(10,10,10,.84), rgba(10,10,10,.48)); backdrop-filter: blur(8px); }
 .nori-playlist-preview-meta strong { min-width: 0; overflow: hidden; color: #ededed; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
@@ -6213,8 +6209,8 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   background: rgba(255,255,255,.018);
 }
 .nori-playlist-empty:not(:disabled):hover { border-color: rgba(255,255,255,.38); color: #e4e4e4; background: rgba(255,255,255,.05); }
-.nori-playlist-empty.is-missing { border-style: solid; border-color: rgba(255, 168, 128, .22); color: #d5c4b8; background: rgba(255, 132, 84, .045); }
-.nori-playlist-empty.is-missing strong { color: #f0ddd2; }
+.nori-playlist-empty.is-missing { border-style: solid; border-color: rgba(189,189,189,.22); color: #c7c7c7; background: rgba(167,167,167,.045); }
+.nori-playlist-empty.is-missing strong { color: #e0e0e0; }
 .nori-playlist-empty.is-missing .nori-playlist-add { margin-top: 4px; }
 .nori-playlist-empty > span { display: grid; width: 35px; height: 35px; place-items: center; border: 1px solid rgba(216,216,216,.12); border-radius: 9px; background: rgba(255,255,255,.05); }
 .nori-playlist-empty svg { width: 16px; height: 16px; }
@@ -6253,7 +6249,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-add-clip svg { width: 15px; height: 15px; }
 .nori-playlist-add-clip span { font-size: 8px; }
 .nori-playlist-progress { height: 2px; overflow: hidden; border-radius: 999px; background: rgba(216,216,216,.08); }
-.nori-playlist-progress span { display: block; height: 100%; border-radius: inherit; background: var(--fos-gradient-cta); transition: width .1s linear; }
+.nori-playlist-progress span { display: block; height: 100%; border-radius: inherit; background: var(--fos-gradient-cta); transition: width .1s linear; color: var(--fos-on-cta); }
 
 .nori-playlist-picker { position: absolute; z-index: 24; top: 48px; right: 12px; width: min(300px, calc(100% - 24px)); max-height: 220px; overflow-y: auto; border: 1px solid rgba(216,216,216,.16); border-radius: 11px; padding: 5px; background: rgba(27,27,27,.99); box-shadow: 0 22px 60px rgba(0,0,0,.56); }
 .nori-playlist-picker > header { display: flex; height: 31px; align-items: center; justify-content: space-between; padding: 0 5px 0 7px; color: #e4e4e4; font-size: 10px; font-weight: 700; }
@@ -6272,11 +6268,11 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-playlist-picker > button small { margin-top: 2px; color: #8b8b8b; font-size: 8px; }
 .nori-playlist-picker > p { padding: 18px 8px; color: #808080; font-size: 9px; text-align: center; }
 
-.nori-playlist-feedback { position: absolute; right: 12px; bottom: calc(100% + 7px); left: 12px; display: flex; min-height: 32px; align-items: center; gap: 8px; border: 1px solid rgba(255,163,94,.28); border-radius: 8px; padding: 6px 9px; color: #ededed; background: rgba(56,36,25,.96); box-shadow: 0 10px 28px rgba(0,0,0,.35); font-size: 9px; }
-.nori-playlist-feedback > span { flex: none; color: #ffbb87; font-weight: 750; }
+.nori-playlist-feedback { position: absolute; right: 12px; bottom: calc(100% + 7px); left: 12px; display: flex; min-height: 32px; align-items: center; gap: 8px; border: 1px solid rgba(185,185,185,.28); border-radius: 8px; padding: 6px 9px; color: #ededed; background: rgba(41,41,41,.96); box-shadow: 0 10px 28px rgba(0,0,0,.35); font-size: 9px; }
+.nori-playlist-feedback > span { flex: none; color: #c9c9c9; font-weight: 750; }
 .nori-playlist-feedback p { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nori-playlist-feedback small { flex: none; color: #cf9a74; }
-.nori-playlist-approved { position: absolute; right: 12px; bottom: calc(100% + 7px); display: flex; height: 29px; align-items: center; gap: 6px; border: 1px solid rgba(80,199,151,.26); border-radius: 8px; padding: 0 9px; color: #a9e9cf; background: rgba(23,52,42,.96); font-size: 9px; font-weight: 650; }
+.nori-playlist-feedback small { flex: none; color: #a5a5a5; }
+.nori-playlist-approved { position: absolute; right: 12px; bottom: calc(100% + 7px); display: flex; height: 29px; align-items: center; gap: 6px; border: 1px solid rgba(178,178,178,.26); border-radius: 8px; padding: 0 9px; color: #dcdcdc; background: rgba(47,47,47,.96); font-size: 9px; font-weight: 650; }
 .nori-playlist-approved svg { width: 12px; height: 12px; }
 
 .nori-canvas-workspace.is-readonly .nori-canvas-playlist-node { cursor: default; }
@@ -6351,10 +6347,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   --canvas-border: rgba(255, 255, 255, .14);
   --canvas-text: #f2f2f2;
   --canvas-muted: #a6a6a6;
-  --canvas-primary: #3265ff;
+  --canvas-primary: #ffffff;
   display: contents;
   color: var(--canvas-text);
-  font: 13px/1.5 -apple-system, BlinkMacSystemFont, "PingFang SC", "Segoe UI", sans-serif;
+  font: 13px/1.5 var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
 }
 .nori-canvas-viewport-layer *,
 .nori-canvas-viewport-layer *::before,
@@ -6458,7 +6454,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-breadcrumbs > button span { overflow: visible; white-space: normal; overflow-wrap: anywhere; }
 .nori-canvas-toast { max-width: calc(100% - 32px); overflow-wrap: anywhere; white-space: normal; }
 .react-flow__node.nori-canvas-batch-connect-target { outline: 3px solid rgba(255,255,255,.38); outline-offset: 7px; border-radius: 14px; }
-.react-flow__node.nori-canvas-batch-connect-target::after { content: "松开以批量连接"; position: absolute; left: 50%; top: -38px; transform: translateX(-50%); white-space: nowrap; padding: 6px 12px; border-radius: 8px; background: var(--fos-gradient-cta); color: #fff; font-size: 12px; font-weight: 650; pointer-events: none; }
+.react-flow__node.nori-canvas-batch-connect-target::after { content: "松开以批量连接"; position: absolute; left: 50%; top: -38px; transform: translateX(-50%); white-space: nowrap; padding: 6px 12px; border-radius: 8px; background: var(--fos-gradient-cta); color: var(--fos-on-cta); font-size: 12px; font-weight: 650; pointer-events: none; }
 .nori-canvas-panorama-dialog { grid-template-rows: auto minmax(0, 1fr) auto; }
 .nori-canvas-panorama-dialog > header,
 .nori-canvas-panorama-dialog > footer { min-height: 50px; flex-wrap: wrap; padding: 10px 12px; }
@@ -6524,7 +6520,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   --dm-muted: rgba(255, 255, 255, .72);
   --dm-dim: #999;
   --dm-hover: rgba(255, 255, 255, .06);
-  --dm-cta: linear-gradient(90deg, #4f6bff 0%, #7d5cff 55%, #a65bff 100%);
+  --dm-cta: linear-gradient(90deg, #7a7a7a 0%, #797979 55%, #838383 100%);
 }
 
 .nori-canvas-workspace {
@@ -6553,7 +6549,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-node.is-selected .nori-canvas-node-body { border: 1px solid var(--dm-line-strong); box-shadow: 0 6px 18px rgba(0, 0, 0, .28); }
 .nori-canvas-node.is-error .nori-canvas-node-body { border-color: rgba(255, 104, 104, .7); }
 .nori-canvas-node--video .nori-canvas-node-body,
-.nori-canvas-node--image .nori-canvas-node-body { background: linear-gradient(#2a2a2a, #222); }
+.nori-canvas-node--image .nori-canvas-node-body { background: #262626; }
 .nori-canvas-node-body > img,
 .nori-canvas-node-body > video { background: transparent; }
 .nori-canvas-node:hover .nori-canvas-node-drag-frame,
@@ -6673,14 +6669,14 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-tool-rail button.is-primary {
   width: 34px;
   height: 34px;
-  color: #1f1f1f;
-  background: linear-gradient(270deg, #3265ff, #d9feff 68%, #eeebaa 99%);
+  color: #000;
+  background: #fff;
   box-shadow: none;
 }
 .nori-canvas-tool-rail button.is-primary:hover,
-.nori-canvas-tool-rail button.is-primary.is-open { color: #1f1f1f; background: linear-gradient(270deg, #3265ff, #e6feff 68%, #f4f1bd 99%); }
+.nori-canvas-tool-rail button.is-primary.is-open { color: #000; background: #e2e2e2; }
 .nori-canvas-tool-rail button.is-primary:disabled,
-.nori-canvas-tool-rail button.is-primary:disabled:hover { color: rgba(31, 31, 31, .5); background: linear-gradient(270deg, #3265ff, #d9feff 68%, #eeebaa 99%); opacity: .4; }
+.nori-canvas-tool-rail button.is-primary:disabled:hover { color: rgba(0, 0, 0, .5); background: #fff; opacity: .4; }
 .nori-canvas-tool-rail button.is-primary svg { width: 17px; height: 17px; stroke-width: 2.2; }
 .nori-canvas-tool-rail i { width: 18px; background: rgba(255, 255, 255, .1); }
 
@@ -6888,3 +6884,160 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-refs { position: relative; }
 .nori-canvas-generator-scroll,
 .nori-canvas-generator-content { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, .16) transparent; }
+
+/* Canvas video player. The picture is a drag surface; only the play button
+   and the hover bar are nodrag, so a video card moves like any other node. */
+.nori-canvas-video { position: absolute; inset: 0; }
+.nori-canvas-video > video { display: block; width: 100%; height: 100%; object-fit: contain; background: transparent; cursor: grab; }
+.nori-canvas-video.is-cover > video { object-fit: cover; }
+.nori-canvas-video > video:active { cursor: grabbing; }
+.nori-canvas-video-toggle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 6;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: .5px solid rgba(255, 255, 255, .16);
+  border-radius: 50%;
+  padding: 0;
+  color: #fff;
+  background: rgba(16, 16, 16, .56);
+  backdrop-filter: blur(10px);
+  transform: translate(-50%, -50%);
+  transition: opacity .16s ease, background .16s ease;
+  cursor: pointer;
+}
+.nori-canvas-video-toggle:hover { background: rgba(16, 16, 16, .78); }
+.nori-canvas-video-toggle svg { width: 16px; height: 16px; fill: currentColor; }
+.nori-canvas-video:not(.is-playing) .nori-canvas-video-toggle svg { margin-left: 2px; }
+.nori-canvas-video.is-playing .nori-canvas-video-toggle { opacity: 0; }
+.nori-canvas-video.is-playing:hover .nori-canvas-video-toggle,
+.nori-canvas-video-toggle:focus-visible { opacity: 1; }
+.nori-canvas-video-bar {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  left: 8px;
+  z-index: 6;
+  display: flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: .5px solid rgba(255, 255, 255, .1);
+  border-radius: 999px;
+  padding: 0 4px 0 10px;
+  color: rgba(255, 255, 255, .86);
+  background: rgba(16, 16, 16, .66);
+  backdrop-filter: blur(10px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.nori-canvas-video:hover .nori-canvas-video-bar,
+.nori-canvas-video-bar:focus-within { opacity: 1; pointer-events: auto; transform: none; }
+.nori-canvas-video-bar > span { flex: none; font-size: 10px; font-variant-numeric: tabular-nums; line-height: 1; white-space: nowrap; }
+.nori-canvas-video-bar > button { display: grid; width: 22px; height: 22px; flex: none; place-items: center; border: 0; border-radius: 50%; padding: 0; color: inherit; background: transparent; cursor: pointer; }
+.nori-canvas-video-bar > button:hover { color: #fff; background: rgba(255, 255, 255, .1); }
+.nori-canvas-video-bar > button svg { width: 13px; height: 13px; }
+.nori-canvas-video-bar > input[type="range"] {
+  min-width: 0;
+  height: 14px;
+  flex: 1;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+  appearance: none;
+}
+.nori-canvas-video-bar > input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #fff var(--nori-video-progress, 0%), rgba(255, 255, 255, .24) var(--nori-video-progress, 0%));
+}
+.nori-canvas-video-bar > input[type="range"]::-webkit-slider-thumb {
+  width: 10px;
+  height: 10px;
+  margin-top: -3.5px;
+  border: 0;
+  border-radius: 50%;
+  background: #fff;
+  appearance: none;
+}
+.nori-canvas-video-bar > input[type="range"]::-moz-range-track { height: 3px; border-radius: 999px; background: rgba(255, 255, 255, .24); }
+.nori-canvas-video-bar > input[type="range"]::-moz-range-progress { height: 3px; border-radius: 999px; background: #fff; }
+.nori-canvas-video-bar > input[type="range"]::-moz-range-thumb { width: 10px; height: 10px; border: 0; border-radius: 50%; background: #fff; }
+
+/* Organize control. The menu is anchored to the 26px dock pill, so a percentage
+   max-height resolved against the pill and collapsed the menu into an empty bar. */
+.nori-canvas-organize-controls { height: 26px; gap: 1px; }
+.nori-canvas-organize-controls button { height: 26px; }
+.nori-canvas-organize-controls button.nori-canvas-organize-primary { padding: 0 10px 0 8px; }
+.nori-canvas-organize-controls button:last-child { width: 20px; }
+.nori-canvas-organize-controls svg { width: 15px; height: 15px; }
+.nori-canvas-organize-menu {
+  right: 0;
+  bottom: calc(100% + 8px);
+  width: 256px;
+  max-width: none;
+  max-height: min(460px, calc(100vh - 160px));
+  overflow: auto;
+  border: .5px solid var(--dm-line);
+  border-radius: 14px;
+  padding: 4px 6px 6px;
+  background: rgba(31, 31, 31, .94);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .4);
+  backdrop-filter: blur(20px);
+  transform-origin: bottom right;
+  animation: nori-canvas-organize-in .14s ease-out;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, .16) transparent;
+}
+@keyframes nori-canvas-organize-in {
+  from { opacity: 0; transform: translateY(4px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nori-canvas-organize-menu { animation: none; }
+}
+.nori-canvas-organize-caption { margin: 8px 8px 3px; color: rgba(255, 255, 255, .38); font-size: 10px; font-weight: 600; letter-spacing: .06em; line-height: 1.2; }
+.nori-canvas-organize-menu .nori-canvas-organize-option {
+  display: grid;
+  width: 100%;
+  grid-template-columns: 30px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 10px;
+  padding: 5px 8px 5px 5px;
+  color: rgba(255, 255, 255, .9);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background .14s ease;
+}
+.nori-canvas-organize-menu .nori-canvas-organize-option:hover { background: var(--dm-hover); }
+.nori-canvas-organize-menu .nori-canvas-organize-option.is-active { background: rgba(255, 255, 255, .08); }
+.nori-canvas-organize-menu .nori-canvas-organize-option:focus-visible { outline: 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .4); }
+.nori-canvas-organize-menu .nori-canvas-organize-glyph {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, .6);
+  background: rgba(255, 255, 255, .06);
+  transition: color .14s ease, background .14s ease;
+}
+.nori-canvas-organize-menu .nori-canvas-organize-glyph svg { width: 20px; height: 20px; }
+.nori-canvas-organize-menu .nori-canvas-organize-option:hover .nori-canvas-organize-glyph { color: rgba(255, 255, 255, .86); }
+.nori-canvas-organize-menu .nori-canvas-organize-option.is-active .nori-canvas-organize-glyph { color: #fff; background: rgba(255, 255, 255, .14); }
+.nori-canvas-organize-menu .nori-canvas-organize-copy { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.nori-canvas-organize-copy b { overflow: hidden; font-size: 12px; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-organize-copy small { overflow: hidden; margin: 0; color: rgba(255, 255, 255, .45); font-size: 10px; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-organize-menu .nori-canvas-organize-option.is-active .nori-canvas-organize-copy small { color: rgba(255, 255, 255, .62); }
+.nori-canvas-organize-menu .nori-canvas-organize-check { width: 14px; height: 14px; color: #fff; }
+.nori-canvas-organize-menu > i { margin: 6px 6px 4px; }
+.nori-canvas-node-body > .nori-canvas-video-load-error { z-index: 7; }

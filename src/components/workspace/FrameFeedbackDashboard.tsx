@@ -258,14 +258,14 @@ export function FrameFeedbackDashboard() {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
               data-ready={title.trim() && description.trim() ? 'true' : 'false'}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
               {saved ? t('saved') : t('submit')}
             </button>
           </div>
           {error ? (
-            <div className="rounded-md border border-[#ffd98a]/20 bg-[#ffd98a]/8 px-3 py-2 text-xs text-[#ffd98a]">
+            <div className="rounded-md border border-[#dedede]/20 bg-[#ffffff]/8 px-3 py-2 text-xs text-[#dedede]">
               {t('syncWarning', { error })}
             </div>
           ) : null}
@@ -298,7 +298,7 @@ export function FrameFeedbackDashboard() {
               <div key={row.type} className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 px-3 py-3 text-xs">
                 <div className="truncate font-medium text-white/72">{t(`types.${row.type}`)}</div>
                 <div className="text-white/56">{row.count}</div>
-                <div className={row.open > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.open}</div>
+                <div className={row.open > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.open}</div>
                 <div className="truncate font-mono text-white/42">{row.latestRoute}</div>
                 <div className="truncate text-white/42">{row.latestAt}</div>
               </div>
@@ -352,9 +352,9 @@ export function FrameFeedbackDashboard() {
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       record.status === 'resolved'
-                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                        ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
                         : record.status === 'triaged'
-                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
                           : 'border-white/10 bg-white/5 text-white/42'
                     }`}>
                       {t(`status.${record.status}`)}

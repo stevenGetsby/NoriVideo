@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { AppIcon } from '@/components/ui/icons'
 import type { CanvasOperationTaskUpdate } from '../operation-task-client'
 
@@ -70,7 +71,9 @@ export function CanvasOperationTaskProgress({
       <div className="nori-canvas-operation-task-stage"><span>{stage}</span><small>任务 {task.id.slice(0, 8)}</small></div>
       {task.error?.message ? <p role="alert">{task.error.message}</p> : null}
       <footer>
-        {active && task.canCancel ? <button type="button" disabled={actionBusy} onClick={onCancel}><AppIcon name="close" />取消任务</button> : null}
+        {active && task.canCancel ? <button type="button" disabled={actionBusy} onClick={async () => {
+          if (await confirmAction({ title: '取消这个任务？', message: '已完成的进度不会保留，之后需要重新提交。', confirmLabel: '取消任务', cancelLabel: '继续等待', danger: true })) onCancel()
+        }}><AppIcon name="close" />取消任务</button> : null}
         {failed && task.canRetry ? <button type="button" disabled={actionBusy} onClick={onRetry}><AppIcon name="refresh" />重试任务</button> : null}
         {task.status === 'completed' && !materialized ? <button type="button" className="is-primary" disabled={actionBusy} onClick={onRecover}><AppIcon name="download" />载入画布</button> : null}
         {task.status === 'completed' && materialized ? <span><AppIcon name="check" />结果已在画布中</span> : null}

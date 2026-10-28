@@ -132,7 +132,7 @@ export function FrameUpdatesDashboard() {
               type="button"
               onClick={runUpdateCheck}
               disabled={isChecking}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
             >
               <AppIcon name={isChecking ? 'loader' : 'refresh'} className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
               {isChecking ? t('checkingNow') : t('runCheck')}
@@ -171,7 +171,7 @@ export function FrameUpdatesDashboard() {
               </div>
               <div className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="text-xs text-white/42">{t('cards.status')}</div>
-                <div className="mt-1 inline-flex rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-0.5 text-sm font-semibold text-[#8ff0b9]">
+                <div className="mt-1 inline-flex rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-0.5 text-sm font-semibold text-[#dcdcdc]">
                   {t('status.current')}
                 </div>
               </div>
@@ -205,7 +205,7 @@ export function FrameUpdatesDashboard() {
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('moduleMatrix.subtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-1 text-[11px] font-medium text-[#8ff0b9]">
+                <span className="w-fit rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-1 text-[11px] font-medium text-[#dcdcdc]">
                   {t('moduleMatrix.localMode')}
                 </span>
               </div>
@@ -225,7 +225,7 @@ export function FrameUpdatesDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.health === 'synced'
-                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
                           : 'border-white/25 bg-white/8 text-[#e5e5e5]'
                       }`}>
                         {t(`moduleMatrix.status.${row.health}`)}
@@ -257,7 +257,7 @@ export function FrameUpdatesDashboard() {
                 <div key={record.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-medium text-white/76">{record.version}</div>
-                    <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-1.5 py-0.5 text-[11px] text-[#8ff0b9]">
+                    <span className="rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-1.5 py-0.5 text-[11px] text-[#dcdcdc]">
                       {t('status.current')}
                     </span>
                   </div>
@@ -279,7 +279,7 @@ export function FrameUpdatesDashboard() {
               <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white/76">{t(`checklist.${key}.title`)}</div>
-                  <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-1.5 py-0.5 text-[11px] text-[#8ff0b9]">
+                  <span className="rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-1.5 py-0.5 text-[11px] text-[#dcdcdc]">
                     {t('status.tracked')}
                   </span>
                 </div>

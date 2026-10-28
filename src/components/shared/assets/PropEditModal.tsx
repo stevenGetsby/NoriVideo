@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { AppIcon } from '@/components/ui/icons'
@@ -112,7 +113,7 @@ export function PropEditModal({
       return false
     } catch (error: unknown) {
       if (shouldShowError(error)) {
-        alert(`${t('modal.modifyFailed')}: ${getErrorMessage(error, t('errors.failed'))}`)
+        notify(`${t('modal.modifyFailed')}: ${getErrorMessage(error, t('errors.failed'))}`)
       }
       return false
     } finally {

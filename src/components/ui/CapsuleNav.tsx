@@ -75,7 +75,7 @@ function NavItem({
                     ${disabled
                         ? 'cursor-not-allowed'
                         : active
-                            ? 'bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]'
+                            ? 'bg-white text-black'
                             : 'text-white/66 hover:bg-white/7 hover:text-white'}
                     ${!disabled && 'active:scale-[0.98]'}
                 `}
@@ -89,11 +89,11 @@ function NavItem({
                 )}
                 {status === 'ready' && !disabled && (
                     <span className={`h-1.5 w-1.5 rounded-full transition-colors
-                        ${active ? 'bg-white' : 'bg-emerald-400'}`}
+                        ${active ? 'bg-black' : 'bg-white'}`}
                     />
                 )}
                 {status === 'processing' && !disabled && (
-                    <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#d6ff00]" />
+                    <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${active ? 'bg-black' : 'bg-white'}`} />
                 )}
             </button>
             {disabled && disabledLabel && (

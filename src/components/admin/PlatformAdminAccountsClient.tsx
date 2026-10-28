@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
@@ -310,7 +311,12 @@ export function PlatformAdminAccountsClient() {
 
   const deleteManager = async (workspace: ManagedWorkspace) => {
     const { manager } = workspace
-    if (!window.confirm(`确定删除管理账号“${manager.username}”吗？只有空工作区账号可以删除。`)) return
+    if (!await confirmAction({
+      title: `删除管理账号「${manager.username}」？`,
+      message: '只有空工作区的账号可以删除，此操作不可撤销。',
+      confirmLabel: '删除',
+      danger: true,
+    })) return
     setDeletingId(manager.id)
     setPageError('')
     try {

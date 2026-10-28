@@ -1,4 +1,5 @@
 'use client'
+import { notify } from '@/lib/ui/feedback'
 import { logError as _ulogError } from '@/lib/logging/core'
 
 import { useState, useEffect, useCallback } from 'react'
@@ -135,11 +136,11 @@ export function LocationCreationModal({
             setAiInstruction('')
         } catch (error: unknown) {
             if (getErrorStatus(error) === 402) {
-                alert(getErrorMessage(error, t('errors.insufficientBalance')))
+                notify(getErrorMessage(error, t('errors.insufficientBalance')), 'warning')
             } else {
                 _ulogError('AI设计失败:', error)
                 if (shouldShowError(error)) {
-                    alert(getErrorMessage(error, t('errors.aiDesignFailed')))
+                    notify(getErrorMessage(error, t('errors.aiDesignFailed')))
                 }
             }
         } finally {
@@ -188,7 +189,7 @@ export function LocationCreationModal({
             onClose()
         } catch (error: unknown) {
             if (shouldShowError(error)) {
-                alert(getErrorMessage(error, t('errors.createFailed')))
+                notify(getErrorMessage(error, t('errors.createFailed')))
             }
         } finally {
             setIsSubmitting(false)
@@ -238,9 +239,9 @@ export function LocationCreationModal({
             onClose()
         } catch (error: unknown) {
             if (getErrorStatus(error) === 402) {
-                alert(getErrorMessage(error, t('errors.insufficientBalance')))
+                notify(getErrorMessage(error, t('errors.insufficientBalance')), 'warning')
             } else if (shouldShowError(error)) {
-                alert(getErrorMessage(error, t('errors.createFailed')))
+                notify(getErrorMessage(error, t('errors.createFailed')))
             }
         } finally {
             setIsSubmitting(false)
@@ -294,9 +295,9 @@ export function LocationCreationModal({
             onClose()
         } catch (error: unknown) {
             if (getErrorStatus(error) === 402) {
-                alert(getErrorMessage(error, t('errors.insufficientBalance')))
+                notify(getErrorMessage(error, t('errors.insufficientBalance')), 'warning')
             } else if (shouldShowError(error)) {
-                alert(getErrorMessage(error, t('errors.createFailed')))
+                notify(getErrorMessage(error, t('errors.createFailed')))
             }
         } finally {
             setIsSubmitting(false)

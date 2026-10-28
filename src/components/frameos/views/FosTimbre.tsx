@@ -363,14 +363,14 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
           {characters.map((character) => {
             const isActive = character.id === active?.id
             const characterBound = hasBoundVoice(character)
-            return <button key={character.id} type="button" onClick={() => setActiveId(character.id)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={{ border: isActive ? '1px solid rgba(255,255,255,.4)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-bold text-white">{character.name}</span><span className={`h-2 w-2 rounded-full ${characterBound ? 'bg-[#57d49b]' : 'bg-white/15'}`} /></div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">{characterBound ? '音色已绑定' : '等待设置'} · {character.type}</div></button>
+            return <button key={character.id} type="button" onClick={() => setActiveId(character.id)} className="w-full rounded-[10px] px-3 py-2.5 text-left" style={{ border: isActive ? '1px solid rgba(255,255,255,.4)' : '1px solid transparent', background: isActive ? 'var(--fos-primary-soft)' : 'transparent' }}><div className="flex items-center justify-between gap-2"><span className="truncate text-[13px] font-bold text-white">{character.name}</span><span className={`h-2 w-2 rounded-full ${characterBound ? 'bg-[#ffffff]' : 'bg-white/15'}`} /></div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">{characterBound ? '音色已绑定' : '等待设置'} · {character.type}</div></button>
           })}
         </div>
       </aside>
 
       <article className="min-h-0 overflow-y-auto p-6">
         {active ? <>
-          <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
+          <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-white/10 text-neutral-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
 
           <div className="fos-timbre-tabs mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-[var(--fos-border-soft)]">
             {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? '#fff' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}</button>)}

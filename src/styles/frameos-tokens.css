@@ -9,57 +9,57 @@
 
 [data-theme="frameos-dark"] {
   /* ---- 1.1 背景色层级 ---- */
-  --fos-bg-1: #0a0a0a;        /* 页面最底层 */
-  --fos-bg-2: #141414;        /* 卡片 / 面板 / 主内容容器 */
-  --fos-bg-3: #1d1e1f;        /* 悬浮层 / 弹窗 / 下拉 / popover */
-  --fos-bg-4: #303030;        /* 填充块（输入框填充态、tag 背景） */
-  --fos-bg-5: #262727;        /* 浅填充（hover 态） */
-  --fos-bg-6: #424243;        /* 深填充（强调块） */
+  --fos-bg-1: #000000;        /* 页面最底层 */
+  --fos-bg-2: #181818;        /* 卡片 / 面板 / 主内容容器 */
+  --fos-bg-3: #1f1f1f;        /* 悬浮层 / 弹窗 / 下拉 / popover */
+  --fos-bg-4: #272727;        /* 填充块（输入框填充态、tag 背景） */
+  --fos-bg-5: #313131;        /* 浅填充（hover 态） */
+  --fos-bg-6: #3a3a3a;        /* 深填充（强调块） */
   --fos-fill-lighter: #1d1d1d;
   --fos-fill-extra-light: #191919;
   --fos-mask: rgba(0, 0, 0, 0.8);
 
   /* ---- 1.2 文字色层级 ---- */
-  --fos-text-title: #ebebeb;     /* 标题 / 主文字 */
+  --fos-text-title: #ffffff;     /* 标题 / 主文字 */
   --fos-text-regular: #d4d4d4;   /* 常规正文 */
-  --fos-text-secondary: #a6a6a6; /* 次级文字 */
-  --fos-text-tertiary: #8c8c8c;  /* 占位符 / 三级文字 */
-  --fos-text-disabled: #6c6c6c;  /* 禁用文字 */
+  --fos-text-secondary: #9b9b9b; /* 次级文字 */
+  --fos-text-tertiary: #858585;  /* 占位符 / 三级文字 */
+  --fos-text-disabled: #6e6e6e;  /* 禁用文字 */
 
   /* ---- 1.3 主题色 / 品牌色 ---- */
-  --fos-primary: #3265ff;          /* token 源头品牌主色 */
-  --fos-primary-interactive: #3265ff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
-  --fos-primary-light-5: #7d9dff;  /* hover 高亮 */
-  --fos-primary-light-7: #a9bfff;
-  --fos-primary-light-8: #cbd8ff;
-  --fos-primary-light-9: #e6ecff;
-  --fos-primary-dark-2: #2a56d6;   /* 按下态 / 渐变终点 */
+  --fos-primary: #ffffff;          /* token 源头品牌主色 */
+  --fos-primary-interactive: #ffffff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
+  --fos-primary-light-5: #e2e2e2;  /* hover 高亮 */
+  --fos-primary-light-7: #c9c9c9;
+  --fos-primary-light-8: #dcdcdc;
+  --fos-primary-light-9: #ededed;
+  --fos-primary-dark-2: #e2e2e2;   /* 按下态 / 渐变终点 */
 
-  --fos-gradient-primary: linear-gradient(270deg, #8109ff 15%, #3265ff);
-  --fos-gradient-primary-hover: linear-gradient(270deg, #7107e0 15%, #2a56d6);
-  --fos-gradient-purple: linear-gradient(135deg, #9333ea, #7c3aed);
-  --fos-gradient-success: linear-gradient(135deg, #10b981, #059669);
+  --fos-gradient-primary: #ffffff;
+  --fos-gradient-primary-hover: #e2e2e2;
+  --fos-gradient-purple: #ffffff;
+  --fos-gradient-success: #ffffff;
 
   /* ---- 1.4 状态色 ---- */
-  --fos-success: #10b981;
-  --fos-success-light: #34d399;
-  --fos-success-dark: #059669;
-  --fos-warning: #f59e0b;
-  --fos-warning-light: #fbbf24;
-  --fos-warning-dark: #d97706;
-  --fos-danger: #ef4444;
-  --fos-danger-light: #f87171;
-  --fos-danger-dark: #dc2626;
-  --fos-info: #909399;
+  --fos-success: #ffffff;
+  --fos-success-light: #ffffff;
+  --fos-success-dark: #e2e2e2;
+  --fos-warning: #d6d6d6;
+  --fos-warning-light: #e2e2e2;
+  --fos-warning-dark: #b4b4b4;
+  --fos-danger: #e5484d;
+  --fos-danger-light: #ff8589;
+  --fos-danger-dark: #c93c41;
+  --fos-info: #939393;
 
   /* ---- 1.5 边框色 ---- */
-  --fos-border: #4c4d4f;
+  --fos-border: #313131;
   --fos-border-hover: rgba(255, 255, 255, 0.3);
-  --fos-border-darker: #636466;
-  --fos-border-dark: #58585b;
-  --fos-border-light: #414243;
-  --fos-border-lighter: #363637;
-  --fos-border-extra-light: #2b2b2c;
+  --fos-border-darker: #4a4a4a;
+  --fos-border-dark: #3f3f3f;
+  --fos-border-light: #313131;
+  --fos-border-lighter: #272727;
+  --fos-border-extra-light: #1f1f1f;
 
   /* ---- 1.6 滚动条 ---- */
   --fos-scrollbar-thumb: rgba(255, 255, 255, 0.2);
@@ -67,9 +67,7 @@
   --fos-scrollbar-track: rgba(255, 255, 255, 0.05);
 
   /* ---- 2 字体 ---- */
-  --fos-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "Helvetica Neue", Arial, "Noto Sans", sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --fos-font-sans: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   --fos-fs-10: 10px;
   --fos-fs-11: 11px;
   --fos-fs-12: 12px;
@@ -83,7 +81,7 @@
   /* ---- 4 圆角 ---- */
   --fos-radius-tag: 4px;
   --fos-radius-control: 8px;   /* 输入框 / 按钮 */
-  --fos-radius-card: 10px;     /* 卡片 / 面板（全局最高频） */
+  --fos-radius-card: 12px;     /* 卡片 / 面板（全局最高频） */
   --fos-radius-card-lg: 12px;  /* 大卡片 / 对话框 */
   --fos-radius-pill: 9999px;
 
@@ -94,7 +92,7 @@
   --fos-shadow-overlay: 0px 12px 32px 4px rgba(0, 0, 0, 0.36), 0px 8px 20px rgba(0, 0, 0, 0.72);
 
   /* ---- 6 过渡 ---- */
-  --fos-transition-fast: all 0.15s ease;
+  --fos-transition-fast: background-color .3s cubic-bezier(0.22, 1, 0.36, 1), border-color .3s cubic-bezier(0.22, 1, 0.36, 1), color .3s cubic-bezier(0.22, 1, 0.36, 1);
   --fos-transition-base: all 0.2s ease;
   --fos-transition-slow: all 0.3s ease;
 
@@ -174,7 +172,7 @@
 .fos-btn-primary {
   background: var(--fos-gradient-primary);
   border-color: transparent;
-  color: #fff;
+  color: #000;
 }
 .fos-btn-primary:hover {
   background: var(--fos-gradient-primary-hover);

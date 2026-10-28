@@ -117,7 +117,7 @@ function resolutionLabel(value: string) {
 
 function SelectField({ label, value, options, onChange, loading = false }: { label: string; value: string; options: Array<{ value: string; label: string; disabled?: boolean }>; onChange: (value: string) => void; loading?: boolean }) {
   const hasSelectable = options.some((option) => !option.disabled)
-  return <label className="block"><span className="mb-2 block text-[13px] font-medium text-white">{label}</span><select className="fos-input" disabled={loading || !hasSelectable} value={value} onChange={(event) => onChange(event.target.value)}>{!hasSelectable ? <option value="">{loading ? '正在读取模型…' : '暂无已配置模型'}</option> : null}{options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select>{!loading && !hasSelectable ? <span className="mt-1.5 block text-[11px] leading-5 text-amber-300/80">请让平台管理员先在“服务配置 → 业务模型路由”中接入对应模型。</span> : null}</label>
+  return <label className="block"><span className="mb-2 block text-[13px] font-medium text-white">{label}</span><select className="fos-input" disabled={loading || !hasSelectable} value={value} onChange={(event) => onChange(event.target.value)}>{!hasSelectable ? <option value="">{loading ? '正在读取模型…' : '暂无已配置模型'}</option> : null}{options.map((option) => <option key={option.value} value={option.value} disabled={option.disabled}>{option.label}</option>)}</select>{!loading && !hasSelectable ? <span className="mt-1.5 block text-[11px] leading-5 text-neutral-300/80">请让平台管理员先在“服务配置 → 业务模型路由”中接入对应模型。</span> : null}</label>
 }
 
 function SegRow({ label, options, value, onChange, formatOption }: { label: string; options: string[]; value: string; onChange: (value: string) => void; formatOption?: (value: string) => string }) {
@@ -182,10 +182,10 @@ function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintTo
           const typeLabel = material.type === 'image' ? '图' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'
           return (
             <div key={material.id} className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-[var(--fos-border-mid)] bg-black/30" title={`${index + 1}. ${material.title || '未命名素材'} · ${material.type}`}>
-              {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : src && material.type === 'video' ? <video src={src} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-neutral-200/55" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-violet-200/55" /> : <AppIcon name="image" className="h-7 w-7 text-white/25" />}
+              {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : src && material.type === 'video' ? <video src={src} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-neutral-200/55" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-neutral-200/55" /> : <AppIcon name="image" className="h-7 w-7 text-white/25" />}
               {voiceState ? (
                 <span
-                  className={`toolbox-ref-voice-badge absolute left-1 top-1 z-[2] inline-flex max-w-[44px] items-center gap-px overflow-hidden rounded border px-0.5 py-0.5 text-[8px] font-bold leading-none${voiceState === 'bound' ? ' border-violet-300/40 bg-violet-950/90 text-violet-100' : ' border-amber-300/45 bg-amber-950/90 text-amber-200'}`}
+                  className={`toolbox-ref-voice-badge absolute left-1 top-1 z-[2] inline-flex max-w-[44px] items-center gap-px overflow-hidden rounded border px-0.5 py-0.5 text-[8px] font-bold leading-none${voiceState === 'bound' ? ' border-white/[0.24] bg-neutral-900/90 text-white' : ' border-white/[0.24] bg-neutral-900/90 text-neutral-200'}`}
                   title={voiceState === 'bound'
                     ? `已绑定角色音色${material.voice?.title ? `：${material.voice.title}` : ''}；全能参考且开启声音时会自动带入`
                     : '该角色未绑定音色；全能参考时不会带入音频'}
@@ -203,7 +203,7 @@ function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintTo
         })}
         <button type="button" disabled={disabled || limit <= 0 || materials.length >= limit} aria-label={`选择${label.replace(/（.*?）/g, '')}`} onClick={onAdd} className="flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--fos-border-strong)] text-[var(--fos-text-4)] hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="plus" className="h-5 w-5" /><span className="text-[10px]">{disabled ? '模型不支持' : '素材库/本地'}</span></button>
       </div>
-      {hint ? <p className={`mt-1.5 text-[10px] leading-4${hintTone === 'warning' ? ' text-amber-300/90' : ' text-[var(--fos-text-4)]'}`}>{hint}</p> : null}
+      {hint ? <p className={`mt-1.5 text-[10px] leading-4${hintTone === 'warning' ? ' text-neutral-300/90' : ' text-[var(--fos-text-4)]'}`}>{hint}</p> : null}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { useSession } from 'next-auth/react'
@@ -174,10 +175,10 @@ function WorkflowProgress({
   const safeProgress = Math.max(0, Math.min(100, Math.floor(progress)))
   const running = tone === 'running'
   const accent = tone === 'failed'
-    ? '#ff7272'
+    ? '#ff8589'
     : tone === 'done'
-      ? '#5bd39a'
-      : '#3265ff'
+      ? '#b4b4b4'
+      : '#ffffff'
   const statusLabel = running
     ? '实时处理中'
     : tone === 'done'
@@ -192,8 +193,8 @@ function WorkflowProgress({
       style={{
         borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(255,255,255,.14)',
         background: tone === 'failed'
-          ? 'linear-gradient(145deg, rgba(92, 28, 42, .28), rgba(28,28,28,.88))'
-          : 'radial-gradient(circle at 92% 0%, rgba(255,255,255,.1), transparent 42%), linear-gradient(145deg, rgba(40,40,40,.92), rgba(25,25,25,.94))',
+          ? 'rgba(229, 72, 77, .06)'
+          : '#181818',
       }}
       data-testid="workflow-progress-card"
     >
@@ -201,7 +202,7 @@ function WorkflowProgress({
         <div className="flex items-center gap-2 text-[12px] font-bold text-white">
           <span
             className={`h-2 w-2 rounded-full ${running ? 'animate-pulse' : ''}`}
-            style={{ background: accent, boxShadow: `0 0 12px ${accent}` }}
+            style={{ background: accent }}
           />
           {statusLabel}
         </div>
@@ -213,9 +214,8 @@ function WorkflowProgress({
           style={{
             width: `${safeProgress}%`,
             background: tone === 'failed'
-              ? 'linear-gradient(90deg, #ff6464, #ff8a8a)'
-              : 'linear-gradient(90deg, #3265ff, #3265ff 58%, #5bd5c4)',
-            boxShadow: running ? '0 0 16px rgba(0,0,0,.35)' : 'none',
+              ? '#e5484d'
+              : '#ffffff',
           }}
         />
       </div>
@@ -426,7 +426,12 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
   const handleAssetExtraction = async () => {
     if (!canEditAssets || !scriptReady || assetActive) return
     if (assetReady) {
-      const confirmed = window.confirm('重新解析会替换当前作品的角色、物品和环境资产，已有资产图片可能被移除。确定继续吗？')
+      const confirmed = await confirmAction({
+        title: '重新解析资产？',
+        message: '会替换当前作品的角色、物品和环境资产，已有资产图片可能被移除。',
+        confirmLabel: '重新解析',
+        danger: true,
+      })
       if (!confirmed) return
     }
     setSubmittingAssets(true)
@@ -454,7 +459,12 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
     if (!canEditStoryboards || !canStartStoryboard || storyboardActive) return
     let targetEpisodes = data.episodes.filter((episode) => (episode.storyboardCount || 0) === 0)
     if (targetEpisodes.length === 0) {
-      const confirmed = window.confirm('所有分集都已有分镜。重新生成会替换现有分镜内容，确定继续吗？')
+      const confirmed = await confirmAction({
+        title: '重新生成全部分镜？',
+        message: '所有分集都已有分镜，重新生成会替换现有分镜内容。',
+        confirmLabel: '重新生成',
+        danger: true,
+      })
       if (!confirmed) return
       targetEpisodes = data.episodes
     }
@@ -556,7 +566,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                 >
                   <div className="text-[12px] font-bold text-white">{label}</div>
                   <div className="min-w-0">
-                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[#59c98d]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
+                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[#b4b4b4]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
                     <div className="mt-0.5 truncate text-[10px] text-[var(--fos-text-4)]">{detail}</div>
                   </div>
                   <Link href={{ pathname: `${base}/assets/${href}` }} className="fos-btn fos-btn-soft fos-btn-sm">{label === '音色' ? '设置' : '查看'}</Link>

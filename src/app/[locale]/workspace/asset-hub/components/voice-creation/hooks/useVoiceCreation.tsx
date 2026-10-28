@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useState, useRef, useCallback } from 'react'
 import { useTranslations } from 'next-intl'
 import {
@@ -98,7 +99,7 @@ export function useVoiceCreation({ isOpen, folderId, onClose, onSuccess, initial
             const errMsg = err instanceof Error ? err.message : 'Unknown error'
             const status = (err as Error & { status?: number }).status
             if (status === 402) {
-                alert(t('insufficientBalance') + '\n\n' + t('insufficientBalanceDetail'))
+                notify(t('insufficientBalance') + '\n\n' + t('insufficientBalanceDetail'), 'warning')
             } else if (errMsg === 'VOICE_DESIGN_EMPTY_RESULT') {
                 setError(tv('noVoiceGenerated'))
             } else if (errMsg !== 'INSUFFICIENT_BALANCE') {

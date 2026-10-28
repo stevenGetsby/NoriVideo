@@ -37,6 +37,7 @@ import { useCanvasEditor, type CanvasNodeAction } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
 import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog'
+import { CanvasNodeVideo } from './CanvasNodeVideo'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { getCanvasCurrentCostLabel, isCanvasPanoramaNodeData } from '../types'
 import type { CanvasGenerationReferenceSummary } from '../types'
@@ -339,7 +340,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         ) : null}
         {mediaType === 'video' && videoUrl ? (
           <>
-            <video key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} controls playsInline preload="metadata" className="nodrag nowheel" onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} />
+            <CanvasNodeVideo key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} onExpand={() => editor.runNodeAction(id, 'preview')} onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} />
             {videoFailed ? <div className="nori-canvas-video-load-error nodrag nowheel" role="status"><Film /><span>视频已生成，播放加载失败</span><button type="button" onClick={(event) => { event.stopPropagation(); setVideoFailed(false); setVideoAttempt((value) => value + 1) }}><RefreshCw />重新加载</button><button type="button" onClick={() => editor.runNodeAction(id, 'preview')}>打开预览</button></div> : null}
           </>
         ) : null}

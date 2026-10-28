@@ -6,6 +6,7 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import { useDismissableDialog } from '@/components/ui/useDismissableDialog'
 
 export type AssetTab = 'characters' | 'items' | 'environments' | 'timbre'
 
@@ -36,19 +37,19 @@ export function AssetPlaceholder({ kind }: { kind: AssetTab }) {
   if (kind === 'items') {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[#f4f4f4]">
-        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-gradient-to-r from-[#cfcfcf] via-[#f6f6f6] to-[#a9a9a9] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
+        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-[#d9d9d9] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
       </div>
     )
   }
   if (kind === 'environments') {
     return (
-      <div className="grid h-full w-full grid-cols-2 bg-[#1d1915]">
-        <div className="relative overflow-hidden bg-[#2a231d]">
-          <div className="absolute inset-x-0 top-0 h-10 bg-[#3a3028]" />
-          <div className="absolute bottom-0 inset-x-0 h-12 bg-[#443424]" />
-          <div className="absolute right-10 top-12 h-24 w-20 rounded-full bg-[#d58f3a]/30 blur-2xl" />
+      <div className="grid h-full w-full grid-cols-2 bg-[#1a1a1a]">
+        <div className="relative overflow-hidden bg-[#242424]">
+          <div className="absolute inset-x-0 top-0 h-10 bg-[#323232]" />
+          <div className="absolute bottom-0 inset-x-0 h-12 bg-[#373737]" />
+          <div className="absolute right-10 top-12 h-24 w-20 rounded-full bg-[#ffffff]/30 blur-2xl" />
         </div>
-        <div className="bg-[linear-gradient(135deg,#342515,#0f0d0b_70%)] p-5"><div className="h-full rounded-sm border border-[#6a4d2d]/40 bg-[#211812]/70" /></div>
+        <div className="bg-[linear-gradient(135deg,#282828,#0f0d0b_70%)] p-5"><div className="h-full rounded-sm border border-[#535353]/40 bg-[#1a1a1a]/70" /></div>
       </div>
     )
   }
@@ -88,6 +89,7 @@ export function AddAssetDialog({
   const [selectedEpisodes, setSelectedEpisodes] = useState<Set<number>>(() => new Set())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { requestClose, onBackdropMouseDown } = useDismissableDialog({ onClose, busy: submitting, dirty: Boolean(name.trim() || background.trim()) })
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -140,11 +142,11 @@ export function AddAssetDialog({
       ? [['personal', '随身物品'], ['plot', '剧情道具'], ['environmental', '环境物件']]
       : [['interior', '室内'], ['exterior', '室外'], ['mixed', '内外景']]
   return (
-    <div className="fos-overlay" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <form className="fos-dialog" style={{ maxWidth: 520 }} onSubmit={submit}>
+    <div className="fos-overlay" onMouseDown={onBackdropMouseDown}>
+      <form className="fos-dialog" style={{ maxWidth: 520 }} onSubmit={submit} role="dialog" aria-modal="true" aria-label={labels.title}>
         <div className="fos-dialog-head">
           <div className="fos-dialog-title">{labels.title}</div>
-          <button type="button" className="fos-dialog-x" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
+          <button type="button" className="fos-dialog-x" aria-label="关闭" disabled={submitting} onClick={() => void requestClose()}><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
         <div className="fos-dialog-body" style={{ display: 'grid', gap: 14 }}>
           <div>
@@ -161,7 +163,7 @@ export function AddAssetDialog({
           <div>
             <div className="mb-1.5 text-[13px] font-semibold text-white">出场集</div>
             <button type="button" className="fos-btn fos-btn-ghost w-full justify-between" onClick={() => setEpisodesOpen((v) => !v)}>
-              <span>选择出场集</span><AppIcon name="chevronDown" className="h-4 w-4" />
+              <span>{selectedEpisodes.size ? `已选 ${selectedEpisodes.size} 集：${[...selectedEpisodes].sort((a, b) => a - b).map((n) => `E${n}`).join('、')}` : '选择出场集（可选）'}</span><AppIcon name="chevronDown" className={`h-4 w-4 transition-transform${episodesOpen ? ' rotate-180' : ''}`} />
             </button>
             {episodesOpen ? (
               <div className="mt-2 flex flex-wrap gap-1.5 rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">
@@ -191,10 +193,10 @@ export function AddAssetDialog({
             <div className="mb-1.5 text-[13px] font-semibold text-white">{labels.bgLabel}</div>
             <textarea className="fos-textarea" style={{ minHeight: 90 }} value={background} onChange={(e) => setBackground(e.target.value)} placeholder={`请输入${labels.bgLabel}`} />
           </div>
-          {error ? <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[#ff8589]">{error}</div> : null}
         </div>
         <div className="fos-dialog-foot">
-          <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose} disabled={submitting}>取消</button>
+          <button type="button" className="fos-btn fos-btn-ghost" onClick={() => void requestClose()} disabled={submitting}>取消</button>
           <button type="submit" className="fos-btn fos-btn-primary" disabled={!name.trim() || submitting}>{submitting ? '创建中…' : '确定'}</button>
         </div>
       </form>
@@ -222,6 +224,7 @@ export function AddCharacterVariantDialog({
   const [selectedEpisodes, setSelectedEpisodes] = useState<Set<number>>(() => new Set())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { requestClose, onBackdropMouseDown } = useDismissableDialog({ onClose, busy: submitting, dirty: Boolean(label.trim() || description.trim()) })
 
   const submit = async (event: FormEvent) => {
     event.preventDefault()
@@ -250,30 +253,31 @@ export function AddCharacterVariantDialog({
   }
 
   return (
-    <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
-      <form className="fos-dialog" style={{ maxWidth: 540 }} onSubmit={submit}>
+    <div className="fos-overlay" onMouseDown={onBackdropMouseDown}>
+      <form className="fos-dialog" style={{ maxWidth: 540 }} onSubmit={submit} role="dialog" aria-modal="true" aria-label="新增角色变体">
         <div className="fos-dialog-head">
           <div><div className="fos-dialog-title">新增角色变体</div><div className="mt-1 text-[11px] text-[var(--fos-text-4)]">{characterName} · 只描述相对主形象发生的变化</div></div>
-          <button type="button" className="fos-dialog-x" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
+          <button type="button" className="fos-dialog-x" aria-label="关闭" disabled={submitting} onClick={() => void requestClose()}><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
         <div className="fos-dialog-body grid gap-4">
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">变体名称</span><input className="fos-input" autoFocus value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：雨夜逃亡、受伤后、宴会礼服" /></label>
           <div><span className="mb-1.5 block text-[13px] font-semibold text-white">对应分集</span><div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">{episodeNumbers.map((episodeNumber) => <button key={episodeNumber} type="button" aria-pressed={selectedEpisodes.has(episodeNumber)} className="h-7 w-10 rounded-md text-[11px] font-bold" style={{ background: selectedEpisodes.has(episodeNumber) ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)', color: selectedEpisodes.has(episodeNumber) ? '#fff' : 'var(--fos-text-3)' }} onClick={() => setSelectedEpisodes((current) => { const next = new Set(current); if (next.has(episodeNumber)) next.delete(episodeNumber); else next.add(episodeNumber); return next })}>E{episodeNumber}</button>)}</div></div>
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">形象变化与生图提示词</span><textarea className="fos-textarea" style={{ minHeight: 150 }} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="例如：保持脸型、五官和体型不变；服装被暴雨浸湿，发丝贴脸，右手掌有擦伤……" /></label>
-          {error ? <div className="rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[#ff8589]">{error}</div> : null}
         </div>
-        <div className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={onClose}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={!label.trim() || !description.trim() || submitting}>{submitting ? '创建中…' : '添加变体'}</button></div>
+        <div className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={() => void requestClose()}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={!label.trim() || !description.trim() || submitting}>{submitting ? '创建中…' : '添加变体'}</button></div>
       </form>
     </div>
   )
 }
 
 export function ImageZoom({ onClose, children }: { onClose: () => void; children: React.ReactNode }) {
+  useDismissableDialog({ onClose })
   return (
-    <div className="fos-overlay" onMouseDown={onClose}>
+    <div className="fos-overlay" role="dialog" aria-modal="true" aria-label="查看大图" onMouseDown={onClose}>
       <div className="relative max-h-[90vh] max-w-[90vw] overflow-hidden rounded-[12px] border border-[var(--fos-border-mid)]" style={{ width: 720, aspectRatio: '16/9' }} onMouseDown={(e) => e.stopPropagation()}>
         {children}
-        <button type="button" className="fos-dialog-x absolute right-2 top-2 bg-black/50" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
+        <button type="button" className="fos-dialog-x absolute right-2 top-2 bg-black/50" aria-label="关闭大图" onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
       </div>
     </div>
   )

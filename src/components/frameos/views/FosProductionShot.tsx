@@ -389,7 +389,7 @@ export function FosProductionShot({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-[#e5e5e5]">{shot.scene} · Segment {String(shot.panelNumber ?? shot.panelIndex + 1).padStart(2, '0')}</span>
-                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[#62d99b]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
+                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[#c3c3c3]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
                   </div>
                   <div className="mt-1.5 truncate text-[13px] font-bold text-white">{shot.title}</div>
                   <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--fos-text-4)]">
@@ -428,7 +428,7 @@ export function FosProductionShot({
               </div>
               {centerTab === 'history' ? (
                 <div className="space-y-2 py-4">
-                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[#62d99b]' : task.status === 'failed' ? 'text-red-300' : 'text-[#e5e5e5]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
+                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[#c3c3c3]' : task.status === 'failed' ? 'text-red-300' : 'text-[#e5e5e5]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
                   {tasks.length === 0 ? <div className="py-8 text-center text-[12px] text-[var(--fos-text-4)]">暂无生成记录</div> : null}
                 </div>
               ) : null}
@@ -473,7 +473,7 @@ export function FosProductionShot({
                 <label><span className="mb-1 block text-[10px] text-[var(--fos-text-4)]">视频秒数</span><select className="fos-input h-8 text-[11px]" value={duration} disabled={!canEdit} onChange={(event) => setDuration(Number(event.target.value))}>{(durations.length ? durations : [4, 5, 6, 8, 10, 12, 15]).map((item) => <option key={item} value={item}>{item}s</option>)}</select></label>
               </div>
               {currentModel?.supportGenerateAudio || locksGeneratedAudio ? <label className="mt-3 flex items-center gap-2 text-[11px] text-[var(--fos-text-3)]"><input type="checkbox" checked={generateAudio} disabled={!canEdit || locksGeneratedAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="accent-[#e5e5e5]" />{locksGeneratedAudio ? `已自动注入角色音色：@${boundVoiceNames.join('、@')}` : '同步生成声音'}</label> : null}
-              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[.08] px-3 py-2 text-[10px] leading-5 text-amber-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0/2.5。</div> : null}
+              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-white/20 bg-white/[.08] px-3 py-2 text-[10px] leading-5 text-neutral-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0/2.5。</div> : null}
 
               <div className="mt-4 rounded-[10px] border border-white/15 bg-white/[.08] p-3">
                 <div className="flex items-center justify-between text-[11px]"><span className="font-bold text-white">下一步 · 剪辑</span><strong className="text-[#e5e5e5]">{readyVideoCount} / {shots.length} 个 Segment 可用</strong></div>

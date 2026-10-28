@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
@@ -90,12 +91,12 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
 }
 
 const ROLE_TONES: Record<AccountRole, string> = {
-  super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
-  admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
+  super_admin: 'border-white/[0.24] bg-white/[.09] text-neutral-200',
+  admin: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
   writer: 'border-white/15 bg-white/[.08] text-neutral-200',
-  asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
-  storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
-  reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
+  asset: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  storyboard: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  reviewer: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
 }
 
 function roleDefinition(role: AccountRole) {
@@ -123,8 +124,8 @@ function formatNumber(value: number) {
 function Credits({ credits }: { credits: AccountCredits }) {
   return (
     <span className="flex items-center gap-2 text-[10px] text-white/55">
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>{credits.coins}</span>
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] not-italic text-black">¥</i>{credits.coins}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[8px] not-italic text-black">◆</i>{credits.points}</span>
     </span>
   )
 }
@@ -290,7 +291,12 @@ export function FosAccountManagementClient() {
   }
 
   const deleteAccount = async (account: ManagedAccount) => {
-    if (!window.confirm(`确定删除子账号“${account.username}”吗？此操作不可撤销。`)) return
+    if (!await confirmAction({
+      title: `删除子账号「${account.username}」？`,
+      message: '删除后该账号将无法登录，此操作不可撤销。',
+      confirmLabel: '删除',
+      danger: true,
+    })) return
     setDeletingId(account.id)
     setPageError('')
     try {
@@ -338,7 +344,7 @@ export function FosAccountManagementClient() {
           </div>
 
           <PermissionMatrix />
-          {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-[12px] text-emerald-200">{pageNotice}</div> : null}
+          {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-white/20 bg-white/10 px-4 py-3 text-[12px] text-neutral-200">{pageNotice}</div> : null}
 
           {pageError ? (
             <div className="mb-4 flex items-center justify-between rounded-[9px] border border-red-400/20 bg-red-400/10 px-4 py-3 text-[12px] text-red-200">
@@ -373,8 +379,8 @@ export function FosAccountManagementClient() {
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
                       </div>
                       <span className={`w-fit max-w-full truncate rounded-full border px-2 py-1 text-[10px] font-semibold ${ROLE_TONES[account.role]}`} title={account.roleLabel || definition.shortLabel}>{account.roleLabel || definition.shortLabel}</span>
-                      <span className={`flex w-fit items-center gap-1.5 text-[10px] ${account.status === 'active' ? 'text-emerald-300' : 'text-white/35'}`}>
-                        <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-emerald-400' : 'bg-white/25'}`} />
+                      <span className={`flex w-fit items-center gap-1.5 text-[10px] ${account.status === 'active' ? 'text-neutral-300' : 'text-white/35'}`}>
+                        <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-white' : 'bg-white/25'}`} />
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
                       <Credits credits={account.credits} />

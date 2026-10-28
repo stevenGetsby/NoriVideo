@@ -1,4 +1,5 @@
 'use client'
+import { notify } from '@/lib/ui/feedback'
 import { logError as _ulogError } from '@/lib/logging/core'
 
 /**
@@ -84,7 +85,7 @@ export function CharacterEditModal({
         } catch (error: unknown) {
             if (shouldShowError(error)) {
                 const message = error instanceof Error ? error.message : String(error)
-                alert(t('modal.modifyFailed') + ': ' + message)
+                notify(t('modal.modifyFailed') + ': ' + message)
             }
         } finally {
             setIsAiModifying(false)
@@ -100,7 +101,7 @@ export function CharacterEditModal({
             {
                 onError: (error) => {
                     if (shouldShowError(error)) {
-                        alert(t('modal.saveName') + t('errors.failed'))
+                        notify(t('modal.saveName') + t('errors.failed'))
                     }
                 }
             }
@@ -128,7 +129,7 @@ export function CharacterEditModal({
             onClose()
         } catch (error: unknown) {
             if (shouldShowError(error)) {
-                alert(t('errors.saveFailed'))
+                notify(t('errors.saveFailed'))
             }
         } finally {
             setIsSaving(false)
@@ -164,7 +165,7 @@ export function CharacterEditModal({
                 } catch (error: unknown) {
                     _ulogError('保存并生成失败:', error)
                     if (shouldShowError(error)) {
-                        alert(t('errors.saveFailed'))
+                        notify(t('errors.saveFailed'))
                     }
                 }
             })()

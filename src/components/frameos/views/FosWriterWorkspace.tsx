@@ -1,5 +1,6 @@
 'use client'
 
+import { confirmAction } from '@/lib/ui/feedback'
 import { useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { AppIcon } from '@/components/ui/icons'
@@ -76,13 +77,19 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
     onNotice('剧本已导出为 TXT 文件')
   }
 
-  const deleteScript = () => {
+  const deleteScript = async () => {
     if (!activeScript) return
+    setMoreOpen(false)
+    if (!await confirmAction({
+      title: `删除剧本「${activeScript.title || '未命名剧本'}」？`,
+      message: `剧本及其 ${activeScript.episodes.length} 集内容会被永久删除，无法恢复。不想再看到它可以改用「归档」。`,
+      confirmLabel: '删除剧本',
+      danger: true,
+    })) return
     setScripts((current) => current.filter((script) => script.id !== activeScript.id))
     const next = filtered.find((script) => script.id !== activeScript.id)
     setActiveId(next?.id ?? '')
     setActiveEpisodeId(next?.episodes[0]?.id ?? '')
-    setMoreOpen(false)
     void onDeleteScript?.(activeScript.id)
     onNotice('剧本已删除')
   }
@@ -99,14 +106,23 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
     setActiveEpisodeId(id)
   }
 
-  const deleteEpisode = (episodeId: string) => {
+  const deleteEpisode = async (episodeId: string) => {
     if (!activeScript || activeScript.episodes.length <= 1) {
       onNotice('剧本至少需要保留 1 集')
       return
     }
+    const index = activeScript.episodes.findIndex((episode) => episode.id === episodeId)
+    const target = activeScript.episodes[index]
+    if (!target) return
+    if (target.body.trim() && !await confirmAction({
+      title: `删除「${target.title || `第 ${index + 1} 集`}」？`,
+      message: '这一集已写的正文会被删除，无法恢复。',
+      confirmLabel: '删除分集',
+      danger: true,
+    })) return
     const nextEpisodes = activeScript.episodes.filter((episode) => episode.id !== episodeId)
     updateScript((script) => ({ ...script, updatedAt: '刚刚', episodes: nextEpisodes }))
-    setActiveEpisodeId(nextEpisodes[0]?.id ?? '')
+    if (episodeId === activeEpisode?.id) setActiveEpisodeId(nextEpisodes[Math.min(index, nextEpisodes.length - 1)]?.id ?? '')
   }
 
   return (
@@ -189,7 +205,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
                       {activeScript.status === 'archived'
                         ? <button type="button" className="fos-menu-item" onClick={() => moveTo('draft')}><AppIcon name="undo" className="h-3.5 w-3.5" />取消归档</button>
                         : <button type="button" className="fos-menu-item" onClick={() => moveTo('archived')}><AppIcon name="package" className="h-3.5 w-3.5" />归档</button>}
-                      <button type="button" className="fos-menu-item writer-delete-item" onClick={deleteScript}><AppIcon name="trash" className="h-3.5 w-3.5" />删除剧本</button>
+                      <button type="button" className="fos-menu-item writer-delete-item" onClick={() => void deleteScript()}><AppIcon name="trash" className="h-3.5 w-3.5" />删除剧本</button>
                     </div>
                   ) : null}
                 </div>
@@ -207,7 +223,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
                           <span className="rail-ep-title">{episode.title || '未命名分集'}</span>
                         </button>
                         <div className="rail-item-actions">
-                          <button type="button" className="rail-action-btn rail-action-btn--danger" title="删除分集" onClick={() => deleteEpisode(episode.id)}><AppIcon name="trash" className="h-3 w-3" /></button>
+                          <button type="button" className="rail-action-btn rail-action-btn--danger" title="删除分集" aria-label={`删除${episode.title || '分集'}`} onClick={() => void deleteEpisode(episode.id)}><AppIcon name="trash" className="h-3 w-3" /></button>
                         </div>
                       </div>
                     ))}

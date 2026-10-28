@@ -130,10 +130,10 @@ export const MODEL_TIER_LABELS: Record<BusinessModelDraft['tier'], string> = {
 }
 
 export const MODEL_TIER_TONES: Record<BusinessModelDraft['tier'], string> = {
-  mini: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
-  fast: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
-  standard: 'border-blue-400/25 bg-blue-400/[.08] text-blue-200',
-  pro: 'border-violet-400/25 bg-violet-400/[.09] text-violet-200',
+  mini: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  fast: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  standard: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  pro: 'border-white/[0.24] bg-white/[.09] text-neutral-200',
 }
 
 export function modelKey(model: ModelDraft) {

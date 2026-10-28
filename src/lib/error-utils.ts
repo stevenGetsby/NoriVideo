@@ -1,3 +1,4 @@
+import { notify } from '@/lib/ui/feedback'
 import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import type { UnifiedErrorCode } from '@/lib/errors/codes'
 import { getUserMessageByCode } from '@/lib/errors/user-messages'
@@ -69,11 +70,11 @@ export function safeAlert(message: string, error?: unknown): void {
 
     if (error) {
         const resolved = resolveClientError(error)
-        alert(message || resolved.message)
+        notify(message || resolved.message)
         return
     }
 
-    alert(message)
+    notify(message)
 }
 
 /**

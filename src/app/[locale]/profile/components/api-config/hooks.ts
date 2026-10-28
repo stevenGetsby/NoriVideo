@@ -1,4 +1,5 @@
 'use client'
+import { confirmAction, notify } from '@/lib/ui/feedback'
 import { logError as _ulogError } from '@/lib/logging/core'
 import { useLocale, useTranslations } from 'next-intl'
 import { apiFetch } from '@/lib/api-fetch'
@@ -600,7 +601,7 @@ export function useProviders(): UseProvidersReturn {
         setProviders(prev => {
             const normalizedProviderId = provider.id.toLowerCase()
             if (prev.some((p) => p.id.toLowerCase() === normalizedProviderId)) {
-                alert(t('providerIdExists'))
+                notify(t('providerIdExists'), 'warning')
                 return prev
             }
             const newProvider: Provider = { ...provider, hasApiKey: !!provider.apiKey }
@@ -619,12 +620,12 @@ export function useProviders(): UseProvidersReturn {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [t, performSave])
 
-    const deleteProvider = useCallback((providerId: string) => {
+    const deleteProvider = useCallback(async (providerId: string) => {
         if (PRESET_PROVIDERS.find(p => p.id === providerId)) {
-            alert(t('presetProviderCannotDelete'))
+            notify(t('presetProviderCannotDelete'), 'warning')
             return
         }
-        if (confirm(t('confirmDeleteProvider'))) {
+        if (await confirmAction({ message: t('confirmDeleteProvider'), danger: true })) {
             setProviders(prev => {
                 const next = prev.filter(p => p.id !== providerId)
                 latestProvidersRef.current = next
@@ -744,15 +745,15 @@ export function useProviders(): UseProvidersReturn {
         })
     }, [performSave])
 
-    const deleteModel = useCallback((modelKey: string, providerId?: string) => {
+    const deleteModel = useCallback(async (modelKey: string, providerId?: string) => {
         if (PRESET_MODELS.find((model) => {
             const presetModelKey = encodeModelKey(model.provider, model.modelId)
             return presetModelKey === modelKey && (providerId ? model.provider === providerId : true)
         })) {
-            alert(t('presetModelCannotDelete'))
+            notify(t('presetModelCannotDelete'), 'warning')
             return
         }
-        if (confirm(t('confirmDeleteModel'))) {
+        if (await confirmAction({ message: t('confirmDeleteModel'), danger: true })) {
             setModels(prev => {
                 const nextModels = prev.filter(m =>
                     !(m.modelKey === modelKey && (providerId ? m.provider === providerId : true))

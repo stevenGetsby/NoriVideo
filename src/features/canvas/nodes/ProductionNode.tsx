@@ -4,6 +4,7 @@ import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { MediaImage } from '@/components/media/MediaImage'
 import type { CanvasNodeData } from '../types'
+import { CanvasNodeVideo } from './CanvasNodeVideo'
 
 function readNodeData(data: NodeProps['data']): CanvasNodeData {
   return (data || {}) as CanvasNodeData
@@ -12,13 +13,13 @@ function readNodeData(data: NodeProps['data']): CanvasNodeData {
 function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'success' | 'warning' }) {
   const colors = {
     neutral: 'rgba(255,255,255,0.055)',
-    success: 'rgba(82,196,26,0.12)',
-    warning: 'rgba(250,173,20,0.12)',
+    success: 'rgba(172,172,172,0.12)',
+    warning: 'rgba(188,188,188,0.12)',
   }
   const textColors = {
     neutral: 'rgba(255,255,255,0.55)',
-    success: '#8ed06c',
-    warning: '#f2c063',
+    success: '#bfbfbf',
+    warning: '#c8c8c8',
   }
 
   return (
@@ -81,14 +82,7 @@ function ProductionNodeImpl(props: NodeProps) {
       {hasVisual ? (
         <div style={{ aspectRatio: '16 / 9', background: '#0a0a0a', position: 'relative' }}>
           {data.videoUrl ? (
-            <video
-              src={data.videoUrl}
-              muted
-              playsInline
-              controls
-              className="nodrag"
-              style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-            />
+            <CanvasNodeVideo src={data.videoUrl} fit="cover" />
           ) : (
             <MediaImage
               src={data.imageUrl || ''}

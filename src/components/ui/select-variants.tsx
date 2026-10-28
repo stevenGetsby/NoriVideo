@@ -276,7 +276,7 @@ export function SelectVariantMinimal({
                 createPortal(
                     <div
                         ref={panelRef}
-                        className="glass-surface-modal z-[9999] overflow-hidden flex flex-col rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--glass-stroke-subtle)] py-1 bg-gradient-to-b from-[var(--glass-bg-surface-strong)] to-[var(--glass-bg-surface)] backdrop-blur-md"
+                        className="glass-surface-modal z-[9999] overflow-hidden flex flex-col rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] border border-[var(--glass-stroke-subtle)] py-1 backdrop-blur-md"
                         style={panelStyle}
                     >
                         <div className="overflow-y-auto app-scrollbar px-1 py-1 max-h-full">

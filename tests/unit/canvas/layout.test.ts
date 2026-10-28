@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  CANVAS_GROUP_PADDING,
   arrangeCanvasGroupMembers,
   arrangeCanvasGroupNodes,
   arrangeCanvasNodes,
@@ -24,6 +25,105 @@ function node(id: string, x: number, y: number, selected = false): CanvasFlowNod
 function edge(source: string, target: string): CanvasFlowEdge {
   return { id: `${source}-${target}`, source, target, type: 'bezier', data: { role: 'INPUT_DEFAULT' } }
 }
+
+function typed(id: string, type: string, x: number, y: number): CanvasFlowNode {
+  return { ...node(id, x, y), type }
+}
+
+function rect(item: CanvasFlowNode) {
+  return { left: item.position.x, top: item.position.y, right: item.position.x + (item.width || 300), bottom: item.position.y + (item.height || 200) }
+}
+
+function overlappingPairs(nodes: CanvasFlowNode[]) {
+  const pairs: string[] = []
+  nodes.forEach((a, index) => nodes.slice(index + 1).forEach((b) => {
+    const left = rect(a)
+    const right = rect(b)
+    if (left.left < right.right && right.left < left.right && left.top < right.bottom && right.top < left.bottom) pairs.push(`${a.id}/${b.id}`)
+  }))
+  return pairs
+}
+
+describe('canvas content-based organize rules', () => {
+  it('lays one column per content type in production order, top aligned', () => {
+    const result = arrangeCanvasNodes(
+      [
+        typed('clip-a', 'video', 0, 0),
+        typed('shot-b', 'image', 40, 500),
+        typed('script', 'text', 900, 40),
+        typed('shot-a', 'image', 20, 120),
+        typed('clip-b', 'video', 700, 900),
+      ],
+      [],
+      'type',
+    )
+    const byId = new Map(result.map((item) => [item.id, item.position]))
+
+    expect(byId.get('script')!.x).toBeLessThan(byId.get('shot-a')!.x)
+    expect(byId.get('shot-a')!.x).toBeLessThan(byId.get('clip-a')!.x)
+    expect(byId.get('shot-a')!.x).toBe(byId.get('shot-b')!.x)
+    expect(byId.get('clip-a')!.x).toBe(byId.get('clip-b')!.x)
+    expect(byId.get('script')!.y).toBe(byId.get('shot-a')!.y)
+    expect(byId.get('shot-a')!.y).toBe(byId.get('clip-a')!.y)
+    expect(byId.get('shot-b')!.y - byId.get('shot-a')!.y).toBe(200 + 76)
+    expect(overlappingPairs(result)).toEqual([])
+  })
+
+  it('wraps a crowded type into balanced sub-columns instead of one long strip', () => {
+    const nodes = Array.from({ length: 12 }, (_, index) => typed(`shot-${index}`, 'image', 0, index * 40))
+    const result = arrangeCanvasNodes(nodes, [], 'type')
+    const columns = new Map<number, number>()
+    result.forEach((item) => columns.set(item.position.x, (columns.get(item.position.x) || 0) + 1))
+
+    expect(Array.from(columns.values())).toEqual([4, 4, 4])
+    expect(overlappingPairs(result)).toEqual([])
+  })
+
+  it('keeps a group and its members together and places groups after every content column', () => {
+    const member = typed('member', 'text', 620, 120)
+    const group: CanvasFlowNode = {
+      id: 'group', type: 'group', position: { x: 560, y: 40 }, width: 420, height: 330,
+      data: { memberIds: ['member'], title: '镜头组' },
+    }
+    const result = arrangeCanvasNodes([group, member, typed('shot', 'image', 0, 0), typed('clip', 'video', 0, 400)], [], 'type')
+    const byId = new Map(result.map((item) => [item.id, item]))
+
+    expect(byId.get('group')!.position.x).toBeGreaterThan(byId.get('clip')!.position.x)
+    expect(byId.get('member')!.position.x).toBeGreaterThan(byId.get('group')!.position.x)
+    expect(byId.get('member')!.position.x - byId.get('group')!.position.x).toBe(CANVAS_GROUP_PADDING.left)
+    expect(byId.get('member')!.position.y - byId.get('group')!.position.y).toBe(CANVAS_GROUP_PADDING.top)
+  })
+
+  it('tidies staggered rows into aligned rows while keeping row membership and order', () => {
+    const result = arrangeCanvasNodes(
+      [
+        node('a', 10, 3), node('b', 460, 40), node('c', 700, 12),
+        node('d', 90, 600), node('e', 420, 641),
+      ],
+      [],
+      'tidy',
+    )
+    const byId = new Map(result.map((item) => [item.id, item.position]))
+
+    expect(byId.get('a')!.y).toBe(byId.get('b')!.y)
+    expect(byId.get('b')!.y).toBe(byId.get('c')!.y)
+    expect(byId.get('d')!.y).toBe(byId.get('e')!.y)
+    expect(byId.get('d')!.y - byId.get('a')!.y).toBe(200 + 76)
+    expect(byId.get('a')!.x).toBe(byId.get('d')!.x)
+    expect(byId.get('b')!.x - byId.get('a')!.x).toBe(300 + 132)
+    expect(byId.get('c')!.x - byId.get('b')!.x).toBe(300 + 132)
+    expect(overlappingPairs(result)).toEqual([])
+  })
+
+  it('never overlaps nodes in any rule, even when the source is a pile at one point', () => {
+    const pile = Array.from({ length: 9 }, (_, index) => typed(`n-${index}`, ['text', 'image', 'video'][index % 3], 100, 100))
+    for (const mode of ['grid', 'horizontal', 'vertical', 'type', 'tidy'] as const) {
+      const result = arrangeCanvasNodes(pile, [edge('n-0', 'n-3'), edge('n-3', 'n-6')], mode)
+      expect(result).toHaveLength(pile.length)
+      expect(overlappingPairs(result), mode).toEqual([])
+    }
+  })
+})
 
 describe('canvas dependency layout', () => {
   it('lays a branching workflow from left to right without overlapping siblings', () => {

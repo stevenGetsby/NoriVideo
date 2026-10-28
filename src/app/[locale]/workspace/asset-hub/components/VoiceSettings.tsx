@@ -5,6 +5,7 @@
  * 支持上传自定义音频和 AI 声音设计
  */
 
+import { notify } from '@/lib/ui/feedback'
 import { useRef, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { shouldShowError } from '@/lib/error-utils'
@@ -67,7 +68,7 @@ export default function VoiceSettings({
         } catch (error: unknown) {
             if (shouldShowError(error)) {
                 const message = error instanceof Error ? error.message : String(error)
-                alert(t('voiceSettings.previewFailed', { error: message }))
+                notify(t('voiceSettings.previewFailed', { error: message }))
             }
             setIsPreviewingVoice(false)
         }
@@ -87,7 +88,7 @@ export default function VoiceSettings({
                 },
                 onError: (error) => {
                     if (shouldShowError(error)) {
-                        alert(t('voiceSettings.uploadFailed', { error: error.message }))
+                        notify(t('voiceSettings.uploadFailed', { error: error.message }))
                     }
                 },
                 onSettled: () => {

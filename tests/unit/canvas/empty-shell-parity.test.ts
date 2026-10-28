@@ -55,7 +55,7 @@ describe('FrameOS empty-project canvas shell', () => {
     expect(dock).toContain('aria-label="画布视图控制"')
     expect(dock).toContain('title="画布小地图"')
     expect(dock).toContain('title="适应画布"')
-    expect(dock).toContain('title="一键整理 · 网格整理"')
+    expect(dock).toContain('title="一键整理 · 宫格排列"')
     expect(dock).toContain('100%')
     expect(dock).not.toContain('disabled=""')
   })

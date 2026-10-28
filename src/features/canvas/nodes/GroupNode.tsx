@@ -8,7 +8,7 @@ import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 
-const DEFAULT_GROUP_COLOR = '#64748b'
+const DEFAULT_GROUP_COLOR = '#6e6e6e'
 const GROUP_COLORS: Array<string | null> = [
   null,
   '#ef4444',
@@ -60,7 +60,7 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   ), [flow, id])
 
   return (
-    <section className={`nori-canvas-group${selected ? ' is-selected' : ''}`} style={{ '--group-color': data.groupColor || '#64748b' } as React.CSSProperties}>
+    <section className={`nori-canvas-group${selected ? ' is-selected' : ''}`} style={{ '--group-color': data.groupColor || DEFAULT_GROUP_COLOR } as React.CSSProperties}>
       <span className="nori-canvas-group-drag-edge is-top" aria-hidden="true" />
       <span className="nori-canvas-group-drag-edge is-right" aria-hidden="true" />
       <span className="nori-canvas-group-drag-edge is-bottom" aria-hidden="true" />

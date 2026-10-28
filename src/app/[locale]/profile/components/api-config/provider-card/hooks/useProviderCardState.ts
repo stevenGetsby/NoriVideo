@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useState, useCallback } from 'react'
 import {
   encodeModelKey,
@@ -575,7 +576,7 @@ export function useProviderCardState({
       await onFlushConfig()
       return true
     } catch {
-      alert(t('flushConfigFailed'))
+      notify(t('flushConfigFailed'))
       return false
     }
   }, [onFlushConfig, t])
@@ -583,7 +584,7 @@ export function useProviderCardState({
   const handleSaveModel = async (originalModelKey: string): Promise<void> => {
     if (isModelSavePending) return
     if (!editModel.name || !editModel.modelId) {
-      alert(t('fillComplete'))
+      notify(t('fillComplete'), 'warning')
       return
     }
 
@@ -596,7 +597,7 @@ export function useProviderCardState({
     )
 
     if (duplicate) {
-      alert(t('modelIdExists'))
+      notify(t('modelIdExists'), 'warning')
       return
     }
 
@@ -618,7 +619,7 @@ export function useProviderCardState({
             modelId: editModel.modelId,
           })
         } catch (error) {
-          alert(resolveProbeFailureMessage(error))
+          notify(resolveProbeFailureMessage(error))
           return
         }
       }
@@ -638,7 +639,7 @@ export function useProviderCardState({
   const handleAddModel = async (type: ProviderCardModelType): Promise<void> => {
     if (isModelSavePending) return
     if (!newModel.name || !newModel.modelId) {
-      alert(t('fillComplete'))
+      notify(t('fillComplete'), 'warning')
       return
     }
 
@@ -650,7 +651,7 @@ export function useProviderCardState({
 
     const all = allModels || models
     if (all.some((model) => model.modelKey === finalModelKey)) {
-      alert(t('modelIdExists'))
+      notify(t('modelIdExists'), 'warning')
       return
     }
 
@@ -672,7 +673,7 @@ export function useProviderCardState({
             modelId: finalModelId,
           })
         } catch (error) {
-          alert(resolveProbeFailureMessage(error))
+          notify(resolveProbeFailureMessage(error))
           return
         }
       }

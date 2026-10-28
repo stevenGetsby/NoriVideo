@@ -2,18 +2,15 @@
 
 import {
   ChevronDown,
+  OrganizeLayoutIcon,
   CircleHelp,
   Focus,
   FolderOpen,
-  Grid2X2,
   ImageIcon,
-  LayoutGrid,
-  ListTree,
   Map,
   Minus,
   Plus,
   Rows3,
-  RotateCcw,
   Upload,
   Video,
   Box,
@@ -23,6 +20,8 @@ import {
   Type,
 } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasNodeMenuType } from '../editor-types'
+import type { CanvasOrganizeMode } from '../actions/layout'
+import { CanvasOrganizeMenu, canvasOrganizeOption } from './CanvasOrganizeMenu'
 
 const ICONS = { text: Type, image: ImageIcon, video: Video, box3d: Box, studio3d: Clapperboard, playlist: ListVideo, video_edit: Video }
 
@@ -80,7 +79,7 @@ export function CanvasViewportControls({
 }: {
   minimapVisible: boolean
   zoom: number
-  organizeMode: 'grid' | 'horizontal' | 'vertical'
+  organizeMode: CanvasOrganizeMode
   organizeOpen: boolean
   canOrganize: boolean
   disabled?: boolean
@@ -90,10 +89,9 @@ export function CanvasViewportControls({
   onFitView: () => void
   onResetViewport: () => void
   onToggleOrganize: () => void
-  onOrganize: (mode: 'grid' | 'horizontal' | 'vertical') => void
+  onOrganize: (mode: CanvasOrganizeMode) => void
 }) {
-  const OrganizeIcon = organizeMode === 'horizontal' ? ListTree : organizeMode === 'vertical' ? Rows3 : LayoutGrid
-  const organizeLabel = organizeMode === 'horizontal' ? '按连线横向' : organizeMode === 'vertical' ? '按连线纵向' : '网格整理'
+  const organizeLabel = canvasOrganizeOption(organizeMode).label
   return (
     <div className={`nori-canvas-viewport-controls${disabled ? ' is-disabled' : ''}`} aria-label="画布视图控制">
       <button type="button" className={minimapVisible ? 'is-active' : ''} title={canvasControlTitle('画布小地图', disabled)} disabled={disabled} onClick={onToggleMinimap}><Map /></button>
@@ -105,19 +103,11 @@ export function CanvasViewportControls({
       {canOrganize ? <>
         <span />
         <div className="nori-canvas-organize-controls">
-          <button type="button" className="nori-canvas-organize-primary" title={canvasControlTitle(`一键整理 · ${organizeLabel}`, disabled)} disabled={disabled} onClick={() => onOrganize(organizeMode)}><OrganizeIcon /><em>一键整理</em></button>
-          <button type="button" className={organizeOpen ? 'is-active' : ''} title={canvasControlTitle('选择整理方式', disabled)} disabled={disabled} onClick={onToggleOrganize}><ChevronDown /></button>
+          <button type="button" className="nori-canvas-organize-primary" title={canvasControlTitle(`一键整理 · ${organizeLabel}`, disabled)} disabled={disabled} onClick={() => onOrganize(organizeMode)}><OrganizeLayoutIcon kind={organizeMode} /><em>一键整理</em></button>
+          <button type="button" className={organizeOpen ? 'is-active' : ''} title={canvasControlTitle('选择整理方式', disabled)} aria-haspopup="menu" aria-expanded={organizeOpen} disabled={disabled} onClick={onToggleOrganize}><ChevronDown /></button>
         </div>
       </> : null}
-      {canOrganize && organizeOpen && !disabled ? (
-        <div className="nori-canvas-organize-menu">
-          <button type="button" className={organizeMode === 'grid' ? 'is-active' : ''} onClick={() => onOrganize('grid')}><Grid2X2 /><span>网格整理<small>保持相对位置去重叠对齐</small></span></button>
-          <button type="button" className={organizeMode === 'horizontal' ? 'is-active' : ''} onClick={() => onOrganize('horizontal')}><ListTree /><span>按连线横向<small>沿连线从左到右分层</small></span></button>
-          <button type="button" className={organizeMode === 'vertical' ? 'is-active' : ''} onClick={() => onOrganize('vertical')}><Rows3 /><span>按连线纵向<small>沿连线从上到下分层</small></span></button>
-          <i />
-          <button type="button" title="重置视图" onClick={onResetViewport}><RotateCcw /><span>重置视图<small>回到画布原点与 100% 缩放</small></span></button>
-        </div>
-      ) : null}
+      {canOrganize && organizeOpen && !disabled ? <CanvasOrganizeMenu mode={organizeMode} onOrganize={onOrganize} onResetViewport={onResetViewport} /> : null}
     </div>
   )
 }

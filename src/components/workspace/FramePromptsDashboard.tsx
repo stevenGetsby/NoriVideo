@@ -152,7 +152,7 @@ export function FramePromptsDashboard() {
           </div>
           <Link
             href={{ pathname: '/profile' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(270deg,#8109ff_15%,#3265ff)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
           >
             <AppIcon name="settingsHexMinor" className="h-4 w-4" />
             {t('openEditor')}
@@ -201,9 +201,9 @@ export function FramePromptsDashboard() {
                 <div className="truncate font-medium text-white/74">{t(`groups.${row.group}`)}</div>
                 <div className="text-white/56">{row.templates}</div>
                 <div className="text-white/56">{row.variableCount}</div>
-                <div className={row.zhOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.zhOverrides}</div>
-                <div className={row.enOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.enOverrides}</div>
-                <div className={row.missingCoverage > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.missingCoverage}</div>
+                <div className={row.zhOverrides > 0 ? 'font-medium text-[#dcdcdc]' : 'text-white/42'}>{row.zhOverrides}</div>
+                <div className={row.enOverrides > 0 ? 'font-medium text-[#dcdcdc]' : 'text-white/42'}>{row.enOverrides}</div>
+                <div className={row.missingCoverage > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.missingCoverage}</div>
               </div>
             ))}
           </div>
@@ -254,7 +254,7 @@ export function FramePromptsDashboard() {
                         key={locale}
                         className={`rounded border px-1.5 py-0.5 text-[11px] ${
                           prompt.hasOverride[locale]
-                            ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                            ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
                             : 'border-white/10 bg-white/5 text-white/34'
                         }`}
                       >

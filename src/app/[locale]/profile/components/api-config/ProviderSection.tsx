@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import React, { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Provider, PRESET_PROVIDERS } from './types'
@@ -46,7 +47,7 @@ export function ProviderSection({
 
     const handleAdd = () => {
         if (!newProvider.name) {
-            alert(t('fillRequired'))
+            notify(t('fillRequired'), 'warning')
             return
         }
         onAdd?.({

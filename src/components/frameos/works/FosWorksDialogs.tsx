@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
@@ -14,6 +14,7 @@ import {
 import { buildMemberChangeSet, isProtectedMember } from './member-change-set'
 import { eligibleMoveTargets } from './move-targets'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
+import { useDismissableDialog } from '@/components/ui/useDismissableDialog'
 
 export { eligibleMoveTargets } from './move-targets'
 
@@ -37,24 +38,27 @@ function Modal({
   onClose: () => void
 }) {
   const variantClassName = variant ? ` works-${variant}-modal` : ''
+  const sectionRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const section = sectionRef.current
+    if (section && !section.contains(document.activeElement)) section.focus()
+  }, [])
+  const { onBackdropMouseDown } = useDismissableDialog({ onClose, busy })
   return (
     <ViewportDialogLayer>
     <div
       className={`fos-overlay works-modal-overlay${variantClassName}`}
       role="presentation"
-      onMouseDown={(event) => {
-        if (!busy && event.target === event.currentTarget) onClose()
-      }}
+      onMouseDown={onBackdropMouseDown}
     >
       <section
+        ref={sectionRef}
         className={`fos-dialog works-dialog${variantClassName}`}
         style={{ maxWidth: width }}
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        onKeyDown={(event) => {
-          if (!busy && event.key === 'Escape') onClose()
-        }}
+        tabIndex={-1}
       >
         <header className="fos-dialog-head">
           <h2 className="fos-dialog-title">{title}</h2>

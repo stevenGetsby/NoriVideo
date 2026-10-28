@@ -1,4 +1,5 @@
 'use client'
+import { notify } from '@/lib/ui/feedback'
 import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import { resolveErrorDisplay } from '@/lib/errors/display'
 
@@ -130,7 +131,7 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                 artStyle: appearance.artStyle || undefined,
                 count,
             },
-            { onError: (error) => alert(error.message || t('generateFailed')) }
+            { onError: (error) => notify(error.message || t('generateFailed')) }
         )
     }
 
@@ -147,7 +148,7 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
         }, {
             onError: (error) => {
                 if (latestSelectRequestRef.current !== requestId) return
-                alert(error.message || t('selectFailed'))
+                notify(error.message || t('selectFailed'))
             }
         })
     }
@@ -164,7 +165,7 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
         }, {
             onError: (error) => {
                 if (latestSelectRequestRef.current !== requestId) return
-                alert(error.message || t('selectFailed'))
+                notify(error.message || t('selectFailed'))
             }
         })
     }
@@ -188,7 +189,7 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                 imageIndex: effectiveSelectedIndex ?? undefined
             },
             {
-                onError: (error) => alert(error.message || t('uploadFailed')),
+                onError: (error) => notify(error.message || t('uploadFailed')),
                 onSettled: () => {
                     if (fileInputRef.current) fileInputRef.current.value = ''
                 }

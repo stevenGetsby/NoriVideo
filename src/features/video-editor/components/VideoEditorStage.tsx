@@ -1,4 +1,5 @@
 'use client'
+import { confirmAction, notify } from '@/lib/ui/feedback'
 import { logError as _ulogError } from '@/lib/logging/core'
 import { useTranslations } from 'next-intl'
 
@@ -66,20 +67,20 @@ export function VideoEditorStage({
         try {
             await saveProject(project)
             markSaved()
-            alert(t('editor.alert.saveSuccess'))
+            notify(t('editor.alert.saveSuccess'), 'success')
         } catch (error) {
             _ulogError('Save failed:', error)
-            alert(t('editor.alert.saveFailed'))
+            notify(t('editor.alert.saveFailed'))
         }
     }
 
     const handleExport = async () => {
         try {
             await startRender(project.id)
-            alert(t('editor.alert.exportStarted'))
+            notify(t('editor.alert.exportStarted'), 'info')
         } catch (error) {
             _ulogError('Export failed:', error)
-            alert(t('editor.alert.exportFailed'))
+            notify(t('editor.alert.exportFailed'))
         }
     }
 
@@ -254,8 +255,8 @@ export function VideoEditorStage({
 
                             {/* 删除按钮 */}
                             <button
-                                onClick={() => {
-                                    if (confirm(t('editor.right.deleteConfirm'))) {
+                                onClick={async () => {
+                                    if (await confirmAction({ message: t('editor.right.deleteConfirm'), danger: true })) {
                                         removeClip(selectedClip.id)
                                         selectClip(null)
                                     }

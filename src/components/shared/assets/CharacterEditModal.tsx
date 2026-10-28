@@ -1,5 +1,6 @@
 'use client'
 
+import { notify } from '@/lib/ui/feedback'
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { AppIcon } from '@/components/ui/icons'
@@ -187,7 +188,7 @@ export function CharacterEditModal({
             return false
         } catch (error: unknown) {
             if (shouldShowError(error)) {
-                alert(`${t('modal.modifyFailed')}: ${getErrorMessage(error, t('errors.failed'))}`)
+                notify(`${t('modal.modifyFailed')}: ${getErrorMessage(error, t('errors.failed'))}`)
             }
             return false
         } finally {
@@ -201,7 +202,7 @@ export function CharacterEditModal({
             onRefresh?.()
         } catch (error: unknown) {
             if (shouldShowError(error)) {
-                alert(t('modal.saveName') + t('errors.failed'))
+                notify(t('modal.saveName') + t('errors.failed'))
             }
         }
     }
@@ -218,7 +219,7 @@ export function CharacterEditModal({
             onClose()
         } catch (error: unknown) {
             if (shouldShowError(error)) {
-                alert(getErrorMessage(error, t('errors.saveFailed')))
+                notify(getErrorMessage(error, t('errors.saveFailed')))
             }
         } finally {
             setIsSaving(false)
@@ -241,7 +242,7 @@ export function CharacterEditModal({
                 onSave(characterId, savedAppearanceKey)
             } catch (error: unknown) {
                 if (shouldShowError(error)) {
-                    alert(getErrorMessage(error, t('errors.saveFailed')))
+                    notify(getErrorMessage(error, t('errors.saveFailed')))
                 }
             }
         })()

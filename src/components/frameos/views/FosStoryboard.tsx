@@ -666,7 +666,7 @@ function StoryboardRunProgress({ state, hideCompleted = false }: { state: TaskTa
         <span className={`font-mono font-bold ${failed ? 'text-red-300' : 'text-[#e5e5e5]'}`}>{failed ? '失败' : `${Math.min(100, progress)}%`}</span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-gradient-to-r from-[#3265ff] via-[#3265ff] to-[#5bd5c4]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
+        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-white'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
       </div>
       {failed && state.lastError?.message ? <p className="mt-2 text-[11px] leading-5 text-red-200">{friendlyStoryboardTaskError(state.lastError.message)}</p> : null}
       {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，作品工作台的“分镜设计”进度会同步显示。</p> : null}
@@ -1205,7 +1205,7 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
             <p className="mt-2 text-[14px] font-semibold text-[var(--fos-text-2)]">E{activeEpisode.episodeNumber} · {activeEpisode.name}</p>
             <p className="mt-3 text-[13px] leading-6 text-[var(--fos-text-3)]">可以让 AI 解析本集，也可以直接进入自由创作面板，从空 Segment 开始选择资产并编写视频提示词。</p>
             <div className="mt-5 flex justify-center gap-3 text-[12px] text-[var(--fos-text-3)]"><span>{activeEpisode.wordCount} 字剧本</span><span>·</span><span>{assetCount} 个作品资产</span></div>
-            {assetCount === 0 ? <p className="mt-3 text-[11px] text-amber-200/80">AI 解析需要先完成作品资产；手动制作仍可直接开始。</p> : null}
+            {assetCount === 0 ? <p className="mt-3 text-[11px] text-neutral-200/80">AI 解析需要先完成作品资产；手动制作仍可直接开始。</p> : null}
             {error ? <div className="mt-4 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-[13px] text-red-200">{error}</div> : null}
             {notice ? <div className="mt-4 rounded-lg border border-white/25 bg-white/8 px-3 py-2 text-[13px] text-neutral-200">{notice}</div> : null}
             {loading ? <div className="mt-5 text-[13px] text-[var(--fos-text-3)]">正在检查本集分镜状态…</div> : <div className="mt-6 flex flex-wrap justify-center gap-3">

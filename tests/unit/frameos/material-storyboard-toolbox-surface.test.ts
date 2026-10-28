@@ -156,7 +156,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(importRoute).toContain('refreshProjectPanelReferenceAssets')
     expect(modifyWorker).toContain('const referenceImages = Array.from(new Set([requiredReference, ...normalizedExtras]))')
     expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #191919; }')
+    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #1f1f1f; }')
   })
 
   it('reflows asset and material controls instead of clipping them on narrow screens', () => {
@@ -194,7 +194,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #191919; }')
+    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #1f1f1f; }')
     expect(styles).toContain('select.fos-input option:disabled { color: #797979; }')
   })
 })
