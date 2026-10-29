@@ -1,5 +1,8 @@
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react'
 import { STUDIO_NODE_MIN_SIZE } from './studio-types'
+import { isStoryNodeType } from '@/lib/interactive/compile'
+import type { StoryNodeType } from '@/lib/interactive/types'
+import type { StoryWireRole } from './story/story-geometry'
 import {
   prependCanvasGenerationHistory,
   type CanvasEdge,
@@ -96,6 +99,7 @@ export type CanvasNodeMenuType =
   | typeof CANVAS_NODE_TYPE_MODEL_3D
   | typeof CANVAS_NODE_TYPE_STUDIO_3D
   | typeof CANVAS_NODE_TYPE_PLAYLIST
+  | StoryNodeType
 
 export type CanvasMenuPoint = {
   x: number
@@ -127,6 +131,8 @@ export type CanvasContextMenuState = CanvasMenuPoint & (
 export type CanvasWireMenuState = CanvasMenuPoint & {
   sourceNodeId: string
   sourceHandle: string | null
+  /** Set when the wire belongs to a 影游 chapter: the menu offers what may follow, precede or picture it. */
+  story?: StoryWireRole
 }
 
 export type CanvasReplaceableMediaType = 'image' | 'video' | 'audio' | 'model3d'
@@ -282,6 +288,51 @@ export const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number 
   production_storyboard: { width: 300, height: 180 },
   production_panel: { width: 260, height: 270 },
   production_video: { width: 260, height: 240 },
+  story_entry: { width: 240, height: 120 },
+  story_scene: { width: 300, height: 240 },
+  story_choice: { width: 300, height: 240 },
+  story_condition: { width: 320, height: 220 },
+  story_exit: { width: 240, height: 120 },
+  story_ending: { width: 260, height: 160 },
+}
+
+export const STORY_ADD_NODE_ITEMS: Array<{ type: StoryNodeType; label: string; description: string }> = [
+  { type: 'story_scene', label: '剧情片段', description: '一段视频或画面与台词' },
+  { type: 'story_choice', label: '选择', description: '玩家在多个选项中做决定' },
+  { type: 'story_condition', label: '条件', description: '按全局变量自动分支' },
+  { type: 'story_entry', label: '入口', description: '章节的起点，可被上一章接入' },
+  { type: 'story_exit', label: '出口', description: '离开本章，连到下一章入口' },
+  { type: 'story_ending', label: '结局', description: '故事在此结束' },
+]
+
+function storyId(prefix: string) {
+  return `${prefix}_${crypto.randomUUID().slice(0, 8)}`
+}
+
+function defaultStoryNodeData(type: StoryNodeType): CanvasNodeData {
+  switch (type) {
+    case 'story_entry':
+      return { title: '入口' }
+    case 'story_scene':
+      return { title: '剧情片段', lines: '', effects: [] }
+    case 'story_choice':
+      return {
+        title: '选择',
+        prompt: '',
+        options: [
+          { id: storyId('opt'), label: '选项一', effects: [] },
+          { id: storyId('opt'), label: '选项二', effects: [] },
+        ],
+        timeoutSec: null,
+        defaultOptionId: null,
+      }
+    case 'story_condition':
+      return { title: '条件', branches: [{ id: storyId('br'), label: '分支一', match: 'all', conditions: [] }] }
+    case 'story_exit':
+      return { title: '出口' }
+    case 'story_ending':
+      return { title: '结局', endingType: 'normal', description: '' }
+  }
 }
 
 function finite(value: unknown): value is number {
@@ -289,6 +340,7 @@ function finite(value: unknown): value is number {
 }
 
 export function defaultCanvasNodeData(type: CanvasNodeMenuType): CanvasNodeData {
+  if (isStoryNodeType(type)) return defaultStoryNodeData(type)
   if (type === CANVAS_NODE_TYPE_TEXT) {
     return { title: '文本节点', mediaType: 'text', origin: 'empty', text: '', prompt: '' }
   }
@@ -340,7 +392,7 @@ export function canvasNodeToFlow(node: CanvasNode): CanvasFlowNode {
     type: node.type,
     position: node.position,
     width,
-    height,
+    height: isStoryNodeType(node.type) ? undefined : height,
     zIndex: node.type === CANVAS_NODE_TYPE_GROUP ? -10 : 1,
     data: {
       ...(node.data || {}),
@@ -488,7 +540,7 @@ export function createFlowNode(type: CanvasNodeMenuType, position: XYPosition): 
     type,
     position,
     width: size.width,
-    height: size.height,
+    height: isStoryNodeType(type) ? undefined : size.height,
     zIndex: 1,
     selected: true,
     data: {

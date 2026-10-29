@@ -113,16 +113,16 @@ function MaterialCard({
   const characterBinding = frameosCharacterBindingFromMetadata(item.metadata)
   const showVoiceBadge = assetCategory === 'character' && item.type === 'image'
   return (
-    <article className={`relative overflow-hidden rounded-[10px] border bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)] ${selected ? 'border-white/40 ring-1 ring-white/20' : 'border-[var(--fos-border-soft)]'}`}>
+    <article className={`relative overflow-hidden rounded-[10px] border bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)] ${selected ? 'border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : 'border-[var(--fos-border-soft)]'}`}>
       {item.source === 'upload' && canFavorite ? <button
         type="button"
         aria-label={selected ? `取消选择 ${item.title || '未命名素材'}` : `选择 ${item.title || '未命名素材'}`}
         aria-pressed={selected}
-        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-white text-black' : 'border-white/25 bg-black/65 text-white/60'}`}
+        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'border-white/25 bg-black/65 text-white/60'}`}
         onClick={(event) => { event.stopPropagation(); onToggleSelect() }}
       >{selected ? '✓' : ''}</button> : null}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-[#181818]">
+        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-b from-[#1b1b23] to-[#0c0c11]">
           <MaterialPreview item={item} />
           <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : item.type === 'audio' ? '音频' : '3D'}</span>
           {showVoiceBadge ? <span className="fml-voice-badge">
@@ -143,8 +143,8 @@ function MaterialCard({
         <div className="flex items-center gap-2">
           {item.source === 'upload' && canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title="删除上传资产" aria-label={`删除上传资产 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
           {canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onRename() }} title="重命名素材" aria-label={`重命名素材 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-neutral-200"><AppIcon name="edit" className="h-4 w-4" /></button> : null}
-          <button type="button" disabled={!canFavorite} onClick={onFavorite} title={canFavorite ? item.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="text-[var(--fos-text-4)] hover:text-[#d7d7d7] disabled:cursor-not-allowed disabled:opacity-35">
-            <AppIcon name="bookmark" className="h-4 w-4" weight={item.isFavorited ? 'fill' : 'regular'} />
+          <button type="button" disabled={!canFavorite} onClick={onFavorite} title={canFavorite ? item.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="text-[var(--fos-text-4)] hover:text-[#ffd166] disabled:cursor-not-allowed disabled:opacity-35">
+            <AppIcon name="bookmark" className="h-4 w-4" style={{ color: item.isFavorited ? '#ffd166' : undefined }} weight={item.isFavorited ? 'fill' : 'regular'} />
           </button>
         </div>
       </div>
@@ -286,10 +286,10 @@ export function MaterialUploadDialog({
           <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">资产归类</span><select aria-label="资产归类" className="fos-input" value={assetCategory} disabled={lockAssetCategory || saving || uploadedImagesRef.current.size > 0 || (successCount > 0 && unfinished.length > 0)} onChange={(event) => { setAssetCategory(event.target.value as FrameosAssetCategory); setVoiceFiles([]); setVoiceMapping({}) }}>{assetCategoryOptions.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">{lockAssetCategory ? `当前入口固定归入${FRAMEOS_ASSET_CATEGORY_LABELS[assetCategory]}，不会混入其他品类。` : '全部上传成功后自动关闭；部分失败时保留弹窗，仅重试失败项。'}</span></label>
           <div>
             <span className="mb-2 block text-[12px] font-bold text-white">本地文件 <span className="text-red-400">*</span></span>
-            <button type="button" disabled={saving} className="flex min-h-20 w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-[var(--fos-border-strong)] bg-[var(--fos-bg-1)] px-4 text-[13px] text-[var(--fos-text-3)] hover:border-white/40" onClick={() => inputRef.current?.click()}><AppIcon name="folderOpen" className="h-5 w-5" /><span>{imageOnly ? '选择多张资产图片' : '选择多个图片、视频、音频或自包含 GLB'}</span></button>
+            <button type="button" disabled={saving} className="flex min-h-20 w-full items-center justify-center gap-2 rounded-[10px] border border-dashed border-[var(--fos-border-strong)] bg-[var(--fos-bg-1)] px-4 text-[13px] text-[var(--fos-text-3)] hover:border-[var(--fos-primary-border)] hover:text-[var(--fos-primary-text)]" onClick={() => inputRef.current?.click()}><AppIcon name="folderOpen" className="h-5 w-5" /><span>{imageOnly ? '选择多张资产图片' : '选择多个图片、视频、音频或自包含 GLB'}</span></button>
             <input ref={inputRef} type="file" multiple accept={imageOnly ? 'image/*' : 'image/*,video/*,audio/*,.glb,model/gltf-binary'} title={imageOnly ? '请选择图片文件' : '3D 模型仅支持自包含 GLB 2.0'} className="hidden" onChange={(event) => { addFiles(Array.from(event.target.files || [])); event.target.value = '' }} />
           </div>
-          {assetCategory === 'character' && entries.every((entry) => isImageUpload(entry.file)) ? <div className="rounded-lg border border-white/20 bg-[var(--fos-bg-2)] p-3">
+          {assetCategory === 'character' && entries.every((entry) => isImageUpload(entry.file)) ? <div className="rounded-lg border border-violet-300/20 bg-[var(--fos-bg-2)] p-3">
             <label className="block text-[12px] font-bold text-white">角色音色配对（选填）<input aria-label="批量角色音色文件" className="fos-input mt-2 w-full" type="file" multiple accept="audio/*,.mp3,.wav,.m4a,.ogg" disabled={saving} onChange={(event) => {
               const files = Array.from(event.target.files || [])
               event.target.value = ''
@@ -390,7 +390,7 @@ function MaterialPreviewDialog({ item, canEdit, onTypeFilterChange, onCharacterB
           <button type="button" onClick={onClose} className="fos-dialog-x" aria-label="关闭大图预览"><AppIcon name="close" className="h-4 w-4" /></button>
         </header>
         <div className="material-preview-layout grid min-h-0 flex-1 md:grid-cols-[minmax(0,1fr)_300px]">
-          <div className="material-preview-media relative flex min-h-0 items-center justify-center overflow-hidden bg-[#050506] p-3">
+          <div className="material-preview-media relative flex min-h-0 items-center justify-center overflow-hidden bg-[#08080c] p-3">
             <div className="relative h-full w-full overflow-hidden rounded-[10px]"><MaterialPreview item={item} detail /></div>
           </div>
           <aside className="overflow-y-auto border-t border-[var(--fos-border-soft)] p-5 md:border-l md:border-t-0">
@@ -641,10 +641,10 @@ export function FosMaterialLibrary({
     <div className="fml-layout flex min-h-0 flex-1">
       <aside className="fml-tree flex w-[230px] shrink-0 flex-col overflow-y-auto border-r border-[var(--fos-border-soft)] p-3">
         <div className="mb-2 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">素材范围</div>
-        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: !projectId ? '#e5e5e5' : 'var(--fos-text-2)', background: !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(null)}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问素材</button>
-        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === 'global' ? '#e5e5e5' : 'var(--fos-text-2)', background: projectId === 'global' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId('global')}><AppIcon name="folderHeart" className="h-4 w-4" />账号素材</button>
+        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(null)}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问素材</button>
+        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === 'global' ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: projectId === 'global' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId('global')}><AppIcon name="folderHeart" className="h-4 w-4" />账号素材</button>
         {projects.length > 0 ? <div className="mb-1 mt-5 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">作品范围（默认当前作品）</div> : null}
-        {projects.map((project) => <button key={project.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === project.id ? '#e5e5e5' : 'var(--fos-text-2)', background: projectId === project.id ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(project.id)}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}</span></button>)}
+        {projects.map((project) => <button key={project.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === project.id ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: projectId === project.id ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(project.id)}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}</span></button>)}
         <div className="fml-index mt-5 rounded-[10px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-3 text-[11px] text-[var(--fos-text-4)]"><div className="mb-2 font-bold text-[var(--fos-text-2)]">当前索引</div><div>图片 {counts.image}</div><div className="mt-1">视频 {counts.video}</div><div className="mt-1">音频 {counts.audio}</div><div className="mt-1">3D {counts.model3d}</div></div>
       </aside>
 

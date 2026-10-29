@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextResponse } from 'next/server'
+import { projectParticipantWhere } from '@/lib/collaboration/access'
 import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => vi.fn())
@@ -236,6 +237,7 @@ describe('FrameOS material detail route', () => {
         id: 'project-1',
         userId: 'owner-1',
         deletedAt: null,
+        ...projectParticipantWhere('asset-1'),
       },
       select: { id: true },
     })

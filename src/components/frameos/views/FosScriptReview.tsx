@@ -215,18 +215,18 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
   const assignmentToneClass = assignmentState?.tone === 'error'
     ? 'border-red-400/35 bg-red-500/10 text-red-100'
     : assignmentState?.tone === 'success'
-      ? 'border-white/[0.24] bg-white/10 text-white'
+      ? 'border-emerald-400/30 bg-emerald-500/10 text-emerald-100'
       : assignmentState?.tone === 'info'
-        ? 'border-white/25 bg-white/8 text-neutral-200'
+        ? 'border-sky-400/30 bg-sky-500/10 text-sky-100'
         : 'border-white/10 bg-white/[.035] text-[var(--fos-text-2)]'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#0b0b0b]">
+    <div className="flex min-h-0 flex-1 flex-col bg-[#08080c]">
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '280px 1fr' }}>
-        <aside className="overflow-y-auto border-r border-[rgba(255,255,255,.08)] bg-[#101010]">
+        <aside className="overflow-y-auto border-r border-[rgba(255,255,255,.08)] bg-[#0c0c11]">
           <div className="flex h-[40px] items-center justify-between border-b border-[rgba(255,255,255,.06)] px-4">
             <h3 className="text-[14px] font-bold text-white">分集列表</h3>
-            <span className="text-[13px] font-semibold text-[#a3a3a3]">共 {episodes.length} 集</span>
+            <span className="text-[13px] font-semibold text-[#a3a4b1]">共 {episodes.length} 集</span>
           </div>
           <div className="space-y-1 p-2">
             {episodes.map((ep) => {
@@ -236,14 +236,14 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
                   className="w-full rounded-[7px] px-3 py-2.5 text-left transition-colors"
                   style={{
                     minHeight: 56,
-                    border: isActive ? '1px solid rgba(255,255,255,.38)' : '1px solid transparent',
-                    background: isActive ? 'rgba(59,59,59,.46)' : 'transparent',
+                    border: isActive ? '1px solid rgba(110,123,255,.5)' : '1px solid transparent',
+                    background: isActive ? 'rgba(110,123,255,.14)' : 'transparent',
                   }}>
                   <div className="text-[13px] font-bold text-white">
-                    <span className="mr-2 text-[#e5e5e5]">E{ep.episodeNumber}</span>
+                    <span className="mr-2 text-[var(--fos-primary-text)]">E{ep.episodeNumber}</span>
                     <span>{ep.name}</span>
                   </div>
-                  <div className="mt-1 text-[12px] font-medium text-[#8c8c8c]">字数 {ep.wordCount} 字</div>
+                  <div className="mt-1 text-[12px] font-medium text-[#8c8d9d]">字数 {ep.wordCount} 字</div>
                 </button>
               )
             })}
@@ -270,13 +270,13 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
             <h3 className="text-[15px] font-bold text-white">
               {active ? (
                 <>
-                  <span className="mr-2 rounded-[4px] bg-[rgba(255,255,255,.14)] px-2 py-0.5 text-[12px] text-[#e5e5e5]">E{active.episodeNumber}</span>
+                  <span className="mr-2 rounded-[4px] bg-[var(--fos-primary-soft)] px-2 py-0.5 text-[12px] text-[var(--fos-primary-text)]">E{active.episodeNumber}</span>
                   {active.name}
                 </>
               ) : '剧本解析'}
             </h3>
             <div className="flex items-center gap-3">
-              <span className="text-[13px] font-semibold text-[#a3a3a3]">字数 {activeWordCount} 字</span>
+              <span className="text-[13px] font-semibold text-[#a3a4b1]">字数 {activeWordCount} 字</span>
               {canEdit ? <span className="text-[12px] text-[var(--fos-text-4)]">可直接编辑</span> : null}
             </div>
           </div>
@@ -291,7 +291,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
                 <div className="text-[13px] font-bold">{assignmentState.title}</div>
                 <p className="mt-1 whitespace-pre-wrap text-[12px] font-medium leading-5 opacity-80">{assignmentState.detail}</p>
                 {assignmentError ? (
-                  <button type="button" className="mt-2 text-[12px] font-bold text-[#e5e5e5]" onClick={() => void loadScriptAssignment()}>重新加载</button>
+                  <button type="button" className="mt-2 text-[12px] font-bold text-[var(--fos-primary-text)]" onClick={() => void loadScriptAssignment()}>重新加载</button>
                 ) : null}
               </div>
             </div>
@@ -301,7 +301,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
             <div className="mx-6 mt-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[#ff7777]">{error}</div>
           ) : null}
           {notice ? (
-            <div className="mx-6 mt-4 rounded-[10px] border border-white/25 bg-white/8 px-3 py-2 text-[13px] font-semibold text-neutral-200">{notice}</div>
+            <div className="mx-6 mt-4 rounded-[10px] border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 py-2 text-[13px] font-semibold text-[var(--fos-text-1)]">{notice}</div>
           ) : null}
 
           {canEdit ? (

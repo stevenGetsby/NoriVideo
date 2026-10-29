@@ -291,7 +291,7 @@ export function FosProjectModelConfigDialog({
       <section role="dialog" aria-modal="true" aria-label="编辑作品" className="fos-dialog w-full max-w-[760px] rounded-2xl shadow-[0_28px_90px_rgba(0,0,0,.62)]">
         <header className="fos-dialog-head flex items-start justify-between bg-[linear-gradient(110deg,rgba(255,255,255,.1),rgba(255,255,255,.08),transparent_70%)]">
           <div className="flex items-start gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[#e5e5e5]"><AppIcon name="settingsHex" className="h-5 w-5" /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="settingsHex" className="h-5 w-5" /></span>
             <div><h2 className="text-[18px] font-bold text-white">编辑作品</h2><p className="mt-1 text-[12px] leading-5 text-[var(--fos-text-3)]">作品参与人员可修改名称、简介和后续生成配置，不会删除已有剧本与资产；删除作品由管理员维护。</p></div>
           </div>
           <button type="button" className="fos-icon-btn" aria-label="关闭" disabled={saving} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
@@ -392,7 +392,7 @@ export function FosProjectModelConfigDialog({
               ))}
             </div>
           )}
-          <div className="mt-4 rounded-xl border border-white/15 bg-white/[.06] px-4 py-3 text-[12px] leading-5 text-[#e5e5e5]">分镜设计只生成结构化镜头文本；作品不会单独生成“分镜静态图”。镜头制作阶段直接使用“分镜视频”模型。</div>
+          <div className="mt-4 rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-4 py-3 text-[12px] leading-5 text-[var(--fos-text-1)]">分镜设计只生成结构化镜头文本；作品不会单独生成“分镜静态图”。镜头制作阶段直接使用“分镜视频”模型。</div>
           {error ? <div className="mt-4 rounded-lg border border-red-400/20 bg-red-400/[.08] px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
         </div>
         <footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={saving} onClick={onClose}>取消</button><button type="button" className="fos-btn fos-btn-primary" disabled={!loaded || loading || saving || !details.name.trim()} onClick={() => void save()}>{saving ? '保存中…' : '保存作品'}</button></footer>

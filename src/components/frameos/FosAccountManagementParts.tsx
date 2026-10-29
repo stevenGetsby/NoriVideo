@@ -81,12 +81,12 @@ interface AccountDraft {
 }
 
 const ROLE_TONES: Record<AccountRole, string> = {
-  super_admin: 'border-white/[0.24] bg-white/[.09] text-neutral-200',
-  admin: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  writer: 'border-white/15 bg-white/[.08] text-neutral-200',
-  asset: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  storyboard: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  reviewer: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
+  admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
+  writer: 'border-sky-400/25 bg-sky-400/[.08] text-sky-200',
+  asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
+  storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
+  reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
 }
 
 function roleDefinition(role: AccountRole) {
@@ -122,7 +122,7 @@ export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) 
     return (
       <span className="grid gap-1 text-[10px] text-white/45">
         <span>今日 <strong className="text-[12px] text-white/85">{formatPointsValue(usedPoints)}</strong> 积分</span>
-        <small className="text-neutral-300/80">unlimited · 不限量</small>
+        <small className="text-emerald-300/80">unlimited · 不限量</small>
       </span>
     )
   }
@@ -134,8 +134,8 @@ export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) 
   }
 
   const ratio = limitPoints > 0 ? usedPoints / limitPoints : 1
-  const barTone = ratio >= 1 ? 'bg-red-400' : ratio >= 0.8 ? 'bg-white' : 'bg-white/55'
-  const textTone = ratio >= 1 ? 'text-red-300' : ratio >= 0.8 ? 'text-neutral-300' : 'text-neutral-300'
+  const barTone = ratio >= 1 ? 'bg-red-400' : ratio >= 0.8 ? 'bg-amber-400' : 'bg-emerald-400'
+  const textTone = ratio >= 1 ? 'text-red-300' : ratio >= 0.8 ? 'text-amber-300' : 'text-emerald-300'
   return (
     <span className="grid gap-1 text-[10px] text-white/45">
       <span>
@@ -154,7 +154,7 @@ export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) 
 
 export function PermissionMatrix() {
   return (
-    <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#151515]">
+    <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
       <div className="border-b border-white/[.07] px-5 py-4">
         <h2 className="text-[13px] font-bold text-white">功能区权限</h2>
         <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由所属管理账号按作品指定。</p>
@@ -163,7 +163,7 @@ export function PermissionMatrix() {
         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => (
           <article key={permission.key} className="rounded-[10px] border border-white/15 bg-white/[.045] p-3.5">
             <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-white/10 text-neutral-200">
+              <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]">
                 <AppIcon name="check" className="h-3.5 w-3.5" />
               </span>
               <strong className="text-[12px] font-semibold text-white/85">{permission.label}</strong>
@@ -172,8 +172,8 @@ export function PermissionMatrix() {
           </article>
         ))}
       </div>
-      <div className="flex items-center gap-2 border-t border-white/10 bg-white/[.035] px-5 py-3 text-[10px] text-white/60">
-        <AppIcon name="check" className="h-3.5 w-3.5 text-neutral-300" />
+      <div className="flex items-center gap-2 border-t border-emerald-300/10 bg-emerald-400/[.035] px-5 py-3 text-[10px] text-emerald-100/60">
+        <AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />
         所有子账号固定拥有团队内容读取权限；未勾选功能区时仍可查看，但不能编辑或发起生成。
       </div>
     </section>
@@ -217,7 +217,7 @@ export function AccountDialog({
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="account-management-dialog flex max-h-[90vh] w-full max-w-[700px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#171717] shadow-2xl">
+      <div className="account-management-dialog flex max-h-[90vh] w-full max-w-[700px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#16161d] shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/[.07] px-6 py-4">
           <div>
             <h2 className="text-[16px] font-bold text-white">{title}</h2>
@@ -243,7 +243,7 @@ export function AccountDialog({
                       ? { managerId: workspaces.find((workspace) => workspace.manager.status === 'active')?.manager.id || '' }
                       : {}),
                   })}
-                  className={`rounded-[10px] border p-3 text-left ${draft.accountType === value ? 'border-white/[0.24] bg-white/[.09]' : 'border-white/[.07] bg-white/[.025]'}`}
+                  className={`rounded-[10px] border p-3 text-left ${draft.accountType === value ? 'border-violet-400/35 bg-violet-400/[.09]' : 'border-white/[.07] bg-white/[.025]'}`}
                 >
                   <span className="block text-[12px] font-semibold text-white">{label}</span>
                   <span className="mt-1 block text-[9px] leading-4 text-white/40">{description}</span>
@@ -336,8 +336,8 @@ export function AccountDialog({
               </label>
 
               {draft.role === 'reviewer' ? (
-                <div className="mt-5 rounded-[10px] border border-white/20 bg-white/[.07] px-4 py-3">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-white"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由作品授权</div>
+                <div className="mt-5 rounded-[10px] border border-cyan-300/20 bg-cyan-400/[.07] px-4 py-3">
+                  <div className="flex items-center gap-2 text-[12px] font-semibold text-cyan-100"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由作品授权</div>
                   <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。由所属管理账号在作品协作者里加入该账号后，才能查看并处理该作品的待审核任务。</p>
                 </div>
               ) : (
@@ -360,21 +360,21 @@ export function AccountDialog({
                               ? draft.permissions.filter((item) => item !== permission.key)
                               : [...draft.permissions, permission.key],
                           })}
-                          className={`flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors ${checked ? 'border-white/25 bg-white/[.09]' : 'border-white/[.07] bg-white/[.025] hover:bg-white/[.05]'}`}
+                          className={`flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors ${checked ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)]' : 'border-white/[.07] bg-white/[.025] hover:bg-white/[.05]'}`}
                         >
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${checked ? 'border-white/25 bg-white text-black' : 'border-white/15 bg-black/10 text-transparent'}`}><AppIcon name="check" className="h-3.5 w-3.5" /></span>
+                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${checked ? 'border-white/25 bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'border-white/15 bg-black/10 text-transparent'}`}><AppIcon name="check" className="h-3.5 w-3.5" /></span>
                           <span><strong className="block text-[12px] font-semibold text-white/85">{permission.label}</strong><small className="mt-1 block text-[10px] leading-4 text-white/40">{permission.description}</small></span>
                         </button>
                       )
                     })}
                   </div>
-                  <div className="mt-2 flex items-center gap-2 rounded-[9px] border border-white/15 bg-white/[.055] px-3 py-2 text-[10px] text-white/65"><AppIcon name="check" className="h-3.5 w-3.5 text-neutral-300" />读取团队全部作品与资产（固定开启）</div>
+                  <div className="mt-2 flex items-center gap-2 rounded-[9px] border border-emerald-400/15 bg-emerald-400/[.055] px-3 py-2 text-[10px] text-emerald-100/65"><AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />读取团队全部作品与资产（固定开启）</div>
                 </div>
               )}
             </>
           ) : (
-            <div className="mt-5 rounded-[10px] border border-white/20 bg-white/[.07] px-4 py-3">
-              <span className="text-[12px] font-semibold text-neutral-200">
+            <div className="mt-5 rounded-[10px] border border-violet-400/20 bg-violet-400/[.07] px-4 py-3">
+              <span className="text-[12px] font-semibold text-violet-200">
                 {target?.isPlatformAdmin ? '平台 Admin' : '管理账号'}
               </span>
               <p className="mt-1 text-[10px] leading-5 text-white/40">
@@ -433,7 +433,7 @@ export function AccountDialog({
           ) : null}
 
           {target?.id && draft.password ? (
-            <p className="mt-4 rounded-[8px] border border-white/20 bg-white/10 px-3 py-2 text-[11px] text-neutral-200">
+            <p className="mt-4 rounded-[8px] border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-[11px] text-amber-200">
               重置密码会使该账号已有登录立即失效。
             </p>
           ) : null}
@@ -525,7 +525,7 @@ export function CreditLedgerDialog({
 
   return (
     <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#1a1a1a] shadow-2xl">
+      <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#1b1b23] shadow-2xl">
         <div className="flex items-center justify-between border-b border-white/[.08] px-6 py-4">
           <div><h2 className="text-[16px] font-bold text-white">积分账户流水</h2><p className="mt-1 text-[11px] text-white/45">{target.username} · 最近 50 条不可变账本记录</p></div>
           <button type="button" className="fos-icon-btn" onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
@@ -544,7 +544,7 @@ export function CreditLedgerDialog({
                 <div className="grid grid-cols-[130px_1fr_130px_150px] gap-3 border-b border-white/[.08] bg-white/[.025] px-4 py-3 text-[10px] font-semibold text-white/40"><span>时间</span><span>类型 / 备注</span><span className="text-right">积分变动</span><span className="text-right">变动后余额</span></div>
                 {payload.transactions.length ? payload.transactions.map((transaction) => {
                   const note = transactionNote(transaction.description)
-                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-neutral-300' : 'text-neutral-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
+                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
                 }) : <div className="py-12 text-center text-[11px] text-white/35">暂无积分变动</div>}
               </div>
             </>
@@ -592,7 +592,7 @@ export function CreditOperationDialog({
   return (
     <ViewportDialogLayer>
     <div className="fos-overlay">
-      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px] rounded-[14px] border border-white/10 bg-[#171717] shadow-2xl">
+      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px] rounded-[14px] border border-white/10 bg-[#16161d] shadow-2xl">
         <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{copy.title}</h2>
@@ -603,16 +603,16 @@ export function CreditOperationDialog({
           </button>
         </div>
         <div className="fos-dialog-body">
-          <div className="rounded-[10px] border border-white/15 bg-white/[.06] px-4 py-3 text-[11px] leading-5 text-neutral-200/65">
+          <div className="rounded-[10px] border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-4 py-3 text-[11px] leading-5 text-[var(--fos-text-2)]">
             {copy.hint} 换算标准：¥1 = 100 积分。
           </div>
           {operation === 'recharge' ? (
-            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-white/15 bg-[#171717] px-4 py-4 text-center">
+            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-white/15 bg-[#16161d] px-4 py-4 text-center">
               <span><small className="block text-[10px] text-white/45">当前余额</small><strong className="mt-1 block text-[15px] text-white">{currentTargetPoints.toLocaleString('zh-CN')}</strong></span>
               <span className="text-[15px] text-neutral-200/55">+</span>
               <span><small className="block text-[10px] text-white/45">本次充值</small><strong className="mt-1 block text-[15px] text-neutral-200">{valid ? parsedPoints.toLocaleString('zh-CN') : '—'}</strong></span>
               <span className="text-[15px] text-neutral-200/55">=</span>
-              <span><small className="block text-[10px] text-white/45">充值后余额</small><strong className="mt-1 block text-[15px] text-neutral-300">{projectedTargetPoints.toLocaleString('zh-CN')}</strong></span>
+              <span><small className="block text-[10px] text-white/45">充值后余额</small><strong className="mt-1 block text-[15px] text-emerald-300">{projectedTargetPoints.toLocaleString('zh-CN')}</strong></span>
             </div>
           ) : null}
           {typeof sourceBalancePoints === 'number' && operation !== 'recharge' ? (

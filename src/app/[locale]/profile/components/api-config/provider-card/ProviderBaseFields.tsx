@@ -110,7 +110,7 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
       {state.keyTestStatus !== 'idle' && (
         <div className="px-3.5 pt-2">
           <div className={`space-y-2 rounded-xl border-2 p-3 ${state.keyTestStatus === 'passed'
-            ? 'border-white/[0.24] bg-white/5'
+            ? 'border-green-500/40 bg-green-500/5'
             : state.keyTestStatus === 'failed'
               ? 'border-red-500/40 bg-red-500/5'
               : 'border-[var(--glass-border)] bg-[var(--glass-bg-surface)]'
@@ -122,7 +122,7 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
                   <span className="inline-block h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
                 )}
                 {state.keyTestStatus === 'passed' && (
-                  <span className="text-neutral-400">
+                  <span className="text-green-500">
                     <AppIcon name="check" className="h-4 w-4" />
                   </span>
                 )}
@@ -170,7 +170,7 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
                 <div key={step.name} className="space-y-0.5">
                   <div className="flex items-center gap-2 text-xs">
                     {step.status === 'pass' && (
-                      <span className="text-neutral-400">
+                      <span className="text-green-500">
                         <AppIcon name="check" className="h-3.5 w-3.5" />
                       </span>
                     )}
@@ -205,7 +205,7 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
 
             {/* Success banner */}
             {state.keyTestStatus === 'passed' && (
-              <div className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-xs font-medium text-neutral-400 dark:text-neutral-300">
+              <div className="flex items-center gap-2 rounded-lg bg-green-500/10 px-3 py-2 text-xs font-medium text-green-600 dark:text-green-400">
                 <AppIcon name="check" className="h-4 w-4 shrink-0" />
                 {t('testPassed')}
               </div>
@@ -213,7 +213,7 @@ export function ProviderBaseFields({ provider, t, state }: ProviderBaseFieldsPro
 
             {/* Failure warning */}
             {state.keyTestStatus === 'failed' && (
-              <div className="flex items-start gap-2 rounded-lg bg-white/10 px-3 py-2 text-[11px] text-[var(--glass-text-primary)]">
+              <div className="flex items-start gap-2 rounded-lg bg-yellow-500/10 px-3 py-2 text-[11px] text-[var(--glass-text-primary)]">
                 <span className="mt-0.5 shrink-0 text-sm">&#9888;</span>
                 <span>{t('testWarning')}</span>
               </div>

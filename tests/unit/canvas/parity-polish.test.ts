@@ -116,7 +116,7 @@ describe('canvas parity polish contracts', () => {
     expect(generator).toContain("? model.raw.healthStatus === 'unhealthy' ? ' · 服务异常' : ' · 未配置'")
     expect(styles).toContain('.nori-canvas-generator-controls select option')
     expect(styles).toContain('color-scheme: dark;')
-    expect(styles).toContain('background: #1b1b1b;')
+    expect(styles).toContain('background: #1b1b23;')
   })
 
   it('removes production nodes from persisted group membership during sync', () => {

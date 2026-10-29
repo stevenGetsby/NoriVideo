@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
 import { CanvasWorkspace } from '@/features/canvas/CanvasWorkspace'
 import type { CanvasProjectOption, CanvasWorkOption } from '@/features/canvas/types'
 import { FosShell } from './FosShell'
@@ -156,8 +157,9 @@ function CanvasProjectChooser({
                   data-testid="global-canvas-direct-project-entry"
                   aria-label={`进入 ${project.name} 的无限画布`}
                   onClick={() => onSelect(project.id)}
+                  style={generativeCoverStyle(project.id)}
                 >
-                  <i><AppIcon name="clapperboard" /></i>
+                  <i className="nori-gen-cover" aria-hidden="true"><b>{coverMonogram(project.name)}</b></i>
                   <span><strong>{project.name}</strong><small>{project.workName || '未归属项目'} · 打开或创建画布</small></span>
                   <AppIcon name="arrowRight" />
                 </button>

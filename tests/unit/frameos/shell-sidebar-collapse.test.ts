@@ -148,8 +148,8 @@ describe('FosShell collapsible sidebar', () => {
     expect(canvasStyles).toContain('.nori-canvas-project-assets,')
     expect(canvasStyles).toContain('top: var(--canvas-chrome-safe-top);')
     expect(canvasStyles).toContain('.nori-canvas-selection-toolbar { top: var(--canvas-chrome-safe-top); }')
-    expect(canvasStyles).toContain('.nori-canvas-dropdown-title { color: #b6b6b6; font-size: 11px; }')
-    expect(canvasStyles).toContain('.nori-canvas-project-assets-list > article small { color: #a5a5a5; font-size: 10px; }')
+    expect(canvasStyles).toContain('.nori-canvas-dropdown-title { color: #b6b7c2; font-size: 11px; }')
+    expect(canvasStyles).toContain('.nori-canvas-project-assets-list > article small { color: #a5a6b3; font-size: 10px; }')
   })
 
   it('shows an assignment attention badge and does not render a fake desktop download', () => {

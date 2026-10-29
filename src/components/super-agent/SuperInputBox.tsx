@@ -519,7 +519,7 @@ export function SuperInputBox({
               <NoriBrandMark size={24} />
               <span className="text-sm font-bold text-[#111111]">Nori Agent</span>
             </div>
-            <span className="rounded-full bg-[#f1f1f1] px-3 py-1 text-xs font-semibold text-[#e5e5e5]">
+            <span className="rounded-full bg-[#EFEFFD] px-3 py-1 text-xs font-semibold text-[#4B4DED]">
               Workflow
             </span>
           </div>
@@ -1004,7 +1004,7 @@ function SuperExecutingPanel({
                 {hasFailed ? (
                   <AlertCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--glass-tone-danger-fg)' }} />
                 ) : (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: '#e5e5e5' }} />
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: '#4B4DED' }} />
                 )}
               </div>
               <p className="truncate text-sm font-medium" style={{ color: '#828282' }}>
@@ -1098,7 +1098,7 @@ function SuperExecutingPanel({
                 className="h-2 w-2 rounded-full"
                 style={{ background: hasFailed ? 'var(--glass-tone-danger-fg)' : '#3265ff' }}
               />
-              <span className="text-xs font-bold uppercase" style={{ color: '#e5e5e5' }}>
+              <span className="text-xs font-bold uppercase" style={{ color: '#4B4DED' }}>
                 {activeInsight.modelAction}
               </span>
             </div>
@@ -1149,8 +1149,8 @@ function SuperExecutingPanel({
                   <span
                     className="flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold"
                     style={{
-                      background: isFailed ? 'var(--glass-tone-danger-bg)' : (isDone ? '#e0faf4' : (isActive ? '#f1f1f1' : '#ECF1F4')),
-                      color: isFailed ? 'var(--glass-tone-danger-fg)' : (isDone ? '#1a957c' : '#e5e5e5'),
+                      background: isFailed ? 'var(--glass-tone-danger-bg)' : (isDone ? '#e0faf4' : (isActive ? '#EFEFFD' : '#ECF1F4')),
+                      color: isFailed ? 'var(--glass-tone-danger-fg)' : (isDone ? '#1a957c' : '#4B4DED'),
                     }}
                   >
                     {isFailed ? '!' : (isDone ? '✓' : stage.stageNumber)}
@@ -1227,7 +1227,7 @@ function SuperResultPanel({ result }: { result: AgentExecutionResult }) {
         </p>
       </div>
 
-      <div className="text-sm flex items-center gap-2" style={{ color: '#e5e5e5' }}>
+      <div className="text-sm flex items-center gap-2" style={{ color: '#4B4DED' }}>
         <Loader2 className="w-4 h-4 animate-spin" />
         <span>正在跳转到工作区...</span>
       </div>

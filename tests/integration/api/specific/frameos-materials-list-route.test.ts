@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { projectParticipantWhere } from '@/lib/collaboration/access'
 import { buildMockRequest } from '../../../helpers/request'
 
 const prismaMock = vi.hoisted(() => ({
@@ -160,6 +161,7 @@ describe('FrameOS material list filters', () => {
       where: {
         userId: 'user-1',
         deletedAt: null,
+        ...projectParticipantWhere('storyboard-child'),
       },
       select: { id: true, name: true },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],

@@ -388,8 +388,8 @@ export function FosProductionShot({
                   style={{ borderColor: active ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: active ? 'var(--fos-primary-soft)' : 'var(--fos-bg-2)' }}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-[#e5e5e5]">{shot.scene} · Segment {String(shot.panelNumber ?? shot.panelIndex + 1).padStart(2, '0')}</span>
-                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[#c3c3c3]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
+                    <span className="text-[11px] font-bold text-[var(--fos-primary-text)]">{shot.scene} · Segment {String(shot.panelNumber ?? shot.panelIndex + 1).padStart(2, '0')}</span>
+                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[#62d99b]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
                   </div>
                   <div className="mt-1.5 truncate text-[13px] font-bold text-white">{shot.title}</div>
                   <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--fos-text-4)]">
@@ -428,7 +428,7 @@ export function FosProductionShot({
               </div>
               {centerTab === 'history' ? (
                 <div className="space-y-2 py-4">
-                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[#c3c3c3]' : task.status === 'failed' ? 'text-red-300' : 'text-[#e5e5e5]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
+                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[#62d99b]' : task.status === 'failed' ? 'text-red-300' : 'text-[var(--fos-info)]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
                   {tasks.length === 0 ? <div className="py-8 text-center text-[12px] text-[var(--fos-text-4)]">暂无生成记录</div> : null}
                 </div>
               ) : null}
@@ -472,22 +472,22 @@ export function FosProductionShot({
                 <label><span className="mb-1 block text-[10px] text-[var(--fos-text-4)]">分辨率</span><select className="fos-input h-8 text-[11px]" value={resolution} disabled={!canEdit} onChange={(event) => setResolution(event.target.value)}>{resolutions.length ? resolutions.map((item) => <option key={item}>{item}</option>) : <option value="">默认</option>}</select></label>
                 <label><span className="mb-1 block text-[10px] text-[var(--fos-text-4)]">视频秒数</span><select className="fos-input h-8 text-[11px]" value={duration} disabled={!canEdit} onChange={(event) => setDuration(Number(event.target.value))}>{(durations.length ? durations : [4, 5, 6, 8, 10, 12, 15]).map((item) => <option key={item} value={item}>{item}s</option>)}</select></label>
               </div>
-              {currentModel?.supportGenerateAudio || locksGeneratedAudio ? <label className="mt-3 flex items-center gap-2 text-[11px] text-[var(--fos-text-3)]"><input type="checkbox" checked={generateAudio} disabled={!canEdit || locksGeneratedAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="accent-[#e5e5e5]" />{locksGeneratedAudio ? `已自动注入角色音色：@${boundVoiceNames.join('、@')}` : '同步生成声音'}</label> : null}
-              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-white/20 bg-white/[.08] px-3 py-2 text-[10px] leading-5 text-neutral-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0/2.5。</div> : null}
+              {currentModel?.supportGenerateAudio || locksGeneratedAudio ? <label className="mt-3 flex items-center gap-2 text-[11px] text-[var(--fos-text-3)]"><input type="checkbox" checked={generateAudio} disabled={!canEdit || locksGeneratedAudio} onChange={(event) => setGenerateAudio(event.target.checked)} className="accent-[var(--fos-primary)]" />{locksGeneratedAudio ? `已自动注入角色音色：@${boundVoiceNames.join('、@')}` : '同步生成声音'}</label> : null}
+              {boundVoiceNames.length > 0 && !supportsCharacterReferenceAudio ? <div className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[.08] px-3 py-2 text-[10px] leading-5 text-amber-200">当前模型不会接收角色参考音频，请切换为 Seedance 2.0/2.5。</div> : null}
 
               <div className="mt-4 rounded-[10px] border border-white/15 bg-white/[.08] p-3">
-                <div className="flex items-center justify-between text-[11px]"><span className="font-bold text-white">下一步 · 剪辑</span><strong className="text-[#e5e5e5]">{readyVideoCount} / {shots.length} 个 Segment 可用</strong></div>
+                <div className="flex items-center justify-between text-[11px]"><span className="font-bold text-white">下一步 · 剪辑</span><strong className="text-[var(--fos-primary-text)]">{readyVideoCount} / {shots.length} 个 Segment 可用</strong></div>
                 <p className="mt-1.5 text-[10px] leading-5 text-[var(--fos-text-3)]">选择需要的 Segment 进入剪辑时间线；剪辑保存后即可提交全集评审，无需等待未采用的 Segment。</p>
                 <Link href={{ pathname: `/workflow/${data.projectId}/workbench-premium2/production/timeline`, query: { episode_id: episodeId } }} className="fos-btn fos-btn-primary mt-2.5 w-full"><AppIcon name="edit" className="h-3.5 w-3.5" />进入剪辑与提交评审</Link>
               </div>
 
-              <div className="mt-4 flex items-center justify-between"><h3 className="text-[14px] font-bold text-white">视频提示词</h3><button type="button" className="text-[11px] font-bold text-[#e5e5e5]" disabled={!canEdit || saving} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></div>
+              <div className="mt-4 flex items-center justify-between"><h3 className="text-[14px] font-bold text-white">视频提示词</h3><button type="button" className="text-[11px] font-bold text-[var(--fos-primary-text)]" disabled={!canEdit || saving} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></div>
               <MentionPromptEditor value={prompt} assets={mentionAssets} onChange={setPrompt} minHeight={220} placeholder="输入视频提示词；输入 @ 可引用右侧参考资产" readOnly={!canEdit} />
               <div className="mt-3 text-[12px] font-bold text-white">画风描述</div>
               <textarea className="fos-textarea mt-2" style={{ minHeight: 70 }} value={stylePrompt} readOnly={!canEdit} onChange={(event) => setStylePrompt(event.target.value)} />
               <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!generationAllowed || !canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : !generationAllowed ? generationDisabledLabel : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>
               {error || episodeReview.error ? <div className="mt-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[11px] text-red-200">{error || episodeReview.error}</div> : null}
-              {message ? <div className="mt-3 rounded-lg border border-white/15 bg-white/8 px-3 py-2 text-[11px] text-neutral-200">{message}</div> : null}
+              {message ? <div className="mt-3 rounded-lg border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 py-2 text-[11px] text-[var(--fos-text-1)]">{message}</div> : null}
             </>
           ) : null}
         </aside>

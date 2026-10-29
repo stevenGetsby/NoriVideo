@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 import { apiFetch } from '@/lib/api-fetch'
 
 interface PromptMeta {
@@ -141,18 +142,18 @@ export function FramePromptsDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="bookmark" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="bookmark" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={{ pathname: '/profile' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="settingsHexMinor" className="h-4 w-4" />
             {t('openEditor')}
@@ -161,8 +162,8 @@ export function FramePromptsDashboard() {
 
         <div className="mb-4 grid grid-cols-4 gap-2 text-center">
           {(['total', 'zhOverrides', 'enOverrides', 'variables'] as const).map((key) => (
-            <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-2">
-              <div className="text-base font-bold text-white">{stats[key]}</div>
+            <div key={key} style={statTileStyle(key)} className="fos-stat-tile px-3 py-2">
+              <div className="text-base font-bold text-[var(--hue)]">{stats[key]}</div>
               <div className="mt-0.5 text-[11px] text-white/42">{t(`stats.${key}`)}</div>
             </div>
           ))}
@@ -178,16 +179,16 @@ export function FramePromptsDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                 {t('coverageTitle')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('coverageSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('coverage.local')}
             </span>
           </div>
-          <div className="grid grid-cols-[.8fr_.55fr_.55fr_.55fr_.55fr_.65fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.8fr_.55fr_.55fr_.55fr_.55fr_.65fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('coverage.columns.group')}</div>
             <div>{t('coverage.columns.templates')}</div>
             <div>{t('coverage.columns.variables')}</div>
@@ -201,9 +202,9 @@ export function FramePromptsDashboard() {
                 <div className="truncate font-medium text-white/74">{t(`groups.${row.group}`)}</div>
                 <div className="text-white/56">{row.templates}</div>
                 <div className="text-white/56">{row.variableCount}</div>
-                <div className={row.zhOverrides > 0 ? 'font-medium text-[#dcdcdc]' : 'text-white/42'}>{row.zhOverrides}</div>
-                <div className={row.enOverrides > 0 ? 'font-medium text-[#dcdcdc]' : 'text-white/42'}>{row.enOverrides}</div>
-                <div className={row.missingCoverage > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.missingCoverage}</div>
+                <div className={row.zhOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.zhOverrides}</div>
+                <div className={row.enOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.enOverrides}</div>
+                <div className={row.missingCoverage > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.missingCoverage}</div>
               </div>
             ))}
           </div>
@@ -254,7 +255,7 @@ export function FramePromptsDashboard() {
                         key={locale}
                         className={`rounded border px-1.5 py-0.5 text-[11px] ${
                           prompt.hasOverride[locale]
-                            ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                            ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                             : 'border-white/10 bg-white/5 text-white/34'
                         }`}
                       >
@@ -269,9 +270,9 @@ export function FramePromptsDashboard() {
         </div>
       </section>
 
-      <aside className="rounded-lg border border-white/10 bg-[#181818] p-4">
+      <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="folderOpen" className="h-4 w-4 text-[#e5e5e5]" />
+          <AppIcon name="folderOpen" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('groupsTitle')}
         </div>
         <div className="space-y-2">

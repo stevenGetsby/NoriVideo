@@ -257,7 +257,7 @@ export async function materializeCanvasSyncImageOperation(input: {
           data: {
             title: `${typeof sourceData.title === 'string' && sourceData.title.trim() ? sourceData.title : '图片'} · ${outputNodes.length} 宫格`,
             memberIds: outputNodeIds,
-            groupColor: null,
+            groupColor: '#6366f1',
           },
           status: 'IDLE',
           taskId: null,

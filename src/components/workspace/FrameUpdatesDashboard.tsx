@@ -118,11 +118,11 @@ export function FrameUpdatesDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="arrowDownCircle" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="arrowDownCircle" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
@@ -132,7 +132,7 @@ export function FrameUpdatesDashboard() {
               type="button"
               onClick={runUpdateCheck}
               disabled={isChecking}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
             >
               <AppIcon name={isChecking ? 'loader' : 'refresh'} className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
               {isChecking ? t('checkingNow') : t('runCheck')}
@@ -171,7 +171,7 @@ export function FrameUpdatesDashboard() {
               </div>
               <div className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="text-xs text-white/42">{t('cards.status')}</div>
-                <div className="mt-1 inline-flex rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-0.5 text-sm font-semibold text-[#dcdcdc]">
+                <div className="mt-1 inline-flex rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-0.5 text-sm font-semibold text-[#8ff0b9]">
                   {t('status.current')}
                 </div>
               </div>
@@ -200,16 +200,16 @@ export function FrameUpdatesDashboard() {
               <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                     {t('moduleMatrix.title')}
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('moduleMatrix.subtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-1 text-[11px] font-medium text-[#dcdcdc]">
+                <span className="w-fit rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-1 text-[11px] font-medium text-[#8ff0b9]">
                   {t('moduleMatrix.localMode')}
                 </span>
               </div>
-              <div className="grid grid-cols-[.9fr_.65fr_.75fr_.9fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+              <div className="grid grid-cols-[.9fr_.65fr_.75fr_.9fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
                 <div>{t('moduleMatrix.columns.module')}</div>
                 <div>{t('moduleMatrix.columns.status')}</div>
                 <div>{t('moduleMatrix.columns.version')}</div>
@@ -225,8 +225,8 @@ export function FrameUpdatesDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.health === 'synced'
-                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
-                          : 'border-white/25 bg-white/8 text-[#e5e5e5]'
+                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                          : 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]'
                       }`}>
                         {t(`moduleMatrix.status.${row.health}`)}
                       </span>
@@ -242,9 +242,9 @@ export function FrameUpdatesDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="refresh" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="refresh" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('historyTitle')}
           </div>
           {checkRecords.length === 0 ? (
@@ -257,7 +257,7 @@ export function FrameUpdatesDashboard() {
                 <div key={record.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-medium text-white/76">{record.version}</div>
-                    <span className="rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-1.5 py-0.5 text-[11px] text-[#dcdcdc]">
+                    <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-1.5 py-0.5 text-[11px] text-[#8ff0b9]">
                       {t('status.current')}
                     </span>
                   </div>
@@ -269,9 +269,9 @@ export function FrameUpdatesDashboard() {
           )}
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="badgeCheck" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="badgeCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('checklistTitle')}
           </div>
           <div className="space-y-2">
@@ -279,7 +279,7 @@ export function FrameUpdatesDashboard() {
               <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white/76">{t(`checklist.${key}.title`)}</div>
-                  <span className="rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-1.5 py-0.5 text-[11px] text-[#dcdcdc]">
+                  <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-1.5 py-0.5 text-[11px] text-[#8ff0b9]">
                     {t('status.tracked')}
                   </span>
                 </div>
@@ -289,9 +289,9 @@ export function FrameUpdatesDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="clock" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="clock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('releaseTitle')}
           </div>
           <div className="space-y-2">
@@ -309,9 +309,9 @@ export function FrameUpdatesDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="bookmark" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="bookmark" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('changelogTitle')}
           </div>
           <div className="space-y-2">

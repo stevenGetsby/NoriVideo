@@ -1,5 +1,6 @@
 'use client'
 
+import type { CSSProperties } from 'react'
 import {
   ChevronDown,
   OrganizeLayoutIcon,
@@ -19,7 +20,9 @@ import {
   ListVideo,
   Type,
 } from '@/components/ui/icons'
+import type { StoryNodeType } from '@/lib/interactive/types'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasNodeMenuType } from '../editor-types'
+import { STORY_NODE_HUES, STORY_NODE_ICONS } from '../story/StoryCanvasContext'
 import type { CanvasOrganizeMode } from '../actions/layout'
 import { CanvasOrganizeMenu, canvasOrganizeOption } from './CanvasOrganizeMenu'
 
@@ -29,9 +32,22 @@ function canvasControlTitle(label: string, disabled: boolean) {
   return disabled ? `${label} · 请先创建画布` : label
 }
 
-export function CanvasAddPanel({ onAddNode, onUpload }: { onAddNode: (type: CanvasNodeMenuType) => void; onUpload: () => void }) {
+export function CanvasAddPanel({ storyItems, onAddNode, onUpload }: {
+  storyItems?: ReadonlyArray<{ type: StoryNodeType; label: string; description: string }>
+  onAddNode: (type: CanvasNodeMenuType) => void
+  onUpload: () => void
+}) {
   return (
     <div className="nori-canvas-add-panel">
+      {storyItems?.length ? <>
+        <div>剧情节点</div>
+        <ul className="is-story">
+          {storyItems.map((item) => {
+            const Icon = STORY_NODE_ICONS[item.type]
+            return <li key={item.type} style={{ '--story-hue': STORY_NODE_HUES[item.type] } as CSSProperties}><button type="button" onClick={() => onAddNode(item.type)}><Icon /><span>{item.label}<small>{item.description}</small></span></button></li>
+          })}
+        </ul>
+      </> : null}
       <div>添加节点</div>
       <ul>
         {CANVAS_ADD_NODE_ITEMS.map((item) => {

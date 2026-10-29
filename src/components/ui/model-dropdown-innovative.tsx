@@ -135,7 +135,7 @@ export function ModelInnovativeV6(props: ModelDropdownTestProps) {
             >
                 <div className="flex flex-col items-start min-w-0 pr-2">
                     <span className="text-[11px] font-bold text-[var(--glass-text-tertiary)] uppercase tracking-wider mb-0.5">参数 Params</span>
-                    <span className={`text-[14px] font-semibold truncate ${props.capabilityFields.length === 0 ? 'text-[var(--glass-text-tertiary)]' : 'text-neutral-200'}`}>
+                    <span className={`text-[14px] font-semibold truncate ${props.capabilityFields.length === 0 ? 'text-[var(--glass-text-tertiary)]' : 'text-[var(--glass-text-primary)]'}`}>
                         {props.capabilityFields.length === 0 ? '不可配置' : (summary || '配置')}
                     </span>
                 </div>
@@ -152,7 +152,7 @@ export function ModelInnovativeV6(props: ModelDropdownTestProps) {
                             className="w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--glass-bg-hover)] flex items-center justify-between transition-colors"
                         >
                             <span className="text-[14px] font-medium text-[var(--glass-text-primary)]">{m.label}</span>
-                            {m.value === props.value && <AppIcon name="check" className="w-4 h-4 text-neutral-200" />}
+                            {m.value === props.value && <AppIcon name="check" className="w-4 h-4 text-[var(--glass-accent-from)]" />}
                         </button>
                     ))}
                 </div>, document.body
@@ -172,7 +172,7 @@ export function ModelInnovativeV6(props: ModelDropdownTestProps) {
                                             <button
                                                 key={s}
                                                 onClick={() => props.onCapabilityChange(field.field, s, field.options[0])}
-                                                className={`flex-1 px-2 py-1.5 text-[13px] rounded-lg transition-colors border ${active ? 'bg-white/[0.12] dark:bg-white/10 border-white/25 text-neutral-400 dark:text-neutral-200 font-semibold' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:hover:bg-[var(--glass-bg-hover)]'}`}
+                                                className={`flex-1 px-2 py-1.5 text-[13px] rounded-lg transition-colors border ${active ? 'bg-blue-50/50 dark:bg-[rgba(110,123,255,.14)] border-[rgba(110,123,255,.4)] text-blue-600 dark:text-[#a3acff] font-semibold' : 'bg-transparent border-[var(--glass-stroke-base)] text-[var(--glass-text-secondary)] hover:hover:bg-[var(--glass-bg-hover)]'}`}
                                             >
                                                 {s}
                                             </button>
@@ -203,7 +203,7 @@ export function ModelInnovativeV7(props: ModelDropdownTestProps) {
                 className="w-full flex items-center justify-between p-4 bg-transparent outline-none focus:outline-none"
             >
                 <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-full bg-white dark:bg-white/10 flex items-center justify-center text-neutral-400 dark:text-neutral-200">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 dark:bg-[rgba(110,123,255,.16)] flex items-center justify-center text-blue-600 dark:text-[#a3acff]">
                         <AppIcon name="cpu" className="w-5 h-5" />
                     </div>
                     <div className="text-left flex flex-col">
@@ -230,9 +230,9 @@ export function ModelInnovativeV7(props: ModelDropdownTestProps) {
                                 <button
                                     key={m.value}
                                     onClick={() => props.onModelChange(m.value)}
-                                    className={`p-3 text-left rounded-xl transition-colors border ${active ? 'bg-white/[0.12] dark:bg-white/10 border-white/25 shadow-[0_0_12px_rgba(255,255,255,.1)]' : 'bg-[var(--glass-bg-base)] border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-active)]'}`}
+                                    className={`p-3 text-left rounded-xl transition-colors border ${active ? 'bg-blue-50/80 dark:bg-white/10 border-white/25 shadow-[0_0_12px_rgba(255,255,255,.1)]' : 'bg-[var(--glass-bg-base)] border-[var(--glass-stroke-base)] hover:border-[var(--glass-stroke-active)]'}`}
                                 >
-                                    <div className={`text-[13px] font-semibold mb-1 ${active ? 'text-neutral-400 dark:text-neutral-200' : 'text-[var(--glass-text-primary)]'}`}>{m.label}</div>
+                                    <div className={`text-[13px] font-semibold mb-1 ${active ? 'text-blue-600 dark:text-[#a3acff]' : 'text-[var(--glass-text-primary)]'}`}>{m.label}</div>
                                     {m.providerName && <div className="text-[10px] text-[var(--glass-text-tertiary)]">{m.providerName}</div>}
                                 </button>
                             )
@@ -295,7 +295,7 @@ export function ModelInnovativeV8(props: ModelDropdownTestProps) {
                         {activeModel ? activeModel.label : '配置模型...'}
                     </span>
                 </div>
-                <div className="text-[12px] font-bold text-neutral-200 bg-white/8 px-3 py-1 rounded-full uppercase tracking-widest">
+                <div className="text-[12px] font-bold text-[#a3acff] bg-[rgba(110,123,255,.14)] px-3 py-1 rounded-full uppercase tracking-widest">
                     编辑
                 </div>
             </button>
@@ -317,10 +317,10 @@ export function ModelInnovativeV8(props: ModelDropdownTestProps) {
                                         <button
                                             key={m.value}
                                             onClick={() => props.onModelChange(m.value)}
-                                            className={`w-full text-left p-4 rounded-xl transition-colors border ${active ? 'bg-white shadow-[0_4px_12px_rgba(255,255,255,.14)] border-transparent' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
+                                            className={`w-full text-left p-4 rounded-xl transition-colors border ${active ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] shadow-[0_4px_12px_rgba(255,255,255,.14)] border-transparent' : 'bg-transparent border-transparent hover:bg-black/5 dark:hover:bg-white/5'}`}
                                         >
                                             <div className={`text-[15px] font-bold ${active ? 'text-white' : 'text-[var(--glass-text-primary)]'}`}>{m.label}</div>
-                                            {m.providerName && <div className={`text-[12px] mt-1 ${active ? 'text-neutral-200' : 'text-[var(--glass-text-tertiary)]'}`}>{m.providerName}</div>}
+                                            {m.providerName && <div className={`text-[12px] mt-1 ${active ? 'text-blue-600/80 dark:text-[#a3acff]/80' : 'text-[var(--glass-text-tertiary)]'}`}>{m.providerName}</div>}
                                         </button>
                                     )
                                 })}
@@ -367,7 +367,7 @@ export function ModelInnovativeV8(props: ModelDropdownTestProps) {
                                 )}
                             </div>
                             <div className="p-4 border-t border-[var(--glass-stroke-subtle)] bg-[var(--glass-bg-surface-strong)] flex justify-end">
-                                <button onClick={() => setIsOpen(false)} className="px-6 py-2.5 rounded-lg bg-white text-black font-semibold hover:bg-[#e2e2e2]">
+                                <button onClick={() => setIsOpen(false)} className="px-6 py-2.5 rounded-lg bg-blue-600 text-white font-semibold hover:brightness-110 shadow-md">
                                     确认应用
                                 </button>
                             </div>
@@ -534,10 +534,10 @@ export function ModelInnovativeV10(props: ModelDropdownTestProps) {
                                                 onClick={() => props.onModelChange(m.value)}
                                                 className={`flex flex-col items-start p-4 rounded-[20px] transition-all border-2 text-left ${active ? 'border-[rgba(255,255,255,.38)] bg-white/5 shadow-[0_8px_20px_rgba(255,255,255,.08)]' : 'border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface)] hover:border-[var(--glass-stroke-active)]'}`}
                                             >
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${active ? 'bg-white shadow-[0_4px_10px_rgba(255,255,255,.14)]' : 'bg-[var(--glass-bg-base)] border border-[var(--glass-stroke-subtle)]'}`}>
+                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-3 ${active ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] shadow-[0_4px_10px_rgba(255,255,255,.14)]' : 'bg-[var(--glass-bg-base)] border border-[var(--glass-stroke-subtle)]'}`}>
                                                     <AppIcon name="sparkles" className={`w-5 h-5 ${active ? 'text-white' : 'text-[var(--glass-text-tertiary)]'}`} />
                                                 </div>
-                                                <span className={`text-[15px] font-bold leading-tight ${active ? 'text-[#e5e5e5]' : 'text-[var(--glass-text-primary)]'}`}>{m.label}</span>
+                                                <span className={`text-[15px] font-bold leading-tight ${active ? 'text-[var(--glass-text-primary)]' : 'text-[var(--glass-text-primary)]'}`}>{m.label}</span>
                                                 {m.providerName && <span className="text-[11px] font-medium text-[var(--glass-text-tertiary)] mt-1">{m.providerName}</span>}
                                             </button>
                                         )

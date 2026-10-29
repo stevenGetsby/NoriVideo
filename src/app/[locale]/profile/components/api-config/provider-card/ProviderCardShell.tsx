@@ -37,7 +37,7 @@ export function getCompatibilityLayerBadgeLabel(
 // 连接状态图标
 function StatusIcon({ connected }: { connected: boolean }) {
   if (connected) {
-    return <AppIcon name="bolt" className="h-3.5 w-3.5 text-neutral-400" />
+    return <AppIcon name="bolt" className="h-3.5 w-3.5 text-green-500" />
   }
   return <AppIcon name="unplug" className="h-3.5 w-3.5 text-red-400" />
 }

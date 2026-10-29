@@ -4,6 +4,7 @@ import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
+import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import type { AccountCredits } from '@/lib/account/credits'
@@ -91,12 +92,12 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
 }
 
 const ROLE_TONES: Record<AccountRole, string> = {
-  super_admin: 'border-white/[0.24] bg-white/[.09] text-neutral-200',
-  admin: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  writer: 'border-white/15 bg-white/[.08] text-neutral-200',
-  asset: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  storyboard: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
-  reviewer: 'border-white/[0.24] bg-white/[.08] text-neutral-200',
+  super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
+  admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
+  writer: 'border-sky-400/25 bg-sky-400/[.08] text-sky-200',
+  asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
+  storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
+  reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
 }
 
 function roleDefinition(role: AccountRole) {
@@ -124,8 +125,8 @@ function formatNumber(value: number) {
 function Credits({ credits }: { credits: AccountCredits }) {
   return (
     <span className="flex items-center gap-2 text-[10px] text-white/55">
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] not-italic text-black">¥</i>{credits.coins}</span>
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-[8px] not-italic text-black">◆</i>{credits.points}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>{credits.coins}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
     </span>
   )
 }
@@ -327,24 +328,24 @@ export function FosAccountManagementClient() {
           </div>
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              ['共享可用积分', formatNumber(workspace?.manager.credits.points || 0)],
-              ['角色子账号', subaccounts.length],
-              ['工作区作品', workspace?.usage.projects || 0],
-              ['工作区资产', workspace?.usage.assets || 0],
-              ...((workspace?.usage.byType || emptyModelUsageSummary().byType).map((row) => (
-                [`${row.label}模型`, formatUsageMoney(row.cost)] as const
+            {([
+              ['total', '共享可用积分', formatNumber(workspace?.manager.credits.points || 0)],
+              ['subaccounts', '角色子账号', subaccounts.length],
+              ['projects', '工作区作品', workspace?.usage.projects || 0],
+              ['assets', '工作区资产', workspace?.usage.assets || 0],
+              ...((workspace?.usage.byType || emptyModelUsageSummary().byType).map((row): [string, string, string] => (
+                [row.type, `${row.label}模型`, formatUsageMoney(row.cost)]
               ))),
-            ].map(([label, value]) => (
-              <div key={label} className="rounded-[11px] border border-white/[.07] bg-white/[.025] px-5 py-4">
+            ] as Array<[string, string, string | number]>).map(([key, label, value]) => (
+              <div key={label} style={statTileStyle(key)} className="fos-stat-tile px-5 py-4">
                 <span className="text-[12px] text-white/50">{label}</span>
-                <strong className="mt-2 block text-[22px] text-white">{value}</strong>
+                <strong className="mt-2 block text-[22px] text-[var(--hue)]">{value}</strong>
               </div>
             ))}
           </div>
 
           <PermissionMatrix />
-          {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-white/20 bg-white/10 px-4 py-3 text-[12px] text-neutral-200">{pageNotice}</div> : null}
+          {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-[12px] text-emerald-200">{pageNotice}</div> : null}
 
           {pageError ? (
             <div className="mb-4 flex items-center justify-between rounded-[9px] border border-red-400/20 bg-red-400/10 px-4 py-3 text-[12px] text-red-200">
@@ -353,7 +354,7 @@ export function FosAccountManagementClient() {
             </div>
           ) : null}
 
-          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[#151515]">
+          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
             <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
               <div>
                 <h2 className="text-[13px] font-bold text-white">{workspace?.manager.username || '当前管理账号'}的子账号</h2>
@@ -364,7 +365,7 @@ export function FosAccountManagementClient() {
               <div className="min-w-[1370px]">
                 <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
                   <span>子账号</span><span>角色</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
-                  <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#151515] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(21,21,21,.92)]">操作</span>
+                  <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#131319] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
                 </div>
                 {loading ? (
                   <div className="px-5 py-12 text-center text-[11px] text-white/30">正在加载子账号…</div>
@@ -375,12 +376,12 @@ export function FosAccountManagementClient() {
                   return (
                     <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#4f4f4f]/25 text-[#e5e5e5]"><AppIcon name="user" className="h-4 w-4" /></span>
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
                       </div>
                       <span className={`w-fit max-w-full truncate rounded-full border px-2 py-1 text-[10px] font-semibold ${ROLE_TONES[account.role]}`} title={account.roleLabel || definition.shortLabel}>{account.roleLabel || definition.shortLabel}</span>
-                      <span className={`flex w-fit items-center gap-1.5 text-[10px] ${account.status === 'active' ? 'text-neutral-300' : 'text-white/35'}`}>
-                        <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-white' : 'bg-white/25'}`} />
+                      <span className={`flex w-fit items-center gap-1.5 text-[10px] ${account.status === 'active' ? 'text-emerald-300' : 'text-white/35'}`}>
+                        <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-emerald-400' : 'bg-white/25'}`} />
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
                       <Credits credits={account.credits} />
@@ -400,7 +401,7 @@ export function FosAccountManagementClient() {
                         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.every((item) => !account.permissions.includes(item.key)) ? <small className="text-[10px] text-white/30">仅查看</small> : null}
                       </span>
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
-                      <span className="sticky right-0 z-10 -my-4 flex items-center justify-end gap-2 border-l border-white/[.055] bg-[#151515] py-4 pl-3 shadow-[-12px_0_18px_rgba(21,21,21,.92)]">
+                      <span className="sticky right-0 z-10 -my-4 flex items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
                         <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => openEdit(account)}>设置额度</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="将历史个人积分收回共享钱包" onClick={() => openCreditOperation('reclaim', account)}>收回</button>

@@ -97,7 +97,7 @@ describe('infinite canvas permission-aware UI', () => {
     expect(graph).toContain("change.type === 'dimensions' && Boolean(change.setAttributes)")
     expect(graph).toContain('{!readOnly && selectedCreativeNode ? <CanvasGenerator')
     expect(graph).toContain('<CanvasToolRail editable={!readOnly}')
-    expect(graph).toContain('canOrganize={!readOnly}')
+    expect(graph).toContain('canOrganize={!readOnly && !storyCanvas}')
     expect(chrome).toContain('当前账号仅可查看画布')
     expect(chrome).toContain("readOnly ? <span className=\"nori-canvas-readonly-state\"")
   })

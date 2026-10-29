@@ -1,0 +1,661 @@
+/* 影游 chapter canvas. Every story node shares one card; --story-hue tints it. */
+.nori-story-node {
+  position: relative;
+  width: 100%;
+  border: .5px solid color-mix(in srgb, var(--story-hue) 34%, var(--dm-line));
+  border-radius: 14px;
+  color: var(--dm-text);
+  background: linear-gradient(165deg, color-mix(in srgb, var(--story-hue) 10%, var(--dm-card)), var(--dm-card) 58%);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, .22);
+  font-size: 12px;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.nori-story-node::before {
+  content: "";
+  position: absolute;
+  top: -.5px;
+  right: 18px;
+  left: 18px;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: linear-gradient(90deg, transparent, var(--story-hue), transparent);
+  opacity: .7;
+}
+.nori-story-node.is-selected {
+  border-color: var(--story-hue);
+  box-shadow: 0 0 0 1px var(--story-hue), 0 0 0 5px color-mix(in srgb, var(--story-hue) 16%, transparent), 0 14px 32px rgba(0, 0, 0, .38);
+}
+
+.nori-story-node-head {
+  display: flex;
+  height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+}
+.nori-story-node-head:has(+ .nori-story-node-body) { border-bottom: .5px solid color-mix(in srgb, var(--story-hue) 16%, var(--dm-line)); }
+.nori-story-node-icon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border-radius: 7px;
+  color: #0b0b10;
+  background: var(--story-hue);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--story-hue) 35%, transparent);
+}
+.nori-story-node-icon svg { width: 14px; height: 14px; }
+.nori-story-node-title {
+  min-width: 0;
+  height: 28px;
+  flex: 1;
+  margin-left: -4px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 6px;
+  overflow: hidden;
+  color: var(--dm-text);
+  background: transparent;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 28px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  outline: none;
+  cursor: grab;
+  user-select: none;
+}
+.nori-story-node-title.is-placeholder { color: var(--dm-dim); }
+.nori-story-node-title.is-editing { cursor: text; user-select: text; background: rgba(0, 0, 0, .26); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--story-hue) 55%, transparent); }
+.nori-story-node-kind {
+  flex: none;
+  border-radius: 999px;
+  padding: 2px 8px;
+  color: color-mix(in srgb, var(--story-hue) 82%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 14%, transparent);
+  font-size: 10px;
+  font-weight: 600;
+}
+.nori-story-node-kind.is-accent { color: #0b0b10; background: var(--story-hue); }
+.nori-story-node-kind.is-ending-good { color: #6ee7b7; background: rgba(52, 211, 153, .14); }
+.nori-story-node-kind.is-ending-bad { color: #fda4af; background: rgba(244, 63, 94, .14); }
+.nori-story-node-kind.is-ending-hidden { color: #d8b4fe; background: rgba(168, 85, 247, .16); }
+.nori-story-node-body { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px 12px; }
+
+/* Handles sit on the card edge; option and branch handles follow their row. */
+.react-flow__handle.nori-story-handle {
+  width: 16px;
+  height: 16px;
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  background: transparent;
+}
+.nori-story-handle::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 1.5px solid var(--story-hue);
+  border-radius: 50%;
+  background: var(--dm-bg-2);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--story-hue) 14%, transparent);
+  transition: transform .14s ease, background-color .14s ease;
+  pointer-events: none;
+}
+.nori-story-handle:hover::after,
+.react-flow__handle.nori-story-handle.connectingfrom::after { background: var(--story-hue); transform: scale(1.3); }
+.nori-story-node > .react-flow__handle.nori-story-handle { top: 22px; }
+/* The picture port: a rounded square on the top edge, tinted like the video cards that feed it. */
+.nori-story-node > .react-flow__handle.nori-story-handle.is-media { top: 0; }
+.nori-story-handle.is-media::after {
+  inset: 3.5px;
+  border-color: var(--dm-hue-video);
+  border-radius: 3px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dm-hue-video) 14%, transparent);
+}
+.nori-story-handle.is-media:hover::after,
+.react-flow__handle.nori-story-handle.is-media.connectingfrom::after { background: var(--dm-hue-video); }
+.nori-story-handle.is-media::before {
+  content: "画面";
+  position: absolute;
+  bottom: calc(100% + 3px);
+  left: 50%;
+  border-radius: 999px;
+  padding: 1px 6px;
+  color: color-mix(in srgb, var(--dm-hue-video) 85%, #fff);
+  background: rgba(8, 8, 12, .82);
+  font-size: 10px;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity .14s ease;
+  pointer-events: none;
+}
+.react-flow__node:hover .nori-story-handle.is-media::before { opacity: 1; }
+/* Read-only canvases hide handles; story ports stay laid out so edges keep their anchors. */
+.nori-canvas-workspace.is-readonly .react-flow__handle.nori-story-handle { display: block; pointer-events: none; }
+.nori-canvas-workspace.is-readonly .nori-story-handle.is-media::before { display: none; }
+.nori-story-row > .react-flow__handle.nori-story-handle.is-out { right: -12.5px; }
+.nori-canvas-surface .react-flow__edge-path.is-story-flow { stroke: color-mix(in srgb, var(--edge-hue, #a78bfa) 80%, transparent); stroke-width: 2; }
+.nori-canvas-surface .react-flow__edge-path.is-story-media { stroke: color-mix(in srgb, var(--edge-hue, #a78bfa) 70%, transparent); stroke-width: 1.5; stroke-dasharray: 5 5; }
+.nori-canvas-surface .react-flow__edge:hover .react-flow__edge-path.is-story-flow,
+.nori-canvas-surface .react-flow__edge:hover .react-flow__edge-path.is-story-media { stroke: color-mix(in srgb, var(--edge-hue, #a78bfa) 90%, #fff); }
+.nori-canvas-surface .react-flow__edge.selected .react-flow__edge-path.is-story-flow,
+.nori-canvas-surface .react-flow__edge.selected .react-flow__edge-path.is-story-media { stroke: color-mix(in srgb, var(--edge-hue, #a78bfa) 70%, #fff); stroke-width: 2.5; }
+
+.nori-story-input,
+.nori-story-textarea,
+.nori-story-rule select,
+.nori-story-rule input,
+.nori-story-footer select {
+  min-width: 0;
+  height: 28px;
+  border: .5px solid var(--dm-line);
+  border-radius: 7px;
+  padding: 0 8px;
+  color: var(--dm-text);
+  background: rgba(8, 8, 12, .55);
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+.nori-story-input:focus,
+.nori-story-textarea:focus,
+.nori-story-rule select:focus,
+.nori-story-rule input:focus,
+.nori-story-footer select:focus {
+  border-color: color-mix(in srgb, var(--story-hue) 70%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--story-hue) 14%, transparent);
+}
+.nori-story-input::placeholder,
+.nori-story-textarea::placeholder { color: rgba(245, 245, 250, .32); }
+.nori-story-textarea { height: auto; min-height: 52px; padding: 6px 8px; resize: none; line-height: 1.55; }
+.nori-story-rule select:disabled,
+.nori-story-footer select:disabled { opacity: .6; }
+.nori-story-rule .is-invalid { border-color: rgba(244, 63, 94, .6); color: #fda4af; }
+
+.nori-story-options { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.nori-story-option { display: flex; flex-direction: column; gap: 6px; }
+.nori-story-option.is-branch { padding-bottom: 6px; border-bottom: .5px dashed var(--dm-line); }
+.nori-story-option > .nori-story-rules {
+  margin-left: 26px;
+  border-left: 1.5px solid color-mix(in srgb, var(--story-hue) 40%, transparent);
+  padding: 2px 0 2px 8px;
+}
+.nori-story-option.is-branch > .nori-story-rules { margin-left: 0; border-left: 0; padding: 0 0 0 26px; }
+.nori-story-row { position: relative; display: flex; min-height: 28px; align-items: center; gap: 6px; }
+.nori-story-row > .nori-story-input { flex: 1; }
+.nori-story-row-index {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  color: color-mix(in srgb, var(--story-hue) 85%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 14%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+}
+.nori-story-row.is-else .nori-story-row-index { color: var(--dm-dim); background: rgba(255, 255, 255, .06); }
+.nori-story-else-label { flex: 1; color: var(--dm-muted); font-size: 12px; }
+
+.nori-story-chip {
+  height: 24px;
+  flex: none;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding: 0 9px;
+  color: var(--dm-muted);
+  background: transparent;
+  font-size: 10.5px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nori-story-chip:not(:disabled):hover { border-color: var(--dm-line-strong); color: var(--dm-text); }
+.nori-story-chip.is-active {
+  border-color: color-mix(in srgb, var(--story-hue) 45%, transparent);
+  color: color-mix(in srgb, var(--story-hue) 85%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 12%, transparent);
+}
+.nori-story-icon-button {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  color: var(--dm-dim);
+  background: transparent;
+  cursor: pointer;
+}
+.nori-story-icon-button:hover { color: #fda4af; background: rgba(244, 63, 94, .12); }
+.nori-story-icon-button svg { width: 13px; height: 13px; }
+.nori-story-add-rule,
+.nori-story-hint-button {
+  display: inline-flex;
+  height: 24px;
+  align-self: flex-start;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--story-hue) 80%, #fff);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+.nori-story-add-rule:hover,
+.nori-story-hint-button:not(:disabled):hover { background: color-mix(in srgb, var(--story-hue) 12%, transparent); }
+.nori-story-hint-button { border: .5px dashed color-mix(in srgb, var(--story-hue) 40%, transparent); }
+.nori-story-hint-button:disabled { opacity: .5; cursor: default; }
+.nori-story-add-rule svg { width: 12px; height: 12px; }
+
+.nori-story-rules { display: flex; flex-direction: column; gap: 5px; }
+.nori-story-rule { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) minmax(0, .85fr) 24px; align-items: center; gap: 4px; }
+.nori-story-rule select,
+.nori-story-rule input { height: 26px; padding: 0 6px; font-size: 11px; }
+.nori-story-rule > :last-child:not(button) { grid-column: span 2; }
+
+.nori-story-note { margin: 0; color: var(--dm-dim); font-size: 11px; line-height: 1.5; }
+.nori-story-note.is-linked { color: color-mix(in srgb, var(--story-hue) 85%, #fff); }
+.nori-story-section-label { color: var(--dm-dim); font-size: 10px; font-weight: 700; letter-spacing: .06em; }
+.nori-story-footer { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; border-top: .5px solid var(--dm-line); }
+.nori-story-footer label { display: flex; min-width: 0; flex: 1; align-items: center; gap: 6px; color: var(--dm-dim); font-size: 11px; }
+.nori-story-footer select { flex: 1; height: 26px; font-size: 11px; }
+
+.nori-story-segmented { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2px; border-radius: 8px; padding: 2px; background: rgba(8, 8, 12, .55); }
+.nori-story-segmented button { height: 24px; border: 0; border-radius: 6px; color: var(--dm-muted); background: transparent; font-size: 11px; cursor: pointer; }
+.nori-story-segmented button.is-active { color: #0b0b10; background: var(--story-hue); font-weight: 650; }
+.nori-story-segmented button:disabled { cursor: default; }
+
+.nori-story-scene-media { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border-radius: 9px; background: #0a0a0f; }
+.nori-story-scene-media video,
+.nori-story-scene-media img { width: 100%; height: 100%; object-fit: cover; }
+.nori-story-scene-media.is-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px dashed color-mix(in srgb, var(--story-hue) 32%, var(--dm-line));
+  padding: 0 24px;
+  color: var(--dm-dim);
+  background: color-mix(in srgb, var(--story-hue) 5%, #0b0b10);
+  font-size: 11px;
+  line-height: 1.5;
+  text-align: center;
+}
+.nori-story-scene-media.is-empty svg { width: 18px; height: 18px; color: var(--story-hue); }
+.nori-story-scene-media-kind { position: absolute; top: 8px; left: 8px; border-radius: 999px; padding: 2px 7px; color: #fff; background: rgba(0, 0, 0, .55); backdrop-filter: blur(6px); font-size: 10px; }
+
+.nori-story-trial-button {
+  display: flex;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: .5px solid color-mix(in srgb, var(--story-hue) 45%, transparent);
+  border-radius: 9px;
+  color: color-mix(in srgb, var(--story-hue) 85%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 12%, transparent);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nori-story-trial-button:not(:disabled):hover { background: color-mix(in srgb, var(--story-hue) 22%, transparent); }
+.nori-story-trial-button svg { width: 13px; height: 13px; }
+
+.nori-canvas-add-panel:has(.is-story) { max-height: calc(100% - 140px); overflow-y: auto; }
+.nori-canvas-add-panel ul.is-story li button > svg { color: var(--story-hue); }
+
+/* Chapter toolbar centres in the space right of the viewport controls; its panels pop up above it. */
+.nori-story-bar {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  left: 316px;
+  z-index: 30;
+  display: flex;
+  width: fit-content;
+  height: 44px;
+  max-width: calc(100% - 330px);
+  margin-inline: auto;
+  align-items: center;
+  gap: 2px;
+  border: .5px solid var(--dm-line);
+  border-radius: 999px;
+  padding: 5px;
+  background: var(--dm-glass);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .42);
+  backdrop-filter: blur(18px);
+}
+.nori-story-bar-title { display: flex; min-width: 0; align-items: center; gap: 7px; padding: 0 10px 0 9px; color: var(--dm-muted); font-size: 12px; white-space: nowrap; }
+.nori-story-bar-title i {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: conic-gradient(#34d399, #a78bfa, #f472b6, #38bdf8, #fb923c, #fbbf24, #34d399);
+}
+.nori-story-bar-title strong,
+.nori-story-bar-title small { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nori-story-bar-title strong { max-width: 180px; color: var(--dm-text); font-weight: 650; }
+.nori-story-bar-title small { max-width: 140px; color: var(--dm-dim); font-size: 11px; }
+.nori-story-bar-format { display: flex; height: 20px; flex: none; align-items: center; border-right: .5px solid var(--dm-line); border-left: .5px solid var(--dm-line); padding: 0 10px; margin-right: 2px; color: var(--dm-dim); font-size: 11px; white-space: nowrap; }
+.nori-story-bar button,
+.nori-story-bar-link {
+  display: inline-flex;
+  height: 32px;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  border-radius: 999px;
+  padding: 0 12px;
+  color: var(--dm-muted);
+  background: transparent;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.nori-story-bar button:hover,
+.nori-story-bar-link:hover,
+.nori-story-bar button.is-open { color: var(--dm-text); background: rgba(255, 255, 255, .08); }
+.nori-story-bar svg { width: 14px; height: 14px; }
+.nori-story-bar button b { display: grid; min-width: 18px; height: 18px; place-items: center; border-radius: 999px; padding: 0 5px; background: rgba(255, 255, 255, .09); font-size: 10px; }
+.nori-story-bar button.is-ok svg { color: #34d399; }
+.nori-story-bar button.is-warning { color: #fcd34d; }
+.nori-story-bar button.is-error { color: #fda4af; }
+.nori-story-bar button.is-primary { color: #fff; background: var(--dm-cta); font-weight: 600; box-shadow: 0 6px 18px rgba(108, 92, 255, .35); }
+.nori-story-bar button.is-primary:hover { filter: brightness(1.08); }
+
+.nori-story-panel {
+  position: absolute;
+  bottom: 68px;
+  left: 50%;
+  z-index: 31;
+  display: flex;
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100% - 200px);
+  flex-direction: column;
+  overflow: hidden;
+  border: .5px solid var(--dm-line);
+  border-radius: 16px;
+  background: rgba(22, 22, 29, .98);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5);
+  transform: translateX(-50%);
+}
+.nori-story-panel > header { display: flex; height: 48px; flex: none; align-items: center; justify-content: space-between; border-bottom: .5px solid var(--dm-line); padding: 0 10px 0 16px; }
+.nori-story-panel > header strong { font-size: 13px; }
+.nori-story-panel > header button { display: grid; width: 28px; height: 28px; place-items: center; border: 0; border-radius: 8px; color: var(--dm-dim); background: transparent; cursor: pointer; }
+.nori-story-panel > header button:hover { color: var(--dm-text); background: var(--dm-hover); }
+.nori-story-panel > header svg { width: 15px; height: 15px; }
+.nori-story-checks { display: flex; min-height: 0; flex-direction: column; gap: 4px; overflow-y: auto; margin: 0; padding: 8px; list-style: none; }
+.nori-story-checks button {
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  border-radius: 9px;
+  padding: 9px 10px;
+  color: var(--dm-muted);
+  background: rgba(255, 255, 255, .03);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  cursor: pointer;
+}
+.nori-story-checks button:not(:disabled):hover { color: var(--dm-text); background: rgba(255, 255, 255, .07); }
+.nori-story-checks button:disabled { cursor: default; }
+.nori-story-checks span { flex: none; border-radius: 999px; padding: 1px 7px; font-size: 10px; font-weight: 650; }
+.nori-story-checks .is-error span { color: #fda4af; background: rgba(244, 63, 94, .14); }
+.nori-story-checks .is-warning span { color: #fcd34d; background: rgba(251, 191, 36, .14); }
+.nori-story-checks-ok { display: flex; align-items: center; gap: 8px; margin: 0; padding: 22px 16px; color: #6ee7b7; font-size: 12px; }
+.nori-story-checks-ok svg { width: 16px; height: 16px; }
+.nori-story-checks-foot { flex: none; margin: 0; border-top: .5px solid var(--dm-line); padding: 10px 16px 12px; color: var(--dm-dim); font-size: 11px; }
+
+/* Selected story edges offer a delete button at their midpoint. */
+.nori-story-edge-delete {
+  position: absolute;
+  z-index: 10;
+  display: grid;
+  width: 22px;
+  height: 22px;
+  place-items: center;
+  border: .5px solid color-mix(in srgb, var(--edge-hue, #a78bfa) 55%, transparent);
+  border-radius: 50%;
+  padding: 0;
+  color: var(--dm-text);
+  background: var(--dm-card);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, .4);
+  pointer-events: all;
+  cursor: pointer;
+}
+.nori-story-edge-delete:hover { border-color: rgba(244, 63, 94, .7); color: #fda4af; background: color-mix(in srgb, #f43f5e 16%, var(--dm-card)); }
+.nori-story-edge-delete svg { width: 12px; height: 12px; }
+
+/* "+" beside each free out-port: the next beat is one click away. */
+.nori-story-quick-add {
+  position: absolute;
+  z-index: 2;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border: .5px solid color-mix(in srgb, var(--story-hue) 50%, transparent);
+  border-radius: 50%;
+  padding: 0;
+  color: color-mix(in srgb, var(--story-hue) 85%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 12%, var(--dm-card));
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .3);
+  opacity: .55;
+  cursor: pointer;
+  transition: opacity .14s ease, color .14s ease, background-color .14s ease;
+}
+.nori-story-quick-add::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  width: 14px;
+  border-top: 1.5px dashed color-mix(in srgb, var(--story-hue) 45%, transparent);
+}
+.nori-story-quick-add svg { width: 12px; height: 12px; }
+.nori-story-node > .nori-story-quick-add { top: 22px; left: calc(100% + 20px); transform: translateY(-50%); }
+.nori-story-row > .nori-story-quick-add { top: 50%; left: calc(100% + 32px); transform: translateY(-50%); }
+.react-flow__node:hover .nori-story-quick-add,
+.nori-story-node.is-selected .nori-story-quick-add { opacity: 1; }
+.nori-story-quick-add:hover { color: #0b0b10; background: var(--story-hue); }
+.nori-canvas-workspace.is-node-dragging .nori-story-quick-add { opacity: 0; }
+
+/* Live wire: dashed while searching, solid once snapped to a port, red over a card that refuses it. */
+.nori-canvas-surface .nori-story-wire .react-flow__connection-path { stroke: color-mix(in srgb, var(--wire-hue) 80%, transparent); stroke-width: 2; stroke-dasharray: 6 5; }
+.nori-canvas-surface .nori-story-wire.is-snapped .react-flow__connection-path { stroke: var(--wire-hue); stroke-dasharray: none; }
+.nori-canvas-surface .nori-story-wire.is-refused .react-flow__connection-path { stroke: rgba(244, 63, 94, .75); }
+.nori-story-wire-target { fill: color-mix(in srgb, var(--wire-hue) 22%, transparent); stroke: var(--wire-hue); stroke-width: 1.5; }
+
+/* Portalled outside the zoomed shell, so sizes here are literal screen pixels. */
+.nori-story-wire-menu {
+  position: fixed;
+  z-index: 100001;
+  display: flex;
+  width: 236px;
+  max-height: calc(100vh - 16px);
+  flex-direction: column;
+  gap: 1px;
+  overflow-y: auto;
+  border: .5px solid rgba(255, 255, 255, .1);
+  border-radius: 12px;
+  padding: 6px;
+  color: var(--dm-text);
+  background: rgba(24, 24, 31, .97);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .03);
+  backdrop-filter: blur(18px);
+  font-family: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
+}
+.nori-story-wire-menu-title { padding: 4px 8px 6px; color: var(--dm-dim); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.nori-story-wire-menu button {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  padding: 6px 8px;
+  color: var(--dm-text);
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nori-story-wire-menu button:hover,
+.nori-story-wire-menu button:focus-visible { outline: none; background: color-mix(in srgb, var(--story-hue) 13%, transparent); }
+.nori-story-wire-menu-icon {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: none;
+  place-items: center;
+  border-radius: 8px;
+  color: #0b0b10;
+  background: var(--story-hue);
+  box-shadow: 0 4px 12px color-mix(in srgb, var(--story-hue) 30%, transparent);
+}
+.nori-story-wire-menu-icon svg { width: 15px; height: 15px; }
+.nori-story-wire-menu-text { display: flex; min-width: 0; flex-direction: column; gap: 2px; }
+.nori-story-wire-menu-text strong { font-size: 13px; font-weight: 600; }
+.nori-story-wire-menu-text small { color: var(--dm-dim); font-size: 11px; }
+
+/* Scene effects collapse to a one-line summary. */
+.nori-story-effects { display: flex; flex-direction: column; gap: 6px; }
+.nori-story-effects.is-open { border: .5px solid var(--dm-line); border-radius: 9px; padding: 6px 8px 8px; background: rgba(8, 8, 12, .3); }
+.nori-story-effects-head { display: flex; min-height: 24px; align-items: center; gap: 6px; }
+.nori-story-effects-head > .nori-story-section-label { flex: none; }
+.nori-story-effect-pills { display: flex; min-width: 0; flex: 1; flex-wrap: wrap; gap: 4px; }
+.nori-story-effect-pill {
+  max-width: 120px;
+  overflow: hidden;
+  border-radius: 999px;
+  padding: 2px 7px;
+  color: color-mix(in srgb, var(--story-hue) 85%, #fff);
+  background: color-mix(in srgb, var(--story-hue) 12%, transparent);
+  font-size: 10.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nori-story-effect-pill.is-invalid { color: #fda4af; background: rgba(244, 63, 94, .12); }
+.nori-story-effect-pill.is-more { color: var(--dm-dim); background: rgba(255, 255, 255, .06); }
+.nori-story-effect-none,
+.nori-story-effects-hint { min-width: 0; flex: 1; color: var(--dm-dim); font-size: 11px; }
+.nori-story-effects-toggle {
+  height: 24px;
+  flex: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 8px;
+  color: color-mix(in srgb, var(--story-hue) 80%, #fff);
+  background: transparent;
+  font-size: 11px;
+  cursor: pointer;
+}
+.nori-story-effects-toggle:hover { background: color-mix(in srgb, var(--story-hue) 12%, transparent); }
+
+/* Scene picture: one-click creation, then a live status until the clip lands. */
+.nori-story-scene-media-actions { display: flex; gap: 6px; }
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions button,
+.nori-story-scene-media.is-pending button {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: .5px solid color-mix(in srgb, var(--dm-hue-video) 40%, transparent);
+  border-radius: 8px;
+  padding: 0 10px;
+  color: var(--dm-text);
+  background: color-mix(in srgb, var(--dm-hue-video) 10%, transparent);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background-color .14s ease, border-color .14s ease;
+}
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions button:hover,
+.nori-story-scene-media.is-pending button:hover { border-color: var(--dm-hue-video); background: color-mix(in srgb, var(--dm-hue-video) 20%, transparent); }
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions button:last-child { border-color: color-mix(in srgb, var(--dm-hue-image) 40%, transparent); background: color-mix(in srgb, var(--dm-hue-image) 8%, transparent); }
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions button:last-child:hover { border-color: var(--dm-hue-image); background: color-mix(in srgb, var(--dm-hue-image) 18%, transparent); }
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions svg { width: 13px; height: 13px; color: var(--dm-hue-video); }
+.nori-story-scene-media.is-empty .nori-story-scene-media-actions button:last-child svg { color: var(--dm-hue-image); }
+.nori-story-scene-media.is-pending {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px dashed color-mix(in srgb, var(--dm-hue-video) 35%, var(--dm-line));
+  color: var(--dm-muted);
+  background: color-mix(in srgb, var(--dm-hue-video) 6%, #0b0b10);
+  font-size: 11px;
+}
+.nori-story-scene-media.is-pending > svg { width: 18px; height: 18px; color: var(--dm-hue-video); }
+.nori-story-scene-media.is-failed { border-color: rgba(244, 63, 94, .45); background: rgba(244, 63, 94, .06); }
+.nori-story-scene-media.is-failed > svg,
+.nori-story-scene-media.is-failed > span { color: #fda4af; }
+.nori-story-scene-media-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in srgb, var(--dm-hue-video) 25%, transparent);
+  border-top-color: var(--dm-hue-video);
+  border-radius: 50%;
+  animation: nori-story-spin .8s linear infinite;
+}
+@keyframes nori-story-spin { to { transform: rotate(360deg); } }
+
+/* First-run guide, top-right where the canvas is otherwise quiet. */
+.nori-story-tips {
+  position: absolute;
+  top: 64px;
+  right: 14px;
+  z-index: 30;
+  display: flex;
+  width: 284px;
+  flex-direction: column;
+  gap: 10px;
+  border: .5px solid var(--dm-line);
+  border-radius: 14px;
+  padding: 12px 12px 10px;
+  color: var(--dm-text);
+  background: var(--dm-glass);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .42);
+  backdrop-filter: blur(18px);
+}
+.nori-story-tips > header { display: flex; align-items: center; gap: 8px; }
+.nori-story-tips > header > svg { width: 15px; height: 15px; flex: none; color: #fbbf24; }
+.nori-story-tips > header strong { flex: 1; font-size: 13px; font-weight: 650; }
+.nori-story-tips > header button { display: grid; width: 24px; height: 24px; place-items: center; border: 0; border-radius: 7px; color: var(--dm-dim); background: transparent; cursor: pointer; }
+.nori-story-tips > header button:hover { color: var(--dm-text); background: var(--dm-hover); }
+.nori-story-tips > header button svg { width: 13px; height: 13px; }
+.nori-story-tips ol { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nori-story-tips li { display: flex; gap: 9px; }
+.nori-story-tips li b {
+  display: grid;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  place-items: center;
+  border-radius: 6px;
+  color: #0b0b10;
+  font-size: 11px;
+}
+.nori-story-tips li:nth-child(1) b { background: #a78bfa; }
+.nori-story-tips li:nth-child(2) b { background: #38bdf8; }
+.nori-story-tips li:nth-child(3) b { background: #f472b6; }
+.nori-story-tips li span { display: flex; min-width: 0; flex-direction: column; gap: 2px; color: var(--dm-dim); font-size: 11px; line-height: 1.5; }
+.nori-story-tips li strong { color: var(--dm-text); font-size: 12px; font-weight: 600; }
+.nori-story-tips > footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-top: .5px solid var(--dm-line); padding-top: 9px; color: var(--dm-dim); font-size: 10.5px; }
+.nori-story-tips > footer button { height: 28px; flex: none; border: 0; border-radius: 8px; padding: 0 12px; color: #fff; background: var(--dm-cta); font-size: 12px; font-weight: 600; cursor: pointer; }
+.nori-story-tips > footer button:hover { filter: brightness(1.08); }

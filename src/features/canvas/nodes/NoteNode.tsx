@@ -28,14 +28,14 @@ function NoteNodeImpl({ data, selected }: NodeProps) {
         minHeight: 120,
         padding: 12,
         borderRadius: 12,
-        background: '#fafafa',
-        border: selected ? '2px solid #b1b1b1' : '1px solid #d1d1d1',
+        background: '#fffbe6',
+        border: selected ? '2px solid #f59e0b' : '1px solid #e5d086',
         boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
         cursor: 'grab',
       }}
       className="nori-canvas-note"
     >
-      <Handle type="target" position={Position.Top} style={{ background: '#b1b1b1' }} />
+      <Handle type="target" position={Position.Top} style={{ background: '#f59e0b' }} />
       <textarea
         value={text}
         onChange={handleChange}
@@ -50,11 +50,11 @@ function NoteNodeImpl({ data, selected }: NodeProps) {
           resize: 'none',
           outline: 'none',
           fontSize: 13,
-          color: '#404040',
+          color: '#3f3f46',
           fontFamily: 'inherit',
         }}
       />
-      <Handle type="source" position={Position.Bottom} style={{ background: '#b1b1b1' }} />
+      <Handle type="source" position={Position.Bottom} style={{ background: '#f59e0b' }} />
     </div>
   )
 }

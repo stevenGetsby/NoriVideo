@@ -9,57 +9,57 @@
 
 [data-theme="frameos-dark"] {
   /* ---- 1.1 背景色层级 ---- */
-  --fos-bg-1: #000000;        /* 页面最底层 */
-  --fos-bg-2: #181818;        /* 卡片 / 面板 / 主内容容器 */
-  --fos-bg-3: #1f1f1f;        /* 悬浮层 / 弹窗 / 下拉 / popover */
-  --fos-bg-4: #272727;        /* 填充块（输入框填充态、tag 背景） */
-  --fos-bg-5: #313131;        /* 浅填充（hover 态） */
-  --fos-bg-6: #3a3a3a;        /* 深填充（强调块） */
-  --fos-fill-lighter: #1d1d1d;
-  --fos-fill-extra-light: #191919;
+  --fos-bg-1: #0c0c11;        /* 页面最底层 */
+  --fos-bg-2: #131319;        /* 卡片 / 面板 / 主内容容器 */
+  --fos-bg-3: #1b1b23;        /* 悬浮层 / 弹窗 / 下拉 / popover */
+  --fos-bg-4: #2f2f3b;        /* 填充块（输入框填充态、tag 背景） */
+  --fos-bg-5: #24242e;        /* 浅填充（hover 态） */
+  --fos-bg-6: #3a3a48;        /* 深填充（强调块） */
+  --fos-fill-lighter: #1b1b23;
+  --fos-fill-extra-light: #16161d;
   --fos-mask: rgba(0, 0, 0, 0.8);
 
   /* ---- 1.2 文字色层级 ---- */
-  --fos-text-title: #ffffff;     /* 标题 / 主文字 */
-  --fos-text-regular: #d4d4d4;   /* 常规正文 */
-  --fos-text-secondary: #9b9b9b; /* 次级文字 */
-  --fos-text-tertiary: #858585;  /* 占位符 / 三级文字 */
-  --fos-text-disabled: #6e6e6e;  /* 禁用文字 */
+  --fos-text-title: #f5f5fa;     /* 标题 / 主文字 */
+  --fos-text-regular: #d5d6e0;   /* 常规正文 */
+  --fos-text-secondary: #a9aabb; /* 次级文字 */
+  --fos-text-tertiary: #8d8ea0;  /* 占位符 / 三级文字 */
+  --fos-text-disabled: #5e5f70;  /* 禁用文字 */
 
   /* ---- 1.3 主题色 / 品牌色 ---- */
-  --fos-primary: #ffffff;          /* token 源头品牌主色 */
-  --fos-primary-interactive: #ffffff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
-  --fos-primary-light-5: #e2e2e2;  /* hover 高亮 */
-  --fos-primary-light-7: #c9c9c9;
-  --fos-primary-light-8: #dcdcdc;
-  --fos-primary-light-9: #ededed;
-  --fos-primary-dark-2: #e2e2e2;   /* 按下态 / 渐变终点 */
+  --fos-primary: #6e7bff;          /* token 源头品牌主色 */
+  --fos-primary-interactive: #6e7bff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
+  --fos-primary-light-5: #a3acff;  /* hover 高亮 */
+  --fos-primary-light-7: #c0c6ff;
+  --fos-primary-light-8: #d6daff;
+  --fos-primary-light-9: #ebedff;
+  --fos-primary-dark-2: #5f6cf5;   /* 按下态 / 渐变终点 */
 
-  --fos-gradient-primary: #ffffff;
-  --fos-gradient-primary-hover: #e2e2e2;
-  --fos-gradient-purple: #ffffff;
-  --fos-gradient-success: #ffffff;
+  --fos-gradient-primary: linear-gradient(100deg, #3c8bff 0%, #6c5cff 52%, #a855f7 100%);
+  --fos-gradient-primary-hover: linear-gradient(100deg, #4f97ff 0%, #7b6cff 52%, #b56bf9 100%);
+  --fos-gradient-purple: linear-gradient(135deg, #a855f7, #7c66ff);
+  --fos-gradient-success: linear-gradient(135deg, #34d399, #10b981);
 
   /* ---- 1.4 状态色 ---- */
-  --fos-success: #ffffff;
-  --fos-success-light: #ffffff;
-  --fos-success-dark: #e2e2e2;
-  --fos-warning: #d6d6d6;
-  --fos-warning-light: #e2e2e2;
-  --fos-warning-dark: #b4b4b4;
-  --fos-danger: #e5484d;
+  --fos-success: #34d399;
+  --fos-success-light: #6ee7b7;
+  --fos-success-dark: #10b981;
+  --fos-warning: #fbbf24;
+  --fos-warning-light: #fcd34d;
+  --fos-warning-dark: #f59e0b;
+  --fos-danger: #ef4444;
   --fos-danger-light: #ff8589;
-  --fos-danger-dark: #c93c41;
-  --fos-info: #939393;
+  --fos-danger-dark: #dc2626;
+  --fos-info: #38bdf8;
 
   /* ---- 1.5 边框色 ---- */
-  --fos-border: #313131;
+  --fos-border: #3a3a48;
   --fos-border-hover: rgba(255, 255, 255, 0.3);
-  --fos-border-darker: #4a4a4a;
-  --fos-border-dark: #3f3f3f;
-  --fos-border-light: #313131;
-  --fos-border-lighter: #272727;
-  --fos-border-extra-light: #1f1f1f;
+  --fos-border-darker: #4a4a5a;
+  --fos-border-dark: #424252;
+  --fos-border-light: #34343f;
+  --fos-border-lighter: #2a2a35;
+  --fos-border-extra-light: #22222b;
 
   /* ---- 1.6 滚动条 ---- */
   --fos-scrollbar-thumb: rgba(255, 255, 255, 0.2);
@@ -100,11 +100,26 @@
   --fos-size-lg: 40px;
   --fos-size-base: 32px;
   --fos-size-sm: 24px;
+
+  /* ---- Aurora 品牌扩展（与 .fos-app 同名 token 对齐） ---- */
+  --fos-primary-hover: #5f6cf5;
+  --fos-primary-text: #a3acff;
+  --fos-primary-soft: rgba(110, 123, 255, 0.14);
+  --fos-primary-border: rgba(110, 123, 255, 0.4);
+  --fos-gradient-brand: linear-gradient(115deg, #45a6ff 0%, #7c66ff 48%, #e070e0 100%);
+  --fos-cta-shadow: 0 8px 24px -10px rgba(108, 92, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  --fos-hue-image: #38bdf8;
+  --fos-hue-video: #a78bfa;
+  --fos-hue-audio: #34d399;
+  --fos-hue-text: #fbbf24;
 }
 
 /* ===== FrameOS 作用域基础样式 ===== */
 [data-theme="frameos-dark"] {
-  background: var(--fos-bg-1);
+  background:
+    radial-gradient(60% 40% at 12% -6%, rgba(91, 108, 255, 0.12), transparent 70%),
+    radial-gradient(48% 36% at 96% 4%, rgba(224, 112, 224, 0.07), transparent 72%),
+    var(--fos-bg-1);
   color: var(--fos-text-regular);
   font-family: var(--fos-font-sans);
   font-size: var(--fos-fs-13);
@@ -172,7 +187,7 @@
 .fos-btn-primary {
   background: var(--fos-gradient-primary);
   border-color: transparent;
-  color: #000;
+  color: #fff;
 }
 .fos-btn-primary:hover {
   background: var(--fos-gradient-primary-hover);
@@ -195,7 +210,8 @@
 }
 .fos-input:focus {
   outline: none;
-  border-color: rgba(255, 255, 255, 0.4);
+  border-color: rgba(124, 102, 255, 0.6);
+  box-shadow: 0 0 0 3px rgba(124, 102, 255, 0.14);
 }
 
 .fos-tag {
@@ -217,4 +233,64 @@
 }
 .fos-text-tertiary {
   color: var(--fos-text-tertiary);
+}
+
+/* Aurora 页面英雄区 / 色相图标 / 统计卡 */
+[data-theme="frameos-dark"] .fos-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  background:
+    radial-gradient(58% 170% at 0% 0%, rgba(110, 123, 255, 0.24), transparent 62%),
+    radial-gradient(42% 150% at 100% 0%, rgba(224, 112, 224, 0.13), transparent 64%),
+    var(--fos-bg-3);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+[data-theme="frameos-dark"] .fos-hero-tile {
+  display: flex;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 14px;
+  color: #fff;
+  background: var(--fos-gradient-brand);
+  box-shadow: 0 10px 26px -8px rgba(108, 92, 255, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+[data-theme="frameos-dark"] .fos-hue-tile {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--hue) 36%, transparent);
+  border-radius: 8px;
+  color: var(--hue);
+  background: color-mix(in srgb, var(--hue) 16%, transparent);
+}
+[data-theme="frameos-dark"] .fos-hue-tile-sm {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+}
+[data-theme="frameos-dark"] .fos-hue-card {
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+[data-theme="frameos-dark"] .fos-hue-card:hover {
+  border-color: color-mix(in srgb, var(--hue) 55%, transparent);
+  background: color-mix(in srgb, var(--hue) 7%, var(--fos-bg-3));
+}
+[data-theme="frameos-dark"] .fos-stat-tile,
+.fos-app .fos-stat-tile {
+  border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--hue) 14%, transparent), transparent 85%),
+    rgba(255, 255, 255, 0.03);
 }

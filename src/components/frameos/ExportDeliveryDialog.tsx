@@ -122,7 +122,7 @@ export function ExportDeliveryDialog({
                 <div className="mb-2 flex items-center justify-between text-[13px] font-semibold text-white">
                   <span>BGM 混音强度</span><span className="text-[var(--fos-text-3)]">{bgmMix}%</span>
                 </div>
-                <input type="range" min={0} max={100} value={bgmMix} onChange={(e) => setBgmMix(Number(e.target.value))} className="w-full accent-[#e5e5e5]" />
+                <input type="range" min={0} max={100} value={bgmMix} onChange={(e) => setBgmMix(Number(e.target.value))} className="w-full accent-[var(--fos-primary)]" />
               </div>
             </div>
           ) : null}

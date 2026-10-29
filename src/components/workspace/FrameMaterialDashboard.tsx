@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 import { apiFetch } from '@/lib/api-fetch'
 import type { AssetKind, AssetSummary } from '@/lib/assets/contracts'
 import { groupAssetsByKind } from '@/lib/assets/grouping'
@@ -132,18 +133,18 @@ export function FrameMaterialDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="package" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="package" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={{ pathname: '/asset-hub' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="folderHeart" className="h-4 w-4" />
             {t('openAssetHub')}
@@ -152,8 +153,8 @@ export function FrameMaterialDashboard() {
 
         <div className="mb-4 grid grid-cols-3 gap-2 text-center md:grid-cols-6">
           {(['total', 'visual', 'audio', 'renders', 'running', 'failed'] as const).map((key) => (
-            <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-2">
-              <div className="text-base font-bold text-white">{stats[key]}</div>
+            <div key={key} style={statTileStyle(key)} className="fos-stat-tile px-3 py-2">
+              <div className="text-base font-bold text-[var(--hue)]">{stats[key]}</div>
               <div className="mt-0.5 text-[11px] text-white/42">{t(`stats.${key}`)}</div>
             </div>
           ))}
@@ -169,16 +170,16 @@ export function FrameMaterialDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                 {t('readinessTitle')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('readinessSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('readiness.local')}
             </span>
           </div>
-          <div className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('readiness.columns.kind')}</div>
             <div>{t('readiness.columns.total')}</div>
             <div>{t('readiness.columns.ready')}</div>
@@ -192,9 +193,9 @@ export function FrameMaterialDashboard() {
               <div key={row.key} className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 px-3 py-3 text-xs">
                 <div className="truncate font-medium text-white/74">{t(`kinds.${row.key}`)}</div>
                 <div className="text-white/56">{row.total}</div>
-                <div className="font-medium text-[#dcdcdc]">{row.ready}</div>
-                <div className={row.missingPreview > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.missingPreview}</div>
-                <div className={row.running > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.running}</div>
+                <div className="font-medium text-[#8ff0b9]">{row.ready}</div>
+                <div className={row.missingPreview > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.missingPreview}</div>
+                <div className={row.running > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.running}</div>
                 <div className={row.failed > 0 ? 'font-medium text-[#ff9a9a]' : 'text-white/42'}>{row.failed}</div>
                 <div className="truncate text-white/42">{row.latestName}</div>
               </div>
@@ -240,13 +241,13 @@ export function FrameMaterialDashboard() {
                     <div className="text-white/58">{countVisualRenders(asset)}</div>
                     <div className="flex flex-wrap gap-1">
                       {isRunning(asset) ? (
-                        <span className="rounded border border-[#d3d3d3]/35 bg-[#ffffff]/10 px-2 py-0.5 text-xs text-[#dedede]">{t('status.running')}</span>
+                        <span className="rounded border border-[#ffcc66]/35 bg-[#ffcc66]/10 px-2 py-0.5 text-xs text-[#ffd98a]">{t('status.running')}</span>
                       ) : null}
                       {hasError(asset) ? (
                         <span className="rounded border border-[#ff6b6b]/35 bg-[#ff6b6b]/10 px-2 py-0.5 text-xs text-[#ff9a9a]">{t('status.failed')}</span>
                       ) : null}
                       {!isRunning(asset) && !hasError(asset) ? (
-                        <span className="rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-0.5 text-xs text-[#dcdcdc]">{t('status.ready')}</span>
+                        <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-0.5 text-xs text-[#8ff0b9]">{t('status.ready')}</span>
                       ) : null}
                     </div>
                   </div>
@@ -257,9 +258,9 @@ export function FrameMaterialDashboard() {
         </div>
       </section>
 
-      <aside className="rounded-lg border border-white/10 bg-[#181818] p-4">
+      <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="folderOpen" className="h-4 w-4 text-[#e5e5e5]" />
+          <AppIcon name="folderOpen" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('groupsTitle')}
         </div>
         <div className="space-y-2">

@@ -84,7 +84,7 @@ const ACTION_LABELS: Record<string, string> = {
   'generate-audio': '音频生成',
 }
 
-const CHART_COLORS = ['#ffffff', '#b4b4b4', '#858585', '#5c5c5c', '#d6d6d6', '#3f3f3f']
+const CHART_COLORS = ['#3265ff', '#17b890', '#f59e0b', '#e0529a', '#3265ff', '#3265ff']
 
 function pad(value: number) {
   return String(value).padStart(2, '0')
@@ -180,7 +180,7 @@ function CumulativeLineChart({ rows }: { rows: Array<{ day: string; value: numbe
     // eslint-disable-next-line no-restricted-syntax -- This SVG is a data chart, not an interface icon.
     <svg className="h-[225px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="积分累计消耗趋势">
       <defs>
-        <linearGradient id="service-report-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#b2b2b2" stopOpacity=".28" /><stop offset="1" stopColor="#b2b2b2" stopOpacity="0" /></linearGradient>
+        <linearGradient id="service-report-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#fbbf24" stopOpacity=".28" /><stop offset="1" stopColor="#fbbf24" stopOpacity="0" /></linearGradient>
       </defs>
       {[0, 1, 2, 3, 4].map((index) => {
         const y = top + (index / 4) * (height - top - bottom)
@@ -188,7 +188,7 @@ function CumulativeLineChart({ rows }: { rows: Array<{ day: string; value: numbe
         return <g key={index}><line x1={left} x2={width - right} y1={y} y2={y} stroke="rgba(255,255,255,.075)" /><text x={left - 10} y={y + 4} textAnchor="end" fill="rgba(255,255,255,.34)" fontSize="10">{number(value)}</text></g>
       })}
       <polygon points={area} fill="url(#service-report-area)" />
-      <polyline points={line} fill="none" stroke="#b2b2b2" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={line} fill="none" stroke="#fbbf24" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       {points.map((point, index) => index % labelStep === 0 || index === points.length - 1 ? <text key={point.day} x={point.x} y={height - 9} textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="10">{point.day.slice(5)}</text> : null)}
     </svg>
   )
@@ -202,7 +202,7 @@ function HorizontalBars({ rows, valueLabel }: { rows: Array<{ id: string; label:
       {rows.slice(0, 7).map((row) => (
         <div key={row.id} className="grid grid-cols-[130px_minmax(0,1fr)_86px] items-center gap-3 text-[12px]">
           <div className="min-w-0"><strong className="block truncate font-medium text-white/72">{row.label}</strong>{row.detail ? <small className="mt-0.5 block truncate text-[10px] text-white/30">{row.detail}</small> : null}</div>
-          <div className="h-3 overflow-hidden rounded-[3px] bg-white/[.045]"><div className="h-full min-w-[3px] rounded-[3px] bg-white" style={{ width: `${Math.max(1.5, (row.value / max) * 100)}%` }} /></div>
+          <div className="h-3 overflow-hidden rounded-[3px] bg-white/[.045]"><div className="h-full min-w-[3px] rounded-[3px] bg-gradient-to-r from-[#fbbf24] to-[#ffc34a]" style={{ width: `${Math.max(1.5, (row.value / max) * 100)}%` }} /></div>
           <span className="text-right font-mono text-[11px] text-white/48">{valueLabel(row.value)}</span>
         </div>
       ))}
@@ -222,14 +222,14 @@ function DonutChart({ rows, unit = '次调用', valueLabel = (value: number) => 
   })
   return (
     <div className="flex min-h-[210px] items-center justify-center gap-10 py-4">
-      <div className="relative h-36 w-36 shrink-0 rounded-full" style={{ background: `conic-gradient(${stops.join(',')})` }}><div className="absolute inset-[23px] flex flex-col items-center justify-center rounded-full bg-[#141414]"><strong className="text-[20px] text-white">{valueLabel(total)}</strong><small className="text-[10px] text-white/34">{unit}</small></div></div>
+      <div className="relative h-36 w-36 shrink-0 rounded-full" style={{ background: `conic-gradient(${stops.join(',')})` }}><div className="absolute inset-[23px] flex flex-col items-center justify-center rounded-full bg-[var(--fos-bg-2)]"><strong className="text-[20px] text-white">{valueLabel(total)}</strong><small className="text-[10px] text-white/34">{unit}</small></div></div>
       <div className="min-w-0 space-y-2.5">{rows.slice(0, CHART_COLORS.length).map((row, index) => <div key={row.id} className="flex min-w-0 items-center gap-2 text-[11px] text-white/55"><i className="h-2.5 w-2.5 shrink-0 rounded-[2px]" style={{ background: CHART_COLORS[index] }} /><span className="max-w-[190px] truncate">{row.label}</span><b className="ml-auto font-mono font-medium text-white/70">{valueLabel(row.value)}</b></div>)}</div>
     </div>
   )
 }
 
 function ReportCard({ title, subtitle, children, className = '' }: { title: string; subtitle?: string; children: React.ReactNode; className?: string }) {
-  return <section className={`rounded-[12px] border border-white/[.075] bg-[#141414] ${className}`}><header className="flex min-h-[45px] items-center justify-between gap-3 border-b border-white/[.055] px-4"><div><strong className="text-[13px] font-semibold text-white/82">{title}</strong>{subtitle ? <span className="ml-2 text-[10px] text-white/32">{subtitle}</span> : null}</div></header><div className="px-4 py-2">{children}</div></section>
+  return <section className={`rounded-[12px] border border-white/[.075] bg-[var(--fos-bg-2)] ${className}`}><header className="flex min-h-[45px] items-center justify-between gap-3 border-b border-white/[.055] px-4"><div><strong className="text-[13px] font-semibold text-white/82">{title}</strong>{subtitle ? <span className="ml-2 text-[10px] text-white/32">{subtitle}</span> : null}</div></header><div className="px-4 py-2">{children}</div></section>
 }
 
 export function FrameServiceRecordsDashboard() {
@@ -363,19 +363,19 @@ export function FrameServiceRecordsDashboard() {
     URL.revokeObjectURL(href)
   }
 
-  const selectClass = 'h-9 min-w-0 rounded-[7px] border border-white/[.085] bg-[#0d0d0d] px-2.5 text-[12px] text-white/72 outline-none focus:border-[rgba(255,255,255,.38)]'
+  const selectClass = 'h-9 min-w-0 rounded-[7px] border border-white/[.085] bg-[#08080c] px-2.5 text-[12px] text-white/72 outline-none focus:border-[rgba(255,255,255,.38)]'
 
   return (
-    <div className="min-h-full space-y-3 bg-[#0b0b0b] p-4 text-white">
+    <div className="min-h-full space-y-3 bg-[#08080c] p-4 text-white">
       <header className="flex flex-wrap items-center justify-between gap-3 px-1">
-        <div><h1 className="flex items-center gap-2 text-[17px] font-semibold"><AppIcon name="barChart" className="h-5 w-5 text-[#e5e5e5]" />用量报表</h1><p className="mt-1 text-[11px] text-white/36">按项目、作品、账号、服务与模型查看真实生成用量</p></div>
+        <div><h1 className="flex items-center gap-2 text-[17px] font-semibold"><AppIcon name="barChart" className="h-5 w-5 text-[var(--fos-primary-text)]" />用量报表</h1><p className="mt-1 text-[11px] text-white/36">按项目、作品、账号、服务与模型查看真实生成用量</p></div>
         <div className="flex items-center gap-2">
-          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-white/25 bg-white/10 px-3 text-[12px] text-[#e5e5e5] hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40" disabled={loading || accountModelRows.length === 0} onClick={exportAccountModelUsage}><AppIcon name="download" className="h-4 w-4" />导出表格</button>
+          <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 text-[12px] text-white hover:bg-[rgba(110,123,255,.22)] disabled:cursor-not-allowed disabled:opacity-40" disabled={loading || accountModelRows.length === 0} onClick={exportAccountModelUsage}><AppIcon name="download" className="h-4 w-4" />导出表格</button>
           <button type="button" className="inline-flex h-9 items-center gap-2 rounded-[7px] border border-white/10 bg-white/[.035] px-3 text-[12px] text-white/62 hover:bg-white/[.07]" disabled={loading} onClick={() => setRefreshKey((key) => key + 1)}><AppIcon name="refresh" className={`h-4 w-4${loading ? ' animate-spin' : ''}`} />刷新</button>
         </div>
       </header>
 
-      <section className="rounded-[12px] border border-white/[.075] bg-[#141414] p-3">
+      <section className="rounded-[12px] border border-white/[.075] bg-[var(--fos-bg-2)] p-3">
         <div className="grid gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_.8fr]">
           <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>项目</span><select className={selectClass} value={workId} onChange={(event) => setWorkId(event.target.value)}><option value="all">全部项目</option>{report?.options.works.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
           <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>作品</span><select className={selectClass} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="all">全部作品</option>{projectOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
@@ -389,7 +389,7 @@ export function FrameServiceRecordsDashboard() {
           <input aria-label="报表开始日期" type="date" className={selectClass} value={startDate} onChange={(event) => { setRangePreset('custom'); setStartDate(event.target.value) }} />
           <span className="text-[11px] text-white/28">至</span>
           <input aria-label="报表结束日期" type="date" className={selectClass} value={endDate} onChange={(event) => { setRangePreset('custom'); setEndDate(event.target.value) }} />
-          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-white text-[#e5e5e5]' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
+          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
           <span className="ml-auto text-[10px] text-white/28">{filtered.length} 条服务记录</span>
         </div>
       </section>
@@ -398,11 +398,11 @@ export function FrameServiceRecordsDashboard() {
 
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
-          { title: '积分消耗', value: number(points, 2), hint: '筛选范围内的实际/估算积分', color: '#b2b2b2' },
-          { title: '文本 Token', value: number(inputTokens + outputTokens), hint: `输入 ${number(inputTokens)} · 输出 ${number(outputTokens)}`, color: '#e5e5e5' },
-          { title: '生图（次）', value: number(imageCount), hint: '成功产出的图片数量', color: '#a1a1a1' },
-          { title: '生视频', value: `${number(videoCount)} 次`, hint: `${number(videoSeconds, 2)} 秒 · ${number(videoTokens)} tokens${failureCount ? ` · ${failureCount} 次失败` : ''}`, color: '#818181' },
-        ].map((item) => <article key={item.title} className="rounded-[12px] border border-white/[.075] bg-[#141414] p-4"><div className="flex items-center gap-2 text-[11px] text-white/42"><i className="h-7 w-7 rounded-[7px]" style={{ background: `${item.color}19`, boxShadow: `inset 0 0 0 1px ${item.color}28` }} />{item.title}</div><strong className="mt-3 block text-[24px] font-semibold tracking-tight text-white">{loading ? '—' : item.value}</strong><small className="mt-1 block text-[10px] text-white/28">{item.hint}</small></article>)}
+          { title: '积分消耗', value: number(points, 2), hint: '筛选范围内的实际/估算积分', color: '#fbbf24' },
+          { title: '文本 Token', value: number(inputTokens + outputTokens), hint: `输入 ${number(inputTokens)} · 输出 ${number(outputTokens)}`, color: '#6e7bff' },
+          { title: '生图（次）', value: number(imageCount), hint: '成功产出的图片数量', color: '#38bdf8' },
+          { title: '生视频', value: `${number(videoCount)} 次`, hint: `${number(videoSeconds, 2)} 秒 · ${number(videoTokens)} tokens${failureCount ? ` · ${failureCount} 次失败` : ''}`, color: '#a78bfa' },
+        ].map((item) => <article key={item.title} className="rounded-[12px] border border-white/[.075] bg-[var(--fos-bg-2)] p-4"><div className="flex items-center gap-2 text-[11px] text-white/42"><i className="h-7 w-7 rounded-[7px]" style={{ background: `${item.color}19`, boxShadow: `inset 0 0 0 1px ${item.color}28` }} />{item.title}</div><strong className="mt-3 block text-[24px] font-semibold tracking-tight text-white">{loading ? '—' : item.value}</strong><small className="mt-1 block text-[10px] text-white/28">{item.hint}</small></article>)}
       </section>
 
       <ReportCard title="消耗趋势" subtitle={`${dailyRows.length} 个活跃日期 · 累计积分`}><CumulativeLineChart rows={dailyRows} /></ReportCard>
@@ -414,7 +414,7 @@ export function FrameServiceRecordsDashboard() {
       </div>
 
       <ReportCard title="账号 × 模型积分消耗" subtitle={`${accountModelRows.length} 个账号模型组合 · 导出内容随当前筛选条件变化`}>
-        {loading ? <div className="flex h-28 items-center justify-center gap-2 text-[12px] text-white/40"><AppIcon name="loader" className="h-4 w-4 animate-spin" />正在汇总账号模型用量…</div> : accountModelRows.length === 0 ? <EmptyChart text="当前筛选范围暂无账号模型用量" /> : <div className="overflow-x-auto"><div className="min-w-[1180px]"><div className="grid grid-cols-[1.05fr_1.25fr_.75fr_1.2fr_.65fr_.55fr_.72fr_.78fr_.9fr] gap-3 border-b border-white/[.06] px-2 py-2 text-[10px] font-medium text-white/34"><span>账号 / 岗位</span><span>模型 / 类型</span><span>调用</span><span>Token</span><span>生成单位</span><span>作品</span><span>积分消耗</span><span>人民币成本</span><span>最近使用</span></div>{accountModelRows.map((row) => <div key={row.id} className="grid grid-cols-[1.05fr_1.25fr_.75fr_1.2fr_.65fr_.55fr_.72fr_.78fr_.9fr] items-center gap-3 border-b border-white/[.045] px-2 py-3 text-[11px] last:border-0"><div className="min-w-0"><strong className="block truncate font-medium text-white/78">{row.accountName}</strong><small className="mt-0.5 block truncate text-white/32">{row.accountRole || '未设置岗位'}</small></div><div className="min-w-0"><span className="block truncate text-white/66">{row.modelName}</span><small className="mt-0.5 block text-white/30">{serviceLabel(row.serviceType)}</small></div><div className="text-white/58"><span>{number(row.calls)} 次</span><small className="mt-0.5 block text-white/30">成功 {number(row.successCalls)} · 失败 {number(row.failureCalls)}</small></div><div className="font-mono text-white/56"><span>{number(row.totalTokens)}</span><small className="mt-0.5 block text-white/28">In {number(row.inputTokens)} · Out {number(row.outputTokens)}</small></div><span className="font-mono text-white/52">{number(row.units, 2)}</span><span className="font-mono text-white/52">{number(row.projectCount)}</span><strong className="font-mono font-semibold text-[#bfbfbf]">{number(row.points, 2)}</strong><span className="font-mono text-white/48">¥{number(row.cost, 4)}</span><time className="text-[10px] text-white/34">{new Date(row.lastUsedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>)}</div></div>}
+        {loading ? <div className="flex h-28 items-center justify-center gap-2 text-[12px] text-white/40"><AppIcon name="loader" className="h-4 w-4 animate-spin" />正在汇总账号模型用量…</div> : accountModelRows.length === 0 ? <EmptyChart text="当前筛选范围暂无账号模型用量" /> : <div className="overflow-x-auto"><div className="min-w-[1180px]"><div className="grid grid-cols-[1.05fr_1.25fr_.75fr_1.2fr_.65fr_.55fr_.72fr_.78fr_.9fr] gap-3 border-b border-white/[.06] px-2 py-2 text-[10px] font-medium text-white/34"><span>账号 / 岗位</span><span>模型 / 类型</span><span>调用</span><span>Token</span><span>生成单位</span><span>作品</span><span>积分消耗</span><span>人民币成本</span><span>最近使用</span></div>{accountModelRows.map((row) => <div key={row.id} className="grid grid-cols-[1.05fr_1.25fr_.75fr_1.2fr_.65fr_.55fr_.72fr_.78fr_.9fr] items-center gap-3 border-b border-white/[.045] px-2 py-3 text-[11px] last:border-0"><div className="min-w-0"><strong className="block truncate font-medium text-white/78">{row.accountName}</strong><small className="mt-0.5 block truncate text-white/32">{row.accountRole || '未设置岗位'}</small></div><div className="min-w-0"><span className="block truncate text-white/66">{row.modelName}</span><small className="mt-0.5 block text-white/30">{serviceLabel(row.serviceType)}</small></div><div className="text-white/58"><span>{number(row.calls)} 次</span><small className="mt-0.5 block text-white/30">成功 {number(row.successCalls)} · 失败 {number(row.failureCalls)}</small></div><div className="font-mono text-white/56"><span>{number(row.totalTokens)}</span><small className="mt-0.5 block text-white/28">In {number(row.inputTokens)} · Out {number(row.outputTokens)}</small></div><span className="font-mono text-white/52">{number(row.units, 2)}</span><span className="font-mono text-white/52">{number(row.projectCount)}</span><strong className="font-mono font-semibold text-[#efb64b]">{number(row.points, 2)}</strong><span className="font-mono text-white/48">¥{number(row.cost, 4)}</span><time className="text-[10px] text-white/34">{new Date(row.lastUsedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>)}</div></div>}
       </ReportCard>
 
       <ReportCard title="服务明细" subtitle="仅展示产品名称，不暴露内部任务代码">
@@ -427,7 +427,7 @@ export function FrameServiceRecordsDashboard() {
               : record.serviceType === 'image'
                 ? `${number(Math.max(1, record.units), 2)} 张`
                 : `${number(Math.max(1, record.units), 2)} 次`
-          return <div key={record.id} className="grid grid-cols-[1.35fr_1fr_1fr_1fr_.72fr_.8fr] items-center gap-3 border-b border-white/[.045] px-2 py-3 text-[11px] last:border-0"><div><strong className="block font-medium text-white/76">{operationLabel(record.operation, record.serviceType)}</strong><small className="mt-0.5 block text-white/30">{serviceLabel(record.serviceType)}</small></div><div className="min-w-0"><span className="block truncate text-white/62">{record.projectName}</span><small className="mt-0.5 block truncate text-white/30">{record.accountName}{record.accountRole ? ` · ${record.accountRole}` : ''}</small></div><span className="truncate text-white/54">{modelLabel(record)}</span><div className="text-white/54">{usage}<small className="mt-0.5 block text-[#b3b3b3]">{number(record.points, 2)} 积分</small></div><span className={`w-fit rounded-full border px-2 py-1 text-[10px] ${record.status === 'success' ? 'border-white/20 bg-white/[.08] text-neutral-200' : 'border-red-400/20 bg-red-400/[.08] text-red-200'}`}>{record.status === 'success' ? '成功' : '失败'}</span><time className="text-[10px] text-white/34">{new Date(record.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
+          return <div key={record.id} className="grid grid-cols-[1.35fr_1fr_1fr_1fr_.72fr_.8fr] items-center gap-3 border-b border-white/[.045] px-2 py-3 text-[11px] last:border-0"><div><strong className="block font-medium text-white/76">{operationLabel(record.operation, record.serviceType)}</strong><small className="mt-0.5 block text-white/30">{serviceLabel(record.serviceType)}</small></div><div className="min-w-0"><span className="block truncate text-white/62">{record.projectName}</span><small className="mt-0.5 block truncate text-white/30">{record.accountName}{record.accountRole ? ` · ${record.accountRole}` : ''}</small></div><span className="truncate text-white/54">{modelLabel(record)}</span><div className="text-white/54">{usage}<small className="mt-0.5 block text-[#e6a838]">{number(record.points, 2)} 积分</small></div><span className={`w-fit rounded-full border px-2 py-1 text-[10px] ${record.status === 'success' ? 'border-emerald-400/20 bg-emerald-400/[.08] text-emerald-200' : 'border-red-400/20 bg-red-400/[.08] text-red-200'}`}>{record.status === 'success' ? '成功' : '失败'}</span><time className="text-[10px] text-white/34">{new Date(record.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time></div>
         })}</div></div>}
       </ReportCard>
     </div>

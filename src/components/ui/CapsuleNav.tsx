@@ -75,7 +75,7 @@ function NavItem({
                     ${disabled
                         ? 'cursor-not-allowed'
                         : active
-                            ? 'bg-white text-black'
+                            ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white shadow-[0_8px_24px_-10px_rgba(108,92,255,.85)]'
                             : 'text-white/66 hover:bg-white/7 hover:text-white'}
                     ${!disabled && 'active:scale-[0.98]'}
                 `}
@@ -89,11 +89,11 @@ function NavItem({
                 )}
                 {status === 'ready' && !disabled && (
                     <span className={`h-1.5 w-1.5 rounded-full transition-colors
-                        ${active ? 'bg-black' : 'bg-white'}`}
+                        ${active ? 'bg-white' : 'bg-emerald-400'}`}
                     />
                 )}
                 {status === 'processing' && !disabled && (
-                    <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${active ? 'bg-black' : 'bg-white'}`} />
+                    <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${active ? 'bg-white' : 'bg-[#a3acff]'}`} />
                 )}
             </button>
             {disabled && disabledLabel && (
@@ -130,7 +130,7 @@ export function CapsuleNav({ items, activeId, onItemClick, projectId, episodeId 
             <div
                 className="flex min-w-max gap-1 rounded-lg px-2 py-2"
                 style={{
-                    background: '#161616',
+                    background: '#16161d',
                     border: '1px solid rgba(255,255,255,.10)',
                     boxShadow: '0 18px 50px rgba(0,0,0,.22)',
                 }}

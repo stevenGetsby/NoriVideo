@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 import { apiFetch } from '@/lib/api-fetch'
 import { taskTypeDisplayName } from '@/lib/task/display-label'
 
@@ -208,18 +209,18 @@ export function FrameTeamDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="usersRound" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={{ pathname: '/projects' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="monitor" className="h-4 w-4" />
             {t('openProjects')}
@@ -234,20 +235,20 @@ export function FrameTeamDashboard() {
 
         <div className="mb-4 rounded-lg border border-white/10 bg-white/4 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-white text-sm font-bold text-black">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-sm font-bold text-white">
               {(session?.user?.name || session?.user?.email || 'N').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-white">{session?.user?.name || t('fallbackName')}</div>
               <div className="truncate text-sm text-white/45">{session?.user?.email || t('personalAccount')}</div>
             </div>
-            <span className="ml-auto rounded border border-[#bcbcbc]/30 bg-[#ffffff]/10 px-2 py-1 text-xs font-medium text-[#dcdcdc]">
+            <span className="ml-auto rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-1 text-xs font-medium text-[#8ff0b9]">
               {t('ownerBadge')}
             </span>
           </div>
           <div className="mt-4 grid gap-2 md:grid-cols-3">
             {(['seat', 'workspace', 'security'] as const).map((key) => (
-              <div key={key} className="rounded-md border border-white/8 bg-[#131313] px-3 py-2">
+              <div key={key} className="rounded-md border border-white/8 bg-[#131319] px-3 py-2">
                 <div className="text-[11px] text-white/38">{t(`profile.${key}.label`)}</div>
                 <div className="mt-1 truncate text-sm font-semibold text-white/72">{t(`profile.${key}.value`)}</div>
               </div>
@@ -257,8 +258,8 @@ export function FrameTeamDashboard() {
 
         <div className="mb-4 grid grid-cols-4 gap-2 text-center">
           {(['projects', 'episodes', 'activeTasks', 'failedTasks'] as const).map((key) => (
-            <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-2">
-              <div className="text-base font-bold text-white">{stats[key]}</div>
+            <div key={key} style={statTileStyle(key)} className="fos-stat-tile px-3 py-2">
+              <div className="text-base font-bold text-[var(--hue)]">{stats[key]}</div>
               <div className="mt-0.5 text-[11px] text-white/42">{t(`stats.${key}`)}</div>
             </div>
           ))}
@@ -268,16 +269,16 @@ export function FrameTeamDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
+                <AppIcon name="usersRound" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                 {t('seatMatrix.title')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('seatMatrix.subtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('seatMatrix.personalMode')}
             </span>
           </div>
-          <div className="grid grid-cols-[.75fr_.65fr_.65fr_.65fr_.9fr_.65fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.75fr_.65fr_.65fr_.65fr_.9fr_.65fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('seatMatrix.columns.role')}</div>
             <div>{t('seatMatrix.columns.status')}</div>
             <div>{t('seatMatrix.columns.projects')}</div>
@@ -292,7 +293,7 @@ export function FrameTeamDashboard() {
                 <div>
                   <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                     row.status === 'enabled'
-                      ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                      ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                       : 'border-white/10 bg-white/5 text-white/38'
                   }`}>
                     {t(row.status)}
@@ -338,7 +339,7 @@ export function FrameTeamDashboard() {
         <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="rounded-md border border-white/10 bg-white/4 p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/76">
-              <AppIcon name="chart" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="chart" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('workloadTitle')}
             </div>
             {workloadRows.length > 0 ? (
@@ -346,7 +347,7 @@ export function FrameTeamDashboard() {
                 {workloadRows.map((row) => {
                   const maxCount = Math.max(...workloadRows.map((item) => item.count), 1)
                   return (
-                    <div key={row.key} className="rounded-md border border-white/8 bg-[#131313] px-3 py-2">
+                    <div key={row.key} className="rounded-md border border-white/8 bg-[#131319] px-3 py-2">
                       <div className="mb-2 flex items-center justify-between gap-3">
                         <div className="min-w-0 truncate text-sm font-medium text-white/74">{taskTypeDisplayName(row.key)}</div>
                         <span className={`rounded px-2 py-0.5 text-[11px] ${row.failed > 0 ? 'bg-[#ff6b6b]/10 text-[#ff9a9a]' : 'bg-white/6 text-white/42'}`}>
@@ -354,7 +355,7 @@ export function FrameTeamDashboard() {
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
+                        <div className="h-full rounded-full bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)]" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
                       </div>
                       <div className="mt-1 text-[11px] text-white/38">{t('workloadTasks', { count: row.count })}</div>
                     </div>
@@ -368,7 +369,7 @@ export function FrameTeamDashboard() {
 
           <div className="rounded-md border border-white/10 bg-white/4 p-3">
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/76">
-              <AppIcon name="lock" className="h-4 w-4 text-[#dedede]" />
+              <AppIcon name="lock" className="h-4 w-4 text-[#ffd98a]" />
               {t('quotaTitle')}
             </div>
             <div className="space-y-3">
@@ -382,7 +383,7 @@ export function FrameTeamDashboard() {
                       <span className="font-medium text-white/72">{quota.used}/{quota.limit}</span>
                     </div>
                     <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                      <div className="h-full rounded-full bg-[#ffffff]" style={{ width: `${progress}%` }} />
+                      <div className="h-full rounded-full bg-[#45d483]" style={{ width: `${progress}%` }} />
                     </div>
                   </div>
                 )
@@ -393,9 +394,9 @@ export function FrameTeamDashboard() {
       </section>
 
       <aside className="space-y-4">
-      <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+      <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="lock" className="h-4 w-4 text-[#e5e5e5]" />
+          <AppIcon name="lock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('rolesTitle')}
         </div>
         <div className="space-y-2">
@@ -405,7 +406,7 @@ export function FrameTeamDashboard() {
                 <div className="text-sm font-medium text-white/76">{t(`roles.${role}.title`)}</div>
                 <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                   role === 'owner'
-                    ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                    ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                     : 'border-white/10 bg-white/5 text-white/38'
                 }`}>
                   {role === 'owner' ? t('enabled') : t('reserved')}
@@ -417,9 +418,9 @@ export function FrameTeamDashboard() {
         </div>
       </div>
 
-      <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+      <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-          <AppIcon name="usersRound" className="h-4 w-4 text-[#e5e5e5]" />
+          <AppIcon name="usersRound" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('permissionsTitle')}
         </div>
         <div className="overflow-hidden rounded-md border border-white/10">
@@ -439,7 +440,7 @@ export function FrameTeamDashboard() {
                     <div key={permission} className="text-center">
                       <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded border px-1 ${
                         enabled
-                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                           : 'border-white/10 bg-white/5 text-white/28'
                       }`}>
                         {enabled ? t('permissions.enabled') : t('permissions.reserved')}

@@ -61,6 +61,10 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/novel-promotion/p1/panels/panel-1/materials', 'POST')).toEqual(['storyboardWrite'])
     expect(requiredPermissionsForApiPath('/api/projects/p1/canvas/c1/materials', 'POST')).toEqual(['canvasWrite'])
     expect(requiredPermissionsForApiPath('/api/projects/p1/canvas/c1/generate', 'POST')).toEqual(['canvasWrite'])
+    expect(requiredPermissionsForApiPath('/api/interactive', 'GET')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/interactive', 'POST')).toEqual(['projectCreate', 'canvasWrite'])
+    expect(requiredPermissionsForApiPath('/api/interactive/w1', 'PATCH')).toEqual(['canvasWrite'])
+    expect(requiredPermissionsForApiPath('/api/interactive/w1/chapters', 'POST')).toEqual(['projectCreate', 'canvasWrite'])
   })
 
   it('keeps project creation independently assignable while reserving project administration', () => {

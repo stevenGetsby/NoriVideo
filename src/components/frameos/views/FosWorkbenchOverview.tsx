@@ -140,7 +140,7 @@ function StageCard({
       style={{
         background: 'var(--fos-bg-2)',
         borderColor: emphasized ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)',
-        boxShadow: emphasized ? '0 0 0 1px var(--fos-primary-border), 0 18px 42px rgba(23,23,23,.22)' : 'none',
+        boxShadow: emphasized ? '0 0 0 1px var(--fos-primary-border), 0 18px 42px rgba(23,23,30,.22)' : 'none',
         minHeight: 600,
       }}
     >
@@ -175,10 +175,10 @@ function WorkflowProgress({
   const safeProgress = Math.max(0, Math.min(100, Math.floor(progress)))
   const running = tone === 'running'
   const accent = tone === 'failed'
-    ? '#ff8589'
+    ? '#ff7272'
     : tone === 'done'
-      ? '#b4b4b4'
-      : '#ffffff'
+      ? '#5bd39a'
+      : '#3265ff'
   const statusLabel = running
     ? '实时处理中'
     : tone === 'done'
@@ -193,8 +193,8 @@ function WorkflowProgress({
       style={{
         borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(255,255,255,.14)',
         background: tone === 'failed'
-          ? 'rgba(229, 72, 77, .06)'
-          : '#181818',
+          ? 'linear-gradient(145deg, rgba(92, 28, 42, .28), rgba(28,28,36,.88))'
+          : 'radial-gradient(circle at 92% 0%, rgba(110,123,255,.16), transparent 46%), linear-gradient(145deg, rgba(40,40,50,.92), rgba(25,25,32,.94))',
       }}
       data-testid="workflow-progress-card"
     >
@@ -214,8 +214,8 @@ function WorkflowProgress({
           style={{
             width: `${safeProgress}%`,
             background: tone === 'failed'
-              ? '#e5484d'
-              : '#ffffff',
+              ? 'linear-gradient(90deg, #ff6464, #ff8a8a)'
+              : 'linear-gradient(90deg, #3265ff, #3265ff 58%, #5bd5c4)',
           }}
         />
       </div>
@@ -556,7 +556,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
               etaText={assetActive ? assetEta : assetReady ? '已完成' : '—'}
               errorText={productTaskError(assetActionError || assetTaskState?.lastError?.message, '资产解析未完成，请重新提交。')}
             />
-            {assetNotice ? <p className="mt-2 text-[11px] leading-5 text-[#e5e5e5]">{assetNotice}</p> : null}
+            {assetNotice ? <p className="mt-2 text-[11px] leading-5 text-[var(--fos-primary-text)]">{assetNotice}</p> : null}
             <div className="mt-3 space-y-2">
               {assetRows.map(([label, statusText, detail, href]) => (
                 <div
@@ -566,7 +566,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                 >
                   <div className="text-[12px] font-bold text-white">{label}</div>
                   <div className="min-w-0">
-                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[#b4b4b4]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
+                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[#59c98d]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
                     <div className="mt-0.5 truncate text-[10px] text-[var(--fos-text-4)]">{detail}</div>
                   </div>
                   <Link href={{ pathname: `${base}/assets/${href}` }} className="fos-btn fos-btn-soft fos-btn-sm">{label === '音色' ? '设置' : '查看'}</Link>
@@ -607,11 +607,11 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
               etaText={storyboardActive ? storyboardEta : storyboardDone ? '已完成' : '—'}
               errorText={productTaskError(storyboardActionError || storyboardFailedState?.lastError?.message, '分镜生成未完成，请重新提交对应分集。')}
             />
-            {storyboardNotice ? <p className="mt-2 text-[11px] leading-5 text-[#e5e5e5]">{storyboardNotice}</p> : null}
+            {storyboardNotice ? <p className="mt-2 text-[11px] leading-5 text-[var(--fos-primary-text)]">{storyboardNotice}</p> : null}
             <div className="mt-4 rounded-[10px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-3)] p-3">
               <div className="flex items-center justify-between text-[12px]">
                 <span className="font-bold text-white">分集完成度</span>
-                <span className="font-mono font-bold text-[#e5e5e5]">{completedStoryboardEpisodes}/{episodeCount}</span>
+                <span className="font-mono font-bold text-[var(--fos-primary-text)]">{completedStoryboardEpisodes}/{episodeCount}</span>
               </div>
               <p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">
                 {canStartStoryboard

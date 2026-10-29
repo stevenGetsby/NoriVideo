@@ -18,8 +18,12 @@ type ContextMenuItem =
       disabled?: boolean
     }
 
-export function CanvasWireMenu({ state, onPick }: { state: CanvasWireMenuState; onPick: (type: CanvasNodeMenuType) => void }) {
-  return <CanvasMenuPortal point={state}><div className="nori-canvas-wire-menu" role="menu" aria-label="选择连接节点类型" style={{ left: state.x, top: state.y }} onPointerDown={(event) => event.stopPropagation()}><div>选择节点类型</div>{CANVAS_ADD_NODE_ITEMS.map((item) => <button type="button" role="menuitem" key={item.type} onClick={() => onPick(item.type)}><Plus /><span>{item.label}</span></button>)}</div></CanvasMenuPortal>
+export function CanvasWireMenu({ state, items = CANVAS_ADD_NODE_ITEMS, onPick }: {
+  state: CanvasWireMenuState
+  items?: ReadonlyArray<{ type: CanvasNodeMenuType; label: string }>
+  onPick: (type: CanvasNodeMenuType) => void
+}) {
+  return <CanvasMenuPortal point={state}><div className="nori-canvas-wire-menu" role="menu" aria-label="选择连接节点类型" style={{ left: state.x, top: state.y }} onPointerDown={(event) => event.stopPropagation()}><div>选择节点类型</div>{items.map((item) => <button type="button" role="menuitem" key={item.type} onClick={() => onPick(item.type)}><Plus /><span>{item.label}</span></button>)}</div></CanvasMenuPortal>
 }
 
 export function CanvasContextMenu({

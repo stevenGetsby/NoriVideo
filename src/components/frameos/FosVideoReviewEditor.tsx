@@ -224,7 +224,7 @@ export function FosVideoReviewEditor({
             <article key={annotation.id}>
               <b>{String(index + 1).padStart(2, '0')}</b>
               <div><span className="fa-video-annotation-source">{annotationSourceLabel(annotation.panelId)}</span><strong>{formatVideoReviewTimecode(annotation.startMs)} – {formatVideoReviewTimecode(annotation.endMs)}</strong><p>{annotation.note}</p></div>
-              <span className="shrink-0 rounded-full border border-white/20 bg-white/10 px-2 py-1 text-[9px] font-bold text-neutral-200">{annotation.status === 'open' ? '待处理' : '已处理'}</span>
+              <span className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-[9px] font-bold text-emerald-200">{annotation.status === 'open' ? '待处理' : '已处理'}</span>
             </article>
           ))}
         </div>

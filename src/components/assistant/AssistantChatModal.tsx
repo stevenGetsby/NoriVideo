@@ -367,9 +367,9 @@ export function AssistantChatModal({
             <div className="flex h-full items-center justify-center px-4 py-4">
               <div className="w-full max-w-md rounded-2xl border border-[var(--glass-stroke-base)] bg-[var(--glass-bg-surface)] px-6 py-7 text-center shadow-sm">
                 <div className="relative mx-auto mb-4 flex h-20 w-20 items-center justify-center">
-                  <div className="absolute h-20 w-20 rounded-full bg-white/[0.12] animate-ping" />
-                  <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full border border-white/[0.24] bg-white/[0.12]">
-                    <AppIcon name="check" className="h-10 w-10 text-neutral-400" />
+                  <div className="absolute h-20 w-20 rounded-full bg-emerald-500/20 animate-ping" />
+                  <div className="relative z-10 flex h-20 w-20 items-center justify-center rounded-full border border-emerald-400/60 bg-emerald-500/15">
+                    <AppIcon name="check" className="h-10 w-10 text-emerald-500" />
                   </div>
                 </div>
                 <div className="text-base font-semibold text-[var(--glass-text-primary)]">

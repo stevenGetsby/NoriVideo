@@ -79,7 +79,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="反馈类型">
             {FEEDBACK_TYPES.map(([value, label]) => (
               <button key={value} type="button" role="radio" aria-checked={type === value} onClick={() => setType(value)}
-                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-white bg-white font-semibold text-black' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-white/30 hover:text-white'}`}>
+                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-transparent bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] font-semibold text-white' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-[var(--fos-primary-border)] hover:text-white'}`}>
                 {label}
               </button>
             ))}
@@ -129,7 +129,7 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
         </div>
         <div className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-5">
           <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[rgba(255,255,255,.1)] text-[#e5e5e5]"><AppIcon name="lock" className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="lock" className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-white">登录密码</span>
           </div>
           <div className="border-t border-[var(--fos-border-soft)] pt-4">
@@ -137,7 +137,7 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
             <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">可使用账号+密码方式登录</div>
           </div>
         </div>
-        <button type="button" onClick={onLogout} className="fos-btn fos-btn-ghost w-full border-[rgba(229,72,77,.3)] text-[#ff8589] hover:bg-[rgba(229,72,77,.1)]">
+        <button type="button" onClick={onLogout} className="fos-btn fos-btn-ghost w-full border-red-400/20 text-red-300 hover:bg-red-400/10">
           <AppIcon name="logout" className="h-4 w-4" />退出当前账号
         </button>
       </div>
@@ -149,8 +149,8 @@ export function UpdatesToast({ onDone }: { onDone: () => void }) {
   useState(() => { setTimeout(onDone, 2200); return null })
   return (
     <div className="fixed left-1/2 top-4 z-[70] -translate-x-1/2">
-      <div className="flex items-center gap-2 rounded-[10px] border border-[#313131] bg-[#1f1f1f] px-4 py-2.5 text-[13px] text-white shadow-xl">
-        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-black"><AppIcon name="check" className="h-3 w-3" /></span>
+      <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(34,197,94,.3)] bg-[rgba(20,40,28,.95)] px-4 py-2.5 text-[13px] text-white shadow-xl">
+        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#22c55e] text-white"><AppIcon name="check" className="h-3 w-3" /></span>
         当前已是最新版本 <span className="text-[var(--fos-text-3)]">v{APP_VERSION}</span>
       </div>
     </div>

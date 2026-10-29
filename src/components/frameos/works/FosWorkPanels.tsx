@@ -7,6 +7,7 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { isManagementRole } from '@/lib/account/permissions'
+import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
 import type { WorkProject, WorkSummary } from './types'
 import { UNASSIGNED_WORK_ID } from './types'
 import { canMoveFromWork } from './FosWorksDialogs'
@@ -200,7 +201,7 @@ function ProjectCard({
       data-parent-project-id={work.id}
       className={`works-project-card${selected ? ' is-selected' : ''}${selectable ? ' is-selectable' : ''}`}
       onClick={selectable ? onToggleSelected : undefined}
-      style={{ '--works-card-index': index + 1 } as CSSProperties}
+      style={{ ...generativeCoverStyle(project.id), '--works-card-index': index + 1 } as CSSProperties}
     >
       {selectable ? (
         <button
@@ -225,9 +226,9 @@ function ProjectCard({
         tabIndex={selectable ? -1 : 0}
         onClick={(event) => { if (selectable) event.preventDefault() }}
       >
-        <div className="works-project-cover">
+        <div className="works-project-cover nori-gen-cover">
           <span className={`works-project-edition${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
-          <AppIcon name="folderOpen" className="works-project-folder" />
+          <span className="works-project-monogram" aria-hidden="true">{coverMonogram(project.name)}</span>
         </div>
         <div className="works-project-info">
           <h3><Highlight text={project.name} keyword={keyword} /></h3>
@@ -236,9 +237,9 @@ function ProjectCard({
               {collaborationLabel ? (
                 <span className="is-collab"><AppIcon name={project.collaborationMode === 'team' ? 'usersRound' : 'link'} />{collaborationLabel}</span>
               ) : null}
-              <span><AppIcon name="film" />{genre}</span>
-              {aspectRatio ? <span><AppIcon name="monitor" />{aspectRatio}</span> : null}
-              {style ? <span><AppIcon name="sparkles" />{style}</span> : null}
+              <span className="is-genre"><AppIcon name="film" />{genre}</span>
+              {aspectRatio ? <span className="is-ratio"><AppIcon name="monitor" />{aspectRatio}</span> : null}
+              {style ? <span className="is-style"><AppIcon name="sparkles" />{style}</span> : null}
             </div>
             <div className="works-project-footer">
               <span className="works-project-date"><AppIcon name="clock" />{formatDate(project.createdAt)} 创建</span>

@@ -1,6 +1,7 @@
 import { normalizeCanvasConnection, type CanvasConnectionInput, type CanvasFlowEdge, type CanvasFlowNode } from './editor-types'
 import { appendCanvasVideoSourceToPlaylist, isCanvasVideoSource } from './playlist-node-drop'
 import { resolveMaterialReferenceSchema } from './material-reference-drop'
+import { applyStoryConnection, resolveStoryConnection } from './story/story-connection'
 
 export function canvasConnectionMediaType(node: CanvasFlowNode) {
   return node.data.mediaType || (node.type === 'note' ? 'text' : node.type === 'model_3d' ? 'model3d' : node.type) || 'image'
@@ -32,6 +33,9 @@ export function isCanvasConnectionAllowed(
   edges: readonly CanvasFlowEdge[],
   maxEdges = 4000,
 ) {
+  if (edges.length >= maxEdges) return false
+  const story = resolveStoryConnection(input, nodes)
+  if (story.kind !== 'not_story') return story.kind !== 'invalid'
   const connection = normalizeCanvasConnection(input)
   if (!connection || connection.source === connection.target || edges.length >= maxEdges) return false
   if (edges.some((edge) => (
@@ -94,6 +98,14 @@ export function planCanvasBatchConnections(input: {
     const connection = { source: id, target: input.targetNodeId, sourceHandle: 'output', targetHandle: 'input' }
     if (!source || !currentTarget || !isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges)) {
       skipped++
+      continue
+    }
+    const story = resolveStoryConnection(connection, nodes)
+    if (story.kind === 'flow' || story.kind === 'media') {
+      const next = applyStoryConnection(edges, story, createId)
+      if (!next) { skipped++; continue }
+      edges.splice(0, edges.length, ...next)
+      added++
       continue
     }
     const mediaType = canvasConnectionMediaType(source)

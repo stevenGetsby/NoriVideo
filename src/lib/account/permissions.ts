@@ -169,6 +169,7 @@ const READABLE_CONTENT_PREFIXES = [
   '/api/works',
   '/api/collaboration',
   '/api/creative/projects/collaboration',
+  '/api/interactive',
 ]
 
 const ADMIN_PREFIXES = [
@@ -265,6 +266,10 @@ export function requiredPermissionsForApiPath(
     if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return normalizedMethod === 'PATCH' ? ['read'] : ['admin']
     if (path.includes('/canvas')) return ['canvasWrite']
     return ['admin']
+  }
+  if (path.startsWith('/api/interactive')) {
+    if (/^\/api\/interactive\/[^/]+\/?$/.test(path)) return ['canvasWrite']
+    return ['projectCreate', 'canvasWrite']
   }
   if (path.startsWith('/api/workflow') || path.startsWith('/api/runs')) return ['admin']
 

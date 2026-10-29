@@ -83,8 +83,8 @@ export function SuperPlanEditor({ plan, onPlanChange, onConfirm, onCancel }: Sup
       }}
     >
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2 rounded-xl" style={{ background: '#f1f1f1' }}>
-          <Sparkles className="w-5 h-5" style={{ color: '#e5e5e5' }} />
+        <div className="p-2 rounded-xl" style={{ background: '#EFEFFD' }}>
+          <Sparkles className="w-5 h-5" style={{ color: '#4B4DED' }} />
         </div>
         <h3 className="text-lg font-semibold" style={{ color: '#111111' }}>执行计划</h3>
       </div>
@@ -122,7 +122,7 @@ export function SuperPlanEditor({ plan, onPlanChange, onConfirm, onCancel }: Sup
         <div className="space-y-2">
           {plan.stages.map((stage) => (
             <div key={stage.stageId} className="flex items-start gap-3 p-3" style={{ background: '#ffffff', border: '1px solid rgba(17,17,17,.06)', borderRadius: '16px' }}>
-              <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: stage.stageNumber === 3 ? '#f5ffe0' : '#f1f1f1', color: stage.stageNumber === 3 ? '#111111' : '#e5e5e5' }}>
+              <div className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: stage.stageNumber === 3 ? '#f5ffe0' : '#EFEFFD', color: stage.stageNumber === 3 ? '#111111' : '#4B4DED' }}>
                 {stage.stageNumber}
               </div>
               <div className="flex-1">

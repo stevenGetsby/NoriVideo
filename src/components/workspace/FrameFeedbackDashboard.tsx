@@ -4,6 +4,7 @@ import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 import { apiFetch } from '@/lib/api-fetch'
 
 type FeedbackType = 'bug' | 'quality' | 'workflow' | 'idea'
@@ -160,11 +161,11 @@ export function FrameFeedbackDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="infoCircle" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="infoCircle" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
@@ -180,8 +181,8 @@ export function FrameFeedbackDashboard() {
 
         <div className="mb-4 grid grid-cols-2 gap-2 text-center md:grid-cols-5">
           {(['total', 'bugs', 'quality', 'workflow', 'ideas'] as const).map((key) => (
-            <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-2">
-              <div className="text-base font-bold text-white">{stats[key]}</div>
+            <div key={key} style={statTileStyle(key)} className="fos-stat-tile px-3 py-2">
+              <div className="text-base font-bold text-[var(--hue)]">{stats[key]}</div>
               <div className="mt-0.5 text-[11px] text-white/42">{t(`stats.${key}`)}</div>
             </div>
           ))}
@@ -198,7 +199,7 @@ export function FrameFeedbackDashboard() {
                   onClick={() => setType(item)}
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     type === item
-                      ? 'border-white/35 bg-white/10 text-white'
+                      ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-white'
                       : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
                   }`}
                 >
@@ -217,7 +218,7 @@ export function FrameFeedbackDashboard() {
                 onChange={(event) => setTitle(event.target.value)}
                 onInput={(event) => setTitle(event.currentTarget.value)}
                 maxLength={80}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#111111] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+                className="h-10 w-full rounded-md border border-white/10 bg-[#0c0c11] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder={t('placeholders.title')}
               />
             </div>
@@ -228,7 +229,7 @@ export function FrameFeedbackDashboard() {
                 value={route}
                 onChange={(event) => setRoute(event.target.value)}
                 onInput={(event) => setRoute(event.currentTarget.value)}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#111111] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+                className="h-10 w-full rounded-md border border-white/10 bg-[#0c0c11] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder="/zh/workspace"
               />
             </div>
@@ -243,7 +244,7 @@ export function FrameFeedbackDashboard() {
               onInput={(event) => setDescription(event.currentTarget.value)}
               rows={5}
               maxLength={1200}
-              className="w-full resize-none rounded-md border border-white/10 bg-[#111111] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+              className="w-full resize-none rounded-md border border-white/10 bg-[#0c0c11] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
               placeholder={t('placeholders.description')}
             />
           </div>
@@ -258,14 +259,14 @@ export function FrameFeedbackDashboard() {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
               data-ready={title.trim() && description.trim() ? 'true' : 'false'}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-4 text-sm font-semibold text-black transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
               {saved ? t('saved') : t('submit')}
             </button>
           </div>
           {error ? (
-            <div className="rounded-md border border-[#dedede]/20 bg-[#ffffff]/8 px-3 py-2 text-xs text-[#dedede]">
+            <div className="rounded-md border border-[#ffd98a]/20 bg-[#ffd98a]/8 px-3 py-2 text-xs text-[#ffd98a]">
               {t('syncWarning', { error })}
             </div>
           ) : null}
@@ -275,16 +276,16 @@ export function FrameFeedbackDashboard() {
           <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+                <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                 {t('triageTitle')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('triageSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('serverTriage')}
             </span>
           </div>
-          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('triage.columns.type')}</div>
             <div>{t('triage.columns.total')}</div>
             <div>{t('triage.columns.open')}</div>
@@ -298,7 +299,7 @@ export function FrameFeedbackDashboard() {
               <div key={row.type} className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 px-3 py-3 text-xs">
                 <div className="truncate font-medium text-white/72">{t(`types.${row.type}`)}</div>
                 <div className="text-white/56">{row.count}</div>
-                <div className={row.open > 0 ? 'font-medium text-[#dedede]' : 'text-white/42'}>{row.open}</div>
+                <div className={row.open > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.open}</div>
                 <div className="truncate font-mono text-white/42">{row.latestRoute}</div>
                 <div className="truncate text-white/42">{row.latestAt}</div>
               </div>
@@ -308,9 +309,9 @@ export function FrameFeedbackDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="infoCircle" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="infoCircle" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('contextTitle')}
           </div>
           <div className="space-y-2">
@@ -325,9 +326,9 @@ export function FrameFeedbackDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="clock" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="clock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('recentTitle')}
           </div>
           {records.length === 0 ? (
@@ -340,7 +341,7 @@ export function FrameFeedbackDashboard() {
                 <article key={record.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="mb-2 flex items-center justify-between gap-3">
                     <div className="truncate text-sm font-medium text-white/78">{record.title}</div>
-                    <span className="shrink-0 rounded border border-white/25 bg-white/8 px-1.5 py-0.5 text-[11px] text-[#e5e5e5]">
+                    <span className="shrink-0 rounded border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-1.5 py-0.5 text-[11px] text-[var(--fos-primary-text)]">
                       {t(`types.${record.type}`)}
                     </span>
                   </div>
@@ -352,9 +353,9 @@ export function FrameFeedbackDashboard() {
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       record.status === 'resolved'
-                        ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                         : record.status === 'triaged'
-                          ? 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
+                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
                           : 'border-white/10 bg-white/5 text-white/42'
                     }`}>
                       {t(`status.${record.status}`)}

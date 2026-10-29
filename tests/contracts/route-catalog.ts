@@ -103,6 +103,9 @@ const ROUTE_FILES = [
   'src/app/api/frameos/toolbox/assets/route.ts',
   'src/app/api/frameos/toolbox/generate/route.ts',
   'src/app/api/frameos/toolbox/materials/route.ts',
+  'src/app/api/interactive/[workId]/chapters/route.ts',
+  'src/app/api/interactive/[workId]/route.ts',
+  'src/app/api/interactive/route.ts',
   'src/app/api/storage/sign/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-character/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-location/route.ts',
@@ -296,6 +299,7 @@ function resolveCategory(routeFile: string): RouteCategory {
   if (routeFile.startsWith('src/app/api/projects/')) return 'projects'
   if (routeFile.startsWith('src/app/api/workflow/projects/')) return 'projects'
   if (routeFile.startsWith('src/app/api/works/')) return 'projects'
+  if (routeFile.startsWith('src/app/api/interactive/')) return 'projects'
   if (routeFile.startsWith('src/app/api/collaboration/assignments/')) return 'projects'
   if (routeFile.startsWith('src/app/api/creative/projects/collaboration/')) return 'projects'
   if (
@@ -369,6 +373,7 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     routeFile.startsWith('src/app/api/projects/')
     || routeFile.startsWith('src/app/api/workflow/projects/')
     || routeFile.startsWith('src/app/api/works/')
+    || routeFile.startsWith('src/app/api/interactive/')
     || routeFile.startsWith('src/app/api/collaboration/assignments/')
     || routeFile.startsWith('src/app/api/creative/projects/collaboration/')
     || routeFile.startsWith('src/app/api/user/')

@@ -28,6 +28,7 @@ export type FosNavKey =
   | 'screenwriter'
   | 'toolbox'
   | 'canvas'
+  | 'interactive'
   | 'assetHub'
   | 'material'
   | 'accounts'
@@ -55,6 +56,7 @@ const primaryNav: NavItem[] = [
   { key: 'screenwriter', label: '编剧工作台', href: '/writer-workbench', icon: 'edit' },
   { key: 'toolbox', label: '工具箱', href: '/toolbox', icon: 'settingsHexMinor' },
   { key: 'canvas', label: '无限画布', href: '/canvas', icon: 'monitor' },
+  { key: 'interactive', label: '影游画布', href: '/interactive', icon: 'film' },
   // Link to the canonical page directly. The legacy /asset-hub alias performs
   // a server redirect and briefly exposes the light document background.
   { key: 'assetHub', label: '资产库', href: '/workspace/asset-hub', icon: 'folderHeart' },
@@ -181,8 +183,8 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
 function NavLink({ item, active, count }: { item: NavItem; active: boolean; count?: number }) {
   const attention = typeof count === 'number' && count > 0 ? count : 0
   return (
-    <Link href={{ pathname: item.href }} className={`fos-nav-item${active ? ' active' : ''}`}>
-      <AppIcon name={item.icon} className="h-4 w-4 shrink-0" />
+    <Link href={{ pathname: item.href }} className={`fos-nav-item${active ? ' active' : ''}`} data-nav={item.key}>
+      <span className="fos-nav-icon"><AppIcon name={item.icon} /></span>
       <span className="min-w-0 truncate">
         {item.label}
         {item.badge ? <span className="badge-new">{item.badge}</span> : null}
@@ -267,7 +269,7 @@ function Sidebar({
   const assignmentAttention = useAssignmentAttention(!collapsed)
   const visiblePrimaryNav = primaryNav.filter((item) => (
     (item.key !== 'toolbox' || canUseToolbox)
-    && (item.key !== 'canvas' || canUseCanvas)
+    && ((item.key !== 'canvas' && item.key !== 'interactive') || canUseCanvas)
     && (item.key !== 'screenwriter' || canUseWriterWorkbench)
   ))
   const params = useSearchParams()
@@ -339,8 +341,9 @@ function Sidebar({
                 href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2` }}
                 className={`fos-nav-item${projectNavigation.activeItem === 'workbench' ? ' active' : ''}`}
                 data-testid="project-workbench-nav"
+                data-nav="workbench"
               >
-                <AppIcon name="folderOpen" className="h-4 w-4 shrink-0" />
+                <span className="fos-nav-icon"><AppIcon name="folderOpen" /></span>
                 <span className="min-w-0 truncate">作品工作台</span>
               </Link>
               {canUseCanvas ? (
@@ -348,8 +351,9 @@ function Sidebar({
                   href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2/canvas` }}
                   className={`fos-nav-item fos-project-canvas-link${projectNavigation.activeItem === 'canvas' ? ' active' : ''}`}
                   data-testid="project-canvas-nav"
+                  data-nav="canvas"
                 >
-                  <AppIcon name="clapperboard" className="h-4 w-4 shrink-0" />
+                  <span className="fos-nav-icon"><AppIcon name="clapperboard" /></span>
                   <span className="min-w-0 truncate">无限画布</span>
                   <span className="fos-project-canvas-badge">CANVAS</span>
                 </Link>

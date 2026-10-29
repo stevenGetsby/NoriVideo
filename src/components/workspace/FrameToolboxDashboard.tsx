@@ -281,18 +281,18 @@ export function FrameToolboxDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-      <section className="rounded-lg border border-white/10 bg-[#181818] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
-              <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+              <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
               {t('title')}
             </div>
             <p className="mt-1 text-xs leading-5 text-white/45">{t('subtitle')}</p>
           </div>
           <Link
             href={{ pathname: '/service-records' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-white px-3 text-sm font-semibold text-black hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="receipt" className="h-4 w-4" />
             {t('openRecords')}
@@ -317,14 +317,14 @@ export function FrameToolboxDashboard() {
                 <Link
                   key={check.key}
                   href={{ pathname: check.href }}
-                  className="rounded-md border border-white/10 bg-white/4 px-3 py-3 transition-colors hover:border-white/35 hover:bg-white/7"
+                  className="rounded-md border border-white/10 bg-white/4 px-3 py-3 transition-colors hover:border-[var(--fos-primary-border)] hover:bg-white/7"
                 >
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <div className="text-sm font-medium text-white/76">{t(`checks.${check.key}.title`)}</div>
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       check.ok
-                        ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
-                        : 'border-[#d3d3d3]/35 bg-[#ffffff]/10 text-[#dedede]'
+                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                        : 'border-[#ffcc66]/35 bg-[#ffcc66]/10 text-[#ffd98a]'
                     }`}>
                       {check.ok ? t('status.ok') : t('status.review')}
                     </span>
@@ -358,16 +358,16 @@ export function FrameToolboxDashboard() {
               <div className="flex flex-col gap-1 border-b border-white/10 bg-white/5 px-3 py-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[#e5e5e5]" />
+                    <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
                     {t('capabilityTitle')}
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('capabilitySubtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-white/10 bg-[#131313] px-2 py-1 text-[11px] font-medium text-white/42">
+                <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
                   {t('capability.local')}
                 </span>
               </div>
-              <div className="grid grid-cols-[.8fr_.55fr_.65fr_.65fr_.9fr] gap-2 border-b border-white/10 bg-[#131313] px-3 py-2 text-[11px] font-medium text-white/42">
+              <div className="grid grid-cols-[.8fr_.55fr_.65fr_.65fr_.9fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
                 <div>{t('capability.columns.module')}</div>
                 <div>{t('capability.columns.status')}</div>
                 <div>{t('capability.columns.primary')}</div>
@@ -384,15 +384,15 @@ export function FrameToolboxDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.status === 'ok'
-                          ? 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
-                          : 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
+                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                          : 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
                       }`}>
                         {t(`status.${row.status}`)}
                       </span>
                     </div>
                     <div className="text-white/56">{row.primary}</div>
                     <div className="text-white/56">{row.secondary}</div>
-                    <Link href={{ pathname: row.href }} className="truncate text-[#e5e5e5] hover:text-white">
+                    <Link href={{ pathname: row.href }} className="truncate text-[var(--fos-primary-text)] hover:text-white">
                       {t(`capability.modules.${row.key}.action`)}
                     </Link>
                   </div>
@@ -404,9 +404,9 @@ export function FrameToolboxDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="settingsHexMinor" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="settingsHexMinor" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('shortcutsTitle')}
           </div>
           <div className="space-y-2">
@@ -414,9 +414,9 @@ export function FrameToolboxDashboard() {
               <Link
                 key={shortcut.key}
                 href={{ pathname: shortcut.href }}
-                className="flex items-center gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-3 transition-colors hover:border-white/35 hover:bg-white/7"
+                className="flex items-center gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-3 transition-colors hover:border-[var(--fos-primary-border)] hover:bg-white/7"
               >
-                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-[#e5e5e5]">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]">
                   <AppIcon name={shortcut.icon} className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
@@ -428,9 +428,9 @@ export function FrameToolboxDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#181818] p-4">
+        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
-            <AppIcon name="clock" className="h-4 w-4 text-[#e5e5e5]" />
+            <AppIcon name="clock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('taskQueueTitle')}
           </div>
           {recentTasks.length === 0 ? (
@@ -445,14 +445,14 @@ export function FrameToolboxDashboard() {
                       task.status === 'failed'
                         ? 'border-[#ff6b6b]/35 bg-[#ff6b6b]/10 text-[#ff9a9a]'
                         : activeStatuses(task.status)
-                          ? 'border-[#dedede]/30 bg-[#ffffff]/10 text-[#dedede]'
-                          : 'border-[#bcbcbc]/30 bg-[#ffffff]/10 text-[#dcdcdc]'
+                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          : 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
                     }`}>
                       {taskStatusDisplayName(task.status)}
                     </span>
                   </div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/8">
-                    <div className="h-full rounded-full bg-white" style={{ width: `${Math.min(100, Math.max(4, task.progress || 0))}%` }} />
+                    <div className="h-full rounded-full bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)]" style={{ width: `${Math.min(100, Math.max(4, task.progress || 0))}%` }} />
                   </div>
                 </div>
               ))}

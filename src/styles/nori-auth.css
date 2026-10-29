@@ -31,7 +31,7 @@
 .nori-auth-header { display: flex; min-height: 100px; flex: none; align-items: center; gap: 24px; }
 .nori-auth-brand { display: inline-flex; flex: none; align-items: center; gap: 12px; font-size: 23px; font-weight: 720; letter-spacing: -.8px; }
 .nori-auth-brand > span:last-child { display: inline-flex; align-items: baseline; }
-.nori-auth-brand-name { color: #c8c8c8; }
+.nori-auth-brand-name { color: #52d7ff; }
 .nori-auth-brand-light { color: var(--fos-text-1); font-weight: 700; }
 .nori-auth-brand sup { align-self: center; margin: 1px 0 0 12px; border-left: 1px solid #ffffff23; padding-left: 12px; color: var(--fos-text-2); font-family: var(--font-geist-mono), monospace; font-size: 9px; font-weight: 450; letter-spacing: 1.8px; }
 .nori-auth-brand-cat { align-self: center; }
@@ -43,7 +43,7 @@
 .nori-auth-header-enter:hover { border-color: var(--fos-primary-border); background: var(--fos-primary-soft); }
 .nori-auth-layout { display: grid; flex: 1 0 auto; grid-template-columns: minmax(0, 1.5fr) minmax(350px, .88fr); align-items: center; gap: clamp(56px, 7.1vw, 116px); padding-top: 32px; padding-bottom: 54px; }
 .nori-auth-story { min-width: 0; }
-.nori-auth-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; color: #e5e5e5; font-family: var(--font-geist-mono), monospace; font-size: 10px; font-weight: 450; letter-spacing: 2.1px; }
+.nori-auth-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; color: #a3acff; font-family: var(--font-geist-mono), monospace; font-size: 10px; font-weight: 450; letter-spacing: 2.1px; }
 .nori-auth-eyebrow-line { width: 52px; height: 1px; margin-left: 5px; background: var(--fos-primary-border); }
 .nori-auth-story h1 { margin: 0; font-size: clamp(44px, 4.35vw, 69px); font-weight: 550; line-height: 1.17; letter-spacing: -.045em; }
 .nori-auth-story h1 > span { color: var(--fos-text-1); }
@@ -51,7 +51,7 @@
 .nori-auth-cinema { position: relative; height: clamp(240px, 22vw, 340px); margin: 0; overflow: hidden; border: 1px solid var(--fos-border-strong); border-radius: 12px; background: var(--auth-panel); }
 .nori-auth-cinema > img { object-fit: cover; object-position: center 47%; filter: saturate(.57) brightness(.77); transform: scale(1.01); transition: transform 1.4s cubic-bezier(.2,.7,.3,1); }
 @media (hover: hover) and (prefers-reduced-motion: no-preference) { .nori-auth-cinema:hover > img { transform: scale(1.055); } }
-.nori-auth-cinema-shade { position: absolute; inset: 0; background: linear-gradient(180deg, #0d0d0d30, #0d0d0d06 35%, #0d0d0db0 100%), linear-gradient(90deg, #0d0d0d46, transparent 70%); }
+.nori-auth-cinema-shade { position: absolute; inset: 0; background: linear-gradient(180deg, #0d0d1230, #0d0d1206 35%, #0d0d12b0 100%), linear-gradient(90deg, #0d0d1246, transparent 70%); }
 .nori-auth-frame-corner { position: absolute; z-index: 1; width: 14px; height: 14px; border-color: #ffffff64; border-style: solid; }
 .nori-auth-frame-corner.is-top-left { top: 15px; left: 15px; border-width: 1px 0 0 1px; }
 .nori-auth-frame-corner.is-top-right { top: 15px; right: 15px; border-width: 1px 1px 0 0; }
@@ -68,7 +68,7 @@
 .nori-auth-scene-cross { font-size: 22px; font-weight: 200; line-height: 1; }
 .nori-auth-workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
 .nori-auth-workflow-item { position: relative; display: flex; min-width: 0; align-items: center; gap: 11px; }
-.nori-auth-workflow-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #e5e5e5; background: var(--fos-primary-soft); }
+.nori-auth-workflow-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #a3acff; background: var(--fos-primary-soft); }
 .nori-auth-workflow-item > div { display: flex; min-width: 0; flex-direction: column; gap: 3px; }
 .nori-auth-workflow-item strong { color: var(--fos-text-1); font-size: 11px; font-weight: 500; }
 .nori-auth-workflow-item > div > span { color: var(--fos-text-4); font-size: 10px; }
@@ -77,7 +77,7 @@
 .nori-auth-card { position: relative; width: 100%; max-width: 416px; margin: 0 auto; border: 1px solid var(--fos-border-mid); border-radius: 18px; padding: 37px 33px 25px; background: var(--auth-panel); box-shadow: 0 30px 70px #00000020, inset 0 1px 0 #ffffff04; }
 .nori-auth-card::before { position: absolute; top: -1px; right: 32px; left: 32px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff29, transparent); content: ""; }
 .nori-auth-card-kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 27px; color: var(--fos-text-4); font-family: var(--font-geist-mono), monospace; font-size: 8px; font-weight: 450; letter-spacing: 1.6px; }
-.nori-auth-card-kicker > span:first-child { width: 5px; height: 5px; border-radius: 50%; background: var(--fos-indigo); box-shadow: 0 0 0 3px rgba(255,255,255,.039); }
+.nori-auth-card-kicker > span:first-child { width: 5px; height: 5px; border-radius: 50%; background: var(--fos-indigo); box-shadow: 0 0 0 3px #6e7bff; }
 .nori-auth-card h2 { margin: 0; color: var(--fos-text-1); font-size: 28px; font-weight: 550; letter-spacing: -.7px; line-height: 1.35; }
 .nori-auth-card-description { margin: 10px 0 0; color: var(--fos-text-2); font-size: 13px; line-height: 1.8; }
 .nori-auth-card-content { margin-top: 29px; }
@@ -86,18 +86,18 @@
 .nori-auth-access-note > span:first-child { width: 3px; height: 3px; border-radius: 50%; background: var(--fos-text-4); }
 .nori-auth-form { display: flex; min-width: 0; flex-direction: column; gap: 21px; }
 .nori-auth-field { display: flex; min-width: 0; flex-direction: column; gap: 9px; }
-.nori-auth-field > label { color: #d4d4d4; font-size: 12px; font-weight: 500; }
+.nori-auth-field > label { color: #d4d5dd; font-size: 12px; font-weight: 500; }
 .nori-auth-input-wrap { position: relative; display: flex; min-width: 0; align-items: center; }
 .nori-auth-input-icon { position: absolute; left: 14px; width: 16px; height: 16px; color: var(--fos-text-4); pointer-events: none; }
 .nori-auth-input-wrap input { width: 100%; min-width: 0; height: 49px; border: 1px solid var(--fos-border-strong); border-radius: 7px; outline: none; padding: 0 42px; color: var(--fos-text-1); background: var(--auth-bg); font-size: 14px; transition: border-color .18s, box-shadow .18s; }
 .nori-auth-input-wrap input::placeholder { color: var(--fos-text-4); }
 .nori-auth-input-wrap input:hover { border-color: #ffffff3d; }
-.nori-auth-input-wrap input:focus { border-color: rgba(255,255,255,.4); box-shadow: 0 0 0 3px var(--fos-primary-soft); }
+.nori-auth-input-wrap input:focus { border-color: rgba(124, 102, 255, .6); box-shadow: 0 0 0 3px var(--fos-primary-soft); }
 .nori-auth-input-wrap input:disabled { cursor: wait; opacity: .65; }
 .nori-auth-input-wrap input:-webkit-autofill { -webkit-text-fill-color:var(--fos-text-1); box-shadow: 0 0 0 1000px var(--auth-bg) inset; }
 .nori-auth-password-toggle { position: absolute; right: 7px; display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 5px; color: var(--fos-text-4); background: transparent; }
 .nori-auth-password-toggle:hover { color: var(--fos-text-1); background: var(--fos-fill-mid); }
-.nori-auth-caps-lock { margin: -2px 0 0; color: #c8c8c8; font-size: 10px; }
+.nori-auth-caps-lock { margin: -2px 0 0; color: #fbbf24; font-size: 10px; }
 .nori-auth-form-info { display: flex; align-items: center; gap: 6px; margin-top: -8px; color: var(--fos-text-4); font-size: 10px; }
 .nori-auth-form-info svg { flex: none; }
 .nori-auth-form-info .nori-auth-help-trigger { margin-left: auto; font-size: 10px !important; }
@@ -111,7 +111,7 @@
 .nori-auth-submit:disabled { cursor: wait; opacity: .65; }
 .nori-auth-spinner { animation: nori-auth-spin .8s linear infinite; }
 .nori-auth-admin-link { display: inline-flex; align-items: center; justify-content: center; gap: 5px; align-self: center; margin-top: -5px; color: var(--fos-text-4) !important; font-size: 10px; transition: color .18s; }
-.nori-auth-admin-link:hover { color: #e5e5e5 !important; }
+.nori-auth-admin-link:hover { color: #a3acff !important; }
 .nori-auth-footer { position: relative; display: flex; min-height: 66px; flex: none; align-items: center; justify-content: space-between; gap: 16px; color: var(--fos-text-4); font-family: var(--font-geist-mono), monospace; font-size: 9px; letter-spacing: .6px; }
 .nori-auth-footer::before { position: absolute; top: 0; right: 64px; left: 64px; height: 1px; background: #ffffff09; pointer-events: none; content: ""; }
 .nori-auth-footer-center { color: var(--fos-text-3); font-size: 10px; letter-spacing: 3px; }
@@ -122,12 +122,12 @@
 .nori-auth-help-panel { padding: 28px; }
 .nori-auth-help-panel header { display: flex; align-items: flex-start; gap: 14px; }
 .nori-auth-help-panel header > div { min-width: 0; flex: 1; }
-.nori-auth-help-panel header p { margin: 0 0 10px; color: #e5e5e5; font-family: monospace; font-size: 9px; letter-spacing: 1.4px; }
+.nori-auth-help-panel header p { margin: 0 0 10px; color: #a3acff; font-family: monospace; font-size: 9px; letter-spacing: 1.4px; }
 .nori-auth-help-panel h2 { margin: 0; font-size: 23px; font-weight: 550; line-height: 1.5; }
 .nori-auth-help-panel header > button { display: grid; width: 30px; height: 30px; flex: none; place-items: center; border: 0; border-radius: 6px; color: var(--fos-text-2); background: var(--fos-fill-mid); cursor: pointer; }
 .nori-auth-help-panel ol { display: grid; gap: 24px; margin: 30px 0; padding: 0; list-style: none; }
 .nori-auth-help-panel li { display: flex; gap: 13px; }
-.nori-auth-help-panel li > span { display: grid; width: 37px; height: 37px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 9px; color: #e5e5e5; background: var(--fos-primary-soft); }
+.nori-auth-help-panel li > span { display: grid; width: 37px; height: 37px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 9px; color: #a3acff; background: var(--fos-primary-soft); }
 .nori-auth-help-panel li h3 { margin: 0 0 6px; font-size: 13px; font-weight: 550; }
 .nori-auth-help-panel li p { margin: 0; color: var(--fos-text-2); font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
 .nori-auth-help-done { display: block; min-height: 43px; width: 100%; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #ffffff; background: rgba(255,255,255,.16); font-size: 12px; cursor: pointer; }

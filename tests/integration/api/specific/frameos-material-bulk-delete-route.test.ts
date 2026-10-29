@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { NextResponse } from 'next/server'
+import { projectParticipantWhere } from '@/lib/collaboration/access'
 import { buildMockRequest } from '../../../helpers/request'
 
 const auth = vi.hoisted(() => vi.fn())
@@ -85,7 +86,7 @@ describe('material bulk trash permissions and atomicity', () => {
     db.project.findFirst.mockResolvedValueOnce(null)
     expect((await POST(request({ materialIds: ['a'] }), context)).status).toBe(404)
     expect(db.project.findFirst).toHaveBeenCalledWith({
-      where: { id: 'project-1', userId: 'manager-1', deletedAt: null },
+      where: { id: 'project-1', userId: 'manager-1', deletedAt: null, ...projectParticipantWhere('asset-child') },
       select: { id: true },
     })
     expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()

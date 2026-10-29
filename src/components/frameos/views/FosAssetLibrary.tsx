@@ -57,9 +57,9 @@ interface Asset {
 }
 
 const ROLE_COLORS: Record<RoleTag, string> = {
-  '角色': '#ffffff',
-  '道具': '#b4b4b4',
-  '环境': '#d6d6d6',
+  '角色': '#e0a23a',
+  '道具': '#3265ff',
+  '环境': '#10b981',
 }
 
 const CATEGORY_LABELS: Record<AssetCategory, string> = {
@@ -194,7 +194,7 @@ function mergeBoundCharacterMaterials(
 function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: string }) {
   const src = toDisplayImageUrl(imageUrl)
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[#181818]">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-b from-[#1b1b23] to-[#0c0c11]">
       {src ? (
         <MediaImage src={src} alt="" fill sizes="280px" style={{ objectFit: 'cover' }} />
       ) : (
@@ -246,7 +246,7 @@ function AssetCard({
           <span className="flex-none rounded-md px-2 py-0.5 text-[11px] font-bold leading-4" style={{ background: `${color}26`, color }}>{asset.role}</span>
         </div>
         <div className="flex min-w-0 items-center gap-2 text-[11px] leading-4 text-[var(--fos-text-4)]"><span className="min-w-0 flex-1 truncate">{asset.sourceLabel}</span></div>
-        {onVoice ? <button type="button" className="mt-1 self-start text-[11px] font-bold text-neutral-200 hover:text-white" onClick={(event) => { event.stopPropagation(); onVoice() }}>{asset.voice?.bound ? '管理角色音色' : '设置角色音色'}</button> : null}
+        {onVoice ? <button type="button" className="mt-1 self-start text-[11px] font-bold text-violet-200 hover:text-violet-100" onClick={(event) => { event.stopPropagation(); onVoice() }}>{asset.voice?.bound ? '管理角色音色' : '设置角色音色'}</button> : null}
       </div>
     </div>
   )
@@ -277,7 +277,7 @@ function TreeRow({
       aria-current={active ? 'page' : undefined}
       title={path || label}
       className="flex w-full items-center gap-2 rounded-[8px] py-2 pr-3 text-left text-[13px]"
-      style={{ paddingLeft: 12 + depth * 16, background: active ? 'var(--fos-primary-soft)' : 'transparent', color: active ? '#e5e5e5' : 'var(--fos-text-2)', fontWeight: active ? 700 : 500 }}
+      style={{ paddingLeft: 12 + depth * 16, background: active ? 'var(--fos-primary-soft)' : 'transparent', color: active ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', fontWeight: active ? 700 : 500 }}
     >
       {caret ? <AppIcon name="chevronDown" className="h-3 w-3 shrink-0 text-[var(--fos-text-4)]" /> : <span className="w-3 shrink-0" />}
       {icon ? <AppIcon name={icon as never} className="h-4 w-4 shrink-0" /> : null}
@@ -575,7 +575,7 @@ export function FosAssetLibrary() {
         </div>
 
         <div className="fal-content min-h-0 flex-1 overflow-y-auto p-5">
-          {warning && loadedScope === scopeKey ? <div role="status" className="mb-3 rounded-lg border border-white/[0.24] bg-white/10 p-3 text-[12px] text-white">{warning}</div> : null}
+          {warning && loadedScope === scopeKey ? <div role="status" className="mb-3 rounded-lg border border-amber-400/25 bg-amber-500/10 p-3 text-[12px] text-amber-100">{warning}</div> : null}
           {showingLoading ? (
             <div className="fal-grid grid grid-cols-3 gap-4">
               {Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-[160px] animate-pulse rounded-[12px] bg-[var(--fos-bg-2)]" />)}
@@ -689,10 +689,10 @@ function AssetLightbox({ asset, onClose }: { asset: Asset; onClose: () => void }
       <div className="relative flex items-center justify-center gap-3 py-3 text-[13px] font-bold text-white/80">
         <span>{asset.name}</span>
         <span className="text-[12px] font-normal text-white/40">{asset.sourceLabel}</span>
-        {asset.voice?.bound ? <span className="rounded-md border border-white/20 bg-white/10 px-2 py-1 text-[10px] text-white">{asset.voice.label}</span> : null}
+        {asset.voice?.bound ? <span className="rounded-md border border-violet-300/20 bg-violet-400/10 px-2 py-1 text-[10px] text-violet-100">{asset.voice.label}</span> : null}
         <button type="button" onClick={onClose} className="absolute right-5 top-2 flex h-9 w-9 items-center justify-center rounded-full bg-white/10 hover:bg-white/20"><AppIcon name="close" className="h-5 w-5" /></button>
       </div>
-      {asset.voice?.bound ? <div className="mx-auto mb-3 flex w-[min(720px,calc(100vw-32px))] items-center gap-3 rounded-[10px] border border-white/15 bg-white/[.07] px-4 py-2.5"><AppIcon name="audioWave" className="h-4 w-4 shrink-0 text-neutral-200" /><span className="shrink-0 text-[11px] font-bold text-white">角色音色</span>{asset.voice.url ? <audio src={toPlayableAudioUrl(asset.voice.url) || asset.voice.url} controls preload="metadata" className="h-8 min-w-0 flex-1" /> : <span className="text-[11px] text-white/45">已绑定平台音色，无独立试听文件</span>}</div> : null}
+      {asset.voice?.bound ? <div className="mx-auto mb-3 flex w-[min(720px,calc(100vw-32px))] items-center gap-3 rounded-[10px] border border-violet-300/15 bg-violet-400/[.07] px-4 py-2.5"><AppIcon name="audioWave" className="h-4 w-4 shrink-0 text-violet-200" /><span className="shrink-0 text-[11px] font-bold text-violet-100">角色音色</span>{asset.voice.url ? <audio src={toPlayableAudioUrl(asset.voice.url) || asset.voice.url} controls preload="metadata" className="h-8 min-w-0 flex-1" /> : <span className="text-[11px] text-white/45">已绑定平台音色，无独立试听文件</span>}</div> : null}
       <div className="flex min-h-0 flex-1 items-center justify-center px-10 pb-8" onClick={(event) => event.stopPropagation()}>
         <div className="grid h-full max-h-[72vh] w-full max-w-[1100px] overflow-hidden rounded-[8px]" style={{ gridTemplateColumns: `repeat(${Math.min(previews.length, 4)}, minmax(0, 1fr))` }}>
           {previews.slice(0, 4).map((imageUrl, index) => (

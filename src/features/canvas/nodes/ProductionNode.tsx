@@ -12,14 +12,14 @@ function readNodeData(data: NodeProps['data']): CanvasNodeData {
 
 function Badge({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'neutral' | 'success' | 'warning' }) {
   const colors = {
-    neutral: 'rgba(255,255,255,0.055)',
-    success: 'rgba(172,172,172,0.12)',
-    warning: 'rgba(188,188,188,0.12)',
+    neutral: 'rgba(255,255,255,0.06)',
+    success: 'rgba(52,211,153,0.14)',
+    warning: 'rgba(251,191,36,0.14)',
   }
   const textColors = {
-    neutral: 'rgba(255,255,255,0.55)',
-    success: '#bfbfbf',
-    warning: '#c8c8c8',
+    neutral: 'rgba(245,245,250,0.62)',
+    success: '#6ee7b7',
+    warning: '#fcd34d',
   }
 
   return (
@@ -47,6 +47,7 @@ function ProductionNodeImpl(props: NodeProps) {
   const isVideo = props.type === 'production_video'
   const isStoryboard = props.type === 'production_storyboard'
   const hasVisual = Boolean(data.imageUrl || data.videoUrl)
+  const hue = isVideo ? '#a78bfa' : isPanel ? '#38bdf8' : '#6e7bff'
   const fallbackTitle = isVideo ? '分镜视频' : isPanel ? '分镜画面' : isStoryboard ? '分镜组' : '剧集'
   const legacyStatusLabels: Record<string, string> = {
     Video: '视频',
@@ -64,23 +65,23 @@ function ProductionNodeImpl(props: NodeProps) {
         width: isPanel || isVideo ? 260 : 300,
         borderRadius: 16,
         background: props.selected
-          ? 'linear-gradient(rgb(42,42,42), rgb(34,34,34))'
-          : '#1f1f1f',
+          ? 'linear-gradient(#24242e, #1b1b23)'
+          : '#1b1b23',
         border: props.selected
-          ? '1px solid #7a7a7a'
-          : '0.5px solid #3d3d3d',
+          ? `1px solid color-mix(in srgb, ${hue} 82%, transparent)`
+          : '0.5px solid #34343f',
         boxShadow: props.selected
-          ? '0 6px 18px rgba(0,0,0,0.28)'
+          ? `0 0 0 1px color-mix(in srgb, ${hue} 26%, transparent), 0 6px 18px rgba(0,0,0,0.28), 0 0 26px -10px ${hue}`
           : '0 2px 8px rgba(0,0,0,0.18)',
         overflow: 'hidden',
         cursor: 'grab',
         transition: 'border-color .15s ease, box-shadow .15s ease',
       }}
     >
-      <Handle type="source" id="input" position={Position.Left} style={{ background: '#5a5a5a' }} />
+      <Handle type="source" id="input" position={Position.Left} style={{ background: hue }} />
 
       {hasVisual ? (
-        <div style={{ aspectRatio: '16 / 9', background: '#0a0a0a', position: 'relative' }}>
+        <div style={{ aspectRatio: '16 / 9', background: '#08080c', position: 'relative' }}>
           {data.videoUrl ? (
             <CanvasNodeVideo src={data.videoUrl} fit="cover" />
           ) : (
@@ -98,11 +99,11 @@ function ProductionNodeImpl(props: NodeProps) {
         <div
           style={{
             height: isPanel ? 120 : 92,
-            background: 'linear-gradient(145deg, rgba(34,34,34,0.96), rgba(26,26,26,0.99))',
+            background: `radial-gradient(80% 110% at 50% 0%, color-mix(in srgb, ${hue} 16%, transparent), transparent 72%), linear-gradient(145deg, rgba(36,36,46,0.96), rgba(27,27,35,0.99))`,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: 'rgba(255,255,255,0.28)',
+            color: 'rgba(245,245,250,0.36)',
             fontSize: 12,
             fontWeight: 600,
             borderBottom: '0.5px solid rgba(255,255,255,0.06)',
@@ -197,7 +198,7 @@ function ProductionNodeImpl(props: NodeProps) {
         ) : null}
       </div>
 
-      <Handle type="source" id="output" position={Position.Right} style={{ background: '#5a5a5a' }} />
+      <Handle type="source" id="output" position={Position.Right} style={{ background: hue }} />
     </div>
   )
 }

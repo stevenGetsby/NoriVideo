@@ -54,7 +54,7 @@ export function SegmentedControl<T extends string = string>({
 
     return (
         <div
-            className={`rounded-xl p-[3px] bg-[#e8e8ed] dark:bg-[#1c1c1e] ${isCompact ? 'inline-block max-w-full' : 'block w-full'} ${className}`}
+            className={`rounded-xl p-[3px] bg-[#e8e8ed] dark:bg-[#1b1b23] ${isCompact ? 'inline-block max-w-full' : 'block w-full'} ${className}`}
         >
             <div
                 ref={gridRef}

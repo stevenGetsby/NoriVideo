@@ -79,24 +79,24 @@
 
 /* ===== Dark mode overrides ===== */
 .dark {
-  --glass-bg-canvas: #000000;
-  --glass-bg-surface: rgba(24, 24, 24, 0.96);
-  --glass-bg-surface-strong: rgba(31, 31, 31, 0.94);
-  --glass-bg-surface-modal: rgba(31, 31, 31, 0.98);
-  --glass-bg-muted: rgba(34, 34, 34, 0.86);
-  --glass-bg-nav: rgba(0, 0, 0, 0.96);
-  --glass-text-primary: #ffffff;
-  --glass-text-secondary: #b4b4b4;
-  --glass-text-tertiary: #858585;
-  --glass-text-on-accent: #000000;
+  --glass-bg-canvas: #0c0c11;
+  --glass-bg-surface: rgba(27, 27, 35, 0.88);
+  --glass-bg-surface-strong: rgba(36, 36, 46, 0.94);
+  --glass-bg-surface-modal: rgba(19, 19, 25, 0.97);
+  --glass-bg-muted: rgba(36, 36, 46, 0.86);
+  --glass-bg-nav: rgba(12, 12, 17, 0.96);
+  --glass-text-primary: #f0f0f6;
+  --glass-text-secondary: #c2c3d0;
+  --glass-text-tertiary: #8f90a2;
+  --glass-text-on-accent: #ffffff;
 
   --glass-stroke-soft: rgba(255, 255, 255, 0.08);
   --glass-stroke-base: rgba(255, 255, 255, 0.12);
   --glass-stroke-strong: rgba(255, 255, 255, 0.2);
-  --glass-stroke-focus: rgba(255, 255, 255, 0.45);
-  --glass-stroke-danger: rgba(229, 72, 77, 0.64);
-  --glass-stroke-warning: rgba(255, 255, 255, 0.4);
-  --glass-stroke-success: rgba(255, 255, 255, 0.4);
+  --glass-stroke-focus: rgba(124, 102, 255, 0.6);
+  --glass-stroke-danger: rgba(255, 100, 100, 0.64);
+  --glass-stroke-warning: rgba(255, 180, 50, 0.62);
+  --glass-stroke-success: rgba(50, 210, 140, 0.62);
 
   --glass-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.2);
   --glass-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.28);
@@ -105,27 +105,27 @@
   --glass-shadow-nav: 0 8px 18px rgba(0, 0, 0, 0.3);
 
   --glass-tone-neutral-bg: rgba(255, 255, 255, 0.08);
-  --glass-tone-neutral-fg: #b4b4b4;
-  --glass-tone-info-bg: rgba(255, 255, 255, 0.08);
-  --glass-tone-info-fg: #e5e5e5;
-  --glass-tone-success-bg: rgba(255, 255, 255, 0.1);
-  --glass-tone-success-fg: #ffffff;
-  --glass-tone-warning-bg: rgba(255, 255, 255, 0.1);
-  --glass-tone-warning-fg: #d6d6d6;
-  --glass-tone-danger-bg: rgba(229, 72, 77, 0.12);
-  --glass-tone-danger-fg: #ff8589;
+  --glass-tone-neutral-fg: #b4b5c4;
+  --glass-tone-info-bg: rgba(56, 189, 248, 0.14);
+  --glass-tone-info-fg: #7dd3fc;
+  --glass-tone-success-bg: rgba(50, 210, 140, 0.16);
+  --glass-tone-success-fg: #50d8a0;
+  --glass-tone-warning-bg: rgba(255, 180, 50, 0.18);
+  --glass-tone-warning-fg: #f0b840;
+  --glass-tone-danger-bg: rgba(255, 100, 100, 0.16);
+  --glass-tone-danger-fg: #ff7878;
 
   --glass-overlay-soft: rgba(0, 0, 0, 0.5);
   --glass-overlay: rgba(0, 0, 0, 0.62);
   --glass-overlay-strong: rgba(0, 0, 0, 0.74);
 
-  --glass-accent-from: #ffffff;
-  --glass-accent-to: #ffffff;
-  --glass-accent-shadow-soft: rgba(0, 0, 0, 0.3);
-  --glass-accent-shadow-strong: rgba(0, 0, 0, 0.36);
-  --glass-focus-ring: rgba(255, 255, 255, 0.08);
-  --glass-focus-ring-strong: rgba(255, 255, 255, 0.16);
-  --glass-danger-ring: rgba(229, 72, 77, 0.14);
+  --glass-accent-from: #5b6cff;
+  --glass-accent-to: #a855f7;
+  --glass-accent-shadow-soft: rgba(108, 92, 255, 0.3);
+  --glass-accent-shadow-strong: rgba(108, 92, 255, 0.42);
+  --glass-focus-ring: rgba(124, 102, 255, 0.22);
+  --glass-focus-ring-strong: rgba(124, 102, 255, 0.32);
+  --glass-danger-ring: rgba(255, 100, 100, 0.14);
   --glass-ghost-hover-bg: rgba(255, 255, 255, 0.08);
 }
 

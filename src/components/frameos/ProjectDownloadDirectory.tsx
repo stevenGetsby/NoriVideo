@@ -27,6 +27,6 @@ export function ProjectDownloadDirectory({ projectId }: { projectId: string }) {
       }).finally(() => setBusy(false))
     }}>{label ? '更改本地下载目录' : '设置本地下载目录'}</button>
     {label ? <><span className="max-w-[180px] truncate" title={label}>{label}</span><button type="button" disabled={busy} onClick={() => void clearProjectDownloadDirectory(accountId, projectId).then(() => setLabel(null)).catch(() => setError('清除目录失败'))}>取消固定目录</button></> : null}
-    {error ? <p role="alert" className="w-full break-words text-neutral-200">{error}</p> : null}
+    {error ? <p role="alert" className="w-full break-words text-amber-200">{error}</p> : null}
   </div>
 }

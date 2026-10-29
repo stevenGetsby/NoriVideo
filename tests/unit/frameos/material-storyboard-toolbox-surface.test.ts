@@ -156,7 +156,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(importRoute).toContain('refreshProjectPanelReferenceAssets')
     expect(modifyWorker).toContain('const referenceImages = Array.from(new Set([requiredReference, ...normalizedExtras]))')
     expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #1f1f1f; }')
+    expect(styles).toContain('select.fos-input option { color: #f5f5fa; background: #1b1b23; }')
   })
 
   it('reflows asset and material controls instead of clipping them on narrow screens', () => {
@@ -184,7 +184,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(emptyStateStart).toBeGreaterThan(-1)
     expect(emptyStateEnd).toBeGreaterThan(emptyStateStart)
     const emptyState = assets.slice(Math.max(0, emptyStateStart - 240), emptyStateEnd + 6)
-    expect(emptyState).toContain('bg-[#050506]')
+    expect(emptyState).toContain('bg-[#08080c]')
     expect(emptyState).toContain('{mediaName}还未生成')
     expect(emptyState).toContain('可生成图片，或从素材库与本地导入')
     expect(emptyState).not.toContain('<MediaImage')
@@ -194,7 +194,7 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5f5; background: #1f1f1f; }')
-    expect(styles).toContain('select.fos-input option:disabled { color: #797979; }')
+    expect(styles).toContain('select.fos-input option { color: #f5f5fa; background: #1b1b23; }')
+    expect(styles).toContain('select.fos-input option:disabled { color: #797a8c; }')
   })
 })

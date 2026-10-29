@@ -8,18 +8,18 @@ import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 
-const DEFAULT_GROUP_COLOR = '#6e6e6e'
+const DEFAULT_GROUP_COLOR = '#64748b'
 const GROUP_COLORS: Array<string | null> = [
   null,
-  '#ef4444',
-  '#f97316',
-  '#eab308',
-  '#22c55e',
-  '#14b8a6',
-  '#3b82f6',
-  '#6366f1',
-  '#ec4899',
-  '#9ca3af',
+  '#38bdf8',
+  '#a78bfa',
+  '#f472b6',
+  '#34d399',
+  '#fbbf24',
+  '#fb923c',
+  '#6e7bff',
+  '#f87171',
+  '#94a3b8',
 ]
 
 export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {

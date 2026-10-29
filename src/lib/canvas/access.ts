@@ -106,6 +106,7 @@ export const CANVAS_EDGE_ROLE_VALUES = [
   'PRODUCTION_FLOW',
   'PANORAMA_VIEW',
   'STUDIO_CAMERA',
+  'STORY_FLOW',
 ] as const
 
 // 画布节点类型。媒体与生成节点使用通用类型，processType 放在 data 中。
@@ -123,6 +124,12 @@ export const CANVAS_NODE_TYPES = [
   'production_panel',
   'production_video',
   'playlist',
+  'story_entry',
+  'story_scene',
+  'story_choice',
+  'story_condition',
+  'story_exit',
+  'story_ending',
 ] as const
 export type CanvasNodeType = (typeof CANVAS_NODE_TYPES)[number]
 

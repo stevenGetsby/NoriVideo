@@ -100,7 +100,7 @@ function DefaultParamsRenderer({ fields, overrides, onChange, className }: { fie
                                 <select
                                     value={val}
                                     onChange={(e) => onChange(field.field, e.target.value, field.options[0])}
-                                    className="appearance-none bg-transparent hover:bg-[#f2f2f7] dark:hover:bg-[#1c1c1e] text-[13px] font-bold text-[var(--glass-text-primary)] pl-3 pr-7 py-1 rounded-md transition-colors outline-none cursor-pointer border border-transparent"
+                                    className="appearance-none bg-transparent hover:bg-[#f2f2f7] dark:hover:bg-[#1b1b23] text-[13px] font-bold text-[var(--glass-text-primary)] pl-3 pr-7 py-1 rounded-md transition-colors outline-none cursor-pointer border border-transparent"
                                 >
                                     {field.options.map(opt => <option key={String(opt)} value={String(opt)}>{String(opt)}</option>)}
                                 </select>
@@ -112,12 +112,12 @@ function DefaultParamsRenderer({ fields, overrides, onChange, className }: { fie
                 return (
                     <div key={field.field} className="flex items-center justify-between gap-4 px-1 py-1">
                         <span className="text-[13px] font-semibold text-[var(--glass-text-secondary)] shrink-0">{field.label || field.field}</span>
-                        <div className="flex bg-[#f2f2f7] dark:bg-[#1c1c1e] p-[3px] rounded-lg shadow-inner">
+                        <div className="flex bg-[#f2f2f7] dark:bg-[#1b1b23] p-[3px] rounded-lg shadow-inner">
                             {field.options.map(opt => {
                                 const s = String(opt)
                                 const active = s === val
                                 return (
-                                    <button key={s} onClick={() => onChange(field.field, s, field.options[0])} className={`px-4 py-1.5 text-[12px] font-medium rounded-md transition-all ${active ? 'bg-white text-black dark:bg-[#2c2c2e] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold' : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'}`}>
+                                    <button key={s} onClick={() => onChange(field.field, s, field.options[0])} className={`px-4 py-1.5 text-[12px] font-medium rounded-md transition-all ${active ? 'bg-white text-black dark:bg-[#2b2b36] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold' : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'}`}>
                                         {s}
                                     </button>
                                 )

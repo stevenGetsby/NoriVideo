@@ -381,7 +381,7 @@ async function prepareStoryboardGraph(input: {
     const groupData = {
       title: `${text(sourceData.title) || '故事版'} · 连续 ${effectiveShots.length} 镜`,
       memberIds: outputIds,
-      groupColor: null,
+      groupColor: '#765cff',
       storyboardPlanningTaskId: input.planningTaskId,
     }
     if (existingIds.has(groupId)) {
