@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
+import { attachMediaPlayer, handOffMediaPlayback, rememberPlayback, syncMediaPlayers } from '../media-playback'
 
 function mediaType(node: CanvasFlowNode) {
   if (node.type === 'model_3d') return 'model3d'
@@ -20,6 +21,7 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [fit, setFit] = useState(true)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const url = useMemo(() => {
     const raw = type === 'video'
       ? node.data.videoUrl || node.data.contentUrl
@@ -28,6 +30,32 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
         : node.data.imageUrl || node.data.contentUrl
     return (type === 'video' ? toPlayableVideoUrl(raw) : toDisplayImageUrl(raw)) || ''
   }, [node.data.audioUrl, node.data.contentUrl, node.data.imageUrl, node.data.videoUrl, type])
+
+  // Opening the preview takes over the card's playback: the card pauses and the enlarged
+  // player continues from the same second instead of replaying from the start.
+  useEffect(() => {
+    const video = videoRef.current
+    if (!video || type !== 'video') return
+    const start = handOffMediaPlayback(url, video)
+    const detach = attachMediaPlayer(url, video)
+    const apply = () => {
+      const resumable = start && start.time > 0 && (!video.duration || start.time < video.duration - 0.05)
+      if (resumable) {
+        video.currentTime = start.time
+        if (start.playing) void video.play().catch(() => {})
+        return
+      }
+      void video.play().catch(() => {})
+    }
+    if (video.readyState >= 1) apply()
+    else video.addEventListener('loadedmetadata', apply, { once: true })
+    return () => {
+      video.removeEventListener('loadedmetadata', apply)
+      if (video.currentTime > 0) rememberPlayback(url, video.currentTime, false)
+      detach()
+      syncMediaPlayers(url, { keep: video, resume: Boolean(start?.playing) })
+    }
+  }, [type, url])
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -71,7 +99,21 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
       >
         {!url ? <div className="nori-canvas-media-preview-empty">素材地址不可用</div> : null}
         {url && type === 'image' ? <MediaImage className={fit ? 'is-fit' : ''} src={url} alt={node.data.title || ''} draggable={false} width={1920} height={1080} style={{ transform: `rotate(${rotation}deg) scale(${fit ? 1 : scale})` }} /> : null}
-        {url && type === 'video' ? <video src={url} poster={toDisplayImageUrl(node.data.posterUrl || node.data.imageUrl || null) || undefined} controls autoPlay playsInline /> : null}
+        {url && type === 'video' ? (
+          <video
+            ref={videoRef}
+            src={url}
+            poster={toDisplayImageUrl(node.data.posterUrl || node.data.imageUrl || null) || undefined}
+            controls
+            playsInline
+            onPlay={(event) => rememberPlayback(url, event.currentTarget.currentTime, true)}
+            onPause={(event) => rememberPlayback(url, event.currentTarget.currentTime, false)}
+            onTimeUpdate={(event) => {
+              const video = event.currentTarget
+              rememberPlayback(url, video.currentTime, !video.paused && !video.ended)
+            }}
+          />
+        ) : null}
         {url && type === 'audio' ? <div className="nori-canvas-media-preview-audio"><i><Music2 /></i><strong>{node.data.title || '音频素材'}</strong><audio src={url} controls autoPlay /></div> : null}
       </main>
       <footer><span>{type === 'image' ? '滚轮缩放 · 0 重置 · Esc 关闭' : 'Esc 关闭预览'}</span><small>{url}</small></footer>

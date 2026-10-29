@@ -1,7 +1,8 @@
 'use client'
 
-import { useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Maximize2, Pause, Play, Volume2, VolumeX } from '@/components/ui/icons'
+import { attachMediaPlayer, recallPlayback, rememberPlayback } from '../media-playback'
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -27,11 +28,18 @@ export function CanvasNodeVideo({
   onError?: () => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const resume = useRef(recallPlayback(src))
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(false)
   const [time, setTime] = useState(0)
   const [duration, setDuration] = useState(0)
   const progress = duration > 0 ? Math.min(100, (time / duration) * 100) : 0
+  const remember = (video: HTMLVideoElement, playingNow = !video.paused && !video.ended) => rememberPlayback(src, video.currentTime, playingNow)
+
+  useEffect(() => {
+    const video = videoRef.current
+    return video ? attachMediaPlayer(src, video) : undefined
+  }, [src])
 
   const toggle = () => {
     const video = videoRef.current
@@ -49,11 +57,21 @@ export function CanvasNodeVideo({
         playsInline
         preload="metadata"
         draggable={false}
-        onPlay={() => setPlaying(true)}
-        onPause={() => setPlaying(false)}
-        onEnded={() => setPlaying(false)}
-        onTimeUpdate={(event) => setTime(event.currentTarget.currentTime)}
-        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration)}
+        onPlay={(event) => { setPlaying(true); remember(event.currentTarget) }}
+        onPause={(event) => { setPlaying(false); remember(event.currentTarget, false) }}
+        onEnded={() => { setPlaying(false); rememberPlayback(src, 0, false); setTime(0) }}
+        onTimeUpdate={(event) => { setTime(event.currentTarget.currentTime); remember(event.currentTarget) }}
+        onLoadedMetadata={(event) => {
+          const video = event.currentTarget
+          setDuration(video.duration)
+          const start = resume.current
+          resume.current = undefined
+          // A card that remounts (reload, reference preview) picks up the last watched spot.
+          if (start && start.time > 0 && (!video.duration || start.time < video.duration - 0.05)) {
+            video.currentTime = start.time
+            setTime(start.time)
+          }
+        }}
         onDurationChange={(event) => setDuration(event.currentTarget.duration)}
         onLoadedData={onLoadedData}
         onError={onError}
