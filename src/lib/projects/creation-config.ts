@@ -2,7 +2,7 @@ import { ApiError } from '@/lib/api-errors'
 
 export const PROJECT_LEVEL = 'Nori1.0' as const
 // Historical values remain readable so old projects and older clients do not
-// break, while every new NoriVideo project is created as Nori1.0.
+// break, while every new LanmiaoTV project is created as Nori1.0.
 export const PROJECT_LEVELS = [PROJECT_LEVEL, 'premium2', 'premium'] as const
 export type ProjectLevel = (typeof PROJECT_LEVELS)[number]
 

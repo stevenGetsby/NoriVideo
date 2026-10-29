@@ -218,7 +218,7 @@ export function CreateProjectDialog({
   useEffect(() => {
     let active = true
     setScriptsLoading(true)
-    void apiFetch('/api/video-repaint/scripts')
+    void apiFetch('/api/video-repaint/scripts', { cache: 'no-store' })
       .then(async (response) => response.ok ? response.json() : { scripts: [] })
       .then((payload: { scripts?: WriterScript[] }) => {
         if (!active) return

@@ -33,34 +33,6 @@ type GenerateProjectVoiceResponse = {
     results?: Array<{ lineId?: string; taskId?: string; audioUrl?: string }>
 }
 
-export function useDesignProjectVoice(projectId: string) {
-    return useMutation({
-        mutationFn: async (payload: {
-            voicePrompt: string
-            previewText: string
-            preferredName: string
-            language: 'zh'
-        }) => {
-            const response = await requestTaskResponseWithError(
-                `/api/novel-promotion/${projectId}/voice-design`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload),
-                },
-                'Failed to design voice',
-            )
-            return await resolveTaskResponse<{
-                success?: boolean
-                voiceId?: string
-                targetModel?: string
-                audioBase64?: string
-                requestId?: string
-            }>(response)
-        },
-    })
-}
-
 /**
  * 分析镜头变体（项目）
  */

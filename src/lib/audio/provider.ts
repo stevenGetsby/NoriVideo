@@ -1,8 +1,7 @@
 import { getProviderConfig, getProviderKey, resolveModelSelection } from '@/lib/api-config'
-import { submitFalTask } from '@/lib/async-submit'
-import { formatExternalId } from '@/lib/async-poll'
 import { generateAudio } from '@/lib/generator-api'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { getKuaiziModelDefinition } from '@/lib/providers/kuaizi/catalog'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 import { recordServiceUsageInBackground } from '@/lib/platform-services/usage'
 import {
@@ -16,41 +15,13 @@ export type ProviderAudioGenerationResult =
   | { kind: 'ready'; audioUrl: string; requestId: string | null }
   | { kind: 'async'; externalId: string; requestId: string }
 
-type FalAudioAdapter = {
-  modes: readonly AudioGenerationMode[]
-  buildInput(request: AudioGenerationRequest): Record<string, unknown>
-}
-
-const FAL_AUDIO_ADAPTERS: Readonly<Record<string, FalAudioAdapter>> = {
-  'fal-ai/stable-audio-25/text-to-audio': {
-    modes: ['music', 'sfx'],
-    buildInput: (request) => {
-      if (!Number.isInteger(request.durationSeconds)) throw new Error('FAL_STABLE_AUDIO_DURATION_INTEGER_REQUIRED')
-      return {
-        prompt: [request.genre, request.sfxKind, request.prompt].filter(Boolean).join('，'),
-        seconds_total: request.durationSeconds,
-      }
-    },
-  },
-  'fal-ai/elevenlabs/sound-effects/v2': {
-    modes: ['sfx'],
-    buildInput: (request) => ({
-      text: [request.sfxKind, request.prompt].filter(Boolean).join('，'),
-      duration_seconds: request.durationSeconds,
-      prompt_influence: 0.3,
-    }),
-  },
-}
-
 function compact(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
 }
 
-export function implementedAudioModes(provider: string, modelId: string): AudioGenerationMode[] {
+export function implementedAudioModes(provider: string, _modelId: string): AudioGenerationMode[] {
   const providerKey = getProviderKey(provider).toLowerCase()
-  if (providerKey === 'bailian') return ['tts']
   if (providerKey === 'kuaizi') return ['tts']
-  if (providerKey === 'fal' && provider === 'fal') return [...(FAL_AUDIO_ADAPTERS[modelId]?.modes || [])]
   return []
 }
 
@@ -107,64 +78,25 @@ export async function generateProviderAudio(params: {
   }
 
   const providerKey = getProviderKey(selection.provider).toLowerCase()
-  if (providerKey === 'bailian') {
-    if (params.request.mode !== 'tts' || !params.request.voice) {
-      throw new Error('BAILIAN_AUDIO_MODE_UNSUPPORTED')
-    }
-    const generated = await generateAudio(params.userId, params.modelKey, params.request.prompt, {
-      voice: params.request.voice,
-    })
-    if (!generated.success || !compact(generated.audioUrl) || generated.async) {
-      throw new Error(generated.error || '音频服务没有返回可保存的音频结果。')
-    }
-    return {
-      kind: 'ready',
-      audioUrl: generated.audioUrl!,
-      requestId: compact(generated.requestId) || null,
-    }
-  }
-
   if (providerKey === 'kuaizi') {
     if (params.request.mode !== 'tts' || !params.request.voice) {
       throw new Error('KUAIZI_AUDIO_MODE_UNSUPPORTED')
     }
-    const generated = await generateAudio(params.userId, params.modelKey, params.request.prompt, {
-      voice: params.request.voice,
-    })
+    const definition = getKuaiziModelDefinition(selection.modelId, 'audio')
+    if (definition.family === 'seed-audio' && !params.request.voice.startsWith('kuaizi-audio:')) {
+      throw new Error('请先选择上传的参考音频')
+    }
+    if (definition.family === 'minimax-tts' && !params.request.voice.startsWith('kuaizi-voice:')) {
+      throw new Error('请先选择 Kuaizi 音色 ID')
+    }
+    const voice = params.request.voice.replace(/^kuaizi-(?:audio|voice):/, '')
+    const generated = await generateAudio(params.userId, params.modelKey, params.request.prompt, { voice })
     const requestId = compact(generated.requestId)
     const externalId = compact(generated.externalId)
     if (!generated.success || !generated.async || !requestId || !externalId) {
       throw new Error(generated.error || '筷子音频服务没有返回可轮询的任务。')
     }
     return { kind: 'async', requestId, externalId }
-  }
-
-  if (providerKey === 'fal' && selection.provider === 'fal') {
-    const adapter = FAL_AUDIO_ADAPTERS[selection.modelId]
-    if (!adapter) throw new Error(`FAL_AUDIO_MODEL_UNSUPPORTED: ${selection.modelId}`)
-    const config = await getProviderConfig(params.userId, selection.provider)
-    const startedAt = Date.now()
-    try {
-      const requestId = await submitFalTask(selection.modelId, adapter.buildInput(params.request), config.apiKey)
-      return {
-        kind: 'async',
-        requestId,
-        externalId: formatExternalId('FAL', 'AUDIO', requestId, selection.modelId),
-      }
-    } catch (error) {
-      recordServiceUsageInBackground({
-        provider: selection.provider,
-        modelKey: selection.modelKey,
-        serviceType: 'audio',
-        operation: `generate-audio-${params.request.mode}`,
-        status: 'failed',
-        userId: params.userId,
-        units: 0,
-        latencyMs: Date.now() - startedAt,
-        errorCode: error instanceof Error ? error.name : 'AUDIO_GENERATION_ERROR',
-      })
-      throw error
-    }
   }
 
   throw new Error(`AUDIO_PROVIDER_NOT_IMPLEMENTED: ${selection.provider}`)

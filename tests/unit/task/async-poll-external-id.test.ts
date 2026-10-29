@@ -1,63 +1,67 @@
-import { describe, expect, it } from 'vitest'
-import { formatExternalId, parseExternalId } from '@/lib/async-poll'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-describe('async poll externalId contract', () => {
-  it('parses standard FAL externalId with endpoint', () => {
-    const parsed = parseExternalId('FAL:VIDEO:fal-ai/wan/v2.6/image-to-video:req_123')
-    expect(parsed.provider).toBe('FAL')
-    expect(parsed.type).toBe('VIDEO')
-    expect(parsed.endpoint).toBe('fal-ai/wan/v2.6/image-to-video')
-    expect(parsed.requestId).toBe('req_123')
+const pollKuaiziTaskMock = vi.hoisted(() => vi.fn())
+
+vi.mock('@/lib/providers/kuaizi/poll', () => ({
+  pollKuaiziTask: pollKuaiziTaskMock,
+}))
+
+import { formatExternalId, parseExternalId, pollAsyncTask } from '@/lib/async-poll'
+
+describe('Kuaizi-only async task recovery', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.stubGlobal('fetch', vi.fn())
   })
 
-  it('parses durable FAL audio external ids for worker restart recovery', () => {
-    const externalId = formatExternalId('FAL', 'AUDIO', 'req_audio', 'fal-ai/stable-audio-25/text-to-audio')
-    expect(parseExternalId(externalId)).toEqual({
-      provider: 'FAL',
-      type: 'AUDIO',
-      endpoint: 'fal-ai/stable-audio-25/text-to-audio',
-      requestId: 'req_audio',
+  it('round-trips durable Kuaizi image, video and audio ids', () => {
+    for (const type of ['IMAGE', 'VIDEO', 'AUDIO'] as const) {
+      const externalId = formatExternalId('KUAIZI', type, 'request:1', undefined, 'provider-token', 'model-token')
+      expect(externalId).toBe(`KUAIZI:${type}:provider-token:model-token:request:1`)
+      expect(parseExternalId(externalId)).toEqual({
+        provider: 'KUAIZI',
+        type,
+        providerToken: 'provider-token',
+        modelKeyToken: 'model-token',
+        requestId: 'request:1',
+      })
+    }
+  })
+
+  it('resumes only the Kuaizi poller with its durable routing tokens', async () => {
+    pollKuaiziTaskMock.mockResolvedValueOnce({ status: 'pending' })
+    await expect(pollAsyncTask(
+      'KUAIZI:VIDEO:provider-token:model-token:task-1',
+      'user-1',
+    )).resolves.toEqual({ status: 'pending' })
+    expect(pollKuaiziTaskMock).toHaveBeenCalledWith({
+      type: 'VIDEO',
+      taskId: 'task-1',
+      userId: 'user-1',
+      providerToken: 'provider-token',
+      modelToken: 'model-token',
     })
+    expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('rejects legacy non-standard externalId formats', () => {
-    expect(() => parseExternalId('FAL:fal-ai/wan/v2.6/image-to-video:req_123')).toThrow(/无效 FAL externalId/)
-    expect(() => parseExternalId('batches/legacy')).toThrow(/无法识别的 externalId 格式/)
+  it.each([
+    'FAL:VIDEO:fal-ai/wan/v2.6/image-to-video:req_123',
+    'ARK:VIDEO:task-1',
+    'BAILIAN:VIDEO:task-1',
+    'SILICONFLOW:IMAGE:task-1',
+    'OPENAI:VIDEO:provider-token:task-1',
+    'OCOMPAT:VIDEO:provider-token:model-token:task-1',
+    'GOOGLE:VIDEO:operation-1',
+    'MINIMAX:AUDIO:task-1',
+    'batches/legacy',
+    'KUAIZI:VIDEO:missing-tokens',
+  ])('rejects retired or malformed task id %s without network access', async (externalId) => {
+    await expect(pollAsyncTask(externalId, 'user-1')).rejects.toThrow('ASYNC_TASK_PROVIDER_RETIRED')
+    expect(pollKuaiziTaskMock).not.toHaveBeenCalled()
+    expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('requires endpoint when formatting FAL externalId', () => {
-    expect(() => formatExternalId('FAL', 'VIDEO', 'req_123')).toThrow(/requires endpoint/)
-  })
-
-  it('parses OPENAI video externalId with provider token', () => {
-    const parsed = parseExternalId('OPENAI:VIDEO:b3BlbmFpLWNvbXBhdGlibGU6b2EtMQ:vid_123')
-    expect(parsed.provider).toBe('OPENAI')
-    expect(parsed.type).toBe('VIDEO')
-    expect(parsed.providerToken).toBe('b3BlbmFpLWNvbXBhdGlibGU6b2EtMQ')
-    expect(parsed.requestId).toBe('vid_123')
-  })
-
-  it('requires provider token when formatting OPENAI externalId', () => {
-    expect(() => formatExternalId('OPENAI', 'VIDEO', 'vid_123')).toThrow(/providerToken/)
-  })
-
-  it('parses and formats BAILIAN externalId', () => {
-    const externalId = formatExternalId('BAILIAN', 'VIDEO', 'task_123')
-    expect(externalId).toBe('BAILIAN:VIDEO:task_123')
-
-    const parsed = parseExternalId(externalId)
-    expect(parsed.provider).toBe('BAILIAN')
-    expect(parsed.type).toBe('VIDEO')
-    expect(parsed.requestId).toBe('task_123')
-  })
-
-  it('parses and formats SILICONFLOW externalId', () => {
-    const externalId = formatExternalId('SILICONFLOW', 'IMAGE', 'task_456')
-    expect(externalId).toBe('SILICONFLOW:IMAGE:task_456')
-
-    const parsed = parseExternalId(externalId)
-    expect(parsed.provider).toBe('SILICONFLOW')
-    expect(parsed.type).toBe('IMAGE')
-    expect(parsed.requestId).toBe('task_456')
+  it('does not format external ids without Kuaizi routing tokens', () => {
+    expect(() => formatExternalId('KUAIZI', 'VIDEO', 'task-1')).toThrow('ASYNC_TASK_PROVIDER_RETIRED')
   })
 })

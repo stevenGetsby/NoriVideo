@@ -23,6 +23,7 @@ export const USER_ERROR_MESSAGES_ZH: Record<UnifiedErrorCode, string> = {
   GENERATION_TIMEOUT: '生成超时，请重试。',
   VIDEO_API_FORMAT_UNSUPPORTED: '当前视频接口格式暂不支持。',
   GENERATION_FAILED: '生成失败，请稍后重试。',
+  VOICE_DESIGN_RETIRED: 'AI 声音设计已停用，请上传参考音频或绑定 Kuaizi 音色 ID。',
   WATCHDOG_TIMEOUT: '任务执行超时，系统已终止该任务。',
   WORKER_EXECUTION_ERROR: '任务执行失败，请稍后重试。',
   INTERNAL_ERROR: '系统内部错误，请稍后重试。',

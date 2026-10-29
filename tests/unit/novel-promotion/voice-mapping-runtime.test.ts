@@ -27,6 +27,18 @@ describe('FrameOS voice mapping runtime helper', () => {
           voiceType: null,
           customVoiceUrl: null,
         },
+        {
+          id: 'global-voice-legacy',
+          name: 'Retired Voice',
+          voiceId: 'legacy-voice',
+          voiceType: 'qwen-designed',
+        },
+        {
+          id: 'global-voice-upload',
+          name: 'Uploaded Reference',
+          customVoiceUrl: 'voice/upload.wav',
+          voiceType: 'uploaded',
+        },
       ],
       episodes: [
         {
@@ -50,9 +62,10 @@ describe('FrameOS voice mapping runtime helper', () => {
           id: 'global-voice-1',
           name: 'Clear Young Adult',
           voiceId: 'voice-1',
-          voiceType: 'qwen-designed',
+          voiceType: 'kuaizi',
           description: 'calm focused voice',
-          voicePrompt: 'young adult, focused',
+          voicePrompt: 'legacy prompt',
+          customVoiceUrl: null,
           gender: 'neutral',
           language: 'en',
         },
@@ -75,6 +88,7 @@ describe('FrameOS voice mapping runtime helper', () => {
       character: 'Ari',
       matched_panel_id: 'panel-1',
     }))
+    expect(library.voices).toHaveLength(1)
     expect(library.voices[0]).toEqual(expect.objectContaining({
       library_id: 'global-voice-1',
       voice_id: 'voice-1',
@@ -124,14 +138,9 @@ describe('FrameOS voice mapping runtime helper', () => {
     })
 
     expect(result.mapping).toEqual(expect.objectContaining({ status: 'draft' }))
-    expect(result.plan.updates).toEqual([
-      expect.objectContaining({
-        characterId: 'character-1',
-        data: expect.objectContaining({
-          voiceId: 'voice-1',
-          voiceType: 'qwen-designed',
-        }),
-      }),
+    expect(result.plan.updates).toEqual([])
+    expect(result.plan.skipped).toEqual([
+      { character: 'Ari', characterId: 'character-1', reason: 'missing_voice_id' },
     ])
     expect(result.reasoning).toBe('matched voices')
     expect(executeTextStep).toHaveBeenCalledWith(expect.objectContaining({

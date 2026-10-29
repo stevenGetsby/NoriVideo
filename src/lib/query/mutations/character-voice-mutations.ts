@@ -37,7 +37,7 @@ export function useUpdateProjectCharacterVoiceSettings(projectId: string) {
             customVoiceUrl,
         }: {
             characterId: string
-            voiceType: 'qwen-designed' | 'uploaded' | 'custom' | null
+            voiceType: 'kuaizi' | 'uploaded' | null
             voiceId?: string
             customVoiceUrl?: string
         }) => {
@@ -55,37 +55,5 @@ export function useUpdateProjectCharacterVoiceSettings(projectId: string) {
             }, '更新音色失败')
         },
         onSettled: invalidateProjectAssets,
-    })
-}
-
-/**
- * 保存 AI 设计音色到角色
- */
-
-export function useSaveProjectDesignedVoice(projectId: string) {
-    const queryClient = useQueryClient()
-    const invalidateProjectAssets = () =>
-        invalidateQueryTemplates(queryClient, [queryKeys.projectAssets.all(projectId)])
-
-    return useMutation({
-        mutationFn: async ({
-            characterId,
-            voiceId,
-            audioBase64,
-        }: {
-            characterId: string
-            voiceId: string
-            audioBase64: string
-        }) => {
-            return await requestJsonWithError<{ audioUrl?: string }>(`/api/novel-promotion/${projectId}/character-voice`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    characterId,
-                    voiceDesign: { voiceId, audioBase64 },
-                }),
-            }, '保存失败')
-        },
-        onSuccess: invalidateProjectAssets,
     })
 }

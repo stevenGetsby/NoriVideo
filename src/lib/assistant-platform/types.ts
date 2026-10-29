@@ -1,7 +1,5 @@
 import type { ToolSet } from 'ai'
-import type { OpenAICompatMediaTemplate } from '@/lib/openai-compat-media-template'
-
-export type AssistantId = 'api-config-template' | 'tutorial'
+export type AssistantId = 'tutorial'
 
 export interface AssistantContext {
   providerId?: string
@@ -26,27 +24,6 @@ export interface AssistantToolResult {
   status: 'saved' | 'invalid' | 'error'
   message: string
   code?: string
-  savedModelKey?: string
-  savedModelKeys?: string[]
-  issues?: Array<{
-    code: string
-    field: string
-    message: string
-  }>
-  draftModel?: {
-    modelId: string
-    name: string
-    type: 'image' | 'video'
-    provider: string
-    compatMediaTemplate: OpenAICompatMediaTemplate
-  }
-  draftModels?: Array<{
-    modelId: string
-    name: string
-    type: 'image' | 'video'
-    provider: string
-    compatMediaTemplate: OpenAICompatMediaTemplate
-  }>
 }
 
 export interface AssistantSkillDefinition {

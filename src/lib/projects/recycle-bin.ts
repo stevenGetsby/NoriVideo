@@ -3,10 +3,6 @@ import { createScopedLogger } from '@/lib/logging/core'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { deleteObjects, extractStorageKey } from '@/lib/storage'
 import { unreferencedProjectStorageKeys } from './shared-media-retention'
-import {
-  cleanupUnreferencedBailianVoices,
-  collectProjectBailianManagedVoiceIds,
-} from '@/lib/providers/bailian'
 
 export const PROJECT_RECYCLE_RETENTION_MS = 15 * 24 * 60 * 60 * 1000
 export const PROJECT_RECYCLE_RETENTION_DAYS = 15
@@ -166,14 +162,6 @@ async function purgeProject(project: {
   userId: string
 }) {
   const keys = await collectProjectStorageKeys(project.id)
-  const voiceIds = await collectProjectBailianManagedVoiceIds(project.id)
-  const voices = await cleanupUnreferencedBailianVoices({
-    voiceIds,
-    scope: {
-      userId: project.userId,
-      excludeProjectId: project.id,
-    },
-  })
   await prisma.project.delete({ where: { id: project.id } })
   const deletableKeys = await unreferencedProjectStorageKeys(project.id, keys)
 
@@ -200,7 +188,6 @@ async function purgeProject(project: {
     details: {
       storageObjectsDeleted: deletableKeys.length,
       sharedStorageObjectsRetained: keys.length - deletableKeys.length,
-      bailianVoicesDeleted: voices.deletedVoiceIds.length,
     },
   })
 }

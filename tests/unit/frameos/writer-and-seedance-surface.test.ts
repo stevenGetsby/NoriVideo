@@ -7,16 +7,16 @@ function readSource(relativePath: string): string {
 }
 
 describe('writer workbench surface', () => {
-  it('exposes only the video repaint creation entry without a version suffix', () => {
+  it('keeps the script workbench and identifies video repaint as retired', () => {
     const workbench = readSource('src/components/frameos/views/FosScreenwriter.tsx')
     const models = readSource('src/components/frameos/views/screenwriterModels.ts')
-    const setup = readSource('src/components/frameos/views/FosVideoRepaintSetup.tsx')
-    const progress = readSource('src/components/frameos/views/FosVideoRepaintProgress.tsx')
+    const client = readSource('src/components/frameos/FosVideoRepaintClient.tsx')
 
     expect(workbench).toContain('WRITER_TOOL')
+    expect(workbench).toContain('视频转绘已停用')
     expect(models).toContain("title: '视频转绘'")
-    expect(models).not.toMatch(/视频转剧本|视频转分镜|剧本转绘|分镜转绘|小说改编/)
-    expect(`${models}\n${setup}\n${progress}`).not.toContain('视频转绘 2.0')
+    expect(client).toContain('已有剧本不受影响')
+    expect(client).not.toContain('视频转绘 2.0')
   })
 })
 

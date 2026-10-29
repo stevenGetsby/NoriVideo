@@ -8,10 +8,6 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { PRIMARY_APPEARANCE_INDEX, isArtStyleValue, isCustomArtStyleValue, type ArtStyleValue } from '@/lib/constants'
 import { resolveTaskLocale } from '@/lib/task/resolve-locale'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
-import {
-  collectBailianManagedVoiceIds,
-  cleanupUnreferencedBailianVoices,
-} from '@/lib/providers/bailian'
 import { stringifyCharacterDescriptionsWithFrameOSMetadata } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 
 function toObject(value: unknown): Record<string, unknown> {
@@ -102,29 +98,11 @@ export const DELETE = apiHandler(async (
       id: characterId,
       novelPromotionProject: { projectId },
     },
-    select: {
-      id: true,
-      voiceId: true,
-      voiceType: true,
-    },
+    select: { id: true },
   })
   if (!character) {
     throw new ApiError('NOT_FOUND')
   }
-
-  const candidateVoiceIds = collectBailianManagedVoiceIds([
-    {
-      voiceId: character.voiceId,
-      voiceType: character.voiceType,
-    },
-  ])
-  await cleanupUnreferencedBailianVoices({
-    voiceIds: candidateVoiceIds,
-    scope: {
-      userId: session.user.id,
-      excludeNovelCharacterId: character.id,
-    },
-  })
 
   // 删除角色（CharacterAppearance 会级联删除）
   await prisma.novelPromotionCharacter.delete({

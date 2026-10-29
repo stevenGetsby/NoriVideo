@@ -16,7 +16,7 @@ interface UserModelOption {
   value: string
   label: string
   provider: 'nori'
-  providerName: 'Nori Platform'
+  providerName: 'LanmiaoTV'
   tier: NoriModelTier
   capabilities?: ModelCapabilities
   videoPricingTiers?: VideoPricingTier[]
@@ -41,7 +41,7 @@ function toOption(model: NoriBusinessModel): UserModelOption {
     value: model.key,
     label: model.name,
     provider: 'nori',
-    providerName: 'Nori Platform',
+    providerName: 'LanmiaoTV',
     tier: model.tier,
   }
   const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')

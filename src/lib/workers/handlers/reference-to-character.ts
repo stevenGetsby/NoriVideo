@@ -1,10 +1,7 @@
 import sharp from 'sharp'
 import type { Job } from 'bullmq'
 import { prisma } from '@/lib/prisma'
-import { generateImage } from '@/lib/generator-api'
-import { queryFalStatus } from '@/lib/async-submit'
-import { fetchWithTimeoutAndRetry } from '@/lib/ark-api'
-import { getProviderConfig } from '@/lib/api-config'
+import { fetchWithTimeoutAndRetry } from '@/lib/media/fetch-with-retry'
 import { executeAiVisionStep } from '@/lib/ai-runtime'
 import { getUserModelConfig } from '@/lib/config-service'
 import {
@@ -16,7 +13,7 @@ import { encodeImageUrls } from '@/lib/contracts/image-urls-contract'
 import { generateUniqueKey, getSignedUrl, uploadObject } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { reportTaskProgress } from '@/lib/workers/shared'
-import { assertTaskActive } from '@/lib/workers/utils'
+import { assertTaskActive, resolveImageSourceFromGeneration } from '@/lib/workers/utils'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { buildPrompt, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { normalizeImageGenerationCount } from '@/lib/image-generation/count'
@@ -26,8 +23,6 @@ import {
   readString,
 } from './reference-to-character-helpers'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
-const POLL_MAX_ATTEMPTS = 60
-const POLL_INTERVAL_MS = 2000
 async function generateReferenceImage(params: {
   job: Job<TaskJobData>
   imageIndex: number
@@ -35,7 +30,6 @@ async function generateReferenceImage(params: {
   imageModel: string
   prompt: string
   referenceImages?: string[]
-  falApiKey?: string | null
   keyPrefix: string
   labelText?: string
 }): Promise<string | null> {
@@ -46,47 +40,22 @@ async function generateReferenceImage(params: {
     imageModel,
     prompt,
     referenceImages,
-    falApiKey,
     keyPrefix,
     labelText,
   } = params
 
   try {
     await assertTaskActive(job, `reference_to_character_generate_${imageIndex + 1}`)
-    const result = await generateImage(
+    const finalImageUrl = await resolveImageSourceFromGeneration(job, {
       userId,
-      imageModel,
+      modelId: imageModel,
       prompt,
-      {
+      options: {
         referenceImages,
         aspectRatio: CHARACTER_IMAGE_BANANA_RATIO,
       },
-    )
-
-    let finalImageUrl = result.imageUrl
-    const requestId = typeof result.requestId === 'string' ? result.requestId : ''
-    const endpoint = typeof result.endpoint === 'string' ? result.endpoint : ''
-    if (result.async && requestId && endpoint) {
-      if (!falApiKey) {
-        throw new Error('reference_to_character async result requires falApiKey')
-      }
-      for (let attempt = 0; attempt < POLL_MAX_ATTEMPTS; attempt += 1) {
-        await assertTaskActive(job, `reference_to_character_poll_${imageIndex + 1}_${attempt + 1}`)
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-        const status = await queryFalStatus(endpoint, requestId, falApiKey)
-        if (status.completed && status.resultUrl) {
-          finalImageUrl = status.resultUrl
-          break
-        }
-        if (status.failed) {
-          return null
-        }
-      }
-    }
-
-    if (!result.success || !finalImageUrl) {
-      return null
-    }
+      allowTaskExternalIdResume: imageIndex === 0,
+    })
 
     const imgRes = await fetchWithTimeoutAndRetry(finalImageUrl, {
       logPrefix: `[reference-to-character:${imageIndex + 1}]`,
@@ -210,7 +179,6 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   }
 
   const useReferenceImages = !customDescription
-  const { apiKey: falApiKey } = await getProviderConfig(job.data.userId, 'fal')
   const keyPrefix = isAssetHub ? 'ref-char' : `proj-ref-char-${job.data.projectId}`
   const count = normalizeImageGenerationCount('reference-to-character', payload.count)
 
@@ -228,7 +196,6 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
       imageModel,
       prompt,
       referenceImages: useReferenceImages ? allReferenceImages : undefined,
-      falApiKey,
       keyPrefix,
       ...(isProject ? { labelText: characterName } : {}),
     }),

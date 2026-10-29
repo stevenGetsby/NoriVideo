@@ -2,146 +2,63 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
-  requireProjectAuthLight: vi.fn(async () => ({
-    session: { user: { id: 'user-1' } },
-    project: { id: 'project-1', userId: 'user-1' },
-  })),
+  requireProjectAuthLight: vi.fn(async () => ({ session: { user: { id: 'user-1' } } })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
 }))
-
 const prismaMock = vi.hoisted(() => ({
-  novelPromotionProject: {
-    findUnique: vi.fn(async () => ({ id: 'np-1' })),
-  },
+  novelPromotionProject: { findUnique: vi.fn(async () => ({ id: 'np-1' })) },
   novelPromotionEpisode: {
-    findUnique: vi.fn(async () => ({
-      id: 'episode-1',
-      speakerVoices: '{}',
-    })),
-    findFirst: vi.fn(async () => ({
-      id: 'episode-1',
-      speakerVoices: '{}',
-    })),
-    update: vi.fn<(args: { data?: { speakerVoices?: string } }) => Promise<{ id: string }>>(async () => ({ id: 'episode-1' })),
+    findFirst: vi.fn(async () => ({ id: 'episode-1', speakerVoices: '{}' })),
+    update: vi.fn(),
   },
 }))
-
-const resolveStorageKeyFromMediaValueMock = vi.hoisted(() => vi.fn(async (input: string) => {
-  if (input.includes('fal')) return 'voice/storage/fal.wav'
-  if (input.includes('preview')) return 'voice/storage/preview.wav'
-  return null
-}))
+const resolveStorageKeyMock = vi.hoisted(() => vi.fn(async () => 'voice/reference.wav'))
 
 vi.mock('@/lib/api-auth', () => authMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
-vi.mock('@/lib/media/service', () => ({
-  resolveStorageKeyFromMediaValue: resolveStorageKeyFromMediaValueMock,
-}))
+vi.mock('@/lib/media/service', () => ({ resolveStorageKeyFromMediaValue: resolveStorageKeyMock }))
+vi.mock('@/lib/storage', () => ({ getSignedUrl: (key: string) => `signed://${key}` }))
 
-describe('api specific - speaker voice provider contract', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+describe('speaker voice Kuaizi provider contract', () => {
+  beforeEach(() => vi.clearAllMocks())
 
-  it('returns INVALID_PARAMS when provider is missing in PATCH payload', async () => {
+  it.each(['fal', 'bailian'])('rejects new %s bindings', async (provider) => {
     const mod = await import('@/app/api/novel-promotion/[projectId]/speaker-voice/route')
-    const req = buildMockRequest({
-      path: '/api/novel-promotion/project-1/speaker-voice',
-      method: 'PATCH',
-      body: {
-        episodeId: 'episode-1',
-        speaker: 'Narrator',
-        voiceType: 'uploaded',
-        audioUrl: '/m/fal-reference',
-      },
-    })
-
-    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
-    const body = await res.json()
-
+    const res = await mod.PATCH(buildMockRequest({
+      path: '/api/novel-promotion/project-1/speaker-voice', method: 'PATCH',
+      body: { episodeId: 'episode-1', speaker: 'Narrator', provider, voiceId: 'legacy', audioUrl: '/m/reference' },
+    }), { params: Promise.resolve({ projectId: 'project-1' }) })
     expect(res.status).toBe(400)
-    expect(body.error.code).toBe('INVALID_PARAMS')
     expect(prismaMock.novelPromotionEpisode.update).not.toHaveBeenCalled()
   })
 
-  it('stores fal speaker voice with explicit provider and normalized audio storage key', async () => {
+  it('stores explicit Kuaizi reference audio and preserves private metadata', async () => {
+    const metadata = { episode_id: 'episode_001' }
     prismaMock.novelPromotionEpisode.findFirst.mockResolvedValueOnce({
-      id: 'episode-1',
-      speakerVoices: JSON.stringify({
-        _frameosEpisodeMetadata: {
-          episode_id: 'episode_001',
-          source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
-        },
-      }),
+      id: 'episode-1', speakerVoices: JSON.stringify({ _frameosEpisodeMetadata: metadata }),
     })
     const mod = await import('@/app/api/novel-promotion/[projectId]/speaker-voice/route')
-    const req = buildMockRequest({
-      path: '/api/novel-promotion/project-1/speaker-voice',
-      method: 'PATCH',
-      body: {
-        episodeId: 'episode-1',
-        speaker: 'Narrator',
-        provider: 'fal',
-        voiceType: 'uploaded',
-        audioUrl: '/m/fal-reference',
-      },
-    })
-
-    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
+    const res = await mod.PATCH(buildMockRequest({
+      path: '/api/novel-promotion/project-1/speaker-voice', method: 'PATCH',
+      body: { episodeId: 'episode-1', speaker: 'Narrator', provider: 'kuaizi', voiceType: 'uploaded', audioUrl: '/m/reference' },
+    }), { params: Promise.resolve({ projectId: 'project-1' }) })
     expect(res.status).toBe(200)
-
-    const updateCall = prismaMock.novelPromotionEpisode.update.mock.calls[0] as
-      | [{ data?: { speakerVoices?: string } }]
-      | undefined
-    expect(updateCall).toBeTruthy()
-    if (!updateCall) throw new Error('expected update call')
-    const updateArg = updateCall[0]
-    const saved = JSON.parse(updateArg.data?.speakerVoices || '{}') as Record<string, unknown>
-
-    expect(resolveStorageKeyFromMediaValueMock).toHaveBeenCalledWith('/m/fal-reference')
-    expect(saved.Narrator).toEqual({
-      provider: 'fal',
-      voiceType: 'uploaded',
-      audioUrl: 'voice/storage/fal.wav',
-    })
-    expect(saved._frameosEpisodeMetadata).toEqual({
-      episode_id: 'episode_001',
-      source_anchor: { start: 'START_MARKER', end: 'END_MARKER' },
+    const args = prismaMock.novelPromotionEpisode.update.mock.calls[0][0]
+    expect(JSON.parse(args.data.speakerVoices)).toEqual({
+      _frameosEpisodeMetadata: metadata,
+      Narrator: { provider: 'kuaizi', voiceType: 'uploaded', audioUrl: 'voice/reference.wav', previewAudioUrl: 'voice/reference.wav' },
     })
   })
 
-  it('stores bailian speaker voice with explicit provider and voiceId', async () => {
-    const mod = await import('@/app/api/novel-promotion/[projectId]/speaker-voice/route')
-    const req = buildMockRequest({
-      path: '/api/novel-promotion/project-1/speaker-voice',
-      method: 'PATCH',
-      body: {
-        episodeId: 'episode-1',
-        speaker: 'Narrator',
-        provider: 'bailian',
-        voiceType: 'qwen-designed',
-        voiceId: 'qwen-tts-vd-001',
-        previewAudioUrl: '/m/preview-audio',
-      },
+  it('does not convert a Kuaizi entry into Bailian when reading', async () => {
+    prismaMock.novelPromotionEpisode.findFirst.mockResolvedValueOnce({
+      id: 'episode-1', speakerVoices: JSON.stringify({ Narrator: { provider: 'kuaizi', voiceId: 'kz-voice', previewAudioUrl: 'voice/preview.wav' } }),
     })
-
-    const res = await mod.PATCH(req, { params: Promise.resolve({ projectId: 'project-1' }) })
-    expect(res.status).toBe(200)
-
-    const updateCall = prismaMock.novelPromotionEpisode.update.mock.calls[0] as
-      | [{ data?: { speakerVoices?: string } }]
-      | undefined
-    expect(updateCall).toBeTruthy()
-    if (!updateCall) throw new Error('expected update call')
-    const updateArg = updateCall[0]
-    const saved = JSON.parse(updateArg.data?.speakerVoices || '{}') as Record<string, unknown>
-
-    expect(resolveStorageKeyFromMediaValueMock).toHaveBeenCalledWith('/m/preview-audio')
-    expect(saved.Narrator).toEqual({
-      provider: 'bailian',
-      voiceType: 'qwen-designed',
-      voiceId: 'qwen-tts-vd-001',
-      previewAudioUrl: 'voice/storage/preview.wav',
+    const mod = await import('@/app/api/novel-promotion/[projectId]/speaker-voice/route')
+    const res = await mod.GET(buildMockRequest({ path: '/api/novel-promotion/project-1/speaker-voice?episodeId=episode-1', method: 'GET' }), { params: Promise.resolve({ projectId: 'project-1' }) })
+    const body = await res.json()
+    expect(body.speakerVoices.Narrator).toEqual({
+      provider: 'kuaizi', voiceType: 'uploaded', voiceId: 'kz-voice', previewAudioUrl: 'signed://voice/preview.wav',
     })
   })
 })

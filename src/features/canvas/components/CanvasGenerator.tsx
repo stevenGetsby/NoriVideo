@@ -104,21 +104,15 @@ type ModelOption = {
 }
 
 type VoiceOption = { value: string; label: string }
-type AudioMode = 'music' | 'tts' | 'sfx'
+type AudioMode = 'tts'
 type GenerationQuote = { points: number; costCny: number }
 
 const AUDIO_MODES: Array<{ value: AudioMode; label: string }> = [
-  { value: 'music', label: '音乐' },
   { value: 'tts', label: '配音' },
-  { value: 'sfx', label: '音效' },
 ]
 const AUDIO_MODE_PREFERRED_MODEL_KEYS: Record<AudioMode, string> = {
-  music: 'nori::nori-music',
   tts: 'nori::nori-audio',
-  sfx: 'nori::nori-sfx',
 }
-const AUDIO_GENRES = ['电影配乐', '氛围', '电子', '流行', '古典', '嘻哈', '爵士', '摇滚']
-const AUDIO_SFX_KINDS = ['环境', '动作', '自然', '机械', '转场', '拟音']
 const MODEL_TIER_LABELS: Record<NonNullable<ModelOption['tier']>, string> = {
   mini: 'Mini',
   fast: 'Fast',
@@ -207,14 +201,6 @@ export function resolveReferencePickerMax(
 
 function resolutionLabel(value: string) {
   return value.toLowerCase() === '4k' ? '4K' : value
-}
-
-function alignAudioDuration(value: number, min: number, max: number, step: number) {
-  const finiteValue = Number.isFinite(value) ? value : min
-  const clamped = Math.max(min, Math.min(max, finiteValue))
-  const maxStepIndex = Math.max(0, Math.floor((max - min) / step + 1e-9))
-  const stepIndex = Math.max(0, Math.min(maxStepIndex, Math.round((clamped - min) / step)))
-  return Number((min + stepIndex * step).toFixed(6))
 }
 
 function optionalPositiveInteger(value: unknown) {
@@ -395,13 +381,8 @@ export function CanvasGenerator({
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
   const [storyboard, setStoryboard] = useState(node.data.processType === 'storyboard')
-  const [audioMode, setAudioMode] = useState<AudioMode>(() => {
-    const value = node.data.generation?.parameters?.mode
-    return value === 'tts' || value === 'sfx' ? value : 'music'
-  })
+  const [audioMode, setAudioMode] = useState<AudioMode>('tts')
   const [audioVoice, setAudioVoice] = useState(() => String(node.data.generation?.parameters?.voice || ''))
-  const [audioGenre, setAudioGenre] = useState(() => String(node.data.generation?.parameters?.genre || AUDIO_GENRES[0]))
-  const [audioSfxKind, setAudioSfxKind] = useState(() => String(node.data.generation?.parameters?.sfxKind || AUDIO_SFX_KINDS[0]))
   const [model3dTopology, setModel3dTopology] = useState<'standard' | 'low_poly'>(() => node.data.generation?.parameters?.topology === 'low_poly' ? 'low_poly' : 'standard')
   const [model3dGenerateTexture, setModel3dGenerateTexture] = useState(() => node.data.generation?.parameters?.generateTexture !== false)
   const [model3dPose, setModel3dPose] = useState<'none' | 'a_pose' | 't_pose'>(() => {
@@ -523,11 +504,8 @@ export function CanvasGenerator({
     setCount(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
     setReferenceNodeIds(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
     setStoryboard(node.data.processType === 'storyboard')
-    const nextAudioMode = node.data.generation?.parameters?.mode
-    setAudioMode(nextAudioMode === 'tts' || nextAudioMode === 'sfx' ? nextAudioMode : 'music')
+    setAudioMode('tts')
     setAudioVoice(String(node.data.generation?.parameters?.voice || ''))
-    setAudioGenre(String(node.data.generation?.parameters?.genre || AUDIO_GENRES[0]))
-    setAudioSfxKind(String(node.data.generation?.parameters?.sfxKind || AUDIO_SFX_KINDS[0]))
     setModel3dTopology(node.data.generation?.parameters?.topology === 'low_poly' ? 'low_poly' : 'standard')
     setModel3dGenerateTexture(node.data.generation?.parameters?.generateTexture !== false)
     const nextModel3dPose = node.data.generation?.parameters?.pose
@@ -553,14 +531,17 @@ export function CanvasGenerator({
         return await response.json() as GenerationConfig
       }),
       apiFetch('/api/asset-hub/voices').then(async (response) => response.ok
-        ? await response.json() as { voices?: Array<{ name?: string | null; voiceId?: string | null }> }
+        ? await response.json() as { voices?: Array<{ name?: string | null; voiceId?: string | null; voiceType?: string | null; customVoiceUrl?: string | null }> }
         : { voices: [] }),
     ]).then(([next, voicePayload]) => {
       if (!next?.defaults || typeof next.defaults !== 'object') throw new Error('生成模型配置不完整，请刷新后重试')
       setConfig(next)
       const voices = (voicePayload.voices || []).flatMap((voice) => {
-        const value = voice.voiceId?.trim()
-        return value ? [{ value, label: voice.name?.trim() || value }] : []
+        const label = voice.name?.trim() || '未命名音色'
+        const voiceId = voice.voiceType === 'kuaizi' ? voice.voiceId?.trim() : ''
+        if (voiceId) return [{ value: `kuaizi-voice:${voiceId}`, label: `${label} · MiniMax` }]
+        const referenceAudio = voice.customVoiceUrl?.trim()
+        return referenceAudio ? [{ value: `kuaizi-audio:${referenceAudio}`, label: `${label} · Seed Audio` }] : []
       })
       setVoiceOptions(Array.from(new Map(voices.map((voice) => [voice.value, voice])).values()))
     }).catch((loadError) => setError(loadError instanceof Error ? loadError.message : '加载生成模型失败'))
@@ -617,9 +598,8 @@ export function CanvasGenerator({
     const preferred = candidates.find((model) => model.key === AUDIO_MODE_PREFERRED_MODEL_KEYS[item.value])
     return [item.value, preferred || candidates[0] || null]
   })) as Record<AudioMode, (typeof availableModels)[number] | null>, [availableModels])
-  const audioDurationMin = Math.max(0.1, currentModel?.raw?.minDurationSeconds || 3)
-  const audioDurationMax = Math.max(audioDurationMin, currentModel?.raw?.maxDurationSeconds || 300)
-  const audioDurationStep = Math.max(0.1, currentModel?.raw?.durationStepSeconds || 1)
+
+
   const imageEditModelUnavailable = isImageEdit && currentModel?.raw?.supportsInpaint !== true
   const modelResolutions = useMemo(() => modelOptions(currentModel?.raw || undefined, 'resolution'), [currentModel?.raw])
   const surfaceResolutions = useMemo<readonly string[]>(
@@ -738,17 +718,20 @@ export function CanvasGenerator({
     })
   }, [effectiveInputSchema?.image.max, inputMode, referenceImages, type])
 
+  const usesReferenceAudio = currentModel?.raw?.runtimeModelKey?.split('::')[1] === 'seed-audio'
+  const voiceProtocol = usesReferenceAudio ? 'kuaizi-audio:' : 'kuaizi-voice:'
+  const compatibleVoiceOptions = useMemo(
+    () => voiceOptions.filter((voice) => voice.value.startsWith(voiceProtocol)),
+    [voiceOptions, voiceProtocol],
+  )
+
   useEffect(() => {
     if (type !== 'audio') return
-    const modes = currentModel?.raw?.audioModes || []
-    if (modes.length > 0 && !modes.includes(audioMode)) setAudioMode(modes[0])
-    if (audioMode !== 'tts') {
-      setDuration((current) => alignAudioDuration(current, audioDurationMin, audioDurationMax, audioDurationStep))
-    }
-    if (voiceOptions.length > 0) {
-      setAudioVoice((current) => voiceOptions.some((voice) => voice.value === current) ? current : voiceOptions[0].value)
-    }
-  }, [audioDurationMax, audioDurationMin, audioDurationStep, audioMode, currentModel?.raw?.audioModes, type, voiceOptions])
+    setAudioMode('tts')
+    setAudioVoice((current) => compatibleVoiceOptions.some((voice) => voice.value === current)
+      ? current
+      : compatibleVoiceOptions[0]?.value || '')
+  }, [compatibleVoiceOptions, type])
 
   const draftPatch = useMemo(() => ({
       prompt,
@@ -768,14 +751,14 @@ export function CanvasGenerator({
         generateAudio,
         count: storyboard ? normalizeStoryboardCount(count) : count,
         parameters: type === 'audio'
-          ? { ...(node.data.generation?.parameters || {}), mode: audioMode, voice: audioVoice, genre: audioGenre, sfxKind: audioSfxKind }
+          ? { ...(node.data.generation?.parameters || {}), mode: audioMode, voice: audioVoice, genre: '', sfxKind: '' }
           : type === 'model3d'
             ? { ...(node.data.generation?.parameters || {}), topology: model3dTopology, generateTexture: model3dGenerateTexture, pose: model3dPose }
             : type === 'video'
               ? videoGenerationParameters(node.data.generation?.parameters, fps)
               : node.data.generation?.parameters,
       },
-    }), [aspectRatio, audioGenre, audioMode, audioSfxKind, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, type])
+    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -931,8 +914,8 @@ export function CanvasGenerator({
         storyboard,
         audioMode,
         audioVoice,
-        audioGenre,
-        audioSfxKind,
+        audioGenre: '',
+        audioSfxKind: '',
         model3dTopology,
         model3dGenerateTexture,
         model3dPose,
@@ -1105,14 +1088,14 @@ export function CanvasGenerator({
                 ? '输入 @ 可插入画布音频素材名；当前音频模型仅接收文本，不会把它作为声音条件输入。'
                 : '输入 @ 可引用画布图片；蓝色素材名会与实体引用一并保存。'}
             minHeight={fullscreen ? 280 : 96}
-            placeholder={type === 'video' ? '描述你想要的视频，@引用素材' : type === 'audio' ? '描述音乐 / 配音 / 音效，@引用素材' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，@引用素材'}
+            placeholder={type === 'video' ? '描述你想要的视频，@引用素材' : type === 'audio' ? '输入要合成语音的台词' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，@引用素材'}
           />
         ) : (
           <textarea
             value={prompt}
             onChange={(event) => setPrompt(event.target.value)}
             onBlur={() => persistDraft()}
-            placeholder={type === 'text' ? '描述你想要的文本，例：「写一段儿童剧的开场白」' : type === 'model3d' ? '描述物体、角色造型、材质与关键细节' : '描述你想生成的内容'}
+            placeholder={type === 'text' ? '描述你想要的文本，例：「写一段儿童剧的开场白」' : type === 'audio' ? '输入要合成语音的台词' : type === 'model3d' ? '描述物体、角色造型、材质与关键细节' : '描述你想生成的内容'}
           />
         )}
       </div>
@@ -1123,10 +1106,7 @@ export function CanvasGenerator({
           const supported = Boolean(modeModel)
           return <button type="button" key={item.value} disabled={!supported} title={supported ? `使用 ${modeModel?.label}` : '尚未配置支持该模式的真实音频模型'} className={audioMode === item.value ? 'is-active' : ''} onClick={() => { if (modeModel) { setModelKey(modeModel.key); setAudioMode(item.value) } }}>{item.label}</button>
         })}</div>
-        {audioMode === 'music' ? <label><Music2 /><span>风格</span><select value={audioGenre} onChange={(event) => setAudioGenre(event.target.value)}>{AUDIO_GENRES.map((value) => <option key={value}>{value}</option>)}</select></label> : null}
-        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => setAudioVoice(event.target.value)} disabled={voiceOptions.length === 0}>{voiceOptions.length === 0 ? <option value="">请先在资产库创建音色</option> : voiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
-        {audioMode === 'sfx' ? <label><Music2 /><span>类型</span><select value={audioSfxKind} onChange={(event) => setAudioSfxKind(event.target.value)}>{AUDIO_SFX_KINDS.map((value) => <option key={value}>{value}</option>)}</select></label> : null}
-        {audioMode !== 'tts' ? <label><span>时长</span><input type="number" min={audioDurationMin} max={audioDurationMax} step={audioDurationStep} value={duration} onChange={(event) => setDuration(alignAudioDuration(Number(event.target.value), audioDurationMin, audioDurationMax, audioDurationStep))} /><b>{duration}s</b></label> : null}
+        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => setAudioVoice(event.target.value)} disabled={compatibleVoiceOptions.length === 0}>{compatibleVoiceOptions.length === 0 ? <option value="">{usesReferenceAudio ? '请先在资产库上传参考音频' : '请先在资产库绑定 Kuaizi 音色 ID'}</option> : compatibleVoiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
       </div> : null}
 
       {type === 'model3d' ? <div className="nori-canvas-model3d-options">

@@ -1,4 +1,3 @@
-import { getServiceModel3DConfig } from '@/lib/service-config'
 
 export const FRAMEOS_3D_MODEL_KEY = 'frameos3d::frameos-3d-v1'
 export const FRAMEOS_3D_MODEL_NAME = '帧界 3D 1.0'
@@ -62,22 +61,7 @@ function configuredSecret(value: string): boolean {
 }
 
 export function resolveFrameos3DProviderConfig(): Frameos3DProviderConfig | null {
-  const file = getServiceModel3DConfig()?.frameos3d
-  const apiKey = text(file?.apiKey) || text(process.env.FRAMEOS_3D_API_KEY) || text(process.env.TRIPO3D_API_KEY) || text(process.env.TRIPO_API_KEY)
-  if (!configuredSecret(apiKey)) return null
-
-  const protocol: Frameos3DProtocol = file?.protocol === 'frameos-v1' ? 'frameos-v1' : 'tripo-v2'
-  const baseUrl = (text(file?.baseUrl) || text(process.env.FRAMEOS_3D_BASE_URL) || DEFAULT_TRIPO_BASE_URL).replace(/\/+$/, '')
-  return {
-    protocol,
-    baseUrl,
-    apiKey,
-    modelVersion: text(file?.modelVersion) || text(process.env.FRAMEOS_3D_MODEL_VERSION) || DEFAULT_MODEL_VERSION,
-    createPath: text(file?.createPath) || (protocol === 'frameos-v1' ? '/v1/model3d/generations' : '/task'),
-    taskPath: text(file?.taskPath) || (protocol === 'frameos-v1' ? '/v1/model3d/generations/{taskId}' : '/task/{taskId}'),
-    pollIntervalMs: boundedInteger(file?.pollIntervalMs ?? process.env.FRAMEOS_3D_POLL_INTERVAL_MS, 3_000, 500, 30_000),
-    timeoutMs: boundedInteger(file?.timeoutMs ?? process.env.FRAMEOS_3D_TIMEOUT_MS, 20 * 60_000, 30_000, 60 * 60_000),
-  }
+  return null
 }
 
 export function getFrameos3DModelAvailability() {

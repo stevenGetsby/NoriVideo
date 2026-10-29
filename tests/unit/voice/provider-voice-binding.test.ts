@@ -8,6 +8,23 @@ import {
 } from '@/lib/voice/provider-voice-binding'
 
 describe('provider voice binding', () => {
+  it('only uses explicit Kuaizi bindings and keeps model protocols separate', () => {
+    const map = parseSpeakerVoiceMap(JSON.stringify({
+      Narrator: { provider: 'kuaizi', voiceType: 'kuaizi', voiceId: 'kz-voice' },
+      Legacy: { provider: 'bailian', voiceId: 'legacy-voice' },
+      Reference: { provider: 'kuaizi', audioUrl: 'voice/reference.wav' },
+    }))
+    expect(resolveVoiceBindingForProvider({ providerKey: 'kuaizi', speakerVoice: map.Narrator })).toEqual({
+      provider: 'kuaizi', source: 'speaker', voiceId: 'kz-voice',
+    })
+    expect(resolveVoiceBindingForProvider({ providerKey: 'kuaizi', speakerVoice: map.Legacy })).toBeNull()
+    expect(resolveVoiceBindingForProvider({ providerKey: 'kuaizi', character: { voiceId: 'legacy', voiceType: 'qwen-designed' } })).toBeNull()
+    expect(resolveVoiceBindingForProvider({ providerKey: 'kuaizi', modelId: 'seed-audio', speakerVoice: map.Narrator })).toBeNull()
+    expect(resolveVoiceBindingForProvider({ providerKey: 'kuaizi', modelId: 'seed-audio', speakerVoice: map.Reference })).toEqual({
+      provider: 'kuaizi', source: 'speaker', referenceAudioUrl: 'voice/reference.wav',
+    })
+  })
+
   it('parses legacy fal speaker voice entry to explicit fal provider', () => {
     const map = parseSpeakerVoiceMap(JSON.stringify({
       Narrator: {

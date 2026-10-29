@@ -111,7 +111,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
   }
 
-  const audioModels = await Promise.all(listNoriBusinessModels('audio').map(async (model) => {
+  const audioModels = await Promise.all(listNoriBusinessModels('audio').filter((model) => model.key === 'nori::nori-audio').map(async (model) => {
     const capabilities = resolveBuiltinCapabilitiesByModelKey('audio', model.key)
     const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey: model.key })
     const configuredAvailability = resolveConfiguredModelAvailability({

@@ -202,6 +202,7 @@
     "voiceCreate": {
         "aiDesignMode": "AI 设计音色",
         "uploadMode": "上传音频",
+        "aiDesignRetired": "AI 声音设计已停用，仅支持上传参考音频；已存在的 Kuaizi MiniMax 音色 ID 可在画布生成器的音色列表中选择。",
         "dropOrClick": "拖放文件或点击选择",
         "supportedFormats": "支持 MP3、WAV、OGG、M4A、AAC 格式",
         "invalidFileType": "不支持的文件格式，请上传音频文件",

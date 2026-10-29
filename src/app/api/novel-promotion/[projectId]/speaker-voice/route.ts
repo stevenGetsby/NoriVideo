@@ -7,7 +7,6 @@ import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import {
   parseSpeakerVoiceMap,
   stringifySpeakerVoiceMapPreservingPrivateEntries,
-  type SpeakerVoiceEntry,
   type SpeakerVoiceMap,
 } from '@/lib/voice/provider-voice-binding'
 
@@ -75,6 +74,19 @@ export const GET = apiHandler(async (
       continue
     }
 
+    if (voice.provider === 'kuaizi') {
+      const audioUrl = voice.audioUrl ? signUrlIfNeeded(voice.audioUrl) : undefined
+      const previewAudioUrl = voice.previewAudioUrl ? signUrlIfNeeded(voice.previewAudioUrl) : undefined
+      speakerVoices[speaker] = {
+        provider: 'kuaizi',
+        voiceType: voice.voiceType,
+        ...(voice.voiceId ? { voiceId: voice.voiceId } : {}),
+        ...(audioUrl ? { audioUrl } : {}),
+        ...(previewAudioUrl ? { previewAudioUrl } : {}),
+      }
+      continue
+    }
+
     const previewAudioUrl = voice.previewAudioUrl ? signUrlIfNeeded(voice.previewAudioUrl) : undefined
     speakerVoices[speaker] = {
       provider: 'bailian',
@@ -105,60 +117,31 @@ export const PATCH = apiHandler(async (
   const episodeId = readTrimmedString(body?.episodeId) ?? ''
   const speaker = readTrimmedString(body?.speaker) ?? ''
   const voiceType = readTrimmedString(body?.voiceType) ?? 'uploaded'
-  const providerRaw = readTrimmedString(body?.provider)?.toLowerCase() ?? null
-  if (!providerRaw || (providerRaw !== 'fal' && providerRaw !== 'bailian')) {
+  const provider = readTrimmedString(body?.provider)?.toLowerCase()
+  if (provider !== 'kuaizi') {
     throw new ApiError('INVALID_PARAMS')
   }
-  const provider = providerRaw
   const audioUrl = readTrimmedString(body?.audioUrl)
   const previewAudioUrl = readTrimmedString(body?.previewAudioUrl)
   const voiceId = readTrimmedString(body?.voiceId)
 
-  if (!episodeId) {
-    throw new ApiError('INVALID_PARAMS')
-  }
-  if (!speaker) {
-    throw new ApiError('INVALID_PARAMS')
-  }
-  if (provider === 'fal' && !audioUrl) {
-    throw new ApiError('INVALID_PARAMS')
-  }
-  if (provider === 'bailian' && !voiceId) {
+  if (!episodeId || !speaker || (!voiceId && !audioUrl)) {
     throw new ApiError('INVALID_PARAMS')
   }
 
   const episode = await getProjectEpisode(projectId, episodeId)
-
   const speakerVoices = parseSpeakerVoiceMap(episode.speakerVoices)
+  const resolvedAudioKey = audioUrl ? await resolveStorageKeyFromMediaValue(audioUrl) : null
+  const previewCandidate = previewAudioUrl || audioUrl
+  const resolvedPreviewKey = previewCandidate ? await resolveStorageKeyFromMediaValue(previewCandidate) : null
 
-  let nextVoiceEntry: SpeakerVoiceEntry
-  if (provider === 'fal') {
-    const sourceAudioUrl = audioUrl!
-    const resolvedStorageKey = await resolveStorageKeyFromMediaValue(sourceAudioUrl)
-    const audioUrlToStore = resolvedStorageKey || sourceAudioUrl
-    nextVoiceEntry = {
-      provider: 'fal',
-      voiceType,
-      audioUrl: audioUrlToStore,
-    }
-  } else {
-    const previewCandidate = previewAudioUrl || audioUrl
-    const resolvedPreviewKey = previewCandidate
-      ? await resolveStorageKeyFromMediaValue(previewCandidate)
-      : null
-    const previewAudioUrlToStore = previewCandidate
-      ? (resolvedPreviewKey || previewCandidate)
-      : undefined
-
-    nextVoiceEntry = {
-      provider: 'bailian',
-      voiceType,
-      voiceId: voiceId!,
-      ...(previewAudioUrlToStore ? { previewAudioUrl: previewAudioUrlToStore } : {}),
-    }
+  speakerVoices[speaker] = {
+    provider: 'kuaizi',
+    voiceType,
+    ...(voiceId ? { voiceId } : {}),
+    ...(audioUrl ? { audioUrl: resolvedAudioKey || audioUrl } : {}),
+    ...(previewCandidate ? { previewAudioUrl: resolvedPreviewKey || previewCandidate } : {}),
   }
-
-  speakerVoices[speaker] = nextVoiceEntry
 
   await prisma.novelPromotionEpisode.update({
     where: { id: episodeId },

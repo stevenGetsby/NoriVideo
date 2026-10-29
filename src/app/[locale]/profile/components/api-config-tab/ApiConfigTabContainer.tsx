@@ -11,9 +11,7 @@ import {
   useProviders,
 } from '../api-config'
 import { ApiConfigToolbar } from './ApiConfigToolbar'
-import { ApiConfigProviderList } from './ApiConfigProviderList'
 import { DefaultModelCards } from './DefaultModelCards'
-import { SeedanceAssetLibraryConfigCard } from './SeedanceAssetLibraryConfigCard'
 import { StorageConfigCard } from './StorageConfigCard'
 import { useApiConfigFilters } from './hooks/useApiConfigFilters'
 
@@ -62,16 +60,6 @@ export function ApiConfigTabContainer() {
     capabilityDefaults,
     loading,
     saveStatus,
-    flushConfig,
-    updateProviderHidden,
-    updateProviderApiKey,
-    updateProviderBaseUrl,
-    reorderProviders,
-    deleteProvider,
-    toggleModel,
-    deleteModel,
-    addModel,
-    updateModel,
     updateDefaultModel,
     batchUpdateDefaultModels,
     updateWorkflowConcurrency,
@@ -91,8 +79,6 @@ export function ApiConfigTabContainer() {
       : null
 
   const {
-    modelProviders,
-    getModelsForProvider,
     getEnabledModelsByType,
   } = useApiConfigFilters({
     providers,
@@ -132,7 +118,6 @@ export function ApiConfigTabContainer() {
       <div className="flex-1 overflow-y-auto">
         <div className="space-y-6 p-6">
           {showInternalStorageConfig ? <StorageConfigCard /> : null}
-          <SeedanceAssetLibraryConfigCard />
           <DefaultModelCards
             t={t}
             defaultModels={defaultModels}
@@ -152,33 +137,9 @@ export function ApiConfigTabContainer() {
             handleWorkflowConcurrencyChange={handleWorkflowConcurrencyChange}
           />
 
-          <ApiConfigProviderList
-            modelProviders={modelProviders}
-            allModels={models}
-            defaultModels={defaultModels}
-            getModelsForProvider={getModelsForProvider}
-            onToggleModel={toggleModel}
-            onUpdateApiKey={updateProviderApiKey}
-            onUpdateBaseUrl={updateProviderBaseUrl}
-            onReorderProviders={reorderProviders}
-            onDeleteModel={deleteModel}
-            onUpdateModel={updateModel}
-            onDeleteProvider={deleteProvider}
-            onAddModel={addModel}
-            onFlushConfig={flushConfig}
-            onToggleProviderHidden={updateProviderHidden}
-            labels={{
-              providerPool: t('providerPool'),
-              providerPoolDesc: t('providerPoolDesc'),
-              dragToSort: t('dragToSort'),
-              dragToSortHint: t('dragToSortHint'),
-              hideProvider: t('hideProvider'),
-              showProvider: t('showProvider'),
-              showHiddenProviders: t('showHiddenProviders'),
-              hideHiddenProviders: t('hideHiddenProviders'),
-              hiddenProvidersPrefix: t('hiddenProvidersPrefix'),
-            }}
-          />
+          <div className="rounded-xl border border-[var(--glass-border)] bg-[var(--glass-surface)] p-4 text-[13px] text-[var(--glass-text-secondary)]">
+            平台 API 与模型由管理员统一配置。你可以在这里调整默认创作模型、生成参数和并发，无需重复填写平台密钥。
+          </div>
         </div>
       </div>
     </div>

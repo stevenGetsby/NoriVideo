@@ -11,59 +11,42 @@ storage:
 
 llm:
   providers:
-    - id: hfsy
-      name: HFSY API
-      baseUrl: https://www.hfsyapi.cn/v1
-      apiKey: your-hfsy-api-key
-      gatewayRoute: openai-compat
     - id: deepseek
       name: DeepSeek 官方
       baseUrl: https://api.deepseek.com/v1
       apiKey: your-deepseek-api-key
-      gatewayRoute: openai-compat
-    - id: ark
-      name: Volcengine Ark
-      apiKey: your-ark-api-key
-      gatewayRoute: official
+    - id: kuaizi
+      name: Kuaizi API
+      baseUrl: https://aiopenapi.kuaizi.cn
+      apiKey: your-kuaizi-api-key
   models:
-    - modelId: gpt-5.5
-      modelKey: hfsy::gpt-5.5
-      name: HFSY GPT 5.5
-      type: llm
-      provider: hfsy
-      llmProtocol: chat-completions
-    - modelId: gpt-image-2
-      modelKey: hfsy::gpt-image-2
-      name: HFSY GPT Image 2
-      type: image
-      provider: hfsy
-    - modelId: gpt-5.6-terra
-      modelKey: hfsy::gpt-5.6-terra
-      name: HFSY GPT 5.6 Terra
-      type: llm
-      provider: hfsy
-      llmProtocol: chat-completions
-    - modelId: gpt-image-2pro
-      modelKey: hfsy::gpt-image-2pro
-      name: HFSY GPT Image 2 Pro
-      type: image
-      provider: hfsy
     - modelId: deepseek-chat
       modelKey: deepseek::deepseek-chat
       name: DeepSeek Chat
       type: llm
       provider: deepseek
       llmProtocol: chat-completions
-    - modelId: doubao-seed-2-1-pro-260628
-      modelKey: ark::doubao-seed-2-1-pro-260628
-      name: Doubao Seed 2.1 Pro
+    - modelId: deepseek-reasoner
+      modelKey: deepseek::deepseek-reasoner
+      name: DeepSeek Reasoner
       type: llm
-      provider: ark
+      provider: deepseek
+      llmProtocol: chat-completions
+    - modelId: seedream5.0lite
+      modelKey: kuaizi::seedream5.0lite
+      name: Seedream 5.0 Lite
+      type: image
+      provider: kuaizi
     - modelId: doubao-seedance-2-0-260128
-      modelKey: ark::doubao-seedance-2-0-260128
+      modelKey: kuaizi::doubao-seedance-2-0-260128
       name: Seedance 2.0
       type: video
-      provider: ark
+      provider: kuaizi
+    - modelId: speech-2.8-hd
+      modelKey: kuaizi::speech-2.8-hd
+      name: MiniMax Speech 2.8 HD
+      type: audio
+      provider: kuaizi
   defaultModels:
     analysisModel: nori::nori-gpt
     characterModel: nori::nori-image
@@ -72,10 +55,10 @@ llm:
     editModel: nori::nori-image
     videoModel: nori::seedance2.0
   modelRouting:
-    nori::nori-gpt: hfsy::gpt-5.5
-    nori::nori-gpt-max: hfsy::gpt-5.6-terra
-    nori::nori-gemini: ark::doubao-seed-2-1-pro-260628
+    nori::nori-gpt: deepseek::deepseek-chat
+    nori::nori-gpt-max: deepseek::deepseek-reasoner
+    nori::nori-gemini: deepseek::deepseek-reasoner
     nori::nori-deepseek: deepseek::deepseek-chat
-    nori::nori-image: hfsy::gpt-image-2
-    nori::nori-image-pro: hfsy::gpt-image-2pro
-    nori::seedance2.0: ark::doubao-seedance-2-0-260128
+    nori::nori-image: kuaizi::seedream5.0lite
+    nori::seedance2.0: kuaizi::doubao-seedance-2-0-260128
+    nori::nori-audio: kuaizi::speech-2.8-hd

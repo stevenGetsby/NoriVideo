@@ -7,7 +7,7 @@ function readSource(relativePath: string) {
 }
 
 describe('three-level account management wiring', () => {
-  it('keeps the platform Admin console separate from the NoriVideo shell', () => {
+  it('keeps the platform Admin console separate from the LanmiaoTV shell', () => {
     const platformPage = readSource('src/app/[locale]/admin/accounts/page.tsx')
     const platform = readSource('src/components/admin/PlatformAdminAccountsClient.tsx')
     const subaccountsPage = readSource('src/app/[locale]/account-management/page.tsx')
@@ -29,7 +29,7 @@ describe('three-level account management wiring', () => {
     expect(subaccounts).not.toContain('添加管理账号')
   })
 
-  it('uses distinct login routes and redirects the platform Admin away from NoriVideo', () => {
+  it('uses distinct login routes and redirects the platform Admin away from LanmiaoTV', () => {
     const normalSignIn = readSource('src/app/[locale]/auth/signin/page.tsx')
     const platformSignIn = readSource('src/components/admin/PlatformAdminSignInClient.tsx')
     const platformSignInPage = readSource('src/app/[locale]/admin/signin/page.tsx')

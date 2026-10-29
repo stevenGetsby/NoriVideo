@@ -67,7 +67,7 @@ export default function SignIn() {
     <FosAuthShell
       title={t('welcomeBack')}
       subtitle={english ? 'Your next story starts in your workspace.' : '登录你的工作区，继续下一段好故事。'}
-      footer={english ? 'New to NoriVideo? Ask your team administrator for an account and workspace access.' : '首次使用？请联系团队管理员获取账号，并分配角色与功能区权限。'}
+      footer={english ? 'New to LanmiaoTV? Ask your team administrator for an account and workspace access.' : '首次使用？请联系团队管理员获取账号，并分配角色与功能区权限。'}
     >
       <form onSubmit={handleSubmit} className="nori-auth-form" aria-busy={loading} aria-describedby={error ? 'nori-signin-error' : undefined}>
         <div className="nori-auth-field">

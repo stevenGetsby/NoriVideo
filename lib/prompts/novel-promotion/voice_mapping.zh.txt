@@ -12,7 +12,7 @@
 
 【工作原则】
 1. 只根据输入中的角色字段、voice_trait、representative_line、voice_audition_prompt、role_type、age_range、gender、台词样本和音色库候选做匹配。
-2. 不编造真实音色 id；如果音色库没有可用 voice_id，voice_id 输出空字符串，voice_source 输出 "unmatched"。
+2. 不编造真实音色 id；只有音色库 voice_type 明确为 "kuaizi" 时才可选择其 voice_id。旧音色或其他服务的 ID 一律不可用。
 3. voice_profile 是角色的稳定声音画像，包含 gender、age_range、traits。
 4. traits 只写稳定声线、语速、情绪能量、表达习惯，不写剧情复述。
 5. candidates 最多 3 个，按 rank 从 1 开始排序；只从音色库选择，不能编造音色名称。

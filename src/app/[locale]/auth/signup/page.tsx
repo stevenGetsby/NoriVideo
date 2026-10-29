@@ -5,7 +5,7 @@ export default function SignUp() {
   return (
     <FosAuthShell
       title="账号由管理员分配"
-      subtitle="NoriVideo 不开放自行注册。"
+      subtitle="LanmiaoTV 不开放自行注册。"
       footer="如需使用，请联系管理账号。"
     >
       <div className="nori-auth-managed-actions">

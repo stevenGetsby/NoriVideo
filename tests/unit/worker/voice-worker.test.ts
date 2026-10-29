@@ -132,6 +132,7 @@ describe('worker voice processor behavior', () => {
       lineId: 'line-9',
       userId: 'user-1',
       audioModel: 'fal::voice-model',
+      job,
     })
   })
 

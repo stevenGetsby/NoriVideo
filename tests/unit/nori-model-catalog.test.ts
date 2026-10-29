@@ -47,7 +47,7 @@ describe('Nori business model catalog', () => {
   it('uses the administrator route and normalizes legacy project keys', () => {
     configure({
       'nori::nori-gpt': 'deepseek::deepseek-chat',
-      'nori::nori-image': 'hfsy::gpt-image-2',
+      'nori::nori-image': 'kuaizi::seedream5.0pro',
     })
 
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')

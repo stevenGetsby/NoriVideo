@@ -12,7 +12,7 @@ Available voice library JSON:
 
 Principles:
 1. Use only input character fields, voice_trait, representative_line, voice_audition_prompt, role_type, age_range, gender, dialogue samples, and available library voices.
-2. Do not invent real voice ids. If the voice library has no usable voice_id, output an empty voice_id and set voice_source to "unmatched".
+2. Do not invent voice ids. Only select a voice_id when the library entry explicitly has voice_type="kuaizi". Never reuse legacy ids or ids from other providers.
 3. voice_profile is the stable voice profile for the character and must include gender, age_range, and traits.
 4. traits should describe stable vocal quality, pace, emotional energy, and speaking habit. Do not retell plot.
 5. candidates may contain up to 3 voices, ranked from 1. Select only from the voice library. Do not invent voice names.

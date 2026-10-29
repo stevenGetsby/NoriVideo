@@ -18,7 +18,6 @@ const AUTH_NAV_LINKS: Array<{ href: ComponentProps<typeof Link>['href']; labelKe
   { href: { pathname: '/asset-hub' }, labelKey: 'assetHub', icon: 'folderHeart' },
   { href: { pathname: '/toolbox' }, labelKey: 'toolbox', icon: 'settingsHexMinor' },
   { href: { pathname: '/service-records' }, labelKey: 'serviceRecords', icon: 'receipt' },
-  { href: { pathname: '/video-enhance' }, labelKey: 'videoEnhance', icon: 'film' },
   { href: { pathname: '/profile' }, labelKey: 'profile', icon: 'userRoundCog' },
 ]
 
@@ -69,7 +68,7 @@ export default function Navbar() {
               <Link href={session ? buildAuthenticatedHomeTarget() : { pathname: '/' }} className="group flex items-center gap-2">
                 <NoriBrandMark size={36} />
                 <span className="hidden leading-tight sm:block">
-                  <span className="block text-sm font-semibold text-[var(--glass-text-primary)]">NoriVideo</span>
+                  <span className="block text-sm font-semibold text-[var(--glass-text-primary)]">LanmiaoTV</span>
                   <span className="block text-[11px] text-[var(--glass-text-tertiary)]">{t('console')}</span>
                 </span>
               </Link>

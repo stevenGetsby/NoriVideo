@@ -20,10 +20,6 @@ import {
   type WorkflowConcurrencyConfig,
   normalizeWorkflowConcurrencyConfig,
 } from '@/lib/workflow-concurrency'
-import {
-  HFSY_IMAGE_MODEL_KEY,
-} from '@/lib/hfsy-fixed-models'
-import { HFSY_TEXT_MODEL_KEY } from '@/lib/hfsy-fixed-models'
 import { PROJECT_LEVEL, resolveTargetAudiencePrompt } from '@/lib/projects/creation-config'
 import type { ProjectStyleReferenceValue } from '@/lib/projects/style-reference-contract'
 import { getServiceDefaultModel } from '@/lib/service-config'
@@ -179,11 +175,11 @@ export async function getProjectModelConfig(
   ])
 
   return {
-    analysisModel: normalizeProjectBusinessModelKey(projectData?.analysisModel || userPref?.analysisModel || getServiceDefaultModel('analysisModel') || HFSY_TEXT_MODEL_KEY, 'llm'),
-    characterModel: normalizeProjectBusinessModelKey(projectData?.characterModel || userPref?.characterModel || getServiceDefaultModel('characterModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    locationModel: normalizeProjectBusinessModelKey(projectData?.locationModel || userPref?.locationModel || getServiceDefaultModel('locationModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    storyboardModel: normalizeProjectBusinessModelKey(projectData?.storyboardModel || userPref?.storyboardModel || getServiceDefaultModel('storyboardModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    editModel: normalizeProjectBusinessModelKey(projectData?.editModel || userPref?.editModel || getServiceDefaultModel('editModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    analysisModel: normalizeProjectBusinessModelKey(projectData?.analysisModel || userPref?.analysisModel || getServiceDefaultModel('analysisModel'), 'llm'),
+    characterModel: normalizeProjectBusinessModelKey(projectData?.characterModel || userPref?.characterModel || getServiceDefaultModel('characterModel'), 'image'),
+    locationModel: normalizeProjectBusinessModelKey(projectData?.locationModel || userPref?.locationModel || getServiceDefaultModel('locationModel'), 'image'),
+    storyboardModel: normalizeProjectBusinessModelKey(projectData?.storyboardModel || userPref?.storyboardModel || getServiceDefaultModel('storyboardModel'), 'image'),
+    editModel: normalizeProjectBusinessModelKey(projectData?.editModel || userPref?.editModel || getServiceDefaultModel('editModel'), 'image'),
     videoModel: normalizeProjectBusinessModelKey(projectData?.videoModel || userPref?.videoModel || getServiceDefaultModel('videoModel'), 'video'),
     audioModel: extractModelKey(projectData?.audioModel) || extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     projectLevel: projectData?.projectLevel || PROJECT_LEVEL,
@@ -214,11 +210,11 @@ export async function getUserModelConfig(userId: string): Promise<UserModelConfi
   })
 
   return {
-    analysisModel: normalizeProjectBusinessModelKey(userPref?.analysisModel || getServiceDefaultModel('analysisModel') || HFSY_TEXT_MODEL_KEY, 'llm'),
-    characterModel: normalizeProjectBusinessModelKey(userPref?.characterModel || getServiceDefaultModel('characterModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    locationModel: normalizeProjectBusinessModelKey(userPref?.locationModel || getServiceDefaultModel('locationModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    storyboardModel: normalizeProjectBusinessModelKey(userPref?.storyboardModel || getServiceDefaultModel('storyboardModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
-    editModel: normalizeProjectBusinessModelKey(userPref?.editModel || getServiceDefaultModel('editModel') || HFSY_IMAGE_MODEL_KEY, 'image'),
+    analysisModel: normalizeProjectBusinessModelKey(userPref?.analysisModel || getServiceDefaultModel('analysisModel'), 'llm'),
+    characterModel: normalizeProjectBusinessModelKey(userPref?.characterModel || getServiceDefaultModel('characterModel'), 'image'),
+    locationModel: normalizeProjectBusinessModelKey(userPref?.locationModel || getServiceDefaultModel('locationModel'), 'image'),
+    storyboardModel: normalizeProjectBusinessModelKey(userPref?.storyboardModel || getServiceDefaultModel('storyboardModel'), 'image'),
+    editModel: normalizeProjectBusinessModelKey(userPref?.editModel || getServiceDefaultModel('editModel'), 'image'),
     videoModel: normalizeProjectBusinessModelKey(userPref?.videoModel || getServiceDefaultModel('videoModel'), 'video'),
     audioModel: extractModelKey(userPref?.audioModel) || extractModelKey(getServiceDefaultModel('audioModel')) || null,
     capabilityDefaults: parseCapabilitySelections(userPref?.capabilityDefaults),

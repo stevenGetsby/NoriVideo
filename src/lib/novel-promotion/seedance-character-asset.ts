@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { extractStorageKey, getSignedObjectUrl, getStorageType } from '@/lib/storage'
 import { getSeedanceAssetsProvider } from '@/lib/volcengine/seedance-assets-provider'
-import type { SeedanceAssetsApi, SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
+import type { SeedanceAssetsApi, SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-contract'
 import { ensureSeedanceProjectAssetGroup } from './seedance-project-asset-group'
 
 const ASSET_READY_TIMEOUT_MS = 3 * 60 * 1_000

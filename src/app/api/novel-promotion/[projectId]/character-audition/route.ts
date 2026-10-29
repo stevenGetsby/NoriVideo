@@ -14,7 +14,7 @@ function cleanText(value: unknown, maximum: number) {
 
 function isSeedance2Model(modelKey: string) {
   const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
-  return (parsed?.provider === 'ark' || parsed?.provider === 'kuaizi')
+  return parsed?.provider === 'kuaizi'
     && (
       /^doubao-seedance-2-0(?:-|$)/.test(parsed.modelId)
       || parsed.modelId === 'doubao-seedance-2-5-260628'

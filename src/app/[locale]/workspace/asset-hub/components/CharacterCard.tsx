@@ -52,12 +52,11 @@ interface CharacterCardProps {
     character: Character
     onImageClick?: (url: string) => void
     onImageEdit?: (type: 'character' | 'location', id: string, name: string, imageIndex: number, appearanceIndex?: number) => void
-    onVoiceDesign?: (characterId: string, characterName: string) => void
     onEdit?: (character: Character, appearance: Appearance) => void
     onVoiceSelect?: (characterId: string) => void
 }
 
-export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDesign, onEdit, onVoiceSelect }: CharacterCardProps) {
+export function CharacterCard({ character, onImageClick, onImageEdit, onEdit, onVoiceSelect }: CharacterCardProps) {
     // 🔥 使用 mutation hooks
     const generateImage = useGenerateCharacterImage()
     const selectImage = useSelectCharacterImage()
@@ -353,7 +352,6 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                     characterId={character.id}
                     characterName={character.name}
                     customVoiceUrl={character.customVoiceUrl}
-                    onVoiceDesign={onVoiceDesign}
                     onVoiceSelect={onVoiceSelect}
                     compact={true}
                 />
@@ -494,7 +492,6 @@ export function CharacterCard({ character, onImageClick, onImageEdit, onVoiceDes
                     characterId={character.id}
                     characterName={character.name}
                     customVoiceUrl={character.customVoiceUrl}
-                    onVoiceDesign={onVoiceDesign}
                     onVoiceSelect={onVoiceSelect}
                     compact={true}
                 />

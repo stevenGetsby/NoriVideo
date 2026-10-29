@@ -28,7 +28,7 @@ export function FosAuthShell({
     <main className="nori-auth">
       <div className="nori-auth-ambient" aria-hidden="true" />
       <header className="nori-auth-header">
-        <Link href={{ pathname: '/' }} className="nori-auth-brand" aria-label="NoriVideo">
+        <Link href={{ pathname: '/' }} className="nori-auth-brand" aria-label="LanmiaoTV">
           <NoriBrandMark size={38} className="nori-auth-brand-cat" />
           <span><span className="nori-auth-brand-name">Nori</span><span className="nori-auth-brand-light">Video</span><sup>STUDIO</sup></span>
         </Link>
@@ -103,7 +103,7 @@ export function FosAuthShell({
       </div>
 
       <footer className="nori-auth-footer">
-        <span>© {new Date().getFullYear()} NoriVideo</span>
+        <span>© {new Date().getFullYear()} LanmiaoTV</span>
         <span className="nori-auth-footer-center">{english ? 'MADE FOR STORIES. BUILT FOR CREATORS.' : '故事，由你定义。'}</span>
         <span>IMAGINE. CREATE. TOGETHER.</span>
       </footer>

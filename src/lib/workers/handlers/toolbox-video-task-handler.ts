@@ -16,20 +16,23 @@ import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/genera
 import { extractVoiceAudioFromVideo } from '@/lib/media/video-audio'
 import { generateUniqueKey, getObjectBuffer, uploadObject } from '@/lib/storage'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
-import { isArkInputImageModerationError, isArkVideoModel } from '../ark-video-fallback'
-import {
-  ensureSeedanceCharacterAsset,
-  ensureSeedanceToolboxReferenceAssets,
-} from '@/lib/novel-promotion/seedance-character-asset'
+import { ensureSeedanceCharacterAsset } from '@/lib/novel-promotion/seedance-character-asset'
 import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
+import { parseModelKeyStrict } from '@/lib/model-config-contract'
+import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 
 type AnyObj = Record<string, unknown>
 type GeneratedVideo = VideoResultMetadata & {
   url: string
   actualVideoTokens?: number
   downloadHeaders?: Record<string, string>
-  fallbackMode?: 'ark_text_only_after_input_image_moderation'
+}
+
+function isKuaiziSeedanceModel(modelKey: string): boolean {
+  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
+  return parsed?.provider === 'kuaizi'
+    && /^doubao-seedance-2-(?:0|5)(?:-|$)/i.test(parsed.modelId)
 }
 
 function readString(value: unknown): string {
@@ -86,7 +89,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
     if (!materialReferenceContract.success) throw new Error(materialReferenceContract.message)
     await reportTaskProgress(job, 15, { stage: 'generate_toolbox_video' })
     let normalized: string[]
-    if (asset.bizType === 'character_audition' && isArkVideoModel(modelId)) {
+    if (asset.bizType === 'character_audition' && isKuaiziSeedanceModel(modelId)) {
       const characterId = readString(readJsonObject(asset.params).characterId)
       if (!characterId) throw new Error('角色试镜任务缺少 characterId。')
       await reportTaskProgress(job, 18, { stage: 'prepare_character_private_asset' })
@@ -136,56 +139,25 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
     const useReferenceMode = !isImageToVideo && !isFirstLastFrame
     const normalizedVideos = useReferenceMode ? await normalizeReferenceMedia(referenceVideos, modelId) : []
     const normalizedAudios = useReferenceMode ? await normalizeReferenceMedia(referenceAudios, modelId) : []
-    const buildGenerationOptions = (images: string[], forceReferenceMode = false) => ({
+    const buildGenerationOptions = (images: string[]) => ({
       prompt,
-      ...((useReferenceMode || forceReferenceMode) && images.length > 0 ? { referenceImages: images } : {}),
-      ...((useReferenceMode || forceReferenceMode) && normalizedVideos.length > 0 ? { videos: normalizedVideos } : {}),
-      ...((useReferenceMode || forceReferenceMode) && normalizedAudios.length > 0 ? { audios: normalizedAudios } : {}),
-      ...(!forceReferenceMode && isFirstLastFrame ? { lastFrameImageUrl: images[lastFrameIndex] } : {}),
+      ...(useReferenceMode && images.length > 0 ? { referenceImages: images } : {}),
+      ...(useReferenceMode && normalizedVideos.length > 0 ? { videos: normalizedVideos } : {}),
+      ...(useReferenceMode && normalizedAudios.length > 0 ? { audios: normalizedAudios } : {}),
+      ...(isFirstLastFrame ? { lastFrameImageUrl: images[lastFrameIndex] } : {}),
       ...(readNumber(payload.duration) !== undefined ? { duration: readNumber(payload.duration) } : {}),
       ...(readNumber(payload.fps) !== undefined ? { fps: readNumber(payload.fps) } : {}),
       ...(readString(payload.resolution) ? { resolution: readString(payload.resolution) } : {}),
       ...(readString(payload.aspectRatio) ? { aspectRatio: readString(payload.aspectRatio) } : {}),
       ...(typeof payload.generateAudio === 'boolean' ? { generateAudio: payload.generateAudio } : {}),
-      generationMode: !forceReferenceMode && isFirstLastFrame ? 'firstlastframe' as const : 'normal' as const,
+      generationMode: isFirstLastFrame ? 'firstlastframe' as const : 'normal' as const,
     })
-    let generated: GeneratedVideo
-    try {
-      generated = await resolveVideoSourceFromGeneration(job, {
-        userId: job.data.userId,
-        modelId,
-        imageUrl: sourceImage,
-        options: buildGenerationOptions(normalized),
-      })
-    } catch (error) {
-      const canRetryWithPrivateAssets = asset.bizType !== 'character_audition'
-        && isArkVideoModel(modelId)
-        && !isFirstLastFrame
-        && referenceImages.length > 0
-        && isArkInputImageModerationError(error)
-      if (!canRetryWithPrivateAssets) throw error
-
-      await reportTaskProgress(job, 28, { stage: 'prepare_toolbox_private_assets' })
-      const privateReferences = await ensureSeedanceToolboxReferenceAssets({
-        userId: job.data.userId,
-        projectId: job.data.projectId,
-        materialIds: readStringArray(payload.referenceMaterialIds),
-        modelKey: modelId,
-        onStatus: async ({ status, attempt }) => {
-          await assertTaskActive(job, 'prepare_toolbox_private_assets')
-          await reportTaskProgress(job, Math.min(42, 28 + attempt), {
-            stage: 'prepare_toolbox_private_assets',
-            assetStatus: status,
-          })
-        },
-      })
-      generated = await resolveVideoSourceFromGeneration(job, {
-        userId: job.data.userId,
-        modelId,
-        imageUrl: '',
-        options: buildGenerationOptions(privateReferences, true),
-      })
-    }
+    const generated: GeneratedVideo = await resolveVideoSourceFromGeneration(job, {
+      userId: job.data.userId,
+      modelId,
+      imageUrl: sourceImage,
+      options: buildGenerationOptions(normalized),
+    })
     const storageKey = await uploadVideoSourceToCos(generated.url, 'toolbox-video', asset.id, generated.downloadHeaders)
     await assertTaskActive(job, 'persist_toolbox_video')
     let auditionAudioUrl = ''
@@ -229,7 +201,6 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         referenceMaterials: materialReferenceContract.references,
         referenceImageRoles,
         ...pickVideoResultMetadata(generated),
-        ...(generated.fallbackMode ? { fallbackMode: generated.fallbackMode } : {}),
       },
     })
     await prisma.frameosToolboxAsset.update({
@@ -253,7 +224,6 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       materialId: material.id,
       videoUrl: storageKey,
       ...(auditionAudioUrl ? { audioUrl: auditionAudioUrl } : {}),
-      ...(generated.fallbackMode ? { fallbackMode: generated.fallbackMode } : {}),
       ...pickVideoResultMetadata(generated),
     }
   } catch (error) {

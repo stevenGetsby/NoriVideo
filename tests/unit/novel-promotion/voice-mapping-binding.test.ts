@@ -6,7 +6,7 @@ import {
 } from '@/lib/novel-promotion/voice-mapping-binding'
 
 describe('FrameOS voice mapping binding', () => {
-  it('uses selected library candidate as qwen-designed character voice', () => {
+  it('does not trust library candidate ids as Kuaizi character voices', () => {
     const plan = buildCharacterVoiceMappingUpdates({
       characters: [{ id: 'char-1', name: 'Ari' }],
       mappings: {
@@ -25,20 +25,8 @@ describe('FrameOS voice mapping binding', () => {
       },
     })
 
-    expect(plan.skipped).toEqual([])
-    expect(plan.updates).toEqual([
-      {
-        characterId: 'char-1',
-        characterName: 'Ari',
-        source: 'library_match',
-        data: {
-          voiceId: 'voice-primary',
-          voiceType: 'qwen-designed',
-          customVoiceUrl: null,
-          customVoiceMediaId: null,
-        },
-      },
-    ])
+    expect(plan.updates).toEqual([])
+    expect(plan.skipped).toEqual([{ character: 'Ari', characterId: 'character_1', reason: 'missing_voice_id' }])
   })
 
   it('falls back to the first ranked candidate with a voice id', () => {
@@ -140,10 +128,8 @@ describe('FrameOS voice mapping binding', () => {
       ],
     })
 
-    expect(plan.updates.map((update) => [update.characterId, update.data.voiceId])).toEqual([
-      ['character_3', 'voice-nia'],
-      ['local-char-2', 'voice-mika'],
-    ])
+    expect(plan.updates).toEqual([])
+    expect(plan.skipped).toHaveLength(2)
   })
 
   it('builds speaker voice bindings from LLM voice_mapping output', () => {
@@ -175,18 +161,14 @@ describe('FrameOS voice mapping binding', () => {
     })
 
     expect(plan.speakerVoices).toEqual({
-      Ari: {
-        provider: 'bailian',
-        voiceType: 'qwen-designed',
-        voiceId: 'voice-ari',
-      },
       Nia: {
-        provider: 'fal',
+        provider: 'kuaizi',
         voiceType: 'uploaded',
         audioUrl: 'uploaded_voice_nia_1',
       },
     })
     expect(plan.skipped).toEqual([
+      { speaker: 'Ari', characterId: 'character_1', reason: 'missing_voice_id' },
       { speaker: 'Mika', characterId: 'character_2', reason: 'speaker_not_in_scope' },
     ])
   })

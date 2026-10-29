@@ -8,55 +8,27 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
  * - 统一错误处理
  */
 
-import { createAudioGenerator, createImageGenerator, createVideoGenerator } from './generators/factory'
 import type { GenerateResult } from './generators/base'
-import { getProviderConfig, getProviderKey, resolveModelSelection } from './api-config'
-import {
-    generateImageViaOpenAICompat,
-    generateImageViaOpenAICompatTemplate,
-    generateVideoViaOpenAICompat,
-    generateVideoViaOpenAICompatTemplate,
-    resolveModelGatewayRoute,
-} from './model-gateway'
-import { generateBailianAudio, generateBailianImage, generateBailianVideo } from './providers/bailian'
-import { generateSiliconFlowAudio, generateSiliconFlowImage, generateSiliconFlowVideo } from './providers/siliconflow'
+import { getProviderKey, resolveModelSelection, type ModelSelection } from './api-config'
 import { generateKuaiziAudio, generateKuaiziImage, generateKuaiziVideo } from './providers/kuaizi'
-import { generateHfsySd2Video } from './generators/hfsy-video'
-import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from './hfsy-fixed-models'
 import { resolveRuntimeModelKey } from './nori-model-catalog'
 import { parseModelKeyStrict } from './model-config-contract'
 import { recordServiceUsageInBackground } from './platform-services/usage'
 import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
-const OFFICIAL_ONLY_PROVIDER_KEYS = new Set(['bailian', 'siliconflow', 'kuaizi'])
+const MEDIA_PROVIDER_ID = 'kuaizi'
 
 /**
- * 将 aspectRatio 映射为 OpenAI 兼容的 size
+ * New media generation must run on the Kuaizi platform. Historical provider
+ * branches are intentionally not reachable from this entry point.
  */
-function aspectRatioToOpenAISize(aspectRatio: string | undefined): string | undefined {
-    if (!aspectRatio) return undefined
-    const ratio = aspectRatio.trim()
-    const mapping: Record<string, string> = {
-        '1:1': '1024x1024',
-        '5:4': '1040x832',
-        '9:16': '720x1280',
-        '16:9': '1280x720',
-        '4:3': '1024x768',
-        '3:2': '1008x672',
-        '4:5': '832x1040',
-        '3:4': '768x1024',
-        '2:3': '672x1008',
-        '21:9': '1344x576',
+function assertKuaiziMediaSelection(selection: ModelSelection): void {
+    const providerKey = getProviderKey(selection.provider).toLowerCase()
+    if (providerKey !== MEDIA_PROVIDER_ID) {
+        throw new Error(
+            `MEDIA_PROVIDER_UNSUPPORTED: ${selection.mediaType} generation requires ${MEDIA_PROVIDER_ID}, got ${selection.modelKey}`,
+        )
     }
-    return mapping[ratio] || undefined
-}
-
-function withOpenAICompatSize<T extends Record<string, unknown>>(options: T): T {
-    const aspectRatio = typeof options.aspectRatio === 'string' ? options.aspectRatio : undefined
-    const hasSize = typeof options.size === 'string' && options.size.trim().length > 0
-    const mappedSize = aspectRatioToOpenAISize(aspectRatio)
-    if (!mappedSize || hasSize) return options
-    return { ...options, size: mappedSize }
 }
 
 /**
@@ -84,9 +56,8 @@ async function generateImageInternal(
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'image')
+    assertKuaiziMediaSelection(selection)
     _ulogInfo(`[generateImage] resolved model selection: ${selection.modelKey}`)
-    const providerConfig = await getProviderConfig(userId, selection.provider)
-    const providerKey = getProviderKey(selection.provider).toLowerCase()
     const { referenceImages, editMode, maskImage, ...generatorOptions } = options || {}
     if (maskImage && editMode !== 'inpaint') {
         throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: maskImage requires editMode=inpaint')
@@ -100,130 +71,7 @@ async function generateImageInternal(
             throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires exactly one source image')
         }
     }
-    const defaultGatewayRoute = resolveModelGatewayRoute(selection.provider)
-    let gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
-        ? 'official'
-        : (providerConfig.gatewayRoute || defaultGatewayRoute)
-    if (providerKey === 'gemini-compatible') {
-        // DEPRECATED: historical rows persisted gemini-compatible as openai-compat by default.
-        // Runtime now resolves route by apiMode to avoid requiring data migration SQL.
-        gatewayRoute = providerConfig.apiMode === 'openai-official' ? 'openai-compat' : 'official'
-    }
-
-    // Mask-aware edits are a strict contract. Never downgrade a mask to a
-    // normal reference image or route it through an arbitrary media template.
-    if (editMode === 'inpaint') {
-        if (gatewayRoute !== 'openai-compat') {
-            throw new Error(`CANVAS_IMAGE_INPAINT_ROUTE_UNSUPPORTED: ${selection.modelKey}`)
-        }
-        const openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
-        if (openaiCompatOptions.aspectRatio) delete openaiCompatOptions.aspectRatio
-        return await generateImageViaOpenAICompat({
-            userId,
-            providerId: selection.provider,
-            modelId: selection.modelId,
-            prompt,
-            referenceImages,
-            editMode,
-            maskImage,
-            options: {
-                ...openaiCompatOptions,
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-            profile: 'openai-compatible',
-        })
-    }
-    if (providerKey === 'bailian') {
-        return await generateBailianImage({
-            userId,
-            prompt,
-            referenceImages: options?.referenceImages,
-            options: {
-                ...(options || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    if (providerKey === 'siliconflow') {
-        return await generateSiliconFlowImage({
-            userId,
-            prompt,
-            referenceImages: options?.referenceImages,
-            options: {
-                ...(options || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    if (providerKey === 'kuaizi') {
-        return await generateKuaiziImage({
-            userId,
-            prompt,
-            referenceImages: options?.referenceImages,
-            options: {
-                ...(generatorOptions || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    if (gatewayRoute === 'openai-compat') {
-        const compatTemplate = selection.compatMediaTemplate
-        if (providerKey === 'openai-compatible' && !compatTemplate) {
-            throw new Error(`MODEL_COMPAT_MEDIA_TEMPLATE_REQUIRED: ${selection.modelKey}`)
-        }
-        if (compatTemplate) {
-            const templateOptions = withOpenAICompatSize({
-                ...generatorOptions,
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            })
-            return await generateImageViaOpenAICompatTemplate({
-                userId,
-                providerId: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-                prompt,
-                referenceImages,
-                options: templateOptions,
-                profile: 'openai-compatible',
-                template: compatTemplate,
-            })
-        }
-
-        // OpenAI 兼容模式：将 aspectRatio 转换为 size
-        const openaiCompatOptions = withOpenAICompatSize({ ...generatorOptions })
-        if (openaiCompatOptions.aspectRatio) {
-            // 移除不支持的 aspectRatio
-            delete openaiCompatOptions.aspectRatio
-        }
-
-        return await generateImageViaOpenAICompat({
-            userId,
-            providerId: selection.provider,
-            modelId: selection.modelId,
-            prompt,
-            referenceImages,
-            options: {
-                ...openaiCompatOptions,
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-            profile: 'openai-compatible',
-        })
-    }
-
-    const generator = createImageGenerator(selection.provider, selection.modelId)
-    return await generator.generate({
+    return await generateKuaiziImage({
         userId,
         prompt,
         referenceImages,
@@ -232,7 +80,7 @@ async function generateImageInternal(
             provider: selection.provider,
             modelId: selection.modelId,
             modelKey: selection.modelKey,
-        }
+        },
     })
 }
 
@@ -321,123 +169,18 @@ async function generateVideoInternal(
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'video')
+    assertKuaiziMediaSelection(selection)
     _ulogInfo(`[generateVideo] resolved model selection: ${selection.modelKey}`)
-    const providerKey = getProviderKey(selection.provider).toLowerCase()
-    if (providerKey === 'bailian') {
-        return await generateBailianVideo({
-            userId,
-            imageUrl,
-            prompt: options?.prompt,
-            options: {
-                ...(options || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    if (providerKey === 'siliconflow') {
-        return await generateSiliconFlowVideo({
-            userId,
-            imageUrl,
-            prompt: options?.prompt,
-            options: {
-                ...(options || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    if (providerKey === 'kuaizi') {
-        return await generateKuaiziVideo({
-            userId,
-            imageUrl,
-            prompt: options?.prompt,
-            options: {
-                ...(options || {}),
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-        })
-    }
-    const providerConfig = await getProviderConfig(userId, selection.provider)
-    const defaultGatewayRoute = resolveModelGatewayRoute(selection.provider)
-    const gatewayRoute = OFFICIAL_ONLY_PROVIDER_KEYS.has(providerKey)
-        ? 'official'
-        : (providerConfig.gatewayRoute || defaultGatewayRoute)
-
-    const { prompt, ...providerOptions } = options || {}
-    if (selection.provider === HFSY_PROVIDER_ID && selection.modelId === HFSY_VIDEO_MODEL_ID) {
-        return await generateHfsySd2Video({
-            apiKey: providerConfig.apiKey,
-            baseUrl: providerConfig.baseUrl,
-            modelId: selection.modelId,
-            prompt: prompt || '',
-            referenceImages: Array.isArray(providerOptions.referenceImages) ? providerOptions.referenceImages : undefined,
-            referenceVideos: Array.isArray(providerOptions.videos) ? providerOptions.videos : undefined,
-            audios: Array.isArray(providerOptions.audios) ? providerOptions.audios : undefined,
-            duration: typeof providerOptions.duration === 'number' ? providerOptions.duration : undefined,
-            aspectRatio: typeof providerOptions.aspectRatio === 'string' ? providerOptions.aspectRatio : undefined,
-            orientation: typeof providerOptions.orientation === 'string' ? providerOptions.orientation : undefined,
-            ratio: typeof providerOptions.ratio === 'string' ? providerOptions.ratio : undefined,
-            size: typeof providerOptions.size === 'string' ? providerOptions.size : undefined,
-            watermark: typeof providerOptions.watermark === 'boolean' ? providerOptions.watermark : undefined,
-        })
-    }
-    if (gatewayRoute === 'openai-compat') {
-        const compatTemplate = selection.compatMediaTemplate
-        if (providerKey === 'openai-compatible' && !compatTemplate) {
-            throw new Error(`MODEL_COMPAT_MEDIA_TEMPLATE_REQUIRED: ${selection.modelKey}`)
-        }
-        if (compatTemplate) {
-            return await generateVideoViaOpenAICompatTemplate({
-                userId,
-                providerId: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-                imageUrl,
-                prompt: prompt || '',
-                options: {
-                    ...providerOptions,
-                    provider: selection.provider,
-                    modelId: selection.modelId,
-                    modelKey: selection.modelKey,
-                },
-                profile: 'openai-compatible',
-                template: compatTemplate,
-            })
-        }
-
-        return await generateVideoViaOpenAICompat({
-            userId,
-            providerId: selection.provider,
-            modelId: selection.modelId,
-            modelKey: selection.modelKey,
-            imageUrl,
-            prompt: prompt || '',
-            options: {
-                ...providerOptions,
-                provider: selection.provider,
-                modelId: selection.modelId,
-                modelKey: selection.modelKey,
-            },
-            profile: 'openai-compatible',
-        })
-    }
-
-    const generator = createVideoGenerator(selection.provider)
-    return await generator.generate({
+    return await generateKuaiziVideo({
         userId,
         imageUrl,
-        prompt,
+        prompt: options?.prompt,
         options: {
-            ...providerOptions,
+            ...(options || {}),
             provider: selection.provider,
             modelId: selection.modelId,
             modelKey: selection.modelKey,
-        }
+        },
     })
 }
 
@@ -528,54 +271,18 @@ export async function generateAudio(
     const parsed = parseModelKeyStrict(runtimeModelKey)
     try {
         const selection = await resolveModelSelection(userId, modelKey, 'audio')
-        const providerKey = getProviderKey(selection.provider).toLowerCase()
-        const result = providerKey === 'bailian'
-            ? await generateBailianAudio({
-                userId,
-                text,
-                voice: options?.voice,
-                rate: options?.rate,
-                options: {
-                    provider: selection.provider,
-                    modelId: selection.modelId,
-                    modelKey: selection.modelKey,
-                },
-            })
-            : providerKey === 'siliconflow'
-                ? await generateSiliconFlowAudio({
-                    userId,
-                    text,
-                    voice: options?.voice,
-                    rate: options?.rate,
-                    options: {
-                        provider: selection.provider,
-                        modelId: selection.modelId,
-                        modelKey: selection.modelKey,
-                    },
-                })
-                : providerKey === 'kuaizi'
-                    ? await generateKuaiziAudio({
-                        userId,
-                        text,
-                        voice: options?.voice,
-                        rate: options?.rate,
-                        options: {
-                            provider: selection.provider,
-                            modelId: selection.modelId,
-                            modelKey: selection.modelKey,
-                        },
-                    })
-                : await createAudioGenerator(selection.provider).generate({
-                    userId,
-                    text,
-                    voice: options?.voice,
-                    rate: options?.rate,
-                    options: {
-                        provider: selection.provider,
-                        modelId: selection.modelId,
-                        modelKey: selection.modelKey,
-                    },
-                })
+        assertKuaiziMediaSelection(selection)
+        const result = await generateKuaiziAudio({
+            userId,
+            text,
+            voice: options?.voice,
+            rate: options?.rate,
+            options: {
+                provider: selection.provider,
+                modelId: selection.modelId,
+                modelKey: selection.modelKey,
+            },
+        })
         const asyncSubmission = result.success
             && !result.audioUrl
             && Boolean(result.externalId || result.requestId || result.async)

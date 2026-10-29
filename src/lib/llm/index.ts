@@ -18,6 +18,4 @@ export {
     emitStreamStage,
     resolveStreamStepMeta,
 } from './stream-helpers'
-export { arkResponsesCompletion } from './providers/ark'
-export { extractGoogleText, extractGoogleUsage } from './providers/google'
 export { buildOpenAIChatCompletion } from './providers/openai-compat'

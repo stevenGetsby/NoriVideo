@@ -39,7 +39,7 @@ export function AuthHelpButton({ label, className = '' }: { label: string; class
         onClick={(event) => { if (event.target === event.currentTarget) setOpen(false) }}
       >
         <div className="nori-auth-help-panel" onClick={(event) => event.stopPropagation()}>
-          <header><div><p>NORIVIDEO / QUICK START</p><h2 id={titleId}>{english ? 'Your next story starts here.' : '开始你的下一部作品。'}</h2></div><button type="button" aria-label={english ? 'Close guide' : '关闭使用指南'} onClick={() => setOpen(false)} autoFocus><X size={19} /></button></header>
+          <header><div><p>LANMIAOTV / QUICK START</p><h2 id={titleId}>{english ? 'Your next story starts here.' : '开始你的下一部作品。'}</h2></div><button type="button" aria-label={english ? 'Close guide' : '关闭使用指南'} onClick={() => setOpen(false)} autoFocus><X size={19} /></button></header>
           <ol>{steps.map(({ icon: Icon, title, body }) => <li key={title}><span><Icon size={19} strokeWidth={1.5} aria-hidden="true" /></span><div><h3>{title}</h3><p>{body}</p></div></li>)}</ol>
           <button type="button" className="nori-auth-help-done" onClick={() => setOpen(false)}>{english ? 'Got it' : '了解了，开始创作'}</button>
         </div>

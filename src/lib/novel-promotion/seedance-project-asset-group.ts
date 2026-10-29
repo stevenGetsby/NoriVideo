@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { createHash } from 'node:crypto'
-import type { SeedanceAssetsApi } from '@/lib/volcengine/seedance-assets-client'
+import type { SeedanceAssetsApi } from '@/lib/volcengine/seedance-assets-contract'
 
 const GROUP_NAME_MAX_LENGTH = 64
 

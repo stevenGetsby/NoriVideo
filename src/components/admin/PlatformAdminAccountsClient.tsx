@@ -391,7 +391,7 @@ export function PlatformAdminAccountsClient() {
                       <AppIcon name="coins" className="h-3.5 w-3.5" />充值积分
                     </button>
                     <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openEdit(manager)}>编辑账号</button>
-                    <button type="button" className="fos-icon-btn text-red-300" disabled={deletingId === manager.id} title="删除管理账号" onClick={() => void deleteManager(workspace)}>
+                    <button type="button" className="fos-icon-btn nori-admin-danger-action" aria-label="删除管理账号" disabled={deletingId === manager.id} title={deletingId === manager.id ? '正在删除' : '删除管理账号'} onClick={() => void deleteManager(workspace)}>
                       <AppIcon name="trash" className="h-4 w-4" />
                     </button>
                   </div>

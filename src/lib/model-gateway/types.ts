@@ -1,42 +1,12 @@
 export type ModelGatewayRoute = 'official' | 'openai-compat'
 
-export type CompatibleProviderKey = 'openai-compatible'
+export type CompatibleProviderKey = 'deepseek'
 
-export type OpenAICompatImageProfile = CompatibleProviderKey
-
-export type OpenAICompatVideoProfile = 'openai-compatible'
 
 export interface OpenAICompatClientConfig {
   providerId: string
   baseUrl: string
   apiKey: string
-}
-
-export interface OpenAICompatImageRequest {
-  userId: string
-  providerId: string
-  modelId?: string
-  prompt: string
-  referenceImages?: string[]
-  editMode?: 'inpaint'
-  /** Mask is intentionally separate from referenceImages. */
-  maskImage?: string
-  options?: Record<string, unknown>
-  profile: OpenAICompatImageProfile
-  template?: import('@/lib/openai-compat-media-template').OpenAICompatMediaTemplate
-  modelKey?: string
-}
-
-export interface OpenAICompatVideoRequest {
-  userId: string
-  providerId: string
-  modelId?: string
-  imageUrl: string
-  prompt: string
-  options?: Record<string, unknown>
-  profile: OpenAICompatVideoProfile
-  template?: import('@/lib/openai-compat-media-template').OpenAICompatMediaTemplate
-  modelKey?: string
 }
 
 export interface OpenAICompatChatRequest {

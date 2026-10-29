@@ -2,7 +2,7 @@
 
 /**
  * 音色设置组件 - 从 CharacterCard 提取
- * 支持上传自定义音频和 AI 声音设计
+ * 仅保留参考音频上传与音色库选择；AI 声音设计已停用
  */
 
 import { notify } from '@/lib/ui/feedback'
@@ -18,18 +18,15 @@ interface VoiceSettingsProps {
     customVoiceUrl: string | null | undefined
     projectId?: string  // 可选，Asset Hub 不需要
     onVoiceChange?: (characterId: string, customVoiceUrl?: string) => void
-    onVoiceDesign?: (characterId: string, characterName: string) => void
     onVoiceSelect?: (characterId: string) => void  // 从音色库选择
     compact?: boolean  // 紧凑模式（单图卡片用）
 }
 
 export default function VoiceSettings({
     characterId,
-    characterName,
     customVoiceUrl,
     projectId,
     onVoiceChange,
-    onVoiceDesign,
     onVoiceSelect,
     compact = false
 }: VoiceSettingsProps) {
@@ -143,18 +140,6 @@ export default function VoiceSettings({
                         <span>{uploadVoice.isPending ? t('voiceSettings.uploading') : hasCustomVoice ? t('voiceSettings.uploaded') : t('voiceSettings.uploadAudio')}</span>
                     </div>
                 </button>
-
-                {onVoiceDesign && (
-                    <button
-                        onClick={() => onVoiceDesign(characterId, characterName)}
-                        className="glass-btn-base glass-btn-tone-info flex-1 min-w-[70px] px-2 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap"
-                    >
-                        <div className="flex items-center justify-center gap-1">
-                            <AppIcon name="bolt" className="w-3.5 h-3.5 flex-shrink-0" />
-                            <span>{t('voiceSettings.aiDesign')}</span>
-                        </div>
-                    </button>
-                )}
 
                 {onVoiceSelect && (
                     <button

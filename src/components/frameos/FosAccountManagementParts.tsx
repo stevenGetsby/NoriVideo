@@ -19,6 +19,7 @@ import type { AccountCredits } from '@/lib/account/credits'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
 import { isValidDailyPointLimitInput } from '@/lib/billing/daily-limit-policy'
 import { ViewportDialogLayer } from './ViewportDialogLayer'
+import { useDialogDismiss } from './use-dialog-dismiss'
 
 interface ManagedAccount {
   id: string
@@ -214,19 +215,21 @@ export function AccountDialog({
   const title = mode === 'create'
     ? creatingManager ? '添加管理账号' : '添加角色子账号'
     : `编辑 ${draft.username}`
+  useDialogDismiss(true, onClose, !saving)
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="account-management-dialog flex max-h-[90vh] w-full max-w-[700px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#16161d] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[.07] px-6 py-4">
+    <ViewportDialogLayer>
+    <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
+      <section role="dialog" aria-modal="true" aria-label={title} className="account-management-dialog fos-dialog w-full max-w-[700px]">
+        <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{title}</h2>
             <p className="mt-1 text-[11px] text-white/40">角色名称用于展示；功能区开关才决定账号可以执行哪些操作。</p>
           </div>
-          <button type="button" className="fos-icon-btn" onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
+          <button type="button" className="fos-icon-btn" disabled={saving} onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
 
-        <div className="overflow-y-auto px-6 py-5">
+        <div className="fos-dialog-body">
           {mode === 'create' && platformOperator && allowAccountTypeChoice ? (
             <div className="mb-5 grid grid-cols-2 gap-2">
               {([
@@ -437,17 +440,18 @@ export function AccountDialog({
               重置密码会使该账号已有登录立即失效。
             </p>
           ) : null}
-          {error ? <p className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
+          {error ? <p role="alert" className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-white/[.07] px-6 py-4">
-          <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
-          <button type="button" className="fos-btn fos-btn-primary" onClick={onSubmit} disabled={saving || !isValidDailyPointLimitInput(draft.dailyPointLimit)}>
+        <div className="fos-dialog-foot">
+          <button type="button" className="fos-btn fos-btn-lg fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
+          <button type="button" className="fos-btn fos-btn-lg fos-btn-primary" onClick={onSubmit} disabled={saving || !isValidDailyPointLimitInput(draft.dailyPointLimit)}>
             {saving ? '保存中…' : mode === 'create' ? '创建账号' : '保存修改'}
           </button>
         </div>
-      </div>
+      </section>
     </div>
+    </ViewportDialogLayer>
   )
 }
 
@@ -499,6 +503,7 @@ export function CreditLedgerDialog({
   const [payload, setPayload] = useState<CreditLedgerPayload | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  useDialogDismiss(true, onClose)
 
   useEffect(() => {
     let active = true
@@ -524,13 +529,14 @@ export function CreditLedgerDialog({
   }, [target.id])
 
   return (
-    <div className="fixed inset-0 z-[115] flex items-center justify-center bg-black/70 p-5 backdrop-blur-sm">
-      <div className="flex max-h-[88vh] w-full max-w-[780px] flex-col overflow-hidden rounded-[14px] border border-white/10 bg-[#1b1b23] shadow-2xl">
-        <div className="flex items-center justify-between border-b border-white/[.08] px-6 py-4">
+    <ViewportDialogLayer>
+    <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
+      <section role="dialog" aria-modal="true" aria-label="积分账户流水" className="credit-ledger-dialog fos-dialog w-full max-w-[780px]">
+        <div className="fos-dialog-head">
           <div><h2 className="text-[16px] font-bold text-white">积分账户流水</h2><p className="mt-1 text-[11px] text-white/45">{target.username} · 最近 50 条不可变账本记录</p></div>
           <button type="button" className="fos-icon-btn" onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
-        <div className="overflow-y-auto p-5">
+        <div className="fos-dialog-body">
           {loading ? <div className="py-16 text-center text-[12px] text-white/45">正在核对余额与流水…</div> : error ? <div className="rounded-lg border border-red-400/20 bg-red-400/[.08] px-4 py-3 text-[12px] text-red-200">{error}</div> : payload ? (
             <>
               <div className="grid gap-3 sm:grid-cols-3">
@@ -540,18 +546,20 @@ export function CreditLedgerDialog({
                   ['累计消费', payload.balance.totalSpentPoints],
                 ].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-white/[.08] bg-white/[.035] px-4 py-3"><span className="text-[11px] text-white/45">{label}</span><strong className="mt-1.5 block text-[19px] text-white">{Number(value).toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong></div>)}
               </div>
-              <div className="mt-4 overflow-hidden rounded-xl border border-white/[.08]">
-                <div className="grid grid-cols-[130px_1fr_130px_150px] gap-3 border-b border-white/[.08] bg-white/[.025] px-4 py-3 text-[10px] font-semibold text-white/40"><span>时间</span><span>类型 / 备注</span><span className="text-right">积分变动</span><span className="text-right">变动后余额</span></div>
+              <div className="mt-4 min-w-0 overflow-x-auto rounded-xl border border-white/[.08]">
+                <div className="min-w-[620px]"><div className="grid grid-cols-[130px_1fr_130px_150px] gap-3 border-b border-white/[.08] bg-white/[.025] px-4 py-3 text-[10px] font-semibold text-white/40"><span>时间</span><span>类型 / 备注</span><span className="text-right">积分变动</span><span className="text-right">变动后余额</span></div>
                 {payload.transactions.length ? payload.transactions.map((transaction) => {
                   const note = transactionNote(transaction.description)
                   return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
                 }) : <div className="py-12 text-center text-[11px] text-white/35">暂无积分变动</div>}
+                </div>
               </div>
             </>
           ) : null}
         </div>
-      </div>
+      </section>
     </div>
+    </ViewportDialogLayer>
   )
 }
 
@@ -588,11 +596,12 @@ export function CreditOperationDialog({
   const projectedTargetPoints = operation === 'recharge' && valid
     ? currentTargetPoints + parsedPoints
     : currentTargetPoints
+  useDialogDismiss(true, onClose, !saving)
 
   return (
     <ViewportDialogLayer>
-    <div className="fos-overlay">
-      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px] rounded-[14px] border border-white/10 bg-[#16161d] shadow-2xl">
+    <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
+      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px]">
         <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{copy.title}</h2>
@@ -661,13 +670,13 @@ export function CreditOperationDialog({
               placeholder="例如：7 月作品额度"
             />
           </label>
-          {error ? <p className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
+          {error ? <p role="alert" className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
         </div>
         <div className="fos-dialog-foot">
-          <button type="button" className="fos-btn fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
+          <button type="button" className="fos-btn fos-btn-lg fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button>
           <button
             type="button"
-            className="fos-btn fos-btn-primary"
+            className="fos-btn fos-btn-lg fos-btn-primary"
             disabled={saving || !valid}
             onClick={() => onSubmit({ points: parsedPoints, note })}
           >

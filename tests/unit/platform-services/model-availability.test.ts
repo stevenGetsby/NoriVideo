@@ -45,12 +45,6 @@ function platformConfig(overrides: Partial<PlatformServiceConfigResponse> = {}):
       hasAccessKey: false,
       hasSecretKey: false,
     },
-    videoRepaint: {
-      providerId: 'ark',
-      understandingModel: 'understanding',
-      adaptationModel: 'adaptation',
-      fps: 0.5,
-    },
     ...overrides,
   }
 }

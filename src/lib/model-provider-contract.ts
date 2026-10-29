@@ -1,31 +1,17 @@
-import {
-  HFSY_IMAGE_MODEL_ID,
-  HFSY_TEXT_MODEL_ID,
-  HFSY_VIDEO_MODEL_ID,
-} from '@/lib/hfsy-fixed-models'
-import {
-  LUMINA_ANTHROPIC_COMPATIBLE_MODELS,
-  isLuminaAnthropicCompatibleVisionCapableModel,
-  normalizeLuminaAnthropicCompatibleModelId,
-} from '@/lib/lumina-anthropic-compatible-models'
 import type { UnifiedModelType } from '@/lib/model-config-contract'
 
 export const MODEL_PROVIDER = {
-  LUMINA: 'lumina',
-  ARK: 'ark',
-  HFSY: 'hfsy',
-  GHC: 'ghc',
   DEEPSEEK: 'deepseek',
   KUAIZI: 'kuaizi',
 } as const
 
 export type ModelProviderKey = (typeof MODEL_PROVIDER)[keyof typeof MODEL_PROVIDER]
-export type ModelCapabilityGroup = 'text' | 'vision' | 'image' | 'video' | 'audio'
+export type ModelCapabilityGroup = 'text' | 'image' | 'video' | 'audio'
 
 export type ModelProviderPreset = {
   id: ModelProviderKey
   name: string
-  baseUrl?: string
+  baseUrl: string
 }
 
 export type ModelPreset = {
@@ -36,76 +22,18 @@ export type ModelPreset = {
   capabilityGroup: ModelCapabilityGroup
 }
 
-const PROVIDER_KEY_ALIASES: Readonly<Record<string, ModelProviderKey>> = {
-  lumina: MODEL_PROVIDER.LUMINA,
-  'anthropic-compatible': MODEL_PROVIDER.LUMINA,
-  ark: MODEL_PROVIDER.ARK,
-  hfsy: MODEL_PROVIDER.HFSY,
-  ghc: MODEL_PROVIDER.GHC,
-  deepseek: MODEL_PROVIDER.DEEPSEEK,
-  kuaizi: MODEL_PROVIDER.KUAIZI,
-  'openai-compatible': MODEL_PROVIDER.HFSY,
-}
-
 export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
-  { id: MODEL_PROVIDER.LUMINA, name: 'Lumina', baseUrl: 'https://lumina.tripo3d.com/' },
-  { id: MODEL_PROVIDER.ARK, name: 'Volcengine Ark' },
-  { id: MODEL_PROVIDER.HFSY, name: 'HFSY API', baseUrl: 'https://www.hfsyapi.cn/v1' },
-  { id: MODEL_PROVIDER.GHC, name: 'GHC API', baseUrl: 'http://localhost:8313/v1' },
-  { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1' },
-  { id: MODEL_PROVIDER.KUAIZI, name: '筷子 AI 开放平台', baseUrl: 'https://aiopenapi.kuaizi.cn' },
+  { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek 官方', baseUrl: 'https://api.deepseek.com/v1' },
+  { id: MODEL_PROVIDER.KUAIZI, name: 'Kuaizi API', baseUrl: 'https://aiopenapi.kuaizi.cn' },
 ]
 
-export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<ModelProviderKey, string>> = {
-  lumina: 'Lumina',
-  ark: '火山引擎 Ark',
-  hfsy: 'HFSY API',
-  ghc: 'GHC API',
-  deepseek: 'DeepSeek 官方',
-  kuaizi: '筷子 AI 开放平台',
-}
-
-const ARK_TEXT_MODELS: ModelPreset[] = [
-  { modelId: 'doubao-seed-1-8-251228', name: 'Doubao Seed 1.8', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-  { modelId: 'doubao-seed-2-0-pro-260215', name: 'Doubao Seed 2.0 Pro', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-  { modelId: 'doubao-seed-2-0-lite-260215', name: 'Doubao Seed 2.0 Lite', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-  { modelId: 'doubao-seed-2-0-mini-260215', name: 'Doubao Seed 2.0 Mini', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-  { modelId: 'doubao-seed-1-6-251015', name: 'Doubao Seed 1.6', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-  { modelId: 'doubao-seed-1-6-lite-251015', name: 'Doubao Seed 1.6 Lite', type: 'llm', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'text' },
-]
-
-const ARK_IMAGE_MODELS: ModelPreset[] = [
-  { modelId: 'doubao-seedream-4-5-251128', name: 'Seedream 4.5', type: 'image', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'image' },
-  { modelId: 'doubao-seedream-4-0-250828', name: 'Seedream 4.0', type: 'image', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'image' },
-  { modelId: 'doubao-seedream-5-0-260128', name: 'Seedream 5.0 Lite', type: 'image', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'image' },
-]
-
-const ARK_VIDEO_MODELS: ModelPreset[] = [
-  { modelId: 'doubao-seedance-1-0-pro-fast-251015', name: 'Seedance 1.0 Pro Fast', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-  { modelId: 'doubao-seedance-1-0-lite-i2v-250428', name: 'Seedance 1.0 Lite', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-  { modelId: 'doubao-seedance-1-5-pro-251215', name: 'Seedance 1.5 Pro', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-  { modelId: 'doubao-seedance-2-0-260128', name: 'Seedance 2.0', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-  { modelId: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-  { modelId: 'doubao-seedance-1-0-pro-250528', name: 'Seedance 1.0 Pro', type: 'video', provider: MODEL_PROVIDER.ARK, capabilityGroup: 'video' },
-]
+export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<string, string>> = Object.fromEntries(
+  MODEL_PROVIDER_PRESETS.map((provider) => [provider.id, provider.name]),
+)
 
 export const MODEL_PRESETS: readonly ModelPreset[] = [
-  ...LUMINA_ANTHROPIC_COMPATIBLE_MODELS.map((model): ModelPreset => ({
-    modelId: model.modelId,
-    name: model.name,
-    type: 'llm',
-    provider: MODEL_PROVIDER.LUMINA,
-    capabilityGroup: model.group === 'vision' ? 'vision' : 'text',
-  })),
-  ...ARK_TEXT_MODELS,
-  ...ARK_IMAGE_MODELS,
-  ...ARK_VIDEO_MODELS,
-  { modelId: 'gpt-5.5', name: 'GHC GPT 5.5', type: 'llm', provider: MODEL_PROVIDER.GHC, capabilityGroup: 'text' },
   { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
   { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
-  { modelId: HFSY_TEXT_MODEL_ID, name: 'HFSY GPT 5.5', type: 'llm', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'text' },
-  { modelId: HFSY_IMAGE_MODEL_ID, name: 'HFSY GPT Image 2', type: 'image', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'image' },
-  { modelId: HFSY_VIDEO_MODEL_ID, name: 'HFSY SD 2 VIP', type: 'video', provider: MODEL_PROVIDER.HFSY, capabilityGroup: 'video' },
 ]
 
 export function getRawProviderKey(providerId?: string): string {
@@ -116,39 +44,19 @@ export function getRawProviderKey(providerId?: string): string {
 
 export function normalizeModelProviderKey(providerId?: string): ModelProviderKey | null {
   const rawKey = getRawProviderKey(providerId).toLowerCase()
-  return PROVIDER_KEY_ALIASES[rawKey] ?? null
+  return rawKey === MODEL_PROVIDER.DEEPSEEK || rawKey === MODEL_PROVIDER.KUAIZI ? rawKey : null
 }
 
 export function isSupportedModelProvider(providerId?: string): boolean {
   return normalizeModelProviderKey(providerId) !== null
 }
 
-export function isLuminaProviderId(providerId?: string): boolean {
-  return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.LUMINA
-}
-
-export function isHfsyProviderId(providerId?: string): boolean {
-  return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY
-}
-
 export function isOpenAICompatLlmProviderId(providerId?: string): boolean {
-  const providerKey = getRawProviderKey(providerId).toLowerCase()
-  return providerKey === 'openai-compatible'
-    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY
-    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.GHC
-    || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.DEEPSEEK
+  return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.DEEPSEEK
 }
 
-export function normalizeProviderModelId(providerId: string | undefined, modelId: string): string {
-  if (
-    (normalizeModelProviderKey(providerId) === MODEL_PROVIDER.HFSY || normalizeModelProviderKey(providerId) === MODEL_PROVIDER.GHC)
-    && modelId === 'gpt5.5'
-  ) {
-    return 'gpt-5.5'
-  }
-  return isLuminaProviderId(providerId)
-    ? normalizeLuminaAnthropicCompatibleModelId(modelId)
-    : modelId
+export function normalizeProviderModelId(_providerId: string | undefined, modelId: string): string {
+  return modelId
 }
 
 export function getModelCapabilityGroup(input: {
@@ -159,13 +67,5 @@ export function getModelCapabilityGroup(input: {
   if (input.type === 'image') return 'image'
   if (input.type === 'video') return 'video'
   if (input.type === 'audio') return 'audio'
-  if (input.type !== 'llm') return null
-
-  if (
-    isLuminaProviderId(input.provider)
-    && isLuminaAnthropicCompatibleVisionCapableModel(input.modelId)
-  ) {
-    return 'vision'
-  }
-  return 'text'
+  return input.type === 'llm' ? 'text' : null
 }

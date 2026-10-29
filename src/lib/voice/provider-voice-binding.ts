@@ -1,10 +1,11 @@
 type VoiceSource = 'character' | 'speaker'
 
-export type SupportedAudioProviderKey = 'fal' | 'bailian'
+export type SupportedAudioProviderKey = 'fal' | 'bailian' | 'kuaizi'
 
 export interface CharacterVoiceFields {
   customVoiceUrl?: string | null
   voiceId?: string | null
+  voiceType?: string | null
 }
 
 export interface RawSpeakerVoiceEntry {
@@ -28,7 +29,15 @@ export type BailianSpeakerVoiceEntry = {
   previewAudioUrl?: string
 }
 
-export type SpeakerVoiceEntry = FalSpeakerVoiceEntry | BailianSpeakerVoiceEntry
+export type KuaiziSpeakerVoiceEntry = {
+  provider: 'kuaizi'
+  voiceType: string
+  voiceId?: string
+  audioUrl?: string
+  previewAudioUrl?: string
+}
+
+export type SpeakerVoiceEntry = FalSpeakerVoiceEntry | BailianSpeakerVoiceEntry | KuaiziSpeakerVoiceEntry
 export type SpeakerVoiceMap = Record<string, SpeakerVoiceEntry>
 
 export type FalVoiceGenerationBinding = {
@@ -43,20 +52,22 @@ export type BailianVoiceGenerationBinding = {
   voiceId: string
 }
 
-export type VoiceGenerationBinding = FalVoiceGenerationBinding | BailianVoiceGenerationBinding
+export type KuaiziVoiceGenerationBinding = {
+  provider: 'kuaizi'
+  source: VoiceSource
+  voiceId?: string
+  referenceAudioUrl?: string
+}
 
-export type SpeakerVoicePatch =
-  | {
-    provider: 'fal'
-    voiceType?: string
-    audioUrl: string
-  }
-  | {
-    provider: 'bailian'
-    voiceType?: string
-    voiceId: string
-    previewAudioUrl?: string
-  }
+export type VoiceGenerationBinding = FalVoiceGenerationBinding | BailianVoiceGenerationBinding | KuaiziVoiceGenerationBinding
+
+export type SpeakerVoicePatch = {
+  provider: 'kuaizi'
+  voiceType?: string
+  voiceId?: string
+  audioUrl?: string
+  previewAudioUrl?: string
+}
 
 function readTrimmedString(input: unknown): string | null {
   if (typeof input !== 'string') return null
@@ -121,6 +132,19 @@ function normalizeRawSpeakerVoiceEntry(raw: unknown, speaker: string): SpeakerVo
     }
   }
 
+  if (provider === 'kuaizi') {
+    if (!voiceId && !audioUrl) {
+      throw new Error(`SPEAKER_VOICE_ENTRY_MISSING_KUAIZI_BINDING: ${speaker}`)
+    }
+    return {
+      provider: 'kuaizi',
+      voiceType,
+      ...(voiceId ? { voiceId } : {}),
+      ...(audioUrl ? { audioUrl } : {}),
+      ...(previewAudioUrl ? { previewAudioUrl } : {}),
+    }
+  }
+
   if (provider) {
     throw new Error(`SPEAKER_VOICE_ENTRY_INVALID_PROVIDER: ${speaker}`)
   }
@@ -176,7 +200,7 @@ export function stringifySpeakerVoiceMapPreservingPrivateEntries(
 }
 
 function normalizeProviderKey(providerKey: string): SupportedAudioProviderKey | null {
-  if (providerKey === 'fal' || providerKey === 'bailian') {
+  if (providerKey === 'fal' || providerKey === 'bailian' || providerKey === 'kuaizi') {
     return providerKey
   }
   return null
@@ -202,6 +226,7 @@ function toBailianBinding(source: VoiceSource, voiceId: string | null): BailianV
 
 export function resolveVoiceBindingForProvider(params: {
   providerKey: string
+  modelId?: string
   character?: CharacterVoiceFields | null
   speakerVoice?: SpeakerVoiceEntry | null
 }): VoiceGenerationBinding | null {
@@ -218,14 +243,31 @@ export function resolveVoiceBindingForProvider(params: {
     return toFalBinding('speaker', readTrimmedString(params.speakerVoice.audioUrl))
   }
 
-  const fromCharacter = toBailianBinding('character', characterVoiceId)
-  if (fromCharacter) return fromCharacter
-  if (params.speakerVoice?.provider !== 'bailian') return null
-  return toBailianBinding('speaker', readTrimmedString(params.speakerVoice.voiceId))
+  if (providerKey === 'bailian') {
+    const fromCharacter = toBailianBinding('character', characterVoiceId)
+    if (fromCharacter) return fromCharacter
+    if (params.speakerVoice?.provider !== 'bailian') return null
+    return toBailianBinding('speaker', readTrimmedString(params.speakerVoice.voiceId))
+  }
+
+  if (providerKey !== 'kuaizi') return null
+  const speaker = params.speakerVoice?.provider === 'kuaizi' ? params.speakerVoice : null
+  const speakerVoiceId = readTrimmedString(speaker?.voiceId)
+  const speakerAudioUrl = readTrimmedString(speaker?.audioUrl)
+  const characterVoiceIdIsKuaizi = params.character?.voiceType === 'kuaizi'
+  if (params.modelId === 'seed-audio') {
+    if (characterAudioUrl) return { provider: 'kuaizi', source: 'character', referenceAudioUrl: characterAudioUrl }
+    return speakerAudioUrl ? { provider: 'kuaizi', source: 'speaker', referenceAudioUrl: speakerAudioUrl } : null
+  }
+  if (characterVoiceIdIsKuaizi && characterVoiceId) {
+    return { provider: 'kuaizi', source: 'character', voiceId: characterVoiceId }
+  }
+  return speakerVoiceId ? { provider: 'kuaizi', source: 'speaker', voiceId: speakerVoiceId } : null
 }
 
 export function hasVoiceBindingForProvider(params: {
   providerKey: string
+  modelId?: string
   character?: CharacterVoiceFields | null
   speakerVoice?: SpeakerVoiceEntry | null
 }): boolean {
@@ -244,7 +286,8 @@ export function hasAnyVoiceBinding(params: {
   if (params.speakerVoice.provider === 'fal') {
     return !!readTrimmedString(params.speakerVoice.audioUrl)
   }
-  return !!readTrimmedString(params.speakerVoice.voiceId)
+  if (params.speakerVoice.provider === 'bailian') return true
+  return !!(readTrimmedString(params.speakerVoice.voiceId) || readTrimmedString(params.speakerVoice.audioUrl))
 }
 
 export function getSpeakerVoicePreviewUrl(speakerVoice?: SpeakerVoiceEntry | null): string | null {
@@ -252,5 +295,8 @@ export function getSpeakerVoicePreviewUrl(speakerVoice?: SpeakerVoiceEntry | nul
   if (speakerVoice.provider === 'fal') {
     return readTrimmedString(speakerVoice.audioUrl)
   }
-  return readTrimmedString(speakerVoice.previewAudioUrl)
+  if (speakerVoice.provider === 'bailian') {
+    return readTrimmedString(speakerVoice.previewAudioUrl)
+  }
+  return readTrimmedString(speakerVoice.audioUrl) || readTrimmedString(speakerVoice.previewAudioUrl)
 }

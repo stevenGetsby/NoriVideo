@@ -371,7 +371,7 @@ export function FosProjectModelConfigDialog({
                 <label className="rounded-xl border border-[var(--fos-border-mid)] bg-[var(--fos-bg-3)] p-4">
                   <span className="block text-[13px] font-bold text-white">成员本地下载目录提示</span>
                   <span className="mt-1 block text-[12px] leading-5 text-[var(--fos-text-3)]">每位成员首次导出时选择自己电脑的目录；系统会按作品记住该成员的选择。</span>
-                  <input className="fos-input mt-3 w-full text-[13px]" maxLength={500} placeholder="例如：D:\NoriVideoDownloads\机甲三国" value={settings.exportDirectoryHint} onChange={(event) => setSettings((current) => ({ ...current, exportDirectoryHint: event.target.value }))} />
+                  <input className="fos-input mt-3 w-full text-[13px]" maxLength={500} placeholder="例如：D:\LanmiaoTVDownloads\机甲三国" value={settings.exportDirectoryHint} onChange={(event) => setSettings((current) => ({ ...current, exportDirectoryHint: event.target.value }))} />
                   <div className="mt-3"><ProjectDownloadDirectory projectId={projectId} /></div>
                   <p className="mt-2 text-[11px] text-[var(--fos-text-4)]">此路径是团队提示，不会让服务器写入本机。每位成员需要点击选择自己设备的目录；其它账号和电脑不会继承授权。</p>
                 </label>

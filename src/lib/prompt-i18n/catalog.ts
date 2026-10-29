@@ -2,6 +2,10 @@ import { PROMPT_IDS, type PromptId } from './prompt-ids'
 import type { PromptCatalogEntry } from './types'
 
 export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
+  [PROMPT_IDS.ASSISTANT_TUTORIAL_SYSTEM]: {
+    pathStem: 'skills/tutorial.system',
+    variableKeys: [],
+  },
   [PROMPT_IDS.CHARACTER_IMAGE_TO_DESCRIPTION]: {
     pathStem: 'character-reference/character_image_to_description',
     variableKeys: [],

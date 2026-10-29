@@ -6,7 +6,7 @@ function source(relativePath: string) {
   return fs.readFileSync(path.join(process.cwd(), relativePath), 'utf8')
 }
 
-describe('NoriVideo service record surface', () => {
+describe('LanmiaoTV service record surface', () => {
   it('routes every service-record entry to the real usage page instead of a static modal', () => {
     const shell = source('src/components/frameos/FosShell.tsx')
     const modals = source('src/components/frameos/FosShellModals.tsx')

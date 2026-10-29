@@ -104,7 +104,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
           <Link href={{ pathname: '/projects' }} className="mb-5 flex items-center gap-3 border-b border-[var(--fos-border-lighter)] pb-4">
             <NoriBrandMark size={36} />
             <div className="min-w-0">
-              <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
+              <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">LanmiaoTV</div>
               <div className="text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>
             </div>
           </Link>
@@ -165,7 +165,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
               <Link href={{ pathname: '/projects' }} className="flex min-w-0 items-center gap-3">
                 <NoriBrandMark size={36} />
                 <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">NoriVideo</div>
+                  <div className="truncate text-[13px] font-semibold text-[var(--fos-text-title)]">LanmiaoTV</div>
                   <div className="truncate text-xs text-[var(--fos-text-tertiary)]">{t('sidebarSubtitle')}</div>
                 </div>
               </Link>

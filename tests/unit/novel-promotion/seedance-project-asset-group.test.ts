@@ -16,7 +16,7 @@ import {
   ensureSeedanceProjectAssetGroup,
   seedanceProjectAssetGroupName,
 } from '@/lib/novel-promotion/seedance-project-asset-group'
-import type { SeedanceAssetsClient } from '@/lib/volcengine/seedance-assets-client'
+import type { SeedanceAssetsApi } from '@/lib/volcengine/seedance-assets-contract'
 
 describe('project-scoped Seedance asset groups', () => {
   beforeEach(() => {
@@ -45,7 +45,7 @@ describe('project-scoped Seedance asset groups', () => {
     const client = {
       listAssetGroups: vi.fn(async () => ({})),
       createAssetGroup: vi.fn(async () => ({ Id: 'group-project-shared' })),
-    } as unknown as SeedanceAssetsClient
+    } as unknown as SeedanceAssetsApi
 
     const first = await ensureSeedanceProjectAssetGroup({
       projectId: state.id,
@@ -87,7 +87,7 @@ describe('project-scoped Seedance asset groups', () => {
     const client = {
       listAssetGroups: vi.fn(async () => ({ AssetGroups: [{ Id: 'group-existing', Name: expectedName }] })),
       createAssetGroup: vi.fn(),
-    } as unknown as SeedanceAssetsClient
+    } as unknown as SeedanceAssetsApi
 
     await expect(ensureSeedanceProjectAssetGroup({
       projectId: project.id,
@@ -120,7 +120,7 @@ describe('project-scoped Seedance asset groups', () => {
     const client = {
       listAssetGroups: vi.fn(async () => ({ Items: [] })),
       createAssetGroup: vi.fn(async () => ({ Id: '1800657071180349888' })),
-    } as unknown as SeedanceAssetsClient
+    } as unknown as SeedanceAssetsApi
     const result = await ensureSeedanceProjectAssetGroup({
       projectId: project.id, volcengineProjectName: '', ownershipScope: 'kuaizi:account-a', client,
     })

@@ -20,7 +20,7 @@ import { getModelsByType, resolveModelSelection } from '@/lib/api-config'
 describe('api-config default model selections', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    vi.stubEnv('ARK_API_KEY', 'test-ark-key')
+    vi.stubEnv('KUAIZI_API_KEY', 'test-kuaizi-key')
     prismaMock.userPreference.findUnique.mockResolvedValue({
       customModels: JSON.stringify([]),
       customProviders: JSON.stringify([
@@ -49,9 +49,9 @@ describe('api-config default model selections', () => {
       'ark::doubao-seedance-1-0-pro-fast-251015',
       'video',
     )).resolves.toEqual({
-      provider: 'ark',
+      provider: 'kuaizi',
       modelId: 'doubao-seedance-2-0-fast-260128',
-      modelKey: 'ark::doubao-seedance-2-0-fast-260128',
+      modelKey: 'kuaizi::doubao-seedance-2-0-fast-260128',
       mediaType: 'video',
     })
   })
@@ -60,9 +60,9 @@ describe('api-config default model selections', () => {
     const models = await getModelsByType('user-1', 'video')
 
     expect(models).toContainEqual(expect.objectContaining({
-      provider: 'ark',
+      provider: 'kuaizi',
       modelId: 'doubao-seedance-2-0-260128',
-      modelKey: 'ark::doubao-seedance-2-0-260128',
+      modelKey: 'kuaizi::doubao-seedance-2-0-260128',
       type: 'video',
     }))
   })

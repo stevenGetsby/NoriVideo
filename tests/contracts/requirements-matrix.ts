@@ -132,8 +132,7 @@ export const REQUIREMENTS_MATRIX: ReadonlyArray<RequirementCoverageEntry> = [
     risk: 'provider 协议漂移导致系统链路仅在真实调用时失败',
     priority: 'P0',
     tests: [
-      'tests/integration/provider/fal-provider.contract.test.ts',
-      'tests/integration/provider/openai-compat-provider.contract.test.ts',
+      'tests/unit/llm/chat-completion-openai-compatible-protocol.test.ts',
       'tests/unit/task/async-poll-external-id.test.ts',
     ],
   },
@@ -153,12 +152,13 @@ export const REQUIREMENTS_MATRIX: ReadonlyArray<RequirementCoverageEntry> = [
   },
   {
     id: 'REQ-API-CONFIG-TUTORIAL-PORTAL',
-    feature: 'API config tutorial modal layering',
-    userValue: '开通教程浮层只高亮当前教程，不污染其他 provider card',
-    risk: '弹层挂载在局部层叠上下文内，导致高亮重叠和误覆盖',
+    feature: 'API config assistant isolation',
+    userValue: '教程助手可用，已下线的模型模板助手不能写入 Provider 或模型',
+    risk: '旧助手接口重新暴露通用 Provider 配置入口',
     priority: 'P1',
     tests: [
-      'tests/unit/api-config/provider-card-tutorial-modal.test.ts',
+      'tests/integration/api/specific/user-assistant-chat-api-config.test.ts',
+      'tests/unit/assistant-platform/registry.test.ts',
     ],
   },
   {

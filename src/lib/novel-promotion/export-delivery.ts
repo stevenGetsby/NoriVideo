@@ -312,7 +312,7 @@ function buildJianyingDraftMeta(output: ExportDeliveryOutput) {
     packageType: 'jianying-draft',
     compatibility: {
       officialJianyingImport: false,
-      note: 'NoriVideo draft package with Jianying-oriented structure; official import mapping still requires a future adapter.',
+      note: 'LanmiaoTV draft package with Jianying-oriented structure; official import mapping still requires a future adapter.',
     },
     stats: output.stats,
     durationMs: content.durationMs,
@@ -349,7 +349,7 @@ export function buildJianyingDraftPackageEntries(output: ExportDeliveryOutput) {
     {
       name: 'README.md',
       buffer: Buffer.from([
-        '# NoriVideo editing draft package',
+        '# LanmiaoTV editing draft package',
         '',
         'This package preserves a Jianying-oriented draft structure for downstream adapter work.',
         'It is not yet guaranteed to be directly importable by official Jianying clients.',

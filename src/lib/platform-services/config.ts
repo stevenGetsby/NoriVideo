@@ -14,15 +14,14 @@ import {
 import { resetStorageProvider } from '@/lib/storage'
 import { composeModelKey, parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provider-contract'
+import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import {
   findNoriBusinessModel,
-  getNoriModelRouting,
   listNoriBusinessModels,
   type NoriBusinessModelKey,
   type NoriModelTier,
 } from '@/lib/nori-model-catalog'
 
-const MODEL_TYPES = new Set<UnifiedModelType>(['llm', 'image', 'video', 'audio', 'lipsync'])
 const DEFAULT_MODEL_TYPES: Record<keyof ServiceConfigDefaultModels, UnifiedModelType> = {
   analysisModel: 'llm',
   characterModel: 'image',
@@ -33,9 +32,10 @@ const DEFAULT_MODEL_TYPES: Record<keyof ServiceConfigDefaultModels, UnifiedModel
   audioModel: 'audio',
   lipSyncModel: 'lipsync',
 }
-const PROVIDER_ID_PATTERN = /^[a-z0-9][a-z0-9:_-]{0,127}$/
-const MAX_PROVIDERS = 50
-const MAX_MODELS = 300
+const PROVIDER_BASE_URLS = {
+  deepseek: 'https://api.deepseek.com/v1',
+  kuaizi: 'https://aiopenapi.kuaizi.cn',
+} as const
 
 type JsonRecord = Record<string, unknown>
 
@@ -69,12 +69,6 @@ export interface PlatformServiceConfigResponse {
   }>
   modelRouting: Record<NoriBusinessModelKey, string>
   storage: PlatformStorageConfig
-  videoRepaint: {
-    providerId: string
-    understandingModel: string
-    adaptationModel: string
-    fps: number
-  }
 }
 
 function isRecord(value: unknown): value is JsonRecord {
@@ -127,75 +121,60 @@ function resolveWritablePath(): string {
 
 function environmentProviderKey(providerId: string): string {
   const providerKey = getRawProviderKey(providerId).toLowerCase()
-  if (providerKey === 'ark') return string(process.env.ARK_API_KEY)
-  if (providerKey === 'hfsy') return string(process.env.HFSY_API_KEY)
-  if (providerKey === 'ghc') return string(process.env.GHC_API_KEY) || string(process.env.DEV_TEXT_LLM_API_KEY)
   if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
+  if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   return ''
+}
+
+export function fixedPlatformModels(): ServiceConfigModel[] {
+  return [
+    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-chat', llmProtocol: 'chat-completions' },
+    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-reasoner', llmProtocol: 'chat-completions' },
+    ...listKuaiziCatalogModels().filter((model) => model.modality !== 'llm').map((model): ServiceConfigModel => ({
+      modelId: model.modelId,
+      name: model.name,
+      type: model.modality,
+      provider: 'kuaizi',
+      modelKey: `kuaizi::${model.modelId}`,
+    })),
+  ]
 }
 
 function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
   const config = cloneConfig(raw)
+  const currentProviders = new Map((config.llm?.providers || []).map((provider) => [provider.id, provider]))
   config.llm ||= {}
-  config.llm.providers = Array.isArray(config.llm.providers) ? config.llm.providers : []
-  const hasArk = config.llm.providers.some((provider) => getRawProviderKey(provider.id).toLowerCase() === 'ark')
-  const arkApiKey = string(process.env.ARK_API_KEY)
-  if (!hasArk && arkApiKey) {
-    config.llm.providers.push({ id: 'ark', name: 'Volcengine Ark', apiKey: arkApiKey, gatewayRoute: 'official' })
-  }
-  for (const provider of config.llm.providers) {
-    const environmentKey = environmentProviderKey(provider.id)
-    if (!isUsableServiceSecret(provider.apiKey) && isUsableServiceSecret(environmentKey)) {
-      provider.apiKey = environmentKey
+  config.llm.providers = ['deepseek', 'kuaizi'].map((id) => {
+    const current = currentProviders.get(id)
+    return {
+      id,
+      name: id === 'deepseek' ? 'DeepSeek 官方' : 'Kuaizi API',
+      baseUrl: PROVIDER_BASE_URLS[id as keyof typeof PROVIDER_BASE_URLS],
+      ...(current?.assetGroupId && id === 'kuaizi' ? { assetGroupId: current.assetGroupId } : {}),
+      apiKey: [current?.apiKey, environmentProviderKey(id)].map(string).find(isUsableServiceSecret) || '',
     }
+  })
+  config.llm.models = fixedPlatformModels()
+  const modelByKey = new Map(config.llm.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  config.llm.modelRouting = Object.fromEntries(listNoriBusinessModels().map((businessModel) => {
+    const currentRouting = config.llm!.modelRouting || {}
+    const hasConfigured = Object.hasOwn(currentRouting, businessModel.key)
+    const configured = hasConfigured ? string(currentRouting[businessModel.key]) : ''
+    const suggested = string(businessModel.suggestedRoute)
+    // An explicit empty route is an administrator decision to disable this
+    // capability. Never replace it with the suggested route.
+    if (hasConfigured && !configured) return [businessModel.key, '']
+    const candidate = configured || suggested
+    const routed = Boolean(suggested) && modelByKey.get(candidate)?.type === businessModel.type
+    return [businessModel.key, routed ? candidate : suggested]
+  }))
+  const defaultModels = { ...(config.llm.defaultModels || {}) }
+  for (const [field, expectedType] of Object.entries(DEFAULT_MODEL_TYPES) as Array<[keyof ServiceConfigDefaultModels, UnifiedModelType]>) {
+    const current = parseModelKeyStrict(defaultModels[field])
+    if (current && modelByKey.has(current.modelKey) && config.llm.models.some((model) => composeModelKey(model.provider, model.modelId) === current.modelKey && model.type === expectedType)) continue
+    delete defaultModels[field]
   }
-
-  const understandingModel = string(config.videoRepaint?.understandingModel)
-    || string(process.env.ARK_VIDEO_UNDERSTANDING_MODEL)
-    || 'doubao-seed-2-1-pro-260628'
-  const adaptationModel = string(config.videoRepaint?.adaptationModel)
-    || string(process.env.ARK_VIDEO_ADAPTATION_MODEL)
-    || understandingModel
-  const envFps = Number.parseFloat(string(process.env.ARK_VIDEO_UNDERSTANDING_FPS))
-  config.videoRepaint = {
-    providerId: string(config.videoRepaint?.providerId) || 'ark',
-    understandingModel,
-    adaptationModel,
-    fps: typeof config.videoRepaint?.fps === 'number' && Number.isFinite(config.videoRepaint.fps)
-      ? config.videoRepaint.fps
-      : (Number.isFinite(envFps) ? envFps : 0.5),
-  }
-
-  config.llm.models = Array.isArray(config.llm.models) ? config.llm.models : []
-  const understandingKey = composeModelKey(config.videoRepaint.providerId || 'ark', understandingModel)
-  if (understandingKey && !config.llm.models.some((model) => composeModelKey(model.provider, model.modelId) === understandingKey)) {
-    config.llm.models.push({
-      modelId: understandingModel,
-      modelKey: understandingKey,
-      name: 'Doubao Seed 2.1 Pro',
-      type: 'llm',
-      provider: config.videoRepaint.providerId || 'ark',
-    })
-  }
-
-  const providerIds = new Set(config.llm.providers.map((provider) => provider.id))
-  for (const businessModel of listNoriBusinessModels()) {
-    const configuredRoute = string(config.llm.modelRouting?.[businessModel.key]) || businessModel.suggestedRoute
-    const parsed = parseModelKeyStrict(configuredRoute)
-    if (!parsed || !providerIds.has(parsed.provider)) continue
-    if (config.llm.models.some((model) => composeModelKey(model.provider, model.modelId) === parsed.modelKey)) continue
-    const providerKey = getRawProviderKey(parsed.provider).toLowerCase()
-    config.llm.models.push({
-      modelId: parsed.modelId,
-      modelKey: parsed.modelKey,
-      name: parsed.modelId,
-      type: businessModel.type,
-      provider: parsed.provider,
-      ...(businessModel.type === 'llm' && ['ghc', 'hfsy', 'deepseek'].includes(providerKey)
-        ? { llmProtocol: providerKey === 'ghc' ? 'responses' as const : 'chat-completions' as const }
-        : {}),
-    })
-  }
+  config.llm.defaultModels = defaultModels
   return config
 }
 
@@ -203,143 +182,33 @@ export function readMaterializedPlatformServiceConfig(): ServiceConfig {
   return materializeEnvironmentConfig(readServiceConfig())
 }
 
-function normalizeProvider(
-  raw: unknown,
-  index: number,
-  currentById: Map<string, ServiceConfigProvider>,
-): ServiceConfigProvider {
+function normalizeProvider(raw: unknown, index: number, currentById: Map<string, ServiceConfigProvider>): ServiceConfigProvider {
   if (!isRecord(raw)) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}]`)
   const id = requiredString(raw.id, `providers[${index}].id`, 128).toLowerCase()
-  if (!PROVIDER_ID_PATTERN.test(id) || !isSupportedModelProvider(id)) {
+  if (!['deepseek', 'kuaizi'].includes(id) || !isSupportedModelProvider(id)) {
     throw new Error(`SERVICE_CONFIG_INVALID: unsupported provider ${id}`)
   }
-  const name = requiredString(raw.name, `providers[${index}].name`, 128)
   const existing = currentById.get(id)
-  const apiKey = [raw.apiKey, existing?.apiKey, environmentProviderKey(id)]
-    .map(string)
-    .find(isUsableServiceSecret) || ''
-
-  const providerKey = getRawProviderKey(id).toLowerCase()
-  const baseUrl = optionalUrl(raw.baseUrl, `providers[${index}].baseUrl`)
-    || string(existing?.baseUrl)
-    || (providerKey === 'kuaizi' ? 'https://aiopenapi.kuaizi.cn' : '')
-    || undefined
-  if (providerKey !== 'ark' && !baseUrl && providerKey !== 'lumina') {
-    throw new Error(`SERVICE_CONFIG_INVALID: provider ${id} is missing base URL`)
-  }
-
-  const rawGatewayRoute = string(raw.gatewayRoute)
-  const gatewayRoute = rawGatewayRoute === 'official' || rawGatewayRoute === 'openai-compat'
-    ? rawGatewayRoute
-    : existing?.gatewayRoute
-  const rawApiMode = string(raw.apiMode)
-  const apiMode = rawApiMode === 'gemini-sdk' || rawApiMode === 'openai-official'
-    ? rawApiMode
-    : existing?.apiMode
+  const apiKey = [raw.apiKey, existing?.apiKey, environmentProviderKey(id)].map(string).find(isUsableServiceSecret) || ''
+  const suppliedBaseUrl = optionalUrl(raw.baseUrl, `providers[${index}].baseUrl`)
+  const baseUrl = PROVIDER_BASE_URLS[id as keyof typeof PROVIDER_BASE_URLS]
+  if (suppliedBaseUrl && suppliedBaseUrl !== baseUrl) throw new Error(`SERVICE_CONFIG_INVALID: ${id} must use the official base URL`)
   const assetGroupId = string(raw.assetGroupId) || string(existing?.assetGroupId)
-  if (assetGroupId.length > 191) {
-    throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].assetGroupId`)
-  }
-
+  if (assetGroupId.length > 191) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].assetGroupId`)
   return {
     id,
-    name,
-    ...(baseUrl ? { baseUrl } : {}),
+    name: id === 'deepseek' ? 'DeepSeek 官方' : 'Kuaizi API',
+    baseUrl,
     ...(apiKey ? { apiKey } : {}),
-    ...(providerKey === 'kuaizi' && assetGroupId ? { assetGroupId } : {}),
-    ...(apiMode ? { apiMode } : {}),
-    gatewayRoute: gatewayRoute || (providerKey === 'ark' ? 'official' : 'openai-compat'),
+    ...(id === 'kuaizi' && assetGroupId ? { assetGroupId } : {}),
   }
 }
 
-function normalizeModel(
-  raw: unknown,
-  index: number,
-  providerIds: Set<string>,
-  existingByKey: Map<string, ServiceConfigModel>,
-): ServiceConfigModel {
-  if (!isRecord(raw)) throw new Error(`SERVICE_CONFIG_INVALID: models[${index}]`)
-  const provider = requiredString(raw.provider, `models[${index}].provider`, 128).toLowerCase()
-  const modelId = requiredString(raw.modelId, `models[${index}].modelId`, 191)
-  if (!providerIds.has(provider)) throw new Error(`SERVICE_CONFIG_INVALID: model provider ${provider} is missing`)
-  if (!MODEL_TYPES.has(raw.type as UnifiedModelType)) {
-    throw new Error(`SERVICE_CONFIG_INVALID: models[${index}].type`)
-  }
-  const type = raw.type as UnifiedModelType
-  const modelKey = composeModelKey(provider, modelId)
-  if (!modelKey) throw new Error(`SERVICE_CONFIG_INVALID: models[${index}].modelKey`)
-  const existing = existingByKey.get(modelKey)
-  const protocolInput = string(raw.llmProtocol)
-  const llmProtocol = protocolInput === 'responses' || protocolInput === 'chat-completions'
-    ? protocolInput
-    : existing?.llmProtocol
-  const requiresProtocol = type === 'llm' && (
-    getRawProviderKey(provider).toLowerCase() === 'openai-compatible'
-    || ['ghc', 'hfsy', 'deepseek'].includes(getRawProviderKey(provider).toLowerCase())
-  )
 
-  return {
-    ...(existing || {}),
-    modelId,
-    modelKey,
-    name: string(raw.name) || existing?.name || modelId,
-    type,
-    provider,
-    ...(requiresProtocol ? { llmProtocol: llmProtocol || 'chat-completions' } : llmProtocol ? { llmProtocol } : {}),
-  }
-}
 
-function normalizeDefaults(raw: unknown, models: ServiceConfigModel[]): ServiceConfigDefaultModels {
-  const record = isRecord(raw) ? raw : {}
-  const byKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
-  const defaults: ServiceConfigDefaultModels = {}
-  for (const [field, expectedType] of Object.entries(DEFAULT_MODEL_TYPES) as Array<[keyof ServiceConfigDefaultModels, UnifiedModelType]>) {
-    const value = string(record[field])
-    if (!value) continue
-    const businessModel = findNoriBusinessModel(value)
-    if (businessModel) {
-      if (businessModel.type !== expectedType) {
-        throw new Error(`SERVICE_CONFIG_INVALID: defaultModels.${field}`)
-      }
-      defaults[field] = businessModel.key
-      continue
-    }
-    const parsed = parseModelKeyStrict(value)
-    const model = parsed ? byKey.get(parsed.modelKey) : null
-    if (!model || model.type !== expectedType) {
-      throw new Error(`SERVICE_CONFIG_INVALID: defaultModels.${field}`)
-    }
-    defaults[field] = parsed!.modelKey
-  }
-  return defaults
-}
 
-function normalizeModelRouting(
-  raw: unknown,
-  models: ServiceConfigModel[],
-): Partial<Record<NoriBusinessModelKey, string>> {
-  const record = isRecord(raw) ? raw : {}
-  const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
-  const routing: Partial<Record<NoriBusinessModelKey, string>> = {}
 
-  for (const businessModel of listNoriBusinessModels()) {
-    const value = string(record[businessModel.key])
-    if (!value) continue
-    const parsed = parseModelKeyStrict(value)
-    const targetModel = parsed ? modelByKey.get(parsed.modelKey) : null
-    if (!parsed || parsed.provider === 'nori' || !targetModel || targetModel.type !== businessModel.type) {
-      throw new Error(`SERVICE_CONFIG_INVALID: modelRouting.${businessModel.key}`)
-    }
-    routing[businessModel.key] = parsed.modelKey
-  }
 
-  for (const key of Object.keys(record)) {
-    if (!findNoriBusinessModel(key)) {
-      throw new Error(`SERVICE_CONFIG_INVALID: modelRouting.${key}`)
-    }
-  }
-  return routing
-}
 
 function normalizeStorage(raw: unknown, current: ServiceConfig): NonNullable<ServiceConfig['storage']> {
   if (!isRecord(raw)) throw new Error('SERVICE_CONFIG_INVALID: storage')
@@ -371,59 +240,59 @@ function normalizeStorage(raw: unknown, current: ServiceConfig): NonNullable<Ser
   }
 }
 
-function normalizeVideoRepaint(raw: unknown, current: ServiceConfig, providerIds: Set<string>) {
-  const record = isRecord(raw) ? raw : {}
-  const currentConfig = current.videoRepaint || {}
-  const providerId = string(record.providerId) || string(currentConfig.providerId) || 'ark'
-  if (!providerIds.has(providerId)) throw new Error('SERVICE_CONFIG_INVALID: videoRepaint.providerId')
-  const understandingModel = requiredString(
-    record.understandingModel || currentConfig.understandingModel || 'doubao-seed-2-1-pro-260628',
-    'videoRepaint.understandingModel',
-    191,
-  )
-  const adaptationModel = requiredString(
-    record.adaptationModel || currentConfig.adaptationModel || understandingModel,
-    'videoRepaint.adaptationModel',
-    191,
-  )
-  const fpsValue = typeof record.fps === 'number' ? record.fps : Number(record.fps ?? currentConfig.fps ?? 0.5)
-  if (!Number.isFinite(fpsValue) || fpsValue < 0.1 || fpsValue > 10) {
-    throw new Error('SERVICE_CONFIG_INVALID: videoRepaint.fps')
+
+
+
+function normalizeRoutingInput(
+  input: unknown,
+  current: Record<string, string>,
+  models: ServiceConfigModel[],
+): Record<string, string> {
+  if (!isRecord(input)) return current
+  const next = { ...current }
+  const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  for (const model of listNoriBusinessModels()) {
+    if (!Object.hasOwn(input, model.key)) continue
+    const value = string(input[model.key])
+    if (!value) {
+      // Persist the explicit disable instead of deleting the key, otherwise a
+      // missing route would be treated as "unconfigured" and resurrect the
+      // suggested route on the next read.
+      next[model.key] = ''
+      continue
+    }
+    if (string(model.suggestedRoute) && modelByKey.get(value)?.type === model.type) {
+      next[model.key] = value
+      continue
+    }
+    if (string(model.suggestedRoute)) next[model.key] = model.suggestedRoute
+    else delete next[model.key]
   }
-  return { providerId, understandingModel, adaptationModel, fps: fpsValue }
+  return next
 }
 
 export async function savePlatformServiceConfig(input: unknown): Promise<PlatformServiceConfigResponse> {
   if (!isRecord(input)) throw new Error('SERVICE_CONFIG_INVALID: payload')
   const current = readMaterializedPlatformServiceConfig()
   const rawProviders = Array.isArray(input.providers) ? input.providers : []
-  if (rawProviders.length === 0 || rawProviders.length > MAX_PROVIDERS) {
+  if (rawProviders.length !== 2) {
     throw new Error('SERVICE_CONFIG_INVALID: providers')
   }
   const currentById = new Map((current.llm?.providers || []).map((provider) => [provider.id.toLowerCase(), provider]))
   const providers = rawProviders.map((provider, index) => normalizeProvider(provider, index, currentById))
   const providerIds = new Set(providers.map((provider) => provider.id))
-  if (providerIds.size !== providers.length) throw new Error('SERVICE_CONFIG_INVALID: duplicate provider id')
+  if (providerIds.size !== providers.length || !providerIds.has('deepseek') || !providerIds.has('kuaizi')) throw new Error('SERVICE_CONFIG_INVALID: both DeepSeek and Kuaizi are required')
 
-  const rawModels = Array.isArray(input.models) ? input.models : []
-  if (rawModels.length === 0 || rawModels.length > MAX_MODELS) throw new Error('SERVICE_CONFIG_INVALID: models')
-  const existingByKey = new Map((current.llm?.models || []).map((model) => [composeModelKey(model.provider, model.modelId), model]))
-  const models = rawModels.map((model, index) => normalizeModel(model, index, providerIds, existingByKey))
-  const modelKeys = models.map((model) => composeModelKey(model.provider, model.modelId))
-  if (new Set(modelKeys).size !== modelKeys.length) throw new Error('SERVICE_CONFIG_INVALID: duplicate model key')
+  const models = fixedPlatformModels()
 
   const next: ServiceConfig = {
     storage: normalizeStorage(input.storage, current),
-    ...(current.seedanceAssets ? { seedanceAssets: current.seedanceAssets } : {}),
     llm: {
       providers,
       models,
-      defaultModels: normalizeDefaults(input.defaultModels, models),
-      modelRouting: normalizeModelRouting(input.modelRouting, models),
+      defaultModels: isRecord(input.defaultModels) ? input.defaultModels : current.llm?.defaultModels || {},
+      modelRouting: normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models),
     },
-    ...(current.image ? { image: current.image } : {}),
-    ...(current.model3d ? { model3d: current.model3d } : {}),
-    videoRepaint: normalizeVideoRepaint(input.videoRepaint, current, providerIds),
   }
 
   const targetPath = resolveWritablePath()
@@ -450,9 +319,8 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
   const providers = config.llm?.providers || []
   const models = config.llm?.models || []
   const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
-  const effectiveRouting = getNoriModelRouting()
   const modelRouting = Object.fromEntries(listNoriBusinessModels().map((businessModel) => {
-    const targetKey = effectiveRouting[businessModel.key]
+    const targetKey = string(config.llm?.modelRouting?.[businessModel.key])
     const targetModel = modelByKey.get(targetKey)
     return [businessModel.key, targetModel?.type === businessModel.type ? targetKey : '']
   })) as Record<NoriBusinessModelKey, string>
@@ -464,8 +332,6 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
       name: provider.name,
       ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
       ...(provider.assetGroupId ? { assetGroupId: provider.assetGroupId } : {}),
-      ...(provider.apiMode ? { apiMode: provider.apiMode } : {}),
-      ...(provider.gatewayRoute ? { gatewayRoute: provider.gatewayRoute } : {}),
       hasApiKey: isUsableServiceSecret(provider.apiKey) || isUsableServiceSecret(environmentProviderKey(provider.id)),
     })),
     models,
@@ -488,13 +354,6 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
       hasAccessKey: isUsableServiceSecret(tos.accessKey) || isUsableServiceSecret(process.env.TOS_ACCESS_KEY),
       hasSecretKey: isUsableServiceSecret(tos.secretKey) || isUsableServiceSecret(process.env.TOS_SECRET_KEY),
     },
-    videoRepaint: {
-      providerId: string(config.videoRepaint?.providerId) || 'ark',
-      understandingModel: string(config.videoRepaint?.understandingModel) || 'doubao-seed-2-1-pro-260628',
-      adaptationModel: string(config.videoRepaint?.adaptationModel)
-        || string(config.videoRepaint?.understandingModel)
-        || 'doubao-seed-2-1-pro-260628',
-      fps: typeof config.videoRepaint?.fps === 'number' ? config.videoRepaint.fps : 0.5,
-    },
+
   }
 }

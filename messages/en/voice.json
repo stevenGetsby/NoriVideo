@@ -202,6 +202,7 @@
     "voiceCreate": {
         "aiDesignMode": "AI Design Voice",
         "uploadMode": "Upload Audio",
+        "aiDesignRetired": "AI voice design is retired; only reference audio upload is available. Existing Kuaizi MiniMax voice IDs can still be selected in the canvas generator's voice list.",
         "dropOrClick": "Drop file or click to select",
         "supportedFormats": "Supports MP3, WAV, OGG, M4A, AAC formats",
         "invalidFileType": "Unsupported file format. Please upload an audio file",

@@ -47,7 +47,7 @@ describe('public creator login homepage contracts', () => {
   it('keeps self-registration closed and help keyboard accessible', () => {
     const signup = source('src/app/[locale]/auth/signup/page.tsx')
     expect(signup).not.toContain('<form')
-    expect(signup).toContain('NoriVideo 不开放自行注册')
+    expect(signup).toContain('LanmiaoTV 不开放自行注册')
     const guide = source('src/components/frameos/auth/AuthHelpButton.tsx')
     expect(guide).toContain('element.showModal()')
     expect(guide).toContain('onCancel=')
@@ -66,7 +66,7 @@ describe('public creator login homepage contracts', () => {
     expect(css).toContain('--auth-panel: var(--fos-bg-2)')
     expect(css).toContain('--auth-accent: var(--fos-primary)')
     expect(css).not.toMatch(/#(?:0c0f0e|131715|e4e8ce|e2e7c8|191e1a|171e16)/i)
-    expect(source('src/styles/frameos-replica.css')).toContain('.fos-app, .fos-viewport-theme, .nori-auth {')
+    expect(source('src/styles/frameos-replica.css')).toMatch(/\.fos-app,\s+\.fos-viewport-theme,\s+\.nori-auth,\s+\.nori-admin,\s+\.nori-admin-login\s*\{/)
     expect(source('src/components/frameos/FosAuthShell.tsx')).toContain('<NoriBrandMark')
   })
 })

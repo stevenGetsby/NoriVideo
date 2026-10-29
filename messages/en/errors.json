@@ -9,6 +9,7 @@
     "MODEL_NOT_REGISTERED": "Model is not registered. Add an available model in configuration first",
     "MODEL_NOT_CONFIGURED": "No model configured. Please go to Settings and add the required model type before generating.",
     "QUOTA_EXCEEDED": "Quota exceeded. Please try again later",
+    "VOICE_DESIGN_RETIRED": "AI voice design is retired. Upload reference audio or bind a Kuaizi voice ID instead",
     "GENERATION_FAILED": "Generation failed. Please retry",
     "GENERATION_TIMEOUT": "Generation timed out. Please retry",
     "SENSITIVE_CONTENT": "Content may contain sensitive material",

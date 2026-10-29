@@ -124,7 +124,7 @@ export function canvasVideoEditorMode(value: unknown): CanvasVideoEditorMode {
 }
 
 /**
- * FrameOS currently creates 720 panorama nodes at 21:9. Older NoriVideo
+ * FrameOS currently creates 720 panorama nodes at 21:9. Older LanmiaoTV
  * documents used 2:1, so opening one in the editor upgrades its next submit
  * without making the saved node unreadable.
  */

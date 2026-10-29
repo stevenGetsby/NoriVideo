@@ -3,7 +3,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  getServiceVideoRepaintConfig,
+  getServiceLlmConfig,
   readServiceConfig,
   resetServiceConfigCache,
   resolveServiceConfigPath,
@@ -84,35 +84,32 @@ describe('service config', () => {
     expect(config.llm?.modelRouting?.['nori::nori-deepseek']).toBe('openai-compatible:deepseek::deepseek-chat')
   })
 
-  it('normalizes legacy GHC model keys to provider model keys', () => {
+  it('keeps legacy provider IDs for isolation without reviving their model aliases', () => {
     expect(extractModelKey('dev_ghc_api::gpt-5.5')).toBe('ghc::gpt-5.5')
     expect(extractModelKey('dev_text_llm::gpt-5.5')).toBe('ghc::gpt-5.5')
-    expect(normalizeProviderModelId('hfsy', 'gpt5.5')).toBe('gpt-5.5')
-    expect(normalizeProviderModelId('ghc', 'gpt5.5')).toBe('gpt-5.5')
+    expect(normalizeProviderModelId('hfsy', 'gpt5.5')).toBe('gpt5.5')
+    expect(normalizeProviderModelId('ghc', 'gpt5.5')).toBe('gpt5.5')
   })
 
-  it('reloads a changed service file and exposes video repaint settings', () => {
+  it('reloads changed routes and filters retired providers', () => {
     const filePath = writeTempConfig('services.json', JSON.stringify({
-      videoRepaint: {
-        providerId: 'ark',
-        understandingModel: 'model-a',
-        adaptationModel: 'model-b',
-        fps: 0.5,
+      llm: {
+        providers: [{ id: 'deepseek', name: 'DeepSeek' }, { id: 'ark', name: 'Ark' }],
+        models: [{ modelId: 'deepseek-chat', type: 'llm', provider: 'deepseek' }],
+        modelRouting: { 'nori::nori-deepseek': 'deepseek::deepseek-chat' },
       },
     }))
     vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    expect(getServiceVideoRepaintConfig()?.understandingModel).toBe('model-a')
+    expect(getServiceLlmConfig()?.providers?.map((provider) => provider.id)).toEqual(['deepseek'])
 
     fs.writeFileSync(filePath, JSON.stringify({
-      videoRepaint: {
-        providerId: 'ark',
-        understandingModel: 'model-c',
-        adaptationModel: 'model-d',
-        fps: 1,
+      llm: {
+        providers: [{ id: 'deepseek', name: 'DeepSeek' }, { id: 'ark', name: 'Ark' }],
+        models: [{ modelId: 'deepseek-reasoner', type: 'llm', provider: 'deepseek' }],
+        modelRouting: { 'nori::nori-deepseek': 'deepseek::deepseek-reasoner' },
       },
     }))
 
-    expect(readServiceConfig().videoRepaint?.understandingModel).toBe('model-c')
-    expect(getServiceVideoRepaintConfig()?.fps).toBe(1)
+    expect(getServiceLlmConfig()?.modelRouting?.['nori::nori-deepseek']).toBe('deepseek::deepseek-reasoner')
   })
 })

@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import type { VoiceCreationRuntime } from './hooks/useVoiceCreation'
 import { AppIcon } from '@/components/ui/icons'
-import { SegmentedControl } from '@/components/ui/SegmentedControl'
 
 interface VoiceCreationFormProps {
   runtime: VoiceCreationRuntime
@@ -10,13 +9,11 @@ interface VoiceCreationFormProps {
 
 export default function VoiceCreationForm({ runtime, children }: VoiceCreationFormProps) {
   const {
-    mode,
     voiceName,
     tHub,
     tvCreate,
     setVoiceName,
     handleClose,
-    handleModeChange,
   } = runtime
 
   return (
@@ -34,16 +31,9 @@ export default function VoiceCreationForm({ runtime, children }: VoiceCreationFo
         </button>
       </div>
 
-      <div className="flex border-b border-[var(--glass-stroke-base)]">
-        <div className="flex-1 px-5 py-2.5">
-          <SegmentedControl
-            options={[
-              { value: 'design' as const, label: tvCreate('aiDesignMode') },
-              { value: 'upload' as const, label: tvCreate('uploadMode') },
-            ]}
-            value={mode}
-            onChange={(val) => handleModeChange(val as 'design' | 'upload')}
-          />
+      <div className="px-5 pt-4">
+        <div className="rounded-lg border border-[var(--glass-tone-warning-fg)]/25 bg-[var(--glass-tone-warning-bg)] px-3 py-2 text-xs leading-5 text-[var(--glass-tone-warning-fg)]">
+          {tvCreate('aiDesignRetired')}
         </div>
       </div>
 

@@ -67,6 +67,18 @@ export const POST = apiHandler(async (request: NextRequest) => {
         }
     }
 
+    const normalizedVoiceId = typeof voiceId === 'string' ? voiceId.trim() : ''
+    const normalizedVoiceType = typeof voiceType === 'string' ? voiceType.trim() : ''
+    if (normalizedVoiceId && normalizedVoiceType !== 'kuaizi') {
+        throw new ApiError('INVALID_PARAMS', { message: '请明确绑定 Kuaizi 音色 ID，或上传参考音频。' })
+    }
+    if (!normalizedVoiceId && !customVoiceUrl) {
+        throw new ApiError('INVALID_PARAMS', { message: '请上传参考音频或填写 Kuaizi 音色 ID。' })
+    }
+    if (voicePrompt) {
+        throw new ApiError('VOICE_DESIGN_RETIRED')
+    }
+
     const customVoiceMedia = await resolveMediaRefFromLegacyValue(customVoiceUrl || null)
     const voice = await prisma.globalVoice.create({
         data: {
@@ -74,8 +86,8 @@ export const POST = apiHandler(async (request: NextRequest) => {
             folderId: folderId || null,
             name: name.trim(),
             description: description?.trim() || null,
-            voiceId: voiceId || null,
-            voiceType: voiceType || 'qwen-designed',
+            voiceId: normalizedVoiceId || null,
+            voiceType: normalizedVoiceId ? 'kuaizi' : 'uploaded',
             customVoiceUrl: customVoiceUrl || null,
             customVoiceMediaId: customVoiceMedia?.id || null,
             voicePrompt: voicePrompt?.trim() || null,

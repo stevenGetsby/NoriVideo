@@ -26,7 +26,7 @@ export type CharacterVoiceMappingTarget = {
 
 export type CharacterVoiceUpdateData = {
   voiceId: string | null
-  voiceType: 'qwen-designed' | 'uploaded' | null
+  voiceType: 'uploaded' | null
   customVoiceUrl: string | null
   customVoiceMediaId: string | null
 }
@@ -57,13 +57,9 @@ export type VoiceMappingSpeakerVoiceSkipped = {
 
 export type VoiceMappingSpeakerVoicePlan = {
   speakerVoices: Record<string, {
-    provider: 'fal'
+    provider: 'kuaizi'
     voiceType: string
     audioUrl: string
-  } | {
-    provider: 'bailian'
-    voiceType: string
-    voiceId: string
   }>
   skipped: VoiceMappingSpeakerVoiceSkipped[]
 }
@@ -202,22 +198,10 @@ export function buildCharacterVoiceMappingUpdates(params: {
       continue
     }
 
-    const candidate = selectVoiceMappingCandidate(entry)
-    const voiceId = readText(candidate?.voice_id)
-    if (!voiceId) {
-      skipped.push({ character: character || target.name, characterId, reason: 'missing_voice_id' })
-      continue
-    }
-    updates.push({
-      characterId: target.id,
-      characterName: target.name,
-      source,
-      data: {
-        voiceId,
-        voiceType: 'qwen-designed',
-        customVoiceUrl: null,
-        customVoiceMediaId: null,
-      },
+    skipped.push({
+      character: character || target.name,
+      characterId,
+      reason: 'missing_voice_id',
     })
   }
 
@@ -258,24 +242,14 @@ export function buildSpeakerVoiceMapFromVoiceMapping(params: {
         continue
       }
       speakerVoices[speaker] = {
-        provider: 'fal',
+        provider: 'kuaizi',
         voiceType: 'uploaded',
         audioUrl: voiceRawFile,
       }
       continue
     }
 
-    const candidate = selectVoiceMappingCandidate(entry)
-    const voiceId = readText(candidate?.voice_id)
-    if (!voiceId) {
-      skipped.push({ speaker, characterId, reason: 'missing_voice_id' })
-      continue
-    }
-    speakerVoices[speaker] = {
-      provider: 'bailian',
-      voiceType: 'qwen-designed',
-      voiceId,
-    }
+    skipped.push({ speaker, characterId, reason: 'missing_voice_id' })
   }
 
   return { speakerVoices, skipped }

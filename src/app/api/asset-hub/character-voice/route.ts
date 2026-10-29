@@ -5,14 +5,8 @@ import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 
-interface VoiceDesignPayload {
-    voiceId?: string
-    audioBase64?: string
-}
-
 interface CharacterVoiceJsonBody {
     characterId?: string
-    voiceDesign?: VoiceDesignPayload
     voiceType?: string | null
     voiceId?: string | null
     customVoiceUrl?: string | null
@@ -40,45 +34,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
     // 处理 JSON 请求（AI 声音设计）
     if (contentType.includes('application/json')) {
-        const body = (await request.json()) as CharacterVoiceJsonBody
-        const { characterId, voiceDesign } = body
-
-        if (!characterId || !voiceDesign) {
-            throw new ApiError('INVALID_PARAMS')
-        }
-
-        const { voiceId, audioBase64 } = voiceDesign
-        if (!voiceId || !audioBase64) {
-            throw new ApiError('INVALID_PARAMS')
-        }
-
-        // 验证角色属于用户
-        const character = await db.globalCharacter.findFirst({
-            where: { id: characterId, userId: session.user.id }
-        })
-        if (!character) {
-            throw new ApiError('NOT_FOUND')
-        }
-
-        const audioBuffer = Buffer.from(audioBase64, 'base64')
-        const key = generateUniqueKey(`global-voice/${session.user.id}/${characterId}`, 'wav')
-        const cosUrl = await uploadObject(audioBuffer, key)
-
-        await db.globalCharacter.update({
-            where: { id: characterId },
-            data: {
-                voiceType: 'qwen-designed',
-                voiceId: voiceId,
-                customVoiceUrl: cosUrl
-            }
-        })
-
-        const signedAudioUrl = getSignedUrl(cosUrl, 7200)
-
-        return NextResponse.json({
-            success: true,
-            audioUrl: signedAudioUrl
-        })
+    throw new ApiError('VOICE_DESIGN_RETIRED', { message: 'AI 声音设计已停用，请上传参考音频或绑定 Kuaizi 音色 ID。' })
     }
 
     // 处理 FormData 请求（文件上传）
@@ -156,12 +112,21 @@ export const PATCH = apiHandler(async (request: NextRequest) => {
         throw new ApiError('NOT_FOUND')
     }
 
+    if (voiceType && !['kuaizi', 'uploaded'].includes(voiceType)) {
+        throw new ApiError('INVALID_PARAMS')
+    }
+    if (voiceType === 'kuaizi' && !voiceId) {
+        throw new ApiError('INVALID_PARAMS')
+    }
+    const customVoiceMedia = customVoiceUrl ? await resolveMediaRefFromLegacyValue(customVoiceUrl) : null
+
     await db.globalCharacter.update({
         where: { id: characterId },
         data: {
             voiceType: voiceType || null,
             voiceId: voiceId || null,
-            customVoiceUrl: customVoiceUrl || null
+            customVoiceUrl: customVoiceUrl || null,
+            customVoiceMediaId: customVoiceMedia?.id || null,
         }
     })
 

@@ -143,7 +143,7 @@ export async function buildLanmiaoAssets(source, root = process.cwd()) {
   const ico = Buffer.concat([header, ...frames])
   // Standalone embedded PNG is deliberate: external href resources in SVG
   // favicons can be blocked by browsers' image-document security policy.
-  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><title>蓝喵</title><image width="128" height="128" href="data:image/png;base64,${icon.toString('base64')}"/></svg>`)
+  const svg = Buffer.from(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128"><title>LanmiaoTV</title><image width="128" height="128" href="data:image/png;base64,${icon.toString('base64')}"/></svg>`)
   const aliases = new Map([
     ['logo.png', logo], ['logo 2.png', logo], ['logo-small.png', small], ['logo-small 2.png', small],
     ['icon.png', icon], ['icon 2.png', icon], ['icon.svg', svg],

@@ -55,8 +55,9 @@ function job(attemptsMade = 0): Job<TaskJobData> {
         ownerName: '资产师甲',
         title: '雨夜氛围',
         prompt: 'dark rainy ambience',
-        audioModel: 'nori::nori-music',
-        mode: 'music',
+        audioModel: 'nori::nori-audio',
+        mode: 'tts',
+        voice: 'kuaizi-voice:voice-1',
         duration: 12,
         genre: '电影配乐',
         canvasId: 'canvas-1',
@@ -77,9 +78,17 @@ describe('toolbox audio worker', () => {
     })
     providerMock.generateProviderAudio.mockResolvedValue({
       kind: 'async',
-      externalId: 'FAL:AUDIO:fal-ai/stable-audio-25/text-to-audio:req-1',
+      externalId: 'KUAIZI:AUDIO:kuaizi:speech-2.8-hd:req-1',
       requestId: 'req-1',
     })
+  })
+
+  it('rejects retired music tasks before submitting to a provider', async () => {
+    const input = job()
+    input.data.payload = { ...input.data.payload, audioModel: 'nori::nori-music', mode: 'music' }
+
+    await expect(handleToolboxAudioTask(input)).rejects.toThrow('没有声明可执行的生成模式')
+    expect(providerMock.generateProviderAudio).not.toHaveBeenCalled()
   })
 
   it('polls, persists, registers and projects a real async audio result', async () => {
@@ -87,7 +96,7 @@ describe('toolbox audio worker', () => {
     expect(providerMock.generateProviderAudio).toHaveBeenCalledOnce()
     expect(workerUtilsMock.waitExternalResult).toHaveBeenCalledWith(
       expect.anything(),
-      'FAL:AUDIO:fal-ai/stable-audio-25/text-to-audio:req-1',
+      'KUAIZI:AUDIO:kuaizi:speech-2.8-hd:req-1',
       'user-1',
       { progressStart: 20, progressEnd: 86 },
     )
@@ -95,7 +104,7 @@ describe('toolbox audio worker', () => {
       ownerName: '资产师甲',
       type: 'audio',
       storageKey: 'audio/result.mp3',
-      metadata: expect.objectContaining({ mode: 'music', durationSeconds: 12 }),
+      metadata: expect.objectContaining({ mode: 'tts' }),
     }))
     expect(bindingMock.projectCanvasToolboxTaskTerminal).toHaveBeenLastCalledWith(expect.objectContaining({
       status: 'ready',
@@ -105,12 +114,12 @@ describe('toolbox audio worker', () => {
   })
 
   it('resumes an accepted provider request without submitting a duplicate', async () => {
-    workerUtilsMock.getTaskExistingExternalId.mockResolvedValueOnce('FAL:AUDIO:fal-ai/stable-audio-25/text-to-audio:req-existing')
+    workerUtilsMock.getTaskExistingExternalId.mockResolvedValueOnce('KUAIZI:AUDIO:kuaizi:speech-2.8-hd:req-existing')
     await handleToolboxAudioTask(job())
     expect(providerMock.generateProviderAudio).not.toHaveBeenCalled()
     expect(workerUtilsMock.waitExternalResult).toHaveBeenCalledWith(
       expect.anything(),
-      'FAL:AUDIO:fal-ai/stable-audio-25/text-to-audio:req-existing',
+      'KUAIZI:AUDIO:kuaizi:speech-2.8-hd:req-existing',
       'user-1',
       expect.anything(),
     )

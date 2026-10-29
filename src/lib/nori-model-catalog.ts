@@ -1,5 +1,6 @@
 import { parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { getServiceLlmConfig } from '@/lib/service-config'
+import { getRawProviderKey } from '@/lib/model-provider-contract'
 
 export const NORI_PROVIDER_ID = 'nori'
 
@@ -21,7 +22,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '标准文本模型',
     type: 'llm',
     tier: 'standard',
-    suggestedRoute: 'hfsy::gpt-5.5',
+    suggestedRoute: 'deepseek::deepseek-chat',
   },
   {
     key: 'nori::nori-gpt-max',
@@ -30,7 +31,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '高质量文本模型',
     type: 'llm',
     tier: 'pro',
-    suggestedRoute: 'hfsy::gpt-5.6-terra',
+    suggestedRoute: 'deepseek::deepseek-reasoner',
   },
   {
     key: 'nori::nori-gemini',
@@ -39,7 +40,7 @@ export const NORI_BUSINESS_MODELS = [
     description: 'Gemini 文本模型',
     type: 'llm',
     tier: 'pro',
-    suggestedRoute: 'ark::doubao-seed-2-1-pro-260628',
+    suggestedRoute: 'deepseek::deepseek-reasoner',
   },
   {
     key: 'nori::nori-deepseek',
@@ -57,7 +58,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '低成本草图与批量试验',
     type: 'image',
     tier: 'mini',
-    suggestedRoute: 'google::gemini-2.5-flash-image',
+    suggestedRoute: 'kuaizi::seedream5.0lite',
   },
   {
     key: 'nori::nori-image-fast',
@@ -66,7 +67,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '快速预览与提示词调试',
     type: 'image',
     tier: 'fast',
-    suggestedRoute: 'google::imagen-4.0-fast-generate-001',
+    suggestedRoute: 'kuaizi::kz_gpt_image2',
   },
   {
     key: 'nori::nori-image',
@@ -75,7 +76,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '标准图片模型',
     type: 'image',
     tier: 'standard',
-    suggestedRoute: 'hfsy::gpt-image-2',
+    suggestedRoute: 'kuaizi::seedream5.0lite',
   },
   {
     key: 'nori::nori-image-pro',
@@ -84,7 +85,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '高质量图片模型',
     type: 'image',
     tier: 'pro',
-    suggestedRoute: 'hfsy::gpt-image-2pro',
+    suggestedRoute: 'kuaizi::seedream5.0pro',
   },
   {
     key: 'nori::seedance2.0-mini',
@@ -93,7 +94,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '低成本预演，适合快速验证镜头',
     type: 'video',
     tier: 'mini',
-    suggestedRoute: 'ark::doubao-seedance-1-0-lite-i2v-250428',
+    suggestedRoute: 'kuaizi::doubao-seedance-2-0-mini-260615',
   },
   {
     key: 'nori::seedance2.0-fast',
@@ -102,7 +103,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '快速生成，适合镜头迭代',
     type: 'video',
     tier: 'fast',
-    suggestedRoute: 'ark::doubao-seedance-2-0-fast-260128',
+    suggestedRoute: 'kuaizi::doubao-seedance-2-0-fast-260128',
   },
   {
     key: 'nori::seedance2.0',
@@ -111,12 +112,12 @@ export const NORI_BUSINESS_MODELS = [
     description: '正式成片与高质量交付',
     type: 'video',
     tier: 'pro',
-    suggestedRoute: 'ark::doubao-seedance-2-0-260128',
+    suggestedRoute: 'kuaizi::doubao-seedance-2-0-260128',
   },
   {
     key: 'nori::norivideo2.5',
     modelId: 'norivideo2.5',
-    name: 'norivideo2.5',
+    name: 'LanmiaoTV 2.5',
     description: 'Seedance 2.5 高质量视频（最长 30 秒，多模态参考）',
     type: 'video',
     tier: 'pro',
@@ -129,7 +130,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '语音合成模型',
     type: 'audio',
     tier: 'standard',
-    suggestedRoute: 'bailian::qwen3-tts-vd-2026-01-26',
+    suggestedRoute: 'kuaizi::speech-2.8-hd',
   },
   {
     key: 'nori::nori-music',
@@ -138,7 +139,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '音乐生成模型',
     type: 'audio',
     tier: 'standard',
-    suggestedRoute: 'fal::fal-ai/stable-audio-25/text-to-audio',
+    suggestedRoute: '',
   },
   {
     key: 'nori::nori-sfx',
@@ -147,7 +148,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '音效生成模型',
     type: 'audio',
     tier: 'standard',
-    suggestedRoute: 'fal::fal-ai/elevenlabs/sound-effects/v2',
+    suggestedRoute: '',
   },
 ] as const satisfies ReadonlyArray<{
   key: string
@@ -199,10 +200,13 @@ export function listNoriBusinessModels(type?: NoriBusinessModelType): NoriBusine
 export function resolveNoriModelRoute(modelKey: string | null | undefined): string | null {
   const businessModel = findNoriBusinessModel(modelKey)
   if (!businessModel) return null
-  const configured = compact(getServiceLlmConfig()?.modelRouting?.[businessModel.key])
-  const target = configured || businessModel.suggestedRoute
+  const routing = getServiceLlmConfig()?.modelRouting
+  const configured = routing && Object.hasOwn(routing, businessModel.key) ? routing[businessModel.key] : businessModel.suggestedRoute
+  const target = compact(configured)
   const parsed = parseModelKeyStrict(target)
+  const provider = getRawProviderKey(parsed?.provider).toLowerCase()
   if (!parsed || parsed.provider === NORI_PROVIDER_ID) return null
+  if (businessModel.type === 'llm' ? provider !== 'deepseek' : provider !== 'kuaizi') return null
   return parsed.modelKey
 }
 

@@ -20,10 +20,8 @@ import { extractStorageKey, getSignedObjectUrl } from '@/lib/storage'
 import { ensureStorageObjectAvailable } from '@/lib/storage/ensure-object'
 import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
-import { getProviderConfig } from '@/lib/api-config'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
-import { HFSY_PROVIDER_ID, HFSY_VIDEO_MODEL_ID } from '@/lib/hfsy-fixed-models'
 import { handleCanvasVideoOperationTask } from './handlers/canvas-operation-task-handler'
 import {
   buildPanelSeedanceReferenceAssets,
@@ -37,18 +35,10 @@ import {
   isSeedanceVideoPromptBody,
   stripSeedancePromptAssetMentions,
 } from '@/lib/novel-promotion/seedance-prompt-assets'
-import { ensureProjectAssetImagesOnStorage } from '@/lib/novel-promotion/asset-storage-sync'
 import { readPanelFrameOSMetadataFromActingNotes } from '@/lib/novel-promotion/panel-frameos-metadata'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 import { handleToolboxVideoTask } from './handlers/toolbox-video-task-handler'
 import { appendProjectArtStyleConstraint } from '@/lib/projects/creation-config'
-import {
-  buildArkTextOnlyFallbackPrompt,
-  isArkInputImageModerationError,
-  isArkVideoModel,
-  readArkModelId,
-  submitArkTextOnlyVideoFallback,
-} from './ark-video-fallback'
 
 import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
 
@@ -61,7 +51,6 @@ type GeneratedVideoSource = VideoResultMetadata & {
   url: string
   actualVideoTokens?: number
   downloadHeaders?: Record<string, string>
-  fallbackMode?: 'ark_text_only_after_input_image_moderation'
 }
 type PanelVideoInputImage = {
   sourceImageBase64?: string
@@ -89,24 +78,15 @@ function extractGenerationOptions(payload: AnyObj): VideoOptionMap {
   return next
 }
 
-function supportsArkReferenceImageMode(modelKey: string): boolean {
-  // The Seedance reference protocol also applies when these models run on Kuaizi.
-  return /^doubao-seedance-2-(?:0|5)(?:-|$)/i.test(readArkModelId(modelKey))
+function readVideoModelId(modelKey: string): string {
+  const runtimeModelKey = resolveRuntimeModelKey(modelKey) || modelKey
+  return parseModelKeyStrict(runtimeModelKey)?.modelId || runtimeModelKey
 }
 
-function isHfsyVideoModel(modelKey: string): boolean {
-  const parsed = parseModelKeyStrict(resolveRuntimeModelKey(modelKey) || modelKey)
-  return parsed?.provider === HFSY_PROVIDER_ID && parsed.modelId === HFSY_VIDEO_MODEL_ID
-}
-
-function normalizeHfsyDuration(value: VideoOptionValue | undefined): number {
-  const parsed = typeof value === 'number' ? value : Number(value)
-  if (!Number.isFinite(parsed)) return 6
-  return Math.max(4, Math.min(15, Math.round(parsed)))
-}
-
-function resolveHfsyOrientation(ratio: string | null | undefined): 'landscape' | 'portrait' {
-  return ratio === '16:9' || ratio === '21:9' || ratio === '4:3' ? 'landscape' : 'portrait'
+function supportsSeedanceReferenceMode(modelKey: string): boolean {
+  // The Seedance reference protocol applies to every Seedance 2.x model,
+  // including the Kuaizi routing used by new tasks.
+  return /^doubao-seedance-2-(?:0|5)(?:-|$)/i.test(readVideoModelId(modelKey))
 }
 
 function extractStorageKeyFromPossiblySignedRoute(value: string): string | null {
@@ -392,7 +372,6 @@ async function generateVideoForPanel(
   cosKey: string
   generationMode: VideoGenerationMode
   actualVideoTokens?: number
-  fallbackMode?: 'ark_text_only_after_input_image_moderation'
 }> {
   const firstLastFramePayload =
     typeof payload.firstLastFrame === 'object' && payload.firstLastFrame !== null
@@ -443,12 +422,9 @@ async function generateVideoForPanel(
       }
     }
   }
-  const isArkModel = isArkVideoModel(model)
-  const isHfsyModel = isHfsyVideoModel(model)
-  const inputImage = isHfsyModel && generationMode === 'normal'
-    ? {}
-    : await resolvePanelVideoInputImage(panel)
-  if (!inputImage.sourceImageBase64 && !isArkModel && !isHfsyModel) {
+  const seedanceReferenceMode = supportsSeedanceReferenceMode(model) && generationMode === 'normal'
+  const inputImage = await resolvePanelVideoInputImage(panel)
+  if (!inputImage.sourceImageBase64 && !supportsSeedanceReferenceMode(model)) {
     throw new Error(`Panel ${panel.id} has no imageUrl`)
   }
   if (generationMode === 'firstlastframe' && !inputImage.sourceImageBase64) {
@@ -470,142 +446,57 @@ async function generateVideoForPanel(
   const recommendedGenerationOptions = canonicalResolution
     ? { ...recommendedGenerationOptionsRaw, resolution: canonicalResolution }
     : recommendedGenerationOptionsRaw
-  if (isHfsyVideoModel(model)) {
-    await ensureProjectAssetImagesOnStorage(job.data.projectId)
-  }
-  const shouldAttachPanelReferenceAssets = (
-    isArkVideoModel(model)
-    && supportsArkReferenceImageMode(model)
-    && generationMode === 'normal'
-  ) || isHfsyVideoModel(model)
-  const panelReferenceAssets = shouldAttachPanelReferenceAssets
-    ? await resolvePanelAssetReferenceImagesForVideo(job.data.projectId, panel, {
-      publicFetchableUrls: isHfsyVideoModel(model),
-    })
+  const panelReferenceAssets = seedanceReferenceMode
+    ? await resolvePanelAssetReferenceImagesForVideo(job.data.projectId, panel)
     : []
   const panelReferenceImages = panelReferenceAssets.map((asset) => asset.imageUrl)
-  const usesArkReferenceImageMode = isArkModel
-    && generationMode === 'normal'
-    && panelReferenceAssets.length > 0
-  const supportsPanelAudioReferences = isHfsyModel || (
-    isArkModel
-    && supportsArkReferenceImageMode(model)
-    && generationMode === 'normal'
-  )
-  const panelAudioReferences = supportsPanelAudioReferences
+  const usesSeedanceReferenceImageMode = seedanceReferenceMode && panelReferenceAssets.length > 0
+  const panelAudioReferences = seedanceReferenceMode
     ? await resolvePanelAudioReferencesForVideo(job.data.projectId, panel)
     : []
-  const usesArkReferenceMediaMode = isArkModel
-    && generationMode === 'normal'
+  const usesSeedanceReferenceMediaMode = seedanceReferenceMode
     && (panelReferenceAssets.length > 0 || panelAudioReferences.length > 0)
-  const effectiveReferenceImages = usesArkReferenceMediaMode
+  const effectiveReferenceImages = usesSeedanceReferenceMediaMode
     && panelReferenceImages.length === 0
     && inputImage.sourceImageUrl
     ? [inputImage.sourceImageUrl]
     : panelReferenceImages
-  const providerBasePrompt = isArkModel
-    ? usesArkReferenceImageMode
-      ? compileSeedancePromptForSubmission(editorPrompt, panelReferenceAssets)
-      : stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
-    : editorPrompt
+  const providerBasePrompt = usesSeedanceReferenceImageMode
+    ? compileSeedancePromptForSubmission(editorPrompt, panelReferenceAssets)
+    : seedanceReferenceMode
+      ? stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
+      : editorPrompt
   const prompt = shouldAppendFrameOSEvidence
     ? buildPanelVideoPromptWithFrameOSEvidence(panel, providerBasePrompt)
     : providerBasePrompt
-  const arkTextOnlyBasePrompt = stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
-  const arkTextOnlyPrompt = shouldAppendFrameOSEvidence
-    ? buildPanelVideoPromptWithFrameOSEvidence(panel, arkTextOnlyBasePrompt)
-    : arkTextOnlyBasePrompt
-  const hfsyDuration = isHfsyVideoModel(model)
-    ? normalizeHfsyDuration(recommendedGenerationOptions.duration)
-    : undefined
-  if (isHfsyVideoModel(model) && panelReferenceImages.length === 0) {
-    throw new Error(`Panel ${panel.id} has no public reference assets for HFSY video generation`)
-  }
 
   const videoRequestOptions = {
     prompt,
     ...(projectVideoRatio ? { aspectRatio: projectVideoRatio } : {}),
     ...recommendedGenerationOptions,
     ...(panelAudioReferences.length > 0 ? { generateAudio: true } : {}),
-    ...(hfsyDuration ? { duration: hfsyDuration } : {}),
     generationMode,
     ...(effectiveReferenceImages.length > 0 ? { referenceImages: effectiveReferenceImages } : {}),
     ...(panelAudioReferences.length > 0 ? { audios: panelAudioReferences } : {}),
-    ...(isHfsyVideoModel(model) ? {
-      orientation: resolveHfsyOrientation(projectVideoRatio),
-      ratio: projectVideoRatio || '9:16',
-      size: 'large',
-      watermark: false,
-    } : {}),
     ...(lastFrameImageBase64 ? { lastFrameImageUrl: lastFrameImageBase64 } : {}),
   }
 
-  let generatedVideo: GeneratedVideoSource
-  try {
-    generatedVideo = await resolveVideoSourceFromGeneration(job, {
-      userId: job.data.userId,
-      modelId: model,
-      imageUrl: usesArkReferenceMediaMode
-        ? ''
-        : inputImage.sourceImageBase64 || panelReferenceImages[0] || '',
-      options: videoRequestOptions,
-    })
-  } catch (error) {
-    if (
-      !isArkVideoModel(model)
-      || generationMode !== 'normal'
-      || panelAudioReferences.length > 0
-      || !isArkInputImageModerationError(error)
-    ) {
-      throw error
-    }
-    await reportTaskProgress(job, 35, {
-      stage: 'ark_text_only_fallback',
-      panelId: panel.id,
-      reason: 'input_image_moderation',
-    })
-    const polled = await submitArkTextOnlyVideoFallback(job, {
-      modelKey: model,
-      prompt: buildArkTextOnlyFallbackPrompt(arkTextOnlyPrompt),
-      resolution: readVideoResolution(recommendedGenerationOptions.resolution),
-      ratio: projectVideoRatio || undefined,
-      duration: typeof recommendedGenerationOptions.duration === 'number' ? recommendedGenerationOptions.duration : undefined,
-      generateAudio: typeof recommendedGenerationOptions.generateAudio === 'boolean' ? recommendedGenerationOptions.generateAudio : undefined,
-      seed: typeof recommendedGenerationOptions.seed === 'number' ? recommendedGenerationOptions.seed : undefined,
-      cameraFixed: typeof recommendedGenerationOptions.cameraFixed === 'boolean' ? recommendedGenerationOptions.cameraFixed : undefined,
-      watermark: typeof recommendedGenerationOptions.watermark === 'boolean' ? recommendedGenerationOptions.watermark : undefined,
-      progressStart: 45,
-      progressEnd: 94,
-      logPrefix: '[ARK Video Fallback]',
-    })
-    generatedVideo = {
-      url: polled.url,
-      fallbackMode: 'ark_text_only_after_input_image_moderation',
-      ...pickVideoResultMetadata(polled),
-      ...(polled.downloadHeaders ? { downloadHeaders: polled.downloadHeaders } : {}),
-    }
-  }
+  const generatedVideo = await resolveVideoSourceFromGeneration(job, {
+    userId: job.data.userId,
+    modelId: model,
+    imageUrl: usesSeedanceReferenceMediaMode
+      ? ''
+      : inputImage.sourceImageBase64 || panelReferenceImages[0] || '',
+    options: videoRequestOptions,
+  })
 
-  let downloadHeaders: Record<string, string> | undefined
+  const downloadHeaders = generatedVideo.downloadHeaders
   const videoSource = generatedVideo.url
-  if (generatedVideo.downloadHeaders) {
-    downloadHeaders = generatedVideo.downloadHeaders
-  } else if (typeof videoSource === 'string') {
-    const parsedModel = parseModelKeyStrict(resolveRuntimeModelKey(model) || model)
-    const isGoogleDownloadUrl = videoSource.includes('generativelanguage.googleapis.com/')
-      && videoSource.includes('/files/')
-      && videoSource.includes(':download')
-    if (parsedModel?.provider === 'google' && isGoogleDownloadUrl) {
-      const { apiKey } = await getProviderConfig(job.data.userId, 'google')
-      downloadHeaders = { 'x-goog-api-key': apiKey }
-    }
-  }
 
   const cosKey = await uploadVideoSourceToCos(videoSource, 'panel-video', panel.id, downloadHeaders)
   return {
     cosKey,
     generationMode,
-    ...(generatedVideo.fallbackMode ? { fallbackMode: generatedVideo.fallbackMode } : {}),
     ...pickVideoResultMetadata(generatedVideo),
   }
 }
@@ -629,7 +520,7 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
     panelId: panel.id,
   })
 
-  const { cosKey, generationMode, fallbackMode, ...videoMetadata } = await generateVideoForPanel(
+  const { cosKey, generationMode, ...videoMetadata } = await generateVideoForPanel(
     job,
     panel,
     payload,
@@ -667,7 +558,6 @@ async function handleVideoPanelTask(job: Job<TaskJobData>) {
   return {
     panelId: panel.id,
     videoUrl: cosKey,
-    ...(fallbackMode ? { fallbackMode } : {}),
     ...pickVideoResultMetadata(videoMetadata),
   }
 }

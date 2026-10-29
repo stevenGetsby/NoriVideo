@@ -14,8 +14,11 @@ type StubSession = {
 }
 
 const childMode = typeof location !== 'undefined' && new URLSearchParams(location.search).get('session') === 'child'
+const adminMode = typeof location !== 'undefined' && new URLSearchParams(location.search).get('view')?.startsWith('admin')
 let session: StubSession = {
-  data: { user: childMode
+  data: { user: adminMode
+    ? { id: 'admin-1', name: 'Platform Admin', role: 'super_admin', permissions: [] }
+    : childMode
     ? { id: 'child-1', name: '测试子账号', role: 'storyboard', permissions: ['canvasWrite', 'toolboxUse'], workspaceOwnerId: 'user-1', pointCredits: 0 }
     : { id: 'user-1', name: '测试资产师', role: 'admin', permissions: ['assetWrite'] } },
   status: 'authenticated',
@@ -40,3 +43,5 @@ export function SessionProvider({ children }: { children: unknown }) {
 }
 
 export async function signOut() {}
+export async function signIn() { return { ok: true, status: 200, error: null } }
+export async function getSession() { return session.data }

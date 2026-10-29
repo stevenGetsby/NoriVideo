@@ -12,7 +12,7 @@ describe('FosShell collapsible sidebar', () => {
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(shell).toContain('className="fos-titlebar"')
-    expect(shell).toContain('className="fos-titlebar-title">NoriVideo</span>')
+    expect(shell).toContain('className="fos-titlebar-title">LanmiaoTV</span>')
     expect(shell).toContain('aria-label="刷新页面"')
     expect(styles).toContain('--fos-titlebar-height: 32px;')
     expect(styles).toContain('height: var(--fos-titlebar-height);')

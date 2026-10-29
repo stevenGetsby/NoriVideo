@@ -705,7 +705,7 @@ describe('worker video processor behavior', () => {
     )
   })
 
-  it('VIDEO_PANEL: never sends a Kuaizi-routed Seedance task to the Ark account on moderation failure', async () => {
+  it('VIDEO_PANEL: propagates a Kuaizi-routed Seedance moderation failure without an Ark fallback', async () => {
     const processor = workerState.processor
     expect(processor).toBeTruthy()
 
@@ -729,7 +729,7 @@ describe('worker video processor behavior', () => {
       },
     })
 
-    await expect(processor!(job)).rejects.toThrow('ARK_FALLBACK_PROVIDER_MISMATCH')
+    await expect(processor!(job)).rejects.toThrow('InputImageSensitiveContentDetected.PrivacyInformation')
     expect(arkApiMock.arkCreateVideoTask).not.toHaveBeenCalled()
     expect(utilsMock.waitExternalResult).not.toHaveBeenCalled()
   })

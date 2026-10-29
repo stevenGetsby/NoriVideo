@@ -1,88 +1,43 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ChatCompletionStreamCallbacks } from '@/lib/llm/types'
 
 type MockRuntimeModel = {
   provider: string
   modelId: string
   modelKey: string
-  llmProtocol: 'responses' | 'chat-completions' | undefined
+  llmProtocol: 'chat-completions' | undefined
 }
 
 const resolveLlmRuntimeModelMock = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => Promise<MockRuntimeModel>>(async () => ({
-    provider: 'openai-compatible:node-1',
-    modelId: 'gpt-4.1-mini',
-    modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
-    llmProtocol: 'responses',
+    provider: 'deepseek',
+    modelId: 'deepseek-chat',
+    modelKey: 'deepseek::deepseek-chat',
+    llmProtocol: 'chat-completions',
   })),
 )
-
-const runOpenAICompatResponsesCompletionMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    id: 'chatcmpl_responses_1',
-    object: 'chat.completion',
-    created: 1,
-    model: 'gpt-4.1-mini',
-    choices: [{ index: 0, message: { role: 'assistant', content: 'responses-stream' }, finish_reason: 'stop' }],
-    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-  })),
-)
-
-const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    id: 'chatcmpl_chat_1',
-    object: 'chat.completion',
-    created: 1,
-    model: 'gpt-4.1-mini',
-    choices: [{ index: 0, message: { role: 'assistant', content: 'chat-stream' }, finish_reason: 'stop' }],
-    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-  })),
-)
-
-const getProviderConfigMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    id: 'openai-compatible:node-1',
-    name: 'OpenAI Compatible',
-    apiKey: 'sk-test',
-    baseUrl: 'https://compat.example.com/v1',
-    gatewayRoute: 'openai-compat' as const,
-    apiMode: 'openai-official' as const,
-  })),
-)
-
-const logLlmRawInputMock = vi.hoisted(() => vi.fn())
+const createChatCompletionMock = vi.hoisted(() => vi.fn())
+const getProviderConfigMock = vi.hoisted(() => vi.fn(async () => ({
+  id: 'deepseek', name: 'DeepSeek', apiKey: 'sk-test',
+})))
 const logLlmRawOutputMock = vi.hoisted(() => vi.fn())
 const recordCompletionUsageMock = vi.hoisted(() => vi.fn())
 
-vi.mock('@/lib/model-gateway', () => ({
-  resolveModelGatewayRoute: vi.fn(() => 'openai-compat'),
-  runOpenAICompatChatCompletion: runOpenAICompatChatCompletionMock,
-  runOpenAICompatResponsesCompletion: runOpenAICompatResponsesCompletionMock,
+vi.mock('@/lib/model-gateway/openai-compat/common', () => ({
+  resolveOpenAICompatClientConfig: vi.fn(async () => ({
+    providerId: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', apiKey: 'sk-test',
+  })),
+  createOpenAICompatClient: vi.fn(() => ({
+    chat: { completions: { create: createChatCompletionMock } },
+  })),
 }))
-
 vi.mock('@/lib/api-config', () => ({
   getProviderConfig: getProviderConfigMock,
   getProviderKey: vi.fn((providerId: string) => providerId.split(':')[0] || providerId),
 }))
-
-vi.mock('@/lib/providers/bailian', () => ({
-  completeBailianLlm: vi.fn(async () => {
-    throw new Error('bailian should not be called')
-  }),
-}))
-
-vi.mock('@/lib/providers/siliconflow', () => ({
-  completeSiliconFlowLlm: vi.fn(async () => {
-    throw new Error('siliconflow should not be called')
-  }),
-}))
-
 vi.mock('@/lib/llm/runtime-shared', () => ({
-  completionUsageSummary: vi.fn(() => ({ promptTokens: 1, completionTokens: 1 })),
-  llmLogger: {
-    info: vi.fn(),
-    warn: vi.fn(),
-  },
-  logLlmRawInput: logLlmRawInputMock,
+  completionUsageSummary: vi.fn((completion: { usage?: unknown }) => completion.usage),
+  logLlmRawInput: vi.fn(),
   logLlmRawOutput: logLlmRawOutputMock,
   recordCompletionUsage: recordCompletionUsageMock,
   recordFailedCompletionUsage: vi.fn(async () => undefined),
@@ -91,67 +46,91 @@ vi.mock('@/lib/llm/runtime-shared', () => ({
 
 import { chatCompletionStream } from '@/lib/llm/chat-stream'
 
-describe('llm chatCompletionStream openai-compatible protocol routing', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-  })
+function streamOf(chunks: unknown[], finalCompletion?: unknown) {
+  return {
+    async *[Symbol.asyncIterator]() { yield* chunks },
+    ...(finalCompletion ? { finalChatCompletion: async () => finalCompletion } : {}),
+  }
+}
 
-  it('uses responses executor when llmProtocol=responses', async () => {
-    const onChunk = vi.fn()
+function textDelta(content: string) {
+  return { choices: [{ delta: { content } }] }
+}
+
+describe('DeepSeek chat completion streaming', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('forwards real deltas with caller step metadata and one lifecycle', async () => {
+    const usage = { prompt_tokens: 7, completion_tokens: 3, total_tokens: 10 }
+    createChatCompletionMock.mockResolvedValueOnce(streamOf([
+      { choices: [{ delta: { reasoning_content: 'Think ' } }] },
+      { choices: [{ delta: { reasoning_content: 'first.' } }] },
+      textDelta('Hello '), textDelta('world.'),
+      { choices: [], usage },
+    ], {
+      id: 'chatcmpl_stream', object: 'chat.completion', created: 1, model: 'deepseek-chat',
+      choices: [{ index: 0, message: { role: 'assistant', content: 'Hello world.' }, finish_reason: 'stop' }],
+      usage,
+    }))
+    const chunks: Array<Record<string, unknown>> = []
+    const stages: string[] = []
+    const completed = vi.fn()
+    const callbacks: ChatCompletionStreamCallbacks = {
+      onStage: ({ stage }) => stages.push(stage),
+      onChunk: (chunk) => chunks.push(chunk),
+      onComplete: completed,
+    }
     const completion = await chatCompletionStream(
-      'user-1',
-      'openai-compatible:node-1::gpt-4.1-mini',
-      [{ role: 'user', content: 'hello' }],
-      { temperature: 0.2 },
-      { onChunk },
+      'user-1', 'nori::nori-gemini', [{ role: 'user', content: 'hello' }],
+      { streamStepId: 'step-1', streamStepAttempt: 2, streamStepIndex: 1, streamStepTotal: 3 },
+      callbacks,
     )
 
-    expect(runOpenAICompatResponsesCompletionMock).toHaveBeenCalledTimes(1)
-    expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
-    expect(completion.choices[0]?.message?.content).toBe('responses-stream')
-    expect(onChunk).toHaveBeenCalled()
+    expect(chunks.map(({ kind, delta }) => [kind, delta])).toEqual([
+      ['reasoning', 'Think '], ['reasoning', 'first.'], ['text', 'Hello '], ['text', 'world.'],
+    ])
+    expect(chunks.every((chunk) => (chunk.step as { id: string }).id === 'step-1')).toBe(true)
+    expect(chunks.every((chunk) => (chunk.step as { attempt: number }).attempt === 2)).toBe(true)
+    expect(stages).toEqual(['submit', 'streaming', 'completed'])
+    expect(completed).toHaveBeenCalledOnce()
+    expect(completed).toHaveBeenCalledWith('Hello world.', expect.objectContaining({ id: 'step-1' }))
+    expect(createChatCompletionMock).toHaveBeenCalledWith(expect.objectContaining({
+      stream: true, stream_options: { include_usage: true },
+    }))
+    expect(completion.usage).toEqual(usage)
+    expect(recordCompletionUsageMock).toHaveBeenCalledOnce()
+    expect(logLlmRawOutputMock).toHaveBeenCalledWith(expect.objectContaining({
+      text: 'Hello world.', reasoning: 'Think first.', stream: true,
+    }))
   })
 
-  it('uses chat-completions executor when llmProtocol=chat-completions', async () => {
-    resolveLlmRuntimeModelMock.mockResolvedValueOnce({
-      provider: 'openai-compatible:node-1',
-      modelId: 'gpt-4.1-mini',
-      modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
-      llmProtocol: 'chat-completions',
-    })
+  it('builds a completion without losing reasoning or stream usage', async () => {
+    const usage = { prompt_tokens: 5, completion_tokens: 2, total_tokens: 7 }
+    createChatCompletionMock.mockResolvedValueOnce(streamOf([
+      { choices: [{ delta: { reasoning_content: 'Reason.' } }] },
+      textDelta('Answer.'), { choices: [], usage },
+    ]))
 
     const completion = await chatCompletionStream(
-      'user-1',
-      'openai-compatible:node-1::gpt-4.1-mini',
-      [{ role: 'user', content: 'hello' }],
-      { temperature: 0.2 },
-      undefined,
+      'user-1', 'nori::nori-gemini', [{ role: 'user', content: 'hello' }],
     )
 
-    expect(runOpenAICompatChatCompletionMock).toHaveBeenCalledTimes(1)
-    expect(runOpenAICompatResponsesCompletionMock).not.toHaveBeenCalled()
-    expect(completion.choices[0]?.message?.content).toBe('chat-stream')
+    expect(completion.choices[0]?.message.content).toEqual([
+      { type: 'reasoning', text: 'Reason.' }, { type: 'text', text: 'Answer.' },
+    ])
+    expect(completion.usage).toEqual(usage)
   })
 
-  it('fails fast when llmProtocol is missing for openai-compatible model', async () => {
+  it('rejects retired providers before credentials or network access', async () => {
     resolveLlmRuntimeModelMock.mockResolvedValueOnce({
-      provider: 'openai-compatible:node-1',
-      modelId: 'gpt-4.1-mini',
-      modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
-      llmProtocol: undefined,
+      provider: 'bailian', modelId: 'qwen3.5-flash',
+      modelKey: 'bailian::qwen3.5-flash', llmProtocol: 'chat-completions',
     })
 
-    await expect(
-      chatCompletionStream(
-        'user-1',
-        'openai-compatible:node-1::gpt-4.1-mini',
-        [{ role: 'user', content: 'hello' }],
-        { temperature: 0.2 },
-        undefined,
-      ),
-    ).rejects.toThrow('MODEL_LLM_PROTOCOL_REQUIRED')
-
-    expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
-    expect(runOpenAICompatResponsesCompletionMock).not.toHaveBeenCalled()
+    await expect(chatCompletionStream(
+      'user-1', 'bailian::qwen3.5-flash', [{ role: 'user', content: 'hello' }],
+    )).rejects.toThrow('TEXT_PROVIDER_UNSUPPORTED')
+    expect(getProviderConfigMock).not.toHaveBeenCalled()
+    expect(createChatCompletionMock).not.toHaveBeenCalled()
   })
 })

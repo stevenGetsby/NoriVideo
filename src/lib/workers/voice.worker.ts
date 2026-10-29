@@ -31,6 +31,7 @@ async function handleVoiceLineTask(job: Job<TaskJobData>) {
     lineId,
     userId: job.data.userId,
     audioModel,
+    job,
   })
 
   await reportTaskProgress(job, 95, { stage: 'generate_voice_persist', lineId })

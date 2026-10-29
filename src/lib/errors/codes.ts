@@ -157,6 +157,13 @@ export const ERROR_CATALOG = {
     userMessageKey: 'errors.VIDEO_API_FORMAT_UNSUPPORTED',
     defaultMessage: 'Video API format is unsupported',
   },
+  VOICE_DESIGN_RETIRED: {
+    httpStatus: 410,
+    retryable: false,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.VOICE_DESIGN_RETIRED',
+    defaultMessage: 'AI voice design is retired',
+  },
   GENERATION_FAILED: {
     httpStatus: 500,
     retryable: true,

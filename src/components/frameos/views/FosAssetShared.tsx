@@ -32,7 +32,7 @@ export function AssetTabs({ projectId, active }: { projectId: string; active: As
   )
 }
 
-/** White-background asset image placeholder (real images replaced by NoriVideo placeholders) */
+/** White-background asset image placeholder (real images replaced by LanmiaoTV placeholders) */
 export function AssetPlaceholder({ kind }: { kind: AssetTab }) {
   if (kind === 'items') {
     return (

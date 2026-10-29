@@ -1,15 +1,9 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { FosWriterWorkspace } from './FosWriterWorkspace'
-import {
-  WRITER_TOOL,
-  type ScriptStatus,
-  type WriterScript,
-  type WriterTool,
-} from './screenwriterModels'
+import type { ScriptStatus, WriterScript } from './screenwriterModels'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -41,7 +35,6 @@ function presentScript(script: WriterScript): WriterScript {
 }
 
 export function FosScreenwriter() {
-  const router = useRouter()
   const [scripts, setScripts] = useState<WriterScript[]>([])
   const [activeId, setActiveId] = useState('')
   const [status, setStatus] = useState<ScriptStatus>('draft')
@@ -113,8 +106,6 @@ export function FosScreenwriter() {
     }
   }
 
-  const openVideoRepaint = () => router.push({ pathname: '/writer-workbench/redraw-v2/new' })
-
   return (
     <div className="writer-page">
       <header className="writer-page-header">
@@ -127,7 +118,10 @@ export function FosScreenwriter() {
 
       <section className="writer-create-strip" aria-label="创建剧本">
         <div className="wc-group wc-group--primary">
-          <CreateCard tool={WRITER_TOOL} onClick={openVideoRepaint} />
+          <div className="wc-group-description">
+            <AppIcon name="info" className="h-4 w-4" />
+            <span>视频转绘已停用，已有剧本仍可继续编辑。</span>
+          </div>
         </div>
       </section>
 
@@ -155,27 +149,5 @@ export function FosScreenwriter() {
       ) : null}
 
     </div>
-  )
-}
-
-function CreateCard({ tool, onClick }: { tool: WriterTool; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      className={`create-card create-card--${tool.tone} create-card--flagship`}
-      onClick={onClick}
-    >
-      <span className="create-card-inner">
-        <span className="create-card-icon-wrap"><AppIcon name={tool.icon} className="h-5 w-5" /></span>
-        <span className="create-card-text">
-          <span className="create-card-title-row">
-            <span className="create-card-title">{tool.title}</span>
-            {tool.badge ? <span className="create-card-badge">{tool.badge}</span> : null}
-          </span>
-          <span className="create-card-sub">{tool.subtitle}</span>
-        </span>
-        <AppIcon name="chevronRight" className="create-card-chevron h-4 w-4" />
-      </span>
-    </button>
   )
 }

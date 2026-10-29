@@ -362,7 +362,7 @@ describe('toolbox task handlers', () => {
     })
   })
 
-  it('retries a privacy-rejected toolbox video with CreateAsset references', async () => {
+  it('propagates a privacy rejection instead of retrying with legacy CreateAsset references', async () => {
     utilsMock.resolveVideoSourceFromGeneration.mockRejectedValueOnce(new Error(
       'InputImageSensitiveContentDetected.PrivacyInformation',
     ))
@@ -379,26 +379,19 @@ describe('toolbox task handlers', () => {
       generateAudio: true,
     })
 
-    await handleToolboxVideoTask(job)
-
-    expect(seedanceCharacterAssetMock.ensureSeedanceToolboxReferenceAssets).toHaveBeenCalledWith(
-      expect.objectContaining({
-        userId: 'user-1',
-        projectId: 'project-1',
-        materialIds: ['material-real-person'],
-      }),
+    await expect(handleToolboxVideoTask(job)).rejects.toThrow(
+      'InputImageSensitiveContentDetected.PrivacyInformation',
     )
-    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledTimes(2)
-    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenLastCalledWith(job, expect.objectContaining({
-      modelId: 'nori::seedance2.0',
-      imageUrl: '',
-      options: expect.objectContaining({
-        referenceImages: ['asset://private-toolbox-reference-1'],
-        duration: 8,
-        generateAudio: true,
-        generationMode: 'normal',
-      }),
-    }))
+
+    expect(seedanceCharacterAssetMock.ensureSeedanceToolboxReferenceAssets).not.toHaveBeenCalled()
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledTimes(1)
+    expect(prismaMock.frameosToolboxAsset.update).toHaveBeenLastCalledWith({
+      where: { id: 'asset-toolbox_video' },
+      data: {
+        status: 'failed',
+        errorMessage: 'InputImageSensitiveContentDetected.PrivacyInformation',
+      },
+    })
   })
 
   it('marks a video asset failed when a first/last-frame input is incomplete', async () => {

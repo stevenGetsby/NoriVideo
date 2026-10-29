@@ -4,26 +4,15 @@ type MockRuntimeModel = {
   provider: string
   modelId: string
   modelKey: string
-  llmProtocol: 'responses' | 'chat-completions' | undefined
+  llmProtocol: 'chat-completions' | undefined
 }
 
 const resolveLlmRuntimeModelMock = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => Promise<MockRuntimeModel>>(async () => ({
-    provider: 'openai-compatible:node-1',
-    modelId: 'gpt-4.1-mini',
-    modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
-    llmProtocol: 'responses',
-  })),
-)
-
-const runOpenAICompatResponsesCompletionMock = vi.hoisted(() =>
-  vi.fn(async () => ({
-    id: 'chatcmpl_responses_1',
-    object: 'chat.completion',
-    created: 1,
-    model: 'gpt-4.1-mini',
-    choices: [{ index: 0, message: { role: 'assistant', content: 'responses-ok' }, finish_reason: 'stop' }],
-    usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+    provider: 'deepseek',
+    modelId: 'deepseek-chat',
+    modelKey: 'deepseek::deepseek-chat',
+    llmProtocol: 'chat-completions',
   })),
 )
 
@@ -32,7 +21,7 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
     id: 'chatcmpl_chat_1',
     object: 'chat.completion',
     created: 1,
-    model: 'gpt-4.1-mini',
+    model: 'deepseek-chat',
     choices: [{ index: 0, message: { role: 'assistant', content: 'chat-ok' }, finish_reason: 'stop' }],
     usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
   })),
@@ -40,12 +29,10 @@ const runOpenAICompatChatCompletionMock = vi.hoisted(() =>
 
 const getProviderConfigMock = vi.hoisted(() =>
   vi.fn(async () => ({
-    id: 'openai-compatible:node-1',
-    name: 'OpenAI Compatible',
+    id: 'deepseek',
+    name: 'DeepSeek',
     apiKey: 'sk-test',
-    baseUrl: 'https://compat.example.com/v1',
-    gatewayRoute: 'openai-compat' as const,
-    apiMode: 'openai-official' as const,
+    baseUrl: 'https://api.deepseek.com/v1',
   })),
 )
 
@@ -60,24 +47,11 @@ vi.mock('@/lib/llm-observe/internal-stream-context', () => ({
 vi.mock('@/lib/model-gateway', () => ({
   resolveModelGatewayRoute: vi.fn(() => 'openai-compat'),
   runOpenAICompatChatCompletion: runOpenAICompatChatCompletionMock,
-  runOpenAICompatResponsesCompletion: runOpenAICompatResponsesCompletionMock,
 }))
 
 vi.mock('@/lib/api-config', () => ({
   getProviderConfig: getProviderConfigMock,
   getProviderKey: vi.fn((providerId: string) => providerId.split(':')[0] || providerId),
-}))
-
-vi.mock('@/lib/providers/bailian', () => ({
-  completeBailianLlm: vi.fn(async () => {
-    throw new Error('bailian should not be called')
-  }),
-}))
-
-vi.mock('@/lib/providers/siliconflow', () => ({
-  completeSiliconFlowLlm: vi.fn(async () => {
-    throw new Error('siliconflow should not be called')
-  }),
 }))
 
 vi.mock('@/lib/llm/runtime-shared', () => ({
@@ -98,62 +72,40 @@ vi.mock('@/lib/llm/runtime-shared', () => ({
 
 import { chatCompletion } from '@/lib/llm/chat-completion'
 
-describe('llm chatCompletion openai-compatible protocol routing', () => {
+describe('llm chatCompletion DeepSeek-only text routing', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('uses responses executor when llmProtocol=responses', async () => {
-    const completion = await chatCompletion(
-      'user-1',
-      'openai-compatible:node-1::gpt-4.1-mini',
-      [{ role: 'user', content: 'hello' }],
-      { temperature: 0.2 },
-    )
-
-    expect(runOpenAICompatResponsesCompletionMock).toHaveBeenCalledTimes(1)
-    expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
-    expect(completion.choices[0]?.message?.content).toBe('responses-ok')
-  })
-
   it('uses chat-completions executor when llmProtocol=chat-completions', async () => {
     resolveLlmRuntimeModelMock.mockResolvedValueOnce({
-      provider: 'openai-compatible:node-1',
-      modelId: 'gpt-4.1-mini',
-      modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
+      provider: 'deepseek',
+      modelId: 'deepseek-chat',
+      modelKey: 'deepseek::deepseek-chat',
       llmProtocol: 'chat-completions',
     })
 
     const completion = await chatCompletion(
       'user-1',
-      'openai-compatible:node-1::gpt-4.1-mini',
+      'deepseek::deepseek-chat',
       [{ role: 'user', content: 'hello' }],
       { temperature: 0.2 },
     )
 
     expect(runOpenAICompatChatCompletionMock).toHaveBeenCalledTimes(1)
-    expect(runOpenAICompatResponsesCompletionMock).not.toHaveBeenCalled()
     expect(completion.choices[0]?.message?.content).toBe('chat-ok')
   })
 
-  it('fails fast when llmProtocol is missing for openai-compatible model', async () => {
+  it('rejects retired providers without reading their credentials', async () => {
     resolveLlmRuntimeModelMock.mockResolvedValueOnce({
-      provider: 'openai-compatible:node-1',
-      modelId: 'gpt-4.1-mini',
-      modelKey: 'openai-compatible:node-1::gpt-4.1-mini',
-      llmProtocol: undefined,
+      provider: 'bailian',
+      modelId: 'qwen3.5-flash',
+      modelKey: 'bailian::qwen3.5-flash',
+      llmProtocol: 'chat-completions',
     })
-
-    await expect(
-      chatCompletion(
-        'user-1',
-        'openai-compatible:node-1::gpt-4.1-mini',
-        [{ role: 'user', content: 'hello' }],
-        { temperature: 0.2, maxRetries: 0 },
-      ),
-    ).rejects.toThrow('MODEL_LLM_PROTOCOL_REQUIRED')
-
+    const call = () => chatCompletion('user-1', 'bailian::qwen3.5-flash', [{ role: 'user', content: 'hello' }], {})
+    await expect(call()).rejects.toThrow('TEXT_PROVIDER_UNSUPPORTED')
+    expect(getProviderConfigMock).not.toHaveBeenCalled()
     expect(runOpenAICompatChatCompletionMock).not.toHaveBeenCalled()
-    expect(runOpenAICompatResponsesCompletionMock).not.toHaveBeenCalled()
   })
 })

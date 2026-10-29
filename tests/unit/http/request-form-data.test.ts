@@ -71,10 +71,10 @@ describe('readRequestFormData', () => {
     expect(9000 * 7000).toBeGreaterThan(MAX_IMAGE_PIXELS)
   })
 
-  it('routes both multipart upload entry points through the shared reader', () => {
+  it('routes material multipart uploads through the shared reader', () => {
     expect(readFileSync('src/lib/frameos/material-upload.ts', 'utf8'))
       .toContain("readRequestFormData(request, { fileSizeLabel: '200MB' })")
     expect(readFileSync('src/app/api/video-enhance/route.ts', 'utf8'))
-      .toContain("readRequestFormData(request, { fileSizeLabel: '10GB' })")
+      .not.toContain('submitMediaKitEnhanceVideoTask')
   })
 })

@@ -96,8 +96,6 @@ export function mergeProvidersForDisplay(
                 hasApiKey,
                 hidden: savedProvider.hidden === true,
                 baseUrl: providerBaseUrl,
-                apiMode: savedProvider.apiMode,
-                gatewayRoute: savedProvider.gatewayRoute,
             })
             seenPresetKeys.add(providerKey)
             continue
@@ -403,19 +401,13 @@ export function useProviders(): UseProvidersReturn {
             setSaveStatus('saving')
         }
         try {
-            const currentModels = latestModelsRef.current
-            const currentProviders = latestProvidersRef.current
             const currentDefaultModels = overrides?.defaultModels ?? latestDefaultModelsRef.current
             const currentWorkflowConcurrency = overrides?.workflowConcurrency ?? latestWorkflowConcurrencyRef.current
             const currentCapabilityDefaults = overrides?.capabilityDefaults ?? latestCapabilityDefaultsRef.current
-            const enabledModels = currentModels.filter(m => m.enabled)
-            const providersPayload = buildProvidersPayloadForSave(currentProviders)
             const res = await apiFetch('/api/user/api-config', {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    models: enabledModels,
-                    providers: providersPayload,
                     defaultModels: currentDefaultModels,
                     workflowConcurrency: currentWorkflowConcurrency,
                     capabilityDefaults: currentCapabilityDefaults,

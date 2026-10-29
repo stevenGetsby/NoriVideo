@@ -1,17 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
-import { testProviderConnection } from '@/lib/user-api/provider-test'
 
-export const POST = apiHandler(async (request: NextRequest) => {
-  const authResult = await requireUserAuth()
-  if (isErrorResponse(authResult)) return authResult
-
-  const body = await request.json().catch(() => ({}))
-  const startedAt = Date.now()
-  const result = await testProviderConnection(body)
+export const POST = apiHandler(async () => {
+  const auth = await requireUserAuth()
+  if (isErrorResponse(auth)) return auth
   return NextResponse.json({
-    ...result,
-    latencyMs: Date.now() - startedAt,
-  })
+    success: false,
+    error: { code: 'CUSTOM_PROVIDER_TEST_RETIRED', message: '自定义 Provider 已停用。请由管理员在平台服务配置中检测 DeepSeek 或 Kuaizi。' },
+  }, { status: 410 })
 })

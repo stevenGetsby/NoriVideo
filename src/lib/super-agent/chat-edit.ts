@@ -517,7 +517,7 @@ async function createLiveEditPlan(params: {
   context: EditableEpisodeContext
   referenceImageUrls?: string[]
 }): Promise<AgentChatEditPlan> {
-  const systemPrompt = `你是 NoriVideo 的 Agent 修改编排器。用户会要求修改一个已经生成、可编辑的视频项目。
+  const systemPrompt = `你是 LanmiaoTV 的 Agent 修改编排器。用户会要求修改一个已经生成、可编辑的视频项目。
 
 你只能返回 JSON，不要输出解释文字。已有对象只能使用 context 中已有的 panel id / asset id。新增对象不要编造 id，由后端创建。
 

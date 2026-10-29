@@ -9,6 +9,7 @@
     "MODEL_NOT_REGISTERED": "模型未注册，请先在配置中添加可用模型",
     "MODEL_NOT_CONFIGURED": "未配置可用模型，请先前往「设置」页面添加对应类型的模型后再试",
     "QUOTA_EXCEEDED": "配额已用尽，请稍后重试",
+    "VOICE_DESIGN_RETIRED": "AI 声音设计已停用，请上传参考音频或绑定 Kuaizi 音色 ID",
     "GENERATION_FAILED": "生成失败，请重试",
     "GENERATION_TIMEOUT": "生成超时，请重试",
     "SENSITIVE_CONTENT": "内容可能包含敏感信息",

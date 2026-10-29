@@ -32,7 +32,7 @@ describe('assistant-platform runtime', () => {
   it('throws invalid request when messages payload is malformed', async () => {
     await expect(createAssistantChatResponse({
       userId: 'user-1',
-      assistantId: 'api-config-template',
+      assistantId: 'tutorial',
       context: {},
       messages: { invalid: true },
     })).rejects.toMatchObject({
@@ -43,7 +43,7 @@ describe('assistant-platform runtime', () => {
   it('throws missing model when analysisModel is not configured', async () => {
     await expect(createAssistantChatResponse({
       userId: 'user-1',
-      assistantId: 'api-config-template',
+      assistantId: 'tutorial',
       context: {
         providerId: 'openai-compatible:oa-1',
       },

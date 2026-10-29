@@ -1,8 +1,8 @@
 import fs from 'node:fs'
 import path from 'node:path'
+import { isSupportedModelProvider } from '@/lib/model-provider-contract'
 
 export type ServiceConfigLlmProtocol = 'chat' | 'responses'
-export type ServiceConfigGatewayRoute = 'official' | 'openai-compat'
 export type ServiceConfigModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync'
 
 export interface ServiceConfigStorageTos {
@@ -20,20 +20,12 @@ export interface ServiceConfigStorage {
   tos?: ServiceConfigStorageTos
 }
 
-export interface ServiceConfigSeedanceAssets {
-  accessKeyId?: string
-  secretAccessKey?: string
-  projectName?: string
-}
-
 export interface ServiceConfigProvider {
   id: string
   name: string
   baseUrl?: string
   apiKey?: string
   assetGroupId?: string
-  apiMode?: 'gemini-sdk' | 'openai-official'
-  gatewayRoute?: ServiceConfigGatewayRoute
 }
 
 export interface ServiceConfigModel {
@@ -43,7 +35,6 @@ export interface ServiceConfigModel {
   type: ServiceConfigModelType
   provider: string
   llmProtocol?: 'responses' | 'chat-completions'
-  compatMediaTemplate?: unknown
   price?: number
 }
 
@@ -63,20 +54,6 @@ export interface ServiceConfigLlm {
   models?: ServiceConfigModel[]
   defaultModels?: ServiceConfigDefaultModels
   modelRouting?: Record<string, string>
-}
-
-export interface ServiceConfigImage {
-  hfsy?: {
-    apiKey?: string
-    baseUrl?: string
-  }
-}
-
-export interface ServiceConfigVideoRepaint {
-  providerId?: string
-  understandingModel?: string
-  adaptationModel?: string
-  fps?: number
 }
 
 export interface ServiceConfigModel3DFrameos {
@@ -100,10 +77,7 @@ export interface ServiceConfigModel3D {
 
 export interface ServiceConfig {
   storage?: ServiceConfigStorage
-  seedanceAssets?: ServiceConfigSeedanceAssets
   llm?: ServiceConfigLlm
-  image?: ServiceConfigImage
-  videoRepaint?: ServiceConfigVideoRepaint
   model3d?: ServiceConfigModel3D
 }
 
@@ -311,20 +285,24 @@ export function getServiceStorageConfig(): ServiceConfigStorage | undefined {
   return readServiceConfig().storage
 }
 
-export function getServiceSeedanceAssetsConfig(): ServiceConfigSeedanceAssets | undefined {
-  return readServiceConfig().seedanceAssets
-}
-
 export function getServiceLlmConfig(): ServiceConfigLlm | undefined {
-  return readServiceConfig().llm
-}
-
-export function getServiceImageConfig(): ServiceConfigImage | undefined {
-  return readServiceConfig().image
-}
-
-export function getServiceVideoRepaintConfig(): ServiceConfigVideoRepaint | undefined {
-  return readServiceConfig().videoRepaint
+  const config = readServiceConfig().llm
+  if (!config) return undefined
+  const providers = (config.providers || []).filter((provider) => isSupportedModelProvider(provider.id))
+  const providerIds = new Set(providers.map((provider) => provider.id))
+  return {
+    ...config,
+    providers,
+    models: (config.models || []).filter((model) => providerIds.has(model.provider)),
+    modelRouting: Object.fromEntries(Object.entries(config.modelRouting || {}).filter(([, value]) => {
+      const normalized = compact(value)
+      // An explicit empty route means the administrator disabled this
+      // capability. Keep it so it cannot fall back to the suggested route.
+      if (!normalized) return true
+      const provider = normalized.split('::')[0]
+      return providerIds.has(provider)
+    })),
+  }
 }
 
 export function getServiceModel3DConfig(): ServiceConfigModel3D | undefined {

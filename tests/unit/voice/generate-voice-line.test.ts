@@ -1,186 +1,108 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Job } from 'bullmq'
+import type { TaskJobData } from '@/lib/task/types'
 
 const prismaMock = vi.hoisted(() => ({
-  novelPromotionVoiceLine: {
-    findUnique: vi.fn(),
-    update: vi.fn(async () => undefined),
-  },
-  novelPromotionProject: {
-    findUnique: vi.fn(),
-  },
-  novelPromotionEpisode: {
-    findUnique: vi.fn(),
-  },
+  novelPromotionVoiceLine: { findUnique: vi.fn(), update: vi.fn() },
+  novelPromotionProject: { findUnique: vi.fn() },
+  novelPromotionEpisode: { findUnique: vi.fn() },
 }))
+const resolveModelSelectionMock = vi.hoisted(() => vi.fn())
+const generateAudioMock = vi.hoisted(() => vi.fn())
+const getExistingExternalIdMock = vi.hoisted(() => vi.fn())
+const waitExternalResultMock = vi.hoisted(() => vi.fn())
+const persistAudioMock = vi.hoisted(() => vi.fn())
 
-const resolveModelSelectionOrSingleMock = vi.hoisted(() => vi.fn())
-const getProviderKeyMock = vi.hoisted(() => vi.fn((providerId: string) => providerId))
-const getAudioApiKeyMock = vi.hoisted(() => vi.fn())
-
-const normalizeToBase64ForGenerationMock = vi.hoisted(() => vi.fn())
-const extractStorageKeyMock = vi.hoisted(() => vi.fn())
-const getSignedUrlMock = vi.hoisted(() => vi.fn((storageKey: string) => `signed://${storageKey}`))
-const toFetchableUrlMock = vi.hoisted(() => vi.fn((url: string) => url))
-const uploadObjectMock = vi.hoisted(() => vi.fn(async () => 'voice/storage/line-1.wav'))
-const resolveStorageKeyFromMediaValueMock = vi.hoisted(() => vi.fn())
-const synthesizeWithBailianTTSMock = vi.hoisted(() => vi.fn())
-const falSubscribeMock = vi.hoisted(() => vi.fn())
-const getProviderConfigMock = vi.hoisted(() => vi.fn())
-
-vi.mock('@/lib/prisma', () => ({
-  prisma: prismaMock,
-}))
-
+vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/api-config', () => ({
-  getAudioApiKey: getAudioApiKeyMock,
-  getProviderConfig: getProviderConfigMock,
-  getProviderKey: getProviderKeyMock,
-  resolveModelSelectionOrSingle: resolveModelSelectionOrSingleMock,
+  getProviderKey: (provider: string) => provider,
+  resolveModelSelectionOrSingle: resolveModelSelectionMock,
 }))
-
-vi.mock('@/lib/media/outbound-image', () => ({
-  normalizeToBase64ForGeneration: normalizeToBase64ForGenerationMock,
+vi.mock('@/lib/generator-api', () => ({ generateAudio: generateAudioMock }))
+vi.mock('@/lib/workers/utils', () => ({
+  getTaskExistingExternalId: getExistingExternalIdMock,
+  waitExternalResult: waitExternalResultMock,
 }))
-
 vi.mock('@/lib/storage', () => ({
-  extractStorageKey: extractStorageKeyMock,
-  getSignedUrl: getSignedUrlMock,
-  toFetchableUrl: toFetchableUrlMock,
-  uploadObject: uploadObjectMock,
+  getSignedUrl: (key: string) => `signed://${key}`,
 }))
-
-vi.mock('@/lib/media/service', () => ({
-  resolveStorageKeyFromMediaValue: resolveStorageKeyFromMediaValueMock,
-}))
-
-vi.mock('@/lib/providers/bailian', () => ({
-  synthesizeWithBailianTTS: synthesizeWithBailianTTSMock,
-}))
-
-vi.mock('@fal-ai/client', () => ({
-  fal: {
-    config: vi.fn(),
-    subscribe: falSubscribeMock,
-  },
-}))
+vi.mock('@/lib/audio/persist', () => ({ persistGeneratedAudio: persistAudioMock }))
 
 import { generateVoiceLine } from '@/lib/voice/generate-voice-line'
 
-describe('generate voice line with bailian provider', () => {
+const job = { data: { taskId: 'task-1' } } as Job<TaskJobData>
+const params = {
+  projectId: 'project-1', episodeId: 'episode-1', lineId: 'line-1',
+  userId: 'user-1', audioModel: 'kuaizi::speech-2.8-hd', job,
+}
+
+describe('generate voice line with Kuaizi', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    const audioBytes = Uint8Array.from([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
-
     prismaMock.novelPromotionVoiceLine.findUnique.mockResolvedValue({
-      id: 'line-1',
-      episodeId: 'episode-1',
-      speaker: 'Narrator',
-      content: '你好，世界',
-      emotionPrompt: null,
-      emotionStrength: null,
+      id: 'line-1', episodeId: 'episode-1', speaker: 'Narrator', content: '你好，世界',
+      emotionPrompt: null, emotionStrength: null,
     })
-    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
-      characters: [],
-    })
+    prismaMock.novelPromotionProject.findUnique.mockResolvedValue({ characters: [] })
     prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({
-      speakerVoices: JSON.stringify({
-        Narrator: {
-          audioUrl: 'voice/reference.wav',
-          voiceId: 'voice_abc123',
-        },
-      }),
+      speakerVoices: JSON.stringify({ Narrator: {
+        provider: 'kuaizi', voiceType: 'kuaizi', voiceId: 'kz-voice-1',
+      } }),
     })
-
-    resolveModelSelectionOrSingleMock.mockResolvedValue({
-      provider: 'bailian',
-      modelId: 'qwen3-tts-vd-2026-01-26',
-      modelKey: 'bailian::qwen3-tts-vd-2026-01-26',
-      mediaType: 'audio',
+    resolveModelSelectionMock.mockResolvedValue({
+      provider: 'kuaizi', modelId: 'speech-2.8-hd', modelKey: 'kuaizi::speech-2.8-hd',
     })
-
-    getProviderConfigMock.mockResolvedValue({
-      id: 'bailian',
-      name: 'Alibaba Bailian',
-      apiKey: 'bl-key',
+    getExistingExternalIdMock.mockResolvedValue(null)
+    generateAudioMock.mockResolvedValue({ success: true, externalId: 'KUAIZI:AUDIO:task-1' })
+    waitExternalResultMock.mockResolvedValue({
+      url: 'https://media.example/audio.wav', downloadHeaders: { Authorization: 'download-token' },
     })
-    synthesizeWithBailianTTSMock.mockResolvedValue({
-      success: true,
-      audioData: Buffer.from(audioBytes),
-      audioDuration: 1,
-    })
+    persistAudioMock.mockResolvedValue({ storageKey: 'voice/generated.wav', durationSeconds: 1.234 })
   })
 
-  it('uses speaker voiceId to generate and persists uploaded audio', async () => {
-    const result = await generateVoiceLine({
-      projectId: 'project-1',
-      episodeId: 'episode-1',
-      lineId: 'line-1',
-      userId: 'user-1',
-      audioModel: 'bailian::qwen3-tts-vd-2026-01-26',
+  it('submits a MiniMax voice ID, polls and persists the real duration', async () => {
+    await expect(generateVoiceLine(params)).resolves.toEqual({
+      lineId: 'line-1', audioUrl: 'signed://voice/generated.wav',
+      storageKey: 'voice/generated.wav', audioDuration: 1234,
     })
-
-    expect(getProviderConfigMock).toHaveBeenCalledWith('user-1', 'bailian')
-    expect(synthesizeWithBailianTTSMock).toHaveBeenCalledWith({
-      text: '你好，世界',
-      voiceId: 'voice_abc123',
-      modelId: 'qwen3-tts-vd-2026-01-26',
-      languageType: 'Chinese',
-    }, 'bl-key')
-    expect(uploadObjectMock).toHaveBeenCalledTimes(1)
+    expect(generateAudioMock).toHaveBeenCalledWith('user-1', 'kuaizi::speech-2.8-hd', '你好，世界', { voice: 'kz-voice-1' })
+    expect(waitExternalResultMock).toHaveBeenCalledWith(job, 'KUAIZI:AUDIO:task-1', 'user-1', { progressStart: 25, progressEnd: 88 })
+    expect(persistAudioMock).toHaveBeenCalledWith({
+      source: 'https://media.example/audio.wav', projectId: 'project-1',
+      downloadHeaders: { Authorization: 'download-token' },
+    })
     expect(prismaMock.novelPromotionVoiceLine.update).toHaveBeenCalledWith({
-      where: { id: 'line-1' },
-      data: {
-        audioUrl: 'voice/storage/line-1.wav',
-        audioDuration: 1,
-      },
-    })
-    expect(result).toEqual({
-      lineId: 'line-1',
-      audioUrl: 'signed://voice/storage/line-1.wav',
-      storageKey: 'voice/storage/line-1.wav',
-      audioDuration: 1,
+      where: { id: 'line-1' }, data: { audioUrl: 'voice/generated.wav', audioDuration: 1234 },
     })
   })
 
-  it('fails explicitly when bailian speaker binding only has uploaded audio', async () => {
-    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValueOnce({
-      speakerVoices: JSON.stringify({
-        Narrator: {
-          audioUrl: 'voice/reference.wav',
-        },
-      }),
-    })
-
-    await expect(
-      generateVoiceLine({
-        projectId: 'project-1',
-        episodeId: 'episode-1',
-        lineId: 'line-1',
-        userId: 'user-1',
-        audioModel: 'bailian::qwen3-tts-vd-2026-01-26',
-      }),
-    ).rejects.toThrow('无音色ID，QwenTTS 必须使用 AI 设计音色')
-
-    expect(synthesizeWithBailianTTSMock).not.toHaveBeenCalled()
-    expect(uploadObjectMock).not.toHaveBeenCalled()
+  it('resumes an existing external task without submitting another generation', async () => {
+    getExistingExternalIdMock.mockResolvedValue('KUAIZI:AUDIO:existing')
+    await generateVoiceLine(params)
+    expect(generateAudioMock).not.toHaveBeenCalled()
+    expect(waitExternalResultMock).toHaveBeenCalledWith(job, 'KUAIZI:AUDIO:existing', 'user-1', expect.any(Object))
   })
 
-  it('maps bailian invalid parameter to a qwen voice guidance error', async () => {
-    synthesizeWithBailianTTSMock.mockResolvedValueOnce({
-      success: false,
-      error: 'BAILIAN_TTS_FAILED(400): InvalidParameter',
-    })
+  it('uses an explicit Kuaizi reference audio for Seed Audio', async () => {
+    resolveModelSelectionMock.mockResolvedValue({ provider: 'kuaizi', modelId: 'seed-audio', modelKey: 'kuaizi::seed-audio' })
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({ speakerVoices: JSON.stringify({ Narrator: {
+      provider: 'kuaizi', voiceType: 'uploaded', audioUrl: 'voice/reference.wav',
+    } }) })
+    await generateVoiceLine({ ...params, audioModel: 'kuaizi::seed-audio' })
+    expect(generateAudioMock).toHaveBeenCalledWith('user-1', 'kuaizi::seed-audio', '你好，世界', { voice: 'voice/reference.wav' })
+  })
 
-    await expect(
-      generateVoiceLine({
-        projectId: 'project-1',
-        episodeId: 'episode-1',
-        lineId: 'line-1',
-        userId: 'user-1',
-        audioModel: 'bailian::qwen3-tts-vd-2026-01-26',
-      }),
-    ).rejects.toThrow('无效音色ID，QwenTTS 必须使用 AI 设计音色')
+  it('does not reuse a legacy Bailian voice ID for MiniMax', async () => {
+    prismaMock.novelPromotionEpisode.findUnique.mockResolvedValue({ speakerVoices: JSON.stringify({ Narrator: {
+      provider: 'bailian', voiceType: 'qwen-designed', voiceId: 'legacy-bailian',
+    } }) })
+    await expect(generateVoiceLine(params)).rejects.toThrow('请先为该发言人绑定 Kuaizi 音色 ID')
+    expect(generateAudioMock).not.toHaveBeenCalled()
+  })
 
-    expect(uploadObjectMock).not.toHaveBeenCalled()
+  it('rejects unsupported audio providers before submission', async () => {
+    resolveModelSelectionMock.mockResolvedValue({ provider: 'bailian', modelId: 'legacy', modelKey: 'bailian::legacy' })
+    await expect(generateVoiceLine(params)).rejects.toThrow('AUDIO_PROVIDER_UNSUPPORTED')
+    expect(generateAudioMock).not.toHaveBeenCalled()
   })
 })

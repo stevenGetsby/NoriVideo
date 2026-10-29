@@ -144,7 +144,9 @@ function buildDialogueSamples(input: VoiceMappingInput): Record<string, unknown>
 }
 
 function buildVoiceLibrary(input: VoiceMappingInput): Record<string, unknown>[] {
-  const voices = (input.voiceLibrary || []).map((voice) => ({
+  const voices = (input.voiceLibrary || []).flatMap((voice) => {
+    if (voice.voiceType !== 'kuaizi' || !voice.voiceId?.trim()) return []
+    return [{
     library_id: voice.id,
     voice_id: voice.voiceId || '',
     voice_name: voice.name,
@@ -154,7 +156,8 @@ function buildVoiceLibrary(input: VoiceMappingInput): Record<string, unknown>[] 
     gender: voice.gender || '',
     language: voice.language || '',
     reference_audio_id: voice.customVoiceUrl || null,
-  }))
+    }]
+  })
   return [...voices, ...(input.extraVoiceLibrary || [])]
 }
 

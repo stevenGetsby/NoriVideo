@@ -32,7 +32,7 @@ describe('api specific - user assistant chat', () => {
     resetAuthMockState()
   })
 
-  it('accepts api-config-template assistant request and forwards payload', async () => {
+  it('accepts tutorial assistant request and forwards payload', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/assistant/chat/route')
@@ -41,7 +41,7 @@ describe('api specific - user assistant chat', () => {
       path: '/api/user/assistant/chat',
       method: 'POST',
       body: {
-        assistantId: 'api-config-template',
+        assistantId: 'tutorial',
         context: {
           providerId: 'openai-compatible:oa-1',
         },
@@ -55,9 +55,10 @@ describe('api specific - user assistant chat', () => {
 
     const res = await route.POST(req, routeContext)
     expect(res.status).toBe(200)
+    expect(await res.text()).toContain('data: ok')
     expect(createAssistantChatResponseMock).toHaveBeenCalledWith({
       userId: 'user-1',
-      assistantId: 'api-config-template',
+      assistantId: 'tutorial',
       context: {
         providerId: 'openai-compatible:oa-1',
       },
@@ -69,7 +70,7 @@ describe('api specific - user assistant chat', () => {
     })
   })
 
-  it('rejects invalid assistantId', async () => {
+  it('rejects retired api-config-template assistantId', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/assistant/chat/route')
@@ -78,7 +79,7 @@ describe('api specific - user assistant chat', () => {
       path: '/api/user/assistant/chat',
       method: 'POST',
       body: {
-        assistantId: 'unknown-assistant',
+        assistantId: 'api-config-template',
         messages: [],
       },
     })
@@ -101,7 +102,7 @@ describe('api specific - user assistant chat', () => {
       path: '/api/user/assistant/chat',
       method: 'POST',
       body: {
-        assistantId: 'api-config-template',
+        assistantId: 'tutorial',
         context: {
           providerId: 'openai-compatible:oa-1',
         },

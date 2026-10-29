@@ -1,6 +1,6 @@
 import type {
   SeedanceAssetsApi, SeedanceAssetResult, SeedanceAssetGroupResult, SeedanceAssetGroupListResult,
-} from '@/lib/volcengine/seedance-assets-client'
+} from '@/lib/volcengine/seedance-assets-contract'
 import { asRecord, postKuaiziApiKey, readString } from './client'
 
 const ASSET_PATH = '/ai-open-platform-api/api/support/v1/asset'

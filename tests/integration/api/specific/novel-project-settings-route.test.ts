@@ -152,14 +152,14 @@ describe('作品设置 API', () => {
   it('保存项目级导出命名模板和成员目录提示', async () => {
     const response = await callPatch({
       exportNamingTemplate: '{project}_{episode}_{sequence}_{creator}',
-      exportDirectoryHint: 'D:\\NoriVideoDownloads\\机甲三国',
+      exportDirectoryHint: 'D:\\LanmiaoTVDownloads\\机甲三国',
     })
     expect(response.status).toBe(200)
     expect(prismaMock.novelPromotionProject.update).toHaveBeenCalledWith({
       where: { projectId: 'project-1' },
       data: {
         exportNamingTemplate: '{project}_{episode}_{sequence}_{creator}',
-        exportDirectoryHint: 'D:\\NoriVideoDownloads\\机甲三国',
+        exportDirectoryHint: 'D:\\LanmiaoTVDownloads\\机甲三国',
       },
     })
   })

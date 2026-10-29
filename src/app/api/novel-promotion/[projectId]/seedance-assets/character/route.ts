@@ -5,7 +5,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { decodeImageUrlsFromDb } from '@/lib/contracts/image-urls-contract'
 import { extractStorageKey, getSignedObjectUrl, getStorageType } from '@/lib/storage'
 import { getSeedanceAssetsProvider } from '@/lib/volcengine/seedance-assets-provider'
-import type { SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-client'
+import type { SeedanceAssetResult } from '@/lib/volcengine/seedance-assets-contract'
 import { replacePanelSeedanceReferenceAssetForCharacter } from '@/lib/novel-promotion/seedance-reference-assets'
 import { ensureSeedanceProjectAssetGroup } from '@/lib/novel-promotion/seedance-project-asset-group'
 

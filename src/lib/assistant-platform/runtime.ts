@@ -1,6 +1,5 @@
 import { convertToModelMessages, safeValidateUIMessages, stepCountIs, streamText, type LanguageModel, type UIMessage } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
-import { createGoogleGenerativeAI } from '@ai-sdk/google'
 import { getProviderConfig, getProviderKey } from '@/lib/api-config'
 import { getUserModelConfig } from '@/lib/config-service'
 import { resolveLlmRuntimeModel } from '@/lib/llm/runtime-shared'
@@ -49,20 +48,8 @@ async function resolveAssistantLanguageModel(input: {
   const providerConfig = await getProviderConfig(input.userId, selection.provider)
   const providerKey = getProviderKey(selection.provider)
 
-  if (providerKey === 'google' || providerKey === 'gemini-compatible') {
-    const google = createGoogleGenerativeAI({
-      apiKey: providerConfig.apiKey,
-      ...(providerConfig.baseUrl ? { baseURL: providerConfig.baseUrl } : {}),
-      name: providerKey,
-    })
-    return {
-      resolvedModel: {
-        providerId: selection.provider,
-        providerKey,
-        modelId: selection.modelId,
-      },
-      languageModel: google.chat(selection.modelId),
-    }
+  if (providerKey !== 'deepseek') {
+    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 DeepSeek 官方 API (${selection.provider})`)
   }
 
   const openai = createOpenAI({

@@ -7,10 +7,6 @@ import {
     type ModelCapabilities,
     type UnifiedModelType,
 } from '@/lib/model-config-contract'
-import type {
-    OpenAICompatMediaTemplate,
-    OpenAICompatMediaTemplateSource,
-} from '@/lib/openai-compat-media-template'
 import {
     MODEL_PRESETS,
     MODEL_PROVIDER_NAME_ZH,
@@ -25,8 +21,6 @@ export interface Provider {
     apiKey?: string
     hasApiKey?: boolean
     hidden?: boolean
-    apiMode?: 'gemini-sdk' | 'openai-official'
-    gatewayRoute?: 'official' | 'openai-compat'
 }
 
 export interface LlmCustomPricing {
@@ -55,9 +49,6 @@ export interface CustomModel {
     provider: string
     llmProtocol?: 'responses' | 'chat-completions'
     llmProtocolCheckedAt?: string
-    compatMediaTemplate?: OpenAICompatMediaTemplate
-    compatMediaTemplateCheckedAt?: string
-    compatMediaTemplateSource?: OpenAICompatMediaTemplateSource
     price: number
     priceMin?: number
     priceMax?: number
@@ -201,37 +192,7 @@ export interface ProviderTutorial {
 
 // 厂商开通教程配置
 // 注意: text 字段使用 i18n key, 翻译在 apiConfig.tutorials 下
-export const PROVIDER_TUTORIALS: ProviderTutorial[] = [
-    {
-        providerId: 'ark',
-        steps: [
-            {
-                text: 'ark_step1',
-                url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/apiKey?apikey=%7B%7D'
-            },
-            {
-                text: 'ark_step2',
-                url: 'https://console.volcengine.com/ark/region:ark+cn-beijing/openManagement?LLM=%7B%7D&advancedActiveKey=model'
-            }
-        ]
-    },
-    {
-        providerId: 'hfsy',
-        steps: [
-            {
-                text: 'hfsy_step1'
-            }
-        ]
-    },
-    {
-        providerId: 'lumina',
-        steps: [
-            {
-                text: 'lumina_step1'
-            }
-        ]
-    },
-]
+export const PROVIDER_TUTORIALS: ProviderTutorial[] = []
 
 /**
  * 根据厂商ID获取教程配置

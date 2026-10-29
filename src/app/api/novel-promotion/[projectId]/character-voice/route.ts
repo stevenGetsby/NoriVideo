@@ -40,6 +40,13 @@ export const PATCH = apiHandler(async (
     throw new ApiError('NOT_FOUND')
   }
 
+  if (voiceType && !['kuaizi', 'uploaded'].includes(voiceType)) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+  if (voiceType === 'kuaizi' && !voiceId) {
+    throw new ApiError('INVALID_PARAMS')
+  }
+
   const customVoiceMedia = customVoiceUrl
     ? await resolveMediaRefFromLegacyValue(customVoiceUrl)
     : null
@@ -78,59 +85,7 @@ export const POST = apiHandler(async (
 
   // 处理 JSON 请求（AI 声音设计）
   if (contentType.includes('application/json')) {
-    const body = await request.json()
-    const { characterId, voiceDesign } = body
-
-    if (!characterId || !voiceDesign) {
-      throw new ApiError('INVALID_PARAMS')
-    }
-
-    const { voiceId, audioBase64 } = voiceDesign
-    if (!voiceId || !audioBase64) {
-      throw new ApiError('INVALID_PARAMS')
-    }
-
-    const existingCharacter = await prisma.novelPromotionCharacter.findFirst({
-      where: {
-        id: characterId,
-        novelPromotionProject: { projectId }
-      },
-      select: { id: true }
-    })
-    if (!existingCharacter) {
-      throw new ApiError('NOT_FOUND')
-    }
-
-    // 解码 base64 音频
-    const audioBuffer = Buffer.from(audioBase64, 'base64')
-
-    // 上传到COS
-    const key = generateUniqueKey(`voice/custom/${projectId}/${characterId}`, 'wav')
-    const cosUrl = await uploadObject(audioBuffer, key)
-
-    // 更新角色音色设置
-    const character = await prisma.novelPromotionCharacter.update({
-      where: { id: existingCharacter.id },
-      data: {
-        voiceType: 'qwen-designed',
-        voiceId: voiceId,  // 保存 AI 生成的 voice ID
-        customVoiceUrl: cosUrl
-      }
-    })
-
-    _ulogInfo(`Character ${characterId} AI-designed voice saved: ${cosUrl}, voiceId: ${voiceId}`)
-
-    // 返回签名URL
-    const signedAudioUrl = getSignedUrl(cosUrl, 7200)
-
-    return NextResponse.json({
-      success: true,
-      audioUrl: signedAudioUrl,
-      character: {
-        ...character,
-        customVoiceUrl: signedAudioUrl
-      }
-    })
+    throw new ApiError('VOICE_DESIGN_RETIRED', { message: 'AI 声音设计已停用，请上传参考音频或绑定 Kuaizi 音色 ID。' })
   }
 
   // 处理 FormData 请求（文件上传）

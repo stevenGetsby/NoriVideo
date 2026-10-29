@@ -76,7 +76,7 @@ const FOS_CANVAS_SIDEBAR_STORAGE_KEY = 'nori.fos.canvasSidebarCollapsed'
 export function FosTitlebar({ title }: { title?: string }) {
   return (
     <div className="fos-titlebar" data-testid="fos-titlebar">
-      {title ? <span className="fos-titlebar-title">{title}</span> : <span className="fos-titlebar-title">NoriVideo</span>}
+      {title ? <span className="fos-titlebar-title">{title}</span> : <span className="fos-titlebar-title">LanmiaoTV</span>}
       <button type="button" className="fos-titlebar-refresh" aria-label="刷新页面" title="刷新" onClick={() => window.location.reload()}>
         <AppIcon name="refresh" className="h-3.5 w-3.5" />
       </button>

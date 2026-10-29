@@ -14,32 +14,29 @@ describe('api-config preset coming soon', () => {
     expect(model).toBeUndefined()
   })
 
-  it('registers Seedance 2.0 and Seedance 2.0 Fast as preset video models', () => {
+  it('does not expose retired Ark media presets', () => {
     const modelIds = PRESET_MODELS
       .filter((entry) => entry.provider === 'ark' && entry.type === 'video')
       .map((entry) => entry.modelId)
 
-    expect(modelIds).toEqual(expect.arrayContaining([
-      'doubao-seedance-2-0-260128',
-      'doubao-seedance-2-0-fast-260128',
-    ]))
+    expect(modelIds).toEqual([])
   })
 
   it('does not mark live preset models as coming soon', () => {
-    const modelKey = encodeModelKey('ark', 'doubao-seedance-2-0-260128')
-    expect(isPresetComingSoonModel('ark', 'doubao-seedance-2-0-260128')).toBe(false)
+    const modelKey = encodeModelKey('kuaizi', 'doubao-seedance-2-0-260128')
+    expect(isPresetComingSoonModel('kuaizi', 'doubao-seedance-2-0-260128')).toBe(false)
     expect(isPresetComingSoonModelKey(modelKey)).toBe(false)
   })
 
   it('does not mark normal preset models as coming soon', () => {
-    const modelKey = encodeModelKey('ark', 'doubao-seedance-2-0-fast-260128')
-    expect(isPresetComingSoonModel('ark', 'doubao-seedance-2-0-fast-260128')).toBe(false)
+    const modelKey = encodeModelKey('kuaizi', 'doubao-seedance-2-0-fast-260128')
+    expect(isPresetComingSoonModel('kuaizi', 'doubao-seedance-2-0-fast-260128')).toBe(false)
     expect(isPresetComingSoonModelKey(modelKey)).toBe(false)
   })
 
   it('keeps existing live preset models non-coming-soon', () => {
-    const modelKey = encodeModelKey('ark', 'doubao-seedance-1-5-pro-251215')
-    expect(isPresetComingSoonModel('ark', 'doubao-seedance-1-5-pro-251215')).toBe(false)
+    const modelKey = encodeModelKey('kuaizi', 'doubao-seedance-1-5-pro-251215')
+    expect(isPresetComingSoonModel('kuaizi', 'doubao-seedance-1-5-pro-251215')).toBe(false)
     expect(isPresetComingSoonModelKey(modelKey)).toBe(false)
   })
 
