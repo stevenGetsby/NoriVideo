@@ -40,6 +40,8 @@ export interface WorkProject {
   genreName?: string | null
   aspectRatio?: string | null
   artStyle?: string | null
+  /** Signed URL of a user-provided cover image; null keeps the generative cover. */
+  coverImageUrl?: string | null
   novelPromotionData?: WorkProjectConfig | null
 }
 
@@ -49,11 +51,15 @@ export type ProductionWorkSummary = Omit<WorkProject, 'workId'> & {
   projectId: string | null
 }
 
+export type RecycleBinWork = Pick<RecycleBinProject, 'id' | 'name' | 'deletedAt' | 'restoreDeadline' | 'remainingDays' | 'expired'>
+
 export interface RecycleBinProject {
   id: string
   name: string
   workId?: string | null
   workName?: string | null
+  workDeletedAt?: string | null
+  deletedWithWork?: boolean
   deletedAt?: string | null
   deletedByName?: string | null
   restoreDeadline?: string | null
@@ -187,6 +193,7 @@ export function normalizeWorkProject(value: unknown): WorkProject | null {
     genreName: optionalText(source.genreName || source.genre_name),
     aspectRatio: optionalText(source.aspectRatio || source.aspect_ratio || config.videoRatio || config.video_ratio),
     artStyle: optionalText(source.artStyle || source.art_style || config.projectStyle || config.project_style || config.artStyle || config.art_style),
+    coverImageUrl: optionalText(source.coverImageUrl || source.cover_image_url),
     novelPromotionData: Object.keys(config).length ? {
       projectLevel: optionalText(config.projectLevel || config.project_level),
       projectLevelName: optionalText(config.projectLevelName || config.project_level_name),

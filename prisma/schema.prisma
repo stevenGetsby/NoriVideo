@@ -386,9 +386,12 @@ model Project {
   createdById               String
   deletedAt                 DateTime?
   deletedById               String?                @db.VarChar(191)
+  deletedWithWork           Boolean                @default(false)
   seedanceAssetGroupId      String?
   seedanceAssetsProjectName String?
   collaborationMode         String                 @default("solo") @db.VarChar(32)
+  // Storage key for a user-provided cover image. Null keeps the generative cover.
+  coverImageKey             String?                @db.VarChar(512)
   createdAt                 DateTime               @default(now())
   updatedAt                 DateTime               @default(now()) @updatedAt
   lastAccessedAt            DateTime?
@@ -421,6 +424,8 @@ model Work {
   createdById      String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
+  deletedAt        DateTime?
+  deletedById      String?  @db.VarChar(191)
 
   workspaceOwner   User              @relation("WorkWorkspaceOwner", fields: [workspaceOwnerId], references: [id], onDelete: Cascade)
   createdBy        User              @relation("WorkCreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
@@ -430,6 +435,7 @@ model Work {
 
   @@index([workspaceOwnerId, updatedAt])
   @@index([createdById])
+  @@index([deletedAt])
   @@map("works")
 }
 

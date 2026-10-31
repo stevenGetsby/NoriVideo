@@ -2,7 +2,7 @@ import Image from 'next/image'
 import { BRAND_ASSETS } from '@/lib/brand'
 
 /** One transparent IP mark for public, workspace, admin and Agent surfaces. */
-export function NoriBrandMark({ size = 34, className = '', alt = 'LanmiaoTV' }: {
+export function NoriBrandMark({ size = 34, className = '', alt = 'LanMiaoTV' }: {
   size?: number
   className?: string
   alt?: string

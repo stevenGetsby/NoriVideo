@@ -19,6 +19,24 @@ export const CANVAS_VIDEO_DURATION_MAX = 30
 export const CANVAS_VIDEO_FPS_MIN = 1
 export const CANVAS_VIDEO_FPS_MAX = 120
 
+export const CANVAS_VIDEO_SUPERRESOLVE_TARGETS = ['720p', '1080p', '4k'] as const
+
+export type CanvasVideoSuperresolveTarget = (typeof CANVAS_VIDEO_SUPERRESOLVE_TARGETS)[number]
+
+const VIDEO_RESOLUTION_HEIGHTS: Record<string, number> = { '480p': 480, '720p': 720, '1080p': 1080, '4k': 2160 }
+
+export function resolveCanvasSuperresolveGenerationResolution(
+  target: CanvasVideoSuperresolveTarget,
+  supported: readonly unknown[],
+): string {
+  const lower = supported
+    .filter((value): value is string => typeof value === 'string')
+    .filter((value) => (VIDEO_RESOLUTION_HEIGHTS[value.toLowerCase()] || 0) < VIDEO_RESOLUTION_HEIGHTS[target])
+    .sort((a, b) => VIDEO_RESOLUTION_HEIGHTS[a.toLowerCase()] - VIDEO_RESOLUTION_HEIGHTS[b.toLowerCase()])
+  if (lower.length === 0) throw new CanvasGeneratorOptionError('当前模型没有低于超分目标的生成档位，请使用普通视频节点。')
+  return lower[lower.length - 1]
+}
+
 export type CanvasImageAspectRatio = (typeof CANVAS_IMAGE_ASPECT_RATIOS)[number]
 export type CanvasImageGenerationAspectRatio = CanvasImageAspectRatio
 export type CanvasImageResolution = (typeof CANVAS_IMAGE_RESOLUTIONS)[number]
@@ -59,6 +77,7 @@ export type CanvasVideoGenerationOptions = {
   generateAudio: boolean
   inputMode: CanvasVideoInputMode
   fps?: number
+  superresolveTarget?: CanvasVideoSuperresolveTarget
 }
 
 export function resolveSupportedResolution(
@@ -194,6 +213,15 @@ export function normalizeCanvasVideoGenerationOptions(
     throw new CanvasGeneratorOptionError(`视频帧率必须是 ${CANVAS_VIDEO_FPS_MIN}–${CANVAS_VIDEO_FPS_MAX} FPS 之间的整数。`)
   }
 
+  const superresolveTarget = options.superresolveTarget === undefined || options.superresolveTarget === null || options.superresolveTarget === ''
+    ? null
+    : choice({
+        value: options.superresolveTarget,
+        values: CANVAS_VIDEO_SUPERRESOLVE_TARGETS,
+        fallback: '720p',
+        label: '超分目标',
+        caseInsensitive: true,
+      })
   return {
     aspectRatio: choice({
       value: options.aspectRatio,
@@ -212,5 +240,6 @@ export function normalizeCanvasVideoGenerationOptions(
     generateAudio: options.generateAudio === true,
     inputMode: normalizeCanvasVideoInputMode(inputMode),
     ...(fps !== null ? { fps } : {}),
+    ...(superresolveTarget ? { superresolveTarget } : {}),
   }
 }

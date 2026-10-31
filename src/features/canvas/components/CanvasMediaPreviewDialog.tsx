@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
+import { Camera, Loader2, Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 import { attachMediaPlayer, handOffMediaPlayback, rememberPlayback, syncMediaPlayers } from '../media-playback'
+import { captureVideoFrame } from '../video-frame-capture'
 
 function mediaType(node: CanvasFlowNode) {
   if (node.type === 'model_3d') return 'model3d'
@@ -16,11 +17,19 @@ function clampScale(value: number) {
   return Math.max(0.2, Math.min(5, Math.round(value * 10) / 10))
 }
 
-export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNode; onClose: () => void }) {
+export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFrame, onClose }: {
+  node: CanvasFlowNode
+  readOnly?: boolean
+  onCaptureFrame?: (file: File, sourceNode: CanvasFlowNode) => Promise<void>
+  onClose: () => void
+}) {
   const type = mediaType(node)
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [fit, setFit] = useState(true)
+  const [capturing, setCapturing] = useState(false)
+  const [captureError, setCaptureError] = useState('')
+  const capturePendingRef = useRef(false)
   const videoRef = useRef<HTMLVideoElement>(null)
   const url = useMemo(() => {
     const raw = type === 'video'
@@ -74,6 +83,23 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
     return () => document.removeEventListener('keydown', keydown, true)
   }, [onClose, type])
 
+  const captureFrame = async () => {
+    const video = videoRef.current
+    if (!video || !onCaptureFrame || capturePendingRef.current) return
+    capturePendingRef.current = true
+    setCapturing(true)
+    setCaptureError('')
+    try {
+      const file = await captureVideoFrame(video, undefined, node.data.title || '视频')
+      await onCaptureFrame(file, node)
+    } catch (error) {
+      setCaptureError(error instanceof Error ? error.message : '截取关键帧失败')
+    } finally {
+      capturePendingRef.current = false
+      setCapturing(false)
+    }
+  }
+
   return (
     <div className="nori-canvas-media-preview" role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
       <header>
@@ -116,7 +142,7 @@ export function CanvasMediaPreviewDialog({ node, onClose }: { node: CanvasFlowNo
         ) : null}
         {url && type === 'audio' ? <div className="nori-canvas-media-preview-audio"><i><Music2 /></i><strong>{node.data.title || '音频素材'}</strong><audio src={url} controls autoPlay /></div> : null}
       </main>
-      <footer><span>{type === 'image' ? '滚轮缩放 · 0 重置 · Esc 关闭' : 'Esc 关闭预览'}</span><small>{url}</small></footer>
+      <footer><span>{captureError || (type === 'image' ? '滚轮缩放 · 0 重置 · Esc 关闭' : 'Esc 关闭预览')}</span><div>{type === 'video' && onCaptureFrame && !readOnly ? <button type="button" disabled={!url || capturing} onClick={() => void captureFrame()}>{capturing ? <Loader2 className="animate-spin" /> : <Camera />}{capturing ? '正在截取…' : '截取当前帧'}</button> : null}<small>{url}</small></div></footer>
     </div>
   )
 }

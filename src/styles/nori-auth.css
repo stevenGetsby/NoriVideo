@@ -15,7 +15,10 @@
   width: 100%;
   flex-direction: column;
   overflow: clip;
-  background: var(--auth-bg);
+  background:
+    radial-gradient(ellipse at 18% 42%, #0c34504d, transparent 43%),
+    radial-gradient(ellipse at 78% 72%, #29194740, transparent 45%),
+    var(--auth-bg);
   color: var(--auth-text);
   font: 14px/1.5 var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
   -webkit-font-smoothing:antialiased;
@@ -26,7 +29,14 @@
 .nori-auth a { color: inherit; text-decoration: none; }
 .nori-auth button { cursor: pointer; }
 .nori-auth :focus-visible, .nori-auth-help-dialog :focus-visible { outline: 2px solid var(--auth-accent); outline-offset: 4px; }
-.nori-auth-ambient { position: absolute; z-index: -1; inset: 0; pointer-events: none; background: none; }
+.nori-auth-ambient { position: absolute; z-index: -1; inset: 0; pointer-events: none; background: radial-gradient(ellipse at 20% 35%, #38bfff14, transparent 48%), radial-gradient(ellipse at 72% 70%, #aa70ff12, transparent 48%); }
+.nori-auth-creative-scene { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; }
+.nori-auth-scene-renderer, .nori-auth-scene-fallback { position: absolute; inset: 0; }
+.nori-auth-scene-renderer { opacity: 0; transition: opacity 1.2s ease; }
+.nori-auth-creative-scene.is-ready .nori-auth-scene-renderer { opacity: .92; }
+.nori-auth-scene-renderer canvas { display: block; width: 100%; height: 100%; }
+.nori-auth-scene-fallback { background: radial-gradient(ellipse at 28% 43%, #087bb747, transparent 46%), radial-gradient(ellipse at 73% 55%, #7e44b940, transparent 48%), linear-gradient(125deg, transparent 34%, #4985de0d 47%, #a875ed1a 53%, transparent 66%); }
+.nori-auth-creative-scene.is-ready .nori-auth-scene-fallback { opacity: .35; }
 .nori-auth-header, .nori-auth-layout, .nori-auth-footer { width: 100%; max-width: 1536px; margin: 0 auto; padding-right: 64px; padding-left: 64px; }
 .nori-auth-header { display: flex; min-height: 100px; flex: none; align-items: center; gap: 24px; }
 .nori-auth-brand { display: inline-flex; flex: none; align-items: center; gap: 12px; font-size: 23px; font-weight: 720; letter-spacing: -.8px; }
@@ -42,30 +52,24 @@
 .nori-auth-header-enter { display: inline-flex; min-height: 35px; align-items: center; gap: 13px; border: 1px solid var(--fos-border-strong); border-radius: 6px; padding: 0 13px; color: var(--fos-text-1) !important; font-size: 11px; transition: background .18s, border-color .18s; }
 .nori-auth-header-enter:hover { border-color: var(--fos-primary-border); background: var(--fos-primary-soft); }
 .nori-auth-layout { display: grid; flex: 1 0 auto; grid-template-columns: minmax(0, 1.5fr) minmax(350px, .88fr); align-items: center; gap: clamp(56px, 7.1vw, 116px); padding-top: 32px; padding-bottom: 54px; }
-.nori-auth-story { min-width: 0; }
+.nori-auth-story { position: relative; min-width: 0; padding: 26px 0 32px; }
+.nori-auth-story::before { position: absolute; z-index: -1; inset: -50px -80px; background: radial-gradient(ellipse at 27% 44%, #090c1885, transparent 69%); content: ""; pointer-events: none; }
 .nori-auth-eyebrow { display: flex; align-items: center; gap: 10px; margin: 0 0 23px; color: #a3acff; font-family: var(--font-geist-mono), monospace; font-size: 10px; font-weight: 450; letter-spacing: 2.1px; }
 .nori-auth-eyebrow-line { width: 52px; height: 1px; margin-left: 5px; background: var(--fos-primary-border); }
-.nori-auth-story h1 { margin: 0; font-size: clamp(44px, 4.35vw, 69px); font-weight: 550; line-height: 1.17; letter-spacing: -.045em; }
-.nori-auth-story h1 > span { color: var(--fos-text-1); }
-.nori-auth-story-description { max-width: 440px; margin: 21px 0 30px; color: var(--fos-text-2); font-size: 13px; line-height: 1.95; letter-spacing: .25px; }
-.nori-auth-cinema { position: relative; height: clamp(240px, 22vw, 340px); margin: 0; overflow: hidden; border: 1px solid var(--fos-border-strong); border-radius: 12px; background: var(--auth-panel); }
-.nori-auth-cinema > img { object-fit: cover; object-position: center 47%; filter: saturate(.57) brightness(.77); transform: scale(1.01); transition: transform 1.4s cubic-bezier(.2,.7,.3,1); }
-@media (hover: hover) and (prefers-reduced-motion: no-preference) { .nori-auth-cinema:hover > img { transform: scale(1.055); } }
-.nori-auth-cinema-shade { position: absolute; inset: 0; background: linear-gradient(180deg, #0d0d1230, #0d0d1206 35%, #0d0d12b0 100%), linear-gradient(90deg, #0d0d1246, transparent 70%); }
-.nori-auth-frame-corner { position: absolute; z-index: 1; width: 14px; height: 14px; border-color: #ffffff64; border-style: solid; }
-.nori-auth-frame-corner.is-top-left { top: 15px; left: 15px; border-width: 1px 0 0 1px; }
-.nori-auth-frame-corner.is-top-right { top: 15px; right: 15px; border-width: 1px 1px 0 0; }
-.nori-auth-frame-corner.is-bottom-left { bottom: 15px; left: 15px; border-width: 0 0 1px 1px; }
-.nori-auth-frame-corner.is-bottom-right { bottom: 15px; right: 15px; border-width: 0 1px 1px 0; }
-.nori-auth-scene-top { position: absolute; top: 23px; right: 26px; left: 26px; display: flex; align-items: center; justify-content: space-between; color: #ffffffd9; font-family: var(--font-geist-mono), monospace; font-size: 8px; letter-spacing: 1.5px; }
-.nori-auth-scene-top > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
-.nori-auth-scene-top i { width: 4px; height: 4px; border-radius: 50%; background: var(--fos-gradient-cta); box-shadow: 0 0 8px rgba(0,0,0,.35); color: var(--fos-on-cta); }
-.nori-auth-cinema figcaption { position: absolute; right: 26px; bottom: 33px; left: 26px; display: flex; flex-direction: column; align-items: flex-start; }
-.nori-auth-scene-index { color: #ffffffab; font-family: var(--font-geist-mono), monospace; font-size: 8px; letter-spacing: 1.7px; }
-.nori-auth-cinema figcaption strong { margin-top: 9px; color: #ffffff; font-size: clamp(15px, 1.4vw, 20px); font-weight: 500; letter-spacing: .5px; }
-.nori-auth-scene-note { margin-top: 6px; color: #ffffff9c; font-size: 10px; }
-.nori-auth-scene-format { position: absolute; right: 26px; bottom: 27px; display: flex; align-items: flex-end; gap: 17px; color: #ffffffa6; font-family: var(--font-geist-mono), monospace; font-size: 7px; letter-spacing: 1px; }
-.nori-auth-scene-cross { font-size: 22px; font-weight: 200; line-height: 1; }
+.nori-auth-story h1 { margin: 0; font-size: clamp(52px, 5.15vw, 82px); font-weight: 540; line-height: 1.13; letter-spacing: -.055em; }
+.nori-auth-story h1 > span { background: linear-gradient(110deg, #e4faff 5%, #a3cfff 38%, #d6b9ff 68%, #f1d4ff); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nori-auth-story-description { max-width: 440px; margin: 25px 0 32px; color: #b6bbd1; font-size: 13px; line-height: 1.95; letter-spacing: .25px; }
+.nori-auth-story-orbit { position: relative; display: flex; height: 134px; align-items: center; justify-content: space-between; gap: 24px; margin: 8px 0 30px; overflow: hidden; }
+.nori-auth-orbit-track { position: relative; display: block; width: min(260px, 48%); aspect-ratio: 2; border: 1px solid #9ca9ff25; border-radius: 50%; transform: rotate(-14deg); }
+.nori-auth-orbit-track::before, .nori-auth-orbit-track::after { position: absolute; border: 1px solid #7ad7ff25; border-radius: 50%; content: ""; }
+.nori-auth-orbit-track::before { inset: 13px -28px; }
+.nori-auth-orbit-track::after { inset: 27px -57px; border-color: #bc8fff1a; }
+.nori-auth-orbit-track i { position: absolute; width: 7px; height: 7px; border: 1px solid #baf4ff; border-radius: 50%; background: #61d5ff; box-shadow: 0 0 16px #4cd7ffb3; }
+.nori-auth-orbit-track i:first-child { top: 8px; left: 39%; }
+.nori-auth-orbit-track i:nth-child(2) { right: -5px; bottom: 33%; width: 5px; height: 5px; background: #b794ff; box-shadow: 0 0 14px #a66bff; }
+.nori-auth-orbit-track i:nth-child(3) { bottom: 4px; left: 16%; width: 3px; height: 3px; }
+.nori-auth-orbit-caption { display: flex; flex-direction: column; gap: 6px; padding-right: 20px; color: #b4bbd564; font-family: var(--font-geist-mono), monospace; font-size: 9px; letter-spacing: 3px; line-height: 1.6; text-align: right; }
+.nori-auth-orbit-caption > span:last-child { color: #c9c5e547; }
 .nori-auth-workflow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 24px; }
 .nori-auth-workflow-item { position: relative; display: flex; min-width: 0; align-items: center; gap: 11px; }
 .nori-auth-workflow-icon { display: grid; width: 34px; height: 34px; flex: none; place-items: center; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #a3acff; background: var(--fos-primary-soft); }
@@ -74,10 +78,10 @@
 .nori-auth-workflow-item > div > span { color: var(--fos-text-4); font-size: 10px; }
 .nori-auth-workflow-connector { margin-left: auto; padding-right: 12px; color: #ffffff40; font-size: 12px; }
 .nori-auth-access { min-width: 0; scroll-margin-top: 24px; outline: none; }
-.nori-auth-card { position: relative; width: 100%; max-width: 416px; margin: 0 auto; border: 1px solid var(--fos-border-mid); border-radius: 18px; padding: 37px 33px 25px; background: var(--auth-panel); box-shadow: 0 30px 70px #00000020, inset 0 1px 0 #ffffff04; }
+.nori-auth-card { position: relative; width: 100%; max-width: 416px; margin: 0 auto; border: 1px solid #ffffff1f; border-radius: 22px; padding: 37px 33px 25px; background: rgb(20 20 27 / .82); box-shadow: 0 32px 90px #02020b66, inset 0 1px 0 #ffffff0a; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px); }
 .nori-auth-card::before { position: absolute; top: -1px; right: 32px; left: 32px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff29, transparent); content: ""; }
 .nori-auth-card-kicker { display: flex; align-items: center; gap: 7px; margin-bottom: 27px; color: var(--fos-text-4); font-family: var(--font-geist-mono), monospace; font-size: 8px; font-weight: 450; letter-spacing: 1.6px; }
-.nori-auth-card-kicker > span:first-child { width: 5px; height: 5px; border-radius: 50%; background: var(--fos-indigo); box-shadow: 0 0 0 3px #6e7bff; }
+.nori-auth-card-kicker > span:first-child { width: 5px; height: 5px; border-radius: 50%; background: #77cfff; box-shadow: 0 0 0 3px #77cfff12, 0 0 12px #77cfff55; }
 .nori-auth-card h2 { margin: 0; color: var(--fos-text-1); font-size: 28px; font-weight: 550; letter-spacing: -.7px; line-height: 1.35; }
 .nori-auth-card-description { margin: 10px 0 0; color: var(--fos-text-2); font-size: 13px; line-height: 1.8; }
 .nori-auth-card-content { margin-top: 29px; }
@@ -89,12 +93,12 @@
 .nori-auth-field > label { color: #d4d5dd; font-size: 12px; font-weight: 500; }
 .nori-auth-input-wrap { position: relative; display: flex; min-width: 0; align-items: center; }
 .nori-auth-input-icon { position: absolute; left: 14px; width: 16px; height: 16px; color: var(--fos-text-4); pointer-events: none; }
-.nori-auth-input-wrap input { width: 100%; min-width: 0; height: 49px; border: 1px solid var(--fos-border-strong); border-radius: 7px; outline: none; padding: 0 42px; color: var(--fos-text-1); background: var(--auth-bg); font-size: 14px; transition: border-color .18s, box-shadow .18s; }
+.nori-auth-input-wrap input { width: 100%; min-width: 0; height: 49px; border: 1px solid var(--fos-border-strong); border-radius: 7px; outline: none; padding: 0 42px; color: var(--fos-text-1); background: rgb(19 19 25); font-size: 14px; transition: border-color .18s, box-shadow .18s; }
 .nori-auth-input-wrap input::placeholder { color: var(--fos-text-4); }
 .nori-auth-input-wrap input:hover { border-color: #ffffff3d; }
 .nori-auth-input-wrap input:focus { border-color: rgba(124, 102, 255, .6); box-shadow: 0 0 0 3px var(--fos-primary-soft); }
 .nori-auth-input-wrap input:disabled { cursor: wait; opacity: .65; }
-.nori-auth-input-wrap input:-webkit-autofill { -webkit-text-fill-color:var(--fos-text-1); box-shadow: 0 0 0 1000px var(--auth-bg) inset; }
+.nori-auth-input-wrap input:-webkit-autofill { -webkit-text-fill-color:var(--fos-text-1); box-shadow: 0 0 0 1000px rgb(19 19 25) inset; }
 .nori-auth-password-toggle { position: absolute; right: 7px; display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 5px; color: var(--fos-text-4); background: transparent; }
 .nori-auth-password-toggle:hover { color: var(--fos-text-1); background: var(--fos-fill-mid); }
 .nori-auth-caps-lock { margin: -2px 0 0; color: #fbbf24; font-size: 10px; }
@@ -103,7 +107,7 @@
 .nori-auth-form-info .nori-auth-help-trigger { margin-left: auto; font-size: 10px !important; }
 .nori-auth-error { display: flex; align-items: flex-start; gap: 8px; border: 1px solid #ef444436; border-radius: 7px; padding: 11px 12px; color: #fca5a5; background: #ef44440d; font-size: 11px; line-height: 1.8; overflow-wrap: anywhere; }
 .nori-auth-error svg { flex: none; margin-top: 3px; }
-.nori-auth-submit { display: flex; min-height: 48px; width: 100%; align-items: center; justify-content: center; gap: 10px; border: 1px solid transparent; border-radius: 8px; padding: 10px 18px; color: var(--fos-on-cta); background: var(--fos-gradient-cta); font-size: 12px !important; font-weight: 650 !important; box-shadow: 0 5px 20px rgba(0,0,0,.35); transition: background .18s, transform .18s, box-shadow .18s; }
+.nori-auth-submit { display: flex; min-height: 48px; width: 100%; align-items: center; justify-content: center; gap: 10px; border: 1px solid #a2c7ff2b; border-radius: 10px; padding: 10px 18px; color: var(--fos-on-cta); background: var(--fos-gradient-cta); font-size: 12px !important; font-weight: 650 !important; box-shadow: 0 8px 28px #515ad02e, inset 0 1px 0 #ffffff21; transition: background .18s, transform .18s, box-shadow .18s; }
 .nori-auth-submit > svg:last-child:not(.nori-auth-spinner) { margin-left: auto; }
 .nori-auth-submit > span { margin-left: auto; }
 .nori-auth-submit:hover:not(:disabled) { background: var(--fos-gradient-cta-hover); box-shadow: 0 5px 24px rgba(0,0,0,.35); transform: translateY(-1px); color: var(--fos-on-cta); }
@@ -132,7 +136,7 @@
 .nori-auth-help-panel li p { margin: 0; color: var(--fos-text-2); font-size: 12px; line-height: 1.9; overflow-wrap: anywhere; }
 .nori-auth-help-done { display: block; min-height: 43px; width: 100%; border: 1px solid var(--fos-primary-border); border-radius: 8px; color: #ffffff; background: rgba(255,255,255,.16); font-size: 12px; cursor: pointer; }
 @keyframes nori-auth-spin { to { transform: rotate(360deg); } }
-@media (min-width: 1700px) { .nori-auth-layout { padding-top: 48px; padding-bottom: 72px; } .nori-auth-cinema { height: 360px; } }
+@media (min-width: 1700px) { .nori-auth-layout { padding-top: 48px; padding-bottom: 72px; } .nori-auth-story-orbit { height: 170px; } }
 @media (max-width: 1180px) {
   .nori-auth-header, .nori-auth-layout, .nori-auth-footer { padding-right: 36px; padding-left: 36px; }
   .nori-auth-layout { grid-template-columns: minmax(0, 1fr) minmax(320px, .88fr); gap: 48px; }
@@ -140,14 +144,14 @@
   .nori-auth-card { padding: 32px 25px 24px; }
   .nori-auth-workflow-connector { padding-right: 0; }
   .nori-auth-footer::before { right: 36px; left: 36px; }
-  .nori-auth-scene-format > span:first-child { display: none; }
+  .nori-auth-story-orbit { height: 105px; margin-bottom: 22px; }
 }
 @media (max-width: 900px) {
   .nori-auth-header { min-height: 84px; }
   .nori-auth-layout { max-width: 600px; grid-template-columns: minmax(0, 1fr); gap: 36px; padding-top: 24px; padding-bottom: 35px; }
   .nori-auth-story h1 { font-size: 46px; }
   .nori-auth-story-description { max-width: 100%; font-size: 12px; }
-  .nori-auth-cinema { height: 220px; }
+  .nori-auth-story-orbit { height: 130px; margin-top: 0; }
   .nori-auth-workflow { margin-top: 20px; }
   .nori-auth-card { max-width: none; padding: 32px; }
   .nori-auth-footer-center { display: none; }
@@ -165,7 +169,9 @@
   .nori-auth-eyebrow-line { width: 24px; }
   .nori-auth-story h1 { font-size: 37px; line-height: 1.16; }
   .nori-auth-story-description { margin: 14px 0 0; font-size: 11px; line-height: 1.9; }
-  .nori-auth-cinema, .nori-auth-workflow { display: none; }
+  .nori-auth-story-orbit, .nori-auth-workflow { display: none; }
+  .nori-auth-story { padding: 0; }
+  .nori-auth-story::before { inset: -30px -24px; }
   .nori-auth-card { border-radius: 13px; padding: 27px 23px 22px; }
   .nori-auth-card-kicker { margin-bottom: 19px; font-size: 7px; letter-spacing: 1.1px; }
   .nori-auth-card h2 { font-size: 25px; }

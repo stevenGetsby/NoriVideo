@@ -8,6 +8,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { getWorkspaceActor, projectReadWhere, requireProjectManager, requireProjectReader } from '@/lib/collaboration/access'
 import { PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
 import { toProductionWork } from '@/lib/projects/hierarchy'
+import { projectCoverImageUrl } from '@/lib/projects/project-cover-url'
 
 function readOptionalString(value: unknown, maxLength: number) {
   if (value === null) return undefined
@@ -53,7 +54,11 @@ export const GET = apiHandler(async (
 
   // 这个 API 只返回基础作品信息
   // 作品附属业务数据通过各自的 API 获取（如 /api/novel-promotion/[projectId]）
-  const projectWithSignedUrls = { ...project, ...addSignedUrlsToProject(project) }
+  const projectWithSignedUrls = {
+    ...project,
+    ...addSignedUrlsToProject(project),
+    coverImageUrl: projectCoverImageUrl(project.coverImageKey),
+  }
 
   return NextResponse.json({ work: toProductionWork(projectWithSignedUrls), project: projectWithSignedUrls })
 })
@@ -106,7 +111,10 @@ export const PATCH = apiHandler(async (
     { changes: updateData }
   )
 
-  return NextResponse.json({ work: toProductionWork(updatedProject), project: updatedProject })
+  return NextResponse.json({
+    work: toProductionWork({ ...updatedProject, coverImageUrl: projectCoverImageUrl(updatedProject.coverImageKey) }),
+    project: { ...updatedProject, coverImageUrl: projectCoverImageUrl(updatedProject.coverImageKey) },
+  })
 })
 
 // DELETE - 将作品移入回收站，15 天内可恢复；到期后由后台清理器硬删除。
@@ -136,6 +144,7 @@ export const DELETE = apiHandler(async (
     data: {
       deletedAt,
       deletedById: getWorkspaceActor(session).actorId,
+      deletedWithWork: false,
     },
   })
 

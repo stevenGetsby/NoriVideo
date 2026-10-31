@@ -362,8 +362,8 @@ export function FosAccountManagementClient() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <div className="min-w-[1370px]">
-                <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
+              <div className="min-w-[1840px]">
+                <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_460px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
                   <span>子账号</span><span>角色</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
                   <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#131319] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
                 </div>
@@ -374,7 +374,7 @@ export function FosAccountManagementClient() {
                 ) : subaccounts.map((account) => {
                   const definition = roleDefinition(account.role)
                   return (
-                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_300px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
+                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_460px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
@@ -401,7 +401,7 @@ export function FosAccountManagementClient() {
                         {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.every((item) => !account.permissions.includes(item.key)) ? <small className="text-[10px] text-white/30">仅查看</small> : null}
                       </span>
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
-                      <span className="sticky right-0 z-10 -my-4 flex items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
+                      <span className="sticky right-0 z-10 -my-4 flex shrink-0 items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
                         <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => openEdit(account)}>设置额度</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="将历史个人积分收回共享钱包" onClick={() => openCreditOperation('reclaim', account)}>收回</button>

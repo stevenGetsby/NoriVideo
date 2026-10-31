@@ -21,6 +21,7 @@ import {
   CANVAS_NODE_TYPE_TEXT,
   CANVAS_NODE_TYPE_VIDEO,
   CANVAS_NODE_TYPE_VIDEO_EDIT,
+  CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE,
 } from './types'
 
 export type CanvasFlowNodeData = CanvasNodeData & {
@@ -94,6 +95,7 @@ export type CanvasNodeMenuType =
   | typeof CANVAS_NODE_TYPE_TEXT
   | typeof CANVAS_NODE_TYPE_IMAGE
   | typeof CANVAS_NODE_TYPE_VIDEO
+  | typeof CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE
   | typeof CANVAS_NODE_TYPE_VIDEO_EDIT
   | typeof CANVAS_NODE_TYPE_AUDIO
   | typeof CANVAS_NODE_TYPE_MODEL_3D
@@ -267,6 +269,7 @@ export const CANVAS_ADD_NODE_ITEMS: Array<{
   { type: CANVAS_NODE_TYPE_TEXT, label: '文本', description: '脚本、提示词与文案', icon: 'text' },
   { type: CANVAS_NODE_TYPE_IMAGE, label: '图片', description: '生成或引用图片', icon: 'image' },
   { type: CANVAS_NODE_TYPE_VIDEO, label: '视频', description: '生成或引用视频', icon: 'video' },
+  { type: CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE, label: '视频超分', description: '低分辨率生成，自动超分到目标清晰度', icon: 'video' },
   { type: CANVAS_NODE_TYPE_VIDEO_EDIT, label: '视频编辑', description: '裁剪片段并用提示词编辑视频', icon: 'video' },
   { type: CANVAS_NODE_TYPE_PLAYLIST, label: '播放列表', description: '顺序剪辑并提交最终审核', icon: 'playlist' },
   { type: CANVAS_NODE_TYPE_MODEL_3D, label: '3D模型', description: '生成或上传 GLB', icon: 'box3d' },
@@ -278,6 +281,7 @@ export const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number 
   [CANVAS_NODE_TYPE_TEXT]: { width: 300, height: 200 },
   [CANVAS_NODE_TYPE_IMAGE]: { width: 300, height: 200 },
   [CANVAS_NODE_TYPE_VIDEO]: { width: 320, height: 220 },
+  [CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE]: { width: 320, height: 220 },
   [CANVAS_NODE_TYPE_VIDEO_EDIT]: { width: 520, height: 440 },
   [CANVAS_NODE_TYPE_AUDIO]: { width: 320, height: 150 },
   [CANVAS_NODE_TYPE_MODEL_3D]: { width: 320, height: 240 },
@@ -347,8 +351,9 @@ export function defaultCanvasNodeData(type: CanvasNodeMenuType): CanvasNodeData 
   if (type === CANVAS_NODE_TYPE_IMAGE) {
     return { title: '图片节点', mediaType: 'image', origin: 'empty', prompt: '', generation: { aspectRatio: '16:9', resolution: '2K', quality: 'high', count: 1 } }
   }
-  if (type === CANVAS_NODE_TYPE_VIDEO) {
-    return { title: '视频节点', mediaType: 'video', origin: 'empty', prompt: '', generation: { aspectRatio: '16:9', resolution: '720p', duration: 5, inputMode: 'text', generateAudio: true } }
+  if (type === CANVAS_NODE_TYPE_VIDEO || type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE) {
+    const superresolve = type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE
+    return { title: superresolve ? '视频超分' : '视频节点', mediaType: 'video', origin: 'empty', prompt: '', generation: { aspectRatio: '16:9', resolution: '720p', duration: 5, inputMode: 'text', generateAudio: true, ...(superresolve ? { parameters: { superresolveTarget: '720p' } } : {}) } }
   }
   if (type === CANVAS_NODE_TYPE_VIDEO_EDIT) {
     return {
@@ -534,13 +539,14 @@ export function flowEdgeToCanvas(edge: CanvasFlowEdge, canvasId: string): Canvas
 }
 
 export function createFlowNode(type: CanvasNodeMenuType, position: XYPosition): CanvasFlowNode {
-  const size = DEFAULT_NODE_SIZES[type]
+  const persistentType = type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE ? CANVAS_NODE_TYPE_VIDEO : type
+  const size = DEFAULT_NODE_SIZES[persistentType]
   return {
     id: crypto.randomUUID(),
-    type,
+    type: persistentType,
     position,
     width: size.width,
-    height: isStoryNodeType(type) ? undefined : size.height,
+    height: isStoryNodeType(persistentType) ? undefined : size.height,
     zIndex: 1,
     selected: true,
     data: {

@@ -12,6 +12,7 @@ import {
   canvasVideoEditorMode,
   normalizeCanvasImageGenerationOptions,
   normalizeCanvasVideoGenerationOptions,
+  resolveCanvasSuperresolveGenerationResolution,
   resolveSupportedResolution,
 } from '@/lib/canvas/generator-options'
 
@@ -56,6 +57,17 @@ describe('canvas generator surface option contract', () => {
     expect(canvasVideoAspectRatioOptions('nori::norivideo2.5', 'firstlastframe')).toEqual(['adaptive'])
     expect(canvasVideoAspectRatioOptions('nori::norivideo2.5', 'text')).toContain('adaptive')
     expect(canvasVideoAspectRatioOptions('nori::seedance2.0', 'text')).not.toContain('adaptive')
+  })
+
+  it('keeps superresolve targets separate from billed model resolution', () => {
+    expect(normalizeCanvasVideoGenerationOptions({ superresolveTarget: '720P' }, 'text')).toMatchObject({
+      resolution: '720p',
+      superresolveTarget: '720p',
+    })
+    expect(resolveCanvasSuperresolveGenerationResolution('720p', ['480p', '720p'])).toBe('480p')
+    expect(resolveCanvasSuperresolveGenerationResolution('1080p', ['480p', '720p'])).toBe('720p')
+    expect(() => resolveCanvasSuperresolveGenerationResolution('720p', ['720p'])).toThrow('没有低于超分目标')
+    expect(() => normalizeCanvasVideoGenerationOptions({ superresolveTarget: '2k' }, 'text')).toThrow('超分目标仅支持')
   })
 
   it('maps configured resolution defaults case-insensitively without inventing unsupported tiers', () => {

@@ -11,6 +11,7 @@ const inputMode = (params.get('mode') || 'text') as 'text' | 'image' | 'firstlas
 const withThumbs = params.get('refs') === '1'
 const withVoice = params.get('voice') === '1'
 const withStale = params.get('stale') === '1'
+const superresolve = params.get('superresolve') as '720p' | '1080p' | '4k' | null
 
 function node(id: string, type: string, data: Record<string, unknown>): CanvasFlowNode {
   return { id, type, position: { x: 0, y: 0 }, data } as unknown as CanvasFlowNode
@@ -35,6 +36,7 @@ function Fixture() {
     mediaType,
     generation: {
       inputMode,
+      parameters: superresolve ? { superresolveTarget: superresolve } : undefined,
       ...(withStale
         ? { referenceNodeIds: ['deleted-reference'] }
         : withThumbs ? { referenceNodeIds: withVoice ? ['img-1', 'img-2'] : ['img-1'] } : {}),

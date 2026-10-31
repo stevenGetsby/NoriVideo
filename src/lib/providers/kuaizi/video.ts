@@ -222,7 +222,7 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   if (resolution && !limits.resolutions.includes(resolution)) {
     throw new Error(`KUAIZI_SEEDANCE_RESOLUTION_UNSUPPORTED: ${resolution}`)
   }
-  if (duration !== undefined && duration !== -1 && (duration < 4 || duration > limits.maxDuration)) {
+  if (duration !== undefined && (duration < 4 || duration > limits.maxDuration)) {
     throw new Error(`KUAIZI_SEEDANCE_DURATION_UNSUPPORTED: ${duration}`)
   }
   if (executionExpiresAfter !== undefined && (executionExpiresAfter < 3600 || executionExpiresAfter > 259200)) {

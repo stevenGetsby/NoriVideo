@@ -10,6 +10,7 @@ export type CanvasProjectOption = {
   name: string
   workId?: string | null
   workName?: string | null
+  coverImageUrl?: string | null
 }
 
 export type CanvasWorkOption = {
@@ -379,6 +380,7 @@ export const CANVAS_NODE_TYPE_NOTE = 'note'
 export const CANVAS_NODE_TYPE_TEXT = 'text'
 export const CANVAS_NODE_TYPE_IMAGE = 'image'
 export const CANVAS_NODE_TYPE_VIDEO = 'video'
+export const CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE = 'video_superresolve'
 export const CANVAS_NODE_TYPE_VIDEO_EDIT = 'video_edit'
 export const CANVAS_NODE_TYPE_AUDIO = 'audio'
 export const CANVAS_NODE_TYPE_MODEL_3D = 'model_3d'

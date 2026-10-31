@@ -11,10 +11,23 @@ function resolutionOptions(modelKey: string) {
   ).resolution
 }
 
+function durationOptions(modelKey: string) {
+  return getCapabilityOptionFields(
+    'video',
+    resolveBuiltinCapabilitiesByModelKey('video', modelKey),
+  ).duration
+}
+
 describe('Seedance business model resolution tiers', () => {
   it('keeps Mini and Fast at the resolutions officially supported by those tiers', () => {
     expect(resolutionOptions('nori::seedance2.0-mini')).toEqual(['480p', '720p'])
     expect(resolutionOptions('nori::seedance2.0-fast')).toEqual(['480p', '720p'])
+  })
+
+  it('uses the documented Kuaizi integer duration range for every Mini surface', () => {
+    const durations = Array.from({ length: 12 }, (_, index) => index + 4)
+    expect(durationOptions('nori::seedance2.0-mini')).toEqual(durations)
+    expect(durationOptions('kuaizi::doubao-seedance-2-0-mini-260615')).toEqual(durations)
   })
 
   it('exposes 1080p and 4k only on Seedance 2.0 Pro', () => {

@@ -29,7 +29,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
         return
       }
       if (result?.error === SURFACE_LOGIN_ERRORS.workspaceRequired) {
-        setError('账号密码正确，但管理账号和角色子账号必须从 LanmiaoTV 作品端登录。')
+        setError('账号密码正确，但管理账号和角色子账号必须从 LanMiaoTV 作品端登录。')
         return
       }
       if (result?.error || !result?.ok) {
@@ -40,7 +40,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
       const session = await getSession()
       if (session?.user?.role !== 'super_admin') {
         await signOut({ redirect: false })
-        setError('此入口仅供平台 Admin 使用，管理账号和角色子账号请从 LanmiaoTV 登录。')
+        setError('此入口仅供平台 Admin 使用，管理账号和角色子账号请从 LanMiaoTV 登录。')
         return
       }
       window.location.href = `/${locale}/admin/accounts`
@@ -62,7 +62,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
         <section className="nori-admin-login-copy">
           <p className="nori-admin-kicker">平台管理</p>
           <h1>管理工作区负责人，不介入内容生产。</h1>
-          <p>平台 Admin 只创建和维护管理账号。编剧、资产师、分镜师与审核员由各管理账号在 LanmiaoTV 内自行维护。</p>
+          <p>平台 Admin 只创建和维护管理账号。编剧、资产师、分镜师与审核员由各管理账号在 LanMiaoTV 内自行维护。</p>
           <ul>
             <li>账号与用量</li>
             <li>服务配置</li>
@@ -71,7 +71,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
 
         <section className="nori-admin-login-card">
           <h2>登录平台管理</h2>
-          <p>该入口与 LanmiaoTV 工作台相互独立。</p>
+          <p>该入口与 LanMiaoTV 工作台相互独立。</p>
           <form onSubmit={submit}>
             <label className="nori-admin-field">
               平台 Admin 账号
@@ -97,12 +97,12 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
               />
             </label>
             {error ? <div className="nori-admin-alert is-error" role="alert">{error}</div> : null}
-            <button className="fos-btn fos-btn-primary nori-admin-login-submit" disabled={loading} type="submit" title={loading ? '正在验证管理账号' : '登录 LanmiaoTV 管理控制台'}>
+            <button className="fos-btn fos-btn-primary nori-admin-login-submit" disabled={loading} type="submit" title={loading ? '正在验证管理账号' : '登录 LanMiaoTV 管理控制台'}>
               {loading ? <AppIcon name="loader" className="h-4 w-4 animate-spin" /> : <AppIcon name="arrowRight" className="h-4 w-4" />}
               {loading ? '正在验证…' : '进入管理控制台'}
             </button>
             <a className="nori-admin-login-back" href={workspaceSignInUrl}>
-              管理账号和角色子账号请返回 LanmiaoTV
+              管理账号和角色子账号请返回 LanMiaoTV
             </a>
           </form>
         </section>

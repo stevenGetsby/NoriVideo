@@ -88,7 +88,7 @@ async function open(viewport, mode = '') {
     if (url.pathname.endsWith('/balance')) payload = { balancePoints: 1000, generationAllowed: true, dailyLimitPoints: null, dailyUsedPoints: 0 }
     else if (url.pathname.endsWith('/generation-config')) payload = {
       textModels: [], imageModels: [], audioModels: [], model3dModels: [],
-      videoModels: [{ modelKey: 'nori::norivideo2.5', name: 'NoriVideo 2.5', configured: true, available: true, provider: 'nori', inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] } }],
+      videoModels: [{ modelKey: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', configured: true, available: true, provider: 'nori', inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] } }],
       defaults: { videoModel: 'nori::norivideo2.5', resolution: '720p', aspectRatio: '16:9' },
     }
     else if (url.pathname.endsWith('/generation-quote')) payload = { points: 20, costCny: 0.2 }

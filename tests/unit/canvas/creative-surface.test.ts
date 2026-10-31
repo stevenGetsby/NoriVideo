@@ -8,8 +8,9 @@ import { CanvasAddPanel } from '@/features/canvas/components/CanvasToolRail'
 import {
   CANVAS_ADD_NODE_ITEMS,
   defaultCanvasNodeData,
+  createFlowNode,
 } from '@/features/canvas/editor-types'
-import { CANVAS_NODE_TYPE_AUDIO } from '@/features/canvas/types'
+import { CANVAS_NODE_TYPE_AUDIO, CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE } from '@/features/canvas/types'
 
 vi.mock('next-auth/react', () => ({
   useSession: () => ({ data: { user: { role: 'admin', permissions: ['assetWrite'] } }, status: 'authenticated' }),
@@ -35,6 +36,18 @@ function enabledButtonContaining(markup: string, labelMarker: string): string {
 }
 
 describe('infinite canvas creative surface parity', () => {
+  it('persists video superresolve presets as ordinary video nodes', () => {
+    vi.stubGlobal('crypto', { randomUUID: () => 'superresolve-node' })
+    const node = createFlowNode(CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE, { x: 0, y: 0 })
+    vi.stubGlobal('React', React)
+    expect(node.type).toBe('video')
+    expect(node.data).toMatchObject({
+      title: '视频超分',
+      generation: { resolution: '720p', parameters: { superresolveTarget: '720p' } },
+    })
+    expect(CANVAS_ADD_NODE_ITEMS.some((item) => item.type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE)).toBe(true)
+  })
+
   it('keeps audio upload-backed while preserving the full audio node data contract', () => {
     expect(CANVAS_ADD_NODE_ITEMS.some((item) => item.type === CANVAS_NODE_TYPE_AUDIO)).toBe(false)
     expect(defaultCanvasNodeData(CANVAS_NODE_TYPE_AUDIO)).toEqual({

@@ -152,6 +152,7 @@ function generationRunning(project: WorkProject) {
 
 export interface ProjectActionHandlers {
   edit: (project: WorkProject) => void
+  cover: (project: WorkProject) => void
   rename: (project: WorkProject) => void
   members: (project: WorkProject) => void
   move: (project: WorkProject, work: WorkSummary) => void
@@ -193,6 +194,7 @@ function ProjectCard({
   const canManage = Boolean(project.canManage) && isManagementRole(session?.user?.role)
   const canMembers = canManage || Boolean(project.canManageMembers)
   const running = generationRunning(project)
+  const coverImageUrl = project.coverImageUrl?.trim() || null
   const workbenchHref = `/workflow/${project.id}/workbench-premium2`
   const menuId = `project-actions-${project.id}`
   return (
@@ -226,9 +228,10 @@ function ProjectCard({
         tabIndex={selectable ? -1 : 0}
         onClick={(event) => { if (selectable) event.preventDefault() }}
       >
-        <div className="works-project-cover nori-gen-cover">
+        <div className={`works-project-cover nori-gen-cover${coverImageUrl ? ' has-cover' : ''}`}>
+          {coverImageUrl ? <img className="works-project-cover-image" src={coverImageUrl} alt="" loading="lazy" /> : null}
           <span className={`works-project-edition${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
-          <span className="works-project-monogram" aria-hidden="true">{coverMonogram(project.name)}</span>
+          {coverImageUrl ? null : <span className="works-project-monogram" aria-hidden="true">{coverMonogram(project.name)}</span>}
         </div>
         <div className="works-project-info">
           <h3><Highlight text={project.name} keyword={keyword} /></h3>
@@ -289,6 +292,7 @@ function ProjectCard({
               onKeyDown={(event) => handleMenuKeyDown(event, onToggleMenu)}
             >
               <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.edit(project)}><AppIcon name="settingsHex" />编辑作品</button>
+              {canManage ? <button type="button" role="menuitem" className="fos-menu-item" data-testid="project-card-cover-action" onClick={() => actions.cover(project)}><AppIcon name="image" />{coverImageUrl ? '更换封面' : '设置封面'}</button> : null}
               {canManage ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.rename(project)}><AppIcon name="edit" />重命名</button> : null}
               {canMembers ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.members(project)}><AppIcon name="usersRound" />{canManage ? '设置协作者' : '查看协作者'}</button> : null}
               {canMove ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.move(project, work)}><AppIcon name="arrowRight" />移动到项目</button> : null}
@@ -411,7 +415,7 @@ export function WorkPanel({
                       {canManage && !work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.rename(work)}><AppIcon name="edit" />重命名</button> : null}
                       {canMove && work.projects.length ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]); onMenuChange(null) }}><AppIcon name="arrowRight" />批量移动作品</button> : null}
                       {canManage && !work.virtual ? (
-                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" disabled={work.projectCount > 0 || !work.canDelete} title={work.projectCount > 0 || !work.canDelete ? '请先移动或处理项目内作品（含回收站）' : undefined} onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除项目</button>
+                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" disabled={!work.canDelete} title={!work.canDelete ? '当前账号没有删除权限' : `项目及其中作品将进入回收站，保留 15 天`} onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除项目</button>
                       ) : null}
                     </div>
                     </ViewportPopover>

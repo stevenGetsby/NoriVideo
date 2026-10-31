@@ -8,9 +8,9 @@ const usageRows = [
     metadata: JSON.stringify({ inputTokens: 20, outputTokens: 10 }), createdAt: now,
   },
   {
-    id: 'cost-child', userId: 'child', projectId: 'project-1', apiType: 'text', model: 'nori::nori-gpt',
+    id: 'cost-child', userId: 'owner', projectId: 'project-1', apiType: 'text', model: 'nori::nori-gpt',
     action: 'script_to_storyboard_run', quantity: 70, unit: 'token', cost: 2,
-    metadata: JSON.stringify({ inputTokens: 40, outputTokens: 30 }), createdAt: now,
+    metadata: JSON.stringify({ inputTokens: 40, outputTokens: 30, quotaUserId: 'child' }), createdAt: now,
   },
 ]
 

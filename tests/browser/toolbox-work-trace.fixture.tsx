@@ -66,7 +66,7 @@ const processing = buildToolboxWorkTrace({
     duration: 4,
   },
   task: { id: 'task_01J9Z6X8Y7W4K3M2N1P0Q9R8S5', status: 'processing' },
-}, { modelName: 'NoriVideo 2.5' })
+}, { modelName: 'LanMiaoTV 2.5' })
 
 function Fixture() {
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')

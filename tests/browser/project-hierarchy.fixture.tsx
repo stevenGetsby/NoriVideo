@@ -3,11 +3,15 @@ import { createRoot } from 'react-dom/client'
 import { NextIntlClientProvider } from 'next-intl'
 import { FosProjectsClient } from '@/components/frameos/FosProjectsClient'
 import { FosProjectHeader } from '@/components/frameos/FosProjectHeader'
+import { FosCanvasHubClient } from '@/components/frameos/FosCanvasHubClient'
 import { FosShell } from '@/components/frameos/FosShell'
 import { CanvasChrome } from '@/features/canvas/components/CanvasChrome'
 import type { Canvas } from '@/features/canvas/types'
 import '@/styles/frameos-replica.css'
 import '@/features/canvas/canvas.css'
+import { refreshFixtureSession } from './stubs/next-auth-react'
+
+Object.assign(window, { refreshFixtureSession })
 
 const noop = () => undefined
 const canvas: Canvas = {
@@ -23,7 +27,7 @@ const projectOptions = [
 const view = new URLSearchParams(location.search).get('view')
 createRoot(document.getElementById('root')!).render(
   <NextIntlClientProvider locale="zh" messages={{}} timeZone="Asia/Shanghai">
-    {view === 'canvas' ? <FosShell activeKey="canvas" canvasShell><div className="nori-canvas-workspace">
+    {view === 'canvas-hub' ? <FosCanvasHubClient /> : view === 'canvas' ? <FosShell activeKey="canvas" canvasShell><div className="nori-canvas-workspace">
       <CanvasChrome projectId="leaf-a" projectName="作品 A" canvases={[canvas]} activeCanvas={canvas}
         saveState="saved" canUndo={false} canRedo={false}
         onSelectCanvas={noop} onCreateCanvas={noop} onRenameCanvas={noop} onDeleteCanvas={noop}

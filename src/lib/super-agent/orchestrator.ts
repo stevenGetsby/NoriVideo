@@ -3001,7 +3001,7 @@ export class SuperAgentOrchestrator {
       ))
       .join('\n')
 
-    const systemPrompt = `你是 LanmiaoTV 的 AI 助手。分析用户需求，并把短 prompt 扩写为可拍摄故事。
+    const systemPrompt = `你是 LanMiaoTV 的 AI 助手。分析用户需求，并把短 prompt 扩写为可拍摄故事。
 
 可用的视频类型：
 ${skillOptions}

@@ -23,26 +23,28 @@ function node(id: string, type: string, title: string, data: Record<string, unkn
 }
 
 describe('canvas @mention references', () => {
-  it('offers mixed image, video, and audio canvas entities with stable ids', () => {
+  it('offers connected inputs and asset-library entities without enumerating generated canvas nodes', () => {
     const assets = buildCanvasMentionAssets([
       node('target', 'video', '生成结果'),
-      node('image-1', 'image', '雨夜参考', { contentUrl: '/image.webp', materialId: 'material-image' }),
-      node('video-1', 'video', '雨夜参考', { posterUrl: '/poster.webp', materialId: 'material-video' }),
-      node('audio-1', 'audio', '环境雷声', { audioUrl: '/thunder.wav', materialId: 'material-audio' }),
-      node('url-only', 'image', '尚未绑定素材', { contentUrl: '/orphan.webp' }),
+      node('image-1', 'image', '雨夜参考', { contentUrl: '/image.webp', materialId: 'material-image', origin: 'project' }),
+      node('video-1', 'video', '雨夜参考', { posterUrl: '/poster.webp', materialId: 'material-video', origin: 'upload' }),
+      node('audio-1', 'audio', '环境雷声', { audioUrl: '/thunder.wav', materialId: 'material-audio', origin: 'project' }),
+      node('wired-generated', 'image', '连线生成图', { contentUrl: '/wired.webp', origin: 'generate' }),
+      node('url-only', 'image', '未连线生成图', { contentUrl: '/orphan.webp', origin: 'generate' }),
+      node('unmarked', 'image', '未标记来源', { contentUrl: '/legacy.webp' }),
       node('group-1', 'group', '镜头组'),
-    ], 'target', ['image', 'video', 'audio'], new Set(['image-1']))
+    ], 'target', ['image', 'video', 'audio'], new Set(['image-1', 'wired-generated']))
 
     expect(assets.map(({ id, mediaType, name }) => ({ id, mediaType, name }))).toEqual([
+      { id: 'wired-generated', mediaType: 'image', name: '连线生成图' },
       { id: 'image-1', mediaType: 'image', name: '雨夜参考·图片' },
       { id: 'audio-1', mediaType: 'audio', name: '环境雷声' },
-      { id: 'url-only', mediaType: 'image', name: '尚未绑定素材' },
       { id: 'video-1', mediaType: 'video', name: '雨夜参考·视频' },
     ])
-    expect(assets[0]).toMatchObject({ imageUrl: '/image.webp', description: '图片 · 已连接上游' })
-    expect(assets[3]).toMatchObject({ imageUrl: '/poster.webp', description: '视频 · 画布素材' })
-    expect(assets[1]).toMatchObject({ imageUrl: null, description: '音频 · 画布素材' })
-    expect(assets[2]).toMatchObject({ materialId: null, imageUrl: '/orphan.webp', description: '图片 · 画布素材 · 将自动建立引用' })
+    expect(assets.find(({ id }) => id === 'image-1')).toMatchObject({ imageUrl: '/image.webp', description: '图片 · 已连接上游' })
+    expect(assets[3]).toMatchObject({ imageUrl: '/poster.webp', description: '视频 · 资产库素材' })
+    expect(assets[2]).toMatchObject({ imageUrl: null, description: '音频 · 资产库素材' })
+    expect(assets.some(({ id }) => id === 'url-only' || id === 'unmarked')).toBe(false)
   })
 
   it('adds a mentioned entity id without dropping or reordering wired references', () => {
@@ -58,10 +60,10 @@ describe('canvas @mention references', () => {
     expect(shouldBindCanvasMentionReference('audio')).toBe(false)
   })
 
-  it('puts connected upstream entities before unconnected canvas assets', () => {
+  it('puts connected upstream entities before unconnected asset-library nodes', () => {
     const assets = buildCanvasMentionAssets([
-      node('canvas-audio', 'audio', '画布音频', { audioUrl: '/canvas.wav' }),
-      node('canvas-image', 'image', '画布图片', { contentUrl: '/canvas.webp' }),
+      node('canvas-audio', 'audio', '资产库音频', { audioUrl: '/canvas.wav', origin: 'upload' }),
+      node('canvas-image', 'image', '资产库图片', { contentUrl: '/canvas.webp', origin: 'project' }),
       node('wired-audio', 'audio', '连线音频', { audioUrl: '/wired.wav' }),
       node('wired-image', 'image', '连线图片', { contentUrl: '/wired.webp' }),
     ], 'target', ['image', 'audio'], new Set(['wired-audio', 'wired-image']))

@@ -1,11 +1,11 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import Image from 'next/image'
 import { useLocale } from 'next-intl'
 import { ArrowUpRight, Clapperboard, Layers3, PenLine, Sparkles } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
 import { AuthHelpButton } from './auth/AuthHelpButton'
+import { AuthCreativeScene } from './auth/AuthCreativeScene'
 import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 
 export function FosAuthShell({
@@ -27,10 +27,11 @@ export function FosAuthShell({
   return (
     <main className="nori-auth">
       <div className="nori-auth-ambient" aria-hidden="true" />
+      <AuthCreativeScene />
       <header className="nori-auth-header">
-        <Link href={{ pathname: '/' }} className="nori-auth-brand" aria-label="LanmiaoTV">
+        <Link href={{ pathname: '/' }} className="nori-auth-brand" aria-label="LanMiaoTV">
           <NoriBrandMark size={38} className="nori-auth-brand-cat" />
-          <span><span className="nori-auth-brand-name">Nori</span><span className="nori-auth-brand-light">Video</span><sup>STUDIO</sup></span>
+          <span><span className="nori-auth-brand-name">LanMiao</span><span className="nori-auth-brand-light">TV</span><sup>STUDIO</sup></span>
         </Link>
         <span className="nori-auth-header-label">{english ? 'A SPACE FOR YOUR NEXT STORY' : '为每一个好故事而生'}</span>
         <div className="nori-auth-header-actions">
@@ -56,28 +57,10 @@ export function FosAuthShell({
             ? 'From the first spark to the final frame. One workspace for your story, your team, and everything in between.'
             : '从第一行灵感，到最后一帧画面。把故事、资产与镜头，连接成你的下一部作品。'}</p>
 
-          <figure className="nori-auth-cinema">
-            <Image
-              src="/auth/cinematic-landscape.webp"
-              alt={english ? 'Snow-covered mountain peaks under a clouded sky' : '阴云下，层叠雪山与山谷向远处延伸'}
-              fill
-              priority
-              unoptimized
-              sizes="(max-width: 900px) 100vw, 58vw"
-            />
-            <div className="nori-auth-cinema-shade" aria-hidden="true" />
-            <span className="nori-auth-frame-corner is-top-left" aria-hidden="true" />
-            <span className="nori-auth-frame-corner is-top-right" aria-hidden="true" />
-            <span className="nori-auth-frame-corner is-bottom-left" aria-hidden="true" />
-            <span className="nori-auth-frame-corner is-bottom-right" aria-hidden="true" />
-            <div className="nori-auth-scene-top"><span><i aria-hidden="true" />VISUAL INSPIRATION</span><span>01 / ∞</span></div>
-            <figcaption>
-              <span className="nori-auth-scene-index">A STORY WAITING TO HAPPEN</span>
-              <strong>{english ? 'Somewhere beyond the ordinary.' : '每一个故事，都有自己的远方。'}</strong>
-              <span className="nori-auth-scene-note">{english ? 'Imagine it. Make it yours.' : '故事尚未开始，想象已经抵达。'}</span>
-            </figcaption>
-            <div className="nori-auth-scene-format" aria-hidden="true"><span>FRAME 001</span><span className="nori-auth-scene-cross">+</span></div>
-          </figure>
+          <div className="nori-auth-story-orbit" aria-hidden="true">
+            <span className="nori-auth-orbit-track"><i /><i /><i /></span>
+            <span className="nori-auth-orbit-caption"><span>IMAGINATION</span><span>IN MOTION</span></span>
+          </div>
 
           <div className="nori-auth-workflow" aria-label={english ? 'Creative workflow' : '创作流程'}>
             {workflow.map(({ icon: Icon, title: itemTitle, detail }, index) => (
@@ -103,7 +86,7 @@ export function FosAuthShell({
       </div>
 
       <footer className="nori-auth-footer">
-        <span>© {new Date().getFullYear()} LanmiaoTV</span>
+        <span>© {new Date().getFullYear()} LanMiaoTV</span>
         <span className="nori-auth-footer-center">{english ? 'MADE FOR STORIES. BUILT FOR CREATORS.' : '故事，由你定义。'}</span>
         <span>IMAGINE. CREATE. TOGETHER.</span>
       </footer>

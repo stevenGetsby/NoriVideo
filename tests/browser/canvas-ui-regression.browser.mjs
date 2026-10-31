@@ -71,7 +71,7 @@ const errors = []
 const cases = []
 let latestPage
 const model = {
-  modelKey: 'nori::norivideo2.5', name: 'NoriVideo 2.5', provider: 'nori', configured: true, available: true,
+  modelKey: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', provider: 'nori', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
   options: { duration: [4, 5, 6, 8, 10], resolution: ['480p', '720p'], aspectRatio: ['16:9', '9:16', '1:1'] },
   inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] },
@@ -126,6 +126,13 @@ async function open(viewport, query = '') {
       }
     }
     else if (url.pathname.endsWith('/toolbox/assets')) payload = { assets: [{ id: 'video-1', type: 'video', status: 'ready', resultUrl: 'images/ui.mp4', url: 'images/ui.mp4', materialId: 'video-material', task: { id: 'task-1', status: 'completed', progress: 100, costPoints: 20 } }] }
+    else if (url.pathname.endsWith('/materials') && route.request().method() === 'POST') {
+      if (query.includes('capture-fail')) {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: '模拟关键帧上传失败' }) })
+        return
+      }
+      payload = { material: { id: 'frame-material-1', title: '视频关键帧', url: reference } }
+    }
     else if (url.pathname.endsWith('/admin/accounts/child-1')) {
       assert.equal(route.request().method(), 'PATCH')
       const value = route.request().postDataJSON().dailyPointLimit
@@ -263,7 +270,7 @@ try {
     assert.equal(await generator.count(), 1, 'Escape must close parameters without deselecting the node')
     const prompt = generator.locator('textarea[role="combobox"]')
     await prompt.fill('@')
-    const mentions = page.getByRole('listbox', { name: '选择画布参考素材' })
+    const mentions = page.getByRole('listbox', { name: '选择连线输入或资产库素材' })
     await mentions.waitFor()
     await bounded(mentions, '@ picker')
     assert.equal(await mentions.getByRole('option').count(), 20, 'More than eight assets must be reachable')
@@ -304,18 +311,119 @@ try {
     await page.mouse.move(pane.x + pane.width - 70, pane.y + 240, { steps: 6 })
     await page.mouse.up({ button: 'right' })
     assert.equal(await page.getByRole('menu', { name: '画布操作' }).count(), 0, 'A real right drag must not leave a menu open')
+
+    const viewportBeforePan = await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform)
+    const panStart = { x: pane.x + pane.width - 140, y: pane.y + 400 }
+    await page.mouse.click(panStart.x, panStart.y)
+    await page.keyboard.down('Space')
+    await page.locator('.react-flow__pane.draggable').waitFor()
+    await page.mouse.down()
+    await page.mouse.move(panStart.x - 90, panStart.y + 45, { steps: 8 })
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Space panning must never draw the custom marquee')
+    await page.waitForFunction((before) => document.querySelector('.react-flow__viewport')?.style.transform !== before, viewportBeforePan)
+    assert.notEqual(await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform), viewportBeforePan, 'Space+left drag must actually pan')
+    await page.mouse.up()
+    await page.keyboard.up('Space')
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Releasing a Space pan must not leave a marquee')
+
+    const selectionBefore = await page.locator('.react-flow__node.selected').count()
+    await page.mouse.move(pane.x + pane.width - 160, pane.y + 120)
+    await page.mouse.down()
+    await page.mouse.move(pane.x + pane.width - 60, pane.y + 200, { steps: 5 })
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 1, 'An ordinary left drag must retain custom marquee selection')
+    await page.mouse.up()
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 0)
+    assert.equal(await page.locator('.react-flow__node.selected').count(), selectionBefore, 'An empty marquee must preserve existing selections')
+
+    await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').click()
+    await page.locator('.nori-canvas-generator').waitFor()
+    const spacePrompt = page.locator('.nori-canvas-generator textarea[role="combobox"]').first()
+    await spacePrompt.click()
+    await page.keyboard.type('A')
+    await page.keyboard.down('Space')
+    await page.keyboard.up('Space')
+    await page.keyboard.press('Escape')
+    const afterEditorSpace = await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform)
+    await page.mouse.click(pane.x + pane.width - 35, pane.y + 220)
+    await page.mouse.move(pane.x + pane.width - 35, pane.y + 220)
+    await page.mouse.down()
+    await page.mouse.move(pane.x + pane.width - 90, pane.y + 260, { steps: 5 })
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 1, 'Space typed into an editor must not enable canvas panning')
+    assert.equal(await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform), afterEditorSpace)
+    await page.mouse.up()
+
+    await page.keyboard.down('Space')
+    await page.mouse.move(pane.x + pane.width - 35, pane.y + 220)
+    await page.mouse.down()
+    await page.mouse.move(pane.x + pane.width - 90, pane.y + 260, { steps: 4 })
+    await page.evaluate(() => window.dispatchEvent(new Event('blur')))
+    await page.mouse.up()
+    await page.keyboard.up('Space')
+    assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Window blur must not strand the Space gesture state')
+    await page.mouse.click(pane.x + pane.width - 35, pane.y + 220, { button: 'right' })
     await page.mouse.click(pane.x + pane.width - 35, pane.y + 220, { button: 'right' })
     await page.getByRole('menu', { name: '画布操作' }).waitFor()
     await page.mouse.click(pane.x + pane.width - 35, pane.y + 300)
-    await video.click({ button: 'right' })
+    await video.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: box.right - 12, clientY: box.top + 12, button: 2 }))
+    })
     await page.getByRole('menu', { name: '节点操作' }).waitFor()
     await bounded(page.getByRole('menu', { name: '节点操作' }), 'Video context menu')
+    await page.keyboard.press('Escape')
+    await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-video').hover()
+    await page.locator('.react-flow__node[data-id="gen-1"]').getByRole('button', { name: '放大预览', exact: true }).click()
+    const canvasPreview = page.locator('.nori-canvas-media-preview')
+    await canvasPreview.waitFor()
+    await page.waitForFunction(() => document.querySelector('.nori-canvas-media-preview video')?.readyState >= 2)
+    const capture = canvasPreview.getByRole('button', { name: '截取当前帧', exact: true })
+    await capture.click()
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 22)
+    const frameNode = page.locator('.react-flow__node').filter({ hasText: '视频关键帧' })
+    assert.equal(await frameNode.count(), 1, 'A successful capture must create one real image node')
+    await page.getByText('关键帧已添加到画布', { exact: true }).waitFor()
+    await page.waitForFunction(() => document.querySelectorAll('.react-flow__edge').length === 1)
+    assert.equal(await page.locator('.react-flow__edge').count(), 1, 'The captured frame must link to its source video')
+    await page.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-captured-frame.png`) })
+    await canvasPreview.getByRole('button', { name: '关闭 (Esc)', exact: true }).click()
+    cases.push({ ...viewport, videoFrameCaptureCreatesLinkedImageNode: true })
     await page.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}.png`) })
     cases.push({ ...viewport, mentions: true, parameters: true, sound: true, videoPlayback: true, contextMenus: true })
     await page.close()
   }
+  for (const query of ['', '?capture-fail=1']) {
+    const page = await open({ width: 1280, height: 720 }, `?view=dialogs&kind=video-preview${query.replace('?', '&')}`)
+    const preview = page.locator('.nori-canvas-media-preview')
+    await preview.waitFor()
+    const video = preview.locator('video')
+    await page.waitForFunction(() => document.querySelector('.nori-canvas-media-preview video')?.readyState >= 2)
+    await video.evaluate((element) => { element.currentTime = 0.5 })
+    const capture = preview.getByRole('button', { name: '截取当前帧', exact: true })
+    await capture.click()
+    if (query) {
+      await preview.getByText('模拟关键帧上传失败', { exact: true }).waitFor()
+      assert.equal(await preview.getByRole('button', { name: '截取当前帧', exact: true }).isEnabled(), true)
+      assert.equal(await page.locator('[data-testid="dialog-closed"]').count(), 0, 'Capture upload failure must leave the preview open')
+    } else {
+      await page.getByTestId('dialog-closed').waitFor()
+    }
+    cases.push({ videoFrameCapture: query ? 'upload-failure-recovers-without-empty-node' : 'jpeg-upload-success' })
+    await page.close()
+  }
+
   const accounts = await open({ width: 1280, height: 720 }, '?view=accounts')
   await accounts.getByText('回归子账号', { exact: true }).waitFor()
+  const actionButtons = await accounts.locator('.min-w-\\[1840px\\] > div:not(:first-child) span.sticky button').evaluateAll((elements) => elements.map((element) => {
+    const box = element.getBoundingClientRect()
+    return { text: element.textContent, left: box.left, right: box.right, top: box.top, bottom: box.bottom }
+  }))
+  assert.deepEqual(actionButtons.map((button) => button.text), ['流水', '设置额度', '收回', '编辑', '删除'])
+  for (let index = 1; index < actionButtons.length; index++) {
+    assert.ok(actionButtons[index].left >= actionButtons[index - 1].right, `Account action buttons must not overlap: ${JSON.stringify(actionButtons)}`)
+  }
+  const accountTable = accounts.locator('.min-w-\\[1840px\\]').first()
+  const tableGeometry = await accountTable.evaluate((element) => ({ width: element.clientWidth, scrollWidth: element.scrollWidth, grid: element.firstElementChild?.getBoundingClientRect().width }))
+  assert.equal(tableGeometry.scrollWidth <= tableGeometry.width + 1, true, 'Widened account table must contain all action buttons')
   accounts.armStaleAccountRead()
   const staleRequest = accounts.waitForRequest((request) => new URL(request.url()).pathname === '/api/admin/accounts')
   await accounts.evaluate(() => window.dispatchEvent(new Event('focus')))
@@ -341,7 +449,7 @@ try {
   await accounts.close()
   const boundaryCases = []
   for (const viewport of [{ width: 1024, height: 600 }, { width: 768, height: 480 }, { width: 390, height: 700 }]) {
-    for (const kind of ['history', 'revisions', 'asset', 'workflow', 'management', 'image-edit', 'image-grid', 'image-focus', 'image-upscale', 'video-upscale', 'video-subtitles', 'image-preview', 'video-preview', 'model3d', 'studio', 'panorama']) {
+    for (const kind of ['history', 'revisions', 'asset', 'workflow', 'management', 'image-edit', 'image-grid', 'image-focus', 'image-upscale', 'video-upscale', 'video-subtitles', 'image-preview', 'video-preview', 'video-preview-readonly', 'model3d', 'studio', 'panorama']) {
       const page = await open(viewport, `?view=dialogs&kind=${kind}`)
       const panel = page.locator('.nori-canvas-dialog, .nori-canvas-media-preview, .nori-canvas-studio-dialog, .nori-canvas-panorama-dialog').first()
       await panel.waitFor()
@@ -350,6 +458,9 @@ try {
       const close = panel.locator('header button[title*="关闭"], header button[title="退出全景"], header button[title="退出 (Esc)"], header button[aria-label*="关闭"]').last()
       await close.waitFor()
       await bounded(close, `${kind} close`)
+      if (kind === 'video-preview-readonly') {
+        assert.equal(await panel.getByRole('button', { name: '截取当前帧', exact: true }).count(), 0, 'Read-only preview must not capture into the canvas')
+      }
       if (kind === 'history') {
         const text = panel.locator('.nori-canvas-history-prompt p').first()
         assert.equal(await text.evaluate((el) => el.scrollHeight > el.clientHeight + 1), false, 'History prompt must not be line-clamped')

@@ -356,7 +356,7 @@ export function FrameServiceRecordsDashboard() {
     const href = URL.createObjectURL(blob)
     const anchor = document.createElement('a')
     anchor.href = href
-    anchor.download = `LanmiaoTV_账号模型积分_${startDate || '全部'}_${endDate || '全部'}.csv`
+    anchor.download = `LanMiaoTV_账号模型积分_${startDate || '全部'}_${endDate || '全部'}.csv`
     document.body.appendChild(anchor)
     anchor.click()
     anchor.remove()

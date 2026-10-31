@@ -40,7 +40,9 @@ describe('project -> work API contract, compatible with existing storage IDs', (
     }])
     db.work.findFirst.mockResolvedValue({
       id: 'stored-parent', name: '项目甲', workspaceOwnerId: 'manager', projects: [],
+      deletedAt: null,
     })
+    db.project.updateMany.mockResolvedValue({ count: 1 })
     db.work.create.mockResolvedValue({ id: 'new-parent', name: '新项目', ...dates })
     db.work.update.mockResolvedValue({ id: 'stored-parent', name: '改名后的项目', ...dates })
     db.work.deleteMany.mockResolvedValue({ count: 0 })
@@ -94,16 +96,22 @@ describe('project -> work API contract, compatible with existing storage IDs', (
     expect(db.project.updateMany).not.toHaveBeenCalled()
   })
 
-  it('DELETE protects a parent project even when its only works are recycled', async () => {
+  it('DELETE recycles a parent project with its active works without hard deletion', async () => {
     const route = await import('@/app/api/works/[workId]/route')
     const response = await route.DELETE(buildMockRequest({
       path: '/api/works/stored-parent', method: 'DELETE',
     }), { params: Promise.resolve({ workId: 'stored-parent' }) })
-    expect(response.status).toBe(409)
-    expect(db.work.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'stored-parent', projects: { none: {} } },
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ success: true, recycledProjects: 1, retentionDays: 15 })
+    expect(db.work.update).toHaveBeenCalledWith({
+      where: { id: 'stored-parent' },
+      data: { deletedAt: expect.any(Date), deletedById: 'manager' },
     })
-    expect(db.project.updateMany).not.toHaveBeenCalled()
+    expect(db.project.updateMany).toHaveBeenCalledWith({
+      where: { workId: 'stored-parent', userId: 'manager', deletedAt: null },
+      data: { deletedAt: expect.any(Date), deletedById: 'manager', deletedWithWork: true },
+    })
+    expect(db.work.deleteMany).not.toHaveBeenCalled()
   })
 
   it('moves an existing work to a project without changing its task or media identity', async () => {

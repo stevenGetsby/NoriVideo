@@ -17,7 +17,8 @@ async function open(viewport = { width: 1440, height: 900 }, query = '') {
   page.on('pageerror', (error) => browserErrors.push(error.name))
   await page.goto(`${base}/${query}`, { waitUntil: 'networkidle' })
     await page.getByRole('heading', { name: query.includes('signup') ? '账号由管理员分配' : query.includes('lang=en') ? 'Welcome Back' : '欢迎回来', exact: true }).waitFor()
-    await page.locator('.nori-auth-brand .nori-brand-mark').waitFor()
+    await page.locator('.nori-auth-creative-scene[data-scene-state="ready"] canvas').waitFor()
+    await page.waitForTimeout(150)
     await page.waitForFunction(() => {
       const image = document.querySelector('.nori-auth-brand .nori-brand-mark')
       return image && image.complete && image.naturalWidth > 0
@@ -75,13 +76,12 @@ try {
     return result
   })
   assert.equal(colors.page, colors.workspacePage)
-  assert.equal(colors.panel, colors.workspacePanel)
-  assert.equal(colors.input, colors.workspaceInput)
+  assert.notEqual(colors.panel, colors.workspacePanel, 'Glass login card intentionally differs from opaque workspace cards')
+  assert.equal(colors.input, 'rgb(19, 19, 25)')
   assert.equal(colors.action, colors.workspaceAction)
-  assert.equal(colors.page, 'rgb(13, 13, 13)')
-  assert.equal(colors.panel, 'rgb(20, 20, 20)')
-  assert.equal(colors.ambient, 'none')
-  cases.push('exact-workspace-neutral-background-panel-input-primary-tokens')
+  assert.notEqual(colors.ambient, 'none')
+  assert.match(colors.panel, /rgba\(20, 20, 27, 0\.82\)/)
+  cases.push('workspace-neutral-tokens-with-colorful-light-field-glass-card')
   await password.getByRole('link', { name: '进入工作台', exact: true }).click()
   assert.equal(await password.locator('#username').evaluate((element) => document.activeElement === element), true)
   await fill(password)
@@ -196,9 +196,27 @@ try {
   }
   const motion = await open()
   await motion.emulateMedia({ reducedMotion: 'reduce' })
-  assert.equal(await motion.locator('.nori-auth-cinema img').evaluate((element) => getComputedStyle(element).transitionDuration), '0s')
+  assert.equal(await motion.locator('.nori-auth-scene-renderer').evaluate((element) => getComputedStyle(element).transitionDuration), '0s')
+  const firstFrame = await motion.locator('.nori-auth-scene-renderer canvas').evaluate((canvas) => canvas.toDataURL())
+  await motion.waitForTimeout(250)
+  assert.equal(await motion.locator('.nori-auth-scene-renderer canvas').evaluate((canvas) => canvas.toDataURL()), firstFrame, 'Reduced motion stops rendering new WebGL frames')
   await motion.close()
-  cases.push('reduced-motion-respected')
+  cases.push('reduced-motion-stops-css-and-webgl-animation')
+  const noWebgl = await browser.newPage({ viewport: { width: 390, height: 700 } })
+  noWebgl.on('pageerror', (error) => browserErrors.push(error.name))
+  await noWebgl.addInitScript(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext
+    HTMLCanvasElement.prototype.getContext = function (type, ...args) {
+      return type.startsWith('webgl') || type === 'experimental-webgl' ? null : getContext.call(this, type, ...args)
+    }
+  })
+  await noWebgl.goto(base, { waitUntil: 'networkidle' })
+  await noWebgl.locator('.nori-auth-creative-scene[data-scene-state="fallback"]').waitFor()
+  assert.equal(await noWebgl.locator('.nori-auth-scene-renderer canvas').count(), 0)
+  await fill(noWebgl)
+  await bounds(noWebgl.getByRole('button', { name: '进入创作工作台', exact: true }))
+  await noWebgl.close()
+  cases.push('webgl-unavailable-static-fallback-login-usable')
   assert.deepEqual(browserErrors, [])
   const result = { ok: true, cases, browserErrors, productionRequests: 0, realCredentialsUsed: false, output }
   await writeFile(`${output}/results.json`, JSON.stringify(result, null, 2) + '\n')

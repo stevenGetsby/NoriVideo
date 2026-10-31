@@ -30,6 +30,11 @@ export function setFixtureSession(user: StubUser) {
   listeners.forEach((notify) => notify())
 }
 
+export function refreshFixtureSession() {
+  session = { ...session, data: { ...session.data, user: { ...session.data.user } } }
+  listeners.forEach((notify) => notify())
+}
+
 export function useSession(): StubSession {
   return useSyncExternalStore(
     (notify) => { listeners.add(notify); return () => { listeners.delete(notify) } },

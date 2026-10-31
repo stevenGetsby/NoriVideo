@@ -71,11 +71,12 @@ export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhere
 
 export function workReadScopeWhere(session: AuthSession): Prisma.WorkWhereInput {
   const actor = getWorkspaceActor(session)
-  if (actor.isManagement) return { workspaceOwnerId: actor.workspaceOwnerId }
+  if (actor.isManagement) return { workspaceOwnerId: actor.workspaceOwnerId, deletedAt: null }
   // A 项目 is visible to its members and to anyone who can see one of its 作品,
   // but the 作品 list inside it is still filtered by projectParticipantWhere.
   return {
     workspaceOwnerId: actor.workspaceOwnerId,
+    deletedAt: null,
     OR: [
       { createdById: actor.actorId },
       { members: { some: { userId: actor.actorId } } },

@@ -42,7 +42,7 @@ assert.ok(script && css, 'fixture bundle must contain JavaScript and CSS')
 
 const videoModel = {
   modelKey: 'nori::norivideo2.5',
-  name: 'NoriVideo 2.5',
+  name: 'LanMiaoTV 2.5',
   provider: 'nori',
   tier: 'pro',
   configured: true,
@@ -192,7 +192,7 @@ try {
   const trace = page.locator('[aria-label="工作留痕"]')
   await trace.waitFor({ timeout: 15_000 })
   const traceText = await trace.innerText()
-  for (const expected of ['已完成', '120 积分', 'NoriVideo 2.5', '全能参考（图片 / 视频 / 音色）', '苏晚卿音色', '7.2 秒']) {
+  for (const expected of ['已完成', '120 积分', 'LanMiaoTV 2.5', '全能参考（图片 / 视频 / 音色）', '苏晚卿音色', '7.2 秒']) {
     assert.ok(traceText.includes(expected), `toolbox trace must show ${expected}`)
   }
   await page.screenshot({ path: path.join(artifacts, '01-toolbox-1402.png'), fullPage: true })

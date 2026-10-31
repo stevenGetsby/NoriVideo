@@ -13,6 +13,11 @@ import {
 } from './member-candidates'
 import { buildMemberChangeSet, isProtectedMember } from './member-change-set'
 import { eligibleMoveTargets } from './move-targets'
+import {
+  PROJECT_COVER_ACCEPT,
+  PROJECT_COVER_MAX_BYTES,
+  isProjectCoverFileCandidate,
+} from '@/lib/projects/project-cover-contract'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
 import { useDismissableDialog } from '@/components/ui/useDismissableDialog'
 
@@ -327,6 +332,133 @@ export function RenameDialog({
         {hasDuplicate ? <div className="works-inline-notice">已有同名{kind}，保存后仍会保留两个独立{kind}。</div> : null}
         {error ? <div className="works-form-error">{error}</div> : null}
       </form>
+    </Modal>
+  )
+}
+
+export function ProjectCoverDialog({
+  project,
+  onClose,
+  onChanged,
+}: {
+  project: WorkProject
+  onClose: () => void
+  onChanged: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  const [file, setFile] = useState<File | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [removing, setRemoving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const currentCoverUrl = project.coverImageUrl?.trim() || null
+  const busy = saving || removing
+
+  useEffect(() => {
+    if (!file) {
+      setPreviewUrl(null)
+      return
+    }
+    const url = URL.createObjectURL(file)
+    setPreviewUrl(url)
+    return () => URL.revokeObjectURL(url)
+  }, [file])
+
+  const selectFile = (selected: File | null) => {
+    if (!selected) return
+    if (!isProjectCoverFileCandidate(selected)) {
+      setFile(null)
+      setError('封面仅支持 JPG、PNG 或 WebP 图片，且不超过 8MB。')
+      return
+    }
+    setError(null)
+    setFile(selected)
+  }
+
+  const save = async () => {
+    if (!file) return
+    setSaving(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.set('file', file)
+      const response = await apiFetch(`/api/projects/${encodeURIComponent(project.id)}/cover`, {
+        method: 'POST',
+        body: form,
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '上传封面失败'))
+      onChanged()
+      onClose()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '上传封面失败')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const remove = async () => {
+    setRemoving(true)
+    setError(null)
+    try {
+      const response = await apiFetch(`/api/projects/${encodeURIComponent(project.id)}/cover`, {
+        method: 'DELETE',
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '移除封面失败'))
+      onChanged()
+      onClose()
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : '移除封面失败')
+    } finally {
+      setRemoving(false)
+    }
+  }
+
+  const shownUrl = previewUrl || currentCoverUrl
+  return (
+    <Modal
+      title="作品封面"
+      width={460}
+      busy={busy}
+      onClose={onClose}
+      footer={(
+        <>
+          <button type="button" className="fos-btn fos-btn-ghost" disabled={busy} onClick={onClose}>取消</button>
+          {currentCoverUrl && !file ? (
+            <button type="button" className="fos-btn fos-btn-ghost works-cover-remove" disabled={busy} onClick={() => void remove()}>
+              {removing ? '移除中…' : '移除封面'}
+            </button>
+          ) : null}
+          <button type="button" className="fos-btn fos-btn-primary" disabled={busy || !file} onClick={() => void save()}>
+            {saving ? <><AppIcon name="loader" className="h-4 w-4 animate-spin" />上传中…</> : '保存封面'}
+          </button>
+        </>
+      )}
+    >
+      <div className="works-form">
+        <div className={`works-cover-preview${shownUrl ? ' has-image' : ''}`}>
+          {shownUrl
+            ? <img src={shownUrl} alt="作品封面预览" />
+            : <span><AppIcon name="image" /><small>未设置封面时继续使用渐变彩字封面</small></span>}
+        </div>
+        <input
+          ref={inputRef}
+          className="sr-only"
+          type="file"
+          accept={PROJECT_COVER_ACCEPT}
+          aria-label="选择封面图片"
+          disabled={busy}
+          onChange={(event) => {
+            selectFile(event.target.files?.[0] || null)
+            event.currentTarget.value = ''
+          }}
+        />
+        <button type="button" className="works-cover-picker" disabled={busy} onClick={() => inputRef.current?.click()}>
+          <AppIcon name="upload" />
+          {file ? '重新选择图片' : currentCoverUrl ? '选择新封面' : '选择封面图片'}
+        </button>
+        <p className="works-permission-note">支持 JPG、PNG、WebP，最大 {Math.round(PROJECT_COVER_MAX_BYTES / (1024 * 1024))}MB。上传后会自动压缩，列表与无限画布同步展示。</p>
+        {error ? <div className="works-form-error">{error}</div> : null}
+      </div>
     </Modal>
   )
 }

@@ -43,20 +43,23 @@ async function open(viewport, query = '') {
   page.on('pageerror', (error) => errors.push(error.message))
   const child = query.includes('session=child')
   const dates = { createdAt: '2026-10-13T00:00:00Z', updatedAt: '2026-10-13T00:00:00Z' }
+  const coverImage = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="32" height="24"><rect width="32" height="24" fill="#ed7dac"/></svg>')
   let parents = [
     { id: 'parent-a', name: '项目甲', ...dates },
     { id: 'parent-b', name: '项目乙', ...dates },
   ]
   let works = [
-    { id: 'leaf-a', name: '作品 A', workId: 'parent-a', ...dates },
+    { id: 'leaf-a', name: '作品 A', workId: 'parent-a', coverImageUrl: query.includes('view=canvas-hub') ? coverImage : null, ...dates },
     { id: 'leaf-b', name: '作品 B', workId: 'parent-a', ...dates },
   ]
   const recycled = []
   const writes = []
+  let workReads = 0
+  let failNextCoverPost = query.includes('cover_fail=1')
   function hierarchy() {
     return parents.map((project) => ({
       ...project, kind: 'project', canManage: !child, canCreateWorks: !child,
-      canDelete: !works.some((work) => work.workId === project.id) && !recycled.some((work) => work.workId === project.id),
+      canDelete: !child,
       workCount: works.filter((work) => work.workId === project.id).length,
       works: works.filter((work) => work.workId === project.id).map(({ workId, ...work }) => ({
         ...work, kind: 'work', projectId: workId, canManage: !child, canMove: !child, canManageMembers: !child,
@@ -71,7 +74,28 @@ async function open(viewport, query = '') {
     let status = 200
     const json = method === 'GET' || !request.headers()['content-type']?.includes('json') ? null : request.postDataJSON()
     if (method !== 'GET') writes.push({ path: url.pathname, method, body: json })
-    if (url.pathname === '/api/works') {
+    const coverRoute = url.pathname.match(/^\/api\/projects\/([^/]+)\/cover$/)
+    if (coverRoute && method === 'POST') {
+      const projectId = decodeURIComponent(coverRoute[1])
+      const form = await new Response(request.postDataBuffer(), {
+        headers: { 'Content-Type': request.headers()['content-type'] },
+      }).formData()
+      const file = form.get('file')
+      assert.ok(file instanceof File && file.size > 0, 'Cover dialog must upload the selected image')
+      if (failNextCoverPost) {
+        failNextCoverPost = false
+        status = 500
+        payload = { error: { code: 'STORAGE_FAILED', message: '封面上传失败，请重试。' } }
+      } else {
+        works = works.map((work) => work.id === projectId ? { ...work, coverImageUrl: coverImage } : work)
+        payload = { success: true, coverImageUrl: coverImage }
+      }
+    } else if (coverRoute && method === 'DELETE') {
+      const projectId = decodeURIComponent(coverRoute[1])
+      works = works.map((work) => work.id === projectId ? { ...work, coverImageUrl: null } : work)
+      payload = { success: true, coverImageUrl: null }
+    } else if (url.pathname === '/api/works') {
+      if (method === 'GET') workReads += 1
       if (method === 'POST') {
         const parent = { id: 'new-parent', name: json.name, ...dates }
         parents.push(parent)
@@ -89,6 +113,18 @@ async function open(viewport, query = '') {
     } else if (url.pathname === '/api/works/parent-a' && method === 'PATCH') {
       parents = parents.map((parent) => parent.id === 'parent-a' ? { ...parent, ...json } : parent)
       payload = { project: parents.find((parent) => parent.id === 'parent-a') }
+    } else if (url.pathname === '/api/works/parent-a' && method === 'DELETE') {
+      recycled.push(...works.filter((work) => work.workId === 'parent-a').map((work) => ({ ...work, deletedWithWork: true })))
+      works = works.filter((work) => work.workId !== 'parent-a')
+      parents = parents.filter((parent) => parent.id !== 'parent-a')
+      works = []
+      payload = { success: true, recycledProjects: 2, retentionDays: 15 }
+    } else if (url.pathname === '/api/works/recycle-bin/parent-a/restore') {
+      const restoring = recycled.filter((work) => work.workId === 'parent-a' && work.deletedWithWork)
+      works.push(...restoring.map(({ deletedWithWork, ...work }) => work))
+      for (const work of restoring) recycled.splice(recycled.indexOf(work), 1)
+      parents.push({ id: 'parent-a', name: '项目甲', ...dates })
+      payload = { success: true, restoredProjects: restoring.length }
     } else if (url.pathname === '/api/projects' && method === 'POST') {
       const form = await new Response(request.postDataBuffer(), {
         headers: { 'Content-Type': request.headers()['content-type'] },
@@ -102,7 +138,7 @@ async function open(viewport, query = '') {
       payload = { work: { ...work, kind: 'work', projectId: parentId } }
       status = 201
     } else if (url.pathname === '/api/projects/recycle-bin') {
-      payload = { projects: recycled.map((work) => ({
+      payload = { works: !parents.some((parent) => parent.id === 'parent-a') ? [{ id: 'parent-a', name: '项目甲', deletedAt: dates.createdAt, remainingDays: 15, expired: false }] : [], projects: recycled.map((work) => ({
         ...work, workName: parents.find((parent) => parent.id === work.workId)?.name,
         deletedAt: dates.createdAt, remainingDays: 15, expired: false,
       })) }
@@ -131,9 +167,11 @@ async function open(viewport, query = '') {
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) })
   })
   await page.goto(base + query)
-  return { page, writes, parents: () => parents, works: () => works }
+  return { page, writes, workReads: () => workReads, parents: () => parents, works: () => works }
 }
 async function bounded(locator) {
+  await locator.evaluate((element) => element.scrollIntoView({ block: 'nearest', inline: 'nearest' }))
+  await locator.page().waitForTimeout(100)
   const box = await locator.boundingBox()
   const viewport = locator.page().viewportSize()
   assert.ok(box && box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1
@@ -157,6 +195,15 @@ try {
     assert.equal(await parentA.getByRole('heading', { name: '作品 A', exact: true }).count(), 1)
     assert.equal(await page.getByRole('heading', { name: '我的作品', exact: true }).count(), 0)
 
+    const sessionRefreshReads = state.workReads()
+    await page.evaluate(() => {
+      for (let index = 0; index < 3; index += 1) window.refreshFixtureSession()
+    })
+    await page.waitForTimeout(150)
+    assert.equal(state.workReads(), sessionRefreshReads, 'An identical session refresh must not reload the project list')
+    assert.equal(await page.locator('.works-skeleton').count(), 0, 'Session polling must not replace projects with the grey skeleton')
+    await parentA.getByRole('heading', { name: '作品 A', exact: true }).waitFor()
+
     await page.getByRole('button', { name: '新建项目', exact: true }).click()
     const createParent = page.getByRole('dialog', { name: '新建项目', exact: true })
     await bounded(createParent)
@@ -165,6 +212,20 @@ try {
     await page.locator('[data-work-id="new-parent"]').waitFor()
     assert.equal(state.parents().at(-1).name, '新项目')
     assert.equal(state.works().length, 2, 'Parent creation must not create a production work')
+    await parentA.getByRole('button', { name: '打开 项目甲 菜单', exact: true }).click()
+    const deleteParent = page.getByRole('menuitem', { name: '删除项目', exact: true })
+    assert.equal(await deleteParent.isEnabled(), true, 'Projects containing works must be deletable by admins')
+    await deleteParent.click()
+    const parentDeletion = page.getByRole('dialog', { name: '删除项目', exact: true })
+    assert.ok((await parentDeletion.innerText()).includes('2 个作品'))
+    await parentDeletion.getByRole('button', { name: '确认删除', exact: true }).click()
+    await parentA.waitFor({ state: 'hidden' })
+    await page.getByRole('button', { name: '回收站', exact: true }).click()
+    const parentRecycle = page.getByRole('dialog', { name: '作品回收站', exact: true })
+    await parentRecycle.getByRole('button', { name: '恢复整个项目', exact: true }).click()
+    await parentA.waitFor()
+    assert.equal(state.works().length, 2, 'Whole-project restoration must restore all works deleted with it')
+    await parentRecycle.getByRole('button', { name: '关闭', exact: true }).click()
 
     await parentA.getByRole('button', { name: '新建作品', exact: true }).click()
     const createWork = page.getByRole('dialog', { name: '创建作品', exact: true })
@@ -207,10 +268,56 @@ try {
     await page.close()
   }
 
+  const cover = await open({ width: 1024, height: 600 }, '?cover_fail=1')
+  const coverPage = cover.page
+  const coverCard = coverPage.locator('[data-production-work-id="leaf-a"]')
+  await coverCard.locator('.works-project-monogram').waitFor()
+  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Projects without a cover retain the monogram')
+  const coverImageFile = { name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('not-an-image') }
+  await workMenu(coverPage, '作品 A')
+  await coverPage.getByTestId('project-card-cover-action').click()
+  let coverDialog = coverPage.getByRole('dialog', { name: '作品封面', exact: true })
+  assert.equal(await coverDialog.getByRole('button', { name: '保存封面', exact: true }).isDisabled(), true)
+  await coverDialog.getByLabel('选择封面图片', { exact: true }).setInputFiles({ name: 'document.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.7') })
+  await coverDialog.getByText('封面仅支持 JPG、PNG 或 WebP 图片，且不超过 8MB。', { exact: true }).waitFor()
+  assert.equal(await coverDialog.getByRole('button', { name: '保存封面', exact: true }).isDisabled(), true, 'Invalid files must never be uploaded')
+  await coverDialog.getByLabel('选择封面图片', { exact: true }).setInputFiles(coverImageFile)
+  assert.equal(await coverDialog.getByRole('img', { name: '作品封面预览', exact: true }).count(), 1, 'The selected file must be previewed locally')
+  assert.equal(await coverDialog.getByText('封面仅支持 JPG、PNG 或 WebP 图片，且不超过 8MB。', { exact: true }).count(), 0)
+  await coverDialog.getByRole('button', { name: '保存封面', exact: true }).click()
+  await coverDialog.getByText('封面上传失败，请重试。', { exact: true }).waitFor()
+  assert.equal(await coverDialog.count(), 1, 'A failed upload must leave the dialog open for retry')
+  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'A failed upload must not change the current cover')
+  await coverDialog.getByRole('button', { name: '保存封面', exact: true }).click()
+  await coverDialog.waitFor({ state: 'hidden' })
+  await coverCard.locator('.works-project-cover-image[src^="data:image/"]').waitFor()
+  assert.equal(await coverCard.locator('.works-project-monogram').count(), 0)
+  assert.equal(cover.writes.filter((write) => write.path === '/api/projects/leaf-a/cover' && write.method === 'POST').length, 2)
+  await workMenu(coverPage, '作品 A')
+  assert.equal(await coverPage.getByRole('menuitem', { name: '更换封面', exact: true }).count(), 1)
+  await coverPage.getByTestId('project-card-cover-action').click()
+  coverDialog = coverPage.getByRole('dialog', { name: '作品封面', exact: true })
+  assert.equal(await coverDialog.getByRole('img', { name: '作品封面预览', exact: true }).getAttribute('src'), await coverCard.locator('.works-project-cover-image').getAttribute('src'))
+  await coverDialog.getByRole('button', { name: '移除封面', exact: true }).click()
+  await coverDialog.waitFor({ state: 'hidden' })
+  await coverCard.locator('.works-project-monogram').waitFor()
+  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Removing a cover restores the generative monogram')
+  await coverPage.close()
+  results.push('cover-preview-upload-failure-retry-replace-remove-and-participant-permission')
+
+  const hub = await open({ width: 1024, height: 600 }, '?view=canvas-hub')
+  const hubEntry = hub.page.getByRole('button', { name: '进入 作品 A 的无限画布', exact: true })
+  await hubEntry.waitFor()
+  assert.equal(await hubEntry.locator('img[src^="data:image/"]').count(), 1, 'Canvas Hub must display the same custom cover')
+  assert.equal(await hubEntry.locator('.nori-gen-cover b').count(), 0)
+  await hub.page.close()
+  results.push('canvas-hub-project-cover')
+
   const child = await open({ width: 1024, height: 600 }, '?session=child')
   await child.page.locator('[data-work-id="parent-a"]').waitFor()
   assert.equal(await child.page.getByRole('button', { name: '新建项目', exact: true }).count(), 0)
   await workMenu(child.page, '作品 A')
+  assert.equal(await child.page.getByTestId('project-card-cover-action').count(), 0, 'Read-only participants must not see cover editing')
   assert.equal(await child.page.getByRole('menuitem', { name: '删除作品', exact: true }).count(), 0)
   await child.page.getByRole('menuitem', { name: '编辑作品', exact: true }).click()
   const edit = child.page.getByRole('dialog', { name: '编辑作品', exact: true })

@@ -17,6 +17,10 @@ export function shouldBindCanvasMentionReference(targetType: string): boolean {
   return targetType === 'image' || targetType === 'video'
 }
 
+export function isCanvasAssetLibraryNode(node: CanvasFlowNode): boolean {
+  return node.data.origin === 'project' || node.data.origin === 'upload'
+}
+
 function canvasMentionMediaType(node: CanvasFlowNode): CanvasMentionMediaType | null {
   const mediaType = node.data.mediaType || node.type
   return mediaType === 'image' || mediaType === 'video' || mediaType === 'audio'
@@ -55,12 +59,9 @@ export function buildCanvasMentionAssets(
 ): CanvasMentionAsset[] {
   const allowed = new Set(allowedTypes)
   const candidates = nodes.flatMap((node) => {
-    if (node.id === targetNodeId) return []
+    if (node.id === targetNodeId || (!incomingNodeIds.has(node.id) && !isCanvasAssetLibraryNode(node))) return []
     const mediaType = canvasMentionMediaType(node)
     if (!mediaType || !allowed.has(mediaType)) return []
-    // Legacy/imported canvas nodes can predate the material index. They remain
-    // selectable when they have real media; submission promotes the URL to a
-    // project material before calling a generation provider.
     if (!hasUsableContent(node, mediaType)) return []
     const title = node.data.title?.trim() || `未命名${mediaLabel(mediaType)}`
     return [{ node, mediaType, title }]
@@ -91,7 +92,7 @@ export function buildCanvasMentionAssets(
         ? node.data.materialId.trim()
         : null,
       imageUrl: referencePreview(node, mediaType),
-      description: `${mediaLabel(mediaType)} · ${incomingNodeIds.has(node.id) ? '已连接上游' : '画布素材'}${node.data.materialId ? '' : ' · 将自动建立引用'}`,
+      description: `${mediaLabel(mediaType)} · ${incomingNodeIds.has(node.id) ? '已连接上游' : '资产库素材'}${node.data.materialId ? '' : ' · 将自动建立引用'}`,
     }
   })
 

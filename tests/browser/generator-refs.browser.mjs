@@ -75,9 +75,10 @@ await page.route('**/*', async (route) => {
     if (route.request().resourceType() === 'image') return await route.fulfill({ status: 204, contentType: 'image/png', body: '' })
     return await route.continue()
   }
+  const resolutionQuery = url.searchParams.get('resolutions') || new URL(route.request().headers().referer || 'http://localhost').searchParams.get('resolutions')
   const videoModel = {
     modelKey: 'nori::norivideo2.5',
-    name: 'NoriVideo 2.5',
+    name: 'LanMiaoTV 2.5',
     provider: 'nori',
     tier: 'pro',
     configured: true,
@@ -86,7 +87,9 @@ await page.route('**/*', async (route) => {
     supportGenerateAudio: true,
     options: {
       duration: [4, 5, 6, 8, 10],
-      resolution: ['480p', '720p'],
+      resolution: resolutionQuery === '720p'
+        ? ['720p']
+        : resolutionQuery === '1080p' ? ['480p', '720p', '1080p'] : ['480p', '720p'],
       aspectRatio: ['16:9', '9:16', '1:1'],
       generateAudio: [true, false],
     },
@@ -184,6 +187,35 @@ try {
     assert.ok(added.maxSelected >= 1)
     results.push({ query: query || '(default video)', type: added.type, maxSelected: added.maxSelected, items: boxes.length })
   }
+  for (const [query, expected] of [
+    ['?superresolve=720p', '480p 生成 → 720p'],
+    ['?superresolve=1080p', '720p 生成 → 1080p'],
+    ['?superresolve=4k&resolutions=1080p', '1080p 生成 → 4K'],
+  ]) {
+    await page.goto(`${base}/${query}`)
+    const trigger = page.locator('.nori-canvas-parameter-trigger')
+    await trigger.waitFor()
+    await page.waitForFunction((text) => document.querySelector('.nori-canvas-parameter-trigger')?.textContent?.includes(text), expected, { timeout: 3000 }).catch(async () => {
+      await page.screenshot({ path: path.join(artifacts, 'superresolve-failure.png') })
+      throw new Error(`${query}: expected ${expected}, received ${await trigger.innerText()}`)
+    })
+    assert.ok((await trigger.innerText()).includes(expected), `${query} must show the actual billed generation resolution`)
+    await trigger.click()
+    const settings = page.getByRole('dialog', { name: '生成参数设置', exact: true })
+    await settings.getByText(`模型按 ${expected.split(' 生成')[0]} 生成并计费`, { exact: false }).waitFor()
+    assert.equal(await page.getByRole('button', { name: '生成', exact: true }).isEnabled(), true)
+    await page.screenshot({ path: path.join(artifacts, `superresolve-${expected.split(' → ')[1]}.png`) })
+    results.push({ query, billedGenerationResolution: expected })
+  }
+  await page.goto(`${base}/?superresolve=720p&resolutions=720p`)
+  const unsupportedTrigger = page.locator('.nori-canvas-parameter-trigger')
+  await unsupportedTrigger.waitFor()
+  assert.ok((await unsupportedTrigger.innerText()).includes('当前模型不支持'))
+  assert.equal(await page.getByRole('button', { name: '生成', exact: true }).isDisabled(), true)
+  await unsupportedTrigger.click()
+  await page.getByText('当前模型没有低于超分目标的生成档位', { exact: false }).waitFor()
+  results.push({ unsupportedSuperresolveTargetBlocked: true })
+
   for (const viewport of [{ width: 390, height: 700 }, { width: 768, height: 480 }, { width: 1024, height: 600 }]) {
     await page.setViewportSize(viewport)
     await page.goto(`${base}/?stale=1`)

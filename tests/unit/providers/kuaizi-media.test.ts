@@ -174,6 +174,29 @@ describe('kuaizi media providers', () => {
     expect(seedance).toMatchObject({ success: true, async: true, requestId: 'seedance-task-1' })
   })
 
+  it('accepts only the documented Mini duration boundaries and forwards them unchanged', async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ id: 'seedance-mini-task' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const generate = (duration: number) => generateKuaiziVideo({
+      userId: 'user-1', imageUrl: '', prompt: 'a cinematic tracking shot',
+      options: {
+        provider: 'kuaizi', modelId: 'doubao-seedance-2-0-mini-260615',
+        modelKey: 'kuaizi::doubao-seedance-2-0-mini-260615', duration, resolution: '720p',
+      },
+    })
+
+    for (const duration of [3, 16, -1]) {
+      await expect(generate(duration)).rejects.toThrow(`KUAIZI_SEEDANCE_DURATION_UNSUPPORTED: ${duration}`)
+    }
+    expect(fetchMock).not.toHaveBeenCalled()
+    for (const duration of [4, 15]) {
+      await generate(duration)
+      expect(JSON.parse(String(requestAt(fetchMock, duration === 4 ? 0 : 1)[1].body)).duration).toBe(duration)
+    }
+    await expect(generate(4.5)).rejects.toThrow('KUAIZI_VIDEO_DURATION_INVALID')
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
   it('aligns Seedance 2.5 request fields with the Kuaizi compatible API', async () => {
     const fetchMock = vi.fn(async () => jsonResponse({ id: 'seedance-25-task' }))
     vi.stubGlobal('fetch', fetchMock)

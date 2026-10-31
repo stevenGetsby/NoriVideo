@@ -71,7 +71,7 @@ const errors = []
 const cases = []
 let latestPage
 const model = {
-  modelKey: 'nori::norivideo2.5', name: 'NoriVideo 2.5', provider: 'nori', configured: true, available: true,
+  modelKey: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', provider: 'nori', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
   options: { duration: [4, 5, 6, 8, 10], resolution: ['480p', '720p'], aspectRatio: ['16:9', '9:16', '1:1'] },
   inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] },

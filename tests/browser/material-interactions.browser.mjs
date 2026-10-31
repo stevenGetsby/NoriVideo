@@ -241,7 +241,8 @@ try {
   await rename.waitFor({ state: 'hidden' })
   await preview.getByRole('heading', { name: '改名后的素材', exact: true }).waitFor()
   assert.equal(await preview.getByText('资产归类', { exact: true }).count(), 0)
-  await preview.getByRole('combobox', { name: '素材类型筛选', exact: true }).selectOption('all')
+  assert.equal(await preview.getByRole('combobox', { name: '素材类型筛选', exact: true }).count(), 0)
+  await preview.getByRole('button', { name: '关闭大图预览', exact: true }).click()
   await preview.waitFor({ state: 'hidden' })
   await library.getByRole('button', { name: '全选上传素材', exact: true }).click()
   library.state.denyDelete = true

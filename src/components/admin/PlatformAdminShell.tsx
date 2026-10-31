@@ -18,7 +18,7 @@ const NAV: Array<{ key: AdminNavKey; href: string; label: string; caption: strin
 const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; text: string }> = {
   accounts: {
     icon: 'infoCircle',
-    text: '此处创建管理账号并查看整个工作区用量。角色子账号、功能区权限和作品审核员由对应管理账号在 LanmiaoTV 内维护。',
+    text: '此处创建管理账号并查看整个工作区用量。角色子账号、功能区权限和作品审核员由对应管理账号在 LanMiaoTV 内维护。',
   },
   services: {
     icon: 'alert',
@@ -31,7 +31,7 @@ export function AdminBrand() {
   return (
     <div className="nori-admin-brand">
       <NoriBrandMark className="fos-logo-mark" />
-      <span className="fos-logo-text"><span className="a">Lanmiao</span><span className="b">TV</span></span>
+      <span className="fos-logo-text"><span className="a">LanMiao</span><span className="b">TV</span></span>
       <span className="nori-admin-brand-badge">Admin</span>
     </div>
   )
@@ -149,7 +149,7 @@ export function PlatformAdminShell({
       <header className="nori-admin-header">
         <AdminBrand />
         <div className="nori-admin-header-end">
-          <span className="nori-admin-environment"><i />LanmiaoTV 控制台</span>
+          <span className="nori-admin-environment"><i />LanMiaoTV 控制台</span>
           <span className="nori-admin-role-pill">平台最高管理员</span>
           <button type="button" className="nori-admin-logout" aria-label="退出管理控制台" onClick={() => void signOut({ callbackUrl: `/${locale}/admin/signin` })}>
             <AppIcon name="logout" className="h-4 w-4" /><span>退出</span>

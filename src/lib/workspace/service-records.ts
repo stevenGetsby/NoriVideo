@@ -210,6 +210,11 @@ function usageBucket(userId: string | null, projectId: string | null, apiType: s
   return [userId || 'system', projectId || 'workspace', reportApiType(apiType), model || 'unknown', reportDay(createdAt)].join('\u0000')
 }
 
+function usageActorId(row: UsageCostRow) {
+  const actorId = parseJsonRecord(row.metadata)?.quotaUserId
+  return typeof actorId === 'string' && actorId.trim() ? actorId.trim() : row.userId
+}
+
 async function buildFilterableReport(userId: string) {
   const prismaModels = prisma as unknown as {
     user?: { findMany(args: unknown): Promise<ReportAccount[]> }
@@ -272,7 +277,7 @@ async function buildFilterableReport(userId: string) {
   const projectMap = new Map(projects.map((project) => [project.id, project]))
   const billedBuckets = new Map<string, { total: number; remaining: number; count: number }>()
   for (const row of teamUsageCosts) {
-    const key = usageBucket(row.userId, row.projectId, row.apiType, row.model, row.createdAt)
+    const key = usageBucket(usageActorId(row), row.projectId, row.apiType, row.model, row.createdAt)
     const current = billedBuckets.get(key) || { total: 0, remaining: 0, count: 0 }
     const amount = toMoneyNumber(row.cost)
     current.total += amount
@@ -323,10 +328,10 @@ async function buildFilterableReport(userId: string) {
   // Older records may predate service-level telemetry. Preserve their real
   // billing amount as a friendly report row instead of silently dropping it.
   for (const row of teamUsageCosts) {
-    const key = usageBucket(row.userId, row.projectId, row.apiType, row.model, row.createdAt)
+    const key = usageBucket(usageActorId(row), row.projectId, row.apiType, row.model, row.createdAt)
     if (consumedBillingBuckets.has(key)) continue
     const project = projectMap.get(row.projectId)
-    const account = accountMap.get(row.userId)
+    const account = accountMap.get(usageActorId(row))
     const tokens = usageTokenCounts(row.metadata)
     const cost = Math.max(0, toMoneyNumber(row.cost))
     records.push({

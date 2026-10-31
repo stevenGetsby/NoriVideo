@@ -3,6 +3,7 @@ import { createScopedLogger } from '@/lib/logging/core'
 import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { deleteObjects, extractStorageKey } from '@/lib/storage'
 import { unreferencedProjectStorageKeys } from './shared-media-retention'
+import { isProjectCoverStorageKey } from './project-cover-contract'
 
 export const PROJECT_RECYCLE_RETENTION_MS = 15 * 24 * 60 * 60 * 1000
 export const PROJECT_RECYCLE_RETENTION_DAYS = 15
@@ -160,8 +161,10 @@ async function purgeProject(project: {
   id: string
   name: string
   userId: string
+  coverImageKey: string | null
 }) {
   const keys = await collectProjectStorageKeys(project.id)
+  if (isProjectCoverStorageKey(project.coverImageKey)) keys.push(project.coverImageKey)
   await prisma.project.delete({ where: { id: project.id } })
   const deletableKeys = await unreferencedProjectStorageKeys(project.id, keys)
 
@@ -195,11 +198,22 @@ async function purgeProject(project: {
 /** Hard-deletes recycle-bin projects that passed the 15-day retention window. */
 export async function purgeExpiredRecycleBinProjects(limit = 20) {
   const deadline = new Date(Date.now() - PROJECT_RECYCLE_RETENTION_MS)
+  const deletedWorks = await prisma.work.findMany({
+    where: { deletedAt: { lte: deadline } },
+    select: { id: true, deletedAt: true },
+    take: limit,
+  })
+  for (const work of deletedWorks) {
+    await prisma.project.updateMany({
+      where: { workId: work.id, deletedWithWork: true },
+      data: { deletedAt: work.deletedAt || deadline },
+    })
+  }
   const projects = await prisma.project.findMany({
     where: { deletedAt: { lte: deadline } },
     orderBy: { deletedAt: 'asc' },
     take: limit,
-    select: { id: true, name: true, userId: true },
+    select: { id: true, name: true, userId: true, workId: true, coverImageKey: true },
   })
 
   const purged: string[] = []
@@ -215,6 +229,19 @@ export async function purgeExpiredRecycleBinProjects(limit = 20) {
         action: 'recycle-bin.purge_failed',
         message: `Failed to purge project ${project.id}`,
         error: { message },
+      })
+    }
+  }
+  for (const work of deletedWorks) {
+    try {
+      await prisma.work.deleteMany({
+        where: { id: work.id, deletedAt: { not: null }, projects: { none: {} } },
+      })
+    } catch (error) {
+      logger.error({
+        action: 'recycle-bin.work_purge_failed',
+        message: `Failed to purge recycled parent project ${work.id}`,
+        error: { message: error instanceof Error ? error.message : String(error) },
       })
     }
   }

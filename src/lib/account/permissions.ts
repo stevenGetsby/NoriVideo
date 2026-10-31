@@ -263,6 +263,8 @@ export function requiredPermissionsForApiPath(
 
   if (path.startsWith('/api/projects')) {
     if (/^\/api\/projects\/?$/.test(path)) return normalizedMethod === 'POST' ? ['projectCreate'] : ['admin']
+    // Cover editing is a shared project setting, like the project metadata PATCH.
+    if (/^\/api\/projects\/[^/]+\/cover\/?$/.test(path)) return ['read']
     if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return normalizedMethod === 'PATCH' ? ['read'] : ['admin']
     if (path.includes('/canvas')) return ['canvasWrite']
     return ['admin']

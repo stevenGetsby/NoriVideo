@@ -617,7 +617,7 @@ function formatAgentRoleAssets(pkg: AgentStoryPackage | null): string {
 
 function buildShotScriptSystemPrompt(plan: AgentExecutionPlan): string {
   return [
-    '你是 LanmiaoTV 的剧本层导演。你的任务是把短剧情 prompt 或扩写后的故事，转成结构化 SH 镜头稿。',
+    '你是 LanMiaoTV 的剧本层导演。你的任务是把短剧情 prompt 或扩写后的故事，转成结构化 SH 镜头稿。',
     '这是剧本层，不是 video_prompt 层；不要输出 JSON，不要输出 markdown，不要输出解释。',
     '输出必须只包含以下格式的纯文本：',
     '## S1 [场景名] 角色：角色A / 角色B',
@@ -1000,7 +1000,7 @@ export const __agentLlmStoryboardPipelineTestHooks = {
 
 function buildStage2SystemPrompt(plan: AgentExecutionPlan): string {
   return [
-    '你是 LanmiaoTV 的 Agent 剧本结构化引擎。你的任务是把用户给的混乱 prompt、角色设定、剧情文本或剧本，整理成后续可编辑制作的数据。',
+    '你是 LanMiaoTV 的 Agent 剧本结构化引擎。你的任务是把用户给的混乱 prompt、角色设定、剧情文本或剧本，整理成后续可编辑制作的数据。',
     '必须先抽取并锁定全局资产，再拆剧情片段。不要生成分镜，不要生成视频提示词。',
     '输出只允许是 JSON 对象，不要 markdown，不要解释。',
     'JSON 结构：',
@@ -1028,7 +1028,7 @@ function buildStage2SystemPrompt(plan: AgentExecutionPlan): string {
 
 function buildStage3SystemPrompt(plan: AgentExecutionPlan): string {
   return [
-    '你是 LanmiaoTV 的视频分镜提示词导演。你要基于已锁定资产和剧情片段，生成 Seedance 2.0 可直接使用的 video_prompt。',
+    '你是 LanMiaoTV 的视频分镜提示词导演。你要基于已锁定资产和剧情片段，生成 Seedance 2.0 可直接使用的 video_prompt。',
     '输出只允许是 JSON 对象，不要 markdown，不要解释。',
     'JSON 结构：',
     '{',

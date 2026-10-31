@@ -21,6 +21,7 @@ import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { enhanceCanvasVideo, type CanvasVideoOperationHooks } from '@/lib/canvas/video-operations'
 
 type AnyObj = Record<string, unknown>
 type GeneratedVideo = VideoResultMetadata & {
@@ -158,7 +159,36 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       imageUrl: sourceImage,
       options: buildGenerationOptions(normalized),
     })
-    const storageKey = await uploadVideoSourceToCos(generated.url, 'toolbox-video', asset.id, generated.downloadHeaders)
+    let storageKey = await uploadVideoSourceToCos(generated.url, 'toolbox-video', asset.id, generated.downloadHeaders)
+    const superresolveTarget = readString(payload.superresolveTarget)
+    const actualResolution = readString(payload.resolution) || readString(generated.resolution)
+    let outputMetadata: Record<string, unknown> = {}
+    if (superresolveTarget === '720p' || superresolveTarget === '1080p' || superresolveTarget === '4k') {
+      await assertTaskActive(job, 'superresolve_toolbox_video')
+      await reportTaskProgress(job, 75, { stage: 'superresolve_toolbox_video', superresolveTarget })
+      const source = await getObjectBuffer(storageKey)
+      let lastReportedProgress = 75
+      const hooks: CanvasVideoOperationHooks = {
+        assertActive: async () => await assertTaskActive(job, 'superresolve_toolbox_video'),
+        onProgress: async (ratio) => {
+          const progress = 75 + Math.floor(Math.max(0, Math.min(1, ratio)) * 18)
+          if (progress < lastReportedProgress + 2) return
+          lastReportedProgress = progress
+          await reportTaskProgress(job, progress, { stage: 'superresolve_toolbox_video', progressDetails: { mediaProgress: ratio } })
+        },
+      }
+      const enhanced = await enhanceCanvasVideo(source, { target: superresolveTarget }, hooks)
+      storageKey = await uploadObject(enhanced.body, `toolbox-video-superresolved/${job.data.userId}/${job.data.taskId}.mp4`, 1, 'video/mp4')
+      outputMetadata = {
+        width: enhanced.width,
+        height: enhanced.height,
+        durationSeconds: enhanced.duration,
+        fps: enhanced.fps,
+        superresolveTarget,
+        outputResolution: superresolveTarget,
+      }
+      await assertTaskActive(job, 'persist_toolbox_video_superresolve')
+    }
     await assertTaskActive(job, 'persist_toolbox_video')
     let auditionAudioUrl = ''
     if (asset.bizType === 'character_audition') {
@@ -201,6 +231,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         referenceMaterials: materialReferenceContract.references,
         referenceImageRoles,
         ...pickVideoResultMetadata(generated),
+        ...outputMetadata,
       },
     })
     await prisma.frameosToolboxAsset.update({
@@ -225,6 +256,8 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       videoUrl: storageKey,
       ...(auditionAudioUrl ? { audioUrl: auditionAudioUrl } : {}),
       ...pickVideoResultMetadata(generated),
+      ...outputMetadata,
+      ...(actualResolution && Object.keys(outputMetadata).length > 0 ? { resolution: actualResolution } : {}),
     }
   } catch (error) {
     const willRetry = workerTaskWillRetry(job, error)

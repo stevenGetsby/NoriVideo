@@ -159,7 +159,11 @@ function CanvasProjectChooser({
                   onClick={() => onSelect(project.id)}
                   style={generativeCoverStyle(project.id)}
                 >
-                  <i className="nori-gen-cover" aria-hidden="true"><b>{coverMonogram(project.name)}</b></i>
+                  <i className={`nori-gen-cover${project.coverImageUrl ? ' has-cover' : ''}`} aria-hidden="true">
+                    {project.coverImageUrl
+                      ? <img src={project.coverImageUrl} alt="" loading="lazy" />
+                      : <b>{coverMonogram(project.name)}</b>}
+                  </i>
                   <span><strong>{project.name}</strong><small>{project.workName || '未归属项目'} · 打开或创建画布</small></span>
                   <AppIcon name="arrowRight" />
                 </button>
@@ -216,7 +220,13 @@ export function FosCanvasHubClient({
         const nextProjects = payload.works.flatMap((work) => work.projects.flatMap((project) => {
           if (seen.has(project.id)) return []
           seen.add(project.id)
-          return [{ id: project.id, name: project.name, workId: work.id, workName: work.virtual ? '未归属项目' : work.name }]
+          return [{
+            id: project.id,
+            name: project.name,
+            workId: work.id,
+            workName: work.virtual ? '未归属项目' : work.name,
+            coverImageUrl: project.coverImageUrl ?? null,
+          }]
         }))
         setWorks(nextWorks)
         setProjects(nextProjects)

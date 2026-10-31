@@ -117,7 +117,7 @@ export const NORI_BUSINESS_MODELS = [
   {
     key: 'nori::norivideo2.5',
     modelId: 'norivideo2.5',
-    name: 'LanmiaoTV 2.5',
+    name: 'LanMiaoTV 2.5',
     description: 'Seedance 2.5 高质量视频（最长 30 秒，多模态参考）',
     type: 'video',
     tier: 'pro',

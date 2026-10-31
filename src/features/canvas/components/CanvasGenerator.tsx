@@ -45,13 +45,16 @@ import {
   CANVAS_VIDEO_DURATION_MAX,
   CANVAS_VIDEO_DURATION_MIN,
   CANVAS_VIDEO_RESOLUTIONS,
+  CANVAS_VIDEO_SUPERRESOLVE_TARGETS,
   canvasVideoAspectRatioOptions,
   isSeedance25VideoModelKey,
+  resolveCanvasSuperresolveGenerationResolution,
   resolveSupportedResolution,
   canvasPanoramaEditorAspectRatio,
   canvasVideoEditorMode,
   type CanvasImageQuality,
   type CanvasVideoEditorMode,
+  type CanvasVideoSuperresolveTarget,
 } from '@/lib/canvas/generator-options'
 import {
   firstLastFrameInputSchema,
@@ -163,6 +166,7 @@ export type CanvasGenerateRequest = {
   quality: CanvasImageQuality
   duration: number
   fps?: number
+  superresolveTarget?: '720p' | '1080p' | '4k'
   generateAudio: boolean
   count: number
   storyboard: boolean
@@ -211,10 +215,13 @@ function optionalPositiveInteger(value: unknown) {
 function videoGenerationParameters(
   current: Record<string, string | number | boolean> | undefined,
   fps: number | null,
+  superresolveTarget: CanvasVideoSuperresolveTarget | null,
 ) {
   const next = { ...(current || {}) }
   if (fps !== null) next.fps = fps
   else delete next.fps
+  if (superresolveTarget) next.superresolveTarget = superresolveTarget
+  else delete next.superresolveTarget
   return next
 }
 
@@ -377,6 +384,10 @@ export function CanvasGenerator({
   const [quality, setQuality] = useState<CanvasImageQuality>(node.data.generation?.quality || 'high')
   const [duration, setDuration] = useState(node.data.generation?.duration || (type === 'audio' ? 15 : 5))
   const [fps, setFps] = useState<number | null>(() => optionalPositiveInteger(node.data.generation?.parameters?.fps))
+  const [superresolveTarget, setSuperresolveTarget] = useState<CanvasVideoSuperresolveTarget | null>(() => {
+    const value = node.data.generation?.parameters?.superresolveTarget
+    return CANVAS_VIDEO_SUPERRESOLVE_TARGETS.find((target) => target === value) || null
+  })
   const [generateAudio, setGenerateAudio] = useState(node.data.generation?.generateAudio ?? true)
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
@@ -418,6 +429,7 @@ export function CanvasGenerator({
       params.set('quality', quality)
     } else if (type === 'video') {
       params.set('resolution', resolution)
+      if (superresolveTarget) params.set('superresolveTarget', superresolveTarget)
       params.set('duration', String(duration))
       params.set('generationMode', inputMode === 'firstlastframe' ? 'firstlastframe' : 'normal')
       params.set('generateAudio', String(generateAudio))
@@ -430,7 +442,7 @@ export function CanvasGenerator({
       params.set('duration', String(audioMode === 'tts' ? estimateTtsSeconds(prompt) : duration))
     }
     return params.toString()
-  }, [audioMode, count, duration, generateAudio, inputMode, modelKey, prompt, quality, quotable, referenceNodeIds, referenceNodes, resolution, storyboard, type])
+  }, [audioMode, count, duration, generateAudio, inputMode, modelKey, prompt, quality, quotable, referenceNodeIds, referenceNodes, resolution, storyboard, superresolveTarget, type])
 
   useEffect(() => {
     if (!quoteKey) {
@@ -499,6 +511,8 @@ export function CanvasGenerator({
     setQuality(node.data.generation?.quality || 'high')
     setDuration(node.data.generation?.duration || (type === 'audio' ? 15 : 5))
     setFps(optionalPositiveInteger(node.data.generation?.parameters?.fps))
+    const savedSuperresolveTarget = node.data.generation?.parameters?.superresolveTarget
+    setSuperresolveTarget(CANVAS_VIDEO_SUPERRESOLVE_TARGETS.find((target) => target === savedSuperresolveTarget) || null)
     setInputMode(canvasVideoEditorMode(node.data.generation?.inputMode))
     setGenerateAudio(node.data.generation?.generateAudio ?? true)
     setCount(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
@@ -733,6 +747,11 @@ export function CanvasGenerator({
       : compatibleVoiceOptions[0]?.value || '')
   }, [compatibleVoiceOptions, type])
 
+  useEffect(() => {
+    if (type !== 'video' || !superresolveTarget) return
+    setResolution((current) => CANVAS_VIDEO_SUPERRESOLVE_TARGETS.find((target) => target === current.toLowerCase()) || '720p')
+  }, [superresolveTarget, type])
+
   const draftPatch = useMemo(() => ({
       prompt,
       processType: storyboard ? 'storyboard' : node.data.processType === 'storyboard' ? undefined : node.data.processType,
@@ -755,10 +774,10 @@ export function CanvasGenerator({
           : type === 'model3d'
             ? { ...(node.data.generation?.parameters || {}), topology: model3dTopology, generateTexture: model3dGenerateTexture, pose: model3dPose }
             : type === 'video'
-              ? videoGenerationParameters(node.data.generation?.parameters, fps)
+              ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
               : node.data.generation?.parameters,
       },
-    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, type])
+    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -862,6 +881,7 @@ export function CanvasGenerator({
     if (!cleanPrompt) { setError('请输入提示词，或连接一个文本节点。'); return }
     if (!modelKey) { setError('暂无可用生成模型，请先在服务配置中接入。'); return }
     if (currentModel?.raw?.available === false) { setError(currentModel.raw.unavailableReason || '3D 模型服务尚未配置。'); return }
+    if (superresolveResolutionError) { setError(superresolveResolutionError); return }
     if (imageEditModelUnavailable) { setError('当前图片模型不支持蒙版重绘，请在管理平台接入并选择支持 Inpaint 的模型。'); return }
     if (effectiveInputSchema) {
       const requiredErrors = validateCanvasRequiredFields(effectiveInputSchema, {
@@ -909,6 +929,7 @@ export function CanvasGenerator({
         quality,
         duration,
         ...(fps !== null ? { fps } : {}),
+        ...(superresolveTarget ? { superresolveTarget } : {}),
         generateAudio,
         count: storyboard ? normalizeStoryboardCount(count) : count,
         storyboard,
@@ -994,10 +1015,22 @@ export function CanvasGenerator({
     audio: effectiveInputSchema?.audio.max || 0,
   })
   const qualityLabel = quality === 'low' ? '低' : quality === 'medium' ? '中' : '高'
+  let superresolveGenerationResolution: string | null = null
+  let superresolveResolutionError: string | null = null
+  if (superresolveTarget) {
+    try {
+      superresolveGenerationResolution = resolveCanvasSuperresolveGenerationResolution(superresolveTarget, supportedResolutions)
+    } catch (resolutionError) {
+      superresolveResolutionError = resolutionError instanceof Error ? resolutionError.message : '当前模型不支持该超分目标。'
+    }
+  }
+  const superresolveParameterSummary = superresolveGenerationResolution
+    ? `${resolutionLabel(superresolveGenerationResolution)} 生成 → ${resolutionLabel(superresolveTarget!)}`
+    : '当前模型不支持'
   const parameterSummary = type === 'image'
     ? `${aspectRatio} · ${resolution || '默认'} · ${qualityLabel} · ${storyboard ? normalizeStoryboardCount(count) : count}${storyboard ? '镜' : '张'}`
     : type === 'video'
-      ? `${inputMode === 'image' ? '图生' : inputMode === 'firstlastframe' ? '首尾帧' : '全能参考'} · ${aspectRatio} · ${resolution || '默认'} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}${generateAudio ? ' · 有声' : ''}`
+      ? `${inputMode === 'image' ? '图生' : inputMode === 'firstlastframe' ? '首尾帧' : '全能参考'} · ${aspectRatio} · ${superresolveTarget ? superresolveParameterSummary : resolution || '默认'} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}${generateAudio ? ' · 有声' : ''}`
       : ''
   const anchorStyle = !fullscreen && anchor
     ? {
@@ -1077,16 +1110,16 @@ export function CanvasGenerator({
             onChange={setPrompt}
             onSelectAsset={selectMentionAsset}
             onBlur={() => persistDraft()}
-            menuLabel="选择画布参考素材"
+            menuLabel="选择连线输入或资产库素材"
             hint={type === 'video'
               ? inputMode === 'text'
-                ? '输入 @ 可引用画布中的图片、视频或音频；蓝色素材名会与实体引用一并保存。'
+                ? '输入 @ 可引用连线输入或资产库中的图片、视频或音频；蓝色素材名会与实体引用一并保存。'
                 : inputMode === 'image'
                   ? '图生视频模式只接收图片引用；至少选择一张图片。'
                   : '首尾帧模式只接收图片引用；选择顺序对应首帧和尾帧。'
               : type === 'audio'
-                ? '输入 @ 可插入画布音频素材名；当前音频模型仅接收文本，不会把它作为声音条件输入。'
-                : '输入 @ 可引用画布图片；蓝色素材名会与实体引用一并保存。'}
+                ? '输入 @ 可插入连线或资产库音频素材名；当前音频模型仅接收文本，不会把它作为声音条件输入。'
+                : '输入 @ 可引用连线或资产库图片；蓝色素材名会与实体引用一并保存。'}
             minHeight={fullscreen ? 280 : 96}
             placeholder={type === 'video' ? '描述你想要的视频，@引用素材' : type === 'audio' ? '输入要合成语音的台词' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，@引用素材'}
           />
@@ -1145,7 +1178,7 @@ export function CanvasGenerator({
             {quoteLoading ? '报价中…' : quoteError ? '暂无法报价' : quote ? `预计 ${quote.points.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分` : '—'}
           </span>
         ) : null}
-        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成'}><Send /><span>{submitting ? '提交中…' : '生成'}</span></button>
+        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || Boolean(superresolveResolutionError) || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={superresolveResolutionError || (!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成')}><Send /><span>{submitting ? '提交中…' : '生成'}</span></button>
         </div>
       </div>
 
@@ -1155,7 +1188,11 @@ export function CanvasGenerator({
           <div className="nori-canvas-generator-parameter-grid">
             {type === 'video' ? <label><span>生成模式</span><select value={inputMode} onChange={(event) => setInputMode(event.target.value as CanvasVideoEditorMode)}><option value="text">全能参考</option><option value="image" disabled={!supportsImageToVideo}>图生视频</option><option value="firstlastframe" disabled={!currentModel?.raw?.firstLastFrame}>首尾帧</option></select></label> : null}
             <label><span>画面比例</span><select value={aspectRatio} disabled={isPanorama || (type === 'video' && videoAspectRatios.length === 1)} onChange={(event) => setAspectRatio(event.target.value)}>{(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios).map((value) => <option key={value}>{value === 'adaptive' ? '自适应' : value}</option>)}</select></label>
-            <label><span>{type === 'image' ? '图片分辨率' : '视频分辨率'}</span><select aria-label={type === 'video' ? '视频分辨率' : '图片分辨率'} value={resolution} onChange={(event) => setResolution(event.target.value)}>{supportedResolutions.map((value) => <option key={value} value={value}>{type === 'video' ? resolutionLabel(value) : value}</option>)}</select></label>
+            <label><span>{type === 'image' ? '图片分辨率' : superresolveTarget ? '输出分辨率' : '视频分辨率'}</span><select aria-label={type === 'video' ? '视频分辨率' : '图片分辨率'} value={superresolveTarget || resolution} onChange={(event) => {
+              if (superresolveTarget) setSuperresolveTarget(event.target.value as CanvasVideoSuperresolveTarget)
+              else setResolution(event.target.value)
+            }}>{(superresolveTarget ? CANVAS_VIDEO_SUPERRESOLVE_TARGETS : supportedResolutions).map((value) => <option key={value} value={value}>{type === 'video' ? resolutionLabel(value) : value}</option>)}</select></label>
+            {superresolveTarget ? <p className="text-[12px] leading-5 text-white/55">{superresolveResolutionError || <>模型按 {resolutionLabel(superresolveGenerationResolution!)} 生成并计费，完成后自动超分到 {resolutionLabel(superresolveTarget)}；本地超分不另收积分。</>}</p> : null}
             {type === 'image' ? <label><span>{storyboard ? '分镜数量' : '生成数量'}</span><select value={storyboard ? normalizeStoryboardCount(count) : count} onChange={(event) => setCount(Number(event.target.value))}>{(storyboard ? STORYBOARD_COUNTS : [1, 2, 4]).map((value) => <option key={value} value={value}>{value} {storyboard ? '镜' : '张'}</option>)}</select></label> : null}
             {type === 'image' ? <div className="nori-canvas-image-quality"><span>图片质量</span><div>{CANVAS_IMAGE_QUALITIES.map((value) => <button type="button" key={value} className={quality === value ? 'is-active' : ''} onClick={() => setQuality(value)}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>)}</div></div> : null}
             {type === 'video' ? <label><span>视频时长</span><select value={duration} onChange={(event) => setDuration(Number(event.target.value))}>{videoDurationOptions.map((value) => <option key={value} value={value}>{value} 秒</option>)}</select></label> : null}

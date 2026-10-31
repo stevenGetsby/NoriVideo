@@ -5,7 +5,8 @@ const prismaMock = vi.hoisted(() => ({
   frameosMaterial: { findMany: vi.fn() },
   frameosToolboxAsset: { findMany: vi.fn() },
   novelPromotionProject: { findUnique: vi.fn() },
-  project: { findMany: vi.fn(), delete: vi.fn() },
+  project: { findMany: vi.fn(), delete: vi.fn(), updateMany: vi.fn() },
+  work: { findMany: vi.fn(), deleteMany: vi.fn() },
 }))
 const storageMock = vi.hoisted(() => ({ deleteObjects: vi.fn() }))
 const bailianMock = vi.hoisted(() => ({
@@ -42,7 +43,12 @@ describe('回收站过期清理', () => {
       id: 'project-1',
       name: 'Project',
       userId: 'user-1',
+      workId: 'work-1',
+      coverImageKey: null,
     }])
+    prismaMock.project.updateMany.mockResolvedValue({ count: 0 })
+    prismaMock.work.findMany.mockResolvedValue([])
+    prismaMock.work.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.project.delete.mockResolvedValue({})
     storageMock.deleteObjects.mockResolvedValue({ success: 1, failed: 0 })
     bailianMock.collectProjectBailianManagedVoiceIds.mockResolvedValue([])
@@ -89,6 +95,22 @@ describe('回收站过期清理', () => {
       }),
     })
   })
+  it('永久删除成功后清理自定义封面', async () => {
+    prismaMock.project.findMany.mockResolvedValueOnce([{
+      id: 'project-1',
+      name: 'Project',
+      userId: 'user-1',
+      workId: 'work-1',
+      coverImageKey: 'images/project-cover-project-1-abc123.jpg',
+    }])
+    const { purgeExpiredRecycleBinProjects } = await import('@/lib/projects/recycle-bin')
+
+    expect(await purgeExpiredRecycleBinProjects()).toMatchObject({ purged: ['project-1'], failed: [] })
+    expect(prismaMock.project.delete).toHaveBeenCalledWith({ where: { id: 'project-1' } })
+    expect(unreferenced).toHaveBeenCalledWith('project-1', ['images/project-cover-project-1-abc123.jpg'])
+    expect(storageMock.deleteObjects).toHaveBeenCalledWith(['images/project-cover-project-1-abc123.jpg'])
+  })
+
   it('preserves a shared object used by another project after the original project expires', async () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([{ storageKey: 'uploads/shared.png', resultUrl: null }])
     unreferenced.mockResolvedValueOnce([])

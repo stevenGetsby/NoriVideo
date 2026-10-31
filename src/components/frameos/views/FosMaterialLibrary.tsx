@@ -323,10 +323,9 @@ export function MaterialUploadDialog({
   )
 }
 
-function MaterialPreviewDialog({ item, canEdit, onTypeFilterChange, onCharacterBind, onRename, onClose, onDownload }: {
+function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClose, onDownload }: {
   item: FrameosMaterialItem
   canEdit: boolean
-  onTypeFilterChange: (type: 'all' | MaterialType) => void
   onCharacterBind: (characterId: string | null) => void
   onRename: () => void
   onClose: () => void
@@ -395,7 +394,7 @@ function MaterialPreviewDialog({ item, canEdit, onTypeFilterChange, onCharacterB
           </div>
           <aside className="overflow-y-auto border-t border-[var(--fos-border-soft)] p-5 md:border-l md:border-t-0">
             <div className="mb-3 text-[12px] font-bold text-[var(--fos-text-3)]">素材信息</div>
-            <div className="divide-y divide-[var(--fos-border-soft)] rounded-[10px] border border-[var(--fos-border-soft)]">{rows.map(([key, value]) => <div key={key} className="px-3.5 py-3 text-[12px]"><span className="block text-[var(--fos-text-4)]">{key}</span>{key === '素材类型' ? <><select aria-label="素材类型筛选" className="fos-input mt-2" value={item.type} onChange={(event) => onTypeFilterChange(event.target.value as 'all' | MaterialType)}>{FILTER_TABS.filter((option) => option.key !== 'fav').map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select><small className="mt-1 block text-[var(--fos-text-4)]">选择后返回该类型的素材列表，不改变文件格式。</small></> : <span className="mt-1 block break-words font-bold text-white">{value}</span>}{key === '素材名称' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" onClick={onRename}><AppIcon name="edit" className="h-3.5 w-3.5" />修改名称</button> : null}</div>)}</div>
+            <div className="divide-y divide-[var(--fos-border-soft)] rounded-[10px] border border-[var(--fos-border-soft)]">{rows.map(([key, value]) => <div key={key} className="px-3.5 py-3 text-[12px]"><span className="block text-[var(--fos-text-4)]">{key}</span><span className="mt-1 block break-words font-bold text-white">{value}</span>{key === '素材名称' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" onClick={onRename}><AppIcon name="edit" className="h-3.5 w-3.5" />修改名称</button> : null}</div>)}</div>
             {canBindProjectCharacter ? <label className="mt-4 block"><span className="mb-2 block text-[12px] font-bold text-[var(--fos-text-3)]">绑定作品角色</span><select className="fos-input" value={characterBinding?.characterId || ''} disabled={!canEdit || charactersLoading} onChange={(event) => onCharacterBind(event.target.value || null)}><option value="">不绑定具体角色</option>{characters.map((character) => <option key={character.id} value={character.id}>@{character.name}</option>)}</select><span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">同一角色的图片与音频会在资产库聚合显示；绑定音频后同步设为该角色音色。</span></label> : null}
             <div className="mt-4 space-y-3"><ProjectDownloadDirectory projectId={item.projectId} /><button type="button" className="fos-btn fos-btn-primary" disabled={downloading} onClick={() => { setDownloading(true); setDownloadError(null); void onDownload().catch((cause) => setDownloadError(cause instanceof Error ? cause.message : '下载失败')).finally(() => setDownloading(false)) }}>{downloading ? '下载中…' : '按项目规则下载素材'}</button>{downloadError ? <p role="alert" className="break-words text-[12px] text-red-200">{downloadError}</p> : null}</div>
           </aside>
@@ -706,7 +705,7 @@ export function FosMaterialLibrary({
         setLoading(false)
         if (!projectId || material.projectId === projectId) setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)])
       }} onClose={() => { setUploadOpen(false); void load() }} /> : null}
-      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets} onTypeFilterChange={(type) => { setFilter(type); setDetail(null) }} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onRename={() => setRenameTarget(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
+      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onRename={() => setRenameTarget(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
         await downloadFrameosMaterial(session?.user?.id || '', detail.projectId, detail.id)
       }} /> : null}
       {renameTarget && canEditAssets ? <RenameDialog kind="素材" initialName={renameTarget.title || ''} busy={renaming} onClose={() => { if (!renamingRef.current) setRenameTarget(null) }} onSave={renameMaterial} /> : null}

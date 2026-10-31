@@ -78,12 +78,22 @@ vi.mock('@/lib/media/service', () => ({
 }))
 vi.mock('@/lib/novel-promotion/seedance-character-asset', () => seedanceCharacterAssetMock)
 vi.mock('@/lib/storage', () => storageMock)
+vi.mock('@/lib/canvas/video-operations', () => ({
+  enhanceCanvasVideo: vi.fn(async () => ({
+    body: Buffer.from('enhanced-video'),
+    width: 1280,
+    height: 720,
+    duration: 6.25,
+    fps: 24,
+  })),
+}))
 vi.mock('@/lib/media/video-audio', () => ({
   extractVoiceAudioFromVideo: vi.fn(async () => Buffer.from('audio')),
 }))
 
 import { handleToolboxImageTask } from '@/lib/workers/handlers/toolbox-image-task-handler'
 import { handleToolboxVideoTask } from '@/lib/workers/handlers/toolbox-video-task-handler'
+import { enhanceCanvasVideo } from '@/lib/canvas/video-operations'
 
 function buildJob(type: TaskJobData['type'], payload: Record<string, unknown>): Job<TaskJobData> {
   return {
@@ -272,6 +282,41 @@ describe('toolbox task handlers', () => {
       durationSeconds: 6.25,
       resolution: '480p',
     })
+  })
+
+  it('upscales after generation while retaining the billed model resolution', async () => {
+    const job = buildJob(TASK_TYPE.TOOLBOX_VIDEO, {
+      title: '自动超分镜头',
+      prompt: '雨夜推镜',
+      videoModel: 'kuaizi::doubao-seedance-2-5-260628',
+      resolution: '480p',
+      superresolveTarget: '720p',
+    })
+    storageMock.uploadObject.mockResolvedValueOnce('toolbox-video-superresolved/user-1/task-toolbox_video.mp4')
+
+    const result = await handleToolboxVideoTask(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(job, expect.objectContaining({
+      options: expect.objectContaining({ resolution: '480p' }),
+    }))
+    expect(enhanceCanvasVideo).toHaveBeenCalledWith(Buffer.from('video'), { target: '720p' }, expect.any(Object))
+    expect(storageMock.uploadObject).toHaveBeenCalledWith(
+      Buffer.from('enhanced-video'),
+      'toolbox-video-superresolved/user-1/task-toolbox_video.mp4',
+      1,
+      'video/mp4',
+    )
+    expect(result).toMatchObject({
+      videoUrl: 'toolbox-video-superresolved/user-1/task-toolbox_video.mp4',
+      resolution: '480p',
+      outputResolution: '720p',
+      width: 1280,
+      height: 720,
+    })
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      storageKey: 'toolbox-video-superresolved/user-1/task-toolbox_video.mp4',
+      metadata: expect.objectContaining({ resolution: '480p', outputResolution: '720p' }),
+    }))
   })
 
   it('passes normalized image, video, and audio references to all-reference video generation', async () => {

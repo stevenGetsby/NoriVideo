@@ -24,17 +24,27 @@ export const POST = apiHandler(async (
       userId: actor.workspaceOwnerId,
       deletedAt: { not: null },
     },
-    select: { id: true, name: true, deletedAt: true },
+    select: { id: true, name: true, deletedAt: true, workId: true },
   })
   if (!project) throw new ApiError('NOT_FOUND', { message: '回收站作品不存在。' })
   if (projectRestoreDeadline(project.deletedAt!).getTime() <= Date.now()) {
     throw new ApiError('CONFLICT', { message: '该作品已超过 15 天恢复期限。' })
   }
 
-  const restored = await prisma.project.update({
-    where: { id: project.id },
-    data: { deletedAt: null, deletedById: null },
-    select: { id: true, name: true, workId: true },
+  const restored = await prisma.$transaction(async (tx) => {
+    await tx.work.updateMany({
+      where: { id: project.workId, workspaceOwnerId: actor.workspaceOwnerId, deletedAt: { not: null } },
+      data: { deletedAt: null, deletedById: null },
+    })
+    await tx.project.updateMany({
+      where: { workId: project.workId, userId: actor.workspaceOwnerId, deletedAt: { not: null }, deletedWithWork: true },
+      data: { deletedWithWork: false },
+    })
+    return tx.project.update({
+      where: { id: project.id },
+      data: { deletedAt: null, deletedById: null, deletedWithWork: false },
+      select: { id: true, name: true, workId: true },
+    })
   })
   return NextResponse.json({ success: true, project: restored })
 })

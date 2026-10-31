@@ -29,12 +29,13 @@ import {
   MoveProjectsDialog,
   projectMemberCandidatesEndpoint,
   projectMembersEndpoint,
+  ProjectCoverDialog,
   RenameDialog,
   workMemberCandidatesEndpoint,
   workMembersEndpoint,
 } from './works/FosWorksDialogs'
 import type { WorkProject, WorkSummary } from './works/types'
-import type { RecycleBinProject } from './works/types'
+import type { RecycleBinProject, RecycleBinWork } from './works/types'
 
 const WORKS_REQUEST_TIMEOUT_MS = 15_000
 const WORKS_PAGE_SIZE = 50
@@ -86,11 +87,13 @@ export function FosProjectsClient() {
   const [createProjectWork, setCreateProjectWork] = useState<WorkSummary | null>(null)
   const [renameTarget, setRenameTarget] = useState<RenameTarget | null>(null)
   const [editingProject, setEditingProject] = useState<WorkProject | null>(null)
+  const [coverTarget, setCoverTarget] = useState<WorkProject | null>(null)
   const [memberTarget, setMemberTarget] = useState<MemberTarget | null>(null)
   const [moveTarget, setMoveTarget] = useState<MoveTarget | null>(null)
   const [confirmTarget, setConfirmTarget] = useState<ConfirmTarget | null>(null)
   const [recycleOpen, setRecycleOpen] = useState(false)
   const [recycleProjects, setRecycleProjects] = useState<RecycleBinProject[]>([])
+  const [recycledWorks, setRecycledWorks] = useState<RecycleBinWork[]>([])
   const [recycleLoading, setRecycleLoading] = useState(false)
   const [recycleError, setRecycleError] = useState<string | null>(null)
   const [restoringProjectId, setRestoringProjectId] = useState<string | null>(null)
@@ -169,10 +172,11 @@ export function FosProjectsClient() {
     requestAbortRef.current = null
   }, [])
 
+  const sessionUserId = session?.user?.id
   useEffect(() => {
-    if (session) void fetchWorks()
+    if (sessionUserId) void fetchWorks()
     else if (TEST_MODE && status !== 'loading') setLoading(false)
-  }, [fetchWorks, session, status])
+  }, [fetchWorks, sessionUserId, status])
 
   useEffect(() => {
     const requested = urlParams?.get('create_work') === '1' || urlParams?.get('create_project') === '1'
@@ -382,8 +386,9 @@ export function FosProjectsClient() {
     try {
       const response = await apiFetch('/api/projects/recycle-bin', { cache: 'no-store' })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载回收站失败'))
-      const payload = await response.json() as { projects?: RecycleBinProject[] }
+      const payload = await response.json() as { projects?: RecycleBinProject[]; works?: RecycleBinWork[] }
       setRecycleProjects(Array.isArray(payload.projects) ? payload.projects : [])
+      setRecycledWorks(Array.isArray(payload.works) ? payload.works : [])
     } catch (error) {
       setRecycleError(error instanceof Error ? error.message : '加载回收站失败')
     } finally {
@@ -406,6 +411,21 @@ export function FosProjectsClient() {
       await fetchWorks({ silent: true })
     } catch (error) {
       setRecycleError(error instanceof Error ? error.message : '恢复作品失败')
+    } finally {
+      setRestoringProjectId(null)
+    }
+  }
+
+  const restoreWork = async (workId: string) => {
+    setRestoringProjectId(workId)
+    setRecycleError(null)
+    try {
+      const response = await apiFetch(`/api/works/recycle-bin/${encodeURIComponent(workId)}/restore`, { method: 'POST' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '恢复项目失败'))
+      await loadRecycleBin()
+      await fetchWorks({ silent: true })
+    } catch (error) {
+      setRecycleError(error instanceof Error ? error.message : '恢复项目失败')
     } finally {
       setRestoringProjectId(null)
     }
@@ -502,6 +522,7 @@ export function FosProjectsClient() {
                   }}
                   projectActions={{
                     edit: (target) => { setEditingProject(target); setActiveMenuId(null) },
+                    cover: (target) => { setCoverTarget(target); setActiveMenuId(null) },
                     rename: (target) => { setRenameTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
                     members: (target) => { setMemberTarget({ kind: 'project', project: target }); setActiveMenuId(null) },
                     move: (target, sourceWork) => { setMoveTarget({ projects: [target], work: sourceWork }); setActiveMenuId(null) },
@@ -547,6 +568,11 @@ export function FosProjectsClient() {
         onClose={() => setEditingProject(null)}
         onSaved={() => void fetchWorks({ silent: true })}
       /> : null}
+      {coverTarget ? <ProjectCoverDialog
+        project={coverTarget}
+        onClose={() => setCoverTarget(null)}
+        onChanged={() => void fetchWorks({ silent: true })}
+      /> : null}
       {memberTarget ? memberTarget.kind === 'work' ? (
         <MemberManagerDialog
           title={`${memberTarget.work.canManage ? '设置' : '查看'}项目成员 · ${memberTarget.work.name}`}
@@ -580,7 +606,7 @@ export function FosProjectsClient() {
         <ConfirmActionDialog
           title={confirmTarget.kind === 'work' ? '删除项目' : '删除作品'}
           description={confirmTarget.kind === 'work'
-            ? `确定删除空项目「${confirmTarget.work.name}」吗？此操作无法恢复。`
+            ? `确定删除项目「${confirmTarget.work.name}」吗？项目及其中 ${confirmTarget.work.projectCount} 个作品会一起移入回收站，15 天内可恢复，不会立即清除素材。`
             : `确定删除作品「${confirmTarget.project.name}」吗？作品会移入回收站，15 天内可恢复。`}
           confirmLabel="确认删除"
           danger
@@ -600,7 +626,14 @@ export function FosProjectsClient() {
               <button type="button" className="fos-dialog-x" disabled={Boolean(restoringProjectId)} onClick={() => setRecycleOpen(false)} aria-label="关闭"><AppIcon name="close" /></button>
             </header>
             <div className="works-dialog-body">
-              {recycleLoading ? <div className="works-recycle-state">正在加载回收站…</div> : recycleError ? <div className="works-form-error">{recycleError}</div> : recycleProjects.length === 0 ? <div className="works-recycle-state">回收站为空</div> : (
+              {recycleError ? <div className="works-form-error">{recycleError}</div> : null}
+              {!recycleLoading && recycledWorks.length > 0 ? <div className="works-recycle-list">
+                {recycledWorks.map((work) => <article key={work.id} className="works-recycle-item">
+                  <div><strong>项目 · {work.name}</strong><small>恢复项目及本次随项目删除的作品；原先已删除的作品仍留在回收站。</small></div>
+                  <div><span>{work.expired ? '已到期' : '15 天内可恢复'}</span><button type="button" className="fos-btn fos-btn-primary" disabled={work.expired || restoringProjectId === work.id} onClick={() => void restoreWork(work.id)}>{restoringProjectId === work.id ? '恢复中…' : '恢复整个项目'}</button></div>
+                </article>)}
+              </div> : null}
+              {recycleLoading ? <div className="works-recycle-state">正在加载回收站…</div> : recycleProjects.length === 0 && recycledWorks.length === 0 ? <div className="works-recycle-state">回收站为空</div> : recycleProjects.length > 0 ? (
                 <div className="works-recycle-list">
                   {recycleProjects.map((project) => (
                     <article key={project.id} className="works-recycle-item">
@@ -617,7 +650,7 @@ export function FosProjectsClient() {
                     </article>
                   ))}
                 </div>
-              )}
+              ) : null}
             </div>
           </section>
         </div>

@@ -520,6 +520,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   // A wire released on empty canvas makes the browser fire a click on the pane; it must not close the menu the release just opened.
   const wireReleaseClickRef = useRef(false)
   const edgeSelectionGestureRef = useRef<{ pointerId: number; start: { x: number; y: number }; additive: boolean } | null>(null)
+  const spacePanActiveRef = useRef(false)
   const suppressContextMenuUntilRef = useRef(0)
   const groupDragRef = useRef<{ id: string; start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null)
   const playlistNodeDragRef = useRef<{ id: string; start: { x: number; y: number } } | null>(null)
@@ -1466,6 +1467,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (request.type === 'video') {
       if (request.fps) generationParameters.fps = request.fps
       else delete generationParameters.fps
+      if (request.superresolveTarget) generationParameters.superresolveTarget = request.superresolveTarget
+      else delete generationParameters.superresolveTarget
     }
     const generation = {
       ...(target.data.generation || {}),
@@ -1599,7 +1602,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       : isCanvasPanoramaNodeData(target.data)
         ? CANVAS_PANORAMA_PROCESS_TYPE
         : null
-    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: target.id, type: request.type, title: target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: request.prompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
+    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: target.id, type: request.type, title: target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: request.prompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
     const submitMediaRequest = () => apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submissionBody })
     let response: Response
     try {
@@ -2203,6 +2206,45 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       throw error
     }
   }, [initialGraph.canvas.id, markChanged, mergeAutosaveServerVersion, projectId, readOnly, record])
+
+  const handleVideoFrameCapture = useCallback(async (file: File, source: CanvasFlowNode) => {
+    if (readOnly) throw new Error('当前账号只有查看权限')
+    if (!nodesRef.current.some((node) => node.id === source.id)) throw new Error('视频节点已被删除')
+    if (!ensureNodeCapacity(1)) throw new Error('画布节点数量已达到上限')
+    if (edgesRef.current.length >= CANVAS_EDGE_HARD_LIMIT) throw new Error('画布连线数量已达到上限')
+    const form = new FormData()
+    form.set('file', file)
+    form.set('title', `${source.data.title || '视频'} · 关键帧 ${file.name.match(/([\d.]+)s\.jpg$/)?.[1] || '0.00'}s`)
+    form.set('projectId', projectId)
+    const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
+    if (!response.ok) throw new Error(await readApiErrorMessage(response, '关键帧上传失败'))
+    const payload = await response.json() as { material?: FrameosMaterialItem }
+    const material = payload.material
+    if (!material?.id || !material.url) throw new Error('关键帧上传未返回可用素材')
+    if (!ensureNodeCapacity(1) || edgesRef.current.length >= CANVAS_EDGE_HARD_LIMIT) throw new Error('画布容量已变化，请为关键帧图片预留节点和连线空间')
+    const size = nodeSize(source)
+    const created = createFlowNode('image', { x: source.position.x + size.width + 90, y: source.position.y })
+    created.width = 320
+    created.height = 210
+    created.selected = true
+    created.data = {
+      ...created.data,
+      title: material.title || file.name.replace(/\.jpg$/i, ''),
+      mediaType: 'image',
+      origin: 'derivative',
+      contentUrl: material.url,
+      imageUrl: material.url,
+      materialId: material.id,
+      generation: { referenceNodeIds: [source.id], count: 1, parameters: { videoFrameCapture: true } },
+      history: [{ id: crypto.randomUUID(), url: material.url, materialId: material.id, status: 'ready', createdAt: new Date().toISOString(), prompt: '视频关键帧截图' }],
+      __server: { ...created.data.__server!, status: 'SUCCEEDED' },
+    }
+    record('截取视频关键帧')
+    setNodes((current) => [...current.map((node) => node.selected ? { ...node, selected: false } : node), created])
+    setEdges((current) => [...current, { id: crypto.randomUUID(), source: source.id, target: created.id, sourceHandle: 'output', targetHandle: 'input', type: 'bezier', data: { role: 'VIDEO_FRAME' } }])
+    markChanged('已添加视频关键帧')
+    setToast('关键帧已添加到画布')
+  }, [ensureNodeCapacity, initialGraph.canvas.id, markChanged, projectId, readOnly, record])
 
   const handlePanoramaCapture = useCallback(async (files: File[], mode: 'current' | 'four' | 'twelve'): Promise<PanoramaCaptureCommitResult> => {
     if (!panoramaPreviewNodeId || readOnly || files.length === 0) {
@@ -3456,6 +3498,15 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         return
       }
       if (hasInputFocus()) return
+      if (event.code === 'Space') {
+        // React Flow pans on Space; the custom marquee must never compete with it.
+        spacePanActiveRef.current = true
+        if (edgeSelectionGestureRef.current) {
+          edgeSelectionGestureRef.current = null
+          setMarqueeRect(null)
+        }
+        return
+      }
       const mod = event.metaKey || event.ctrlKey
       if (productionSyncing || offlineRecoveryBlocking) {
         if (shouldBlockCanvasShortcutWhileLocked(event)) event.preventDefault()
@@ -3497,7 +3548,17 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       }
     }
     window.addEventListener('keydown', keydown)
-    return () => window.removeEventListener('keydown', keydown)
+    const keyup = (event: KeyboardEvent) => {
+      if (event.code === 'Space') spacePanActiveRef.current = false
+    }
+    const clearSpacePan = () => { spacePanActiveRef.current = false }
+    window.addEventListener('keyup', keyup)
+    window.addEventListener('blur', clearSpacePan)
+    return () => {
+      window.removeEventListener('keydown', keydown)
+      window.removeEventListener('keyup', keyup)
+      window.removeEventListener('blur', clearSpacePan)
+    }
   }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, nudgeSelection, offlineRecoveryBlocking, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, undo])
 
   const handleContextAction = (action: string) => {
@@ -3631,6 +3692,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           if (
             event.button === 0
             && !writeLocked
+            && !spacePanActiveRef.current
             && !connectionActiveRef.current
             && isCanvasBlankPointerTarget(event.target)
           ) {
@@ -3661,7 +3723,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           }
           if (moveMiniMapDrag(event)) return
           const edgeSelection = edgeSelectionGestureRef.current
-          if (edgeSelection?.pointerId === event.pointerId && wrapperRef.current) {
+          if (edgeSelection?.pointerId === event.pointerId && wrapperRef.current && !spacePanActiveRef.current) {
             const wrapper = wrapperRef.current
             const start = wrapperLayoutPoint(wrapper, edgeSelection.start.x, edgeSelection.start.y)
             const current = wrapperLayoutPoint(wrapper, event.clientX, event.clientY)
@@ -3697,6 +3759,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             if (event.currentTarget.hasPointerCapture(event.pointerId)) {
               event.currentTarget.releasePointerCapture(event.pointerId)
             }
+            if (spacePanActiveRef.current) return
             if (Math.hypot(event.clientX - edgeSelection.start.x, event.clientY - edgeSelection.start.y) > 5) {
               const end = { x: event.clientX, y: event.clientY }
               window.requestAnimationFrame(() => selectElementsCoveredByRect(edgeSelection.start, end, edgeSelection.additive))
@@ -3977,7 +4040,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
         {!readOnly && videoOperation ? (() => { const node = nodes.find((item) => item.id === videoOperation.sourceNodeId); return node ? <CanvasVideoOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={videoOperation.mode} node={node} onSubmit={handleVideoOperation} onRecover={applyVideoOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setVideoOperation(null)} /> : null })() : null}
-        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} onClose={() => setMediaPreviewNodeId(null)} /> : null}
+        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onClose={() => setMediaPreviewNodeId(null)} /> : null}
         {modelPreviewNode?.data.modelUrl ? <CanvasModel3DDialog src={toDisplayImageUrl(modelPreviewNode.data.modelUrl) || modelPreviewNode.data.modelUrl} title={modelPreviewNode.data.title || '3D 模型'} onClose={() => setModelPreviewNodeId(null)} /> : null}
         {panoramaPreviewNode && (panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) ? <CanvasPanoramaDialog src={toDisplayImageUrl(panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) || panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl || ''} title={panoramaPreviewNode.data.title || '720 全景图'} readOnly={readOnly} onCapture={handlePanoramaCapture} onClose={() => setPanoramaPreviewNodeId(null)} /> : null}
         {studioNode ? <CanvasStudio3DDialog projectId={projectId} canvasId={initialGraph.canvas.id} node={studioNode} incomingNodes={studioIncomingNodes} readOnly={readOnly} onSummaryChange={handleStudioSummaryChange} onStageCaptures={handleStudioStageCaptures} onSendCaptures={handleStudioCapture} onClose={() => setStudioNodeId(null)} /> : null}

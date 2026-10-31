@@ -76,7 +76,7 @@ const FOS_CANVAS_SIDEBAR_STORAGE_KEY = 'nori.fos.canvasSidebarCollapsed'
 export function FosTitlebar({ title }: { title?: string }) {
   return (
     <div className="fos-titlebar" data-testid="fos-titlebar">
-      {title ? <span className="fos-titlebar-title">{title}</span> : <span className="fos-titlebar-title">LanmiaoTV</span>}
+      {title ? <span className="fos-titlebar-title">{title}</span> : <span className="fos-titlebar-title">LanMiaoTV</span>}
       <button type="button" className="fos-titlebar-refresh" aria-label="刷新页面" title="刷新" onClick={() => window.location.reload()}>
         <AppIcon name="refresh" className="h-3.5 w-3.5" />
       </button>
@@ -166,7 +166,7 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
     <div className="fos-header">
       <Link href={{ pathname: '/projects' }} className="fos-logo">
         <NoriBrandMark className="fos-logo-mark" />
-        <span className="fos-logo-text"><span className="a">Nori</span><span className="b">Video</span></span>
+        <span className="fos-logo-text"><span className="a">LanMiao</span><span className="b">TV</span></span>
       </Link>
       <div className={`fos-header-actions flex items-center${canvasMode ? '' : ' gap-4'}`}>
         {!canvasMode && session ? (

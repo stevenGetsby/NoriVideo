@@ -48,7 +48,11 @@ export function CanvasBoundariesFixture() {
   else if (kind === 'model3d') content = <CanvasModel3DDialog src="/sample.glb" title={longTitle} onClose={close} />
   else if (kind === 'studio') content = <CanvasStudio3DDialog projectId="project-1" canvasId="canvas-1" node={{ ...node, type: 'studio_3d', data: { title: longTitle } }} incomingNodes={[]} readOnly={false} onSummaryChange={() => {}} onStageCaptures={async () => ({ captures: [], failed: 0 })} onSendCaptures={async () => ({ sentIds: [], created: 0, failed: 0 })} onClose={close} />
   else if (kind === 'panorama') content = <CanvasPanoramaDialog src={imageUrl} title={longTitle} readOnly={false} onCapture={async () => ({ created: 0, failed: 0, errors: [] })} onClose={close} />
-  else content = <CanvasMediaPreviewDialog node={{ ...node, type: kind === 'video-preview' ? 'video' : 'image' }} onClose={close} />
+  else content = <CanvasMediaPreviewDialog node={{ ...node, type: kind === 'video-preview' ? 'video' : 'image' }} readOnly={kind === 'video-preview-readonly'} onCaptureFrame={kind.startsWith('video-preview') ? async (file) => {
+    if (new URLSearchParams(location.search).get('capture-fail') === '1') throw new Error('模拟关键帧上传失败')
+    if (file.type !== 'image/jpeg' || file.size === 0) throw new Error('关键帧 JPEG 无效')
+    close()
+  } : undefined} onClose={close} />
   return <main className="fos-app">
     <div style={{ transform: 'translate(900px, 800px) scale(1.5)', height: '100%' }}>
       <CanvasViewportLayer>{open ? content : <output data-testid="dialog-closed">已关闭</output>}</CanvasViewportLayer>

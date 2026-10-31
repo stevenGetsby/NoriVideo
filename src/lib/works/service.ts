@@ -21,7 +21,9 @@ import {
   buildWorkSearchWhere,
 } from './filters'
 import { productionHierarchy } from '@/lib/projects/hierarchy'
+import { projectCoverImageUrl } from '@/lib/projects/project-cover-url'
 import { normalizeMoveWorkInput } from './move-input'
+import { PROJECT_RECYCLE_RETENTION_DAYS, PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
 
 const WORK_NAME_MAX_LENGTH = 50
 
@@ -78,6 +80,7 @@ const workProjectSelect = {
   workId: true,
   createdById: true,
   collaborationMode: true,
+  coverImageKey: true,
   novelPromotionData: {
     select: {
       projectLevel: true,
@@ -172,13 +175,14 @@ export async function listWorks(session: AuthSession, input: {
       createdById: work.createdById,
       canManage,
       canCreateProjects,
-      canDelete: canManage && (work._count?.projects ?? work.projects.length) === 0,
+      canDelete: canManage,
       projectCount: work.projects.length,
       members: canManage ? memberRows : [],
       projects: work.projects.map((project) => {
         const canManageProject = actor.isManagement
         return {
           ...project,
+          coverImageUrl: projectCoverImageUrl(project.coverImageKey),
           canManage: canManageProject,
           canMove: canManageProject,
           canManageMembers: canManageProject,
@@ -254,25 +258,29 @@ export async function updateWork(session: AuthSession, workId: string, input: {
 }
 
 export async function deleteWork(session: AuthSession, workId: string) {
-  const { work } = await requireWorkManager(session, workId)
-  if (work.projects.length > 0) {
-    throw new ApiError('CONFLICT', { message: '项目下仍有作品，请先移动作品，或彻底清理已删除作品。' })
-  }
-  // Re-assert emptiness in the delete predicate. A project may be created or
-  // moved into the work after the permission/count read; relying only on the
-  // earlier count would otherwise surface a raw foreign-key failure.
-  const deleted = await prisma.work.deleteMany({
-    where: {
-      id: workId,
-      // Recycled child works still need their parent for restoration.
-      projects: { none: {} },
-    },
-  })
-  if (deleted.count !== 1) {
-    throw new ApiError('CONFLICT', {
-      message: '项目仍有作品（含回收站）或内容已变化，请刷新后确认项目为空再删除。',
+  const { actor } = await requireWorkManager(session, workId)
+  const deletedAt = new Date()
+  return prisma.$transaction(async (tx) => {
+    const work = await tx.work.findFirst({
+      where: { id: workId, workspaceOwnerId: actor.workspaceOwnerId, deletedAt: null },
+      select: { id: true },
     })
-  }
+    if (!work) throw new ApiError('CONFLICT', { message: '项目已被删除，请刷新后重试。' })
+    const recycled = await tx.project.updateMany({
+      where: { workId, userId: actor.workspaceOwnerId, deletedAt: null },
+      data: { deletedAt, deletedById: actor.actorId, deletedWithWork: true },
+    })
+    await tx.work.update({
+      where: { id: workId },
+      data: { deletedAt, deletedById: actor.actorId },
+    })
+    return {
+      deletedAt: deletedAt.toISOString(),
+      restoreDeadline: new Date(deletedAt.getTime() + PROJECT_RECYCLE_RETENTION_MS).toISOString(),
+      recycledProjects: recycled.count,
+      retentionDays: PROJECT_RECYCLE_RETENTION_DAYS,
+    }
+  })
 }
 
 export async function moveProjects(session: AuthSession, input: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import zh from '../../../messages/zh/auth.json'
 import en from '../../../messages/en/auth.json'
@@ -37,17 +37,17 @@ describe('public creator login homepage contracts', () => {
     expect(css).toContain('prefers-reduced-motion')
     expect(css).not.toContain('position: fixed')
   })
-  it('uses a self-hosted, bounded static visual without adding tracking or mock customer metrics', () => {
+  it('uses the local Three.js creative scene without adding tracking or mock customer metrics', () => {
     const shell = source('src/components/frameos/FosAuthShell.tsx')
-    expect(shell).toContain('src="/auth/cinematic-landscape.webp"')
-    expect(shell).toContain('unoptimized')
+    expect(shell).toContain('<AuthCreativeScene />')
     expect(shell).not.toMatch(/src="https?:\/\//)
-    expect(statSync(path.join(process.cwd(), 'public/auth/cinematic-landscape.webp')).size).toBeLessThan(500_000)
+    const scene = source('src/components/frameos/auth/AuthCreativeScene.tsx')
+    expect(scene).toContain("await import('three')")
   })
   it('keeps self-registration closed and help keyboard accessible', () => {
     const signup = source('src/app/[locale]/auth/signup/page.tsx')
     expect(signup).not.toContain('<form')
-    expect(signup).toContain('LanmiaoTV 不开放自行注册')
+    expect(signup).toContain('LanMiaoTV 不开放自行注册')
     const guide = source('src/components/frameos/auth/AuthHelpButton.tsx')
     expect(guide).toContain('element.showModal()')
     expect(guide).toContain('onCancel=')

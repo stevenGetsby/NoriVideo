@@ -19,7 +19,7 @@ import {
   type CanvasReferenceMediaSummary,
 } from '@/lib/canvas/generation-input-schema'
 import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
-import { isSeedance25VideoModelKey } from '@/lib/canvas/generator-options'
+import { CANVAS_VIDEO_SUPERRESOLVE_TARGETS, isSeedance25VideoModelKey, resolveCanvasSuperresolveGenerationResolution, type CanvasVideoSuperresolveTarget } from '@/lib/canvas/generator-options'
 import {
   bindCanvasToolboxTaskToNode,
   projectCanvasToolboxSubmissionFailure,
@@ -66,6 +66,7 @@ const GENERATION_OPTION_TYPES: Record<GenerateType, Readonly<Record<string, Gene
     duration: 'number',
     generateAudio: 'boolean',
     fps: 'number',
+    superresolveTarget: 'string',
   },
   audio: {
     mode: 'string',
@@ -637,7 +638,17 @@ export const POST = apiHandler(async (
   }
 
   const capabilityFields = getCapabilityOptionFields(type, capabilities)
-  const options = cleanOptions(type, body.options, capabilityFields)
+  const rawOptions = record(body.options)
+  let superresolveTarget: CanvasVideoSuperresolveTarget | null = null
+  if (type === 'video' && rawOptions.superresolveTarget !== undefined) {
+    const target = cleanText(rawOptions.superresolveTarget).toLowerCase()
+    if (!CANVAS_VIDEO_SUPERRESOLVE_TARGETS.includes(target as CanvasVideoSuperresolveTarget)) {
+      throw new ApiError('INVALID_PARAMS', { message: '超分目标仅支持 720p、1080p、4k。' })
+    }
+    superresolveTarget = target as CanvasVideoSuperresolveTarget
+    rawOptions.resolution = resolveCanvasSuperresolveGenerationResolution(superresolveTarget, capabilityFields.resolution || [])
+  }
+  const options = cleanOptions(type, rawOptions, capabilityFields)
   // Resolve saved character-card voices on the server, not from browser URLs.
   // Pure text, first/last frames, still images and explicitly silent videos
   // must never receive hidden audio inputs.

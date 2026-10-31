@@ -5,7 +5,9 @@ const prismaMock = vi.hoisted(() => ({
   work: {
     count: vi.fn(),
     deleteMany: vi.fn(),
+    findFirst: vi.fn(),
     findMany: vi.fn(),
+    update: vi.fn(),
   },
   project: {
     findMany: vi.fn(),
@@ -76,6 +78,8 @@ describe('works service behavior', () => {
     })
     prismaMock.work.count.mockResolvedValue(0)
     prismaMock.work.deleteMany.mockResolvedValue({ count: 1 })
+    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.work.update.mockResolvedValue({ id: 'work-1' })
     prismaMock.work.findMany.mockResolvedValue([])
     prismaMock.project.findMany.mockResolvedValue([])
     prismaMock.project.updateMany.mockResolvedValue({ count: 0 })
@@ -173,7 +177,7 @@ describe('works service behavior', () => {
     ])
   })
 
-  it('keeps a parent project undeletable while its works are in the recycle bin', async () => {
+  it('allows recycling a parent project even while its works are already in the recycle bin', async () => {
     prismaMock.work.findMany.mockResolvedValueOnce([{
       id: 'work-1',
       name: '回收站项目',
@@ -199,8 +203,8 @@ describe('works service behavior', () => {
 
     const result = await listWorks(managementSession, { page: 1, pageSize: 20 })
 
-    expect(result.works[0]).toMatchObject({ canDelete: false, projectCount: 0 })
-    expect(result.projectHierarchy.projects[0]).toMatchObject({ kind: 'project', canDelete: false, workCount: 0 })
+    expect(result.works[0]).toMatchObject({ canDelete: true, projectCount: 0 })
+    expect(result.projectHierarchy.projects[0]).toMatchObject({ kind: 'project', canDelete: true, workCount: 0 })
   })
 
   it('claims every project against its observed source work during a move', async () => {
@@ -240,50 +244,42 @@ describe('works service behavior', () => {
     })
   })
 
-  it('rechecks that a work is empty in the atomic delete predicate', async () => {
-    accessMock.requireWorkManager.mockResolvedValueOnce({
-      actor: accessMock.getWorkspaceActor(),
-      work: { id: 'work-1', createdById: 'actor-1', projects: [] },
-      canManage: true,
-    })
+  it('recycles active works with their parent without hard-deleting content', async () => {
+    prismaMock.project.updateMany.mockResolvedValueOnce({ count: 2 })
     const { deleteWork } = await import('@/lib/works/service')
 
-    await expect(deleteWork(session, 'work-1')).resolves.toBeUndefined()
-    expect(prismaMock.work.deleteMany).toHaveBeenCalledWith({
-      where: {
-        id: 'work-1',
-        projects: { none: {} },
-      },
+    await expect(deleteWork(session, 'work-1')).resolves.toMatchObject({ recycledProjects: 2, retentionDays: 15 })
+    expect(prismaMock.work.findFirst).toHaveBeenCalledWith({
+      where: { id: 'work-1', workspaceOwnerId: 'workspace-1', deletedAt: null },
+      select: { id: true },
     })
+    expect(prismaMock.project.updateMany).toHaveBeenCalledWith({
+      where: { workId: 'work-1', userId: 'workspace-1', deletedAt: null },
+      data: { deletedAt: expect.any(Date), deletedById: 'actor-1', deletedWithWork: true },
+    })
+    expect(prismaMock.work.update).toHaveBeenCalledWith({
+      where: { id: 'work-1' },
+      data: { deletedAt: expect.any(Date), deletedById: 'actor-1' },
+    })
+    expect(prismaMock.work.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('reports a conflict when a work gains a project during deletion', async () => {
-    accessMock.requireWorkManager.mockResolvedValueOnce({
-      actor: accessMock.getWorkspaceActor(),
-      work: { id: 'work-1', createdById: 'actor-1', projects: [] },
-      canManage: true,
-    })
-    prismaMock.work.deleteMany.mockResolvedValueOnce({ count: 0 })
+  it('recycles an empty parent without touching other works', async () => {
+    prismaMock.project.updateMany.mockResolvedValueOnce({ count: 0 })
     const { deleteWork } = await import('@/lib/works/service')
 
-    await expect(deleteWork(session, 'work-1')).rejects.toMatchObject({
-      code: 'CONFLICT',
-      message: '项目仍有作品（含回收站）或内容已变化，请刷新后确认项目为空再删除。',
-    })
+    await expect(deleteWork(session, 'work-1')).resolves.toMatchObject({ recycledProjects: 0 })
+    expect(prismaMock.project.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { workId: 'work-1', userId: 'workspace-1', deletedAt: null },
+    }))
+    expect(prismaMock.work.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('does not delete a parent project while a child work remains in the recycle bin', async () => {
-    accessMock.requireWorkManager.mockResolvedValueOnce({
-      actor: accessMock.getWorkspaceActor(),
-      work: { id: 'work-1', createdById: 'actor-1', projects: [] },
-      canManage: true,
-    })
-    prismaMock.work.deleteMany.mockResolvedValueOnce({ count: 0 })
+  it('reports a conflict when the project was already recycled', async () => {
+    prismaMock.work.findFirst.mockResolvedValueOnce(null)
     const { deleteWork } = await import('@/lib/works/service')
     await expect(deleteWork(session, 'work-1')).rejects.toMatchObject({ code: 'CONFLICT' })
-    expect(prismaMock.work.deleteMany).toHaveBeenCalledWith({
-      where: { id: 'work-1', projects: { none: {} } },
-    })
+    expect(prismaMock.project.updateMany).not.toHaveBeenCalled()
   })
 
   it('rejects a stale concurrent move instead of overwriting its destination', async () => {

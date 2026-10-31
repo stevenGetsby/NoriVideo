@@ -4,6 +4,8 @@ import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { calcImage, calcVideo, calcVoice } from '@/lib/billing/cost'
 import { BillingOperationError } from '@/lib/billing/errors'
 import { cnyToPoints } from '@/lib/billing/credit-policy'
+import { getCapabilityOptionFields, resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
+import { CANVAS_VIDEO_SUPERRESOLVE_TARGETS, resolveCanvasSuperresolveGenerationResolution, type CanvasVideoSuperresolveTarget } from '@/lib/canvas/generator-options'
 
 type QuoteType = 'image' | 'video' | 'audio'
 
@@ -42,12 +44,21 @@ export const GET = apiHandler(async (request: NextRequest) => {
       })
     } else if (type === 'video') {
       const containsVideoInput = request.nextUrl.searchParams.get('containsVideoInput') === 'true'
+      const target = text(request.nextUrl.searchParams.get('superresolveTarget')).toLowerCase()
+      let resolution = text(request.nextUrl.searchParams.get('resolution')) || '720p'
+      if (target) {
+        if (!CANVAS_VIDEO_SUPERRESOLVE_TARGETS.includes(target as CanvasVideoSuperresolveTarget)) {
+          throw new ApiError('INVALID_PARAMS', { message: '超分目标无效。' })
+        }
+        const fields = getCapabilityOptionFields('video', resolveBuiltinCapabilitiesByModelKey('video', model))
+        resolution = resolveCanvasSuperresolveGenerationResolution(target as CanvasVideoSuperresolveTarget, fields.resolution || [])
+      }
       costCny = calcVideo(
         model,
-        text(request.nextUrl.searchParams.get('resolution')) || '720p',
+        resolution,
         1,
         {
-          resolution: text(request.nextUrl.searchParams.get('resolution')) || '720p',
+          resolution,
           duration: positiveInteger(request.nextUrl.searchParams.get('duration'), 5, 60),
           generationMode: text(request.nextUrl.searchParams.get('generationMode')) || 'normal',
           generateAudio: request.nextUrl.searchParams.get('generateAudio') !== 'false',

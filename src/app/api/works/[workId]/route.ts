@@ -18,6 +18,6 @@ export const DELETE = apiHandler(async (_request: NextRequest, context: Context)
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const { workId } = await context.params
-  await deleteWork(authResult.session, workId)
-  return NextResponse.json({ success: true })
+  const result = await deleteWork(authResult.session, workId)
+  return NextResponse.json({ success: true, ...result })
 })
