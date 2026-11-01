@@ -42,7 +42,7 @@ export function projectMembershipGrantsReview(input: {
 export function resolveAssignmentCapabilities(input: AssignmentCapabilityInput) {
   const managesWork = input.actorIsWorkCreator
     || input.workMemberCanManage
-    || input.workMemberRole === 'manager'
+    || input.workMemberRole === 'manager' || input.workMemberRole === 'leader'
   const canManage = input.actorIsManagement
     || input.actorIsProjectCreator
     || managesWork

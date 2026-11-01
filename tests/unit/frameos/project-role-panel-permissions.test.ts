@@ -7,18 +7,18 @@ function readSource(relativePath: string) {
 }
 
 describe('project role panel permissions', () => {
-  it('keeps every project visible while making project creation independently assignable', () => {
+  it('uses project-scoped leadership and account-level work creation', () => {
     const access = readSource('src/lib/collaboration/access.ts')
     const works = readSource('src/lib/works/service.ts')
     const projectsClient = readSource('src/components/frameos/FosProjectsClient.tsx')
 
     expect(access).toContain('userId: actor.workspaceOwnerId')
-    expect(access).toContain('const canManageProject = isManagementRole(session.user.role)')
-    expect(access).toContain("hasAccountPermissions(session.user, ['projectCreate'])")
-    expect(works).toContain('const canManage = actor.isManagement')
+    expect(access).toContain("actor, 'projectManage', project, workMembership, projectMembership")
+    expect(access).toContain("canAccessWork(actor, 'projectCreate', work, membership)")
+    expect(works).toContain("canAccessWork(actor, 'workManage', work, workMembership)")
     expect(works).toContain('canCreateProjects,')
-    expect(projectsClient).toContain("session?.user?.role === 'admin'")
-    expect(projectsClient).toContain("['projectCreate']")
+    expect(projectsClient).toContain("['workCreate']")
+    expect(projectsClient).toContain('work.canCreateProjects || canCreateProjects')
   })
 
   it('renders non-owned content panels as readable but non-editable', () => {

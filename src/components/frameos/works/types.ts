@@ -1,4 +1,5 @@
 import type { AccountPermission } from '@/lib/account/permissions'
+import type { ScopePermission } from '@/lib/permissions/catalog'
 
 export type CollaborationMode = 'solo' | 'team'
 
@@ -34,6 +35,7 @@ export interface WorkProject {
   canManage?: boolean
   canMove?: boolean
   canManageMembers?: boolean
+  canDelete?: boolean
   budgetLevel?: string | null
   budgetLevelName?: string | null
   genre?: string | null
@@ -77,6 +79,8 @@ export interface WorkMember {
   status?: string | null
   isCreator?: boolean
   canRemove?: boolean
+  permissions?: ScopePermission[] | null
+  effectivePermissions?: ScopePermission[]
 }
 
 export interface WorkSummary {
@@ -86,6 +90,7 @@ export interface WorkSummary {
   updatedAt: string
   createdById?: string | null
   canManage?: boolean
+  canManageMembers?: boolean
   canCreateProjects?: boolean
   canDelete?: boolean
   canMoveProjects?: boolean
@@ -173,6 +178,7 @@ export function normalizeWorkProject(value: unknown): WorkProject | null {
     canManage: bool(source.canManage ?? source.can_manage),
     canMove: bool(source.canMove ?? source.can_move),
     canManageMembers: bool(source.canManageMembers ?? source.can_manage_members),
+    canDelete: bool(source.canDelete ?? source.can_delete),
     budgetLevel: optionalText(
       source.budgetLevel
       || source.budget_level
@@ -240,6 +246,8 @@ export function normalizeWorkMember(value: unknown): WorkMember | null {
     status: optionalText(source.status || user.status),
     isCreator: bool(source.isCreator ?? source.is_creator) || source.role === 'creator',
     canRemove: bool(source.canRemove ?? source.can_remove, source.role !== 'creator'),
+    permissions: Array.isArray(source.permissions) ? source.permissions.filter((item): item is ScopePermission => typeof item === 'string') : null,
+    effectivePermissions: Array.isArray(source.effectivePermissions) ? source.effectivePermissions.filter((item): item is ScopePermission => typeof item === 'string') : undefined,
   }
 }
 
@@ -261,6 +269,7 @@ export function normalizeWork(value: unknown): WorkSummary | null {
     updatedAt: text(source.updatedAt || source.updated_at),
     createdById: optionalText(source.createdById || source.created_by_id),
     canManage: bool(source.canManage ?? source.can_manage),
+    canManageMembers: bool(source.canManageMembers ?? source.can_manage_members),
     canCreateProjects: bool(source.canCreateWorks ?? source.canCreateProjects ?? source.can_create_projects),
     canDelete: bool(source.canDelete ?? source.can_delete, projects.length === 0),
     canMoveProjects: bool(source.canMoveWorks ?? source.canMoveProjects ?? source.can_move_projects),

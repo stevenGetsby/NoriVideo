@@ -687,11 +687,12 @@ export const POST = apiHandler(async (request: NextRequest) => {
         uploadedStyleReferences,
       )
 
-      for (const userId of uniqueProjectRoleAssigneeIds(projectAssignees)) {
+      for (const userId of new Set([...uniqueProjectRoleAssigneeIds(projectAssignees), actor.actorId])) {
         await tx.projectMember.create({
           data: {
             projectId: createdProject.id,
             userId,
+            role: userId === actor.actorId ? 'owner' : 'member',
           },
         })
       }

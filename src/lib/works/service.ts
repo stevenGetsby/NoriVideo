@@ -1,15 +1,17 @@
 import type { AuthSession } from '@/lib/api-auth'
-import type { Prisma } from '@prisma/client'
+import { Prisma } from '@prisma/client'
 import { ApiError } from '@/lib/api-errors'
 import { prisma } from '@/lib/prisma'
-import { effectiveAccountPermissions, hasAccountPermissions } from '@/lib/account/permissions'
+import { effectiveAccountPermissions } from '@/lib/account/permissions'
 import { syncProjectAssignmentsForProject } from '@/lib/collaboration/assignments'
 import {
   getWorkspaceActor,
   requireActiveWorkspaceUser,
-  requireProjectAssignmentManager,
+  requireProjectMemberManager,
   requireProjectReader,
   requireWorkManager,
+  requireWorkMemberManager,
+  requireWorkPermission,
   projectReadScopeWhere,
   visibleProjectsWhere,
   workReadScopeWhere,
@@ -20,6 +22,18 @@ import {
   buildMemberCandidateExclusionWhere,
   buildWorkSearchWhere,
 } from './filters'
+import {
+  canAccessProject,
+  canAccessWork,
+  effectiveProjectMemberPermissions,
+  effectiveWorkMemberPermissions,
+} from '@/lib/permissions/resolve'
+import {
+  isProjectMembershipRole,
+  isScopePermission,
+  isWorkMembershipRole,
+  normalizeWorkMembershipRole,
+} from '@/lib/permissions/catalog'
 import { productionHierarchy } from '@/lib/projects/hierarchy'
 import { projectCoverImageUrl } from '@/lib/projects/project-cover-url'
 import { normalizeMoveWorkInput } from './move-input'
@@ -47,6 +61,42 @@ function uniqueStringIds(value: unknown): string[] {
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter(Boolean)))
+}
+
+export function readWorkMemberGrant(body: Record<string, unknown>) {
+  if (body.role !== undefined && !isWorkMembershipRole(body.role)) {
+    throw new ApiError('INVALID_PARAMS', { message: '项目成员角色仅支持 leader 或 member。' })
+  }
+  if (body.permissions !== undefined && body.permissions !== null
+    && (!Array.isArray(body.permissions) || body.permissions.some((permission) => !isScopePermission(permission)))) {
+    throw new ApiError('INVALID_PARAMS', { message: '包含不支持的项目权限，请刷新后重试。' })
+  }
+  return {
+    userId: readMemberUserId(body),
+    role: body.role as 'leader' | 'member' | undefined,
+    permissions: body.permissions as string[] | null | undefined,
+  }
+}
+
+export function readProjectMemberGrant(body: Record<string, unknown>) {
+  if (body.role !== undefined && !isProjectMembershipRole(body.role)) {
+    throw new ApiError('INVALID_PARAMS', { message: '作品成员角色仅支持 owner 或 member。' })
+  }
+  if (body.permissions !== undefined && body.permissions !== null
+    && (!Array.isArray(body.permissions) || body.permissions.some((permission) => !isScopePermission(permission)))) {
+    throw new ApiError('INVALID_PARAMS', { message: '包含不支持的作品权限，请刷新后重试。' })
+  }
+  return {
+    userId: readMemberUserId(body),
+    role: body.role as 'owner' | 'member' | undefined,
+    permissions: body.permissions as string[] | null | undefined,
+  }
+}
+
+function readMemberUserId(body: Record<string, unknown>) {
+  const userId = typeof body.userId === 'string' ? body.userId.trim() : ''
+  if (!userId) throw new ApiError('INVALID_PARAMS', { message: '请选择成员账号。' })
+  return userId
 }
 
 function normalizePage(value: unknown, fallback: number, maximum = Number.MAX_SAFE_INTEGER): number {
@@ -109,7 +159,6 @@ export async function listWorks(session: AuthSession, input: {
   search?: unknown
 }) {
   const actor = getWorkspaceActor(session)
-  const canCreateProjects = hasAccountPermissions(session.user, ['projectCreate'])
   const page = normalizePage(input.page, 1)
   const pageSize = normalizePage(input.pageSize, 20, 100)
   const search = typeof input.search === 'string' ? input.search.trim() : ''
@@ -138,7 +187,14 @@ export async function listWorks(session: AuthSession, input: {
         projects: {
           where: { deletedAt: null, ...visibleProjectsWhere(session) },
           orderBy: { updatedAt: 'desc' },
-          select: workProjectSelect,
+          select: {
+            ...workProjectSelect,
+            members: {
+              where: { userId: actor.actorId },
+              select: { role: true, permissions: true, canManageAssignments: true, canReviewAssignments: true },
+              take: 1,
+            },
+          },
         },
       },
     }),
@@ -146,12 +202,18 @@ export async function listWorks(session: AuthSession, input: {
   const matchedTotal = searchedTotal ?? total
 
   const works = rows.map((work) => {
-    const canManage = actor.isManagement
+    const workMembership = work.members.find((member) => member.userId === actor.actorId)
+    const canManage = canAccessWork(actor, 'workManage', work, workMembership)
+    const canManageMembers = canAccessWork(actor, 'workMemberManage', work, workMembership)
+    const canDelete = canAccessWork(actor, 'workDelete', work, workMembership)
+    const canCreateProjects = canAccessWork(actor, 'projectCreate', work, workMembership)
     const memberRows = work.members.map((member) => ({
       userId: member.userId,
       name: member.user.name,
-      role: member.role,
+      role: normalizeWorkMembershipRole(member.role),
       canManage: member.canManage,
+      permissions: member.permissions,
+      effectivePermissions: effectiveWorkMemberPermissions(member),
       disabled: member.user.status !== 'active',
       isCreator: member.userId === work.createdById,
       canRemove: member.userId !== work.createdById,
@@ -160,8 +222,10 @@ export async function listWorks(session: AuthSession, input: {
       memberRows.unshift({
         userId: work.createdBy.id,
         name: work.createdBy.name,
-        role: 'creator',
+        role: 'leader',
         canManage: true,
+        permissions: null,
+        effectivePermissions: effectiveWorkMemberPermissions({ role: 'leader' }),
         disabled: false,
         isCreator: true,
         canRemove: false,
@@ -174,18 +238,25 @@ export async function listWorks(session: AuthSession, input: {
       updatedAt: work.updatedAt,
       createdById: work.createdById,
       canManage,
+      canManageMembers,
       canCreateProjects,
-      canDelete: canManage,
+      canDelete,
+      canMoveProjects: canManage,
       projectCount: work.projects.length,
-      members: canManage ? memberRows : [],
+      members: canManageMembers ? memberRows : [],
       projects: work.projects.map((project) => {
-        const canManageProject = actor.isManagement
+        const { members: projectMembers, ...projectData } = project
+        const canManageProject = canAccessProject(actor, 'projectManage', { ...project, work }, workMembership, projectMembers[0])
+        const canMove = canAccessProject(actor, 'projectMove', { ...project, work }, workMembership, projectMembers[0])
+        const canManageProjectMembers = canAccessProject(actor, 'projectMemberManage', { ...project, work }, workMembership, projectMembers[0])
+        const canDeleteProject = canAccessProject(actor, 'projectDelete', { ...project, work }, workMembership, projectMembers[0])
         return {
-          ...project,
+          ...projectData,
           coverImageUrl: projectCoverImageUrl(project.coverImageKey),
           canManage: canManageProject,
-          canMove: canManageProject,
-          canManageMembers: canManageProject,
+          canMove,
+          canManageMembers: canManageProjectMembers,
+          canDelete: canDeleteProject,
         }
       }),
     }
@@ -211,6 +282,9 @@ export async function createWork(session: AuthSession, input: {
   memberUserIds?: unknown
 }) {
   const actor = getWorkspaceActor(session)
+  if (!actor.accountPermissions?.includes('workCreate')) {
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有创建项目的权限，请联系管理员开启立项权限。' })
+  }
   const name = validateWorkName(input.name)
   const memberUserIds = uniqueStringIds(input.memberUserIds)
   await requireWorkspaceUsers(actor.workspaceOwnerId, memberUserIds)
@@ -224,7 +298,7 @@ export async function createWork(session: AuthSession, input: {
       members: {
         create: allMembers.map((userId) => ({
           userId,
-          role: userId === actor.actorId ? 'manager' : 'member',
+          role: userId === actor.actorId ? 'leader' : 'member',
           canManage: userId === actor.actorId,
         })),
       },
@@ -258,7 +332,7 @@ export async function updateWork(session: AuthSession, workId: string, input: {
 }
 
 export async function deleteWork(session: AuthSession, workId: string) {
-  const { actor } = await requireWorkManager(session, workId)
+  const { actor } = await requireWorkPermission(session, workId, 'workDelete')
   const deletedAt = new Date()
   return prisma.$transaction(async (tx) => {
     const work = await tx.work.findFirst({
@@ -303,14 +377,14 @@ export async function moveProjects(session: AuthSession, input: {
         include: {
           members: {
             where: { userId: actor.actorId },
-            select: { role: true, canManage: true },
+            select: { role: true, canManage: true, permissions: true },
             take: 1,
           },
         },
       },
       members: {
         where: { userId: actor.actorId },
-        select: { canManageAssignments: true },
+        select: { canManageAssignments: true, canReviewAssignments: true, role: true, permissions: true },
         take: 1,
       },
     },
@@ -318,15 +392,9 @@ export async function moveProjects(session: AuthSession, input: {
   if (projects.length !== projectIds.length) {
     throw new ApiError('NOT_FOUND', { message: '部分作品不存在或不属于当前工作区。' })
   }
-  const unauthorized = projects.some((project) => {
-    if (actor.isManagement || project.createdById === actor.actorId) return false
-    const workMember = project.work.members[0]
-    const projectMember = project.members[0]
-    return project.work.createdById !== actor.actorId
-      && workMember?.canManage !== true
-      && workMember?.role !== 'manager'
-      && projectMember?.canManageAssignments !== true
-  })
+  const unauthorized = projects.some((project) => (
+    !canAccessProject(actor, 'projectMove', project, project.work.members[0], project.members[0])
+  ))
   if (unauthorized) {
     throw new ApiError('FORBIDDEN', { message: '当前账号没有移动部分作品的权限。' })
   }
@@ -372,11 +440,11 @@ export async function listMemberCandidates(session: AuthSession, input: {
   const actor = getWorkspaceActor(session)
   let creatorId: string | null = null
   if (input.workId) {
-    const { work } = await requireWorkManager(session, input.workId)
+    const { work } = await requireWorkMemberManager(session, input.workId)
     creatorId = work.createdById
   }
-  if (input.projectId) {
-    const { project } = await requireProjectAssignmentManager(session, input.projectId)
+    if (input.projectId) {
+    const { project } = await requireProjectMemberManager(session, input.projectId)
     creatorId = project.createdById
   }
   const keyword = typeof input.keyword === 'string' ? input.keyword.trim() : ''
@@ -429,8 +497,10 @@ export async function listWorkMembers(session: AuthSession, workId: string) {
     accountRole: member.user.role,
     roleLabel: member.user.roleLabel,
     status: member.user.status,
-    role: member.role,
+    role: normalizeWorkMembershipRole(member.role),
     canManage: member.canManage,
+    permissions: member.permissions,
+    effectivePermissions: effectiveWorkMemberPermissions(member),
     isCreator: member.userId === work.createdById,
     canRemove: member.userId !== work.createdById,
   }))
@@ -445,8 +515,10 @@ export async function listWorkMembers(session: AuthSession, workId: string) {
       accountRole: creator.role,
       roleLabel: creator.roleLabel,
       status: creator.status,
-      role: 'creator',
+      role: 'leader',
       canManage: true,
+      permissions: null,
+      effectivePermissions: effectiveWorkMemberPermissions({ role: 'leader' }),
       isCreator: true,
       canRemove: false,
     })
@@ -464,19 +536,33 @@ async function requireWorkManagerOrReader(session: AuthSession, workId: string) 
   return { actor, work }
 }
 
-export async function addWorkMember(session: AuthSession, workId: string, userId: string) {
-  const { actor } = await requireWorkManager(session, workId)
-  await requireActiveWorkspaceUser(actor.workspaceOwnerId, userId)
+export async function addWorkMember(
+  session: AuthSession,
+  workId: string,
+  input: string | { userId: string; role?: 'leader' | 'member'; permissions?: string[] | null },
+) {
+  const grant = typeof input === 'string' ? { userId: input } : input
+  const { actor } = await requireWorkMemberManager(session, workId)
+  await requireActiveWorkspaceUser(actor.workspaceOwnerId, grant.userId)
   return prisma.workMember.upsert({
-    where: { workId_userId: { workId, userId } },
-    update: {},
-    create: { workId, userId },
+    where: { workId_userId: { workId, userId: grant.userId } },
+    update: {
+      ...(grant.role !== undefined ? { role: grant.role, canManage: grant.role === 'leader' } : {}),
+      ...(grant.permissions !== undefined ? { permissions: grant.permissions ?? Prisma.DbNull } : {}),
+    },
+    create: {
+      workId,
+      userId: grant.userId,
+      role: grant.role || 'member',
+      canManage: grant.role === 'leader',
+      ...(grant.permissions !== undefined ? { permissions: grant.permissions ?? Prisma.DbNull } : {}),
+    },
     include: { user: { select: { id: true, name: true, role: true, status: true } } },
   })
 }
 
 export async function removeWorkMember(session: AuthSession, workId: string, userId: string) {
-  const { work } = await requireWorkManager(session, workId)
+  const { work } = await requireWorkMemberManager(session, workId)
   if (userId === work.createdById) {
     throw new ApiError('CONFLICT', { message: '不能移除项目创建者。' })
   }
@@ -503,7 +589,10 @@ export async function listProjectMembers(session: AuthSession, projectId: string
   const items = members.map((member) => ({
     userId: member.userId,
     name: member.user.name,
-    role: member.user.role,
+    accountRole: member.user.role,
+    role: member.role,
+    permissions: member.permissions,
+    effectivePermissions: effectiveProjectMemberPermissions(member),
     roleLabel: member.user.roleLabel,
     status: member.user.status,
     canManageAssignments: member.canManageAssignments,
@@ -515,7 +604,10 @@ export async function listProjectMembers(session: AuthSession, projectId: string
     items.unshift({
       userId: project.createdBy.id,
       name: project.createdBy.name,
-      role: project.createdBy.role,
+      accountRole: project.createdBy.role,
+      role: 'owner',
+      permissions: null,
+      effectivePermissions: effectiveProjectMemberPermissions({ role: 'owner' }),
       roleLabel: project.createdBy.roleLabel,
       status: project.createdBy.status,
       canManageAssignments: true,
@@ -527,18 +619,42 @@ export async function listProjectMembers(session: AuthSession, projectId: string
   return items
 }
 
-export async function addProjectMember(session: AuthSession, projectId: string, userId: string) {
-  const { actor, project } = await requireProjectAssignmentManager(session, projectId)
-  const user = await requireActiveWorkspaceUser(actor.workspaceOwnerId, userId)
+export async function addProjectMember(
+  session: AuthSession,
+  projectId: string,
+  input: string | { userId: string; role?: 'owner' | 'member'; permissions?: string[] | null },
+) {
+  const grant = typeof input === 'string' ? { userId: input } : input
+  const { actor, project } = await requireProjectMemberManager(session, projectId)
+  if (grant.userId === project.createdById && grant.role !== undefined && grant.role !== 'owner') {
+    throw new ApiError('CONFLICT', { message: '不能移除作品负责人的身份。' })
+  }
+  const user = await requireActiveWorkspaceUser(actor.workspaceOwnerId, grant.userId)
   const canReviewAssignments = user.role === 'reviewer'
   const membership = await prisma.projectMember.upsert({
-    where: { projectId_userId: { projectId, userId } },
-    update: canReviewAssignments ? { canReviewAssignments: true } : {},
+    where: { projectId_userId: { projectId, userId: grant.userId } },
+    update: {
+      ...(grant.role !== undefined ? { role: grant.role } : {}),
+      ...(grant.permissions !== undefined ? { permissions: grant.permissions ?? Prisma.DbNull } : {}),
+      ...(grant.role !== undefined || grant.permissions !== undefined ? {
+        canManageAssignments: grant.permissions !== undefined
+          ? grant.permissions?.includes('assignmentManage') === true
+          : grant.role === 'owner',
+        canReviewAssignments: canReviewAssignments || grant.role === 'owner'
+          || grant.permissions?.includes('assignmentReview') === true,
+      } : {}),
+      ...(canReviewAssignments ? { canReviewAssignments: true } : {}),
+    },
     create: {
       projectId,
-      userId,
-      canManageAssignments: false,
-      canReviewAssignments,
+      userId: grant.userId,
+      role: grant.role || (grant.userId === project.createdById ? 'owner' : 'member'),
+      canManageAssignments: grant.permissions !== undefined
+        ? grant.permissions?.includes('assignmentManage') === true
+        : grant.role === 'owner',
+      canReviewAssignments: canReviewAssignments || grant.role === 'owner'
+        || grant.permissions?.includes('assignmentReview') === true,
+      ...(grant.permissions !== undefined ? { permissions: grant.permissions ?? Prisma.DbNull } : {}),
     },
     include: { user: { select: { id: true, name: true, role: true, status: true } } },
   })
@@ -556,7 +672,7 @@ export async function addProjectMember(session: AuthSession, projectId: string, 
 }
 
 export async function removeProjectMember(session: AuthSession, projectId: string, userId: string) {
-  const { project } = await requireProjectAssignmentManager(session, projectId)
+  const { project } = await requireProjectMemberManager(session, projectId)
   if (userId === project.createdById) {
     throw new ApiError('CONFLICT', { message: '不能移除作品创建者。' })
   }

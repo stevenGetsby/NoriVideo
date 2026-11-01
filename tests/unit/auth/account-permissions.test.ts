@@ -21,9 +21,9 @@ describe('account role permission policy', () => {
   })
 
   it('uses role templates only when a legacy subaccount has no assigned permission array', () => {
-    expect(effectiveAccountPermissions('writer')).toEqual(['read', 'scriptWrite', 'toolboxUse', 'canvasWrite'])
-    expect(effectiveAccountPermissions('asset')).toEqual(['read', 'assetWrite', 'toolboxUse', 'canvasWrite'])
-    expect(effectiveAccountPermissions('storyboard')).toEqual(['read', 'storyboardWrite', 'toolboxUse', 'canvasWrite'])
+    expect(effectiveAccountPermissions('writer')).toEqual(['read', 'projectCreate', 'scriptWrite', 'toolboxUse', 'canvasWrite'])
+    expect(effectiveAccountPermissions('asset')).toEqual(['read', 'projectCreate', 'assetWrite', 'toolboxUse', 'canvasWrite'])
+    expect(effectiveAccountPermissions('storyboard')).toEqual(['read', 'projectCreate', 'storyboardWrite', 'toolboxUse', 'canvasWrite'])
     expect(hasAccountPermissions({ role: 'writer' }, ['storyboardWrite'])).toBe(false)
     expect(hasAccountPermissions({ role: 'writer' }, ['toolboxUse', 'canvasWrite'])).toBe(true)
   })
@@ -67,10 +67,10 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/interactive/w1/chapters', 'POST')).toEqual(['projectCreate', 'canvasWrite'])
   })
 
-  it('keeps project creation independently assignable while reserving project administration', () => {
+  it('keeps project creation independently assignable and defers administration to object scope', () => {
     expect(requiredPermissionsForApiPath('/api/projects', 'POST')).toEqual(['projectCreate'])
     expect(requiredPermissionsForApiPath('/api/projects/p1', 'PATCH')).toEqual(['read'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/novel-promotion/p1', 'PATCH')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/novel-promotion/p1', 'DELETE')).toEqual(['admin'])
     expect(requiredPermissionsForApiPath('/api/user/api-config', 'GET')).toEqual(['admin'])
@@ -80,11 +80,11 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/frameos/materials', 'POST')).toEqual(['assetWrite'])
   })
 
-  it('allows participant edits without granting adjacent administrative mutations', () => {
+  it('allows participant edits without granting unrelated workspace administration', () => {
     expect(requiredPermissionsForApiPath('/api/projects/p1/', 'PATCH')).toEqual(['read'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1', 'PUT')).toEqual(['admin'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['admin'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'PATCH')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'PUT')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1', 'DELETE')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'PATCH')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/projects/recycle-bin/p1', 'PATCH')).toEqual(['admin'])
   })
 
@@ -94,10 +94,10 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/video-repaint/scripts', 'GET')).toEqual(['read'])
   })
 
-  it('reserves workspace structure for managers while deferring human task actions', () => {
-    expect(requiredPermissionsForApiPath('/api/works', 'POST')).toEqual(['admin'])
-    expect(requiredPermissionsForApiPath('/api/works/w1/members', 'DELETE')).toEqual(['admin'])
-    expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'POST')).toEqual(['admin'])
+  it('assigns workspace creation separately and defers member management to object scope', () => {
+    expect(requiredPermissionsForApiPath('/api/works', 'POST')).toEqual(['workCreate'])
+    expect(requiredPermissionsForApiPath('/api/works/w1/members', 'DELETE')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'POST')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/collaboration/assignments/submit', 'POST')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/creative/projects/collaboration/assignments/approve', 'POST')).toEqual(['read'])
   })

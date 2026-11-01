@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api-errors'
 const prismaMock = vi.hoisted(() => ({
   work: {
     count: vi.fn(),
+    create: vi.fn(),
     deleteMany: vi.fn(),
     findFirst: vi.fn(),
     findMany: vi.fn(),
@@ -23,6 +24,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   workMember: {
     deleteMany: vi.fn(),
+    upsert: vi.fn(),
   },
   $transaction: vi.fn(),
 }))
@@ -32,11 +34,14 @@ const accessMock = vi.hoisted(() => ({
     workspaceOwnerId: 'workspace-1',
     actorId: 'actor-1',
     isManagement: false,
+    accountPermissions: ['workCreate', 'projectCreate'] as string[],
   })),
   requireActiveWorkspaceUser: vi.fn(),
-  requireProjectAssignmentManager: vi.fn(),
+  requireProjectMemberManager: vi.fn(),
   requireProjectReader: vi.fn(),
   requireWorkManager: vi.fn(),
+  requireWorkMemberManager: vi.fn(),
+  requireWorkPermission: vi.fn(),
   projectReadScopeWhere: vi.fn(() => ({ userId: 'workspace-1', deletedAt: null })),
   visibleProjectsWhere: vi.fn(() => ({ OR: [{ createdById: 'actor-1' }] })),
   workReadScopeWhere: vi.fn(() => ({ workspaceOwnerId: 'workspace-1' })),
@@ -70,11 +75,22 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: false,
+      accountPermissions: ['workCreate', 'projectCreate'],
     })
     accessMock.requireWorkManager.mockResolvedValue({
       actor: accessMock.getWorkspaceActor(),
       work: { id: 'target-work', createdById: 'manager-1', projects: [] },
       canManage: true,
+    })
+    accessMock.requireWorkMemberManager.mockResolvedValue({
+      actor: accessMock.getWorkspaceActor(),
+      work: { id: 'work-1', createdById: 'creator-1', projects: [{ id: 'project-1' }] },
+      canManageMembers: true,
+    })
+    accessMock.requireWorkPermission.mockResolvedValue({
+      actor: accessMock.getWorkspaceActor(),
+      work: { id: 'work-1', createdById: 'creator-1', projects: [] },
+      canDelete: true,
     })
     prismaMock.work.count.mockResolvedValue(0)
     prismaMock.work.deleteMany.mockResolvedValue({ count: 1 })
@@ -87,6 +103,42 @@ describe('works service behavior', () => {
     prismaMock.user.findMany.mockResolvedValue([])
     prismaMock.workMember.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
+  })
+
+  it('creates the opted-in actor as leader and ordinary invitees as members', async () => {
+    const { createWork } = await import('@/lib/works/service')
+    prismaMock.work.create.mockResolvedValueOnce({ id: 'work-new', name: '新项目' })
+    prismaMock.user.findMany.mockImplementation(async (input?: { where?: { id?: { in?: string[] } } }) => (
+      input?.where?.id?.in ? [{ id: 'writer-2' }, { id: 'actor-1' }] : []
+    ))
+    const result = await createWork(session, { name: '新项目', memberUserIds: ['writer-2', 'actor-1'] })
+    expect(result).toMatchObject({ id: 'work-new' })
+    expect(prismaMock.work.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        members: {
+          create: [
+            { userId: 'actor-1', role: 'leader', canManage: true },
+            { userId: 'writer-2', role: 'member', canManage: false },
+          ],
+        },
+      }),
+    }))
+
+    accessMock.getWorkspaceActor.mockReturnValueOnce({
+      workspaceOwnerId: 'workspace-1', actorId: 'actor-1', isManagement: false, accountPermissions: ['projectCreate'],
+    })
+    await expect(createWork(session, { name: '禁止立项' })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+  })
+
+  it('updates work member role and permissions only through the member manager gate', async () => {
+    prismaMock.workMember.upsert.mockResolvedValueOnce({ userId: 'writer-2', role: 'leader' })
+    const { addWorkMember } = await import('@/lib/works/service')
+
+    await addWorkMember(session, 'work-1', { userId: 'writer-2', role: 'leader', permissions: null })
+    expect(accessMock.requireWorkMemberManager).toHaveBeenCalledWith(session, 'work-1')
+    expect(prismaMock.workMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      update: { role: 'leader', canManage: true, permissions: expect.anything() },
+    }))
   })
 
   it('keeps the visible total stable and filters nested 作品 by participation', async () => {
@@ -198,6 +250,7 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: true,
+      accountPermissions: ['workCreate', 'projectCreate'],
     })
     const { listWorks } = await import('@/lib/works/service')
 
@@ -319,6 +372,7 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: false,
+      accountPermissions: ['workCreate', 'projectCreate'],
     })
     accessMock.requireWorkManager.mockResolvedValue({
       actor: accessMock.getWorkspaceActor(),
@@ -439,7 +493,7 @@ describe('works service behavior', () => {
   })
 
   it('grants project review when a manager adds a reviewer as a collaborator', async () => {
-    accessMock.requireProjectAssignmentManager.mockResolvedValueOnce({
+    accessMock.requireProjectMemberManager.mockResolvedValueOnce({
       actor: accessMock.getWorkspaceActor(),
       project: { id: 'project-1', userId: 'workspace-1', collaborationMode: 'solo' },
     })
@@ -462,6 +516,7 @@ describe('works service behavior', () => {
       create: {
         projectId: 'project-1',
         userId: 'reviewer-1',
+        role: 'member',
         canManageAssignments: false,
         canReviewAssignments: true,
       },
@@ -478,7 +533,7 @@ describe('works service behavior', () => {
   })
 
   it('does not grant review when adding a production subaccount', async () => {
-    accessMock.requireProjectAssignmentManager.mockResolvedValueOnce({
+    accessMock.requireProjectMemberManager.mockResolvedValueOnce({
       actor: accessMock.getWorkspaceActor(),
       project: { id: 'project-1', userId: 'workspace-1', collaborationMode: 'team' },
     })
@@ -497,6 +552,7 @@ describe('works service behavior', () => {
       create: {
         projectId: 'project-1',
         userId: 'writer-1',
+        role: 'member',
         canManageAssignments: false,
         canReviewAssignments: false,
       },

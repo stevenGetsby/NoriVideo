@@ -190,7 +190,7 @@ describe('works surface wiring', () => {
     expect(dialogs).toContain('搜索并选择目标项目')
     expect(dialogs).toContain('>确定</button>')
     expect(dialogs).toContain('disabled={saving || loading || !hasChanges}')
-    expect(dialogs).toContain('<span className="works-role-badge">管理员</span>')
+    expect(dialogs).toContain('<span className="works-role-badge">{roleLabel(member.role)}</span>')
     expect(dialogs).toContain("method: 'POST'")
     expect(dialogs).toContain("method: 'DELETE'")
     expect(styles).toContain('.works-member-row.is-pending-removal')

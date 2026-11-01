@@ -120,19 +120,19 @@ describe('FrameOS-compatible project creation', () => {
     const panels = readSource('src/components/frameos/works/FosWorkPanels.tsx')
 
     expect(client).toContain('else if (!requestedWork.canCreateProjects)')
-    expect(client).toContain("hasAccountPermissions(session?.user || {}, ['projectCreate'])")
-    expect(client).toContain('canCreateProjects={Boolean(work.canCreateProjects && canCreateProjects)}')
+    expect(client).toContain("hasAccountPermissions(session?.user || {}, ['workCreate'])")
+    expect(client).toContain('canCreateProjects={Boolean(work.canCreateProjects || canCreateProjects)}')
     expect(client).not.toContain('canManageProjects')
     expect(panels).toContain('const canManage = Boolean(project.canManage)')
     expect(panels).not.toContain('canAdminProjects')
   })
 
-  it('never creates a fixed default work and keeps work structure manager-only', () => {
+  it('never creates a fixed default work and gates work creation by its independent account permission', () => {
     const client = readSource('src/components/frameos/FosProjectsClient.tsx')
     const route = readSource('src/app/api/projects/route.ts')
     const agent = readSource('src/lib/super-agent/orchestrator.ts')
 
-    expect(client).toContain("session?.user?.role === 'admin'")
+    expect(client).toContain("hasAccountPermissions(session?.user || {}, ['workCreate'])")
     expect(route).toContain('requireWorkProjectCreator(session, workId)')
     expect(route).toContain("code: 'PROJECT_WORK_REQUIRED'")
     expect(route).not.toContain("createWork(session, { name: '默认项目' })")

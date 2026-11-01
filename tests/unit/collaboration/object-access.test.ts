@@ -42,6 +42,7 @@ describe('work and project object access', () => {
       workspaceOwnerId: 'owner-1',
       actorId: 'owner-1',
       isManagement: true,
+      accountPermissions: expect.arrayContaining(['workCreate', 'projectCreate']),
       role: 'admin',
     })
     expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1', deletedAt: null })
@@ -57,7 +58,14 @@ describe('work and project object access', () => {
         { members: { some: { userId: 'writer-1' } } },
         { workflowAssignments: { some: { assigneeUserId: 'writer-1' } } },
         { work: { createdById: 'writer-1' } },
-        { work: { members: { some: { userId: 'writer-1', OR: [{ canManage: true }, { role: 'manager' }] } } } },
+        { work: { members: { some: {
+          userId: 'writer-1',
+          OR: [
+            { canManage: true },
+            { role: { in: ['manager', 'leader'] } },
+            { permissions: { array_contains: ['projectManage'] } },
+          ],
+        } } } },
       ],
     })
     expect(projectReadWhere(auth, 'project-7')).toMatchObject({
@@ -77,7 +85,7 @@ describe('work and project object access', () => {
 
   it('keeps the workspace-wide scope for management accounts', () => {
     const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'owner-1', role: 'admin' })
-    expect(workReadScopeWhere(auth)).toEqual({ workspaceOwnerId: 'owner-1' })
+    expect(workReadScopeWhere(auth)).toEqual({ workspaceOwnerId: 'owner-1', deletedAt: null })
   })
 
   it('hides a teammate 作品 from a subaccount but not an unknown or global id', async () => {

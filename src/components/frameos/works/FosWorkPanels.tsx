@@ -1,12 +1,10 @@
 'use client'
 
 import { Fragment, useRef } from 'react'
-import { useSession } from 'next-auth/react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import { isManagementRole } from '@/lib/account/permissions'
 import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
 import type { WorkProject, WorkSummary } from './types'
 import { UNASSIGNED_WORK_ID } from './types'
@@ -182,7 +180,6 @@ function ProjectCard({
   onToggleSelected: () => void
   actions: ProjectActionHandlers
 }) {
-  const { data: session } = useSession()
   const menuTrigger = useRef<HTMLButtonElement>(null)
   const style = projectStyle(project)
   const genre = projectGenreLabel(project)
@@ -190,9 +187,9 @@ function ProjectCard({
   const collaborationLabel = ['Nori1.0', 'premium2'].includes(projectBudgetLevel(project))
     ? project.collaborationMode === 'team' ? '任务分工' : '自由协作'
     : null
-  const canMove = canMoveFromWork(work) || project.canMove
-  const canManage = Boolean(project.canManage) && isManagementRole(session?.user?.role)
-  const canMembers = canManage || Boolean(project.canManageMembers)
+  const canMove = Boolean(work.canMoveProjects && project.canMove)
+  const canManage = Boolean(project.canManage)
+  const canMembers = Boolean(project.canManageMembers)
   const running = generationRunning(project)
   const coverImageUrl = project.coverImageUrl?.trim() || null
   const workbenchHref = `/workflow/${project.id}/workbench-premium2`
@@ -294,10 +291,10 @@ function ProjectCard({
               <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.edit(project)}><AppIcon name="settingsHex" />编辑作品</button>
               {canManage ? <button type="button" role="menuitem" className="fos-menu-item" data-testid="project-card-cover-action" onClick={() => actions.cover(project)}><AppIcon name="image" />{coverImageUrl ? '更换封面' : '设置封面'}</button> : null}
               {canManage ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.rename(project)}><AppIcon name="edit" />重命名</button> : null}
-              {canMembers ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.members(project)}><AppIcon name="usersRound" />{canManage ? '设置协作者' : '查看协作者'}</button> : null}
+              {canMembers ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.members(project)}><AppIcon name="usersRound" />设置协作者</button> : null}
               {canMove ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.move(project, work)}><AppIcon name="arrowRight" />移动到项目</button> : null}
               <Link role="menuitem" href={{ pathname: `/workflow/${project.id}/workbench-premium2/canvas` }} className="fos-menu-item" data-testid="project-card-canvas-menu-entry"><AppIcon name="clapperboard" />进入无限画布</Link>
-              {canManage ? <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => actions.delete(project)}><AppIcon name="trash" />删除作品</button> : null}
+              {project.canDelete ? <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => actions.delete(project)}><AppIcon name="trash" />删除作品</button> : null}
             </div>
             </ViewportPopover>
           ) : null}
@@ -411,11 +408,11 @@ export function WorkPanel({
                       onClick={(event) => event.stopPropagation()}
                       onKeyDown={(event) => handleMenuKeyDown(event, () => onMenuChange(null))}
                     >
-                      {!work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.members(work)}><AppIcon name="usersRound" />{canManage ? '设置成员' : '查看成员'}</button> : null}
+                      {!work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.members(work)}><AppIcon name="usersRound" />{work.canManageMembers ? '设置成员' : '查看成员'}</button> : null}
                       {canManage && !work.virtual ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => workActions.rename(work)}><AppIcon name="edit" />重命名</button> : null}
                       {canMove && work.projects.length ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => { onBatchWorkChange(work.id); onSelectedProjectIdsChange([]); onMenuChange(null) }}><AppIcon name="arrowRight" />批量移动作品</button> : null}
-                      {canManage && !work.virtual ? (
-                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" disabled={!work.canDelete} title={!work.canDelete ? '当前账号没有删除权限' : `项目及其中作品将进入回收站，保留 15 天`} onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除项目</button>
+                      {work.canDelete && !work.virtual ? (
+                        <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" title="项目及其中作品将进入回收站，保留 15 天" onClick={() => workActions.delete(work)}><AppIcon name="trash" />删除项目</button>
                       ) : null}
                     </div>
                     </ViewportPopover>

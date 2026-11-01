@@ -456,13 +456,14 @@ model InteractiveStory {
 }
 
 model WorkMember {
-  id        String   @id @default(uuid())
-  workId    String
-  userId    String
-  role      String   @default("member") @db.VarChar(32)
-  canManage Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id          String   @id @default(uuid())
+  workId      String
+  userId      String
+  role        String   @default("member") @db.VarChar(32)
+  canManage   Boolean  @default(false)
+  permissions Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 
   work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
   user User @relation("WorkMembershipUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -476,6 +477,8 @@ model ProjectMember {
   id                   String   @id @default(uuid())
   projectId            String
   userId               String
+  role                 String   @default("member") @db.VarChar(32)
+  permissions          Json?
   canManageAssignments Boolean  @default(false)
   canReviewAssignments Boolean  @default(false)
   createdAt            DateTime @default(now())

@@ -2,7 +2,7 @@ import type { DefaultSession } from 'next-auth'
 import type { DefaultJWT } from 'next-auth/jwt'
 
 type NoriAccountRole = 'super_admin' | 'admin' | 'writer' | 'asset' | 'storyboard' | 'reviewer'
-type NoriAccountPermission = 'read' | 'projectCreate' | 'scriptWrite' | 'assetWrite' | 'storyboardWrite' | 'toolboxUse' | 'canvasWrite' | 'admin'
+type NoriAccountPermission = 'read' | 'workCreate' | 'projectCreate' | 'scriptWrite' | 'assetWrite' | 'storyboardWrite' | 'toolboxUse' | 'canvasWrite' | 'admin'
 
 declare module 'next-auth' {
   interface Session {

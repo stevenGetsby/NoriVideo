@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getWorkspaceActor } from '@/lib/collaboration/access'
+import { canAccessProject } from '@/lib/permissions/resolve'
 import { prisma } from '@/lib/prisma'
 import { projectRestoreDeadline } from '@/lib/projects/recycle-bin'
 
@@ -14,19 +15,31 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
   const actor = getWorkspaceActor(session)
-  if (!actor.isManagement) {
-    throw new ApiError('FORBIDDEN', { message: '只有管理账号可以恢复回收站作品。' })
-  }
-
   const project = await prisma.project.findFirst({
     where: {
       id: projectId,
       userId: actor.workspaceOwnerId,
       deletedAt: { not: null },
     },
-    select: { id: true, name: true, deletedAt: true, workId: true },
+    select: {
+      id: true,
+      name: true,
+      createdById: true,
+      deletedAt: true,
+      workId: true,
+      work: {
+        select: {
+          createdById: true,
+          members: { where: { userId: actor.actorId }, select: { role: true, canManage: true, permissions: true }, take: 1 },
+        },
+      },
+      members: { where: { userId: actor.actorId }, select: { role: true, permissions: true, canManageAssignments: true, canReviewAssignments: true }, take: 1 },
+    },
   })
   if (!project) throw new ApiError('NOT_FOUND', { message: '回收站作品不存在。' })
+  if (!canAccessProject(actor, 'projectDelete', project, project.work.members[0], project.members[0])) {
+    throw new ApiError('FORBIDDEN', { message: '当前账号没有恢复该作品的权限。' })
+  }
   if (projectRestoreDeadline(project.deletedAt!).getTime() <= Date.now()) {
     throw new ApiError('CONFLICT', { message: '该作品已超过 15 天恢复期限。' })
   }

@@ -102,8 +102,8 @@ export function FosProjectsClient() {
   const requestAbortRef = useRef<AbortController | null>(null)
   const handledCreateProjectRequestRef = useRef('')
 
-  const canCreateWorks = session?.user?.role === 'admin' || TEST_MODE
-  const canCreateProjects = hasAccountPermissions(session?.user || {}, ['projectCreate']) || TEST_MODE
+  const canCreateWorks = hasAccountPermissions(session?.user || {}, ['workCreate']) || TEST_MODE
+  const canCreateProjects = TEST_MODE
 
   useEffect(() => {
     if (status === 'loading') return
@@ -509,7 +509,7 @@ export function FosProjectsClient() {
                   activeMenuId={activeMenuId}
                   batchWorkId={batchWorkId}
                   selectedProjectIds={batchWorkId === work.id ? selectedProjectIds : []}
-                  canCreateProjects={Boolean(work.canCreateProjects && canCreateProjects)}
+                  canCreateProjects={Boolean(work.canCreateProjects || canCreateProjects)}
                   onMenuChange={setActiveMenuId}
                   onBatchWorkChange={(id) => { setBatchWorkId(id); setSelectedProjectIds([]) }}
                   onSelectedProjectIdsChange={setSelectedProjectIds}
@@ -575,19 +575,19 @@ export function FosProjectsClient() {
       /> : null}
       {memberTarget ? memberTarget.kind === 'work' ? (
         <MemberManagerDialog
-          title={`${memberTarget.work.canManage ? '设置' : '查看'}项目成员 · ${memberTarget.work.name}`}
+          title={`${memberTarget.work.canManageMembers ? '设置' : '查看'}项目成员 · ${memberTarget.work.name}`}
           endpoint={workMembersEndpoint(memberTarget.work.id)}
           candidatesPath={workMemberCandidatesEndpoint(memberTarget.work.id)}
-          readOnly={!memberTarget.work.canManage}
+          readOnly={!memberTarget.work.canManageMembers}
           onClose={() => setMemberTarget(null)}
           onChanged={() => void fetchWorks({ silent: true })}
         />
       ) : (
         <MemberManagerDialog
-          title={`${memberTarget.project.canManage ? '设置' : '查看'}作品协作者 · ${memberTarget.project.name}`}
+          title={`${memberTarget.project.canManageMembers ? '设置' : '查看'}作品协作者 · ${memberTarget.project.name}`}
           endpoint={projectMembersEndpoint(memberTarget.project.id)}
           candidatesPath={projectMemberCandidatesEndpoint(memberTarget.project.id)}
-          readOnly={!memberTarget.project.canManage}
+          readOnly={!memberTarget.project.canManageMembers}
           onClose={() => setMemberTarget(null)}
           onChanged={() => void fetchWorks({ silent: true })}
         />

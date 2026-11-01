@@ -1,6 +1,6 @@
 import type { MemberCandidate, WorkMember } from './types'
 
-const ADMIN_ROLES = new Set(['admin', 'super_admin', 'manager', 'creator'])
+const ADMIN_ROLES = new Set(['admin', 'super_admin', 'creator'])
 
 /**
  * Creation and workspace-management status are authority boundaries, not an

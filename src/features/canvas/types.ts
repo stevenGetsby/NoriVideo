@@ -17,6 +17,7 @@ export type CanvasWorkOption = {
   id: string
   name: string
   projectCount: number
+  canCreateProjects?: boolean
 }
 
 export type Canvas = {

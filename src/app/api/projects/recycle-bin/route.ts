@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getWorkspaceActor } from '@/lib/collaboration/access'
+import { canAccessProject, canAccessWork } from '@/lib/permissions/resolve'
 import { prisma } from '@/lib/prisma'
 import { projectRestoreDeadline } from '@/lib/projects/recycle-bin'
 
@@ -10,10 +11,6 @@ export const GET = apiHandler(async () => {
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
   const actor = getWorkspaceActor(session)
-  if (!actor.isManagement) {
-    throw new ApiError('FORBIDDEN', { message: '只有管理账号可以查看回收站。' })
-  }
-
   const [projects, works] = await Promise.all([
     prisma.project.findMany({
       where: {
@@ -25,17 +22,33 @@ export const GET = apiHandler(async () => {
       select: {
         id: true,
         name: true,
+        createdById: true,
         deletedAt: true,
         deletedById: true,
         deletedWithWork: true,
-        work: { select: { id: true, name: true, deletedAt: true } },
+        work: {
+          select: {
+            id: true,
+            name: true,
+            createdById: true,
+            deletedAt: true,
+            members: { where: { userId: actor.actorId }, select: { role: true, canManage: true, permissions: true }, take: 1 },
+          },
+        },
+        members: { where: { userId: actor.actorId }, select: { role: true, permissions: true, canManageAssignments: true, canReviewAssignments: true }, take: 1 },
       },
     }),
     prisma.work.findMany({
       where: { workspaceOwnerId: actor.workspaceOwnerId, deletedAt: { not: null } },
       orderBy: { deletedAt: 'desc' },
       take: 100,
-      select: { id: true, name: true, deletedAt: true },
+      select: {
+        id: true,
+        name: true,
+        createdById: true,
+        deletedAt: true,
+        members: { where: { userId: actor.actorId }, select: { role: true, canManage: true, permissions: true }, take: 1 },
+      },
     }),
   ])
   const deletedByIds = Array.from(new Set(projects.map((project) => project.deletedById).filter(Boolean))) as string[]
@@ -49,7 +62,7 @@ export const GET = apiHandler(async () => {
 
   return NextResponse.json({
     success: true,
-    works: works.map((work) => {
+    works: works.filter((work) => canAccessWork(actor, 'workDelete', work, work.members[0])).map((work) => {
       const deadline = projectRestoreDeadline(work.deletedAt!)
       return {
         id: work.id,
@@ -60,7 +73,7 @@ export const GET = apiHandler(async () => {
         expired: deadline.getTime() <= Date.now(),
       }
     }),
-    projects: projects.map((project) => {
+    projects: projects.filter((project) => canAccessProject(actor, 'projectDelete', project, project.work.members[0], project.members[0])).map((project) => {
       const deadline = projectRestoreDeadline(project.deletedAt!)
       return {
         id: project.id,

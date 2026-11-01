@@ -39,17 +39,33 @@ describe('作品回收站 API', () => {
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
-  it('子账号不能查看回收站', async () => {
+  it('普通成员只能查看自己可恢复的作品', async () => {
     authed('writer')
+    prismaMock.project.findMany.mockResolvedValueOnce([
+      {
+        id: 'project-own', name: 'Own', createdById: 'actor-1', deletedAt: new Date(), deletedById: null,
+        work: { id: 'work-1', name: 'Work', createdById: 'owner-1', deletedAt: null, members: [] }, members: [],
+      },
+      {
+        id: 'project-other', name: 'Other', createdById: 'writer-2', deletedAt: new Date(), deletedById: null,
+        work: { id: 'work-1', name: 'Work', createdById: 'owner-1', deletedAt: null, members: [] }, members: [],
+      },
+      {
+        id: 'project-led', name: 'Led', createdById: 'writer-2', deletedAt: new Date(), deletedById: null,
+        work: { id: 'work-1', name: 'Work', createdById: 'owner-1', deletedAt: null, members: [{ role: 'leader', canManage: true, permissions: null }] }, members: [],
+      },
+    ])
     const { GET } = await import('@/app/api/projects/recycle-bin/route')
 
     const response = await GET(
       new NextRequest('http://localhost/api/projects/recycle-bin'),
       { params: Promise.resolve({}) },
     )
+    const payload = await response.json() as { projects?: Array<{ id?: string }> }
 
-    expect(response.status).toBe(403)
-    expect(prismaMock.project.findMany).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(payload.projects?.map((project) => project.id)).toEqual(['project-own', 'project-led'])
+    expect(prismaMock.project.findMany).toHaveBeenCalled()
   })
 
   it('管理账号只返回工作区内软删作品', async () => {
@@ -57,9 +73,11 @@ describe('作品回收站 API', () => {
     prismaMock.project.findMany.mockResolvedValueOnce([{
       id: 'project-1',
       name: 'Project',
+      createdById: 'actor-1',
       deletedAt: new Date('2026-10-01T00:00:00.000Z'),
       deletedById: 'actor-1',
-      work: { id: 'work-1', name: 'Work' },
+      work: { id: 'work-1', name: 'Work', createdById: 'actor-1', deletedAt: null, members: [] },
+      members: [],
     }])
     prismaMock.user.findMany.mockResolvedValueOnce([{ id: 'actor-1', name: 'Manager' }])
     const { GET } = await import('@/app/api/projects/recycle-bin/route')
@@ -84,7 +102,7 @@ describe('作品回收站 API', () => {
     authed('admin')
     prismaMock.project.findMany.mockResolvedValueOnce([])
     prismaMock.work.findMany.mockResolvedValueOnce([{
-      id: 'work-empty', name: '空项目', deletedAt: new Date('2026-10-29T00:00:00.000Z'),
+      id: 'work-empty', name: '空项目', createdById: 'actor-1', deletedAt: new Date('2026-10-29T00:00:00.000Z'), members: [],
     }])
     const { GET } = await import('@/app/api/projects/recycle-bin/route')
 
@@ -106,6 +124,10 @@ describe('作品回收站 API', () => {
     prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-expired',
       name: 'Expired',
+      createdById: 'actor-1',
+      workId: 'work-1',
+      work: { createdById: 'actor-1', members: [] },
+      members: [],
       deletedAt: new Date(Date.now() - 16 * 24 * 60 * 60 * 1000),
     })
     const { POST } = await import('@/app/api/projects/recycle-bin/[projectId]/restore/route')
@@ -124,7 +146,10 @@ describe('作品回收站 API', () => {
     prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-1',
       name: 'Project',
+      createdById: 'actor-1',
       workId: 'work-1',
+      work: { createdById: 'actor-1', members: [] },
+      members: [],
       deletedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
     })
     prismaMock.project.update.mockResolvedValueOnce({
@@ -151,9 +176,26 @@ describe('作品回收站 API', () => {
     expect(payload.project?.id).toBe('project-1')
   })
 
+  it('普通成员不能恢复他人作品', async () => {
+    authed('writer')
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      id: 'project-other', name: 'Other', createdById: 'writer-2', workId: 'work-1', deletedAt: new Date(),
+      work: { createdById: 'owner-1', members: [{ role: 'member', canManage: false, permissions: ['projectCreate'] }] },
+      members: [],
+    })
+    const { POST } = await import('@/app/api/projects/recycle-bin/[projectId]/restore/route')
+
+    const response = await POST(
+      new NextRequest('http://localhost/api/projects/recycle-bin/project-other/restore', { method: 'POST' }),
+      { params: Promise.resolve({ projectId: 'project-other' }) },
+    )
+    expect(response.status).toBe(403)
+    expect(prismaMock.project.update).not.toHaveBeenCalled()
+  })
+
   it('restores only works recycled with the selected parent project', async () => {
     authed('admin')
-    prismaMock.work.findFirst.mockResolvedValueOnce({ id: 'work-1', name: 'Parent', deletedAt: new Date() })
+    prismaMock.work.findFirst.mockResolvedValueOnce({ id: 'work-1', name: 'Parent', createdById: 'actor-1', deletedAt: new Date(), members: [] })
     prismaMock.project.updateMany.mockResolvedValueOnce({ count: 3 })
     const { POST } = await import('@/app/api/works/recycle-bin/[workId]/restore/route')
 

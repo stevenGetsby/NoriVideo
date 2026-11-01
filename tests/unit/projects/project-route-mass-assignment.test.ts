@@ -189,18 +189,21 @@ describe('/api/projects/[projectId] DELETE', () => {
     expect(new Date(payload.restoreDeadline!).getTime() - new Date(payload.deletedAt!).getTime())
       .toBe(15 * 24 * 60 * 60 * 1000)
   })
-  it('rejects child deletion even if membership or creator metadata grants assignment management', async () => {
+  it('allows a work leader to delete any work in the project while preserving soft delete', async () => {
     authMock.requireUserAuth.mockResolvedValueOnce({ session: { user: { id: 'user-1', actorId: 'child-1', workspaceOwnerId: 'user-1', name: 'Child', role: 'writer' } } })
     prismaMock.project.findFirst.mockResolvedValue({
       id: 'project-1', createdById: 'child-1',
-      work: { createdById: 'child-1', members: [{ canManage: true }] },
-      members: [{ canManageAssignments: true }],
+      work: { createdById: 'user-1', members: [{ role: 'leader', canManage: true, permissions: null }] },
+      members: [{ role: 'member', permissions: null, canManageAssignments: true, canReviewAssignments: false }],
     })
     const { DELETE } = await import('@/app/api/projects/[projectId]/route')
     const response = await DELETE(new NextRequest('http://localhost/api/projects/project-1', { method: 'DELETE' }) as never,
       { params: Promise.resolve({ projectId: 'project-1' }) })
-    expect(response.status).toBe(403)
-    expect(prismaMock.project.update).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(prismaMock.project.update).toHaveBeenCalledWith({
+      where: { id: 'project-1' },
+      data: expect.objectContaining({ deletedAt: expect.any(Date), deletedById: 'child-1' }),
+    })
   })
 })
 

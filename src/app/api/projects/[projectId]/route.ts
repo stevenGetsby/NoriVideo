@@ -5,7 +5,7 @@ import { addSignedUrlsToProject } from '@/lib/storage'
 import { logProjectAction } from '@/lib/logging/semantic'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { getWorkspaceActor, projectReadWhere, requireProjectManager, requireProjectReader } from '@/lib/collaboration/access'
+import { getWorkspaceActor, projectReadWhere, requireProjectManager } from '@/lib/collaboration/access'
 import { PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
 import { toProductionWork } from '@/lib/projects/hierarchy'
 import { projectCoverImageUrl } from '@/lib/projects/project-cover-url'
@@ -74,7 +74,7 @@ export const PATCH = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
-  await requireProjectReader(session, projectId)
+  await requireProjectManager(session, projectId)
 
   const project = await prisma.project.findFirst({
     where: projectReadWhere(session, projectId)

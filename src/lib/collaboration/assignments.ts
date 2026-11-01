@@ -20,7 +20,6 @@ import {
   isAssignmentTab,
   nextAssignmentStatus,
   projectMembershipGrantsReview,
-  resolveAssignmentCapabilities,
   statusesForAssignmentTab,
   type AssignmentAction,
   type AssignmentStage,
@@ -36,6 +35,7 @@ import {
 } from '@/lib/collaboration/video-review'
 import { buildStoryboardReviewSubmissionSnapshot } from '@/lib/collaboration/storyboard-review'
 import { CANVAS_PLAYLIST_SCOPE_PREFIX } from '@/lib/canvas/playlist'
+import { canAccessProject } from '@/lib/permissions/resolve'
 
 const assignmentInclude = {
   project: {
@@ -166,14 +166,14 @@ async function loadProjectCapabilities(
           createdById: true,
           members: {
             where: { userId: actor.actorId },
-            select: { role: true, canManage: true },
+            select: { role: true, canManage: true, permissions: true },
             take: 1,
           },
         },
       },
       members: {
         where: { userId: actor.actorId },
-        select: { canManageAssignments: true, canReviewAssignments: true },
+        select: { canManageAssignments: true, canReviewAssignments: true, role: true, permissions: true },
         take: 1,
       },
     },
@@ -181,21 +181,13 @@ async function loadProjectCapabilities(
   return new Map(projects.map((project) => {
     const workMember = project.work.members[0]
     const projectMember = project.members[0]
-    const capabilities = resolveAssignmentCapabilities({
-      actorIsManagement: actor.isManagement,
-      actorIsProjectCreator: project.createdById === actor.actorId,
-      actorIsWorkCreator: project.work.createdById === actor.actorId,
-      workMemberCanManage: workMember?.canManage === true,
-      workMemberRole: workMember?.role,
-      projectMemberCanManage: projectMember?.canManageAssignments === true,
-      projectMemberCanReview: projectMembershipGrantsReview({
+    const canManage = canAccessProject(actor, 'assignmentManage', project, workMember, projectMember)
+    return [project.id, {
+      canManage,
+      canReview: canManage || projectMembershipGrantsReview({
         membership: projectMember,
         accountRole: actor.role,
-      }),
-    })
-    return [project.id, {
-      canManage: capabilities.canManage,
-      canReview: capabilities.canReview,
+      }) || canAccessProject(actor, 'assignmentReview', project, workMember, projectMember),
     }]
   }))
 }

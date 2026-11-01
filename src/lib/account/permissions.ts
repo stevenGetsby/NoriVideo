@@ -4,6 +4,7 @@ export const SUBACCOUNT_ROLES = ['writer', 'asset', 'storyboard', 'reviewer'] as
 export const ACCOUNT_STATUSES = ['active', 'disabled'] as const
 export const ACCOUNT_PERMISSION_KEYS = [
   'read',
+  'workCreate',
   'projectCreate',
   'scriptWrite',
   'assetWrite',
@@ -38,8 +39,9 @@ export const ACCOUNT_PERMISSION_DEFINITIONS: ReadonlyArray<{
   label: string
   description: string
 }> = [
-  { key: 'read', label: '读取团队内容', description: '查看所属管理账号下的全部作品和资产' },
-  { key: 'projectCreate', label: '创建作品', description: '在管理账号已有项目中创建新作品并完成初始配置' },
+  { key: 'read', label: '读取团队内容', description: '查看所属管理账号分配的项目、作品和资产' },
+  { key: 'workCreate', label: '允许立项', description: '创建新项目并自动成为该项目组长；默认关闭' },
+  { key: 'projectCreate', label: '创建作品', description: '在参与的项目中创建新作品并完成初始配置' },
   { key: 'scriptWrite', label: '剧本', description: '编辑剧本、解析剧本及使用视频转绘' },
   { key: 'assetWrite', label: '资产', description: '编辑角色、场景、道具、音色及生成资产' },
   { key: 'storyboardWrite', label: '分镜', description: '解析分镜、编辑镜头、生成和提交视频' },
@@ -53,11 +55,11 @@ export const ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS = ACCOUNT_PERMISSION_DEFINI
 )
 
 const ROLE_PERMISSIONS: Record<AccountRole, AccountPermission[]> = {
-  super_admin: ['read', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite', 'admin'],
-  admin: ['read', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite', 'admin'],
-  writer: ['read', 'scriptWrite', 'toolboxUse', 'canvasWrite'],
-  asset: ['read', 'assetWrite', 'toolboxUse', 'canvasWrite'],
-  storyboard: ['read', 'storyboardWrite', 'toolboxUse', 'canvasWrite'],
+  super_admin: ['read', 'workCreate', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite', 'admin'],
+  admin: ['read', 'workCreate', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite', 'admin'],
+  writer: ['read', 'projectCreate', 'scriptWrite', 'toolboxUse', 'canvasWrite'],
+  asset: ['read', 'projectCreate', 'assetWrite', 'toolboxUse', 'canvasWrite'],
+  storyboard: ['read', 'projectCreate', 'storyboardWrite', 'toolboxUse', 'canvasWrite'],
   reviewer: ['read'],
 }
 
@@ -235,8 +237,11 @@ export function requiredPermissionsForApiPath(
     return READABLE_CONTENT_PREFIXES.some((prefix) => path.startsWith(prefix)) ? ['read'] : []
   }
 
-  if (path.startsWith('/api/works')) return ['admin']
-  if (/\/api\/projects\/[^/]+\/(?:members|member-candidates)(?:\/|$)/.test(path)) return ['admin']
+  if (path.startsWith('/api/works')) {
+    if (path === '/api/works' && normalizedMethod === 'POST') return ['workCreate']
+    return ['read']
+  }
+  if (/\/api\/projects\/[^/]+\/(?:members|member-candidates)(?:\/|$)/.test(path)) return ['read']
 
   if (path.startsWith('/api/asset-hub') || path.startsWith('/api/assets')) return ['assetWrite']
   if (path.startsWith('/api/frameos/materials')) return ['assetWrite']
@@ -265,7 +270,7 @@ export function requiredPermissionsForApiPath(
     if (/^\/api\/projects\/?$/.test(path)) return normalizedMethod === 'POST' ? ['projectCreate'] : ['admin']
     // Cover editing is a shared project setting, like the project metadata PATCH.
     if (/^\/api\/projects\/[^/]+\/cover\/?$/.test(path)) return ['read']
-    if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return normalizedMethod === 'PATCH' ? ['read'] : ['admin']
+    if (/^\/api\/projects\/[^/]+\/?$/.test(path)) return ['read']
     if (path.includes('/canvas')) return ['canvasWrite']
     return ['admin']
   }
@@ -273,7 +278,7 @@ export function requiredPermissionsForApiPath(
     if (/^\/api\/interactive\/[^/]+\/?$/.test(path)) return ['canvasWrite']
     return ['projectCreate', 'canvasWrite']
   }
-  if (path.startsWith('/api/workflow') || path.startsWith('/api/runs')) return ['admin']
+    if (path.startsWith('/api/workflow') || path.startsWith('/api/runs')) return ['read']
 
   if (path.startsWith('/api/auth/') || path.startsWith('/api/feedback')) return []
   return ['admin']

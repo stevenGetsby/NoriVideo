@@ -12,7 +12,6 @@ import { FosShell } from './FosShell'
 import { fetchAllWorks } from './works/fetch-all-works'
 import { UNASSIGNED_WORK_ID } from './works/types'
 import { canvasNavigationSurfaceKey } from '@/lib/frameos/navigation-surface-key'
-import { hasAccountPermissions } from '@/lib/account/permissions'
 import { createWorkInProjectHref } from '@/lib/projects/hierarchy'
 
 const TEST_MODE = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
@@ -216,6 +215,7 @@ export function FosCanvasHubClient({
           id: work.id,
           name: work.virtual ? '未归属项目' : work.name,
           projectCount: work.projectCount,
+          canCreateProjects: Boolean(work.canCreateProjects),
         }))
         const nextProjects = payload.works.flatMap((work) => work.projects.flatMap((project) => {
           if (seen.has(project.id)) return []
@@ -254,8 +254,8 @@ export function FosCanvasHubClient({
     router.replace(`/canvas?work_id=${encodeURIComponent(workId)}`)
   }
   const selectProject = (projectId: string) => router.push(`/canvas/${encodeURIComponent(projectId)}`)
-  const canCreateProjects = hasAccountPermissions(session?.user || {}, ['projectCreate'])
-  const selectedProjectCreateHref = canCreateProjects
+  const canCreateProjects = Boolean(selectedWork?.canCreateProjects)
+  const selectedProjectCreateHref = works.find((work) => work.id === selectedProject?.workId)?.canCreateProjects
     && selectedProject?.workId
     && selectedProject.workId !== UNASSIGNED_WORK_ID
     ? createProjectHref(selectedProject.workId)
