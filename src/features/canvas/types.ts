@@ -96,8 +96,16 @@ export type CanvasNodeData = {
     generateAudio?: boolean
     references?: CanvasGenerationReferenceSummary[]
   }
+  /** 视频预览时间线上的审阅标记（秒，帧对齐）。 */
+  videoKeyframes?: CanvasVideoKeyframe[]
   /** 后续节点类型保留字段，避免破坏向后兼容 */
   [key: string]: unknown
+}
+
+export type CanvasVideoKeyframe = {
+  id: string
+  time: number
+  kind: 'manual' | 'shot'
 }
 
 export type CanvasPlaylistItem = {

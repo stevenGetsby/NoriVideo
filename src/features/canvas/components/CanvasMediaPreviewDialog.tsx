@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Camera, Loader2, Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
+import { useEffect, useMemo, useState } from 'react'
+import { Clapperboard, Maximize2, Minus, Music2, Plus, RotateCcw, RotateCw, X } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
-import { attachMediaPlayer, handOffMediaPlayback, rememberPlayback, syncMediaPlayers } from '../media-playback'
-import { captureVideoFrame } from '../video-frame-capture'
+import type { CanvasVideoKeyframe } from '../types'
+import { VideoPreviewWorkspace } from './VideoPreviewWorkspace'
 
 function mediaType(node: CanvasFlowNode) {
   if (node.type === 'model_3d') return 'model3d'
@@ -17,20 +17,20 @@ function clampScale(value: number) {
   return Math.max(0.2, Math.min(5, Math.round(value * 10) / 10))
 }
 
-export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFrame, onClose }: {
+const VIDEO_SHORTCUTS = 'Space 播放 · ← → 逐帧 · ↑ ↓ 关键帧 · K 标记 · ⌘/Ctrl ± 缩放 · Shift+Z 适应 · Esc 关闭'
+
+export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFrame, onKeyframesChange, onClose }: {
   node: CanvasFlowNode
   readOnly?: boolean
   onCaptureFrame?: (file: File, sourceNode: CanvasFlowNode) => Promise<void>
+  onKeyframesChange?: (keyframes: CanvasVideoKeyframe[], sourceNode: CanvasFlowNode) => void
   onClose: () => void
 }) {
   const type = mediaType(node)
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
   const [fit, setFit] = useState(true)
-  const [capturing, setCapturing] = useState(false)
-  const [captureError, setCaptureError] = useState('')
-  const capturePendingRef = useRef(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
+  const [message, setMessage] = useState('')
   const url = useMemo(() => {
     const raw = type === 'video'
       ? node.data.videoUrl || node.data.contentUrl
@@ -40,35 +40,10 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
     return (type === 'video' ? toPlayableVideoUrl(raw) : toDisplayImageUrl(raw)) || ''
   }, [node.data.audioUrl, node.data.contentUrl, node.data.imageUrl, node.data.videoUrl, type])
 
-  // Opening the preview takes over the card's playback: the card pauses and the enlarged
-  // player continues from the same second instead of replaying from the start.
-  useEffect(() => {
-    const video = videoRef.current
-    if (!video || type !== 'video') return
-    const start = handOffMediaPlayback(url, video)
-    const detach = attachMediaPlayer(url, video)
-    const apply = () => {
-      const resumable = start && start.time > 0 && (!video.duration || start.time < video.duration - 0.05)
-      if (resumable) {
-        video.currentTime = start.time
-        if (start.playing) void video.play().catch(() => {})
-        return
-      }
-      void video.play().catch(() => {})
-    }
-    if (video.readyState >= 1) apply()
-    else video.addEventListener('loadedmetadata', apply, { once: true })
-    return () => {
-      video.removeEventListener('loadedmetadata', apply)
-      if (video.currentTime > 0) rememberPlayback(url, video.currentTime, false)
-      detach()
-      syncMediaPlayers(url, { keep: video, resume: Boolean(start?.playing) })
-    }
-  }, [type, url])
-
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
+        if (document.fullscreenElement) return
         event.preventDefault()
         event.stopPropagation()
         onClose()
@@ -83,27 +58,19 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
     return () => document.removeEventListener('keydown', keydown, true)
   }, [onClose, type])
 
-  const captureFrame = async () => {
-    const video = videoRef.current
-    if (!video || !onCaptureFrame || capturePendingRef.current) return
-    capturePendingRef.current = true
-    setCapturing(true)
-    setCaptureError('')
-    try {
-      const file = await captureVideoFrame(video, undefined, node.data.title || '视频')
-      await onCaptureFrame(file, node)
-    } catch (error) {
-      setCaptureError(error instanceof Error ? error.message : '截取关键帧失败')
-    } finally {
-      capturePendingRef.current = false
-      setCapturing(false)
-    }
-  }
+  useEffect(() => {
+    if (!message || message.endsWith('…')) return
+    const timer = window.setTimeout(() => setMessage(''), 6000)
+    return () => window.clearTimeout(timer)
+  }, [message])
+
+  const generation = node.data.generation as { parameters?: Record<string, unknown> } | null | undefined
+  const persistKeyframes = !readOnly && onKeyframesChange
 
   return (
-    <div className="nori-canvas-media-preview" role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
+    <div className={`nori-canvas-media-preview${type === 'video' ? ' is-video-preview' : ''}`} role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
       <header>
-        <div><Maximize2 /><span><strong>{node.data.title || '素材预览'}</strong><small>{type === 'video' ? '视频预览' : type === 'audio' ? '音频预览' : '图片预览'}</small></span></div>
+        <div><Clapperboard /><span><strong>{node.data.title || '素材预览'}</strong><small>{type === 'video' ? '视频审阅 · 时间线与关键帧' : type === 'audio' ? '音频预览' : '图片预览'}</small></span></div>
         <div>
           {type === 'image' ? <>
             <button type="button" title="适应窗口" className={fit ? 'is-active' : ''} onClick={() => { setFit(true); setScale(1) }}><Maximize2 /></button>
@@ -125,24 +92,23 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
       >
         {!url ? <div className="nori-canvas-media-preview-empty">素材地址不可用</div> : null}
         {url && type === 'image' ? <MediaImage className={fit ? 'is-fit' : ''} src={url} alt={node.data.title || ''} draggable={false} width={1920} height={1080} style={{ transform: `rotate(${rotation}deg) scale(${fit ? 1 : scale})` }} /> : null}
-        {url && type === 'video' ? (
-          <video
-            ref={videoRef}
-            src={url}
-            poster={toDisplayImageUrl(node.data.posterUrl || node.data.imageUrl || null) || undefined}
-            controls
-            playsInline
-            onPlay={(event) => rememberPlayback(url, event.currentTarget.currentTime, true)}
-            onPause={(event) => rememberPlayback(url, event.currentTarget.currentTime, false)}
-            onTimeUpdate={(event) => {
-              const video = event.currentTarget
-              rememberPlayback(url, video.currentTime, !video.paused && !video.ended)
-            }}
-          />
-        ) : null}
+        {url && type === 'video' ? <VideoPreviewWorkspace
+          src={url}
+          poster={toDisplayImageUrl(node.data.posterUrl || node.data.imageUrl || null) || undefined}
+          title={node.data.title || '视频'}
+          readOnly={readOnly}
+          fpsHint={generation?.parameters?.fps}
+          keyframes={node.data.videoKeyframes}
+          onKeyframesChange={persistKeyframes ? (keyframes) => onKeyframesChange(keyframes, node) : undefined}
+          onCaptureFrame={onCaptureFrame && !readOnly ? (file) => onCaptureFrame(file, node) : undefined}
+          onMessage={setMessage}
+        /> : null}
         {url && type === 'audio' ? <div className="nori-canvas-media-preview-audio"><i><Music2 /></i><strong>{node.data.title || '音频素材'}</strong><audio src={url} controls autoPlay /></div> : null}
       </main>
-      <footer><span>{captureError || (type === 'image' ? '滚轮缩放 · 0 重置 · Esc 关闭' : 'Esc 关闭预览')}</span><div>{type === 'video' && onCaptureFrame && !readOnly ? <button type="button" disabled={!url || capturing} onClick={() => void captureFrame()}>{capturing ? <Loader2 className="animate-spin" /> : <Camera />}{capturing ? '正在截取…' : '截取当前帧'}</button> : null}<small>{url}</small></div></footer>
+      <footer>
+        <span role={message ? 'status' : undefined}>{message || (type === 'image' ? '滚轮缩放 · 0 重置 · Esc 关闭' : type === 'video' ? VIDEO_SHORTCUTS : 'Esc 关闭预览')}</span>
+        <div>{type === 'video' ? <small>{persistKeyframes ? '关键帧随画布自动保存' : readOnly ? '只读预览' : '关键帧仅用于本次预览'}</small> : <small>{url}</small>}</div>
+      </footer>
     </div>
   )
 }

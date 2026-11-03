@@ -12,9 +12,13 @@ import { CanvasModel3DDialog } from '../../src/features/canvas/components/Canvas
 import { CanvasStudio3DDialog } from '../../src/features/canvas/components/CanvasStudio3D'
 import { CanvasPanoramaDialog } from '../../src/features/canvas/components/CanvasPanoramaDialog'
 import type { CanvasFlowNode } from '../../src/features/canvas/editor-types'
+import type { CanvasVideoKeyframe } from '../../src/features/canvas/types'
+
+declare global { interface Window { __capturedFrames?: number; __videoKeyframes?: CanvasVideoKeyframe[] } }
 
 export function CanvasBoundariesFixture() {
   const [open, setOpen] = useState(true)
+  const [videoKeyframes, setVideoKeyframes] = useState<CanvasVideoKeyframe[] | undefined>()
   const kind = new URLSearchParams(location.search).get('kind') || 'history'
   const close = () => setOpen(false)
   const longTitle = '很长的中文素材与画布名称以及没有空格的EnglishIdentifier'.repeat(4)
@@ -48,10 +52,12 @@ export function CanvasBoundariesFixture() {
   else if (kind === 'model3d') content = <CanvasModel3DDialog src="/sample.glb" title={longTitle} onClose={close} />
   else if (kind === 'studio') content = <CanvasStudio3DDialog projectId="project-1" canvasId="canvas-1" node={{ ...node, type: 'studio_3d', data: { title: longTitle } }} incomingNodes={[]} readOnly={false} onSummaryChange={() => {}} onStageCaptures={async () => ({ captures: [], failed: 0 })} onSendCaptures={async () => ({ sentIds: [], created: 0, failed: 0 })} onClose={close} />
   else if (kind === 'panorama') content = <CanvasPanoramaDialog src={imageUrl} title={longTitle} readOnly={false} onCapture={async () => ({ created: 0, failed: 0, errors: [] })} onClose={close} />
-  else content = <CanvasMediaPreviewDialog node={{ ...node, type: kind === 'video-preview' ? 'video' : 'image' }} readOnly={kind === 'video-preview-readonly'} onCaptureFrame={kind.startsWith('video-preview') ? async (file) => {
-    if (new URLSearchParams(location.search).get('capture-fail') === '1') throw new Error('模拟关键帧上传失败')
+  else content = <CanvasMediaPreviewDialog node={{ ...node, type: kind === 'video-preview' ? 'video' : 'image', data: { ...node.data, videoKeyframes } }} readOnly={kind === 'video-preview-readonly'} onKeyframesChange={(keyframes) => { window.__videoKeyframes = keyframes; setVideoKeyframes(keyframes) }} onCaptureFrame={kind.startsWith('video-preview') ? async (file) => {
+    const params = new URLSearchParams(location.search)
+    if (params.get('capture-fail') === '1') throw new Error('模拟关键帧上传失败')
     if (file.type !== 'image/jpeg' || file.size === 0) throw new Error('关键帧 JPEG 无效')
-    close()
+    if (params.get('keep') === '1') window.__capturedFrames = (window.__capturedFrames ?? 0) + 1
+    else close()
   } : undefined} onClose={close} />
   return <main className="fos-app">
     <div style={{ transform: 'translate(900px, 800px) scale(1.5)', height: '100%' }}>

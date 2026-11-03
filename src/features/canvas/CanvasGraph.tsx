@@ -2223,7 +2223,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (!material?.id || !material.url) throw new Error('关键帧上传未返回可用素材')
     if (!ensureNodeCapacity(1) || edgesRef.current.length >= CANVAS_EDGE_HARD_LIMIT) throw new Error('画布容量已变化，请为关键帧图片预留节点和连线空间')
     const size = nodeSize(source)
-    const created = createFlowNode('image', { x: source.position.x + size.width + 90, y: source.position.y })
+    const slot = edgesRef.current.filter((edge) => edge.source === source.id && edge.data?.role === 'VIDEO_FRAME').length
+    const created = createFlowNode('image', { x: source.position.x + size.width + 90 + Math.floor(slot / 4) * 356, y: source.position.y + (slot % 4) * 238 })
     created.width = 320
     created.height = 210
     created.selected = true
@@ -4040,7 +4041,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
         {!readOnly && videoOperation ? (() => { const node = nodes.find((item) => item.id === videoOperation.sourceNodeId); return node ? <CanvasVideoOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={videoOperation.mode} node={node} onSubmit={handleVideoOperation} onRecover={applyVideoOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setVideoOperation(null)} /> : null })() : null}
-        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onClose={() => setMediaPreviewNodeId(null)} /> : null}
+        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onKeyframesChange={(keyframes, source) => updateNodeData(source.id, { videoKeyframes: keyframes }, '更新视频关键帧')} onClose={() => setMediaPreviewNodeId(null)} /> : null}
         {modelPreviewNode?.data.modelUrl ? <CanvasModel3DDialog src={toDisplayImageUrl(modelPreviewNode.data.modelUrl) || modelPreviewNode.data.modelUrl} title={modelPreviewNode.data.title || '3D 模型'} onClose={() => setModelPreviewNodeId(null)} /> : null}
         {panoramaPreviewNode && (panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) ? <CanvasPanoramaDialog src={toDisplayImageUrl(panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) || panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl || ''} title={panoramaPreviewNode.data.title || '720 全景图'} readOnly={readOnly} onCapture={handlePanoramaCapture} onClose={() => setPanoramaPreviewNodeId(null)} /> : null}
         {studioNode ? <CanvasStudio3DDialog projectId={projectId} canvasId={initialGraph.canvas.id} node={studioNode} incomingNodes={studioIncomingNodes} readOnly={readOnly} onSummaryChange={handleStudioSummaryChange} onStageCaptures={handleStudioStageCaptures} onSendCaptures={handleStudioCapture} onClose={() => setStudioNodeId(null)} /> : null}
