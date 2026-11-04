@@ -35,9 +35,10 @@ describe('Seedance business model resolution tiers', () => {
     expect(resolutionOptions('ark::doubao-seedance-2-0-260128')).toEqual(['480p', '720p', '1080p', '4k'])
   })
 
-  it('exposes Seedance 2.5 at 480p/720p with 30s duration on the Kuaizi route', () => {
-    expect(resolutionOptions('nori::norivideo2.5')).toEqual(['480p', '720p'])
-    expect(resolutionOptions('kuaizi::doubao-seedance-2-5-260628')).toEqual(['480p', '720p'])
+  it('exposes Seedance 2.5 at 480p/720p/1080p with 30s duration on the Kuaizi route', () => {
+    // 兼容接口文档 v1.2 放开 1080p；仍不支持 4k
+    expect(resolutionOptions('nori::norivideo2.5')).toEqual(['480p', '720p', '1080p'])
+    expect(resolutionOptions('kuaizi::doubao-seedance-2-5-260628')).toEqual(['480p', '720p', '1080p'])
     const durations = getCapabilityOptionFields(
       'video',
       resolveBuiltinCapabilitiesByModelKey('video', 'nori::norivideo2.5'),

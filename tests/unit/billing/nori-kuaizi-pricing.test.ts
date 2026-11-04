@@ -38,21 +38,34 @@ function usageRow(overrides: Partial<{
 }
 
 describe('nori and kuaizi price mapping', () => {
-  it.each([
-    ['nori::norivideo2.5', 4.5],
-    ['kuaizi::doubao-seedance-2-5-260628', 4.5],
-    ['nori::seedance2.0-mini', 0.49],
-    ['kuaizi::doubao-seedance-2-0-mini-260615', 0.49],
-  ])('settles %s by measured duration even when tokens are reported', (modelKey, basePrice) => {
-    expect(calcVideoByDuration(modelKey, 6.25, '480p')).toBeCloseTo(basePrice * 1.25, 8)
-    expect(calculateUsageCost(usageRow({
-      modelKey, serviceType: 'video', units: 6.25, outputTokens: 120000, metadata: { resolution: '480p' },
-    }))).toBeCloseTo(basePrice * 1.25, 8)
+  it('settles seedance 2.0 mini by measured duration even when tokens are reported', () => {
+    for (const modelKey of ['nori::seedance2.0-mini', 'kuaizi::doubao-seedance-2-0-mini-260615']) {
+      expect(calcVideoByDuration(modelKey, 6.25, '480p')).toBeCloseTo(0.49 * 1.25, 8)
+      expect(calculateUsageCost(usageRow({
+        modelKey, serviceType: 'video', units: 6.25, outputTokens: 120000, metadata: { resolution: '480p' },
+      }))).toBeCloseTo(0.49 * 1.25, 8)
+    }
   })
 
-  it('does not bypass request-duration validation or invent the 2.5 1080p price', () => {
-    expect(() => calcVideo('nori::norivideo2.5', '480p', 1, { duration: 6.25 })).toThrow()
-    expect(() => calcVideoByDuration('nori::norivideo2.5', 6.25, '1080p')).toThrow()
+  it('settles seedance 2.5 by tokens even when measured duration is reported', () => {
+    // 6.25s 实测时长按 6s 档计：token 公式 ceil(6 × 864 × 496 × 24 / 1024) × 70 元/百万
+    const expected = Math.ceil(6 * 864 * 496 * 24 / 1024) / 1_000_000 * 70
+    for (const modelKey of ['nori::norivideo2.5', 'kuaizi::doubao-seedance-2-5-260628']) {
+      expect(calcVideoByDuration(modelKey, 6.25, '480p')).toBeCloseTo(expected, 8)
+      // 有实际 token 上报时按 token 精确结算：120000 × 70 元/百万
+      expect(calculateUsageCost(usageRow({
+        modelKey, serviceType: 'video', units: 6.25, outputTokens: 120000, metadata: { resolution: '480p' },
+      }))).toBeCloseTo(8.4, 8)
+    }
+  })
+
+  it('snaps non-integer durations to supported options and supports official 2.5 1080p', () => {
+    // 6.25s 会取整到 6s 档，不再抛错
+    expect(calcVideo('nori::norivideo2.5', '480p', 1, { duration: 6.25, resolution: '480p' }))
+      .toBeCloseTo(Math.ceil(6 * 864 * 496 * 24 / 1024) / 1_000_000 * 70, 8)
+    // 1080p 是官方支持的档位（v1.2），按 77 元/百万 token 计价
+    expect(calcVideoByDuration('nori::norivideo2.5', 6.25, '1080p')).toBeCloseTo(
+      Math.ceil(6 * 1920 * 1088 * 24 / 1024) / 1_000_000 * 77, 8)
   })
 
   it('prices every Nori business model so user tasks can freeze points', () => {
@@ -149,11 +162,12 @@ describe('nori and kuaizi price mapping', () => {
       units: 10,
     }))).toBeCloseTo(0.2, 8)
 
+    // Seedance 2.5：5s 720p 16:9 按官方 token 价 70 元/百万
     expect(calcVideo('kuaizi::doubao-seedance-2-5-260628', '720p', 1, {
       resolution: '720p',
       duration: 5,
       generateAudio: false,
-    })).toBeCloseTo(9, 8)
+    })).toBeCloseTo(7.56, 8)
 
     expect(calculateUsageCost(usageRow({
       provider: 'ark',

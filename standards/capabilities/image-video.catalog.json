@@ -238,7 +238,8 @@
         ],
         "resolutionOptions": [
           "480p",
-          "720p"
+          "720p",
+          "1080p"
         ],
         "firstlastframe": true,
         "supportGenerateAudio": true,

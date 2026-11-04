@@ -679,20 +679,31 @@ describe('billing/service', () => {
       expect((settled as Extract<TaskBillingInfo, { billable: true }>).chargedCost).toBeCloseTo(7.452, 8)
     })
 
-    it.each([
-      ['nori::norivideo2.5', 5.625],
-      ['nori::seedance2.0-mini', 0.6125],
-    ])('settles %s using output seconds/resolution, not tokens or seconds-as-video-count', async (model, expected) => {
+    it('settles nori::norivideo2.5 by exact usage tokens like other Seedance 2.x models', async () => {
       const settled = await settleTaskBilling({
         id: 'task_duration_actual', userId: 'u1', projectId: 'p1',
         billingInfo: buildSeedance2VideoTaskInfo({
-          model, modeSnapshot: 'ENFORCE', freezeId: 'freeze_duration',
+          model: 'nori::norivideo2.5', modeSnapshot: 'ENFORCE', freezeId: 'freeze_duration',
           maxFrozenCost: 9, quantity: 1,
         }),
       }, {
         result: { actualVideoTokens: 120000, durationSeconds: 6.25, resolution: '480p' },
       })
-      expect(settled).toMatchObject({ quantity: 1, chargedCost: expected })
+      // 2.5 走 token 结算：120000 token × 70 元/百万（720p 档）
+      expect(settled).toMatchObject({ quantity: 1, chargedCost: 8.4 })
+    })
+
+    it('settles seedance2.0-mini using output seconds/resolution, not tokens', async () => {
+      const settled = await settleTaskBilling({
+        id: 'task_duration_actual_mini', userId: 'u1', projectId: 'p1',
+        billingInfo: buildSeedance2VideoTaskInfo({
+          model: 'nori::seedance2.0-mini', modeSnapshot: 'ENFORCE', freezeId: 'freeze_duration_mini',
+          maxFrozenCost: 9, quantity: 1,
+        }),
+      }, {
+        result: { actualVideoTokens: 120000, durationSeconds: 6.25, resolution: '480p' },
+      })
+      expect(settled).toMatchObject({ quantity: 1, chargedCost: 0.6125 })
     })
 
     it('settleTaskBilling keeps quoted charge when text usage has no token counts', async () => {

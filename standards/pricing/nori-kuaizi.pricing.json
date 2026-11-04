@@ -142,15 +142,29 @@
       "tiers": [
         {
           "when": {
-            "resolution": "480p"
+            "containsVideoInput": false,
+            "resolution": "1080p"
           },
-          "amount": 4.5
+          "amount": 77
         },
         {
           "when": {
-            "resolution": "720p"
+            "containsVideoInput": true,
+            "resolution": "1080p"
           },
-          "amount": 9.0
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 70
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 42
         }
       ]
     }
@@ -536,15 +550,29 @@
       "tiers": [
         {
           "when": {
-            "resolution": "480p"
+            "containsVideoInput": false,
+            "resolution": "1080p"
           },
-          "amount": 4.5
+          "amount": 77
         },
         {
           "when": {
-            "resolution": "720p"
+            "containsVideoInput": true,
+            "resolution": "1080p"
           },
-          "amount": 9.0
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 70
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 42
         }
       ]
     }

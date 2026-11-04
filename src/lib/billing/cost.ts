@@ -304,6 +304,8 @@ type Seedance2AspectRatio = '16:9' | '4:3' | '1:1' | '3:4' | '9:16' | '21:9'
 const SEEDANCE_2_TOKEN_PRICED_MODEL_IDS = new Set([
   'doubao-seedance-2-0-260128',
   'doubao-seedance-2-0-fast-260128',
+  'doubao-seedance-2-5-260628',
+  'norivideo2.5',
 ])
 
 const SEEDANCE_2_OUTPUT_DIMENSIONS: Record<
@@ -411,11 +413,15 @@ function resolveSeedance2AspectRatio(value: CapabilityValue | undefined): Seedan
 function resolveSeedance2TokenUnitPrice(
   model: string,
   containsVideoInput: boolean,
+  resolution?: string,
 ): number {
   return resolveModelPriceStrict({
     apiType: 'video',
     model,
-    selections: { containsVideoInput },
+    selections: {
+      containsVideoInput,
+      ...(typeof resolution === 'string' ? { resolution } : {}),
+    },
   })
 }
 
@@ -453,7 +459,8 @@ function calcSeedance2VideoCostFromTokens(
   metadata?: Record<string, unknown>,
 ): number {
   const containsVideoInput = metadata?.containsVideoInput === true
-  const unitPrice = resolveSeedance2TokenUnitPrice(model, containsVideoInput)
+  const resolution = typeof metadata?.resolution === 'string' ? metadata.resolution : undefined
+  const unitPrice = resolveSeedance2TokenUnitPrice(model, containsVideoInput, resolution)
   const normalizedTokens = Math.max(0, Number(totalTokens) || 0)
   return (normalizedTokens / 1_000_000) * unitPrice * getMarkup('video')
 }
@@ -601,6 +608,19 @@ export function calcVideo(
   delete capabilitySelections.aspectRatio
   delete capabilitySelections.containsVideoInput
   delete capabilitySelections.inputVideoSeconds
+  // Continuous measured durations (settlement paths) only bill what the
+  // request asked for: snap them to the nearest supported option instead of
+  // rejecting or inventing an off-catalog tier.
+  if (isSeedance2TokenPricedModel(model)
+    && typeof selections.duration === 'number'
+    && videoCapabilitySupportsField(model, 'duration')
+    && !Number.isInteger(selections.duration)) {
+    const range = resolveVideoDurationRangeFromCapabilities(model)
+    if (range) {
+      selections.duration = Math.min(range.max, Math.max(range.min, Math.round(selections.duration)))
+      capabilitySelections.duration = selections.duration
+    }
+  }
   if (
     typeof selections.resolution !== 'string'
     && videoCapabilitySupportsField(model, 'resolution')
@@ -649,8 +669,15 @@ export function calcVideo(
   validateVideoSelectionsAgainstCapabilitiesOrThrow(model, prunedCapabilitySelections)
 
   if (isSeedance2TokenPricedModel(model)) {
+    if (typeof selections.resolution !== 'string') {
+      selections.resolution = resolution
+    }
     const estimatedTokens = estimateSeedance2VideoTokens(selections, metadata)
-    const unitCost = calcSeedance2VideoCostFromTokens(model, estimatedTokens, metadata)
+    const unitCost = calcSeedance2VideoCostFromTokens(model, estimatedTokens, {
+      ...metadata,
+      containsVideoInput: selections.containsVideoInput,
+      resolution: selections.resolution,
+    })
     const quantity = Math.max(0, Number(count) || 0)
     return unitCost * quantity
   }
