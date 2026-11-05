@@ -66,6 +66,7 @@ export type CanvasNodeData = {
   generationTask?: CanvasPersistentGenerationTask | null
   history?: CanvasGenerationHistoryItem[]
   progress?: number
+  cgtid?: string | null
   errorMessage?: string | null
   pollErrorMessage?: string | null
   sourceMetadata?: Record<string, unknown> | null

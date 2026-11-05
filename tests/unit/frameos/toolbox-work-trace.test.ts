@@ -121,7 +121,7 @@ describe('toolbox work trace', () => {
       status: 'failed',
       errorMessage: 'provider timeout',
       params: { title: '失败镜头', prompt: '镜头', inputMode: 'text' },
-      task: { id: 'task-failed', status: 'failed', errorCode: 'PROVIDER_TIMEOUT', errorMessage: '生成超时', costPoints: null },
+      task: { id: 'task-failed', cgtid: 'cgt:123', status: 'failed', errorCode: 'PROVIDER_TIMEOUT', errorMessage: '生成超时', costPoints: null },
     })
 
     expect(trace).toMatchObject({
@@ -132,8 +132,10 @@ describe('toolbox work trace', () => {
       errorCode: 'PROVIDER_TIMEOUT',
       errorMessage: '生成超时',
       taskId: 'task-failed',
+      cgtid: 'cgt:123',
     })
     const text = formatToolboxWorkTrace(trace)
+    expect(text).toContain('cgtid（上游反馈编号）：cgt:123')
     expect(text).toContain('失败原因：[PROVIDER_TIMEOUT] 生成超时')
     expect(text).toContain('参考素材：无')
   })

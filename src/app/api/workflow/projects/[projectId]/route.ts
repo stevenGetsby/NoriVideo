@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { publicTaskError } from '@/lib/task/public-presentation'
+
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import { resolveWorkflowScope } from '@/lib/workflow/episode-scope'
@@ -36,6 +38,7 @@ export const GET = apiHandler(async (
     const readonly = isStageReadonly(status)
     const stale = status === 'stale'
 
+    const error = publicTaskError(row?.errorCode || null, row?.errorMessage || null)
     return {
       stage,
       label: STAGE_LABELS[stage],
@@ -48,8 +51,8 @@ export const GET = apiHandler(async (
       blocker: row?.blocker || null,
       lastRunId: row?.lastRunId || null,
       lastTaskId: row?.lastTaskId || null,
-      errorCode: row?.errorCode || null,
-      errorMessage: row?.errorMessage || null,
+      errorCode: error?.code || null,
+      errorMessage: error?.message || null,
       summary: normalizeSummary(row?.summary),
       updatedAt: toIsoString(row?.updatedAt),
     }

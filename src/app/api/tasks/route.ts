@@ -4,18 +4,14 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { queryTasks } from '@/lib/task/service'
 import { findHiddenProjectIds } from '@/lib/collaboration/access'
 import { type TaskStatus } from '@/lib/task/types'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { serializePublicTask } from '@/lib/task/public-presentation'
 import {
   isInternalAgentTaskType,
   isPublicTaskApiVisible,
 } from '@/lib/super-agent/internal-run-visibility'
 
 function withTaskError(task: Awaited<ReturnType<typeof queryTasks>>[number]) {
-  const error = normalizeTaskError(task.errorCode, task.errorMessage)
-  return {
-    ...task,
-    error,
-  }
+  return serializePublicTask(task)
 }
 
 export const GET = apiHandler(async (request: NextRequest) => {

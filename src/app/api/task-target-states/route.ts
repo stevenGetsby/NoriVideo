@@ -89,6 +89,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           progress: null,
           stage: null,
           stageLabel: null,
+          cgtid: null,
           progressDetails: null,
           result: null,
           startedAt: null,

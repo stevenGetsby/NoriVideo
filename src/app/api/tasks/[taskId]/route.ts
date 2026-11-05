@@ -5,7 +5,7 @@ import { removeTaskJob } from '@/lib/task/queues'
 import { listTaskLifecycleEvents, publishTaskEvent } from '@/lib/task/publisher'
 import { cancelTask, getTaskById } from '@/lib/task/service'
 import { TASK_EVENT_TYPE } from '@/lib/task/types'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { sanitizePublicLifecycleEvent, serializePublicTask } from '@/lib/task/public-presentation'
 import { isPublicTaskApiVisible } from '@/lib/super-agent/internal-run-visibility'
 
 function toObject(value: unknown): Record<string, unknown> {
@@ -33,10 +33,8 @@ export const GET = apiHandler(async (
   const events = includeEvents ? await listTaskLifecycleEvents(taskId, eventsLimit) : null
 
   return NextResponse.json({
-    task: {
-      ...task,
-      error: normalizeTaskError(task.errorCode, task.errorMessage)},
-    ...(events ? { events } : {}),
+    task: serializePublicTask(task),
+    ...(events ? { events: events.map(sanitizePublicLifecycleEvent) } : {}),
   })
 })
 
@@ -83,7 +81,5 @@ export const DELETE = apiHandler(async (
   return NextResponse.json({
     success: true,
     cancelled,
-    task: {
-      ...updatedTask,
-      error: normalizeTaskError(updatedTask.errorCode, updatedTask.errorMessage)}})
+    task: serializePublicTask(updatedTask)})
 })

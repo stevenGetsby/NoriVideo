@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { publicGenerationTaskId, publicTaskError } from './public-presentation'
 import { isPublicTaskApiVisible } from '@/lib/super-agent/internal-run-visibility'
 import { coerceTaskIntent, type TaskIntent } from './intent'
 
@@ -22,6 +22,7 @@ export type TaskTargetState = {
   progress: number | null
   stage: string | null
   stageLabel: string | null
+  cgtid: string | null
   progressDetails: Record<string, unknown> | null
   result: Record<string, unknown> | null
   startedAt: string | null
@@ -94,7 +95,7 @@ export function normalizeFailedError(task: {
   errorCode: string | null
   errorMessage: string | null
 }) {
-  const normalized = normalizeTaskError(task.errorCode, task.errorMessage)
+  const normalized = publicTaskError(task.errorCode, task.errorMessage)
   if (!normalized) return null
   return {
     code: normalized.code,
@@ -114,6 +115,7 @@ export function buildIdleState(target: TaskTargetQuery): TaskTargetState {
     progress: null,
     stage: null,
     stageLabel: null,
+    cgtid: null,
     progressDetails: null,
     result: null,
     startedAt: null,
@@ -132,6 +134,7 @@ export function resolveTargetState(
     payload: unknown
     errorCode: string | null
     errorMessage: string | null
+    externalId?: string | null
     updatedAt: Date
     result?: unknown
     startedAt?: Date | null
@@ -167,6 +170,7 @@ export function resolveTargetState(
       progress: runningFields.progress,
       stage: runningFields.stage,
       stageLabel: runningFields.stageLabel,
+      cgtid: publicGenerationTaskId(running.externalId),
       progressDetails: runningFields.progressDetails,
       result: asObject(running.result),
       startedAt: running.startedAt?.toISOString() || null,
@@ -187,6 +191,7 @@ export function resolveTargetState(
       progress: 100,
       stage: latestFields.stage,
       stageLabel: latestFields.stageLabel,
+      cgtid: publicGenerationTaskId(latest.externalId),
       progressDetails: latestFields.progressDetails,
       result: asObject(latest.result),
       startedAt: latest.startedAt?.toISOString() || null,
@@ -206,6 +211,7 @@ export function resolveTargetState(
     progress: null,
     stage: latestFields.stage,
     stageLabel: latestFields.stageLabel,
+    cgtid: publicGenerationTaskId(latest.externalId),
     progressDetails: latestFields.progressDetails,
     result: asObject(latest.result),
     startedAt: latest.startedAt?.toISOString() || null,
@@ -254,6 +260,7 @@ export async function queryTaskTargetStates(params: {
     payload: unknown
     errorCode: string | null
     errorMessage: string | null
+    externalId: string | null
     targetType: string
     targetId: string
     updatedAt: Date
@@ -285,6 +292,7 @@ export async function queryTaskTargetStates(params: {
         payload: true,
         errorCode: true,
         errorMessage: true,
+        externalId: true,
         targetType: true,
         targetId: true,
         updatedAt: true,

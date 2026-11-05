@@ -386,6 +386,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
             ? <div className="nodrag nori-canvas-node-error"><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败')}</div>
             : <button type="button" className="nodrag nori-canvas-node-error" onClick={() => editor.runNodeAction(id, data.generationTask?.taskId ? 'retry_generation_task' : 'regenerate')}><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败，点击重试')}</button>
         ) : null}
+        {status === 'FAILED' && data.cgtid ? <div className="nodrag nori-canvas-node-error">cgtid：{data.cgtid}（向上游反馈时提供）</div> : null}
       </div>
 
       <Handle type="source" position={Position.Left} id="input" className="nori-canvas-handle" isConnectable={!editor.readOnly} />

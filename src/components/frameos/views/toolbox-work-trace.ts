@@ -12,6 +12,7 @@ export interface ToolboxWorkTraceSource {
   createdAt?: string | null
   task?: {
     id?: string | null
+    cgtid?: string | null
     status?: string | null
     errorCode?: string | null
     errorMessage?: string | null
@@ -48,6 +49,7 @@ export interface ToolboxWorkTrace {
   errorCode: string | null
   errorMessage: string | null
   taskId: string | null
+  cgtid: string | null
   createdAtLabel: string
 }
 
@@ -249,6 +251,7 @@ export function buildToolboxWorkTrace(
     errorCode: text(task?.errorCode) || null,
     errorMessage: text(task?.errorMessage) || text(source.errorMessage) || null,
     taskId: text(task?.id) || null,
+    cgtid: text(task?.cgtid) || null,
     createdAtLabel: formatDateTime(text(source.createdAt)),
   }
 }
@@ -273,6 +276,7 @@ export function formatToolboxWorkTrace(trace: ToolboxWorkTrace): string {
   }
   lines.push('提示词：', trace.prompt || '未记录')
   lines.push(`任务 ID：${trace.taskId || '未记录'}`)
+  if (trace.statusTone === 'failure') lines.push(`cgtid（上游反馈编号）：${trace.cgtid || '未返回'}`)
   lines.push(`提交时间：${trace.createdAtLabel}`)
   lines.push(`消耗积分：${trace.costLabel}`)
   if (trace.errorCode || trace.errorMessage) {

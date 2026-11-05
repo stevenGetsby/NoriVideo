@@ -6,7 +6,7 @@ import { getWorkspaceActor, projectReadScopeWhere, projectReadWhere } from '@/li
 import { cnyToPoints } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
 import { extractStorageKey, getSignedUrl } from '@/lib/storage'
-import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+import { publicGenerationTaskId, publicTaskError } from '@/lib/task/public-presentation'
 
 const TOOLBOX_GENERATION_BIZ_TYPES = [
   'image_generation',
@@ -127,15 +127,19 @@ export const GET = apiHandler(async (request: NextRequest) => {
       const storageKey = extractStorageKey(asset.resultUrl)
       return {
         ...asset,
+        params: asset.params && typeof asset.params === 'object' && !Array.isArray(asset.params)
+          ? Object.fromEntries(Object.entries(asset.params).filter(([key]) => key !== 'externalTaskId'))
+          : asset.params,
         url: storageKey ? await getSignedUrl(storageKey, 3600) : asset.resultUrl,
-        errorMessage: asset.errorMessage ? sanitizePublicError(asset.errorMessage) : null,
+        errorMessage: asset.errorMessage ? publicTaskError(null, asset.errorMessage)?.message || null : null,
         materialMetadata: asset.materialId ? materialMetadata.get(asset.materialId) || null : null,
         task: task ? {
           id: task.id,
           status: task.status,
           progress: task.progress,
-          errorCode: task.errorCode,
-          errorMessage: task.errorMessage ? sanitizePublicError(task.errorMessage) : null,
+          cgtid: publicGenerationTaskId(task.externalId),
+          errorCode: task.errorCode ? publicTaskError(task.errorCode, null)?.code || null : null,
+          errorMessage: task.errorMessage ? publicTaskError(task.errorCode, task.errorMessage)?.message || null : null,
           costPoints: taskCostPoints(task.billingInfo, task.status),
         } : null,
       }

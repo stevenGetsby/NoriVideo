@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 import type { CanvasGenerationReferenceRole } from './generation-reference-contract'
 
 type ToolboxMediaType = 'image' | 'video' | 'audio' | 'model3d'
@@ -190,7 +191,7 @@ export async function projectCanvasToolboxSubmissionFailure(input: {
           ...input.options,
         },
         history: nextHistory,
-        errorMessage: input.errorMessage,
+        errorMessage: sanitizePublicError(input.errorMessage),
         pollErrorMessage: null,
       }),
     },
@@ -228,13 +229,14 @@ export async function projectCanvasToolboxTaskTerminal(input: {
   if (generation.assetId !== input.assetId || generation.taskId !== input.taskId) return false
 
   const ready = input.status === 'ready' && Boolean(input.resultUrl)
+  const errorMessage = input.errorMessage ? sanitizePublicError(input.errorMessage) : '生成失败'
   const nextHistory = history(data.history).map((item) => item.assetId === input.assetId
     ? {
         ...item,
         status: ready ? 'ready' : 'failed',
         url: ready ? input.resultUrl : item.url,
         materialId: ready ? input.materialId : item.materialId,
-        errorMessage: ready ? null : input.errorMessage || '生成失败',
+        errorMessage: ready ? null : errorMessage,
       }
     : item)
   const nextData = {

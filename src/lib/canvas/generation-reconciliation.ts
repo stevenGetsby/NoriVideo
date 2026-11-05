@@ -5,6 +5,8 @@ import {
   isCanvasGenerationTaskType,
   parseCanvasGenerationTaskPayload,
 } from '@/lib/canvas/generation-task'
+import { publicGenerationTaskId } from '@/lib/task/public-presentation'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 import { TASK_STATUS } from '@/lib/task/types'
 
 type ReconciliableCanvasNode = {
@@ -30,6 +32,7 @@ type ToolboxTaskState = {
   status: string
   progress: number
   errorMessage: string | null
+  externalId: string | null
   billingInfo: unknown
 }
 
@@ -131,13 +134,14 @@ function terminalState(
     materialId: null,
     mediaType: asset?.type || null,
     progress: Math.max(0, Math.min(100, task?.progress || 0)),
-    errorMessage: cleanText(asset?.errorMessage) || cleanText(task?.errorMessage) || fallback,
+    errorMessage: sanitizePublicError(cleanText(asset?.errorMessage) || cleanText(task?.errorMessage) || fallback),
   }
 }
 
 function reconcileNodeData(
   value: Prisma.JsonValue | null,
   assetId: string,
+  task: ToolboxTaskState | undefined,
   terminal: TerminalGenerationState,
   costPoints: number | null,
 ): Prisma.InputJsonValue {
@@ -158,6 +162,7 @@ function reconcileNodeData(
           : {
               ...entry,
               status: 'failed',
+              cgtid: publicGenerationTaskId(task?.externalId),
               errorMessage: terminal.errorMessage,
             }
       })
@@ -166,6 +171,7 @@ function reconcileNodeData(
   const next: Record<string, unknown> = {
     ...current,
     progress: terminal.progress,
+    cgtid: publicGenerationTaskId(task?.externalId),
     errorMessage: terminal.errorMessage,
     pollErrorMessage: null,
     ...(history !== undefined ? { history } : {}),
@@ -225,6 +231,7 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
         status: true,
         progress: true,
         errorMessage: true,
+        externalId: true,
         billingInfo: true,
       },
     }),
@@ -246,7 +253,7 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
     const task = taskByAssetId.get(assetId)
     const terminal = terminalState(assetById.get(assetId), task)
     if (!terminal) continue
-    const data = reconcileNodeData(node.data, assetId, terminal, task ? completedTaskCostPoints(task) : null)
+    const data = reconcileNodeData(node.data, assetId, task, terminal, task ? completedTaskCostPoints(task) : null)
     const next = {
       ...node,
       data,
@@ -364,8 +371,8 @@ function terminalCanvasTextTaskProjection(
     || task.status === TASK_STATUS.DISMISSED
     || (task.status === TASK_STATUS.COMPLETED && payload.kind === 'text')
   if (!failed) return null
-  const errorMessage = cleanText(task.errorMessage)
-    || (task.status === TASK_STATUS.CANCELED ? '生成任务已取消' : '生成任务没有返回可用结果')
+  const errorMessage = sanitizePublicError(cleanText(task.errorMessage)
+    || (task.status === TASK_STATUS.CANCELED ? '生成任务已取消' : '生成任务没有返回可用结果'))
   return {
     status: 'FAILED',
     data: {

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { cnyToPoints } from '@/lib/billing'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { publicTaskError } from '@/lib/task/public-presentation'
 import { prisma } from '@/lib/prisma'
 import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
 import { normalizeCanvasImageGenerationOptions } from '@/lib/canvas/generator-options'
@@ -296,7 +296,7 @@ export async function bindCanvasGenerationTaskToNode(params: {
 export function serializeCanvasGenerationTask(task: CanvasTaskRow) {
   const payload = parseCanvasGenerationTaskPayload(task.type, task.payload)
   const runtimePayload = record(task.payload)
-  const normalizedError = normalizeTaskError(task.errorCode, task.errorMessage)
+  const normalizedError = publicTaskError(task.errorCode, task.errorMessage)
   return {
     id: task.id,
     type: task.type,

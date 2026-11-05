@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+
 import { prisma } from '@/lib/prisma'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
@@ -86,15 +88,15 @@ function overlayRuntimeStages(
       status: runtimeIsActive && stage.status !== 'ready' ? 'processing' as const : stage.status,
       progress: Math.max(0, Math.min(100, Math.round(nextProgress))),
       reason: runtimeIsFailed
-        ? (runtime.errorMessage || runtime.blocker || stage.reason)
+        ? (runtime.errorMessage ? sanitizePublicError(runtime.errorMessage) : runtime.blocker || stage.reason)
         : stage.reason,
       runtimeState: runtime.status,
       runtimeUpdatedAt: runtime.updatedAt.toISOString(),
       runtimeMessage: readSummaryText(runtime.summary),
       lastRunId: runtime.lastRunId,
       lastTaskId: runtime.lastTaskId,
-      errorCode: runtime.errorCode,
-      errorMessage: runtime.errorMessage,
+      errorCode: runtime.errorCode ? sanitizePublicError(runtime.errorCode) : null,
+      errorMessage: runtime.errorMessage ? sanitizePublicError(runtime.errorMessage) : null,
     }
   })
 }

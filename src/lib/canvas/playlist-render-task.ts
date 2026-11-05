@@ -1,5 +1,5 @@
 import type { CanvasPlaylistRenderSummary } from '@/features/canvas/types'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { publicTaskError } from '@/lib/task/public-presentation'
 import { TASK_STATUS } from '@/lib/task/types'
 
 export type CanvasPlaylistRenderSegment = {
@@ -76,7 +76,7 @@ export function serializeCanvasPlaylistRenderTask(task: TaskRow | null, expected
   }
   const payload = parseCanvasPlaylistRenderTaskPayload(task.payload)
   const result = record(task.result)
-  const error = normalizeTaskError(task.errorCode, task.errorMessage)
+  const error = publicTaskError(task.errorCode, task.errorMessage)
   const status = task.status === TASK_STATUS.QUEUED
     ? 'queued'
     : task.status === TASK_STATUS.PROCESSING

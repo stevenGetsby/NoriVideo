@@ -1139,7 +1139,7 @@ export function CanvasGenerator({
           const supported = Boolean(modeModel)
           return <button type="button" key={item.value} disabled={!supported} title={supported ? `使用 ${modeModel?.label}` : '尚未配置支持该模式的真实音频模型'} className={audioMode === item.value ? 'is-active' : ''} onClick={() => { if (modeModel) { setModelKey(modeModel.key); setAudioMode(item.value) } }}>{item.label}</button>
         })}</div>
-        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => setAudioVoice(event.target.value)} disabled={compatibleVoiceOptions.length === 0}>{compatibleVoiceOptions.length === 0 ? <option value="">{usesReferenceAudio ? '请先在资产库上传参考音频' : '请先在资产库绑定 Kuaizi 音色 ID'}</option> : compatibleVoiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
+        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => setAudioVoice(event.target.value)} disabled={compatibleVoiceOptions.length === 0}>{compatibleVoiceOptions.length === 0 ? <option value="">{usesReferenceAudio ? '请先在资产库上传参考音频' : '请先在资产库绑定参考音色 ID'}</option> : compatibleVoiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
       </div> : null}
 
       {type === 'model3d' ? <div className="nori-canvas-model3d-options">

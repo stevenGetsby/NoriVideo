@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto'
 import { prisma } from '@/lib/prisma'
-import { normalizeTaskError } from '@/lib/errors/normalize'
+import { publicGenerationTaskId, publicTaskError } from '@/lib/task/public-presentation'
 import { extractStorageKey } from '@/lib/storage'
 import { TASK_STATUS, TASK_TYPE, type TaskType } from '@/lib/task/types'
 import { normalizeCanvasVideoRegion, type CanvasVideoRegion } from './video-operations'
@@ -377,6 +377,7 @@ type CanvasTaskRow = {
   result: unknown
   errorCode: string | null
   errorMessage: string | null
+  externalId?: string | null
   queuedAt: Date
   startedAt: Date | null
   finishedAt: Date | null
@@ -386,7 +387,7 @@ type CanvasTaskRow = {
 export function serializeCanvasOperationTask(task: CanvasTaskRow) {
   const payload = parseCanvasOperationTaskPayload(task.payload)
   const runtimePayload = record(task.payload)
-  const normalizedError = normalizeTaskError(task.errorCode, task.errorMessage)
+  const normalizedError = publicTaskError(task.errorCode, task.errorMessage)
   return {
     id: task.id,
     type: task.type,
@@ -402,6 +403,7 @@ export function serializeCanvasOperationTask(task: CanvasTaskRow) {
     attempt: task.attempt,
     maxAttempts: task.maxAttempts,
     result: record(task.result),
+    cgtid: publicGenerationTaskId(task.externalId),
     error: normalizedError
       ? { code: normalizedError.code, message: normalizedError.message, retryable: normalizedError.retryable }
       : null,

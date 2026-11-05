@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { sanitizePublicCanvasData } from '@/lib/task/public-presentation'
+
 import { prisma } from '@/lib/prisma'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { requireProjectAuthLight, isErrorResponse } from '@/lib/api-auth'
@@ -58,7 +60,10 @@ export const GET = apiHandler(async (
   })
   const reconciledNodes = reconciledRows.map(({ updatedAt, ...node }) => {
     void updatedAt
-    return withCanonicalCanvasStudioDocumentSource(node, projectId, canvasId)
+    return withCanonicalCanvasStudioDocumentSource({
+      ...node,
+      data: sanitizePublicCanvasData(node.data),
+    }, projectId, canvasId)
   })
 
   return NextResponse.json({ canvas, nodes: reconciledNodes, edges })

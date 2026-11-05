@@ -177,7 +177,8 @@ describe('canvas generation reconciliation', () => {
       targetId: 'asset-1',
       status: 'failed',
       progress: 36,
-      errorMessage: 'provider timeout',
+      errorMessage: 'KUAIZI_HTTP_ERROR(400): content rejected',
+      externalId: 'KUAIZI:VIDEO:cHJvdmlkZXI:bW9kZWw:cgt:123',
     }])
 
     const [node] = await reconcileCanvasGenerationNodes({
@@ -193,8 +194,9 @@ describe('canvas generation reconciliation', () => {
         contentUrl: 'previous.png',
         materialId: 'previous-material',
         progress: 36,
-        errorMessage: 'provider timeout',
-        history: [{ assetId: 'asset-1', status: 'failed', errorMessage: 'provider timeout' }],
+        errorMessage: 'GENERATION_SERVICE_HTTP_ERROR(400): content rejected',
+        cgtid: 'cgt:123',
+        history: [{ assetId: 'asset-1', status: 'failed', cgtid: 'cgt:123', errorMessage: 'GENERATION_SERVICE_HTTP_ERROR(400): content rejected' }],
       },
     })
   })

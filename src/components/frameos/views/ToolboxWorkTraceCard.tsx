@@ -52,6 +52,7 @@ export function WorkTraceCard({ trace, copyState, onCopy }: { trace: ToolboxWork
           {trace.assetCategoryLabel ? <><dt className="text-[var(--fos-text-4)]">资产归类</dt><dd className="font-semibold text-[var(--fos-text-2)]">{trace.assetCategoryLabel}</dd></> : null}
           <dt className="text-[var(--fos-text-4)]">提交时间</dt><dd className="min-w-0 break-words font-semibold text-[var(--fos-text-2)]">{trace.createdAtLabel}</dd>
           {trace.taskId ? <><dt className="text-[var(--fos-text-4)]">任务 ID</dt><dd className="min-w-0 break-all font-mono text-[10px] leading-5 text-[var(--fos-text-3)]">{trace.taskId}</dd></> : null}
+          {trace.statusTone === 'failure' ? <><dt className="text-[var(--fos-text-4)]">cgtid</dt><dd className="min-w-0 break-all font-mono text-[10px] leading-5 text-[var(--fos-text-2)]">{trace.cgtid || '未返回'}</dd></> : null}
         </dl>
       </div>
       <div className="border-t border-[var(--fos-border-soft)] px-4 py-3">

@@ -292,6 +292,7 @@ export async function resolveImageSourceFromGeneration(
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')
   }
+  if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
 
   if (result.imageUrl) {
     logger.info({
@@ -430,6 +431,7 @@ export async function resolveImageSourcesFromGeneration(
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')
   }
+  if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
 
   // 优先使用多图列表
   if (result.imageUrls && result.imageUrls.length > 0) {

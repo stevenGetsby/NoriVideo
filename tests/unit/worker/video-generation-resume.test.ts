@@ -103,6 +103,7 @@ describe('worker utils video generation resume', () => {
     generatorApiMock.generateImage.mockResolvedValueOnce({
       success: true,
       imageUrl: 'https://fal.test/new-image.png',
+      requestId: 'image-request-1',
     })
 
     const result = await resolveImageSourceFromGeneration(buildJob(), {
@@ -119,5 +120,6 @@ describe('worker utils video generation resume', () => {
     expect(prismaMock.task.findUnique).not.toHaveBeenCalled()
     expect(asyncPollMock.pollAsyncTask).not.toHaveBeenCalled()
     expect(generatorApiMock.generateImage).toHaveBeenCalledTimes(1)
+    expect(taskServiceMock.trySetTaskExternalId).toHaveBeenCalledWith('task-1', 'image-request-1')
   })
 })

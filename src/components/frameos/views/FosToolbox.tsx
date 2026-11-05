@@ -90,7 +90,7 @@ interface ToolboxAsset {
   errorMessage: string | null
   params?: Record<string, unknown> | null
   createdAt: string
-  task?: { id: string; status: string; progress: number; errorCode: string | null; errorMessage: string | null; costPoints?: number | null } | null
+  task?: { id: string; status: string; progress: number; cgtid: string | null; errorCode: string | null; errorMessage: string | null; costPoints?: number | null } | null
 }
 
 const TABS: Array<{ key: ToolTab; label: string; icon: AppIconName }> = [
