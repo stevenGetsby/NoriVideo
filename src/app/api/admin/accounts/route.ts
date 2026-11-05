@@ -291,6 +291,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           role,
           roleLabel,
           status: 'active',
+          passwordChangeRequired: true,
           permissions,
           workspaceOwnerId: accountType === 'manager' ? null : managerId,
           parentAccountId: accountType === 'manager' ? actorId : managerId,

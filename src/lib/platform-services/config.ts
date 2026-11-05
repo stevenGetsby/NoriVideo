@@ -15,6 +15,7 @@ import { resetStorageProvider } from '@/lib/storage'
 import { composeModelKey, parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provider-contract'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
+import { listOpenLuxCatalogModels } from '@/lib/providers/openlux/catalog'
 import {
   findNoriBusinessModel,
   listNoriBusinessModels,
@@ -34,8 +35,15 @@ const DEFAULT_MODEL_TYPES: Record<keyof ServiceConfigDefaultModels, UnifiedModel
 }
 const PROVIDER_BASE_URLS = {
   deepseek: 'https://api.deepseek.com/v1',
+  openlux: 'https://api.openlux.ai/v1',
   kuaizi: 'https://aiopenapi.kuaizi.cn',
 } as const
+const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi'] as const
+const PROVIDER_NAMES: Readonly<Record<string, string>> = {
+  deepseek: 'DeepSeek 官方',
+  openlux: 'OpenLux API',
+  kuaizi: 'Kuaizi API',
+}
 
 type JsonRecord = Record<string, unknown>
 
@@ -122,6 +130,7 @@ function resolveWritablePath(): string {
 function environmentProviderKey(providerId: string): string {
   const providerKey = getRawProviderKey(providerId).toLowerCase()
   if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
+  if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   return ''
 }
@@ -130,13 +139,23 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
   return [
     { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-chat', llmProtocol: 'chat-completions' },
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-reasoner', llmProtocol: 'chat-completions' },
-    ...listKuaiziCatalogModels().filter((model) => model.modality !== 'llm').map((model): ServiceConfigModel => ({
+    ...listOpenLuxCatalogModels().map((model): ServiceConfigModel => ({
       modelId: model.modelId,
       name: model.name,
       type: model.modality,
-      provider: 'kuaizi',
-      modelKey: `kuaizi::${model.modelId}`,
+      provider: 'openlux',
+      modelKey: `openlux::${model.modelId}`,
     })),
+    // Images now run on OpenLux only; Kuaizi keeps video and speech.
+    ...listKuaiziCatalogModels()
+      .filter((model) => model.modality !== 'llm' && model.modality !== 'image')
+      .map((model): ServiceConfigModel => ({
+        modelId: model.modelId,
+        name: model.name,
+        type: model.modality,
+        provider: 'kuaizi',
+        modelKey: `kuaizi::${model.modelId}`,
+      })),
   ]
 }
 
@@ -144,12 +163,12 @@ function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
   const config = cloneConfig(raw)
   const currentProviders = new Map((config.llm?.providers || []).map((provider) => [provider.id, provider]))
   config.llm ||= {}
-  config.llm.providers = ['deepseek', 'kuaizi'].map((id) => {
+  config.llm.providers = PLATFORM_PROVIDER_IDS.map((id) => {
     const current = currentProviders.get(id)
     return {
       id,
-      name: id === 'deepseek' ? 'DeepSeek 官方' : 'Kuaizi API',
-      baseUrl: PROVIDER_BASE_URLS[id as keyof typeof PROVIDER_BASE_URLS],
+      name: PROVIDER_NAMES[id],
+      baseUrl: PROVIDER_BASE_URLS[id],
       ...(current?.assetGroupId && id === 'kuaizi' ? { assetGroupId: current.assetGroupId } : {}),
       apiKey: [current?.apiKey, environmentProviderKey(id)].map(string).find(isUsableServiceSecret) || '',
     }
@@ -185,7 +204,7 @@ export function readMaterializedPlatformServiceConfig(): ServiceConfig {
 function normalizeProvider(raw: unknown, index: number, currentById: Map<string, ServiceConfigProvider>): ServiceConfigProvider {
   if (!isRecord(raw)) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}]`)
   const id = requiredString(raw.id, `providers[${index}].id`, 128).toLowerCase()
-  if (!['deepseek', 'kuaizi'].includes(id) || !isSupportedModelProvider(id)) {
+  if (!PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number]) || !isSupportedModelProvider(id)) {
     throw new Error(`SERVICE_CONFIG_INVALID: unsupported provider ${id}`)
   }
   const existing = currentById.get(id)
@@ -197,7 +216,7 @@ function normalizeProvider(raw: unknown, index: number, currentById: Map<string,
   if (assetGroupId.length > 191) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].assetGroupId`)
   return {
     id,
-    name: id === 'deepseek' ? 'DeepSeek 官方' : 'Kuaizi API',
+    name: PROVIDER_NAMES[id],
     baseUrl,
     ...(apiKey ? { apiKey } : {}),
     ...(id === 'kuaizi' && assetGroupId ? { assetGroupId } : {}),
@@ -275,13 +294,18 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
   if (!isRecord(input)) throw new Error('SERVICE_CONFIG_INVALID: payload')
   const current = readMaterializedPlatformServiceConfig()
   const rawProviders = Array.isArray(input.providers) ? input.providers : []
-  if (rawProviders.length !== 2) {
+  if (rawProviders.length !== PLATFORM_PROVIDER_IDS.length) {
     throw new Error('SERVICE_CONFIG_INVALID: providers')
   }
   const currentById = new Map((current.llm?.providers || []).map((provider) => [provider.id.toLowerCase(), provider]))
   const providers = rawProviders.map((provider, index) => normalizeProvider(provider, index, currentById))
   const providerIds = new Set(providers.map((provider) => provider.id))
-  if (providerIds.size !== providers.length || !providerIds.has('deepseek') || !providerIds.has('kuaizi')) throw new Error('SERVICE_CONFIG_INVALID: both DeepSeek and Kuaizi are required')
+  if (
+    providerIds.size !== providers.length
+    || !PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
+  ) {
+    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux and Kuaizi are required')
+  }
 
   const models = fixedPlatformModels()
 

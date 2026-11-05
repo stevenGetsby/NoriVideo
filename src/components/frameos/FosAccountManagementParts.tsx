@@ -276,7 +276,7 @@ export function AccountDialog({
                 value={draft.password}
                 autoComplete="new-password"
                 onChange={(event) => onDraft({ ...draft, password: event.target.value })}
-                placeholder="至少 8 位"
+                placeholder="至少 8 位；首次登录或重置后需修改"
               />
             </label>
           </div>

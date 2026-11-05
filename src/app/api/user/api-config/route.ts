@@ -89,7 +89,7 @@ export const GET = apiHandler(async () => {
   const config = getPlatformServiceConfigResponse()
   const defaultModels: Record<string, string> = {}
   const available = new Map(config.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
-  const legacyModels: Record<DefaultModelField, string> = { analysisModel: 'deepseek::deepseek-chat', characterModel: 'kuaizi::seedream5.0lite', locationModel: 'kuaizi::seedream5.0lite', storyboardModel: 'kuaizi::seedream5.0lite', editModel: 'kuaizi::seedream5.0lite', videoModel: 'kuaizi::doubao-seedance-2-0-260128', audioModel: 'kuaizi::speech-2.8-hd' }
+  const legacyModels: Record<DefaultModelField, string> = { analysisModel: 'deepseek::deepseek-chat', characterModel: 'openlux::gpt-image-2.5-sunburst', locationModel: 'openlux::gpt-image-2.5-sunburst', storyboardModel: 'openlux::gpt-image-2.5-sunburst', editModel: 'openlux::gpt-image-2.5-sunburst', videoModel: 'kuaizi::doubao-seedance-2-0-260128', audioModel: 'kuaizi::speech-2.8-hd' }
   for (const field of DEFAULT_MODEL_FIELDS) {
     const stored = parseModelKeyStrict(typeof pref?.[field] === 'string' ? pref[field] : '')
     const fallback = parseModelKeyStrict(config.defaultModels[field as keyof typeof config.defaultModels] || legacyModels[field])

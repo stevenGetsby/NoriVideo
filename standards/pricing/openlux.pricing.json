@@ -1,0 +1,20 @@
+[
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-flare",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.03
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-sunburst",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.5
+    }
+  }
+]

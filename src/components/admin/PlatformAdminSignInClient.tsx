@@ -43,7 +43,9 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
         setError('此入口仅供平台 Admin 使用，管理账号和角色子账号请从 LanMiaoTV 登录。')
         return
       }
-      window.location.href = `/${locale}/admin/accounts`
+      window.location.href = session.user.passwordChangeRequired
+        ? `/${locale}/auth/change-password`
+        : `/${locale}/admin/accounts`
     } catch {
       setError('登录失败，请稍后重试。')
     } finally {

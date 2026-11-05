@@ -12,7 +12,12 @@ import {
 function configure(routing: Record<string, string>) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nori-model-routing-'))
   const filePath = path.join(directory, 'services.json')
-  fs.writeFileSync(filePath, JSON.stringify({ llm: { modelRouting: routing } }))
+  fs.writeFileSync(filePath, JSON.stringify({
+    llm: {
+      providers: [{ id: 'deepseek' }, { id: 'openlux' }, { id: 'kuaizi' }],
+      modelRouting: routing,
+    },
+  }))
   vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
   resetServiceConfigCache()
 }
@@ -44,16 +49,45 @@ describe('Nori business model catalog', () => {
     ])
   })
 
+  it('suggests OpenLux image routes and provider-correct routes for the other capabilities', () => {
+    configure({})
+
+    expect(resolveNoriModelRoute('nori::nori-image-mini')).toBe('openlux::gpt-image-2.5-flare')
+    expect(resolveNoriModelRoute('nori::nori-image-fast')).toBe('openlux::gpt-image-2.5-flare')
+    expect(resolveNoriModelRoute('nori::nori-image')).toBe('openlux::gpt-image-2.5-sunburst')
+    expect(resolveNoriModelRoute('nori::nori-image-pro')).toBe('openlux::gpt-image-2.5-sunburst')
+    expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')
+    expect(resolveNoriModelRoute('nori::seedance2.0')).toBe('kuaizi::doubao-seedance-2-0-260128')
+    expect(resolveNoriModelRoute('nori::nori-audio')).toBe('kuaizi::speech-2.8-hd')
+  })
+
   it('uses the administrator route and normalizes legacy project keys', () => {
     configure({
       'nori::nori-gpt': 'deepseek::deepseek-chat',
-      'nori::nori-image': 'kuaizi::seedream5.0pro',
+      'nori::nori-image': 'openlux::gpt-image-2.5-sunburst',
     })
 
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')
+    expect(resolveNoriModelRoute('nori::nori-image')).toBe('openlux::gpt-image-2.5-sunburst')
     expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('nori::nori-gpt')
     expect(normalizeProjectBusinessModelKey('hfsy::gpt-image-2', 'image')).toBe('nori::nori-image')
     expect(normalizeProjectBusinessModelKey('ark::doubao-seedance-1-5-pro', 'video')).toBe('nori::seedance2.0')
     expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('nori::norivideo2.5')
+  })
+
+  it('rejects routes that cross the fixed provider boundaries', () => {
+    configure({
+      'nori::nori-gpt': 'openlux::gpt-image-2.5-sunburst',
+      'nori::nori-image': 'kuaizi::seedream5.0lite',
+      'nori::nori-image-pro': 'deepseek::deepseek-chat',
+      'nori::seedance2.0': 'openlux::gpt-image-2.5-sunburst',
+      'nori::nori-audio': 'deepseek::deepseek-chat',
+    })
+
+    expect(resolveNoriModelRoute('nori::nori-gpt')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-image')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-image-pro')).toBeNull()
+    expect(resolveNoriModelRoute('nori::seedance2.0')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()
   })
 })

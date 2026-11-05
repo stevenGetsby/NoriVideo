@@ -10,23 +10,26 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
 
 import type { GenerateResult } from './generators/base'
 import { getProviderKey, resolveModelSelection, type ModelSelection } from './api-config'
-import { generateKuaiziAudio, generateKuaiziImage, generateKuaiziVideo } from './providers/kuaizi'
+import { generateKuaiziAudio, generateKuaiziVideo } from './providers/kuaizi'
+import { generateOpenLuxImage } from './providers/openlux'
 import { resolveRuntimeModelKey } from './nori-model-catalog'
 import { parseModelKeyStrict } from './model-config-contract'
 import { recordServiceUsageInBackground } from './platform-services/usage'
 import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
+const IMAGE_PROVIDER_ID = 'openlux'
 const MEDIA_PROVIDER_ID = 'kuaizi'
 
 /**
- * New media generation must run on the Kuaizi platform. Historical provider
- * branches are intentionally not reachable from this entry point.
+ * New media generation must run on the fixed platform providers: OpenLux for
+ * images, Kuaizi for video and audio. Historical provider branches are
+ * intentionally not reachable from this entry point.
  */
-function assertKuaiziMediaSelection(selection: ModelSelection): void {
+function assertMediaProviderSelection(selection: ModelSelection, expectedProvider: string): void {
     const providerKey = getProviderKey(selection.provider).toLowerCase()
-    if (providerKey !== MEDIA_PROVIDER_ID) {
+    if (providerKey !== expectedProvider) {
         throw new Error(
-            `MEDIA_PROVIDER_UNSUPPORTED: ${selection.mediaType} generation requires ${MEDIA_PROVIDER_ID}, got ${selection.modelKey}`,
+            `MEDIA_PROVIDER_UNSUPPORTED: ${selection.mediaType} generation requires ${expectedProvider}, got ${selection.modelKey}`,
         )
     }
 }
@@ -47,16 +50,20 @@ async function generateImageInternal(
         referenceImages?: string[]
         aspectRatio?: string
         resolution?: string
-        quality?: 'low' | 'medium' | 'high'
+        quality?: string
         outputFormat?: string
         keepOriginalAspectRatio?: boolean  // 🔥 编辑时保持原图比例
-        size?: string  // 🔥 直接指定像素尺寸如 "5016x3344"（优先于 aspectRatio）
+        size?: string  // 🔥 直接指定像素尺寸如 "3840x2160"（优先于 aspectRatio）
+        n?: number
+        responseFormat?: 'url' | 'b64_json'
+        background?: 'auto' | 'opaque' | 'transparent'
+        moderation?: 'auto' | 'low'
         editMode?: 'inpaint'
         maskImage?: string
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'image')
-    assertKuaiziMediaSelection(selection)
+    assertMediaProviderSelection(selection, IMAGE_PROVIDER_ID)
     _ulogInfo(`[generateImage] resolved model selection: ${selection.modelKey}`)
     const { referenceImages, editMode, maskImage, ...generatorOptions } = options || {}
     if (maskImage && editMode !== 'inpaint') {
@@ -71,10 +78,12 @@ async function generateImageInternal(
             throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires exactly one source image')
         }
     }
-    return await generateKuaiziImage({
+    return await generateOpenLuxImage({
         userId,
         prompt,
         referenceImages,
+        ...(maskImage?.trim() ? { maskImage } : {}),
+        ...(editMode === 'inpaint' ? { editMode } : {}),
         options: {
             ...generatorOptions,
             provider: selection.provider,
@@ -92,10 +101,14 @@ export async function generateImage(
         referenceImages?: string[]
         aspectRatio?: string
         resolution?: string
-        quality?: 'low' | 'medium' | 'high'
+        quality?: string
         outputFormat?: string
         keepOriginalAspectRatio?: boolean
         size?: string
+        n?: number
+        responseFormat?: 'url' | 'b64_json'
+        background?: 'auto' | 'opaque' | 'transparent'
+        moderation?: 'auto' | 'low'
         editMode?: 'inpaint'
         maskImage?: string
     },
@@ -169,7 +182,7 @@ async function generateVideoInternal(
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'video')
-    assertKuaiziMediaSelection(selection)
+    assertMediaProviderSelection(selection, MEDIA_PROVIDER_ID)
     _ulogInfo(`[generateVideo] resolved model selection: ${selection.modelKey}`)
     return await generateKuaiziVideo({
         userId,
@@ -271,7 +284,7 @@ export async function generateAudio(
     const parsed = parseModelKeyStrict(runtimeModelKey)
     try {
         const selection = await resolveModelSelection(userId, modelKey, 'audio')
-        assertKuaiziMediaSelection(selection)
+        assertMediaProviderSelection(selection, MEDIA_PROVIDER_ID)
         const result = await generateKuaiziAudio({
             userId,
             text,

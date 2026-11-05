@@ -2,6 +2,7 @@ import type { UnifiedModelType } from '@/lib/model-config-contract'
 
 export const MODEL_PROVIDER = {
   DEEPSEEK: 'deepseek',
+  OPENLUX: 'openlux',
   KUAIZI: 'kuaizi',
 } as const
 
@@ -24,6 +25,7 @@ export type ModelPreset = {
 
 export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
   { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek 官方', baseUrl: 'https://api.deepseek.com/v1' },
+  { id: MODEL_PROVIDER.OPENLUX, name: 'OpenLux API', baseUrl: 'https://api.openlux.ai/v1' },
   { id: MODEL_PROVIDER.KUAIZI, name: 'Kuaizi API', baseUrl: 'https://aiopenapi.kuaizi.cn' },
 ]
 
@@ -34,6 +36,8 @@ export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<string, string>> = Object.f
 export const MODEL_PRESETS: readonly ModelPreset[] = [
   { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
   { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
+  { modelId: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', type: 'image', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'image' },
+  { modelId: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', type: 'image', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'image' },
 ]
 
 export function getRawProviderKey(providerId?: string): string {
@@ -44,7 +48,11 @@ export function getRawProviderKey(providerId?: string): string {
 
 export function normalizeModelProviderKey(providerId?: string): ModelProviderKey | null {
   const rawKey = getRawProviderKey(providerId).toLowerCase()
-  return rawKey === MODEL_PROVIDER.DEEPSEEK || rawKey === MODEL_PROVIDER.KUAIZI ? rawKey : null
+  return rawKey === MODEL_PROVIDER.DEEPSEEK
+    || rawKey === MODEL_PROVIDER.OPENLUX
+    || rawKey === MODEL_PROVIDER.KUAIZI
+    ? rawKey
+    : null
 }
 
 export function isSupportedModelProvider(providerId?: string): boolean {

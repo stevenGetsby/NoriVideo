@@ -4,8 +4,8 @@ const resolveModelSelectionMock = vi.hoisted(() =>
   vi.fn<typeof import('@/lib/api-config').resolveModelSelection>(),
 )
 
-const generateKuaiziImageMock = vi.hoisted(() =>
-  vi.fn(async () => ({ success: true, async: true, requestId: 'kz-image', externalId: 'KUAIZI:IMAGE:mock' })),
+const generateOpenLuxImageMock = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true, imageUrl: 'https://cdn.example.com/openlux.png', requestId: 'ol-image' })),
 )
 const generateKuaiziVideoMock = vi.hoisted(() =>
   vi.fn(async () => ({ success: true, async: true, requestId: 'kz-video', externalId: 'KUAIZI:VIDEO:mock' })),
@@ -22,25 +22,28 @@ vi.mock('@/lib/api-config', async (importOriginal) => {
   }
 })
 
+vi.mock('@/lib/providers/openlux', () => ({
+  generateOpenLuxImage: generateOpenLuxImageMock,
+}))
+
 vi.mock('@/lib/providers/kuaizi', () => ({
-  generateKuaiziImage: generateKuaiziImageMock,
   generateKuaiziVideo: generateKuaiziVideoMock,
   generateKuaiziAudio: generateKuaiziAudioMock,
 }))
 
 import { generateAudio, generateImage, generateVideo } from '@/lib/generator-api'
 
-describe('generator-api Kuaizi-only media execution', () => {
+describe('generator-api fixed provider dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
 
-  it('routes Kuaizi image, video and audio to the Kuaizi adapters', async () => {
+  it('routes images to OpenLux and video/audio to Kuaizi', async () => {
     resolveModelSelectionMock
       .mockResolvedValueOnce({
-        provider: 'kuaizi',
-        modelId: 'seedream5.0lite',
-        modelKey: 'kuaizi::seedream5.0lite',
+        provider: 'openlux',
+        modelId: 'gpt-image-2.5-sunburst',
+        modelKey: 'openlux::gpt-image-2.5-sunburst',
         mediaType: 'image',
       })
       .mockResolvedValueOnce({
@@ -56,7 +59,7 @@ describe('generator-api Kuaizi-only media execution', () => {
         mediaType: 'audio',
       })
 
-    const image = await generateImage('user-1', 'kuaizi::seedream5.0lite', 'draw sky')
+    const image = await generateImage('user-1', 'openlux::gpt-image-2.5-sunburst', 'draw sky')
     const video = await generateVideo(
       'user-1',
       'kuaizi::doubao-seedance-2-0-fast-260128',
@@ -65,10 +68,13 @@ describe('generator-api Kuaizi-only media execution', () => {
     )
     const audio = await generateAudio('user-1', 'kuaizi::speech-2.8-hd', 'hello', { voice: 'voice-1' })
 
-    expect(generateKuaiziImageMock).toHaveBeenCalledWith(expect.objectContaining({
+    expect(generateOpenLuxImageMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       prompt: 'draw sky',
-      options: expect.objectContaining({ modelId: 'seedream5.0lite' }),
+      options: expect.objectContaining({
+        provider: 'openlux',
+        modelId: 'gpt-image-2.5-sunburst',
+      }),
     }))
     expect(generateKuaiziVideoMock).toHaveBeenCalledWith(expect.objectContaining({
       imageUrl: '',
@@ -83,7 +89,7 @@ describe('generator-api Kuaizi-only media execution', () => {
       voice: 'voice-1',
       options: expect.objectContaining({ modelId: 'speech-2.8-hd' }),
     }))
-    expect(image).toMatchObject({ requestId: 'kz-image', externalId: 'KUAIZI:IMAGE:mock' })
+    expect(image).toMatchObject({ requestId: 'ol-image', imageUrl: 'https://cdn.example.com/openlux.png' })
     expect(video).toMatchObject({ requestId: 'kz-video', externalId: 'KUAIZI:VIDEO:mock' })
     expect(audio).toMatchObject({ requestId: 'kz-audio', externalId: 'KUAIZI:AUDIO:mock' })
   })
@@ -114,24 +120,79 @@ describe('generator-api Kuaizi-only media execution', () => {
       .rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
     await expect(generateAudio('user-1', 'bailian::qwen3-tts', 'hello')).rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
 
-    expect(generateKuaiziImageMock).not.toHaveBeenCalled()
+    expect(generateOpenLuxImageMock).not.toHaveBeenCalled()
     expect(generateKuaiziVideoMock).not.toHaveBeenCalled()
     expect(generateKuaiziAudioMock).not.toHaveBeenCalled()
   })
 
-  it('does not execute mask editing through a retired compatible provider', async () => {
+  it('rejects image generation routed to Kuaizi', async () => {
     resolveModelSelectionMock.mockResolvedValueOnce({
-      provider: 'openai-compatible:oa-1',
-      modelId: 'gpt-image-1',
-      modelKey: 'openai-compatible:oa-1::gpt-image-1',
+      provider: 'kuaizi',
+      modelId: 'seedream5.0lite',
+      modelKey: 'kuaizi::seedream5.0lite',
       mediaType: 'image',
     })
 
-    await expect(generateImage('user-1', 'openai-compatible:oa-1::gpt-image-1', 'replace window', {
+    await expect(generateImage('user-1', 'kuaizi::seedream5.0lite', 'draw')).rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
+    expect(generateOpenLuxImageMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects video and audio routed to OpenLux', async () => {
+    resolveModelSelectionMock
+      .mockResolvedValueOnce({
+        provider: 'openlux',
+        modelId: 'gpt-image-2.5-flare',
+        modelKey: 'openlux::gpt-image-2.5-flare',
+        mediaType: 'video',
+      })
+      .mockResolvedValueOnce({
+        provider: 'openlux',
+        modelId: 'gpt-image-2.5-flare',
+        modelKey: 'openlux::gpt-image-2.5-flare',
+        mediaType: 'audio',
+      })
+
+    await expect(generateVideo('user-1', 'openlux::gpt-image-2.5-flare', 'https://example.com/a.png'))
+      .rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
+    await expect(generateAudio('user-1', 'openlux::gpt-image-2.5-flare', 'hello'))
+      .rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
+    expect(generateKuaiziVideoMock).not.toHaveBeenCalled()
+    expect(generateKuaiziAudioMock).not.toHaveBeenCalled()
+  })
+
+  it('passes canvas inpaint input to the OpenLux adapter', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'openlux',
+      modelId: 'gpt-image-2.5-sunburst',
+      modelKey: 'openlux::gpt-image-2.5-sunburst',
+      mediaType: 'image',
+    })
+
+    await generateImage('user-1', 'openlux::gpt-image-2.5-sunburst', 'replace window', {
       referenceImages: ['data:image/png;base64,U09VUkNF'],
       editMode: 'inpaint',
       maskImage: 'data:image/png;base64,TUFTSw==',
-    })).rejects.toThrow('MEDIA_PROVIDER_UNSUPPORTED')
-    expect(generateKuaiziImageMock).not.toHaveBeenCalled()
+    })
+
+    expect(generateOpenLuxImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      referenceImages: ['data:image/png;base64,U09VUkNF'],
+      editMode: 'inpaint',
+      maskImage: 'data:image/png;base64,TUFTSw==',
+    }))
+  })
+
+  it('rejects mask editing without the inpaint contract', async () => {
+    resolveModelSelectionMock.mockResolvedValueOnce({
+      provider: 'openlux',
+      modelId: 'gpt-image-2.5-sunburst',
+      modelKey: 'openlux::gpt-image-2.5-sunburst',
+      mediaType: 'image',
+    })
+
+    await expect(generateImage('user-1', 'openlux::gpt-image-2.5-sunburst', 'replace window', {
+      referenceImages: ['data:image/png;base64,U09VUkNF'],
+      maskImage: 'data:image/png;base64,TUFTSw==',
+    })).rejects.toThrow('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID')
+    expect(generateOpenLuxImageMock).not.toHaveBeenCalled()
   })
 })

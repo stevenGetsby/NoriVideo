@@ -11,6 +11,7 @@ declare module 'next-auth' {
       role: NoriAccountRole
       roleLabel?: string | null
       status: 'active' | 'disabled' | 'revoked'
+      passwordChangeRequired: boolean
       permissions: NoriAccountPermission[]
       sessionVersion: number
       workspaceOwnerId?: string | null
@@ -24,6 +25,7 @@ declare module 'next-auth' {
     role?: NoriAccountRole
     roleLabel?: string | null
     status?: 'active' | 'disabled'
+    passwordChangeRequired?: boolean
     permissions?: NoriAccountPermission[]
     sessionVersion?: number
     workspaceOwnerId?: string | null
@@ -39,6 +41,7 @@ declare module 'next-auth/jwt' {
     role?: NoriAccountRole
     roleLabel?: string | null
     accountStatus?: 'active' | 'disabled' | 'revoked'
+    passwordChangeRequired?: boolean
     permissions?: NoriAccountPermission[]
     sessionVersion?: number
     workspaceOwnerId?: string | null

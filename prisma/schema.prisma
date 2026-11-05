@@ -818,6 +818,7 @@ model User {
   status                        String                    @default("active") @db.VarChar(32)
   permissions                   Json?
   sessionVersion                Int                       @default(0)
+  passwordChangeRequired        Boolean                   @default(false)
   lastLoginAt                   DateTime?
   workspaceOwnerId              String?                   @db.VarChar(191)
   parentAccountId               String?                   @db.VarChar(191)

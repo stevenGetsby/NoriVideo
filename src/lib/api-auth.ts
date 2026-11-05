@@ -42,6 +42,7 @@ export interface AuthSession {
         status?: AccountStatus | 'revoked'
         permissions?: AccountPermission[]
         sessionVersion?: number
+        passwordChangeRequired?: boolean
         actorId?: string
         workspaceOwnerId?: string | null
         parentAccountId?: string | null
@@ -75,6 +76,7 @@ async function validateSessionUser(
                 status: true,
                 permissions: true,
                 sessionVersion: true,
+                passwordChangeRequired: true,
                 workspaceOwnerId: true,
                 parentAccountId: true,
                 parentAccount: {
@@ -108,6 +110,22 @@ async function validateSessionUser(
     }
     if (!isManagementRole(role) && user.parentAccount?.status === 'disabled') {
         return forbidden('所属管理账号已停用，请联系平台管理员。')
+    }
+    if (user.passwordChangeRequired) {
+        return NextResponse.json({
+            success: false,
+            error: {
+                code: 'PASSWORD_CHANGE_REQUIRED',
+                message: '首次登录或密码重置后，请先修改初始密码。',
+                retryable: false,
+                category: 'auth',
+                userMessageKey: 'passwordChangeRequired',
+                details: { passwordChangeRequired: true },
+            },
+            code: 'PASSWORD_CHANGE_REQUIRED',
+            message: '首次登录或密码重置后，请先修改初始密码。',
+            passwordChangeRequired: true,
+        }, { status: 403, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
     }
     const contextualPermissions = getAccountPermissionContext().filter(isAccountPermission)
     const allRequiredPermissions = Array.from(new Set([...contextualPermissions, ...requiredPermissions]))

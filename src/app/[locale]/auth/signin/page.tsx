@@ -51,9 +51,11 @@ export default function SignIn() {
         setError(t('loginFailed'))
       } else {
         const session = await getSession()
-        window.location.href = session?.user?.role === 'super_admin'
-          ? `/${locale}/admin/accounts`
-          : `/${locale}/works`
+        window.location.href = session?.user?.passwordChangeRequired
+          ? `/${locale}/auth/change-password`
+          : session?.user?.role === 'super_admin'
+            ? `/${locale}/admin/accounts`
+            : `/${locale}/works`
       }
     } catch {
       setError(t('loginError'))

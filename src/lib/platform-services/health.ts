@@ -74,6 +74,8 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
   const provider = (config.llm?.providers || []).find((item) => item.id === providerId)
   if (!provider) throw new Error('服务不存在')
   const startedAt = Date.now()
+  const providerKey = getRawProviderKey(provider.id).toLowerCase()
+  const isOpenLux = providerKey === 'openlux'
   if (!isUsableServiceSecret(provider.apiKey)) {
     const message = 'API Key 未配置或仍是占位值，请填写真实密钥后重试'
     await persistHealth({
@@ -86,7 +88,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: 'llm',
+      serviceType: isOpenLux ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,
@@ -97,8 +99,9 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     return { targetType: 'provider' as const, targetId: provider.id, status: 'unhealthy' as const, latencyMs: 0, message, checkedAt: new Date().toISOString() }
   }
   try {
-    const providerKey = getRawProviderKey(provider.id).toLowerCase()
     const isKuaizi = providerKey === 'kuaizi'
+    // OpenLux is probed with the read-only GET /models endpoint. Image
+    // generation is synchronous and billable, so it must never be used here.
     const response = await fetch(
       isKuaizi ? kuaiziHealthUrl(provider.baseUrl) : providerModelsUrl(provider.id, provider.baseUrl),
       isKuaizi
@@ -149,11 +152,16 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
       latencyMs,
       message,
       checkedBy,
-      details: { httpStatus: response.status, modelCount, ...(isKuaizi ? { validationCode: kuaiziCode || null } : {}) },
+      details: {
+        httpStatus: response.status,
+        modelCount,
+        ...(isKuaizi ? { validationCode: kuaiziCode || null } : {}),
+        ...(isOpenLux ? { probe: 'models' } : {}),
+      },
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: 'llm',
+      serviceType: isOpenLux ? 'image' : 'llm',
       operation: 'health-check',
       status: healthy ? 'success' : 'failed',
       userId: checkedBy,
@@ -168,7 +176,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     await persistHealth({ targetType: 'provider', targetId: provider.id, status: 'unhealthy', latencyMs, message, checkedBy })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: 'llm',
+      serviceType: isOpenLux ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,

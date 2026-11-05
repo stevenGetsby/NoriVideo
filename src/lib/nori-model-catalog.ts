@@ -58,7 +58,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '低成本草图与批量试验',
     type: 'image',
     tier: 'mini',
-    suggestedRoute: 'kuaizi::seedream5.0lite',
+    suggestedRoute: 'openlux::gpt-image-2.5-flare',
   },
   {
     key: 'nori::nori-image-fast',
@@ -67,7 +67,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '快速预览与提示词调试',
     type: 'image',
     tier: 'fast',
-    suggestedRoute: 'kuaizi::kz_gpt_image2',
+    suggestedRoute: 'openlux::gpt-image-2.5-flare',
   },
   {
     key: 'nori::nori-image',
@@ -76,7 +76,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '标准图片模型',
     type: 'image',
     tier: 'standard',
-    suggestedRoute: 'kuaizi::seedream5.0lite',
+    suggestedRoute: 'openlux::gpt-image-2.5-sunburst',
   },
   {
     key: 'nori::nori-image-pro',
@@ -85,7 +85,7 @@ export const NORI_BUSINESS_MODELS = [
     description: '高质量图片模型',
     type: 'image',
     tier: 'pro',
-    suggestedRoute: 'kuaizi::seedream5.0pro',
+    suggestedRoute: 'openlux::gpt-image-2.5-sunburst',
   },
   {
     key: 'nori::seedance2.0-mini',
@@ -206,7 +206,12 @@ export function resolveNoriModelRoute(modelKey: string | null | undefined): stri
   const parsed = parseModelKeyStrict(target)
   const provider = getRawProviderKey(parsed?.provider).toLowerCase()
   if (!parsed || parsed.provider === NORI_PROVIDER_ID) return null
-  if (businessModel.type === 'llm' ? provider !== 'deepseek' : provider !== 'kuaizi') return null
+  const expectedProvider = businessModel.type === 'llm'
+    ? 'deepseek'
+    : businessModel.type === 'image'
+      ? 'openlux'
+      : 'kuaizi'
+  if (provider !== expectedProvider) return null
   return parsed.modelKey
 }
 

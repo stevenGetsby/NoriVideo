@@ -195,7 +195,7 @@ export const PATCH = apiHandler(async (
             : role !== undefined ? { permissions: effectiveAccountPermissions(role) } : {}),
           ...(status !== undefined ? { status } : {}),
           ...(dailyPointLimitProvided ? { dailyPointLimit } : {}),
-          ...(passwordHash ? { password: passwordHash, sessionVersion: { increment: 1 } } : {}),
+          ...(passwordHash ? { password: passwordHash, passwordChangeRequired: true, sessionVersion: { increment: 1 } } : {}),
         },
       })
       return await tx.user.findUniqueOrThrow({

@@ -42,6 +42,7 @@ function account(overrides: Record<string, unknown> = {}) {
     status: 'active',
     permissions: null,
     sessionVersion: 0,
+    passwordChangeRequired: false,
     workspaceOwnerId: 'manager-1',
     parentAccountId: 'manager-1',
     parentAccount: { id: 'manager-1', role: 'admin', status: 'active' },
@@ -179,6 +180,15 @@ describe('account session policy', () => {
     const result = await requireUserAuth()
     expect(isErrorResponse(result)).toBe(true)
     expect((result as Response).status).toBe(403)
+  })
+
+  it('requires an initial password change before ordinary API access', async () => {
+    userFindUniqueMock.mockResolvedValue(account({ passwordChangeRequired: true }))
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const result = await requireUserAuth()
+    expect(isErrorResponse(result)).toBe(true)
+    expect((result as Response).status).toBe(403)
+    await expect((result as Response).json()).resolves.toMatchObject({ passwordChangeRequired: true })
   })
 
   it('rejects sessions invalidated by a password reset', async () => {

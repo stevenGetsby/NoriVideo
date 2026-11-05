@@ -1,10 +1,13 @@
 import createMiddleware from 'next-intl/middleware';
 import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
 import { locales, defaultLocale } from './src/i18n';
 import {
     isAllowedAdminSurfaceApi,
     isApiPath,
     isPlatformAdminPage,
+    authCookieNamespace,
+    resolveAppSurface,
     resolveRequestSurface,
     stripSupportedLocale,
 } from './src/lib/app-surface';
@@ -36,7 +39,7 @@ function platformAdminUrl(request: NextRequest, pathname?: string): URL {
     return target;
 }
 
-export default function middleware(request: NextRequest) {
+export default async function middleware(request: NextRequest) {
     const surface = resolveRequestSurface({
         host: request.headers.get('host'),
         forwardedHost: request.headers.get('x-forwarded-host'),
@@ -44,21 +47,32 @@ export default function middleware(request: NextRequest) {
         urlPort: request.nextUrl.port,
     }, process.env.ADMIN_PUBLIC_PORT || '8080');
     const pathname = request.nextUrl.pathname;
+    const { locale, pathname: route } = stripSupportedLocale(pathname);
+    const secureCookies = (process.env.NEXTAUTH_URL || '').startsWith('https://');
+    const token = await getToken({
+        req: request,
+        cookieName: `${secureCookies ? '__Secure-' : ''}${authCookieNamespace(resolveAppSurface())}.session-token`,
+        secureCookie: secureCookies,
+    });
 
     if (surface === 'admin') {
         if (isApiPath(pathname)) {
-            return isAllowedAdminSurfaceApi(pathname)
-                ? NextResponse.next()
-                : NextResponse.json({ error: 'Not found on the admin service.' }, { status: 404 });
+            if (isAllowedAdminSurfaceApi(pathname)) return NextResponse.next();
+            return NextResponse.json({ error: 'Not found on the admin service.' }, { status: 404 });
         }
-        if (!isPlatformAdminPage(pathname)) {
-            return NextResponse.redirect(platformAdminUrl(request));
+        if (route === '/auth/change-password' && token?.passwordChangeRequired === true) {
+            return handleI18nRouting(request);
+        }
+        if (route === '/auth/change-password') {
+            return NextResponse.redirect(platformAdminUrl(
+                request,
+                token?.id ? `/${locale}/admin/accounts` : `/${locale}/admin/signin`,
+            ));
         }
         return handleI18nRouting(request);
     }
 
     if (isPlatformAdminPage(pathname)) {
-        const { locale, pathname: route } = stripSupportedLocale(pathname);
         const targetPath = route === '/admin'
             ? `/${locale}/admin/signin`
             : `/${locale}${route}`;
@@ -66,6 +80,14 @@ export default function middleware(request: NextRequest) {
     }
 
     if (isApiPath(pathname)) return NextResponse.next();
+
+    if (route === '/auth/change-password' && token?.id && token.passwordChangeRequired !== true) {
+        return handleI18nRouting(request);
+    }
+
+    if (token?.passwordChangeRequired === true && route !== '/auth/change-password') {
+        return NextResponse.redirect(new URL(`/${locale}/auth/change-password`, request.url));
+    }
     return handleI18nRouting(request);
 }
 

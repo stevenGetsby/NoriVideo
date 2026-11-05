@@ -120,6 +120,7 @@ export const authOptions: any = {
           role,
           roleLabel: user.roleLabel,
           status: 'active',
+          passwordChangeRequired: user.passwordChangeRequired,
           permissions: effectiveAccountPermissions(user.role, user.permissions),
           sessionVersion: user.sessionVersion,
           workspaceOwnerId: user.workspaceOwnerId,
@@ -156,6 +157,7 @@ export const authOptions: any = {
           status: true,
           permissions: true,
           sessionVersion: true,
+          passwordChangeRequired: true,
           workspaceOwnerId: true,
           parentAccountId: true,
           parentAccount: {
@@ -185,6 +187,7 @@ export const authOptions: any = {
         ? (account.status === 'disabled' || managerDisabled ? 'disabled' : 'active')
         : 'revoked'
       token.permissions = effectiveAccountPermissions(account.role, account.permissions)
+      token.passwordChangeRequired = versionMatches && account.passwordChangeRequired
       token.sessionVersion = tokenVersion
       token.workspaceOwnerId = account.workspaceOwnerId
       token.parentAccountId = account.parentAccountId
@@ -200,6 +203,7 @@ export const authOptions: any = {
         session.user.role = normalizeAccountRole(token.role)
         session.user.roleLabel = typeof token.roleLabel === 'string' ? token.roleLabel : null
         session.user.status = token.accountStatus || 'active'
+        session.user.passwordChangeRequired = token.passwordChangeRequired === true
         session.user.permissions = Array.isArray(token.permissions) ? token.permissions : []
         session.user.sessionVersion = typeof token.sessionVersion === 'number' ? token.sessionVersion : 0
         session.user.workspaceOwnerId = typeof token.workspaceOwnerId === 'string' ? token.workspaceOwnerId : null

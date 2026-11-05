@@ -38,6 +38,10 @@ describe('three-level account management wiring', () => {
     const legacyTeamRoute = readSource('src/app/[locale]/team/page.tsx')
 
     expect(normalSignIn).toContain("session?.user?.role === 'super_admin'")
+    expect(normalSignIn).toContain('session?.user?.passwordChangeRequired')
+    expect(normalSignIn).toContain('`/${locale}/auth/change-password`')
+    expect(platformSignIn).toContain('session.user.passwordChangeRequired')
+    expect(platformSignIn).toContain('`/${locale}/auth/change-password`')
     expect(normalSignIn).toContain('`/${locale}/admin/accounts`')
     expect(platformSignIn).toContain("session?.user?.role !== 'super_admin'")
     expect(platformSignIn).toContain('此入口仅供平台 Admin 使用')

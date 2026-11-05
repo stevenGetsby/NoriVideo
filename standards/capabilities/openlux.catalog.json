@@ -1,0 +1,50 @@
+[
+  {
+    "modelType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-flare",
+    "capabilities": {
+      "image": {
+        "resolutionOptions": [
+          "auto",
+          "1024x1024",
+          "1536x1024",
+          "1024x1536",
+          "2048x2048",
+          "2048x1152",
+          "3840x2160",
+          "2160x3840"
+        ],
+        "supportsInpaint": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 16 },
+          "requiredFields": ["prompt"]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-sunburst",
+    "capabilities": {
+      "image": {
+        "resolutionOptions": [
+          "auto",
+          "1024x1024",
+          "1536x1024",
+          "1024x1536",
+          "2048x2048",
+          "2048x1152",
+          "3840x2160",
+          "2160x3840"
+        ],
+        "supportsInpaint": true,
+        "inputSchema": {
+          "image": { "min": 0, "max": 16 },
+          "requiredFields": ["prompt"]
+        }
+      }
+    }
+  }
+]

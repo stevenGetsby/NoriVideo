@@ -47,23 +47,29 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
     <div className="nori-admin-stack">
       <section className="nori-admin-panel" aria-labelledby="service-connections">
         <div className="nori-admin-panel-head">
-          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>只需维护两套平台密钥。DeepSeek 负责文本，Kuaizi 负责图片、视频和语音。</p></div>
+          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>只需维护三套平台密钥。DeepSeek 负责文本，OpenLux 负责图片，Kuaizi 负责视频和语音。</p></div>
         </div>
         <div className="grid gap-4 p-4 xl:grid-cols-2">
           {config.providers.map((provider, index) => {
             const isKuaizi = provider.id === 'kuaizi'
+            const isOpenLux = provider.id === 'openlux'
             const health = healthMap.get(`provider:${provider.id}`)
             const providerUsage = usageByProvider.get(provider.id)
             const pending = Boolean(providerSecrets[provider.id]?.trim())
+            const providerSummary = isKuaizi
+              ? { icon: 'sparklesAlt' as const, description: '视频与语音服务', capabilities: ['视频', '语音合成'] }
+              : isOpenLux
+                ? { icon: 'image' as const, description: '图像生成服务', capabilities: ['文生图', '参考图编辑', '蒙版重绘'] }
+                : { icon: 'cpu' as const, description: '官方文本服务', capabilities: ['剧本', '提示词', '文本分析'] }
             return (
               <article key={provider.id} className={`nori-admin-card nori-admin-provider p-4 is-${provider.id}`}>
                 <div className="nori-admin-connection-head">
-                  <span className="nori-admin-provider-icon"><AppIcon name={isKuaizi ? 'sparklesAlt' : 'cpu'} /></span>
-                  <div><h3>{provider.name}</h3><p>{isKuaizi ? '创意媒体服务' : '官方文本服务'}</p></div>
+                  <span className="nori-admin-provider-icon"><AppIcon name={providerSummary.icon} /></span>
+                  <div><h3>{provider.name}</h3><p>{providerSummary.description}</p></div>
                   <StatusBadge health={health} />
                 </div>
                 <div className="nori-admin-capabilities">
-                  {(isKuaizi ? ['图片', '视频', '语音合成'] : ['剧本', '提示词', '文本分析']).map((item) => <span key={item}>{item}</span>)}
+                  {providerSummary.capabilities.map((item) => <span key={item}>{item}</span>)}
                 </div>
                 <label className="nori-admin-field">
                   <span className="nori-admin-field-label"><span>API Key</span><span className={`nori-admin-secret-status ${pending ? 'is-pending' : provider.hasApiKey ? 'is-ok' : 'is-missing'}`}>{pending ? '待保存' : provider.hasApiKey ? '已配置' : '待配置'}</span></span>
@@ -86,7 +92,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
         <div className="nori-admin-purpose-grid">
           {(['llm', 'image', 'video', 'audio'] as const).map((type) => (
             <section key={type} className={`nori-admin-purpose is-${type}`}>
-              <div className="nori-admin-purpose-head"><AppIcon name={type === 'llm' ? 'fileText' : type === 'image' ? 'image' : type === 'video' ? 'video' : 'volume'} /><div><h3>{MODEL_TYPE_LABELS[type]}</h3><p>{type === 'llm' ? 'DeepSeek 官方' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p></div></div>
+              <div className="nori-admin-purpose-head"><AppIcon name={type === 'llm' ? 'fileText' : type === 'image' ? 'image' : type === 'video' ? 'video' : 'volume'} /><div><h3>{MODEL_TYPE_LABELS[type]}</h3><p>{type === 'llm' ? 'DeepSeek 官方' : type === 'image' ? 'OpenLux API' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p></div></div>
               <div className="nori-admin-purpose-list">
                 {config.businessModels.filter((model) => model.type === type).map((model) => {
                   const options = config.models.filter((candidate) => candidate.type === type)
