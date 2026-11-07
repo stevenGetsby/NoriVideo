@@ -4,6 +4,7 @@ export const MODEL_PROVIDER = {
   DEEPSEEK: 'deepseek',
   OPENLUX: 'openlux',
   KUAIZI: 'kuaizi',
+  HUIMENGI: 'huimengi',
 } as const
 
 export type ModelProviderKey = (typeof MODEL_PROVIDER)[keyof typeof MODEL_PROVIDER]
@@ -27,6 +28,7 @@ export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
   { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek 官方', baseUrl: 'https://api.deepseek.com/v1' },
   { id: MODEL_PROVIDER.OPENLUX, name: 'OpenLux API', baseUrl: 'https://api.openlux.ai/v1' },
   { id: MODEL_PROVIDER.KUAIZI, name: 'Kuaizi API', baseUrl: 'https://aiopenapi.kuaizi.cn' },
+  { id: MODEL_PROVIDER.HUIMENGI, name: '绘梦工坊 API', baseUrl: 'https://api.huimengi.com' },
 ]
 
 export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<string, string>> = Object.fromEntries(
@@ -51,6 +53,7 @@ export function normalizeModelProviderKey(providerId?: string): ModelProviderKey
   return rawKey === MODEL_PROVIDER.DEEPSEEK
     || rawKey === MODEL_PROVIDER.OPENLUX
     || rawKey === MODEL_PROVIDER.KUAIZI
+    || rawKey === MODEL_PROVIDER.HUIMENGI
     ? rawKey
     : null
 }

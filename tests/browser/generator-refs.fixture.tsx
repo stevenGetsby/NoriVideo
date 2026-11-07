@@ -58,6 +58,7 @@ function Fixture() {
             onClose={() => undefined}
             onFocus={() => undefined}
             onAddReferences={(request) => setAdded(JSON.stringify(request))}
+            onSelectLibraryMaterial={() => null}
             injectedReferenceNodeIds={[]}
             anchor={null}
             panelWidth={420}

@@ -212,7 +212,7 @@ export function PlatformAdminServicesClient() {
       active="services"
       eyebrow="平台管理"
       title="服务配置"
-      description="三套 API 各司其职：DeepSeek 文本、OpenLux 图片、Kuaizi 视频与语音。"
+      description="四套 API 各司其职：DeepSeek 文本、Kuaizi 语音，图片和视频可在 OpenLux / Kuaizi 与绘梦工坊之间切换。"
       actions={(
         <>
           <span className={dirty ? 'nori-admin-dirty' : 'nori-admin-muted'}>

@@ -1,4 +1,4 @@
-export type OfficialProviderKey = 'bailian' | 'siliconflow' | 'openlux' | 'kuaizi'
+export type OfficialProviderKey = 'bailian' | 'siliconflow' | 'openlux' | 'kuaizi' | 'huimengi'
 export type OfficialModelModality = 'llm' | 'image' | 'video' | 'audio'
 
 interface RegisterOfficialModelInput {

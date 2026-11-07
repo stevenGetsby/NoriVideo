@@ -4,10 +4,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { MentionPromptEditor } from '@/components/frameos/materials/MentionPromptEditor'
 import { findActiveMention, insertPromptMention } from '@/components/frameos/materials/mention-prompt'
 import {
+  buildCanvasLibraryMentionAssets,
   buildCanvasMentionAssets,
   mergeCanvasReferenceNodeIds,
   shouldBindCanvasMentionReference,
 } from '@/features/canvas/components/canvas-mention-references'
+import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import type { CanvasFlowNode } from '@/features/canvas/editor-types'
 
 beforeAll(() => vi.stubGlobal('React', React))
@@ -22,8 +24,17 @@ function node(id: string, type: string, title: string, data: Record<string, unkn
   }
 }
 
+function material(id: string, title: string, input: Partial<FrameosMaterialItem> = {}): FrameosMaterialItem {
+  return {
+    id, projectId: 'project-1', projectName: '我的项目', ownerName: null,
+    title, type: 'image', source: 'upload', status: 'ready', isFavorited: false,
+    resultUrl: `/${id}.webp`, storageKey: null, url: `/${id}.webp`,
+    createdAt: '2026-01-01', updatedAt: '2026-01-01', ...input,
+  }
+}
+
 describe('canvas @mention references', () => {
-  it('offers connected inputs and asset-library entities without enumerating generated canvas nodes', () => {
+  it('offers only actual connected inputs without enumerating unconnected canvas library entities', () => {
     const assets = buildCanvasMentionAssets([
       node('target', 'video', '生成结果'),
       node('image-1', 'image', '雨夜参考', { contentUrl: '/image.webp', materialId: 'material-image', origin: 'project' }),
@@ -37,14 +48,31 @@ describe('canvas @mention references', () => {
 
     expect(assets.map(({ id, mediaType, name }) => ({ id, mediaType, name }))).toEqual([
       { id: 'wired-generated', mediaType: 'image', name: '连线生成图' },
-      { id: 'image-1', mediaType: 'image', name: '雨夜参考·图片' },
-      { id: 'audio-1', mediaType: 'audio', name: '环境雷声' },
-      { id: 'video-1', mediaType: 'video', name: '雨夜参考·视频' },
+      { id: 'image-1', mediaType: 'image', name: '雨夜参考' },
     ])
-    expect(assets.find(({ id }) => id === 'image-1')).toMatchObject({ imageUrl: '/image.webp', description: '图片 · 已连接上游' })
-    expect(assets[3]).toMatchObject({ imageUrl: '/poster.webp', description: '视频 · 资产库素材' })
-    expect(assets[2]).toMatchObject({ imageUrl: null, description: '音频 · 资产库素材' })
-    expect(assets.some(({ id }) => id === 'url-only' || id === 'unmarked')).toBe(false)
+    expect(assets[0]).toMatchObject({ imageUrl: '/wired.webp', section: 'connected', description: '图片 · 已连接节点 · 将自动建立引用' })
+    expect(assets[1]).toMatchObject({ imageUrl: '/image.webp', section: 'connected', description: '图片 · 已连接节点' })
+    expect(assets.some(({ id }) => ['url-only', 'unmarked', 'video-1', 'audio-1'].includes(id))).toBe(false)
+  })
+
+  it('builds the personal library with favorites and asset categories independent of canvas nodes', () => {
+    const assets = buildCanvasLibraryMentionAssets([
+      material('character-1', '林夏', { isFavorited: true, metadata: { assetCategory: 'character' } }),
+      material('location-1', '雨夜街巷', { metadata: { assetCategory: 'location' } }),
+      material('video-1', '环境视频', { type: 'video' }),
+      material('unready', '生成中', { status: 'processing' }),
+      material('audio-1', '不可选音频', { type: 'audio' }),
+    ], ['image', 'video'])
+
+    expect(assets.map(({ id, category, section }) => ({ id, category, section }))).toEqual([
+      { id: 'library:other:video-1', category: 'other', section: 'library' },
+      { id: 'library:favorites:character-1', category: 'favorites', section: 'library' },
+      { id: 'library:character:character-1', category: 'character', section: 'library' },
+      { id: 'library:location:location-1', category: 'location', section: 'library' },
+    ])
+    expect(assets.find(({ materialId }) => materialId === 'character-1')?.material).toMatchObject({ id: 'character-1', title: '林夏' })
+    expect(assets.find(({ category }) => category === 'character')?.description).toContain('角色 · 图片')
+    expect(assets.some(({ materialId }) => materialId === 'unready' || materialId === 'audio-1')).toBe(false)
   })
 
   it('adds a mentioned entity id without dropping or reordering wired references', () => {
@@ -60,7 +88,7 @@ describe('canvas @mention references', () => {
     expect(shouldBindCanvasMentionReference('audio')).toBe(false)
   })
 
-  it('puts connected upstream entities before unconnected asset-library nodes', () => {
+  it('does not use unconnected library nodes as connected assets', () => {
     const assets = buildCanvasMentionAssets([
       node('canvas-audio', 'audio', '资产库音频', { audioUrl: '/canvas.wav', origin: 'upload' }),
       node('canvas-image', 'image', '资产库图片', { contentUrl: '/canvas.webp', origin: 'project' }),
@@ -68,7 +96,7 @@ describe('canvas @mention references', () => {
       node('wired-image', 'image', '连线图片', { contentUrl: '/wired.webp' }),
     ], 'target', ['image', 'audio'], new Set(['wired-audio', 'wired-image']))
 
-    expect(assets.map((asset) => asset.id)).toEqual(['wired-image', 'wired-audio', 'canvas-image', 'canvas-audio'])
+    expect(assets.map((asset) => asset.id)).toEqual(['wired-image', 'wired-audio'])
   })
 
   it('replaces only the active query and preserves ordinary prompt text', () => {

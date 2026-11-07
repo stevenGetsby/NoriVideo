@@ -75,6 +75,20 @@ describe('Nori business model catalog', () => {
     expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('nori::norivideo2.5')
   })
 
+  it('accepts HuiMeng for image and video while keeping text and audio fixed', () => {
+    configure({
+      'nori::nori-image': 'huimengi::seedream-5.0-pro',
+      'nori::seedance2.0': 'huimengi::wan3.0-video',
+      'nori::nori-gpt': 'huimengi::seedream-5.0-pro',
+      'nori::nori-audio': 'huimengi::wan3.0-video',
+    })
+
+    expect(resolveNoriModelRoute('nori::nori-image')).toBe('huimengi::seedream-5.0-pro')
+    expect(resolveNoriModelRoute('nori::seedance2.0')).toBe('huimengi::wan3.0-video')
+    expect(resolveNoriModelRoute('nori::nori-gpt')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()
+  })
+
   it('rejects routes that cross the fixed provider boundaries', () => {
     configure({
       'nori::nori-gpt': 'openlux::gpt-image-2.5-sunburst',

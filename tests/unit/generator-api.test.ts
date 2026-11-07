@@ -13,6 +13,12 @@ const generateKuaiziVideoMock = vi.hoisted(() =>
 const generateKuaiziAudioMock = vi.hoisted(() =>
   vi.fn(async () => ({ success: true, async: true, requestId: 'kz-audio', externalId: 'KUAIZI:AUDIO:mock' })),
 )
+const generateHuimengiImageMock = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true, async: true, requestId: 'hm-image', externalId: 'HUIMENGI:IMAGE:mock' })),
+)
+const generateHuimengiVideoMock = vi.hoisted(() =>
+  vi.fn(async () => ({ success: true, async: true, requestId: 'hm-video', externalId: 'HUIMENGI:VIDEO:mock' })),
+)
 
 vi.mock('@/lib/api-config', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/api-config')>()
@@ -29,6 +35,11 @@ vi.mock('@/lib/providers/openlux', () => ({
 vi.mock('@/lib/providers/kuaizi', () => ({
   generateKuaiziVideo: generateKuaiziVideoMock,
   generateKuaiziAudio: generateKuaiziAudioMock,
+}))
+
+vi.mock('@/lib/providers/huimengi', () => ({
+  generateHuimengiImage: generateHuimengiImageMock,
+  generateHuimengiVideo: generateHuimengiVideoMock,
 }))
 
 import { generateAudio, generateImage, generateVideo } from '@/lib/generator-api'
@@ -94,6 +105,45 @@ describe('generator-api fixed provider dispatch', () => {
     expect(audio).toMatchObject({ requestId: 'kz-audio', externalId: 'KUAIZI:AUDIO:mock' })
   })
 
+  it('routes images and video to HuiMeng when the platform selects it', async () => {
+    resolveModelSelectionMock
+      .mockResolvedValueOnce({
+        provider: 'huimengi',
+        modelId: 'seedream-5.0-pro',
+        modelKey: 'huimengi::seedream-5.0-pro',
+        mediaType: 'image',
+      })
+      .mockResolvedValueOnce({
+        provider: 'huimengi',
+        modelId: 'wan3.0-video',
+        modelKey: 'huimengi::wan3.0-video',
+        mediaType: 'video',
+      })
+
+    const image = await generateImage('user-1', 'huimengi::seedream-5.0-pro', 'draw sky')
+    const video = await generateVideo(
+      'user-1',
+      'huimengi::wan3.0-video',
+      'https://cdn.example.com/a.png',
+      { prompt: 'animate sky', duration: 5, resolution: '720p' },
+    )
+
+    expect(generateHuimengiImageMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'user-1',
+      prompt: 'draw sky',
+      options: expect.objectContaining({ provider: 'huimengi', modelId: 'seedream-5.0-pro' }),
+    }))
+    expect(generateHuimengiVideoMock).toHaveBeenCalledWith(expect.objectContaining({
+      imageUrl: 'https://cdn.example.com/a.png',
+      prompt: 'animate sky',
+      options: expect.objectContaining({ provider: 'huimengi', modelId: 'wan3.0-video' }),
+    }))
+    expect(generateOpenLuxImageMock).not.toHaveBeenCalled()
+    expect(generateKuaiziVideoMock).not.toHaveBeenCalled()
+    expect(image).toMatchObject({ externalId: 'HUIMENGI:IMAGE:mock' })
+    expect(video).toMatchObject({ externalId: 'HUIMENGI:VIDEO:mock' })
+  })
+
   it('hard-rejects retired providers for image, video and audio', async () => {
     resolveModelSelectionMock
       .mockResolvedValueOnce({
@@ -123,6 +173,8 @@ describe('generator-api fixed provider dispatch', () => {
     expect(generateOpenLuxImageMock).not.toHaveBeenCalled()
     expect(generateKuaiziVideoMock).not.toHaveBeenCalled()
     expect(generateKuaiziAudioMock).not.toHaveBeenCalled()
+    expect(generateHuimengiImageMock).not.toHaveBeenCalled()
+    expect(generateHuimengiVideoMock).not.toHaveBeenCalled()
   })
 
   it('rejects image generation routed to Kuaizi', async () => {

@@ -1,0 +1,124 @@
+[
+  {
+    "apiType": "image",
+    "provider": "huimengi",
+    "modelId": "seedream-5.0-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "1K" }, "amount": 0.3 },
+        { "when": { "resolution": "2k" }, "amount": 0.6 }
+      ]
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "huimengi",
+    "modelId": "seedream-5.0-lite",
+    "pricing": { "mode": "flat", "flatAmount": 0.22 }
+  },
+  {
+    "apiType": "image",
+    "provider": "huimengi",
+    "modelId": "qwen-image-3.0-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "1k" }, "amount": 0.25 },
+        { "when": { "resolution": "2k" }, "amount": 0.5 }
+      ]
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "huimengi",
+    "modelId": "qwen-image-3.0",
+    "pricing": { "mode": "flat", "flatAmount": 0.18 }
+  },
+  {
+    "apiType": "image",
+    "provider": "huimengi",
+    "modelId": "nb-2.1",
+    "pricing": { "mode": "flat", "flatAmount": 0.12 }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "wan3.0-video",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p" }, "amount": 0.9 },
+        { "when": { "resolution": "720p" }, "amount": 1.8 },
+        { "when": { "resolution": "1080p" }, "amount": 3.6 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "wan3.0-video-value",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "720p" }, "amount": 1.4 },
+        { "when": { "resolution": "1080p" }, "amount": 2.45 },
+        { "when": { "resolution": "2k" }, "amount": 2.8 },
+        { "when": { "resolution": "4k" }, "amount": 3.15 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "seedance-1.5-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p", "generateAudio": false }, "amount": 0.4 },
+        { "when": { "resolution": "480p", "generateAudio": true }, "amount": 0.8 },
+        { "when": { "resolution": "720p", "generateAudio": false }, "amount": 0.85 },
+        { "when": { "resolution": "720p", "generateAudio": true }, "amount": 1.7 },
+        { "when": { "resolution": "1080p", "generateAudio": false }, "amount": 1.95 },
+        { "when": { "resolution": "1080p", "generateAudio": true }, "amount": 3.9 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "seedance-1.0-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p" }, "amount": 0.75 },
+        { "when": { "resolution": "720p" }, "amount": 1.55 },
+        { "when": { "resolution": "1080p" }, "amount": 3.65 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "minimax-h3",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "768p" }, "amount": 1 },
+        { "when": { "resolution": "2k" }, "amount": 1.6 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "happyhorse-1.1",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "720p" }, "amount": 2.025 },
+        { "when": { "resolution": "1080p" }, "amount": 2.7 }
+      ]
+    }
+  }
+]

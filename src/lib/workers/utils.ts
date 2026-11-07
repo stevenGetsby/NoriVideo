@@ -132,6 +132,7 @@ export async function waitExternalResult(
       })
       return {
         url,
+        imageUrls: status.imageUrls,
         status,
         ...pickVideoResultMetadata(status),
         ...(status.downloadHeaders ? { downloadHeaders: status.downloadHeaders } : {}),
@@ -292,7 +293,10 @@ export async function resolveImageSourceFromGeneration(
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')
   }
-  if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
+  // Persist the namespaced external id when present so a restart can resume
+  // polling. A bare provider requestId cannot be parsed by async-poll.
+  if (result.externalId) await trySetTaskExternalId(job.data.taskId, result.externalId)
+  else if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
 
   if (result.imageUrl) {
     logger.info({
@@ -336,7 +340,7 @@ export async function resolveImageSourceFromGeneration(
  *
  * - 接口返回多张（result.imageUrls）→ 返回完整列表
  * - 接口只返回单张（result.imageUrl / result.imageBase64）→ 封装成 [url] 保持接口一致
- * - 异步任务：轮询结果只有一个 URL，封装成 [url]
+ * - 异步任务：保留轮询返回的全部图片 URL，单图回退为一项数组
  *
  * 现有代码请继续使用 resolveImageSourceFromGeneration（取第一张），
  * 只有需要利用多图结果时才调用此函数。
@@ -377,7 +381,7 @@ export async function resolveImageSourcesFromGeneration(
         progressStart: params.pollProgress?.start ?? 40,
         progressEnd: params.pollProgress?.end ?? 92,
       })
-      return [polled.url]
+      return polled.imageUrls || [polled.url]
     }
   }
 
@@ -431,7 +435,10 @@ export async function resolveImageSourcesFromGeneration(
   if (!result.success) {
     throw new Error(result.error || 'Image generation failed')
   }
-  if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
+  // Persist the namespaced external id when present so a restart can resume
+  // polling. A bare provider requestId cannot be parsed by async-poll.
+  if (result.externalId) await trySetTaskExternalId(job.data.taskId, result.externalId)
+  else if (result.requestId) await trySetTaskExternalId(job.data.taskId, result.requestId)
 
   // 优先使用多图列表
   if (result.imageUrls && result.imageUrls.length > 0) {

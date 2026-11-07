@@ -300,7 +300,10 @@ export function getServiceLlmConfig(): ServiceConfigLlm | undefined {
       // capability. Keep it so it cannot fall back to the suggested route.
       if (!normalized) return true
       const provider = normalized.split('::')[0]
-      return providerIds.has(provider)
+      // Accept every official platform provider even when a legacy config file
+      // has not materialized the fourth provider entry yet. Retired providers
+      // (hfsy, ark, …) stay rejected.
+      return isSupportedModelProvider(provider)
     })),
   }
 }

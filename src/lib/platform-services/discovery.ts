@@ -1,6 +1,7 @@
 import { getRawProviderKey } from '@/lib/model-provider-contract'
 import type { ServiceConfigModel, ServiceConfigProvider } from '@/lib/service-config'
 import { isUsableServiceSecret, readMaterializedPlatformServiceConfig } from './config'
+import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 
 const MAX_DISCOVERED_MODELS = 500
@@ -70,8 +71,13 @@ export async function discoverProviderTextModels(providerId: string): Promise<Di
     throw new Error('API Key 未配置，请先保存真实密钥')
   }
 
-  if (getRawProviderKey(provider.id).toLowerCase() === 'kuaizi') {
-    const models = listKuaiziCatalogModels().map((model): ServiceConfigModel => ({
+  const catalog = getRawProviderKey(provider.id).toLowerCase() === 'kuaizi'
+    ? listKuaiziCatalogModels()
+    : getRawProviderKey(provider.id).toLowerCase() === 'huimengi'
+      ? listHuimengiCatalogModels()
+      : null
+  if (catalog) {
+    const models = catalog.map((model): ServiceConfigModel => ({
       provider: provider.id,
       modelId: model.modelId,
       modelKey: `${provider.id}::${model.modelId}`,

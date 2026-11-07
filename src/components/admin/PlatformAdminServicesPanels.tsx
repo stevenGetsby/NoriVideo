@@ -47,20 +47,23 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
     <div className="nori-admin-stack">
       <section className="nori-admin-panel" aria-labelledby="service-connections">
         <div className="nori-admin-panel-head">
-          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>只需维护三套平台密钥。DeepSeek 负责文本，OpenLux 负责图片，Kuaizi 负责视频和语音。</p></div>
+          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>只需维护四套平台密钥。DeepSeek 负责文本，Kuaizi 负责语音；图片和视频可在 OpenLux / 绘梦工坊 与 Kuaizi / 绘梦工坊 之间随时切换。</p></div>
         </div>
         <div className="grid gap-4 p-4 xl:grid-cols-2">
           {config.providers.map((provider, index) => {
             const isKuaizi = provider.id === 'kuaizi'
             const isOpenLux = provider.id === 'openlux'
+            const isHuimengi = provider.id === 'huimengi'
             const health = healthMap.get(`provider:${provider.id}`)
             const providerUsage = usageByProvider.get(provider.id)
             const pending = Boolean(providerSecrets[provider.id]?.trim())
             const providerSummary = isKuaizi
-              ? { icon: 'sparklesAlt' as const, description: '视频与语音服务', capabilities: ['视频', '语音合成'] }
+              ? { icon: 'video' as const, description: '视频与语音服务', capabilities: ['视频', '语音合成'] }
               : isOpenLux
                 ? { icon: 'image' as const, description: '图像生成服务', capabilities: ['文生图', '参考图编辑', '蒙版重绘'] }
-                : { icon: 'cpu' as const, description: '官方文本服务', capabilities: ['剧本', '提示词', '文本分析'] }
+                : isHuimengi
+                  ? { icon: 'sparklesAlt' as const, description: '图像与视频服务', capabilities: ['文生图', '参考图', '文生视频', '多模态参考'] }
+                  : { icon: 'cpu' as const, description: '官方文本服务', capabilities: ['剧本', '提示词', '文本分析'] }
             return (
               <article key={provider.id} className={`nori-admin-card nori-admin-provider p-4 is-${provider.id}`}>
                 <div className="nori-admin-connection-head">
@@ -92,7 +95,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
         <div className="nori-admin-purpose-grid">
           {(['llm', 'image', 'video', 'audio'] as const).map((type) => (
             <section key={type} className={`nori-admin-purpose is-${type}`}>
-              <div className="nori-admin-purpose-head"><AppIcon name={type === 'llm' ? 'fileText' : type === 'image' ? 'image' : type === 'video' ? 'video' : 'volume'} /><div><h3>{MODEL_TYPE_LABELS[type]}</h3><p>{type === 'llm' ? 'DeepSeek 官方' : type === 'image' ? 'OpenLux API' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p></div></div>
+              <div className="nori-admin-purpose-head"><AppIcon name={type === 'llm' ? 'fileText' : type === 'image' ? 'image' : type === 'video' ? 'video' : 'volume'} /><div><h3>{MODEL_TYPE_LABELS[type]}</h3><p>{type === 'llm' ? 'DeepSeek 官方' : type === 'image' ? 'OpenLux / 绘梦工坊 API' : type === 'video' ? 'Kuaizi / 绘梦工坊 API' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p></div></div>
               <div className="nori-admin-purpose-list">
                 {config.businessModels.filter((model) => model.type === type).map((model) => {
                   const options = config.models.filter((candidate) => candidate.type === type)

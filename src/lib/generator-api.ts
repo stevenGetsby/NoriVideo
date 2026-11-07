@@ -11,25 +11,27 @@ import { logInfo as _ulogInfo } from '@/lib/logging/core'
 import type { GenerateResult } from './generators/base'
 import { getProviderKey, resolveModelSelection, type ModelSelection } from './api-config'
 import { generateKuaiziAudio, generateKuaiziVideo } from './providers/kuaizi'
+import { generateHuimengiImage, generateHuimengiVideo } from './providers/huimengi'
 import { generateOpenLuxImage } from './providers/openlux'
 import { resolveRuntimeModelKey } from './nori-model-catalog'
 import { parseModelKeyStrict } from './model-config-contract'
 import { recordServiceUsageInBackground } from './platform-services/usage'
 import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
-const IMAGE_PROVIDER_ID = 'openlux'
-const MEDIA_PROVIDER_ID = 'kuaizi'
+const IMAGE_PROVIDER_IDS = ['openlux', 'huimengi'] as const
+const VIDEO_PROVIDER_IDS = ['kuaizi', 'huimengi'] as const
+const AUDIO_PROVIDER_IDS = ['kuaizi'] as const
 
 /**
- * New media generation must run on the fixed platform providers: OpenLux for
- * images, Kuaizi for video and audio. Historical provider branches are
- * intentionally not reachable from this entry point.
+ * New media generation must run on the fixed platform providers: OpenLux or
+ * HuiMeng for images, Kuaizi or HuiMeng for video, Kuaizi for audio. Historical
+ * provider branches are intentionally not reachable from this entry point.
  */
-function assertMediaProviderSelection(selection: ModelSelection, expectedProvider: string): void {
+function assertMediaProviderSelection(selection: ModelSelection, allowedProviders: readonly string[]): void {
     const providerKey = getProviderKey(selection.provider).toLowerCase()
-    if (providerKey !== expectedProvider) {
+    if (!allowedProviders.includes(providerKey)) {
         throw new Error(
-            `MEDIA_PROVIDER_UNSUPPORTED: ${selection.mediaType} generation requires ${expectedProvider}, got ${selection.modelKey}`,
+            `MEDIA_PROVIDER_UNSUPPORTED: ${selection.mediaType} generation requires ${allowedProviders.join(' or ')}, got ${selection.modelKey}`,
         )
     }
 }
@@ -63,7 +65,7 @@ async function generateImageInternal(
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'image')
-    assertMediaProviderSelection(selection, IMAGE_PROVIDER_ID)
+    assertMediaProviderSelection(selection, IMAGE_PROVIDER_IDS)
     _ulogInfo(`[generateImage] resolved model selection: ${selection.modelKey}`)
     const { referenceImages, editMode, maskImage, ...generatorOptions } = options || {}
     if (maskImage && editMode !== 'inpaint') {
@@ -78,18 +80,24 @@ async function generateImageInternal(
             throw new Error('CANVAS_IMAGE_INPAINT_CONTRACT_INVALID: image_edit requires exactly one source image')
         }
     }
+    const providerOptions = {
+        ...generatorOptions,
+        provider: selection.provider,
+        modelId: selection.modelId,
+        modelKey: selection.modelKey,
+    }
+    if (getProviderKey(selection.provider).toLowerCase() === 'huimengi') {
+        // HuiMeng has no mask-based inpaint, so the canvas contract above
+        // already rejected editMode=inpaint before reaching this branch.
+        return await generateHuimengiImage({ userId, prompt, referenceImages, options: providerOptions })
+    }
     return await generateOpenLuxImage({
         userId,
         prompt,
         referenceImages,
         ...(maskImage?.trim() ? { maskImage } : {}),
         ...(editMode === 'inpaint' ? { editMode } : {}),
-        options: {
-            ...generatorOptions,
-            provider: selection.provider,
-            modelId: selection.modelId,
-            modelKey: selection.modelKey,
-        },
+        options: providerOptions,
     })
 }
 
@@ -131,6 +139,7 @@ export async function generateImage(
             userId,
             latencyMs: Date.now() - startedAt,
             units: result.imageUrls?.length || (result.success ? 1 : 0),
+            metadata: options?.resolution ? { resolution: options.resolution } : undefined,
             errorCode: result.success ? null : 'GENERATION_FAILED',
         })
         return result
@@ -182,18 +191,27 @@ async function generateVideoInternal(
     }
 ): Promise<GenerateResult> {
     const selection = await resolveModelSelection(userId, modelKey, 'video')
-    assertMediaProviderSelection(selection, MEDIA_PROVIDER_ID)
+    assertMediaProviderSelection(selection, VIDEO_PROVIDER_IDS)
     _ulogInfo(`[generateVideo] resolved model selection: ${selection.modelKey}`)
+    const providerOptions = {
+        ...(options || {}),
+        provider: selection.provider,
+        modelId: selection.modelId,
+        modelKey: selection.modelKey,
+    }
+    if (getProviderKey(selection.provider).toLowerCase() === 'huimengi') {
+        return await generateHuimengiVideo({
+            userId,
+            imageUrl,
+            prompt: options?.prompt,
+            options: providerOptions,
+        })
+    }
     return await generateKuaiziVideo({
         userId,
         imageUrl,
         prompt: options?.prompt,
-        options: {
-            ...(options || {}),
-            provider: selection.provider,
-            modelId: selection.modelId,
-            modelKey: selection.modelKey,
-        },
+        options: providerOptions,
     })
 }
 
@@ -284,7 +302,7 @@ export async function generateAudio(
     const parsed = parseModelKeyStrict(runtimeModelKey)
     try {
         const selection = await resolveModelSelection(userId, modelKey, 'audio')
-        assertMediaProviderSelection(selection, MEDIA_PROVIDER_ID)
+        assertMediaProviderSelection(selection, AUDIO_PROVIDER_IDS)
         const result = await generateKuaiziAudio({
             userId,
             text,

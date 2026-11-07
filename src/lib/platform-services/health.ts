@@ -45,6 +45,11 @@ function kuaiziHealthUrl(baseUrl?: string): string {
     : `${normalized}${prefix}/api/v3/contents/generations/tasks`
 }
 
+function huimengiHealthUrl(baseUrl?: string): string {
+  const normalized = (compact(baseUrl) || 'https://api.huimengi.com').replace(/\/+$/, '')
+  return `${normalized}/api/v1/user/balance`
+}
+
 async function persistHealth(input: {
   targetType: ServiceHealthTargetType
   targetId: string
@@ -76,6 +81,8 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
   const startedAt = Date.now()
   const providerKey = getRawProviderKey(provider.id).toLowerCase()
   const isOpenLux = providerKey === 'openlux'
+  const isHuimengi = providerKey === 'huimengi'
+  const isImageProvider = isOpenLux || isHuimengi
   if (!isUsableServiceSecret(provider.apiKey)) {
     const message = 'API Key 未配置或仍是占位值，请填写真实密钥后重试'
     await persistHealth({
@@ -88,7 +95,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isOpenLux ? 'image' : 'llm',
+      serviceType: isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,
@@ -100,10 +107,15 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
   }
   try {
     const isKuaizi = providerKey === 'kuaizi'
-    // OpenLux is probed with the read-only GET /models endpoint. Image
-    // generation is synchronous and billable, so it must never be used here.
+    // OpenLux is probed with the read-only GET /models endpoint. HuiMeng is
+    // probed with the read-only GET /user/balance endpoint, which validates the
+    // Bearer key without creating a billable task.
     const response = await fetch(
-      isKuaizi ? kuaiziHealthUrl(provider.baseUrl) : providerModelsUrl(provider.id, provider.baseUrl),
+      isKuaizi
+        ? kuaiziHealthUrl(provider.baseUrl)
+        : isHuimengi
+          ? huimengiHealthUrl(provider.baseUrl)
+          : providerModelsUrl(provider.id, provider.baseUrl),
       isKuaizi
         ? {
           method: 'POST',
@@ -156,12 +168,12 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
         httpStatus: response.status,
         modelCount,
         ...(isKuaizi ? { validationCode: kuaiziCode || null } : {}),
-        ...(isOpenLux ? { probe: 'models' } : {}),
+        ...(isOpenLux ? { probe: 'models' } : isHuimengi ? { probe: 'balance' } : {}),
       },
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isOpenLux ? 'image' : 'llm',
+      serviceType: isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: healthy ? 'success' : 'failed',
       userId: checkedBy,
@@ -176,7 +188,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     await persistHealth({ targetType: 'provider', targetId: provider.id, status: 'unhealthy', latencyMs, message, checkedBy })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isOpenLux ? 'image' : 'llm',
+      serviceType: isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,

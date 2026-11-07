@@ -466,6 +466,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     maxSelected: number
   } | null>(null)
   const [generatorReferenceInjection, setGeneratorReferenceInjection] = useState<{ nodeId: string; ids: string[] }>({ nodeId: '', ids: [] })
+  const pendingMentionGeneratorRef = useRef<string | null>(null)
   const [generatorPanelWidth, setGeneratorPanelWidth] = useState(CANVAS_GENERATOR_PANEL_WIDTH_DEFAULT)
   const [canvasSurfaceSize, setCanvasSurfaceSize] = useState({ width: 1280, height: 800 })
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null)
@@ -2455,9 +2456,19 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       }
     }
     const removed = new Set(changes.filter((change) => change.type === 'remove').map((change) => change.id))
+    const selected = changes.flatMap((change) => change.type === 'select' && change.selected ? [change.id] : [])
+    const pendingReference = pendingMentionGeneratorRef.current
+      && selected.length === 1
+      && selected[0] !== pendingMentionGeneratorRef.current
+      ? pendingMentionGeneratorRef.current
+      : null
+    if (pendingReference) pendingMentionGeneratorRef.current = null
     setNodes((current) => {
       const next = applyNodeChanges(changes, current)
-      return removed.size ? removeDeletedCanvasReferences(next, removed) : next
+      const restored = pendingReference
+        ? next.map((node) => ({ ...node, selected: node.id === pendingReference }))
+        : next
+      return removed.size ? removeDeletedCanvasReferences(restored, removed) : restored
     })
     const hasPersistentChange = changes.some((change) => (
       change.type === 'position'
@@ -3019,6 +3030,47 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setToast(`已引用 ${createdIds.length} 个素材${skipped > 0 ? `，${skipped} 个重复、不兼容或超出模型上限的素材未添加` : ''}`)
   }, [centerPosition, ensureNodeCapacity, generatorReferencePicker, insertMaterials, markChanged])
 
+  const selectGeneratorMentionMaterial = useCallback((nodeId: string, material: FrameosMaterialItem): string | null => {
+    if (writeLocked || !material.url) return null
+    const target = nodesRef.current.find((node) => node.id === nodeId)
+    if (!target) return null
+    let source = nodesRef.current.find((node) => node.id !== nodeId && node.data.materialId === material.id) || null
+    if (!source) {
+      pendingMentionGeneratorRef.current = nodeId
+      const created = insertMaterials([{
+        material,
+        position: { x: target.position.x - 420, y: target.position.y + 40 },
+      }])[0]
+      if (!created) {
+        pendingMentionGeneratorRef.current = null
+        return null
+      }
+      source = created
+      nodesRef.current = [...nodesRef.current, created]
+    }
+    const result = planCanvasBatchConnections({
+      nodes: nodesRef.current,
+      edges: edgesRef.current,
+      sourceNodeIds: [source.id],
+      targetNodeId: nodeId,
+      maxEdges: CANVAS_EDGE_HARD_LIMIT,
+    })
+    const alreadyReferenced = target.data.generation?.referenceNodeIds?.includes(source.id) || false
+    if (result.added === 0 && !alreadyReferenced) {
+      pendingMentionGeneratorRef.current = null
+      return null
+    }
+    record('引用个人素材库素材')
+    nodesRef.current = result.nodes.map((node) => ({ ...node, selected: node.id === nodeId }))
+    edgesRef.current = result.edges
+    setNodes(nodesRef.current)
+    setEdges(result.edges)
+    setGeneratorReferenceInjection({ nodeId, ids: [source.id] })
+    markChanged('引用个人素材库素材')
+    setToast(alreadyReferenced ? '已引用素材，原有连线保持不变' : '已引用素材并自动连接')
+    return source.id
+  }, [insertMaterials, markChanged, record, writeLocked])
+
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {
     const dropped = materials.filter((material) => ['image', 'video', 'audio', 'model3d'].includes(material.type))
     if (dropped.length === 0) {
@@ -3482,6 +3534,18 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       // Escape always dismisses canvas chrome, including when a search field in
       // the project-assets surface owns focus. Other input shortcuts stay local.
       if (event.key === 'Escape') {
+        if (event.defaultPrevented) {
+          const generatorId = nodesRef.current.find((node) => (
+            node.selected
+            && !node.type?.startsWith('production_')
+            && !['group', 'studio_3d', 'playlist', 'video_edit'].includes(node.type || '')
+            && !isStoryNodeType(node.type)
+          ))?.id
+          if (generatorId) {
+            setNodes((current) => current.map((node) => ({ ...node, selected: node.id === generatorId })))
+          }
+          return
+        }
         const batchPointer = batchConnectPointerRef.current
         batchConnectPointerRef.current = null
         setBatchDropTargetId(null)
@@ -4030,7 +4094,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               event.stopPropagation()
             }}>拖拽批量连接</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} /> : null}
+        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} /> : null}
         {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}

@@ -32,6 +32,7 @@ function stubPlatformEnv() {
   vi.stubEnv('DEEPSEEK_API_KEY', '')
   vi.stubEnv('OPENLUX_API_KEY', '')
   vi.stubEnv('KUAIZI_API_KEY', '')
+  vi.stubEnv('HUIMENGI_API_KEY', '')
   vi.stubEnv('ARK_API_KEY', 'must-not-return')
   vi.stubEnv('HFSY_API_KEY', 'must-not-return')
 }
@@ -42,18 +43,19 @@ describe('platform service config', () => {
     resetServiceConfigCache()
   })
 
-  it('publishes only DeepSeek, OpenLux and Kuaizi, removes retired fallbacks and masks secrets', () => {
+  it('publishes only DeepSeek, OpenLux, Kuaizi and HuiMeng, removes retired fallbacks and masks secrets', () => {
     const filePath = fixturePath()
     vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
     stubPlatformEnv()
     resetServiceConfigCache()
 
     const config = getPlatformServiceConfigResponse()
-    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi'])
+    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi'])
     expect(config.providers.every((provider) => !('apiKey' in provider))).toBe(true)
     expect(config.providers[0].hasApiKey).toBe(true)
     expect(config.providers[1].hasApiKey).toBe(false)
     expect(config.providers[2].hasApiKey).toBe(false)
+    expect(config.providers[3].hasApiKey).toBe(false)
     expect(config.models.some((model) => ['ark', 'hfsy', 'ghc'].includes(model.provider))).toBe(false)
     expect(config.models[0]).toMatchObject({ modelId: 'deepseek-chat', name: 'DeepSeek Chat', modelKey: 'deepseek::deepseek-chat', provider: 'deepseek', type: 'llm', llmProtocol: 'chat-completions' })
     expect(config.models.some((model) => model.provider === 'kuaizi' && model.type === 'llm')).toBe(false)
@@ -101,10 +103,11 @@ describe('platform service config', () => {
     })
 
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi'])
+    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi'])
     expect(raw.llm.providers[0].apiKey).toBe('deepseek-key-old')
     expect(raw.llm.providers[1].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].apiKey).toBe('kuaizi-key-for-test')
+    expect(raw.llm.providers[3].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].assetGroupId).toBe('184860178674352156')
     expect(raw.llm.models.some((model: { modelId: string }) => model.modelId === 'injected')).toBe(false)
     expect(raw.llm.modelRouting['nori::nori-gpt']).toBe('deepseek::deepseek-reasoner')

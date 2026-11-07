@@ -14,10 +14,10 @@ import {
 import { resetStorageProvider } from '@/lib/storage'
 import { composeModelKey, parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provider-contract'
+import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxCatalogModels } from '@/lib/providers/openlux/catalog'
 import {
-  findNoriBusinessModel,
   listNoriBusinessModels,
   type NoriBusinessModelKey,
   type NoriModelTier,
@@ -37,12 +37,14 @@ const PROVIDER_BASE_URLS = {
   deepseek: 'https://api.deepseek.com/v1',
   openlux: 'https://api.openlux.ai/v1',
   kuaizi: 'https://aiopenapi.kuaizi.cn',
+  huimengi: 'https://api.huimengi.com',
 } as const
-const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi'] as const
+const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi'] as const
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   deepseek: 'DeepSeek 官方',
   openlux: 'OpenLux API',
   kuaizi: 'Kuaizi API',
+  huimengi: '绘梦工坊 API',
 }
 
 type JsonRecord = Record<string, unknown>
@@ -132,6 +134,7 @@ function environmentProviderKey(providerId: string): string {
   if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
   if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
+  if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
   return ''
 }
 
@@ -156,6 +159,13 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
         provider: 'kuaizi',
         modelKey: `kuaizi::${model.modelId}`,
       })),
+    ...listHuimengiCatalogModels().map((model): ServiceConfigModel => ({
+      modelId: model.modelId,
+      name: model.name,
+      type: model.modality,
+      provider: 'huimengi',
+      modelKey: `huimengi::${model.modelId}`,
+    })),
   ]
 }
 
@@ -294,6 +304,12 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
   if (!isRecord(input)) throw new Error('SERVICE_CONFIG_INVALID: payload')
   const current = readMaterializedPlatformServiceConfig()
   const rawProviders = Array.isArray(input.providers) ? input.providers : []
+  for (const provider of rawProviders) {
+    const id = isRecord(provider) ? string(provider.id).toLowerCase() : ''
+    if (id && !PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number])) {
+      throw new Error(`SERVICE_CONFIG_INVALID: unsupported provider ${id}`)
+    }
+  }
   if (rawProviders.length !== PLATFORM_PROVIDER_IDS.length) {
     throw new Error('SERVICE_CONFIG_INVALID: providers')
   }
@@ -304,7 +320,7 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     providerIds.size !== providers.length
     || !PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux and Kuaizi are required')
+    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux, Kuaizi and HuiMeng are required')
   }
 
   const models = fixedPlatformModels()

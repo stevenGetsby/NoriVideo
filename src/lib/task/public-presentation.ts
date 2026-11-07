@@ -17,6 +17,15 @@ export function publicGenerationTaskId(externalId: unknown): string | null {
     ) return null
     return text(parts.slice(4).join(':'))
   }
+  if (value.startsWith('HUIMENGI:')) {
+    const parts = value.split(':')
+    const type = parts[1]
+    if (
+      (type !== 'VIDEO' && type !== 'IMAGE')
+      || !parts[2]?.trim() || !parts[3]?.trim()
+    ) return null
+    return text(parts.slice(4).join(':'))
+  }
   if (/^[A-Z][A-Z0-9_]*:/.test(value)) return null
   return value
 }

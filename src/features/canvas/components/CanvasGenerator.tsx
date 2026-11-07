@@ -37,6 +37,8 @@ import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
+import { fetchAllFrameosMaterials } from '@/components/frameos/materials/fetch-all-materials'
+import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import {
   CANVAS_IMAGE_ASPECT_RATIOS,
   CANVAS_IMAGE_QUALITIES,
@@ -77,9 +79,12 @@ import {
 } from '../generator-panel-width'
 import type { CanvasFlowNode } from '../editor-types'
 import {
+  buildCanvasLibraryMentionAssets,
   buildCanvasMentionAssets,
+  canvasMentionCategoryLabel,
   mergeCanvasReferenceNodeIds,
   shouldBindCanvasMentionReference,
+  type CanvasMentionAsset,
   type CanvasMentionMediaType,
 } from './canvas-mention-references'
 
@@ -325,6 +330,7 @@ export function CanvasGenerator({
   onClose,
   onFocus,
   onAddReferences,
+  onSelectLibraryMaterial,
   injectedReferenceNodeIds,
   anchor,
   panelWidth,
@@ -340,6 +346,7 @@ export function CanvasGenerator({
   onClose: () => void
   onFocus: () => void
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
+  onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
   anchor?: CanvasGeneratorAnchor | null
   panelWidth: number
@@ -357,7 +364,6 @@ export function CanvasGenerator({
       : type === 'image'
         ? incomingNodes.filter((item) => mediaTypeForReference(item) === 'image')
         : incomingNodes.filter((item) => mediaTypeForReference(item) !== null)
-  const incomingSignature = compatibleIncomingNodes.map((item) => item.id).join('|')
   const nodeReferenceSignature = (node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id)).join('|')
   const mentionAllowedTypes: readonly CanvasMentionMediaType[] = type === 'video'
     ? inputMode === 'text' ? VIDEO_MENTION_TYPES : IMAGE_MENTION_TYPES
@@ -366,12 +372,56 @@ export function CanvasGenerator({
       : type === 'audio'
         ? AUDIO_MENTION_TYPES
         : NO_MENTION_TYPES
-  const mentionAssets = useMemo(() => buildCanvasMentionAssets(
-    referenceNodes,
-    node.id,
-    mentionAllowedTypes,
-    new Set(incomingNodes.map((item) => item.id)),
-  ), [incomingNodes, mentionAllowedTypes, node.id, referenceNodes])
+  const [libraryMaterials, setLibraryMaterials] = useState<CanvasMentionAsset[]>([])
+  const [libraryLoading, setLibraryLoading] = useState(false)
+  const libraryLoadedRef = useRef(false)
+  const libraryRequestRef = useRef<AbortController | null>(null)
+  const mentionSignature = mentionAllowedTypes.join('|')
+  const mentionAssets = useMemo(() => [
+    ...buildCanvasMentionAssets(
+      referenceNodes,
+      node.id,
+      mentionAllowedTypes,
+      new Set(incomingNodes.map((item) => item.id)),
+    ),
+    ...libraryMaterials,
+  ], [incomingNodes, libraryMaterials, mentionAllowedTypes, node.id, referenceNodes])
+  const mentionGroups = useMemo(() => [
+    { id: 'favorites', label: '收藏' },
+    ...(['character', 'location', 'prop', 'shot', 'other'] as const).map((category) => ({
+      id: category,
+      label: canvasMentionCategoryLabel(category),
+    })),
+  ], [])
+  const loadMentionLibrary = () => {
+    if (libraryLoadedRef.current) return
+    libraryLoadedRef.current = true
+    const controller = new AbortController()
+    libraryRequestRef.current?.abort()
+    libraryRequestRef.current = controller
+    setLibraryLoading(true)
+    const query = new URLSearchParams({ projectId, available: '1', limit: '500' })
+    void fetchAllFrameosMaterials(query, controller.signal).then((materials) => {
+      if (controller.signal.aborted) return
+      setLibraryMaterials(buildCanvasLibraryMentionAssets(materials, mentionAllowedTypes))
+    }).catch((loadError: unknown) => {
+      if (controller.signal.aborted) return
+      libraryLoadedRef.current = false
+      setError(loadError instanceof Error ? loadError.message : '加载个人素材库失败')
+    }).finally(() => {
+      if (!controller.signal.aborted) setLibraryLoading(false)
+    })
+  }
+  useEffect(() => {
+    libraryRequestRef.current?.abort()
+    libraryRequestRef.current = null
+    libraryLoadedRef.current = false
+    setLibraryMaterials([])
+    setLibraryLoading(false)
+    // Reload a material list only when the active generator's accepted media changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [node.id, projectId, mentionSignature])
+  useEffect(() => () => libraryRequestRef.current?.abort(), [])
   const [config, setConfig] = useState<GenerationConfig | null>(null)
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([])
   const [loadingConfig, setLoadingConfig] = useState(true)
@@ -411,7 +461,7 @@ export function CanvasGenerator({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const onDraftChangeRef = useRef(onDraftChange)
-  const hydratedInputRef = useRef(`${node.id}|${incomingSignature}`)
+  const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
   const lastDraftSignatureRef = useRef('')
   const panelResizeCleanupRef = useRef<(() => void) | null>(null)
@@ -477,7 +527,7 @@ export function CanvasGenerator({
 
   useEffect(() => {
     const exitNodeEditor = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
+      if (event.key !== 'Escape' || event.defaultPrevented) return
       event.preventDefault()
       event.stopPropagation()
       closeEditorRef.current()
@@ -496,12 +546,10 @@ export function CanvasGenerator({
   }, [isPanorama])
 
   useEffect(() => {
-    const hydrationKey = `${node.id}|${incomingSignature}`
-    if (hydratedInputRef.current !== hydrationKey) {
-      hydratedInputRef.current = hydrationKey
-      skipDraftPersistenceRef.current = true
-      lastDraftSignatureRef.current = ''
-    }
+    if (hydratedInputRef.current === node.id) return
+    hydratedInputRef.current = node.id
+    skipDraftPersistenceRef.current = true
+    lastDraftSignatureRef.current = ''
     setPrompt(node.data.prompt || '')
     setModelKey(node.data.generation?.modelKey || '')
     setAspectRatio(isPanorama
@@ -525,10 +573,10 @@ export function CanvasGenerator({
     const nextModel3dPose = node.data.generation?.parameters?.pose
     setModel3dPose(nextModel3dPose === 'a_pose' || nextModel3dPose === 't_pose' ? nextModel3dPose : 'none')
     setError(null)
-    // Only rehydrate when switching nodes or changing the connected inputs.
-    // Parent draft writes for the active node must not reset in-progress fields.
+    // Rehydrate fields only when switching nodes. Reference ids have a separate
+    // sync effect so adding or removing wires cannot overwrite an in-progress draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [incomingSignature, node.id])
+  }, [node.id])
 
   useEffect(() => {
     // Bulk drops and undo/redo may change references without changing the
@@ -820,14 +868,23 @@ export function CanvasGenerator({
   }
 
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
+    const mentionAsset = asset as CanvasMentionAsset
+    let nodeId = asset.id
+    if (mentionAsset.section === 'library' && mentionAsset.material) {
+      nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
+      if (!nodeId) {
+        setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
+        return false
+      }
+    }
     if (!shouldBindCanvasMentionReference(type)) {
       setError(null)
       setPrompt(nextPrompt)
       return
     }
-    const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, asset.id)
+    const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, nodeId)
     const errors = referenceErrors(nextReferenceNodeIds, false)
-    if (errors.length > 0) { setError(errors[0]); return }
+    if (errors.length > 0) { setError(errors[0]); return false }
     setError(null)
     setPrompt(nextPrompt)
     setReferenceNodeIds(nextReferenceNodeIds)
@@ -1109,8 +1166,11 @@ export function CanvasGenerator({
             assets={mentionAssets}
             onChange={setPrompt}
             onSelectAsset={selectMentionAsset}
+            onMentionOpen={loadMentionLibrary}
+            groups={mentionGroups}
+            loading={libraryLoading}
             onBlur={() => persistDraft()}
-            menuLabel="选择连线输入或资产库素材"
+            menuLabel="@ 素材"
             hint={type === 'video'
               ? inputMode === 'text'
                 ? '输入 @ 可引用连线输入或资产库中的图片、视频或音频；蓝色素材名会与实体引用一并保存。'
