@@ -910,6 +910,12 @@ try {
       await page.waitForFunction(() => !document.querySelector('.nori-canvas-generate-button')?.disabled, { timeout: 5000 })
     }
     assert.equal(await generator.locator('.nori-canvas-generator-refs-label').evaluate((el) => getComputedStyle(el).writingMode), 'horizontal-tb')
+    const ref = generator.locator('.nori-canvas-generator-ref').first()
+    const refLabel = ref.locator(':scope > span').last()
+    const refImage = ref.locator('img, video, :scope > svg').first()
+    const [refLabelBox, refImageBox] = await Promise.all([refLabel.boundingBox(), refImage.boundingBox()])
+    assert.ok(refLabelBox.y >= refImageBox.y + refImageBox.height, 'Reference names sit below their thumbnails, not over the image')
+    assert.ok(parseFloat(await refLabel.evaluate((el) => getComputedStyle(el).fontSize)) >= 11, 'Reference names remain readable')
     const footer = await generator.locator('.nori-canvas-generator-controls').boundingBox()
     const viewControls = await page.locator('.nori-canvas-viewport-controls').boundingBox()
     assert.ok(footer.y + footer.height <= viewControls.y, 'The canvas view bar must not cover the generator footer')
@@ -919,6 +925,11 @@ try {
     await sound.uncheck()
     assert.equal(await sound.isChecked(), false, 'An explicit sound preference must not be reset')
     await sound.check()
+    await page.waitForFunction(() => {
+      const footer = document.querySelector('.nori-canvas-generator-controls')?.getBoundingClientRect()
+      const controls = document.querySelector('.nori-canvas-viewport-controls')?.getBoundingClientRect()
+      return footer && controls && footer.bottom <= controls.top
+    })
     await page.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-editor.png`) })
     await generator.getByRole('button', { name: '生成参数', exact: true }).click()
     const parameters = page.getByRole('dialog', { name: '生成参数设置' })
@@ -995,7 +1006,15 @@ try {
     await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').click()
     await generator.waitFor()
     const video = page.locator('.react-flow__node[data-id="gen-1"] video').first()
-    await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="gen-1"] video')?.readyState >= 2)
+    await video.evaluate((element) => element.load())
+    try {
+      await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="gen-1"] video')?.readyState >= 2, undefined, { timeout: 10000 })
+    } catch (error) {
+      const retry = page.getByRole('button', { name: '重新加载', exact: true })
+      if (!await retry.count()) throw error
+      await retry.click()
+      await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="gen-1"] video')?.readyState >= 2)
+    }
     assert.ok((await video.getAttribute('src')).includes('playback=1'))
     assert.equal(await video.getAttribute('poster'), null, 'The video URL must not be used as its own poster')
     await video.evaluate((el) => el.play())
@@ -1040,10 +1059,20 @@ try {
     assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Releasing a Space pan must not leave a marquee')
 
     const selectionBefore = await page.locator('.react-flow__node.selected').count()
-    await page.mouse.move(pane.x + pane.width - 160, pane.y + 120)
+    const marqueeStart = await page.locator('.react-flow__pane').evaluate((element) => {
+      const bounds = element.getBoundingClientRect()
+      const candidates = [[bounds.right - 140, bounds.bottom - 120], [bounds.right - 260, bounds.top + 130], [bounds.left + 90, bounds.bottom - 80]]
+      for (const [x, y] of candidates) {
+        const hit = document.elementFromPoint(x, y)
+        if (hit?.closest('.react-flow__pane') === element && !hit.closest('.react-flow__node, .react-flow__edge, .react-flow__edgelabel-renderer, .react-flow__handle, .react-flow__minimap, .react-flow__controls, .react-flow__selection, .react-flow__nodesselection, .nori-canvas-chrome')) return { x, y }
+      }
+      return null
+    })
+    assert.ok(marqueeStart, 'The marquee test must start on genuinely empty canvas')
+    await page.mouse.move(marqueeStart.x, marqueeStart.y)
     await page.mouse.down()
-    await page.mouse.move(pane.x + pane.width - 60, pane.y + 200, { steps: 5 })
-    assert.equal(await page.locator('.nori-canvas-marquee').count(), 1, 'An ordinary left drag must retain custom marquee selection')
+    await page.mouse.move(marqueeStart.x - 100, marqueeStart.y - 80, { steps: 5 })
+    await page.locator('.nori-canvas-marquee').waitFor()
     await page.mouse.up()
     assert.equal(await page.locator('.nori-canvas-marquee').count(), 0)
     assert.equal(await page.locator('.react-flow__node.selected').count(), selectionBefore, 'An empty marquee must preserve existing selections')

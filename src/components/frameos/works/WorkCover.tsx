@@ -1,6 +1,7 @@
 import Image from 'next/image'
 import type { CSSProperties } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import { BRAND_ASSETS } from '@/lib/brand'
 import { generativeCoverStyle } from '@/lib/ui/generative-cover'
 import { projectAspectRatio } from './project-metadata'
 import type { WorkProject } from './types'
@@ -24,14 +25,19 @@ export function WorkCover({
       aria-hidden="true"
     >
       {imageUrl ? <Image className="work-cover-image works-project-cover-image" src={imageUrl} alt="" fill unoptimized sizes="320px" /> : (
-        <span className="work-cover-editor">
-          <span className="work-cover-editor-head"><i /><i /><i /><b>STORYBOARD</b><AppIcon name="film" /></span>
-          <span className="work-cover-editor-body">
-            <span className="work-cover-shot"><i /><i /><i /><b /></span>
-            <span className="work-cover-shot"><i /><i /><b /></span>
-            <span className="work-cover-shot"><i /><i /><i /><b /></span>
+        <span className="work-cover-art">
+          <span className="work-cover-orbit" />
+          <span className="work-cover-brand">
+            <Image src={BRAND_ASSETS.mark} alt="" width={38} height={32} unoptimized />
+            <span>Lanmiao<b>TV</b></span>
           </span>
-          <span className="work-cover-timeline"><b>01</b><i><em /><em /><em /><em /><em /></i><b>02</b></span>
+          <span className="work-cover-scene">
+            <span className="work-cover-scene-number">01</span>
+            <span className="work-cover-scene-visual"><i /><i /><b /></span>
+            <span className="work-cover-scene-lines"><i /><i /></span>
+          </span>
+          <span className="work-cover-track"><i /><i /><i /><i /><i /><i /><i /></span>
+          <span className="work-cover-caption"><AppIcon name="sparkles" />让故事发生</span>
         </span>
       )}
       <span className="work-cover-specs">

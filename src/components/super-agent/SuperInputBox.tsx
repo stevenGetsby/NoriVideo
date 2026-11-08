@@ -517,7 +517,7 @@ export function SuperInputBox({
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(17,17,17,.08)] bg-white/84 px-3 py-2 shadow-[0_1px_2px_rgba(17,17,17,.035),0_1px_5px_rgba(17,17,17,.025)]">
               <NoriBrandMark size={24} />
-              <span className="text-sm font-bold text-[#111111]">Nori Agent</span>
+              <span className="text-sm font-bold text-[#111111]">LanmiaoTV Agent</span>
             </div>
             <span className="rounded-full bg-[#EFEFFD] px-3 py-1 text-xs font-semibold text-[#4B4DED]">
               Workflow
@@ -1008,7 +1008,7 @@ function SuperExecutingPanel({
                 )}
               </div>
               <p className="truncate text-sm font-medium" style={{ color: '#828282' }}>
-                Nori 会先锁定资产，再生成视频提示词，并用资产参考图直出单镜视频。
+                LanmiaoTV 会先锁定资产，再生成视频提示词，并用资产参考图直出单镜视频。
               </p>
             </div>
           </div>

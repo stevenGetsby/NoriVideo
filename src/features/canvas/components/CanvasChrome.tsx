@@ -148,13 +148,6 @@ export function CanvasChrome({
 
   return (
     <div className={`nori-canvas-chrome${sidebarStateClass}`} ref={rootRef}>
-      <Link
-        href={parentLink}
-        className="nori-canvas-parent-back"
-        aria-label={`返回项目：${activeWorkName}`}
-        title={`返回项目：${activeWorkName}`}
-        data-testid="canvas-parent-back"
-      ><AppIcon name="chevronLeft" /></Link>
       {canvasShell.enabled && canvasShell.sidebarCollapsed ? (
         <button
           type="button"
@@ -168,6 +161,13 @@ export function CanvasChrome({
         </button>
       ) : null}
       <div className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`}>
+        <Link
+          href={{ pathname: '/projects' }}
+          className="nori-canvas-parent-back"
+          aria-label="返回我的项目"
+          title="返回我的项目"
+          data-testid="canvas-parent-back"
+        ><AppIcon name="chevronLeft" /></Link>
         {canvasShell.enabled && !canvasShell.sidebarCollapsed ? (
             <button
               type="button"

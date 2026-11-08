@@ -11,7 +11,7 @@ describe('FrameOS-compatible project creation', () => {
     const dialog = readSource('src/components/frameos/CreateProjectDialog.tsx')
     const variants = readSource('src/components/frameos/works/create-project-variants.ts')
 
-    expect(dialog).toContain('<strong>Nori1.0</strong>')
+    expect(dialog).toContain('<strong>LanmiaoTV 1.0</strong>')
     expect(dialog).not.toContain('精品版 2.0')
     expect(dialog).not.toContain('<strong>精品版</strong>')
     expect(dialog).toContain("{ value: 'anime-3d', label: '3D 动漫' }")

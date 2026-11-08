@@ -132,7 +132,7 @@ export function buildUnifiedArtStylePrompt(input: {
   const reference = input.referenceArtStylePrompt?.trim() || null
   const custom = input.customArtStylePrompt?.trim() || null
   return [
-    custom ? null : `【Nori1.0 项目基础画风】\n${base}`,
+    custom ? null : `【LanmiaoTV 1.0 项目基础画风】\n${base}`,
     reference ? `【画风参考解析】\n${reference}` : null,
     custom ? `【用户自定义画风（最高优先级）】\n${custom}` : null,
     custom
@@ -373,7 +373,7 @@ export function buildProjectDescription(
   explicitDescription: string | null,
 ): string {
   const levelLabel = config.projectLevel === 'Nori1.0'
-    ? 'Nori1.0'
+    ? 'LanmiaoTV 1.0'
     : config.projectLevel === 'premium2'
       ? '精品版 2.0（历史）'
       : '精品版（历史）'

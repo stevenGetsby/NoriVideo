@@ -5,7 +5,7 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { useFosCanvasShell } from '@/components/frameos/FosCanvasShellContext'
 import type { CanvasProjectOption } from '../types'
-import { projectHref } from '@/lib/projects/navigation'
+import { projectHref, projectLinkProps } from '@/lib/projects/navigation'
 import { CanvasToolRail, CanvasViewportControls } from './CanvasToolRail'
 
 const NOOP = () => undefined
@@ -36,7 +36,11 @@ export function EmptyCanvasChrome({
   const activeProject = projectOptions?.find((project) => project.id === projectId) || null
   const activeWorkId = parentProjectId || activeProject?.workId || null
   const activeWorkName = parentProjectName || activeProject?.workName || (activeWorkId ? '未命名项目' : '未归属项目')
-  const parentHref = parentProjectHref || (activeWorkId ? projectHref(activeWorkId) : '/projects')
+  const parentLink = parentProjectHref
+    ? { pathname: parentProjectHref }
+    : activeWorkId
+      ? projectLinkProps(activeWorkId)
+      : { pathname: '/projects' }
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = useMemo(() => Array.from(new Map((projectOptions || []).flatMap((project) => (
     project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
@@ -89,13 +93,6 @@ export function EmptyCanvasChrome({
 
   return (
     <div className={`nori-canvas-chrome nori-canvas-empty-chrome${sidebarStateClass}`} ref={rootRef}>
-      <Link
-        href={{ pathname: parentHref }}
-        className="nori-canvas-parent-back"
-        aria-label={`返回项目：${activeWorkName}`}
-        title={`返回项目：${activeWorkName}`}
-        data-testid="empty-canvas-parent-back"
-      ><AppIcon name="chevronLeft" /></Link>
       {canvasShell.enabled && canvasShell.sidebarCollapsed ? (
         <button
           type="button"
@@ -109,6 +106,13 @@ export function EmptyCanvasChrome({
         </button>
       ) : null}
       <div className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`} aria-label="画布层级">
+        <Link
+          href={{ pathname: '/projects' }}
+          className="nori-canvas-parent-back"
+          aria-label="返回我的项目"
+          title="返回我的项目"
+          data-testid="empty-canvas-parent-back"
+        ><AppIcon name="chevronLeft" /></Link>
         {canvasShell.enabled && !canvasShell.sidebarCollapsed ? (
             <button
               type="button"
@@ -121,7 +125,7 @@ export function EmptyCanvasChrome({
               <AppIcon name="menu" />
             </button>
         ) : null}
-        <Link href={{ pathname: parentHref }} className="nori-canvas-work-link" title={`返回项目：${activeWorkName}`} data-testid="empty-canvas-work-link">{activeWorkName}</Link>
+        <Link href={parentLink} className="nori-canvas-work-link" title={`返回项目：${activeWorkName}`} data-testid="empty-canvas-work-link">{activeWorkName}</Link>
         <i>/</i>
         {hasGlobalHierarchy ? (
           <button

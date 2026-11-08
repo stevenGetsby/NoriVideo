@@ -6,7 +6,7 @@ import { FosProjectHeader } from '@/components/frameos/FosProjectHeader'
 import { FosCanvasHubClient } from '@/components/frameos/FosCanvasHubClient'
 import { FosShell } from '@/components/frameos/FosShell'
 import { CanvasChrome } from '@/features/canvas/components/CanvasChrome'
-import { EmptyCanvasChrome } from '@/features/canvas/components/EmptyCanvasChrome'
+import { EmptyCanvasChrome, EmptyCanvasSurfaceControls } from '@/features/canvas/components/EmptyCanvasChrome'
 import type { Canvas } from '@/features/canvas/types'
 import '@/styles/frameos-replica.css'
 import '@/features/canvas/canvas.css'
@@ -37,6 +37,7 @@ createRoot(document.getElementById('root')!).render(
         onUndo={noop} onRedo={noop} onRetrySave={noop} onOpenRevisions={noop}
         syncingProduction={false} canSyncProduction={false} readOnly={false}
         onOpenProjectAssets={noop} onSyncProduction={noop} />}
+      <EmptyCanvasSurfaceControls />
     </div></FosShell> : view === 'header' ? <main className="fos-app">
       <FosProjectHeader projectId="leaf-a" projectName="作品 A" parentProjectId="parent-a" parentProjectName="项目甲" canDelete={!new URLSearchParams(location.search).has('session')} />
     </main> : <FosProjectsClient />}

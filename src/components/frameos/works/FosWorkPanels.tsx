@@ -57,7 +57,7 @@ function projectEdition(project: WorkProject) {
     || project.novelPromotionData?.projectLevelName?.trim()
   if (explicitName) return explicitName
   const level = projectBudgetLevel(project)
-  if (level === 'Nori1.0') return 'Nori1.0'
+  if (level === 'Nori1.0') return 'LanmiaoTV 1.0'
   if (level === 'premium2') return '精品版 2.0'
   if (level === 'premium' || level === 'professional') return '精品版'
   if (level === 'efficient') return '高效版'

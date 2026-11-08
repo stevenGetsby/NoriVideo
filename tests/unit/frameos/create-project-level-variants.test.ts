@@ -42,7 +42,7 @@ describe('Nori1.0 create-project contract', () => {
     const client = source('src/components/frameos/FosProjectsClient.tsx')
     const route = source('src/app/api/projects/route.ts')
 
-    expect(dialog).toContain('<strong>Nori1.0</strong>')
+    expect(dialog).toContain('<strong>LanmiaoTV 1.0</strong>')
     expect(dialog).not.toContain('精品版 2.0')
     expect(dialog).not.toContain('<strong>精品版</strong>')
     expect(dialog).toContain('data-testid="project-role-assignees"')

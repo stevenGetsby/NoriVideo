@@ -22,7 +22,7 @@ function hashSeed(seed: string): number {
 }
 
 export function generativeCoverStyle(seed: string): CSSProperties {
-  const hash = hashSeed(seed || 'nori')
+  const hash = hashSeed(seed || 'lanmiao')
   const [a, b, base] = COVER_PALETTES[hash % COVER_PALETTES.length]
   const pick = (shift: number, min: number, span: number) => min + ((hash >>> shift) % span)
   return {
@@ -39,7 +39,7 @@ export function generativeCoverStyle(seed: string): CSSProperties {
 
 export function coverMonogram(name: string): string {
   const trimmed = name.trim()
-  if (!trimmed) return 'N'
+  if (!trimmed) return 'L'
   const first = Array.from(trimmed)[0]
   return /[a-z]/i.test(first) ? first.toUpperCase() : first
 }

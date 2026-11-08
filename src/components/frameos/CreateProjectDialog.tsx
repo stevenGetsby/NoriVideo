@@ -504,7 +504,7 @@ export function CreateProjectDialog({
             <div className="create-project-level-grid is-single">
               <div className="create-project-level is-selected" data-testid="nori-project-level">
                 <span className="create-project-radio is-on" />
-                <strong>Nori1.0</strong>
+                <strong>LanmiaoTV 1.0</strong>
                 <span className="create-project-level-kicker">统一的短剧工业化生产工作流</span>
                 <ul>
                   <li>剧本、资产、分镜与视频使用同一作品配置</li>

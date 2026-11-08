@@ -10,7 +10,7 @@ import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { notifyProjectChanged } from '@/lib/projects/change-client'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { ConfirmActionDialog } from './works/FosWorksDialogs'
-import { projectHref, projectLinkProps } from '@/lib/projects/navigation'
+import { projectLinkProps } from '@/lib/projects/navigation'
 
 export function FosProjectHeader({
   projectId,
@@ -50,7 +50,7 @@ export function FosProjectHeader({
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '删除作品失败'))
       notifyProjectChanged(projectId)
       setAction(null)
-      router.push({ pathname: parentProjectId ? projectHref(parentProjectId) : '/projects' })
+      router.push(parentProjectId ? projectLinkProps(parentProjectId) : { pathname: '/projects' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '作品操作失败')
       throw cause
@@ -60,7 +60,7 @@ export function FosProjectHeader({
     <>
     <div className="fos-stage-header">
       <Link
-        href={backTo ?? (parentProjectId ? projectHref(parentProjectId) : '/projects')}
+        href={backTo ?? (parentProjectId ? projectLinkProps(parentProjectId) : { pathname: '/projects' })}
         className="fos-back-btn"
         aria-label={backLabel || '返回上一级'}
         title={backLabel || '返回上一级'}
