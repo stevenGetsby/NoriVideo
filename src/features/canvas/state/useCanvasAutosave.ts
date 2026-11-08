@@ -595,9 +595,14 @@ export function useCanvasAutosave({
     if (pausedRef.current) {
       throw new CanvasRevisionConflictError('画布存在尚未处理的本地版本或版本冲突，请先完成恢复选择。')
     }
-    if (dirtyRef.current) await flushRef.current()
-    const trailingSave = savingRef.current
-    if (trailingSave) await trailingSave
+    // A successful save can still leave the canvas dirty when an edit lands while it is in
+    // flight (a viewport animation settling, for one); persist that too instead of failing.
+    for (let pass = 0; pass < 3; pass += 1) {
+      if (dirtyRef.current) await flushRef.current()
+      const trailingSave = savingRef.current
+      if (trailingSave) await trailingSave
+      if (pausedRef.current || !dirtyRef.current || lastErrorRef.current) break
+    }
     if (pausedRef.current) {
       throw new CanvasRevisionConflictError('画布保存时发生版本冲突，请先处理冲突后再同步。')
     }

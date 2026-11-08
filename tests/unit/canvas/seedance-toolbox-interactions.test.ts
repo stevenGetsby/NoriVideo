@@ -36,16 +36,18 @@ describe('Seedance toolbox and canvas interaction surface', () => {
     expect(canvasRule).not.toMatch(/font-weight:\s*(600|700)/)
   })
 
-  it('shows mentioned unconnected references and persists hover enlargement preference', () => {
+  it('shows mentioned unconnected references as numbered tiles without hover enlargement', () => {
     const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
+    const canvasCss = source('src/features/canvas/canvas.css')
 
     expect(generator).toContain('referenceNodeIds.flatMap((id) => {')
     expect(generator).toContain('return [...visibleIncomingNodes, ...selected]')
-    expect(generator).toContain("window.localStorage.getItem('nori.canvas.auto-reference-preview')")
-    expect(generator).toContain("window.localStorage.setItem('nori.canvas.auto-reference-preview'")
-    expect(generator).toContain('nori-canvas-generator-ref-preview')
-    expect(generator).toContain('<video src={toPlayableVideoUrl(hoveredReferenceUrl) || hoveredReferenceUrl} muted autoPlay loop playsInline')
+    expect(generator).toContain('nori-canvas-generator-ref-order')
     expect(generator).toContain("type === 'video' && strict ? validateVideoReferenceMediaCombination")
+    for (const removed of ['auto-reference-preview', 'nori-canvas-generator-ref-preview', 'hoveredReference', '自动放大']) {
+      expect(generator).not.toContain(removed)
+      expect(canvasCss).not.toContain(removed)
+    }
   })
 
   it('derives toolbox reference limits from the active model input schema', () => {

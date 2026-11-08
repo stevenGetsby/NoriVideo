@@ -18,17 +18,19 @@ import {
   Focus,
   ImageIcon,
   LayoutGrid,
+  LoaderCircle,
   Maximize2,
   Minimize2,
   Music2,
   Plus,
-  Send,
   SlidersHorizontal,
   Sparkles,
   Type,
   Upload,
   X,
 } from '@/components/ui/icons'
+import { createIcon } from '@/components/ui/icons/ph/createIcon'
+import Zap from '@/components/ui/icons/ph/lightning'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
@@ -111,6 +113,8 @@ type ModelOption = {
   maxDurationSeconds?: number | null
   durationStepSeconds?: number | null
 }
+
+const ArrowUp = createIcon('ArrowUp', 'M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z')
 
 type VoiceOption = { value: string; label: string }
 type AudioMode = 'tts'
@@ -283,7 +287,7 @@ export function estimateTtsSeconds(prompt: string): number {
   return Math.max(1, Math.ceil((cjkCharacters / 4 + words / 2.6) * 1.15))
 }
 
-function ReferenceThumb({ node, selected, onToggle, onHover }: { node: CanvasFlowNode; selected: boolean; onToggle: () => void; onHover: (nodeId: string | null) => void }) {
+function ReferenceThumb({ node, selected, order, onToggle }: { node: CanvasFlowNode; selected: boolean; order: string | null; onToggle: () => void }) {
   const mediaType = mediaTypeForReference(node)
   const image = toDisplayImageUrl(mediaType === 'video'
     ? node.data.posterUrl || node.data.imageUrl || null
@@ -301,15 +305,15 @@ function ReferenceThumb({ node, selected, onToggle, onHover }: { node: CanvasFlo
   return (
     <button
       type="button"
-      className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}`}
-      title={`${title}${voiceHint}`}
+      className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}${image || video ? '' : ' is-icon'}`}
+      title={`${title}${voiceHint}${selected ? '' : ' · 点击加入本次引用'}`}
+      aria-pressed={selected}
       onClick={onToggle}
-      onPointerEnter={() => onHover(node.id)}
-      onPointerLeave={() => onHover(null)}
     >
-      {image ? <MediaImage src={image} alt="" width={52} height={52} /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
+      {image ? <MediaImage src={image} alt="" /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
+      {order ? <b className="nori-canvas-generator-ref-order">{order}</b> : null}
       {isCharacter ? <em className={`nori-canvas-generator-ref-voice${characterVoiceBound ? ' is-bound' : ' is-missing'}`}>{characterVoiceBound ? '音色' : '缺音色'}</em> : null}
-      <span>{title}</span>
+      <span className="nori-canvas-generator-ref-name">{title}</span>
     </button>
   )
 }
@@ -456,8 +460,6 @@ export function CanvasGenerator({
     return value === 'a_pose' || value === 't_pose' ? value : 'none'
   })
   const [fullscreen, setFullscreen] = useState(false)
-  const [autoReferencePreview, setAutoReferencePreview] = useState(true)
-  const [hoveredReferenceId, setHoveredReferenceId] = useState<string | null>(null)
   const [moreOpen, setMoreOpen] = useState(false)
   const parameterTriggerRef = useRef<HTMLButtonElement>(null)
   const [quote, setQuote] = useState<GenerationQuote | null>(null)
@@ -539,11 +541,6 @@ export function CanvasGenerator({
     }
     window.addEventListener('keydown', exitNodeEditor)
     return () => window.removeEventListener('keydown', exitNodeEditor)
-  }, [])
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem('nori.canvas.auto-reference-preview')
-    if (saved === '0' || saved === '1') setAutoReferencePreview(saved === '1')
   }, [])
 
   useEffect(() => {
@@ -724,6 +721,11 @@ export function CanvasGenerator({
     })
     return [...visibleIncomingNodes, ...selected]
   }, [inputMode, referenceNodeIds, referenceNodes, type, visibleIncomingNodes])
+  const referenceOrderLabels = useMemo(() => {
+    const ordered = referenceNodeIds.filter((id) => referenceNodes.some((item) => item.id === id))
+    const firstLast = type === 'video' && inputMode === 'firstlastframe'
+    return new Map(ordered.map((id, index) => [id, firstLast && index < 2 ? index === 0 ? '首' : '尾' : String(index + 1)]))
+  }, [inputMode, referenceNodeIds, referenceNodes, type])
   const characterVoiceSummary = useMemo(() => {
     if (type !== 'video') return null
     const characterRefs = displayedReferenceNodes.filter((item) => (
@@ -746,12 +748,6 @@ export function CanvasGenerator({
   const characterVoiceHintTone = characterVoiceSummary && inputMode === 'text' && generateAudio
     ? characterVoiceSummary.missing > 0 ? ' is-warning' : ''
     : ' is-muted'
-  const hoveredReference = autoReferencePreview && hoveredReferenceId
-    ? displayedReferenceNodes.find((item) => item.id === hoveredReferenceId) || null
-    : null
-  const hoveredReferenceUrl = hoveredReference
-    ? toDisplayImageUrl(hoveredReference.data.contentUrl || hoveredReference.data.imageUrl || hoveredReference.data.videoUrl || hoveredReference.data.posterUrl || null)
-    : null
 
   useEffect(() => {
     if (supportedResolutions.length > 0) {
@@ -1113,10 +1109,11 @@ export function CanvasGenerator({
   const superresolveParameterSummary = superresolveGenerationResolution
     ? `${resolutionLabel(superresolveGenerationResolution)} 生成 → ${resolutionLabel(superresolveTarget!)}`
     : '当前模型不支持'
+  const quotePoints = quote ? quote.points.toLocaleString('zh-CN', { maximumFractionDigits: 2 }) : ''
   const parameterSummary = type === 'image'
     ? `${aspectRatio} · ${resolution || '默认'} · ${qualityLabel} · ${storyboard ? normalizeStoryboardCount(count) : count}${storyboard ? '镜' : '张'}`
     : type === 'video'
-      ? `${inputMode === 'image' ? '图生' : inputMode === 'firstlastframe' ? '首尾帧' : '全能参考'} · ${aspectRatio} · ${superresolveTarget ? superresolveParameterSummary : resolution || '默认'} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}${generateAudio ? ' · 有声' : ''}`
+      ? `${aspectRatio === 'adaptive' ? '自适应' : aspectRatio} · ${superresolveTarget ? superresolveParameterSummary : resolutionLabel(resolution || '默认')} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}`
       : ''
   const anchorStyle = !fullscreen && anchor
     ? {
@@ -1139,7 +1136,6 @@ export function CanvasGenerator({
             ))}
           </div>
         ) : <span><TypeIcon />{type === 'text' ? '文本生成' : type === 'audio' ? '音频生成' : type === 'model3d' ? '3D 模型生成' : isPanorama ? '720 全景生成' : '图像生成'}</span>}
-        {(type === 'image' || type === 'video') && displayedReferenceNodes.length > 0 ? <label className="nori-canvas-generator-auto-preview" title="开启后，鼠标悬停引用素材会自动放大预览"><input type="checkbox" checked={autoReferencePreview} onChange={(event) => { const checked = event.target.checked; window.localStorage.setItem('nori.canvas.auto-reference-preview', checked ? '1' : '0'); setAutoReferencePreview(checked); if (!checked) setHoveredReferenceId(null) }} /><span>自动放大</span></label> : null}
         <div className="nori-canvas-generator-head-actions">
           {fullscreen ? <button type="button" className="nori-canvas-generator-back" title="返回画布" onClick={() => { persistDraft(); setFullscreen(false) }}><ArrowLeft /><span>返回画布</span></button> : null}
           {type !== 'text' ? <button type="button" aria-label="替换当前节点内容" title="替换当前节点内容" onClick={() => { persistDraft(); onReplace() }}><Upload /></button> : null}
@@ -1154,7 +1150,7 @@ export function CanvasGenerator({
           <span className="nori-canvas-generator-refs-label">引用素材</span>
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
-          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} onToggle={() => toggleReferenceNode(incoming)} onHover={setHoveredReferenceId} />)}
+          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} />)}
           {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /><span aria-hidden="true">参考</span></button> : null}
         </div>
       ) : null}
@@ -1181,8 +1177,6 @@ export function CanvasGenerator({
         }}>清除失效引用</button>
       </div> : null}
 
-      {hoveredReference && hoveredReferenceUrl ? <div className="nori-canvas-generator-ref-preview" onPointerEnter={() => setHoveredReferenceId(hoveredReference.id)} onPointerLeave={() => setHoveredReferenceId(null)}><strong>{hoveredReference.data.title || '参考素材'}</strong>{mediaTypeForReference(hoveredReference) === 'video' ? <video src={toPlayableVideoUrl(hoveredReferenceUrl) || hoveredReferenceUrl} muted autoPlay loop playsInline /> : <MediaImage src={hoveredReferenceUrl} alt={hoveredReference.data.title || '参考素材'} fill sizes="360px" style={{ objectFit: 'contain' }} />}</div> : null}
-
       {storyboard ? <p className="nori-canvas-storyboard-hint">描述一个 10–15 秒内能演完的小剧情片段，系统会生成 {normalizeStoryboardCount(count)} 个连续分镜。</p> : null}
       {isImageEdit ? <p className="nori-canvas-storyboard-hint">白色涂抹区域会作为独立蒙版提交；仅可选择明确支持 Inpaint 的图片模型。</p> : null}
       {isPanorama ? <p className="nori-canvas-storyboard-hint">生成无缝 21:9 超宽幅全景图；完成后可进入球形预览并生成四视角或十二视角截图。</p> : null}
@@ -1201,7 +1195,7 @@ export function CanvasGenerator({
             loading={libraryLoading}
             onBlur={() => persistDraft()}
             menuLabel="@ 素材"
-            hint={type === 'video'
+            hint={!fullscreen ? null : type === 'video'
               ? inputMode === 'text'
                 ? '输入 @ 可引用连线输入或资产库中的图片、视频或音频；蓝色素材名会与实体引用一并保存。'
                 : inputMode === 'image'
@@ -1211,7 +1205,13 @@ export function CanvasGenerator({
                 ? '输入 @ 可插入连线或资产库音频素材名；当前音频模型仅接收文本，不会把它作为声音条件输入。'
                 : '输入 @ 可引用连线或资产库图片；蓝色素材名会与实体引用一并保存。'}
             minHeight={fullscreen ? 280 : 96}
-            placeholder={type === 'video' ? '描述你想要的视频，@引用素材' : type === 'audio' ? '输入要合成语音的台词' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，@引用素材'}
+            placeholder={type === 'video'
+              ? inputMode === 'image'
+                ? '描述画面如何运动，至少引用一张图片'
+                : inputMode === 'firstlastframe'
+                  ? '描述从首帧到尾帧的变化，按顺序引用两张图片'
+                  : '描述你想要的视频，输入 @ 引用素材'
+              : type === 'audio' ? '输入要合成语音的台词' : isPanorama ? '描述场景的四周、地面、天空与光影，生成无缝全景图' : '描述你想要的图像，输入 @ 引用素材'}
           />
         ) : (
           <textarea
@@ -1280,13 +1280,14 @@ export function CanvasGenerator({
         {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => setGenerateAudio(event.target.checked)} /><span>生成声音</span></label> : null}
         {quotable ? (
           <span
-            className="nori-canvas-generator-quote"
-            title={quoteError || undefined}
+            className={`nori-canvas-generator-quote${quoteError ? ' is-error' : ''}`}
+            title={quoteError || (quote ? `预计消耗 ${quotePoints} 积分` : '生成积分报价')}
           >
-            {quoteLoading ? '报价中…' : quoteError ? '暂无法报价' : quote ? `预计 ${quote.points.toLocaleString('zh-CN', { maximumFractionDigits: 2 })} 积分` : '—'}
+            <Zap />
+            {quoteLoading ? '…' : quoteError ? '暂无法报价' : quote ? <><span className="sr-only">预计消耗</span>{quotePoints}<span className="sr-only">积分</span></> : '—'}
           </span>
         ) : null}
-        <button type="button" className="nori-canvas-generate-button" disabled={!generationAllowed || submitting || Boolean(superresolveResolutionError) || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={superresolveResolutionError || (!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成')}><Send /><span>{submitting ? '提交中…' : '生成'}</span></button>
+        <button type="button" className="nori-canvas-generate-button" aria-busy={submitting} disabled={!generationAllowed || submitting || Boolean(superresolveResolutionError) || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={superresolveResolutionError || (!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成')}>{submitting ? <LoaderCircle className="animate-spin" /> : <ArrowUp />}<span>{submitting ? '提交中…' : '生成'}</span></button>
         </div>
       </div>
 

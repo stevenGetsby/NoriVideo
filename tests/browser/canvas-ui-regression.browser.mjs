@@ -110,6 +110,10 @@ async function open(viewport, query = '') {
   page.failNextRecoveryConflict = () => { failNextRecoveryConflict = true }
   let bumpNextCanvasRead = false
   page.bumpNextCanvasRead = () => { bumpNextCanvasRead = true }
+  let holdNextCanvasWrite = null
+  let releaseHeldCanvasWrite
+  page.holdNextCanvasWrite = () => new Promise((held) => { holdNextCanvasWrite = held })
+  page.releaseCanvasWrite = () => releaseHeldCanvasWrite?.()
   page.canvasWrites = []
   const usage = () => ({
     timeZone: 'Asia/Shanghai', limitPoints: savedLimit, usedPoints: 110, consumedPoints: 80, pendingPoints: 30,
@@ -231,6 +235,11 @@ async function open(viewport, query = '') {
         graph = { ...graph, canvas: { ...graph.canvas, revision: graph.canvas.revision + 1 } }
       }
       if (route.request().method() !== 'GET') {
+        if (holdNextCanvasWrite) {
+          const held = holdNextCanvasWrite
+          holdNextCanvasWrite = null
+          await new Promise((resolve) => { releaseHeldCanvasWrite = resolve; held() })
+        }
         const body = route.request().postDataJSON()
         if (failNextRecoverySave && body?.nodes) {
           failNextRecoverySave = false
@@ -657,6 +666,29 @@ try {
   cases.push('failed comparison submission removes its durable draft and can be retried')
   await failedComparison.close()
 
+  const concurrentEdit = await open({ width: 1440, height: 900 }, '?first=1')
+  const concurrentGenerator = concurrentEdit.locator('.nori-canvas-generator')
+  // Typing the prompt marks the canvas dirty, so the next write is the pre-submission flush.
+  await concurrentGenerator.locator('textarea[role="combobox"]').fill('保存途中平移画布也能提交')
+  const heldPreSubmitSave = concurrentEdit.holdNextCanvasWrite()
+  await concurrentGenerator.getByRole('button', { name: '生成', exact: true }).click()
+  await heldPreSubmitSave
+  // A pan that settles while that save is in flight leaves the canvas dirty again.
+  const transformBeforePan = await concurrentEdit.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform)
+  const panPoint = await findEmptyCanvasPoint(concurrentEdit, await concurrentEdit.locator('.react-flow__pane').boundingBox())
+  await concurrentEdit.mouse.move(panPoint.x, panPoint.y)
+  await concurrentEdit.mouse.down({ button: 'middle' })
+  await concurrentEdit.mouse.move(panPoint.x - 60, panPoint.y - 30, { steps: 4 })
+  await concurrentEdit.mouse.up({ button: 'middle' })
+  await concurrentEdit.waitForFunction((before) => document.querySelector('.react-flow__viewport')?.style.transform !== before, transformBeforePan, { timeout: 5000 })
+  const concurrentSubmission = concurrentEdit.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/generate'), { timeout: 10000 })
+  concurrentEdit.releaseCanvasWrite()
+  assert.equal((await concurrentSubmission).postDataJSON().nodeId, 'gen-1', 'An edit made during the pre-submission save must be persisted, not fail the generation')
+  await concurrentEdit.getByText('已提交 1 个生成任务', { exact: true }).waitFor()
+  assert.equal(await concurrentEdit.getByText('画布仍有未保存的更改；本地副本已缓存，请联网并保存成功后重试同步。', { exact: true }).count(), 0)
+  cases.push('a canvas pan that settles during the pre-submission save is persisted before generating')
+  await concurrentEdit.close()
+
   const globalStyle = await open({ width: 1440, height: 900 }, '?first=1&globalstyle=1')
   const globalGenerator = globalStyle.locator('.nori-canvas-generator')
   const globalPrompt = globalGenerator.locator('textarea[role="combobox"]')
@@ -910,12 +942,36 @@ try {
       await page.waitForFunction(() => !document.querySelector('.nori-canvas-generate-button')?.disabled, { timeout: 5000 })
     }
     assert.equal(await generator.locator('.nori-canvas-generator-refs-label').evaluate((el) => getComputedStyle(el).writingMode), 'horizontal-tb')
-    const ref = generator.locator('.nori-canvas-generator-ref').first()
-    const refLabel = ref.locator(':scope > span').last()
-    const refImage = ref.locator('img, video, :scope > svg').first()
-    const [refLabelBox, refImageBox] = await Promise.all([refLabel.boundingBox(), refImage.boundingBox()])
-    assert.ok(refLabelBox.y >= refImageBox.y + refImageBox.height, 'Reference names sit below their thumbnails, not over the image')
-    assert.ok(parseFloat(await refLabel.evaluate((el) => getComputedStyle(el).fontSize)) >= 11, 'Reference names remain readable')
+    // Measure the tile in one frame: the anchored panel may still be easing into place.
+    const tile = await generator.locator('.nori-canvas-generator-ref').first().evaluate((el) => {
+      const rect = (node) => {
+        if (!node) return null
+        const { x, y, width, height } = node.getBoundingClientRect()
+        return { x, y, width, height }
+      }
+      const order = el.querySelector('.nori-canvas-generator-ref-order')
+      return {
+        box: rect(el),
+        media: rect(el.querySelector(':scope > img, :scope > video')),
+        icon: rect(el.querySelector(':scope > svg')),
+        name: rect(el.querySelector('.nori-canvas-generator-ref-name')),
+        order: rect(order),
+        orderText: order?.textContent?.trim() || '',
+        selected: el.classList.contains('is-selected'),
+      }
+    })
+    const inside = (box) => Boolean(box) && box.x >= tile.box.x - 0.5 && box.y >= tile.box.y - 0.5 && box.x + box.width <= tile.box.x + tile.box.width + 0.5 && box.y + box.height <= tile.box.y + tile.box.height + 0.5
+    assert.ok(Math.abs(tile.box.width - tile.box.height) <= 1, 'Reference tiles are square thumbnails')
+    if (tile.media) {
+      assert.ok(Math.abs(tile.media.width - tile.box.width) <= 1 && Math.abs(tile.media.height - tile.box.height) <= 1, 'The thumbnail fills its reference tile')
+      assert.ok(tile.name.width < 3 && tile.name.height < 3, 'Media tiles keep their names for assistive technology only')
+    } else {
+      assert.ok(inside(tile.icon), 'Icon tiles keep their type icon inside the tile')
+    }
+    if (tile.selected) {
+      assert.match(tile.orderText, /^(\d+|首|尾)$/, 'Selected references show their reference number')
+      assert.ok(inside(tile.order), 'The reference number sits on the tile, not beside it')
+    }
     const footer = await generator.locator('.nori-canvas-generator-controls').boundingBox()
     const viewControls = await page.locator('.nori-canvas-viewport-controls').boundingBox()
     assert.ok(footer.y + footer.height <= viewControls.y, 'The canvas view bar must not cover the generator footer')
