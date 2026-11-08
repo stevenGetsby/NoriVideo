@@ -5426,7 +5426,7 @@
 
   .nori-canvas-breadcrumbs { max-width: calc(100% - 82px); }
   .nori-canvas-sidebar-reveal { left: 0; }
-  .nori-canvas-parent-back { left: 36px; width: 40px; height: 40px; }
+  .nori-canvas-parent-back { left: 14px; top: 14px; width: 36px; height: 36px; border-radius: 10px; }
   .nori-canvas-tool-rail { left: 56px; }
   .nori-canvas-add-panel { left: 108px; }
   .nori-canvas-project-assets,
@@ -7092,20 +7092,19 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 .nori-canvas-parent-back {
   position: fixed;
-  top: 50%;
-  left: 44px;
+  top: 20px;
+  left: 20px;
   z-index: 2800;
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   place-items: center;
   border: .5px solid var(--dm-line);
-  border-radius: 50%;
+  border-radius: 12px;
   padding: 0;
   color: var(--dm-text);
   background: var(--dm-glass);
   pointer-events: auto;
-  transform: translateY(-50%);
   backdrop-filter: blur(20px);
 }
 .nori-canvas-parent-back:hover { color: #fff; background: var(--dm-hover); }

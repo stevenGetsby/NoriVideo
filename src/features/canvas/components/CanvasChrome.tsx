@@ -5,7 +5,7 @@ import { Link } from '@/i18n/navigation'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { useFosCanvasShell } from '@/components/frameos/FosCanvasShellContext'
 import type { Canvas, CanvasProjectOption } from '../types'
-import { projectHref } from '@/lib/projects/navigation'
+import { projectHref, projectLinkProps } from '@/lib/projects/navigation'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 
 export type CanvasSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'conflict' | 'error' | 'offline' | 'recovery'
@@ -94,7 +94,11 @@ export function CanvasChrome({
   const activeProject = projectOptions?.find((project) => project.id === projectId) || null
   const activeWorkId = parentProjectId || activeProject?.workId || null
   const activeWorkName = parentProjectName || activeProject?.workName || (activeWorkId ? '未命名项目' : '未归属项目')
-  const parentHref = parentProjectHref || (activeWorkId ? projectHref(activeWorkId) : '/projects')
+  const parentLink = parentProjectHref
+    ? { pathname: parentProjectHref }
+    : activeWorkId
+      ? projectLinkProps(activeWorkId)
+      : { pathname: '/projects' }
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = Array.from(new Map((projectOptions || []).flatMap((project) => (
     project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
@@ -145,7 +149,7 @@ export function CanvasChrome({
   return (
     <div className={`nori-canvas-chrome${sidebarStateClass}`} ref={rootRef}>
       <Link
-        href={{ pathname: parentHref }}
+        href={parentLink}
         className="nori-canvas-parent-back"
         aria-label={`返回项目：${activeWorkName}`}
         title={`返回项目：${activeWorkName}`}
@@ -177,7 +181,7 @@ export function CanvasChrome({
             </button>
         ) : null}
         <Link
-          href={{ pathname: parentHref }}
+          href={parentLink}
           className="nori-canvas-work-link"
           title={`返回项目：${activeWorkName}`}
           data-testid="canvas-work-link"

@@ -10,7 +10,7 @@ import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { notifyProjectChanged } from '@/lib/projects/change-client'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { ConfirmActionDialog } from './works/FosWorksDialogs'
-import { projectHref } from '@/lib/projects/navigation'
+import { projectHref, projectLinkProps } from '@/lib/projects/navigation'
 
 export function FosProjectHeader({
   projectId,
@@ -71,7 +71,7 @@ export function FosProjectHeader({
       </Link>
       <div className="fos-stage-context flex min-w-0 flex-wrap items-center gap-2.5">
         {parentProjectName ? (
-          <Link href={{ pathname: parentProjectId ? projectHref(parentProjectId) : '/projects' }} className="fos-stage-parent-project" data-testid="work-parent-project">
+          <Link href={parentProjectId ? projectLinkProps(parentProjectId) : { pathname: '/projects' }} className="fos-stage-parent-project" data-testid="work-parent-project">
             <span>项目</span>{parentProjectName}
           </Link>
         ) : null}
