@@ -47,11 +47,6 @@ type VideoOptionValue = string | number | boolean
 type VideoOptionMap = Record<string, VideoOptionValue>
 type VideoGenerationMode = 'normal' | 'firstlastframe'
 type PanelRecord = NonNullable<Awaited<ReturnType<typeof prisma.novelPromotionPanel.findUnique>>>
-type GeneratedVideoSource = VideoResultMetadata & {
-  url: string
-  actualVideoTokens?: number
-  downloadHeaders?: Record<string, string>
-}
 type PanelVideoInputImage = {
   sourceImageBase64?: string
   sourceImageUrl?: string

@@ -299,7 +299,6 @@ export function applySkillWorkflowDefaults(
 export function createDeterministicAnalysis(userInput: string): LLMAnalysisResult {
   const input = userInput.trim()
   const videoType = detectSkill(input)
-  const skill = skillLibrary.getSkill(videoType) || skillLibrary.getSkill('generic')
   const projectName = makeProjectName(input, videoType)
 
   return {

@@ -20,6 +20,7 @@ await build({
     '@/i18n/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
     'next/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
     'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
+    'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'),
     'next/image': path.join(root, 'tests/browser/stubs/next-image.tsx'),
   },
   define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },

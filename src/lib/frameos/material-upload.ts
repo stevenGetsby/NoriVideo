@@ -9,16 +9,28 @@ import { registerFrameosMaterial, type FrameosMaterialType } from './material-se
 import { probeMediaDurationSeconds } from '@/lib/media/duration-probe'
 import { assertSelfContainedGlbV2 } from '@/lib/model3d/glb-validation'
 import type { AuthSession } from '@/lib/api-auth'
-import { projectReadWhere } from '@/lib/collaboration/access'
+import { getWorkspaceActor, projectReadWhere } from '@/lib/collaboration/access'
 import { normalizeFrameosAssetCategory } from './material-category'
+import { PERSONAL_MATERIAL_PROJECT_ID } from './material-ownership'
 import { readRequestFormData } from '@/lib/http/request-form-data'
 import { isImageUpload, MAX_MATERIAL_FILE_BYTES } from './upload-file-policy'
+import {
+  UploadPermitAbortError,
+  UploadPermitOverflowError,
+  UploadPermitPool,
+  UploadPermitTimeoutError,
+} from './upload-permit'
 
 const MAX_FILE_BYTES = MAX_MATERIAL_FILE_BYTES
 // Multipart boundaries and field names add a small amount around the actual
 // file. The authoritative file cap is still checked again using File.size.
 const MAX_REQUEST_BYTES = MAX_FILE_BYTES + 256 * 1024
 const MAX_CONCURRENT_UPLOADS = 2
+// A 200MB video can occupy a permit for minutes. Uploads that arrive meanwhile
+// wait in a bounded FIFO instead of failing immediately; only genuinely
+// saturated bursts get a 429.
+const UPLOAD_QUEUE_WAIT_MS = 120_000
+const UPLOAD_MAX_QUEUE = 8
 export const MAX_IMAGE_PIXELS = 40_000_000
 
 export function assertFrameosImagePixelLimit(width: number, height: number): void {
@@ -35,7 +47,11 @@ export function assertFrameosImagePixelLimit(width: number, height: number): voi
   }
 }
 
-let activeMaterialUploads = 0
+const materialUploadPermits = new UploadPermitPool({
+  limit: MAX_CONCURRENT_UPLOADS,
+  waitMs: UPLOAD_QUEUE_WAIT_MS,
+  maxQueue: UPLOAD_MAX_QUEUE,
+})
 
 type MaterialUploadSession = AuthSession
 
@@ -70,7 +86,7 @@ function extensionForFile(file: File, type: FrameosMaterialType): string {
 }
 
 async function assertProjectAccess(session: MaterialUploadSession, projectId: string) {
-  if (projectId === 'global' || projectId === 'global-asset-hub') return
+  if (projectId === 'global' || projectId === 'global-asset-hub' || projectId === PERSONAL_MATERIAL_PROJECT_ID) return
   const project = await prisma.project.findFirst({
     where: projectReadWhere(session, projectId),
     select: { id: true },
@@ -87,17 +103,26 @@ function assertUploadContentLength(request: NextRequest) {
   }
 }
 
-async function withMaterialUploadPermit<T>(task: () => Promise<T>): Promise<T> {
-  if (activeMaterialUploads >= MAX_CONCURRENT_UPLOADS) {
-    throw new ApiError('RATE_LIMIT', {
-      message: '当前素材上传任务较多，为避免内存过载，请稍后重试。',
-    })
-  }
-  activeMaterialUploads += 1
+async function withMaterialUploadPermit<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   try {
-    return await task()
-  } finally {
-    activeMaterialUploads = Math.max(0, activeMaterialUploads - 1)
+    return await materialUploadPermits.run(task, { signal })
+  } catch (error) {
+    if (error instanceof UploadPermitTimeoutError) {
+      throw new ApiError('RATE_LIMIT', {
+        message: '当前素材上传任务较多，排队等待超时，请稍后重试。',
+        retryAfterSeconds: Math.ceil(error.waitMs / 1000),
+      })
+    }
+    if (error instanceof UploadPermitOverflowError) {
+      throw new ApiError('RATE_LIMIT', {
+        message: '当前素材上传任务较多，为避免内存过载，请稍后重试。',
+        retryAfterSeconds: 10,
+      })
+    }
+    if (error instanceof UploadPermitAbortError) {
+      throw new ApiError('NETWORK_ERROR', { message: '上传请求已取消。' })
+    }
+    throw error
   }
 }
 
@@ -112,10 +137,10 @@ async function processFrameosMaterialUpload(
   const title = cleanText(form.get('title'))
   const assetCategory = normalizeFrameosAssetCategory(form.get('assetCategory'))
   const requestedProjectId = cleanText(form.get('projectId'))
-  if (options.expectedProjectId && requestedProjectId && requestedProjectId !== options.expectedProjectId) {
+  if (options.expectedProjectId && requestedProjectId && requestedProjectId !== options.expectedProjectId && requestedProjectId !== PERSONAL_MATERIAL_PROJECT_ID) {
     throw new ApiError('INVALID_PARAMS', { message: '上传素材的项目与当前画布不一致。' })
   }
-  const projectId = options.expectedProjectId || requestedProjectId || 'global'
+  const projectId = requestedProjectId || options.expectedProjectId || PERSONAL_MATERIAL_PROJECT_ID
 
   if (!file || !title) {
     throw new ApiError('INVALID_PARAMS', { message: '请选择文件并填写素材名称。' })
@@ -132,7 +157,9 @@ async function processFrameosMaterialUpload(
   if (!type) {
     throw new ApiError('INVALID_PARAMS', { message: '仅支持图片、视频、音频或自包含的 GLB 2.0 模型。' })
   }
-  if (!options.projectAccessVerified) await assertProjectAccess(session, projectId)
+  if (!options.projectAccessVerified || projectId !== options.expectedProjectId) {
+    await assertProjectAccess(session, projectId)
+  }
 
   const original = Buffer.from(await file.arrayBuffer())
   let body: Buffer<ArrayBufferLike> = original
@@ -198,8 +225,11 @@ async function processFrameosMaterialUpload(
     }
     throw error
   }
+  const actor = getWorkspaceActor(session)
+  const personalOwnerId = projectId === PERSONAL_MATERIAL_PROJECT_ID ? actor.actorId : null
   const material = await registerFrameosMaterial({
-    userId: session.user.id,
+    userId: actor.workspaceOwnerId,
+    personalOwnerId,
     projectId,
     ownerName: session.user.name,
     title,
@@ -222,7 +252,7 @@ async function processFrameosMaterialUpload(
     material: {
       ...material,
       url: material.resultUrl || material.storageKey,
-      projectName: projectId === 'global' ? '账号素材' : '项目素材',
+      projectName: personalOwnerId ? '个人素材' : projectId === 'global' ? '账号素材' : '项目素材',
     },
   })
 }
@@ -237,5 +267,5 @@ export async function uploadFrameosMaterial(
   assertUploadContentLength(request)
   return await withMaterialUploadPermit(async () => {
     return await processFrameosMaterialUpload(request, session, options)
-  })
+  }, request.signal)
 }

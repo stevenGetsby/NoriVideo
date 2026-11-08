@@ -64,7 +64,7 @@ async function open(query, viewport = { width: 1024, height: 600 }) {
   const page = await browser.newPage({ viewport })
   latest = page
   page.on('pageerror', (error) => errors.push(error.message))
-  let project = { id: 'project-1', name: '短剧作品', description: '原简介', canManage: true, canMove: true, canManageMembers: true, createdAt: '2026-10-12T00:00:00Z', updatedAt: '2026-10-12T00:00:00Z' }
+  let project = { id: 'project-1', name: '短剧作品', description: '原简介', canManage: !query.includes('session=child'), canDelete: !query.includes('session=child') || query.includes('createdBy=child'), canMove: !query.includes('session=child'), canManageMembers: !query.includes('session=child'), createdAt: '2026-10-12T00:00:00Z', updatedAt: '2026-10-12T00:00:00Z' }
   let deleted = false
   let materials = []
   const writes = []
@@ -98,7 +98,7 @@ async function open(query, viewport = { width: 1024, height: 600 }) {
     if (request.method() !== 'GET') writes.push({ path: url.pathname, method: request.method(), body: request.headers()['content-type']?.includes('json') ? request.postDataJSON() : null })
     if (url.pathname === '/api/works') {
       payload = { works: [{ id: 'work-1', name: '测试项目', canManage: true, canCreateProjects: true, projectCount: deleted ? 0 : 1, projects: deleted ? [] : [project] }], pagination: { total: 1, totalPages: 1 } }
-    } else if (url.pathname === '/api/projects') payload = { projects: [{ id: project.id, name: project.name }, { id: 'project-2', name: '第二作品' }] }
+    } else if (url.pathname === '/api/projects') payload = { projects: [{ id: project.id, name: project.name, workId: 'work-1' }, { id: 'project-2', name: '第二作品', workId: 'work-2' }] }
     else if (url.pathname === '/api/projects/project-1') {
       if (request.method() === 'PATCH') {
         if (failDetails) { status = 500; payload = { message: '模拟作品信息保存失败' } }
@@ -261,18 +261,38 @@ try {
   const header = await open('?view=header')
   await header.getByTestId('project-name').getByText('短剧作品', { exact: true }).waitFor()
   await header.getByRole('button', { name: '作品操作' }).click()
-  await header.getByRole('menuitem', { name: '重命名', exact: true }).click()
-  await header.getByRole('dialog', { name: '重命名作品' }).locator('input').fill('实时新名称')
-  await header.getByRole('button', { name: '确定', exact: true }).click()
+  await header.getByRole('menuitem', { name: '编辑作品', exact: true }).click()
+  const headerEdit = header.getByRole('dialog', { name: '编辑作品', exact: true })
+  await headerEdit.getByLabel('作品名称', { exact: true }).waitFor()
+  await headerEdit.getByLabel('作品名称', { exact: true }).fill('实时新名称')
+  await headerEdit.getByRole('button', { name: '保存作品', exact: true }).click()
   await header.getByTestId('project-name').getByText('实时新名称', { exact: true }).waitFor()
+  await header.getByRole('button', { name: '作品操作' }).click()
+  await header.getByRole('menuitem', { name: '删除作品', exact: true }).click()
+  const headerDeletion = header.getByRole('dialog', { name: '删除作品', exact: true })
+  await headerDeletion.getByRole('button', { name: '确认删除', exact: true }).click()
+  await headerDeletion.waitFor({ state: 'hidden' })
+  assert.ok(header.writes.some((write) => write.path === '/api/projects/project-1' && write.method === 'DELETE'))
   await header.close()
+  const childCreatorHeader = await open('?view=header&session=child&createdBy=child')
+  await childCreatorHeader.getByTestId('project-name').getByText('短剧作品', { exact: true }).waitFor()
+  await childCreatorHeader.getByRole('button', { name: '作品操作' }).click()
+  assert.equal(await childCreatorHeader.getByRole('menuitem', { name: '重命名', exact: true }).count(), 0)
+  await childCreatorHeader.getByRole('menuitem', { name: '删除作品', exact: true }).click()
+  const childCreatorDeletion = childCreatorHeader.getByRole('dialog', { name: '删除作品', exact: true })
+  await childCreatorDeletion.getByRole('button', { name: '确认删除', exact: true }).click()
+  await childCreatorDeletion.waitFor({ state: 'hidden' })
+  assert.ok(childCreatorHeader.writes.some((write) => write.path === '/api/projects/project-1' && write.method === 'DELETE'))
+  results.push('child-creator-can-delete-only-own-header-work')
+  await childCreatorHeader.close()
   const narrowHeader = await open('?view=header', { width: 390, height: 700 })
   await narrowHeader.getByTestId('project-name').getByText('短剧作品', { exact: true }).waitFor()
   await narrowHeader.getByRole('button', { name: '作品操作' }).click()
-  await narrowHeader.getByRole('menuitem', { name: '重命名', exact: true }).click()
-  const narrowRename = narrowHeader.getByRole('dialog', { name: '重命名作品' })
-  await narrowRename.locator('input').fill('长作品名称边界测试'.repeat(8).slice(0, 40))
-  await narrowRename.getByRole('button', { name: '确定', exact: true }).click()
+  await narrowHeader.getByRole('menuitem', { name: '编辑作品', exact: true }).click()
+  const narrowEdit = narrowHeader.getByRole('dialog', { name: '编辑作品', exact: true })
+  await narrowEdit.getByLabel('作品名称', { exact: true }).fill('长作品名称边界测试'.repeat(8).slice(0, 40))
+  await narrowEdit.getByRole('button', { name: '保存作品', exact: true }).click()
+  await narrowEdit.waitFor({ state: 'hidden' })
   const narrowMetrics = await narrowHeader.locator('.fos-stage-header h1').evaluate((element) => {
     const rect = element.getBoundingClientRect()
     return { left: rect.left, right: rect.right, viewport: innerWidth }
@@ -282,10 +302,12 @@ try {
   const longHeader = await open('?view=header', { width: 390, height: 700 })
   await longHeader.getByTestId('project-name').getByText('短剧作品', { exact: true }).waitFor()
   await longHeader.getByRole('button', { name: '作品操作' }).click()
-  await longHeader.getByRole('menuitem', { name: '重命名', exact: true }).click()
+  await longHeader.getByRole('menuitem', { name: '编辑作品', exact: true }).click()
   const name = '长作品名称边界测试'.repeat(8).slice(0, 40)
-  await longHeader.getByRole('dialog', { name: '重命名作品' }).locator('input').fill(name)
-  await longHeader.getByRole('button', { name: '确定', exact: true }).click()
+  const longEdit = longHeader.getByRole('dialog', { name: '编辑作品', exact: true })
+  await longEdit.getByLabel('作品名称', { exact: true }).fill(name)
+  await longEdit.getByRole('button', { name: '保存作品', exact: true }).click()
+  await longEdit.waitFor({ state: 'hidden' })
   await longHeader.getByTestId('project-name').getByText(name, { exact: true }).waitFor()
   await bounded(longHeader.locator('.fos-stage-header h1'))
   await bounded(longHeader.getByRole('button', { name: '作品操作' }))
@@ -304,9 +326,9 @@ try {
       text: getComputedStyle(element).color,
       token: getComputedStyle(element).getPropertyValue('--fos-bg-3').trim(),
     }))
-    assert.equal(colors.background, 'rgb(28, 28, 28)', 'Picker must have an opaque dark background outside the shell')
+    assert.equal(colors.background, 'rgb(27, 27, 35)', 'Picker must have an opaque dark background outside the shell')
     assert.equal(colors.text, 'rgb(255, 255, 255)')
-    assert.equal(colors.token, '#1c1c1c')
+    assert.equal(colors.token, '#1b1b23')
     await picker.getByRole('button', { name: '本地上传', exact: true }).click()
     const title = picker.getByPlaceholder('素材名称（必填）')
     await title.fill('上传界面可见性验证')

@@ -29,6 +29,7 @@ export type CanvasNodeAction =
   | 'grid_split'
   | 'lens_focus'
   | 'subtitle_erase'
+  | 'audio_extract'
   | 'studio_3d'
   | 'arrange_grid'
   | 'arrange_horizontal'

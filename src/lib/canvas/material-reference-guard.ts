@@ -104,7 +104,7 @@ export function summarizeCanvasMaterialReferences(
     historySnapshots: historySnapshotIds.size,
   }
   return {
-    referenced: Object.values(counts).some((count) => count > 0),
+    referenced: counts.currentCanvases > 0 || counts.workflowTemplates > 0,
     counts,
   }
 }
@@ -176,10 +176,9 @@ export async function findCanvasMaterialReferences(
 }
 
 export function canvasMaterialReferenceConflictMessage(counts: CanvasMaterialReferenceCounts): string {
-  const locations = [
+  const currentReferences = [
     counts.currentCanvases > 0 ? `${counts.currentCanvases} 个当前画布` : '',
     counts.workflowTemplates > 0 ? `${counts.workflowTemplates} 个工作流模板` : '',
-    counts.historySnapshots > 0 ? `${counts.historySnapshots} 个历史版本` : '',
   ].filter(Boolean)
-  return `无法删除：该素材仍被${locations.join('、')}引用。请先移除这些引用（历史版本需删除对应画布或历史记录），再重试。`
+  return `无法删除：该素材仍被${currentReferences.join('、')}引用。请先移除这些当前引用，再重试。历史版本仍可查看，不阻止移入回收站。`
 }

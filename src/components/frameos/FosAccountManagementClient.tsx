@@ -11,14 +11,8 @@ import type { AccountCredits } from '@/lib/account/credits'
 import { createCreditIdempotencyKey, notifyBalanceChanged, subscribeBalanceChanges } from '@/lib/billing/client'
 import { createLatestRequestTracker } from '@/lib/api/latest-request'
 import {
-  ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
-  ACCOUNT_ROLE_DEFINITIONS,
-  defaultSubaccountRoleLabel,
-  effectiveAccountPermissions,
-  type AccountPermission,
   type AccountRole,
   type AccountStatus,
-  type SubaccountRole,
 } from '@/lib/account/permissions'
 import {
   emptyModelUsageSummary,
@@ -31,7 +25,7 @@ import {
   CreditLedgerDialog,
   CreditOperationDialog,
   DailyUsageCell,
-  PermissionMatrix,
+  AccountCapabilitiesNotice,
 } from './FosAccountManagementParts'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
 import { updateDailyUsageLimit } from '@/lib/billing/daily-limit-display'
@@ -41,9 +35,8 @@ interface ManagedAccount {
   id: string
   username: string
   role: AccountRole
-  roleLabel: string | null
   status: AccountStatus
-  permissions: AccountPermission[]
+  projectLeader: boolean
   isPlatformAdmin: boolean
   isManager: boolean
   parentAccountId: string | null
@@ -68,9 +61,7 @@ interface AccountDraft {
   managerId: string
   username: string
   password: string
-  role: SubaccountRole
-  roleLabel: string
-  permissions: AccountPermission[]
+  projectLeader: boolean
   status: AccountStatus
   coinCredits: string
   pointCredits: string
@@ -82,26 +73,11 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
   managerId: '',
   username: '',
   password: '',
-  role: 'writer',
-  roleLabel: defaultSubaccountRoleLabel('writer'),
-  permissions: effectiveAccountPermissions('writer'),
+  projectLeader: false,
   status: 'active',
   coinCredits: '0',
   pointCredits: '0',
   dailyPointLimit: 'unlimited',
-}
-
-const ROLE_TONES: Record<AccountRole, string> = {
-  super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
-  admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
-  writer: 'border-sky-400/25 bg-sky-400/[.08] text-sky-200',
-  asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
-  storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
-  reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
-}
-
-function roleDefinition(role: AccountRole) {
-  return ACCOUNT_ROLE_DEFINITIONS.find((item) => item.role === role) || ACCOUNT_ROLE_DEFINITIONS[0]
 }
 
 function formatDate(value: string | null) {
@@ -126,7 +102,7 @@ function Credits({ credits }: { credits: AccountCredits }) {
   return (
     <span className="flex items-center gap-2 text-[10px] text-white/55">
       <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>{credits.coins}</span>
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--fos-brand-solid)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
     </span>
   )
 }
@@ -196,9 +172,7 @@ export function FosAccountManagementClient() {
       managerId: workspace?.manager.id || '',
       username: account.username,
       password: '',
-      role: account.role as SubaccountRole,
-      roleLabel: account.roleLabel || defaultSubaccountRoleLabel(account.role),
-      permissions: account.permissions,
+      projectLeader: account.projectLeader,
       status: account.status,
       coinCredits: String(account.credits.coins),
       pointCredits: String(account.credits.points),
@@ -221,9 +195,7 @@ export function FosAccountManagementClient() {
           body: JSON.stringify({
             ...(isCreate ? { accountType: 'subaccount' } : {}),
             username: draft.username.trim(),
-            role: draft.role,
-            roleLabel: draft.roleLabel.trim(),
-            permissions: draft.permissions,
+            projectLeader: draft.projectLeader,
             dailyPointLimit: draft.dailyPointLimit === 'unlimited' ? 'unlimited' : Number(draft.dailyPointLimit),
             ...(!isCreate ? { status: draft.status } : {}),
             ...(draft.password ? { password: draft.password } : {}),
@@ -320,7 +292,7 @@ export function FosAccountManagementClient() {
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
               <h1 className="text-[24px] font-bold text-white">子账号管理</h1>
-              <p className="mt-1 text-[12px] text-white/40">为子账号自定义角色与功能区，并统一管理状态、密码、积分和用量。</p>
+              <p className="mt-1 text-[12px] text-white/40">统一创作能力，集中管理账号、项目组长、状态、密码、积分和用量。</p>
             </div>
             <button type="button" className="fos-btn fos-btn-primary" onClick={openCreate}>
               <AppIcon name="plus" className="h-4 w-4" />添加子账号
@@ -344,7 +316,7 @@ export function FosAccountManagementClient() {
             ))}
           </div>
 
-          <PermissionMatrix />
+          <AccountCapabilitiesNotice />
           {pageNotice ? <div role="status" className="mb-4 rounded-[9px] border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-[12px] text-emerald-200">{pageNotice}</div> : null}
 
           {pageError ? (
@@ -362,24 +334,22 @@ export function FosAccountManagementClient() {
               </div>
             </div>
             <div className="overflow-x-auto">
-              <div className="min-w-[1840px]">
-                <div className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_460px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40">
-                  <span>子账号</span><span>角色</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>功能区权限</span><span>最后登录</span>
+              <div className="min-w-[1460px] w-full">
+                <div className="grid grid-cols-[minmax(170px,1.2fr)_120px_80px_130px_130px_210px_130px_360px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40 [&>*]:min-w-0">
+                  <span>子账号</span><span>身份</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>最后登录</span>
                   <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#131319] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
                 </div>
                 {loading ? (
                   <div className="px-5 py-12 text-center text-[11px] text-white/30">正在加载子账号…</div>
                 ) : subaccounts.length === 0 ? (
                   <div className="px-5 py-12 text-center text-[11px] text-white/25">当前工作区还没有子账号</div>
-                ) : subaccounts.map((account) => {
-                  const definition = roleDefinition(account.role)
-                  return (
-                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_100px_80px_130px_130px_210px_minmax(180px,1fr)_130px_460px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0">
+                ) : subaccounts.map((account) => (
+                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_120px_80px_130px_130px_210px_130px_360px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0 [&>*]:min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
                       </div>
-                      <span className={`w-fit max-w-full truncate rounded-full border px-2 py-1 text-[10px] font-semibold ${ROLE_TONES[account.role]}`} title={account.roleLabel || definition.shortLabel}>{account.roleLabel || definition.shortLabel}</span>
+                      <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold ${account.projectLeader ? 'border-sky-400/25 bg-sky-400/[.08] text-sky-200' : 'border-white/15 bg-white/[.04] text-white/60'}`}>{account.projectLeader ? '项目组长' : '创作成员'}</span>
                       <span className={`flex w-fit items-center gap-1.5 text-[10px] ${account.status === 'active' ? 'text-emerald-300' : 'text-white/35'}`}>
                         <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-emerald-400' : 'bg-white/25'}`} />
                         {account.status === 'active' ? '启用' : '停用'}
@@ -394,12 +364,6 @@ export function FosAccountManagementClient() {
                           </span>
                         ))}
                       </span>
-                      <span className="flex flex-wrap gap-1">
-                        {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.filter((item) => account.permissions.includes(item.key)).map((item) => (
-                          <small key={item.key} className="rounded-full border border-white/15 bg-white/[.07] px-2 py-0.5 text-[9px] text-neutral-200/65">{item.label}</small>
-                        ))}
-                        {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.every((item) => !account.permissions.includes(item.key)) ? <small className="text-[10px] text-white/30">仅查看</small> : null}
-                      </span>
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
                       <span className="sticky right-0 z-10 -my-4 flex shrink-0 items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
@@ -412,8 +376,7 @@ export function FosAccountManagementClient() {
                         </button>
                       </span>
                     </div>
-                  )
-                })}
+                ))}
               </div>
             </div>
           </section>

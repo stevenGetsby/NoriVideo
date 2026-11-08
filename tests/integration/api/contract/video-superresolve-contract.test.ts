@@ -8,6 +8,8 @@ const submitTaskMock = vi.hoisted(() => vi.fn(async () => ({ taskId: 'task-1', a
 const capabilityMock = vi.hoisted(() => vi.fn(async () => ({ resolution: '480p' })))
 const prismaMock = vi.hoisted(() => ({
   frameosMaterial: { findMany: vi.fn(async () => []), findFirst: vi.fn(async () => null) },
+  project: { findMany: vi.fn(async () => [{ id: 'project-1', name: 'Project', workId: 'work-1' }]) },
+  user: { findMany: vi.fn(async () => []) },
   frameosToolboxAsset: {
     create: vi.fn(async () => ({ id: 'asset-1' })),
     findUnique: vi.fn(async () => null),
@@ -47,7 +49,7 @@ import { POST } from '@/app/api/frameos/toolbox/generate/route'
 
 const model = 'nori::norivideo2.5'
 const body = {
-  projectId: 'project-1', type: 'video', title: '超分', prompt: '雨夜', modelKey: model,
+  projectId: 'project-1', workId: 'work-1', type: 'video', title: '超分', prompt: '雨夜', modelKey: model,
   inputMode: 'text', textOnly: true, referenceMaterialIds: [],
   options: { duration: 5, resolution: '1080p', superresolveTarget: '720p', generateAudio: true },
 }

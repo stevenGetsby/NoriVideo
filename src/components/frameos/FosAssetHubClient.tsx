@@ -1,12 +1,12 @@
 'use client'
 
 import { FosShell } from './FosShell'
-import { FosAssetLibrary } from './views/FosAssetLibrary'
+import { FosMaterialLibrary } from './views/FosMaterialLibrary'
 
 export function FosAssetHubClient() {
   return (
     <FosShell activeKey="assetHub">
-      <FosAssetLibrary />
+      <FosMaterialLibrary />
     </FosShell>
   )
 }

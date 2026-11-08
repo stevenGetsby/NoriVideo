@@ -9,6 +9,7 @@ import { upscaleCanvasImage } from '@/lib/canvas/image-operations'
 import {
   enhanceCanvasVideo,
   eraseCanvasVideoRegion,
+  extractCanvasVideoAudio,
   renderCanvasPlaylistVideo,
   trimCanvasVideo,
   type CanvasVideoOperationHooks,
@@ -28,7 +29,7 @@ function safeSegment(value: string): string {
   return value.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100) || 'unknown'
 }
 
-function deterministicOutputKey(job: Job<TaskJobData>, extension: 'jpg' | 'mp4') {
+function deterministicOutputKey(job: Job<TaskJobData>, extension: 'jpg' | 'mp4' | 'mp3') {
   return `canvas-operations/${safeSegment(job.data.userId)}/${safeSegment(job.data.taskId)}.${extension}`
 }
 
@@ -186,6 +187,51 @@ async function persistVideoResult(
     duration: processed.duration,
     fps: processed.fps,
     title: material.title || `${payload.sourceTitle} · ${suffix}`,
+    materialId: material.id,
+    url: material.resultUrl || material.storageKey || storageKey,
+  }
+}
+
+async function persistAudioResult(
+  job: Job<TaskJobData>,
+  payload: CanvasOperationTaskPayload,
+  processed: Awaited<ReturnType<typeof extractCanvasVideoAudio>>,
+) {
+  await assertTaskActive(job, 'canvas_audio_upload')
+  await reportTaskProgress(job, 84, { stage: 'canvas_operation_upload' })
+  const storageKey = deterministicOutputKey(job, 'mp3')
+  await uploadObject(processed.body, storageKey, undefined, 'audio/mpeg')
+  await assertTaskActive(job, 'canvas_audio_persist')
+  await reportTaskProgress(job, 94, { stage: 'canvas_operation_persist' })
+  const title = `${payload.sourceTitle} · 音频`
+  const material = await registerFrameosMaterial({
+    userId: job.data.userId,
+    projectId: job.data.projectId,
+    ownerName: await ownerName(job.data.userId),
+    title,
+    type: 'audio',
+    source: 'creative',
+    storageKey,
+    metadata: {
+      originType: 'canvas-operation',
+      taskId: job.data.taskId,
+      sourceNodeId: payload.sourceNodeId,
+      operation: payload.operation,
+      engineKey: payload.engineKey,
+      modelKey: payload.modelKey,
+      duration: processed.duration,
+      ...payload.parameters,
+      retryOf: payload.retryOf || null,
+    },
+  })
+  return {
+    index: 0,
+    row: 0,
+    col: 0,
+    width: 0,
+    height: 0,
+    duration: processed.duration,
+    title: material.title || title,
     materialId: material.id,
     url: material.resultUrl || material.storageKey || storageKey,
   }
@@ -492,6 +538,54 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
         canvasRevision: null,
         reason: 'created' as const,
       },
+    }
+  }
+  if (payload.operation === 'audio_extract') {
+    const startMs = Number(payload.parameters.startMs)
+    const endMs = Number(payload.parameters.endMs)
+    if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs) {
+      throw new Error('INVALID_PARAMS: audio extract range is invalid')
+    }
+
+    await assertTaskActive(job, 'canvas_audio_download')
+    await reportTaskProgress(job, 12, { stage: 'canvas_operation_download' })
+    const source = await getObjectBuffer(payload.sourceStorageKey)
+    await assertTaskActive(job, 'canvas_audio_process')
+    await reportTaskProgress(job, 30, { stage: 'canvas_operation_process' })
+
+    let lastAudioProgress = 30
+    const audioHooks: CanvasVideoOperationHooks = {
+      assertActive: async () => await assertTaskActive(job, 'canvas_audio_process'),
+      onProgress: async (ratio) => {
+        const progress = 30 + Math.floor(Math.max(0, Math.min(1, ratio)) * 50)
+        if (progress < lastAudioProgress + 2) return
+        lastAudioProgress = progress
+        await reportTaskProgress(job, progress, {
+          stage: 'canvas_operation_process',
+          progressDetails: { mediaProgress: ratio },
+        })
+      },
+    }
+    const processed = await extractCanvasVideoAudio(source, { startMs, endMs }, audioHooks)
+    await assertTaskActive(job, 'canvas_audio_processed')
+    const result = await persistAudioResult(job, payload, processed)
+    const materialization = await materializeCanvasAsyncOperationResult({
+      userId: job.data.userId,
+      projectId: job.data.projectId,
+      canvasId: payload.canvasId,
+      sourceNodeId: payload.sourceNodeId,
+      taskId: job.data.taskId,
+      operation: payload.operation,
+      modelKey: payload.modelKey,
+      parameters: payload.parameters,
+      result,
+    })
+    return {
+      operation: payload.operation,
+      engineKey: payload.engineKey,
+      modelKey: payload.modelKey,
+      results: [result],
+      materialization,
     }
   }
   if (payload.operation === 'superresolve' || payload.engineKey !== 'local-ffmpeg') {

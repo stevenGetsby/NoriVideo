@@ -34,12 +34,18 @@ import { downloadFrameosMaterial } from '@/components/frameos/materials/download
 import { getProjectDownloadDirectory, saveProjectDownload } from '@/lib/media/project-download-directory'
 import { buildNovelVideoExportFileName } from '@/lib/novel-promotion/video-export-name'
 import { CANVAS_PANORAMA_ASPECT_RATIO } from '@/lib/canvas/generator-options'
+import {
+  composeCanvasGlobalStylePrompt,
+  findCanvasGlobalStylePromptNode,
+  readCanvasGlobalStylePrompt,
+} from '@/lib/canvas/global-style-prompt'
 import { CANVAS_PANORAMA_PROCESS_TYPE } from '@/lib/canvas/panorama-contract'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { MaterialPickerDialog } from '@/components/frameos/materials/MaterialPickerDialog'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { CanvasEditorProvider, type CanvasNodeAction, type CanvasPlaylistVideoSource } from './CanvasEditorContext'
 import { CanvasGenerator, type CanvasGenerateRequest } from './components/CanvasGenerator'
+import { CANVAS_UPLOAD_MAX_ATTEMPTS, canvasUploadRetryDelay } from './upload-retry'
 import { CanvasChrome } from './components/CanvasChrome'
 import { canvasOrganizeOption } from './components/CanvasOrganizeMenu'
 import { CanvasConflictDialog, CanvasHistoryDialog, CanvasOfflineRecoveryDialog, CanvasRevisionDialog } from './components/CanvasDialogs'
@@ -69,6 +75,7 @@ import {
 import { CanvasAddPanel, CanvasToolRail, CanvasViewportControls } from './components/CanvasToolRail'
 import { CanvasContextMenu, CanvasEmptyState, CanvasWireMenu } from './components/CanvasMenus'
 import { CanvasConnectionLine } from './components/CanvasConnectionLine'
+import { collectCanvasSecondaryNodeIds } from './components/canvas-mention-references'
 import { CanvasEdge } from './components/CanvasEdge'
 import {
   CANVAS_CLIPBOARD_PREFIX,
@@ -77,6 +84,7 @@ import {
   resolveCanvasClipboardPasteSource,
 } from './clipboard'
 import { cloneCanvasNodeDataForNewNode } from './clone-node-data'
+import { createVideoComparisonDraft, persistVideoComparisonDraft, shouldCreateVideoComparison } from './video-comparison'
 import {
   CANVAS_ADD_NODE_ITEMS,
   STORY_ADD_NODE_ITEMS,
@@ -141,7 +149,7 @@ import {
   findSvgEdgeIdsIntersectingRect,
   normalizeScreenRect,
 } from './edge-marquee'
-import { resolveCanvasGeneratorAnchor } from './generator-anchor'
+import { resolveCanvasGeneratorAnchor, type CanvasGeneratorAnchor } from './generator-anchor'
 import {
   findCanvasTargetNodeIdAtPoint,
   resolveCanvasRenderedScale,
@@ -241,9 +249,9 @@ const CANVAS_NODE_HARD_LIMIT = 1_000
 const CANVAS_EDGE_HARD_LIMIT = 4_000
 const CANVAS_POLL_FAILURE_LIMIT = 4
 const CANVAS_UPLOAD_CONCURRENCY = 2
-const CANVAS_UPLOAD_MAX_ATTEMPTS = 4
 /** 稳定的空数组引用，避免生成器因为每次渲染新建数组而重复合并引用。 */
 const EMPTY_REFERENCE_NODE_IDS: string[] = []
+const EMPTY_NODE_ID_SET: ReadonlySet<string> = new Set()
 
 type Props = {
   projectId: string
@@ -256,6 +264,8 @@ type Props = {
   onRenameCanvas: () => void
   onDeleteCanvas: () => void
   projectOptions?: CanvasProjectOption[]
+  parentProjectId?: string | null
+  parentProjectName?: string | null
   onSelectProject?: (projectId: string) => void
   canvasHomeHref?: string
   createProjectHref?: string
@@ -277,7 +287,12 @@ type ToolboxAsset = {
   createdAt: string
   task?: { id: string; status: string; progress: number; errorMessage: string | null; costPoints?: number | null } | null
 }
-type ImageOperationState = { mode: CanvasImageOperationMode; sourceNodeId: string; targetNodeId?: string }
+type ImageOperationState = {
+  mode: CanvasImageOperationMode
+  sourceNodeId: string
+  targetNodeId?: string
+  initialGrid?: { rows: number; cols: number }
+}
 type VideoOperationState = { mode: CanvasVideoOperationMode; sourceNodeId: string }
 
 function isToolboxAssetType(value: string): value is ToolboxAsset['type'] {
@@ -437,7 +452,7 @@ function createHistoryItem(request: CanvasGenerateRequest, assetId?: string, tas
   }
 }
 
-function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
+function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
   const flowStore = useStoreApi<CanvasFlowNode, CanvasFlowEdge>()
   const readOnly = !canEditInfiniteCanvas(session?.user)
@@ -453,6 +468,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const [organizeOpen, setOrganizeOpen] = useState(false)
   const [layoutAnimating, setLayoutAnimating] = useState(false)
   const [nodeDragging, setNodeDragging] = useState(false)
+  // While a node gesture hides the anchored generator, its last settled
+  // geometry is frozen. Recomputing mid-drag makes the hidden panel shrink or
+  // flip between frames, then reappear at a jarring size when the drag stops.
+  const [generatorAnchorFrozen, setGeneratorAnchorFrozen] = useState(false)
   const [contextMenu, setContextMenu] = useState<CanvasContextMenuState | null>(null)
   const [clipboardCanPaste, setClipboardCanPaste] = useState(false)
   const [wireMenu, setWireMenu] = useState<CanvasWireMenuState | null>(null)
@@ -531,6 +550,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const altCopyRef = useRef<ClipboardDocument | null>(null)
   const materializingStoryboardTasksRef = useRef(new Set<string>())
   const layoutAnimationFrameRef = useRef<number | null>(null)
+  const generatorAnchorLiveRef = useRef<{ nodeId: string; anchor: CanvasGeneratorAnchor } | null>(null)
+  const generatorAnchorFreezeRef = useRef<{ nodeId: string; anchor: CanvasGeneratorAnchor } | null>(null)
+  const generatorAnchorReleaseTimerRef = useRef<number | null>(null)
   const focusAppliedRef = useRef(false)
   const {
     canUndo,
@@ -572,6 +594,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   }, [flow, focusNodeId])
   useEffect(() => () => {
     if (layoutAnimationFrameRef.current !== null) window.cancelAnimationFrame(layoutAnimationFrameRef.current)
+    if (generatorAnchorReleaseTimerRef.current !== null) window.clearTimeout(generatorAnchorReleaseTimerRef.current)
   }, [])
   useEffect(() => {
     const restoreWidth = () => {
@@ -695,7 +718,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const restoreOfflineDocument = useCallback((document: CanvasDocumentInput) => {
     const nextNodes = document.nodes.map(canvasNodeToFlow)
-    const nextEdges = document.edges.map(canvasEdgeToFlow)
+    const nextEdges = document.edges.map((edge) => canvasEdgeToFlow({
+      ...edge,
+      role: edge.role === 'VIDEO_FRAME' ? 'REF' : edge.role,
+    }))
     const nextViewport = document.viewport
     nodesRef.current = nextNodes
     edgesRef.current = nextEdges
@@ -737,6 +763,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const autosaveClientId = autosave.clientId
   const loadAutosaveServerVersion = autosave.loadServerVersion
   const mergeAutosaveServerVersion = autosave.mergeServerVersion
+  const acceptGenerationRevision = autosave.acceptExternalRevision
   const prepareGenerationSubmission = autosave.prepareRevisionedMutation
   const prepareProductionSync = autosave.prepareRevisionedMutation
   const acceptProductionSyncRevision = autosave.acceptExternalRevision
@@ -905,7 +932,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     try {
       const syncInput = await prepareProductionSync()
       const graph = await canvasApi.syncProduction(projectId, initialGraph.canvas.id, syncInput)
-      const accepted = await acceptProductionSyncRevision(syncInput.expectedRevision, graph.canvas.revision)
+      const accepted = await acceptProductionSyncRevision(syncInput.expectedRevision, graph)
       if (!accepted) {
         await loadServerAfterSyncConflict()
         throw new CanvasRevisionConflictError('同步期间画布版本发生变化，已加载最新服务端版本，请重试同步。')
@@ -1446,13 +1473,25 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (readOnly) return
     const target = nodesRef.current.find((node) => node.id === request.nodeId)
     if (!target) throw new Error('节点不存在或已被删除')
+    if ((target.data.generationTask && !target.data.generationTask.completed) || target.data.__server?.status === 'RUNNING') throw new Error('该节点正在生成，请等待完成后再提交')
     const referenceNodeIds = requireExistingReferenceNodeIds(request.referenceNodeIds, nodesRef.current)
-    const additionalNodes = request.storyboard ? request.count : request.type === 'image' ? Math.max(0, request.count - 1) : 0
+    // Global style is a canvas-level text node. Compose it at request time so
+    // the node's own prompt stays the user's original text and repeated
+    // submissions never stack duplicate style blocks.
+    const globalStyleNode = request.type === 'image' || request.type === 'video'
+      ? findCanvasGlobalStylePromptNode(nodesRef.current)
+      : null
+    const globalStylePrompt = globalStyleNode ? readCanvasGlobalStylePrompt(nodesRef.current) : ''
+    const generationPrompt = request.type === 'image' || request.type === 'video'
+      ? composeCanvasGlobalStylePrompt(request.prompt, globalStylePrompt)
+      : request.prompt
+    const isVideoComparison = request.type === 'video' && shouldCreateVideoComparison(target)
+    const additionalNodes = request.storyboard ? request.count : request.type === 'image' ? Math.max(0, request.count - 1) : isVideoComparison ? 1 : 0
     if (!ensureNodeCapacity(additionalNodes)) throw new Error('画布节点数量已达到上限')
-    // Ordinary multi-image generation is materialized by the server. Flush
-    // real user edits before showing an optimistic state, then never persist
-    // that unbound RUNNING placeholder over the server's task/asset binding.
-    // Persist real edits before exposing any optimistic RUNNING state.  Every
+    if (isVideoComparison && edgesRef.current.length + edgesRef.current.filter((edge) => edge.target === target.id).length > CANVAS_EDGE_HARD_LIMIT) {
+      throw new Error('对照节点继承连线后将超过 4000 条上限，请先整理画布')
+    }
+    // Persist real edits before exposing any optimistic RUNNING state. Every
     // generation API binds its durable task/asset on the server; autosaving an
     // unbound placeholder while submission is in flight could otherwise erase
     // that binding after a slow or ambiguously failed response.
@@ -1496,17 +1535,70 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       delete generation.assetId
       delete generation.taskId
     }
-    setNodes((current) => current.map((node) => node.id === target.id ? { ...node, data: { ...node.data, prompt: request.prompt, generation, progress: 2, errorMessage: null, pollErrorMessage: null, __server: { ...node.data.__server!, status: 'RUNNING' } } } : node))
-    const restoreAuthoritativeTarget = async () => {
+    const videoComparison = isVideoComparison
+      ? createVideoComparisonDraft({ source: target, edges: edgesRef.current, prompt: request.prompt, generation, referenceNodeIds })
+      : null
+    const generationTargetId = videoComparison?.node.id || target.id
+    let comparisonPersisted = false
+    let discardPersistedComparison: (() => Promise<void>) | null = null
+    const selectOriginalTarget = () => {
+      setNodes((current) => current.map((node) => ({ ...node, selected: node.id === target.id })))
+    }
+    const discardComparison = async () => {
+      if (!videoComparison || !comparisonPersisted) return
       try {
+        await discardPersistedComparison?.()
+      } catch (error) {
+        if (!(error instanceof CanvasRevisionConflictError)) throw error
         await loadAutosaveServerVersion()
-        setNodes((current) => current.map((node) => node.id === target.id
+        if (!nodesRef.current.some((node) => node.id === generationTargetId)) {
+          comparisonPersisted = false
+          selectOriginalTarget()
+          return
+        }
+        const current = await prepareGenerationSubmission()
+        const graph = await canvasApi.saveOperations(projectId, initialGraph.canvas.id, {
+          expectedRevision: current.expectedRevision,
+          clientId: current.clientId,
+          changeSummary: '清理未提交的对照视频',
+          ops: [
+            ...videoComparison.edges.map((edge) => ({ type: 'edge.delete' as const, id: edge.id })),
+            { type: 'node.delete' as const, id: generationTargetId },
+          ],
+        })
+        if (!await acceptGenerationRevision(current.expectedRevision, graph)) throw error
+        await loadAutosaveServerVersion()
+      }
+      comparisonPersisted = false
+    }
+    if (videoComparison) {
+      setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), videoComparison.node])
+      setEdges((current) => [...current, ...videoComparison.edges])
+    } else {
+      setNodes((current) => current.map((node) => node.id === target.id ? { ...node, data: { ...node.data, prompt: request.prompt, generation, progress: 2, errorMessage: null, pollErrorMessage: null, __server: { ...node.data.__server!, status: 'RUNNING' } } } : node))
+    }
+    const restoreAuthoritativeTarget = async (discardUnknownSubmission = false) => {
+      try {
+        if (videoComparison) {
+          if (discardUnknownSubmission) {
+            await loadAutosaveServerVersion()
+            if (nodesRef.current.some((node) => node.id === generationTargetId && node.data.__server?.taskId)) return
+          }
+          await discardComparison()
+          setNodes((current) => current.filter((node) => node.id !== generationTargetId).map((node) => ({ ...node, selected: node.id === target.id })))
+          setEdges((current) => current.filter((edge) => edge.target !== generationTargetId))
+          return
+        }
+        await loadAutosaveServerVersion()
+        setNodes((current) => current.map((node) => node.id === generationTargetId
           ? { ...node, selected: true }
           : { ...node, selected: false }))
       } catch {
-        // Keep the unsaved optimistic state visible when the graph cannot be
-        // reloaded.  It is intentionally not queued for autosave, so a later
-        // refresh/reconnect can still recover the server-owned task binding.
+        if (videoComparison) {
+          setNodes((current) => current.filter((node) => node.id !== generationTargetId).map((node) => ({ ...node, selected: node.id === target.id })))
+          setEdges((current) => current.filter((edge) => edge.target !== generationTargetId))
+          if (comparisonPersisted) markChanged('清理未提交的对照视频')
+        }
       }
     }
 
@@ -1553,6 +1645,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           body: JSON.stringify({
             nodeId: target.id,
             prompt: request.prompt,
+            globalStylePrompt,
             count: request.count,
             modelKey: request.modelKey,
             modelLabel: request.modelLabel,
@@ -1603,16 +1696,42 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       : isCanvasPanoramaNodeData(target.data)
         ? CANVAS_PANORAMA_PROCESS_TYPE
         : null
-    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: target.id, type: request.type, title: target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: request.prompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
+    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
     const submitMediaRequest = () => apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submissionBody })
     let response: Response
+    try {
+      if (videoComparison) {
+        const persisted = await persistVideoComparisonDraft({
+          projectId,
+          canvasId: initialGraph.canvas.id,
+          sourceNodeId: target.id,
+          draft: videoComparison,
+          nodes: nodesRef.current,
+          edges: edgesRef.current,
+          prepare: prepareGenerationSubmission,
+          saveOperations: canvasApi.saveOperations,
+          acceptRevision: acceptGenerationRevision,
+          loadServer: loadAutosaveServerVersion,
+        })
+        nodesRef.current = persisted.nodes
+        edgesRef.current = persisted.edges
+        setNodes(nodesRef.current)
+        setEdges(edgesRef.current)
+        handleSaved(persisted.graph)
+        discardPersistedComparison = persisted.discard
+        comparisonPersisted = true
+      }
+    } catch (error) {
+      if (comparisonPersisted) await restoreAuthoritativeTarget()
+      throw error
+    }
     try {
       response = await submitMediaRequest()
     } catch {
       try {
         response = await submitMediaRequest()
       } catch (error) {
-        await restoreAuthoritativeTarget()
+        await restoreAuthoritativeTarget(true)
         throw error
       }
     }
@@ -1652,10 +1771,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       throw new Error('生成服务没有返回任务')
     }
     const item = createHistoryItem(request, task.assetId, task.taskId)
-    setNodes((current) => current.map((node) => node.id === target.id ? { ...node, data: { ...node.data, origin: 'generate', history: prependCanvasGenerationHistory(item, node.data.history), generation: { ...generation, assetId: task.assetId, taskId: task.taskId }, progress: 2, __server: { ...node.data.__server!, status: 'RUNNING', taskId: task.taskId } } } : node))
+    setNodes((current) => current.map((node) => node.id === generationTargetId ? { ...node, data: { ...node.data, origin: 'generate', history: prependCanvasGenerationHistory(item, node.data.history), generation: { ...generation, assetId: task.assetId, taskId: task.taskId }, progress: 2, __server: { ...node.data.__server!, status: 'RUNNING', taskId: task.taskId } } } : node))
     markChanged('生成任务已提交')
-    setToast(`已提交 ${payload.tasks.length} 个生成任务`)
-  }, [ensureNodeCapacity, ensureReferenceMaterialIds, initialGraph.canvas.id, loadAutosaveServerVersion, markChanged, prepareGenerationSubmission, projectId, readOnly, record])
+    setToast(videoComparison ? '对照视频已提交，原视频和输入连线已保留' : `已提交 ${payload.tasks.length} 个生成任务`)
+  }, [acceptGenerationRevision, ensureNodeCapacity, ensureReferenceMaterialIds, handleSaved, initialGraph.canvas.id, loadAutosaveServerVersion, markChanged, prepareGenerationSubmission, projectId, readOnly, record])
 
   const materializeStoryboardPlan = useCallback(async (
     _sourceNodeId: string,
@@ -1775,16 +1894,6 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       })().catch((error) => setToast(error instanceof Error ? error.message : '下载失败'))
       return
     }
-    if (action === 'favorite') {
-      if (!node.data.materialId) { setToast('素材尚未就绪，暂不可收藏'); return }
-      const next = !node.data.isFavorited
-      void apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ materialId: node.data.materialId, isFavorited: next }) }).then((response) => {
-        if (!response.ok) throw new Error('收藏操作失败')
-        updateNodeData(nodeId, { isFavorited: next })
-        setToast(next ? '已收藏' : '已取消收藏')
-      }).catch(() => setToast('收藏操作失败'))
-      return
-    }
     if (action === 'cancel_generation') {
       const task = node.data.generationTask
       if (!task?.taskId || node.data.__server?.status !== 'RUNNING') return
@@ -1856,7 +1965,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (action === 'regenerate') {
       const config = node.data.generation
       const regeneration = resolveCanvasRegenerationMode(node.data)
-      if (node.data.prompt && config?.modelKey) void handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt: node.data.prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
+      if (node.data.prompt && config?.modelKey) void handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt: node.data.prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), ...(config.parameters?.superresolveTarget === '720p' || config.parameters?.superresolveTarget === '1080p' || config.parameters?.superresolveTarget === '4k' ? { superresolveTarget: config.parameters.superresolveTarget } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
         .catch((error) => {
           setNodes((current) => current.map((item) => ({ ...item, selected: item.id === nodeId })))
           setToast(error instanceof Error ? error.message : '生成提交失败，请检查引用素材。')
@@ -1882,6 +1991,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     if (action === 'subtitle_erase' && getMediaType(node) === 'video') {
       setVideoOperation({ mode: 'subtitle_erase', sourceNodeId: node.id })
+      return
+    }
+    if (action === 'audio_extract' && getMediaType(node) === 'video') {
+      setVideoOperation({ mode: 'audio_extract', sourceNodeId: node.id })
       return
     }
     if (action !== 'panorama_720') return
@@ -2025,7 +2138,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const form = new FormData()
     form.set('file', maskFile)
     form.set('title', `${source.data.title || '图片'} · 改图蒙版`)
-    form.set('projectId', projectId)
+    form.set('projectId', 'personal')
     const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
     if (!response.ok) throw new Error(await readApiErrorMessage(response, '蒙版上传失败'))
     const payload = await response.json() as { material?: FrameosMaterialItem }
@@ -2063,10 +2176,13 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const applyVideoOperationResults = useCallback(async (operationInput: CanvasVideoOperationInput, payload: ResolvedCanvasOperation) => {
     if (!videoOperation || readOnly) return
+    const isAudioExtract = operationInput.operation === 'audio_extract'
+    const isSubtitleErase = operationInput.operation === 'subtitle_erase'
+    const label = isAudioExtract ? '提取音频' : isSubtitleErase ? '视频去字幕' : '视频增强'
     if (payload.materialization?.materialized) {
       await mergeAutosaveServerVersion()
       setVideoOperation(null)
-      setToast(operationInput.operation === 'subtitle_erase' ? '去字幕视频已生成并恢复到画布' : '增强视频已生成并恢复到画布')
+      setToast(isAudioExtract ? '音频已提取并恢复到画布' : isSubtitleErase ? '去字幕视频已生成并恢复到画布' : '增强视频已生成并恢复到画布')
       return
     }
     const source = nodesRef.current.find((node) => node.id === videoOperation.sourceNodeId)
@@ -2077,19 +2193,18 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const taskId = payload.taskUpdate?.task.id
     const taskModelKey = payload.taskUpdate?.task.modelKey || undefined
 
-    const label = operationInput.operation === 'subtitle_erase' ? '视频去字幕' : '视频增强'
     record(label)
     const size = nodeSize(source)
-    const derived = createFlowNode('video', { x: source.position.x + size.width + 92, y: source.position.y })
+    const derived = createFlowNode(isAudioExtract ? 'audio' : 'video', { x: source.position.x + size.width + 92, y: source.position.y })
     derived.selected = true
     derived.data = {
       ...derived.data,
       title: result.title,
-      mediaType: 'video',
+      mediaType: isAudioExtract ? 'audio' : 'video',
       origin: 'derivative',
-      processType: operationInput.operation === 'subtitle_erase' ? 'subtitle_erase' : 'superresolve',
+      processType: isAudioExtract ? 'audio_extract' : isSubtitleErase ? 'subtitle_erase' : 'superresolve',
       contentUrl: result.url,
-      videoUrl: result.url,
+      ...(isAudioExtract ? { audioUrl: result.url } : { videoUrl: result.url }),
       materialId: result.materialId,
       duration: result.duration,
       fps: result.fps,
@@ -2099,9 +2214,11 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         count: 1,
         taskId,
         modelKey: taskModelKey,
-        parameters: operationInput.operation === 'subtitle_erase'
-          ? { eraseMode: operationInput.mode, ...operationInput.region }
-          : { target: operationInput.target, interpolate: operationInput.interpolate },
+        parameters: isAudioExtract
+          ? { startMs: operationInput.startMs, endMs: operationInput.endMs }
+          : isSubtitleErase
+            ? { eraseMode: operationInput.mode, ...operationInput.region }
+            : { target: operationInput.target, interpolate: operationInput.interpolate },
       },
       __server: { ...derived.data.__server!, status: 'SUCCEEDED' },
     }
@@ -2110,7 +2227,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setEdges((current) => [...current, edge])
     markChanged(`${label}完成`)
     setVideoOperation(null)
-    setToast(operationInput.operation === 'subtitle_erase' ? '去字幕视频已生成' : '增强视频已生成')
+    setToast(isAudioExtract ? '音频已提取' : isSubtitleErase ? '去字幕视频已生成' : '增强视频已生成')
   }, [ensureNodeCapacity, markChanged, mergeAutosaveServerVersion, readOnly, record, videoOperation])
 
   const handleVideoOperation = useCallback(async (operationInput: CanvasVideoOperationInput, onTaskUpdate?: (update: CanvasOperationTaskUpdate) => void) => {
@@ -2216,7 +2333,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const form = new FormData()
     form.set('file', file)
     form.set('title', `${source.data.title || '视频'} · 关键帧 ${file.name.match(/([\d.]+)s\.jpg$/)?.[1] || '0.00'}s`)
-    form.set('projectId', projectId)
+    form.set('projectId', 'personal')
     const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
     if (!response.ok) throw new Error(await readApiErrorMessage(response, '关键帧上传失败'))
     const payload = await response.json() as { material?: FrameosMaterialItem }
@@ -2224,7 +2341,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (!material?.id || !material.url) throw new Error('关键帧上传未返回可用素材')
     if (!ensureNodeCapacity(1) || edgesRef.current.length >= CANVAS_EDGE_HARD_LIMIT) throw new Error('画布容量已变化，请为关键帧图片预留节点和连线空间')
     const size = nodeSize(source)
-    const slot = edgesRef.current.filter((edge) => edge.source === source.id && edge.data?.role === 'VIDEO_FRAME').length
+    const slot = edgesRef.current.filter((edge) => edge.source === source.id && edge.data?.role === 'REF' && nodesRef.current.find((node) => node.id === edge.target)?.data.generation?.parameters?.videoFrameCapture === true).length
     const created = createFlowNode('image', { x: source.position.x + size.width + 90 + Math.floor(slot / 4) * 356, y: source.position.y + (slot % 4) * 238 })
     created.width = 320
     created.height = 210
@@ -2243,7 +2360,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     record('截取视频关键帧')
     setNodes((current) => [...current.map((node) => node.selected ? { ...node, selected: false } : node), created])
-    setEdges((current) => [...current, { id: crypto.randomUUID(), source: source.id, target: created.id, sourceHandle: 'output', targetHandle: 'input', type: 'bezier', data: { role: 'VIDEO_FRAME' } }])
+    setEdges((current) => [...current, { id: crypto.randomUUID(), source: source.id, target: created.id, sourceHandle: 'output', targetHandle: 'input', type: 'bezier', data: { role: 'REF' } }])
     markChanged('已添加视频关键帧')
     setToast('关键帧已添加到画布')
   }, [ensureNodeCapacity, initialGraph.canvas.id, markChanged, projectId, readOnly, record])
@@ -2261,7 +2378,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const form = new FormData()
       form.set('file', file)
       form.set('title', `${source.data.title || '全景图'} · ${mode === 'current' ? '当前视角' : mode === 'four' ? `四视角 ${index + 1}` : `十二视角 ${index + 1}`}`)
-      form.set('projectId', projectId)
+      form.set('projectId', 'personal')
       const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, `视角 ${index + 1} 上传失败`))
       const payload = await response.json() as { material?: FrameosMaterialItem }
@@ -2335,7 +2452,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const form = new FormData()
       form.set('file', draft.file)
       form.set('title', `${source.data.title || '3D导演台'} · ${draft.cameraName} ${index + 1}`)
-      form.set('projectId', projectId)
+      form.set('projectId', 'personal')
       const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, `机位截图 ${index + 1} 保存失败`))
       const payload = await response.json() as { material?: FrameosMaterialItem }
@@ -2445,14 +2562,36 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     submitPlaylistReview,
   }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, startPlaylistRender, submitPlaylistReview, undo, updateNodeData, writeLocked])
 
+  const freezeGeneratorAnchor = useCallback(() => {
+    const live = generatorAnchorLiveRef.current
+    if (!live) return
+    if (generatorAnchorReleaseTimerRef.current !== null) {
+      window.clearTimeout(generatorAnchorReleaseTimerRef.current)
+      generatorAnchorReleaseTimerRef.current = null
+    }
+    if (generatorAnchorFreezeRef.current?.nodeId === live.nodeId) return
+    generatorAnchorFreezeRef.current = live
+    setGeneratorAnchorFrozen(true)
+  }, [])
+  const releaseGeneratorAnchor = useCallback((delay = 160) => {
+    if (!generatorAnchorFreezeRef.current) return
+    if (generatorAnchorReleaseTimerRef.current !== null) window.clearTimeout(generatorAnchorReleaseTimerRef.current)
+    generatorAnchorReleaseTimerRef.current = window.setTimeout(() => {
+      generatorAnchorReleaseTimerRef.current = null
+      generatorAnchorFreezeRef.current = null
+      setGeneratorAnchorFrozen(false)
+    }, delay)
+  }, [])
+
   const onNodesChange = useCallback((changes: NodeChange<CanvasFlowNode>[]) => {
     if (productionSyncing || (readOnly && changes.some((change) => change.type !== 'select'))) return
     if (layoutAnimating && changes.some((change) => change.type === 'position' || change.type === 'dimensions')) return
     for (const change of changes) {
       if (change.type === 'remove') record('删除节点')
       if (change.type === 'dimensions') {
+        if (change.resizing) freezeGeneratorAnchor()
         if (change.setAttributes && !resizeHistoryRef.current.has(change.id)) { resizeHistoryRef.current.add(change.id); record('调整节点大小') }
-        if (change.resizing === false) resizeHistoryRef.current.delete(change.id)
+        if (change.resizing === false) { resizeHistoryRef.current.delete(change.id); releaseGeneratorAnchor() }
       }
     }
     const removed = new Set(changes.filter((change) => change.type === 'remove').map((change) => change.id))
@@ -2483,7 +2622,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       setEdges(remainingEdges)
       cleanupDisconnectedReferences(removedEdges, remainingEdges)
     }
-  }, [cleanupDisconnectedReferences, layoutAnimating, markChanged, productionSyncing, readOnly, record])
+  }, [cleanupDisconnectedReferences, freezeGeneratorAnchor, layoutAnimating, markChanged, productionSyncing, readOnly, record, releaseGeneratorAnchor])
 
   const onEdgesChange = useCallback((changes: EdgeChange<CanvasFlowEdge>[]) => {
     if (writeLocked) return
@@ -2556,6 +2695,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const onNodeDragStart = useCallback((event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
     setNodeDragging(true)
+    freezeGeneratorAnchor()
     const dragNodes = node.selected ? nodesRef.current.filter((current) => current.selected) : [node]
     beginBatchNodeDrag(event, dragNodes)
     const selectedNodeCount = node.selected
@@ -2583,7 +2723,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const memberIds = new Set(node.data.memberIds || [])
       groupDragRef.current = { id: node.id, start: { ...node.position }, members: new Map(nodesRef.current.filter((item) => memberIds.has(item.id)).map((item) => [item.id, { ...item.position }])) }
     }
-  }, [beginBatchNodeDrag, expandGroupNodeIds, record, writeLocked])
+  }, [beginBatchNodeDrag, expandGroupNodeIds, freezeGeneratorAnchor, record, writeLocked])
 
   const onNodeDrag = useCallback((event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
@@ -2601,6 +2741,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
 
   const onNodeDragStop = useCallback((event: React.MouseEvent, draggedNode: CanvasFlowNode, draggedNodes: CanvasFlowNode[]) => {
     setNodeDragging(false)
+    releaseGeneratorAnchor()
     if (finishBatchNodeDrag(event, draggedNodes || [draggedNode])) return
     const playlistDrag = playlistNodeDragRef.current?.id === draggedNode.id ? playlistNodeDragRef.current : null
     const currentNodes = nodesRef.current.map((node) => node.id === draggedNode.id ? draggedNode : node)
@@ -2682,22 +2823,24 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     groupDragRef.current = null
     dragRecordedRef.current = false
     markChanged('移动节点')
-  }, [ensureNodeCapacity, finishBatchNodeDrag, markChanged, writeLocked])
+  }, [ensureNodeCapacity, finishBatchNodeDrag, markChanged, releaseGeneratorAnchor, writeLocked])
 
   const onSelectionDragStart = useCallback((event: React.MouseEvent, draggedNodes: CanvasFlowNode[]) => {
     if (writeLocked) return
     setNodeDragging(true)
+    freezeGeneratorAnchor()
     beginBatchNodeDrag(event, draggedNodes)
     if (!dragRecordedRef.current) {
       record('移动多个节点')
       dragRecordedRef.current = true
     }
-  }, [beginBatchNodeDrag, record, writeLocked])
+  }, [beginBatchNodeDrag, freezeGeneratorAnchor, record, writeLocked])
   const onSelectionDrag = useCallback((event: React.MouseEvent) => {
     if (batchNodeDragRef.current) setBatchDropTargetId(batchTargetAtPointer(event))
   }, [batchTargetAtPointer])
   const onSelectionDragStop = useCallback((event: React.MouseEvent, draggedNodes: CanvasFlowNode[]) => {
     setNodeDragging(false)
+    releaseGeneratorAnchor()
     if (finishBatchNodeDrag(event, draggedNodes)) return
     if (writeLocked) {
       dragRecordedRef.current = false
@@ -2714,7 +2857,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     })
     dragRecordedRef.current = false
     markChanged('移动多个节点')
-  }, [finishBatchNodeDrag, markChanged, writeLocked])
+  }, [finishBatchNodeDrag, markChanged, releaseGeneratorAnchor, writeLocked])
 
   const insertMaterials = useCallback((entries: Array<{ material: FrameosMaterialItem; position: { x: number; y: number } }>) => {
     if (readOnly) return []
@@ -2803,7 +2946,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const form = new FormData()
       form.set('file', file)
       form.set('title', file.name.replace(/\.[^.]+$/, '') || '上传素材')
-      form.set('projectId', projectId)
+      form.set('projectId', 'personal')
       const response = await apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/materials`, { method: 'POST', body: form })
       if (response.ok) {
         const payload = await response.json() as { material?: FrameosMaterialItem }
@@ -2812,7 +2955,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       }
       lastError = await readApiErrorMessage(response, lastError)
       if (response.status !== 429 || attempt === CANVAS_UPLOAD_MAX_ATTEMPTS) throw new Error(lastError)
-      await new Promise((resolve) => window.setTimeout(resolve, 300 * attempt))
+      const retryAfter = Number(response.headers.get('retry-after'))
+      await new Promise((resolve) => window.setTimeout(resolve, canvasUploadRetryDelay(attempt, retryAfter)))
     }
     throw new Error(lastError)
   }, [initialGraph.canvas.id, projectId])
@@ -3221,7 +3365,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   // Positioning and rendering must use the same layout width. The workspace is
   // CSS-zoomed, so window.innerWidth would make the actual panel too wide.
   const renderedGeneratorPanelWidth = Math.min(generatorPanelWidth, Math.max(240, canvasSurfaceSize.width - 80))
-  const generatorAnchor = selectedCreativeNode && selectedCreativeNodePosition && selectedCreativeNodeSize
+  const liveGeneratorAnchor = selectedCreativeNode && selectedCreativeNodePosition && selectedCreativeNodeSize
     ? resolveCanvasGeneratorAnchor({
         nodePosition: selectedCreativeNodePosition,
         nodeSize: selectedCreativeNodeSize,
@@ -3231,7 +3375,24 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         safeBottom: 96,
       })
     : null
+  generatorAnchorLiveRef.current = selectedCreativeNode && liveGeneratorAnchor
+    ? { nodeId: selectedCreativeNode.id, anchor: liveGeneratorAnchor }
+    : null
+  const frozenAnchorEntry = generatorAnchorFreezeRef.current
+  const frozenGeneratorAnchor = generatorAnchorFrozen
+    && frozenAnchorEntry
+    && frozenAnchorEntry.nodeId === selectedCreativeNode?.id
+    ? frozenAnchorEntry.anchor
+    : null
+  const generatorAnchor = frozenGeneratorAnchor ?? liveGeneratorAnchor
   const incomingNodes = selectedCreativeNode ? edges.filter((edge) => edge.target === selectedCreativeNode.id).map((edge) => nodes.find((node) => node.id === edge.source)).filter((node): node is CanvasFlowNode => Boolean(node)) : []
+  const secondaryIncomingNodeIds = selectedCreativeNode
+    ? new Set(collectCanvasSecondaryNodeIds(edges, selectedCreativeNode.id, incomingNodes.map((node) => node.id)))
+    : EMPTY_NODE_ID_SET
+  const globalStyleNodes = nodes.filter((node) => getMediaType(node) === 'text' && node.data.globalStylePrompt === true)
+  // The flag is unique by construction; if legacy data holds duplicates we
+  // deliberately show no style block rather than picking an arbitrary source.
+  const globalStyleNode = globalStyleNodes.length === 1 ? globalStyleNodes[0] : null
   const historyNode = historyNodeId ? nodes.find((node) => node.id === historyNodeId) || null : null
   const modelPreviewNode = modelPreviewNodeId ? nodes.find((node) => node.id === modelPreviewNodeId) || null : null
   const mediaPreviewNode = mediaPreviewNodeId ? nodes.find((node) => node.id === mediaPreviewNodeId) || null : null
@@ -3637,6 +3798,28 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       if (action === 'delete') removeNodes([menu.nodeId])
       if (action === 'regenerate') runNodeAction(menu.nodeId, 'regenerate')
       if (action === 'upload-asset-library') setAssetLibraryNodeId(menu.nodeId)
+      if (action === 'grid-split-2' || action === 'grid-split-3' || action === 'grid-split-4') {
+        const target = nodesRef.current.find((node) => node.id === menu.nodeId && getMediaType(node) === 'image')
+        if (!target) return
+        const size = Number(action.slice('grid-split-'.length))
+        setImageOperation({ mode: 'grid_split', sourceNodeId: target.id, initialGrid: { rows: size, cols: size } })
+        return
+      }
+      if (action === 'set-global-style' || action === 'clear-global-style') {
+        const target = nodesRef.current.find((node) => node.id === menu.nodeId && getMediaType(node) === 'text')
+        if (!target) return
+        const enabled = action === 'set-global-style'
+        setNodes((current) => current.map((node) => {
+          if (node.id === target.id) return { ...node, data: { ...node.data, globalStylePrompt: enabled } }
+          if (enabled && getMediaType(node) === 'text' && node.data.globalStylePrompt) {
+            return { ...node, data: { ...node.data, globalStylePrompt: false } }
+          }
+          return node
+        }))
+        markChanged(enabled ? '设置画布全局风格' : '取消画布全局风格')
+        setToast(enabled ? '已设为画布全局风格，将注入所有图片/视频提示词' : '已取消画布全局风格')
+        return
+      }
       return
     }
     if (menu.scope === 'group') {
@@ -3862,9 +4045,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           const nodeId = target.closest('.react-flow__node')?.getAttribute('data-id')
           const node = nodesRef.current.find((item) => item.id === nodeId)
           if (node) {
+            const nodeMenuHeight = 230 + (getMediaType(node) === 'image' ? 118 : getMediaType(node) === 'text' ? 46 : 0)
             setContextMenu(node.type === 'group'
               ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, 145) }
-              : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, 230) })
+              : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, nodeMenuHeight) })
             return
           }
           const edgeId = target.closest('.react-flow__edge')?.getAttribute('data-id')
@@ -4015,7 +4199,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               clearCanvasSelection()
             }}
             onPaneContextMenu={(event) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setClipboardCanPaste(Boolean(clipboardRef.current?.nodes.length)); void refreshClipboardAvailability(); setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: screenToCanvasPosition({ x: event.clientX, y: event.clientY }) }) }}
-            onNodeContextMenu={(event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 165) }) }}
+            onNodeContextMenu={(event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; const nodeMenuHeight = 230 + (getMediaType(node) === 'image' ? 118 : getMediaType(node) === 'text' ? 46 : 0); setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : nodeMenuHeight) }) }}
             onEdgeContextMenu={(event, edge) => { event.preventDefault(); if (!writeLocked) setContextMenu({ scope: 'edge', edgeId: edge.id, ...visibleMenuPoint(event.clientX, event.clientY, 50) }) }}
             defaultViewport={initialGraph.canvas.viewport || { x: 0, y: 0, zoom: 1 }}
             minZoom={0.15}
@@ -4029,12 +4213,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             selectionOnDrag={false}
             selectionMode={SelectionMode.Partial}
             paneClickDistance={8}
-            panOnDrag={[1, 2]}
+            panOnDrag={[1]}
             panActivationKeyCode="Space"
-            panOnScroll
             zoomOnScroll
             zoomOnPinch
-            zoomActivationKeyCode={['Meta', 'Control']}
             multiSelectionKeyCode={['Shift', 'Meta', 'Control']}
             deleteKeyCode={null}
             proOptions={{ hideAttribution: true }}
@@ -4072,7 +4254,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {productionSyncing ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在同步项目内容，请稍候…</span></div> : null}
         {autosave.offlineRecoveryState === 'loading' ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在检查本地未同步版本…</span></div> : null}
 
-        <CanvasChrome projectId={projectId} projectName={projectName} canvases={canvases} activeCanvas={{ ...(canvases.find((canvas) => canvas.id === canvasRef.current.id) || canvasRef.current), nodeCount: nodes.length }} saveState={autosave.saveState} canUndo={canUndo} canRedo={canRedo} onSelectCanvas={onSelectCanvas} onCreateCanvas={onCreateCanvas} onRenameCanvas={onRenameCanvas} onDeleteCanvas={onDeleteCanvas} projectOptions={projectOptions} onSelectProject={onSelectProject} canvasHomeHref={canvasHomeHref} createProjectHref={createProjectHref} onUndo={undo} onRedo={redo} onRetrySave={autosave.retry} onOpenRevisions={openRevisions} syncingProduction={productionSyncing} canSyncProduction={!readOnly} readOnly={readOnly} onOpenProjectAssets={() => { setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen(true) }} onSyncProduction={() => void syncProduction()} />
+        <CanvasChrome projectId={projectId} projectName={projectName} canvases={canvases} activeCanvas={{ ...(canvases.find((canvas) => canvas.id === canvasRef.current.id) || canvasRef.current), nodeCount: nodes.length }} saveState={autosave.saveState} canUndo={canUndo} canRedo={canRedo} onSelectCanvas={onSelectCanvas} onCreateCanvas={onCreateCanvas} onRenameCanvas={onRenameCanvas} onDeleteCanvas={onDeleteCanvas} projectOptions={projectOptions} parentProjectId={parentProjectId} parentProjectName={parentProjectName} onSelectProject={onSelectProject} canvasHomeHref={canvasHomeHref} createProjectHref={createProjectHref} onUndo={undo} onRedo={redo} onRetrySave={autosave.retry} onOpenRevisions={openRevisions} syncingProduction={productionSyncing} canSyncProduction={!readOnly} readOnly={readOnly} onOpenProjectAssets={() => { setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen(true) }} onSyncProduction={() => void syncProduction()} />
 
         <CanvasToolRail editable={!readOnly} addOpen={addOpen} assetsOpen={assetsOpen} onToggleAdd={() => { pendingInsertPositionRef.current = null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen((value) => !value) }} onToggleAssets={() => { pendingInsertPositionRef.current = null; setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen((value) => !value) }} onOpenLibrary={() => setPickerOpen(true)} onUpload={() => openUploadPicker()} onHelp={() => { setAddOpen(false); setAssetsOpen(false); setOrganizeOpen(false); setHelpOpen((value) => !value) }} />
         {!readOnly && addOpen ? <CanvasAddPanel storyItems={storyCanvas ? STORY_ADD_NODE_ITEMS : undefined} onAddNode={(type) => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; addNode(type, position) }} onUpload={() => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; openUploadPicker(position) }} /> : null}
@@ -4094,8 +4276,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               event.stopPropagation()
             }}>拖拽批量连接</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} /> : null}
-        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} readOnly={readOnly} onAction={handleContextAction} /> : null}
+        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} /> : null}
+        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}
         {!readOnly && wireMenu ? (wireMenu.story && wireMenu.story !== 'media'
@@ -4103,7 +4285,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           : <CanvasWireMenu state={wireMenu} items={wireMenu.story === 'media' ? MEDIA_WIRE_MENU_ITEMS : undefined} onPick={handleWirePick} />) : null}
         {historyNode ? <CanvasHistoryDialog node={historyNode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => { const type = getMediaType(historyNode); updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本'); setHistoryNodeId(null) }} /> : null}
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
-        {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
+        {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} initialGrid={imageOperation.initialGrid} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
         {!readOnly && videoOperation ? (() => { const node = nodes.find((item) => item.id === videoOperation.sourceNodeId); return node ? <CanvasVideoOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={videoOperation.mode} node={node} onSubmit={handleVideoOperation} onRecover={applyVideoOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setVideoOperation(null)} /> : null })() : null}
         {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onKeyframesChange={(keyframes, source) => updateNodeData(source.id, { videoKeyframes: keyframes }, '更新视频关键帧')} onClose={() => setMediaPreviewNodeId(null)} /> : null}
         {modelPreviewNode?.data.modelUrl ? <CanvasModel3DDialog src={toDisplayImageUrl(modelPreviewNode.data.modelUrl) || modelPreviewNode.data.modelUrl} title={modelPreviewNode.data.title || '3D 模型'} onClose={() => setModelPreviewNodeId(null)} /> : null}

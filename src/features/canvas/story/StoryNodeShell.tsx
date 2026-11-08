@@ -27,7 +27,7 @@ type HandleSide = 'in' | 'out' | 'media'
 const HANDLE_LOOK: Record<HandleSide, { position: Position; title?: string }> = {
   in: { position: Position.Left, title: '剧情从这里进入' },
   out: { position: Position.Right },
-  media: { position: Position.Top, title: '画面：连接视频或图片' },
+  media: { position: Position.Top, title: '画面（制作层）：连接视频或图片' },
 }
 
 /** The "+" beside a free out-port answers "what happens next?" without dragging a wire. */

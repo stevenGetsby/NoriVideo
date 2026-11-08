@@ -150,7 +150,9 @@ describe('FrameOS export preflight review runtime helper', () => {
   })
 
   it('renders the review prompt, calls the configured analysis model, and parses JSON', async () => {
-    const executeTextStep = vi.fn(async (_input: AiStepExecutionInput): Promise<AiStepExecutionResult> => ({
+    const executeTextStep = vi.fn(async (_input: AiStepExecutionInput): Promise<AiStepExecutionResult> => {
+      void _input
+      return {
       text: JSON.stringify({
         status: 'needs_work',
         readiness: {
@@ -173,7 +175,8 @@ describe('FrameOS export preflight review runtime helper', () => {
       reasoning: 'checked production context',
       usage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
       completion: {} as never,
-    }))
+      }
+    })
 
     const result = await runExportPreflightReview({
       userId: 'user-1',

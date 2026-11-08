@@ -68,10 +68,9 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const base = `http://127.0.0.1:${server.address().port}`
 const browser = await chromium.launch({ headless: true, executablePath: process.env.NORI_CHROME_EXECUTABLE || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] })
 const errors = []
-const cases = []
 let latestPage
 const model = {
-  modelKey: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', provider: 'nori', configured: true, available: true,
+  modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
   options: { duration: [4, 5, 6, 8, 10], resolution: ['480p', '720p'], aspectRatio: ['16:9', '9:16', '1:1'] },
   inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] },
@@ -156,14 +155,6 @@ async function open(viewport, query = '') {
   })
   await page.goto(`${base}/${query}`)
   return page
-}
-async function bounded(locator, label) {
-  const rect = await locator.evaluate((el) => {
-    const r = el.getBoundingClientRect()
-    return { x: r.left, y: r.top, right: r.right, bottom: r.bottom, width: r.width, viewportWidth: innerWidth, viewportHeight: innerHeight }
-  })
-  assert.ok(rect.x >= -1 && rect.y >= -1 && rect.right <= rect.viewportWidth + 1 && rect.bottom <= rect.viewportHeight + 1, `${label} must fit the viewport: ${JSON.stringify(rect)}`)
-  return rect
 }
 try {
   // on-screen nodes only: gen-1 at (440,140), add a second video node on-screen

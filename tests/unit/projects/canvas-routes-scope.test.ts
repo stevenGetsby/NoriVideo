@@ -294,6 +294,10 @@ describe('project canvas route scope', () => {
   })
 
   it('does not clear production canvas nodes when the authorized project row is missing', async () => {
+    authMock.requireProjectAuthLight.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } } as never,
+      project: { id: 'project-1', userId: 'owner-1' },
+    })
     prismaMock.project.findFirst.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/projects/[projectId]/canvas/[canvasId]/production-sync/route')
 
@@ -310,8 +314,14 @@ describe('project canvas route scope', () => {
     expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         id: 'project-1',
-        userId: 'user-1',
+        userId: 'owner-1',
         deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
       },
     }))
     expect(prismaMock.canvasNode.deleteMany).not.toHaveBeenCalled()

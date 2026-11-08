@@ -153,7 +153,7 @@ export function FramePromptsDashboard() {
           </div>
           <Link
             href={{ pathname: '/profile' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="settingsHexMinor" className="h-4 w-4" />
             {t('openEditor')}

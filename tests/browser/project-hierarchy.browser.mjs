@@ -12,11 +12,27 @@ const { chromium } = tools('playwright-core')
 const artifacts = path.join(root, 'test-results/project-hierarchy')
 await mkdir(artifacts, { recursive: true })
 const bundles = process.env.NORI_BROWSER_PREBUILT_DIR || path.join(artifacts, 'bundles')
-const [script, css, globalCss] = await Promise.all([
+let [script, css, globalCss] = await Promise.all([
   readFile(path.join(bundles, 'project-hierarchy.js')),
   readFile(path.join(bundles, 'project-hierarchy.css')),
   readFile(process.env.NORI_BROWSER_GLOBAL_CSS_PATH || '.next/static/css/app/[locale]/layout.css'),
 ])
+if (!process.env.NORI_BROWSER_PREBUILT_DIR) {
+  const built = await (await import('esbuild')).build({
+    entryPoints: ['tests/browser/project-hierarchy.fixture.tsx'], bundle: true, write: false,
+    outdir: '/fixture', jsx: 'automatic', platform: 'browser',
+    alias: {
+      '@': path.join(root, 'src'),
+      '@/i18n/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
+      'next/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
+      'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
+      'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'),
+    },
+    define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  })
+  script = built.outputFiles.find((file) => file.path.endsWith('.js')).contents
+  css = built.outputFiles.find((file) => file.path.endsWith('.css')).contents
+}
 assert.ok(globalCss.includes('--nori-interface-scale'), 'Actual application styling required')
 const server = createServer((request, response) => {
   const file = { '/fixture.js': script, '/fixture.css': css, '/global.css': globalCss }[request.url]
@@ -49,7 +65,7 @@ async function open(viewport, query = '') {
     { id: 'parent-b', name: '项目乙', ...dates },
   ]
   let works = [
-    { id: 'leaf-a', name: '作品 A', workId: 'parent-a', coverImageUrl: query.includes('view=canvas-hub') ? coverImage : null, ...dates },
+    { id: 'leaf-a', name: '作品 A', workId: 'parent-a', coverImageUrl: query.includes('view=canvas-hub') ? coverImage : null, novelPromotionData: { videoRatio: '9:16', videoResolution: '1080p', episodeCount: 12 }, ...dates },
     { id: 'leaf-b', name: '作品 B', workId: 'parent-a', ...dates },
   ]
   const recycled = []
@@ -59,10 +75,10 @@ async function open(viewport, query = '') {
   function hierarchy() {
     return parents.map((project) => ({
       ...project, kind: 'project', canManage: !child, canCreateWorks: !child,
-      canDelete: !child,
+      canDelete: !child, canMoveWorks: !child,
       workCount: works.filter((work) => work.workId === project.id).length,
       works: works.filter((work) => work.workId === project.id).map(({ workId, ...work }) => ({
-        ...work, kind: 'work', projectId: workId, canManage: !child, canMove: !child, canManageMembers: !child,
+        ...work, kind: 'work', projectId: workId, canManage: !child, canMove: !child, canManageMembers: !child, canDelete: !child,
       })),
     }))
   }
@@ -121,7 +137,11 @@ async function open(viewport, query = '') {
       payload = { success: true, recycledProjects: 2, retentionDays: 15 }
     } else if (url.pathname === '/api/works/recycle-bin/parent-a/restore') {
       const restoring = recycled.filter((work) => work.workId === 'parent-a' && work.deletedWithWork)
-      works.push(...restoring.map(({ deletedWithWork, ...work }) => work))
+      works.push(...restoring.map((work) => {
+        const { deletedWithWork, ...rest } = work
+        void deletedWithWork
+        return rest
+      }))
       for (const work of restoring) recycled.splice(recycled.indexOf(work), 1)
       parents.push({ id: 'parent-a', name: '项目甲', ...dates })
       payload = { success: true, restoredProjects: restoring.length }
@@ -231,6 +251,7 @@ try {
     const createWork = page.getByRole('dialog', { name: '创建作品', exact: true })
     await createWork.getByText('所属项目 · 项目甲', { exact: true }).waitFor()
     await bounded(createWork)
+    await createWork.getByRole('radio', { name: '工作流', exact: true }).click()
     await bounded(createWork.getByRole('button', { name: '确认创建并进入工作台', exact: true }))
     await createWork.getByPlaceholder('请输入作品名称', { exact: true }).fill('新增作品')
     await createWork.getByRole('tab', { name: '空白作品', exact: true }).click()
@@ -271,8 +292,10 @@ try {
   const cover = await open({ width: 1024, height: 600 }, '?cover_fail=1')
   const coverPage = cover.page
   const coverCard = coverPage.locator('[data-production-work-id="leaf-a"]')
-  await coverCard.locator('.works-project-monogram').waitFor()
-  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Projects without a cover retain the monogram')
+  await coverCard.locator('.work-cover-editor').waitFor()
+  assert.equal(await coverCard.locator('.works-project-monogram').count(), 0, 'Default covers use a detailed storyboard rather than a large monogram')
+  assert.ok((await coverCard.locator('.work-cover-specs').innerText()).includes('9:16'))
+  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Projects without a cover retain the storyboard')
   const coverImageFile = { name: 'cover.png', mimeType: 'image/png', buffer: Buffer.from('not-an-image') }
   await workMenu(coverPage, '作品 A')
   await coverPage.getByTestId('project-card-cover-action').click()
@@ -291,7 +314,7 @@ try {
   await coverDialog.getByRole('button', { name: '保存封面', exact: true }).click()
   await coverDialog.waitFor({ state: 'hidden' })
   await coverCard.locator('.works-project-cover-image[src^="data:image/"]').waitFor()
-  assert.equal(await coverCard.locator('.works-project-monogram').count(), 0)
+  assert.equal(await coverCard.locator('.work-cover-editor').count(), 0)
   assert.equal(cover.writes.filter((write) => write.path === '/api/projects/leaf-a/cover' && write.method === 'POST').length, 2)
   await workMenu(coverPage, '作品 A')
   assert.equal(await coverPage.getByRole('menuitem', { name: '更换封面', exact: true }).count(), 1)
@@ -300,8 +323,8 @@ try {
   assert.equal(await coverDialog.getByRole('img', { name: '作品封面预览', exact: true }).getAttribute('src'), await coverCard.locator('.works-project-cover-image').getAttribute('src'))
   await coverDialog.getByRole('button', { name: '移除封面', exact: true }).click()
   await coverDialog.waitFor({ state: 'hidden' })
-  await coverCard.locator('.works-project-monogram').waitFor()
-  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Removing a cover restores the generative monogram')
+  await coverCard.locator('.work-cover-editor').waitFor()
+  assert.equal(await coverCard.locator('.works-project-cover-image').count(), 0, 'Removing a cover restores the storyboard')
   await coverPage.close()
   results.push('cover-preview-upload-failure-retry-replace-remove-and-participant-permission')
 
@@ -309,7 +332,7 @@ try {
   const hubEntry = hub.page.getByRole('button', { name: '进入 作品 A 的无限画布', exact: true })
   await hubEntry.waitFor()
   assert.equal(await hubEntry.locator('img[src^="data:image/"]').count(), 1, 'Canvas Hub must display the same custom cover')
-  assert.equal(await hubEntry.locator('.nori-gen-cover b').count(), 0)
+  assert.equal(await hubEntry.locator('.work-cover-editor').count(), 0)
   await hub.page.close()
   results.push('canvas-hub-project-cover')
 
@@ -334,29 +357,65 @@ try {
 
   const header = await open({ width: 390, height: 700 }, '?view=header')
   await header.page.getByTestId('work-parent-project').waitFor()
-  assert.ok((await header.page.getByTestId('work-parent-project').innerText()).includes('项目甲'))
+  assert.equal(await header.page.getByTestId('work-parent-project').getAttribute('href'), '/projects?work_id=parent-a')
+  assert.equal(await header.page.getByTestId('project-panel-back').getAttribute('href'), '/projects?work_id=parent-a')
   await header.page.getByRole('button', { name: '作品设置', exact: true }).click()
   await bounded(header.page.getByRole('dialog', { name: '编辑作品', exact: true }))
   results.push('work-header-parent-project-and-bounded-settings')
   await header.page.close()
 
-  const canvas = await open({ width: 1024, height: 600 }, '?view=canvas')
-  await canvas.page.getByTestId('global-canvas-active-work-picker').click()
-  await canvas.page.getByText('选择项目', { exact: true }).waitFor()
-  assert.equal(await canvas.page.getByPlaceholder('搜索项目', { exact: true }).count(), 1)
-  await canvas.page.getByTestId('global-canvas-active-work-picker').click()
-  await canvas.page.locator('.nori-canvas-project-picker').click()
-  await canvas.page.getByText('项目甲 · 选择作品', { exact: true }).waitFor()
+  for (const view of ['canvas', 'empty-canvas']) {
+    const canvas = await open({ width: 1024, height: 600 }, `?view=${view}`)
+    const prefix = view === 'canvas' ? 'canvas' : 'empty-canvas'
+    assert.equal(await canvas.page.getByTestId(`${prefix}-parent-back`).getAttribute('href'), '/projects?work_id=parent-a')
+    assert.equal(await canvas.page.getByTestId(`${prefix}-work-link`).getAttribute('href'), '/projects?work_id=parent-a')
+    assert.ok(await canvas.page.getByTestId(`${prefix}-work-link`).evaluate((element) => element.getBoundingClientRect().width > 40), 'The parent project name must not be clipped to an icon')
+    assert.equal(await canvas.page.getByTestId(`${prefix}-parent-back`).locator('svg').count(), 1, 'Only one back chevron is rendered')
+    assert.equal(await canvas.page.locator('.nori-canvas-breadcrumbs .nori-canvas-parent-back').count(), 0, 'Return is independent of the top breadcrumbs')
+    assert.equal(await canvas.page.locator('.nori-canvas-active-picker').count(), 0, 'Canvas title is not a third breadcrumb level')
+    const backBounds = await canvas.page.getByTestId(`${prefix}-parent-back`).boundingBox()
+    assert.ok(Math.abs(backBounds.y + backBounds.height / 2 - 300) < 1, 'Return is vertically centred on the screen')
+    const revealBounds = await canvas.page.getByRole('button', { name: '展开菜单', exact: true }).boundingBox()
+    assert.ok(revealBounds.x + revealBounds.width + 8 <= backBounds.x, `Return and sidebar reveal are separate targets: ${JSON.stringify({ revealBounds, backBounds })}`)
+    assert.equal(await canvas.page.locator('.nori-canvas-breadcrumbs').getByText('测试画布', { exact: true }).count(), 0)
+    await canvas.page.screenshot({ path: path.join(artifacts, `${view}-two-level-navigation.png`) })
+    if (view === 'canvas') {
+      await canvas.page.getByRole('button', { name: '画布工具', exact: true }).click()
+      await canvas.page.locator('[data-canvas-navigation-menu] .nori-canvas-dropdown-title').getByText('测试画布', { exact: true }).waitFor()
+      await canvas.page.getByRole('button', { name: '画布工具', exact: true }).click()
+    }
+    const workPicker = view === 'canvas' ? 'global-canvas-active-work-picker' : 'empty-canvas-work-picker'
+    await canvas.page.getByTestId(workPicker).click()
+    await canvas.page.getByText('项目乙', { exact: true }).waitFor()
+    assert.equal(await canvas.page.locator('.nori-canvas-work-dropdown a').first().getAttribute('href'), '/projects?work_id=parent-a', 'Project picker navigates to the project page')
+    await canvas.page.getByTestId(workPicker).click()
+    await canvas.page.locator('.nori-canvas-project-picker').click()
+    if (view === 'canvas') await canvas.page.getByText('项目甲 · 选择作品', { exact: true }).waitFor()
+    else await canvas.page.getByText('选择作品', { exact: true }).waitFor()
   assert.equal(await canvas.page.getByText('作品 B', { exact: true }).count(), 1)
   assert.equal(await canvas.page.getByText('作品 C', { exact: true }).count(), 0)
-  assert.equal(await canvas.page.getByTestId('global-canvas-active-create-project').getAttribute('href'),
-    '/projects?create_work=1&parent_project_id=parent-a')
-  results.push('canvas-project-work-breadcrumb-and-sibling-filter')
-  await canvas.page.close()
+    if (view === 'canvas') assert.equal(await canvas.page.getByTestId('global-canvas-active-create-project').getAttribute('href'),
+      '/projects?create_work=1&parent_project_id=parent-a')
+    await canvas.page.close()
+  }
+  const located = await open({ width: 1024, height: 600 }, '?work_id=parent-a')
+  await located.page.getByRole('heading', { name: '项目甲', exact: true }).first().waitFor()
+  assert.equal(await located.page.locator('[data-work-id]').count(), 1, 'Project return focuses the real parent')
+  assert.equal(await located.page.locator('[data-work-id="parent-a"]').count(), 1)
+  assert.equal(await located.page.getByRole('heading', { name: '作品 B', exact: true }).count(), 1)
+  await located.page.getByTestId('project-list-all').click()
+  await located.page.locator('[data-work-id="parent-b"]').waitFor()
+  assert.equal(new URL(located.page.url()).searchParams.get('work_id'), null)
+  await located.page.close()
+  results.push('canvas-and-empty-canvas-parent-navigation-focused-project-and-return-all')
   assert.deepEqual(errors, [], 'No browser JavaScript errors')
   console.log(JSON.stringify({ ok: true, cases: results, artifacts, productionWrites: false }, null, 2))
 } catch (error) {
-  if (latest && !latest.isClosed()) await latest.screenshot({ path: path.join(artifacts, 'failure.png') }).catch(() => {})
+  if (latest && !latest.isClosed()) {
+    console.error('Browser page errors:', errors)
+    console.error('Browser body:', (await latest.locator('body').innerText().catch(() => '')).slice(0, 1000))
+    await latest.screenshot({ path: path.join(artifacts, 'failure.png') }).catch(() => {})
+  }
   throw error
 } finally {
   await browser.close()

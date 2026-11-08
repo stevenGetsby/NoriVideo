@@ -3,13 +3,18 @@ import { prisma } from '@/lib/prisma'
 import { publicGenerationTaskId, publicTaskError } from '@/lib/task/public-presentation'
 import { extractStorageKey } from '@/lib/storage'
 import { TASK_STATUS, TASK_TYPE, type TaskType } from '@/lib/task/types'
-import { normalizeCanvasVideoRegion, type CanvasVideoRegion } from './video-operations'
+import {
+  normalizeCanvasAudioExtractRange,
+  normalizeCanvasVideoRegion,
+  type CanvasVideoRegion,
+} from './video-operations'
 
 export const CANVAS_ASYNC_OPERATIONS = [
   'superresolve',
   'video_superresolve',
   'subtitle_erase',
   'video_edit',
+  'audio_extract',
 ] as const
 
 export type CanvasAsyncOperation = (typeof CANVAS_ASYNC_OPERATIONS)[number]
@@ -77,6 +82,16 @@ const ENGINES: readonly CanvasOperationEngine[] = [
     description: '裁剪首尾帧区间后，使用筷子 Seedance 2.5 依据提示词编辑视频片段。',
     isDefault: true,
     capabilities: { maxSegmentSeconds: 30, resolutions: ['480p', '720p'] },
+  },
+  {
+    operation: 'audio_extract',
+    engineKey: 'local-ffmpeg',
+    modelKey: 'local-ffmpeg',
+    provider: 'local',
+    label: '本地 FFmpeg 提取音轨',
+    description: '按时间线选择区间，在本机提取 MP3 音轨，不调用生成模型。',
+    isDefault: true,
+    capabilities: { formats: ['mp3'], timelineSelection: true, billed: false },
   },
 ]
 
@@ -222,6 +237,23 @@ export function parseCanvasAsyncOperationInput(value: unknown): {
         generateAudio: input.generateAudio !== false,
         references: normalizeVideoEditReferences(input.references),
       },
+    }
+  }
+
+  if (operation === 'audio_extract') {
+    const startMs = Number(input.startMs)
+    const endMs = Number(input.endMs)
+    let selection: ReturnType<typeof normalizeCanvasAudioExtractRange>
+    try {
+      selection = normalizeCanvasAudioExtractRange({ startMs, endMs })
+    } catch (error) {
+      throw new CanvasOperationInputError(error instanceof Error ? error.message : '音频提取区间无效。')
+    }
+    return {
+      operation,
+      engineKey: engine.engineKey,
+      modelKey: engine.modelKey,
+      parameters: { startMs: selection.startMs, endMs: selection.endMs },
     }
   }
 

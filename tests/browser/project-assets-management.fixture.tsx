@@ -12,12 +12,12 @@ import '../../src/styles/frameos-replica.css'
 
 function HeaderFixture() {
   const project = useFosProject('project-1')
-  return <main className="fos-app"><FosProjectHeader projectId="project-1" projectName={project.projectName} /><output data-testid="project-name">{project.projectName}</output></main>
+  return <main className="fos-app"><FosProjectHeader projectId="project-1" projectName={project.projectName} canDelete={project.canDelete} /><output data-testid="project-name">{project.projectName}</output></main>
 }
 const view = new URLSearchParams(location.search).get('view')
 const creditTarget = {
   id: 'child', username: '长名称测试子账号', role: 'writer' as const, roleLabel: null,
-  status: 'active' as const, permissions: [], isPlatformAdmin: false, isManager: false,
+  status: 'active' as const, projectLeader: false, permissions: [], isPlatformAdmin: false, isManager: false,
   parentAccountId: 'manager', workspaceOwnerId: 'manager', credits: { coins: 0, points: 1000 },
   dailyLimitPoints: null, createdAt: '', updatedAt: '', lastLoginAt: null,
 }

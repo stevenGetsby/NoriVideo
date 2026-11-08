@@ -25,7 +25,7 @@ import { extractStorageKey, generateUniqueKey, getObjectBuffer, uploadObject } f
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { submitTask } from '@/lib/task/submitter'
 
-type Operation = 'grid_split' | 'lens_focus' | 'superresolve' | 'video_superresolve' | 'subtitle_erase'
+type Operation = 'grid_split' | 'lens_focus' | 'superresolve' | 'video_superresolve' | 'subtitle_erase' | 'audio_extract'
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -66,7 +66,7 @@ export const GET = apiHandler(async (
     : null
 
   return NextResponse.json({
-    asyncOperations: ['superresolve', 'video_superresolve', 'subtitle_erase', 'video_edit'],
+    asyncOperations: ['superresolve', 'video_superresolve', 'subtitle_erase', 'video_edit', 'audio_extract'],
     engines: listCanvasOperationEngines(),
     latestTask: latestTask ? serializeCanvasOperationTask(latestTask) : null,
     links: latestTask ? canvasOperationTaskLinks(projectId, canvasId, latestTask.id) : null,
@@ -180,7 +180,7 @@ export const POST = apiHandler(async (
   const input = record(body)
   const operation = text(input?.operation) as Operation
   const sourceNodeId = text(input?.sourceNodeId)
-  if (!sourceNodeId || !['grid_split', 'lens_focus', 'superresolve', 'video_superresolve', 'subtitle_erase'].includes(operation)) {
+  if (!sourceNodeId || !['grid_split', 'lens_focus', 'superresolve', 'video_superresolve', 'subtitle_erase', 'audio_extract'].includes(operation)) {
     throw new ApiError('INVALID_PARAMS', { message: '画布处理参数无效。' })
   }
 

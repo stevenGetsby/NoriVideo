@@ -79,7 +79,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="反馈类型">
             {FEEDBACK_TYPES.map(([value, label]) => (
               <button key={value} type="button" role="radio" aria-checked={type === value} onClick={() => setType(value)}
-                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-transparent bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] font-semibold text-white' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-[var(--fos-primary-border)] hover:text-white'}`}>
+                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-transparent bg-[var(--fos-brand-solid)] font-semibold text-white' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-[var(--fos-primary-border)] hover:text-white'}`}>
                 {label}
               </button>
             ))}

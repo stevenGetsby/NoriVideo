@@ -104,6 +104,7 @@ describe('management account subaccount deletion', () => {
         password: null,
         status: 'deleted',
         permissions: [],
+        projectLeader: false,
         sessionVersion: { increment: 1 },
       },
     })

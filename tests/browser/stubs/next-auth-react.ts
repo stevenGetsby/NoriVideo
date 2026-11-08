@@ -6,6 +6,8 @@ type StubUser = {
   role: string
   permissions: string[]
   workspaceOwnerId?: string
+  actorId?: string
+  projectLeader?: boolean
   pointCredits?: number
 }
 type StubSession = {
@@ -15,12 +17,15 @@ type StubSession = {
 
 const childMode = typeof location !== 'undefined' && new URLSearchParams(location.search).get('session') === 'child'
 const adminMode = typeof location !== 'undefined' && new URLSearchParams(location.search).get('view')?.startsWith('admin')
+const readOnlyMode = typeof location !== 'undefined' && new URLSearchParams(location.search).has('readonly')
+const graphReadOnlyMode = readOnlyMode && !new URLSearchParams(location.search).has('view')
+const graphRole = graphReadOnlyMode ? 'unauthenticated' : childMode ? 'storyboard' : 'admin'
 let session: StubSession = {
   data: { user: adminMode
     ? { id: 'admin-1', name: 'Platform Admin', role: 'super_admin', permissions: [] }
     : childMode
-    ? { id: 'child-1', name: '测试子账号', role: 'storyboard', permissions: ['canvasWrite', 'toolboxUse'], workspaceOwnerId: 'user-1', pointCredits: 0 }
-    : { id: 'user-1', name: '测试资产师', role: 'admin', permissions: ['assetWrite'] } },
+    ? { id: 'child-1', name: '测试子账号', role: graphRole, permissions: graphReadOnlyMode ? [] : ['canvasWrite', 'toolboxUse'], workspaceOwnerId: 'user-1', pointCredits: 0 }
+    : { id: 'user-1', name: '测试资产师', role: graphRole, permissions: ['assetWrite'] } },
   status: 'authenticated',
 }
 const listeners = new Set<() => void>()

@@ -1,3 +1,4 @@
+import { findStoryLinkCycle } from './config'
 import {
   STORY_ELSE_HANDLE,
   type StoryChapterGraph,
@@ -6,6 +7,7 @@ import {
   type StoryIssueLevel,
   type StoryNode,
   type StoryProgram,
+  type StorySequence,
   type StoryVariable,
 } from './types'
 
@@ -131,6 +133,10 @@ export function validateStory(program: StoryProgram): StoryIssue[] {
   else if (nodeOf(start.projectId, start.entryNodeId)?.kind !== 'entry') {
     issues.push(issue('error', 'start_invalid', '故事起点指向的入口已被删除。', start.projectId, start.entryNodeId))
   }
+  const cycle = findStoryLinkCycle(program.links)
+  if (cycle) {
+    issues.push(issue('error', 'chapter_cycle', `章节「${chapters.get(cycle)?.title ?? cycle}」的连线形成了循环。`, cycle))
+  }
 
   for (const chapter of program.chapters) issues.push(...validateChapter(chapter, program.variables))
 
@@ -171,6 +177,32 @@ export function validateStory(program: StoryProgram): StoryIssue[] {
       if (!reached.has(chapter.projectId)) {
         issues.push(issue('warning', 'chapter_unreachable', `章节「${chapter.title}」无法从起点到达。`, chapter.projectId))
       }
+    }
+  }
+  return sortIssues(issues)
+}
+
+/** Orphaned work-canvas segments are surfaced instead of being silently removed from config. */
+export function validateSequence(sequence: StorySequence, chapters: StoryChapterGraph[]): StoryIssue[] {
+  const issues: StoryIssue[] = []
+  const chapterById = new Map(chapters.map((chapter) => [chapter.projectId, chapter]))
+  const ids = new Set<string>()
+  const scenes = new Set<string>()
+  for (const segment of sequence.segments) {
+    const title = segment.title.trim() || '未命名作品片段'
+    if (ids.has(segment.id)) issues.push(issue('error', 'segment_duplicate_id', `作品片段「${title}」的 ID 重复。`, segment.projectId, segment.sceneNodeId))
+    ids.add(segment.id)
+    const sceneKey = `${segment.projectId}:${segment.sceneNodeId}`
+    if (scenes.has(sceneKey)) issues.push(issue('error', 'segment_duplicate_scene', `剧情片段「${title}」关联了多个作品片段。`, segment.projectId, segment.sceneNodeId))
+    scenes.add(sceneKey)
+    const chapter = chapterById.get(segment.projectId)
+    if (!chapter) {
+      issues.push(issue('error', 'segment_orphan_project', `作品片段「${title}」所属的章节已被删除，请移除该引用或恢复章节。`, segment.projectId, segment.sceneNodeId))
+      continue
+    }
+    const scene = chapter.nodes.find((node) => node.id === segment.sceneNodeId)
+    if (!scene || scene.kind !== 'scene') {
+      issues.push(issue('error', 'segment_orphan_scene', `作品片段「${title}」关联的剧情片段已被删除，请移除该引用或恢复剧情片段。`, segment.projectId, segment.sceneNodeId))
     }
   }
   return sortIssues(issues)

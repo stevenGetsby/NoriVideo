@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server'
-import { apiHandler, ApiError } from '@/lib/api-errors'
+import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getWorkspaceActor } from '@/lib/collaboration/access'
-import { canAccessProject, canAccessWork } from '@/lib/permissions/resolve'
+import { canAccessWork } from '@/lib/permissions/resolve'
 import { prisma } from '@/lib/prisma'
 import { projectRestoreDeadline } from '@/lib/projects/recycle-bin'
 
@@ -73,7 +73,7 @@ export const GET = apiHandler(async () => {
         expired: deadline.getTime() <= Date.now(),
       }
     }),
-    projects: projects.filter((project) => canAccessProject(actor, 'projectDelete', project, project.work.members[0], project.members[0])).map((project) => {
+    projects: projects.filter((project) => actor.isManagement || project.createdById === actor.actorId).map((project) => {
       const deadline = projectRestoreDeadline(project.deletedAt!)
       return {
         id: project.id,

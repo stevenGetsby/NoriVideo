@@ -67,7 +67,7 @@ describe('canvas project asset context menus', () => {
   it('lists readable projects and makes image, video, audio, and 3D assets draggable', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/components/CanvasProjectAssets.tsx'), 'utf8')
     const graph = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/CanvasGraph.tsx'), 'utf8')
-    expect(source).toContain("available: '1'")
+    expect(source).toContain("sharedProject ? { workId: currentWorkId! }")
     expect(source).toContain('来源作品')
     expect(source).toContain('<article')
     expect(source).toContain('draggable')

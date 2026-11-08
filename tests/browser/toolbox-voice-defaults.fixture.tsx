@@ -35,7 +35,7 @@ const draft = {
   version: 1,
   title: '雨夜角色测试',
   prompt: '苏晚卿回头，顾北辰撑伞走来。',
-  modelKey: 'nori::norivideo2.5',
+  modelKey: 'kuaizi::doubao-seedance-2-5-260628',
   ratio: '16:9',
   resolution: '720p',
   quality: 'high',

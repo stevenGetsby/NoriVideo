@@ -23,6 +23,7 @@ import {
   type StoryOverviewData,
 } from './story-overview-model'
 import { ChapterMapContext, StoryChapterNode, type ChapterFlowNode, type ChapterMapActions } from './StoryChapterNode'
+import { ensuredWorkSequence } from './work-canvas-model'
 
 const NODE_TYPES = { chapter: StoryChapterNode }
 
@@ -39,22 +40,28 @@ type MapProps = {
 
 function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, onMove, onFocus }: MapProps) {
   const flow = useReactFlow()
-  const derived = useMemo<ChapterFlowNode[]>(() => orderedChapters(data).map(({ meta, chapter }) => {
-    const own = issues.filter((issue) => issue.projectId === chapter.projectId)
-    return {
-      id: chapter.projectId,
-      type: 'chapter',
-      position: meta.position,
-      deletable: false,
-      data: {
-        chapter,
-        meta,
-        errors: own.filter((issue) => issue.level === 'error').length,
-        warnings: own.filter((issue) => issue.level === 'warning').length,
-        focused: focusedId === chapter.projectId,
-      },
-    }
-  }), [data, focusedId, issues])
+  const derived = useMemo<ChapterFlowNode[]>(() => {
+    const sequence = ensuredWorkSequence(data)
+    return orderedChapters(data).map(({ meta, chapter }) => {
+      const own = issues.filter((issue) => issue.projectId === chapter.projectId)
+      const segments = sequence.segments.filter((segment) => segment.projectId === chapter.projectId)
+      return {
+        id: chapter.projectId,
+        type: 'chapter',
+        position: meta.position,
+        deletable: false,
+        data: {
+          chapter,
+          meta,
+          errors: own.filter((issue) => issue.level === 'error').length,
+          warnings: own.filter((issue) => issue.level === 'warning').length,
+          focused: focusedId === chapter.projectId,
+          segments: segments.filter((segment) => !segment.branch).length,
+          branchSegments: segments.filter((segment) => segment.branch).length,
+        },
+      }
+    })
+  }, [data, focusedId, issues])
   const [nodes, setNodes, onNodesChange] = useNodesState<ChapterFlowNode>(derived)
   useEffect(() => {
     setNodes((current) => derived.map((node) => ({ ...node, selected: current.find((item) => item.id === node.id)?.selected ?? false })))

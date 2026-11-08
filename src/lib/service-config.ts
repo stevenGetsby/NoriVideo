@@ -57,10 +57,6 @@ export interface ServiceConfigLlm {
 }
 
 export interface ServiceConfigModel3DFrameos {
-  /**
-   * `tripo-v2` talks to Tripo's public async task API. `frameos-v1` is the
-   * branded Nori/FrameOS contract for a self-hosted compatible gateway.
-   */
   protocol?: 'tripo-v2' | 'frameos-v1'
   baseUrl?: string
   apiKey?: string

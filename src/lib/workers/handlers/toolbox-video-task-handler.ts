@@ -13,6 +13,8 @@ import { compileSeedancePromptForSubmission } from '@/lib/novel-promotion/seedan
 import { projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
 import { workerTaskWillRetry } from '../retry-state'
 import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
+import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
+import { resolveCanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
 import { extractVoiceAudioFromVideo } from '@/lib/media/video-audio'
 import { generateUniqueKey, getObjectBuffer, uploadObject } from '@/lib/storage'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
@@ -76,11 +78,14 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   const referenceVideoNames = readStringArray(payload.referenceVideoNames)
   const referenceAudioNames = readStringArray(payload.referenceAudioNames)
   const inputMode = readString(payload.inputMode) || 'text'
+  const videoCapabilities = resolveBuiltinCapabilitiesByModelKey('video', modelId)
+  const videoInputSchema = resolveCanvasGenerationInputSchema('video', videoCapabilities)
+  const referenceLimit = videoInputSchema.image.max + videoInputSchema.video.max + videoInputSchema.audio.max
   const materialReferenceContract = normalizeCanvasGenerationMaterialReferences({
     value: payload.referenceMaterials,
     legacyMaterialIds: readStringArray(payload.referenceMaterialIds),
     inputMode,
-    limit: 15,
+    limit: referenceLimit,
   })
   const referenceImageRoles = readStringArray(payload.referenceImageRoles)
   const title = readString(payload.title) || '工具箱生成视频'
@@ -177,15 +182,19 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
           await reportTaskProgress(job, progress, { stage: 'superresolve_toolbox_video', progressDetails: { mediaProgress: ratio } })
         },
       }
-      const enhanced = await enhanceCanvasVideo(source, { target: superresolveTarget }, hooks)
-      storageKey = await uploadObject(enhanced.body, `toolbox-video-superresolved/${job.data.userId}/${job.data.taskId}.mp4`, 1, 'video/mp4')
-      outputMetadata = {
-        width: enhanced.width,
-        height: enhanced.height,
-        durationSeconds: enhanced.duration,
-        fps: enhanced.fps,
-        superresolveTarget,
-        outputResolution: superresolveTarget,
+      const enhanced = await enhanceCanvasVideo(source, { target: superresolveTarget, allowNoop: true }, hooks)
+      if (enhanced.enhanced) {
+        storageKey = await uploadObject(enhanced.body, `toolbox-video-superresolved/${job.data.userId}/${job.data.taskId}.mp4`, 1, 'video/mp4')
+        outputMetadata = {
+          width: enhanced.width,
+          height: enhanced.height,
+          durationSeconds: enhanced.duration,
+          fps: enhanced.fps,
+          superresolveTarget,
+          outputResolution: superresolveTarget,
+        }
+      } else {
+        outputMetadata = { superresolveSkipped: 'already_meets_target' }
       }
       await assertTaskActive(job, 'persist_toolbox_video_superresolve')
     }

@@ -3,7 +3,8 @@
 import { memo } from 'react'
 import { useStore, type NodeProps } from '@xyflow/react'
 import { MediaImage } from '@/components/media/MediaImage'
-import { Film, ImageIcon, Play, Video } from '@/components/ui/icons'
+import { Film, Play } from '@/components/ui/icons'
+import { SceneTextEditor } from '@/features/interactive/SceneTextEditor'
 import { readEndingData, readSceneData, resolveSceneMedia, STORY_ENDING_LABEL } from '@/lib/interactive/compile'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { STORY_ENDING_TYPES, STORY_FLOW_ROLE, type StoryEndingType } from '@/lib/interactive/types'
@@ -29,10 +30,13 @@ export const StoryEntryNode = memo(function StoryEntryNode({ id, data, selected 
 type ServerStatus = { __server?: { status?: string } }
 
 /**
- * The scene's picture, its pending generation, or one-click ways to make one. The selector returns
- * a string so the card only re-renders when the picture itself changes, not when other nodes move.
+ * A compact production-status row. Media and generation are deliberately not
+ * part of the writing card: the script is text, and pictures are produced in
+ * the production layer (or wired in from a video/image node on the canvas).
+ * The selector returns a string so the card only re-renders when the picture
+ * itself changes, not when other nodes move.
  */
-function SceneMedia({ id, data }: { id: string; data: NodeProps['data'] }) {
+function SceneMediaStatus({ id, data }: { id: string; data: NodeProps['data'] }) {
   const { readOnly, story } = useStoryNodeEditing(id)
   const key = useStore((state) => {
     const linked = state.edges
@@ -51,12 +55,18 @@ function SceneMedia({ id, data }: { id: string; data: NodeProps['data'] }) {
 
   if (state === 'ready') {
     const displayPoster = toDisplayImageUrl(third || null)
+    const stream = toDisplayImageUrl(second) || second
     return (
-      <div className="nori-story-scene-media">
-        {first === 'video' && !displayPoster
-          ? <video src={toDisplayImageUrl(second) || second} muted playsInline preload="metadata" />
-          : <MediaImage src={displayPoster || toDisplayImageUrl(second) || second} alt="" draggable={false} fill sizes="300px" />}
-        <span className="nori-story-scene-media-kind">{first === 'video' ? '视频' : '图片'}</span>
+      <div className="nori-story-scene-media-strip is-ready">
+        <span className="nori-story-scene-media-thumb" aria-hidden="true">
+          {first === 'video' && !displayPoster
+            ? <video src={stream} muted playsInline preload="metadata" />
+            : <MediaImage src={displayPoster || stream} alt="" draggable={false} fill sizes="42px" />}
+        </span>
+        <span className="nori-story-scene-media-copy">
+          <strong>{first === 'video' ? '视频画面' : '图片画面'}</strong>
+          <small>画面属于制作层，文字仍是主稿</small>
+        </span>
       </div>
     )
   }
@@ -65,24 +75,28 @@ function SceneMedia({ id, data }: { id: string; data: NodeProps['data'] }) {
     const running = second === 'RUNNING'
     const failed = second === 'FAILED'
     return (
-      <div className={`nori-story-scene-media is-pending${failed ? ' is-failed' : ''}`}>
-        {running ? <i className="nori-story-scene-media-spinner" aria-hidden /> : <Film />}
-        <span>{running ? '画面生成中…' : failed ? '画面生成失败' : '画面还没有生成'}</span>
-        <button type="button" className="nodrag" onClick={() => story?.actions.focusNode(first)}>
-          {running ? '查看画面节点' : failed ? '去重新生成' : '去生成画面'}
-        </button>
+      <div className={`nori-story-scene-media-strip is-pending${failed ? ' is-failed' : ''}`}>
+        <Film />
+        <span className="nori-story-scene-media-copy">
+          <strong>{running ? '画面生成中…' : failed ? '画面生成失败' : '画面还没有生成'}</strong>
+          <small>制作层状态，不影响文字编辑</small>
+        </span>
+        {readOnly || !story ? null : (
+          <button type="button" className="nodrag" onClick={() => story.actions.focusNode(first)}>
+            {running ? '查看' : failed ? '去处理' : '去生成'}
+          </button>
+        )}
       </div>
     )
   }
 
-  if (readOnly || !story) return <div className="nori-story-scene-media is-empty"><Film /><span>暂无画面</span></div>
   return (
-    <div className="nori-story-scene-media is-empty">
-      <div className="nori-story-scene-media-actions">
-        <button type="button" className="nodrag" onClick={() => story.actions.createSceneMedia(id, 'video')}><Video />生成视频</button>
-        <button type="button" className="nodrag" onClick={() => story.actions.createSceneMedia(id, 'image')}><ImageIcon />使用图片</button>
-      </div>
-      <span>或把已有的视频、图片连到卡片顶部的接口</span>
+    <div className="nori-story-scene-media-strip is-empty">
+      <Film />
+      <span className="nori-story-scene-media-copy">
+        <strong>文字片段</strong>
+        <small>需要画面时，在制作层连接视频或图片节点</small>
+      </span>
     </div>
   )
 }
@@ -91,18 +105,16 @@ export const StorySceneNode = memo(function StorySceneNode({ id, data, selected 
   const { readOnly, variables, manageVariables, patch } = useStoryNodeEditing(id)
   const scene = readSceneData(data)
   return (
-    <StoryNodeShell id={id} type="story_scene" selected={selected} title={titleOf(data)} output media>
-      <SceneMedia id={id} data={data} />
-      <textarea
-        className="nodrag nowheel nori-story-textarea"
-        rows={2}
+    <StoryNodeShell id={id} type="story_scene" selected={selected} title={titleOf(data)} output media className="is-writing">
+      <SceneTextEditor
         value={scene.lines}
-        placeholder="台词或字幕（可选）"
         readOnly={readOnly}
-        onChange={(event) => patch({ lines: event.target.value })}
+        testId="scene-text-editor"
+        onChange={(lines) => patch({ lines })}
       />
       <StoryEffectsSection effects={scene.effects} variables={variables} disabled={readOnly} onManageVariables={manageVariables}
         onChange={(effects) => patch({ effects }, '编辑剧情效果')} />
+      <SceneMediaStatus id={id} data={data} />
     </StoryNodeShell>
   )
 })

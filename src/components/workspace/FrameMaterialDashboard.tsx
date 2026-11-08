@@ -106,12 +106,12 @@ export function FrameMaterialDashboard() {
     [assets],
   )
 
-  const kindRows: Array<{ key: AssetKind; count: number; icon: 'user' | 'image' | 'package' | 'audioWave' }> = [
+  const kindRows = useMemo<Array<{ key: AssetKind; count: number; icon: 'user' | 'image' | 'package' | 'audioWave' }>>(() => [
     { key: 'character', count: grouped.character.length, icon: 'user' },
     { key: 'location', count: grouped.location.length, icon: 'image' },
     { key: 'prop', count: grouped.prop.length, icon: 'package' },
     { key: 'voice', count: grouped.voice.length, icon: 'audioWave' },
-  ]
+  ], [grouped])
 
   const readinessRows = useMemo(() => kindRows.map((row) => {
     const items = grouped[row.key]
@@ -144,7 +144,7 @@ export function FrameMaterialDashboard() {
           </div>
           <Link
             href={{ pathname: '/asset-hub' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="folderHeart" className="h-4 w-4" />
             {t('openAssetHub')}

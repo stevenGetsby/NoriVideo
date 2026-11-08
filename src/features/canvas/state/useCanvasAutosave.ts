@@ -19,7 +19,6 @@ import {
 } from './canvas-autosave-runtime'
 import {
   buildCanvasOperations,
-  canvasDocumentWithRevision,
   canvasGraphToDocument,
 } from './canvas-operations'
 import { mergeCanvasDocuments } from './canvas-three-way-merge'
@@ -133,6 +132,9 @@ export function useCanvasAutosave({
   const offlineDraftRef = useRef<CanvasOfflineDraft | null>(null)
   const confirmedDocumentRef = useRef<CanvasDocumentInput | null>(null)
   const forceFullSaveRef = useRef(false)
+  const pendingFullDocumentRef = useRef<CanvasDocumentInput | null>(null)
+  const restoreInProgressRef = useRef(false)
+  const initialOfflineLoadPendingRef = useRef(false)
   const offlineBufferRef = useRef<ReturnType<typeof createCanvasOfflineDraftBuffer> | null>(null)
   const retryControllerRef = useRef<ReturnType<typeof createCanvasAutosaveRetryController> | null>(null)
   const flushRef = useRef<() => Promise<void>>(async () => undefined)
@@ -158,6 +160,7 @@ export function useCanvasAutosave({
     const base = confirmedDocumentRef.current || local
     const remote = canvasGraphToDocument(graph, clientIdRef.current)
     const merged = mergeCanvasDocuments(base, local, remote, summary)
+    pendingFullDocumentRef.current = null
     revisionRef.current = graph.canvas.revision
     confirmedDocumentRef.current = remote
     onMergeDocumentRef.current(merged, graph)
@@ -168,12 +171,20 @@ export function useCanvasAutosave({
     automaticConflictMergesRef.current += 1
     try {
       const graph = await canvasApi.get(projectId, canvasId)
+      const recoveryDocument = pendingFullDocumentRef.current
       mergeIncomingGraph(graph, '自动合并多标签页更改')
-      forceFullSaveRef.current = false
+      if (recoveryDocument) {
+        pendingFullDocumentRef.current = {
+          ...recoveryDocument,
+          expectedRevision: graph.canvas.revision,
+        }
+        summaryRef.current = '恢复本地未同步版本'
+      }
+      forceFullSaveRef.current = recoveryDocument !== null
       pausedRef.current = false
       setConflictOpen(false)
       dirtyRef.current = true
-      summaryRef.current = '自动合并多标签页更改'
+      summaryRef.current = recoveryDocument ? '恢复本地未同步版本' : '自动合并多标签页更改'
       offlineBufferRef.current?.schedule()
       if (mountedRef.current) setSaveState('pending')
       return true
@@ -187,12 +198,22 @@ export function useCanvasAutosave({
     clearSaveTimer()
     if (savingRef.current) {
       await savingRef.current
+      if (dirtyRef.current && !pausedRef.current && !retryControllerRef.current?.hasPending()) {
+        timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
+      }
       return
     }
 
     dirtyRef.current = false
     const expectedRevision = revisionRef.current
-    const document = buildRef.current(expectedRevision, clientIdRef.current, summaryRef.current)
+    const document = pendingFullDocumentRef.current
+      ? {
+          ...pendingFullDocumentRef.current,
+          expectedRevision,
+          clientId: clientIdRef.current,
+          changeSummary: summaryRef.current,
+        }
+      : buildRef.current(expectedRevision, clientIdRef.current, summaryRef.current)
     const confirmed = confirmedDocumentRef.current
     const operations = confirmed ? buildCanvasOperations(confirmed, document) : []
     if (mountedRef.current) setSaveState('saving')
@@ -212,6 +233,7 @@ export function useCanvasAutosave({
           revisionRef.current = graph.canvas.revision
           confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current, summaryRef.current)
           forceFullSaveRef.current = false
+          pendingFullDocumentRef.current = null
           revisionChannelRef.current?.postMessage({
             type: 'canvas-revision',
             source: tabIdRef.current,
@@ -265,6 +287,7 @@ export function useCanvasAutosave({
 
   useEffect(() => {
     let active = true
+    initialOfflineLoadPendingRef.current = offlineEnabled
     clearSaveTimer()
     retryControllerRef.current?.dispose()
 
@@ -283,6 +306,8 @@ export function useCanvasAutosave({
       '编辑画布',
     )
     forceFullSaveRef.current = false
+    pendingFullDocumentRef.current = null
+    restoreInProgressRef.current = false
     setOfflineDraft(null)
     setConflictOpen(false)
     setSaveState('idle')
@@ -300,7 +325,8 @@ export function useCanvasAutosave({
     const buffer = createCanvasOfflineDraftBuffer({
       read: () => {
         if (!namespace || !dirtyRef.current) return null
-        const document = buildRef.current(revisionRef.current, clientIdRef.current, summaryRef.current)
+        const document = pendingFullDocumentRef.current
+          || buildRef.current(revisionRef.current, clientIdRef.current, summaryRef.current)
         return createCanvasOfflineDraft({
           namespace,
           document,
@@ -331,6 +357,8 @@ export function useCanvasAutosave({
     void loadCanvasOfflineDraft(namespace)
       .then((draft) => {
         if (!active) return
+        if (initialOfflineLoadPendingRef.current && restoreInProgressRef.current) return
+        initialOfflineLoadPendingRef.current = false
         if (draft?.dirty) {
           offlineDraftRef.current = draft
           pausedRef.current = true
@@ -344,12 +372,15 @@ export function useCanvasAutosave({
       })
       .catch(() => {
         if (!active) return
+        if (initialOfflineLoadPendingRef.current && restoreInProgressRef.current) return
+        initialOfflineLoadPendingRef.current = false
         pausedRef.current = false
         setOfflineRecoveryState('none')
       })
 
     return () => {
       active = false
+      initialOfflineLoadPendingRef.current = false
       clearSaveTimer()
       retryController.dispose()
       const shouldFlush = dirtyRef.current && !pausedRef.current
@@ -383,10 +414,18 @@ export function useCanvasAutosave({
       if (graph.canvas.revision <= revisionRef.current) return
 
       const preserveLocalChanges = dirtyRef.current
-      forceFullSaveRef.current = false
+      const pendingRecoveryDocument = pendingFullDocumentRef.current
+      forceFullSaveRef.current = pendingRecoveryDocument !== null
       automaticConflictMergesRef.current = 0
       if (preserveLocalChanges) {
         mergeIncomingGraph(graph, '同步并合并其他标签页更改')
+        forceFullSaveRef.current = pendingRecoveryDocument !== null
+        if (pendingRecoveryDocument) {
+          pendingFullDocumentRef.current = {
+            ...pendingRecoveryDocument,
+            expectedRevision: graph.canvas.revision,
+          }
+        }
         dirtyRef.current = true
         summaryRef.current = '同步并合并其他标签页更改'
         offlineBufferRef.current?.schedule()
@@ -457,6 +496,7 @@ export function useCanvasAutosave({
     revisionRef.current = graph.canvas.revision
     confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current)
     forceFullSaveRef.current = false
+    pendingFullDocumentRef.current = null
     dirtyRef.current = false
     pausedRef.current = false
     summaryRef.current = '编辑画布'
@@ -497,24 +537,34 @@ export function useCanvasAutosave({
       clientId: clientIdRef.current,
     })
     if (!document) return
-    onRestoreLocalRef.current(document)
+    restoreInProgressRef.current = true
+    const restoredDocument = {
+      ...document,
+      edges: document.edges.map((edge) => ({
+        ...edge,
+        role: edge.role === 'VIDEO_FRAME' ? 'REF' : edge.role,
+      })),
+    }
     dirtyRef.current = true
     forceFullSaveRef.current = true
-    pausedRef.current = false
+    pendingFullDocumentRef.current = restoredDocument
     summaryRef.current = '恢复本地未同步版本'
+    offlineDraftRef.current = null
+    void offlineBufferRef.current?.flush().catch(() => undefined)
+    onRestoreLocalRef.current(restoredDocument)
+    pausedRef.current = false
     lastErrorRef.current = null
     retryControllerRef.current?.reset()
     automaticConflictMergesRef.current = 0
-    offlineDraftRef.current = null
     setOfflineDraft(null)
     setOfflineRecoveryState('none')
     setSaveState('pending')
-    await offlineBufferRef.current?.flush()
     clearSaveTimer()
     timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(RESTORE_SAVE_DELAY_MS, tabIdRef.current))
   }, [clearSaveTimer])
 
   const useServerVersion = useCallback(async () => {
+    restoreInProgressRef.current = true
     const draft = offlineDraftRef.current
     if (draft) {
       resolveCanvasOfflineRecoveryChoice({
@@ -527,11 +577,12 @@ export function useCanvasAutosave({
     dirtyRef.current = false
     pausedRef.current = false
     forceFullSaveRef.current = false
+    pendingFullDocumentRef.current = null
     summaryRef.current = '编辑画布'
     lastErrorRef.current = null
     retryControllerRef.current?.reset()
     automaticConflictMergesRef.current = 0
-    await offlineBufferRef.current?.clear()
+    void offlineBufferRef.current?.clear().catch(() => undefined)
     offlineDraftRef.current = null
     setOfflineDraft(null)
     setOfflineRecoveryState('none')
@@ -560,24 +611,18 @@ export function useCanvasAutosave({
     }
   }, [])
 
-  const acceptExternalRevision = useCallback(async (expectedRevision: number, nextRevision: number) => {
+  const acceptExternalRevision = useCallback(async (expectedRevision: number, graph: CanvasGraphResponse) => {
     const pendingSave = savingRef.current
     if (pendingSave) await pendingSave
-    if (!canAcceptExternalRevision(revisionRef.current, expectedRevision, nextRevision)) return false
+    if (!canAcceptExternalRevision(revisionRef.current, expectedRevision, graph.canvas.revision)) return false
 
-    revisionRef.current = nextRevision
+    revisionRef.current = graph.canvas.revision
+    confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current)
     revisionChannelRef.current?.postMessage({
       type: 'canvas-revision',
       source: tabIdRef.current,
-      revision: nextRevision,
+      revision: graph.canvas.revision,
     } satisfies CanvasRevisionBroadcast)
-    if (confirmedDocumentRef.current) {
-      confirmedDocumentRef.current = canvasDocumentWithRevision(
-        confirmedDocumentRef.current,
-        nextRevision,
-        clientIdRef.current,
-      )
-    }
     pausedRef.current = false
     setConflictOpen(false)
     clearSaveTimer()

@@ -28,10 +28,10 @@ export const ACCOUNT_ROLE_DEFINITIONS: ReadonlyArray<{
 }> = [
   { role: 'super_admin', label: '平台 Admin', shortLabel: '平台 Admin', description: '通过独立控制台创建和维护直属管理账号' },
   { role: 'admin', label: '管理账号', shortLabel: '管理', description: '拥有工作区全部读写、设置及账号管理权限' },
-  { role: 'writer', label: '编剧模板', shortLabel: '编剧', description: '默认开启剧本、工具箱和无限画布；保存后仍可逐项调整' },
-  { role: 'asset', label: '资产师模板', shortLabel: '资产师', description: '默认开启资产、工具箱和无限画布；保存后仍可逐项调整' },
-  { role: 'storyboard', label: '分镜师模板', shortLabel: '分镜师', description: '默认开启分镜、工具箱和无限画布；保存后仍可逐项调整' },
-  { role: 'reviewer', label: '审核员模板', shortLabel: '审核员', description: '默认仅查看；由所属管理账号把该账号加入具体作品后，才能审核该作品任务' },
+  { role: 'writer', label: '子账号', shortLabel: '成员', description: '统一创作能力；项目范围由项目成员关系决定' },
+  { role: 'asset', label: '子账号', shortLabel: '成员', description: '历史角色标识，仅用于兼容显示' },
+  { role: 'storyboard', label: '子账号', shortLabel: '成员', description: '历史角色标识，仅用于兼容显示' },
+  { role: 'reviewer', label: '子账号', shortLabel: '成员', description: '历史角色标识，仅用于兼容显示' },
 ]
 
 export const ACCOUNT_PERMISSION_DEFINITIONS: ReadonlyArray<{
@@ -64,7 +64,7 @@ const ROLE_PERMISSIONS: Record<AccountRole, AccountPermission[]> = {
 }
 
 export const ALL_ACCOUNT_PERMISSIONS: AccountPermission[] = [...ROLE_PERMISSIONS.super_admin]
-export const DEFAULT_MEMBER_PERMISSIONS: AccountPermission[] = [...ROLE_PERMISSIONS.writer]
+export const DEFAULT_MEMBER_PERMISSIONS: AccountPermission[] = ACCOUNT_PERMISSION_KEYS.filter((permission) => permission !== 'workCreate' && permission !== 'admin')
 
 export function isAccountRole(value: unknown): value is AccountRole {
   return typeof value === 'string' && ACCOUNT_ROLES.includes(value as AccountRole)
@@ -99,12 +99,8 @@ export function isSuperAdminRole(value: unknown): value is 'super_admin' {
   return normalizeAccountRole(value) === 'super_admin'
 }
 
-export function defaultSubaccountRoleLabel(role: unknown): string {
-  const normalizedRole = normalizeAccountRole(role)
-  if (normalizedRole === 'asset') return '资产师'
-  if (normalizedRole === 'storyboard') return '分镜师'
-  if (normalizedRole === 'reviewer') return '审核员'
-  return '编剧'
+export function defaultSubaccountRoleLabel(): string {
+  return '创作成员'
 }
 
 function normalizePermissionList(value: unknown): AccountPermission[] {
@@ -122,26 +118,19 @@ function normalizePermissionList(value: unknown): AccountPermission[] {
 }
 
 /**
- * Resolve the permissions that actually authorize a request.
- *
- * Management accounts always receive the full policy. For subaccounts a JSON
- * permission array is authoritative; a missing/null value is treated as a
- * legacy account and falls back to its original role template. Every active
- * subaccount keeps team-wide read access and can never be granted `admin` via
- * the editable JSON field.
+ * Historical role labels and permission JSON remain readable for old sessions,
+ * but all active subaccounts now share the same creative capabilities.
+ * Project creation and member management are authorized separately by the
+ * workspace-wide projectLeader flag and project membership.
  */
 export function effectiveAccountPermissions(
   role: unknown,
   assignedPermissions?: unknown,
 ): AccountPermission[] {
+  void assignedPermissions
   const normalizedRole = normalizeAccountRole(role)
-  if (isManagementRole(normalizedRole)) return [...ROLE_PERMISSIONS[normalizedRole]]
-  if (!Array.isArray(assignedPermissions)) return [...ROLE_PERMISSIONS[normalizedRole]]
-
-  const assigned = new Set(normalizePermissionList(assignedPermissions))
-  assigned.delete('admin')
-  assigned.add('read')
-  return ACCOUNT_PERMISSION_KEYS.filter((permission) => assigned.has(permission))
+  if (isManagementRole(normalizedRole)) return [...ALL_ACCOUNT_PERMISSIONS]
+  return [...DEFAULT_MEMBER_PERMISSIONS]
 }
 
 export function normalizeAccountPermissions(value: unknown): AccountPermission[] {
@@ -237,10 +226,7 @@ export function requiredPermissionsForApiPath(
     return READABLE_CONTENT_PREFIXES.some((prefix) => path.startsWith(prefix)) ? ['read'] : []
   }
 
-  if (path.startsWith('/api/works')) {
-    if (path === '/api/works' && normalizedMethod === 'POST') return ['workCreate']
-    return ['read']
-  }
+  if (path.startsWith('/api/works')) return ['read']
   if (/\/api\/projects\/[^/]+\/(?:members|member-candidates)(?:\/|$)/.test(path)) return ['read']
 
   if (path.startsWith('/api/asset-hub') || path.startsWith('/api/assets')) return ['assetWrite']

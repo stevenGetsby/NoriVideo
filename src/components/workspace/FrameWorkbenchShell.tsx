@@ -49,12 +49,12 @@ function FrameNavLink({
         compact
           ? `inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors ${
             active
-              ? 'border-transparent bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              ? 'border-transparent bg-[var(--fos-brand-solid)] text-white shadow-[var(--fos-shadow-btn-glow)]'
               : 'border-[var(--fos-border-lighter)] bg-[var(--fos-bg-4)] text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
           : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
             active
-              ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              ? 'bg-[var(--fos-brand-solid)] text-white shadow-[var(--fos-shadow-btn-glow)]'
               : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
       }

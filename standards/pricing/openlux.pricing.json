@@ -16,5 +16,41 @@
       "mode": "flat",
       "flatAmount": 0.5
     }
+  },
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-flare-c",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.16
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.5-sunburst-c",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.16
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.6-flare-c",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.16
+    }
+  },
+  {
+    "apiType": "image",
+    "provider": "openlux",
+    "modelId": "gpt-image-2.6-sunburst-c",
+    "pricing": {
+      "mode": "flat",
+      "flatAmount": 0.16
+    }
   }
 ]

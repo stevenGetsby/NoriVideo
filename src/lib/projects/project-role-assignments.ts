@@ -1,6 +1,5 @@
 import { ApiError } from '@/lib/api-errors'
 import type { AssignmentStage } from '@/lib/collaboration/assignment-policy'
-import { hasAccountPermissions, type AccountPermission } from '@/lib/account/permissions'
 
 export const PROJECT_ROLE_ASSIGNEE_ROLES = ['writer', 'asset', 'storyboard'] as const
 export type ProjectRoleAssigneeRole = (typeof PROJECT_ROLE_ASSIGNEE_ROLES)[number]
@@ -24,12 +23,6 @@ export const PROJECT_STAGE_ASSIGNEE_ROLE: Record<AssignmentStage, ProjectRoleAss
   asset: 'asset',
   storyboard: 'storyboard',
   video: 'storyboard',
-}
-
-const ROLE_PERMISSION: Record<ProjectRoleAssigneeRole, AccountPermission> = {
-  writer: 'scriptWrite',
-  asset: 'assetWrite',
-  storyboard: 'storyboardWrite',
 }
 
 function readFirstText(body: Record<string, unknown>, fields: readonly string[]): string | null {
@@ -87,15 +80,6 @@ export function assertProjectRoleAssignee(
       code: 'PROJECT_ASSIGNEE_UNAVAILABLE',
       field: ROLE_FIELD[expectedRole],
       message: '所选子账号不存在、已停用或不属于当前管理账号。',
-    })
-  }
-  if (!hasAccountPermissions(user, [ROLE_PERMISSION[expectedRole]])) {
-    throw new ApiError('INVALID_PARAMS', {
-      code: 'PROJECT_ASSIGNEE_ROLE_MISMATCH',
-      field: ROLE_FIELD[expectedRole],
-      expectedRole,
-      actualRole: user.role,
-      message: `所选账号未开启${expectedRole === 'writer' ? '剧本' : expectedRole === 'asset' ? '资产' : '分镜'}功能区权限。`,
     })
   }
 }

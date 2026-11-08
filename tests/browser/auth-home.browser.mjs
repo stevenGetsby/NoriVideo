@@ -71,6 +71,9 @@ try {
       input: color(document.querySelector('#username')), workspaceInput: color(probe.querySelector('.fos-input')),
       action: color(document.querySelector('.nori-auth-submit')), workspaceAction: color(probe.querySelector('.fos-btn-primary')),
       ambient: getComputedStyle(document.querySelector('.nori-auth-ambient')).backgroundImage,
+      ambientColor: color(document.querySelector('.nori-auth-ambient')),
+      fallback: getComputedStyle(document.querySelector('.nori-auth-scene-fallback')).backgroundImage,
+      actionImage: getComputedStyle(document.querySelector('.nori-auth-submit')).backgroundImage,
     }
     probe.remove()
     return result
@@ -79,7 +82,10 @@ try {
   assert.notEqual(colors.panel, colors.workspacePanel, 'Glass login card intentionally differs from opaque workspace cards')
   assert.equal(colors.input, 'rgb(19, 19, 25)')
   assert.equal(colors.action, colors.workspaceAction)
-  assert.notEqual(colors.ambient, 'none')
+  assert.equal(colors.ambient, 'none', 'Decorative ambient gradient must be removed')
+  assert.equal(colors.ambientColor, 'rgba(0, 0, 0, 0)', 'Ambient layer must stay transparent so the creative scene supplies color')
+  assert.equal(colors.fallback, 'none', 'Scene fallback must be a flat token color, not a gradient')
+  assert.equal(colors.actionImage, 'none', 'Primary CTA must be a solid brand fill')
   assert.match(colors.panel, /rgba\(20, 20, 27, 0\.82\)/)
   cases.push('workspace-neutral-tokens-with-colorful-light-field-glass-card')
   await password.getByRole('link', { name: '进入工作台', exact: true }).click()

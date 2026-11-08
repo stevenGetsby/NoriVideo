@@ -1,6 +1,7 @@
 import { parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { getServiceLlmConfig } from '@/lib/service-config'
 import { getRawProviderKey } from '@/lib/model-provider-contract'
+import { fixedPlatformModels } from '@/lib/platform-services/config'
 
 export const NORI_PROVIDER_ID = 'nori'
 
@@ -86,6 +87,24 @@ export const NORI_BUSINESS_MODELS = [
     type: 'image',
     tier: 'pro',
     suggestedRoute: 'openlux::gpt-image-2.5-sunburst',
+  },
+  {
+    key: 'nori::nori-image-2.6',
+    modelId: 'nori-image-2.6',
+    name: 'nori-image-2.6',
+    description: '新一代标准图片模型',
+    type: 'image',
+    tier: 'standard',
+    suggestedRoute: 'openlux::gpt-image-2.6-flare-c',
+  },
+  {
+    key: 'nori::nori-image-2.6-pro',
+    modelId: 'nori-image-2.6-pro',
+    name: 'nori-image-2.6-pro',
+    description: '新一代高质量图片模型',
+    type: 'image',
+    tier: 'pro',
+    suggestedRoute: 'openlux::gpt-image-2.6-sunburst-c',
   },
   {
     key: 'nori::seedance2.0-mini',
@@ -259,18 +278,26 @@ function inferLegacyBusinessModel(modelKey: string, type: NoriBusinessModelType)
 export function normalizeProjectBusinessModelKey(
   modelKey: string | null | undefined,
   type: NoriBusinessModelType,
-): NoriBusinessModelKey {
+): string {
   const compacted = compact(modelKey)
   const businessModel = findNoriBusinessModel(compacted)
   if (businessModel?.type === type) return businessModel.key
 
   const parsed = parseModelKeyStrict(compacted)
-  if (parsed) {
-    const routedMatch = NORI_BUSINESS_MODELS.find(
-      (candidate) => candidate.type === type && resolveNoriModelRoute(candidate.key) === parsed.modelKey,
-    )
-    if (routedMatch) return routedMatch.key
-    return inferLegacyBusinessModel(parsed.modelKey, type)
-  }
-  return NORI_DEFAULT_MODEL_KEYS[type]
+  if (!compacted) return NORI_DEFAULT_MODEL_KEYS[type]
+  if (!parsed) return inferLegacyBusinessModel(compacted, type)
+  if (parsed.provider === NORI_PROVIDER_ID) return inferLegacyBusinessModel(parsed.modelKey, type)
+  if (fixedPlatformModels().some((model) => (
+    model.provider === parsed.provider
+    && model.modelId === parsed.modelId
+    && model.type === type
+  ))) return parsed.modelKey
+
+  // Retired provider keys are normalized to their routed business model so
+  // saved projects continue to run. Configured real keys never reverse-map
+  // to a different model merely because an administrator shares a route.
+  const routedMatch = NORI_BUSINESS_MODELS.find(
+    (candidate) => candidate.type === type && resolveNoriModelRoute(candidate.key) === parsed.modelKey,
+  )
+  return routedMatch?.key || inferLegacyBusinessModel(parsed.modelKey, type)
 }

@@ -5,9 +5,29 @@ import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import { findActiveMention, insertPromptMention, splitPromptMentionParts } from './mention-prompt'
+import {
+  findActiveMention,
+  isPromptCompositionKey,
+  pastePromptAssets,
+  redoPromptInsertion,
+  replacePromptMention,
+  splitPromptMentionParts,
+  undoPromptInsertion,
+  type PromptInsertionRecord,
+} from './mention-prompt'
 
-export { findActiveMention, insertPromptMention, splitPromptMentionParts } from './mention-prompt'
+export {
+  findActiveMention,
+  insertPromptMention,
+  isPromptCompositionKey,
+  matchPromptAssetNames,
+  pastePromptAssets,
+  redoPromptInsertion,
+  replacePromptMention,
+  splitPromptMentionParts,
+  undoPromptInsertion,
+} from './mention-prompt'
+export type { PromptInsertionRecord } from './mention-prompt'
 
 export interface MentionPromptAsset {
   id?: string
@@ -38,6 +58,7 @@ interface Props {
   hint?: string | null
   readOnly?: boolean
   onSelectAsset?: (asset: MentionPromptAsset, nextValue: string) => boolean | void
+  onPasteMatch?: (nextValue: string, matchedAssets: MentionPromptAsset[]) => boolean | void
   onBlur?: () => void
 }
 
@@ -67,6 +88,7 @@ export function MentionPromptEditor({
   hint = '输入 @ 可选择当前分镜已添加的素材，提交生成时会按素材顺序转换为“图片1、图片2…”引用。',
   readOnly = false,
   onSelectAsset,
+  onPasteMatch,
   onBlur,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -76,6 +98,10 @@ export function MentionPromptEditor({
   const [activeIndex, setActiveIndex] = useState(0)
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
   const dismissedMentionRef = useRef<{ query: string; start: number } | null>(null)
+  const blurTimerRef = useRef<number | null>(null)
+  const composingRef = useRef(false)
+  const undoInsertionRef = useRef<PromptInsertionRecord | null>(null)
+  const redoInsertionRef = useRef<PromptInsertionRecord | null>(null)
   const highlightedParts = useMemo(() => splitPromptMentionParts(value, assets), [assets, value])
   const options = useMemo(() => {
     if (!mention) return []
@@ -126,7 +152,51 @@ export function MentionPromptEditor({
     if (item.top < bounds.top + 36) popup.scrollTop -= bounds.top + 36 - item.top
   }, [activeIndex, listboxId, mention])
 
+  useEffect(() => () => {
+    if (blurTimerRef.current !== null) window.clearTimeout(blurTimerRef.current)
+  }, [])
+
+  // The textarea value can also change from outside (switching shots, AI edits,
+  // clearing a draft). Re-derive an already-open picker so a later Enter/Tab
+  // cannot apply a stale @query to the new text.
+  useEffect(() => {
+    setMention((current) => {
+      if (!current) return current
+      const textarea = textareaRef.current
+      const focused = textarea !== null && document.activeElement === textarea
+      const cursor = focused ? textarea.selectionStart : value.length
+      return findActiveMention(value, cursor ?? value.length)
+    })
+  }, [value])
+
+  const cancelBlurDismissal = () => {
+    if (blurTimerRef.current !== null) window.clearTimeout(blurTimerRef.current)
+    blurTimerRef.current = null
+  }
+
+  const clearInsertionHistory = () => {
+    undoInsertionRef.current = null
+    redoInsertionRef.current = null
+  }
+
+  const rememberInsertion = (record: PromptInsertionRecord) => {
+    undoInsertionRef.current = record
+    redoInsertionRef.current = null
+  }
+
+  const applyHistoryValue = (next: { value: string; cursor: number }) => {
+    onChange(next.value)
+    setMention(findActiveMention(next.value, next.cursor))
+    requestAnimationFrame(() => {
+      const current = textareaRef.current
+      if (!current || current.value !== next.value) return
+      current.focus()
+      current.setSelectionRange(next.cursor, next.cursor)
+    })
+  }
+
   const refreshMention = (nextValue: string, cursor: number | null) => {
+    cancelBlurDismissal()
     if (readOnly) {
       setMention(null)
       return
@@ -177,19 +247,32 @@ export function MentionPromptEditor({
   const choose = (asset: MentionPromptAsset) => {
     if (readOnly) return
     const textarea = textareaRef.current
-    if (!textarea || !mention) return
-    const cursor = textarea.selectionStart ?? value.length
-    const next = insertPromptMention(value, mention, cursor, asset.name)
-    const previousCursor = textarea.selectionStart
-    const previousEnd = textarea.selectionEnd
+    if (!textarea) return
+    // Always resolve against the live DOM text and caret. React state/props can
+    // trail behind during deletion, undo/redo and IME composition, which is how
+    // the picker used to insert at the wrong index.
+    const liveValue = textarea.value
+    const selectionStart = textarea.selectionStart ?? liveValue.length
+    const selectionEnd = textarea.selectionEnd ?? selectionStart
+    const liveMention = findActiveMention(liveValue, selectionStart) ?? mention
+    const next = replacePromptMention(liveValue, liveMention, selectionStart, selectionEnd, asset.name, assets)
+    if (!next) return
     if (onSelectAsset?.(asset, next.value) === false) return
+    if (next.value !== liveValue) {
+      rememberInsertion({
+        before: liveValue,
+        after: next.value,
+        cursorBefore: selectionStart,
+        cursorAfter: next.cursor,
+      })
+    }
     onChange(next.value)
     setMention(null)
     requestAnimationFrame(() => {
-      textarea.focus()
-      if (textarea.selectionStart === previousCursor && textarea.selectionEnd === previousEnd) {
-        textarea.setSelectionRange(next.cursor, next.cursor)
-      }
+      const current = textareaRef.current
+      if (!current || current.value !== next.value) return
+      current.focus()
+      current.setSelectionRange(next.cursor, next.cursor)
     })
   }
 
@@ -213,18 +296,58 @@ export function MentionPromptEditor({
           value={value}
           readOnly={readOnly}
           aria-readonly={readOnly}
+          onFocus={cancelBlurDismissal}
+          onCompositionStart={() => {
+            composingRef.current = true
+            clearInsertionHistory()
+          }}
+          onCompositionEnd={(event) => {
+            composingRef.current = false
+            refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
+          }}
           onChange={(event) => {
             if (readOnly) return
+            clearInsertionHistory()
             onChange(event.target.value)
             if (!mention && /@[^@\s，。；：,\n]*$/u.test(event.target.value.slice(0, event.target.selectionStart))) onMentionOpen?.()
             refreshMention(event.target.value, event.target.selectionStart)
           }}
           onSelect={(event) => {
-            if (!mention && findActiveMention(event.currentTarget.value, event.currentTarget.selectionStart)) onMentionOpen?.()
+            if (!composingRef.current && !mention && findActiveMention(event.currentTarget.value, event.currentTarget.selectionStart)) onMentionOpen?.()
             refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
           }}
           onKeyDown={(event) => {
             if (readOnly) return
+            // The IME owns Enter/Tab/Arrow/Escape/number keys while composing.
+            // Hijacking them used to replace the composed text with a mention.
+            if (isPromptCompositionKey(event)) return
+            if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+              const isUndo = !event.shiftKey && (event.key === 'z' || event.key === 'Z')
+              const isRedo = (event.shiftKey && (event.key === 'z' || event.key === 'Z'))
+                || (!event.shiftKey && (event.key === 'y' || event.key === 'Y'))
+              if (isUndo) {
+                const record = undoInsertionRef.current
+                const next = undoPromptInsertion(event.currentTarget.value, record)
+                if (record && next) {
+                  event.preventDefault()
+                  undoInsertionRef.current = null
+                  redoInsertionRef.current = record
+                  applyHistoryValue(next)
+                  return
+                }
+              }
+              if (isRedo) {
+                const record = redoInsertionRef.current
+                const next = redoPromptInsertion(event.currentTarget.value, record)
+                if (record && next) {
+                  event.preventDefault()
+                  redoInsertionRef.current = null
+                  undoInsertionRef.current = record
+                  applyHistoryValue(next)
+                  return
+                }
+              }
+            }
             if (!mention) return
             if (event.key === 'Escape') {
               event.preventDefault()
@@ -255,14 +378,55 @@ export function MentionPromptEditor({
               choose(visibleOptions[Math.min(activeIndex, visibleOptions.length - 1)])
             }
           }}
+          onPaste={(event) => {
+            if (readOnly) return
+            const pastedText = event.clipboardData?.getData('text/plain')
+            if (!pastedText) return
+            const liveValue = event.currentTarget.value
+            const selectionStart = event.currentTarget.selectionStart ?? liveValue.length
+            const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart
+            const result = pastePromptAssets(liveValue, selectionStart, selectionEnd, pastedText, assets)
+            if (!result) return
+            const byName = new Map<string, MentionPromptAsset>()
+            for (const asset of assets) {
+              const key = asset.name.trim().replace(/^@+/, '').toLocaleLowerCase()
+              if (key && !byName.has(key)) byName.set(key, asset)
+            }
+            const matchedAssets = result.matched.flatMap((name) => {
+              const asset = byName.get(name.toLocaleLowerCase())
+              return asset ? [asset] : []
+            })
+            if (matchedAssets.length === 0) return
+            if (onPasteMatch?.(result.value, matchedAssets) === false) return
+            event.preventDefault()
+            if (result.value !== liveValue) {
+              rememberInsertion({
+                before: liveValue,
+                after: result.value,
+                cursorBefore: selectionStart,
+                cursorAfter: result.cursor,
+              })
+            }
+            onChange(result.value)
+            setMention(null)
+            requestAnimationFrame(() => {
+              const textarea = textareaRef.current
+              if (!textarea || textarea.value !== result.value) return
+              textarea.focus()
+              textarea.setSelectionRange(result.cursor, result.cursor)
+            })
+          }}
           onScroll={(event) => {
             if (!highlightRef.current) return
-            highlightRef.current.scrollTop = event.currentTarget.scrollTop
-            highlightRef.current.scrollLeft = event.currentTarget.scrollLeft
+            requestAnimationFrame(() => {
+              if (!highlightRef.current) return
+              highlightRef.current.scrollTop = event.currentTarget.scrollTop
+              highlightRef.current.scrollLeft = event.currentTarget.scrollLeft
+            })
           }}
           onBlur={() => {
             onBlur?.()
-            window.setTimeout(() => setMention(null), 150)
+            cancelBlurDismissal()
           }}
           placeholder={placeholder}
           spellCheck={false}
@@ -280,6 +444,7 @@ export function MentionPromptEditor({
           {options.length === 0 ? <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">{loading ? '正在加载个人素材库…' : assets.length === 0 ? '暂无可引用素材' : '没有匹配的素材'}</div> : grouped ? (
             <>
               {visibleOptions.some((asset) => asset.section === 'connected') ? <section className="mention-prompt-section"><h3>已连接节点<small>{visibleOptions.filter((asset) => asset.section === 'connected').length}</small></h3>{visibleOptions.filter((asset) => asset.section === 'connected').map(renderOption)}</section> : null}
+              {visibleOptions.some((asset) => asset.section === 'secondary') ? <section className="mention-prompt-section"><h3>二级连接节点<small>{visibleOptions.filter((asset) => asset.section === 'secondary').length}</small></h3>{visibleOptions.filter((asset) => asset.section === 'secondary').map(renderOption)}</section> : null}
               {options.some((asset) => asset.section === 'library') ? <section className="mention-prompt-section"><h3>个人素材库<small>{options.filter((asset) => asset.section === 'library').length}</small></h3>{categories.map(({ id }) => renderCategory(id, groupLabel(id)))}</section> : null}
             </>
           ) : options.map(renderOption)}

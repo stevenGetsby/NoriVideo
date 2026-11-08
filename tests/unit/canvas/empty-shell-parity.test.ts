@@ -81,7 +81,7 @@ describe('FrameOS empty-project canvas shell', () => {
     expect(controls).not.toContain('/api/')
   })
 
-  it('uses a real three-level hierarchy without manufacturing an active canvas', () => {
+  it('uses the real two-level project/work hierarchy without manufacturing an active canvas', () => {
     const workspace = readSource('src/features/canvas/CanvasWorkspace.tsx')
     const chrome = readSource('src/features/canvas/components/EmptyCanvasChrome.tsx')
     const emptyBranchStart = workspace.indexOf('if (!activeCanvas) {')
@@ -93,9 +93,9 @@ describe('FrameOS empty-project canvas shell', () => {
 
     expect(chrome).toContain('data-testid="empty-canvas-work-picker"')
     expect(chrome).toContain('data-testid="empty-canvas-project-picker"')
-    expect(chrome).toContain('data-testid="empty-canvas-picker"')
-    expect(chrome).toContain('<span>选择画布</span>')
-    expect(chrome).toContain('aria-current="step" disabled')
+    expect(chrome).not.toContain('data-testid="empty-canvas-picker"')
+    expect(chrome).not.toContain('<span>选择画布</span>')
+    expect(chrome).toContain('data-testid="empty-canvas-parent-back"')
     expect(chrome).toContain('onSelectProject?.(project.id)')
     expect(hierarchyGuard).toBeGreaterThan(-1)
     expect(hierarchyGuard).toBeLessThan(workPicker)

@@ -7,16 +7,18 @@ function readSource(relativePath: string): string {
 }
 
 describe('writer workbench surface', () => {
-  it('keeps the script workbench and identifies video repaint as retired', () => {
+  it('keeps the script workbench with video repaint available as an embedded workflow', () => {
     const workbench = readSource('src/components/frameos/views/FosScreenwriter.tsx')
     const models = readSource('src/components/frameos/views/screenwriterModels.ts')
     const client = readSource('src/components/frameos/FosVideoRepaintClient.tsx')
 
     expect(workbench).toContain('WRITER_TOOL')
-    expect(workbench).toContain('视频转绘已停用')
+    expect(workbench).toContain('FosVideoRepaintTask')
+    expect(workbench).toContain('CreateCard')
+    expect(workbench).not.toContain('视频转绘已停用')
     expect(models).toContain("title: '视频转绘'")
-    expect(client).toContain('已有剧本不受影响')
-    expect(client).not.toContain('视频转绘 2.0')
+    expect(client).toContain('FosVideoRepaintTask')
+    expect(client).toContain('/writer-workbench')
   })
 })
 

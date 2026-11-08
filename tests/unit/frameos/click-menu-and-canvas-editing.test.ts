@@ -30,7 +30,7 @@ describe('FrameOS click menu and editing interactions', () => {
     expect(timeline).toContain('onPointerMove={movePlayhead}')
     expect(editor).toContain('timelineStartFrame')
     expect(composition).toContain('分离后的源音频使用整集绝对坐标')
-    expect(generator).toContain("if (event.key !== 'Escape') return")
+    expect(generator).toContain("if (event.key !== 'Escape' || event.defaultPrevented) return")
     expect(generator).toContain('closeEditorRef.current()')
   })
 
@@ -39,7 +39,7 @@ describe('FrameOS click menu and editing interactions', () => {
     const graph = source('src/features/canvas/CanvasGraph.tsx')
 
     expect(autosave).toContain('new BroadcastChannel(`nori-canvas:')
-    expect(autosave).toContain("summaryRef.current = '自动合并多标签页更改'")
+    expect(autosave).toContain("summaryRef.current = recoveryDocument ? '恢复本地未同步版本' : '自动合并多标签页更改'")
     expect(autosave).toContain('if (await mergeLatestServerVersion()) return')
     expect(autosave).toContain('MAX_AUTOMATIC_CONFLICT_MERGES = 8')
     expect(autosave).toContain('mergeCanvasDocuments(base, local, remote, summary)')

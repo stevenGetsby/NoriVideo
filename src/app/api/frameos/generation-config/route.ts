@@ -3,7 +3,8 @@ import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth } from '@/lib/api-auth'
 import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
 import { resolveBuiltinCapabilitiesByModelKey, getCapabilityOptionFields } from '@/lib/model-capabilities/lookup'
-import { listNoriBusinessModels } from '@/lib/nori-model-catalog'
+import { listNoriBusinessModels, resolveNoriModelRoute } from '@/lib/nori-model-catalog'
+import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
 import { getFrameos3DModelAvailability } from '@/lib/model3d/frameos-3d-provider'
 import { resolveCanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
 import { audioDurationBounds } from '@/lib/audio/generation-contract'
@@ -29,63 +30,23 @@ export const GET = apiHandler(async (request: NextRequest) => {
     getLatestServiceHealth().catch(() => []),
   ])
   const platformConfig = getPlatformServiceConfigResponse()
-  const textModels = listNoriBusinessModels('llm').map((model) => ({
-    modelKey: model.key,
-    modelId: model.modelId,
-    provider: 'nori',
-    name: model.name,
-    description: model.description,
-    tier: model.tier,
-    type: model.type,
-  }))
-  const imageModels = listNoriBusinessModels('image').map((model) => ({
-    modelKey: model.key,
-    modelId: model.modelId,
-    provider: 'nori',
-    name: model.name,
-    description: model.description,
-    tier: model.tier,
-    type: model.type,
-  }))
-  const videoModels = listNoriBusinessModels('video').map((model) => ({
-    modelKey: model.key,
-    modelId: model.modelId,
-    provider: 'nori',
-    name: model.name,
-    description: model.description,
-    tier: model.tier,
-    type: model.type,
-  }))
+  const textModels = listConfiguredSelectableModels(platformConfig, 'llm')
+  const imageModels = listConfiguredSelectableModels(platformConfig, 'image')
+  const videoModels = listConfiguredSelectableModels(platformConfig, 'video')
 
-  function mapModels(type: 'llm' | 'image' | 'video', models: Array<{
-    modelKey: string
-    modelId: string
-    provider: string
-    name: string
-    type: string
-    description?: string
-    tier?: string
-    price?: number
-  }>, defaultKey: string | null) {
-    const unique = new Map<string, {
-      modelKey: string
-      modelId: string
-      provider: string
-      name: string
-      type: string
-      description?: string
-      tier?: string
-      price?: number
-    }>(models.map((model) => [model.modelKey, model]))
-    if (defaultKey && !unique.has(defaultKey)) {
-      unique.set(defaultKey, {
-        modelKey: defaultKey,
-        modelId: defaultKey.split('::').slice(1).join('::') || defaultKey,
-        provider: defaultKey.split('::')[0] || 'default',
-        name: defaultKey.split('::').slice(1).join('::') || defaultKey,
-        type,
-        price: 0,
-      })
+  function mapModels(type: 'llm' | 'image' | 'video', models: ReturnType<typeof listConfiguredSelectableModels>, defaultKey: string | null) {
+    const unique = new Map(models.map((model) => [model.modelKey, model]))
+    if (defaultKey?.startsWith('nori::') && !unique.has(defaultKey)) {
+      const legacy = listNoriBusinessModels(type).find((model) => model.key === defaultKey)
+      if (legacy) {
+        const runtime = resolveNoriModelRoute(defaultKey)
+        unique.set(defaultKey, {
+          modelKey: legacy.key,
+          modelId: runtime?.split('::')[1] || legacy.modelId,
+          name: legacy.name,
+          type,
+        })
+      }
     }
     return Array.from(unique.values()).map((model) => {
       const capabilities = resolveBuiltinCapabilitiesByModelKey(type, model.modelKey)
@@ -97,10 +58,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
       })
       return {
         modelKey: model.modelKey,
-        name: model.name || model.modelId,
-        provider: model.provider,
-        description: model.description || null,
-        tier: model.tier || 'standard',
+        name: model.modelId,
+        description: null,
         ...availability,
         options: getCapabilityOptionFields(type, capabilities),
         inputSchema: type === 'llm' ? null : resolveCanvasGenerationInputSchema(type, capabilities),
@@ -123,10 +82,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const duration = audioDurationBounds(capabilities?.audio)
     return {
       modelKey: model.key,
-      name: model.name,
-      provider: 'nori',
-      description: model.description,
-      tier: model.tier,
+      name: resolveNoriModelRoute(model.key)?.split('::')[1] || model.modelId,
+      description: null,
       options: getCapabilityOptionFields('audio', capabilities),
       inputSchema: resolveCanvasGenerationInputSchema('audio', capabilities),
       audioModes: availability.modes,

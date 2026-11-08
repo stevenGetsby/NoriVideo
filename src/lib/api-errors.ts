@@ -16,9 +16,13 @@ import { withAccountPermissionContext } from '@/lib/account/request-context'
 type RouteParamValue = string | string[] | undefined
 type RouteParams = Record<string, RouteParamValue>
 
+export type ApiRouteContext<TParams extends RouteParams = RouteParams> = {
+  params: Promise<TParams>
+}
+
 type ApiHandler<TParams extends RouteParams = RouteParams> = (
   req: NextRequest,
-  ctx: { params: Promise<TParams> }
+  ctx: ApiRouteContext<TParams>
 ) => Promise<Response | NextResponse>
 
 const REQUEST_ID_SYMBOL = Symbol.for('nori.request_id')

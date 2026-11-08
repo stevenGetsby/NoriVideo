@@ -124,6 +124,58 @@ describe('HuiMeng media adapter', () => {
     expect(result).toMatchObject({ success: true, async: true, requestId: 'video-1' })
   })
 
+  it('uses the documented first_frame_image field and multimodal references for Seedance 2.5', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ task_id: 'seedance-25' }))
+    const result = await generateHuimengiVideo({
+      userId: 'user-1',
+      imageUrl: 'https://cdn.example/first.png',
+      prompt: 'camera pushes in',
+      options: {
+        provider: 'huimengi',
+        modelId: 'seedance-2.5',
+        modelKey: 'huimengi::seedance-2.5',
+        referenceImages: ['https://cdn.example/ref-a.png', 'https://cdn.example/ref-b.png'],
+        videos: ['https://cdn.example/ref.mp4'],
+        audios: ['https://cdn.example/ref.mp3'],
+        aspectRatio: '16:9',
+        resolution: '1080p',
+        duration: 10,
+        generateAudio: true,
+        returnLastFrame: false,
+      },
+    })
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1].body))).toEqual({
+      model: 'seedance-2.5',
+      params: {
+        prompt: 'camera pushes in',
+        first_frame_image: 'https://cdn.example/first.png',
+        reference_images: ['https://cdn.example/ref-a.png', 'https://cdn.example/ref-b.png'],
+        reference_videos: ['https://cdn.example/ref.mp4'],
+        reference_audios: ['https://cdn.example/ref.mp3'],
+        ratio: '16:9',
+        resolution: '1080p',
+        duration: 10,
+        generate_audio: true,
+        return_last_frame: false,
+      },
+    })
+    expect(result).toMatchObject({ success: true, async: true, requestId: 'seedance-25' })
+
+    await expect(generateHuimengiVideo({
+      userId: 'user-1',
+      imageUrl: '',
+      prompt: 'too many videos',
+      options: {
+        provider: 'huimengi',
+        modelId: 'seedance-2.5',
+        modelKey: 'huimengi::seedance-2.5',
+        videos: Array.from({ length: 11 }, (_, index) => `https://cdn.example/v${index}.mp4`),
+      },
+    })).rejects.toThrow('HUIMENGI_VIDEO_REFERENCE_VIDEOS_LIMIT')
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects invalid parameters and missing task ids without paid submission', async () => {
     await expect(generateHuimengiImage({
       userId: 'user-1',

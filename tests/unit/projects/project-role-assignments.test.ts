@@ -28,15 +28,18 @@ describe('project role assignees', () => {
       .toEqual({ writer: null, asset: null, storyboard: null })
   })
 
-  it('rejects unavailable accounts or accounts missing the required functional area', () => {
+  it('rejects unavailable accounts without restricting stages by historical functional roles', () => {
     const assignees = readProjectRoleAssignees({ writerAssigneeUserId: 'writer-1' }, 'team')
     expect(() => assertProjectRoleAssignee(assignees, null, 'writer')).toThrow(/不存在、已停用/)
     expect(() => assertProjectRoleAssignee(assignees, {
       id: 'writer-1', role: 'asset', status: 'active',
-    }, 'writer')).toThrow(/未开启剧本功能区权限/)
-    expect(() => assertProjectRoleAssignee(assignees, {
-      id: 'writer-1', role: 'asset', permissions: ['read', 'scriptWrite'], status: 'active',
     }, 'writer')).not.toThrow()
+    expect(() => assertProjectRoleAssignee(assignees, {
+      id: 'writer-1', role: 'reviewer', permissions: ['read'], status: 'disabled',
+    }, 'writer')).toThrow(/不存在、已停用/)
+    expect(() => assertProjectRoleAssignee(assignees, {
+      id: 'writer-2', role: 'writer', status: 'active',
+    }, 'writer')).toThrow(/不存在、已停用/)
   })
 
   it('allows one cross-functional account to own more than one project stage', () => {

@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserPermission } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
-import { projectReadWhere } from '@/lib/collaboration/access'
-import { assertCharacterVoiceNotBound } from '@/lib/frameos/character-voice-service'
+import { getWorkspaceActor, projectReadWhere } from '@/lib/collaboration/access'
+import { findBoundCharacterVoices } from '@/lib/frameos/character-voice-service'
+import { canActorAccessMaterial } from '@/lib/frameos/material-ownership'
 import {
   canvasMaterialReferenceConflictMessage,
   findCanvasMaterialsReferences,
@@ -28,49 +29,59 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const materialIds = normalizeIds(body.materialIds)
 
   const result = await prisma.$transaction(async (tx) => {
+    const actor = getWorkspaceActor(session)
     const materials = await tx.frameosMaterial.findMany({
-      where: { id: { in: materialIds }, userId: session.user.id },
+      where: { id: { in: materialIds }, userId: actor.workspaceOwnerId },
     })
-    if (materials.length !== materialIds.length) throw new ApiError('NOT_FOUND')
+    const materialsById = new Map(materials.map((material) => [material.id, material]))
+    const missingIds = materialIds.filter((id) => !materialsById.has(id))
+    if (missingIds.length > 0) throw new ApiError('NOT_FOUND')
+    const results = materialIds.map((materialId) => ({ materialId, deleted: false, reason: null as string | null }))
+    const resultById = new Map(results.map((result) => [result.materialId, result]))
 
-    const checkedProjects = new Set<string>()
     for (const material of materials) {
-      if (material.projectId !== 'global' && material.projectId !== 'global-asset-hub' && !checkedProjects.has(material.projectId)) {
+      const item = resultById.get(material.id)!
+      if (material.deletedAt) {
+        item.deleted = true
+        continue
+      }
+      if (material.source !== 'upload') {
+        item.reason = '只能删除本地上传的素材。'
+        continue
+      }
+      if (!canActorAccessMaterial(session, material)) throw new ApiError('NOT_FOUND')
+      if (material.personalOwnerId) continue
+      if (material.projectId !== 'global' && material.projectId !== 'global-asset-hub') {
         const project = await tx.project.findFirst({
           where: projectReadWhere(session, material.projectId),
           select: { id: true },
         })
-        if (!project) throw new ApiError('NOT_FOUND')
-        checkedProjects.add(material.projectId)
-      }
-      if (material.source !== 'upload') {
-        throw new ApiError('FORBIDDEN', { message: '这里只能批量删除本地上传的素材。' })
+        if (!project) item.reason = '当前账号无权管理此项目素材。'
       }
     }
-    const activeMaterials = materials.filter((material) => !material.deletedAt)
-    await assertCharacterVoiceNotBound(tx, session.user.id, activeMaterials.filter((material) => material.type === 'audio').map((material) => material.id))
+    const candidates = materials.filter((material) => !material.deletedAt && !resultById.get(material.id)?.reason)
+    const activeMaterials = candidates.filter((material) => material.source === 'upload')
+    const audioIds = activeMaterials.filter((material) => material.type === 'audio').map((material) => material.id)
+    const voiceConflicts = await findBoundCharacterVoices(tx, actor.workspaceOwnerId, audioIds)
     const referencesById = activeMaterials.length > 0
-      ? await findCanvasMaterialsReferences(tx, session.user.id, activeMaterials)
+      ? await findCanvasMaterialsReferences(tx, actor.workspaceOwnerId, activeMaterials)
       : new Map()
-    for (const material of activeMaterials) {
-      const references = referencesById.get(material.id)
-      if (references?.referenced) {
-        throw new ApiError('CONFLICT', {
-          message: canvasMaterialReferenceConflictMessage(references.counts),
-          materialId: material.id,
-          referenceCounts: references.counts,
-        })
-      }
-    }
-
     const deletedAt = new Date()
-    let count = 0
-    for (const material of materials) {
-      if (material.deletedAt) continue
+    for (const material of activeMaterials) {
+      const item = resultById.get(material.id)!
+      const voiceConflict = voiceConflicts.get(material.id)
+      const references = referencesById.get(material.id)
+      const reason = voiceConflict || (references?.referenced
+        ? canvasMaterialReferenceConflictMessage(references.counts)
+        : null)
+      if (reason) {
+        item.reason = reason
+        continue
+      }
       const update = await tx.frameosMaterial.updateMany({
         where: {
           id: material.id,
-          userId: session.user.id,
+          userId: actor.workspaceOwnerId,
           projectId: material.projectId,
           source: 'upload',
           updatedAt: material.updatedAt,
@@ -78,17 +89,24 @@ export const POST = apiHandler(async (request: NextRequest) => {
         },
         data: {
           deletedAt,
-          deletedById: session.user.actorId || session.user.id,
+          deletedById: actor.actorId,
           isFavorited: false,
         },
       })
       if (update.count !== 1) {
-        throw new ApiError('CONFLICT', { message: '所选素材已发生变化，整批操作已取消，请刷新后重试。' })
+        item.reason = '素材已发生变化，请刷新后重试。'
+        continue
       }
-      count++
+      item.deleted = true
     }
-    return { count }
+    return { count: results.filter((item) => item.deleted).length, results }
   }, { timeout: 30_000 })
 
-  return NextResponse.json({ success: true, materialIds, deletedCount: result.count })
+  return NextResponse.json({
+    success: true,
+    materialIds: result.results.filter((item) => item.deleted).map((item) => item.materialId),
+    deletedCount: result.count,
+    skippedCount: result.results.length - result.count,
+    results: result.results,
+  })
 })

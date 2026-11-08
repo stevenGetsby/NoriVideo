@@ -129,6 +129,31 @@ describe('canvas operation compression', () => {
     expect(mergeServerTerminalFlowNode(nextTask, server)).toBe(nextTask)
   })
 
+  it('accepts a new running task on a blank comparison without overwriting local prompt edits', () => {
+    const base = document().nodes[0]!
+    const local = canvasNodeToFlow({
+      ...base,
+      id: 'comparison',
+      type: 'video',
+      status: 'IDLE',
+      taskId: null,
+      data: { prompt: '用户的新提示词', generation: { referenceNodeIds: ['ref-1'] } },
+    })
+    const server = canvasNodeToFlow({
+      ...base,
+      id: 'comparison',
+      type: 'video',
+      status: 'RUNNING',
+      taskId: 'comparison-task',
+      data: { prompt: '提交时的提示词', progress: 2, generation: { assetId: 'comparison-asset', taskId: 'comparison-task' } },
+    })
+    expect(mergeServerTerminalFlowNode(local, server).data).toMatchObject({
+      prompt: '用户的新提示词',
+      progress: 2,
+      __server: { status: 'RUNNING', taskId: 'comparison-task' },
+    })
+  })
+
   it('adopts the canonical studio source after a copied scene is persisted', () => {
     const base = document().nodes[0]!
     const local = canvasNodeToFlow({

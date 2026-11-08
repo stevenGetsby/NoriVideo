@@ -68,21 +68,23 @@ describe('three-level account management wiring', () => {
     expect(createRoute).toContain("workspaceOwnerId: accountType === 'manager' ? null : managerId")
   })
 
-  it('treats custom role names as display metadata and functional areas as the authorization source', () => {
+  it('uses one shared creative capability set and reserves project leadership for the manager', () => {
     const createRoute = readSource('src/app/api/admin/accounts/route.ts')
     const updateRoute = readSource('src/app/api/admin/accounts/[userId]/route.ts')
     const dialog = readSource('src/components/frameos/FosAccountManagementParts.tsx')
     const schema = readSource('prisma/schema.prisma')
 
-    expect(schema).toContain('roleLabel')
+    expect(schema).toMatch(/projectLeader\s+Boolean\s+@default\(false\)/)
     expect(createRoute).toContain('readRoleLabel(body.roleLabel')
-    expect(createRoute).toContain('readSubaccountPermissions(body.permissions')
-    expect(updateRoute).toContain('changedRoleLabel')
-    expect(updateRoute).toContain('changedPermissions')
-    expect(dialog).toContain('角色名称只用于团队展示')
-    expect(dialog).toContain('快捷权限模板（可选）')
-    expect(dialog).toContain('ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map')
-    expect(dialog).toContain('未勾选功能区时仍可查看，但不能编辑或发起生成')
+    expect(createRoute).not.toContain('readSubaccountPermissions(body.permissions')
+    expect(createRoute).toContain('projectLeader')
+    expect(updateRoute).toContain('changedProjectLeader')
+    expect(updateRoute).not.toContain('changedPermissions')
+    expect(dialog).toContain('统一创作能力')
+    expect(dialog).toContain('draft.projectLeader')
+    expect(dialog).not.toContain('快捷权限模板（可选）')
+    expect(dialog).not.toContain('ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map')
+    expect(dialog).not.toContain('未勾选功能区时仍可查看，但不能编辑或发起生成')
   })
 
   it('uses 角色 consistently in user-facing account and collaboration copy', () => {
@@ -98,7 +100,7 @@ describe('three-level account management wiring', () => {
 
     for (const source of sources) expect(source).not.toContain('岗位')
     expect(sources.join('\n')).toContain('角色')
-    expect(sources.join('\n')).toContain('功能区权限')
+    expect(sources.join('\n')).toContain('项目成员')
   })
 
   it('returns child details only to their owning management account', () => {

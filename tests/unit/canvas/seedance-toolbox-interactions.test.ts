@@ -10,11 +10,13 @@ describe('Seedance toolbox and canvas interaction surface', () => {
   it('loads only toolbox-owned history and renders actionable failure details', () => {
     const toolbox = source('src/components/frameos/views/FosToolbox.tsx')
 
-    expect(toolbox).toContain('&source=toolbox&limit=80')
+    expect(toolbox).toContain("source: 'toolbox'")
+    expect(toolbox).toContain("limit: '12'")
+    expect(toolbox).toContain("pageParams.set('cursor', cursor)")
     expect(toolbox).toContain('失败原因')
     expect(toolbox).toContain('selectedFailureCode')
     expect(toolbox).toContain('任务 ID：')
-    expect(toolbox).toContain('onClick={() => setSelectedId(asset.id)}')
+    expect(toolbox).toContain('onClick={() => onSelect(asset)}')
     expect(toolbox).toContain('src={src} controls playsInline')
     expect(toolbox).toContain('仅展示当前作品的工具箱任务')
     expect(toolbox).toContain('在作品素材库查看')

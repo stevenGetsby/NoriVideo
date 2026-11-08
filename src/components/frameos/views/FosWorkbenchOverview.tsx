@@ -192,9 +192,7 @@ function WorkflowProgress({
       className="relative overflow-hidden rounded-[12px] border px-3.5 py-3.5"
       style={{
         borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(255,255,255,.14)',
-        background: tone === 'failed'
-          ? 'linear-gradient(145deg, rgba(92, 28, 42, .28), rgba(28,28,36,.88))'
-          : 'radial-gradient(circle at 92% 0%, rgba(110,123,255,.16), transparent 46%), linear-gradient(145deg, rgba(40,40,50,.92), rgba(25,25,32,.94))',
+        background: tone === 'failed' ? 'rgba(92, 28, 42, .28)' : 'rgba(31, 31, 40, .94)',
       }}
       data-testid="workflow-progress-card"
     >
@@ -213,9 +211,7 @@ function WorkflowProgress({
           className="h-full rounded-full transition-[width] duration-700 ease-out"
           style={{
             width: `${safeProgress}%`,
-            background: tone === 'failed'
-              ? 'linear-gradient(90deg, #ff6464, #ff8a8a)'
-              : 'linear-gradient(90deg, #3265ff, #3265ff 58%, #5bd5c4)',
+            background: tone === 'failed' ? '#ff6464' : '#3265ff',
           }}
         />
       </div>

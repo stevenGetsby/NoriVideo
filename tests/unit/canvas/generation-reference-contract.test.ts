@@ -45,6 +45,28 @@ describe('canvas generation reference roles', () => {
     }).success).toBe(false)
   })
 
+  it('accepts Seedance 2.5 references beyond the retired 15-item cap', () => {
+    const references = Array.from({ length: 30 }, (_, index) => ({
+      materialId: `image-${index + 1}`,
+      role: 'REF' as const,
+    }))
+    expect(normalizeCanvasGenerationMaterialReferences({
+      value: references,
+      legacyMaterialIds: references.map((reference) => reference.materialId),
+      inputMode: 'text',
+      limit: 50,
+    })).toEqual({ success: true, references })
+  })
+
+  it('rejects excess legacy references instead of silently truncating paid input', () => {
+    expect(normalizeCanvasGenerationMaterialReferences({
+      value: undefined,
+      legacyMaterialIds: ['image-1', 'image-2'],
+      inputMode: 'text',
+      limit: 1,
+    })).toEqual({ success: false, message: '参考素材格式无效或超过 1 个。' })
+  })
+
   it('keeps ordinary positional references backwards compatible as REF', () => {
     expect(normalizeCanvasGenerationMaterialReferences({
       value: undefined,

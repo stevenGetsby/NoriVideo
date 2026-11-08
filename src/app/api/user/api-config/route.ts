@@ -6,11 +6,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { composeModelKey, parseModelKeyStrict, type CapabilitySelections, type CapabilityValue } from '@/lib/model-config-contract'
+import { parseModelKeyStrict, type CapabilitySelections, type CapabilityValue } from '@/lib/model-config-contract'
 import { resolveBuiltinModelContext, validateCapabilitySelectionsPayload } from '@/lib/model-capabilities/lookup'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { normalizeWorkflowConcurrencyConfig } from '@/lib/workflow-concurrency'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
+import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
 
 interface ApiConfigPutBody {
   models?: unknown
@@ -88,7 +89,9 @@ export const GET = apiHandler(async () => {
   const pref = await prisma.userPreference.findUnique({ where: { userId: auth.session.user.id } })
   const config = getPlatformServiceConfigResponse()
   const defaultModels: Record<string, string> = {}
-  const available = new Map(config.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  const available = new Map((['llm', 'image', 'video', 'audio'] as const).flatMap((type) => (
+    listConfiguredSelectableModels(config, type)
+  )).map((model) => [model.modelKey, model]))
   const legacyModels: Record<DefaultModelField, string> = { analysisModel: 'deepseek::deepseek-chat', characterModel: 'openlux::gpt-image-2.5-sunburst', locationModel: 'openlux::gpt-image-2.5-sunburst', storyboardModel: 'openlux::gpt-image-2.5-sunburst', editModel: 'openlux::gpt-image-2.5-sunburst', videoModel: 'kuaizi::doubao-seedance-2-0-260128', audioModel: 'kuaizi::speech-2.8-hd' }
   for (const field of DEFAULT_MODEL_FIELDS) {
     const stored = parseModelKeyStrict(typeof pref?.[field] === 'string' ? pref[field] : '')
@@ -98,7 +101,17 @@ export const GET = apiHandler(async () => {
     defaultModels[field] = selected && model?.type === MODEL_TYPES[field] ? selected.modelKey : ''
   }
   return NextResponse.json({
-    models: config.models.map((model) => ({ ...model, modelKey: composeModelKey(model.provider, model.modelId), enabled: true, price: 0, priceLabel: '--', capabilities: findBuiltinCapabilities(model.type, model.provider, model.modelId) })),
+    models: [...available.values()].map((model) => ({
+      modelKey: model.modelKey,
+      modelId: model.modelId,
+      name: model.modelId,
+      type: model.type,
+      provider: model.modelKey.split('::')[0],
+      enabled: true,
+      price: 0,
+      priceLabel: '--',
+      capabilities: findBuiltinCapabilities(model.type, model.modelKey.split('::')[0], model.modelId),
+    })),
     providers: config.providers.map((provider) => ({ id: provider.id, name: provider.name, baseUrl: provider.baseUrl, hasApiKey: provider.hasApiKey })),
     defaultModels, capabilityDefaults: storedCapabilities(pref?.capabilityDefaults), pricingDisplay: {},
     workflowConcurrency: normalizeWorkflowConcurrencyConfig({ analysis: pref?.analysisConcurrency, image: pref?.imageConcurrency, video: pref?.videoConcurrency }),
@@ -112,7 +125,9 @@ export const PUT = apiHandler(async (request: NextRequest) => {
   try { body = await request.json() as ApiConfigPutBody } catch { throw new ApiError('INVALID_PARAMS', { field: 'body' }) }
   if (body.providers !== undefined || body.models !== undefined) throw new ApiError('FORBIDDEN', { message: '平台 API 与模型由管理员统一配置。' })
   const config = getPlatformServiceConfigResponse()
-  const available = new Map(config.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  const available = new Map((['llm', 'image', 'video', 'audio'] as const).flatMap((type) => (
+    listConfiguredSelectableModels(config, type)
+  )).map((model) => [model.modelKey, model]))
   const defaults = normalizeDefaults(body.defaultModels)
   const concurrency = normalizeConcurrency(body.workflowConcurrency)
   const capabilities = normalizeCapabilities(body.capabilityDefaults)

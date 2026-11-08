@@ -88,11 +88,12 @@ async function open(viewport, mode = '') {
     if (url.pathname.endsWith('/balance')) payload = { balancePoints: 1000, generationAllowed: true, dailyLimitPoints: null, dailyUsedPoints: 0 }
     else if (url.pathname.endsWith('/generation-config')) payload = {
       textModels: [], imageModels: [], audioModels: [], model3dModels: [],
-      videoModels: [{ modelKey: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', configured: true, available: true, provider: 'nori', inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] } }],
-      defaults: { videoModel: 'nori::norivideo2.5', resolution: '720p', aspectRatio: '16:9' },
+      videoModels: [{ modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', configured: true, available: true, provider: 'kuaizi', inputSchema: { image: { min: 0, max: 9 }, video: { min: 0, max: 3 }, audio: { min: 0, max: 3 }, requiredFields: ['prompt'] } }],
+      defaults: { videoModel: 'kuaizi::doubao-seedance-2-5-260628', resolution: '720p', aspectRatio: '16:9' },
     }
+    else if (url.pathname === '/api/projects/project-1') payload = { work: { id: 'project-1', name: '批量连接验证', workId: 'work-1', workName: '批量连接项目' } }
     else if (url.pathname.endsWith('/generation-quote')) payload = { points: 20, costCny: 0.2 }
-    else if (url.pathname === '/api/frameos/materials') payload = { materials: [{
+    else if (url.pathname.startsWith('/api/frameos/materials')) payload = { materials: [{
       id: 'library-1', projectId: 'project-1', projectName: '测试作品', title: '素材库图片', type: 'image',
       source: 'upload', status: 'ready', url: image, storageKey: null, resultUrl: image,
       createdAt: '2026-10-13T00:00:00Z', updatedAt: '2026-10-13T00:00:00Z',

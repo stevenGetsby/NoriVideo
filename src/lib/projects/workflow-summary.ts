@@ -129,9 +129,18 @@ export function buildProjectWorkflowSummary(input: {
   activeTaskCount?: number
 }): ProjectWorkflowSummary {
   const baseline = buildProjectWorkflowBaseline(input.stats)
-  const rows = (input.stages || []).filter((row): row is ProjectWorkflowStageRow & { stageKey: ProjectWorkflowStageKey } => (
+  const stageRows = (input.stages || []).filter((row): row is ProjectWorkflowStageRow & { stageKey: ProjectWorkflowStageKey } => (
     isProjectWorkflowStageKey(row.stageKey)
   ))
+  const latestRowsByScopeAndStage = new Map<string, ProjectWorkflowStageRow & { stageKey: ProjectWorkflowStageKey }>()
+  for (const row of stageRows) {
+    const key = `${row.scopeId || 'project'}:${row.stageKey}`
+    const existing = latestRowsByScopeAndStage.get(key)
+    if (!existing || rowTime(row) >= rowTime(existing)) {
+      latestRowsByScopeAndStage.set(key, row)
+    }
+  }
+  const rows = Array.from(latestRowsByScopeAndStage.values())
   const activeTaskCount = Math.max(0, Math.round(input.activeTaskCount || 0))
 
   const activeRows = rows.filter((row) => row.status === 'queued' || row.status === 'running')

@@ -52,12 +52,11 @@ describe('workflow assignment state machine', () => {
     expect(assignmentStageSkipsReview('video')).toBe(false)
   })
 
-  it('treats assignment management as a superset of review access', () => {
+  it('keeps project creation and explicit project grants without historical work leader escalation', () => {
     expect(resolveAssignmentCapabilities({
       actorIsManagement: false,
       actorIsProjectCreator: true,
       actorIsWorkCreator: false,
-      workMemberCanManage: false,
       projectMemberCanManage: false,
       projectMemberCanReview: false,
     })).toEqual({ canManage: true, canReview: true })
@@ -66,7 +65,6 @@ describe('workflow assignment state machine', () => {
       actorIsManagement: false,
       actorIsProjectCreator: false,
       actorIsWorkCreator: false,
-      workMemberCanManage: false,
       projectMemberCanManage: true,
       projectMemberCanReview: false,
     })).toEqual({ canManage: true, canReview: true })
@@ -74,22 +72,31 @@ describe('workflow assignment state machine', () => {
     expect(resolveAssignmentCapabilities({
       actorIsManagement: false,
       actorIsProjectCreator: false,
+      actorIsWorkCreator: true,
+      projectMemberCanManage: false,
+      projectMemberCanReview: false,
+    })).toEqual({ canManage: true, canReview: true })
+
+    expect(resolveAssignmentCapabilities({
+      actorIsManagement: false,
+      actorIsProjectCreator: false,
       actorIsWorkCreator: false,
-      workMemberCanManage: false,
       projectMemberCanManage: false,
       projectMemberCanReview: true,
     })).toEqual({ canManage: false, canReview: true })
   })
 
-  it('treats reviewer project membership as a review grant', () => {
-    expect(projectMembershipGrantsReview({
-      membership: { canReviewAssignments: false },
-      accountRole: 'reviewer',
-    })).toBe(true)
-    expect(projectMembershipGrantsReview({
-      membership: { canReviewAssignments: false },
-      accountRole: 'writer',
-    })).toBe(false)
+  it('does not treat historical account roles as assignment review grants', () => {
+    for (const accountRole of ['reviewer', 'writer', 'admin']) {
+      expect(projectMembershipGrantsReview({
+        membership: { canReviewAssignments: false },
+        accountRole,
+      })).toBe(false)
+      expect(projectMembershipGrantsReview({
+        membership: { canReviewAssignments: true },
+        accountRole,
+      })).toBe(true)
+    }
     expect(projectMembershipGrantsReview({
       membership: null,
       accountRole: 'reviewer',

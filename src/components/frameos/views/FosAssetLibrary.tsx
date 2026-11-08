@@ -35,6 +35,7 @@ type RoleTag = '角色' | '道具' | '环境'
 interface ProjectItem {
   id: string
   name: string
+  workId: string
 }
 
 interface Asset {
@@ -194,7 +195,7 @@ function mergeBoundCharacterMaterials(
 function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: string }) {
   const src = toDisplayImageUrl(imageUrl)
   return (
-    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-gradient-to-b from-[#1b1b23] to-[#0c0c11]">
+    <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[var(--fos-bg-3)]">
       {src ? (
         <MediaImage src={src} alt="" fill sizes="280px" style={{ objectFit: 'cover' }} />
       ) : (
@@ -315,6 +316,7 @@ export function FosAssetLibrary() {
   const assetAbort = useRef<AbortController | null>(null)
   const projectSequence = useRef(0)
   const uploadedCategory = useRef<FrameosAssetCategory | null>(null)
+  const uploadedProjectId = useRef<string | null>(null)
   const accountKey = session?.user?.name || session?.user?.email || (TEST_MODE ? 'test-mode' : '')
   const canEditAssets = hasAccountPermissions(
     { role: session?.user?.role, permissions: session?.user?.permissions },
@@ -322,9 +324,11 @@ export function FosAssetLibrary() {
   )
 
   const selectedProject = projects.find((project) => project.id === selectedProjectId) || null
-  const sourceLabel = selectedProject?.name || '全局资产'
+  const sourceLabel = selectedProjectId === 'personal'
+    ? '个人素材'
+    : selectedProject?.name || '全局资产'
   const requestedLightboxId = params?.get('lightbox') || ''
-  const scopeKey = `${accountKey}:${selectedProjectId || 'global'}:${category}`
+  const scopeKey = `${accountKey}:${selectedProjectId || 'global'}:${category}:${sourceLabel}`
   const currentScope = useRef(scopeKey)
   currentScope.current = scopeKey
 
@@ -351,31 +355,35 @@ export function FosAssetLibrary() {
     setError(null)
     setWarning(null)
     try {
-      const url = selectedProjectId
-        ? `/api/assets?scope=project&projectId=${encodeURIComponent(selectedProjectId)}`
-        : '/api/assets?scope=global'
+      const url = selectedProjectId === 'personal'
+        ? null
+        : selectedProjectId
+          ? `/api/assets?scope=project&projectId=${encodeURIComponent(selectedProjectId)}`
+          : '/api/assets?scope=global'
       const kind = category === 'characters' ? 'character' : category === 'items' ? 'prop' : 'location'
-      const materialParams = new URLSearchParams({
-        projectId: selectedProjectId || 'global',
-        type: 'image',
-        limit: '500',
-      })
+      const materialParams = selectedProjectId === 'personal'
+        ? new URLSearchParams({ scope: 'personal', type: 'image', limit: '500' })
+        : new URLSearchParams({
+            projectId: selectedProjectId || 'global',
+            type: 'image',
+            limit: '500',
+          })
       const fetchJson = async <T,>(endpoint: string, fallback: string): Promise<T> => {
         const response = await apiFetch(endpoint, { cache: 'no-store', signal: controller.signal })
         if (!response.ok) throw new Error(await readApiErrorMessage(response, fallback))
         return await response.json() as T
       }
       const [assetResult, materialResult] = await Promise.allSettled([
-        fetchJson<{ assets?: AssetSummary[] }>(`${url}&kind=${kind}`, '加载结构化资产失败'),
+        url ? fetchJson<{ assets?: AssetSummary[] }>(`${url}&kind=${kind}`, '加载结构化资产失败') : Promise.resolve({}),
         fetchAllFrameosMaterials(materialParams, controller.signal),
       ])
       if (sequence !== assetSequence.current || currentScope.current !== scopeKey || controller.signal.aborted) return
       if (assetResult.status === 'rejected' && materialResult.status === 'rejected') throw assetResult.reason
-      const payload = assetResult.status === 'fulfilled' ? assetResult.value : {}
+      const payload: { assets?: AssetSummary[] } = assetResult.status === 'fulfilled' ? assetResult.value : {}
       const failed = [assetResult, materialResult].find((result) => result.status === 'rejected')
       if (failed?.status === 'rejected') setWarning(`部分资产未加载：${failed.reason instanceof Error ? failed.reason.message : '请刷新重试'}。其他素材及目录仍可使用。`)
       const mapped = (Array.isArray(payload.assets) ? payload.assets : [])
-        .map((asset) => mapAsset(asset, sourceLabel))
+        .map((asset: AssetSummary) => mapAsset(asset, sourceLabel))
         .filter((asset): asset is Asset => Boolean(asset))
       const materials = materialResult.status === 'fulfilled' ? materialResult.value : []
       const merged = mergeBoundCharacterMaterials(mapped, materials)
@@ -470,14 +478,22 @@ export function FosAssetLibrary() {
     mutationBusy.current = true
     setBatchDeleting(true)
     try {
-      await trashFrameosMaterials(batchDeleteTarget)
+      const result = await trashFrameosMaterials(batchDeleteTarget)
+      const deleted = new Set(result.deletedIds)
+      const keptKeys = new Set(assets
+        .filter((asset) => !asset.uploadMaterialId || !deleted.has(asset.uploadMaterialId))
+        .map((asset) => asset.key))
+      setAssets((current) => current.filter((asset) => !asset.uploadMaterialId || !deleted.has(asset.uploadMaterialId)))
+      setSelectedAssetKeys((current) => current.filter((key) => keptKeys.has(key)))
+      setBatchDeleteTarget([])
+      if (result.skipped.length > 0) {
+        setWarning(`已删除 ${deleted.size} 个资产，保留 ${result.skipped.length} 个：${result.skipped.map((item) => item.reason || '暂不可删除').join('；')}`)
+      } else {
+        setWarning(`已将 ${deleted.size} 个上传资产移入回收站。`)
+      }
       assetSequence.current++
       assetAbort.current?.abort()
       setLoading(false)
-      const deleted = new Set(batchDeleteTarget)
-      setAssets((current) => current.filter((asset) => !asset.uploadMaterialId || !deleted.has(asset.uploadMaterialId)))
-      setSelectedAssetKeys([])
-      setBatchDeleteTarget([])
     } finally {
       mutationBusy.current = false
       setBatchDeleting(false)
@@ -517,6 +533,17 @@ export function FosAssetLibrary() {
             onClick={() => { selectSource(null); setCategory(item) }}
           />
         ))}
+        {(['characters', 'items', 'environments'] as AssetCategory[]).map((item) => (
+          <TreeRow
+            key={`personal:${item}`}
+            icon={item === 'characters' ? 'user' : item === 'items' ? 'package' : 'imageLandscape'}
+            label={item === 'characters' ? '个人素材 · 角色' : `个人素材 · ${CATEGORY_LABELS[item]}`}
+            depth={1}
+            path={`个人素材/${CATEGORY_LABELS[item]}`}
+            active={selectedProjectId === 'personal' && category === item}
+            onClick={() => { selectSource('personal'); setCategory(item) }}
+          />
+        ))}
         {projects.length > 0 ? <div className="mb-1 mt-4 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">我的作品</div> : null}
         {projects.map((project) => (<Fragment key={project.id}>
           <TreeRow
@@ -543,6 +570,7 @@ export function FosAssetLibrary() {
           <div className="fal-source-picker relative">
             <select aria-label="资产来源作品" className="fos-input" value={selectedProjectId || 'global'} onChange={(event) => selectSource(event.target.value === 'global' ? null : event.target.value)}>
               <option value="global">全局资产</option>
+              <option value="personal">个人素材</option>
               {projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
             </select>
           </div>
@@ -636,7 +664,7 @@ export function FosAssetLibrary() {
       {renameTarget?.materialId && canEditAssets ? <RenameDialog kind="素材" initialName={renameTarget.name} busy={renaming} onClose={() => { if (!mutationBusy.current) setRenameTarget(null) }} onSave={renameAsset} /> : null}
       {batchDeleteTarget.length > 0 && canEditAssets ? <ConfirmActionDialog
         title="批量删除上传资产"
-        description={`确定将当前目录勾选的 ${batchDeleteTarget.length} 个上传资产移入回收站吗？整批操作受引用检查保护，任一资产仍被画布引用时不会删除任何一项。`}
+        description={`确定将当前目录勾选的 ${batchDeleteTarget.length} 个上传资产移入回收站吗？可删除的资产会正常处理；仍被画布或角色音色引用的资产会保留，并显示逐项原因。`}
         confirmLabel="确认批量删除"
         danger
         busy={batchDeleting}
@@ -659,12 +687,12 @@ export function FosAssetLibrary() {
           initialProjectId={selectedProjectId}
           initialAssetCategory={uploadCategory}
           assetCategoryOptions={['character', 'location', 'prop']}
-          lockProject
           imageOnly
           onCreated={(material) => {
             uploadedCategory.current = frameosAssetCategoryFromMetadata(material.metadata)
+            uploadedProjectId.current = material.projectId
             const asset = mapClassifiedMaterial(material, sourceLabel)
-            if (asset?.category === category) {
+            if (asset?.category === category && material.projectId === selectedProjectId) {
               setAssets((current) => [asset, ...current.filter((item) => item.key !== asset.key)])
             }
           }}
@@ -674,6 +702,7 @@ export function FosAssetLibrary() {
             if (next === 'character' || next === 'location' || next === 'prop') {
               setCategory(next === 'character' ? 'characters' : next === 'prop' ? 'items' : 'environments')
             }
+            if (uploadedProjectId.current) setSelectedProjectId(uploadedProjectId.current)
             void loadAssets()
           }}
         />

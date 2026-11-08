@@ -40,6 +40,7 @@ export const POST = apiHandler(async (
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
   const nodeId = cleanText(body?.nodeId, 191)
   const prompt = cleanText(body?.prompt, 20_000)
+  const globalStylePrompt = cleanText(body?.globalStylePrompt, 2_000)
   const count = Math.max(4, Math.min(8, Math.floor(Number(body?.count) || 4)))
   if (!nodeId || !prompt) throw new ApiError('INVALID_PARAMS', { message: '节点与剧情描述不能为空。' })
   const node = await prisma.canvasNode.findFirst({ where: { id: nodeId, canvasId, type: 'image' }, select: { id: true } })
@@ -73,6 +74,7 @@ export const POST = apiHandler(async (
     canvasId,
     nodeId,
     prompt,
+    ...(globalStylePrompt ? { globalStylePrompt } : {}),
     count,
     analysisModel: config.analysisModel,
     imageRequest: {

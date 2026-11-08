@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildMockRequest } from '../../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
-  requireUserAuth: vi.fn(async () => ({
+  requireUserAuth: vi.fn(async (): Promise<{ session: { user: { id: string; actorId?: string; workspaceOwnerId?: string; role?: string } } }> => ({
     session: { user: { id: 'user-1' } },
   })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
@@ -38,6 +38,7 @@ describe('api specific - project data route', () => {
       name: 'Project 1',
       description: null,
       userId: 'user-1',
+      createdById: 'user-1',
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
       novelPromotionData: {
@@ -66,6 +67,7 @@ describe('api specific - project data route', () => {
     const body = await res.json() as {
       project?: {
         id?: string
+        canDelete?: boolean
         novelPromotionData?: {
           importStatus?: string
           locations?: unknown[]
@@ -77,6 +79,10 @@ describe('api specific - project data route', () => {
     expect(res.status).toBe(200)
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(body.project?.id).toBe('project-1')
+    expect(body.project?.canDelete).toBe(true)
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: 'project-1', userId: 'user-1', deletedAt: null }),
+    }))
     expect(body.project?.novelPromotionData?.importStatus).toBe('pending')
     expect(body.project?.novelPromotionData?.locations).toHaveLength(1)
     expect(body.project?.novelPromotionData?.props).toHaveLength(1)
@@ -93,6 +99,7 @@ describe('api specific - project data route', () => {
       name: 'Project 1',
       description: null,
       userId: 'user-1',
+      createdById: 'user-1',
       createdAt: new Date('2026-01-01T00:00:00Z'),
       updatedAt: new Date('2026-01-01T00:00:00Z'),
       novelPromotionData: {
@@ -148,6 +155,33 @@ describe('api specific - project data route', () => {
     expect(body.project?.novelPromotionData?.videoModel).toBe('video-provider::video-model')
   })
 
+  it('lets a shared-project child read data and hides deletion for another creator\'s work', async () => {
+    authMock.requireUserAuth.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } },
+    })
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      id: 'project-1', name: 'Shared work', description: null,
+      userId: 'owner-1', createdById: 'another-member',
+      work: { id: 'work-1', name: 'Shared project' },
+      novelPromotionData: { importStatus: 'pending', characters: [], locations: [], episodes: [] },
+    })
+    const mod = await import('@/app/api/projects/[projectId]/data/route')
+    const response = await mod.GET(buildMockRequest({ path: '/api/projects/project-1/data', method: 'GET' }), routeContext)
+    const body = await response.json()
+    expect(response.status).toBe(200)
+    expect(body.project.canDelete).toBe(false)
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
+      }),
+    }))
+  })
+
   it('returns a JSON not-found error for a project outside the current user scope', async () => {
     prismaMock.project.findFirst.mockResolvedValueOnce(null)
 
@@ -164,11 +198,11 @@ describe('api specific - project data route', () => {
     expect(res.headers.get('content-type')).toContain('application/json')
     expect(body.error?.code).toBe('NOT_FOUND')
     expect(prismaMock.project.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
+      where: expect.objectContaining({
         id: 'project-1',
         userId: 'user-1',
         deletedAt: null,
-      },
+      }),
     }))
     expect(prismaMock.project.update).not.toHaveBeenCalled()
   })

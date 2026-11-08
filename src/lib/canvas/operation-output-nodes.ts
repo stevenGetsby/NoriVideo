@@ -48,6 +48,8 @@ export function canvasOperationOutputEdgeId(taskId: string) {
 function operationLabel(operation: CanvasAsyncOperation, parameters: Record<string, unknown>) {
   if (operation === 'subtitle_erase') return '视频去字幕'
   if (operation === 'video_superresolve') return '视频增强'
+  if (operation === 'video_edit') return '视频编辑'
+  if (operation === 'audio_extract') return '提取音频'
   return `图片超清 ${finite(parameters.scale, 2)}×`
 }
 
@@ -110,9 +112,13 @@ export async function materializeCanvasAsyncOperationResult(input: {
     const sourcePosition = record(state.source.position)
     const sourceSize = record(state.source.size)
     const sourceWidth = Math.max(80, finite(sourceSize.width, 300))
-    const width = 300
-    const height = Math.max(130, Math.min(340, width * input.result.height / Math.max(1, input.result.width)))
-    const mediaType = input.operation === 'superresolve' ? 'image' : 'video'
+    const mediaType = input.operation === 'superresolve'
+      ? 'image'
+      : input.operation === 'audio_extract' ? 'audio' : 'video'
+    const width = mediaType === 'audio' ? 320 : 300
+    const height = mediaType === 'audio'
+      ? 132
+      : Math.max(130, Math.min(340, width * input.result.height / Math.max(1, input.result.width)))
     const processType = input.operation === 'video_superresolve' ? 'superresolve' : input.operation
     const label = operationLabel(input.operation, input.parameters)
     const now = new Date().toISOString()
@@ -122,7 +128,11 @@ export async function materializeCanvasAsyncOperationResult(input: {
       origin: 'derivative',
       processType,
       contentUrl: input.result.url,
-      ...(mediaType === 'image' ? { imageUrl: input.result.url } : { videoUrl: input.result.url }),
+      ...(mediaType === 'image'
+        ? { imageUrl: input.result.url }
+        : mediaType === 'audio'
+          ? { audioUrl: input.result.url }
+          : { videoUrl: input.result.url }),
       materialId: input.result.materialId,
       ...(typeof input.result.duration === 'number' ? { duration: input.result.duration } : {}),
       ...(typeof input.result.fps === 'number' ? { fps: input.result.fps } : {}),

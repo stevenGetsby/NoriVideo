@@ -5,6 +5,7 @@ import { FosProjectHeader } from './FosProjectHeader'
 import { useFosProject } from './useFosProject'
 import dynamic from 'next/dynamic'
 import { workflowNavigationSurfaceKey } from '@/lib/frameos/navigation-surface-key'
+import { projectHref } from '@/lib/projects/navigation'
 
 const loadingView = () => <div className="fos-loading">正在加载工作台…</div>
 const FosWorkbenchOverview = dynamic(() => import('./views/FosWorkbenchOverview').then((module) => module.FosWorkbenchOverview), { loading: loadingView })
@@ -69,10 +70,19 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
     activeItem: view === 'canvas' ? 'canvas' : 'workbench',
   }
 
+  const parentProjectHref = data.parentProjectId ? projectHref(data.parentProjectId) : undefined
+
   if (view === 'canvas') {
     return (
       <FosShell activeKey="canvas" canvasShell titlebarTitle={data.projectName} projectNavigation={projectNavigation}>
-        <div key={navigationSurfaceKey} className="contents">{data.loading ? <div className="fos-loading">加载中…</div> : <CanvasWorkspace projectId={projectId} projectName={data.projectName} initialCanvasId={focus && focus !== 'canvas' ? focus : undefined} initialNodeId={initialCanvasNodeId} />}</div>
+        <div key={navigationSurfaceKey} className="contents">{data.loading ? <div className="fos-loading">加载中…</div> : <CanvasWorkspace
+          projectId={projectId}
+          projectName={data.projectName}
+          parentProjectId={data.parentProjectId}
+          parentProjectName={data.parentProjectName}
+          initialCanvasId={focus && focus !== 'canvas' ? focus : undefined}
+          initialNodeId={initialCanvasNodeId}
+        />}</div>
       </FosShell>
     )
   }
@@ -80,7 +90,7 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
   if (view === 'overview') {
     return (
       <FosShell activeKey="projects" projectNavigation={projectNavigation}
-        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectName={data.parentProjectName} backTo={assignmentReturnTo ?? '/projects'} backLabel={assignmentReturnTo ? '返回我的任务' : '返回我的项目'} projectMetaTags={projectMetaTags(data)} />}>
+        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectId={data.parentProjectId} parentProjectName={data.parentProjectName} canDelete={data.canDelete} backTo={assignmentReturnTo ?? parentProjectHref} backLabel={assignmentReturnTo ? '返回我的任务' : data.parentProjectName ? `返回${data.parentProjectName}` : '返回我的项目'} projectMetaTags={projectMetaTags(data)} />}>
         <div key={navigationSurfaceKey} className="contents">{data.loading ? <div className="fos-loading">加载中…</div> : <FosWorkbenchOverview data={data} />}</div>
       </FosShell>
     )
@@ -113,7 +123,7 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
 
   return (
       <FosShell activeKey="projects" projectNavigation={projectNavigation}
-        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectName={data.parentProjectName} title={title} backTo={assignmentReturnTo ?? parentBackTo} backLabel={assignmentReturnTo ? '返回我的任务' : parentBackLabel} projectMetaTags={projectMetaTags(data)} />}>
+        header={<FosProjectHeader projectId={projectId} projectName={data.projectName} parentProjectId={data.parentProjectId} parentProjectName={data.parentProjectName} canDelete={data.canDelete} title={title} backTo={assignmentReturnTo ?? parentBackTo} backLabel={assignmentReturnTo ? '返回我的任务' : parentBackLabel} projectMetaTags={projectMetaTags(data)} />}>
       <div key={navigationSurfaceKey} className="contents">{renderView()}</div>
     </FosShell>
   )

@@ -302,6 +302,9 @@ describe('billing routes internal agent visibility', () => {
         cost: 3,
       }),
     ])
+    authMock.requireUserAuth.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } },
+    })
     const { GET } = await import('@/app/api/projects/[projectId]/costs/route')
 
     const response = await GET(
@@ -311,11 +314,28 @@ describe('billing routes internal agent visibility', () => {
     const payload = await response.json()
 
     expect(response.status).toBe(200)
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'project-1',
+        userId: 'owner-1',
+        deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
+      },
+      select: { id: true, name: true },
+    })
     expect(payload.total).toBe(3)
     expect(payload.recentRecords.map((record: { id: string }) => record.id)).toEqual(['visible'])
   })
 
   it('/api/user/transactions filters internal agent rows before pagination and total count', async () => {
+    authMock.requireUserAuth.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } },
+    })
     prismaMock.balanceTransaction.findMany.mockResolvedValue([
       transaction({
         id: 'internal',
@@ -361,8 +381,14 @@ describe('billing routes internal agent visibility', () => {
     expect(prismaMock.project.findMany).toHaveBeenCalledWith({
       where: {
         id: { in: ['project-1'] },
-        userId: 'user-1',
+        userId: 'owner-1',
         deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
       },
       select: { id: true, name: true },
     })
@@ -403,6 +429,7 @@ describe('billing routes internal agent visibility', () => {
         novelPromotionProject: {
           project: {
             userId: 'user-1',
+            deletedAt: null,
           },
         },
       },
@@ -413,6 +440,43 @@ describe('billing routes internal agent visibility', () => {
       projectName: null,
       episodeNumber: null,
       episodeName: null,
+    })
+  })
+
+  it('/api/user/transactions resolves member-visible episode names through the readable work scope', async () => {
+    authMock.requireUserAuth.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } },
+    })
+    prismaMock.balanceTransaction.findMany.mockResolvedValue([
+      transaction({ id: 'episode-visible', amount: -3, episodeId: 'episode-1' }),
+    ])
+    prismaMock.novelPromotionEpisode.findMany.mockResolvedValue([
+      { id: 'episode-1', episodeNumber: 3, name: '第三集' },
+    ])
+    const { GET } = await import('@/app/api/user/transactions/route')
+
+    const response = await GET(new NextRequest('http://localhost/api/user/transactions') as never, { params: Promise.resolve({}) })
+    expect(response.status).toBe(200)
+    expect(prismaMock.novelPromotionEpisode.findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['episode-1'] },
+        novelPromotionProject: {
+          project: {
+            userId: 'owner-1',
+            deletedAt: null,
+            work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
+          },
+        },
+      },
+      select: { id: true, episodeNumber: true, name: true },
+    })
+    expect((await response.json()).transactions[0]).toMatchObject({
+      projectName: 'Visible Project', episodeNumber: 3, episodeName: '第三集',
     })
   })
 

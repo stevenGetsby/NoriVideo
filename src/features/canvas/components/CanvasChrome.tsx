@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { useFosCanvasShell } from '@/components/frameos/FosCanvasShellContext'
 import type { Canvas, CanvasProjectOption } from '../types'
+import { projectHref } from '@/lib/projects/navigation'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 
 export type CanvasSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'conflict' | 'error' | 'offline' | 'recovery'
@@ -39,6 +40,9 @@ export function CanvasChrome({
   onRenameCanvas,
   onDeleteCanvas,
   projectOptions,
+  parentProjectId,
+  parentProjectName,
+  parentProjectHref,
   onSelectProject,
   canvasHomeHref,
   createProjectHref,
@@ -64,6 +68,9 @@ export function CanvasChrome({
   onRenameCanvas: () => void
   onDeleteCanvas: () => void
   projectOptions?: CanvasProjectOption[]
+  parentProjectId?: string | null
+  parentProjectName?: string | null
+  parentProjectHref?: string
   onSelectProject?: (projectId: string) => void
   canvasHomeHref?: string
   createProjectHref?: string
@@ -85,7 +92,9 @@ export function CanvasChrome({
   const projectPickerRef = useRef<HTMLButtonElement>(null)
   const canvasPickerRef = useRef<HTMLButtonElement>(null)
   const activeProject = projectOptions?.find((project) => project.id === projectId) || null
-  const activeWorkId = activeProject?.workId || null
+  const activeWorkId = parentProjectId || activeProject?.workId || null
+  const activeWorkName = parentProjectName || activeProject?.workName || (activeWorkId ? '未命名项目' : '未归属项目')
+  const parentHref = parentProjectHref || (activeWorkId ? projectHref(activeWorkId) : '/projects')
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = Array.from(new Map((projectOptions || []).flatMap((project) => (
     project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
@@ -135,6 +144,13 @@ export function CanvasChrome({
 
   return (
     <div className={`nori-canvas-chrome${sidebarStateClass}`} ref={rootRef}>
+      <Link
+        href={{ pathname: parentHref }}
+        className="nori-canvas-parent-back"
+        aria-label={`返回项目：${activeWorkName}`}
+        title={`返回项目：${activeWorkName}`}
+        data-testid="canvas-parent-back"
+      ><AppIcon name="chevronLeft" /></Link>
       {canvasShell.enabled && canvasShell.sidebarCollapsed ? (
         <button
           type="button"
@@ -157,25 +173,20 @@ export function CanvasChrome({
               aria-expanded
               onClick={canvasShell.toggleSidebar}
             >
-              <AppIcon name="chevronLeft" />
+              <AppIcon name="menu" />
             </button>
         ) : null}
         <Link
-          href={{ pathname: canvasHomeHref || `/workflow/${projectId}/workbench-premium2` }}
-          className="nori-canvas-parent-back"
-          title={canvasHomeHref ? '返回无限画布首页' : '返回作品工作台'}
-          data-testid="canvas-parent-back"
-        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '作品工作台'}</span></Link>
-        <span className="nori-canvas-nav-divider" />
+          href={{ pathname: parentHref }}
+          className="nori-canvas-work-link"
+          title={`返回项目：${activeWorkName}`}
+          data-testid="canvas-work-link"
+        >{activeWorkName}</Link>
+        <i>/</i>
         {hasGlobalHierarchy ? (
-          <>
-            <button ref={workPickerRef} type="button" data-testid="global-canvas-active-work-picker" onClick={() => toggleMenu('work')}><span>{activeProject?.workName || '未归属项目'}</span><AppIcon name="chevronDown" /></button>
-            <i>/</i>
-          </>
+          <button type="button" className="nori-canvas-work-switch" aria-label="切换项目" title="切换项目" ref={workPickerRef} data-testid="global-canvas-active-work-picker" onClick={() => toggleMenu('work')}><AppIcon name="chevronDown" /></button>
         ) : null}
         <button ref={projectPickerRef} type="button" className="nori-canvas-project-picker" onClick={() => toggleMenu('project')}><span>{projectName}</span><AppIcon name="chevronDown" /></button>
-        <i>/</i>
-        <button ref={canvasPickerRef} type="button" className="nori-canvas-active-picker" onClick={() => toggleMenu('canvas')}><span>{activeCanvas.title}</span><AppIcon name="chevronDown" /></button>
         {menu === 'work' && hasGlobalHierarchy ? (
           <ViewportPopover anchorRef={workPickerRef} onClose={() => setMenu(null)} width={360} maxHeight={480} className="nori-canvas-dropdown nori-canvas-project-dropdown nori-canvas-work-dropdown" data-canvas-navigation-menu>
             <div className="nori-canvas-dropdown-title">选择项目</div>
@@ -184,7 +195,7 @@ export function CanvasChrome({
               {filteredWorkOptions.map((work) => (
                 <Link
                   key={work.id}
-                  href={`${canvasHomeHref}?work_id=${encodeURIComponent(work.id)}`}
+                  href={projectHref(work.id)}
                   className={work.id === activeWorkId ? 'is-active' : ''}
                   onClick={() => setMenu(null)}
                 >
@@ -229,9 +240,20 @@ export function CanvasChrome({
             ) : null}
           </ViewportPopover>
         ) : null}
+      </div>
+      <div className="nori-canvas-chrome-actions">
+        <button
+          ref={canvasPickerRef}
+          type="button"
+          className="nori-canvas-tools-trigger"
+          aria-label="画布工具"
+          title="画布工具与历史版本"
+          aria-expanded={menu === 'canvas'}
+          onClick={() => toggleMenu('canvas')}
+        ><AppIcon name="menu" /></button>
         {menu === 'canvas' ? (
           <ViewportPopover anchorRef={canvasPickerRef} onClose={() => setMenu(null)} width={360} maxHeight={480} className="nori-canvas-dropdown nori-canvas-list-dropdown" data-canvas-navigation-menu>
-            <div className="nori-canvas-dropdown-title">选择画布</div>
+            <div className="nori-canvas-dropdown-title">{activeCanvas.title}</div>
             <div className="nori-canvas-dropdown-scroll">
               {canvases.map((canvas) => (
                 <button type="button" key={canvas.id} className={canvas.id === activeCanvas.id ? 'is-active' : ''} onClick={() => { onSelectCanvas(canvas.id); setMenu(null) }}>
@@ -258,8 +280,6 @@ export function CanvasChrome({
             </div>
           </ViewportPopover>
         ) : null}
-      </div>
-      <div className="nori-canvas-chrome-actions">
         <div className="nori-canvas-undo-redo">
           <button type="button" aria-label="撤销" title={readOnly ? '只读模式不可撤销' : '撤销 ⌘Z'} disabled={readOnly || !canUndo} onClick={onUndo}><AppIcon name="undo" /></button>
           <button type="button" aria-label="重做" title={readOnly ? '只读模式不可重做' : '重做 ⇧⌘Z'} disabled={readOnly || !canRedo} onClick={onRedo}><AppIcon name="redo" /></button>

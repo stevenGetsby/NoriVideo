@@ -7,7 +7,7 @@ import type { Session } from 'next-auth'
 const session: Session = {
   user: {
     id: 'admin-test', name: '测试管理员', role: 'super_admin', status: 'active',
-    passwordChangeRequired: false, permissions: [], sessionVersion: 1,
+    passwordChangeRequired: false, permissions: [], projectLeader: false, sessionVersion: 1,
     coinCredits: 0, pointCredits: 0,
   },
   expires: '2099-01-01',

@@ -29,7 +29,7 @@ vi.mock('@/lib/frameos/material-upload', () => ({
   uploadFrameosMaterial: capabilityMock.upload,
 }))
 vi.mock('@/app/api/frameos/toolbox/generate/route', () => ({
-  POST: capabilityMock.generate,
+  generateToolboxAsset: capabilityMock.generate,
 }))
 
 describe('canvas-scoped upload and generation routes', () => {

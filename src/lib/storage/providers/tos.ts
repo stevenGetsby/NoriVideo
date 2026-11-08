@@ -40,10 +40,6 @@ function readConfiguredOptionalEndpoint(config: ServiceConfigStorageTos | undefi
   return readOptionalEndpoint(envName)
 }
 
-function toEndpointUrl(endpoint: NormalizedEndpoint): string {
-  return `${endpoint.secure ? 'https' : 'http'}://${endpoint.endpoint}`
-}
-
 export class TosStorageProvider implements StorageProvider {
   readonly kind = 'tos' as const
 

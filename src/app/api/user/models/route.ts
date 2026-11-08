@@ -1,78 +1,66 @@
 import { NextResponse } from 'next/server'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
-import {
-  listNoriBusinessModels,
-  resolveNoriModelRoute,
-  type NoriBusinessModel,
-  type NoriModelTier,
-} from '@/lib/nori-model-catalog'
-import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities } from '@/lib/model-config-contract'
+import { listNoriBusinessModels, resolveNoriModelRoute, type NoriBusinessModel } from '@/lib/nori-model-catalog'
+import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities, type UnifiedModelType } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
+import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
+import { listConfiguredSelectableModels, type SelectableModelType } from '@/lib/platform-services/model-selection'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
 
 interface UserModelOption {
   value: string
   label: string
-  provider: 'nori'
-  providerName: 'LanMiaoTV'
-  tier: NoriModelTier
   capabilities?: ModelCapabilities
   videoPricingTiers?: VideoPricingTier[]
 }
 
-interface UserModelsPayload {
-  text: UserModelOption[]
-  llm: UserModelOption[]
-  vision: UserModelOption[]
-  image: UserModelOption[]
-  video: UserModelOption[]
-  audio: UserModelOption[]
-  lipsync: UserModelOption[]
-}
-
-function cloneVideoPricingTiers(rawTiers: Array<{ when: Record<string, CapabilityValue> }>): VideoPricingTier[] {
-  return rawTiers.map((tier) => ({ when: { ...tier.when } }))
-}
-
-function toOption(model: NoriBusinessModel): UserModelOption {
-  const option: UserModelOption = {
-    value: model.key,
-    label: model.name,
-    provider: 'nori',
-    providerName: 'LanMiaoTV',
-    tier: model.tier,
-  }
-  const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')
-  if (!target) return option
-
-  const capabilities = findBuiltinCapabilities(model.type, target.provider, target.modelId)
+function toOption(input: {
+  value: string
+  label: string
+  provider: string
+  modelId: string
+  type: SelectableModelType | 'audio'
+}): UserModelOption {
+  const option: UserModelOption = { value: input.value, label: input.label }
+  const capabilities = findBuiltinCapabilities(input.type, input.provider, input.modelId)
   if (capabilities) option.capabilities = capabilities
-  if (model.type === 'video') {
-    const pricing = findBuiltinPricingCatalogEntry('video', target.provider, target.modelId)
+  if (input.type === 'video') {
+    const pricing = findBuiltinPricingCatalogEntry('video', input.provider, input.modelId)
     if (pricing?.pricing.mode === 'capability' && Array.isArray(pricing.pricing.tiers)) {
-      option.videoPricingTiers = cloneVideoPricingTiers(pricing.pricing.tiers)
+      option.videoPricingTiers = pricing.pricing.tiers.map((tier) => ({
+        when: { ...tier.when } as Record<string, CapabilityValue>,
+      }))
     }
   }
   return option
+}
+
+function toConfiguredOptions(type: SelectableModelType) {
+  return listConfiguredSelectableModels(getPlatformServiceConfigResponse(), type).map((model) => toOption({
+    value: model.modelKey,
+    label: model.modelId,
+    provider: model.modelKey.split('::')[0],
+    modelId: model.modelId,
+    type,
+  }))
+}
+
+function toAudioOption(model: NoriBusinessModel): UserModelOption {
+  const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')
+  return target
+    ? toOption({ value: model.key, label: target.modelId, provider: target.provider, modelId: target.modelId, type: model.type as Extract<UnifiedModelType, 'audio'> })
+    : { value: model.key, label: model.name }
 }
 
 export const GET = apiHandler(async () => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 
-  const llm = listNoriBusinessModels('llm').map(toOption)
-  const image = listNoriBusinessModels('image').map(toOption)
-  const video = listNoriBusinessModels('video').map(toOption)
-  const audio = listNoriBusinessModels('audio').map(toOption)
-  return NextResponse.json({
-    text: llm,
-    llm,
-    vision: [],
-    image,
-    video,
-    audio,
-    lipsync: [],
-  } satisfies UserModelsPayload)
+  const llm = toConfiguredOptions('llm')
+  const image = toConfiguredOptions('image')
+  const video = toConfiguredOptions('video')
+  const audio = listNoriBusinessModels('audio').map(toAudioOption)
+  return NextResponse.json({ text: llm, llm, vision: [], image, video, audio, lipsync: [] })
 })

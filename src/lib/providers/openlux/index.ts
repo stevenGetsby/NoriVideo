@@ -1,4 +1,9 @@
-export { ensureOpenLuxCatalogRegistered, getOpenLuxModelDefinition, listOpenLuxCatalogModels } from './catalog'
+export {
+  ensureOpenLuxCatalogRegistered,
+  getOpenLuxModelDefinition,
+  listOpenLuxCatalogModels,
+  listOpenLuxSelectableModels,
+} from './catalog'
 export {
   buildOpenLuxImageFields,
   buildOpenLuxUrl,

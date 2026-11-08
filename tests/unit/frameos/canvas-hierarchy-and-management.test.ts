@@ -25,9 +25,9 @@ describe('global infinite canvas hierarchy', () => {
     expect(hub).toContain('router.replace(`/canvas?work_id=${encodeURIComponent(workId)}`)')
 
     expect(chrome).toContain('data-testid="global-canvas-active-work-picker"')
-    expect(chrome).toContain('const activeWorkId = activeProject?.workId || null')
+    expect(chrome).toContain('const activeWorkId = parentProjectId || activeProject?.workId || null')
     expect(chrome).toContain('project.workId === activeWorkId')
-    expect(chrome).toContain('href={`${canvasHomeHref}?work_id=${encodeURIComponent(work.id)}`}')
+    expect(chrome).toContain('href={projectHref(work.id)}')
     expect(chrome).toContain('placeholder="搜索项目"')
     expect(chrome).toContain('placeholder="搜索作品"')
   })

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { projectReadWhere } from '@/lib/collaboration/access'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 
 function readAssetKind(value: Record<string, unknown>): string {
@@ -25,11 +26,7 @@ export const GET = apiHandler(async (
 
     // 验证项目所有权
     const project = await prisma.project.findFirst({
-        where: {
-            id: projectId,
-            userId: session.user.id,
-            deletedAt: null,
-        },
+        where: projectReadWhere(session, projectId),
         select: { id: true }
     })
 

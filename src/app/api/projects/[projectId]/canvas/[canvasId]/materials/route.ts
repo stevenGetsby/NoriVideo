@@ -6,6 +6,7 @@ import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
 import { prisma } from '@/lib/prisma'
 import { registerFrameosMaterial, type FrameosMaterialType } from '@/lib/frameos/material-service'
 import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { getWorkspaceActor } from '@/lib/collaboration/access'
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -42,6 +43,7 @@ export const POST = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
   await requireCanvasInProject(canvasId, projectId)
+  const actor = getWorkspaceActor(authResult.session)
 
   if (request.headers.get('content-type')?.includes('application/json')) {
     const body = await request.json().catch(() => null) as Record<string, unknown> | null
@@ -78,7 +80,7 @@ export const POST = apiHandler(async (
       // 资产库登记必须带上归类信息，已存在的素材要重新登记才能进入分类库。
       if (existingMaterialId && mode === 'reference') {
         const existing = await prisma.frameosMaterial.findFirst({
-          where: { id: existingMaterialId, userId: authResult.session.user.id, deletedAt: null, status: 'ready' },
+          where: { id: existingMaterialId, userId: actor.workspaceOwnerId, projectId, deletedAt: null, status: 'ready' },
           select: { id: true },
         })
         if (existing) {
@@ -97,7 +99,7 @@ export const POST = apiHandler(async (
       }
       const nodeTitle = text(data.title) || '画布素材'
       const material = await registerFrameosMaterial({
-        userId: authResult.session.user.id,
+        userId: actor.workspaceOwnerId,
         projectId,
         ownerName: authResult.session.user.name || null,
         title: mode === 'library' ? (requestedTitle || nodeTitle) : nodeTitle,
@@ -142,6 +144,7 @@ export const PATCH = apiHandler(async (
   const authResult = await requireProjectAuthLight(projectId, ['canvasWrite'])
   if (isErrorResponse(authResult)) return authResult
   await requireCanvasInProject(canvasId, projectId)
+  const actor = getWorkspaceActor(authResult.session)
 
   const body = await request.json().catch(() => null) as Record<string, unknown> | null
   const materialId = typeof body?.materialId === 'string' ? body.materialId.trim() : ''
@@ -151,9 +154,9 @@ export const PATCH = apiHandler(async (
   const material = await prisma.frameosMaterial.findFirst({
     where: {
       id: materialId,
-      userId: authResult.session.user.id,
+      userId: actor.workspaceOwnerId,
       deletedAt: null,
-      projectId: { in: [projectId, 'global', 'global-asset-hub'] },
+      projectId,
     },
     select: { id: true },
   })

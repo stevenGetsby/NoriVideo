@@ -62,6 +62,9 @@ export function normalizeCanvasGenerationMaterialReferences(input: {
 }): ReferenceContractResult {
   const explicit = parseExplicitReferences(input.value, input.limit)
   if (explicit && !explicit.success) return explicit
+  if (!explicit && input.legacyMaterialIds.length > input.limit) {
+    return { success: false, message: `参考素材格式无效或超过 ${input.limit} 个。` }
+  }
   const references = explicit?.references
     || input.legacyMaterialIds.slice(0, input.limit).map((materialId) => ({
       materialId,

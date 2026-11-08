@@ -5,6 +5,9 @@ export interface FrameosMaterialItem {
   projectId: string
   projectName: string
   ownerName: string | null
+  personalOwnerId?: string | null
+  canEdit?: boolean
+  personal?: boolean
   title: string | null
   type: MaterialType
   source: 'toolbox' | 'creative' | 'production' | 'upload'
@@ -24,6 +27,8 @@ export interface FrameosMaterialItem {
 export interface FrameosMaterialProjectOption {
   id: string
   name: string
+  workId?: string | null
+  workName?: string | null
 }
 
 export interface FrameosMaterialCreatorOption {

@@ -9,8 +9,8 @@ import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl, toPlayableVideoUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
 import { hasAccountPermissions } from '@/lib/account/permissions'
-import { ConfirmActionDialog, RenameDialog } from '../works/FosWorksDialogs'
-import { renameFrameosMaterial, trashFrameosMaterials } from '../materials/material-actions'
+import { ConfirmActionDialog } from '../works/FosWorksDialogs'
+import { renameFrameosMaterial, trashFrameosMaterials, updateFrameosMaterial } from '../materials/material-actions'
 import { fetchAllFrameosMaterials } from '../materials/fetch-all-materials'
 import { fetchAllProjectOptions } from '../works/fetch-all-projects'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
@@ -32,13 +32,16 @@ import {
   type MaterialType,
 } from '../materials/contracts'
 
-type FilterTab = 'all' | MaterialType | 'fav'
+type FilterTab = 'all' | MaterialType
+type MaterialScope = 'personal' | 'project' | 'all'
 type SourceFilter = 'all' | FrameosMaterialItem['source']
 type TimeFilter = 'all' | 'today' | '7d' | '30d'
 
 export interface MaterialUploadProjectItem {
   id: string
   name: string
+  workId: string
+  workName?: string | null
 }
 
 type ProjectItem = MaterialUploadProjectItem
@@ -49,7 +52,6 @@ const FILTER_TABS: Array<{ key: FilterTab; label: string }> = [
   { key: 'video', label: '视频' },
   { key: 'audio', label: '音频' },
   { key: 'model3d', label: '3D 模型' },
-  { key: 'fav', label: '收藏' },
 ]
 
 const SOURCE_FILTERS: Array<{ key: SourceFilter; label: string }> = [
@@ -92,19 +94,17 @@ function MaterialPreview({ item, detail = false }: { item: FrameosMaterialItem; 
 
 function MaterialCard({
   item,
-  canFavorite,
+  canEdit,
   selected,
   onOpen,
-  onFavorite,
   onDelete,
   onToggleSelect,
   onRename,
 }: {
   item: FrameosMaterialItem
-  canFavorite: boolean
+  canEdit: boolean
   selected: boolean
   onOpen: () => void
-  onFavorite: () => void
   onDelete: () => void
   onToggleSelect: () => void
   onRename: () => void
@@ -114,15 +114,15 @@ function MaterialCard({
   const showVoiceBadge = assetCategory === 'character' && item.type === 'image'
   return (
     <article className={`relative overflow-hidden rounded-[10px] border bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)] ${selected ? 'border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : 'border-[var(--fos-border-soft)]'}`}>
-      {item.source === 'upload' && canFavorite ? <button
+      {item.source === 'upload' && canEdit ? <button
         type="button"
         aria-label={selected ? `取消选择 ${item.title || '未命名素材'}` : `选择 ${item.title || '未命名素材'}`}
         aria-pressed={selected}
-        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'border-white/25 bg-black/65 text-white/60'}`}
+        className={`absolute left-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md border text-[12px] font-bold ${selected ? 'border-white/40 bg-[var(--fos-brand-solid)] text-white' : 'border-white/25 bg-black/65 text-white/60'}`}
         onClick={(event) => { event.stopPropagation(); onToggleSelect() }}
       >{selected ? '✓' : ''}</button> : null}
       <button type="button" onClick={onOpen} className="block w-full text-left">
-        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-b from-[#1b1b23] to-[#0c0c11]">
+        <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-[var(--fos-bg-1)]">
           <MaterialPreview item={item} />
           <span className="absolute bottom-2 left-2 rounded bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-white">{item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : item.type === 'audio' ? '音频' : '3D'}</span>
           {showVoiceBadge ? <span className="fml-voice-badge">
@@ -141,11 +141,8 @@ function MaterialCard({
       <div className="flex min-h-[38px] items-center justify-between gap-2 border-t border-[var(--fos-border-soft)] px-3 py-2">
         <span className="truncate text-[10px] text-[var(--fos-text-4)]">{formatDate(item.createdAt)}</span>
         <div className="flex items-center gap-2">
-          {item.source === 'upload' && canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title="删除上传资产" aria-label={`删除上传资产 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
-          {canFavorite ? <button type="button" onClick={(event) => { event.stopPropagation(); onRename() }} title="重命名素材" aria-label={`重命名素材 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-neutral-200"><AppIcon name="edit" className="h-4 w-4" /></button> : null}
-          <button type="button" disabled={!canFavorite} onClick={onFavorite} title={canFavorite ? item.isFavorited ? '取消收藏' : '收藏' : '收藏需要资产编辑权限'} className="text-[var(--fos-text-4)] hover:text-[#ffd166] disabled:cursor-not-allowed disabled:opacity-35">
-            <AppIcon name="bookmark" className="h-4 w-4" style={{ color: item.isFavorited ? '#ffd166' : undefined }} weight={item.isFavorited ? 'fill' : 'regular'} />
-          </button>
+          {item.source === 'upload' && canEdit ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title="删除上传资产" aria-label={`删除上传资产 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
+          {canEdit ? <button type="button" onClick={(event) => { event.stopPropagation(); onRename() }} title="编辑素材名称与归属" aria-label={`编辑素材 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-neutral-200"><AppIcon name="edit" className="h-4 w-4" /></button> : null}
         </div>
       </div>
     </article>
@@ -175,7 +172,7 @@ export function MaterialUploadDialog({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [entries, setEntries] = useState<MaterialUploadEntry[]>([])
-  const [projectId, setProjectId] = useState(initialProjectId || 'global')
+  const [projectId, setProjectId] = useState('personal')
   const [assetCategory, setAssetCategory] = useState<FrameosAssetCategory>(initialAssetCategory)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -282,7 +279,7 @@ export function MaterialUploadDialog({
       <section role="dialog" aria-modal="true" aria-label="批量上传素材" className="fos-dialog" style={{ maxWidth: 680 }}>
         <div className="fos-dialog-head"><div><div className="fos-dialog-title">批量上传素材</div><div className="mt-1 text-[11px] text-[var(--fos-text-4)]">按文件名自动命名，可逐项修改 · 每批最多 100 个 · 单文件 200MB</div></div><button type="button" className="fos-dialog-x" aria-label="关闭上传" disabled={saving} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></div>
         <div className="fos-dialog-body space-y-4">
-          <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">归属作品</span><select aria-label="归属作品" className="fos-input" value={projectId} disabled={lockProject || saving || successCount > 0 || uploadedImagesRef.current.size > 0} onChange={(event) => setProjectId(event.target.value)}><option value="global">账号素材</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
+          <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">素材归属</span><select aria-label="素材归属" className="fos-input" value={projectId} disabled={lockProject || saving || successCount > 0 || uploadedImagesRef.current.size > 0} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（默认，仅自己可见）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">个人素材可在素材库中编辑名称并共享到有权限的项目。</span></label>
           <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">资产归类</span><select aria-label="资产归类" className="fos-input" value={assetCategory} disabled={lockAssetCategory || saving || uploadedImagesRef.current.size > 0 || (successCount > 0 && unfinished.length > 0)} onChange={(event) => { setAssetCategory(event.target.value as FrameosAssetCategory); setVoiceFiles([]); setVoiceMapping({}) }}>{assetCategoryOptions.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">{lockAssetCategory ? `当前入口固定归入${FRAMEOS_ASSET_CATEGORY_LABELS[assetCategory]}，不会混入其他品类。` : '全部上传成功后自动关闭；部分失败时保留弹窗，仅重试失败项。'}</span></label>
           <div>
             <span className="mb-2 block text-[12px] font-bold text-white">本地文件 <span className="text-red-400">*</span></span>
@@ -336,6 +333,7 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClo
   const canBindProjectCharacter = assetCategory === 'character'
     && item.projectId !== 'global'
     && item.projectId !== 'global-asset-hub'
+    && item.projectId !== 'personal'
   const [characters, setCharacters] = useState<Array<{ id: string; name: string }>>([])
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -405,6 +403,21 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClo
   )
 }
 
+function MaterialEditDialog({ item, projects, busy, error, onClose, onSave }: {
+  item: FrameosMaterialItem
+  projects: ProjectItem[]
+  busy: boolean
+  error: string | null
+  onClose: () => void
+  onSave: (title: string, projectId: string) => Promise<void>
+}) {
+  const [title, setTitle] = useState(item.title || '')
+  const [projectId, setProjectId] = useState(item.personal ? 'personal' : item.projectId)
+  const [validationError, setValidationError] = useState<string | null>(null)
+  const canChangeProject = Boolean(item.personal && item.canEdit !== false)
+  return <ViewportDialogLayer><div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-label="编辑素材" className="fos-dialog" style={{ maxWidth: 460 }}><header className="fos-dialog-head"><h2 className="fos-dialog-title">编辑素材</h2><button type="button" className="fos-dialog-x" aria-label="关闭编辑素材" disabled={busy} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></header><form onSubmit={(event) => { event.preventDefault(); if (!title.trim()) { setValidationError('请输入素材名称。'); return }; setValidationError(null); void onSave(title, projectId) }}><div className="fos-dialog-body space-y-4"><label className="block"><span className="mb-2 block text-[12px] font-bold text-white">素材名称</span><input autoFocus aria-label="编辑素材名称" className="fos-input" maxLength={MAX_MATERIAL_TITLE_LENGTH} disabled={busy} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="block"><span className="mb-2 block text-[12px] font-bold text-white">素材归属</span><select aria-label="编辑素材归属" className="fos-input" disabled={busy || !canChangeProject} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（仅自己）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">{canChangeProject ? '可共享到有权限的项目，原素材 ID 保持不变。' : '只能修改名称；项目归属只能由个人素材创建者调整。'}</p></label>{validationError || error ? <p role="alert" className="break-words text-[12px] text-red-200">{validationError || error}</p> : null}</div><footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={busy} onClick={onClose}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={busy || !title.trim()}>{busy ? '保存中…' : '保存修改'}</button></footer></form></section></div></ViewportDialogLayer>
+}
+
 export function FosMaterialLibrary({
   initialProjectId,
   initialMaterialId,
@@ -416,8 +429,13 @@ export function FosMaterialLibrary({
   const canEditAssets = hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])
   const [materials, setMaterials] = useState<FrameosMaterialItem[]>([])
   const [projects, setProjects] = useState<ProjectItem[]>([])
-  const [projectId, setProjectId] = useState<string | null>(initialProjectId || 'global')
+  const [projectId, setProjectId] = useState<string | null>(initialProjectId || null)
+  const [workId, setWorkId] = useState<string | null>(null)
+  const [projectScopeResolved, setProjectScopeResolved] = useState(!initialProjectId)
+  const [projectScopeError, setProjectScopeError] = useState<string | null>(null)
+  const [projectScopeAttempt, setProjectScopeAttempt] = useState(0)
   const [filter, setFilter] = useState<FilterTab>('all')
+  const [materialScope, setMaterialScope] = useState<MaterialScope>(initialProjectId ? 'project' : 'all')
   const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all')
   const [categoryFilter, setCategoryFilter] = useState<'all' | FrameosAssetCategory>('all')
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('all')
@@ -434,6 +452,8 @@ export function FosMaterialLibrary({
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [renameTarget, setRenameTarget] = useState<FrameosMaterialItem | null>(null)
   const [renaming, setRenaming] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const renamingRef = useRef(false)
   const [batchDeleteTarget, setBatchDeleteTarget] = useState<string[]>([])
   const [batchDeleting, setBatchDeleting] = useState(false)
@@ -443,7 +463,11 @@ export function FosMaterialLibrary({
   const initialSyncRef = useRef(false)
 
   useEffect(() => {
-    setProjectId(initialProjectId || 'global')
+    setProjectId(initialProjectId || null)
+    setMaterialScope(initialProjectId ? 'project' : 'all')
+    setWorkId(null)
+    setProjectScopeResolved(!initialProjectId)
+    setProjectScopeError(null)
     setSelectedIds([])
     setDetail(null)
     setRenameTarget(null)
@@ -452,11 +476,26 @@ export function FosMaterialLibrary({
 
   useEffect(() => {
     const controller = new AbortController()
+    setProjectScopeResolved(!initialProjectId)
+    setProjectScopeError(null)
     void fetchAllProjectOptions(controller.signal).then((items) => {
-      if (!controller.signal.aborted) setProjects(items)
-    }).catch(() => {})
+      if (!controller.signal.aborted) {
+        setProjects(items)
+        if (initialProjectId && !items.some((project) => project.id === initialProjectId)) {
+          throw new Error('当前作品不存在或无权访问，请刷新后重试。')
+        }
+        setWorkId(items.find((project) => project.id === initialProjectId)?.workId || null)
+        setProjectScopeResolved(true)
+      }
+    }).catch((cause) => {
+      if (controller.signal.aborted) return
+      setWorkId(null)
+      setMaterials([])
+      setProjectScopeError(cause instanceof Error ? cause.message : '加载项目归属失败')
+      setProjectScopeResolved(true)
+    })
     return () => controller.abort()
-  }, [])
+  }, [initialProjectId, projectScopeAttempt])
 
   const load = useCallback(async (sync = false) => {
     const sequence = ++loadSequence.current
@@ -466,10 +505,11 @@ export function FosMaterialLibrary({
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ limit: '500' })
-      if (projectId) params.set('projectId', projectId)
+      const params = new URLSearchParams({ limit: '500', scope: materialScope })
+      if (materialScope !== 'personal' && projectId && !workId) params.set('projectId', projectId)
+      if (materialScope !== 'personal' && workId) params.set('workId', workId)
+      if (materialScope === 'project') params.set('available', '0')
       if (filter === 'image' || filter === 'video' || filter === 'audio' || filter === 'model3d') params.set('type', filter)
-      if (filter === 'fav') params.set('favorite', '1')
       if (sourceFilter !== 'all') params.set('source', sourceFilter)
       if (creator.trim()) {
         params.set('creator', creator.trim())
@@ -492,11 +532,11 @@ export function FosMaterialLibrary({
     } catch (loadError) {
       if (sequence !== loadSequence.current || controller.signal.aborted) return
       setMaterials([])
-      setError(loadError instanceof Error ? loadError.message : '加载素材库失败')
+      setError(loadError instanceof Error ? loadError.message : '加载资产库失败')
     } finally {
       if (sequence === loadSequence.current) setLoading(false)
     }
-  }, [creator, filter, projectId, query, sourceFilter, timeFilter])
+  }, [creator, filter, materialScope, projectId, query, sourceFilter, timeFilter, workId])
 
   const cancelMaterialReads = useCallback(() => {
     loadSequence.current++
@@ -507,16 +547,20 @@ export function FosMaterialLibrary({
     setLoading(true)
     setSelectedIds([])
     const timer = window.setTimeout(() => {
+      if (projectScopeError || (initialProjectId && materialScope !== 'personal' && (!projectScopeResolved || !workId))) return
       const sync = !initialSyncRef.current
       initialSyncRef.current = true
       void load(sync)
     }, query ? 250 : 0)
     return () => { window.clearTimeout(timer); cancelMaterialReads() }
-  }, [cancelMaterialReads, creator, load, query])
+  }, [cancelMaterialReads, creator, initialProjectId, load, materialScope, projectScopeError, projectScopeResolved, query, workId])
 
-  const activeProjectName = projectId === 'global'
-    ? '账号素材'
-    : projectId ? projects.find((project) => project.id === projectId)?.name || '作品素材' : '全部素材'
+  const activeProjectName = materialScope === 'personal'
+    ? '个人素材'
+    : materialScope === 'all' && !projectId
+      ? '全部可访问资产'
+      : workId ? `${projects.find((project) => project.id === projectId)?.name || '项目'}${projects.filter((project) => project.workId === workId).length > 1 ? ' 等项目' : ''}`
+        : projectId ? projects.find((project) => project.id === projectId)?.name || '项目资产' : '项目素材'
   const counts = useMemo(() => ({
     image: materials.filter((item) => item.type === 'image').length,
     video: materials.filter((item) => item.type === 'video').length,
@@ -528,7 +572,7 @@ export function FosMaterialLibrary({
     : materials.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === categoryFilter),
   [categoryFilter, materials])
   const deletableVisibleMaterials = useMemo(
-    () => visibleMaterials.filter((item) => item.source === 'upload'),
+    () => visibleMaterials.filter((item) => item.source === 'upload' && item.canEdit !== false),
     [visibleMaterials],
   )
   const selectedVisibleIds = useMemo(
@@ -546,16 +590,9 @@ export function FosMaterialLibrary({
     setDetail(material)
   }, [initialMaterialId, materials])
 
-  const toggleFavorite = async (item: FrameosMaterialItem) => {
-    if (!canEditAssets) return
-    const next = !item.isFavorited
-    setMaterials((current) => current.map((material) => material.id === item.id ? { ...material, isFavorited: next } : material))
-    const response = await apiFetch(`/api/frameos/materials/${item.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isFavorited: next }),
-    })
-    if (!response.ok) void load()
+  const openMaterialEditor = (item: FrameosMaterialItem) => {
+    setEditError(null)
+    setRenameTarget(item)
   }
 
   const updateCharacterBinding = async (item: FrameosMaterialItem, characterId: string | null) => {
@@ -599,17 +636,25 @@ export function FosMaterialLibrary({
     }
   }
 
-  const renameMaterial = async (title: string) => {
+  const renameMaterial = async (title: string, projectId: string) => {
     if (!canEditAssets || !renameTarget || renamingRef.current) return
     renamingRef.current = true
     setRenaming(true)
+    setEditError(null)
+    setNotice(null)
     try {
-      const updated = await renameFrameosMaterial(renameTarget.id, title)
+      const updated = renameTarget.projectId === projectId
+        ? await renameFrameosMaterial(renameTarget.id, title)
+        : await updateFrameosMaterial(renameTarget.id, { title, projectId })
       cancelMaterialReads()
       setLoading(false)
       setMaterials((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item))
       setDetail((current) => current?.id === updated.id ? { ...current, ...updated } : current)
       setRenameTarget(null)
+      if ('notice' in updated && typeof updated.notice === 'string') setNotice(updated.notice)
+      await load()
+    } catch (cause) {
+      setEditError(cause instanceof Error ? cause.message : '更新素材失败')
     } finally {
       renamingRef.current = false
       setRenaming(false)
@@ -620,17 +665,21 @@ export function FosMaterialLibrary({
     if (!canEditAssets || batchDeleteTarget.length === 0 || batchDeleting) return
     setBatchDeleting(true)
     setError(null)
+    setNotice(null)
     try {
-      await trashFrameosMaterials(batchDeleteTarget)
+      const result = await trashFrameosMaterials(batchDeleteTarget)
       cancelMaterialReads()
       setLoading(false)
-      const deletedIds = new Set(batchDeleteTarget)
+      const deletedIds = new Set(result.deletedIds)
       setMaterials((current) => current.filter((item) => !deletedIds.has(item.id)))
       setSelectedIds((current) => current.filter((id) => !deletedIds.has(id)))
       setDetail((current) => current && deletedIds.has(current.id) ? null : current)
       setBatchDeleteTarget([])
+      if (result.skipped.length > 0) {
+        setError(`已删除 ${deletedIds.size} 个素材，保留 ${result.skipped.length} 个：${result.skipped.map((item) => item.reason || '暂不可删除').join('；')}`)
+      }
     } catch (cause) {
-      throw new Error(cause instanceof Error ? cause.message : '批量删除素材失败')
+      setError(cause instanceof Error ? cause.message : '批量删除素材失败')
     } finally {
       setBatchDeleting(false)
     }
@@ -639,17 +688,21 @@ export function FosMaterialLibrary({
   return (
     <div className="fml-layout flex min-h-0 flex-1">
       <aside className="fml-tree flex w-[230px] shrink-0 flex-col overflow-y-auto border-r border-[var(--fos-border-soft)] p-3">
-        <div className="mb-2 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">素材范围</div>
-        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(null)}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问素材</button>
-        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === 'global' ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: projectId === 'global' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId('global')}><AppIcon name="folderHeart" className="h-4 w-4" />账号素材</button>
-        {projects.length > 0 ? <div className="mb-1 mt-5 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">作品范围（默认当前作品）</div> : null}
-        {projects.map((project) => <button key={project.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: projectId === project.id ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: projectId === project.id ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => setProjectId(project.id)}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}</span></button>)}
+        <div className="mb-2 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">资产范围</div>
+        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'all' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'all' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('all') }}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问资产</button>
+        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'personal' ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'personal' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('personal') }}><AppIcon name="user" className="h-4 w-4" />个人素材</button>
+        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'project' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'project' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" />项目素材</button>
+        {projects.length > 0 ? <div className="mb-1 mt-5 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">我的项目</div> : null}
+        {Array.from(new Map(projects.map((project) => [project.workId, projects.filter((item) => item.workId === project.workId)])).entries()).map(([groupId, groupProjects]) => <section key={groupId} className="mt-1">
+          <div className="px-3 py-1 text-[11px] font-bold text-[var(--fos-text-3)]">{groupProjects[0]?.workName || '项目资产'}</div>
+          {groupProjects.map((project) => <button key={project.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: workId === groupId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: workId === groupId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(project.id); setWorkId(groupId); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}{groupProjects.length > 1 ? ` 等项目资产` : ''}</span></button>)}
+        </section>)}
         <div className="fml-index mt-5 rounded-[10px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-3 text-[11px] text-[var(--fos-text-4)]"><div className="mb-2 font-bold text-[var(--fos-text-2)]">当前索引</div><div>图片 {counts.image}</div><div className="mt-1">视频 {counts.video}</div><div className="mt-1">音频 {counts.audio}</div><div className="mt-1">3D {counts.model3d}</div></div>
       </aside>
 
       <main className="fml-main flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="fml-header flex flex-wrap items-center gap-3 border-b border-[var(--fos-border-soft)] px-5 py-3">
-          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">所有生成与上传的原始文件；归类为角色后会在<Link href="/workspace/asset-hub" className="mx-1 font-bold text-white hover:underline">资产库</Link>按角色聚合并绑定音色。</div></div>
+          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">统一查看同一项目内生成与上传的图片、视频、音频及 3D 资产。<Link href={projectId && projectId !== 'global' ? `/workflow/${projectId}/workbench-premium2/assets/timbre` : '/workspace/asset-hub'} className="ml-1 font-bold text-[var(--fos-primary-text)] hover:underline">设置角色音色</Link></div></div>
           <div className="fml-header-actions ml-auto flex items-center gap-2">
             <label className="fos-material-search"><AppIcon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索素材名称" /></label>
             <button type="button" className="fos-btn fos-btn-ghost" disabled={loading} onClick={() => void load(true)}><AppIcon name="refresh" className="h-3.5 w-3.5" />刷新</button>
@@ -683,32 +736,34 @@ export function FosMaterialLibrary({
           </div>
         </div>
         <div className="fml-content min-h-0 flex-1 overflow-y-auto p-5">
-          {error ? <div className="mb-4 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
-          {loading ? <div className="py-20 text-center text-[13px] text-[var(--fos-text-4)]">正在同步素材库…</div> : null}
-          {!loading && visibleMaterials.length === 0 ? <div className="py-20 text-center text-[13px] text-[var(--fos-text-4)]">暂无匹配素材，可调整筛选、从本地上传或先完成图片/视频生成。</div> : null}
+          {notice ? <div role="status" className="mb-4 rounded-lg border border-emerald-400/25 bg-emerald-500/10 px-3 py-2 text-[12px] text-emerald-100">{notice}</div> : null}
+          {error || projectScopeError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200"><span>{projectScopeError || error}</span>{projectScopeError ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm shrink-0" onClick={() => setProjectScopeAttempt((value) => value + 1)}>重新加载项目归属</button> : null}</div> : null}
+          {loading && !projectScopeError ? <div className="py-20 text-center text-[13px] text-[var(--fos-text-4)]">正在同步资产库…</div> : null}
+          {!loading && !projectScopeError && visibleMaterials.length === 0 ? <div className="py-20 text-center text-[13px] text-[var(--fos-text-4)]">暂无匹配素材，可调整筛选、从本地上传或先完成图片/视频生成。</div> : null}
           <div className="fml-grid grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}>{!loading && visibleMaterials.map((item) => <MaterialCard
             key={item.id}
             item={item}
-            canFavorite={canEditAssets}
+            canEdit={canEditAssets && item.canEdit !== false}
             selected={selectedIds.includes(item.id)}
             onOpen={() => setDetail(item)}
-            onFavorite={() => void toggleFavorite(item)}
             onDelete={() => { setDeleteError(null); setDeleteTarget(item) }}
             onToggleSelect={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}
-            onRename={() => setRenameTarget(item)}
+            onRename={() => openMaterialEditor(item)}
           />)}</div>
         </div>
       </main>
 
       {uploadOpen && canEditAssets ? <MaterialUploadDialog projects={projects} initialProjectId={projectId} onCreated={(material) => {
-        cancelMaterialReads()
-        setLoading(false)
-        if (!projectId || material.projectId === projectId) setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)])
+        if (materialScope === 'all' || material.personal && materialScope === 'personal' || !material.personal && material.projectId === projectId && materialScope === 'project') {
+          cancelMaterialReads()
+          setLoading(false)
+          setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)])
+        }
       }} onClose={() => { setUploadOpen(false); void load() }} /> : null}
-      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onRename={() => setRenameTarget(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
+      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets && detail.canEdit !== false} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onRename={() => openMaterialEditor(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
         await downloadFrameosMaterial(session?.user?.id || '', detail.projectId, detail.id)
       }} /> : null}
-      {renameTarget && canEditAssets ? <RenameDialog kind="素材" initialName={renameTarget.title || ''} busy={renaming} onClose={() => { if (!renamingRef.current) setRenameTarget(null) }} onSave={renameMaterial} /> : null}
+      {renameTarget && canEditAssets ? <MaterialEditDialog key={renameTarget.id} item={renameTarget} projects={projects} busy={renaming} error={editError} onClose={() => { if (!renamingRef.current) { setRenameTarget(null); setEditError(null) } }} onSave={renameMaterial} /> : null}
       {deleteTarget && canEditAssets ? <ConfirmActionDialog
         title="删除上传素材"
         description={`确定删除「${deleteTarget.title || '未命名素材'}」吗？素材将移入回收站；如果仍被画布引用，系统会拒绝删除。${deleteError ? ` ${deleteError}` : ''}`}
@@ -720,7 +775,7 @@ export function FosMaterialLibrary({
       /> : null}
       {batchDeleteTarget.length > 0 && canEditAssets ? <ConfirmActionDialog
         title="批量删除上传素材"
-        description={`确定将选中的 ${batchDeleteTarget.length} 个本地上传素材移入回收站吗？如果其中有素材仍被画布或工作流引用，系统会拒绝整批操作。`}
+        description={`确定将选中的 ${batchDeleteTarget.length} 个本地上传素材移入回收站吗？可删除的素材会正常处理；仍被画布、工作流或角色音色引用的素材会保留，并显示逐项原因。`}
         confirmLabel="确认批量删除"
         danger
         busy={batchDeleting}

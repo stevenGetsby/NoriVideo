@@ -10,9 +10,44 @@ export type CanvasMentionAsset = MentionPromptAsset & {
   id: string
   mediaType: CanvasMentionMediaType
   materialId: string | null
-  section: 'connected' | 'library'
+  section: 'connected' | 'secondary' | 'library'
   category?: CanvasMentionCategory
   material?: FrameosMaterialItem
+}
+
+type CanvasMentionEdge = {
+  source: string
+  target: string
+}
+
+/**
+ * Walk incoming edges one more hop from the directly connected inputs of the
+ * target node. The target and every direct input are always excluded, and the
+ * visited set makes cycles and repeated fan-in deterministic.
+ */
+export function collectCanvasSecondaryNodeIds(
+  edges: readonly CanvasMentionEdge[],
+  targetNodeId: string,
+  directNodeIds: Iterable<string>,
+  maxDepth = 2,
+): string[] {
+  const direct = new Set(directNodeIds)
+  const visited = new Set<string>([targetNodeId, ...direct])
+  const secondary = new Set<string>()
+  let frontier = new Set(direct)
+  for (let depth = 2; depth <= Math.max(2, maxDepth); depth += 1) {
+    const next = new Set<string>()
+    for (const edge of edges) {
+      if (!frontier.has(edge.target)) continue
+      if (edge.source === targetNodeId || visited.has(edge.source)) continue
+      visited.add(edge.source)
+      next.add(edge.source)
+      if (depth === 2) secondary.add(edge.source)
+    }
+    if (next.size === 0) break
+    frontier = next
+  }
+  return [...secondary]
 }
 
 /**
@@ -58,15 +93,20 @@ export function buildCanvasMentionAssets(
   targetNodeId: string,
   allowedTypes: readonly CanvasMentionMediaType[],
   incomingNodeIds: ReadonlySet<string> = new Set(),
+  secondaryNodeIds: ReadonlySet<string> = new Set(),
 ): CanvasMentionAsset[] {
   const allowed = new Set(allowedTypes)
   const candidates = nodes.flatMap((node) => {
-    if (node.id === targetNodeId || !incomingNodeIds.has(node.id)) return []
+    if (node.id === targetNodeId) return []
+    const direct = incomingNodeIds.has(node.id)
+    // Direct inputs win when a cycle or shared upstream makes a node appear in
+    // both sets; one node must never produce two ambiguous mention names.
+    if (!direct && !secondaryNodeIds.has(node.id)) return []
     const mediaType = canvasMentionMediaType(node)
     if (!mediaType || !allowed.has(mediaType)) return []
     if (!hasUsableContent(node, mediaType)) return []
     const title = node.data.title?.trim() || `未命名${mediaLabel(mediaType)}`
-    return [{ node, mediaType, title }]
+    return [{ node, mediaType, title, direct }]
   })
   const titleCounts = new Map<string, number>()
   const titleTypeCounts = new Map<string, number>()
@@ -77,7 +117,7 @@ export function buildCanvasMentionAssets(
   })
   const occurrence = new Map<string, number>()
 
-  const assets = candidates.map(({ node, mediaType, title }) => {
+  const assets = candidates.map(({ node, mediaType, title, direct }) => {
     const titleTypeKey = `${title}\u0000${mediaType}`
     const current = (occurrence.get(titleTypeKey) || 0) + 1
     occurrence.set(titleTypeKey, current)
@@ -94,8 +134,8 @@ export function buildCanvasMentionAssets(
         ? node.data.materialId.trim()
         : null,
       imageUrl: referencePreview(node, mediaType),
-      section: 'connected' as const,
-      description: `${mediaLabel(mediaType)} · 已连接节点${node.data.materialId ? '' : ' · 将自动建立引用'}`,
+      section: direct ? 'connected' as const : 'secondary' as const,
+      description: `${mediaLabel(mediaType)} · ${direct ? '已连接节点' : '二级连接节点'}${node.data.materialId ? '' : ' · 将自动建立引用'}`,
     }
   })
 

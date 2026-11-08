@@ -23,6 +23,7 @@ type DirectRouteCase = {
   expectedTargetType: string
   expectedProjectId: string
   expectedPayloadSubset?: Record<string, unknown>
+  retiredErrorCode?: 'VOICE_DESIGN_RETIRED' | 'LIP_SYNC_RETIRED'
 }
 
 const authState = vi.hoisted<AuthState>(() => ({
@@ -396,6 +397,7 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
     expectedTaskType: TASK_TYPE.ASSET_HUB_VOICE_DESIGN,
     expectedTargetType: 'GlobalAssetHubVoiceDesign',
     expectedProjectId: 'global-asset-hub',
+    retiredErrorCode: 'VOICE_DESIGN_RETIRED',
   },
   {
     routeFile: 'src/app/api/novel-promotion/[projectId]/generate-image/route.ts',
@@ -459,6 +461,7 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
     expectedTaskType: TASK_TYPE.LIP_SYNC,
     expectedTargetType: 'NovelPromotionPanel',
     expectedProjectId: 'project-1',
+    retiredErrorCode: 'LIP_SYNC_RETIRED',
   },
   {
     routeFile: 'src/app/api/novel-promotion/[projectId]/modify-asset-image/route.ts',
@@ -552,6 +555,7 @@ const DIRECT_CASES: ReadonlyArray<DirectRouteCase> = [
     expectedTaskType: TASK_TYPE.VOICE_DESIGN,
     expectedTargetType: 'NovelPromotionProject',
     expectedProjectId: 'project-1',
+    retiredErrorCode: 'VOICE_DESIGN_RETIRED',
   },
   {
     routeFile: 'src/app/api/novel-promotion/[projectId]/voice-generate/route.ts',
@@ -598,8 +602,15 @@ describe('api contract - direct submit routes (behavior)', () => {
       expect(submitTaskMock).not.toHaveBeenCalled()
     })
 
-    it(`${routeCase.routeFile} -> submits task with expected contract when authenticated`, async () => {
+    it(`${routeCase.routeFile} -> ${routeCase.retiredErrorCode ? 'returns 410 without submitting' : 'submits task with expected contract'} when authenticated`, async () => {
       const res = await invokePostRoute(routeCase)
+      if (routeCase.retiredErrorCode) {
+        expect(res.status).toBe(410)
+        const json = await res.json()
+        expect(json).toMatchObject({ success: false, error: { code: routeCase.retiredErrorCode } })
+        expect(submitTaskMock).not.toHaveBeenCalled()
+        return
+      }
       expect(res.status).toBe(200)
       expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
         type: routeCase.expectedTaskType,

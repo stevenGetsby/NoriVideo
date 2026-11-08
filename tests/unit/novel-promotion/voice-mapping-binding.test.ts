@@ -6,7 +6,7 @@ import {
 } from '@/lib/novel-promotion/voice-mapping-binding'
 
 describe('FrameOS voice mapping binding', () => {
-  it('does not trust library candidate ids as Kuaizi character voices', () => {
+  it('binds the selected library candidate to the local character voice fields', () => {
     const plan = buildCharacterVoiceMappingUpdates({
       characters: [{ id: 'char-1', name: 'Ari' }],
       mappings: {
@@ -25,8 +25,20 @@ describe('FrameOS voice mapping binding', () => {
       },
     })
 
-    expect(plan.updates).toEqual([])
-    expect(plan.skipped).toEqual([{ character: 'Ari', characterId: 'character_1', reason: 'missing_voice_id' }])
+    expect(plan).toEqual({
+      updates: [{
+        characterId: 'char-1',
+        characterName: 'Ari',
+        source: 'library_match',
+        data: {
+          voiceId: 'voice-primary',
+          voiceType: 'kuaizi',
+          customVoiceUrl: null,
+          customVoiceMediaId: null,
+        },
+      }],
+      skipped: [],
+    })
   })
 
   it('falls back to the first ranked candidate with a voice id', () => {
@@ -128,8 +140,21 @@ describe('FrameOS voice mapping binding', () => {
       ],
     })
 
-    expect(plan.updates).toEqual([])
-    expect(plan.skipped).toHaveLength(2)
+    expect(plan.updates).toEqual([
+      {
+        characterId: 'character_3',
+        characterName: 'Nia',
+        source: 'library_match',
+        data: { voiceId: 'voice-nia', voiceType: 'kuaizi', customVoiceUrl: null, customVoiceMediaId: null },
+      },
+      {
+        characterId: 'local-char-2',
+        characterName: 'Mika',
+        source: 'library_match',
+        data: { voiceId: 'voice-mika', voiceType: 'kuaizi', customVoiceUrl: null, customVoiceMediaId: null },
+      },
+    ])
+    expect(plan.skipped).toEqual([])
   })
 
   it('builds speaker voice bindings from LLM voice_mapping output', () => {
@@ -161,6 +186,11 @@ describe('FrameOS voice mapping binding', () => {
     })
 
     expect(plan.speakerVoices).toEqual({
+      Ari: {
+        provider: 'kuaizi',
+        voiceType: 'kuaizi',
+        voiceId: 'voice-ari',
+      },
       Nia: {
         provider: 'kuaizi',
         voiceType: 'uploaded',
@@ -168,7 +198,6 @@ describe('FrameOS voice mapping binding', () => {
       },
     })
     expect(plan.skipped).toEqual([
-      { speaker: 'Ari', characterId: 'character_1', reason: 'missing_voice_id' },
       { speaker: 'Mika', characterId: 'character_2', reason: 'speaker_not_in_scope' },
     ])
   })

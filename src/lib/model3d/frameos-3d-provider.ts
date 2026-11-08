@@ -36,9 +36,6 @@ export type Frameos3DProviderConfig = {
 
 type JsonRecord = Record<string, unknown>
 
-const DEFAULT_TRIPO_BASE_URL = 'https://api.tripo3d.ai/v2/openapi'
-const DEFAULT_MODEL_VERSION = 'v3.0-20250812'
-
 function record(value: unknown): JsonRecord | null {
   return value && typeof value === 'object' && !Array.isArray(value)
     ? value as JsonRecord
@@ -47,17 +44,6 @@ function record(value: unknown): JsonRecord | null {
 
 function text(value: unknown): string {
   return typeof value === 'string' ? value.trim() : ''
-}
-
-function boundedInteger(value: unknown, fallback: number, min: number, max: number): number {
-  const parsed = Number(value)
-  if (!Number.isFinite(parsed)) return fallback
-  return Math.max(min, Math.min(max, Math.floor(parsed)))
-}
-
-function configuredSecret(value: string): boolean {
-  const lower = value.toLowerCase()
-  return Boolean(value && value !== 'dummy' && !lower.startsWith('your-') && !lower.includes('replace-me'))
 }
 
 export function resolveFrameos3DProviderConfig(): Frameos3DProviderConfig | null {

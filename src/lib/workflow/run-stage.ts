@@ -1,7 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE, type TaskType } from '@/lib/task/types'
-import { type WorkflowStage } from './types'
+import { type WorkflowStage, type WorkflowStageStatus } from './types'
 import { checkRunPreconditions, isStageActive } from './stage-machine'
 import { ApiError } from '@/lib/api-errors'
 import type { Locale } from '@/i18n/routing'
@@ -355,7 +355,7 @@ export async function cancelStage(params: {
     select: { status: true, lastTaskId: true, lastRunId: true },
   })
 
-  if (!row || !isStageActive(row.status as any)) {
+  if (!row || !isStageActive(row.status as WorkflowStageStatus)) {
     throw new ApiError('INVALID_PARAMS', { message: 'stage_not_active', currentStatus: row?.status || 'idle' })
   }
 

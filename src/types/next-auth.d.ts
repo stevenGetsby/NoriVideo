@@ -13,6 +13,7 @@ declare module 'next-auth' {
       status: 'active' | 'disabled' | 'revoked'
       passwordChangeRequired: boolean
       permissions: NoriAccountPermission[]
+      projectLeader: boolean
       sessionVersion: number
       workspaceOwnerId?: string | null
       parentAccountId?: string | null
@@ -27,6 +28,7 @@ declare module 'next-auth' {
     status?: 'active' | 'disabled'
     passwordChangeRequired?: boolean
     permissions?: NoriAccountPermission[]
+    projectLeader?: boolean
     sessionVersion?: number
     workspaceOwnerId?: string | null
     parentAccountId?: string | null
@@ -43,6 +45,7 @@ declare module 'next-auth/jwt' {
     accountStatus?: 'active' | 'disabled' | 'revoked'
     passwordChangeRequired?: boolean
     permissions?: NoriAccountPermission[]
+    projectLeader?: boolean
     sessionVersion?: number
     workspaceOwnerId?: string | null
     parentAccountId?: string | null

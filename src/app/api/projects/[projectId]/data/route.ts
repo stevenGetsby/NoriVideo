@@ -5,6 +5,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 import { extractModelKey } from '@/lib/config-service'
 import { toProductionWork } from '@/lib/projects/hierarchy'
+import { getWorkspaceActor, projectReadWhere } from '@/lib/collaboration/access'
 
 const USER_MODEL_DEFAULT_SELECT = {
   analysisModel: true,
@@ -49,11 +50,7 @@ export const GET = apiHandler(async (
   const { session } = authResult
 
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-      deletedAt: null,
-    },
+    where: projectReadWhere(session, projectId),
     include: {
       work: { select: { id: true, name: true } },
       novelPromotionData: {
@@ -117,6 +114,7 @@ export const GET = apiHandler(async (
 
   const data = {
     ...project,
+    canDelete: getWorkspaceActor(session).isManagement || project.createdById === session.user.actorId || project.createdById === session.user.id,
     parentProject: project.work ? { id: project.work.id, name: project.work.name } : null,
     novelPromotionData: {
       ...effectiveNovelPromotionData,

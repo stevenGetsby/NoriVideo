@@ -68,7 +68,10 @@ describe('canvas material deletion guard', () => {
       },
     })
     expect(canvasMaterialReferenceConflictMessage(result.counts)).toContain(
-      '1 个当前画布、1 个工作流模板、2 个历史版本',
+      '1 个当前画布、1 个工作流模板',
+    )
+    expect(canvasMaterialReferenceConflictMessage(result.counts)).toContain(
+      '历史版本仍可查看，不阻止移入回收站',
     )
   })
 

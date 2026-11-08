@@ -4,7 +4,7 @@ import { submitTask } from '@/lib/task/submitter'
 import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
 import { prisma } from '../helpers/prisma'
 import { resetBillingState } from '../helpers/db-reset'
-import { createTestUser } from '../helpers/billing-fixtures'
+import { createTestUser, seedBalance } from '../helpers/billing-fixtures'
 
 const addTaskJobMock = vi.hoisted(() => vi.fn(async () => ({ id: 'mock-job' })))
 const publishTaskEventMock = vi.hoisted(() => vi.fn(async () => ({})))
@@ -26,6 +26,7 @@ describe('regression - reusable active run reattach', () => {
 
   it('reattaches a new run-centric task to the existing active run when the linked task is already terminal', async () => {
     const user = await createTestUser()
+    await seedBalance(user.id, 100)
     const failedTask = await prisma.task.create({
       data: {
         userId: user.id,

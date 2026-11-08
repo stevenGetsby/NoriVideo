@@ -97,7 +97,9 @@ describe('FrameOS voice mapping runtime helper', () => {
   })
 
   it('calls the voice_mapping prompt and returns a character update plan', async () => {
-    const executeTextStep = vi.fn(async (_input: AiStepExecutionInput): Promise<AiStepExecutionResult> => ({
+    const executeTextStep = vi.fn(async (_input: AiStepExecutionInput): Promise<AiStepExecutionResult> => {
+      void _input
+      return {
       text: JSON.stringify({
         status: 'draft',
         voice_mapping: [
@@ -123,12 +125,13 @@ describe('FrameOS voice mapping runtime helper', () => {
       reasoning: 'matched voices',
       usage: { promptTokens: 1, completionTokens: 1, totalTokens: 2 },
       completion: {} as never,
-    }))
+      }
+    })
 
     const result = await runVoiceMappingReview({
       userId: 'user-1',
       projectId: 'project-1',
-      model: 'lumina::gpt-5.5',
+      model: 'nori::nori-gpt',
       locale: 'zh',
       input: {
         characters: [{ id: 'character-1', name: 'Ari' }],
@@ -138,13 +141,21 @@ describe('FrameOS voice mapping runtime helper', () => {
     })
 
     expect(result.mapping).toEqual(expect.objectContaining({ status: 'draft' }))
-    expect(result.plan.updates).toEqual([])
-    expect(result.plan.skipped).toEqual([
-      { character: 'Ari', characterId: 'character-1', reason: 'missing_voice_id' },
-    ])
+    expect(result.plan.updates).toEqual([{
+      characterId: 'character-1',
+      characterName: 'Ari',
+      source: 'library_match',
+      data: {
+        voiceId: 'voice-1',
+        voiceType: 'kuaizi',
+        customVoiceUrl: null,
+        customVoiceMediaId: null,
+      },
+    }])
+    expect(result.plan.skipped).toEqual([])
     expect(result.reasoning).toBe('matched voices')
     expect(executeTextStep).toHaveBeenCalledWith(expect.objectContaining({
-      model: 'lumina::gpt-5.5',
+      model: 'nori::nori-gpt',
       action: 'voice_mapping',
       temperature: 0.2,
       messages: [

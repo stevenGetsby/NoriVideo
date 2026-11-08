@@ -54,6 +54,12 @@ vi.mock('@/lib/model-pricing/catalog', () => ({
   findBuiltinPricingCatalogEntry: vi.fn(() => undefined),
 }))
 
+const configMock = vi.hoisted(() => vi.fn(() => ({
+  providers: [{ id: 'deepseek', name: 'DeepSeek', hasApiKey: true }],
+  models: [{ provider: 'deepseek', modelId: 'deepseek-chat', modelKey: 'deepseek::deepseek-chat', name: 'Packaged text alias', type: 'llm' }],
+})))
+vi.mock('@/lib/platform-services/config', () => ({ getPlatformServiceConfigResponse: configMock }))
+
 describe('api specific - user models vision group', () => {
   const routeContext = { params: Promise.resolve({}) }
 
@@ -61,7 +67,7 @@ describe('api specific - user models vision group', () => {
     vi.clearAllMocks()
   })
 
-  it('returns the fixed Nori text catalog and hides user-provider models', async () => {
+  it('returns the real configured text model and hides user-provider models', async () => {
     const mod = await import('@/app/api/user/models/route')
     const req = buildMockRequest({
       path: '/api/user/models',
@@ -75,12 +81,7 @@ describe('api specific - user models vision group', () => {
       vision: Array<{ value: string; label: string }>
     }
 
-    expect(body.llm.map((item) => item.label)).toEqual([
-      'nori-gpt',
-      'nori-gpt-max',
-      'nori-gemini',
-      'nori-deepseek',
-    ])
+    expect(body.llm).toEqual([{ value: 'deepseek::deepseek-chat', label: 'deepseek-chat' }])
     expect(body.vision).toEqual([])
   })
 })

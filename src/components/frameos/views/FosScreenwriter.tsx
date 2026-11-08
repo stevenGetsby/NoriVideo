@@ -2,8 +2,14 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import { FosVideoRepaintTask } from './FosVideoRepaintTask'
 import { FosWriterWorkspace } from './FosWriterWorkspace'
-import type { ScriptStatus, WriterScript } from './screenwriterModels'
+import {
+  WRITER_TOOL,
+  type ScriptStatus,
+  type WriterScript,
+  type WriterTool,
+} from './screenwriterModels'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -40,6 +46,7 @@ export function FosScreenwriter() {
   const [status, setStatus] = useState<ScriptStatus>('draft')
   const [notice, setNotice] = useState('')
   const [loading, setLoading] = useState(true)
+  const [repaintOpen, setRepaintOpen] = useState(false)
   const saveTimers = useRef(new Map<string, number>())
 
   useEffect(() => {
@@ -66,10 +73,11 @@ export function FosScreenwriter() {
       }
     }
     void load()
+    const pendingSaveTimers = saveTimers.current
     return () => {
       cancelled = true
-      saveTimers.current.forEach((timer) => window.clearTimeout(timer))
-      saveTimers.current.clear()
+      pendingSaveTimers.forEach((timer) => window.clearTimeout(timer))
+      pendingSaveTimers.clear()
     }
   }, [])
 
@@ -106,6 +114,23 @@ export function FosScreenwriter() {
     }
   }
 
+  const handleRepaintSaved = (saved: WriterScript) => {
+    const presented = presentScript(saved)
+    setScripts((current) => {
+      const exists = current.some((script) => script.id === presented.id)
+      return exists
+        ? current.map((script) => script.id === presented.id ? presented : script)
+        : [presented, ...current]
+    })
+    setActiveId(presented.id)
+    setStatus(presented.status)
+  }
+
+  const openRepaint = () => {
+    setNotice('')
+    setRepaintOpen(true)
+  }
+
   return (
     <div className="writer-page">
       <header className="writer-page-header">
@@ -116,29 +141,36 @@ export function FosScreenwriter() {
         <span className="writer-page-hint">账号私有空间</span>
       </header>
 
-      <section className="writer-create-strip" aria-label="创建剧本">
-        <div className="wc-group wc-group--primary">
-          <div className="wc-group-description">
-            <AppIcon name="info" className="h-4 w-4" />
-            <span>视频转绘已停用，已有剧本仍可继续编辑。</span>
-          </div>
-        </div>
-      </section>
-
-      <div className="writer-page-body">
-        <FosWriterWorkspace
-          scripts={scripts}
-          setScripts={setScripts}
-          activeId={activeId}
-          setActiveId={setActiveId}
-          status={status}
-          setStatus={setStatus}
-          onNotice={setNotice}
-          loading={loading}
-          onScriptChange={persistScript}
-          onDeleteScript={deleteScript}
+      {repaintOpen ? (
+        <FosVideoRepaintTask
+          embedded
+          onExit={() => setRepaintOpen(false)}
+          onSaved={handleRepaintSaved}
         />
-      </div>
+      ) : (
+        <>
+          <section className="writer-create-strip" aria-label="创建剧本">
+            <div className="wc-group wc-group--primary">
+              <CreateCard tool={WRITER_TOOL} onClick={openRepaint} />
+            </div>
+          </section>
+
+          <div className="writer-page-body">
+            <FosWriterWorkspace
+              scripts={scripts}
+              setScripts={setScripts}
+              activeId={activeId}
+              setActiveId={setActiveId}
+              status={status}
+              setStatus={setStatus}
+              onNotice={setNotice}
+              loading={loading}
+              onScriptChange={persistScript}
+              onDeleteScript={deleteScript}
+            />
+          </div>
+        </>
+      )}
 
       {notice ? (
         <div className="writer-toast" role="status">
@@ -149,5 +181,27 @@ export function FosScreenwriter() {
       ) : null}
 
     </div>
+  )
+}
+
+function CreateCard({ tool, onClick }: { tool: WriterTool; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      className={`create-card create-card--${tool.tone} create-card--flagship`}
+      onClick={onClick}
+    >
+      <span className="create-card-inner">
+        <span className="create-card-icon-wrap"><AppIcon name={tool.icon} className="h-5 w-5" /></span>
+        <span className="create-card-text">
+          <span className="create-card-title-row">
+            <span className="create-card-title">{tool.title}</span>
+            {tool.badge ? <span className="create-card-badge">{tool.badge}</span> : null}
+          </span>
+          <span className="create-card-sub">{tool.subtitle}</span>
+        </span>
+        <AppIcon name="chevronRight" className="create-card-chevron h-4 w-4" />
+      </span>
+    </button>
   )
 }

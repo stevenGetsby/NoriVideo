@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
+import { buildCanvasGenerationMaterialReferences, normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
 import {
   firstLastFrameInputSchema,
   imageToVideoInputSchema,
@@ -10,6 +12,30 @@ import {
 } from '@/lib/canvas/generation-input-schema'
 
 describe('canvas generation input schema', () => {
+  it('accepts the actual Seedance 2.5 30-image contract beyond the retired 15-item cap', () => {
+    const capabilities = resolveBuiltinCapabilitiesByModelKey('video', 'nori::norivideo2.5')
+    const schema = resolveCanvasGenerationInputSchema('video', capabilities)
+    expect(schema.image.max).toBe(30)
+    expect(schema.video.max).toBe(10)
+    expect(schema.audio.max).toBe(10)
+    const references = buildCanvasGenerationMaterialReferences(Array.from({ length: 30 }, (_, index) => `image-${index + 1}`), 'text')
+    expect(normalizeCanvasGenerationMaterialReferences({
+      value: references,
+      legacyMaterialIds: references.map((reference) => reference.materialId),
+      inputMode: 'text',
+      limit: schema.image.max + schema.video.max + schema.audio.max,
+    })).toEqual({ success: true, references })
+    expect(validateCanvasReferenceMedia(schema, references.map((reference) => ({ id: reference.materialId, title: reference.materialId, type: 'image' as const })))).toEqual([])
+  })
+
+  it('keeps the provider-specific video limits after removing the global cap', () => {
+    const capabilities = resolveBuiltinCapabilitiesByModelKey('video', 'nori::norivideo2.0')
+    const schema = resolveCanvasGenerationInputSchema('video', capabilities)
+    expect(schema.image.max).toBeLessThan(30)
+    const references = Array.from({ length: schema.image.max + 1 }, (_, index) => ({ id: `image-${index}`, title: '图片', type: 'image' as const }))
+    expect(validateCanvasReferenceMedia(schema, references)).toContain(`参考图片最多支持 ${schema.image.max} 个。`)
+  })
+
   it('uses provider capability input limits instead of a second UI-only limit table', () => {
     const schema = resolveCanvasGenerationInputSchema('video', {
       video: {

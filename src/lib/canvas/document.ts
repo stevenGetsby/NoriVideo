@@ -49,6 +49,43 @@ export type CanvasDocumentValidationError = {
   maxBytes?: number
 }
 
+export type CanvasDocumentValidationDiagnostic = {
+  scope: 'document' | 'node' | 'edge'
+  reason: string
+  index?: number
+  id?: string
+  field?: string
+}
+
+function diagnoseCanvasDocumentNodeInput(value: unknown): string {
+  const source = record(value)
+  if (!source) return 'not_object'
+  if (!cleanString(source.id)) return 'id'
+  if (!cleanString(source.type, 64) || !isAllowedNodeType(String(source.type))) return 'type'
+  if (!parseCanvasPosition(source.position)) return 'position'
+  if (parseCanvasSize(source.size) === undefined) return 'size'
+  if (parseCanvasNodeData(source.data) === undefined) return 'data'
+  const rawStatus = cleanString(source.status, 32) || 'IDLE'
+  if (!(CANVAS_NODE_STATUS_VALUES as readonly string[]).includes(rawStatus)) return 'status'
+  for (const field of ['taskId', 'runId', 'mediaObjectId', 'parentNodeId']) {
+    if (nullableString(source[field]) === undefined) return field
+  }
+  return 'invalid'
+}
+
+function diagnoseCanvasDocumentEdgeInput(value: unknown): string {
+  const source = record(value)
+  if (!source) return 'not_object'
+  if (!cleanString(source.id)) return 'id'
+  if (!cleanString(source.sourceNodeId)) return 'source_node_id'
+  if (!cleanString(source.targetNodeId)) return 'target_node_id'
+  if (source.sourceNodeId === source.targetNodeId) return 'self_connection'
+  if (nullableString(source.sourceHandle, 80) === undefined) return 'source_handle'
+  if (nullableString(source.targetHandle, 80) === undefined) return 'target_handle'
+  if (!(CANVAS_EDGE_ROLE_VALUES as readonly string[]).includes(String(source.role))) return 'role'
+  return 'invalid'
+}
+
 export type CanvasDocumentValidationResult =
   | { success: true; data: CanvasDocumentSaveInput }
   | { success: false; error: CanvasDocumentValidationError }
@@ -207,6 +244,55 @@ function serializedByteLength(value: unknown): number | null {
   } catch {
     return null
   }
+}
+
+export function diagnoseCanvasDocumentStructure(value: unknown): CanvasDocumentValidationDiagnostic | null {
+  const source = record(value)
+  if (!source) return { scope: 'document', reason: 'not_object' }
+  if (!isCompatibleCanvasDocumentSchemaVersion(source.schema_version)) return { scope: 'document', reason: 'schema_version' }
+  const expectedRevision = finite(source.expectedRevision, 0, Number.MAX_SAFE_INTEGER)
+  const clientId = cleanString(source.clientId, 120)
+  const changeSummary = source.changeSummary == null ? null : cleanString(source.changeSummary, 160)
+  const viewportSource = record(source.viewport)
+  const x = viewportSource ? finite(viewportSource.x, -MAX_COORDINATE, MAX_COORDINATE) : null
+  const y = viewportSource ? finite(viewportSource.y, -MAX_COORDINATE, MAX_COORDINATE) : null
+  const zoom = viewportSource ? finite(viewportSource.zoom, 0.05, 8) : null
+  if (expectedRevision === null || !Number.isInteger(expectedRevision)) return { scope: 'document', reason: 'expected_revision' }
+  if (!clientId) return { scope: 'document', reason: 'client_id' }
+  if (!viewportSource || x === null || y === null || zoom === null) return { scope: 'document', reason: 'viewport' }
+  if (source.changeSummary != null && !changeSummary) return { scope: 'document', reason: 'change_summary' }
+  if (!Array.isArray(source.nodes) || source.nodes.length > MAX_CANVAS_NODES) return { scope: 'document', reason: 'nodes' }
+  if (!Array.isArray(source.edges) || source.edges.length > MAX_CANVAS_EDGES) return { scope: 'document', reason: 'edges' }
+
+  const nodes: CanvasDocumentNodeInput[] = []
+  const nodeIds = new Set<string>()
+  for (const [index, item] of source.nodes.entries()) {
+    const node = parseCanvasDocumentNodeInput(item)
+    const id = record(item)?.id
+    const diagnostic = { scope: 'node' as const, index, ...(typeof id === 'string' ? { id: id.slice(0, 191) } : {}) }
+    if (!node) return { ...diagnostic, reason: 'invalid', field: diagnoseCanvasDocumentNodeInput(item) }
+    if (nodeIds.has(node.id)) return { ...diagnostic, reason: 'duplicate_id' }
+    nodeIds.add(node.id)
+    nodes.push(node)
+  }
+
+  const edges: CanvasDocumentEdgeInput[] = []
+  const edgeIds = new Set<string>()
+  const edgeKeys = new Set<string>()
+  for (const [index, item] of source.edges.entries()) {
+    const edge = parseCanvasDocumentEdgeInput(item)
+    const id = record(item)?.id
+    const diagnostic = { scope: 'edge' as const, index, ...(typeof id === 'string' ? { id: id.slice(0, 191) } : {}) }
+    if (!edge) return { ...diagnostic, reason: 'invalid', field: diagnoseCanvasDocumentEdgeInput(item) }
+    if (edgeIds.has(edge.id)) return { ...diagnostic, reason: 'duplicate_id' }
+    if (!nodeIds.has(edge.sourceNodeId) || !nodeIds.has(edge.targetNodeId)) return { ...diagnostic, reason: 'dangling' }
+    const edgeKey = [edge.sourceNodeId, edge.sourceHandle, edge.targetNodeId, edge.targetHandle].join('|')
+    if (edgeKeys.has(edgeKey)) return { ...diagnostic, reason: 'duplicate_connection' }
+    edgeIds.add(edge.id)
+    edgeKeys.add(edgeKey)
+    edges.push(edge)
+  }
+  return null
 }
 
 export function validateCanvasDocumentSaveInput(value: unknown): CanvasDocumentValidationResult {

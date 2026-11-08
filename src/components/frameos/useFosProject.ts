@@ -73,6 +73,7 @@ export interface FosProjectData {
   projectName: string
   parentProjectId?: string | null
   parentProjectName?: string | null
+  canDelete: boolean
   loading: boolean
   scriptImportStatus: string | null
   episodes: FosEpisode[]
@@ -176,7 +177,7 @@ export function useFosProject(projectId: string): FosProjectData {
   const cacheKey = `${workspaceId}:${projectId}`
   const [snapshotCacheKey, setSnapshotCacheKey] = useState('')
   const [data, setData] = useState<FosProjectData>({
-    projectId, projectName: '未命名作品', loading: true,
+    projectId, projectName: '未命名作品', canDelete: false, loading: true,
     scriptImportStatus: null,
     episodes: [], characters: [], items: [], environments: [],
     world: null, scriptApproved: false, refetch: () => {},
@@ -214,6 +215,7 @@ export function useFosProject(projectId: string): FosProjectData {
         projectName: string | null
         parentProjectId: string | null
         parentProjectName: string | null
+        canDelete: boolean
         scriptImportStatus: string | null
         world: FosWorldSetting | null
       }> => {
@@ -229,6 +231,7 @@ export function useFosProject(projectId: string): FosProjectData {
             projectName: asString(project.name),
             parentProjectId: asString(parentProject.id),
             parentProjectName: asString(parentProject.name),
+            canDelete: project.canDelete === true,
             scriptImportStatus: asString(npd.importStatus),
             world: {
               label: PROJECT_STYLE_LABELS[projectStyle] ?? projectStyle,
@@ -241,14 +244,14 @@ export function useFosProject(projectId: string): FosProjectData {
             },
           }
         }
-        return { projectName: null, parentProjectId: null, parentProjectName: null, scriptImportStatus: null, world: null }
+        return { projectName: null, parentProjectId: null, parentProjectName: null, canDelete: false, scriptImportStatus: null, world: null }
       }
 
-      const loadFallbackProjectName = async (): Promise<string | null> => {
+      const loadFallbackProject = async (): Promise<{ name: string | null; canDelete: boolean } | null> => {
         const res = await apiFetch(`/api/projects/${projectId}`)
         if (!res.ok) return null
-        const p = await res.json() as { project?: { name?: string } }
-        return p.project?.name?.trim() || null
+        const p = await res.json() as { project?: { name?: string; canDelete?: boolean } }
+        return { name: p.project?.name?.trim() || null, canDelete: p.project?.canDelete === true }
       }
 
       const loadEpisodes = async (): Promise<FosEpisode[]> => {
@@ -298,14 +301,15 @@ export function useFosProject(projectId: string): FosProjectData {
       }
 
       const [baseResult, episodes, assets, scriptApproved] = await Promise.all([
-        loadProjectBase().catch(() => ({ projectName: null, parentProjectId: null, parentProjectName: null, scriptImportStatus: null, world: null })),
+        loadProjectBase().catch(() => ({ projectName: null, parentProjectId: null, parentProjectName: null, canDelete: false, scriptImportStatus: null, world: null })),
         loadEpisodes().catch(() => []),
         loadAssets().catch(() => ({ characters: [], items: [], environments: [] })),
         loadScriptApproved().catch(() => false),
       ])
 
-      const fallbackProjectName = baseResult.projectName ? null : await loadFallbackProjectName().catch(() => null)
-      const projectName = baseResult.projectName || fallbackProjectName || '未命名作品'
+      const fallbackProject = baseResult.projectName ? null : await loadFallbackProject().catch(() => null)
+      const projectName = baseResult.projectName || fallbackProject?.name || '未命名作品'
+      const canDelete = baseResult.canDelete || fallbackProject?.canDelete === true
       const { scriptImportStatus, world } = baseResult
       const { characters, items, environments } = assets
 
@@ -315,6 +319,7 @@ export function useFosProject(projectId: string): FosProjectData {
           projectName,
           parentProjectId: baseResult.parentProjectId,
           parentProjectName: baseResult.parentProjectName,
+          canDelete,
           scriptImportStatus,
           episodes,
           characters,
@@ -343,7 +348,7 @@ export function useFosProject(projectId: string): FosProjectData {
   }, [scriptImportStatus, refetch])
 
   return snapshotCacheKey === cacheKey ? data : {
-    projectId, projectName: '未命名作品', loading: true, refetch,
+    projectId, projectName: '未命名作品', canDelete: false, loading: true, refetch,
     scriptImportStatus: null, episodes: [], characters: [], items: [],
     environments: [], world: null, scriptApproved: false,
   }

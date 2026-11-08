@@ -8,12 +8,7 @@ import { useSearchParams } from 'next/navigation'
 import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
-import {
-  ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
-  defaultSubaccountRoleLabel,
-  hasAccountPermissions,
-  isManagementRole,
-} from '@/lib/account/permissions'
+import { hasAccountPermissions, isManagementRole } from '@/lib/account/permissions'
 import { assignmentAttentionCount } from './assignments-view-model'
 import { useAccountBalance, type DailyBalanceUsage } from '@/hooks/common/useAccountBalance'
 import { FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
@@ -30,7 +25,6 @@ export type FosNavKey =
   | 'canvas'
   | 'interactive'
   | 'assetHub'
-  | 'material'
   | 'accounts'
   | 'records'
   | 'feedback'
@@ -60,7 +54,6 @@ const primaryNav: NavItem[] = [
   // Link to the canonical page directly. The legacy /asset-hub alias performs
   // a server redirect and briefly exposes the light document background.
   { key: 'assetHub', label: '资产库', href: '/workspace/asset-hub', icon: 'folderHeart' },
-  { key: 'material', label: '素材库', href: '/material', icon: 'image' },
 ]
 
 const secondaryNav: Array<{ key: 'records' | 'feedback' | 'updates'; label: string; icon: AppIconName }> = [
@@ -158,10 +151,9 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
     ? '平台 Admin · 全部权限'
     : role === 'admin'
       ? '管理账号 · 全部权限'
-      : `${session?.user?.roleLabel || defaultSubaccountRoleLabel(role)} · ${ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS
-        .filter((definition) => session?.user?.permissions?.includes(definition.key))
-        .map((definition) => definition.label)
-        .join(' / ') || '仅查看'}`
+      : session?.user?.projectLeader
+        ? '项目组长 · 统一创作能力'
+        : '创作成员 · 统一创作能力'
   return (
     <div className="fos-header">
       <Link href={{ pathname: '/projects' }} className="fos-logo">
@@ -262,7 +254,7 @@ function Sidebar({
   const isAdmin = session?.user?.role === 'admin'
   const roleLabel = isManagementRole(session?.user?.role)
     ? session?.user?.role === 'super_admin' ? '平台 Admin' : '管理账号'
-    : session?.user?.roleLabel || defaultSubaccountRoleLabel(session?.user?.role)
+    : session?.user?.projectLeader ? '项目组长' : '创作成员'
   const canUseToolbox = hasAccountPermissions(session?.user || {}, ['toolboxUse'])
   const canUseCanvas = hasAccountPermissions(session?.user || {}, ['canvasWrite'])
   const canUseWriterWorkbench = hasAccountPermissions(session?.user || {}, ['scriptWrite'])

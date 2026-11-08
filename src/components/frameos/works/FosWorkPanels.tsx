@@ -1,11 +1,11 @@
 'use client'
 
 import { Fragment, useRef } from 'react'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
+import { WorkCover } from './WorkCover'
 import type { WorkProject, WorkSummary } from './types'
 import { UNASSIGNED_WORK_ID } from './types'
 import { canMoveFromWork } from './FosWorksDialogs'
@@ -200,7 +200,7 @@ function ProjectCard({
       data-parent-project-id={work.id}
       className={`works-project-card${selected ? ' is-selected' : ''}${selectable ? ' is-selectable' : ''}`}
       onClick={selectable ? onToggleSelected : undefined}
-      style={{ ...generativeCoverStyle(project.id), '--works-card-index': index + 1 } as CSSProperties}
+      style={{ '--works-card-index': index + 1 } as CSSProperties}
     >
       {selectable ? (
         <button
@@ -225,11 +225,8 @@ function ProjectCard({
         tabIndex={selectable ? -1 : 0}
         onClick={(event) => { if (selectable) event.preventDefault() }}
       >
-        <div className={`works-project-cover nori-gen-cover${coverImageUrl ? ' has-cover' : ''}`}>
-          {coverImageUrl ? <img className="works-project-cover-image" src={coverImageUrl} alt="" loading="lazy" /> : null}
-          <span className={`works-project-edition${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
-          {coverImageUrl ? null : <span className="works-project-monogram" aria-hidden="true">{coverMonogram(project.name)}</span>}
-        </div>
+        <WorkCover project={project} />
+        <span className={`works-project-edition${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
         <div className="works-project-info">
           <h3><Highlight text={project.name} keyword={keyword} /></h3>
           <div className="works-project-meta">

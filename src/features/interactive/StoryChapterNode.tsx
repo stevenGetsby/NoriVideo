@@ -23,6 +23,8 @@ export type ChapterNodeData = {
   errors: number
   warnings: number
   focused: boolean
+  segments: number
+  branchSegments: number
 }
 export type ChapterFlowNode = Node<ChapterNodeData, 'chapter'>
 
@@ -30,7 +32,7 @@ const ENDING_LABEL = { good: '好结局', normal: '普通结局', bad: '坏结�
 
 export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>) {
   const actions = useContext(ChapterMapContext)
-  const { chapter, meta, errors, warnings, focused } = data
+  const { chapter, meta, errors, warnings, focused, segments, branchSegments } = data
   const nodes = chapter.graph.nodes
   const entries = nodes.filter((node) => node.kind === 'entry')
   const exits = nodes.filter((node) => node.kind === 'exit')
@@ -66,6 +68,8 @@ export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>)
       <div className="nori-ix-chapter-stats">
         <span><b>{scenes}</b>剧情</span>
         <span><b>{choices}</b>分支</span>
+        <span><b>{segments}</b>作品片段</span>
+        {branchSegments ? <span><b>{branchSegments}</b>支线片段</span> : null}
         <span><b>{endings.length}</b>结局</span>
         {errors || warnings ? (
           <span className={errors ? 'is-error' : 'is-warning'}><AlertTriangle />{errors || warnings}</span>

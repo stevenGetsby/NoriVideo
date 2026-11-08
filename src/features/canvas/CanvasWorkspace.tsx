@@ -10,6 +10,7 @@ import { EmptyCanvasChrome, EmptyCanvasSurfaceControls } from './components/Empt
 import { CanvasManagementDialog, type CanvasManagementIntent } from './components/CanvasManagementDialog'
 import { canEditInfiniteCanvas } from './permissions'
 import type { Canvas, CanvasProjectOption } from './types'
+import { projectHref } from '@/lib/projects/navigation'
 import './canvas.css'
 
 export function CanvasWorkspace({
@@ -19,6 +20,8 @@ export function CanvasWorkspace({
   initialNodeId,
   routeBase,
   projectOptions,
+  parentProjectId,
+  parentProjectName,
   onSelectProject,
   canvasHomeHref,
   createProjectHref,
@@ -29,6 +32,8 @@ export function CanvasWorkspace({
   initialNodeId?: string
   routeBase?: string
   projectOptions?: CanvasProjectOption[]
+  parentProjectId?: string | null
+  parentProjectName?: string | null
   onSelectProject?: (projectId: string) => void
   canvasHomeHref?: string
   createProjectHref?: string
@@ -113,6 +118,10 @@ export function CanvasWorkspace({
     }
   }
 
+  const activeProject = projectOptions?.find((project) => project.id === projectId)
+  const workId = parentProjectId || activeProject?.workId || null
+  const workName = parentProjectName || activeProject?.workName || (workId ? '未命名项目' : null)
+  const parentHref = workId ? projectHref(workId) : undefined
   const activeCanvas = canvases.find((canvas) => canvas.id === activeId) || null
   const requestRenameCanvas = () => {
     if (!canEdit || !activeCanvas || managementBusy) return
@@ -186,6 +195,9 @@ export function CanvasWorkspace({
             projectId={projectId}
             projectName={projectName}
             projectOptions={projectOptions}
+            parentProjectId={workId}
+            parentProjectName={workName}
+            parentProjectHref={parentHref}
             onSelectProject={onSelectProject}
             canvasHomeHref={canvasHomeHref}
           />
@@ -217,6 +229,8 @@ export function CanvasWorkspace({
         onRenameCanvas={requestRenameCanvas}
         onDeleteCanvas={requestDeleteCanvas}
         projectOptions={projectOptions}
+        parentProjectId={workId}
+        parentProjectName={workName}
         onSelectProject={onSelectProject}
         canvasHomeHref={canvasHomeHref}
         createProjectHref={createProjectHref}

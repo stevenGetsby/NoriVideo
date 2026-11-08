@@ -112,7 +112,7 @@ describe('Lanmiao IP cutout and complete brand handoff', () => {
     ]) {
       const code = source(file)
       expect(code).toContain('<NoriBrandMark')
-      expect(code).not.toContain('<i /><i /><i />')
+      expect(code).not.toContain('className="nori-auth-brand-symbol"')
       expect(code).not.toContain('src="/nori-view/nori-onion-logo.png"')
       expect(code).not.toMatch(/^\s*N\s*$/m)
     }

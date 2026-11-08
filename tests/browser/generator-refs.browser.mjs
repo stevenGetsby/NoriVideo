@@ -77,8 +77,8 @@ await page.route('**/*', async (route) => {
   }
   const resolutionQuery = url.searchParams.get('resolutions') || new URL(route.request().headers().referer || 'http://localhost').searchParams.get('resolutions')
   const videoModel = {
-    modelKey: 'nori::norivideo2.5',
-    name: 'LanMiaoTV 2.5',
+    modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+    name: 'doubao-seedance-2-5-260628',
     provider: 'nori',
     tier: 'pro',
     configured: true,
@@ -105,13 +105,13 @@ await page.route('**/*', async (route) => {
     : url.pathname.includes('generation-config')
     ? {
       textModels: [],
-      imageModels: [{ ...videoModel, modelKey: 'nori::nori-image', name: 'Nori Image' }],
+      imageModels: [{ ...videoModel, modelKey: 'openlux::gpt-image-2.5-sunburst', name: 'gpt-image-2.5-sunburst' }],
       videoModels: [videoModel],
-      audioModels: [{ modelKey: 'nori::nori-music', name: 'Nori Music', provider: 'nori', tier: 'standard', configured: true, available: true, options: {}, audioModes: ['music', 'sfx'] }],
+      audioModels: [{ modelKey: 'nori::nori-audio', name: 'speech-2.8-hd', tier: 'standard', configured: true, available: true, options: {}, audioModes: ['tts', 'music', 'sfx'] }],
       model3dModels: [],
       defaults: {
-        textModel: null, imageModel: 'nori::nori-image', editModel: null, storyboardModel: null,
-        videoModel: 'nori::norivideo2.5', audioModel: 'nori::nori-music', model3dModel: null,
+        textModel: null, imageModel: 'openlux::gpt-image-2.5-sunburst', editModel: null, storyboardModel: null,
+        videoModel: 'kuaizi::doubao-seedance-2-5-260628', audioModel: 'nori::nori-audio', model3dModel: null,
         aspectRatio: '16:9', resolution: '720p',
       },
     }
@@ -173,13 +173,27 @@ try {
       assert.match(hintText, /另有 1 个角色缺音色/)
       assert.ok((await hint.getAttribute('class'))?.includes('is-warning'), 'missing voice in reference mode must be warned')
     }
+    await add.dispatchEvent('click')
     await page.screenshot({ path: path.join(artifacts, `refs-${results.length}.png`) })
-    if (query === '?mode=firstlastframe') {
-      // 已保存的首尾帧节点不能被错误降级成全能参考。
-      await page.locator('.nori-canvas-parameter-trigger').dispatchEvent('click')
-      const mode = await page.locator('.nori-canvas-generator-parameter-grid select').first().inputValue()
-      assert.equal(mode, 'firstlastframe', 'saved first/last frame mode must survive configuration loading')
-      await page.locator('.nori-canvas-parameter-trigger').dispatchEvent('click')
+    const expectedModel = expectedType === 'audio'
+      ? { key: 'nori::nori-audio', name: 'speech-2.8-hd' }
+      : query.includes('type=image')
+        ? { key: 'openlux::gpt-image-2.5-sunburst', name: 'gpt-image-2.5-sunburst' }
+        : { key: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628' }
+    const modelSelect = page.locator(`.nori-canvas-generator-select select:has(option[value="${expectedModel.key}"])`)
+    assert.equal(await modelSelect.count(), 1, `exactly one model select must contain ${expectedModel.key} for ${query}`)
+    assert.equal(await modelSelect.inputValue(), expectedModel.key)
+    assert.equal(await modelSelect.locator('option:checked').textContent(), expectedModel.name, 'The UI must show the actual selected model id')
+    const modelText = await modelSelect.innerText()
+    assert.doesNotMatch(modelText, /LanMiaoTV|Nori Image|kuaizi|huimengi|openlux| · (?:Mini|Fast|标准|Pro)/i, 'No provider or packaged model tier is user-visible')
+    if (expectedType !== 'audio') {
+      await page.locator('.nori-canvas-parameter-trigger').click()
+      if (query === '?mode=firstlastframe') {
+        // 已保存的首尾帧节点不能被错误降级成全能参考。
+        const mode = await page.locator('.nori-canvas-generator-parameter-grid select').first().inputValue()
+        assert.equal(mode, 'firstlastframe', 'saved first/last frame mode must survive configuration loading')
+      }
+      await page.keyboard.press('Escape')
     }
     await add.dispatchEvent('click')
     const added = JSON.parse(await page.getByTestId('added-request').textContent())

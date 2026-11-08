@@ -16,6 +16,13 @@ describe('canvas asynchronous operation contract', () => {
       expect.objectContaining({ operation: 'video_superresolve', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
       expect.objectContaining({ operation: 'subtitle_erase', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
       expect.objectContaining({ operation: 'video_edit', engineKey: 'kuaizi-seedance25', modelKey: 'doubao-seedance-2-5-260628', isDefault: true }),
+      expect.objectContaining({
+        operation: 'audio_extract',
+        engineKey: 'local-ffmpeg',
+        modelKey: 'local-ffmpeg',
+        isDefault: true,
+        capabilities: { formats: ['mp3'], timelineSelection: true, billed: false },
+      }),
     ]))
     expect(engines.find((engine) => engine.operation === 'video_edit')?.capabilities)
       .toMatchObject({ maxSegmentSeconds: 30 })
@@ -58,6 +65,30 @@ describe('canvas asynchronous operation contract', () => {
     }
     expect(parseCanvasOperationTaskPayload(payload)).toEqual(payload)
     expect(buildCanvasOperationDedupeKey(payload)).toBe(buildCanvasOperationDedupeKey({ ...payload }))
+  })
+
+  it('parses a local timeline-selected audio extraction without accepting generation models', () => {
+    expect(parseCanvasAsyncOperationInput({
+      operation: 'audio_extract',
+      startMs: 500,
+      endMs: 2_500,
+    })).toEqual({
+      operation: 'audio_extract',
+      engineKey: 'local-ffmpeg',
+      modelKey: 'local-ffmpeg',
+      parameters: { startMs: 500, endMs: 2_500 },
+    })
+    expect(() => parseCanvasAsyncOperationInput({
+      operation: 'audio_extract',
+      startMs: 3_000,
+      endMs: 2_000,
+    })).toThrow('区间无效')
+    expect(() => parseCanvasAsyncOperationInput({
+      operation: 'audio_extract',
+      startMs: 0,
+      endMs: 2_000,
+      modelKey: 'ark::seedream',
+    })).toThrow('不支持')
   })
 
   it('normalizes video edit segments and rejects invalid or oversized ranges', () => {

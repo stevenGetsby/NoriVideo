@@ -6,6 +6,7 @@ import { FosProjectHeader } from '@/components/frameos/FosProjectHeader'
 import { FosCanvasHubClient } from '@/components/frameos/FosCanvasHubClient'
 import { FosShell } from '@/components/frameos/FosShell'
 import { CanvasChrome } from '@/features/canvas/components/CanvasChrome'
+import { EmptyCanvasChrome } from '@/features/canvas/components/EmptyCanvasChrome'
 import type { Canvas } from '@/features/canvas/types'
 import '@/styles/frameos-replica.css'
 import '@/features/canvas/canvas.css'
@@ -27,17 +28,17 @@ const projectOptions = [
 const view = new URLSearchParams(location.search).get('view')
 createRoot(document.getElementById('root')!).render(
   <NextIntlClientProvider locale="zh" messages={{}} timeZone="Asia/Shanghai">
-    {view === 'canvas-hub' ? <FosCanvasHubClient /> : view === 'canvas' ? <FosShell activeKey="canvas" canvasShell><div className="nori-canvas-workspace">
-      <CanvasChrome projectId="leaf-a" projectName="作品 A" canvases={[canvas]} activeCanvas={canvas}
+    {view === 'canvas-hub' ? <FosCanvasHubClient /> : view === 'canvas' || view === 'empty-canvas' ? <FosShell activeKey="canvas" canvasShell><div className="nori-canvas-workspace">
+      {view === 'empty-canvas' ? <EmptyCanvasChrome projectId="leaf-a" projectName="作品 A" projectOptions={projectOptions} onSelectProject={noop} canvasHomeHref="/canvas" /> : <CanvasChrome projectId="leaf-a" projectName="作品 A" canvases={[canvas]} activeCanvas={canvas}
         saveState="saved" canUndo={false} canRedo={false}
         onSelectCanvas={noop} onCreateCanvas={noop} onRenameCanvas={noop} onDeleteCanvas={noop}
         projectOptions={projectOptions} onSelectProject={noop} canvasHomeHref="/canvas"
         createProjectHref="/projects?create_work=1&parent_project_id=parent-a"
         onUndo={noop} onRedo={noop} onRetrySave={noop} onOpenRevisions={noop}
         syncingProduction={false} canSyncProduction={false} readOnly={false}
-        onOpenProjectAssets={noop} onSyncProduction={noop} />
+        onOpenProjectAssets={noop} onSyncProduction={noop} />}
     </div></FosShell> : view === 'header' ? <main className="fos-app">
-      <FosProjectHeader projectId="leaf-a" projectName="作品 A" parentProjectName="项目甲" />
+      <FosProjectHeader projectId="leaf-a" projectName="作品 A" parentProjectId="parent-a" parentProjectName="项目甲" canDelete={!new URLSearchParams(location.search).has('session')} />
     </main> : <FosProjectsClient />}
   </NextIntlClientProvider>,
 )

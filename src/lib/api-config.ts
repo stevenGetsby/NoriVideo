@@ -209,6 +209,7 @@ function pickProviderStrict(
 }
 
 async function readUserConfig(userId: string): Promise<{ models: CustomModel[]; providers: CustomProvider[] }> {
+  void userId
   const models = parseServiceModels()
 
   return {
@@ -242,8 +243,16 @@ export async function resolveModelSelection(
 ): Promise<ModelSelection> {
   const requested = assertModelKey(model, `${mediaType} model`)
   const businessModel = findNoriBusinessModel(requested.modelKey)
-  if (businessModel && businessModel.type !== mediaType) {
+  if (businessModel ? businessModel.type !== mediaType : !businessModel && requested.provider === 'nori') {
     throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
+  }
+  if (!businessModel && requested.provider !== 'nori') {
+    const configured = fixedPlatformModels().find((model) => (
+      model.provider === requested.provider && model.modelId === requested.modelId
+    ))
+    if (configured && configured.type !== mediaType) {
+      throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
+    }
   }
   const controlledModelKey = mediaType === 'llm' || mediaType === 'image' || mediaType === 'video'
     ? normalizeProjectBusinessModelKey(requested.modelKey, mediaType)
@@ -258,6 +267,9 @@ export async function resolveModelSelection(
   const exact = findModelByKey(models, parsed.modelKey)
   if (!exact) {
     throw new Error(`MODEL_NOT_FOUND: ${parsed.modelKey} is not enabled for ${mediaType}`)
+  }
+  if (exact.type !== mediaType) {
+    throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
   }
 
   const llmProtocol = mediaType === 'llm' && isOpenAICompatLlmProviderId(exact.provider)

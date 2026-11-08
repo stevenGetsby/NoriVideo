@@ -70,6 +70,7 @@
     "check:image-reference-normalization": "node scripts/guards/image-reference-normalization-guard.mjs",
     "check:task-submit-compensation": "node scripts/guards/task-submit-compensation-guard.mjs",
     "check:locale-navigation": "node scripts/guards/locale-navigation-guard.mjs",
+    "check:no-decorative-gradients": "node scripts/guards/no-decorative-gradients-guard.mjs",
     "check:prompt-i18n": "node scripts/guards/prompt-i18n-guard.mjs",
     "check:prompt-i18n-regression": "node scripts/guards/prompt-semantic-regression.mjs",
     "check:prompt-ab-regression": "node scripts/guards/prompt-ab-regression.mjs",

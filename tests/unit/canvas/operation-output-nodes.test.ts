@@ -118,6 +118,61 @@ describe('canvas operation output materialization', () => {
     expect(applyOperationsMock).toHaveBeenCalledTimes(1)
   })
 
+  it('materializes audio extraction as an audio node with its own media URL and range metadata', async () => {
+    const audioInput = {
+      ...input,
+      taskId: 'task-audio-1',
+      operation: 'audio_extract' as const,
+      modelKey: 'local-ffmpeg',
+      parameters: { startMs: 500, endMs: 2_000 },
+      result: {
+        width: 0,
+        height: 0,
+        duration: 1.5,
+        title: '源视频 · 音频',
+        materialId: 'material-audio-1',
+        url: 'canvas-operations/task-audio-1.mp3',
+      },
+    }
+    const result = await materializeCanvasAsyncOperationResult(audioInput)
+
+    expect(result).toEqual({
+      materialized: true,
+      outputNodeId: canvasOperationOutputNodeId('task-audio-1'),
+      canvasRevision: 5,
+      reason: 'created',
+    })
+    const transactionInput = applyOperationsMock.mock.calls[0]?.[1] as {
+      input: { ops: Array<{ type: string; node?: Record<string, unknown> }> }
+    }
+    expect(transactionInput.input.ops).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        type: 'node.upsert',
+        node: expect.objectContaining({
+          type: 'audio',
+          size: { width: 320, height: 132 },
+          data: expect.objectContaining({
+            mediaType: 'audio',
+            processType: 'audio_extract',
+            contentUrl: 'canvas-operations/task-audio-1.mp3',
+            audioUrl: 'canvas-operations/task-audio-1.mp3',
+            duration: 1.5,
+            generation: expect.objectContaining({
+              modelKey: 'local-ffmpeg',
+              parameters: { startMs: 500, endMs: 2_000 },
+            }),
+            history: [expect.objectContaining({ prompt: '提取音频', url: 'canvas-operations/task-audio-1.mp3' })],
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        type: 'edge.add',
+        edge: expect.objectContaining({ sourceNodeId: 'source-1', targetNodeId: canvasOperationOutputNodeId('task-audio-1') }),
+      }),
+    ]))
+    expect(JSON.stringify(transactionInput.input.ops)).not.toContain('videoUrl')
+  })
+
   it('retries a revision race without creating a second identity', async () => {
     applyOperationsMock
       .mockRejectedValueOnce(new ApiError('CONFLICT'))

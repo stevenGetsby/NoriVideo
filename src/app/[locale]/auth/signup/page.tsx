@@ -10,7 +10,7 @@ export default function SignUp() {
     >
       <div className="nori-auth-managed-actions">
         <div className="nori-auth-managed-note">
-          管理账号会为你创建账号、设置初始密码，并分配自定义角色与功能区权限。所有角色可读取工作区内容，写权限由所分配的功能区决定。
+          管理账号会为你创建账号并设置初始密码。子账号拥有统一创作能力，可访问的项目由项目成员关系决定。
         </div>
         <Link
           href={{ pathname: '/auth/signin' }}

@@ -9,6 +9,7 @@ export type FrameosMaterialSource = 'toolbox' | 'creative' | 'production' | 'upl
 
 export interface RegisterFrameosMaterialInput {
   userId: string
+  personalOwnerId?: string | null
   projectId?: string | null
   ownerName?: string | null
   title: string
@@ -64,6 +65,7 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
   const explicitStorageKey = cleanText(input.storageKey)
   const explicitResultUrl = cleanText(input.resultUrl)
   const resolvedStorageKey = explicitStorageKey || extractStorageKey(explicitResultUrl) || null
+  const personalOwnerId = cleanText(input.personalOwnerId) || null
   const projectId = cleanText(input.projectId) || 'global'
   let resultUrl = explicitResultUrl || resolvedStorageKey || ''
 
@@ -75,11 +77,15 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
     throw new Error('FrameOS material requires storageKey or resultUrl')
   }
 
-  const where = resolvedStorageKey
-    ? { userId: input.userId, projectId, storageKey: resolvedStorageKey }
-    : { userId: input.userId, projectId, resultUrl }
-  const existing = await prisma.frameosMaterial.findFirst({ where: { ...where, deletedAt: null } })
+  const where = {
+    userId: input.userId,
+    projectId,
+    personalOwnerId,
+    ...(resolvedStorageKey ? { storageKey: resolvedStorageKey } : { resultUrl }),
+  }
+  const existing = await prisma.frameosMaterial.findFirst({ where })
   const data = {
+    personalOwnerId,
     projectId,
     ownerName: cleanText(input.ownerName) || null,
     title: safeTitle(input.title, '未命名素材'),
@@ -92,6 +98,9 @@ export async function registerFrameosMaterial(input: RegisterFrameosMaterialInpu
   }
 
   if (existing) {
+    if (existing.deletedAt) {
+      throw new Error('相同文件已移入回收站，请先恢复原素材，或重新生成一个新的文件。')
+    }
     const previousMetadata = existing.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata) ? existing.metadata as Record<string, unknown> : {}
     const mergedMetadata = { ...previousMetadata, ...input.metadata }
     const metadata = mergedMetadata.assetCategory && mergedMetadata.assetCategory !== 'character'
@@ -343,16 +352,15 @@ export async function syncGeneratedImagesToMaterialLibrary(input: {
   const existing = await prisma.frameosMaterial.findMany({
     where: {
       userId: input.userId,
-      deletedAt: null,
       OR: [
         ...(storageKeys.length > 0 ? [{ storageKey: { in: storageKeys } }] : []),
         ...(resultUrls.length > 0 ? [{ resultUrl: { in: resultUrls } }] : []),
       ],
     },
-    select: { projectId: true, storageKey: true, resultUrl: true },
+    select: { projectId: true, personalOwnerId: true, storageKey: true, resultUrl: true },
   })
-  const existingKeys = new Set(existing.filter((item) => item.storageKey).map((item) => JSON.stringify([item.projectId, cleanText(item.storageKey)])))
-  const existingUrls = new Set(existing.filter((item) => item.resultUrl).map((item) => JSON.stringify([item.projectId, cleanText(item.resultUrl)])))
+  const existingKeys = new Set(existing.filter((item) => item.storageKey && !item.personalOwnerId).map((item) => JSON.stringify([item.projectId, cleanText(item.storageKey)])))
+  const existingUrls = new Set(existing.filter((item) => item.resultUrl && !item.personalOwnerId).map((item) => JSON.stringify([item.projectId, cleanText(item.resultUrl)])))
   const seen = new Set<string>()
   const missing = normalized.filter((item) => {
     const value = item.storageKey || item.resultUrl
@@ -370,6 +378,7 @@ export async function syncGeneratedImagesToMaterialLibrary(input: {
     await prisma.frameosMaterial.createMany({
       data: missing.map((item) => ({
         userId: input.userId,
+        personalOwnerId: null,
         ownerName: owner?.name || null,
         projectId: item.projectId,
         title: safeTitle(item.title, '生成图片'),

@@ -7,8 +7,6 @@ import { cnyToPoints } from '@/lib/billing/credit-policy'
 import { getCapabilityOptionFields, resolveBuiltinCapabilitiesByModelKey } from '@/lib/model-capabilities/lookup'
 import { CANVAS_VIDEO_SUPERRESOLVE_TARGETS, resolveCanvasSuperresolveGenerationResolution, type CanvasVideoSuperresolveTarget } from '@/lib/canvas/generator-options'
 
-type QuoteType = 'image' | 'video' | 'audio'
-
 function text(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''
 }

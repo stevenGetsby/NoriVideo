@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
@@ -43,7 +43,6 @@ interface Shot extends RawPanel { storyboardId: string; scene: string; title: st
 interface ModelItem {
   modelKey: string
   name: string
-  tier?: 'mini' | 'fast' | 'standard' | 'pro'
   options: Record<string, Array<string | number | boolean>>
   firstLastFrame: boolean
   supportGenerateAudio: boolean
@@ -53,15 +52,8 @@ interface ModelItem {
 interface GenerationConfig { videoModels: ModelItem[]; defaults: { videoModel: string | null; resolution: string | null } }
 interface TaskItem { id: string; targetId?: string | null; status: string; progress: number; errorMessage?: string | null; createdAt: string; result?: Record<string, unknown> | null }
 
-const MODEL_TIER_LABELS: Record<NonNullable<ModelItem['tier']>, string> = {
-  mini: 'Mini',
-  fast: 'Fast',
-  standard: '标准',
-  pro: 'Pro',
-}
-
 function modelOptionLabel(model: ModelItem) {
-  return `${model.name} · ${MODEL_TIER_LABELS[model.tier || 'standard']}`
+  return model.name
 }
 
 function kindToApi(kind: PanelRef['kind']): RefKind {
@@ -136,6 +128,8 @@ export function FosProductionShot({
   const [generating, setGenerating] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const hydratedShotIdRef = useRef('')
+  const dirtyRef = useRef(false)
 
   const activeShot = shots.find((shot) => shot.id === activeShotId) || shots[0] || null
 
@@ -143,20 +137,29 @@ export function FosProductionShot({
     setEpisodeId((current) => data.episodes.some((episode) => episode.id === current) ? current : preferredEpisodeId)
   }, [data.episodes, preferredEpisodeId])
 
-  const loadShots = useCallback(async (keepSelection = true) => {
+  const loadShots = useCallback(async (keepSelection = true, fields?: 'status') => {
     if (!episodeId) { setShots([]); setEpisodeActiveTasks([]); return }
-    setLoading(true)
+    if (!fields) setLoading(true)
     try {
       const response = await apiFetch(`/api/novel-promotion/${data.projectId}/storyboards?episodeId=${encodeURIComponent(episodeId)}`)
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载镜头失败'))
       const payload = await response.json() as { storyboards?: RawStoryboard[] }
       const next = flattenStoryboards(Array.isArray(payload.storyboards) ? payload.storyboards : [])
-      setShots(next)
-      setActiveShotId((current) => keepSelection && next.some((shot) => shot.id === current) ? current : next[0]?.id || '')
+      if (fields === 'status') {
+        setShots((current) => next.map((shot) => {
+          const existing = current.find((item) => item.id === shot.id)
+          return existing ? { ...existing, videoUrl: shot.videoUrl, imageUrl: shot.imageUrl, lipSyncVideoUrl: shot.lipSyncVideoUrl } : shot
+        }))
+      } else {
+        setShots(next)
+        setActiveShotId((current) => keepSelection && next.some((shot) => shot.id === current) ? current : next[0]?.id || '')
+      }
     } catch (loadError) {
-      setShots([])
-      setError(loadError instanceof Error ? loadError.message : '加载镜头失败')
-    } finally { setLoading(false) }
+      if (!fields) {
+        setShots([])
+        setError(loadError instanceof Error ? loadError.message : '加载镜头失败')
+      }
+    } finally { if (!fields) setLoading(false) }
   }, [data.projectId, episodeId])
 
   useEffect(() => { void loadShots(false) }, [loadShots])
@@ -177,6 +180,17 @@ export function FosProductionShot({
 
   useEffect(() => {
     if (!activeShot) return
+    if (hydratedShotIdRef.current !== activeShot.id) {
+      hydratedShotIdRef.current = activeShot.id
+      dirtyRef.current = false
+      const assets = activeShot.refs.map((ref) => ({ kind: kindToApi(ref.kind), name: ref.name }))
+      setPrompt(formatSeedancePromptForEditor(extractSeedanceVideoPromptBody(activeShot.videoPrompt || activeShot.description || ''), assets))
+      setRefs(activeShot.refs)
+      setDuration(Math.max(4, Math.min(15, Math.round(activeShot.duration || 5))))
+      setMessage(null); setError(null)
+      return
+    }
+    if (dirtyRef.current) return
     const assets = activeShot.refs.map((ref) => ({ kind: kindToApi(ref.kind), name: ref.name }))
     setPrompt(formatSeedancePromptForEditor(extractSeedanceVideoPromptBody(activeShot.videoPrompt || activeShot.description || ''), assets))
     setRefs(activeShot.refs)
@@ -236,7 +250,7 @@ export function FosProductionShot({
   useEffect(() => {
     if (!activeTask && !activeEpisodeTask) return
     const timer = window.setInterval(async () => {
-      await Promise.all([loadTasks(), loadEpisodeActiveTasks(), loadShots(true)])
+      await Promise.all([loadTasks(), loadEpisodeActiveTasks(), loadShots(true, 'status')])
     }, 2500)
     return () => window.clearInterval(timer)
   }, [activeEpisodeTask, activeTask, loadEpisodeActiveTasks, loadShots, loadTasks])
@@ -279,6 +293,7 @@ export function FosProductionShot({
       })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '保存视频提示词失败'))
       setShots((current) => current.map((shot) => shot.id === activeShot.id ? { ...shot, videoPrompt: prompt } : shot))
+      dirtyRef.current = false
       setMessage('视频提示词已保存。')
       return true
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : '保存视频提示词失败'); return false }
@@ -334,6 +349,7 @@ export function FosProductionShot({
       })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '提交视频生成失败'))
       setMessage('视频生成任务已提交；完成后会自动进入素材库。')
+      dirtyRef.current = false
       await Promise.all([loadTasks(), loadEpisodeActiveTasks()])
     } catch (generateError) { setError(generateError instanceof Error ? generateError.message : '提交视频生成失败') }
     finally { setGenerating(false) }
@@ -482,7 +498,7 @@ export function FosProductionShot({
               </div>
 
               <div className="mt-4 flex items-center justify-between"><h3 className="text-[14px] font-bold text-white">视频提示词</h3><button type="button" className="text-[11px] font-bold text-[var(--fos-primary-text)]" disabled={!canEdit || saving} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></div>
-              <MentionPromptEditor value={prompt} assets={mentionAssets} onChange={setPrompt} minHeight={220} placeholder="输入视频提示词；输入 @ 可引用右侧参考资产" readOnly={!canEdit} />
+              <MentionPromptEditor value={prompt} assets={mentionAssets} onChange={(next) => { dirtyRef.current = true; setPrompt(next) }} minHeight={220} placeholder="输入视频提示词；输入 @ 可引用右侧参考资产" readOnly={!canEdit} />
               <div className="mt-3 text-[12px] font-bold text-white">画风描述</div>
               <textarea className="fos-textarea mt-2" style={{ minHeight: 70 }} value={stylePrompt} readOnly={!canEdit} onChange={(event) => setStylePrompt(event.target.value)} />
               <button type="button" className="fos-btn fos-btn-primary mt-4 w-full" disabled={!generationAllowed || !canEdit || generating || Boolean(activeTask) || !modelKey || currentModel?.available === false} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void generate()}>{reviewLocked ? episodeReview.assignment?.status === 'completed' ? '本集已通过 · 已锁定' : '本集审核中 · 已锁定' : !canEdit ? '只读 · 分镜师可生成视频' : !generationAllowed ? generationDisabledLabel : activeTask ? `生成中 ${activeTask.progress}%` : generating ? '提交中…' : '生成视频'}</button>

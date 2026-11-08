@@ -32,6 +32,12 @@ import {
 } from './toolbox-work-trace'
 import { WorkTraceCard } from './ToolboxWorkTraceCard'
 import {
+  buildToolboxGenerationRequestBody,
+  buildToolboxRegenerationDraft,
+  isToolboxGenerationSubmitDisabled,
+  resolveToolboxRegenerationModelKey,
+} from './toolbox-regeneration'
+import {
   CANVAS_IMAGE_ASPECT_RATIOS,
   CANVAS_IMAGE_QUALITIES,
   CANVAS_IMAGE_RESOLUTIONS,
@@ -58,13 +64,11 @@ import { downloadFrameosMaterial } from '../materials/download-material'
 export type ToolTab = 'image' | 'video' | 'music' | 'material'
 type ActiveGenerationTab = 'image' | 'video'
 
-interface ProjectItem { id: string; name: string }
+interface ProjectItem { id: string; name: string; workId: string }
 interface ModelItem {
   modelKey: string
   name: string
-  provider: string
   description?: string | null
-  tier?: 'mini' | 'fast' | 'standard' | 'pro'
   options: Record<string, Array<string | number | boolean>>
   firstLastFrame: boolean
   supportGenerateAudio: boolean
@@ -96,19 +100,12 @@ interface ToolboxAsset {
 const TABS: Array<{ key: ToolTab; label: string; icon: AppIconName }> = [
   { key: 'image', label: '图片生成', icon: 'imageLandscape' },
   { key: 'video', label: '视频生成', icon: 'videoWide' },
-  { key: 'material', label: '我的素材', icon: 'folderOpen' },
+  { key: 'material', label: '资产库', icon: 'folderOpen' },
 ]
 const TOOLBOX_VIDEO_DURATIONS = Array.from({ length: 27 }, (_, index) => index + 4)
 
-const MODEL_TIER_LABELS: Record<NonNullable<ModelItem['tier']>, string> = {
-  mini: 'Mini',
-  fast: 'Fast',
-  standard: '标准',
-  pro: 'Pro',
-}
-
 function modelSelectLabel(model: ModelItem) {
-  return `${model.name} · ${MODEL_TIER_LABELS[model.tier || 'standard']}`
+  return model.name
 }
 
 function resolutionLabel(value: string) {
@@ -171,7 +168,7 @@ async function copyTraceText(value: string): Promise<void> {
   if (!copied) throw new Error('copy failed')
 }
 
-function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintTone = 'default', disabled = false }: { materials: FrameosMaterialItem[]; onAdd: () => void; onRemove: (id: string) => void; label: string; limit: number; hint?: string; hintTone?: 'default' | 'warning'; disabled?: boolean }) {
+function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintAction, hintTone = 'default', disabled = false }: { materials: FrameosMaterialItem[]; onAdd: () => void; onRemove: (id: string) => void; label: string; limit: number; hint?: string; hintAction?: React.ReactNode; hintTone?: 'default' | 'warning'; disabled?: boolean }) {
   return (
     <div className="mt-4">
       <div className="mb-2 flex items-center justify-between"><span className="text-[13px] font-medium text-white">{label}</span><span className="text-[11px] text-[var(--fos-text-4)]">{materials.length}/{limit}</span></div>
@@ -203,35 +200,25 @@ function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintTo
         })}
         <button type="button" disabled={disabled || limit <= 0 || materials.length >= limit} aria-label={`选择${label.replace(/（.*?）/g, '')}`} onClick={onAdd} className="flex h-[72px] w-[72px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-[var(--fos-border-strong)] text-[var(--fos-text-4)] hover:border-[var(--fos-primary-border)] hover:text-[var(--fos-primary-text)] disabled:cursor-not-allowed disabled:opacity-40"><AppIcon name="plus" className="h-5 w-5" /><span className="text-[10px]">{disabled ? '模型不支持' : '素材库/本地'}</span></button>
       </div>
-      {hint ? <p className={`mt-1.5 text-[10px] leading-4${hintTone === 'warning' ? ' text-amber-300/90' : ' text-[var(--fos-text-4)]'}`}>{hint}</p> : null}
+      {hint ? <p className={`mt-1.5 text-[10px] leading-4${hintTone === 'warning' ? ' text-amber-300/90' : ' text-[var(--fos-text-4)]'}`}>{hint}{hintAction}</p> : null}
     </div>
   )
 }
 
-function ResultPane({ type, history, loading, refreshRevision, modelNames, onRefresh, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; loading: boolean; refreshRevision: number; modelNames: Record<string, string>; onRefresh: () => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
+function ResultPane({ type, history, selectedAsset, loading, refreshRevision, pagination, onSelect, onRefresh, onPage, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; selectedAsset: ToolboxAsset | null; loading: boolean; refreshRevision: number; pagination: { page: number; hasNext: boolean }; onSelect: (asset: ToolboxAsset) => void; onRefresh: () => void; onPage: (direction: -1 | 1) => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
   const [downloading, setDownloading] = useState(false)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
   const [traceCopyState, setTraceCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
-  const selected = history.find((asset) => asset.id === selectedId) || history[0] || null
-  useEffect(() => {
-    if (history.length === 0) {
-      setSelectedId(null)
-      return
-    }
-    if (!selectedId || !history.some((asset) => asset.id === selectedId)) setSelectedId(history[0].id)
-  }, [history, selectedId])
+  const selected = selectedAsset || history[0] || null
   useEffect(() => { setTraceCopyState('idle') }, [selected?.id])
   const latestActive = history.find((asset) => asset.status === 'pending' || asset.status === 'processing' || asset.task?.status === 'queued' || asset.task?.status === 'processing')
   const selectedStatus = selected?.task?.status || selected?.status || ''
   const selectedFailureMessage = selected?.task?.errorMessage || selected?.errorMessage
   const selectedFailureCode = selected?.task?.errorCode
-  const preparedHistory = useMemo(() => history.slice(0, 12).map((asset) => ({
+  const preparedHistory = useMemo(() => history.map((asset) => ({
     asset,
-    trace: buildToolboxWorkTrace(asset, { modelName: asset.modelId ? modelNames[asset.modelId] : '' }),
-  })), [history, modelNames])
-  const selectedTrace = selected
-    ? buildToolboxWorkTrace(selected, { modelName: selected.modelId ? modelNames[selected.modelId] : '' })
-    : null
+    trace: buildToolboxWorkTrace(asset),
+  })), [history])
+  const selectedTrace = selected ? buildToolboxWorkTrace(selected) : null
   const src = selectedStatus === 'ready' || selectedStatus === 'completed'
     ? type === 'video' ? toPlayableVideoUrl(selected?.url) : toDisplayImageUrl(selected?.url) : null
   const copySelectedTrace = async () => {
@@ -262,9 +249,16 @@ function ResultPane({ type, history, loading, refreshRevision, modelNames, onRef
           const resultSrc = asset.type === 'video' ? toPlayableVideoUrl(asset.url) : toDisplayImageUrl(asset.url)
           const status = asset.task?.status || asset.status
           const summary = [trace.mode, trace.references.length > 0 ? `${trace.references.length} 个参考` : '', trace.costPoints !== null ? trace.costLabel : ''].filter(Boolean).join(' · ')
-          return <button type="button" key={asset.id} aria-pressed={selected?.id === asset.id} onClick={() => setSelectedId(asset.id)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={trace.title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultSrc && asset.type === 'video' ? <video src={resultSrc} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={trace.title}>{trace.title}</div><div className="truncate px-2 pt-0.5 text-[9px] text-[var(--fos-text-4)]" title={summary}>{summary}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={trace.errorMessage || '生成服务未返回错误详情。'}>{trace.errorMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
+          return <button type="button" key={asset.id} aria-label={`选择历史素材：${trace.title}`} aria-pressed={selected?.id === asset.id} onClick={() => onSelect(asset)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={trace.title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultSrc && asset.type === 'video' ? <video src={resultSrc} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={trace.title}>{trace.title}</div><div className="truncate px-2 pt-0.5 text-[9px] text-[var(--fos-text-4)]" title={summary}>{summary}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={trace.errorMessage || '生成服务未返回错误详情。'}>{trace.errorMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
         })}
       </div>
+      <nav className="mt-4 flex items-center justify-between gap-3" aria-label="生成历史分页">
+        <span className="text-[11px] text-[var(--fos-text-4)]">第 {pagination.page} 页 · 每页 12 条</span>
+        <div className="flex items-center gap-2">
+          <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" aria-label="上一页生成历史" disabled={loading || pagination.page <= 1} onClick={() => onPage(-1)}><AppIcon name="chevronLeft" className="h-3.5 w-3.5" />上一页</button>
+          <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" aria-label="下一页生成历史" disabled={loading || !pagination.hasNext} onClick={() => onPage(1)}>下一页<AppIcon name="chevronRight" className="h-3.5 w-3.5" /></button>
+        </div>
+      </nav>
     </main>
   )
 }
@@ -279,6 +273,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const [projectsError, setProjectsError] = useState<string | null>(null)
   const [projectListRevision, setProjectListRevision] = useState(0)
   const [projectId, setProjectId] = useState('')
+  const workId = projects.find((project) => project.id === projectId)?.workId || ''
   const [config, setConfig] = useState<GenerationConfig | null>(null)
   const [configLoading, setConfigLoading] = useState(true)
   const [modelKey, setModelKey] = useState('')
@@ -296,9 +291,13 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const [references, setReferences] = useState<FrameosMaterialItem[]>([])
   const [pickerType, setPickerType] = useState<'image' | 'video' | 'audio' | null>(null)
   const [pickerCategory, setPickerCategory] = useState<FrameosAssetCategory | undefined>()
+  const referenceTotalLimitRef = useRef(15)
   const [historyRefreshMessage, setHistoryRefreshMessage] = useState<string | null>(null)
   const [historyRefreshRevision, setHistoryRefreshRevision] = useState(0)
   const [history, setHistory] = useState<ToolboxAsset[]>([])
+  const [historyPage, setHistoryPage] = useState(1)
+  const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null)
+  const [selectedHistoryAsset, setSelectedHistoryAsset] = useState<ToolboxAsset | null>(null)
   const [focusedMaterialId, setFocusedMaterialId] = useState<string | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -306,6 +305,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const [error, setError] = useState<string | null>(null)
   const hydratedDraftKeyRef = useRef('')
   const skipDraftWriteRef = useRef(false)
+  const submitLockRef = useRef(false)
   const draftKey = useMemo(() => createToolboxDraftKey(
     // Browser sessions retain the actual login id. actorId is only injected
     // into server API auth contexts when ownership is remapped to a workspace.
@@ -316,6 +316,9 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const workspaceId = session?.user?.workspaceOwnerId || session?.user?.id || ''
   const historySequence = useRef(0)
   const historyAbort = useRef<AbortController | null>(null)
+  const historyCursors = useRef(new Map<number, string>())
+  const historyScopeRef = useRef('')
+  const selectedHistoryId = selectedHistoryAsset?.id || null
   const cancelHistoryReads = useCallback(() => {
     historySequence.current++
     historyAbort.current?.abort()
@@ -365,6 +368,16 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     setGenerateAudio(draft?.generateAudio ?? true)
     setAssetCategory(draft?.assetCategory || (activeType === 'video' ? 'shot' : 'other'))
     setReferences(draft?.references || [])
+    if (draft?.references && draft.references.length > referenceTotalLimitRef.current) {
+      setTimeout(() => {
+        setReferences((current) => {
+          if (current.length <= referenceTotalLimitRef.current) return current
+          const next = current.slice(0, referenceTotalLimitRef.current)
+          setMessage(`当前模型最多 ${referenceTotalLimitRef.current} 个参考素材，已移除超出部分。`)
+          return next
+        })
+      }, 0)
+    }
     setMessage(null)
     setError(null)
   }, [activeType, draftKey])
@@ -403,6 +416,16 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
 
   const currentModels = activeType === 'image' ? config?.imageModels || [] : config?.videoModels || []
   const currentModel = currentModels.find((model) => model.modelKey === modelKey)
+  useEffect(() => {
+    setSelectedHistoryAsset(null)
+  }, [activeType, projectId])
+  const selectedHistoryTrace = useMemo(
+    () => selectedHistoryAsset ? buildToolboxWorkTrace(selectedHistoryAsset) : null,
+    [selectedHistoryAsset],
+  )
+  useEffect(() => {
+    if (selectedHistoryAsset?.type && selectedHistoryAsset.type !== activeType) setSelectedHistoryAsset(null)
+  }, [activeType, selectedHistoryAsset?.type])
   const videoAspectRatios = useMemo(
     () => canvasVideoAspectRatioOptions(modelKey, apiInputMode),
     [apiInputMode, modelKey],
@@ -433,6 +456,11 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const characterVoiceStats = useMemo(() => characterVoiceBindingStats(imageReferences), [imageReferences])
   const characterVoiceHint = useMemo(() => {
     if (characterVoiceStats.total === 0) return null
+    const missing = imageReferences.filter((material) => characterVoiceBindingState(material) === 'missing')
+    const configureUrl = missing.length === 1
+      ? `/workflow/${projectId}/workbench-premium2/assets/timbre?characterId=${encodeURIComponent(missing[0].id)}`
+      : `/workflow/${projectId}/workbench-premium2/assets/timbre`
+    const configureLink = <a className="ml-1 font-semibold underline" href={configureUrl}>配置角色音色</a>
     const progress = `角色音色 ${characterVoiceStats.bound}/${characterVoiceStats.total}`
     if (activeType !== 'video') return { text: `${progress}；声音只用于视频全能参考。`, tone: 'default' as const }
     if (inputMode !== 'reference') {
@@ -442,15 +470,13 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     if (!generateAudio) return { text: `${progress}；已关闭“同步生成声音”，不会提交。`, tone: 'default' as const }
     if (characterVoiceStats.missing > 0) {
       return {
-        text: `${progress}；自动带入 ${characterVoiceStats.bound} 个已绑定音色，${characterVoiceStats.missing} 个缺音色。`,
+        text: `${progress}；${missing.map((material) => material.title || '未命名角色').join('、')} 缺音色，不会自动带入音频。`,
+        link: configureLink,
         tone: 'warning' as const,
       }
     }
     return { text: `${progress}；全能参考会自动带入全部音色。`, tone: 'default' as const }
-  }, [activeType, characterVoiceStats, generateAudio, inputMode])
-  const modelNames = useMemo<Record<string, string>>(() => Object.fromEntries(
-    [...(config?.imageModels || []), ...(config?.videoModels || [])].map((model) => [model.modelKey, model.name]),
-  ), [config])
+  }, [activeType, characterVoiceStats, generateAudio, imageReferences, inputMode, projectId])
   const referenceSchema = currentModel?.inputSchema || resolveCanvasGenerationInputSchema(activeType)
   const referenceLimits = inputMode === 'firstlastframe'
     ? { image: 2, video: 0, audio: 0 }
@@ -460,6 +486,8 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         audio: activeType === 'video' ? referenceSchema.audio.max : 0,
       }
   const pickerLimit = pickerType ? referenceLimits[pickerType] : 0
+  const referenceTotalLimit = referenceLimits.image + referenceLimits.video + referenceLimits.audio
+  referenceTotalLimitRef.current = referenceTotalLimit
 
   useEffect(() => {
     setResolution((current) => resolveSupportedResolution(current, config?.defaults.resolution, resolutionOptions))
@@ -525,24 +553,51 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
     return () => window.clearTimeout(timer)
   }, [assetCategory, draftKey, duration, fps, generateAudio, inputMode, modelKey, prompt, quality, ratio, references, resolution, title])
 
-  const loadHistory = useCallback(async (manual = false) => {
-    if (!projectId || tab === 'material') return
+  const loadHistory = useCallback(async (manual = false, targetPage = historyPage) => {
+    if (!workId || !projectId || tab === 'material') return
     const sequence = ++historySequence.current
     historyAbort.current?.abort()
     const controller = new AbortController()
     historyAbort.current = controller
     setHistoryLoading(true)
     try {
-      const response = await apiFetch(`/api/frameos/toolbox/assets?projectId=${encodeURIComponent(projectId)}&type=${activeType}&source=toolbox&limit=80`, { signal: controller.signal, cache: 'no-store' })
-      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载生成历史失败'))
-      const payload = await response.json() as { assets?: ToolboxAsset[] }
-      if (sequence === historySequence.current && !controller.signal.aborted) {
-        setHistory(Array.isArray(payload.assets) ? payload.assets : [])
-        if (manual) {
-          setError(null)
-          setHistoryRefreshMessage(`已刷新 · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`)
-          setHistoryRefreshRevision((revision) => revision + 1)
+      const params = new URLSearchParams({
+        workId,
+        projectId,
+        type: activeType,
+        source: 'toolbox',
+        limit: '12',
+      })
+      const readPage = async (page: number) => {
+        const pageParams = new URLSearchParams(params)
+        const cursor = historyCursors.current.get(page)
+        if (cursor) pageParams.set('cursor', cursor)
+        const response = await apiFetch(`/api/frameos/toolbox/assets?${pageParams}`, { signal: controller.signal, cache: 'no-store' })
+        if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载生成历史失败'))
+        const payload = await response.json() as { assets?: ToolboxAsset[]; pagination?: { nextCursor?: string | null } }
+        return {
+          assets: Array.isArray(payload.assets) ? payload.assets : [],
+          nextCursor: payload.pagination?.nextCursor || null,
         }
+      }
+      let loadedPage = targetPage
+      let result = await readPage(loadedPage)
+      if (sequence !== historySequence.current || controller.signal.aborted) return
+      while (result.assets.length === 0 && loadedPage > 1) {
+        loadedPage--
+        result = await readPage(loadedPage)
+        if (sequence !== historySequence.current || controller.signal.aborted) return
+      }
+      setHistory(result.assets)
+      setHistoryNextCursor(result.nextCursor)
+      if (result.nextCursor) historyCursors.current.set(loadedPage + 1, result.nextCursor)
+      else historyCursors.current.delete(loadedPage + 1)
+      setHistoryPage(loadedPage)
+      setSelectedHistoryAsset((current) => current ? result.assets.find((asset) => asset.id === current.id) || current : current)
+      if (manual) {
+        setError(null)
+        setHistoryRefreshMessage(`已刷新 · ${new Date().toLocaleTimeString('zh-CN', { hour12: false })}`)
+        setHistoryRefreshRevision((revision) => revision + 1)
       }
     } catch (loadError) {
       if (sequence !== historySequence.current || controller.signal.aborted) return
@@ -553,28 +608,91 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         setHistoryLoading(false)
       }
     }
-  }, [activeType, projectId, tab])
+  }, [activeType, historyPage, projectId, tab, workId])
 
-  useEffect(() => {
-    setHistory([])
-    setHistoryRefreshMessage(null)
-    void loadHistory()
-    return cancelHistoryReads
-  }, [cancelHistoryReads, loadHistory])
   const hasActive = history.some((asset) => ['pending', 'processing', 'queued'].includes(asset.task?.status || asset.status))
   useEffect(() => {
     if (!hasActive) return
-    const timer = window.setInterval(() => { if (!historyAbort.current) void loadHistory() }, 2500)
+    const timer = window.setInterval(() => {
+      if (!historyAbort.current) void loadHistory(false, historyPage)
+    }, 2500)
     return () => window.clearInterval(timer)
-  }, [hasActive, loadHistory])
+  }, [hasActive, historyPage, loadHistory])
+
+  const historyScopeKey = `${workspaceId}:${projectId}:${workId}:${activeType}:${tab}`
+  useEffect(() => {
+    if (historyScopeRef.current === historyScopeKey) return
+    historyScopeRef.current = historyScopeKey
+    historyCursors.current.clear()
+    setHistoryPage(1)
+    setHistoryRefreshMessage(null)
+  }, [historyScopeKey])
+
+  useEffect(() => {
+    setHistory([])
+    setHistoryNextCursor(null)
+    void loadHistory(false, historyPage)
+    return cancelHistoryReads
+  }, [cancelHistoryReads, historyPage, historyScopeKey, loadHistory])
+
+  const applyHistoryAsset = useCallback((asset: ToolboxAsset) => {
+    if (asset.type !== activeType) return
+    const draft = buildToolboxRegenerationDraft(asset, activeType)
+    if (!draft) return
+    const availableModelKeys = currentModels
+      .filter((model) => model.available !== false)
+      .map((model) => model.modelKey)
+    const effectiveModelKey = resolveToolboxRegenerationModelKey({
+      requestedModelKey: draft.modelKey,
+      modelId: asset.modelId,
+      availableModelKeys,
+    }) || modelKey
+    setSelectedHistoryAsset(asset)
+    setTitle(draft.title)
+    setPrompt(draft.prompt)
+    setModelKey(effectiveModelKey)
+    setRatio(draft.ratio)
+    setResolution(draft.resolution)
+    setQuality(draft.quality)
+    setInputMode(draft.inputMode)
+    setDuration(draft.duration)
+    setFps(draft.fps)
+    setGenerateAudio(draft.generateAudio)
+    setAssetCategory(draft.assetCategory)
+    setReferences(draft.references)
+    setMessage(null)
+    setError(null)
+    // Persist the loaded values before React runs the model-dependent audio
+    // sync effect, otherwise that effect could restore the previous draft's
+    // sound choice. This only refreshes the local draft; it never mutates the
+    // selected source asset.
+    if (draftKey) {
+      writeToolboxDraft(window.localStorage, draftKey, {
+        version: 1,
+        title: draft.title,
+        prompt: draft.prompt,
+        modelKey: effectiveModelKey,
+        ratio: draft.ratio,
+        resolution: draft.resolution,
+        quality: draft.quality,
+        inputMode: draft.inputMode,
+        duration: draft.duration,
+        fps: draft.fps,
+        generateAudio: draft.generateAudio,
+        assetCategory: draft.assetCategory,
+        references: draft.references,
+      })
+    }
+  }, [activeType, currentModels, draftKey, modelKey])
 
   const submit = async () => {
+    if (submitLockRef.current) return
     if (projectsLoading || projectsError) {
       setError(projectsError || '正在加载完整作品列表，请稍候。')
       return
     }
     if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
-    if (!projectId || !modelKey || !title.trim() || !prompt.trim()) {
+    if (!workId || !projectId || !modelKey || !title.trim() || !prompt.trim()) {
       setError('请选择作品和模型，并填写生成名称与提示词。')
       return
     }
@@ -601,6 +719,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
       })[0]
       if (combinationError) { setError(combinationError); return }
     }
+    submitLockRef.current = true
     setSubmitting(true); setError(null); setMessage(null)
     try {
       const options: Record<string, string | number | boolean> = { aspectRatio: ratio }
@@ -609,13 +728,37 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
       if (activeType === 'video') { options.duration = duration; if (fps !== null) options.fps = fps; if (currentModel?.supportGenerateAudio) options.generateAudio = generateAudio }
       const referenceMaterialIds = submittedReferences.map((material) => material.id)
       const referenceMaterials = buildCanvasGenerationMaterialReferences(referenceMaterialIds, apiInputMode)
-      const response = await apiFetch('/api/frameos/toolbox/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ projectId, type: activeType, title: title.trim(), prompt: prompt.trim(), modelKey, assetCategory, referenceMaterialIds, referenceMaterials, inputMode: apiInputMode, textOnly: activeType === 'video' && inputMode === 'text', idempotencyKey: crypto.randomUUID(), options }) })
+      const body = buildToolboxGenerationRequestBody({
+        workId,
+        projectId,
+        type: activeType,
+        title,
+        prompt,
+        modelKey,
+        assetCategory,
+        referenceMaterialIds,
+        referenceMaterials,
+        inputMode: apiInputMode,
+        textOnly: activeType === 'video' && inputMode === 'text',
+        options,
+      })
+      const response = await apiFetch('/api/frameos/toolbox/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '提交生成失败'))
-      setMessage('生成任务已提交，完成后会自动进入素材库。')
-      await loadHistory()
+      setMessage('生成任务已提交，完成后会自动进入资产库。')
+      // A successful submit is always a brand-new generation; leaving the
+      // previous record selected would misrepresent the new in-flight row.
+      setSelectedHistoryAsset(null)
+      historyCursors.current.clear()
+      if (historyPage !== 1) {
+        cancelHistoryReads()
+        setHistoryPage(1)
+      } else await loadHistory(false, 1)
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : '提交生成失败')
-    } finally { setSubmitting(false) }
+    } finally {
+      submitLockRef.current = false
+      setSubmitting(false)
+    }
   }
 
   const mentionAssets = useMemo(() => (activeType === 'video' && inputMode === 'text' ? [] : references).map((material) => ({ id: material.id, name: material.title || '未命名素材', imageUrl: material.type === 'image' ? material.url : null })), [activeType, inputMode, references])
@@ -630,7 +773,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   )
   const categorizedImageReferences = (
     <div className="grid grid-cols-1 gap-x-3 sm:grid-cols-2" aria-label="分类参考素材">
-      {([['character', '人物'], ['location', '场景'], ['prop', '道具']] as const).map(([category, label]) => <ReferenceStrip key={category} materials={imageReferences.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === category)} label={label} limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} hint={category === 'character' ? characterVoiceHint?.text : undefined} hintTone={category === 'character' ? characterVoiceHint?.tone : undefined} onAdd={() => openReferencePicker('image', category)} onRemove={removeReference} />)}
+      {([['character', '人物'], ['location', '场景'], ['prop', '道具']] as const).map(([category, label]) => <ReferenceStrip key={category} materials={imageReferences.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === category)} label={label} limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} hint={category === 'character' ? characterVoiceHint?.text : undefined} hintTone={category === 'character' ? characterVoiceHint?.tone : undefined} hintAction={category === 'character' ? characterVoiceHint?.link : undefined} onAdd={() => openReferencePicker('image', category)} onRemove={removeReference} />)}
       <ReferenceStrip materials={audioReferences} label="音色" limit={inputMode === 'reference' ? referenceLimits.audio : 0} disabled={activeType !== 'video' || inputMode !== 'reference' || referenceLimits.audio <= 0} hint={activeType !== 'video' ? '音色用于视频全能参考，图片生成不传音频。' : inputMode !== 'reference' ? '使用音色请切换全能参考。' : `当前约 ${Math.round(audioReferenceDuration * 10) / 10} 秒`} onAdd={() => openReferencePicker('audio')} onRemove={removeReference} />
       <ReferenceStrip materials={imageReferences.filter((item) => !['character', 'location', 'prop'].includes(frameosAssetCategoryFromMetadata(item.metadata)))} label="其他参考图片" limit={referenceLimits.image} disabled={imageReferences.length >= referenceLimits.image} onAdd={() => openReferencePicker('image')} onRemove={removeReference} />
     </div>
@@ -643,6 +786,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
           <select aria-label="工具箱功能" className="fos-input h-9 w-[150px]" value={tab} disabled={submitting} onChange={(event) => {
             setTab(event.target.value as ToolTab)
             setFocusedMaterialId(null)
+            setSelectedHistoryAsset(null)
             setReferences([])
             setMessage(null)
             setError(null)
@@ -652,7 +796,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         </label>
         <label className="fos-toolbox-project">
         <span className="text-[12px] text-[var(--fos-text-3)]">归属作品</span>
-        <select aria-label="归属作品" className="fos-input h-9 max-w-[280px]" value={projectId} disabled={projectsLoading || submitting} onChange={(event) => { setProjectId(event.target.value); setReferences([]) }}>
+        <select aria-label="归属作品" className="fos-input h-9 max-w-[280px]" value={projectId} disabled={projectsLoading || submitting} onChange={(event) => { setProjectId(event.target.value); setSelectedHistoryAsset(null); setReferences([]) }}>
           {projects.length === 0 ? <option value="">{projectsLoading ? '正在加载作品…' : projectsError ? '作品加载失败' : '暂无作品'}</option>
             : projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
         </select>
@@ -672,8 +816,31 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
       <div className="fos-toolbox-layout grid min-h-0 flex-1">
         <aside className="flex min-h-0 flex-col border-r border-[var(--fos-border-soft)]">
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+            {selectedHistoryAsset && selectedHistoryTrace ? (
+              <section aria-label="已载入素材详情" className="rounded-[12px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-2)] px-3 py-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-[12px] font-bold text-white">已载入素材详情</div>
+                    <div className="mt-0.5 truncate text-[11px] text-[var(--fos-text-4)]" title={selectedHistoryTrace.title}>{selectedHistoryTrace.title || '未命名生成'}</div>
+                  </div>
+                  <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm shrink-0" onClick={() => setSelectedHistoryAsset(null)}>取消载入</button>
+                </div>
+                <dl className="mt-2 grid grid-cols-[60px_minmax(0,1fr)] gap-x-2 gap-y-1 text-[10px] leading-4">
+                  <dt className="text-[var(--fos-text-4)]">状态</dt><dd className="font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.statusLabel} · {selectedHistoryTrace.costLabel}</dd>
+                  <dt className="text-[var(--fos-text-4)]">模型</dt><dd className="min-w-0 break-words font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.model}</dd>
+                  <dt className="text-[var(--fos-text-4)]">模式</dt><dd className="min-w-0 break-words font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.mode}</dd>
+                  <dt className="text-[var(--fos-text-4)]">参数</dt><dd className="min-w-0 break-words font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.options.map((option) => `${option.label} ${option.value}`).join(' · ') || '—'}</dd>
+                  {selectedHistoryTrace.assetCategoryLabel ? <><dt className="text-[var(--fos-text-4)]">归类</dt><dd className="font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.assetCategoryLabel}</dd></> : null}
+                  <dt className="text-[var(--fos-text-4)]">参考</dt><dd className="font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.references.length} 个</dd>
+                  <dt className="text-[var(--fos-text-4)]">提交时间</dt><dd className="min-w-0 break-words font-semibold text-[var(--fos-text-2)]">{selectedHistoryTrace.createdAtLabel}</dd>
+                  {selectedHistoryTrace.taskId ? <><dt className="text-[var(--fos-text-4)]">任务 ID</dt><dd className="min-w-0 break-all font-mono text-[9px] leading-4 text-[var(--fos-text-3)]">{selectedHistoryTrace.taskId}</dd></> : null}
+                </dl>
+                {selectedHistoryTrace.errorMessage || selectedHistoryTrace.errorCode ? <p className="mt-2 break-words rounded-md border border-red-400/20 bg-red-500/[.08] px-2 py-1.5 text-[10px] leading-4 text-red-100">{selectedHistoryTrace.errorCode ? `[${selectedHistoryTrace.errorCode}] ` : ''}{selectedHistoryTrace.errorMessage || '生成服务未返回错误详情。'}</p> : null}
+                <p className="mt-2 rounded-md border border-amber-300/20 bg-amber-500/[.06] px-2 py-1.5 text-[10px] leading-4 text-amber-100/80">提示词和参数已载入左侧编辑器。修改名称或提示词后生成，会创建新的生成记录和新素材；原记录和原素材不会被覆盖。</p>
+              </section>
+            ) : null}
             <label className="block"><span className="mb-2 block text-[13px] font-medium text-white">生成名称 <span className="text-red-400">*</span></span><input className="fos-input" value={title} onChange={(event) => setTitle(event.target.value)} placeholder={activeType === 'image' ? '例如：雨夜街巷概念图' : '例如：雨夜奔逃镜头'} /></label>
-            <SelectField label="模型档位" value={modelKey} options={currentModels.map((model) => ({ value: model.modelKey, label: `${modelSelectLabel(model)}${model.available === false ? ' · 未接入' : ''}`, disabled: model.available === false }))} onChange={setModelKey} loading={configLoading} />
+            <SelectField label="模型" value={modelKey} options={currentModels.map((model) => ({ value: model.modelKey, label: `${modelSelectLabel(model)}${model.available === false ? ' · 未接入' : ''}`, disabled: model.available === false }))} onChange={setModelKey} loading={configLoading} />
             {currentModel?.description ? <p className="-mt-2 text-[10px] leading-4 text-[var(--fos-text-4)]">{currentModel.description}</p> : null}
             <label className="block"><span className="mb-2 block text-[13px] font-medium text-white">归入资产库</span><select className="fos-input" value={assetCategory} onChange={(event) => setAssetCategory(event.target.value as FrameosAssetCategory)}>{(activeType === 'video' ? ['shot', 'other'] : ['character', 'location', 'prop', 'other']).map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category as FrameosAssetCategory]}</option>)}</select><span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">生成完成后自动进入当前作品的对应分类。</span></label>
             <div><div className="mb-2 text-[13px] font-medium text-white">提示词 <span className="text-red-400">*</span></div><MentionPromptEditor value={prompt} assets={mentionAssets} onChange={setPrompt} minHeight={170} placeholder={activeType === 'image' ? '描述想要生成的图片内容…' : '描述镜头、动作、光影与声音；输入 @ 可引用下方素材…'} /></div>
@@ -698,11 +865,14 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
             {error ? <div className="rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200">{error}</div> : null}
             {message ? <div className="rounded-lg border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 py-2 text-[12px] text-[var(--fos-text-1)]">{message}</div> : null}
           </div>
-          <div className="border-t border-[var(--fos-border-soft)] p-4"><button type="button" className="fos-btn fos-btn-primary fos-btn-lg w-full" disabled={!generationAllowed || submitting || projectsLoading || Boolean(projectsError) || !projectId || !modelKey || configLoading || currentModel?.available === false} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting ? '提交中…' : !generationAllowed ? generationDisabledLabel : activeType === 'image' ? '生成图片' : '生成视频'}</button></div>
+          <div className="border-t border-[var(--fos-border-soft)] p-4"><button type="button" className="fos-btn fos-btn-primary fos-btn-lg w-full" disabled={isToolboxGenerationSubmitDisabled({ submitting, generationAllowed, projectsLoading, projectsError, workId, projectId, modelKey, configLoading, modelAvailable: currentModel?.available })} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting ? '提交中…' : !generationAllowed ? generationDisabledLabel : activeType === 'image' ? '生成图片' : '生成视频'}</button></div>
         </aside>
         <div className="fos-toolbox-results flex min-h-0 min-w-0 flex-col">
           {historyRefreshMessage ? <p role="status" className="shrink-0 px-6 pt-3 text-[11px] text-[var(--fos-text-3)]">{historyRefreshMessage}</p> : null}
-          <ResultPane type={activeType} history={history} loading={historyLoading} refreshRevision={historyRefreshRevision} modelNames={modelNames} onRefresh={() => void loadHistory(true)} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} onDownload={async (materialId) => {
+          <ResultPane type={activeType} history={history} selectedAsset={selectedHistoryAsset} pagination={{ page: historyPage, hasNext: Boolean(historyNextCursor) }} onPage={(direction) => {
+        cancelHistoryReads()
+        setHistoryPage((page) => Math.max(1, page + direction))
+      }} onSelect={applyHistoryAsset} loading={historyLoading} refreshRevision={historyRefreshRevision} onRefresh={() => void loadHistory(true)} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} onDownload={async (materialId) => {
             setError(null)
             try { const saved = await downloadFrameosMaterial(session?.user?.id || '', projectId, materialId); setMessage(saved.method === 'directory' ? `已保存到本地固定目录：${saved.name}` : `下载已开始：${saved.name}`) }
             catch (cause) { setError(cause instanceof Error ? cause.message : '下载失败') }

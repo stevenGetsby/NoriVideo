@@ -81,7 +81,7 @@ export function readToolboxDraft(
     const rawFps = Number(source.fps)
     const fps = Number.isInteger(rawFps) && rawFps >= 1 && rawFps <= 120 ? rawFps : null
     const references = Array.isArray(source.references)
-      ? source.references.filter(isReference).slice(0, 15)
+      ? source.references.filter(isReference)
       : []
     // Drafts written before input-mode version 3 captured the old default
     // rather than an explicit choice. Reopen them in the new default mode so

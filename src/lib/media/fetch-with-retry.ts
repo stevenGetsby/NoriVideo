@@ -20,6 +20,7 @@ export async function fetchWithTimeoutAndRetry(
     logPrefix: _logPrefix = '[Media fetch]',
     ...fetchOptions
   } = options
+  void _logPrefix
   let lastError: Error | null = null
   for (let attempt = 1; attempt <= maxRetries; attempt += 1) {
     try {

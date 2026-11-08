@@ -41,6 +41,7 @@ export interface AuthSession {
         roleLabel?: string | null
         status?: AccountStatus | 'revoked'
         permissions?: AccountPermission[]
+        projectLeader?: boolean
         sessionVersion?: number
         passwordChangeRequired?: boolean
         actorId?: string
@@ -75,6 +76,7 @@ async function validateSessionUser(
                 roleLabel: true,
                 status: true,
                 permissions: true,
+                projectLeader: true,
                 sessionVersion: true,
                 passwordChangeRequired: true,
                 workspaceOwnerId: true,
@@ -139,6 +141,7 @@ async function validateSessionUser(
     session.user.roleLabel = user.roleLabel
     session.user.status = status
     session.user.permissions = permissions
+    session.user.projectLeader = !isManagementRole(role) && user.projectLeader
     session.user.sessionVersion = user.sessionVersion
     session.user.actorId = user.id
     session.user.workspaceOwnerId = isManagementRole(role) ? user.id : (user.workspaceOwnerId || user.id)

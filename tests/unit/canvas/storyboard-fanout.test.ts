@@ -348,6 +348,35 @@ describe('server storyboard fan-out', () => {
     expect(state.edges.size).toBe(4)
   })
 
+  it('applies the canvas global style once per shot request while node prompts stay raw', async () => {
+    const styledPayload = { ...payload, globalStylePrompt: '统一水彩绘本风，柔和自然光' }
+    const expected = (prompt: string) => `${prompt}\n\n[画布全局风格]\n统一水彩绘本风，柔和自然光\n[/画布全局风格]`
+
+    const result = await materializeCanvasStoryboardFanout({
+      planningTaskId: 'task-plan',
+      userId: 'user-1',
+      projectId: 'project-1',
+      locale: 'zh',
+      payload: styledPayload,
+      shots,
+    })
+
+    expect(result.submittedCount).toBe(4)
+    const submitted = submitTaskMock.mock.calls.map(([input]) => input as unknown as {
+      targetId: string
+      payload: { title: string; prompt: string }
+    })
+    expect(submitted).toHaveLength(4)
+    for (const shot of shots) {
+      const request = submitted.find((input) => input.payload.title.includes(` ${shot.index} `))
+      expect(request?.payload.prompt).toBe(expected(shot.prompt))
+      expect(request?.payload.prompt.split('[画布全局风格]')).toHaveLength(2)
+    }
+    expect(state.nodes.get('node-source')?.data.prompt).toBe(shots[0].prompt)
+    expect(state.nodes.get(canvasStoryboardFanoutIds('task-plan', 'node-source', 2).nodeId)?.data.prompt).toBe(shots[1].prompt)
+    expect(JSON.stringify(Array.from(state.nodes.values()).map((node) => node.data.prompt))).not.toContain('[画布全局风格]')
+  })
+
   it('reuses the first durable plan when a worker retry receives different LLM wording', async () => {
     await materializeCanvasStoryboardFanout({
       planningTaskId: 'task-plan',

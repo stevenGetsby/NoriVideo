@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto'
 import { prisma } from '../../helpers/prisma'
+import { seedBalance } from '../../helpers/billing-fixtures'
 import {
   createFixtureEpisode,
   createFixtureNovelProject,
@@ -13,6 +14,7 @@ function nextSuffix() {
 
 export async function seedMinimalDomainState() {
   const user = await createFixtureUser()
+  await seedBalance(user.id, 100)
   const project = await createFixtureProject(user.id)
   const novelProject = await createFixtureNovelProject(project.id)
   const episode = await createFixtureEpisode(novelProject.id)
@@ -105,9 +107,9 @@ export async function seedMinimalDomainState() {
     data: {
       speakerVoices: JSON.stringify({
         Narrator: {
-          provider: 'fal',
-          voiceType: 'uploaded',
-          audioUrl: 'https://provider.example/reference.wav',
+          provider: 'kuaizi',
+          voiceType: 'kuaizi',
+          voiceId: 'system-voice-1',
         },
       }),
     },

@@ -96,7 +96,7 @@ describe('system - generate video', () => {
         locale: 'zh',
         storyboardId: seeded.storyboard.id,
         panelIndex: 0,
-        videoModel: 'fal::seedance/video',
+        videoModel: 'kuaizi::doubao-seedance-2-0-260128',
       },
       { params: { projectId: seeded.project.id } },
     )

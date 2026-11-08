@@ -6,13 +6,10 @@ import { forbidden, isErrorResponse, requireAdminAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { logInfo } from '@/lib/logging/core'
 import {
-  defaultSubaccountRoleLabel,
   effectiveAccountPermissions,
-  isAccountPermission,
   isSubaccountRole,
   normalizeAccountRole,
   type AccountRole,
-  type SubaccountRole,
 } from '@/lib/account/permissions'
 import {
   isDirectSubaccountOf,
@@ -36,7 +33,6 @@ import {
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_MAX_LENGTH = 128
-const ROLE_LABEL_MAX_LENGTH = 64
 const DELETED_ACCOUNT_STATUS = 'deleted'
 
 function readUsername(value: unknown): string {
@@ -68,40 +64,18 @@ function readPassword(value: unknown): string {
   return password
 }
 
-function readSubaccountRole(value: unknown): SubaccountRole {
-  if (value === undefined) return 'writer'
-  if (!isSubaccountRole(value)) {
-    throw new ApiError('INVALID_PARAMS', { message: '角色模板只能是编剧、资产师、分镜师或审核员。' })
-  }
-  return value
-}
-
-function readRoleLabel(value: unknown, role: SubaccountRole): string {
-  if (value === undefined || value === null) return defaultSubaccountRoleLabel(role)
+function readRoleLabel(value: unknown): string | null {
+  if (value === undefined || value === null) return null
   const roleLabel = typeof value === 'string' ? value.trim() : ''
+  if (roleLabel === '') throw new ApiError('INVALID_PARAMS', { message: '历史角色名称格式无效。' })
   if (
     roleLabel.length < 1
-    || roleLabel.length > ROLE_LABEL_MAX_LENGTH
+    || roleLabel.length > 64
     || /[\u0000-\u001f\u007f]/u.test(roleLabel)
   ) {
     throw new ApiError('INVALID_PARAMS', { message: '角色名称需为 1–64 个字符，且不能包含控制字符。' })
   }
-  return roleLabel
-}
-
-function readSubaccountPermissions(value: unknown, role: SubaccountRole) {
-  if (role === 'reviewer') return effectiveAccountPermissions(role)
-  if (value === undefined) return effectiveAccountPermissions(role)
-  if (!Array.isArray(value)) {
-    throw new ApiError('INVALID_PARAMS', { message: '功能区权限必须是数组。' })
-  }
-  const containsInvalidPermission = value.some((permission) => (
-    permission !== 'creativeGenerate' && !isAccountPermission(permission)
-  ))
-  if (containsInvalidPermission || value.includes('admin')) {
-    throw new ApiError('INVALID_PARAMS', { message: '子账号包含不可分配的功能区权限。' })
-  }
-  return effectiveAccountPermissions(role, value)
+  return roleLabel as string | null
 }
 
 function readAccountType(body: Record<string, unknown>): 'manager' | 'subaccount' {
@@ -266,13 +240,13 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
 
   const managerId = actorId
-  const role: AccountRole = accountType === 'manager' ? 'admin' : readSubaccountRole(body.role)
-  const roleLabel = accountType === 'subaccount'
-    ? readRoleLabel(body.roleLabel, role as SubaccountRole)
-    : null
-  const permissions = accountType === 'subaccount'
-    ? readSubaccountPermissions(body.permissions, role as SubaccountRole)
-    : effectiveAccountPermissions(role)
+  const role: AccountRole = accountType === 'manager' ? 'admin' : 'writer'
+  const permissions = effectiveAccountPermissions(role)
+  const roleLabel = accountType === 'subaccount' ? readRoleLabel(body.roleLabel) : null
+  const projectLeader = body.projectLeader === true && accountType === 'subaccount'
+  if (body.projectLeader !== undefined && typeof body.projectLeader !== 'boolean') {
+    throw new ApiError('INVALID_PARAMS', { message: '项目组长身份必须是布尔值。' })
+  }
   const dailyPointLimit = readDailyPointLimit(body.dailyPointLimit)
   if (accountType === 'subaccount') {
     const requestedManagerId = typeof body.managerId === 'string' ? body.managerId.trim() : ''
@@ -289,6 +263,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           name: username,
           password: passwordHash,
           role,
+          projectLeader,
           roleLabel,
           status: 'active',
           passwordChangeRequired: true,
@@ -317,7 +292,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
       accountType,
       managerId: accountType === 'manager' ? account.id : managerId,
       role,
-      roleLabel,
+      projectLeader,
       permissions,
       dailyPointLimit,
     })

@@ -35,6 +35,8 @@ describe('Nori business model catalog', () => {
       ['nori::nori-image-fast', 'fast'],
       ['nori::nori-image', 'standard'],
       ['nori::nori-image-pro', 'pro'],
+      ['nori::nori-image-2.6', 'standard'],
+      ['nori::nori-image-2.6-pro', 'pro'],
     ])
     expect(listNoriBusinessModels('video').map((model) => [model.key, model.tier])).toEqual([
       ['nori::seedance2.0-mini', 'mini'],
@@ -56,6 +58,8 @@ describe('Nori business model catalog', () => {
     expect(resolveNoriModelRoute('nori::nori-image-fast')).toBe('openlux::gpt-image-2.5-flare')
     expect(resolveNoriModelRoute('nori::nori-image')).toBe('openlux::gpt-image-2.5-sunburst')
     expect(resolveNoriModelRoute('nori::nori-image-pro')).toBe('openlux::gpt-image-2.5-sunburst')
+    expect(resolveNoriModelRoute('nori::nori-image-2.6')).toBe('openlux::gpt-image-2.6-flare-c')
+    expect(resolveNoriModelRoute('nori::nori-image-2.6-pro')).toBe('openlux::gpt-image-2.6-sunburst-c')
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')
     expect(resolveNoriModelRoute('nori::seedance2.0')).toBe('kuaizi::doubao-seedance-2-0-260128')
     expect(resolveNoriModelRoute('nori::nori-audio')).toBe('kuaizi::speech-2.8-hd')
@@ -69,10 +73,11 @@ describe('Nori business model catalog', () => {
 
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')
     expect(resolveNoriModelRoute('nori::nori-image')).toBe('openlux::gpt-image-2.5-sunburst')
-    expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('nori::nori-gpt')
+    expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('deepseek::deepseek-chat')
     expect(normalizeProjectBusinessModelKey('hfsy::gpt-image-2', 'image')).toBe('nori::nori-image')
+    expect(normalizeProjectBusinessModelKey('openlux::gpt-image-2.6-flare-c', 'image')).toBe('openlux::gpt-image-2.6-flare-c')
     expect(normalizeProjectBusinessModelKey('ark::doubao-seedance-1-5-pro', 'video')).toBe('nori::seedance2.0')
-    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('nori::norivideo2.5')
+    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('kuaizi::doubao-seedance-2-5-260628')
   })
 
   it('accepts HuiMeng for image and video while keeping text and audio fixed', () => {

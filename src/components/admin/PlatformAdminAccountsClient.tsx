@@ -14,13 +14,7 @@ import { AdminAlert, AdminMetric, AdminSearch, PlatformAdminShell } from '@/comp
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import type { AccountCredits } from '@/lib/account/credits'
-import { defaultSubaccountRoleLabel, effectiveAccountPermissions } from '@/lib/account/permissions'
-import type {
-  AccountPermission,
-  AccountRole,
-  AccountStatus,
-  SubaccountRole,
-} from '@/lib/account/permissions'
+import type { AccountRole, AccountStatus } from '@/lib/account/permissions'
 import { createCreditIdempotencyKey, notifyBalanceChanged, subscribeBalanceChanges } from '@/lib/billing/client'
 import { createLatestRequestTracker } from '@/lib/api/latest-request'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
@@ -37,9 +31,8 @@ interface ManagedAccount {
   id: string
   username: string
   role: AccountRole
-  roleLabel: string | null
   status: AccountStatus
-  permissions: AccountPermission[]
+  projectLeader: boolean
   isPlatformAdmin: boolean
   isManager: boolean
   parentAccountId: string | null
@@ -65,9 +58,7 @@ interface AccountDraft {
   managerId: string
   username: string
   password: string
-  role: SubaccountRole
-  roleLabel: string
-  permissions: AccountPermission[]
+  projectLeader: boolean
   status: AccountStatus
   coinCredits: string
   pointCredits: string
@@ -98,9 +89,7 @@ const NEW_MANAGER_DRAFT: AccountDraft = {
   managerId: '',
   username: '',
   password: '',
-  role: 'writer',
-  roleLabel: defaultSubaccountRoleLabel('writer'),
-  permissions: effectiveAccountPermissions('writer'),
+  projectLeader: false,
   status: 'active',
   coinCredits: '0',
   pointCredits: '0',
@@ -196,9 +185,10 @@ export function PlatformAdminAccountsClient() {
   useEffect(() => { void loadAccounts() }, [loadAccounts])
   useEffect(() => {
     const refresh = () => void loadAccounts(true)
+    const requestTracker = accountsRequests.current
     const unsubscribe = subscribeBalanceChanges(refresh)
     window.addEventListener('focus', refresh)
-    return () => { unsubscribe(); window.removeEventListener('focus', refresh); accountsRequests.current.invalidate() }
+    return () => { unsubscribe(); window.removeEventListener('focus', refresh); requestTracker.invalidate() }
   }, [loadAccounts])
 
   const visibleWorkspaces = useMemo(() => {

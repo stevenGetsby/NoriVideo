@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
-import { useRouter } from '@/i18n/navigation'
+import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
@@ -14,7 +14,7 @@ import {
 } from '@/lib/projects/create-project-request'
 import { PROJECT_STYLE_REFERENCE_FIELD } from '@/lib/projects/style-reference-contract'
 import { logError } from '@/lib/logging/core'
-import { hasAccountPermissions } from '@/lib/account/permissions'
+import { isManagementRole } from '@/lib/account/permissions'
 import { FosShell } from './FosShell'
 import { CreateProjectDialog, type CreateProjectDraft } from './CreateProjectDialog'
 import { FosProjectModelConfigDialog } from './FosProjectModelConfigDialog'
@@ -102,7 +102,7 @@ export function FosProjectsClient() {
   const requestAbortRef = useRef<AbortController | null>(null)
   const handledCreateProjectRequestRef = useRef('')
 
-  const canCreateWorks = hasAccountPermissions(session?.user || {}, ['workCreate']) || TEST_MODE
+  const canCreateWorks = isManagementRole(session?.user?.role) || session?.user?.projectLeader === true || TEST_MODE
   const canCreateProjects = TEST_MODE
 
   useEffect(() => {
@@ -209,7 +209,13 @@ export function FosProjectsClient() {
     router.replace(query ? `/projects?${query}` : '/projects')
   }, [loading, router, status, urlParams, works])
 
-  const visibleWorks = useMemo(() => filterWorksByQuery(works, searchQuery), [searchQuery, works])
+  const requestedWorkId = urlParams?.get('work_id')?.trim() || ''
+  const selectedWork = works.find((work) => work.id === requestedWorkId) || null
+  const filteredWorks = useMemo(() => filterWorksByQuery(works, searchQuery), [searchQuery, works])
+  const visibleWorks = useMemo(() => {
+    if (!selectedWork) return filteredWorks
+    return filteredWorks.filter((work) => work.id === selectedWork.id)
+  }, [filteredWorks, selectedWork])
   const allProjectNames = useMemo(() => works.flatMap((work) => work.projects.map((project) => project.name)), [works])
   const clearSearch = useCallback(() => {
     setSearchInput('')
@@ -256,6 +262,8 @@ export function FosProjectsClient() {
     )
     const form = new FormData()
     form.set('name', draft.name.trim())
+    form.set('creationMode', draft.creationMode)
+    if (draft.creationMode === 'canvas') form.set('createBlankCanvas', 'true')
     form.set('parentProjectId', createProjectWork.id)
     form.set('workId', createProjectWork.id)
     form.set('collaborationMode', draft.collaborationMode)
@@ -318,12 +326,15 @@ export function FosProjectsClient() {
       }
       throw new Error(await readApiErrorMessage(response, '创建作品失败'))
     }
-    const payload = await response.json() as { work?: { id?: string }; project?: { id?: string } }
+    const payload = await response.json() as { work?: { id?: string }; project?: { id?: string }; canvas?: { id?: string } }
     const projectId = payload.work?.id || payload.project?.id
     if (!projectId) throw new Error('创建作品失败：服务未返回作品 ID')
-    setProgress('进入工作台…')
+    if (draft.creationMode === 'canvas' && !payload.canvas?.id) throw new Error('创建画布失败：服务未返回画布 ID')
+    setProgress(draft.creationMode === 'canvas' ? '进入画布…' : '进入工作台…')
     setCreateProjectWork(null)
-    router.push({ pathname: `/workflow/${projectId}/workbench-premium2` })
+    router.push({ pathname: draft.creationMode === 'canvas'
+      ? `/canvas/${projectId}/${payload.canvas!.id}`
+      : `/workflow/${projectId}/workbench-premium2` })
     return true
   }
 
@@ -441,7 +452,8 @@ export function FosProjectsClient() {
         <section className="works-view">
           <header className="works-view-header">
             <div className="works-heading">
-              <h1 className="works-view-title">我的项目</h1>
+              <h1 className="works-view-title">{selectedWork?.name || '我的项目'}</h1>
+              {selectedWork ? <Link href={{ pathname: '/projects' }} className="works-all-projects" data-testid="project-list-all"><AppIcon name="chevronLeft" />全部项目</Link> : null}
               {canCreateWorks ? (
                 <button type="button" className="works-create-work" onClick={() => setShowCreateWork(true)}>
                   <AppIcon name="plus" />新建项目
@@ -453,7 +465,7 @@ export function FosProjectsClient() {
               {refreshing ? <span className="works-refreshing"><AppIcon name="loader" className="animate-spin" />正在刷新</span> : null}
             </div>
             <div className="works-search-group">
-              <span>{worksTotal} 个项目</span>
+              <span>{selectedWork ? `项目中的 ${selectedWork.projectCount} 个作品` : `${worksTotal} 个项目`}</span>
               <label className="works-search">
                 <AppIcon name="search" />
                 <input

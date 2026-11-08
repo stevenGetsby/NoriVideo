@@ -167,6 +167,7 @@ describe('chain contract - voice queue behavior', () => {
       lineId: 'line-1',
       userId: 'user-1',
       audioModel: 'fal::voice-model',
+      job: expect.objectContaining({ data: queued }),
     })
   })
 })

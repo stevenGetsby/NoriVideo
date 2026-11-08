@@ -183,8 +183,8 @@
         "supportGenerateAudio": true,
         "inputSchema": {
           "image": { "min": 0, "max": 30 },
-          "video": { "min": 0, "max": 10 },
-          "audio": { "min": 0, "max": 10 },
+          "video": { "min": 0, "max": 10, "maxTotalDurationSeconds": 30 },
+          "audio": { "min": 0, "max": 10, "maxTotalDurationSeconds": 30 },
           "requiredFields": ["prompt"]
         }
       }

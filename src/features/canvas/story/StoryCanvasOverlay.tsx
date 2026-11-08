@@ -23,9 +23,9 @@ function useLiveChapter(projectId: string, title: string): StoryChapterGraph {
 
 const TIPS_KEY = 'nori.story.tips.v1'
 const TIPS = [
+  { title: '先写剧情文字', text: '剧情片段卡片里直接写动作、台词和旁白，文字就是主稿' },
   { title: '接下来发生什么', text: '点卡片右侧的 +，或从圆点拖出连线，选择下一步' },
-  { title: '片段的画面', text: '剧情片段顶部的方形接口连接视频或图片，空片段可一键生成' },
-  { title: '分支与条件', text: '选择的每个选项、条件的每条分支都有自己的出口，分别接到不同剧情' },
+  { title: '画面与分支', text: '需要画面时在制作层连接视频或图片；选项和条件各有自己的出口' },
 ]
 
 /** First-run guide for a near-empty chapter; it retires itself once dismissed or the chapter grows. */

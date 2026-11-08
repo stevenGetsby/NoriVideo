@@ -9,10 +9,6 @@ interface UseApiConfigFiltersParams {
   models: CustomModel[]
 }
 
-interface EnabledModelOption extends CustomModel {
-  providerName: string
-}
-
 const DYNAMIC_PROVIDER_PREFIXES = ['gemini-compatible', 'openai-compatible']
 const ALWAYS_SHOW_PROVIDERS: string[] = ['mediakit']
 /** 完全不在 UI 中展示的 provider（既不在主列表，也不在折叠区） */
@@ -90,7 +86,7 @@ export function useApiConfigFilters({
   }, [modelProviderKeys, providers])
 
   const enabledModelsByType = useMemo(() => {
-    const grouped: Record<'llm' | 'image' | 'video' | 'audio' | 'lipsync' | 'voicedesign', EnabledModelOption[]> = {
+    const grouped: Record<'llm' | 'image' | 'video' | 'audio' | 'lipsync' | 'voicedesign', CustomModel[]> = {
       llm: [],
       image: [],
       video: [],
@@ -107,21 +103,16 @@ export function useApiConfigFilters({
       const provider = providersById.get(model.provider)
       if (!hasProviderApiKey(provider)) continue
 
-      const option: EnabledModelOption = {
-        ...model,
-        providerName: provider?.name || model.provider,
-      }
-
       // Voice design models (audio type but excluded from TTS)
       if (model.type === 'audio' && DEFAULT_AUDIO_EXCLUDED_MODEL_IDS.has(model.modelId)) {
-        grouped.voicedesign.push(option)
+        grouped.voicedesign.push(model)
         continue
       }
 
       // Normal audio default candidate check
       if (!isAudioDefaultCandidate(model)) continue
 
-      grouped[model.type].push(option)
+      grouped[model.type].push(model)
     }
 
     return grouped

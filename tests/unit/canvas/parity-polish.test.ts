@@ -27,6 +27,8 @@ function serviceConfig(overrides: Partial<PlatformServiceConfigResponse> = {}): 
       'nori::nori-image-fast': '',
       'nori::nori-image': 'hfsy::gpt-image-2',
       'nori::nori-image-pro': '',
+      'nori::nori-image-2.6': '',
+      'nori::nori-image-2.6-pro': '',
       'nori::seedance2.0-mini': '',
       'nori::seedance2.0-fast': '',
       'nori::seedance2.0': '',

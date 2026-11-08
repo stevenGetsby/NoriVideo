@@ -35,10 +35,19 @@
   --fos-primary-light-9: #ebedff;
   --fos-primary-dark-2: #5f6cf5;   /* 按下态 / 渐变终点 */
 
-  --fos-gradient-primary: linear-gradient(100deg, #3c8bff 0%, #6c5cff 52%, #a855f7 100%);
-  --fos-gradient-primary-hover: linear-gradient(100deg, #4f97ff 0%, #7b6cff 52%, #b56bf9 100%);
-  --fos-gradient-purple: linear-gradient(135deg, #a855f7, #7c66ff);
-  --fos-gradient-success: linear-gradient(135deg, #34d399, #10b981);
+  /* Solid brand tokens: the interface is intentionally gradient-free. Legacy
+   * gradient variable names stay as aliases so untouched feature stylesheets
+   * (for example the canvas stylesheet owned by another workstream) also
+   * render a flat brand colour. */
+  --fos-brand-solid: #6e7bff;
+  --fos-brand-solid-hover: #5f6cf5;
+  --fos-brand-solid-active: #5360e8;
+  --fos-accent-purple: #a855f7;
+  --fos-accent-success: #10b981;
+  --fos-gradient-primary: var(--fos-brand-solid);
+  --fos-gradient-primary-hover: var(--fos-brand-solid-hover);
+  --fos-gradient-purple: var(--fos-accent-purple);
+  --fos-gradient-success: var(--fos-accent-success);
 
   /* ---- 1.4 状态色 ---- */
   --fos-success: #34d399;
@@ -106,7 +115,7 @@
   --fos-primary-text: #a3acff;
   --fos-primary-soft: rgba(110, 123, 255, 0.14);
   --fos-primary-border: rgba(110, 123, 255, 0.4);
-  --fos-gradient-brand: linear-gradient(115deg, #45a6ff 0%, #7c66ff 48%, #e070e0 100%);
+  --fos-gradient-brand: var(--fos-brand-solid);
   --fos-cta-shadow: 0 8px 24px -10px rgba(108, 92, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   --fos-hue-image: #38bdf8;
   --fos-hue-video: #a78bfa;
@@ -116,10 +125,7 @@
 
 /* ===== FrameOS 作用域基础样式 ===== */
 [data-theme="frameos-dark"] {
-  background:
-    radial-gradient(60% 40% at 12% -6%, rgba(91, 108, 255, 0.12), transparent 70%),
-    radial-gradient(48% 36% at 96% 4%, rgba(224, 112, 224, 0.07), transparent 72%),
-    var(--fos-bg-1);
+  background: var(--fos-bg-1);
   color: var(--fos-text-regular);
   font-family: var(--fos-font-sans);
   font-size: var(--fos-fs-13);
@@ -185,12 +191,12 @@
 }
 
 .fos-btn-primary {
-  background: var(--fos-gradient-primary);
+  background: var(--fos-brand-solid);
   border-color: transparent;
   color: #fff;
 }
 .fos-btn-primary:hover {
-  background: var(--fos-gradient-primary-hover);
+  background: var(--fos-brand-solid-hover);
   border-color: transparent;
   box-shadow: var(--fos-shadow-btn-glow);
 }
@@ -241,10 +247,7 @@
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
-  background:
-    radial-gradient(58% 170% at 0% 0%, rgba(110, 123, 255, 0.24), transparent 62%),
-    radial-gradient(42% 150% at 100% 0%, rgba(224, 112, 224, 0.13), transparent 64%),
-    var(--fos-bg-3);
+  background: var(--fos-bg-3);
   box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 [data-theme="frameos-dark"] .fos-hero-tile {
@@ -257,7 +260,7 @@
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 14px;
   color: #fff;
-  background: var(--fos-gradient-brand);
+  background: var(--fos-brand-solid);
   box-shadow: 0 10px 26px -8px rgba(108, 92, 255, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.32);
 }
 [data-theme="frameos-dark"] .fos-hue-tile {
@@ -290,7 +293,5 @@
 .fos-app .fos-stat-tile {
   border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
   border-radius: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--hue) 14%, transparent), transparent 85%),
-    rgba(255, 255, 255, 0.03);
+  background: color-mix(in srgb, var(--hue) 10%, rgba(255, 255, 255, 0.03));
 }

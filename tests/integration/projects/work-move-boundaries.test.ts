@@ -113,6 +113,28 @@ describe.skipIf(!enabled)('work moves against disposable real MySQL', () => {
     expect(works.map((work) => work.id).sort()).toEqual([workA, workB].sort())
   })
 
+  it('keeps ordinary works out of an explicit interactive project', async () => {
+    await prisma.interactiveStory.create({ data: { workId: target, createdById: ownerId } })
+    await expect(moveProjects(session(), {
+      workIds: [workA], targetProjectId: target,
+    })).rejects.toMatchObject({ code: 'CONFLICT' })
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: workA } })).workId).toBe(sourceA)
+    expect(await prisma.project.count({ where: { workId: target } })).toBe(0)
+  })
+
+  it('keeps interactive chapters in an interactive project when moved', async () => {
+    await prisma.interactiveStory.create({ data: { workId: sourceA, createdById: ownerId } })
+    await expect(moveProjects(session(), {
+      workIds: [workA], targetProjectId: target,
+    })).rejects.toMatchObject({ code: 'CONFLICT' })
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: workA } })).workId).toBe(sourceA)
+    await prisma.interactiveStory.create({ data: { workId: target, createdById: ownerId } })
+    await expect(moveProjects(session(), {
+      workIds: [workA], targetProjectId: target,
+    })).resolves.toMatchObject({ moved: 1 })
+    expect((await prisma.project.findUniqueOrThrow({ where: { id: workA } })).workId).toBe(target)
+  })
+
   it('rejects conflicting source aliases without any persisted move', async () => {
     await expect(moveProjects(session(), {
       workIds: [workA], projectIds: [workB], targetProjectId: target,

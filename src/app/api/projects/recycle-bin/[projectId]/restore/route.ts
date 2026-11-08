@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { getWorkspaceActor } from '@/lib/collaboration/access'
-import { canAccessProject } from '@/lib/permissions/resolve'
 import { prisma } from '@/lib/prisma'
 import { projectRestoreDeadline } from '@/lib/projects/recycle-bin'
 
@@ -37,8 +36,8 @@ export const POST = apiHandler(async (
     },
   })
   if (!project) throw new ApiError('NOT_FOUND', { message: '回收站作品不存在。' })
-  if (!canAccessProject(actor, 'projectDelete', project, project.work.members[0], project.members[0])) {
-    throw new ApiError('FORBIDDEN', { message: '当前账号没有恢复该作品的权限。' })
+  if (!actor.isManagement && project.createdById !== actor.actorId) {
+    throw new ApiError('FORBIDDEN', { message: '只有作品创建者可以恢复该作品。' })
   }
   if (projectRestoreDeadline(project.deletedAt!).getTime() <= Date.now()) {
     throw new ApiError('CONFLICT', { message: '该作品已超过 15 天恢复期限。' })

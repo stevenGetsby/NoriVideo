@@ -4,7 +4,7 @@ import {
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
 
-export type MaterialPickerScope = 'all' | 'favorites' | 'project' | 'workflow' | 'toolbox' | 'canvas' | 'upload' | 'trash'
+export type MaterialPickerScope = 'all' | 'personal' | 'project' | 'workflow' | 'toolbox' | 'canvas' | 'upload' | 'trash'
 export type MaterialPickerSort = 'newest' | 'oldest'
 
 export function shouldResetMaterialProjectScope(
@@ -23,7 +23,7 @@ export function normalizeMaterialProjectOptions(
     const id = project.id?.trim()
     const name = project.name?.trim()
     if (!id || !name || unique.has(id)) continue
-    unique.set(id, { id, name })
+    unique.set(id, { id, name, workId: project.workId || null, workName: project.workName || null })
   }
   return [...unique.values()].sort((left, right) => {
     if (left.id === currentProjectId) return -1
@@ -62,10 +62,10 @@ export function buildMaterialPickerQuery({
   creator,
   createdFrom,
   createdTo,
-  favoriteOnly = false,
   sync = false,
   projectOnly = false,
   creatorExact = false,
+  workId,
 }: {
   projectId?: string | null
   scope: MaterialPickerScope
@@ -74,21 +74,22 @@ export function buildMaterialPickerQuery({
   creator?: string
   createdFrom?: string
   createdTo?: string
-  favoriteOnly?: boolean
   sync?: boolean
   projectOnly?: boolean
   creatorExact?: boolean
+  workId?: string | null
 }): URLSearchParams {
   const params = new URLSearchParams({
     available: scope === 'project' || projectOnly ? '0' : '1',
     limit: '300',
   })
   if (projectId?.trim()) params.set('projectId', projectId.trim())
+  if (workId?.trim()) params.set('workId', workId.trim())
   if (scope === 'trash') params.set('state', 'deleted')
   if (type !== 'all') params.set('type', type)
   const source = SOURCE_BY_SCOPE[scope]
   if (source) params.set('source', source)
-  if (scope === 'favorites' || favoriteOnly) params.set('favorite', '1')
+  if (scope === 'personal' || scope === 'project' || scope === 'all') params.set('scope', scope)
   if (query?.trim()) params.set('query', query.trim())
   if (creator?.trim()) params.set('creator', creator.trim())
   if (creator?.trim() && creatorExact) params.set('creatorExact', '1')

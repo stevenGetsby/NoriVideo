@@ -400,7 +400,7 @@ describe('worker analyze-novel behavior', () => {
       where: { id: 'char-ari' },
       data: {
         voiceId: 'voice-ari',
-        voiceType: 'qwen-designed',
+        voiceType: 'kuaizi',
         customVoiceUrl: null,
         customVoiceMediaId: null,
       },

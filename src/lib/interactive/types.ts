@@ -137,12 +137,37 @@ export interface StoryStart {
   entryNodeId: string
 }
 
+/**
+ * One 作品级大视频片段: the linear-cut slot that a story scene owns.
+ * `branch` segments are kept so the story tree is never flattened away, but
+ * they are never part of the linear final cut. `removed` is the recoverable
+ * "taken out of the cut" state; orphaned segments (deleted chapter/scene) stay
+ * in the config so the UI can show a warning instead of silently dropping them.
+ */
+export interface StorySequenceSegment {
+  id: string
+  projectId: string
+  sceneNodeId: string
+  title: string
+  branch: boolean
+  removed: boolean
+}
+
+export interface StorySequence {
+  segments: StorySequenceSegment[]
+}
+
 export interface InteractiveStoryConfig {
   version: 1
   variables: StoryVariable[]
   chapters: StoryChapterMeta[]
   links: StoryLink[]
   start: StoryStart | null
+  /**
+   * Optional so configs written before the work canvas existed keep working.
+   * When absent the server derives it from chapter order and the scene graph.
+   */
+  sequence?: StorySequence
 }
 
 export interface StoryProgram {

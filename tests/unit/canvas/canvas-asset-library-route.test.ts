@@ -3,8 +3,16 @@ import { buildMockRequest } from '../../helpers/request'
 
 const authMock = vi.hoisted(() => ({
   requireProjectAuthLight: vi.fn(async (projectId: string) => ({
-    session: { user: { id: 'user-1', name: '资产师' } },
-    project: { id: projectId, userId: 'user-1' },
+    session: {
+      user: {
+        id: 'manager-user',
+        actorId: 'member-user',
+        workspaceOwnerId: 'manager-user',
+        role: 'storyboard',
+        name: '资产师',
+      },
+    },
+    project: { id: projectId, userId: 'manager-user' },
   })),
   isErrorResponse: (value: unknown) => value instanceof Response,
 }))
@@ -68,7 +76,7 @@ describe('画布节点登记到资产库', () => {
       materials: [{ nodeId: 'node-1', materialId: 'material-1', title: '主角定妆照' }],
     })
     expect(materialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'user-1',
+      userId: 'manager-user',
       projectId: 'project-1',
       title: '主角定妆照',
       type: 'image',
@@ -106,6 +114,16 @@ describe('画布节点登记到资产库', () => {
     const response = await post({ nodeIds: ['node-1'] })
     await expect(response.json()).resolves.toMatchObject({ materialByNodeId: { 'node-1': 'material-existing' } })
     expect(materialMock.registerFrameosMaterial).not.toHaveBeenCalled()
+    expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'material-existing',
+        userId: 'manager-user',
+        projectId: 'project-1',
+        deletedAt: null,
+        status: 'ready',
+      },
+      select: { id: true },
+    })
   })
 
   it('失效节点整批拒绝，不先登记有效项', async () => {

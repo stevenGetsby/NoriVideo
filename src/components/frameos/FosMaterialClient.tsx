@@ -5,7 +5,7 @@ import { FosMaterialLibrary } from './views/FosMaterialLibrary'
 
 export function FosMaterialClient() {
   return (
-    <FosShell activeKey="material">
+    <FosShell activeKey="assetHub">
       <FosMaterialLibrary />
     </FosShell>
   )

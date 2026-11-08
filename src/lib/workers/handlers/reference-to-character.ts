@@ -23,6 +23,7 @@ import {
   readString,
 } from './reference-to-character-helpers'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
+import { normalizeReferenceImagesForGeneration } from '@/lib/media/outbound-image'
 async function generateReferenceImage(params: {
   job: Job<TaskJobData>
   imageIndex: number
@@ -179,6 +180,11 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
   }
 
   const useReferenceImages = !customDescription
+  const normalizedReferenceImages = useReferenceImages
+    ? await normalizeReferenceImagesForGeneration(allReferenceImages, {
+      context: { taskId: job.data.taskId, projectId: job.data.projectId },
+    })
+    : []
   const keyPrefix = isAssetHub ? 'ref-char' : `proj-ref-char-${job.data.projectId}`
   const count = normalizeImageGenerationCount('reference-to-character', payload.count)
 
@@ -195,7 +201,7 @@ export async function handleReferenceToCharacterTask(job: Job<TaskJobData>) {
       userId: job.data.userId,
       imageModel,
       prompt,
-      referenceImages: useReferenceImages ? allReferenceImages : undefined,
+      referenceImages: useReferenceImages ? normalizedReferenceImages : undefined,
       keyPrefix,
       ...(isProject ? { labelText: characterName } : {}),
     }),

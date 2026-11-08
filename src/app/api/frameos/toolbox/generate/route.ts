@@ -48,6 +48,9 @@ import { prepareCanvasToolboxImageOutputs } from '@/lib/canvas/toolbox-output-no
 import { isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
+import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
+import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
+import { getWorkspaceActor, workspaceUserWhere } from '@/lib/collaboration/access'
 
 type GenerateType = 'image' | 'video' | 'audio' | 'model3d'
 
@@ -235,11 +238,11 @@ async function compensateToolboxSubmissionFailure(assetId: string, error: unknow
   }).then((result) => result.count > 0).catch(() => false)
 }
 
-async function reviveFailedToolboxAsset(asset: { id: string; status: string }) {
+async function reviveFailedToolboxAsset(asset: { id: string; status: string }, modelId: string) {
   if (asset.status !== 'failed') return
   await prisma.frameosToolboxAsset.updateMany({
     where: { id: asset.id, status: 'failed' },
-    data: { status: 'pending', errorMessage: null },
+    data: { status: 'pending', errorMessage: null, modelId },
   })
 }
 
@@ -370,10 +373,10 @@ async function bindModel3DTaskToCanvasNode(params: {
   if (updated.count !== 1) throw new ApiError('NOT_FOUND', { message: '3D 模型节点已被删除。' })
 }
 
-export const POST = apiHandler(async (
+async function executeToolboxGeneration(
   request: NextRequest,
   context?: { params?: Promise<{ projectId?: string; canvasId?: string }> },
-) => {
+) {
   const body = await request.json() as Record<string, unknown>
   const projectId = cleanText(body.projectId)
   const type = cleanText(body.type) as GenerateType
@@ -396,6 +399,20 @@ export const POST = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
   const routeParams = context?.params ? await context.params : null
+  const workId = cleanText(body.workId)
+  if (!workId && !routeParams?.projectId && !routeParams?.canvasId) {
+    throw new ApiError('INVALID_PARAMS', { message: '工具箱生成必须选择有权限的项目和归属作品。' })
+  }
+  const assetScope = workId
+    ? await resolveProjectAssetScope(session, { workId, projectId })
+    : { projects: [{ id: projectId, name: '', workId }], projectIds: [projectId] }
+  const availableMaterialProjectIds = [...assetScope.projectIds, 'global', 'global-asset-hub']
+  const workspaceUsers = await prisma.user.findMany({
+    where: workspaceUserWhere(getWorkspaceActor(session).workspaceOwnerId),
+    select: { id: true },
+  })
+  const workspaceUserIds = workspaceUsers.map((user) => user.id)
+
   const canvasId = cleanText(routeParams?.canvasId) || cleanText(body.canvasId)
   const nodeId = cleanText(body.nodeId)
   if (canvasId && !nodeId) throw new ApiError('INVALID_PARAMS', { message: '画布生成缺少目标节点。' })
@@ -448,6 +465,7 @@ export const POST = apiHandler(async (
       params: {
         title,
         prompt,
+        modelKey,
         topology,
         generateTexture,
         pose,
@@ -499,7 +517,7 @@ export const POST = apiHandler(async (
 
     let taskId = ''
     try {
-      await reviveFailedToolboxAsset(asset)
+      await reviveFailedToolboxAsset(asset, modelKey)
       const submitted = await submitTask({
         userId: session.user.id,
         locale: resolveRequiredTaskLocale(request, body),
@@ -548,7 +566,8 @@ export const POST = apiHandler(async (
     return NextResponse.json({ success: true, tasks: [{ taskId, assetId: asset.id }] })
   }
 
-  await resolveModelSelection(session.user.id, modelKey, type)
+  const selection = await resolveModelSelection(session.user.id, modelKey, type)
+  const actualModelKey = selection.modelKey
   const capabilities = resolveBuiltinCapabilitiesByModelKey(type, modelKey)
   const imageEdit = type === 'image' && isCanvasImageEditProcessType(processType)
   const panorama = type === 'image' && isCanvasPanoramaProcessType(processType)
@@ -580,12 +599,23 @@ export const POST = apiHandler(async (
   }
 
   const inputMode = cleanText(body.inputMode) || 'text'
-  const legacyMaterialIds = cleanMaterialIds(body.referenceMaterialIds, type === 'video' ? 15 : 9)
+  const requestedInputSchema = resolveCanvasGenerationInputSchema(type, capabilities)
+  const referenceLimit = type === 'video'
+    ? requestedInputSchema.image.max + requestedInputSchema.video.max + requestedInputSchema.audio.max
+    : type === 'audio' ? 9 : requestedInputSchema.image.max
+  const legacyMaterialIds = cleanMaterialIds(body.referenceMaterialIds, Number.POSITIVE_INFINITY)
+  const comparableMaterialIds = Array.isArray(body.referenceMaterials) ? legacyMaterialIds.slice(0, referenceLimit) : legacyMaterialIds
+  if (imageEdit && legacyMaterialIds.includes(maskMaterialId)) {
+    throw new ApiError('INVALID_PARAMS', { message: '蒙版必须通过 maskMaterialId 单独提交，不能混入普通参考图片。' })
+  }
+  if (imageEdit && legacyMaterialIds.length !== 1) {
+    throw new ApiError('INVALID_PARAMS', { message: '蒙版重绘必须且只能使用 1 张原始图片。' })
+  }
   const referenceContract = normalizeCanvasGenerationMaterialReferences({
     value: body.referenceMaterials,
-    legacyMaterialIds,
+    legacyMaterialIds: comparableMaterialIds,
     inputMode,
-    limit: type === 'video' ? 15 : 9,
+    limit: referenceLimit,
   })
   if (!referenceContract.success) {
     throw new ApiError('INVALID_PARAMS', { message: referenceContract.message })
@@ -607,11 +637,11 @@ export const POST = apiHandler(async (
     ? await prisma.frameosMaterial.findMany({
       where: {
         id: { in: materialIds },
-        userId: session.user.id,
+        userId: { in: workspaceUserIds },
         type: type === 'video' ? { in: ['image', 'video', 'audio'] } : type,
         status: 'ready',
         deletedAt: null,
-        projectId: { in: [projectId, 'global', 'global-asset-hub'] },
+        projectId: { in: availableMaterialProjectIds },
       },
     })
     : []
@@ -625,11 +655,11 @@ export const POST = apiHandler(async (
     ? await prisma.frameosMaterial.findFirst({
       where: {
         id: maskMaterialId,
-        userId: session.user.id,
+        userId: { in: workspaceUserIds },
         type: 'image',
         status: 'ready',
         deletedAt: null,
-        projectId: { in: [projectId, 'global', 'global-asset-hub'] },
+        projectId: { in: availableMaterialProjectIds },
       },
     })
     : null
@@ -655,7 +685,8 @@ export const POST = apiHandler(async (
   if (type === 'video' && inputMode === 'text' && body.textOnly !== true && options.generateAudio !== false
     && resolveCanvasGenerationInputSchema(type, capabilities).audio.max > 0) {
     const structuredVoices = await materializeStructuredCharacterVoices({
-      userId: session.user.id, projectId, images: orderedMaterials.filter((material) => material.type === 'image'),
+      userId: session.user.id, projectId, projectIds: assetScope.projectIds, workspaceUserIds,
+      images: orderedMaterials.filter((material) => material.type === 'image'),
     })
     for (const voice of structuredVoices) {
       if (materialIds.includes(voice.id)) continue
@@ -667,7 +698,7 @@ export const POST = apiHandler(async (
       .filter((id) => !materialIds.includes(id))
     if (voiceIds.length) {
       const voices = await prisma.frameosMaterial.findMany({
-        where: { id: { in: voiceIds }, userId: session.user.id, projectId: { in: [projectId, 'global', 'global-asset-hub'] }, type: 'audio', status: 'ready', deletedAt: null },
+        where: { id: { in: voiceIds }, userId: { in: workspaceUserIds }, projectId: { in: availableMaterialProjectIds }, type: 'audio', status: 'ready', deletedAt: null },
       })
       for (const id of voiceIds) {
         const voice = voices.find((material) => material.id === id)
@@ -686,14 +717,8 @@ export const POST = apiHandler(async (
   }
 
   const referenceRoleByMaterialId = new Map(referenceMaterials.map((item) => [item.materialId, item.role]))
-  const idempotencyKey = resolveIdempotencyKey(body.idempotencyKey)
-  if (type === 'video' && inputMode !== 'text' && inputMode !== 'image' && inputMode !== 'firstlastframe') {
-    throw new ApiError('INVALID_PARAMS', { message: '视频模式仅支持全能参考或首尾帧。' })
-  }
-  if (type === 'video' && inputMode === 'firstlastframe' && referenceImages.length !== 2) {
-    throw new ApiError('INVALID_PARAMS', { message: '首尾帧模式需要按顺序选择 2 张图片。' })
-  }
-  const referenceSummary: CanvasReferenceMediaSummary[] = orderedMaterials.flatMap((material) => {
+  const resolvedMaterials = await ensureFrameosReferenceMediaDurations(orderedMaterials)
+  const referenceSummary: CanvasReferenceMediaSummary[] = resolvedMaterials.flatMap((material) => {
     if (material.type !== 'image' && material.type !== 'video' && material.type !== 'audio') return []
     return [{
       id: material.id,
@@ -706,9 +731,16 @@ export const POST = apiHandler(async (
     }]
   })
   const inputVideoSeconds = referenceVideos.reduce(
-    (total, material) => total + (readMediaDurationSeconds(material.metadata) || 0),
+    (total, material) => total + (readMediaDurationSeconds(resolvedMaterials.find((item) => item.id === material.id)?.metadata) || 0),
     0,
   )
+  const idempotencyKey = resolveIdempotencyKey(body.idempotencyKey)
+  if (type === 'video' && inputMode !== 'text' && inputMode !== 'image' && inputMode !== 'firstlastframe') {
+    throw new ApiError('INVALID_PARAMS', { message: '视频模式仅支持全能参考或首尾帧。' })
+  }
+  if (type === 'video' && inputMode === 'firstlastframe' && referenceImages.length !== 2) {
+    throw new ApiError('INVALID_PARAMS', { message: '首尾帧模式需要按顺序选择 2 张图片。' })
+  }
   const inputSchema = type === 'video' && inputMode === 'firstlastframe'
     ? firstLastFrameInputSchema()
     : resolveCanvasGenerationInputSchema(type, capabilities)
@@ -751,7 +783,7 @@ export const POST = apiHandler(async (
       })
     }
     const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey })
-    if (!availability.available || !availability.modes.includes(audioRequest.mode)) {
+    if (!availability.available || !availability.runtimeModelKey || !availability.modes.includes(audioRequest.mode)) {
       throw new ApiError('INVALID_PARAMS', {
         message: availability.unavailableReason || '当前音频模型没有可用的生成后端。',
       })
@@ -778,11 +810,12 @@ export const POST = apiHandler(async (
       type: 'audio',
       source: 'toolbox',
       bizType: 'audio_generation',
-      modelId: modelKey,
+      modelId: availability.runtimeModelKey,
       status: 'pending',
       params: {
         title,
         prompt: audioRequest.prompt,
+        modelKey,
         mode: audioRequest.mode,
         voice: audioRequest.voice,
         duration: audioRequest.durationSeconds,
@@ -839,7 +872,7 @@ export const POST = apiHandler(async (
       }
       return NextResponse.json({ success: true, reused: true, tasks: [{ taskId: readyTaskId, assetId: asset.id }] })
     }
-    await reviveFailedToolboxAsset(asset)
+    await reviveFailedToolboxAsset(asset, availability.runtimeModelKey)
     let taskId = ''
     try {
       const submitted = await submitTask({
@@ -1038,12 +1071,13 @@ export const POST = apiHandler(async (
         type,
         source: 'toolbox',
         bizType: type === 'image' ? 'image_generation' : 'video_generation',
-        modelId: modelKey,
+        modelId: actualModelKey,
         status: 'pending',
         params: {
           ...options,
           title: assetTitle,
           prompt,
+          modelKey,
           inputMode,
           ...(canvasProcessType ? { processType: canvasProcessType } : {}),
           ...(imageEdit ? { maskMaterialId } : {}),
@@ -1104,7 +1138,7 @@ export const POST = apiHandler(async (
         tasks.push({ taskId: readyTaskId, assetId: asset.id, ...(canvasId ? { nodeId: outputNodeId } : {}) })
         continue
       }
-      await reviveFailedToolboxAsset(asset)
+      await reviveFailedToolboxAsset(asset, actualModelKey)
       const generationOptions = {
         ...options,
         ...(type === 'video' ? { generationMode: inputMode === 'firstlastframe' ? 'firstlastframe' : 'normal' } : {}),
@@ -1221,4 +1255,7 @@ export const POST = apiHandler(async (
     ...(failures.length > 0 ? { failures } : {}),
     ...(preparedCanvasOutputs ? { canvasRevision: preparedCanvasOutputs.canvasRevision } : {}),
   })
-})
+}
+
+export const POST = apiHandler(async (request, context) => await executeToolboxGeneration(request, context))
+export { executeToolboxGeneration as generateToolboxAsset }

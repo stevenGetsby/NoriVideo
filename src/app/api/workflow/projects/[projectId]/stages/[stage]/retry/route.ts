@@ -35,7 +35,7 @@ export const POST = apiHandler(async (
     userId: authResult.session.user.id,
     projectId,
     stage,
-    locale: (request.headers.get('x-locale') || 'zh') as any,
+    locale: request.headers.get('x-locale') === 'en' ? 'en' : 'zh',
     episodeId,
     input: toObject(body.input),
     requestId: getRequestId(request),

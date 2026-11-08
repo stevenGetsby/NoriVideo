@@ -179,15 +179,12 @@ function CumulativeLineChart({ rows }: { rows: Array<{ day: string; value: numbe
   return (
     // eslint-disable-next-line no-restricted-syntax -- This SVG is a data chart, not an interface icon.
     <svg className="h-[225px] w-full" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="积分累计消耗趋势">
-      <defs>
-        <linearGradient id="service-report-area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stopColor="#fbbf24" stopOpacity=".28" /><stop offset="1" stopColor="#fbbf24" stopOpacity="0" /></linearGradient>
-      </defs>
       {[0, 1, 2, 3, 4].map((index) => {
         const y = top + (index / 4) * (height - top - bottom)
         const value = max * (1 - index / 4)
         return <g key={index}><line x1={left} x2={width - right} y1={y} y2={y} stroke="rgba(255,255,255,.075)" /><text x={left - 10} y={y + 4} textAnchor="end" fill="rgba(255,255,255,.34)" fontSize="10">{number(value)}</text></g>
       })}
-      <polygon points={area} fill="url(#service-report-area)" />
+      <polygon points={area} fill="#fbbf24" fillOpacity=".16" />
       <polyline points={line} fill="none" stroke="#fbbf24" strokeWidth="2.4" strokeLinejoin="round" strokeLinecap="round" />
       {points.map((point, index) => index % labelStep === 0 || index === points.length - 1 ? <text key={point.day} x={point.x} y={height - 9} textAnchor="middle" fill="rgba(255,255,255,.38)" fontSize="10">{point.day.slice(5)}</text> : null)}
     </svg>
@@ -202,7 +199,7 @@ function HorizontalBars({ rows, valueLabel }: { rows: Array<{ id: string; label:
       {rows.slice(0, 7).map((row) => (
         <div key={row.id} className="grid grid-cols-[130px_minmax(0,1fr)_86px] items-center gap-3 text-[12px]">
           <div className="min-w-0"><strong className="block truncate font-medium text-white/72">{row.label}</strong>{row.detail ? <small className="mt-0.5 block truncate text-[10px] text-white/30">{row.detail}</small> : null}</div>
-          <div className="h-3 overflow-hidden rounded-[3px] bg-white/[.045]"><div className="h-full min-w-[3px] rounded-[3px] bg-gradient-to-r from-[#fbbf24] to-[#ffc34a]" style={{ width: `${Math.max(1.5, (row.value / max) * 100)}%` }} /></div>
+          <div className="h-3 overflow-hidden rounded-[3px] bg-white/[.045]"><div className="h-full min-w-[3px] rounded-[3px] bg-[#fbbf24]" style={{ width: `${Math.max(1.5, (row.value / max) * 100)}%` }} /></div>
           <span className="text-right font-mono text-[11px] text-white/48">{valueLabel(row.value)}</span>
         </div>
       ))}
@@ -389,7 +386,7 @@ export function FrameServiceRecordsDashboard() {
           <input aria-label="报表开始日期" type="date" className={selectClass} value={startDate} onChange={(event) => { setRangePreset('custom'); setStartDate(event.target.value) }} />
           <span className="text-[11px] text-white/28">至</span>
           <input aria-label="报表结束日期" type="date" className={selectClass} value={endDate} onChange={(event) => { setRangePreset('custom'); setEndDate(event.target.value) }} />
-          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
+          <div className="ml-1 flex flex-wrap gap-1">{([['today', '今日'], ['yesterday', '昨天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['month', '本月'], ['all', '不限']] as Array<[RangePreset, string]>).map(([value, label]) => <button type="button" key={value} className={`h-8 rounded-[6px] px-3 text-[11px] ${rangePreset === value ? 'bg-[var(--fos-brand-solid)] text-white' : 'text-white/42 hover:bg-white/[.05] hover:text-white/72'}`} onClick={() => choosePreset(value)}>{label}</button>)}</div>
           <span className="ml-auto text-[10px] text-white/28">{filtered.length} 条服务记录</span>
         </div>
       </section>

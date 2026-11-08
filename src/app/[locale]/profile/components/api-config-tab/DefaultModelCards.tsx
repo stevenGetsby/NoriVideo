@@ -11,9 +11,7 @@ type ModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync' | 'voicedesign'
 
 interface ModelOption {
     modelKey: string
-    name: string
-    provider: string
-    providerName?: string
+    modelId: string
     capabilities?: ModelCapabilities
 }
 
@@ -44,8 +42,6 @@ interface DefaultModelCardsProps {
     getEnabledModelsByType: (type: ModelType) => ModelOption[]
     parseModelKey: (key: string | undefined | null) => { provider: string; modelId: string } | null
     encodeModelKey: (provider: string, modelId: string) => string
-    getProviderDisplayName: (providerId: string, locale: string) => string
-    locale: string
     updateDefaultModel: (field: string, value: string, capFields?: Array<{ field: string; options: CapabilityValue[] }>) => void
     batchUpdateDefaultModels: (fields: string[], value: string, capFields?: Array<{ field: string; options: CapabilityValue[] }>) => void
     extractCapabilityFieldsFromModel: (
@@ -106,8 +102,6 @@ function SmartSelector({
     normalizedKey,
     current,
     placeholder,
-    locale,
-    t,
     props,
 }: {
     field: DefaultModelField
@@ -116,8 +110,6 @@ function SmartSelector({
     normalizedKey: string
     current: ModelOption | null
     placeholder: string
-    locale: string
-    t: (key: string) => string
     props: DefaultModelCardsProps
 }) {
     const capabilityFields = computeCapabilityFields(current, modelType as keyof ModelCapabilities)
@@ -127,9 +119,7 @@ function SmartSelector({
             <ModelCapabilityDropdown
                 models={options.map((opt) => ({
                     value: opt.modelKey,
-                    label: opt.name,
-                    provider: opt.provider,
-                    providerName: opt.providerName || props.getProviderDisplayName(opt.provider, locale),
+                    label: opt.modelId,
                 }))}
                 value={normalizedKey || undefined}
                 onModelChange={(newModelKey) => {
@@ -177,7 +167,7 @@ function SmartSelector({
                 <option value="">{placeholder}</option>
                 {options.map((option, index) => (
                     <option key={`${option.modelKey}-${index}`} value={option.modelKey}>
-                        {option.name} ({option.providerName || props.getProviderDisplayName(option.provider, locale)})
+                        {option.modelId}
                     </option>
                 ))}
             </select>
@@ -197,9 +187,6 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
         getEnabledModelsByType,
         parseModelKey,
         encodeModelKey,
-        getProviderDisplayName,
-        locale,
-        updateDefaultModel,
         extractCapabilityFieldsFromModel,
         workflowConcurrency,
         handleWorkflowConcurrencyChange,
@@ -284,7 +271,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                 </h3>
                 <div className="flex flex-col md:flex-row gap-4 mb-8">
                     {/* Text Model Card */}
-                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-white/25 transition-colors shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent">
+                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-white/25 transition-colors shadow-sm bg-[var(--glass-bg-surface)]">
                         <div className="flex items-start justify-between mb-2">
                             <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
                                 <AppIcon name="fileText" className="w-4 h-4 text-[#a3acff]" />
@@ -309,12 +296,12 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                             field="analysisModel" modelType="llm"
                             options={textModel.options} normalizedKey={textModel.normalizedKey} current={textModel.current}
                             placeholder={t('defaultModelSection.corePlaceholder')}
-                            locale={locale} t={t} props={allProps}
+                            props={allProps}
                         />
                     </div>
 
                     {/* Video Model Card */}
-                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-purple-500/30 transition-colors shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent">
+                    <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-purple-500/30 transition-colors shadow-sm bg-[var(--glass-bg-surface)]">
                     <div className="flex items-start justify-between mb-2">
                         <div className="w-8 h-8 rounded-lg bg-purple-500/10 flex items-center justify-center">
                             <AppIcon name="clapperboard" className="w-4 h-4 text-purple-500" />
@@ -339,7 +326,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                             field="videoModel" modelType="video"
                             options={videoModel.options} normalizedKey={videoModel.normalizedKey} current={videoModel.current}
                             placeholder={t('defaultModelSection.corePlaceholder')}
-                            locale={locale} t={t} props={allProps}
+                            props={allProps}
                         />
                     </div>
                 </div>
@@ -380,9 +367,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                             <ModelCapabilityDropdown
                                 models={pipelineGlobalOptions.map((opt) => ({
                                     value: opt.modelKey,
-                                    label: opt.name,
-                                    provider: opt.provider,
-                                    providerName: opt.providerName || getProviderDisplayName(opt.provider, locale),
+                                    label: opt.modelId,
                                 }))}
                                 value={pipelineGlobalKey || undefined}
                                 onModelChange={handlePipelineGlobalChange}
@@ -402,7 +387,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                         {pipelineItems.map((item) => {
                             const resolved = resolveModel(item.field, item.modelType, defaultModels, getEnabledModelsByType, parseModelKey, encodeModelKey)
                             return (
-                                <div key={item.field} className="glass-surface p-4 rounded-2xl shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent flex flex-col gap-3">
+                                <div key={item.field} className="glass-surface p-4 rounded-2xl shadow-sm bg-[var(--glass-bg-surface)] flex flex-col gap-3">
                                     <div className="flex items-center gap-2 mb-1">
                                         <AppIcon name={item.icon} className="w-4 h-4 text-[var(--glass-text-tertiary)]" />
                                         <span className="text-[13px] font-semibold text-[var(--glass-text-secondary)]">{t(item.titleKey)}</span>
@@ -411,7 +396,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                                         field={item.field} modelType={item.modelType}
                                         options={resolved.options} normalizedKey={resolved.normalizedKey} current={resolved.current}
                                         placeholder={t('defaultModelSection.followUnified')}
-                                        locale={locale} t={t} props={allProps}
+                                        props={allProps}
                                     />
                                 </div>
                             )
@@ -426,13 +411,13 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                 </h3>
                 <div className="grid grid-cols-1 gap-5">
                     {/* TTS */}
-                    <div className="glass-surface p-5 rounded-2xl shadow-sm bg-gradient-to-br from-[var(--glass-bg-surface)] to-transparent">
+                    <div className="glass-surface p-5 rounded-2xl shadow-sm bg-[var(--glass-bg-surface)]">
                         <h4 className="text-[13px] font-semibold text-[var(--glass-text-primary)] mb-4">{t('defaultModelSection.extTTS')}</h4>
                         <SmartSelector
                             field="audioModel" modelType="audio"
                             options={audioModel.options} normalizedKey={audioModel.normalizedKey} current={audioModel.current}
                             placeholder={t('defaultModelSection.extPlaceholder')}
-                            locale={locale} t={t} props={allProps}
+                            props={allProps}
                         />
                     </div>
                 </div>

@@ -331,6 +331,9 @@ function parseImageResult(payload: unknown): Omit<GenerateResult, 'success'> {
 
 export async function generateOpenLuxImage(params: OpenLuxImageGenerateParams): Promise<GenerateResult> {
   const model = getOpenLuxModelDefinition(params.options.modelId, 'image')
+  if (!model.selectable) {
+    throw new Error(`OPENLUX_IMAGE_PRICING_UNAVAILABLE: ${model.modelId}`)
+  }
   const timeoutMs = readInteger(params.options.timeoutMs) || OPENLUX_DEFAULT_TIMEOUT_MS
 
   const referenceImages = await normalizeReferenceImagesForGeneration(params.referenceImages || [], {

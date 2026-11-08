@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+import Image from 'next/image'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
@@ -19,14 +20,6 @@ import {
   isProjectCoverFileCandidate,
 } from '@/lib/projects/project-cover-contract'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
-import {
-  SCOPE_PERMISSION_DEFINITIONS,
-  WORK_LEADER_PERMISSIONS,
-  WORK_MEMBER_PERMISSIONS,
-  PROJECT_OWNER_PERMISSIONS,
-  PROJECT_MEMBER_PERMISSIONS,
-  type ScopePermission,
-} from '@/lib/permissions/catalog'
 import { useDismissableDialog } from '@/components/ui/useDismissableDialog'
 
 export { eligibleMoveTargets } from './move-targets'
@@ -92,10 +85,6 @@ function roleLabel(role: string | null | undefined) {
   if (role === 'leader' || role === 'manager') return '项目组长'
   if (role === 'owner') return '作品负责人'
   if (role === 'member') return '成员'
-  if (role === 'writer') return '编剧'
-  if (role === 'asset') return '资产师'
-  if (role === 'storyboard') return '分镜师'
-  if (role === 'reviewer') return '审核员'
   if (role === 'creator') return '创建者'
   return role || '成员'
 }
@@ -448,7 +437,7 @@ export function ProjectCoverDialog({
       <div className="works-form">
         <div className={`works-cover-preview${shownUrl ? ' has-image' : ''}`}>
           {shownUrl
-            ? <img src={shownUrl} alt="作品封面预览" />
+            ? <Image src={shownUrl} alt="作品封面预览" fill unoptimized sizes="428px" />
             : <span><AppIcon name="image" /><small>未设置封面时继续使用渐变彩字封面</small></span>}
         </div>
         <input
@@ -547,8 +536,6 @@ export function MemberManagerDialog({
   const [members, setMembers] = useState<WorkMember[]>([])
   const [selected, setSelected] = useState<MemberCandidate[]>([])
   const [pendingRemovalIds, setPendingRemovalIds] = useState<string[]>([])
-  const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({})
-  const [permissionDrafts, setPermissionDrafts] = useState<Record<string, ScopePermission[]>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -572,8 +559,6 @@ export function MemberManagerDialog({
   useEffect(() => {
     setSelected([])
     setPendingRemovalIds([])
-    setRoleDrafts({})
-    setPermissionDrafts({})
     void reload()
   }, [reload])
 
@@ -582,20 +567,6 @@ export function MemberManagerDialog({
     [members, pendingRemovalIds, selected],
   )
   const hasChanges = changeSet.additions.length > 0 || changeSet.removals.length > 0
-    || Object.keys(roleDrafts).length > 0 || Object.keys(permissionDrafts).length > 0
-
-  const memberGrant = (member: WorkMember) => ({
-    userId: member.userId,
-    role: roleDrafts[member.userId] || member.role || 'member',
-    permissions: Object.prototype.hasOwnProperty.call(permissionDrafts, member.userId)
-      ? permissionDrafts[member.userId]
-      : member.permissions ?? null,
-  })
-  const changedMembers = members.filter((member) => (
-    !pendingRemovalIds.includes(member.userId)
-    && ((roleDrafts[member.userId] && roleDrafts[member.userId] !== member.role)
-      || permissionDrafts[member.userId])
-  ))
 
   const saveChanges = async () => {
     if (!hasChanges) return
@@ -606,7 +577,7 @@ export function MemberManagerDialog({
         const response = await apiFetch(endpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: candidate.id, role: 'member' }),
+          body: JSON.stringify({ userId: candidate.id }),
         })
         if (!response.ok) throw new Error(await readApiErrorMessage(response, `添加 ${candidate.name} 失败`))
       }
@@ -618,18 +589,8 @@ export function MemberManagerDialog({
         })
         if (!response.ok) throw new Error(await readApiErrorMessage(response, `移除 ${member.name} 失败`))
       }
-      for (const member of changedMembers) {
-        const response = await apiFetch(endpoint, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(memberGrant(member)),
-        })
-        if (!response.ok) throw new Error(await readApiErrorMessage(response, `更新 ${member.name} 的权限失败`))
-      }
       setSelected([])
       setPendingRemovalIds([])
-      setRoleDrafts({})
-      setPermissionDrafts({})
       await reload()
       onChanged()
     } catch (saveError) {
@@ -695,42 +656,7 @@ export function MemberManagerDialog({
               <div className={`works-member-row${pendingRemoval ? ' is-pending-removal' : ''}`} key={member.userId}>
                 <span className="works-member-avatar"><AppIcon name="user" className="h-4 w-4" /></span>
                 <span className="min-w-0 flex-1"><strong>{member.name}</strong><small>{member.roleLabel || roleLabel(member.accountRole)}{member.status === 'disabled' ? ' · 已停用' : ''}</small></span>
-                {protectedMember ? <span className="works-role-badge">{roleLabel(member.role)}</span> : null}
-                {!readOnly && !protectedMember ? (
-                  <select
-                    className="fos-input works-member-role"
-                    aria-label={`${member.name} 的成员角色`}
-                    disabled={saving}
-                    value={roleDrafts[member.userId] || member.role || 'member'}
-                    onChange={(event) => {
-                      const role = event.target.value
-                      setRoleDrafts((current) => ({ ...current, [member.userId]: role }))
-                      if (member.permissions === null || member.permissions === undefined) {
-                        setPermissionDrafts((current) => {
-                          const next = { ...current }
-                          delete next[member.userId]
-                          return next
-                        })
-                      } else {
-                        setPermissionDrafts((current) => ({
-                          ...current,
-                          [member.userId]: role === 'leader'
-                            ? [...WORK_LEADER_PERMISSIONS]
-                            : role === 'owner'
-                              ? [...PROJECT_OWNER_PERMISSIONS]
-                              : endpoint.includes('/api/works/')
-                                ? [...WORK_MEMBER_PERMISSIONS]
-                                : [...PROJECT_MEMBER_PERMISSIONS],
-                        }))
-                      }
-                    }}
-                  >
-                    <option value="member">成员</option>
-                    <option value={endpoint.includes('/api/works/') ? 'leader' : 'owner'}>
-                      {endpoint.includes('/api/works/') ? '项目组长' : '作品负责人'}
-                    </option>
-                  </select>
-                ) : <span className="works-role-badge">{roleLabel(member.role)}</span>}
+                <span className="works-role-badge">{roleLabel(member.role)}</span>
                 {pendingRemoval ? <span className="works-pending-badge">待移除</span> : null}
                 {!readOnly && !protectedMember && member.canRemove !== false ? (
                   <button
@@ -752,53 +678,7 @@ export function MemberManagerDialog({
             )
           }) : null}
         </div>
-        <div className="works-member-permissions">
-          <span>逐项权限覆盖</span>
-          {members.map((member) => {
-            if (readOnly || isProtectedMember(member) || pendingRemovalIds.includes(member.userId)) return null
-            const role = roleDrafts[member.userId] || member.role || 'member'
-            const selectedPermissions = Object.prototype.hasOwnProperty.call(permissionDrafts, member.userId)
-              ? permissionDrafts[member.userId]
-              : member.effectivePermissions
-                || (role === 'leader' || role === 'owner'
-                  ? SCOPE_PERMISSION_DEFINITIONS.map((definition) => definition.key)
-                  : [])
-            return (
-              <details className="works-member-permission-editor" key={member.userId}>
-                <summary>{member.name}<small>{selectedPermissions.length} 项权限</small></summary>
-                <div>
-                  {SCOPE_PERMISSION_DEFINITIONS.filter((definition) => (
-                    endpoint.includes('/api/works/')
-                      ? definition.key !== 'projectMemberManage'
-                      : definition.key !== 'projectCreate'
-                      && definition.key !== 'workManage'
-                      && definition.key !== 'workMemberManage'
-                      && definition.key !== 'workDelete'
-                  )).map((definition) => (
-                    <label key={definition.key} title={definition.description}>
-                      <input
-                        type="checkbox"
-                        checked={selectedPermissions.includes(definition.key)}
-                        disabled={saving}
-                        onChange={(event) => {
-                          const current = selectedPermissions
-                          setPermissionDrafts((drafts) => ({
-                            ...drafts,
-                            [member.userId]: event.target.checked
-                              ? [...current, definition.key]
-                              : current.filter((permission) => permission !== definition.key),
-                          }))
-                        }}
-                      />
-                      <span>{definition.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </details>
-            )
-          })}
-        </div>
-        <p className="works-permission-note">项目组长可管理项目内全部作品；普通成员默认只能新建并管理自己的作品。权限覆盖只影响当前项目或作品，不会改变账号的工作区身份。</p>
+        <p className="works-permission-note">项目组长可创建项目并随时增删成员；成员可创建和管理项目内作品，只有作品创建者可删除作品。组长身份由管理员在账号管理中统一设置。</p>
         {error ? <div className="works-form-error">{error}</div> : null}
       </div>
     </Modal>

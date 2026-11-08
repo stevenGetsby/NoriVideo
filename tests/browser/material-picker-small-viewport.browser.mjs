@@ -22,6 +22,7 @@ const bundle = await build({
   alias: {
     '@': path.join(root, 'src'),
     'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
+    'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'),
   },
   define: { 'process.env.NODE_ENV': '"development"' },
 })
@@ -63,7 +64,11 @@ try {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({
+      body: JSON.stringify(url.pathname === '/api/projects/project-1'
+        ? { work: { id: 'project-1', name: '小屏验证作品', workId: 'work-1' } }
+        : url.pathname === '/api/projects'
+          ? { works: [{ id: 'project-1', name: '小屏验证作品', workId: 'work-1' }], pagination: { totalPages: 1 } }
+          : {
         materials: Array.from({ length: 24 }, (_, index) => {
           const character = index < 2
           return {
@@ -93,7 +98,7 @@ try {
     })
   })
   await page.goto(base, { waitUntil: 'domcontentloaded' })
-  const dialog = page.getByRole('dialog', { name: '从素材库选择' })
+  const dialog = page.getByRole('dialog', { name: '从资产库选择' })
   await dialog.waitFor({ state: 'visible', timeout: 15_000 })
 
   try {
@@ -166,7 +171,7 @@ try {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ materials: [], projects: [] }) })
   })
   await compact.goto(base, { waitUntil: 'domcontentloaded' })
-  const compactDialog = compact.getByRole('dialog', { name: '从素材库选择' })
+  const compactDialog = compact.getByRole('dialog', { name: '从资产库选择' })
   await compactDialog.waitFor({ state: 'visible', timeout: 15_000 })
   const compactMetrics = await compactDialog.evaluate((element) => {
     const rect = element.getBoundingClientRect()

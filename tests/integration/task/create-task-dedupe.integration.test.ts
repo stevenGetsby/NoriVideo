@@ -105,7 +105,7 @@ describe('task service dedupe + orphan recovery', () => {
     })
   })
 
-  it('fails locale-less active task and replaces it instead of deduping forever', async () => {
+  it('repairs locale-less active task from the new request instead of duplicating work', async () => {
     const user = await createTestUser()
     const project = await createTestProject(user.id)
     const existing = await prisma.task.create({
@@ -137,14 +137,14 @@ describe('task service dedupe + orphan recovery', () => {
       dedupeKey: 'script_to_storyboard_run:episode-1',
     })
 
-    expect(result.deduped).toBe(false)
-    expect(result.task.id).not.toBe(existing.id)
+    expect(result.deduped).toBe(true)
+    expect(result.task.id).toBe(existing.id)
 
-    const failedExisting = await prisma.task.findUnique({ where: { id: existing.id } })
-    expect(failedExisting).toMatchObject({
-      status: TASK_STATUS.FAILED,
-      errorCode: 'TASK_LOCALE_REQUIRED',
-      dedupeKey: null,
+    const repairedExisting = await prisma.task.findUnique({ where: { id: existing.id } })
+    expect(repairedExisting).toMatchObject({
+      status: TASK_STATUS.QUEUED,
+      payload: { meta: { locale: 'zh' } },
+      dedupeKey: 'script_to_storyboard_run:episode-1',
     })
   })
 })

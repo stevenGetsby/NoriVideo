@@ -8,14 +8,16 @@ import { ArrowLeft, Loader2, Play, Plus, RefreshCw, X } from '@/components/ui/ic
 import { Link } from '@/i18n/navigation'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import type { StoryChapterMeta, StoryIssue } from '@/lib/interactive/types'
-import { validateStory } from '@/lib/interactive/validate'
+import { sortIssues, validateSequence, validateStory } from '@/lib/interactive/validate'
 import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
 import { InteractivePlayer } from './InteractivePlayer'
 import { StoryChapterMap } from './StoryChapterMap'
+import { StoryLayerNav } from './StoryLayerNav'
 import type { ChapterMapActions } from './StoryChapterNode'
 import { StoryOverviewSide } from './StoryOverviewSide'
 import { buildStoryProgram, connectChapters, readChapterConnection, withConfig } from './story-overview-model'
 import { useStoryOverview } from './useStoryOverview'
+import { workSequenceGroups } from './work-canvas-model'
 import './interactive.css'
 
 const quiet = (promise: Promise<void>) => { void promise.catch(() => undefined) }
@@ -28,7 +30,12 @@ export function StoryOverview({ workId }: { workId: string }) {
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [trial, setTrial] = useState(false)
   const program = useMemo(() => (data ? buildStoryProgram(data) : null), [data])
-  const issues = useMemo(() => (program ? validateStory(program) : []), [program])
+  const issues = useMemo(() => {
+    if (!program) return []
+    const sequence = data?.story.config.sequence
+    return sequence ? sortIssues([...validateStory(program), ...validateSequence(sequence, program.chapters)]) : validateStory(program)
+  }, [data, program])
+  const stats = useMemo(() => (data ? workSequenceGroups(data).stats : null), [data])
 
   if (!data || !program) {
     return (
@@ -92,6 +99,7 @@ export function StoryOverview({ workId }: { workId: string }) {
             <span>
               <i className={isPortrait ? 'is-portrait' : 'is-landscape'} aria-hidden="true" />
               {isPortrait ? '竖屏' : '横屏'} {story.aspectRatio} · {story.resolution} · {data.chapters.length} 章 · {config.variables.length} 个变量
+              {stats ? ` · ${stats.cut} 个线性片段` : ''}
             </span>
           </div>
           <div className="nori-ix-ov-actions">
@@ -106,6 +114,7 @@ export function StoryOverview({ workId }: { workId: string }) {
             <button type="button" className="fos-btn fos-btn-primary" onClick={() => setTrial(true)}><Play />全剧试玩</button>
           </div>
         </header>
+        <StoryLayerNav workId={workId} active="story" />
         {overview.saveError ? (
           <div className="nori-ix-banner" role="alert">
             {overview.saveError}

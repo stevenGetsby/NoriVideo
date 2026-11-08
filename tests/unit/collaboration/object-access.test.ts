@@ -20,6 +20,7 @@ function session(input: {
   workspaceOwnerId: string
   actorId: string
   role: 'admin' | 'writer' | 'reviewer'
+  projectLeader?: boolean
 }): AuthSession {
   return {
     user: {
@@ -27,6 +28,7 @@ function session(input: {
       workspaceOwnerId: input.workspaceOwnerId,
       actorId: input.actorId,
       role: input.role,
+      projectLeader: input.projectLeader === true,
     },
   }
 }
@@ -42,44 +44,36 @@ describe('work and project object access', () => {
       workspaceOwnerId: 'owner-1',
       actorId: 'owner-1',
       isManagement: true,
+      projectLeader: false,
       accountPermissions: expect.arrayContaining(['workCreate', 'projectCreate']),
       role: 'admin',
     })
     expect(projectReadScopeWhere(auth)).toEqual({ userId: 'owner-1', deletedAt: null })
   })
 
-  it('limits a subaccount to 作品 it created, joined, was assigned, or whose 项目 it leads', () => {
+  it('limits subaccount creative visibility to created or joined business projects', () => {
     const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'writer-1', role: 'writer' })
-    expect(projectReadScopeWhere(auth)).toEqual({
-      userId: 'owner-1',
-      deletedAt: null,
+    const participation = {
       OR: [
         { createdById: 'writer-1' },
         { members: { some: { userId: 'writer-1' } } },
-        { workflowAssignments: { some: { assigneeUserId: 'writer-1' } } },
-        { work: { createdById: 'writer-1' } },
-        { work: { members: { some: {
-          userId: 'writer-1',
-          OR: [
-            { canManage: true },
-            { role: { in: ['manager', 'leader'] } },
-            { permissions: { array_contains: ['projectManage'] } },
-          ],
-        } } } },
       ],
+    }
+    const membership = { work: participation }
+    expect(projectReadScopeWhere(auth)).toEqual({
+      userId: 'owner-1',
+      deletedAt: null,
+      ...membership,
     })
     expect(projectReadWhere(auth, 'project-7')).toMatchObject({
       id: 'project-7',
       userId: 'owner-1',
-      OR: expect.any(Array),
+      ...membership,
     })
     expect(workReadScopeWhere(auth)).toMatchObject({
       workspaceOwnerId: 'owner-1',
-      OR: [
-        { createdById: 'writer-1' },
-        { members: { some: { userId: 'writer-1' } } },
-        { projects: { some: expect.objectContaining({ deletedAt: null, OR: expect.any(Array) }) } },
-      ],
+      deletedAt: null,
+      ...participation,
     })
   })
 
@@ -88,23 +82,27 @@ describe('work and project object access', () => {
     expect(workReadScopeWhere(auth)).toEqual({ workspaceOwnerId: 'owner-1', deletedAt: null })
   })
 
-  it('hides a teammate 作品 from a subaccount but not an unknown or global id', async () => {
+  it('hides a teammate work from a nonmember but not an unknown or global id', async () => {
     const actor = { workspaceOwnerId: 'owner-1', actorId: 'writer-1', isManagement: false, role: 'writer' as const }
     prismaMock.project.findFirst.mockResolvedValueOnce({
-      createdById: 'writer-2',
-      members: [],
-      workflowAssignments: [],
       work: { createdById: 'owner-1', members: [] },
     })
     await expect(isProjectHiddenFromActor(actor, 'project-other')).resolves.toBe(true)
 
     prismaMock.project.findFirst.mockResolvedValueOnce({
-      createdById: 'writer-2',
-      members: [],
-      workflowAssignments: [{ uuid: 'a-1' }],
       work: { createdById: 'owner-1', members: [] },
     })
-    await expect(isProjectHiddenFromActor(actor, 'project-assigned')).resolves.toBe(false)
+    await expect(isProjectHiddenFromActor(actor, 'project-assigned')).resolves.toBe(true)
+
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      work: { createdById: 'owner-1', members: [{ id: 'membership-1' }] },
+    })
+    await expect(isProjectHiddenFromActor(actor, 'project-shared')).resolves.toBe(false)
+
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      work: { createdById: 'writer-1', members: [] },
+    })
+    await expect(isProjectHiddenFromActor(actor, 'project-created')).resolves.toBe(false)
 
     prismaMock.project.findFirst.mockResolvedValueOnce(null)
     await expect(isProjectHiddenFromActor(actor, 'global-asset-hub')).resolves.toBe(false)
@@ -114,24 +112,22 @@ describe('work and project object access', () => {
     expect(prismaMock.project.findFirst).not.toHaveBeenCalled()
   })
 
-  it('lets a 项目 manager see every 作品 in that 项目', () => {
+  it('shares every work with creators and current project members without legacy bypasses', () => {
     const actor = { workspaceOwnerId: 'owner-1', actorId: 'lead-1', isManagement: false, role: 'writer' as const }
-    expect(canActorSeeProject(actor, {
-      createdById: 'writer-2', isMember: false, isAssignee: false, workCreatedById: 'owner-1', isWorkManager: true,
-    })).toBe(true)
-    expect(canActorSeeProject(actor, {
-      createdById: 'writer-2', isMember: false, isAssignee: false, workCreatedById: 'owner-1', isWorkManager: false,
-    })).toBe(false)
+    expect(canActorSeeProject(actor, { isWorkMember: true })).toBe(true)
+    expect(canActorSeeProject(actor, { isWorkMember: false })).toBe(false)
+    expect(canActorSeeProject(actor, { isWorkMember: false, isWorkCreator: true })).toBe(true)
+    expect(canActorSeeProject({ ...actor, isManagement: true }, { isWorkMember: false })).toBe(true)
   })
 
-  it('grants participant read access without granting assignment management or review', async () => {
+  it('grants participant creative access without granting membership administration', async () => {
     const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'writer-1', role: 'writer' })
     prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-7',
       createdById: 'owner-1',
       work: {
         createdById: 'owner-1',
-        members: [],
+        members: [{ role: 'member', canManage: false }],
       },
       members: [],
     })
@@ -143,37 +139,67 @@ describe('work and project object access', () => {
         id: 'project-7',
         userId: 'owner-1',
         deletedAt: null,
-        OR: expect.any(Array),
+        work: {
+          OR: [
+            { createdById: 'writer-1' },
+            { members: { some: { userId: 'writer-1' } } },
+          ],
+        },
       }),
     }))
     expect(access).toMatchObject({
       canRead: true,
-      canManageProject: false,
+      canManageProject: true,
+      canManageMembers: false,
       canManageAssignments: false,
       canReviewAssignments: false,
+      canDelete: false,
     })
   })
 
-  it('lets a reviewer project member review even when the stored flag is still false', async () => {
+  it('does not grant review or management from a reviewer account or legacy work membership', async () => {
     const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'reviewer-1', role: 'reviewer' })
     prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-7',
       createdById: 'owner-1',
       work: {
         createdById: 'owner-1',
-        members: [],
+        members: [{ role: 'leader', canManage: true }],
       },
-      members: [{
-        canManageAssignments: false,
-        canReviewAssignments: false,
-      }],
+      members: [{ role: 'member', canManageAssignments: false, canReviewAssignments: false }],
     })
 
     await expect(getProjectCollaborationAccess(auth, 'project-7')).resolves.toMatchObject({
       canRead: true,
-      canManageProject: false,
+      canManageProject: true,
+      canManageMembers: false,
       canManageAssignments: false,
-      canReviewAssignments: true,
+      canReviewAssignments: false,
+      canDelete: false,
+    })
+  })
+
+  it('revokes member administration immediately when projectLeader is removed', async () => {
+    const auth = session({ workspaceOwnerId: 'owner-1', actorId: 'lead-1', role: 'writer', projectLeader: true })
+    const row = {
+      id: 'project-7',
+      createdById: 'writer-2',
+      work: { createdById: 'owner-1', members: [{ role: 'member', canManage: false }] },
+      members: [],
+    }
+    prismaMock.project.findFirst.mockResolvedValueOnce(row)
+    await expect(getProjectCollaborationAccess(auth, 'project-7')).resolves.toMatchObject({
+      canManageMembers: true,
+      canManageAssignments: true,
+      canDelete: false,
+    })
+
+    const revoked = session({ workspaceOwnerId: 'owner-1', actorId: 'lead-1', role: 'writer', projectLeader: false })
+    prismaMock.project.findFirst.mockResolvedValueOnce({ ...row, work: { ...row.work, members: [{ role: 'leader', canManage: true }] } })
+    await expect(getProjectCollaborationAccess(revoked, 'project-7')).resolves.toMatchObject({
+      canManageMembers: false,
+      canManageAssignments: false,
+      canDelete: false,
     })
   })
 })

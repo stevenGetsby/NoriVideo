@@ -12,7 +12,7 @@ describe('FrameOS works pixel-parity contract', () => {
     const panels = readSource('src/components/frameos/works/FosWorkPanels.tsx')
     const styles = readSource('src/styles/frameos-replica.css')
 
-    expect(client).toContain('<h1 className="works-view-title">我的项目</h1>')
+    expect(client).toContain('<h1 className="works-view-title">{selectedWork?.name || \'我的项目\'}</h1>')
     expect(styles).toContain('line-height: 26px;')
     expect(styles).toContain('grid-template-columns: repeat(auto-fill,minmax(220px,231px))')
     expect(styles).toMatch(/\.works-project-card\s*\{[^}]*height:\s*342px;/)

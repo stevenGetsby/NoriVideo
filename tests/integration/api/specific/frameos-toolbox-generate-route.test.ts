@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TASK_TYPE } from '@/lib/task/types'
 import { buildMockRequest } from '../../../helpers/request'
@@ -5,6 +6,8 @@ import { buildMockRequest } from '../../../helpers/request'
 const state = vi.hoisted(() => ({ nextAsset: 1 }))
 const submitTaskMock = vi.hoisted(() => vi.fn())
 const generateAudioMock = vi.hoisted(() => vi.fn())
+const getObjectBufferMock = vi.hoisted(() => vi.fn<(key: string) => Promise<Buffer>>(async () => Buffer.from('audio')))
+const probeMediaDurationMock = vi.hoisted(() => vi.fn<() => Promise<number | null>>(async () => 6.25))
 const uploadObjectMock = vi.hoisted(() => vi.fn())
 const registerMaterialMock = vi.hoisted(() => vi.fn())
 const capabilityMock = vi.hoisted(() => vi.fn(async () => ({ resolution: '1080p' })))
@@ -16,9 +19,12 @@ const audioAvailabilityMock = vi.hoisted(() => vi.fn(async () => ({
 })))
 const prepareCanvasOutputsMock = vi.hoisted(() => vi.fn())
 const prismaMock = vi.hoisted(() => ({
+  project: { findMany: vi.fn() },
+  user: { findMany: vi.fn() },
   frameosMaterial: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    updateMany: vi.fn<(input: { where: { id: string; deletedAt: null }; data: { metadata: { durationSeconds: number } } }) => Promise<{ count: number }>>(async () => ({ count: 1 })),
   },
   frameosToolboxAsset: {
     create: vi.fn(),
@@ -59,7 +65,13 @@ vi.mock('@/lib/storage', () => ({
   generateUniqueKey: vi.fn(() => 'toolbox-audio/generated.wav'),
   toFetchableUrl: vi.fn((value: string) => value),
   uploadObject: uploadObjectMock,
+  extractStorageKey: vi.fn((value: string | null) => value),
+  getObjectBuffer: getObjectBufferMock,
 }))
+vi.mock('@/lib/media/duration-probe', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/media/duration-probe')>()
+  return { probeMediaDurationSeconds: vi.fn(actual.probeMediaDurationSeconds) }
+})
 vi.mock('@/lib/frameos/material-service', () => ({ registerFrameosMaterial: registerMaterialMock }))
 vi.mock('@/lib/canvas/toolbox-output-nodes', () => ({
   prepareCanvasToolboxImageOutputs: prepareCanvasOutputsMock,
@@ -89,8 +101,7 @@ describe('FrameOS toolbox generation route', () => {
     ]).mockResolvedValueOnce([
       { id: 'voice-1', title: '关羽音色', type: 'audio', storageKey: 'voice/guanyu.wav', metadata: { durationSeconds: 6 } },
     ])
-    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
-      projectId: 'project-1', type: 'video', title: '试镜', prompt: '关羽说话', modelKey: 'nori::norivideo2.5',
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '试镜', prompt: '关羽说话', modelKey: 'nori::norivideo2.5',
       inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
     } }), routeContext)
     expect(response.status).toBe(200)
@@ -101,8 +112,7 @@ describe('FrameOS toolbox generation route', () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
       { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
     ])
-    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
-      projectId: 'project-1', type: 'video', title: '静默', prompt: '关羽静坐', modelKey: 'nori::norivideo2.5',
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '静默', prompt: '关羽静坐', modelKey: 'nori::norivideo2.5',
       inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: false },
     } }), routeContext)
     expect(response.status).toBe(200)
@@ -114,16 +124,54 @@ describe('FrameOS toolbox generation route', () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
       { id: 'material-1', type: 'image', storageKey: 'images/role.png', metadata: { voiceMaterialId: 'deleted-voice' } },
     ]).mockResolvedValueOnce([])
-    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: {
-      projectId: 'project-1', type: 'video', title: '试镜', prompt: '说话', modelKey: 'nori::norivideo2.5', inputMode: 'text', referenceMaterialIds: ['material-1'],
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '试镜', prompt: '说话', modelKey: 'nori::norivideo2.5', inputMode: 'text', referenceMaterialIds: ['material-1'],
     } }), routeContext)
     expect(response.status).toBe(400)
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
+  it('probes and persists missing durations for legacy audio before validation', async () => {
+    const input = execFileSync('ffmpeg', [
+      '-hide_banner', '-loglevel', 'error',
+      '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=44100',
+      '-t', '4.7', '-c:a', 'libmp3lame', '-write_xing', '0',
+      '-f', 'mp3', 'pipe:1',
+    ], { maxBuffer: 2 * 1024 * 1024 })
+    getObjectBufferMock.mockResolvedValueOnce(input)
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'image-1', title: '角色', type: 'image', storageKey: 'images/role.png', resultUrl: null, metadata: {} },
+      { id: 'audio-1', title: '历史音频', type: 'audio', storageKey: 'voice/legacy.mp3', resultUrl: null, metadata: {} },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '参考旧音频', prompt: '角色唱歌', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['image-1', 'audio-1'], options: { duration: 5 },
+    } }), routeContext)
+    expect(response.status).toBe(200)
+    expect(getObjectBufferMock).toHaveBeenCalledWith('voice/legacy.mp3')
+    const persistedMetadata = prismaMock.frameosMaterial.updateMany.mock.calls[0]?.[0]?.data?.metadata as { durationSeconds?: number }
+    expect(persistedMetadata.durationSeconds).toBeCloseTo(4.7, 1)
+    const submitted = submitTaskMock.mock.calls[0]?.[0]
+    expect(submitted.payload.referenceAudios).toEqual(['voice/legacy.mp3'])
+    const audioSummary = submitted.payload.referenceSummary.find((item: { id: string }) => item.id === 'audio-1')
+    expect(audioSummary.durationSeconds).toBeCloseTo(4.7, 1)
+  })
+
+  it('still rejects audio whose duration cannot be probed before creating a paid task', async () => {
+    probeMediaDurationMock.mockResolvedValueOnce(null)
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'audio-1', title: '坏音频', type: 'audio', storageKey: 'voice/invalid.wav', resultUrl: null, metadata: {} },
+      { id: 'image-1', title: '角色', type: 'image', storageKey: 'images/role.png', resultUrl: null, metadata: {} },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '坏音频', prompt: '角色唱歌', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['audio-1', 'image-1'], options: { duration: 5 },
+    } }), routeContext)
+    expect(response.status).toBe(400)
+    expect(submitTaskMock).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+  })
+
   it('rejects media attached to explicit pure text video without charging or queuing', async () => {
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate', method: 'POST',
-      body: { projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, referenceMaterialIds: ['material-1'] },
+      body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, referenceMaterialIds: ['material-1'] },
     }), routeContext)
     expect(response.status).toBe(400)
     expect(submitTaskMock).not.toHaveBeenCalled()
@@ -133,7 +181,7 @@ describe('FrameOS toolbox generation route', () => {
   it('submits explicit pure text video with no media arrays', async () => {
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate', method: 'POST',
-      body: { projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, options: { duration: 5, resolution: '720p' } },
+      body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '纯文生', prompt: '雨夜街头', modelKey: 'nori::norivideo2.5', inputMode: 'text', textOnly: true, options: { duration: 5, resolution: '720p' } },
     }), routeContext)
     expect(response.status).toBe(200)
     expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: [], referenceVideos: [], referenceAudios: [] }) }))
@@ -141,6 +189,8 @@ describe('FrameOS toolbox generation route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     state.nextAsset = 1
+    prismaMock.project.findMany.mockResolvedValue([{ id: 'project-1', name: '当前作品', workId: 'work-1' }])
+    prismaMock.user.findMany.mockResolvedValue([{ id: 'user-1' }, { id: 'owner-1' }])
     prismaMock.frameosMaterial.findMany.mockResolvedValue([
       { id: 'material-1', title: '苏晚卿', type: 'image', storageKey: 'images/su.png', resultUrl: null },
       { id: 'material-2', title: '柴房', type: 'image', storageKey: 'images/shed.png', resultUrl: null },
@@ -170,12 +220,66 @@ describe('FrameOS toolbox generation route', () => {
     })
   })
 
+  it('rejects toolbox generation without a project scope before creating any records', async () => {
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { projectId: 'project-1', type: 'image', title: '缺项目归属', prompt: '雨夜', modelKey: 'image-provider::model-1' },
+    }), routeContext)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: expect.stringContaining('项目') })
+    expect(prismaMock.project.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.upsert).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    { label: 'cross-project work', rows: [{ id: 'project-other', name: '其他作品', workId: 'work-1' }] },
+    { label: 'inaccessible work', rows: [] },
+  ])('rejects $label without creating an asset or task', async ({ rows }) => {
+    prismaMock.project.findMany.mockResolvedValue(rows)
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { workId: 'work-1', projectId: 'project-1', type: 'image', title: '归属冲突', prompt: '雨夜', modelKey: 'image-provider::model-1' },
+    }), routeContext)
+    expect(response.status).toBe(404)
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.upsert).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects excess legacy references instead of silently truncating the paid input', async () => {
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { workId: 'work-1', projectId: 'project-1', type: 'image', title: '超额引用', prompt: '雨夜', modelKey: 'openai-compatible:oa-1::gpt-image-1', referenceMaterialIds: ['material-1', 'material-2'] },
+    }), routeContext)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: expect.stringContaining('超过') })
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects explicit references hidden beyond the model input limit', async () => {
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { workId: 'work-1', projectId: 'project-1', type: 'image', title: '显式超额引用', prompt: '雨夜', modelKey: 'openai-compatible:oa-1::gpt-image-1',
+        referenceMaterialIds: ['material-1', 'material-2'], referenceMaterials: [{ materialId: 'material-1', role: 'REF' }, { materialId: 'material-2', role: 'REF' }] },
+    }), routeContext)
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({ message: expect.stringContaining('超过') })
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
   it('submits each requested image as a toolbox image task with ordered references', async () => {
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '角色概念图',
         prompt: '@苏晚卿 站在 @柴房 门前',
@@ -210,6 +314,7 @@ describe('FrameOS toolbox generation route', () => {
     }))
     expect(prismaMock.frameosToolboxAsset.upsert).toHaveBeenCalledWith(expect.objectContaining({
       create: expect.objectContaining({
+        modelId: 'provider::model',
         params: expect.objectContaining({ assetCategory: 'character' }),
       }),
     }))
@@ -220,7 +325,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/projects/project-1/canvas/canvas-1/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         canvasId: 'canvas-1',
         nodeId: 'node-panorama',
         type: 'image',
@@ -272,7 +377,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '角色概念图',
         prompt: '同一条不可重复计费的请求',
@@ -297,7 +402,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '两张概念图',
         prompt: '同一场景的两个版本',
@@ -322,7 +427,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '可信标题',
         prompt: '可信提示词',
@@ -380,7 +485,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/projects/project-1/canvas/canvas-1/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         canvasId: 'canvas-1',
         nodeId: 'node-source',
         type: 'image',
@@ -451,7 +556,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/projects/project-1/canvas/canvas-1/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         canvasId: 'canvas-1',
         nodeId: 'node-source',
         type: 'image',
@@ -511,7 +616,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '工具箱概念图',
         prompt: '生成三个版本',
@@ -552,7 +657,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '被修改的请求',
         prompt: '这次提示词已经变化',
@@ -582,7 +687,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/projects/project-1/canvas/canvas-1/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         canvasId: 'canvas-1',
         nodeId: 'node-source',
         type: 'image',
@@ -600,7 +705,7 @@ describe('FrameOS toolbox generation route', () => {
     expect(response.status).toBe(200)
     expect(prismaMock.frameosToolboxAsset.updateMany).toHaveBeenCalledWith({
       where: { id: 'failed-stable-asset', status: 'failed' },
-      data: { status: 'pending', errorMessage: null },
+      data: { status: 'pending', errorMessage: null, modelId: 'provider::model' },
     })
     expect(submitTaskMock).toHaveBeenCalledTimes(1)
     expect(prismaMock.canvasNode.updateMany).toHaveBeenCalledWith(expect.objectContaining({
@@ -624,7 +729,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '局部重绘结果',
         prompt: '只替换蒙版覆盖的窗户区域',
@@ -646,7 +751,7 @@ describe('FrameOS toolbox generation route', () => {
     expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         id: { in: ['material-source'] },
-        userId: 'user-1',
+        userId: { in: ['user-1', 'owner-1'] },
         type: 'image',
         status: 'ready',
       }),
@@ -654,7 +759,7 @@ describe('FrameOS toolbox generation route', () => {
     expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith(expect.objectContaining({
       where: expect.objectContaining({
         id: 'material-mask',
-        userId: 'user-1',
+        userId: { in: ['user-1', 'owner-1'] },
         type: 'image',
         status: 'ready',
       }),
@@ -683,7 +788,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '错误混入蒙版的任务',
         prompt: '替换窗户区域',
@@ -699,6 +804,7 @@ describe('FrameOS toolbox generation route', () => {
     expect(response.status).toBe(400)
     expect(body.message).toMatch(/不能混入|单独提交/i)
     expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosMaterial.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
@@ -708,7 +814,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '缺少蒙版的局部重绘',
         prompt: '替换窗户区域',
@@ -731,19 +837,11 @@ describe('FrameOS toolbox generation route', () => {
     { label: 'no source image', referenceMaterialIds: [] },
     { label: 'multiple source images', referenceMaterialIds: ['material-1', 'material-2'] },
   ])('rejects image_edit with $label before creating an asset', async ({ referenceMaterialIds }) => {
-    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce({
-      id: 'material-mask',
-      title: '局部重绘蒙版',
-      type: 'image',
-      storageKey: 'images/source-mask.png',
-      resultUrl: null,
-    })
-
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '源图数量错误',
         prompt: '替换窗户区域',
@@ -758,6 +856,8 @@ describe('FrameOS toolbox generation route', () => {
 
     expect(response.status).toBe(400)
     expect(body.message).toMatch(/1/)
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+    expect(prismaMock.frameosMaterial.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
     expect(prismaMock.frameosToolboxAsset.upsert).not.toHaveBeenCalled()
     expect(submitTaskMock).not.toHaveBeenCalled()
@@ -768,7 +868,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '不支持模型的局部重绘',
         prompt: '替换窗户区域',
@@ -802,7 +902,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '连续故事版 · 1',
         prompt: '雨夜车站的连续镜头',
@@ -832,11 +932,15 @@ describe('FrameOS toolbox generation route', () => {
   })
 
   it('submits first/last-frame video parameters through the video queue', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValue([
+      { id: 'material-1', title: '苏晚卿', type: 'image', storageKey: 'images/su.png', resultUrl: null },
+      { id: 'material-2', title: '柴房', type: 'image', storageKey: 'images/shed.png', resultUrl: null },
+    ])
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '雨夜镜头',
         prompt: '@苏晚卿 跑入 @柴房',
@@ -850,6 +954,7 @@ describe('FrameOS toolbox generation route', () => {
         options: { aspectRatio: '9:16', resolution: '1080p', duration: 5, generateAudio: true },
       },
     }), routeContext)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledOnce()
 
     expect(response.status).toBe(200)
     expect(capabilityMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -883,7 +988,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '旧式首尾帧请求',
         prompt: 'push in',
@@ -906,7 +1011,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/projects/project-1/canvas/canvas-1/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         canvasId: 'canvas-1',
         nodeId: 'node-model3d-1',
         type: 'model3d',
@@ -954,7 +1059,7 @@ describe('FrameOS toolbox generation route', () => {
   })
 
   it('submits ordered image, video, and audio references for all-reference video generation', async () => {
-    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+    prismaMock.frameosMaterial.findMany.mockResolvedValue([
       { id: 'material-image', title: '苏晚卿', type: 'image', storageKey: 'images/su.png', resultUrl: null },
       { id: 'material-video', title: '奔跑动作', type: 'video', storageKey: 'video/run.mp4', resultUrl: null, metadata: { durationSeconds: 6.5 } },
       { id: 'material-audio', title: '雨声', type: 'audio', storageKey: 'voice/rain.wav', resultUrl: null, metadata: { durationSeconds: 6 } },
@@ -964,7 +1069,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '全能参考镜头',
         prompt: '@苏晚卿 按照 @奔跑动作 在 @雨声 中冲出门外',
@@ -979,7 +1084,7 @@ describe('FrameOS toolbox generation route', () => {
     expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith({
       where: {
         id: { in: ['material-video', 'material-audio', 'material-image'] },
-        userId: 'user-1',
+        userId: { in: ['user-1', 'owner-1'] },
         type: { in: ['image', 'video', 'audio'] },
         status: 'ready',
         deletedAt: null,
@@ -1011,7 +1116,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '只有音频的错误请求',
         prompt: '角色在雨中转身',
@@ -1039,7 +1144,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '音频驱动镜头',
         prompt: '根据角色语气生成表演镜头',
@@ -1068,7 +1173,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '无声普通镜头',
         prompt: 'locked camera, empty street',
@@ -1099,7 +1204,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'video',
         title: '不完整镜头',
         prompt: 'push in',
@@ -1125,7 +1230,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '失败样例',
         prompt: 'cinematic portrait',
@@ -1156,7 +1261,7 @@ describe('FrameOS toolbox generation route', () => {
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'image',
         title: '已完成图片',
         prompt: '不要回退完成状态',
@@ -1176,13 +1281,151 @@ describe('FrameOS toolbox generation route', () => {
     expect(prismaMock.frameosToolboxAsset.update).not.toHaveBeenCalled()
   })
 
+  it('persists the actual audio runtime model only when a failed request really retries', async () => {
+    prismaMock.frameosToolboxAsset.upsert.mockResolvedValueOnce({
+      id: 'failed-audio-asset',
+      status: 'failed',
+      modelId: 'nori::nori-audio',
+    })
+
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: {
+        workId: 'work-1', projectId: 'project-1',
+        type: 'audio',
+        title: '重试旁白',
+        prompt: '雨夜里，她推开了柴房的门。',
+        modelKey: 'nori::nori-audio',
+        referenceMaterialIds: [],
+        idempotencyKey: 'retry-failed-audio-request',
+        options: { mode: 'tts', voice: 'Cherry', duration: 8 },
+      },
+    }), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosToolboxAsset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'failed-audio-asset', status: 'failed' },
+      data: { status: 'pending', errorMessage: null, modelId: 'bailian::qwen3-tts-vd-2026-01-26' },
+    })
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      type: TASK_TYPE.TOOLBOX_AUDIO,
+      targetId: 'failed-audio-asset',
+      payload: expect.objectContaining({ audioModel: 'nori::nori-audio' }),
+    }))
+  })
+
+  it('creates a separate toolbox record for an edited regeneration instead of mutating the source', async () => {
+    const baseBody = {
+      workId: 'work-1',
+      projectId: 'project-1',
+      type: 'image',
+      modelKey: 'image-provider::model-1',
+      referenceMaterialIds: [],
+      inputMode: 'text',
+      options: { aspectRatio: '9:16' },
+    }
+
+    const first = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: { ...baseBody, title: '雨夜街道', prompt: 'first prompt', idempotencyKey: 'regenerate-source-key' },
+    }), routeContext)
+    const second = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: { ...baseBody, title: '雨夜街道（改）', prompt: 'edited prompt', idempotencyKey: 'regenerate-new-key' },
+    }), routeContext)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(prismaMock.frameosToolboxAsset.upsert).toHaveBeenCalledTimes(2)
+    const [sourceCall, regeneratedCall] = prismaMock.frameosToolboxAsset.upsert.mock.calls
+      .map((call) => call[0]) as Array<{
+        where: { id: string }
+        create: { id: string; params: Record<string, unknown> }
+      }>
+    expect(sourceCall!.where.id).not.toBe(regeneratedCall!.where.id)
+    expect(sourceCall!.create.params).toMatchObject({ title: '雨夜街道', prompt: 'first prompt' })
+    expect(regeneratedCall!.create.params).toMatchObject({ title: '雨夜街道（改）', prompt: 'edited prompt' })
+    // The first record's payload is never rewritten by the second submission.
+    expect(sourceCall!.create.params.title).toBe('雨夜街道')
+    expect(sourceCall!.create.params.prompt).toBe('first prompt')
+    expect(submitTaskMock).toHaveBeenCalledTimes(2)
+
+    const source = await first.json() as { tasks: Array<{ assetId: string }> }
+    const regenerated = await second.json() as { tasks: Array<{ assetId: string }> }
+    expect(source.tasks[0]?.assetId).not.toBe(regenerated.tasks[0]?.assetId)
+  })
+
+  it('keeps the same asset identity and dedupe key for repeated clicks with one idempotency key', async () => {
+    const body = {
+      workId: 'work-1',
+      projectId: 'project-1',
+      type: 'image',
+      title: '重复点击',
+      prompt: '同一个请求只应占用一个记录',
+      modelKey: 'image-provider::model-1',
+      referenceMaterialIds: [],
+      inputMode: 'text',
+      idempotencyKey: 'double-click-key',
+      options: { aspectRatio: '1:1' },
+    }
+
+    const first = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body }), routeContext)
+    const second = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body }), routeContext)
+
+    expect(first.status).toBe(200)
+    expect(second.status).toBe(200)
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.upsert).toHaveBeenCalledTimes(2)
+    const ids = prismaMock.frameosToolboxAsset.upsert.mock.calls.map((call) => call[0].where.id)
+    expect(ids[0]).toBe(ids[1])
+    const submissions = submitTaskMock.mock.calls.map((call) => call[0])
+    expect(submissions[0].targetId).toBe(submissions[1].targetId)
+    expect(submissions[0].dedupeKey).toBe(submissions[1].dedupeKey)
+  })
+
+  it('marks only the new regeneration record failed when its submission fails', async () => {
+    prismaMock.frameosToolboxAsset.upsert.mockResolvedValueOnce({
+      id: 'regenerated-asset-1',
+      status: 'pending',
+      params: { title: '原素材' },
+    })
+    submitTaskMock.mockRejectedValueOnce(new Error('regeneration queue unavailable'))
+
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: {
+        workId: 'work-1', projectId: 'project-1',
+        type: 'image',
+        title: '原素材（改）',
+        prompt: '新的提示词',
+        modelKey: 'image-provider::model-1',
+        referenceMaterialIds: [],
+        inputMode: 'text',
+        idempotencyKey: 'failed-regeneration-key',
+        options: { aspectRatio: '9:16' },
+      },
+    }), routeContext)
+
+    expect(response.status).toBeGreaterThanOrEqual(400)
+    expect(prismaMock.frameosToolboxAsset.updateMany).toHaveBeenCalledWith({
+      where: { id: 'regenerated-asset-1', status: { not: 'ready' } },
+      data: { status: 'failed', errorMessage: 'regeneration queue unavailable' },
+    })
+    expect(prismaMock.frameosToolboxAsset.update).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.updateMany).toHaveBeenCalledTimes(1)
+  })
+
   it('submits a persistent toolbox narration audio task', async () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([])
     const response = await POST(buildMockRequest({
       path: '/api/frameos/toolbox/generate',
       method: 'POST',
       body: {
-        projectId: 'project-1',
+        workId: 'work-1', projectId: 'project-1',
         type: 'audio',
         title: '旁白',
         prompt: '雨夜里，她推开了柴房的门。',
@@ -1210,6 +1453,9 @@ describe('FrameOS toolbox generation route', () => {
       maxAttempts: 5,
     }))
     expect(generateAudioMock).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ modelId: 'bailian::qwen3-tts-vd-2026-01-26' }),
+    })
     expect(uploadObjectMock).not.toHaveBeenCalled()
     expect(registerMaterialMock).not.toHaveBeenCalled()
   })

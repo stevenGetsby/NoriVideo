@@ -37,7 +37,7 @@ export function AssetPlaceholder({ kind }: { kind: AssetTab }) {
   if (kind === 'items') {
     return (
       <div className="flex h-full w-full items-center justify-center bg-[#f4f4f4]">
-        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-gradient-to-r from-[#cfcfcf] via-[#f6f6f6] to-[#a9a9a9] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
+        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-[#e7e7e7] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
       </div>
     )
   }
@@ -49,7 +49,7 @@ export function AssetPlaceholder({ kind }: { kind: AssetTab }) {
           <div className="absolute bottom-0 inset-x-0 h-12 bg-[#443424]" />
           <div className="absolute right-10 top-12 h-24 w-20 rounded-full bg-[#d58f3a]/30 blur-2xl" />
         </div>
-        <div className="bg-[linear-gradient(135deg,#342515,#0f0d0b_70%)] p-5"><div className="h-full rounded-sm border border-[#6a4d2d]/40 bg-[#211812]/70" /></div>
+        <div className="bg-[#211812] p-5"><div className="h-full rounded-sm border border-[#6a4d2d]/40 bg-[#211812]/70" /></div>
       </div>
     )
   }

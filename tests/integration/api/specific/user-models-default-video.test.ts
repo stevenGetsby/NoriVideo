@@ -1,117 +1,67 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildMockRequest } from '../../../helpers/request'
 
-const authMock = vi.hoisted(() => ({
-  requireUserAuth: vi.fn(async () => ({
-    session: { user: { id: 'user-1' } },
-  })),
+vi.mock('@/lib/api-auth', () => ({
+  requireUserAuth: vi.fn(async () => ({ session: { user: { id: 'user-1' } } })),
   isErrorResponse: vi.fn((value: unknown) => value instanceof Response),
 }))
-
-const prismaMock = vi.hoisted(() => ({
-  userPreference: {
-    findUnique: vi.fn(),
-  },
-}))
-
-vi.mock('@/lib/api-auth', () => authMock)
-vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
-vi.mock('@/lib/model-capabilities/catalog', () => ({
-  findBuiltinCapabilities: vi.fn(() => undefined),
-}))
-vi.mock('@/lib/model-pricing/catalog', () => ({
-  findBuiltinPricingCatalogEntry: vi.fn(() => undefined),
-}))
+const configMock = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/platform-services/config', () => ({ getPlatformServiceConfigResponse: configMock }))
 
 describe('api specific - user models default video', () => {
   const routeContext = { params: Promise.resolve({}) }
 
   beforeEach(() => {
+    vi.resetModules()
     vi.clearAllMocks()
+    configMock.mockReturnValue({
+      providers: [
+        { id: 'kuaizi', name: 'Kuaizi', hasApiKey: true },
+        { id: 'openlux', name: 'OpenLux', hasApiKey: false },
+      ],
+      models: [
+        {
+          provider: 'kuaizi',
+          modelId: 'doubao-seedance-2-5-260628',
+          modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+          name: 'Packaged video alias',
+          type: 'video',
+        },
+        {
+          provider: 'openlux',
+          modelId: 'gpt-image-2.5-sunburst',
+          modelKey: 'openlux::gpt-image-2.5-sunburst',
+          name: 'Packaged image alias',
+          type: 'image',
+        },
+      ],
+    })
   })
 
-  it('exposes stable Mini, Fast and Pro Nori video tiers', async () => {
-    prismaMock.userPreference.findUnique.mockResolvedValue({
-      customModels: JSON.stringify([]),
-      customProviders: JSON.stringify([
-        {
-          id: 'ark',
-          name: 'Volcengine Ark',
-          apiKey: 'k-ark',
-        },
-      ]),
-      videoModel: 'ark::doubao-seedance-1-0-pro-fast-251015',
-    })
-
+  it('exposes the configured video model by its real id without provider or tiers', async () => {
     const mod = await import('@/app/api/user/models/route')
-    const req = buildMockRequest({
-      path: '/api/user/models',
-      method: 'GET',
-    })
-
-    const res = await mod.GET(req, routeContext)
-    const body = await res.json() as { video: Array<{ value: string; providerName?: string; tier?: string }> }
+    const res = await mod.GET(buildMockRequest({ path: '/api/user/models', method: 'GET' }), routeContext)
+    const body = await res.json() as { video: Array<Record<string, unknown>> }
 
     expect(res.status).toBe(200)
-    expect(body.video).toEqual([
-      {
-        value: 'nori::seedance2.0-mini',
-        label: 'seedance2.0-mini',
-        provider: 'nori',
-        providerName: 'LanMiaoTV',
-        tier: 'mini',
-      },
-      {
-        value: 'nori::seedance2.0-fast',
-        label: 'seedance2.0-fast',
-        provider: 'nori',
-        providerName: 'LanMiaoTV',
-        tier: 'fast',
-      },
-      {
-        value: 'nori::seedance2.0',
-        label: 'seedance2.0-pro',
-        provider: 'nori',
-        providerName: 'LanMiaoTV',
-        tier: 'pro',
-      },
-      {
-        value: 'nori::norivideo2.5',
-        label: 'LanMiaoTV 2.5',
-        provider: 'nori',
-        providerName: 'LanMiaoTV',
-        tier: 'pro',
-      },
-    ])
+    expect(body.video).toHaveLength(1)
+    expect(body.video[0]).toMatchObject({
+      value: 'kuaizi::doubao-seedance-2-5-260628',
+      label: 'doubao-seedance-2-5-260628',
+    })
+    expect(body.video[0]).not.toHaveProperty('providerName')
+    expect(body.video[0]).not.toHaveProperty('tier')
+    expect(JSON.stringify(body.video)).not.toMatch(/LanMiaoTV|norivideo|Packaged| · (?:Mini|Fast|标准|Pro)/i)
   })
 
-  it('does not disclose provider credential state through the business catalog', async () => {
-    prismaMock.userPreference.findUnique.mockResolvedValue({
-      customModels: JSON.stringify([]),
-      customProviders: JSON.stringify([
-        {
-          id: 'ark',
-          name: 'Volcengine Ark',
-        },
-      ]),
-      videoModel: 'ark::doubao-seedance-1-0-pro-fast-251015',
-    })
-
+  it('hides unconfigured media providers without exposing their credentials', async () => {
     const mod = await import('@/app/api/user/models/route')
-    const req = buildMockRequest({
-      path: '/api/user/models',
-      method: 'GET',
-    })
-
-    const res = await mod.GET(req, routeContext)
-    const body = await res.json() as { video: Array<{ value: string }> }
+    const res = await mod.GET(buildMockRequest({ path: '/api/user/models', method: 'GET' }), routeContext)
+    const body = await res.json() as { image: unknown[]; video: Array<Record<string, unknown>> }
 
     expect(res.status).toBe(200)
-    expect(body.video.map((item) => item.value)).toEqual([
-      'nori::seedance2.0-mini',
-      'nori::seedance2.0-fast',
-      'nori::seedance2.0',
-      'nori::norivideo2.5',
-    ])
+    expect(body.image).toEqual([])
+    expect(body.video).toHaveLength(1)
+    expect(JSON.stringify(body)).not.toContain('apiKey')
   })
 })

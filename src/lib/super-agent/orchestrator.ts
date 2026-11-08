@@ -71,6 +71,7 @@ import type {
   SkillId,
 } from './types'
 import type { Locale } from '@/i18n/routing'
+import type { Prisma } from '@prisma/client'
 
 const VIDEO_RATIOS = new Set(['9:16', '16:9', '1:1'])
 const AGENT_ASSET_BRIEF_START = '【Agent 资产一致性简报】'
@@ -340,6 +341,49 @@ export function parseLlmAnalysisResult(response: string, userInput: string): LLM
     creativeParameters,
   }
 }
+
+const RECORDING_REPLAY_SOURCE_INCLUDE = {
+  novelPromotionData: {
+    include: {
+      characters: {
+        include: {
+          appearances: {
+            orderBy: { appearanceIndex: 'asc' as const },
+          },
+        },
+        orderBy: { createdAt: 'asc' as const },
+      },
+      locations: {
+        include: {
+          images: {
+            orderBy: { imageIndex: 'asc' as const },
+          },
+        },
+        orderBy: { createdAt: 'asc' as const },
+      },
+      episodes: {
+        include: {
+          clips: {
+            orderBy: { createdAt: 'asc' as const },
+          },
+          storyboards: {
+            include: {
+              panels: {
+                orderBy: { panelIndex: 'asc' as const },
+              },
+            },
+            orderBy: { createdAt: 'asc' as const },
+          },
+        },
+        orderBy: { episodeNumber: 'asc' as const },
+      },
+    },
+  },
+} as const
+
+type RecordingReplaySourceProject = Prisma.ProjectGetPayload<{
+  include: typeof RECORDING_REPLAY_SOURCE_INCLUDE
+}>
 
 export class SuperAgentOrchestrator {
   /**
@@ -919,54 +963,7 @@ export class SuperAgentOrchestrator {
     userId: string
     targetProjectId?: string
   }) {
-    const includePayload = {
-      novelPromotionData: {
-        include: {
-          characters: {
-            include: {
-              appearances: {
-                orderBy: { appearanceIndex: 'asc' as const },
-              },
-            },
-            orderBy: { createdAt: 'asc' as const },
-          },
-          locations: {
-            include: {
-              images: {
-                orderBy: { imageIndex: 'asc' as const },
-              },
-            },
-            orderBy: { createdAt: 'asc' as const },
-          },
-          episodes: {
-            include: {
-              clips: {
-                orderBy: { createdAt: 'asc' as const },
-              },
-              storyboards: {
-                include: {
-                  panels: {
-                    orderBy: { panelIndex: 'asc' as const },
-                  },
-                },
-                orderBy: { createdAt: 'asc' as const },
-              },
-            },
-            orderBy: { episodeNumber: 'asc' as const },
-          },
-        },
-      },
-    }
-
-    const hasCompleteVideos = (project: {
-      novelPromotionData?: {
-        episodes: Array<{
-          storyboards: Array<{
-            panels: Array<{ videoUrl: string | null }>
-          }>
-        }>
-      } | null
-    } | null | undefined) => {
+    const hasCompleteVideos = (project: RecordingReplaySourceProject | null | undefined) => {
       const panels = project?.novelPromotionData?.episodes.flatMap((episode) => (
         episode.storyboards.flatMap((storyboard) => storyboard.panels)
       )) || []
@@ -979,7 +976,7 @@ export class SuperAgentOrchestrator {
         name: RECORDING_REPLAY_SOURCE_PROJECT_NAME,
         deletedAt: null,
       },
-      include: includePayload,
+      include: RECORDING_REPLAY_SOURCE_INCLUDE,
       orderBy: { updatedAt: 'desc' },
     })
 
@@ -991,7 +988,7 @@ export class SuperAgentOrchestrator {
   }
 
   private async cloneRecordingReplayProjectToTarget(params: {
-    sourceProject: any
+    sourceProject: RecordingReplaySourceProject
     targetProjectId: string
     userId: string
     userInput: string
@@ -1011,36 +1008,36 @@ export class SuperAgentOrchestrator {
   }> {
     const sourceData = params.sourceProject?.novelPromotionData
     if (!sourceData) throw new Error('录屏演示 mock 源项目缺少创作数据')
-    const sourceEpisodesWithVideos = sourceData.episodes.filter((episode: any) => (
-      episode.storyboards.some((storyboard: any) => storyboard.panels.some((panel: any) => panel.videoUrl))
+    const sourceEpisodesWithVideos = sourceData.episodes.filter((episode) => (
+      episode.storyboards.some((storyboard) => storyboard.panels.some((panel) => panel.videoUrl))
     ))
-    const fallbackEpisode = sourceData.episodes.find((episode: any) => episode.id === sourceData.lastEpisodeId)
+    const fallbackEpisode = sourceData.episodes.find((episode) => episode.id === sourceData.lastEpisodeId)
       || sourceData.episodes[0]
     const sourceEpisodes = sourceEpisodesWithVideos.length > 0
       ? sourceEpisodesWithVideos
       : (fallbackEpisode ? [fallbackEpisode] : [])
 
     if (params.sourceProject.id === params.targetProjectId) {
-      const panels = sourceEpisodes.flatMap((episode: any) => (
-        episode.storyboards.flatMap((storyboard: any) => storyboard.panels)
+      const panels = sourceEpisodes.flatMap((episode) => (
+        episode.storyboards.flatMap((storyboard) => storyboard.panels)
       ))
-      const replayEpisode = sourceEpisodes.find((episode: any) => episode.id === sourceData.lastEpisodeId)
+      const replayEpisode = sourceEpisodes.find((episode) => episode.id === sourceData.lastEpisodeId)
         || sourceEpisodes[0]
       return {
         projectId: params.targetProjectId,
         episodeId: replayEpisode.id,
-        clipCount: sourceEpisodes.reduce((sum: number, episode: any) => sum + episode.clips.length, 0),
-        storyboardCount: sourceEpisodes.reduce((sum: number, episode: any) => sum + episode.storyboards.length, 0),
+        clipCount: sourceEpisodes.reduce((sum, episode) => sum + episode.clips.length, 0),
+        storyboardCount: sourceEpisodes.reduce((sum, episode) => sum + episode.storyboards.length, 0),
         panelCount: panels.length,
-        videoCount: panels.filter((panel: any) => panel.videoUrl).length,
+        videoCount: panels.filter((panel) => panel.videoUrl).length,
         characterCount: sourceData.characters.length,
         locationCount: sourceData.locations.length,
-        characterAppearanceCount: sourceData.characters.reduce((sum: number, character: any) => sum + character.appearances.length, 0),
-        locationImageCount: sourceData.locations.reduce((sum: number, location: any) => sum + location.images.length, 0),
-        propCount: sourceData.locations.filter((location: any) => location.assetKind === 'prop').length,
+        characterAppearanceCount: sourceData.characters.reduce((sum, character) => sum + character.appearances.length, 0),
+        locationImageCount: sourceData.locations.reduce((sum, location) => sum + location.images.length, 0),
+        propCount: sourceData.locations.filter((location) => location.assetKind === 'prop').length,
         propImageCount: sourceData.locations
-          .filter((location: any) => location.assetKind === 'prop')
-          .reduce((sum: number, location: any) => sum + location.images.length, 0),
+          .filter((location) => location.assetKind === 'prop')
+          .reduce((sum, location) => sum + location.images.length, 0),
       }
     }
 
@@ -1298,12 +1295,12 @@ export class SuperAgentOrchestrator {
         videoCount,
         characterCount: sourceData.characters.length,
         locationCount: sourceData.locations.length,
-        characterAppearanceCount: sourceData.characters.reduce((sum: number, character: any) => sum + character.appearances.length, 0),
-        locationImageCount: sourceData.locations.reduce((sum: number, location: any) => sum + location.images.length, 0),
-        propCount: sourceData.locations.filter((location: any) => location.assetKind === 'prop').length,
+        characterAppearanceCount: sourceData.characters.reduce((sum, character) => sum + character.appearances.length, 0),
+        locationImageCount: sourceData.locations.reduce((sum, location) => sum + location.images.length, 0),
+        propCount: sourceData.locations.filter((location) => location.assetKind === 'prop').length,
         propImageCount: sourceData.locations
-          .filter((location: any) => location.assetKind === 'prop')
-          .reduce((sum: number, location: any) => sum + location.images.length, 0),
+          .filter((location) => location.assetKind === 'prop')
+          .reduce((sum, location) => sum + location.images.length, 0),
       }
     }, { timeout: 30_000 })
   }

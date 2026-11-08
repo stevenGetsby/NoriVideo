@@ -28,14 +28,15 @@ createRoot(document.getElementById('root')!).render(
     <main className="fos-app" style={{ overflow: 'hidden' }}>
       {view === 'picker' || view === 'picker-single' ? <Picker multiple={view === 'picker'} />
         : view === 'timbre' ? <FosTimbre data={{
-          projectId: 'project-1', projectName: '机甲三国', loading: false, scriptImportStatus: null, episodes: [], items: [], environments: [], world: null, scriptApproved: true, refetch: () => {},
+          projectId: 'project-1', projectName: '机甲三国', canDelete: false, loading: false, scriptImportStatus: null, episodes: [], items: [], environments: [], world: null, scriptApproved: true, refetch: () => {},
           characters: ['关羽', '赵云'].map((name, i) => ({ id: `role-${i}`, name, type: '主角', description: '测试角色', prompt: '角色设定', imageUrl: null, confirmed: true })),
         }} />
         : view === 'assets' ? <FosAssetLibrary />
-        : view === 'canvas-assets' ? <div className="nori-canvas" style={{ position: 'relative', flex: 1 }}>
+        : view === 'canvas-assets' ? <div className="nori-canvas-workspace" style={{ position: 'relative', flex: 1, minHeight: 0 }}>
           <CanvasProjectAssets projectId="project-1" onInsert={() => {}} onInsertWorkflow={() => {}} onClose={() => {}} />
         </div>
         : view === 'toolbox' ? <FosToolbox />
+        : view === 'materials-all' ? <FosMaterialLibrary initialProjectId={null} />
         : <FosMaterialLibrary initialProjectId="project-1" />}
     </main>
   </NextIntlClientProvider>,

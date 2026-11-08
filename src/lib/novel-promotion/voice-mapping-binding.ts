@@ -26,7 +26,7 @@ export type CharacterVoiceMappingTarget = {
 
 export type CharacterVoiceUpdateData = {
   voiceId: string | null
-  voiceType: 'uploaded' | null
+  voiceType: 'uploaded' | 'kuaizi' | null
   customVoiceUrl: string | null
   customVoiceMediaId: string | null
 }
@@ -59,7 +59,8 @@ export type VoiceMappingSpeakerVoicePlan = {
   speakerVoices: Record<string, {
     provider: 'kuaizi'
     voiceType: string
-    audioUrl: string
+    audioUrl?: string
+    voiceId?: string
   }>
   skipped: VoiceMappingSpeakerVoiceSkipped[]
 }
@@ -198,10 +199,26 @@ export function buildCharacterVoiceMappingUpdates(params: {
       continue
     }
 
-    skipped.push({
-      character: character || target.name,
-      characterId,
-      reason: 'missing_voice_id',
+    const candidate = selectVoiceMappingCandidate(entry)
+    const voiceId = readText(candidate?.voice_id)
+    if (!voiceId) {
+      skipped.push({
+        character: character || target.name,
+        characterId,
+        reason: 'missing_voice_id',
+      })
+      continue
+    }
+    updates.push({
+      characterId: target.id,
+      characterName: target.name,
+      source,
+      data: {
+        voiceId,
+        voiceType: 'kuaizi',
+        customVoiceUrl: null,
+        customVoiceMediaId: null,
+      },
     })
   }
 
@@ -249,7 +266,17 @@ export function buildSpeakerVoiceMapFromVoiceMapping(params: {
       continue
     }
 
-    skipped.push({ speaker, characterId, reason: 'missing_voice_id' })
+    const candidate = selectVoiceMappingCandidate(entry)
+    const voiceId = readText(candidate?.voice_id)
+    if (!voiceId) {
+      skipped.push({ speaker, characterId, reason: 'missing_voice_id' })
+      continue
+    }
+    speakerVoices[speaker] = {
+      provider: 'kuaizi',
+      voiceType: 'kuaizi',
+      voiceId,
+    }
   }
 
   return { speakerVoices, skipped }

@@ -41,6 +41,7 @@ function account(overrides: Record<string, unknown> = {}) {
     role: 'writer',
     status: 'active',
     permissions: null,
+    projectLeader: false,
     sessionVersion: 0,
     passwordChangeRequired: false,
     workspaceOwnerId: 'manager-1',
@@ -60,22 +61,25 @@ describe('account session policy', () => {
     userFindUniqueMock.mockResolvedValue(account())
   })
 
-  it('rejects a member missing an explicitly required permission', async () => {
+  it('allows every creative capability but still rejects account administration', async () => {
     const { requireUserPermission, isErrorResponse } = await import('@/lib/api-auth')
-    const result = await requireUserPermission(['assetWrite'])
+    for (const permission of ['assetWrite', 'scriptWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite'] as const) {
+      const result = await requireUserPermission([permission])
+      expect(isErrorResponse(result)).toBe(false)
+    }
+    const result = await requireUserPermission(['admin'])
     expect(isErrorResponse(result)).toBe(true)
     expect((result as Response).status).toBe(403)
   })
 
-  it('enforces permissions supplied by the API request context', async () => {
+  it('accepts the creative permission required by the API request context', async () => {
     const { withAccountPermissionContext } = await import('@/lib/account/request-context')
     const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
     const result = await withAccountPermissionContext(
       ['assetWrite'],
       async () => await requireUserAuth(),
     )
-    expect(isErrorResponse(result)).toBe(true)
-    expect((result as Response).status).toBe(403)
+    expect(isErrorResponse(result)).toBe(false)
   })
 
   it('keeps toolbox and canvas enabled in every legacy role template', async () => {
@@ -99,7 +103,7 @@ describe('account session policy', () => {
     expect(isErrorResponse(result)).toBe(false)
   })
 
-  it('keeps reviewer accounts read-only at the functional permission layer', async () => {
+  it('gives historical reviewer accounts the same creative capabilities', async () => {
     userFindUniqueMock.mockResolvedValue(account({ role: 'reviewer', permissions: ['read'] }))
     const { requireUserPermission, isErrorResponse } = await import('@/lib/api-auth')
 
@@ -108,8 +112,7 @@ describe('account session policy', () => {
 
     userFindUniqueMock.mockResolvedValue(account({ role: 'reviewer', permissions: ['read'] }))
     const writable = await requireUserPermission(['storyboardWrite'])
-    expect(isErrorResponse(writable)).toBe(true)
-    expect((writable as Response).status).toBe(403)
+    expect(isErrorResponse(writable)).toBe(false)
   })
 
   it('allows the platform Admin to perform administrative operations', async () => {
@@ -128,7 +131,33 @@ describe('account session policy', () => {
     expect(result.session.user.id).toBe('manager-1')
     expect(result.session.user.role).toBe('writer')
     expect(result.session.user.pointCredits).toBe(200)
+    expect(result.session.user.projectLeader).toBe(false)
     expect(walletFindUniqueMock).toHaveBeenCalledWith({ where: { userId: 'manager-1' }, select: { balance: true } })
+  })
+
+  it('refreshes projectLeader from the database so revocation takes effect on the next request', async () => {
+    userFindUniqueMock.mockResolvedValueOnce(account({ projectLeader: true }))
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const granted = await requireUserAuth()
+    expect(isErrorResponse(granted)).toBe(false)
+    if (isErrorResponse(granted)) return
+    expect(granted.session.user.projectLeader).toBe(true)
+
+    getServerSessionMock.mockResolvedValueOnce(session({ projectLeader: true }))
+    userFindUniqueMock.mockResolvedValueOnce(account({ projectLeader: false }))
+    const revoked = await requireUserAuth()
+    expect(isErrorResponse(revoked)).toBe(false)
+    if (isErrorResponse(revoked)) return
+    expect(revoked.session.user.projectLeader).toBe(false)
+  })
+
+  it('never exposes workspace leadership on a management account', async () => {
+    userFindUniqueMock.mockResolvedValueOnce(account({ role: 'admin', workspaceOwnerId: null, parentAccountId: 'root-1', projectLeader: true }))
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const result = await requireUserAuth()
+    expect(isErrorResponse(result)).toBe(false)
+    if (isErrorResponse(result)) return
+    expect(result.session.user.projectLeader).toBe(false)
   })
   it('keeps the authenticated operator as quota principal, without changing the shared data scope', async () => {
     const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
@@ -153,7 +182,7 @@ describe('account session policy', () => {
     expect(isErrorResponse(result)).toBe(false)
     if (isErrorResponse(result)) return
     expect(result.session.user.role).toBe('storyboard')
-    expect(result.session.user.permissions).toEqual(['read', 'storyboardWrite'])
+    expect(result.session.user.permissions).toEqual(['read', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite'])
   })
 
   it('rejects disabled accounts immediately', async () => {

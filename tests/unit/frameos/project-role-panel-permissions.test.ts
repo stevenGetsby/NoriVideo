@@ -17,7 +17,7 @@ describe('project role panel permissions', () => {
     expect(access).toContain("canAccessWork(actor, 'projectCreate', work, membership)")
     expect(works).toContain("canAccessWork(actor, 'workManage', work, workMembership)")
     expect(works).toContain('canCreateProjects,')
-    expect(projectsClient).toContain("['workCreate']")
+    expect(projectsClient).toContain('session?.user?.projectLeader === true')
     expect(projectsClient).toContain('work.canCreateProjects || canCreateProjects')
   })
 

@@ -78,11 +78,7 @@ export function AiModifyDescriptionField({
                 <AppIcon name="sparkles" className="h-4 w-4 text-[#7c3aed]" />
                 <span
                   className="font-medium"
-                  style={{
-                    background: 'linear-gradient(135deg, #3265ff, #7c3aed)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}
+                  style={{ color: '#3265ff' }}
                 >
                   {actionLabel}
                 </span>

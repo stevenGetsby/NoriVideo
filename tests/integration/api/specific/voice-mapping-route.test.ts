@@ -25,7 +25,7 @@ const prismaMock = vi.hoisted(() => ({
   },
 }))
 
-const resolveAnalysisModelMock = vi.hoisted(() => vi.fn(async () => 'lumina::gpt-5.5'))
+const resolveAnalysisModelMock = vi.hoisted(() => vi.fn(async () => 'nori::nori-gpt'))
 const runVoiceMappingReviewMock = vi.hoisted(() => vi.fn(async () => ({
   promptPayload: {
     characters_json: '{}',
@@ -45,7 +45,7 @@ const runVoiceMappingReviewMock = vi.hoisted(() => vi.fn(async () => ({
         source: 'library_match',
         data: {
           voiceId: 'voice-1',
-          voiceType: 'qwen-designed',
+          voiceType: 'kuaizi',
           customVoiceUrl: null,
           customVoiceMediaId: null,
         },
@@ -71,7 +71,7 @@ describe('api specific - voice mapping route', () => {
     vi.clearAllMocks()
     prismaMock.novelPromotionProject.findUnique.mockResolvedValue({
       id: 'np-project-1',
-      analysisModel: 'lumina::gpt-5.5',
+      analysisModel: 'nori::nori-gpt',
       characters: [
         {
           id: 'character-1',
@@ -95,7 +95,7 @@ describe('api specific - voice mapping route', () => {
             },
             Existing: {
               provider: 'bailian',
-              voiceType: 'qwen-designed',
+              voiceType: 'kuaizi',
               voiceId: 'voice-existing',
             },
           }),
@@ -115,7 +115,7 @@ describe('api specific - voice mapping route', () => {
         id: 'global-voice-1',
         name: 'Clear Young Adult',
         voiceId: 'voice-1',
-        voiceType: 'qwen-designed',
+        voiceType: 'kuaizi',
       },
     ])
   })
@@ -127,7 +127,7 @@ describe('api specific - voice mapping route', () => {
       method: 'POST',
       body: {
         episodeId: 'episode-1',
-        model: 'lumina::gpt-5.5',
+        model: 'nori::nori-gpt',
       },
     })
 
@@ -151,13 +151,13 @@ describe('api specific - voice mapping route', () => {
     })
     expect(resolveAnalysisModelMock).toHaveBeenCalledWith({
       userId: 'user-1',
-      inputModel: 'lumina::gpt-5.5',
-      projectAnalysisModel: 'lumina::gpt-5.5',
+      inputModel: 'nori::nori-gpt',
+      projectAnalysisModel: 'nori::nori-gpt',
     })
     expect(runVoiceMappingReviewMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: 'user-1',
       projectId: 'project-1',
-      model: 'lumina::gpt-5.5',
+      model: 'nori::nori-gpt',
       locale: 'en',
       input: expect.objectContaining({
         characters: [expect.objectContaining({ id: 'character-1' })],
@@ -169,7 +169,7 @@ describe('api specific - voice mapping route', () => {
     expect(body).toEqual(expect.objectContaining({
       success: true,
       applied: false,
-      model: 'lumina::gpt-5.5',
+      model: 'nori::nori-gpt',
       mapping: expect.objectContaining({ status: 'draft' }),
       plan: expect.objectContaining({ updates: expect.any(Array) }),
     }))
@@ -194,7 +194,7 @@ describe('api specific - voice mapping route', () => {
       where: { id: 'character-1' },
       data: {
         voiceId: 'voice-1',
-        voiceType: 'qwen-designed',
+        voiceType: 'kuaizi',
         customVoiceUrl: null,
         customVoiceMediaId: null,
       },
@@ -255,8 +255,8 @@ describe('api specific - voice mapping route', () => {
         metadataStored: true,
         speakerVoices: {
           Ari: {
-            provider: 'bailian',
-            voiceType: 'qwen-designed',
+            provider: 'kuaizi',
+            voiceType: 'kuaizi',
             voiceId: 'voice-1',
           },
         },
@@ -274,12 +274,12 @@ describe('api specific - voice mapping route', () => {
     })
     expect(saved.Existing).toEqual({
       provider: 'bailian',
-      voiceType: 'qwen-designed',
+      voiceType: 'kuaizi',
       voiceId: 'voice-existing',
     })
     expect(saved.Ari).toEqual({
-      provider: 'bailian',
-      voiceType: 'qwen-designed',
+      provider: 'kuaizi',
+      voiceType: 'kuaizi',
       voiceId: 'voice-1',
     })
     expect(saved[VOICE_MAPPING_FRAMEOS_METADATA_KEY]).toEqual({
@@ -373,7 +373,7 @@ describe('api specific - voice mapping route', () => {
     })
     expect(saved.Existing).toEqual({
       provider: 'bailian',
-      voiceType: 'qwen-designed',
+      voiceType: 'kuaizi',
       voiceId: 'voice-existing',
     })
     expect(saved.Ari).toBeUndefined()
@@ -402,7 +402,7 @@ describe('api specific - voice mapping route', () => {
   it('returns not found when a requested episode is absent', async () => {
     prismaMock.novelPromotionProject.findUnique.mockResolvedValueOnce({
       id: 'np-project-1',
-      analysisModel: 'lumina::gpt-5.5',
+      analysisModel: 'nori::nori-gpt',
       characters: [],
       episodes: [],
     })

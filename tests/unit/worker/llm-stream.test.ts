@@ -136,7 +136,10 @@ describe('createWorkerLLMStreamCallbacks', () => {
   it('uses injected active controller for run-owned workflows', async () => {
     const job = buildJob()
     const context = createWorkerLLMStreamContext(job, 'story_to_script')
-    const assertActive = vi.fn(async (_stage: string) => undefined)
+    const assertActive = vi.fn(async (_stage: string) => {
+      void _stage
+      return undefined
+    })
     const isActive = vi.fn(async () => true)
     const callbacks = createWorkerLLMStreamCallbacks(job, context, {
       assertActive,

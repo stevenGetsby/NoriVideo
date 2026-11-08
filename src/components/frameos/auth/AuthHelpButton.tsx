@@ -20,12 +20,12 @@ export function AuthHelpButton({ label, className = '' }: { label: string; class
     ? [
       { icon: UsersRound, title: 'Get your team account', body: 'Ask your team administrator for an account and assigned workspace. Self-registration is not available.' },
       { icon: KeyRound, title: 'Sign in to your workspace', body: 'Use the account and password you received. If you cannot sign in, ask your administrator to check your account status or reset your password.' },
-      { icon: Layers3, title: 'Create together', body: 'Your role and permissions determine which parts of the workspace you can edit. Platform administrators use the separate admin sign-in.' },
+      { icon: Layers3, title: 'Create together', body: 'Every active subaccount has the same creative tools. Your project membership determines which projects you can access. Platform administrators use the separate admin sign-in.' },
     ]
     : [
       { icon: UsersRound, title: '获取团队账号', body: '联系团队管理员分配工作账号与所属工作区。平台不开放自行注册。' },
       { icon: KeyRound, title: '登录创作工作台', body: '使用管理员分配的账号和密码登录。如无法登录，请联系管理员核对账号状态或重置密码。' },
-      { icon: Layers3, title: '与团队一起创作', body: '角色与功能区权限决定可编辑的内容；平台 Admin 请使用登录表单下方的独立管理入口。' },
+      { icon: Layers3, title: '与团队一起创作', body: '子账号均拥有统一创作能力，项目成员关系决定可访问的项目；平台 Admin 请使用登录表单下方的独立管理入口。' },
     ]
 
   return (

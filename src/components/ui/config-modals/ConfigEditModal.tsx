@@ -22,8 +22,6 @@ import { CustomArtStyleModal } from '@/components/selectors/CustomArtStyleModal'
 interface ModelOption {
     value: string
     label: string
-    provider?: string
-    providerName?: string
     capabilities?: ModelCapabilities
 }
 

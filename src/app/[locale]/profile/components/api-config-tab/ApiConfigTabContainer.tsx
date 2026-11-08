@@ -1,12 +1,11 @@
 'use client'
 
 import { useCallback } from 'react'
-import { useLocale, useTranslations } from 'next-intl'
+import { useTranslations } from 'next-intl'
 import { resolveTaskPresentationState } from '@/lib/task/presentation'
 import type { CapabilityValue } from '@/lib/model-config-contract'
 import {
   encodeModelKey,
-  getProviderDisplayName,
   parseModelKey,
   useProviders,
 } from '../api-config'
@@ -51,7 +50,6 @@ function toCapabilityFieldLabel(field: string): string {
 }
 
 export function ApiConfigTabContainer() {
-  const locale = useLocale()
   const {
     providers,
     models,
@@ -124,8 +122,6 @@ export function ApiConfigTabContainer() {
             getEnabledModelsByType={getEnabledModelsByType}
             parseModelKey={parseModelKey}
             encodeModelKey={encodeModelKey}
-            getProviderDisplayName={getProviderDisplayName}
-            locale={locale}
             updateDefaultModel={updateDefaultModel}
             batchUpdateDefaultModels={batchUpdateDefaultModels}
             extractCapabilityFieldsFromModel={extractCapabilityFieldsFromModel}

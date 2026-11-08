@@ -52,10 +52,31 @@ await page.route('**/api/**', async (route) => {
 })
 
 try {
+  const requests = []
+  page.on('request', (request) => requests.push({ url: request.url(), method: request.method() }))
   await page.goto(base, { waitUntil: 'domcontentloaded' })
   const dialog = page.getByRole('dialog', { name: '创建作品' })
   await dialog.waitFor({ state: 'visible', timeout: 15_000 })
-  await page.screenshot({ path: path.join(artifacts, '01-top.png'), fullPage: true })
+  await page.screenshot({ path: path.join(artifacts, '01-canvas-default.png'), fullPage: true })
+  assert.equal(await dialog.getByRole('radio', { name: '画布', exact: true }).getAttribute('aria-checked'), 'true')
+  assert.equal(await dialog.locator('.create-project-workflow-settings').count(), 0)
+  assert.equal(await dialog.locator('textarea').count(), 0)
+  assert.equal(await dialog.getByRole('button', { name: '创建并进入画布', exact: true }).count(), 1)
+  await dialog.getByPlaceholder('请输入作品名称').fill('画布验证作品')
+  await dialog.getByRole('button', { name: '创建并进入画布', exact: true }).click()
+  const created = JSON.parse(await page.getByLabel('创建结果').innerText())
+  assert.equal(created.creationMode, 'canvas')
+  assert.equal(created.collaborationMode, 'solo')
+  assert.equal(created.scriptFile, null)
+  assert.equal(created.importedScriptText, '')
+  assert.equal(created.initializeEpisodeRange, false)
+  assert.deepEqual(created.styleReferenceFiles, [])
+  assert.ok(!requests.some((request) => new URL(request.url).pathname === '/api/video-repaint/scripts'), '画布模式不得加载剧本列表')
+  assert.ok(requests.every((request) => request.url.startsWith(base) || request.url.startsWith('data:') || request.url.startsWith('blob:')), '画布草稿验证不得上传文件或调用生成接口')
+
+  await dialog.getByRole('radio', { name: '工作流', exact: true }).click()
+  await dialog.locator('.create-project-workflow-settings').waitFor()
+  await page.screenshot({ path: path.join(artifacts, '02-workflow-top.png'), fullPage: true })
 
   const metrics = await dialog.evaluate((element) => {
     const body = element.querySelector('.create-project-body')

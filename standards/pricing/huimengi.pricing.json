@@ -71,6 +71,68 @@
   {
     "apiType": "video",
     "provider": "huimengi",
+    "modelId": "seedance-2.0-mini",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 8.97 },
+        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 5.46 },
+        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 8.97 },
+        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 5.46 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "seedance-2.0-fast",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 18.13 },
+        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 10.78 },
+        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 18.13 },
+        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 10.78 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "seedance-2.0",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 43.7 },
+        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 26.6 },
+        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 43.7 },
+        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 26.6 },
+        { "when": { "resolution": "1080p", "containsVideoInput": false }, "amount": 48.45 },
+        { "when": { "resolution": "1080p", "containsVideoInput": true }, "amount": 29.45 },
+        { "when": { "resolution": "4k", "containsVideoInput": false }, "amount": 24.7 },
+        { "when": { "resolution": "4k", "containsVideoInput": true }, "amount": 15.2 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
+    "modelId": "seedance-2.5",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 66.5 },
+        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 39.9 },
+        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 66.5 },
+        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 39.9 },
+        { "when": { "resolution": "1080p", "containsVideoInput": false }, "amount": 73.15 },
+        { "when": { "resolution": "1080p", "containsVideoInput": true }, "amount": 43.7 }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "huimengi",
     "modelId": "seedance-1.5-pro",
     "pricing": {
       "mode": "capability",

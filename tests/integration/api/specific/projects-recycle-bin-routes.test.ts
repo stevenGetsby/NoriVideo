@@ -39,7 +39,7 @@ describe('作品回收站 API', () => {
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
-  it('普通成员只能查看自己可恢复的作品', async () => {
+  it('普通成员只显示自己创建的可恢复作品，组长身份不能恢复他人作品', async () => {
     authed('writer')
     prismaMock.project.findMany.mockResolvedValueOnce([
       {
@@ -64,7 +64,7 @@ describe('作品回收站 API', () => {
     const payload = await response.json() as { projects?: Array<{ id?: string }> }
 
     expect(response.status).toBe(200)
-    expect(payload.projects?.map((project) => project.id)).toEqual(['project-own', 'project-led'])
+    expect(payload.projects?.map((project) => project.id)).toEqual(['project-own'])
     expect(prismaMock.project.findMany).toHaveBeenCalled()
   })
 

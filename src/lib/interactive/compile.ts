@@ -18,6 +18,7 @@ import {
   type StoryNodeType,
   type StoryValue,
 } from './types'
+import { normalizeSceneText } from './scene-text'
 
 export interface CanvasNodeLike { id: string; type: string; data?: unknown }
 export interface CanvasEdgeLike { id: string; source: string; target: string; sourceHandle?: string | null; role?: string | null }
@@ -120,7 +121,7 @@ export function readEndingData(raw: unknown) {
 export function readSceneData(raw: unknown) {
   const data = record(raw)
   return {
-    lines: text(data.lines),
+    lines: normalizeSceneText(data.lines),
     videoUrl: id(data.videoUrl),
     imageUrl: id(data.imageUrl),
     posterUrl: id(data.posterUrl),

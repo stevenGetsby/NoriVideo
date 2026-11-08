@@ -34,6 +34,26 @@ const VIDEO_CONSTRAINTS: Readonly<Record<string, VideoConstraints>> = {
     resolutions: ['720p', '1080p', '2k', '4k'],
     duration: [2, 30],
   },
+  'seedance-2.0-mini': {
+    ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+    resolutions: ['480p', '720p'],
+    duration: [4, 15],
+  },
+  'seedance-2.0-fast': {
+    ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+    resolutions: ['480p', '720p'],
+    duration: [4, 15],
+  },
+  'seedance-2.0': {
+    ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+    resolutions: ['480p', '720p', '1080p', '4k'],
+    duration: [4, 15],
+  },
+  'seedance-2.5': {
+    ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
+    resolutions: ['480p', '720p', '1080p'],
+    duration: [4, 30],
+  },
   'seedance-1.5-pro': {
     ratios: ['16:9', '4:3', '1:1', '3:4', '9:16', '21:9', 'adaptive'],
     resolutions: ['480p', '720p', '1080p'],
@@ -127,9 +147,15 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
   if (referenceVideos.length && !model.supportsReferenceVideos) {
     throw new Error(`HUIMENGI_VIDEO_REFERENCE_VIDEOS_UNSUPPORTED: ${model.modelId}`)
   }
+  if (model.maxReferenceVideos !== undefined && referenceVideos.length > model.maxReferenceVideos) {
+    throw new Error(`HUIMENGI_VIDEO_REFERENCE_VIDEOS_LIMIT: ${referenceVideos.length}`)
+  }
   const referenceAudios = stringArray(params.options.audios)
   if (referenceAudios.length && !model.supportsReferenceAudios) {
     throw new Error(`HUIMENGI_VIDEO_REFERENCE_AUDIOS_UNSUPPORTED: ${model.modelId}`)
+  }
+  if (model.maxReferenceAudios !== undefined && referenceAudios.length > model.maxReferenceAudios) {
+    throw new Error(`HUIMENGI_VIDEO_REFERENCE_AUDIOS_LIMIT: ${referenceAudios.length}`)
   }
   if (!prompt && !firstFrame && !referenceImages.length && !referenceVideos.length && !referenceAudios.length) {
     throw new Error('HUIMENGI_VIDEO_CONTENT_REQUIRED')
@@ -160,7 +186,7 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     ...(prompt ? { prompt } : {}),
     ...(resolvedLastFrame
       ? { first_frame_image: resolvedFirstFrame, last_frame_image: resolvedLastFrame }
-      : resolvedFirstFrame ? { image_url: resolvedFirstFrame } : {}),
+      : resolvedFirstFrame ? { [model.firstFrameParam ?? 'image_url']: resolvedFirstFrame } : {}),
     ...(referenceImages.length ? { reference_images: referenceImages } : {}),
     ...(resolvedReferenceVideos.length ? { reference_videos: resolvedReferenceVideos } : {}),
     ...(resolvedReferenceAudios.length ? { reference_audios: resolvedReferenceAudios } : {}),

@@ -6,8 +6,9 @@ import type { HuimengiModelDefinition, HuimengiModelModality } from './types'
 
 /**
  * Only models that the platform can drive with its existing image/video
- * contract are published here. Token-metered Seedance variants stay out until
- * billing can settle their exact token usage.
+ * contract are published here. Seedance 2.x is token-metered; its ids are
+ * listed in SEEDANCE_2_TOKEN_PRICED_MODEL_IDS so billing settles the actual
+ * completion tokens reported by the task result.
  */
 const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
   {
@@ -84,6 +85,70 @@ const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
     supportsReferenceAudios: true,
     supportsWatermark: true,
     supportsPromptExtend: true,
+  },
+  {
+    modelId: 'seedance-2.0-mini',
+    name: 'Seedance 2.0 Mini（绘梦）',
+    modality: 'video',
+    resolutionCase: 'lower',
+    maxReferenceImages: 9,
+    supportsFirstLastFrame: false,
+    firstFrameParam: 'first_frame_image',
+    supportsGenerateAudio: true,
+    audioParam: 'generate_audio',
+    supportsReferenceVideos: true,
+    supportsReferenceAudios: true,
+    maxReferenceVideos: 3,
+    maxReferenceAudios: 3,
+    supportsReturnLastFrame: true,
+  },
+  {
+    modelId: 'seedance-2.0-fast',
+    name: 'Seedance 2.0 Fast（绘梦）',
+    modality: 'video',
+    resolutionCase: 'lower',
+    maxReferenceImages: 9,
+    supportsFirstLastFrame: false,
+    firstFrameParam: 'first_frame_image',
+    supportsGenerateAudio: true,
+    audioParam: 'generate_audio',
+    supportsReferenceVideos: true,
+    supportsReferenceAudios: true,
+    maxReferenceVideos: 3,
+    maxReferenceAudios: 3,
+    supportsReturnLastFrame: true,
+  },
+  {
+    modelId: 'seedance-2.0',
+    name: 'Seedance 2.0（绘梦）',
+    modality: 'video',
+    resolutionCase: 'lower',
+    maxReferenceImages: 9,
+    supportsFirstLastFrame: false,
+    firstFrameParam: 'first_frame_image',
+    supportsGenerateAudio: true,
+    audioParam: 'generate_audio',
+    supportsReferenceVideos: true,
+    supportsReferenceAudios: true,
+    maxReferenceVideos: 3,
+    maxReferenceAudios: 3,
+    supportsReturnLastFrame: true,
+  },
+  {
+    modelId: 'seedance-2.5',
+    name: 'Seedance 2.5（绘梦）',
+    modality: 'video',
+    resolutionCase: 'lower',
+    maxReferenceImages: 30,
+    supportsFirstLastFrame: false,
+    firstFrameParam: 'first_frame_image',
+    supportsGenerateAudio: true,
+    audioParam: 'generate_audio',
+    supportsReferenceVideos: true,
+    supportsReferenceAudios: true,
+    maxReferenceVideos: 10,
+    maxReferenceAudios: 10,
+    supportsReturnLastFrame: true,
   },
   {
     modelId: 'seedance-1.5-pro',

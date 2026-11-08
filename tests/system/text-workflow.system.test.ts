@@ -4,6 +4,7 @@ import { installAuthMocks, mockAuthenticated, resetAuthMockState } from '../help
 import { resetSystemState } from '../helpers/db-reset'
 import { prisma } from '../helpers/prisma'
 import { seedMinimalDomainState } from './helpers/seed'
+import { seedBalance } from '../helpers/billing-fixtures'
 import { expectLifecycleEvents, listTaskEventTypes, waitForTaskTerminalState } from './helpers/tasks'
 import { startSystemWorkers, stopSystemWorkers, type SystemWorkers } from './helpers/workers'
 import { createFixtureEpisode, createFixtureNovelProject, createFixtureProject, createFixtureUser } from '../helpers/fixtures'
@@ -19,7 +20,7 @@ type FakeVoiceLineRow = {
   content: string
   emotionStrength: number
   matchedPanel: {
-    storyboardId: string
+    storyboardId?: string
     panelIndex: number
   }
 }
@@ -28,8 +29,27 @@ const textState = vi.hoisted(() => ({
   aiResults: [] as FakeAiResult[],
   voiceLineResults: [] as FakeVoiceLineRow[],
   parseFailureCount: 0,
-  orchestratorClipId: 'clip-seed',
 }))
+
+function cinematicPlanJson() {
+  return JSON.stringify({
+    segments: [{
+      functionLabel: '开场钩子',
+      sourceText: 'test novel text',
+      location: 'Office',
+      durationSeconds: 6,
+      emotionalIntent: '用朗读建立测试场景。',
+      storyQuestion: '测试剧情如何展开？',
+      transitionOut: '停在朗读结束的状态。',
+      characterNames: ['Narrator'],
+      onScreenCharacterNames: ['Narrator'],
+      propNames: [],
+      narrativeEntry: 'Narrator 开始朗读测试剧本。',
+      narrativeExit: 'Narrator 读完测试剧本。',
+      shotBeats: ['Narrator 朗读测试剧本。'],
+    }],
+  })
+}
 
 vi.mock('@/lib/ai-runtime', async () => {
   const actual = await vi.importActual<typeof import('@/lib/ai-runtime')>('@/lib/ai-runtime')
@@ -55,38 +75,6 @@ vi.mock('@/lib/ai-runtime', async () => {
   }
 })
 
-vi.mock('@/lib/novel-promotion/script-to-storyboard/orchestrator', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/novel-promotion/script-to-storyboard/orchestrator')>(
-    '@/lib/novel-promotion/script-to-storyboard/orchestrator',
-  )
-  return {
-    ...actual,
-    runScriptToStoryboardOrchestrator: vi.fn(async () => ({
-      clipPanels: [
-        {
-          clipId: textState.orchestratorClipId,
-          clipIndex: 0,
-          finalPanels: [
-            {
-              panel_number: 1,
-              shot_type: 'close-up',
-              camera_move: 'static',
-              description: 'system generated panel',
-              video_prompt: 'system video prompt',
-              location: 'Office',
-              characters: ['Narrator'],
-            },
-          ],
-        },
-      ],
-      summary: {
-        totalPanelCount: 1,
-        totalStepCount: 4,
-      },
-    })),
-  }
-})
-
 vi.mock('@/lib/workers/handlers/script-to-storyboard-helpers', async () => {
   const actual = await vi.importActual<typeof import('@/lib/workers/handlers/script-to-storyboard-helpers')>(
     '@/lib/workers/handlers/script-to-storyboard-helpers',
@@ -100,37 +88,16 @@ vi.mock('@/lib/workers/handlers/script-to-storyboard-helpers', async () => {
       }
       return textState.voiceLineResults
     }),
-    persistStoryboardsAndPanels: vi.fn(async (input: { episodeId: string }) => {
-      const clip = await prisma.novelPromotionClip.findFirst({
-        where: { episodeId: input.episodeId },
-        orderBy: { createdAt: 'asc' },
-      })
-      if (!clip) {
-        throw new Error(`TEST_CLIP_NOT_FOUND: ${input.episodeId}`)
-      }
-      const storyboard = await prisma.novelPromotionStoryboard.create({
-        data: {
-          id: 'storyboard-1',
-          episodeId: input.episodeId,
-          clipId: clip.id,
-          panelCount: 1,
-        },
-      })
-      const panel = await prisma.novelPromotionPanel.create({
-        data: {
-          id: 'panel-1',
-          storyboardId: storyboard.id,
-          panelIndex: 1,
-          panelNumber: 1,
-          shotType: 'close-up',
-          cameraMove: 'static',
-          description: 'system generated panel',
-          videoPrompt: 'system video prompt',
-          location: 'Office',
-          characters: JSON.stringify(['Narrator']),
-        },
-      })
-      return [{ storyboardId: storyboard.id, panels: [{ id: panel.id, panelIndex: 1 }] }]
+    persistStoryboardOutputs: vi.fn(async (input: Parameters<typeof actual.persistStoryboardOutputs>[0]) => {
+      const clipId = input.clipPanels[0]?.clipId
+      if (!clipId) throw new Error(`TEST_CLIP_NOT_FOUND: ${input.episodeId}`)
+      const voiceLineRows = input.voiceLineRows?.map((line) => ({
+        ...line,
+        matchedPanel: line.matchedPanel
+          ? { ...line.matchedPanel, storyboardId: clipId }
+          : line.matchedPanel,
+      })) ?? null
+      return actual.persistStoryboardOutputs({ ...input, voiceLineRows })
     }),
   }
 })
@@ -152,19 +119,10 @@ vi.mock('@/lib/workers/handlers/llm-stream', () => ({
 
 async function seedScriptToStoryboardState() {
   const user = await createFixtureUser()
+  await seedBalance(user.id, 100)
   const project = await createFixtureProject(user.id)
   const novelProject = await createFixtureNovelProject(project.id)
   const episode = await createFixtureEpisode(novelProject.id)
-  const clip = await prisma.novelPromotionClip.create({
-    data: {
-      episodeId: episode.id,
-      summary: 'script clip',
-      content: 'clip content',
-      screenplay: 'screenplay text',
-      location: 'Office',
-      characters: JSON.stringify(['Narrator']),
-    },
-  })
   await prisma.novelPromotionCharacter.create({
     data: {
       novelPromotionProjectId: novelProject.id,
@@ -178,8 +136,7 @@ async function seedScriptToStoryboardState() {
       summary: 'Office',
     },
   })
-  textState.orchestratorClipId = clip.id
-  return { user, project, novelProject, episode, clip }
+  return { user, project, novelProject, episode }
 }
 
 describe('system - text workflows', () => {
@@ -191,7 +148,6 @@ describe('system - text workflows', () => {
     textState.aiResults = []
     textState.voiceLineResults = []
     textState.parseFailureCount = 0
-    textState.orchestratorClipId = 'clip-seed'
     await resetSystemState()
     installAuthMocks()
   })
@@ -205,7 +161,7 @@ describe('system - text workflows', () => {
   it('script-to-storyboard success -> persists storyboard/panel/voiceLine and completes task', async () => {
     const seeded = await seedScriptToStoryboardState()
     mockAuthenticated(seeded.user.id)
-    textState.aiResults = [{ text: 'voice-lines-json' }]
+    textState.aiResults = [{ text: cinematicPlanJson() }, { text: 'voice-lines-json' }]
     textState.voiceLineResults = [
       {
         lineIndex: 1,
@@ -213,7 +169,6 @@ describe('system - text workflows', () => {
         content: 'Hello world',
         emotionStrength: 0.8,
         matchedPanel: {
-          storyboardId: seeded.clip.id,
           panelIndex: 0,
         },
       },
@@ -274,6 +229,7 @@ describe('system - text workflows', () => {
     const seeded = await seedScriptToStoryboardState()
     mockAuthenticated(seeded.user.id)
     textState.aiResults = [
+      { text: cinematicPlanJson() },
       { text: 'invalid-voice-json' },
       { text: 'valid-voice-json' },
     ]
@@ -284,7 +240,6 @@ describe('system - text workflows', () => {
         content: 'Retry success',
         emotionStrength: 0.4,
         matchedPanel: {
-          storyboardId: seeded.clip.id,
           panelIndex: 0,
         },
       },

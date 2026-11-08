@@ -6,6 +6,9 @@ export async function generateLipSync(
   _userId: string,
   _modelKey?: string,
 ): Promise<LipSyncResult> {
+  void _params
+  void _userId
+  void _modelKey
   const error = new Error('LIPSYNC_PROVIDER_RETIRED: 旧版唇形同步服务已下线，不再接受新任务')
   _ulogError('[LipSync] 已拒绝旧服务任务', error)
   throw error

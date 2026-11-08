@@ -44,6 +44,7 @@ export function CanvasImageOperationDialog({
   canvasId,
   mode,
   node,
+  initialGrid,
   onSubmit,
   onRecover,
   isTaskMaterialized,
@@ -53,6 +54,7 @@ export function CanvasImageOperationDialog({
   canvasId: string
   mode: CanvasImageOperationMode
   node: CanvasFlowNode
+  initialGrid?: { rows: number; cols: number }
   onSubmit: (input: CanvasImageOperationInput, onTaskUpdate?: (update: CanvasOperationTaskUpdate) => void) => Promise<void>
   onRecover: (input: CanvasImageOperationInput, result: ResolvedCanvasOperation) => Promise<void>
   isTaskMaterialized: (taskId: string) => boolean
@@ -61,9 +63,11 @@ export function CanvasImageOperationDialog({
   const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const imageUrl = toDisplayImageUrl(node.data.contentUrl || node.data.imageUrl || null)
   const previewRef = useRef<HTMLDivElement>(null)
-  const [rows, setRows] = useState(2)
-  const [cols, setCols] = useState(2)
-  const [selectedCells, setSelectedCells] = useState(() => gridCellKeys(2, 2))
+  const initialRows = mode === 'grid_split' && initialGrid ? Math.max(1, Math.min(8, Math.floor(initialGrid.rows))) : 2
+  const initialCols = mode === 'grid_split' && initialGrid ? Math.max(1, Math.min(8, Math.floor(initialGrid.cols))) : 2
+  const [rows, setRows] = useState(initialRows)
+  const [cols, setCols] = useState(initialCols)
+  const [selectedCells, setSelectedCells] = useState(() => gridCellKeys(initialRows, initialCols))
   const [scale, setScale] = useState<2 | 4>(2)
   const [crop, setCrop] = useState({ x: 0.2, y: 0.2, width: 0.6, height: 0.6 })
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)

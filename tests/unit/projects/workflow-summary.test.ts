@@ -103,6 +103,35 @@ describe('project workflow summary', () => {
     })
   })
 
+  it('uses the latest legacy actor row for each scope and stage', () => {
+    const summary = buildProjectWorkflowSummary({
+      stats: { episodes: 1, panels: 4, images: 4, videos: 0 },
+      stages: [
+        {
+          stageKey: 'storyboard', scopeId: 'episode-1', status: 'failed', progress: 20,
+          blocker: 'stale member failure', updatedAt: '2026-11-08T09:00:00.000Z',
+        },
+        {
+          stageKey: 'storyboard', scopeId: 'episode-1', status: 'approved', progress: 100,
+          approvedAt: '2026-11-08T10:00:00.000Z', updatedAt: '2026-11-08T10:00:00.000Z',
+        },
+        {
+          stageKey: 'storyboard', scopeId: 'episode-2', status: 'failed', progress: 30,
+          blocker: 'current episode failure', updatedAt: '2026-11-08T10:30:00.000Z',
+        },
+      ],
+    })
+
+    expect(summary).toMatchObject({
+      currentStage: 'storyboard',
+      status: 'blocked',
+      progress: 30,
+      blocker: 'current episode failure',
+      approvedStages: ['storyboard'],
+      blockedStages: ['storyboard'],
+    })
+  })
+
   it('marks a project running when active tasks exist before stage rows arrive', () => {
     expect(buildProjectWorkflowSummary({
       stats: { episodes: 1, panels: 0, images: 0, videos: 0 },

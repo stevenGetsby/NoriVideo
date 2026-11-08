@@ -1,11 +1,26 @@
 import type { Prisma } from '@prisma/client'
 import type { AuthSession } from '@/lib/api-auth'
 import { ApiError } from '@/lib/api-errors'
-import { getWorkAccess, getWorkspaceActor, projectReadScopeWhere, requireWorkProjectCreator, workReadScopeWhere } from '@/lib/collaboration/access'
+import {
+  findHiddenProjectIds,
+  getWorkAccess,
+  getWorkspaceActor,
+  projectReadScopeWhere,
+  requireWorkProjectCreator,
+  workReadScopeWhere,
+} from '@/lib/collaboration/access'
 import { prisma } from '@/lib/prisma'
-import { compileChapter } from './compile'
-import { isStoryAspectRatio, isStoryResolution, normalizeStoryConfig, parseStoryConfigInput, reconcileStoryChapters } from './config'
-import type { InteractiveStoryConfig, StoryAspectRatio, StoryResolution } from './types'
+import { compileChapter, type CanvasEdgeLike, type CanvasNodeLike } from './compile'
+import {
+  findStoryLinkCycle,
+  isStoryAspectRatio,
+  isStoryResolution,
+  normalizeStoryConfig,
+  parseStoryConfigInput,
+  reconcileStoryChapters,
+} from './config'
+import { ensureStorySequence, sequenceSegmentKey } from './sequence'
+import type { InteractiveStoryConfig, StoryAspectRatio, StoryChapterGraph, StoryResolution } from './types'
 
 const NAME_MAX = 50
 
@@ -27,6 +42,122 @@ function readFormat(input: { aspectRatio?: unknown; resolution?: unknown }) {
 }
 
 const toJson = (config: InteractiveStoryConfig) => config as unknown as Prisma.InputJsonValue
+
+function configPatchKeys(value: unknown): Set<string> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return new Set()
+  return new Set(Object.keys(value))
+}
+
+/** Compiles the first canvas of each referenced chapter for PATCH reference checks. */
+async function loadStoryGraphs(session: AuthSession, workId: string, projectIds: string[]): Promise<Map<string, StoryChapterGraph>> {
+  const graphs = new Map<string, StoryChapterGraph>()
+  if (!projectIds.length) return graphs
+  const projects = await prisma.project.findMany({
+    where: { ...projectReadScopeWhere(session), workId, id: { in: projectIds } },
+    select: {
+      id: true,
+      canvases: {
+        orderBy: { createdAt: 'asc' },
+        take: 1,
+        select: {
+          nodes: { select: { id: true, type: true, data: true } },
+          edges: { select: { id: true, sourceNodeId: true, targetNodeId: true, sourceHandle: true, role: true } },
+        },
+      },
+    },
+  })
+  for (const project of projects ?? []) {
+    const canvas = project.canvases[0]
+    const nodes = (canvas?.nodes ?? []) as CanvasNodeLike[]
+    const edges = (canvas?.edges ?? []).map((edge) => ({
+      id: edge.id, source: edge.sourceNodeId, target: edge.targetNodeId, sourceHandle: edge.sourceHandle, role: edge.role,
+    })) satisfies CanvasEdgeLike[]
+    graphs.set(project.id, compileChapter({ projectId: project.id, title: '' }, nodes, edges))
+  }
+  return graphs
+}
+
+/**
+ * PATCH guard for the three layers: project ownership, hidden chapters, link
+ * cycles and orphan node references. Existing orphaned work segments stay
+ * valid so a deleted scene can be recovered instead of blocking every save.
+ */
+async function assertStoryConfigReferences(
+  session: AuthSession,
+  workId: string,
+  projectIds: string[],
+  config: InteractiveStoryConfig,
+  stored: InteractiveStoryConfig,
+  keys: Set<string>,
+): Promise<Map<string, StoryChapterGraph> | null> {
+  const owned = new Set(projectIds)
+  const referenced = new Set<string>()
+  const requireOwned = (projectId: string, label: string, allowStoredOrphan = false) => {
+    if (!owned.has(projectId)) {
+      if (allowStoredOrphan) return false
+      throw new ApiError('INVALID_PARAMS', { message: `${label}不属于该影游。` })
+    }
+    referenced.add(projectId)
+    return true
+  }
+
+  if (keys.has('chapters')) {
+    for (const chapter of config.chapters) requireOwned(chapter.projectId, '章节')
+  }
+  if (keys.has('links')) {
+    for (const link of config.links) {
+      requireOwned(link.fromProjectId, '章节连线')
+      requireOwned(link.toProjectId, '章节连线')
+    }
+    if (findStoryLinkCycle(config.links)) {
+      throw new ApiError('INVALID_PARAMS', { message: '章节连线形成了循环，观众会回到已经走过的章节。' })
+    }
+  }
+  if (keys.has('start') && config.start) requireOwned(config.start.projectId, '故事起点')
+
+  const storedSegments = new Set((stored.sequence?.segments ?? []).map((segment) => sequenceSegmentKey(segment.projectId, segment.sceneNodeId)))
+  const sequenceSegments = keys.has('sequence') ? config.sequence?.segments ?? [] : []
+  for (const segment of sequenceSegments) {
+    const key = sequenceSegmentKey(segment.projectId, segment.sceneNodeId)
+    if (!requireOwned(segment.projectId, '作品片段', storedSegments.has(key))) continue
+  }
+
+  if (referenced.size) {
+    const hidden = await findHiddenProjectIds(session, Array.from(referenced))
+    if (hidden.size) throw new ApiError('FORBIDDEN', { message: '故事配置引用了无权访问的作品。' })
+  }
+
+  const needsNodes = keys.has('links') || keys.has('start') || keys.has('sequence')
+  if (!needsNodes) return null
+  const graphProjectIds = keys.has('sequence') ? projectIds : Array.from(referenced)
+  const graphs = await loadStoryGraphs(session, workId, graphProjectIds)
+  const nodeOf = (projectId: string, nodeId: string) => graphs.get(projectId)?.nodes.find((node) => node.id === nodeId)
+
+  if (keys.has('links')) {
+    for (const link of config.links) {
+      if (nodeOf(link.fromProjectId, link.exitNodeId)?.kind !== 'exit') {
+        throw new ApiError('INVALID_PARAMS', { message: '章节连线指向了已删除的出口。' })
+      }
+      if (nodeOf(link.toProjectId, link.toEntryNodeId)?.kind !== 'entry') {
+        throw new ApiError('INVALID_PARAMS', { message: '章节连线指向了已删除的入口。' })
+      }
+    }
+  }
+  if (keys.has('start') && config.start) {
+    if (nodeOf(config.start.projectId, config.start.entryNodeId)?.kind !== 'entry') {
+      throw new ApiError('INVALID_PARAMS', { message: '故事起点指向的入口已被删除。' })
+    }
+  }
+  for (const segment of sequenceSegments) {
+    const key = sequenceSegmentKey(segment.projectId, segment.sceneNodeId)
+    if (!owned.has(segment.projectId)) continue
+    if (nodeOf(segment.projectId, segment.sceneNodeId)?.kind === 'scene') continue
+    if (!storedSegments.has(key)) {
+      throw new ApiError('INVALID_PARAMS', { message: '作品片段指向了已删除的剧情片段。' })
+    }
+  }
+  return graphs
+}
 
 async function requireStory(session: AuthSession, workId: string) {
   const access = await getWorkAccess(session, workId)
@@ -84,6 +215,9 @@ async function insertChapter(
 
 export async function createInteractiveStory(session: AuthSession, input: { name?: unknown; aspectRatio?: unknown; resolution?: unknown }) {
   const actor = getWorkspaceActor(session)
+  if (!actor.isManagement && !actor.projectLeader) {
+    throw new ApiError('FORBIDDEN', { message: '当前账号不是项目组长，请联系管理员设置。' })
+  }
   const name = readName(input.name, '影游')
   const format = readFormat(input)
   const aspectRatio = format.aspectRatio ?? '9:16'
@@ -94,7 +228,7 @@ export async function createInteractiveStory(session: AuthSession, input: { name
         workspaceOwnerId: actor.workspaceOwnerId,
         createdById: actor.actorId,
         name,
-        members: { create: [{ userId: actor.actorId, role: 'manager', canManage: true }] },
+        members: { create: [{ userId: actor.actorId, role: 'member', canManage: false }] },
       },
       select: { id: true, name: true },
     })
@@ -166,6 +300,7 @@ export async function getInteractiveStory(session: AuthSession, workId: string) 
       graph: compileChapter({ projectId: project.id, title: project.name }, nodes, edges),
     }
   })
+  const sequence = ensureStorySequence(config, chapters.map((chapter) => chapter.graph), config.sequence)
   return {
     story: {
       workId,
@@ -174,7 +309,7 @@ export async function getInteractiveStory(session: AuthSession, workId: string) 
       resolution: story.resolution,
       canManage: access.canManage,
       canCreateChapters: access.canCreateProjects,
-      config,
+      config: { ...config, sequence },
     },
     chapters,
   }
@@ -192,12 +327,18 @@ export async function updateInteractiveStory(
   let config: InteractiveStoryConfig | undefined
   if (input.config !== undefined) {
     // Keys the client leaves out keep their stored value, so a variables-only patch cannot wipe links.
+    const keys = configPatchKeys(input.config)
     const patch = input.config && typeof input.config === 'object' && !Array.isArray(input.config)
       ? { ...stored, ...input.config as Record<string, unknown> }
       : input.config
     const parsed = parseStoryConfigInput(patch)
     if (!parsed.ok) throw new ApiError('INVALID_PARAMS', { message: parsed.message })
+    const graphs = await assertStoryConfigReferences(session, workId, projectIds, parsed.config, stored, keys)
     config = reconcileStoryChapters(parsed.config, projectIds)
+    if (keys.has('sequence')) {
+      const liveGraphs = graphs ? Array.from(graphs.values()) : []
+      config = { ...config, sequence: ensureStorySequence(config, liveGraphs, parsed.config.sequence) }
+    }
   }
   await prisma.$transaction(async (tx) => {
     if (name !== undefined) await tx.work.update({ where: { id: workId }, data: { name } })

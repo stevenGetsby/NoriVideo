@@ -136,17 +136,33 @@ export function validateCanvasReferenceMedia(
   }
 
   const selectedAudios = references.filter((item) => item.type === 'audio')
-  const durationLimit = schema.audio.maxTotalDurationSeconds
-  if (selectedAudios.length > 0 && typeof durationLimit === 'number') {
+  const audioDurationLimit = schema.audio.maxTotalDurationSeconds
+  if (selectedAudios.length > 0) {
     const unknownDuration = selectedAudios.some((item) => (
       typeof item.durationSeconds !== 'number' || !Number.isFinite(item.durationSeconds)
     ))
     if (unknownDuration && options.requireKnownAudioDuration !== false) {
       errors.push('无法读取部分参考音频的时长，请重新上传后再试。')
-    } else {
+    } else if (typeof audioDurationLimit === 'number') {
       const total = selectedAudios.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)
-      if (total > durationLimit + 0.01) {
-        errors.push(`参考音频总时长最多 ${durationLimit} 秒，当前约 ${Math.round(total * 10) / 10} 秒。`)
+      if (total > audioDurationLimit + 0.01) {
+        errors.push(`参考音频总时长最多 ${audioDurationLimit} 秒，当前约 ${Math.round(total * 10) / 10} 秒。`)
+      }
+    }
+  }
+
+  const selectedVideos = references.filter((item) => item.type === 'video')
+  const videoDurationLimit = schema.video.maxTotalDurationSeconds
+  if (selectedVideos.length > 0 && typeof videoDurationLimit === 'number') {
+    const unknownVideoDuration = selectedVideos.some((item) => (
+      typeof item.durationSeconds !== 'number' || !Number.isFinite(item.durationSeconds)
+    ))
+    if (unknownVideoDuration && options.requireKnownAudioDuration !== false) {
+      errors.push('无法读取部分参考视频的时长，请重新上传后再试。')
+    } else {
+      const totalVideo = selectedVideos.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)
+      if (totalVideo > videoDurationLimit + 0.01) {
+        errors.push(`参考视频总时长最多 ${videoDurationLimit} 秒，当前约 ${Math.round(totalVideo * 10) / 10} 秒。`)
       }
     }
   }

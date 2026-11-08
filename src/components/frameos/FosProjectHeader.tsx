@@ -1,22 +1,23 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { useSession } from 'next-auth/react'
 import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { FosProjectModelConfigDialog } from './FosProjectModelConfigDialog'
 import { FosProjectAssignmentsDialog } from './FosProjectAssignmentsDialog'
-import { isManagementRole } from '@/lib/account/permissions'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { notifyProjectChanged } from '@/lib/projects/change-client'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import { ConfirmActionDialog, RenameDialog } from './works/FosWorksDialogs'
+import { ConfirmActionDialog } from './works/FosWorksDialogs'
+import { projectHref } from '@/lib/projects/navigation'
 
 export function FosProjectHeader({
   projectId,
   projectName,
+  parentProjectId,
   parentProjectName,
+  canDelete = false,
   title,
   backTo,
   backLabel,
@@ -24,35 +25,32 @@ export function FosProjectHeader({
 }: {
   projectId: string
   projectName: string
+  parentProjectId?: string | null
   parentProjectName?: string | null
+  canDelete?: boolean
   title?: string
   backTo?: string
   backLabel?: string
   projectMetaTags?: string[]
 }) {
-  const { data: session } = useSession()
   const router = useRouter()
   const [modelConfigOpen, setModelConfigOpen] = useState(false)
   const [assignmentsOpen, setAssignmentsOpen] = useState(false)
-  const canManage = isManagementRole(session?.user?.role)
   const actionTrigger = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [action, setAction] = useState<'rename' | 'delete' | null>(null)
+  const [action, setAction] = useState<'delete' | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const mutate = async (name?: string) => {
-    if (!canManage || busy) return
+  const mutate = async () => {
+    if (!canDelete || busy) return
     setBusy(true)
     setError(null)
     try {
-      const response = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, {
-        method: name === undefined ? 'DELETE' : 'PATCH',
-        ...(name === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) }),
-      })
-      if (!response.ok) throw new Error(await readApiErrorMessage(response, name === undefined ? '删除作品失败' : '重命名失败'))
+      const response = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '删除作品失败'))
       notifyProjectChanged(projectId)
       setAction(null)
-      if (name === undefined) router.push({ pathname: '/projects' })
+      router.push({ pathname: parentProjectId ? projectHref(parentProjectId) : '/projects' })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '作品操作失败')
       throw cause
@@ -62,7 +60,7 @@ export function FosProjectHeader({
     <>
     <div className="fos-stage-header">
       <Link
-        href={backTo ?? `/workflow/${projectId}/workbench-premium2`}
+        href={backTo ?? (parentProjectId ? projectHref(parentProjectId) : '/projects')}
         className="fos-back-btn"
         aria-label={backLabel || '返回上一级'}
         title={backLabel || '返回上一级'}
@@ -73,9 +71,9 @@ export function FosProjectHeader({
       </Link>
       <div className="fos-stage-context flex min-w-0 flex-wrap items-center gap-2.5">
         {parentProjectName ? (
-          <span className="text-[12px] text-[var(--fos-text-3)]" data-testid="work-parent-project">
-            项目：{parentProjectName}<span aria-hidden="true"> / </span>
-          </span>
+          <Link href={{ pathname: parentProjectId ? projectHref(parentProjectId) : '/projects' }} className="fos-stage-parent-project" data-testid="work-parent-project">
+            <span>项目</span>{parentProjectName}
+          </Link>
         ) : null}
         <h1 className="text-[15px] font-bold text-white">{title ? `${title} · ${projectName}` : projectName}</h1>
         {projectMetaTags.map((tag) => (
@@ -101,10 +99,9 @@ export function FosProjectHeader({
           无限画布
         </Link>
         <button type="button" className="fos-btn fos-btn-ghost" onClick={() => setModelConfigOpen(true)}><AppIcon name="settingsHex" className="h-3.5 w-3.5" />作品设置</button>
-        {canManage ? <button ref={actionTrigger} type="button" className="fos-btn fos-btn-soft" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>作品操作<AppIcon name="chevronDown" className="h-3.5 w-3.5" /></button> : null}
-        {canManage && menuOpen ? <ViewportPopover anchorRef={actionTrigger} width={184} onClose={() => setMenuOpen(false)} className="fos-menu works-project-popover fos-viewport-theme" role="menu" aria-label="作品操作">
+        {canDelete ? <button ref={actionTrigger} type="button" className="fos-btn fos-btn-soft" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen((open) => !open)}>作品操作<AppIcon name="chevronDown" className="h-3.5 w-3.5" /></button> : null}
+        {canDelete && menuOpen ? <ViewportPopover anchorRef={actionTrigger} width={184} onClose={() => setMenuOpen(false)} className="fos-menu works-project-popover fos-viewport-theme" role="menu" aria-label="作品操作">
           <button role="menuitem" className="fos-menu-item" onClick={() => { setMenuOpen(false); setModelConfigOpen(true) }}><AppIcon name="edit" />编辑作品</button>
-          <button role="menuitem" className="fos-menu-item" onClick={() => { setMenuOpen(false); setAction('rename') }}><AppIcon name="edit" />重命名</button>
           <button role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => { setMenuOpen(false); setAction('delete') }}><AppIcon name="trash" />删除作品</button>
         </ViewportPopover> : null}
       </div>
@@ -116,8 +113,7 @@ export function FosProjectHeader({
         onClose={() => setAssignmentsOpen(false)}
       />
     </div>
-    {action === 'rename' && canManage ? <RenameDialog kind="作品" initialName={projectName} busy={busy} onClose={() => setAction(null)} onSave={mutate} /> : null}
-    {action === 'delete' && canManage ? <ConfirmActionDialog title="删除作品" description={`确定删除「${projectName}」吗？作品会移入回收站，15 天内可恢复。${error ? ` ${error}` : ''}`} confirmLabel="确认删除" danger busy={busy} onClose={() => setAction(null)} onConfirm={() => mutate()} /> : null}
+    {action === 'delete' && canDelete ? <ConfirmActionDialog title="删除作品" description={`确定删除「${projectName}」吗？作品会移入回收站，15 天内可恢复。${error ? ` ${error}` : ''}`} confirmLabel="确认删除" danger busy={busy} onClose={() => setAction(null)} onConfirm={() => mutate()} /> : null}
     </>
   )
 }

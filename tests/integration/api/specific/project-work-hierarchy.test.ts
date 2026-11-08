@@ -21,6 +21,7 @@ const db = vi.hoisted(() => ({
     deleteMany: vi.fn(),
   },
   project: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
+  interactiveStory: { findUnique: vi.fn() },
   user: { findMany: vi.fn() },
   $transaction: vi.fn(),
 }))
@@ -36,13 +37,14 @@ describe('project -> work API contract, compatible with existing storage IDs', (
       id: 'stored-parent', name: '项目甲', createdById: 'manager', ...dates,
       createdBy: { id: 'manager', name: 'Manager', role: 'admin' },
       _count: { projects: 1 }, members: [],
-      projects: [{ id: 'stored-child', name: '作品 A', workId: 'stored-parent', ...dates }],
+      projects: [{ id: 'stored-child', name: '作品 A', workId: 'stored-parent', members: [], ...dates }],
     }])
     db.work.findFirst.mockResolvedValue({
       id: 'stored-parent', name: '项目甲', workspaceOwnerId: 'manager', projects: [],
-      deletedAt: null,
+      members: [], deletedAt: null,
     })
     db.project.updateMany.mockResolvedValue({ count: 1 })
+    db.interactiveStory.findUnique.mockResolvedValue(null)
     db.work.create.mockResolvedValue({ id: 'new-parent', name: '新项目', ...dates })
     db.work.update.mockResolvedValue({ id: 'stored-parent', name: '改名后的项目', ...dates })
     db.work.deleteMany.mockResolvedValue({ count: 0 })
@@ -116,7 +118,7 @@ describe('project -> work API contract, compatible with existing storage IDs', (
 
   it('moves an existing work to a project without changing its task or media identity', async () => {
     db.project.findMany.mockResolvedValue([{
-      id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', members: [] }, members: [],
+      id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', interactiveStory: null, members: [] }, members: [],
     }])
     db.project.updateMany.mockResolvedValue({ count: 1 })
     const route = await import('@/app/api/works/projects/move/route')
@@ -131,6 +133,25 @@ describe('project -> work API contract, compatible with existing storage IDs', (
       data: { workId: 'stored-parent' },
     })
     expect(db.project.create).not.toHaveBeenCalled()
+    expect(db.interactiveStory.findUnique).toHaveBeenCalledWith({
+      where: { workId: 'stored-parent' },
+      select: { id: true },
+    })
+  })
+
+  it('rejects an interactive destination without changing an ordinary work', async () => {
+    db.project.findMany.mockResolvedValue([{
+      id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', interactiveStory: null, members: [] }, members: [],
+    }])
+    db.interactiveStory.findUnique.mockResolvedValue({ id: 'story-target' })
+    const route = await import('@/app/api/works/projects/move/route')
+    const response = await route.POST(buildMockRequest({
+      path: '/api/works/projects/move', method: 'POST',
+      body: { workIds: ['stored-child'], targetProjectId: 'stored-parent' },
+    }), { params: Promise.resolve({}) })
+    expect(response.status).toBe(409)
+    expect(db.$transaction).not.toHaveBeenCalled()
+    expect(db.project.updateMany).not.toHaveBeenCalled()
   })
 
   it('returns 400 for conflicting source aliases without touching any work', async () => {
@@ -146,7 +167,7 @@ describe('project -> work API contract, compatible with existing storage IDs', (
 
   it('returns 409 when a work was deleted after reading the source', async () => {
     db.project.findMany.mockResolvedValue([{
-      id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', members: [] }, members: [],
+      id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', interactiveStory: null, members: [] }, members: [],
     }])
     db.project.updateMany.mockResolvedValueOnce({ count: 0 })
     const route = await import('@/app/api/works/projects/move/route')

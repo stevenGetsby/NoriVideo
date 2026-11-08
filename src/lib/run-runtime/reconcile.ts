@@ -96,7 +96,21 @@ export async function reconcileActiveRunsFromTasks(limit = 200): Promise<Reconci
 
   if (activeRuns.length === 0) return []
 
+  const terminalTaskIds = activeRuns
+    .map((run) => run.taskId)
+    .filter((taskId): taskId is string => typeof taskId === 'string' && taskId.trim().length > 0)
+  const terminalTasks = terminalTaskIds.length > 0
+    ? await prisma.task.findMany({
+      where: {
+        id: { in: terminalTaskIds },
+        status: { in: [...TERMINAL_TASK_STATUSES] },
+      },
+      select: { id: true },
+    })
+    : []
+  const terminalTaskIdSet = new Set(terminalTasks.map((task) => task.id))
   const staleRuns = activeRuns.filter((run) => {
+    if (run.taskId && terminalTaskIdSet.has(run.taskId)) return false
     if (
       run.status === RUN_STATUS.RUNNING
       && run.leaseExpiresAt

@@ -52,7 +52,10 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
     [editConfig.sourceKind, editConfig.sourceNodeId, graphNodes],
   )
   const sourceUrl = sourceUrlFor(data, incoming)
-  const references = Array.isArray(editConfig.references) ? editConfig.references : []
+  const references = useMemo(
+    () => Array.isArray(editConfig.references) ? editConfig.references : [],
+    [editConfig.references],
+  )
   const [prompt, setPrompt] = useState(data.prompt || '')
   const [generateAudio, setGenerateAudio] = useState(editConfig.generateAudio !== false)
   const [currentMs, setCurrentMs] = useState(0)

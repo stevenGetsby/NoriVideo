@@ -1678,7 +1678,7 @@ export function CanvasStudio3DDialog({
       const form = new FormData()
       form.set('file', file)
       form.set('title', file.name.replace(/\.[^.]+$/, '') || (type === 'model3d' ? '3D 模型' : '720 全景'))
-      form.set('projectId', projectId)
+      form.set('projectId', 'personal')
       const response = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/materials`, { method: 'POST', body: form })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, type === 'model3d' ? '3D 模型上传失败' : '全景图上传失败'))
       const payload = await response.json() as { material?: FrameosMaterialItem }

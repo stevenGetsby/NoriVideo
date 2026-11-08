@@ -229,40 +229,24 @@ body {
   animation-delay: -6s;
 }
 
-@keyframes assistant-stream-gradient {
+@keyframes assistant-stream-fade {
   0% {
-    background-position: 100% 50%;
     opacity: 0.72;
   }
 
   100% {
-    background-position: 0% 50%;
     opacity: 1;
   }
 }
 
 .assistant-streaming-response {
-  background-image: linear-gradient(
-    90deg,
-    color-mix(in oklch, var(--glass-text-secondary) 85%, white 15%) 0%,
-    color-mix(in oklch, var(--glass-text-primary) 95%, white 5%) 42%,
-    color-mix(in oklch, var(--glass-text-secondary) 85%, white 15%) 100%
-  );
-  background-size: 220% 100%;
-  background-position: 100% 50%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  color: transparent;
-  animation: assistant-stream-gradient 520ms ease-out both;
+  color: var(--glass-text-primary);
+  animation: assistant-stream-fade 520ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .assistant-streaming-response {
     animation: none;
-    background-image: none;
-    background-size: auto;
-    -webkit-text-fill-color: currentColor;
     color: var(--glass-text-primary);
   }
 }
@@ -421,26 +405,6 @@ body {
 .writing-vertical {
   writing-mode: vertical-rl;
   text-orientation: mixed;
-}
-
-/* 渐变动画 */
-@keyframes gradient-x {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient-x {
-  background-size: 200% auto;
-  animation: gradient-x 3s linear infinite;
 }
 
 @keyframes float-slow {

@@ -2,16 +2,18 @@ import { describe, expect, it } from 'vitest'
 import { isCompatibleProvider, resolveModelGatewayRoute } from '@/lib/model-gateway'
 
 describe('model-gateway router', () => {
-  it('routes openai-compatible providers to openai-compat', () => {
-    expect(isCompatibleProvider('openai-compatible')).toBe(true)
-    expect(isCompatibleProvider('openai-compatible:oa-1')).toBe(true)
-    expect(isCompatibleProvider('ghc')).toBe(true)
-    expect(isCompatibleProvider('hfsy')).toBe(true)
+  it('routes only the supported DeepSeek provider to openai-compat', () => {
     expect(isCompatibleProvider('deepseek')).toBe(true)
-    expect(resolveModelGatewayRoute('openai-compatible:oa-1')).toBe('openai-compat')
-    expect(resolveModelGatewayRoute('ghc')).toBe('openai-compat')
-    expect(resolveModelGatewayRoute('hfsy')).toBe('openai-compat')
+    expect(isCompatibleProvider('deepseek:ds-1')).toBe(true)
     expect(resolveModelGatewayRoute('deepseek')).toBe('openai-compat')
+    expect(resolveModelGatewayRoute('deepseek:ds-1')).toBe('openai-compat')
+  })
+
+  it('does not restore retired openai-compatible provider aliases', () => {
+    for (const provider of ['openai-compatible', 'openai-compatible:oa-1', 'ghc', 'hfsy']) {
+      expect(isCompatibleProvider(provider)).toBe(false)
+      expect(resolveModelGatewayRoute(provider)).toBe('official')
+    }
   })
 
   it('keeps gemini-compatible providers on official route', () => {

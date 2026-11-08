@@ -132,7 +132,7 @@ export function FrameUpdatesDashboard() {
               type="button"
               onClick={runUpdateCheck}
               disabled={isChecking}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
             >
               <AppIcon name={isChecking ? 'loader' : 'refresh'} className={`h-4 w-4 ${isChecking ? 'animate-spin' : ''}`} />
               {isChecking ? t('checkingNow') : t('runCheck')}

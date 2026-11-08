@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import type { CSSProperties, ImgHTMLAttributes, MouseEventHandler } from 'react'
 
 export type MediaImageProps = {
@@ -16,10 +15,6 @@ export type MediaImageProps = {
   priority?: boolean
 } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'alt' | 'width' | 'height'>
 
-function isStableMediaRoute(src: string) {
-  return src.startsWith('/m/')
-}
-
 export function MediaImage({
   src,
   alt,
@@ -33,6 +28,11 @@ export function MediaImage({
   priority = false,
   ...imgProps
 }: MediaImageProps) {
+  // width/height/sizes are accepted for API compatibility but the plain <img>
+  // below intentionally does not forward them as attributes.
+  void width
+  void height
+  void sizes
   if (!src) return null
 
   // Use plain <img> for all sources to avoid Next.js image optimizer issues in Docker

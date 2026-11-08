@@ -23,7 +23,12 @@ import {
   buildOpenLuxImageFields,
   buildOpenLuxUrl,
   generateOpenLuxImage,
+  getOpenLuxModelDefinition,
+  listOpenLuxCatalogModels,
+  listOpenLuxSelectableModels,
 } from '@/lib/providers/openlux'
+import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
+import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 
 const fetchMock = vi.fn()
 vi.stubGlobal('fetch', fetchMock)
@@ -40,6 +45,60 @@ function imageResponse(): Response {
     headers: { 'content-type': 'image/png' },
   })
 }
+
+describe('OpenLux catalog registration', () => {
+  it('registers every model returned by the provider discovery probe', () => {
+    expect(listOpenLuxCatalogModels('image').map((model) => model.modelId)).toEqual([
+      'gpt-image-2.5-flare',
+      'gpt-image-2.5-sunburst',
+      'gpt-image-2.5-flare-c',
+      'gpt-image-2.5-sunburst-c',
+      'gpt-image-2.6-flare',
+      'gpt-image-2.6-sunburst',
+      'gpt-image-2.6-flare-c',
+      'gpt-image-2.6-sunburst-c',
+    ])
+    for (const model of listOpenLuxCatalogModels('image')) {
+      expect(getOpenLuxModelDefinition(model.modelId, 'image')).toMatchObject({
+        modelId: model.modelId,
+        modality: 'image',
+      })
+    }
+  })
+
+  it('only exposes models that have a verified deterministic per-image price', () => {
+    const selectable = listOpenLuxSelectableModels('image')
+    expect(selectable.map((model) => model.modelId)).toEqual([
+      'gpt-image-2.5-flare',
+      'gpt-image-2.5-sunburst',
+      'gpt-image-2.5-flare-c',
+      'gpt-image-2.5-sunburst-c',
+      'gpt-image-2.6-flare-c',
+      'gpt-image-2.6-sunburst-c',
+    ])
+    for (const model of selectable) {
+      expect(findBuiltinPricingCatalogEntry('image', 'openlux', model.modelId)?.pricing.mode).toBe('flat')
+    }
+    expect(listOpenLuxSelectableModels('image').some((model) => ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'].includes(model.modelId))).toBe(false)
+  })
+
+  it('publishes verified reference and inpaint capabilities for every discovered model', () => {
+    for (const model of listOpenLuxCatalogModels('image')) {
+      const capabilities = findBuiltinCapabilities('image', 'openlux', model.modelId)
+      expect(capabilities?.image?.supportsInpaint).toBe(true)
+      expect(capabilities?.image?.inputSchema?.image).toEqual({ min: 0, max: 16 })
+      expect(capabilities?.image?.inputSchema?.requiredFields).toContain('prompt')
+      expect(capabilities?.image?.resolutionOptions).toContain('1024x1024')
+    }
+  })
+
+  it('rejects unknown or wrong-modality model ids with a stable error', () => {
+    expect(() => getOpenLuxModelDefinition('gpt-image-9.9-unknown', 'image'))
+      .toThrow('MODEL_NOT_REGISTERED: openlux/image/gpt-image-9.9-unknown')
+    expect(() => getOpenLuxModelDefinition('gpt-image-2.6-flare', 'image'))
+      .not.toThrow()
+  })
+})
 
 describe('OpenLux image adapter', () => {
   beforeEach(() => {
@@ -146,6 +205,73 @@ describe('OpenLux image adapter', () => {
       imageUrl: 'https://cdn.example.com/one.png',
     })
   })
+
+  it('submits the discovered 2.6 -c models with the same parameter mapping', async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({
+      id: 'img_26',
+      data: [{ url: 'https://cdn.example.com/26.png' }],
+    }))
+
+    await generateOpenLuxImage({
+      userId: 'user-1',
+      prompt: 'draw sky',
+      options: {
+        provider: 'openlux',
+        modelId: 'gpt-image-2.6-flare-c',
+        aspectRatio: '1:1',
+        quality: 'medium',
+      },
+    })
+    const [generationUrl, generationInit] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(generationUrl).toBe('https://api.openlux.ai/v1/images/generations')
+    expect(JSON.parse(String(generationInit.body))).toMatchObject({
+      model: 'gpt-image-2.6-flare-c',
+      prompt: 'draw sky',
+      size: '1024x1024',
+      quality: 'medium',
+    })
+
+    normalizeReferencesMock.mockResolvedValueOnce(['https://cdn.example.com/source.png'])
+    fetchMock
+      .mockResolvedValueOnce(imageResponse())
+      .mockResolvedValueOnce(jsonResponse({
+        id: 'img_26_edit',
+        data: [{ url: 'https://cdn.example.com/26-edit.png' }],
+      }))
+    await generateOpenLuxImage({
+      userId: 'user-1',
+      prompt: 'add a cloud',
+      referenceImages: ['https://cdn.example.com/source.png'],
+      options: { provider: 'openlux', modelId: 'gpt-image-2.6-sunburst-c' },
+    })
+    const [editUrl, editInit] = fetchMock.mock.calls[2] as [string, RequestInit]
+    expect(editUrl).toBe('https://api.openlux.ai/v1/images/edits')
+    expect((editInit.body as FormData).get('model')).toBe('gpt-image-2.6-sunburst-c')
+  })
+
+  it('rejects unregistered model ids before any paid request', async () => {
+    await expect(generateOpenLuxImage({
+      userId: 'user-1',
+      prompt: 'draw sky',
+      options: { provider: 'openlux', modelId: 'gpt-image-9.9-guessed' },
+    })).rejects.toThrow('MODEL_NOT_REGISTERED')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it.each(['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'])(
+    'rejects unpriced model %s before loading provider configuration or making requests',
+    async (modelId) => {
+      await expect(generateOpenLuxImage({
+        userId: 'user-1',
+        prompt: 'draw sky',
+        referenceImages: ['asset://source'],
+        options: { provider: 'openlux', modelId },
+      })).rejects.toThrow(`OPENLUX_IMAGE_PRICING_UNAVAILABLE: ${modelId}`)
+      expect(getProviderConfigMock).not.toHaveBeenCalled()
+      expect(normalizeReferencesMock).not.toHaveBeenCalled()
+      expect(fetchMock).not.toHaveBeenCalled()
+    },
+  )
 
   it('returns multiple urls and base64 images', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse({

@@ -42,6 +42,7 @@ interface WriterScript {
 
 export interface CreateProjectDraft {
   name: string
+  creationMode: 'canvas' | 'workflow'
   projectLevel: CreateProjectLevel
   collaborationMode: 'solo' | 'team'
   projectType: CreateProjectType
@@ -112,6 +113,7 @@ function ProjectPillGroup<T extends string>({
 
 const DEFAULT_DRAFT: CreateProjectFormDraft = {
   name: '',
+  creationMode: 'canvas',
   projectLevel: 'Nori1.0',
   collaborationMode: 'solo',
   projectType: 'story',
@@ -216,6 +218,10 @@ export function CreateProjectDialog({
     .join('|')
 
   useEffect(() => {
+    if (draft.creationMode !== 'workflow') {
+      setScriptsLoading(false)
+      return
+    }
     let active = true
     setScriptsLoading(true)
     void apiFetch('/api/video-repaint/scripts', { cache: 'no-store' })
@@ -234,10 +240,10 @@ export function CreateProjectDialog({
       })
       .finally(() => { if (active) setScriptsLoading(false) })
     return () => { active = false }
-  }, [])
+  }, [draft.creationMode])
 
   useEffect(() => {
-    if (draft.collaborationMode !== 'team') return
+    if (draft.creationMode !== 'workflow' || draft.collaborationMode !== 'team') return
     const controller = new AbortController()
     setMembersLoading(true)
     setMembersError(null)
@@ -258,7 +264,7 @@ export function CreateProjectDialog({
         if (!controller.signal.aborted) setMembersLoading(false)
       })
     return () => controller.abort()
-  }, [draft.collaborationMode])
+  }, [draft.collaborationMode, draft.creationMode])
 
   useEffect(() => {
     if (!analyzedReferenceSignatureRef.current) return
@@ -350,12 +356,12 @@ export function CreateProjectDialog({
     event.preventDefault()
     if (submittingRef.current) return
     if (!draft.name.trim()) { setError('作品名称必填'); return }
-    if (draft.materialType === 'script' && source === 'writer' && !draft.importedScriptText.trim()) { setError('请选择一个状态为“可用”的剧本'); return }
-    if (source === 'local' && !draft.scriptFile) { setError(`请上传 txt、docx 或 pdf ${draft.materialType === 'script' ? '剧本' : '小说/大纲'}文件`); return }
-    if (variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'validating')) { setError('画风参考视频仍在读取，请稍候。'); return }
-    if (variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'failed')) { setError('请移除无法读取或超过 1 分钟的画风参考视频。'); return }
-    if (styleAnalyzing) { setError('参考图画风仍在解析，请稍候。'); return }
-    if (draft.collaborationMode === 'team' && !(
+    if (draft.creationMode === 'workflow' && draft.materialType === 'script' && source === 'writer' && !draft.importedScriptText.trim()) { setError('请选择一个状态为“可用”的剧本'); return }
+    if (draft.creationMode === 'workflow' && source === 'local' && !draft.scriptFile) { setError(`请上传 txt、docx 或 pdf ${draft.materialType === 'script' ? '剧本' : '小说/大纲'}文件`); return }
+    if (draft.creationMode === 'workflow' && variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'validating')) { setError('画风参考视频仍在读取，请稍候。'); return }
+    if (draft.creationMode === 'workflow' && variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'failed')) { setError('请移除无法读取或超过 1 分钟的画风参考视频。'); return }
+    if (draft.creationMode === 'workflow' && styleAnalyzing) { setError('参考图画风仍在解析，请稍候。'); return }
+    if (draft.creationMode === 'workflow' && draft.collaborationMode === 'team' && !(
       draft.writerAssigneeUserId
       || draft.assetAssigneeUserId
       || draft.storyboardAssigneeUserId
@@ -363,16 +369,20 @@ export function CreateProjectDialog({
       setError('任务分工模式至少需要选择一名编剧、资产师或分镜师。')
       return
     }
-    const durationValue = draft.episodeDurationValue
-    if (durationValue === '') {
+    const durationValue = draft.creationMode === 'canvas'
+      ? 120
+      : typeof draft.episodeDurationValue === 'number'
+        ? draft.episodeDurationValue
+        : Number.NaN
+    if (draft.creationMode === 'workflow' && !Number.isInteger(durationValue)) {
       setError('请输入单集时长')
       return
     }
-    if (!Number.isInteger(durationValue) || durationValue < bounds.minimum || durationValue > bounds.maximum) {
+    if (draft.creationMode === 'workflow' && (!Number.isInteger(durationValue) || durationValue < bounds.minimum || durationValue > bounds.maximum)) {
       setError(`时长必须是 ${bounds.minimum}–${bounds.maximum} 的整数`)
       return
     }
-    if (source === 'range' && (
+    if (draft.creationMode === 'workflow' && source === 'range' && (
       !Number.isInteger(draft.initialEpisodeStart)
       || !Number.isInteger(draft.initialEpisodeEnd)
       || draft.initialEpisodeStart < 1
@@ -393,11 +403,13 @@ export function CreateProjectDialog({
       error: null,
     })))
     try {
-      const styleReferenceFiles = variant.showStyleReferences
+      const styleReferenceFiles = draft.creationMode === 'workflow' && variant.showStyleReferences
         ? toProjectStyleReferenceDraftFiles(styleReferenceItems)
         : []
       const normalizedDraft: CreateProjectDraft = { ...draft, episodeDurationValue: durationValue }
-      const nextDraft = source === 'blank'
+      const nextDraft = draft.creationMode === 'canvas'
+        ? { ...normalizedDraft, collaborationMode: 'solo' as const, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false, styleReferenceFiles: [] }
+        : source === 'blank'
         ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false, styleReferenceFiles }
         : variant.allowEpisodeRange && source === 'range'
           ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: true, styleReferenceFiles }
@@ -477,6 +489,16 @@ export function CreateProjectDialog({
             <input ref={initialFocusRef} className="fos-input" placeholder="请输入作品名称" required maxLength={40} value={draft.name} onChange={(event) => { set('name', event.target.value); setError(null) }} />
           </label>
 
+          <div className="create-project-pill-group">
+            <span>创作方式</span>
+            <div className="create-project-pill-row" role="radiogroup" aria-label="创作方式">
+              <button type="button" role="radio" aria-checked={draft.creationMode === 'canvas'} className={draft.creationMode === 'canvas' ? 'is-selected' : ''} onClick={() => { set('creationMode', 'canvas'); setError(null) }}>画布</button>
+              <button type="button" role="radio" aria-checked={draft.creationMode === 'workflow'} className={draft.creationMode === 'workflow' ? 'is-selected' : ''} onClick={() => { set('creationMode', 'workflow'); setError(null) }}>工作流</button>
+            </div>
+            {draft.creationMode === 'canvas' ? <p className="works-dialog-intro">创建作品与空白画布，立即开始创作。</p> : null}
+          </div>
+
+          {draft.creationMode === 'workflow' && <section className="create-project-workflow-settings">
           <section className="create-project-section">
             <div className="create-project-label">作品版本</div>
             <div className="create-project-level-grid is-single">
@@ -497,7 +519,7 @@ export function CreateProjectDialog({
             <div className="create-project-label">作品协作方式</div>
             <div className="create-project-mode-grid">
               <button type="button" className={draft.collaborationMode === 'solo' ? 'is-selected' : ''} onClick={() => set('collaborationMode', 'solo')}>
-                <span><AppIcon name="link" />自由协作</span><small>所有协作者均可按账号权限操作，不分配任务（默认）</small>
+                <span><AppIcon name="link" />自由协作</span><small>所有协作者均可使用创作功能，不分配任务（默认）</small>
               </button>
               <button type="button" className={draft.collaborationMode === 'team' ? 'is-selected' : ''} onClick={() => set('collaborationMode', 'team')}>
                 <span><AppIcon name="usersRound" />任务分工</span><small>按剧本、资产、分镜、视频分派任务，支持提交与审核</small>
@@ -509,11 +531,11 @@ export function CreateProjectDialog({
             <section className="create-project-section create-project-assignment-section" data-testid="project-role-assignees">
               <div className="create-project-label">
                 任务负责人
-                <small>按账号实际功能区筛选；同一账号可承担多个功能区</small>
+                <small>从当前工作区选择负责人；同一账号可承担多个任务</small>
               </div>
               <div className="create-project-assignment-grid">
                 {ASSIGNMENT_ROLE_OPTIONS.map((option) => {
-                  const candidates = memberCandidates.filter((candidate) => candidate.permissions?.includes(option.permission))
+                  const candidates = memberCandidates
                   return (
                     <label key={option.role}>
                       <span className={`create-project-assignment-icon is-${option.role}`}><AppIcon name="user" /></span>
@@ -533,8 +555,8 @@ export function CreateProjectDialog({
               </div>
               {membersLoading ? <div className="create-project-assignment-state"><AppIcon name="loader" className="animate-spin" />正在读取管理账号下的子账号…</div> : null}
               {!membersLoading && membersError ? <div className="create-project-assignment-state is-error">{membersError}</div> : null}
-              {!membersLoading && !membersError && memberCandidates.every((candidate) => !candidate.permissions?.some((permission) => ['scriptWrite', 'assetWrite', 'storyboardWrite'].includes(permission))) ? (
-                <div className="create-project-assignment-state">暂无可分配子账号，请先在账号管理中为子账号开启剧本、资产或分镜功能区。</div>
+              {!membersLoading && !membersError && memberCandidates.length === 0 ? (
+                <div className="create-project-assignment-state">暂无可分配子账号，请先在账号管理中创建并启用子账号。</div>
               ) : null}
             </section>
           ) : null}
@@ -725,6 +747,7 @@ export function CreateProjectDialog({
               </div>
             </div>
           </section>
+          </section>}
           </fieldset>
 
           {error ? <div className="create-project-error" role="alert"><AppIcon name="alert" />{error}</div> : null}
@@ -732,7 +755,7 @@ export function CreateProjectDialog({
         <footer className="fos-dialog-foot">
           {!submitting && !draft.name.trim() ? <span className="create-project-foot-hint"><AppIcon name="info" />填写作品名称后即可创建</span> : null}
           <button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={() => void requestClose()}>取消</button>
-          <button type="submit" className="fos-btn fos-btn-primary fos-btn-lg" disabled={submitting || !draft.name.trim()}>{submitting ? <><AppIcon name="loader" className="animate-spin" />{submitStatus}</> : '确认创建并进入工作台'}</button>
+          <button type="submit" className="fos-btn fos-btn-primary fos-btn-lg" disabled={submitting || !draft.name.trim()}>{submitting ? <><AppIcon name="loader" className="animate-spin" />{submitStatus}</> : draft.creationMode === 'canvas' ? '创建并进入画布' : '确认创建并进入工作台'}</button>
         </footer>
       </form>
     </div>

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
+import type { Prisma } from '@prisma/client'
 import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth, requireUserPermission } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
 import { hasAccountPermissions, isManagementRole } from '@/lib/account/permissions'
 import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { extractStorageKey, getSignedUrl } from '@/lib/storage'
+import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import {
   syncGeneratedImagesToMaterialLibrary,
@@ -35,7 +38,7 @@ function dateFilter(value: string | null): Date | null {
 export const GET = apiHandler(async (request: NextRequest) => {
   const params = request.nextUrl.searchParams
   const projectId = cleanText(params.get('projectId'))
-  const scopedProjectId = projectId && !ACCOUNT_MATERIAL_PROJECT_IDS.includes(projectId as typeof ACCOUNT_MATERIAL_PROJECT_IDS[number])
+  const scopedProjectId = projectId && projectId !== PERSONAL_MATERIAL_PROJECT_ID && !ACCOUNT_MATERIAL_PROJECT_IDS.includes(projectId as typeof ACCOUNT_MATERIAL_PROJECT_IDS[number])
     ? projectId
     : ''
   const authResult = scopedProjectId
@@ -44,7 +47,12 @@ export const GET = apiHandler(async (request: NextRequest) => {
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
   const actor = getWorkspaceActor(session)
+  const workId = cleanText(params.get('workId'))
+  const assetScope = workId ? await resolveProjectAssetScope(session, { workId, projectId: scopedProjectId }) : null
   const available = params.get('available') === '1'
+  const scope = ['personal', 'project', 'all'].includes(cleanText(params.get('scope'))) ? cleanText(params.get('scope')) : 'all'
+  const personal = scope === 'personal' || projectId === PERSONAL_MATERIAL_PROJECT_ID
+  const shared = scope === 'project'
   const type = normalizeType(params.get('type'))
   const requestedSource = cleanText(params.get('source'))
   const source = ALLOWED_SOURCES.has(requestedSource) ? requestedSource : ''
@@ -72,7 +80,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const [readableProjects, workspaceUsers] = await Promise.all([
     prisma.project.findMany({
       where: projectReadScopeWhere(session),
-      select: { id: true, name: true },
+      select: { id: true, name: true, workId: true },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     }),
     prisma.user.findMany({
@@ -90,16 +98,31 @@ export const GET = apiHandler(async (request: NextRequest) => {
         : user.name.toLocaleLowerCase().includes(creator.toLocaleLowerCase()))
       .map((user) => user.id)
     : []
-  const projectIds = projectId
+  const projectIds = personal
+    ? [PERSONAL_MATERIAL_PROJECT_ID]
+    : assetScope?.projectIds
+    || (projectId
     ? (available
       ? Array.from(new Set([...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS]))
       : [projectId])
-    : [...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS]
-  const materials = await prisma.frameosMaterial.findMany({
-    where: {
-      userId: { in: workspaceUserIds },
-      projectId: { in: projectIds },
-      deletedAt: deleted ? { not: null } : null,
+    : [...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS])
+  const scopeWhere: Prisma.FrameosMaterialWhereInput = {
+    userId: { in: workspaceUserIds },
+    projectId: personal ? PERSONAL_MATERIAL_PROJECT_ID : { in: projectIds },
+    ...(personal
+      ? { personalOwnerId: actor.actorId }
+      : shared
+        ? { personalOwnerId: null }
+        : { OR: [
+            { personalOwnerId: null },
+            { personalOwnerId: actor.actorId, projectId: PERSONAL_MATERIAL_PROJECT_ID },
+          ] }),
+    deletedAt: deleted ? { not: null } : null,
+  }
+  const [materials, trashCount] = await Promise.all([
+    prisma.frameosMaterial.findMany({
+      where: {
+        ...scopeWhere,
       ...(type ? { type } : {}),
       ...(source ? { source } : {}),
       ...(favorite ? { isFavorited: true } : {}),
@@ -126,10 +149,12 @@ export const GET = apiHandler(async (request: NextRequest) => {
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: limit,
     ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-  })
+    }),
+    prisma.frameosMaterial.count({ where: { ...scopeWhere, deletedAt: { not: null } } }),
+  ])
   const realProjectIds = Array.from(new Set(materials
     .map((material) => material.projectId)
-    .filter((id) => id !== 'global' && id !== 'global-asset-hub')))
+    .filter((id) => id !== 'global' && id !== 'global-asset-hub' && id !== PERSONAL_MATERIAL_PROJECT_ID)))
   const readableProjectNames = new Map(readableProjects.map((project) => [project.id, project.name]))
   const missingProjectIds = realProjectIds.filter((id) => !readableProjectNames.has(id))
   const projects = missingProjectIds.length > 0
@@ -139,16 +164,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
     : []
   for (const project of projects) readableProjectNames.set(project.id, project.name)
-  const trashCount = await prisma.frameosMaterial.count({
-    where: {
-      userId: { in: workspaceUserIds },
-      projectId: { in: projectIds },
-      deletedAt: { not: null },
-    },
-  })
   const voiceIds = [...new Set(materials.map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
   const voices = voiceIds.length ? await prisma.frameosMaterial.findMany({
-    where: { id: { in: voiceIds }, userId: { in: workspaceUserIds }, projectId: { in: projectIds }, type: 'audio', status: 'ready', deletedAt: null },
+    where: { ...scopeWhere, id: { in: voiceIds }, type: 'audio', status: 'ready', deletedAt: null },
   }) : []
   const voicesById = new Map(voices.map((voice) => [voice.id, voice]))
 
@@ -171,17 +189,21 @@ export const GET = apiHandler(async (request: NextRequest) => {
       ...material,
       voice: (() => {
         const voice = voicesById.get(characterVoiceMaterialId(material.metadata) || '')
-        if (!voice || ![material.projectId, ...ACCOUNT_MATERIAL_PROJECT_IDS].includes(voice.projectId)) return null
+        if (!voice) return null
         const key = voice.storageKey || extractStorageKey(voice.resultUrl)
         return { materialId: voice.id, title: voice.title, url: key ? getSignedUrl(key, 3600) : voice.resultUrl }
       })(),
+      canEdit: !material.personalOwnerId || material.personalOwnerId === actor.actorId,
+      personal: material.personalOwnerId === actor.actorId && material.projectId === PERSONAL_MATERIAL_PROJECT_ID,
       ownerName: material.ownerName || workspaceUserNames.get(material.userId) || null,
       storageKey: material.storageKey || extractStorageKey(material.resultUrl),
       url: (() => {
         const key = material.storageKey || extractStorageKey(material.resultUrl)
         return key ? getSignedUrl(key, 3600) : material.resultUrl
       })(),
-      projectName: material.projectId === 'global' || material.projectId === 'global-asset-hub'
+      projectName: material.personalOwnerId === actor.actorId && material.projectId === PERSONAL_MATERIAL_PROJECT_ID
+        ? '个人素材'
+        : material.projectId === 'global' || material.projectId === 'global-asset-hub'
         ? '账号素材'
         : readableProjectNames.get(material.projectId) || '项目素材',
     })),

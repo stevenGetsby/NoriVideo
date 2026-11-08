@@ -2,7 +2,7 @@
 
 import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   Box,
@@ -83,6 +83,7 @@ function derivativeActions(type: string) {
     return [
       actionButton('superresolve', '超清', Maximize2),
       actionButton('subtitle_erase', '去字幕', Captions),
+      actionButton('audio_extract', '提取音频', Music2),
     ]
   }
   if (type === 'model3d') return [actionButton('studio_3d', '进入 3D 预览', Box)]
@@ -95,7 +96,7 @@ function TextContent({ id, value, readOnly }: { id: string; value: string; readO
   const [draft, setDraft] = useState(value)
   const ref = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => setDraft(value), [value])
+  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
   useEffect(() => { if (editing) ref.current?.focus() }, [editing])
 
   const save = () => {
@@ -192,12 +193,19 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const [title, setTitle] = useState(data.title || '未命名节点')
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const moreActionsRef = useRef<HTMLButtonElement>(null)
+  const toolbarRef = useRef<HTMLDivElement | null>(null)
+  const [toolbarShift, setToolbarShift] = useState(0)
+  const [toolbarTop, setToolbarTop] = useState(0)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
   const [videoFailed, setVideoFailed] = useState(false)
   const [videoAttempt, setVideoAttempt] = useState(0)
   useEffect(() => { setVideoFailed(false); setVideoAttempt(0) }, [videoUrl])
-  const inlineActions = actions.filter(({ action }) => action === 'preview' || action === 'download')
-  const overflowActions = actions.filter(({ action }) => action !== 'preview' && action !== 'download')
+  const inlineActions = mediaType === 'image'
+    ? actions
+    : actions.filter(({ action }) => action === 'preview' || action === 'download')
+  const overflowActions = mediaType === 'image'
+    ? []
+    : actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
   const currentCost = getCanvasCurrentCostLabel(data.history, data, mediaType)
   const previewReferenceNode = previewReference
@@ -218,6 +226,74 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   useEffect(() => {
     if (!selected) setMoreActionsOpen(false)
   }, [selected])
+  useLayoutEffect(() => {
+    if (!selected || mediaType !== 'image') return
+    const toolbar = toolbarRef.current?.parentElement
+    if (!toolbar) return
+    const surface = toolbar.closest('.nori-canvas-workspace')
+    if (!(toolbar instanceof HTMLElement) || !(surface instanceof HTMLElement)) return
+    const node = surface.querySelector(`.react-flow__node[data-id="${id}"]`)
+    const flowViewport = surface.querySelector('.react-flow__viewport')
+    if (!(node instanceof HTMLElement)) return
+    const keepVisible = () => {
+      const nodeBounds = node.getBoundingClientRect()
+      const bounds = surface.getBoundingClientRect()
+      const toolbarBounds = toolbar.getBoundingClientRect()
+      const offsetParent = toolbar.offsetParent instanceof HTMLElement
+        ? toolbar.offsetParent
+        : null
+      if (!offsetParent) return
+      const parentBounds = offsetParent.getBoundingClientRect()
+      const margin = 8
+      const parentScaleX = parentBounds.width > 0
+        ? offsetParent.offsetWidth / parentBounds.width
+        : 1
+      const parentScaleY = parentBounds.height > 0
+        ? offsetParent.offsetHeight / parentBounds.height
+        : 1
+      const currentLeft = Number.parseFloat(toolbar.style.left) || 0
+      const currentTop = Number.parseFloat(toolbar.style.top) || 0
+      // Correct from the natural DOM position, never from the current offset.
+      // NodeToolbar's internal measurements can lag behind the real node DOM.
+      const naturalLeft = toolbarBounds.left - currentLeft / parentScaleX
+      const naturalTop = toolbarBounds.top - currentTop / parentScaleY
+      const desiredCenter = Math.min(
+        Math.max(nodeBounds.left + nodeBounds.width / 2, bounds.left + margin + toolbarBounds.width / 2),
+        bounds.right - margin - toolbarBounds.width / 2,
+      )
+      const chrome = surface.querySelector('.nori-canvas-chrome')
+      const chromeBounds = chrome?.getBoundingClientRect()
+      const topBoundary = chromeBounds && chromeBounds.bottom > bounds.top
+        ? chromeBounds.bottom
+        : bounds.top
+      let desiredTop = nodeBounds.top - 26 - toolbarBounds.height
+      if (desiredTop < topBoundary + margin) {
+        desiredTop = nodeBounds.bottom + margin
+      }
+      desiredTop = Math.min(desiredTop, bounds.bottom - margin - toolbarBounds.height)
+      desiredTop = Math.max(desiredTop, bounds.top + margin)
+      const nextLeft = (desiredCenter - toolbarBounds.width / 2 - naturalLeft) * parentScaleX
+      const nextTop = (desiredTop - naturalTop) * parentScaleY
+      if (Math.abs(nextLeft - currentLeft) > 0.01) setToolbarShift(nextLeft)
+      if (Math.abs(nextTop - currentTop) > 0.01) setToolbarTop(nextTop)
+    }
+    const frame = requestAnimationFrame(keepVisible)
+    const resizeObserver = new ResizeObserver(keepVisible)
+    resizeObserver.observe(toolbar)
+    resizeObserver.observe(node)
+    resizeObserver.observe(surface)
+    const transformObserver = new MutationObserver(keepVisible)
+    transformObserver.observe(toolbar, { attributes: true, attributeFilter: ['style'] })
+    transformObserver.observe(node, { attributes: true, attributeFilter: ['style'] })
+    if (flowViewport) transformObserver.observe(flowViewport, { attributes: true, attributeFilter: ['style'] })
+    window.addEventListener('resize', keepVisible)
+    return () => {
+      cancelAnimationFrame(frame)
+      resizeObserver.disconnect()
+      transformObserver.disconnect()
+      window.removeEventListener('resize', keepVisible)
+    }
+  }, [actions.length, canReplaceContent, id, mediaType, selected])
 
   const saveTitle = () => {
     setRenaming(false)
@@ -236,7 +312,8 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         lineClassName="nori-canvas-resize-line"
         handleClassName="nori-canvas-resize-handle"
       />
-      <NodeToolbar isVisible={selected && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} className="nori-canvas-node-toolbar nodrag nowheel">
+      <NodeToolbar isVisible={selected && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType} nodrag nowheel`}>
+        <div ref={toolbarRef} className="nori-canvas-node-toolbar-anchor" aria-hidden="true" />
         {canReplaceContent ? (
           <button
             type="button"

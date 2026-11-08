@@ -52,6 +52,16 @@ describe('interactive story checks', () => {
     expect(issues.find((item) => item.code === 'exit_unlinked')?.nodeId).toBe('a_exit_run')
   })
 
+  it('flags chapter link cycles', () => {
+    const program = buildProgram()
+    program.links = [
+      { id: 'l1', fromProjectId: 'p1', exitNodeId: 'a_exit', toProjectId: 'p2', toEntryNodeId: 'b_in' },
+      { id: 'l2', fromProjectId: 'p2', exitNodeId: 'b_good', toProjectId: 'p1', toEntryNodeId: 'a_in' },
+    ]
+    const cycle = validateStory(program).find((item) => item.code === 'chapter_cycle')
+    expect(cycle).toMatchObject({ level: 'error', projectId: 'p1' })
+  })
+
   it('requires chapters, a valid start and at least one ending', () => {
     expect(codes(validateStory({ variables: [], chapters: [], links: [], start: null }))).toEqual(['no_chapters'])
     const program = buildProgram()

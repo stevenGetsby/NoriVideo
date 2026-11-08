@@ -8,7 +8,7 @@ const longPrompt = '苏晚卿在雨夜的长街上回头，镜头缓慢推近，
 const completed = buildToolboxWorkTrace({
   type: 'video',
   status: 'completed',
-  modelId: 'nori::seedance2.0-fast',
+  modelId: 'kuaizi::doubao-seedance-2-0-fast-260128',
   createdAt: '2026-10-25T10:24:00.000Z',
   params: {
     title: '苏晚卿夜行',
@@ -27,12 +27,12 @@ const completed = buildToolboxWorkTrace({
     ],
   },
   task: { id: 'task_01J9Z6X8Y7W4K3M2N1P0Q9R8S7', status: 'completed', costPoints: 126.5 },
-}, { modelName: 'Seedance 2.0 Fast' })
+}, { modelName: 'doubao-seedance-2-0-fast-260128' })
 
 const failed = buildToolboxWorkTrace({
   type: 'video',
   status: 'failed',
-  modelId: 'nori::seedance2.0-fast',
+  modelId: 'kuaizi::doubao-seedance-2-0-fast-260128',
   createdAt: '2026-10-25T09:10:00.000Z',
   params: {
     title: '雨夜街角',
@@ -50,12 +50,12 @@ const failed = buildToolboxWorkTrace({
     errorCode: 'PROVIDER_REJECTED',
     errorMessage: '参考图片包含无法识别的角色，请更换素材后重试。',
   },
-}, { modelName: 'Seedance 2.0 Fast' })
+}, { modelName: 'doubao-seedance-2-0-fast-260128' })
 
 const processing = buildToolboxWorkTrace({
   type: 'video',
   status: 'processing',
-  modelId: 'nori::norivideo2.5',
+  modelId: 'kuaizi::doubao-seedance-2-5-260628',
   createdAt: '2026-10-25T10:30:00.000Z',
   params: {
     title: '雾中车站',
@@ -66,7 +66,7 @@ const processing = buildToolboxWorkTrace({
     duration: 4,
   },
   task: { id: 'task_01J9Z6X8Y7W4K3M2N1P0Q9R8S5', status: 'processing' },
-}, { modelName: 'LanMiaoTV 2.5' })
+}, { modelName: 'doubao-seedance-2-5-260628' })
 
 function Fixture() {
   const [copyState, setCopyState] = useState<'idle' | 'copied'>('idle')

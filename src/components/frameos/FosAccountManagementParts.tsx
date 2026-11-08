@@ -5,15 +5,8 @@ import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import {
-  ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS,
-  ACCOUNT_ROLE_DEFINITIONS,
-  SUBACCOUNT_ROLES,
-  defaultSubaccountRoleLabel,
-  effectiveAccountPermissions,
-  type AccountPermission,
   type AccountRole,
   type AccountStatus,
-  type SubaccountRole,
 } from '@/lib/account/permissions'
 import type { AccountCredits } from '@/lib/account/credits'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
@@ -25,9 +18,8 @@ interface ManagedAccount {
   id: string
   username: string
   role: AccountRole
-  roleLabel: string | null
   status: AccountStatus
-  permissions: AccountPermission[]
+  projectLeader: boolean
   isPlatformAdmin: boolean
   isManager: boolean
   parentAccountId: string | null
@@ -71,42 +63,12 @@ interface AccountDraft {
   managerId: string
   username: string
   password: string
-  role: SubaccountRole
-  roleLabel: string
-  permissions: AccountPermission[]
+  projectLeader: boolean
   status: AccountStatus
   coinCredits: string
   pointCredits: string
   /** 每日用量上限（积分），unlimited 表示不限制，0 禁止生成。 */
   dailyPointLimit: string
-}
-
-const ROLE_TONES: Record<AccountRole, string> = {
-  super_admin: 'border-fuchsia-400/30 bg-fuchsia-400/[.09] text-fuchsia-200',
-  admin: 'border-violet-400/25 bg-violet-400/[.08] text-violet-200',
-  writer: 'border-sky-400/25 bg-sky-400/[.08] text-sky-200',
-  asset: 'border-amber-400/25 bg-amber-400/[.08] text-amber-200',
-  storyboard: 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200',
-  reviewer: 'border-cyan-400/25 bg-cyan-400/[.08] text-cyan-200',
-}
-
-function roleDefinition(role: AccountRole) {
-  return ACCOUNT_ROLE_DEFINITIONS.find((item) => item.role === role) || ACCOUNT_ROLE_DEFINITIONS[0]
-}
-
-function matchesPermissionPreset(permissions: readonly AccountPermission[], role: SubaccountRole) {
-  const expected = new Set(effectiveAccountPermissions(role))
-  return ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.every((definition) => (
-    permissions.includes(definition.key) === expected.has(definition.key)
-  ))
-}
-
-function roleLabelAfterPreset(current: string, role: SubaccountRole) {
-  const normalized = current.trim()
-  const isDefaultLabel = SUBACCOUNT_ROLES.some((candidate) => (
-    defaultSubaccountRoleLabel(candidate) === normalized
-  ))
-  return !normalized || isDefaultLabel ? defaultSubaccountRoleLabel(role) : current
 }
 
 function formatPointsValue(value: number) {
@@ -153,29 +115,12 @@ export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) 
   )
 }
 
-export function PermissionMatrix() {
+export function AccountCapabilitiesNotice() {
   return (
     <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
-      <div className="border-b border-white/[.07] px-5 py-4">
-        <h2 className="text-[13px] font-bold text-white">功能区权限</h2>
-        <p className="mt-1 text-[10px] text-white/35">角色名称只用于团队展示。每个生产子账号能做什么，由下面 {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.length} 个功能区独立决定；审核员的审核范围由所属管理账号按作品指定。</p>
-      </div>
-      <div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-6">
-        {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => (
-          <article key={permission.key} className="rounded-[10px] border border-white/15 bg-white/[.045] p-3.5">
-            <div className="flex items-center gap-2">
-              <span className="flex h-6 w-6 items-center justify-center rounded-[7px] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]">
-                <AppIcon name="check" className="h-3.5 w-3.5" />
-              </span>
-              <strong className="text-[12px] font-semibold text-white/85">{permission.label}</strong>
-            </div>
-            <p className="mt-2 text-[10px] leading-5 text-white/40">{permission.description}</p>
-          </article>
-        ))}
-      </div>
-      <div className="flex items-center gap-2 border-t border-emerald-300/10 bg-emerald-400/[.035] px-5 py-3 text-[10px] text-emerald-100/60">
-        <AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />
-        所有子账号固定拥有团队内容读取权限；未勾选功能区时仍可查看，但不能编辑或发起生成。
+      <div className="px-5 py-4">
+        <h2 className="text-[13px] font-bold text-white">统一创作能力</h2>
+        <p className="mt-1 text-[10px] leading-5 text-white/45">子账号均可使用剧本、资产、分镜、工具箱和无限画布。管理员仅管理账号、额度和项目组长身份；项目访问范围由项目成员关系决定。</p>
       </div>
     </section>
   )
@@ -213,7 +158,7 @@ export function AccountDialog({
     && target?.role !== 'super_admin'
     && (platformOperator || !editingManagementAccount)
   const title = mode === 'create'
-    ? creatingManager ? '添加管理账号' : '添加角色子账号'
+    ? creatingManager ? '添加管理账号' : '添加子账号'
     : `编辑 ${draft.username}`
   useDialogDismiss(true, onClose, !saving)
 
@@ -224,7 +169,7 @@ export function AccountDialog({
         <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{title}</h2>
-            <p className="mt-1 text-[11px] text-white/40">角色名称用于展示；功能区开关才决定账号可以执行哪些操作。</p>
+            <p className="mt-1 text-[11px] text-white/40">子账号拥有统一创作能力；项目组长可创建项目并管理项目成员。</p>
           </div>
           <button type="button" className="fos-icon-btn" disabled={saving} onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
         </div>
@@ -234,7 +179,7 @@ export function AccountDialog({
             <div className="mb-5 grid grid-cols-2 gap-2">
               {([
                 ['manager', '管理账号', '拥有独立工作区，可管理自己的角色子账号'],
-                ['subaccount', '角色子账号', '归属于指定管理账号，按功能区独立授权'],
+                ['subaccount', '子账号', '归属于指定管理账号，拥有统一创作能力'],
               ] as const).map(([value, label, description]) => (
                 <button
                   key={value}
@@ -300,80 +245,10 @@ export function AccountDialog({
                 </label>
               ) : null}
 
-              <div className="mt-5">
-                <span className="mb-2 block text-[11px] font-semibold text-white/60">快捷权限模板（可选）</span>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  {SUBACCOUNT_ROLES.map((role) => {
-                    const definition = roleDefinition(role)
-                    const selected = matchesPermissionPreset(draft.permissions, role)
-                    return (
-                      <button
-                        key={role}
-                        type="button"
-                        onClick={() => onDraft({
-                          ...draft,
-                          role,
-                          roleLabel: roleLabelAfterPreset(draft.roleLabel, role),
-                          permissions: effectiveAccountPermissions(role),
-                        })}
-                        className={`rounded-[10px] border p-3 text-left transition-colors ${selected ? ROLE_TONES[role] : 'border-white/[.07] bg-white/[.025] text-white/55 hover:bg-white/[.05]'}`}
-                      >
-                        <span className="block text-[12px] font-semibold">{definition.shortLabel}</span>
-                        <span className="mt-1 block text-[9px] leading-4 opacity-60">{definition.description}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <label className="mt-5 block">
-                <span className="mb-2 block text-[11px] font-semibold text-white/60">角色名称（仅展示）</span>
-                <input
-                  className="fos-input w-full"
-                  value={draft.roleLabel}
-                  maxLength={64}
-                  onChange={(event) => onDraft({ ...draft, roleLabel: event.target.value })}
-                  placeholder="例如：海外短剧导演、提示词设计师"
-                />
-                <span className="mt-1.5 block text-[10px] text-white/35">可自由命名，不影响权限；任务分配会按下面的实际功能区筛选可选账号。</span>
+              <label className="mt-5 flex items-start gap-3 rounded-[10px] border border-white/[.07] bg-white/[.025] p-4">
+                <input type="checkbox" className="mt-1 h-4 w-4 accent-[var(--fos-primary)]" checked={draft.projectLeader} onChange={(event) => onDraft({ ...draft, projectLeader: event.target.checked })} />
+                <span><strong className="block text-[12px] font-semibold text-white/85">设为项目组长</strong><small className="mt-1 block text-[10px] leading-5 text-white/40">可创建项目，并随时添加或移除项目成员。取消后保留已有项目可见性，但不再具有组长管理权。</small></span>
               </label>
-
-              {draft.role === 'reviewer' ? (
-                <div className="mt-5 rounded-[10px] border border-cyan-300/20 bg-cyan-400/[.07] px-4 py-3">
-                  <div className="flex items-center gap-2 text-[12px] font-semibold text-cyan-100"><AppIcon name="clipboardCheck" className="h-4 w-4" />审核权限由作品授权</div>
-                  <p className="mt-1.5 text-[10px] leading-5 text-white/45">审核员固定为只读，不能编辑剧本、资产、分镜或视频。由所属管理账号在作品协作者里加入该账号后，才能查看并处理该作品的待审核任务。</p>
-                </div>
-              ) : (
-                <div className="mt-5">
-                  <div className="mb-2 flex items-end justify-between gap-3">
-                    <span className="block text-[11px] font-semibold text-white/60">功能区权限</span>
-                    <span className="text-[10px] text-white/35">团队作品默认可读</span>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {ACCOUNT_FUNCTION_PERMISSION_DEFINITIONS.map((permission) => {
-                      const checked = draft.permissions.includes(permission.key)
-                      return (
-                        <button
-                          key={permission.key}
-                          type="button"
-                          aria-pressed={checked}
-                          onClick={() => onDraft({
-                            ...draft,
-                            permissions: checked
-                              ? draft.permissions.filter((item) => item !== permission.key)
-                              : [...draft.permissions, permission.key],
-                          })}
-                          className={`flex items-start gap-3 rounded-[10px] border p-3 text-left transition-colors ${checked ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)]' : 'border-white/[.07] bg-white/[.025] hover:bg-white/[.05]'}`}
-                        >
-                          <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-[6px] border ${checked ? 'border-white/25 bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white' : 'border-white/15 bg-black/10 text-transparent'}`}><AppIcon name="check" className="h-3.5 w-3.5" /></span>
-                          <span><strong className="block text-[12px] font-semibold text-white/85">{permission.label}</strong><small className="mt-1 block text-[10px] leading-4 text-white/40">{permission.description}</small></span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                  <div className="mt-2 flex items-center gap-2 rounded-[9px] border border-emerald-400/15 bg-emerald-400/[.055] px-3 py-2 text-[10px] text-emerald-100/65"><AppIcon name="check" className="h-3.5 w-3.5 text-emerald-300" />读取团队全部作品与资产（固定开启）</div>
-                </div>
-              )}
             </>
           ) : (
             <div className="mt-5 rounded-[10px] border border-violet-400/20 bg-violet-400/[.07] px-4 py-3">

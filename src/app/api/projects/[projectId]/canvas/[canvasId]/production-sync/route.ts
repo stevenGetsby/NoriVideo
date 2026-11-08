@@ -7,6 +7,7 @@ import { requireCanvasInProject } from '@/lib/canvas/access'
 import { recordCanvasSnapshotInTransaction } from '@/lib/canvas/persistence'
 import { canvasProductionEdgeId, canvasProductionNodeId } from '@/lib/canvas/production-ids'
 import { removeDeletedCanvasGroupMembers } from '@/lib/canvas/group-membership'
+import { projectReadWhere } from '@/lib/collaboration/access'
 import { attachMediaFieldsToProject } from '@/lib/media/attach'
 
 const PRODUCTION_NODE_TYPES = [
@@ -236,11 +237,7 @@ export const POST = apiHandler(async (
   }
 
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: authResult.session.user.id,
-      deletedAt: null,
-    },
+    where: projectReadWhere(authResult.session, projectId),
     include: {
       novelPromotionData: {
         include: {

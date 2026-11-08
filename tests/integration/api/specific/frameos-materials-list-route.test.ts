@@ -163,7 +163,7 @@ describe('FrameOS material list filters', () => {
         deletedAt: null,
         ...projectParticipantWhere('storyboard-child'),
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, workId: true },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     })
     expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({

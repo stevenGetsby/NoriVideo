@@ -66,4 +66,36 @@ describe('api-config default model selections', () => {
       type: 'video',
     }))
   })
+
+  it('keeps a real provider key instead of inferring a packaged business alias', async () => {
+    await expect(resolveModelSelection(
+      'user-1',
+      'kuaizi::doubao-seedance-2-5-260628',
+      'video',
+    )).resolves.toEqual({
+      provider: 'kuaizi',
+      modelId: 'doubao-seedance-2-5-260628',
+      modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+      mediaType: 'video',
+    })
+  })
+
+  it('rejects a real model key used for a different media type', async () => {
+    await expect(resolveModelSelection(
+      'user-1',
+      'openlux::gpt-image-2.5-sunburst',
+      'video',
+    )).rejects.toThrow('MODEL_TYPE_MISMATCH')
+  })
+
+  it('still resolves legacy business keys through the administrator route', async () => {
+    await expect(resolveModelSelection(
+      'user-1',
+      'nori::norivideo2.5',
+      'video',
+    )).resolves.toMatchObject({
+      modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+      mediaType: 'video',
+    })
+  })
 })

@@ -50,7 +50,7 @@ export default function ProfilePage() {
         <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
           <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-sm font-bold text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--fos-brand-solid)] text-sm font-bold text-white">
                 {(session.user?.name || session.user?.email || 'N').slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0">
@@ -68,7 +68,7 @@ export default function ProfilePage() {
             </div>
 
             <nav className="space-y-2">
-              <div className="flex w-full items-center gap-3 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]">
+              <div className="flex w-full items-center gap-3 rounded-md bg-[var(--fos-brand-solid)] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]">
                 <AppIcon name="settingsHexAlt" className="h-4 w-4" />
                 {t('apiConfig')}
               </div>

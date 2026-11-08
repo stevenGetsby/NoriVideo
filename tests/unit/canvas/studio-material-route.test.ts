@@ -3,7 +3,15 @@ import { buildMockRequest } from '../../helpers/request'
 
 const auth = vi.hoisted(() => ({
   requireProjectAuthLight: vi.fn(async () => ({
-    session: { user: { id: 'storyboard-user', name: '分镜师' } },
+    session: {
+      user: {
+        id: 'manager-user',
+        actorId: 'storyboard-user',
+        workspaceOwnerId: 'manager-user',
+        role: 'storyboard',
+        name: '分镜师',
+      },
+    },
     project: { id: 'project-1', userId: 'manager-user' },
   })),
   isErrorResponse: (value: unknown) => value instanceof Response,
@@ -48,7 +56,7 @@ describe('3D studio canvas screenshot upload route', () => {
     expect(requireCanvasInProject).toHaveBeenCalledWith('canvas-1', 'project-1')
     expect(uploadFrameosMaterial).toHaveBeenCalledWith(
       request,
-      expect.objectContaining({ user: expect.objectContaining({ id: 'storyboard-user' }) }),
+      expect.objectContaining({ user: expect.objectContaining({ id: 'manager-user', actorId: 'storyboard-user' }) }),
       { expectedProjectId: 'project-1', projectAccessVerified: true },
     )
   })
@@ -66,9 +74,9 @@ describe('3D studio canvas screenshot upload route', () => {
     expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'material-1',
-        userId: 'storyboard-user',
+        userId: 'manager-user',
         deletedAt: null,
-        projectId: { in: ['project-1', 'global', 'global-asset-hub'] },
+        projectId: 'project-1',
       },
       select: { id: true },
     })
@@ -90,7 +98,7 @@ describe('3D studio canvas screenshot upload route', () => {
 
     expect(response.status).toBe(200)
     expect(registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
-      userId: 'storyboard-user',
+      userId: 'manager-user',
       projectId: 'project-1',
       title: '外部视频',
       type: 'video',

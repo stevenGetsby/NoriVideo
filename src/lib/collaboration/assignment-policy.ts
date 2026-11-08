@@ -19,8 +19,6 @@ export interface AssignmentCapabilityInput {
   actorIsManagement: boolean
   actorIsProjectCreator: boolean
   actorIsWorkCreator: boolean
-  workMemberCanManage: boolean
-  workMemberRole?: string | null
   projectMemberCanManage: boolean
   projectMemberCanReview: boolean
 }
@@ -36,16 +34,13 @@ export function projectMembershipGrantsReview(input: {
   accountRole?: string | null
 }) {
   if (!input.membership) return false
-  return input.membership.canReviewAssignments === true || input.accountRole === 'reviewer'
+  return input.membership.canReviewAssignments === true
 }
 
 export function resolveAssignmentCapabilities(input: AssignmentCapabilityInput) {
-  const managesWork = input.actorIsWorkCreator
-    || input.workMemberCanManage
-    || input.workMemberRole === 'manager' || input.workMemberRole === 'leader'
   const canManage = input.actorIsManagement
     || input.actorIsProjectCreator
-    || managesWork
+    || input.actorIsWorkCreator
     || input.projectMemberCanManage
   return {
     canManage,

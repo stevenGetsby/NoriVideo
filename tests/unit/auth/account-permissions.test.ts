@@ -20,31 +20,25 @@ describe('account role permission policy', () => {
     expect(normalizeAccountRole('owner')).toBe('super_admin')
   })
 
-  it('uses role templates only when a legacy subaccount has no assigned permission array', () => {
-    expect(effectiveAccountPermissions('writer')).toEqual(['read', 'projectCreate', 'scriptWrite', 'toolboxUse', 'canvasWrite'])
-    expect(effectiveAccountPermissions('asset')).toEqual(['read', 'projectCreate', 'assetWrite', 'toolboxUse', 'canvasWrite'])
-    expect(effectiveAccountPermissions('storyboard')).toEqual(['read', 'projectCreate', 'storyboardWrite', 'toolboxUse', 'canvasWrite'])
-    expect(hasAccountPermissions({ role: 'writer' }, ['storyboardWrite'])).toBe(false)
-    expect(hasAccountPermissions({ role: 'writer' }, ['toolboxUse', 'canvasWrite'])).toBe(true)
+  it('gives every subaccount the same creative capabilities regardless of historical role', () => {
+    const shared = ['read', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite'] as const
+    for (const role of ['writer', 'asset', 'storyboard', 'reviewer']) {
+      expect(effectiveAccountPermissions(role)).toEqual(shared)
+      expect(effectiveAccountPermissions(role, [])).toEqual(shared)
+      expect(hasAccountPermissions({ role }, shared)).toBe(true)
+      expect(hasAccountPermissions({ role }, ['workCreate', 'admin'])).toBe(false)
+    }
   })
 
-  it('authorizes subaccounts from their assigned functional areas instead of a fixed role', () => {
+  it('ignores assigned functional areas and legacy aliases instead of narrowing creative access', () => {
     const customAccount = {
       role: 'writer',
-      permissions: ['projectCreate', 'assetWrite', 'storyboardWrite', 'toolboxUse'],
+      permissions: ['read', 'admin', 'workCreate'],
     }
-    expect(effectiveAccountPermissions(customAccount.role, customAccount.permissions)).toEqual([
-      'read',
-      'projectCreate',
-      'assetWrite',
-      'storyboardWrite',
-      'toolboxUse',
-    ])
-    expect(hasAccountPermissions(customAccount, ['assetWrite', 'storyboardWrite'])).toBe(true)
-    expect(hasAccountPermissions(customAccount, ['projectCreate'])).toBe(true)
-    expect(hasAccountPermissions(customAccount, ['scriptWrite'])).toBe(false)
-    expect(effectiveAccountPermissions('asset', [])).toEqual(['read'])
-    expect(effectiveAccountPermissions('writer', ['creativeGenerate'])).toEqual(['read', 'toolboxUse', 'canvasWrite'])
+    expect(effectiveAccountPermissions(customAccount.role, customAccount.permissions)).toEqual(effectiveAccountPermissions('reviewer'))
+    expect(hasAccountPermissions(customAccount, ['scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite'])).toBe(true)
+    expect(hasAccountPermissions(customAccount, ['workCreate', 'admin'])).toBe(false)
+    expect(effectiveAccountPermissions('asset', ['creativeGenerate'])).toEqual(effectiveAccountPermissions('writer'))
     expect(effectiveAccountPermissions('admin', [])).toEqual(ALL_ACCOUNT_PERMISSIONS)
   })
 
@@ -94,8 +88,8 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/video-repaint/scripts', 'GET')).toEqual(['read'])
   })
 
-  it('assigns workspace creation separately and defers member management to object scope', () => {
-    expect(requiredPermissionsForApiPath('/api/works', 'POST')).toEqual(['workCreate'])
+  it('defers workspace creation to the projectLeader flag and member management to object scope', () => {
+    expect(requiredPermissionsForApiPath('/api/works', 'POST')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/works/w1/members', 'DELETE')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/projects/p1/members', 'POST')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/collaboration/assignments/submit', 'POST')).toEqual(['read'])

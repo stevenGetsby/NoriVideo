@@ -38,6 +38,9 @@ export function cloneCanvasNodeDataForNewNode(
     : null
   return {
     ...data,
+    // The global style prompt is unique per canvas; a duplicate must not
+    // silently compete with the original text node.
+    globalStylePrompt: false,
     generation,
     generationTask: null,
     memberIds: data.memberIds?.map((id) => remapId(id)).filter((id): id is string => Boolean(id)),

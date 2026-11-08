@@ -52,7 +52,7 @@ describe('public creator login homepage contracts', () => {
     expect(guide).toContain('element.showModal()')
     expect(guide).toContain('onCancel=')
     expect(guide).toContain('aria-labelledby={titleId}')
-    expect(guide).toContain('功能区权限')
+    expect(guide).toContain('统一创作能力')
   })
   it('uses account-based error messages in both locales', () => {
     expect(zh.loginFailed).toContain('账号')

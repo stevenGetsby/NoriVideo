@@ -31,7 +31,7 @@ const prismaMock = vi.hoisted(() => ({
     })),
   },
   work: {
-    findFirst: vi.fn(async () => ({ id: 'work-1' })),
+    findFirst: vi.fn(async () => ({ id: 'work-1', members: [], projects: [] })),
   },
   mediaObject: {
     create: vi.fn(async () => ({ id: 'media-1' })),
@@ -96,7 +96,7 @@ describe('api specific - project create style references', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1', members: [], projects: [] })
     prismaMock.novelPromotionProject.create.mockResolvedValue({ id: 'np-1', projectId: 'project-1' })
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
@@ -195,7 +195,10 @@ describe('api specific - project create style references', () => {
     const response = await mod.POST(request, routeContext)
 
     expect(response.status).toBe(201)
-    expect(prismaMock.projectMember.create).toHaveBeenCalledTimes(3)
+    expect(prismaMock.projectMember.create).toHaveBeenCalledTimes(4)
+    expect(prismaMock.projectMember.create).toHaveBeenCalledWith({
+      data: { projectId: 'project-1', userId: 'user-1', role: 'owner' },
+    })
     expect(prismaMock.workflowAssignment.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         stage: 'script',

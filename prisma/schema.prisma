@@ -817,6 +817,7 @@ model User {
   roleLabel                     String?                   @db.VarChar(64)
   status                        String                    @default("active") @db.VarChar(32)
   permissions                   Json?
+  projectLeader                 Boolean                   @default(false)
   sessionVersion                Int                       @default(0)
   passwordChangeRequired        Boolean                   @default(false)
   lastLoginAt                   DateTime?
@@ -1664,6 +1665,7 @@ model FrameosMaterial {
   id               String    @id @default(uuid())
   projectId        String
   userId           String
+  personalOwnerId  String?   @db.VarChar(191)
   ownerName        String?
   title            String?
   type             String // image | video | audio | model3d

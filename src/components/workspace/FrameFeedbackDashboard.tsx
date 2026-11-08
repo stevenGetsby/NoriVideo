@@ -259,7 +259,7 @@ export function FrameFeedbackDashboard() {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
               data-ready={title.trim() && description.trim() ? 'true' : 'false'}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
               {saved ? t('saved') : t('submit')}

@@ -100,26 +100,6 @@
   animation: slideInRight 0.3s ease-out;
 }
 
-/* Gradient Flow Animation - 渐变流动效果 */
-@keyframes gradientFlow {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-.animate-gradient-flow {
-  background-size: 200% 200%;
-  animation: gradientFlow 3s ease infinite;
-}
-
 /* Page Transition Animation - 页面切换动画 */
 /* 注意：不可使用 transform，因为子组件中有 fixed 定位元素（如 StoryboardStageShell 的悬浮按钮），
    transform 会创建新的 containing block 导致 fixed 失效并产生跳动 */
@@ -149,20 +129,4 @@
 
 .animate-page-exit {
   animation: pageSlideOut 0.3s ease-out forwards;
-}
-
-/* Shimmer effect for gradient text */
-@keyframes shimmer {
-  0% {
-    background-position: -200% center;
-  }
-
-  100% {
-    background-position: 200% center;
-  }
-}
-
-.animate-shimmer {
-  background-size: 200% 100%;
-  animation: shimmer 3s linear infinite;
 }

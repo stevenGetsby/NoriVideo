@@ -220,7 +220,7 @@ export function FrameTeamDashboard() {
           </div>
           <Link
             href={{ pathname: '/projects' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
           >
             <AppIcon name="monitor" className="h-4 w-4" />
             {t('openProjects')}
@@ -235,7 +235,7 @@ export function FrameTeamDashboard() {
 
         <div className="mb-4 rounded-lg border border-white/10 bg-white/4 p-4">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-sm font-bold text-white">
+            <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-[var(--fos-brand-solid)] text-sm font-bold text-white">
               {(session?.user?.name || session?.user?.email || 'N').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">
@@ -355,7 +355,7 @@ export function FrameTeamDashboard() {
                         </span>
                       </div>
                       <div className="h-1.5 overflow-hidden rounded-full bg-white/8">
-                        <div className="h-full rounded-full bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)]" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
+                        <div className="h-full rounded-full bg-[var(--fos-brand-solid)]" style={{ width: `${Math.max(8, Math.round((row.count / maxCount) * 100))}%` }} />
                       </div>
                       <div className="mt-1 text-[11px] text-white/38">{t('workloadTasks', { count: row.count })}</div>
                     </div>

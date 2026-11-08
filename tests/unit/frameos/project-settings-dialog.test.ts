@@ -1,7 +1,7 @@
 import * as React from 'react'
 import { readFileSync } from 'node:fs'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 function source(path: string) {
   return readFileSync(path, 'utf8')

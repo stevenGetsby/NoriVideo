@@ -5,6 +5,7 @@ import { publicTaskError } from '@/lib/task/public-presentation'
 import { prisma } from '@/lib/prisma'
 import { TASK_STATUS, TASK_TYPE } from '@/lib/task/types'
 import { normalizeCanvasImageGenerationOptions } from '@/lib/canvas/generator-options'
+import { normalizeCanvasGlobalStylePrompt } from '@/lib/canvas/global-style-prompt'
 
 export const CANVAS_GENERATION_TASK_TYPES = [
   TASK_TYPE.CANVAS_TEXT_GENERATION,
@@ -42,6 +43,8 @@ export type CanvasStoryboardPlanTaskPayload = {
   canvasId: string
   nodeId: string
   prompt: string
+  /** 画布级全局风格提示词；分镜提交时逐镜头幂等拼接。 */
+  globalStylePrompt?: string
   count: number
   analysisModel: string
   imageRequest: CanvasStoryboardImageRequest
@@ -154,11 +157,13 @@ export function parseCanvasGenerationTaskPayload(
   } catch {
     return null
   }
+  const globalStylePrompt = normalizeCanvasGlobalStylePrompt(payload.globalStylePrompt)
   return {
     kind: 'storyboard_plan',
     canvasId,
     nodeId,
     prompt: prompt.slice(0, 20_000),
+    ...(globalStylePrompt ? { globalStylePrompt } : {}),
     count: integer(payload.count, 4, 4, 8),
     analysisModel,
     imageRequest: {

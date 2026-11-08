@@ -3,7 +3,7 @@
 /**
  * ModelCapabilityDropdown - 方案 A 经典分区式
  * 自定义下拉组件：上半区选模型，分割线，下半区配参数
- * 触发器显示模型名 + provider + 参数摘要
+ * 触发器显示真实模型名与参数摘要
  *
  * 用于：
  *  - 项目配置中心 (ConfigEditModal / SettingsModal)
@@ -23,10 +23,6 @@ export interface ModelCapabilityOption {
     value: string
     /** Display name */
     label: string
-    /** Raw provider id */
-    provider?: string
-    /** Friendly provider name */
-    providerName?: string
     /** Whether this model is disabled in current context */
     disabled?: boolean
 }
@@ -265,11 +261,11 @@ export function ModelCapabilityDropdown({
                         )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                        {selectedModel && (paramSummary || selectedModel.providerName || selectedModel.provider) && (
+                        {selectedModel && paramSummary && (
                             <span className="relative group/info">
                                 <AppIcon name="info" className="w-4 h-4 text-[var(--glass-text-tertiary)] hover:text-[var(--glass-text-secondary)] transition-colors cursor-help" />
                                 <span className="pointer-events-none absolute right-0 bottom-full mb-2 whitespace-nowrap rounded-lg bg-[var(--glass-text-primary)] px-3 py-1.5 text-[12px] text-white opacity-0 transition-opacity group-hover/info:opacity-100 z-50 shadow-lg">
-                                    {[selectedModel.providerName || selectedModel.provider, paramSummary].filter(Boolean).join(' · ')}
+                                    {paramSummary}
                                 </span>
                             </span>
                         )}
@@ -287,23 +283,7 @@ export function ModelCapabilityDropdown({
                 >
                     {/* Model list */}
                     <div className="px-2 pb-2 min-h-0 flex-1 overflow-y-auto app-scrollbar">
-                        {(() => {
-                            // Group models by provider
-                            const grouped = new Map<string, ModelCapabilityOption[]>()
-                            for (const m of models) {
-                                const key = m.providerName || m.provider || 'Other'
-                                if (!grouped.has(key)) grouped.set(key, [])
-                                grouped.get(key)!.push(m)
-                            }
-                            return Array.from(grouped.entries()).map(([providerLabel, groupModels]) => (
-                                <div key={providerLabel} className="mb-1">
-                                    <div className="sticky top-0 z-10 px-2 pt-2 pb-1 bg-white/80 dark:bg-[#1b1b23]/80 backdrop-blur-md">
-                                        <span className="text-[11px] font-bold text-[var(--glass-text-tertiary)] tracking-wide">
-                                            {providerLabel}
-                                        </span>
-                                    </div>
-                                    <div className="space-y-0.5">
-                                        {groupModels.map((m) => (
+                        {models.map((m) => (
                                             <button
                                                 key={m.value}
                                                 type="button"
@@ -327,10 +307,6 @@ export function ModelCapabilityDropdown({
                                                 </span>
                                             </button>
                                         ))}
-                                    </div>
-                                </div>
-                            ))
-                        })()}
                     </div>
 
                     {/* Capability params: fixed at panel bottom */}

@@ -20,7 +20,6 @@ import {
   parseShortDramaBrief,
   parseShotSheetText,
   splitShortDramaBriefBeats,
-  summarizeVideoPromptBeat,
 } from '@/lib/novel-promotion/short-drama-video-prompt'
 import {
   parseAgentStoryPackageText,

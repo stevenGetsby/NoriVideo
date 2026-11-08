@@ -62,7 +62,7 @@ export default function LongTextDetectionPrompt({
           <div className="flex items-center gap-3">
             <div
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
-              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.1), rgba(255,255,255,.1))' }}
+              style={{ background: 'rgba(255,255,255,.1)' }}
             >
               <AppIcon name="sparkles" className="h-5 w-5 text-[#7c3aed]" />
             </div>
@@ -77,15 +77,11 @@ export default function LongTextDetectionPrompt({
 
           <div
             className="rounded-xl p-4 text-sm leading-relaxed"
-            style={{ background: 'linear-gradient(135deg, rgba(255,255,255,.08), rgba(255,255,255,.08))' }}
+            style={{ background: 'rgba(255,255,255,.08)' }}
           >
             <p
               className="font-semibold"
-              style={{
-                background: 'linear-gradient(135deg, #3265ff, #7c3aed)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-              }}
+              style={{ color: '#3265ff' }}
             >
               {copy.strongRecommend}
             </p>
@@ -96,7 +92,7 @@ export default function LongTextDetectionPrompt({
               type="button"
               onClick={onSmartSplit}
               className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-base font-semibold text-white transition-all hover:opacity-90 active:scale-[0.98]"
-              style={{ background: 'linear-gradient(135deg, #3265ff, #7c3aed)' }}
+              style={{ background: '#3265ff' }}
             >
               <AppIcon name="sparkles" className="h-5 w-5" />
               <span>{copy.smartSplitLabel}</span>

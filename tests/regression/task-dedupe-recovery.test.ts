@@ -18,7 +18,7 @@ describe('regression - task dedupe recovery', () => {
     reconcileMock.isJobAlive.mockResolvedValue(true)
   })
 
-  it('replaces locale-less queued task instead of deduping forever', async () => {
+  it('repairs a locale-less queued task from the new request without duplicating work', async () => {
     const user = await createTestUser()
     const project = await createTestProject(user.id)
     const stale = await prisma.task.create({
@@ -46,6 +46,45 @@ describe('regression - task dedupe recovery', () => {
         meta: { locale: 'zh' },
       },
       dedupeKey: 'script_to_storyboard_run:episode-regression-1',
+    })
+
+    expect(replacement.deduped).toBe(true)
+    expect(replacement.task.id).toBe(stale.id)
+
+    const repairedStale = await prisma.task.findUnique({ where: { id: stale.id } })
+    expect(repairedStale).toMatchObject({
+      status: TASK_STATUS.QUEUED,
+      payload: { meta: { locale: 'zh' } },
+      dedupeKey: 'script_to_storyboard_run:episode-regression-1',
+    })
+    await expect(prisma.task.count({ where: { dedupeKey: stale.dedupeKey } })).resolves.toBe(1)
+  })
+
+  it('fails and replaces a locale-less queued task when the new request has no locale', async () => {
+    const user = await createTestUser()
+    const project = await createTestProject(user.id)
+    const stale = await prisma.task.create({
+      data: {
+        userId: user.id,
+        projectId: project.id,
+        type: TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
+        targetType: 'NovelPromotionEpisode',
+        targetId: 'episode-regression-missing-locale',
+        status: TASK_STATUS.QUEUED,
+        payload: { episodeId: 'episode-regression-missing-locale' },
+        dedupeKey: 'script_to_storyboard_run:episode-regression-missing-locale',
+        queuedAt: new Date(),
+      },
+    })
+
+    const replacement = await createTask({
+      userId: user.id,
+      projectId: project.id,
+      type: TASK_TYPE.SCRIPT_TO_STORYBOARD_RUN,
+      targetType: 'NovelPromotionEpisode',
+      targetId: 'episode-regression-missing-locale',
+      payload: { episodeId: 'episode-regression-missing-locale' },
+      dedupeKey: 'script_to_storyboard_run:episode-regression-missing-locale',
     })
 
     expect(replacement.deduped).toBe(false)

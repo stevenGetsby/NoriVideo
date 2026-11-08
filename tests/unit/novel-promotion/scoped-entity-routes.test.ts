@@ -447,7 +447,7 @@ describe('novel-promotion scoped entity routes', () => {
     expect(prismaMock.videoEditorProject.delete).not.toHaveBeenCalled()
   })
 
-  it('POST lip-sync refuses a panel outside the current project before enqueue', async () => {
+  it('POST lip-sync stays retired for an out-of-project panel without enqueueing', async () => {
     prismaMock.novelPromotionPanel.findFirst.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/novel-promotion/[projectId]/lip-sync/route')
 
@@ -466,27 +466,14 @@ describe('novel-promotion scoped entity routes', () => {
       { params: Promise.resolve({ projectId: 'project-1' }) },
     )
 
-    expect(res.status).toBe(404)
-    expect(prismaMock.novelPromotionPanel.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        storyboardId: 'storyboard-other',
-        panelIndex: 0,
-        storyboard: {
-          episode: {
-            novelPromotionProject: {
-              projectId: 'project-1',
-            },
-          },
-        },
-      },
-    }))
-    expect(prismaMock.novelPromotionVoiceLine.findFirst).not.toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ id: 'line-1' }),
-    }))
+    expect(res.status).toBe(410)
+    await expect(res.json()).resolves.toMatchObject({ success: false, error: { code: 'LIP_SYNC_RETIRED' } })
+    expect(prismaMock.novelPromotionPanel.findFirst).not.toHaveBeenCalled()
+    expect(prismaMock.novelPromotionVoiceLine.findFirst).not.toHaveBeenCalled()
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 
-  it('POST lip-sync refuses a voice line outside the panel episode before enqueue', async () => {
+  it('POST lip-sync stays retired for an out-of-episode voice line without enqueueing', async () => {
     prismaMock.novelPromotionVoiceLine.findFirst.mockResolvedValueOnce(null)
     const { POST } = await import('@/app/api/novel-promotion/[projectId]/lip-sync/route')
 
@@ -505,14 +492,9 @@ describe('novel-promotion scoped entity routes', () => {
       { params: Promise.resolve({ projectId: 'project-1' }) },
     )
 
-    expect(res.status).toBe(404)
-    expect(prismaMock.novelPromotionVoiceLine.findFirst).toHaveBeenCalledWith(expect.objectContaining({
-      where: {
-        id: 'line-other',
-        episodeId: 'episode-1',
-      },
-      select: { id: true },
-    }))
+    expect(res.status).toBe(410)
+    await expect(res.json()).resolves.toMatchObject({ success: false, error: { code: 'LIP_SYNC_RETIRED' } })
+    expect(prismaMock.novelPromotionVoiceLine.findFirst).not.toHaveBeenCalled()
     expect(submitTaskMock).not.toHaveBeenCalled()
   })
 

@@ -63,12 +63,21 @@ describe('platform service config', () => {
     expect(config.models.filter((model) => model.provider === 'openlux').map((model) => [model.modelKey, model.type])).toEqual([
       ['openlux::gpt-image-2.5-flare', 'image'],
       ['openlux::gpt-image-2.5-sunburst', 'image'],
+      ['openlux::gpt-image-2.5-flare-c', 'image'],
+      ['openlux::gpt-image-2.5-sunburst-c', 'image'],
+      ['openlux::gpt-image-2.6-flare-c', 'image'],
+      ['openlux::gpt-image-2.6-sunburst-c', 'image'],
     ])
+    // Ratio-priced models without a deterministic per-image price stay
+    // registered but must never reach a paying workflow selection.
+    expect(config.models.some((model) => model.provider === 'openlux' && ['gpt-image-2.6-flare', 'gpt-image-2.6-sunburst'].includes(model.modelId))).toBe(false)
     expect(config.modelRouting['nori::nori-gpt']).toBe('deepseek::deepseek-chat')
     expect(config.modelRouting['nori::nori-image-mini']).toBe('openlux::gpt-image-2.5-flare')
     expect(config.modelRouting['nori::nori-image-fast']).toBe('openlux::gpt-image-2.5-flare')
     expect(config.modelRouting['nori::nori-image']).toBe('openlux::gpt-image-2.5-sunburst')
     expect(config.modelRouting['nori::nori-image-pro']).toBe('openlux::gpt-image-2.5-sunburst')
+    expect(config.modelRouting['nori::nori-image-2.6']).toBe('openlux::gpt-image-2.6-flare-c')
+    expect(config.modelRouting['nori::nori-image-2.6-pro']).toBe('openlux::gpt-image-2.6-sunburst-c')
     expect(config.modelRouting['nori::nori-music']).toBe('')
     expect(config).not.toHaveProperty('videoRepaint')
   })

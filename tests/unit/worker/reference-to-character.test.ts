@@ -64,6 +64,10 @@ const workersUtilsMock = vi.hoisted(() => ({
   ),
 }))
 
+const outboundImageMock = vi.hoisted(() => ({
+  normalizeReferenceImagesForGeneration: vi.fn(async (refs: string[]) => refs.map((ref) => `normalized:${ref.trim()}`)),
+}))
+
 const promptI18nMock = vi.hoisted(() => ({
   PROMPT_IDS: {
     CHARACTER_IMAGE_TO_DESCRIPTION: 'character_image_to_description',
@@ -99,6 +103,7 @@ vi.mock('@/lib/storage', () => cosMock)
 vi.mock('@/lib/fonts', () => fontsMock)
 vi.mock('@/lib/workers/shared', () => workersSharedMock)
 vi.mock('@/lib/workers/utils', () => workersUtilsMock)
+vi.mock('@/lib/media/outbound-image', () => outboundImageMock)
 vi.mock('@/lib/prompt-i18n', () => promptI18nMock)
 vi.mock('@/lib/frameos/material-service', () => ({
   registerFrameosMaterial: vi.fn(async () => ({ id: 'material-1' })),
@@ -168,6 +173,7 @@ describe('worker reference-to-character', () => {
     expect(prompt).toContain(CHARACTER_PROMPT_SUFFIX)
     expect(options.aspectRatio).toBe(CHARACTER_IMAGE_BANANA_RATIO)
     expect(options.referenceImages).toBeUndefined()
+    expect(outboundImageMock.normalizeReferenceImagesForGeneration).not.toHaveBeenCalled()
   })
 
   it('keeps three-view suffix in template flow and writes extracted description in background mode', async () => {
@@ -192,7 +198,10 @@ describe('worker reference-to-character', () => {
     const { prompt, options } = readGenerateCall(0)
     expect(prompt).toContain('BASE_REFERENCE_PROMPT')
     expect(prompt).toContain(CHARACTER_PROMPT_SUFFIX)
-    expect(options.referenceImages).toEqual(['https://example.com/ref-a.png', 'https://example.com/ref-b.png'])
+    expect(options.referenceImages).toEqual([
+      'normalized:https://example.com/ref-a.png',
+      'normalized:https://example.com/ref-b.png',
+    ])
     expect(options.aspectRatio).toBe(CHARACTER_IMAGE_BANANA_RATIO)
 
     const updateArg = prismaMock.globalCharacterAppearance.update.mock.calls[0]?.[0] as {
@@ -223,6 +232,18 @@ describe('worker reference-to-character', () => {
     const cosKeys = (result as { cosKeys?: string[] }).cosKeys
     expect(cosKeys).toHaveLength(5)
     expect(cosKeys?.every((item) => item.startsWith('cos/reference-key-'))).toBe(true)
+  })
+
+  it('fails before paid generation when no reference image can be normalized', async () => {
+    outboundImageMock.normalizeReferenceImagesForGeneration.mockRejectedValueOnce(new Error('all references unavailable'))
+    const job = buildJob(
+      { referenceImageUrl: 'images/unavailable.png' },
+      TASK_TYPE.REFERENCE_TO_CHARACTER,
+    )
+
+    await expect(handleReferenceToCharacterTask(job)).rejects.toThrow('all references unavailable')
+    expect(workersUtilsMock.resolveImageSourceFromGeneration).not.toHaveBeenCalled()
+    expect(aiRuntimeMock.executeAiVisionStep).not.toHaveBeenCalled()
   })
 
   it('adds project label bars only for project reference generation', async () => {

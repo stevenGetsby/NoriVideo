@@ -1,6 +1,6 @@
 'use client'
 
-import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
+import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -31,6 +31,8 @@ export function CanvasContextMenu({
   canPaste,
   canRegenerate,
   canUploadToAssetLibrary,
+  nodeMediaType,
+  isGlobalStylePrompt,
   readOnly,
   onAction,
 }: {
@@ -38,6 +40,8 @@ export function CanvasContextMenu({
   canPaste: boolean
   canRegenerate: boolean
   canUploadToAssetLibrary?: boolean
+  nodeMediaType?: string | null
+  isGlobalStylePrompt?: boolean
   readOnly: boolean
   onAction: (action: string) => void
 }) {
@@ -56,6 +60,18 @@ export function CanvasContextMenu({
     ] : [
       { key: 'copy', label: '复制', icon: Copy, shortcut: '⌘ C' },
       { key: 'duplicate', label: '创建副本', icon: GitBranch, shortcut: '⌘ D', hint: '复制节点及上游连线' },
+      ...(nodeMediaType === 'image' ? [
+        { key: 'divider-grid', divider: true as const },
+        { key: 'grid-split-2', label: '切分 2×2', icon: LayoutGrid, hint: '每个宫格生成独立节点与素材' },
+        { key: 'grid-split-3', label: '切分 3×3', icon: LayoutGrid, hint: '每个宫格生成独立节点与素材' },
+        { key: 'grid-split-4', label: '切分 4×4', icon: LayoutGrid, hint: '每个宫格生成独立节点与素材' },
+      ] : []),
+      ...(nodeMediaType === 'text' ? [
+        { key: 'divider-style', divider: true as const },
+        isGlobalStylePrompt
+          ? { key: 'clear-global-style', label: '取消全局风格', icon: Sparkles, hint: '不再注入图片/视频提示词' }
+          : { key: 'set-global-style', label: '设为全局风格', icon: Sparkles, hint: '注入所有图片/视频提示词' },
+      ] : []),
       { key: 'divider', divider: true },
       { key: 'regenerate', label: '重新生成', icon: RefreshCw, disabled: !canRegenerate },
       ...(canUploadToAssetLibrary ? [{ key: 'upload-asset-library', label: '上传到资产库', icon: FolderHeart, hint: '归类后可复用于画布与其他作品' }] : []),

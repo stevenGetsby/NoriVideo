@@ -111,16 +111,7 @@ function finiteNumber(value: unknown): number | null {
 }
 
 export function toolboxModelLabel(modelId: string | null | undefined): string {
-  const raw = text(modelId)
-  if (!raw) return ''
-  const body = raw.includes('::') ? raw.split('::').pop() || raw : raw
-  const words = body
-    .replace(/[-_]+/g, ' ')
-    .replace(/([a-zA-Z])(\d)/g, '$1 $2')
-    .replace(/\s+/g, ' ')
-    .trim()
-  if (!words) return raw
-  return words.replace(/\b[a-z]/g, (letter) => letter.toUpperCase())
+  return text(modelId)?.split('::').pop() || ''
 }
 
 function formatOption(key: string, value: unknown): string | null {

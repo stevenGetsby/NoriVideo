@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
-import { getWorkspaceActor, projectReadScopeWhere, projectReadWhere } from '@/lib/collaboration/access'
+import { getWorkspaceActor, projectReadScopeWhere, projectReadWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { cnyToPoints } from '@/lib/billing'
 import { prisma } from '@/lib/prisma'
 import { extractStorageKey, getSignedUrl } from '@/lib/storage'
 import { publicGenerationTaskId, publicTaskError } from '@/lib/task/public-presentation'
+import { publicHistoryModelId } from '@/lib/task/public-model-presentation'
 
 const TOOLBOX_GENERATION_BIZ_TYPES = [
   'image_generation',
@@ -42,6 +44,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   if (source && source !== 'toolbox') {
     throw new ApiError('INVALID_PARAMS', { message: 'source 仅支持 toolbox。' })
   }
+  const workId = request.nextUrl.searchParams.get('workId')?.trim() || ''
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
   const assetIdsParam = request.nextUrl.searchParams.get('assetIds')
   const assetIds = assetIdsParam === null
@@ -55,9 +58,16 @@ export const GET = apiHandler(async (request: NextRequest) => {
   }
   const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 80)
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 80
+  const cursor = request.nextUrl.searchParams.get('cursor')?.trim() || ''
+  if (cursor && !/^[\w-]+$/.test(cursor)) {
+    throw new ApiError('INVALID_PARAMS', { message: '历史分页游标无效。' })
+  }
   const actor = getWorkspaceActor(session)
   let projectScope: Prisma.FrameosToolboxAssetWhereInput
-  if (projectId) {
+  if (workId) {
+    const assetScope = await resolveProjectAssetScope(session, { workId, projectId })
+    projectScope = { projectId: { in: assetScope.projectIds } }
+  } else if (projectId) {
     if (!actor.isManagement) {
       const readableProject = await prisma.project.findFirst({
         where: projectReadWhere(session, projectId),
@@ -77,14 +87,19 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
     projectScope = {
       OR: [
-        { projectId: null },
+        { projectId: null, userId: actor.actorId },
         { projectId: { in: readableProjects.map((project) => project.id) } },
       ],
     }
   }
+  const workspaceUsers = await prisma.user.findMany({
+    where: workspaceUserWhere(actor.workspaceOwnerId),
+    select: { id: true },
+  })
+  const workspaceUserIds = workspaceUsers.map((user) => user.id)
   const assets = await prisma.frameosToolboxAsset.findMany({
     where: {
-      userId: session.user.id,
+      userId: { in: workspaceUserIds },
       ...projectScope,
       ...(source ? {
         source,
@@ -96,13 +111,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
       ...(assetIds.length > 0 ? { id: { in: assetIds } } : {}),
       ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
     },
-    orderBy: { createdAt: 'desc' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: assetIds.length > 0 ? assetIds.length : limit,
+    ...(cursor && assetIds.length === 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
   })
   const tasks = assets.length > 0
     ? await prisma.task.findMany({
       where: {
-        userId: session.user.id,
+        userId: { in: workspaceUserIds },
         targetType: 'FrameosToolboxAsset',
         targetId: { in: assets.map((asset) => asset.id) },
       },
@@ -116,17 +132,21 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const materialIds = Array.from(new Set(assets.map((asset) => asset.materialId).filter((id): id is string => Boolean(id))))
   const materials = materialIds.length > 0
     ? await prisma.frameosMaterial.findMany({
-      where: { id: { in: materialIds }, userId: session.user.id, deletedAt: null },
+      where: { id: { in: materialIds }, userId: { in: workspaceUserIds }, deletedAt: null },
       select: { id: true, metadata: true },
     })
     : []
   const materialMetadata = new Map(materials.map((material) => [material.id, material.metadata]))
   return NextResponse.json({
+    pagination: {
+      nextCursor: assetIds.length === 0 && assets.length === limit ? assets.at(-1)?.id || null : null,
+    },
     assets: await Promise.all(assets.map(async (asset) => {
       const task = latestTask.get(asset.id)
       const storageKey = extractStorageKey(asset.resultUrl)
       return {
         ...asset,
+        modelId: publicHistoryModelId(asset.modelId),
         params: asset.params && typeof asset.params === 'object' && !Array.isArray(asset.params)
           ? Object.fromEntries(Object.entries(asset.params).filter(([key]) => key !== 'externalTaskId'))
           : asset.params,

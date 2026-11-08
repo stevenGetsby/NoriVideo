@@ -16,7 +16,7 @@ import { composeModelKey, parseModelKeyStrict, type UnifiedModelType } from '@/l
 import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provider-contract'
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
-import { listOpenLuxCatalogModels } from '@/lib/providers/openlux/catalog'
+import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
 import {
   listNoriBusinessModels,
   type NoriBusinessModelKey,
@@ -142,7 +142,10 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
   return [
     { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-chat', llmProtocol: 'chat-completions' },
     { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-reasoner', llmProtocol: 'chat-completions' },
-    ...listOpenLuxCatalogModels().map((model): ServiceConfigModel => ({
+    // Only models with a verified pricing entry are selectable. Registered
+    // models without a deterministic price stay visible in the discovery
+    // catalog but cannot be routed to a paying workflow.
+    ...listOpenLuxSelectableModels().map((model): ServiceConfigModel => ({
       modelId: model.modelId,
       name: model.name,
       type: model.modality,

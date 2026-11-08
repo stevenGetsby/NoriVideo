@@ -114,7 +114,7 @@ describe('/api/workflow/projects/[projectId]', () => {
       blocker: 'provider failed',
       lastRunId: 'run-script',
       lastTaskId: 'task-script',
-      errorCode: 'PROVIDER_FAILED',
+      errorCode: 'INTERNAL_ERROR',
       errorMessage: 'provider failed',
       summary: {
         taskType: 'story_to_script_run',

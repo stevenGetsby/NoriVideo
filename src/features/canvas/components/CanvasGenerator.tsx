@@ -24,6 +24,7 @@ import {
   Plus,
   Send,
   SlidersHorizontal,
+  Sparkles,
   Type,
   Upload,
   X,
@@ -120,12 +121,6 @@ const AUDIO_MODES: Array<{ value: AudioMode; label: string }> = [
 ]
 const AUDIO_MODE_PREFERRED_MODEL_KEYS: Record<AudioMode, string> = {
   tts: 'nori::nori-audio',
-}
-const MODEL_TIER_LABELS: Record<NonNullable<ModelOption['tier']>, string> = {
-  mini: 'Mini',
-  fast: 'Fast',
-  standard: '标准',
-  pro: 'Pro',
 }
 const STORYBOARD_COUNTS = [4, 5, 6, 7, 8] as const
 const VIDEO_MENTION_TYPES = ['image', 'video', 'audio'] as const satisfies readonly CanvasMentionMediaType[]
@@ -241,7 +236,7 @@ function nodeMediaDurationSeconds(node: CanvasFlowNode): number | null {
   const generationSeconds = typeof generationDuration === 'number' && Number.isFinite(generationDuration) && generationDuration > 0
     ? generationDuration
     : null
-  return readMediaDurationSeconds(metadata) ?? generationSeconds
+  return readMediaDurationSeconds(metadata) ?? (mediaTypeForReference(node) === 'audio' ? null : generationSeconds)
 }
 
 function referenceSummary(
@@ -323,6 +318,7 @@ export function CanvasGenerator({
   projectId,
   node,
   incomingNodes,
+  secondaryNodeIds,
   referenceNodes,
   onDraftChange,
   onGenerate,
@@ -335,10 +331,15 @@ export function CanvasGenerator({
   anchor,
   panelWidth,
   onPanelWidthChange,
+  globalStyleNodeId,
+  globalStyleSourceTitle,
+  globalStylePrompt,
+  onGlobalStylePromptChange,
 }: {
   projectId: string
   node: CanvasFlowNode
   incomingNodes: CanvasFlowNode[]
+  secondaryNodeIds?: ReadonlySet<string>
   referenceNodes: CanvasFlowNode[]
   onDraftChange: (patch: Record<string, unknown>) => void
   onGenerate: (request: CanvasGenerateRequest) => Promise<void>
@@ -351,6 +352,10 @@ export function CanvasGenerator({
   anchor?: CanvasGeneratorAnchor | null
   panelWidth: number
   onPanelWidthChange: (width: number) => void
+  globalStyleNodeId?: string | null
+  globalStyleSourceTitle?: string
+  globalStylePrompt?: string
+  onGlobalStylePromptChange?: (value: string) => void
 }) {
   const { generationAllowed, generationDisabledReason } = useAccountBalance()
   const type = nodeKind(node)
@@ -383,9 +388,10 @@ export function CanvasGenerator({
       node.id,
       mentionAllowedTypes,
       new Set(incomingNodes.map((item) => item.id)),
+      secondaryNodeIds,
     ),
     ...libraryMaterials,
-  ], [incomingNodes, libraryMaterials, mentionAllowedTypes, node.id, referenceNodes])
+  ], [incomingNodes, libraryMaterials, mentionAllowedTypes, node.id, referenceNodes, secondaryNodeIds])
   const mentionGroups = useMemo(() => [
     { id: 'favorites', label: '收藏' },
     ...(['character', 'location', 'prop', 'shot', 'other'] as const).map((category) => ({
@@ -419,7 +425,6 @@ export function CanvasGenerator({
     setLibraryMaterials([])
     setLibraryLoading(false)
     // Reload a material list only when the active generator's accepted media changes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id, projectId, mentionSignature])
   useEffect(() => () => libraryRequestRef.current?.abort(), [])
   const [config, setConfig] = useState<GenerationConfig | null>(null)
@@ -611,7 +616,7 @@ export function CanvasGenerator({
   }, [projectId])
 
   const availableModels = useMemo(() => {
-    const mapModel = (model: ModelOption) => ({ key: model.modelKey, label: `${model.name} · ${MODEL_TIER_LABELS[model.tier || 'standard']}`, raw: model })
+    const mapModel = (model: ModelOption) => ({ key: model.modelKey, label: model.name, raw: model })
     if (type === 'text') return (config?.textModels || []).map(mapModel)
     if (type === 'image') return (config?.imageModels || []).map(mapModel)
     if (type === 'video') return (config?.videoModels || []).map(mapModel)
@@ -804,7 +809,6 @@ export function CanvasGenerator({
       prompt,
       processType: storyboard ? 'storyboard' : node.data.processType === 'storyboard' ? undefined : node.data.processType,
       generation: {
-        ...(node.data.generation || {}),
         modelKey,
         modelLabel: currentModel?.label || '',
         inputSchema: currentModel?.raw?.inputSchema || null,
@@ -818,14 +822,14 @@ export function CanvasGenerator({
         generateAudio,
         count: storyboard ? normalizeStoryboardCount(count) : count,
         parameters: type === 'audio'
-          ? { ...(node.data.generation?.parameters || {}), mode: audioMode, voice: audioVoice, genre: '', sfxKind: '' }
+          ? { mode: audioMode, voice: audioVoice, genre: '', sfxKind: '' }
           : type === 'model3d'
-            ? { ...(node.data.generation?.parameters || {}), topology: model3dTopology, generateTexture: model3dGenerateTexture, pose: model3dPose }
+            ? { topology: model3dTopology, generateTexture: model3dGenerateTexture, pose: model3dPose }
             : type === 'video'
               ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
-              : node.data.generation?.parameters,
+              : undefined,
       },
-    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -859,7 +863,7 @@ export function CanvasGenerator({
     return [
       ...validateCanvasReferenceMedia(effectiveInputSchema, summaries, {
         enforceMinimums: strict,
-        requireKnownAudioDuration: strict,
+        requireKnownAudioDuration: false,
       }),
       ...(type === 'video' && strict ? validateVideoReferenceMediaCombination(summaries, {
         allowAudioOnly: isSeedance25VideoModelKey(modelKey),
@@ -888,6 +892,31 @@ export function CanvasGenerator({
     setError(null)
     setPrompt(nextPrompt)
     setReferenceNodeIds(nextReferenceNodeIds)
+  }
+
+  const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
+    if (!shouldBindCanvasMentionReference(type)) return true
+    let nextIds = referenceNodeIds
+    for (const asset of matched) {
+      const mentionAsset = asset as CanvasMentionAsset
+      let nodeId = asset.id
+      if (mentionAsset.section === 'library' && mentionAsset.material) {
+        nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
+        if (!nodeId) {
+          setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
+          return false
+        }
+      }
+      nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
+    }
+    const errors = referenceErrors(nextIds, false)
+    if (errors.length > 0) {
+      setError(errors[0])
+      return false
+    }
+    setError(null)
+    setReferenceNodeIds(nextIds)
+    return true
   }
 
   const toggleReferenceNode = (reference: CanvasFlowNode) => {
@@ -1166,6 +1195,7 @@ export function CanvasGenerator({
             assets={mentionAssets}
             onChange={setPrompt}
             onSelectAsset={selectMentionAsset}
+            onPasteMatch={(_nextValue, matched) => bindPastedMentionAssets(matched)}
             onMentionOpen={loadMentionLibrary}
             groups={mentionGroups}
             loading={libraryLoading}
@@ -1192,6 +1222,24 @@ export function CanvasGenerator({
           />
         )}
       </div>
+
+      {(type === 'image' || type === 'video') && globalStyleNodeId ? (
+        <div className="nori-canvas-global-style">
+          <div className="nori-canvas-global-style-head">
+            <Sparkles />
+            <span>
+              <strong>画布全局风格</strong>
+              <small>{globalStyleSourceTitle ? `来自文本节点「${globalStyleSourceTitle}」` : '来自画布全局风格文本节点'} · 编辑会同步该节点</small>
+            </span>
+          </div>
+          <textarea
+            aria-label="画布全局风格提示词"
+            value={globalStylePrompt || ''}
+            onChange={(event) => onGlobalStylePromptChange?.(event.target.value)}
+            placeholder="例如：统一水彩绘本风、柔和自然光、低饱和配色"
+          />
+        </div>
+      ) : null}
 
       {type === 'audio' ? <div className="nori-canvas-audio-generator-options">
         <div>{AUDIO_MODES.map((item) => {

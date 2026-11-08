@@ -5,7 +5,7 @@ import { addSignedUrlsToProject } from '@/lib/storage'
 import { logProjectAction } from '@/lib/logging/semantic'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { getWorkspaceActor, projectReadWhere, requireProjectManager } from '@/lib/collaboration/access'
+import { getWorkspaceActor, projectReadWhere, requireProjectManager, requireProjectReader } from '@/lib/collaboration/access'
 import { PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
 import { toProductionWork } from '@/lib/projects/hierarchy'
 import { projectCoverImageUrl } from '@/lib/projects/project-cover-url'
@@ -57,6 +57,7 @@ export const GET = apiHandler(async (
   const projectWithSignedUrls = {
     ...project,
     ...addSignedUrlsToProject(project),
+    canDelete: getWorkspaceActor(session).isManagement || project.createdById === session.user.actorId || project.createdById === session.user.id,
     coverImageUrl: projectCoverImageUrl(project.coverImageKey),
   }
 
@@ -127,26 +128,31 @@ export const DELETE = apiHandler(async (
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const session = authResult.session
-  await requireProjectManager(session, projectId)
-
+  const { actor } = await requireProjectReader(session, projectId)
   const project = await prisma.project.findFirst({
-    where: projectReadWhere(session, projectId)
+    where: { id: projectId, userId: actor.workspaceOwnerId, deletedAt: null },
+    select: { id: true, name: true, createdById: true },
   })
-
-  if (!project) {
-    throw new ApiError('NOT_FOUND')
+  if (!project) throw new ApiError('NOT_FOUND')
+  if (!actor.isManagement && project.createdById !== actor.actorId) {
+    throw new ApiError('FORBIDDEN', { message: '只有作品创建者可以删除该作品。' })
   }
-
   const deletedAt = new Date()
   const restoreDeadline = new Date(deletedAt.getTime() + PROJECT_RECYCLE_RETENTION_MS)
-  await prisma.project.update({
-    where: { id: project.id },
+  const deletedProject = await prisma.project.updateMany({
+    where: {
+      id: project.id,
+      userId: actor.workspaceOwnerId,
+      deletedAt: null,
+      ...(actor.isManagement ? {} : { createdById: actor.actorId }),
+    },
     data: {
       deletedAt,
-      deletedById: getWorkspaceActor(session).actorId,
+      deletedById: actor.actorId,
       deletedWithWork: false,
     },
   })
+  if (deletedProject.count !== 1) throw new ApiError('CONFLICT', { message: '作品已被删除，请刷新后重试。' })
 
   logProjectAction(
     'DELETE',

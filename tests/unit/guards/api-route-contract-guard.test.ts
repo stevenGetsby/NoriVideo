@@ -73,6 +73,24 @@ describe('api route contract guard', () => {
     expect(inspectRouteContract('src/app/api/collaboration/assignments/my/route.ts', content)).toEqual([])
   })
 
+  it('allows initial password authentication only on the dedicated change-password route', () => {
+    const content = `
+      import { getAuthSession } from '@/lib/api-auth'
+      import { apiHandler } from '@/lib/api-errors'
+      export const POST = apiHandler(async () => {
+        const session = await getAuthSession()
+        return Response.json({ authenticated: Boolean(session) })
+      })
+    `
+    expect(inspectRouteContract('src/app/api/auth/change-password/route.ts', content)).toEqual([])
+    expect(inspectRouteContract('src/app/api/user/secure/route.ts', content)).toEqual([
+      'src/app/api/user/secure/route.ts missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight',
+    ])
+    expect(inspectRouteContract('src/app/api/auth/change-password/route.ts', 'export const POST = apiHandler(async () => Response.json({ ok: true }))')).toEqual([
+      'src/app/api/auth/change-password/route.ts missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight',
+    ])
+  })
+
   it('flags protected routes that skip apiHandler or auth', () => {
     const missingApiHandler = `
       import { requireUserAuth } from '@/lib/api-auth'

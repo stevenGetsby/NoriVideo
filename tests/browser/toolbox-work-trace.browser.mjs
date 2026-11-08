@@ -91,7 +91,7 @@ try {
   assert.equal(await cards.count(), 3, 'fixture must render completed, failed and processing traces')
 
   const completedText = await cards.nth(0).innerText()
-  for (const expected of ['工作留痕', '已完成', '126.5 积分', 'Seedance 2.0 Fast', '全能参考（图片 / 视频 / 音色）', '16:9', '720p', '5 秒', '24 FPS', '开启', '角色资产', '3 个', '苏晚卿音色', '7.2 秒', '任务 ID']) {
+  for (const expected of ['工作留痕', '已完成', '126.5 积分', 'doubao-seedance-2-0-fast-260128', '全能参考（图片 / 视频 / 音色）', '16:9', '720p', '5 秒', '24 FPS', '开启', '角色资产', '3 个', '苏晚卿音色', '7.2 秒', '任务 ID']) {
     assert.ok(completedText.includes(expected), `completed trace must show ${expected}`)
   }
   const failedText = await cards.nth(1).innerText()

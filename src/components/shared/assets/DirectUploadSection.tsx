@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
+import Image from 'next/image'
 import { AppIcon } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 
@@ -77,7 +78,7 @@ export function DirectUploadSection({
         <div className="flex gap-2 flex-wrap">
           {previews.map((preview, i) => (
             <div key={i} className="relative w-16 h-16 rounded-lg overflow-hidden border border-[var(--glass-stroke-base)] group">
-              <img src={preview} alt="" className="w-full h-full object-cover" />
+              <Image src={preview} alt="" fill unoptimized sizes="64px" className="object-cover" />
               <button
                 onClick={() => removeImage(i)}
                 className="absolute top-0 right-0 w-4 h-4 bg-[var(--glass-tone-danger-bg)] text-[var(--glass-tone-danger-fg)] rounded-bl-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"

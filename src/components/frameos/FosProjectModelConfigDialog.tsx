@@ -10,23 +10,15 @@ import { ProjectDownloadDirectory } from './ProjectDownloadDirectory'
 import { DEFAULT_VIDEO_EXPORT_TEMPLATE, validateVideoExportTemplate } from '@/lib/novel-promotion/video-export-name'
 
 type ModelField = 'analysisModel' | 'characterModel' | 'locationModel' | 'editModel' | 'videoModel'
-type ModelTier = 'mini' | 'fast' | 'standard' | 'pro'
-type ModelOption = { value: string; label: string; tier?: ModelTier }
+type ModelOption = { value: string; label: string }
 type ProjectStyle = 'live-action' | 'anime-3d' | 'anime-2.5d' | 'anime-2d' | 'anime'
 type TargetAudience = 'zh-platform' | 'global-platform'
 type VideoRatio = '9:16' | '16:9'
 type VideoResolution = '480p' | '720p' | '1080p' | '4K'
 type EpisodeDurationMode = 'per-episode' | 'per-1000-chars'
 
-const MODEL_TIER_LABELS: Record<ModelTier, string> = {
-  mini: 'Mini',
-  fast: 'Fast',
-  standard: '标准',
-  pro: 'Pro',
-}
-
 function modelOptionLabel(model: ModelOption) {
-  return `${model.label} · ${MODEL_TIER_LABELS[model.tier || 'standard']}`
+  return model.label
 }
 
 interface UserModelsPayload {
@@ -289,10 +281,10 @@ export function FosProjectModelConfigDialog({
     <ViewportDialogLayer>
     <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
       <section role="dialog" aria-modal="true" aria-label="编辑作品" className="fos-dialog w-full max-w-[760px] rounded-2xl shadow-[0_28px_90px_rgba(0,0,0,.62)]">
-        <header className="fos-dialog-head flex items-start justify-between bg-[linear-gradient(110deg,rgba(255,255,255,.1),rgba(255,255,255,.08),transparent_70%)]">
+        <header className="fos-dialog-head flex items-start justify-between bg-[var(--fos-bg-3)]">
           <div className="flex items-start gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="settingsHex" className="h-5 w-5" /></span>
-            <div><h2 className="text-[18px] font-bold text-white">编辑作品</h2><p className="mt-1 text-[12px] leading-5 text-[var(--fos-text-3)]">作品参与人员可修改名称、简介和后续生成配置，不会删除已有剧本与资产；删除作品由管理员维护。</p></div>
+            <div><h2 className="text-[18px] font-bold text-white">编辑作品</h2><p className="mt-1 text-[12px] leading-5 text-[var(--fos-text-3)]">作品参与人员可修改名称、简介和后续生成配置，不会删除已有剧本与资产；删除作品仅限创建者或管理员。</p></div>
           </div>
           <button type="button" className="fos-icon-btn" aria-label="关闭" disabled={saving} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button>
         </header>

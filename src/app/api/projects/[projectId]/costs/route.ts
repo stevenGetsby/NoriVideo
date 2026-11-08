@@ -4,6 +4,7 @@ import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
+import { projectReadWhere } from '@/lib/collaboration/access'
 
 /**
  * GET /api/projects/[projectId]/costs
@@ -22,11 +23,7 @@ export const GET = apiHandler(async (
 
   // 验证项目归属
   const project = await prisma.project.findFirst({
-    where: {
-      id: projectId,
-      userId: session.user.id,
-      deletedAt: null,
-    },
+    where: projectReadWhere(session, projectId),
     select: { id: true, name: true }
   })
 

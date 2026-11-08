@@ -16,6 +16,7 @@ const prismaMock = vi.hoisted(() => ({
   frameosMaterial: {
     findMany: vi.fn(),
   },
+  user: { findMany: vi.fn() },
 }))
 
 vi.mock('@/lib/api-auth', () => ({
@@ -49,6 +50,23 @@ function request(query: Record<string, string> = {}) {
 }
 
 describe('FrameOS toolbox asset list access', () => {
+  it('shows only persisted real model ids without inferring a historical route', async () => {
+    prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([
+      { id: 'video-real', userId: 'owner-1', projectId: 'project-assigned', type: 'video', modelId: 'kuaizi::doubao-seedance-2-5-260628', resultUrl: null, materialId: null },
+      { id: 'video-legacy', userId: 'owner-1', projectId: 'project-assigned', type: 'video', modelId: 'nori::norivideo2.5', resultUrl: null, materialId: null },
+      { id: 'image-legacy', userId: 'owner-1', projectId: 'project-assigned', type: 'image', modelId: 'nori-image-pro', resultUrl: null, materialId: null },
+    ])
+
+    const response = await GET(request({ projectId: 'project-assigned' }), { params: Promise.resolve({}) })
+    const payload = await response.json() as { assets: Array<{ id: string; modelId: string | null }> }
+
+    expect(payload.assets.map(({ id, modelId }) => ({ id, modelId }))).toEqual([
+      { id: 'video-real', modelId: 'doubao-seedance-2-5-260628' },
+      { id: 'video-legacy', modelId: null },
+      { id: 'image-legacy', modelId: null },
+    ])
+  })
+
   it('refreshes playable media from storage keys and disables history caching', async () => {
     prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([{
       id: 'video-1', type: 'video', userId: 'owner-1', projectId: 'project-assigned', resultUrl: 'video/clip.mp4', materialId: null,
@@ -68,7 +86,10 @@ describe('FrameOS toolbox asset list access', () => {
     prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([])
     prismaMock.task.findMany.mockResolvedValue([])
     prismaMock.frameosMaterial.findMany.mockResolvedValue([])
+    prismaMock.user.findMany.mockResolvedValue([{ id: 'owner-1' }, { id: 'storyboard-child' }])
   })
+
+  const sharedUsers = { in: ['owner-1', 'storyboard-child'] }
 
   it('does not let a child account probe a project outside its management workspace', async () => {
     prismaMock.project.findFirst.mockResolvedValueOnce(null)
@@ -96,53 +117,26 @@ describe('FrameOS toolbox asset list access', () => {
     expect(JSON.stringify(payload)).not.toContain('https://private.test/secret.png')
   })
 
-  it('lets a child account read unscoped history from every project in its management workspace', async () => {
+  it('limits legacy unassigned history to its creator for child accounts', async () => {
     const allWorkspaceAssets = [
-      {
-        id: 'account-asset',
-        userId: 'owner-1',
-        projectId: null,
-        type: 'image',
-        params: { prompt: '账号共享提示词' },
-        resultUrl: 'https://assets.test/account.png',
-        materialId: null,
-      },
-      {
-        id: 'assigned-asset',
-        userId: 'owner-1',
-        projectId: 'project-assigned',
-        type: 'image',
-        params: { prompt: '已分配作品提示词' },
-        resultUrl: 'https://assets.test/assigned.png',
-        materialId: null,
-      },
-      {
-        id: 'secret-asset',
-        userId: 'owner-1',
-        projectId: 'project-secret',
-        type: 'image',
-        params: { prompt: '团队其他作品提示词' },
-        resultUrl: 'https://assets.test/team-project.png',
-        materialId: null,
-      },
+      { id: 'own-legacy', userId: 'storyboard-child', projectId: null, params: { prompt: '本人历史提示词' }, resultUrl: null, materialId: null },
+      { id: 'other-legacy', userId: 'owner-1', projectId: null, params: { prompt: '他人历史提示词' }, resultUrl: null, materialId: null },
+      { id: 'shared-project', userId: 'owner-1', projectId: 'project-assigned', params: { prompt: '已分配作品提示词' }, resultUrl: null, materialId: null },
     ]
-    prismaMock.project.findMany.mockResolvedValueOnce([
-      { id: 'project-assigned' },
-      { id: 'project-secret' },
-    ])
+    prismaMock.project.findMany.mockResolvedValueOnce([{ id: 'project-assigned' }])
     prismaMock.frameosToolboxAsset.findMany.mockImplementationOnce(async (args: {
-      where?: { OR?: Array<{ projectId?: null | { in?: string[] } }> }
+      where?: {
+        userId?: { in?: string[] }
+        OR?: Array<{ userId?: string; projectId?: null | { in?: string[] } }>
+      }
     }) => {
-      const clauses = args.where?.OR
-      if (!clauses) return allWorkspaceAssets
-      const allowsAccountAssets = clauses.some((clause) => clause.projectId === null)
-      const allowedProjectIds = clauses.flatMap((clause) => (
-        clause.projectId && typeof clause.projectId === 'object' ? clause.projectId.in || [] : []
-      ))
-      return allWorkspaceAssets.filter((asset) => (
-        (asset.projectId === null && allowsAccountAssets)
-        || (typeof asset.projectId === 'string' && allowedProjectIds.includes(asset.projectId))
-      ))
+      const users = args.where?.userId?.in || []
+      const clauses = args.where?.OR || []
+      return allWorkspaceAssets.filter((asset) => users.includes(asset.userId) && clauses.some((clause) => (
+        asset.projectId === null
+          ? clause.projectId === null && clause.userId === asset.userId
+          : clause.projectId && typeof clause.projectId === 'object' && Boolean(clause.projectId.in?.includes(asset.projectId))
+      )))
     })
 
     const response = await GET(request({ type: 'image', limit: '25' }), { params: Promise.resolve({}) })
@@ -156,19 +150,18 @@ describe('FrameOS toolbox asset list access', () => {
     })
     expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
       where: {
-        userId: 'owner-1',
+        userId: sharedUsers,
         OR: [
-          { projectId: null },
-          { projectId: { in: ['project-assigned', 'project-secret'] } },
+          { projectId: null, userId: 'storyboard-child' },
+          { projectId: { in: ['project-assigned'] } },
         ],
         type: 'image',
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 25,
     })
-    expect(payload.assets.map((asset) => asset.id)).toEqual(['account-asset', 'assigned-asset', 'secret-asset'])
-    expect(JSON.stringify(payload)).toContain('团队其他作品提示词')
-    expect(JSON.stringify(payload)).toContain('https://assets.test/team-project.png')
+    expect(payload.assets.map((asset) => asset.id)).toEqual(['own-legacy', 'shared-project'])
+    expect(JSON.stringify(payload)).toContain('已分配作品提示词')
   })
 
   it('keeps unscoped management history workspace-wide', async () => {
@@ -189,8 +182,8 @@ describe('FrameOS toolbox asset list access', () => {
     expect(prismaMock.project.findFirst).not.toHaveBeenCalled()
     expect(prismaMock.project.findMany).not.toHaveBeenCalled()
     expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
-      where: { userId: 'owner-1' },
-      orderBy: { createdAt: 'desc' },
+      where: { userId: sharedUsers },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 80,
     })
   })
@@ -205,13 +198,13 @@ describe('FrameOS toolbox asset list access', () => {
     expect(response.status).toBe(200)
     expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
       where: {
-        userId: 'owner-1',
+        userId: sharedUsers,
         projectId: 'project-assigned',
         source: 'toolbox',
         bizType: { in: ['video_generation'] },
         type: 'video',
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 80,
     })
   })
@@ -224,7 +217,7 @@ describe('FrameOS toolbox asset list access', () => {
 
     expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
       where: {
-        userId: 'owner-1',
+        userId: sharedUsers,
         projectId: 'project-assigned',
         source: 'toolbox',
         bizType: {
@@ -236,7 +229,7 @@ describe('FrameOS toolbox asset list access', () => {
           ],
         },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 80,
     })
   })
@@ -246,6 +239,28 @@ describe('FrameOS toolbox asset list access', () => {
 
     expect(response.status).toBe(400)
     expect(prismaMock.frameosToolboxAsset.findMany).not.toHaveBeenCalled()
+  })
+
+  it('continues at the stable time/id cursor and returns the next page boundary', async () => {
+    prismaMock.frameosToolboxAsset.findMany.mockResolvedValue(Array.from({ length: 12 }, (_, index) => ({
+      id: `asset-${index + 1}`,
+      userId: 'owner-1',
+      projectId: 'project-assigned',
+      createdAt: new Date('2026-11-08T00:00:00Z'),
+      resultUrl: null,
+      materialId: null,
+    })))
+
+    const response = await GET(request({ projectId: 'project-assigned', limit: '12', cursor: 'asset-12' }), { params: Promise.resolve({}) })
+    const payload = await response.json()
+
+    expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      cursor: { id: 'asset-12' },
+      skip: 1,
+      take: 12,
+    }))
+    expect(payload.pagination.nextCursor).toBe('asset-12')
   })
 
   it('queries the exact requested assets so an old running canvas node is not lost behind pagination', async () => {
@@ -259,12 +274,12 @@ describe('FrameOS toolbox asset list access', () => {
     expect(response.status).toBe(200)
     expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
       where: {
-        userId: 'owner-1',
+        userId: sharedUsers,
         projectId: 'project-assigned',
         id: { in: ['asset-old', 'asset-new'] },
         type: 'image',
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
       take: 2,
     })
   })

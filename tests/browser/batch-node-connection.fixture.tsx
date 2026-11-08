@@ -8,7 +8,7 @@ import { setFixtureSession } from './stubs/next-auth-react'
 import '../../src/styles/frameos-replica.css'
 
 if (new URLSearchParams(location.search).get('readonly') === '1') {
-  setFixtureSession({ id: 'readonly', name: '只读', role: 'reviewer', permissions: ['read'] })
+  setFixtureSession({ id: 'readonly', name: '未授权查看', role: 'unauthenticated', permissions: [] })
 }
 const canvas: Canvas = { id: 'canvas-1', projectId: 'project-1', title: '批量连接', viewport: { x: 0, y: 0, zoom: 1 }, revision: 0, themeColor: null, visibility: 'workspace', forkedFromId: null, createdAt: '2026-10-12T00:00:00Z', updatedAt: '2026-10-12T00:00:00Z' }
 createRoot(document.getElementById('root')!).render(

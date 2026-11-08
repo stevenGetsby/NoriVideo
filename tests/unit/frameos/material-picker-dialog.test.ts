@@ -49,9 +49,9 @@ function material(id: string, createdAt: string, assetCategory?: string): Frameo
 }
 
 describe('FrameOS material picker filters', () => {
-  it('locks direct asset-library uploads to the active project category and image files', () => {
+  it('defaults uploads to the personal pool and keeps project sharing explicit', () => {
     const markup = renderToStaticMarkup(React.createElement(MaterialUploadDialog, {
-      projects: [{ id: 'project-1', name: '短剧作品' }],
+      projects: [{ id: 'project-1', name: '短剧作品', workId: 'work-1' }],
       initialProjectId: 'project-1',
       initialAssetCategory: 'character',
       lockAssetCategory: true,
@@ -64,7 +64,8 @@ describe('FrameOS material picker filters', () => {
     expect(markup).toContain('accept="image/*"')
     expect(markup).toContain('请选择图片文件')
     expect(markup).toContain('disabled=""')
-    expect(markup).toContain('<option value="project-1" selected="">短剧作品</option>')
+    expect(markup).toContain('<option value="personal" selected="">个人素材（默认，仅自己可见）</option>')
+    expect(markup).toContain('<option value="project-1">短剧作品（项目共享）</option>')
   })
 
   it('renders the real scope tree, filters, and a capability-gated trash scope', () => {
@@ -75,10 +76,10 @@ describe('FrameOS material picker filters', () => {
       onClose: vi.fn(),
     }))
 
-    for (const label of ['全部素材', '我的收藏', '工作流素材', '工具箱素材', '画布素材', '上传素材']) {
+    for (const label of ['个人素材', '项目素材', '全部可访问资产', '工作流素材', '工具箱素材', '画布素材', '上传素材']) {
       expect(markup).toContain(label)
     }
-    for (const label of ['收藏', '由我创建', '创建时间 ↓', '开始日期', '结束日期']) {
+    for (const label of ['由我创建', '创建时间 ↓', '开始日期', '结束日期']) {
       expect(markup).toContain(label)
     }
     expect(markup).toContain('已删除')
@@ -95,8 +96,8 @@ describe('FrameOS material picker filters', () => {
       { id: 'project-b', name: '重复作品' },
       { id: '', name: '无效作品' },
     ], 'project-b')).toEqual([
-      { id: 'project-b', name: '乙作品' },
-      { id: 'project-a', name: '甲作品' },
+      { id: 'project-b', name: '乙作品', workId: null, workName: null },
+      { id: 'project-a', name: '甲作品', workId: null, workName: null },
     ])
   })
 
@@ -109,7 +110,7 @@ describe('FrameOS material picker filters', () => {
   it('passes every supported server filter with normalized date boundaries', () => {
     const params = buildMaterialPickerQuery({
       projectId: ' project-1 ',
-      scope: 'favorites',
+      scope: 'personal',
       type: 'video',
       query: ' 雨夜 ',
       creator: ' 管理员 ',
@@ -121,7 +122,7 @@ describe('FrameOS material picker filters', () => {
     expect(params.get('projectId')).toBe('project-1')
     expect(params.get('available')).toBe('1')
     expect(params.get('type')).toBe('video')
-    expect(params.get('favorite')).toBe('1')
+    expect(params.get('scope')).toBe('personal')
     expect(params.get('query')).toBe('雨夜')
     expect(params.get('creator')).toBe('管理员')
     expect(params.get('createdFrom')).toBe(new Date(2026, 6, 1, 0, 0, 0, 0).toISOString())
@@ -131,10 +132,9 @@ describe('FrameOS material picker filters', () => {
     const combined = buildMaterialPickerQuery({
       scope: 'canvas',
       type: 'image',
-      favoriteOnly: true,
     })
     expect(combined.get('source')).toBe('creative')
-    expect(combined.get('favorite')).toBe('1')
+    expect(combined.get('favorite')).toBeNull()
   })
 
   it('maps visible source scopes to persisted source fields and isolates project scope', () => {
@@ -157,8 +157,8 @@ describe('FrameOS material picker filters', () => {
     expect(trash.get('available')).toBe('1')
   })
 
-  it('keeps favorites, sources, and trash inside the project until the user explicitly browses all projects', () => {
-    for (const scope of ['favorites', 'toolbox', 'canvas', 'upload', 'trash'] as MaterialPickerScope[]) {
+  it('keeps sources and trash inside the project until the user explicitly browses all projects', () => {
+    for (const scope of ['toolbox', 'canvas', 'upload', 'trash'] as MaterialPickerScope[]) {
       const params = buildMaterialPickerQuery({ projectId: 'project-1', scope, type: 'image', projectOnly: true })
       expect(params.get('projectId')).toBe('project-1')
       expect(params.get('available')).toBe('0')

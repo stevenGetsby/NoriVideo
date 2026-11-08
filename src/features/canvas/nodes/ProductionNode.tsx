@@ -64,9 +64,7 @@ function ProductionNodeImpl(props: NodeProps) {
       style={{
         width: isPanel || isVideo ? 260 : 300,
         borderRadius: 16,
-        background: props.selected
-          ? 'linear-gradient(#24242e, #1b1b23)'
-          : '#1b1b23',
+        background: props.selected ? '#24242e' : '#1b1b23',
         border: props.selected
           ? `1px solid color-mix(in srgb, ${hue} 82%, transparent)`
           : '0.5px solid #34343f',
@@ -99,7 +97,7 @@ function ProductionNodeImpl(props: NodeProps) {
         <div
           style={{
             height: isPanel ? 120 : 92,
-            background: `radial-gradient(80% 110% at 50% 0%, color-mix(in srgb, ${hue} 16%, transparent), transparent 72%), linear-gradient(145deg, rgba(36,36,46,0.96), rgba(27,27,35,0.99))`,
+            background: 'color-mix(in srgb, currentColor 7%, #1b1b23)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

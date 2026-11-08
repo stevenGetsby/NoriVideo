@@ -49,7 +49,7 @@ export const POST = apiHandler(async (
     body.appearanceId = appearanceId
   }
 
-  let targetType = appearanceId ? 'CharacterAppearance' : 'NovelPromotionProject'
+  const targetType = appearanceId ? 'CharacterAppearance' : 'NovelPromotionProject'
   let targetId = projectId
   if (appearanceId) {
     const appearance = await prisma.characterAppearance.findFirst({

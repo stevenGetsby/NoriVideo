@@ -377,7 +377,7 @@ export default function LLMStageStreamCard({
 
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-[var(--glass-bg-muted)]">
           <div
-            className="h-full rounded-full bg-[linear-gradient(120deg,var(--glass-accent-from),var(--glass-accent-to))] transition-[width] duration-200"
+            className="h-full rounded-full bg-[var(--glass-accent-from)] transition-[width] duration-200"
             style={{ width: `${Math.max(normalizedOverallProgress, 2)}%` }}
           />
         </div>

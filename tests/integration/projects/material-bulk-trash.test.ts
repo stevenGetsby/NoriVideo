@@ -53,7 +53,9 @@ async function submit(materialIds: string[]) {
 describe.skipIf(!enabled)('material batch trash against isolated real MySQL', () => {
   beforeEach(async () => {
     const url = new URL(process.env.DATABASE_URL || '')
-    if (url.hostname !== 'nori-assets-test-mysql-20261014' || url.pathname !== '/nori_assets_check') {
+    const disposable = (url.hostname === 'nori-assets-test-mysql-20261014' && !url.port)
+      || (url.hostname === '127.0.0.1' && url.port === '33079')
+    if (!disposable || url.pathname !== '/nori_assets_check') {
       throw new Error('Refusing fixtures outside the disposable asset test database')
     }
     state.owner = `asset-owner-${randomUUID()}`

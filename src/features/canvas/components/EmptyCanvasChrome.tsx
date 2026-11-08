@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { useFosCanvasShell } from '@/components/frameos/FosCanvasShellContext'
 import type { CanvasProjectOption } from '../types'
+import { projectHref } from '@/lib/projects/navigation'
 import { CanvasToolRail, CanvasViewportControls } from './CanvasToolRail'
 
 const NOOP = () => undefined
@@ -13,12 +14,18 @@ export function EmptyCanvasChrome({
   projectId,
   projectName,
   projectOptions,
+  parentProjectId,
+  parentProjectName,
+  parentProjectHref,
   onSelectProject,
   canvasHomeHref,
 }: {
   projectId: string
   projectName: string
   projectOptions?: CanvasProjectOption[]
+  parentProjectId?: string | null
+  parentProjectName?: string | null
+  parentProjectHref?: string
   onSelectProject?: (projectId: string) => void
   canvasHomeHref?: string
 }) {
@@ -27,7 +34,9 @@ export function EmptyCanvasChrome({
   const [menu, setMenu] = useState<'work' | 'project' | null>(null)
   const [keyword, setKeyword] = useState('')
   const activeProject = projectOptions?.find((project) => project.id === projectId) || null
-  const activeWorkId = activeProject?.workId || null
+  const activeWorkId = parentProjectId || activeProject?.workId || null
+  const activeWorkName = parentProjectName || activeProject?.workName || (activeWorkId ? '未命名项目' : '未归属项目')
+  const parentHref = parentProjectHref || (activeWorkId ? projectHref(activeWorkId) : '/projects')
   const hasGlobalHierarchy = Boolean(canvasHomeHref && activeWorkId && projectOptions?.length)
   const workOptions = useMemo(() => Array.from(new Map((projectOptions || []).flatMap((project) => (
     project.workId ? [[project.workId, { id: project.workId, name: project.workName || '未归属项目' }] as const] : []
@@ -80,6 +89,13 @@ export function EmptyCanvasChrome({
 
   return (
     <div className={`nori-canvas-chrome nori-canvas-empty-chrome${sidebarStateClass}`} ref={rootRef}>
+      <Link
+        href={{ pathname: parentHref }}
+        className="nori-canvas-parent-back"
+        aria-label={`返回项目：${activeWorkName}`}
+        title={`返回项目：${activeWorkName}`}
+        data-testid="empty-canvas-parent-back"
+      ><AppIcon name="chevronLeft" /></Link>
       {canvasShell.enabled && canvasShell.sidebarCollapsed ? (
         <button
           type="button"
@@ -102,28 +118,23 @@ export function EmptyCanvasChrome({
               aria-expanded
               onClick={canvasShell.toggleSidebar}
             >
-              <AppIcon name="chevronLeft" />
+              <AppIcon name="menu" />
             </button>
         ) : null}
-        <Link
-          href={{ pathname: canvasHomeHref || `/workflow/${projectId}/workbench-premium2` }}
-          className="nori-canvas-parent-back"
-          title={canvasHomeHref ? '返回无限画布首页' : '返回作品工作台'}
-          data-testid="empty-canvas-parent-back"
-        ><AppIcon name="chevronLeft" /><span>{canvasHomeHref ? '画布首页' : '作品工作台'}</span></Link>
-        <span className="nori-canvas-nav-divider" />
+        <Link href={{ pathname: parentHref }} className="nori-canvas-work-link" title={`返回项目：${activeWorkName}`} data-testid="empty-canvas-work-link">{activeWorkName}</Link>
+        <i>/</i>
         {hasGlobalHierarchy ? (
-          <>
-            <button
-              type="button"
-              data-testid="empty-canvas-work-picker"
-              disabled={!canPickWork}
-              onClick={() => toggleMenu('work')}
-            >
-              <span>{activeProject?.workName || '项目'}</span><AppIcon name="chevronDown" />
-            </button>
-            <i>/</i>
-          </>
+          <button
+            type="button"
+            className="nori-canvas-work-switch"
+            data-testid="empty-canvas-work-picker"
+            disabled={!canPickWork}
+            aria-label="切换项目"
+            title="切换项目"
+            onClick={() => toggleMenu('work')}
+          >
+            <AppIcon name="chevronDown" />
+          </button>
         ) : null}
         <button
           type="button"
@@ -134,10 +145,6 @@ export function EmptyCanvasChrome({
         >
           <span>{projectName}</span><AppIcon name="chevronDown" />
         </button>
-        <i>/</i>
-        <button type="button" className="nori-canvas-active-picker is-empty" data-testid="empty-canvas-picker" aria-current="step" disabled>
-          <span>选择画布</span><AppIcon name="chevronDown" />
-        </button>
 
         {menu === 'work' && canPickWork ? (
           <div className="nori-canvas-dropdown nori-canvas-project-dropdown nori-canvas-work-dropdown">
@@ -147,7 +154,7 @@ export function EmptyCanvasChrome({
               {filteredWorks.map((work) => (
                 <Link
                   key={work.id}
-                  href={`${canvasHomeHref}?work_id=${encodeURIComponent(work.id)}`}
+                  href={projectHref(work.id)}
                   className={work.id === activeWorkId ? 'is-active' : ''}
                   onClick={() => setMenu(null)}
                 >

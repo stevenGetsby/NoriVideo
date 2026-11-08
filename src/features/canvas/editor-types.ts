@@ -441,7 +441,7 @@ function mergeTerminalHistory(
 }
 
 /**
- * Project only task terminal truth into an actively edited flow node. Position,
+ * Project task execution truth into an actively edited flow node. Position,
  * size, selection and non-task data stay local, so a response from an earlier
  * autosave cannot erase edits made while that request was in flight.
  */
@@ -463,11 +463,9 @@ export function mergeServerTerminalFlowNode(
     : local
   const localStatus = local.data.__server?.status
   const serverStatus = server.data.__server?.status
-  if (
-    localStatus !== 'RUNNING'
-    || (serverStatus !== 'SUCCEEDED' && serverStatus !== 'FAILED')
-    || !sameOrUnknownTerminalExecution(local, server)
-  ) return localWithCanonicalStudioSource
+  const serverStarted = localStatus === 'IDLE' && serverStatus === 'RUNNING' && Boolean(server.data.__server?.taskId)
+  const serverTerminal = localStatus === 'RUNNING' && (serverStatus === 'SUCCEEDED' || serverStatus === 'FAILED')
+  if ((!serverStarted && !serverTerminal) || !sameOrUnknownTerminalExecution(local, server)) return localWithCanonicalStudioSource
 
   const data = { ...localWithCanonicalStudioSource.data } as CanvasFlowNodeData & Record<string, unknown>
   for (const key of [
@@ -499,7 +497,9 @@ export function flowNodeToCanvas(node: CanvasFlowNode, canvasId: string): Canvas
   return {
     id: node.id,
     canvasId,
-    type: node.type || CANVAS_NODE_TYPE_IMAGE,
+    type: node.type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE
+      ? CANVAS_NODE_TYPE_VIDEO
+      : node.type || CANVAS_NODE_TYPE_IMAGE,
     position: node.position,
     size: node.type === CANVAS_NODE_TYPE_STUDIO_3D
       ? { width: Math.max(STUDIO_NODE_MIN_SIZE.width, width), height: Math.max(STUDIO_NODE_MIN_SIZE.height, height) }
@@ -527,6 +527,7 @@ export function canvasEdgeToFlow(edge: CanvasEdge): CanvasFlowEdge {
 }
 
 export function flowEdgeToCanvas(edge: CanvasFlowEdge, canvasId: string): CanvasEdge {
+  const role = edge.data?.role || 'INPUT_DEFAULT'
   return {
     id: edge.id,
     canvasId,
@@ -534,7 +535,8 @@ export function flowEdgeToCanvas(edge: CanvasFlowEdge, canvasId: string): Canvas
     targetNodeId: edge.target,
     sourceHandle: edge.sourceHandle || null,
     targetHandle: edge.targetHandle || null,
-    role: edge.data?.role || 'INPUT_DEFAULT',
+    // Legacy cached frame-capture wires predate the persisted REF contract.
+    role: role === 'VIDEO_FRAME' ? 'REF' : role,
   }
 }
 

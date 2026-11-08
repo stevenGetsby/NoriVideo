@@ -16,7 +16,7 @@ export type LegacyProductionWork = {
   id: string
   name: string
   workId?: string | null
-  work?: unknown
+  work?: { name?: string | null } | unknown
 }
 
 export function toProductionWork<T extends LegacyProductionWork>(
@@ -29,7 +29,11 @@ export function toProductionWork<T extends LegacyProductionWork>(
   return {
     ...work,
     kind: 'work' as const,
+    workId: parentProjectId || null,
     projectId: parentProjectId || null,
+    workName: stored.work && typeof stored.work === 'object' && 'name' in stored.work && typeof stored.work.name === 'string'
+      ? stored.work.name
+      : null,
   }
 }
 

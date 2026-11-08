@@ -19,57 +19,42 @@ export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
     workspaceOwnerId,
     actorId,
     isManagement: isManagementRole(session.user.role) || actorId === workspaceOwnerId,
+    projectLeader: session.user.projectLeader === true,
     accountPermissions: effectiveAccountPermissions(session.user.role, session.user.permissions),
     role: session.user.role || 'reviewer',
   }
 }
 
 /**
- * 作品 (Project row) participation for a subaccount. Management accounts see
- * the whole workspace; everyone else only sees 作品 they created, were invited
- * to, were assigned a stage of, or that sit in a 项目 they lead.
+ * 作品 participation for a subaccount. Management accounts see the whole
+ * workspace; project creators and current members share every active 作品 in
+ * their 项目. Management permissions still come from membership, so creator
+ * visibility never bypasses the leader's member administration rules.
  */
-export function workMemberManagerWhere(actorId: string): Prisma.WorkMemberWhereInput {
+export function workParticipantWhere(actorId: string): Prisma.WorkWhereInput {
   return {
-    userId: actorId,
     OR: [
-      { canManage: true },
-      { role: { in: ['manager', 'leader'] } },
-      { permissions: { array_contains: ['projectManage'] } },
+      { createdById: actorId },
+      { members: { some: { userId: actorId } } },
     ],
   }
 }
 
 export function projectParticipantWhere(actorId: string): Prisma.ProjectWhereInput {
-  return {
-    OR: [
-      { createdById: actorId },
-      { members: { some: { userId: actorId } } },
-      { workflowAssignments: { some: { assigneeUserId: actorId } } },
-      { work: { createdById: actorId } },
-      { work: { members: { some: workMemberManagerWhere(actorId) } } },
-    ],
-  }
+  return { work: workParticipantWhere(actorId) }
 }
 
 export function canActorSeeProject(actor: WorkspaceActor, project: {
-  createdById: string
-  isMember: boolean
-  isAssignee: boolean
-  workCreatedById: string
-  isWorkManager: boolean
+  isWorkMember: boolean
+  isWorkCreator?: boolean
 }): boolean {
-  if (actor.isManagement) return true
-  return project.createdById === actor.actorId
-    || project.isMember
-    || project.isAssignee
-    || project.workCreatedById === actor.actorId
-    || project.isWorkManager
+  return actor.isManagement || project.isWorkMember || project.isWorkCreator === true
 }
 
 export function visibleProjectsWhere(session: AuthSession): Prisma.ProjectWhereInput {
   const actor = getWorkspaceActor(session)
-  return actor.isManagement ? {} : projectParticipantWhere(actor.actorId)
+  if (actor.isManagement) return {}
+  return projectParticipantWhere(actor.actorId)
 }
 
 export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhereInput {
@@ -84,16 +69,10 @@ export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhere
 export function workReadScopeWhere(session: AuthSession): Prisma.WorkWhereInput {
   const actor = getWorkspaceActor(session)
   if (actor.isManagement) return { workspaceOwnerId: actor.workspaceOwnerId, deletedAt: null }
-  // A 项目 is visible to its members and to anyone who can see one of its 作品,
-  // but the 作品 list inside it is still filtered by projectParticipantWhere.
   return {
     workspaceOwnerId: actor.workspaceOwnerId,
     deletedAt: null,
-    OR: [
-      { createdById: actor.actorId },
-      { members: { some: { userId: actor.actorId } } },
-      { projects: { some: { deletedAt: null, ...projectParticipantWhere(actor.actorId) } } },
-    ],
+    ...workParticipantWhere(actor.actorId),
   }
 }
 
@@ -153,14 +132,11 @@ export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId:
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId: actor.workspaceOwnerId },
     select: {
-      createdById: true,
-      members: { where: { userId: actor.actorId }, select: { id: true }, take: 1 },
-      workflowAssignments: { where: { assigneeUserId: actor.actorId }, select: { uuid: true }, take: 1 },
       work: {
         select: {
           createdById: true,
           members: {
-            where: workMemberManagerWhere(actor.actorId),
+            where: { userId: actor.actorId },
             select: { id: true },
             take: 1,
           },
@@ -170,11 +146,8 @@ export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId:
   })
   if (!project) return false
   return !canActorSeeProject(actor, {
-    createdById: project.createdById,
-    isMember: project.members.length > 0,
-    isAssignee: project.workflowAssignments.length > 0,
-    workCreatedById: project.work.createdById,
-    isWorkManager: project.work.members.length > 0,
+    isWorkMember: project.work.members.length > 0,
+    isWorkCreator: project.work.createdById === actor.actorId,
   })
 }
 
@@ -304,10 +277,8 @@ export async function getProjectCollaborationAccess(session: AuthSession, projec
   const canManageMembers = canAccessProject(
     actor, 'projectMemberManage', project, workMembership, projectMembership,
   )
-  const canDelete = canAccessProject(
-    actor, 'projectDelete', project, workMembership, projectMembership,
-  )
-  const canMove = canAccessProject(
+  const canDelete = actor.isManagement || project.createdById === actor.actorId
+  const canMove = actor.isManagement || project.createdById === actor.actorId || canAccessProject(
     actor, 'projectMove', project, workMembership, projectMembership,
   )
 

@@ -85,6 +85,7 @@ vi.mock('@/lib/canvas/video-operations', () => ({
     height: 720,
     duration: 6.25,
     fps: 24,
+    enhanced: true,
   })),
 }))
 vi.mock('@/lib/media/video-audio', () => ({
@@ -299,7 +300,7 @@ describe('toolbox task handlers', () => {
     expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(job, expect.objectContaining({
       options: expect.objectContaining({ resolution: '480p' }),
     }))
-    expect(enhanceCanvasVideo).toHaveBeenCalledWith(Buffer.from('video'), { target: '720p' }, expect.any(Object))
+    expect(enhanceCanvasVideo).toHaveBeenCalledWith(Buffer.from('video'), { target: '720p', allowNoop: true }, expect.any(Object))
     expect(storageMock.uploadObject).toHaveBeenCalledWith(
       Buffer.from('enhanced-video'),
       'toolbox-video-superresolved/user-1/task-toolbox_video.mp4',
@@ -317,6 +318,33 @@ describe('toolbox task handlers', () => {
       storageKey: 'toolbox-video-superresolved/user-1/task-toolbox_video.mp4',
       metadata: expect.objectContaining({ resolution: '480p', outputResolution: '720p' }),
     }))
+  })
+
+  it('keeps the generated video when automatic superresolution is already satisfied', async () => {
+    vi.mocked(enhanceCanvasVideo).mockResolvedValueOnce({
+      body: Buffer.from('video'),
+      width: 1280,
+      height: 720,
+      duration: 6.25,
+      fps: 24,
+      enhanced: false,
+    })
+    const job = buildJob(TASK_TYPE.TOOLBOX_VIDEO, {
+      prompt: '高清雨夜推镜',
+      videoModel: 'kuaizi::doubao-seedance-2-5-260628',
+      resolution: '720p',
+      superresolveTarget: '720p',
+    })
+
+    const result = await handleToolboxVideoTask(job)
+
+    expect(storageMock.uploadObject).not.toHaveBeenCalled()
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      storageKey: 'video/toolbox-video.mp4',
+      metadata: expect.objectContaining({ superresolveSkipped: 'already_meets_target' }),
+    }))
+    expect(result).toMatchObject({ videoUrl: 'video/toolbox-video.mp4', superresolveSkipped: 'already_meets_target' })
+    expect(result).not.toHaveProperty('outputResolution')
   })
 
   it('passes normalized image, video, and audio references to all-reference video generation', async () => {
@@ -437,6 +465,80 @@ describe('toolbox task handlers', () => {
         errorMessage: 'InputImageSensitiveContentDetected.PrivacyInformation',
       },
     })
+  })
+
+  it('registers a regenerated image as a new material for the new asset only', async () => {
+    const job = {
+      data: {
+        taskId: 'task-regenerated-image',
+        type: TASK_TYPE.TOOLBOX_IMAGE,
+        locale: 'zh',
+        projectId: 'project-1',
+        targetType: 'FrameosToolboxAsset',
+        targetId: 'asset-regenerated-image',
+        payload: {
+          ownerName: '资产师甲',
+          title: '雨夜街道（改）',
+          prompt: 'edited prompt',
+          imageModel: 'image-provider::model-1',
+          assetCategory: 'location',
+        },
+        userId: 'user-1',
+      },
+    } as unknown as Job<TaskJobData>
+
+    const result = await handleToolboxImageTask(job)
+
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledTimes(1)
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      title: '雨夜街道（改）',
+      storageKey: 'images/toolbox-image.png',
+      metadata: expect.objectContaining({
+        originType: 'toolbox-image',
+        originId: 'asset-regenerated-image',
+        targetId: 'asset-regenerated-image',
+      }),
+    }))
+    expect(result).toMatchObject({ assetId: 'asset-regenerated-image' })
+    const updateCalls = prismaMock.frameosToolboxAsset.update.mock.calls as unknown as Array<[
+      { where: { id: string } },
+    ]>
+    expect(updateCalls.every(([call]) => call.where.id === 'asset-regenerated-image')).toBe(true)
+    expect(prismaMock.frameosToolboxAsset.update).not.toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'asset-source-image' } }),
+    )
+  })
+
+  it('fails only the regenerated image asset and never touches the source asset', async () => {
+    utilsMock.resolveImageSourceFromGeneration.mockRejectedValueOnce(new Error('provider unavailable'))
+    const job = {
+      data: {
+        taskId: 'task-regenerated-failure',
+        type: TASK_TYPE.TOOLBOX_IMAGE,
+        locale: 'zh',
+        projectId: 'project-1',
+        targetType: 'FrameosToolboxAsset',
+        targetId: 'asset-regenerated-image',
+        payload: {
+          title: '雨夜街道（改）',
+          prompt: 'edited prompt',
+          imageModel: 'image-provider::model-1',
+        },
+        userId: 'user-1',
+      },
+    } as unknown as Job<TaskJobData>
+
+    await expect(handleToolboxImageTask(job)).rejects.toThrow('provider unavailable')
+
+    expect(prismaMock.frameosToolboxAsset.update).toHaveBeenLastCalledWith({
+      where: { id: 'asset-regenerated-image' },
+      data: { status: 'failed', errorMessage: 'provider unavailable' },
+    })
+    const updateCalls = prismaMock.frameosToolboxAsset.update.mock.calls as unknown as Array<[
+      { where: { id: string } },
+    ]>
+    expect(updateCalls.every(([call]) => call.where.id === 'asset-regenerated-image')).toBe(true)
+    expect(materialMock.registerFrameosMaterial).not.toHaveBeenCalled()
   })
 
   it('marks a video asset failed when a first/last-frame input is incomplete', async () => {

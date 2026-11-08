@@ -147,7 +147,7 @@ async function diagnoseProject(projectId: string) {
     
     for (const key of queueKeys.slice(0, 5)) {
       const queueName = key.replace('bull:', '').replace(':id', '')
-      const jobCounts = await redis.hgetall(`bull:${queueName}:id`)
+      await redis.hgetall(`bull:${queueName}:id`)
       console.log(`    - ${queueName}`)
     }
     

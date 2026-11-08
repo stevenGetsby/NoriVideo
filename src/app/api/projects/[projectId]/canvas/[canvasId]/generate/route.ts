@@ -7,7 +7,7 @@ import {
   normalizeCanvasImageGenerationOptions,
   normalizeCanvasVideoGenerationOptions,
 } from '@/lib/canvas/generator-options'
-import { POST as generateToolboxAsset } from '@/app/api/frameos/toolbox/generate/route'
+import { generateToolboxAsset } from '@/app/api/frameos/toolbox/generate/route'
 
 function cleanText(value: unknown) {
   return typeof value === 'string' ? value.trim() : ''

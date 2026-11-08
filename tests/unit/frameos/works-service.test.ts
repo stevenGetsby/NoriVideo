@@ -26,6 +26,9 @@ const prismaMock = vi.hoisted(() => ({
     deleteMany: vi.fn(),
     upsert: vi.fn(),
   },
+  interactiveStory: {
+    findUnique: vi.fn(),
+  },
   $transaction: vi.fn(),
 }))
 
@@ -34,7 +37,8 @@ const accessMock = vi.hoisted(() => ({
     workspaceOwnerId: 'workspace-1',
     actorId: 'actor-1',
     isManagement: false,
-    accountPermissions: ['workCreate', 'projectCreate'] as string[],
+    projectLeader: true,
+    accountPermissions: ['projectCreate'] as string[],
   })),
   requireActiveWorkspaceUser: vi.fn(),
   requireProjectMemberManager: vi.fn(),
@@ -75,7 +79,8 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: false,
-      accountPermissions: ['workCreate', 'projectCreate'],
+      projectLeader: true,
+      accountPermissions: ['projectCreate'],
     })
     accessMock.requireWorkManager.mockResolvedValue({
       actor: accessMock.getWorkspaceActor(),
@@ -101,11 +106,12 @@ describe('works service behavior', () => {
     prismaMock.project.updateMany.mockResolvedValue({ count: 0 })
     prismaMock.user.count.mockResolvedValue(0)
     prismaMock.user.findMany.mockResolvedValue([])
+    prismaMock.interactiveStory.findUnique.mockResolvedValue(null)
     prismaMock.workMember.deleteMany.mockResolvedValue({ count: 0 })
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
-  it('creates the opted-in actor as leader and ordinary invitees as members', async () => {
+  it('creates ordinary membership rows; workspace leadership comes from the user identity', async () => {
     const { createWork } = await import('@/lib/works/service')
     prismaMock.work.create.mockResolvedValueOnce({ id: 'work-new', name: '新项目' })
     prismaMock.user.findMany.mockImplementation(async (input?: { where?: { id?: { in?: string[] } } }) => (
@@ -117,7 +123,7 @@ describe('works service behavior', () => {
       data: expect.objectContaining({
         members: {
           create: [
-            { userId: 'actor-1', role: 'leader', canManage: true },
+            { userId: 'actor-1', role: 'member', canManage: false },
             { userId: 'writer-2', role: 'member', canManage: false },
           ],
         },
@@ -125,20 +131,24 @@ describe('works service behavior', () => {
     }))
 
     accessMock.getWorkspaceActor.mockReturnValueOnce({
-      workspaceOwnerId: 'workspace-1', actorId: 'actor-1', isManagement: false, accountPermissions: ['projectCreate'],
+      workspaceOwnerId: 'workspace-1', actorId: 'actor-1', isManagement: false, projectLeader: false, accountPermissions: ['projectCreate'],
     })
     await expect(createWork(session, { name: '禁止立项' })).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 
-  it('updates work member role and permissions only through the member manager gate', async () => {
-    prismaMock.workMember.upsert.mockResolvedValueOnce({ userId: 'writer-2', role: 'leader' })
-    const { addWorkMember } = await import('@/lib/works/service')
+  it('adds only ordinary members and rejects attempts to inject role or permissions', async () => {
+    prismaMock.workMember.upsert.mockResolvedValueOnce({ userId: 'writer-2', role: 'member' })
+    const { addWorkMember, readWorkMemberGrant } = await import('@/lib/works/service')
 
-    await addWorkMember(session, 'work-1', { userId: 'writer-2', role: 'leader', permissions: null })
+    await addWorkMember(session, 'work-1', { userId: 'writer-2' })
     expect(accessMock.requireWorkMemberManager).toHaveBeenCalledWith(session, 'work-1')
     expect(prismaMock.workMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
-      update: { role: 'leader', canManage: true, permissions: expect.anything() },
+      update: {},
+      create: { workId: 'work-1', userId: 'writer-2', role: 'member', canManage: false },
     }))
+    expect(() => readWorkMemberGrant({ userId: 'writer-2', role: 'leader' })).toThrow('项目组长由管理员统一设置')
+    expect(() => readWorkMemberGrant({ userId: 'writer-2', permissions: ['workManage'] })).toThrow('项目组长由管理员统一设置')
+    expect(() => readWorkMemberGrant({ userId: ' ' })).toThrow('请选择成员账号')
   })
 
   it('keeps the visible total stable and filters nested 作品 by participation', async () => {
@@ -151,8 +161,8 @@ describe('works service behavior', () => {
       createdAt: new Date('2026-07-17T00:00:00Z'),
       updatedAt: new Date('2026-07-18T00:00:00Z'),
       createdById: 'creator-1',
-      createdBy: { id: 'creator-1', name: 'Creator', role: 'admin' },
-      members: [],
+      createdBy: { id: 'creator-1', name: 'Creator', role: 'admin', projectLeader: false },
+      members: [{ userId: 'actor-1', role: 'member', canManage: false, permissions: null, user: { id: 'actor-1', name: 'Member', role: 'writer', status: 'active', projectLeader: false } }],
       projects: [{
         id: 'project-readable',
         name: '伦敦篇',
@@ -221,7 +231,7 @@ describe('works service behavior', () => {
     expect(result.works[0]).toMatchObject({
       id: 'work-1',
       projectCount: 2,
-      canManage: false,
+      canManage: true,
     })
     expect(result.works[0]?.projects.map((project) => project.id)).toEqual([
       'project-readable',
@@ -250,7 +260,8 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: true,
-      accountPermissions: ['workCreate', 'projectCreate'],
+      projectLeader: true,
+      accountPermissions: ['projectCreate'],
     })
     const { listWorks } = await import('@/lib/works/service')
 
@@ -273,7 +284,7 @@ describe('works service behavior', () => {
         id: 'project-2',
         workId: 'source-work',
         createdById: 'actor-1',
-        work: { createdById: 'creator-1', members: [] },
+        work: { createdById: 'creator-1', members: [{ role: 'member', permissions: ['projectManage'] }] },
         members: [],
       },
     ])
@@ -295,6 +306,27 @@ describe('works service behavior', () => {
       },
       data: { workId: 'target-work' },
     })
+  })
+
+  it('rejects moving ordinary works into an interactive project or chapters out of one', async () => {
+    prismaMock.project.findMany.mockResolvedValue([{
+      id: 'project-1', workId: 'source-work', createdById: 'actor-1',
+      work: { createdById: 'actor-1', members: [], interactiveStory: null }, members: [],
+    }])
+    prismaMock.interactiveStory.findUnique.mockResolvedValue({ id: 'story-target' })
+    const { moveProjects } = await import('@/lib/works/service')
+    await expect(moveProjects(session, { workIds: ['project-1'], targetWorkId: 'target-work' }))
+      .rejects.toMatchObject({ code: 'CONFLICT', message: expect.stringContaining('普通作品与影游章节不能互相移动') })
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+
+    prismaMock.project.findMany.mockResolvedValue([{
+      id: 'project-1', workId: 'source-work', createdById: 'actor-1',
+      work: { createdById: 'actor-1', members: [], interactiveStory: { id: 'story-source' } }, members: [],
+    }])
+    prismaMock.interactiveStory.findUnique.mockResolvedValue(null)
+    await expect(moveProjects(session, { workIds: ['project-1'], targetWorkId: 'target-work' }))
+      .rejects.toMatchObject({ code: 'CONFLICT' })
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
   it('recycles active works with their parent without hard-deleting content', async () => {
@@ -355,7 +387,7 @@ describe('works service behavior', () => {
     })
   })
 
-  it('requires both target-work management and source-project management', async () => {
+  it('requires target-work management and source-project participation', async () => {
     accessMock.requireWorkManager.mockRejectedValueOnce(
       new ApiError('FORBIDDEN', { message: '无权管理目标项目' }),
     )
@@ -372,7 +404,8 @@ describe('works service behavior', () => {
       workspaceOwnerId: 'workspace-1',
       actorId: 'actor-1',
       isManagement: false,
-      accountPermissions: ['workCreate', 'projectCreate'],
+      projectLeader: false,
+      accountPermissions: ['projectCreate'],
     })
     accessMock.requireWorkManager.mockResolvedValue({
       actor: accessMock.getWorkspaceActor(),
@@ -383,7 +416,7 @@ describe('works service behavior', () => {
       id: 'project-1',
       workId: 'source-work',
       createdById: 'creator-2',
-      work: { createdById: 'creator-1', members: [] },
+      work: { createdById: 'creator-1', members: [{ role: 'member' }] },
       members: [],
     }])
 
@@ -472,7 +505,7 @@ describe('works service behavior', () => {
         name: '候选成员',
         role: 'asset',
         roleLabel: '视觉资产师',
-        permissions: ['read', 'assetWrite', 'canvasWrite'],
+        permissions: ['read', 'projectCreate', 'scriptWrite', 'assetWrite', 'storyboardWrite', 'toolboxUse', 'canvasWrite'],
         status: 'active',
       }],
       pagination: { page: 2, pageSize: 10, total: 21, totalPages: 3 },
@@ -492,7 +525,7 @@ describe('works service behavior', () => {
     expect(prismaMock.workMember.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('grants project review when a manager adds a reviewer as a collaborator', async () => {
+  it('adds a reviewer as a normal member without automatic task review rights', async () => {
     accessMock.requireProjectMemberManager.mockResolvedValueOnce({
       actor: accessMock.getWorkspaceActor(),
       project: { id: 'project-1', userId: 'workspace-1', collaborationMode: 'solo' },
@@ -503,14 +536,14 @@ describe('works service behavior', () => {
     })
     prismaMock.projectMember.upsert.mockResolvedValueOnce({
       userId: 'reviewer-1',
-      canReviewAssignments: true,
+      canReviewAssignments: false,
     })
     prismaMock.project.update.mockResolvedValueOnce({ id: 'project-1', collaborationMode: 'team' })
     const { addProjectMember } = await import('@/lib/works/service')
 
     await expect(addProjectMember(session, 'project-1', 'reviewer-1')).resolves.toMatchObject({
       userId: 'reviewer-1',
-      canReviewAssignments: true,
+      canReviewAssignments: false,
     })
     expect(prismaMock.projectMember.upsert).toHaveBeenCalledWith(expect.objectContaining({
       create: {
@@ -518,18 +551,12 @@ describe('works service behavior', () => {
         userId: 'reviewer-1',
         role: 'member',
         canManageAssignments: false,
-        canReviewAssignments: true,
+        canReviewAssignments: false,
       },
-      update: { canReviewAssignments: true },
+      update: {},
     }))
-    expect(prismaMock.project.update).toHaveBeenCalledWith({
-      where: { id: 'project-1' },
-      data: { collaborationMode: 'team' },
-    })
-    expect(assignmentsMock.syncProjectAssignmentsForProject).toHaveBeenCalledWith({
-      projectId: 'project-1',
-      workspaceOwnerId: 'workspace-1',
-    })
+    expect(prismaMock.project.update).not.toHaveBeenCalled()
+    expect(assignmentsMock.syncProjectAssignmentsForProject).not.toHaveBeenCalled()
   })
 
   it('does not grant review when adding a production subaccount', async () => {

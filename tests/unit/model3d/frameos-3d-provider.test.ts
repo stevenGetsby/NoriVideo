@@ -37,10 +37,14 @@ describe('FrameOS 3D provider contract', () => {
   })
 
   it('submits the Tripo async contract without leaking branded-only fields', async () => {
-    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ code: 0, data: { task_id: 'external-1' } }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    }))
+    const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) => {
+      void _input
+      void _init
+      return new Response(JSON.stringify({ code: 0, data: { task_id: 'external-1' } }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
     vi.stubGlobal('fetch', fetchMock)
 
     const submission = await submitFrameos3DGeneration(config, {

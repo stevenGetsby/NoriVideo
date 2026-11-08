@@ -34,7 +34,7 @@ describe('business project -> work hierarchy with preserved storage IDs', () => 
     })
     expect(project).not.toHaveProperty('projects')
     expect(project).not.toHaveProperty('projectCount')
-    expect(project.works[0]).not.toHaveProperty('workId')
+    expect(project.works[0]).toMatchObject({ workId: storedProject.id, projectId: storedProject.id })
   })
 
   it('does not rewrite stored IDs, production configuration or access permissions', () => {

@@ -22,8 +22,31 @@ describe('structured character references reuse uploaded voices', () => {
   })
   it('scopes the lookup to authorised project and registers actual measured audio duration', async () => {
     expect(await materializeStructuredCharacterVoices({ userId: 'owner', projectId: 'project', images: [{ metadata: { originType: 'character', originId: 'appearance' } }] })).toEqual([{ id: 'voice-material', type: 'audio' }])
-    expect(mock.characterAppearance.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['appearance'] }, character: { novelPromotionProject: { projectId: 'project' } } } }))
+    expect(mock.characterAppearance.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { in: ['appearance'] }, character: { novelPromotionProject: { projectId: { in: ['project'] } } } } }))
     expect(media.register).toHaveBeenCalledWith(expect.objectContaining({ metadata: expect.objectContaining({ durationSeconds: 3, characterId: 'role' }) }))
+  })
+  it('shares a measured voice across authorized works without rereading bytes', async () => {
+    mock.frameosMaterial.findFirst.mockResolvedValue({ id: 'shared-voice', projectId: 'project-b', metadata: { durationSeconds: 4 } })
+    expect(await materializeStructuredCharacterVoices({
+      userId: 'member', projectId: 'project-a', projectIds: ['project-a', 'project-b'], workspaceUserIds: ['member', 'owner'],
+      images: [{ metadata: { originType: 'character', originId: 'appearance' } }],
+    })).toEqual([{ id: 'shared-voice', projectId: 'project-b', metadata: { durationSeconds: 4 } }])
+    expect(mock.frameosMaterial.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ userId: { in: ['member', 'owner'] }, projectId: { in: ['project-a', 'project-b'] } }),
+    }))
+    expect(media.read).not.toHaveBeenCalled()
+    expect(media.register).not.toHaveBeenCalled()
+  })
+  it('keeps structured character lookup inside the supplied project boundary', async () => {
+    mock.characterAppearance.findMany.mockResolvedValue([])
+    expect(await materializeStructuredCharacterVoices({
+      userId: 'member', projectId: 'project-a', projectIds: ['project-a', 'project-b'],
+      images: [{ metadata: { originType: 'character', originId: 'foreign' } }],
+    })).toEqual([])
+    expect(mock.characterAppearance.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: { in: ['foreign'] }, character: { novelPromotionProject: { projectId: { in: ['project-a', 'project-b'] } } } },
+    }))
+    expect(media.read).not.toHaveBeenCalled()
   })
   it('never imports characters from another workspace/project or non-character metadata', async () => {
     mock.characterAppearance.findMany.mockResolvedValue([])

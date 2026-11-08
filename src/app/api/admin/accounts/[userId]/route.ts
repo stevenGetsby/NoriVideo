@@ -6,14 +6,10 @@ import { forbidden, isErrorResponse, requireAdminAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { logInfo } from '@/lib/logging/core'
 import {
-  defaultSubaccountRoleLabel,
-  effectiveAccountPermissions,
-  isAccountPermission,
   isAccountStatus,
   isSubaccountRole,
   normalizeAccountRole,
   type AccountStatus,
-  type SubaccountRole,
 } from '@/lib/account/permissions'
 import {
   isDirectSubaccountOf,
@@ -29,7 +25,6 @@ import {
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
 const PASSWORD_MAX_LENGTH = 128
-const ROLE_LABEL_MAX_LENGTH = 64
 const DELETED_ACCOUNT_STATUS = 'deleted'
 
 function readUsername(value: unknown): string | undefined {
@@ -53,18 +48,6 @@ function readPassword(value: unknown): string | undefined {
   return value
 }
 
-function readRoleLabel(value: unknown): string | undefined {
-  if (value === undefined) return undefined
-  const roleLabel = typeof value === 'string' ? value.trim() : ''
-  if (
-    roleLabel.length < 1
-    || roleLabel.length > ROLE_LABEL_MAX_LENGTH
-    || /[\u0000-\u001f\u007f]/u.test(roleLabel)
-  ) {
-    throw new ApiError('INVALID_PARAMS', { message: '角色名称需为 1–64 个字符，且不能包含控制字符。' })
-  }
-  return roleLabel
-}
 
 function readDailyPointLimit(value: unknown): number | null {
   if (!isValidDailyPointLimitInput(value)) {
@@ -73,21 +56,6 @@ function readDailyPointLimit(value: unknown): number | null {
     })
   }
   return normalizeDailyPointLimit(value)
-}
-
-function readSubaccountPermissions(value: unknown, role: SubaccountRole) {
-  if (role === 'reviewer') return effectiveAccountPermissions(role)
-  if (value === undefined) return undefined
-  if (!Array.isArray(value)) {
-    throw new ApiError('INVALID_PARAMS', { message: '功能区权限必须是数组。' })
-  }
-  const containsInvalidPermission = value.some((permission) => (
-    permission !== 'creativeGenerate' && !isAccountPermission(permission)
-  ))
-  if (containsInvalidPermission || value.includes('admin')) {
-    throw new ApiError('INVALID_PARAMS', { message: '子账号包含不可分配的功能区权限。' })
-  }
-  return effectiveAccountPermissions(role, value)
 }
 
 function canManageTarget(
@@ -133,10 +101,12 @@ export const PATCH = apiHandler(async (
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const username = readUsername(body.username ?? body.name)
   const password = readPassword(body.password)
-  const roleLabel = readRoleLabel(body.roleLabel)
-  const role: SubaccountRole | null | undefined = body.role === undefined
-    ? undefined
-    : isSubaccountRole(body.role) ? body.role : null
+  const projectLeader = body.projectLeader === undefined ? undefined : body.projectLeader === true
+  if (body.projectLeader !== undefined && typeof body.projectLeader !== 'boolean') {
+    throw new ApiError('INVALID_PARAMS', { message: '项目组长身份必须是布尔值。' })
+  }
+  const currentRole = normalizeAccountRole(current.role)
+  const isManagementAccount = currentRole === 'admin'
   const status: AccountStatus | null | undefined = body.status === undefined
     ? undefined
     : isAccountStatus(body.status) ? body.status : null
@@ -146,22 +116,9 @@ export const PATCH = apiHandler(async (
   const dailyPointLimitProvided = body.dailyPointLimit !== undefined
   const dailyPointLimit = dailyPointLimitProvided ? readDailyPointLimit(body.dailyPointLimit) : undefined
 
-  if (role === null) throw new ApiError('INVALID_PARAMS', { message: '角色模板只能是编剧、资产师、分镜师或审核员。' })
   if (status === null) throw new ApiError('INVALID_PARAMS', { message: '无效的账号状态。' })
-  if (requestedManagerId === '') throw new ApiError('INVALID_PARAMS', { message: '请选择管理账号。' })
-
-  const currentRole = normalizeAccountRole(current.role)
-  const isManagementAccount = currentRole === 'admin'
-  const targetRole = role || currentRole
-  const requestedPermissions = isSubaccountRole(targetRole)
-    ? readSubaccountPermissions(body.permissions, targetRole)
-    : undefined
-
-  if (isManagementAccount && role !== undefined) {
-    throw new ApiError('INVALID_PARAMS', { message: '管理账号不能改为角色子账号。' })
-  }
-  if (isManagementAccount && (roleLabel !== undefined || body.permissions !== undefined)) {
-    throw new ApiError('INVALID_PARAMS', { message: '管理账号始终拥有全部权限，不能设置子账号角色或功能区。' })
+  if (isManagementAccount && projectLeader !== undefined) {
+    throw new ApiError('INVALID_PARAMS', { message: '项目组长身份仅适用于子账号。' })
   }
   if (requestedManagerId !== undefined) {
     return forbidden('账号归属不能在此修改。角色子账号始终由所属管理账号管理。')
@@ -170,9 +127,7 @@ export const PATCH = apiHandler(async (
   if (
     username === undefined
     && password === undefined
-    && role === undefined
-    && roleLabel === undefined
-    && requestedPermissions === undefined
+    && projectLeader === undefined
     && status === undefined
     && !dailyPointLimitProvided
   ) {
@@ -186,13 +141,7 @@ export const PATCH = apiHandler(async (
         where: { id: current.id },
         data: {
           ...(username !== undefined ? { name: username } : {}),
-          ...(role !== undefined ? { role } : {}),
-          ...(roleLabel !== undefined
-            ? { roleLabel }
-            : role !== undefined ? { roleLabel: defaultSubaccountRoleLabel(role) } : {}),
-          ...(requestedPermissions !== undefined
-            ? { permissions: requestedPermissions }
-            : role !== undefined ? { permissions: effectiveAccountPermissions(role) } : {}),
+          ...(projectLeader !== undefined ? { projectLeader } : {}),
           ...(status !== undefined ? { status } : {}),
           ...(dailyPointLimitProvided ? { dailyPointLimit } : {}),
           ...(passwordHash ? { password: passwordHash, passwordChangeRequired: true, sessionVersion: { increment: 1 } } : {}),
@@ -208,9 +157,7 @@ export const PATCH = apiHandler(async (
       operatorUserId: operatorId,
       targetUserId: account.id,
       changedUsername: username !== undefined,
-      changedRole: role !== undefined,
-      changedRoleLabel: roleLabel !== undefined,
-      changedPermissions: requestedPermissions !== undefined,
+      changedProjectLeader: projectLeader !== undefined,
       changedStatus: status !== undefined,
       changedDailyPointLimit: dailyPointLimitProvided,
       dailyPointLimit: dailyPointLimitProvided ? dailyPointLimit : undefined,
@@ -273,6 +220,7 @@ async function permanentlyRemoveSubaccount(account: ManagedAccountRecord) {
         password: null,
         status: DELETED_ACCOUNT_STATUS,
         permissions: [],
+        projectLeader: false,
         sessionVersion: { increment: 1 },
       },
     })

@@ -5,6 +5,7 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import type { Prisma } from '@prisma/client'
 import { toMoneyNumber } from '@/lib/billing/money'
+import { projectReadScopeWhere } from '@/lib/collaboration/access'
 import { normalizeBillingPagination } from '@/lib/billing/reporting'
 import {
     isInternalBalanceTransactionRecord,
@@ -85,8 +86,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
             ? prisma.project.findMany({
                 where: {
                     id: { in: projectIds },
-                    userId: session.user.id,
-                    deletedAt: null,
+                    ...projectReadScopeWhere(session),
                 },
                 select: { id: true, name: true },
             })
@@ -96,9 +96,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
                 where: {
                     id: { in: episodeIds },
                     novelPromotionProject: {
-                        project: {
-                            userId: session.user.id,
-                        },
+                        project: projectReadScopeWhere(session),
                     },
                 },
                 select: { id: true, episodeNumber: true, name: true },

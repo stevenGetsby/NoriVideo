@@ -18,7 +18,7 @@ const NAV: Array<{ key: AdminNavKey; href: string; label: string; caption: strin
 const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; text: string }> = {
   accounts: {
     icon: 'infoCircle',
-    text: '此处创建管理账号并查看整个工作区用量。角色子账号、功能区权限和作品审核员由对应管理账号在 LanMiaoTV 内维护。',
+    text: '此处创建管理账号并查看整个工作区用量。子账号、项目组长与项目成员由对应管理账号在 LanMiaoTV 内维护。',
   },
   services: {
     icon: 'alert',

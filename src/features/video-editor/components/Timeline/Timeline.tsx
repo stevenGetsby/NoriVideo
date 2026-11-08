@@ -128,7 +128,7 @@ export const Timeline: React.FC<TimelineProps> = ({
                     top: 0,
                     height: '100%',
                     width: `${playheadPosition}%`,
-                    background: 'linear-gradient(90deg, var(--glass-accent-from) 0%, var(--glass-accent-to) 100%)',
+                    background: 'var(--glass-accent-to)',
                     borderRadius: '4px 0 0 4px',
                     transition: timelineState.playing ? 'none' : 'width 0.1s'
                 }} />

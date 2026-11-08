@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useSearchParams } from 'next/navigation'
 import { Link, useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
-import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
+import { WorkCover } from './works/WorkCover'
 import { CanvasWorkspace } from '@/features/canvas/CanvasWorkspace'
 import type { CanvasProjectOption, CanvasWorkOption } from '@/features/canvas/types'
 import { FosShell } from './FosShell'
@@ -156,13 +156,8 @@ function CanvasProjectChooser({
                   data-testid="global-canvas-direct-project-entry"
                   aria-label={`进入 ${project.name} 的无限画布`}
                   onClick={() => onSelect(project.id)}
-                  style={generativeCoverStyle(project.id)}
                 >
-                  <i className={`nori-gen-cover${project.coverImageUrl ? ' has-cover' : ''}`} aria-hidden="true">
-                    {project.coverImageUrl
-                      ? <img src={project.coverImageUrl} alt="" loading="lazy" />
-                      : <b>{coverMonogram(project.name)}</b>}
-                  </i>
+                  <WorkCover project={project} compact />
                   <span><strong>{project.name}</strong><small>{project.workName || '未归属项目'} · 打开或创建画布</small></span>
                   <AppIcon name="arrowRight" />
                 </button>
@@ -190,7 +185,7 @@ export function FosCanvasHubClient({
   initialProjectId?: string
   initialCanvasId?: string
 }) {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const searchParams = useSearchParams()
   const [works, setWorks] = useState<CanvasWorkOption[]>([])
@@ -272,6 +267,8 @@ export function FosCanvasHubClient({
             initialCanvasId={initialCanvasId}
             routeBase={`/canvas/${encodeURIComponent(selectedProject.id)}`}
             projectOptions={projects}
+            parentProjectId={selectedProject.workId}
+            parentProjectName={selectedProject.workName}
             onSelectProject={selectProject}
             canvasHomeHref="/canvas"
             createProjectHref={selectedProjectCreateHref}

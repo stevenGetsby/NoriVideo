@@ -6,7 +6,7 @@ const fetchMock = vi.hoisted(() => vi.fn())
 vi.mock('@/lib/api-fetch', () => ({ apiFetch: fetchMock }))
 
 describe('large asset directory pagination', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => fetchMock.mockReset())
   it('loads older scene assets after a full first page of characters, without repeating sync', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
       materials: Array.from({ length: 500 }, (_, i) => ({ id: `character-${i}`, metadata: { assetCategory: 'character' } })),
@@ -29,18 +29,18 @@ describe('large asset directory pagination', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
   it('reads all advertised project pages without duplicate directories', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: 'a', name: 'A' }], pagination: { totalPages: 2 } })))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }], pagination: { totalPages: 2 } })))
-    expect(await fetchAllProjectOptions()).toEqual([{ id: 'a', name: 'A' }, { id: 'b', name: 'B' }])
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: 'a', name: 'A', workId: 'work-a', workName: '项目 A' }], pagination: { totalPages: 2 } })))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ projects: [{ id: 'a', name: 'A', workId: 'work-a', workName: '项目 A' }, { id: 'b', name: 'B', workId: 'work-b' }], pagination: { totalPages: 2 } })))
+    expect(await fetchAllProjectOptions()).toEqual([{ id: 'a', name: 'A', workId: 'work-a', workName: '项目 A' }, { id: 'b', name: 'B', workId: 'work-b', workName: null }])
     expect(fetchMock.mock.calls[1][0]).toBe('/api/projects?page=2&pageSize=100')
   })
 
   it('loads the 101st work and forwards the abort signal on every page', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      projects: Array.from({ length: 100 }, (_, i) => ({ id: `p-${i}`, name: `作品 ${i}` })),
+      projects: Array.from({ length: 100 }, (_, i) => ({ id: `p-${i}`, name: `作品 ${i}`, workId: 'work-1' })),
       pagination: { totalPages: 2 },
     }))).mockResolvedValueOnce(new Response(JSON.stringify({
-      works: [{ id: 'p-100', name: '作品 101' }], pagination: { totalPages: 2 },
+      works: [{ id: 'p-100', name: '作品 101', workId: 'work-1' }], pagination: { totalPages: 2 },
     })))
     const controller = new AbortController()
     const rows = await fetchAllProjectOptions(controller.signal)
@@ -51,7 +51,7 @@ describe('large asset directory pagination', () => {
 
   it('does not present a partial list as complete if a later page fails', async () => {
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      projects: [{ id: 'a', name: 'A' }], pagination: { totalPages: 2 },
+      projects: [{ id: 'a', name: 'A', workId: 'work-a' }], pagination: { totalPages: 2 },
     }))).mockResolvedValueOnce(new Response(JSON.stringify({ error: { message: '第二页暂不可用' } }), { status: 503 }))
     await expect(fetchAllProjectOptions()).rejects.toThrow('第二页暂不可用')
   })

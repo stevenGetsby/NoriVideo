@@ -21,6 +21,12 @@ export const PUBLIC_ROUTE_ALLOWLIST = new Set([
   'src/app/api/storage/sign/route.ts',
 ])
 
+export const SESSION_AUTH_ROUTE_ALLOWLIST = new Set([
+  // Initial password changes must run before the normal session guard's
+  // PASSWORD_CHANGE_REQUIRED rejection; the route verifies account state itself.
+  'src/app/api/auth/change-password/route.ts',
+])
+
 const AUTH_CALL_PATTERNS = [
   /\brequireAdminAuth\s*\(/,
   /\brequireSuperAdminAuth\s*\(/,
@@ -65,7 +71,8 @@ function hasApiHandlerWrapper(content) {
   return /\bapiHandler\s*\(/.test(content)
 }
 
-function hasRequiredAuth(content) {
+function hasRequiredAuth(relPath, content) {
+  if (SESSION_AUTH_ROUTE_ALLOWLIST.has(relPath) && /\bgetAuthSession\s*\(/.test(content)) return true
   return AUTH_CALL_PATTERNS.some((pattern) => pattern.test(content))
 }
 
@@ -76,7 +83,7 @@ export function inspectRouteContract(relPath, content) {
     violations.push(`${relPath} missing apiHandler wrapper`)
   }
 
-  if (!PUBLIC_ROUTE_ALLOWLIST.has(relPath) && !hasRequiredAuth(content)) {
+  if (!PUBLIC_ROUTE_ALLOWLIST.has(relPath) && !hasRequiredAuth(relPath, content)) {
     violations.push(`${relPath} missing requireUserAuth/requireUserPermission/requireProjectAuth/requireProjectAuthLight`)
   }
 

@@ -23,6 +23,7 @@ export type CanvasVideoInfo = {
 
 export type CanvasVideoResult = CanvasVideoInfo & {
   body: Buffer
+  enhanced?: boolean
 }
 
 export type CanvasVideoOperationHooks = {
@@ -136,21 +137,26 @@ function run(binary: string, args: string[], options?: {
   })
 }
 
-async function probeFile(filePath: string): Promise<CanvasVideoInfo> {
+type CanvasProbedMedia = {
+  video: { width: number; height: number; fps: number } | null
+  audio: boolean
+  duration: number
+}
+
+async function probeStreams(filePath: string): Promise<CanvasProbedMedia> {
   const ffprobe = process.env.FFPROBE_PATH?.trim() || 'ffprobe'
   const output: string[] = []
   await new Promise<void>((resolve, reject) => {
     const child = spawn(ffprobe, [
       '-v', 'error',
-      '-select_streams', 'v:0',
-      '-show_entries', 'stream=width,height,avg_frame_rate:format=duration',
+      '-show_entries', 'stream=codec_type,width,height,avg_frame_rate:format=duration',
       '-of', 'json',
       filePath,
     ], { stdio: ['ignore', 'pipe', 'pipe'] })
     let stderr = ''
     const timer = setTimeout(() => {
       child.kill('SIGKILL')
-      reject(new Error('读取视频信息超时'))
+      reject(new Error('读取媒体信息超时'))
     }, 30_000)
     child.stdout.on('data', (chunk: Buffer) => output.push(chunk.toString('utf8')))
     child.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8') })
@@ -158,25 +164,33 @@ async function probeFile(filePath: string): Promise<CanvasVideoInfo> {
     child.once('close', (code) => {
       clearTimeout(timer)
       if (code === 0) resolve()
-      else reject(new Error(stderr.trim() || '无法读取视频信息'))
+      else reject(new Error(stderr.trim() || '无法读取媒体信息'))
     })
   })
   const payload = JSON.parse(output.join('')) as {
-    streams?: Array<{ width?: number; height?: number; avg_frame_rate?: string }>
+    streams?: Array<{ codec_type?: string; width?: number; height?: number; avg_frame_rate?: string }>
     format?: { duration?: string }
   }
-  const stream = payload.streams?.[0]
-  const width = Number(stream?.width)
-  const height = Number(stream?.height)
+  const streams = payload.streams || []
+  const videoStream = streams.find((stream) => stream.codec_type === 'video')
+  const width = Number(videoStream?.width)
+  const height = Number(videoStream?.height)
   const duration = Number(payload.format?.duration)
-  if (!Number.isFinite(width) || !Number.isFinite(height) || width < 2 || height < 2) {
-    throw new Error('视频尺寸无效')
-  }
   return {
-    width,
-    height,
+    video: videoStream && Number.isFinite(width) && Number.isFinite(height) && width >= 2 && height >= 2
+      ? { width, height, fps: parseRate(videoStream.avg_frame_rate) }
+      : null,
+    audio: streams.some((stream) => stream.codec_type === 'audio'),
     duration: Number.isFinite(duration) ? duration : 0,
-    fps: parseRate(stream?.avg_frame_rate),
+  }
+}
+
+async function probeFile(filePath: string): Promise<CanvasVideoInfo> {
+  const media = await probeStreams(filePath)
+  if (!media.video) throw new Error('视频尺寸无效')
+  return {
+    ...media.video,
+    duration: media.duration,
   }
 }
 
@@ -200,16 +214,96 @@ async function fileHasAudio(filePath: string) {
   })
 }
 
-async function withVideoFiles<T>(input: Buffer, task: (inputPath: string, outputPath: string) => Promise<T>) {
+async function withVideoFiles<T>(
+  input: Buffer,
+  task: (inputPath: string, outputPath: string) => Promise<T>,
+  extension: 'mp4' | 'mp3' = 'mp4',
+) {
   const directory = await mkdtemp(path.join(tmpdir(), 'nori-canvas-video-'))
   const inputPath = path.join(directory, 'input.mp4')
-  const outputPath = path.join(directory, 'output.mp4')
+  const outputPath = path.join(directory, `output.${extension}`)
   try {
     await writeFile(inputPath, input)
     const value = await task(inputPath, outputPath)
-    return { value, output: await readFile(outputPath) }
+    const output = await readFile(outputPath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code === 'ENOENT') return input
+      throw error
+    })
+    return { value, output }
   } finally {
     await rm(directory, { recursive: true, force: true }).catch(() => undefined)
+  }
+}
+
+export type CanvasAudioExtractRange = {
+  startMs: number
+  endMs: number
+}
+
+export type CanvasAudioExtractionResult = {
+  body: Buffer
+  duration: number
+}
+
+/**
+ * Validate a timeline selection before it reaches ffmpeg. When the source
+ * duration is known, an end beyond the media is clamped instead of failing;
+ * a start at or beyond the end is always rejected.
+ */
+export function normalizeCanvasAudioExtractRange(
+  range: CanvasAudioExtractRange,
+  durationSeconds?: number,
+): { startMs: number; endMs: number; durationSeconds: number } {
+  const { startMs, endMs } = range
+  if (!finite(startMs) || !finite(endMs) || startMs < 0 || endMs <= startMs) {
+    throw new Error('音频提取区间无效，请重新选择起点和终点')
+  }
+  const sourceDurationMs = finite(durationSeconds) && durationSeconds > 0
+    ? Math.round(durationSeconds * 1_000)
+    : null
+  if (sourceDurationMs !== null && startMs >= sourceDurationMs) {
+    throw new Error('音频提取起点超出视频时长')
+  }
+  const resolvedEndMs = sourceDurationMs !== null ? Math.min(endMs, sourceDurationMs) : endMs
+  const selectionMs = resolvedEndMs - startMs
+  if (selectionMs < 100) throw new Error('音频提取区间过短，请至少选择 0.1 秒')
+  return {
+    startMs,
+    endMs: resolvedEndMs,
+    durationSeconds: selectionMs / 1_000,
+  }
+}
+
+/** Extract the selected timeline range as a local MP3 track without model billing. */
+export async function extractCanvasVideoAudio(
+  input: Buffer,
+  range: CanvasAudioExtractRange,
+  hooks?: CanvasVideoOperationHooks,
+): Promise<CanvasAudioExtractionResult> {
+  const ffmpeg = process.env.FFMPEG_PATH?.trim() || 'ffmpeg'
+  const processed = await withVideoFiles(input, async (inputPath, outputPath) => {
+    const media = await probeStreams(inputPath)
+    if (!media.video) throw new Error('源文件不包含视频画面，无法按时间线提取音频')
+    if (!media.audio) throw new Error('源视频没有音轨，无法提取音频')
+    const selection = normalizeCanvasAudioExtractRange(range, media.duration)
+    await run(ffmpeg, [
+      '-hide_banner', '-loglevel', 'error', '-y',
+      '-ss', (selection.startMs / 1_000).toFixed(3),
+      '-t', selection.durationSeconds.toFixed(3),
+      '-i', inputPath,
+      '-vn',
+      '-map', '0:a:0',
+      '-c:a', 'libmp3lame', '-q:a', '2',
+      '-movflags', '+faststart',
+      '-progress', 'pipe:2', '-nostats',
+      outputPath,
+    ], { durationSeconds: selection.durationSeconds, hooks })
+    const output = await probeStreams(outputPath)
+    return { duration: output.duration || selection.durationSeconds }
+  }, 'mp3')
+  return {
+    body: processed.output,
+    duration: processed.value.duration,
   }
 }
 
@@ -295,7 +389,6 @@ export async function trimCanvasVideo(
   const durationSeconds = Math.max(0.034, (options.endMs - options.startMs) / 1_000)
   const ffmpeg = process.env.FFMPEG_PATH?.trim() || 'ffmpeg'
   const processed = await withVideoFiles(input, async (inputPath, outputPath) => {
-    const source = await probeFile(inputPath)
     const hasAudio = await fileHasAudio(inputPath)
     await run(ffmpeg, [
       '-hide_banner', '-loglevel', 'error', '-y',
@@ -348,10 +441,11 @@ export async function eraseCanvasVideoRegion(
 
 export async function enhanceCanvasVideo(
   input: Buffer,
-  options: { target: '2x' | '720p' | '1080p' | '2k' | '4k'; interpolate?: boolean },
+  options: { target: '2x' | '720p' | '1080p' | '2k' | '4k'; interpolate?: boolean; allowNoop?: boolean },
   hooks?: CanvasVideoOperationHooks,
 ): Promise<CanvasVideoResult> {
   const ffmpeg = process.env.FFMPEG_PATH?.trim() || 'ffmpeg'
+  let noop = false
   const processed = await withVideoFiles(input, async (inputPath, outputPath) => {
     const source = await probeFile(inputPath)
     const targetHeights = { '720p': 720, '1080p': 1080, '2k': 1_440, '4k': 2_160 } as const
@@ -363,7 +457,13 @@ export async function enhanceCanvasVideo(
       MAX_OUTPUT_EDGE / source.width,
       MAX_OUTPUT_EDGE / source.height,
     )
-    if (scale <= 1.001 && !options.interpolate) throw new Error('源视频已达到所选清晰度')
+    if (scale <= 1.001 && !options.interpolate) {
+      if (options.allowNoop) {
+        noop = true
+        return source
+      }
+      throw new Error('源视频已达到所选清晰度')
+    }
     const width = even(source.width * Math.max(1, scale))
     const height = even(source.height * Math.max(1, scale))
     const filters = [
@@ -386,5 +486,5 @@ export async function enhanceCanvasVideo(
     ], { durationSeconds: source.duration, hooks })
     return await probeFile(outputPath)
   })
-  return { ...processed.value, body: processed.output }
+  return { ...processed.value, body: noop ? input : processed.output, enhanced: !noop }
 }

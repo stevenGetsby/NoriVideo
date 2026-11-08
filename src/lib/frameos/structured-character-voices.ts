@@ -9,6 +9,8 @@ import { ApiError } from '@/lib/api-errors'
  * Resolve only server-owned character ids in the authorised current project. */
 export async function materializeStructuredCharacterVoices(input: {
   userId: string; projectId: string
+  projectIds?: string[]
+  workspaceUserIds?: string[]
   images: Array<{ metadata: unknown }>
 }) {
   const appearances: string[] = []
@@ -19,8 +21,10 @@ export async function materializeStructuredCharacterVoices(input: {
     if (!characterVoiceMaterialId(metadata) && metadata.originType === 'global-character' && typeof metadata.originId === 'string') globalAppearances.push(metadata.originId)
   }
   if (!appearances.length && !globalAppearances.length) return []
+  const projectIds = [...new Set([input.projectId, ...(input.projectIds || [])])]
+  const userIds = [...new Set([input.userId, ...(input.workspaceUserIds || [])])]
   const rows = appearances.length ? await prisma.characterAppearance.findMany({
-    where: { id: { in: appearances }, character: { novelPromotionProject: { projectId: input.projectId } } },
+    where: { id: { in: appearances }, character: { novelPromotionProject: { projectId: { in: projectIds } } } },
     select: { character: { select: { id: true, name: true, customVoiceUrl: true, customVoiceMedia: { select: { storageKey: true } } } } },
   }) : []
   const globals = globalAppearances.length ? await prisma.globalCharacterAppearance.findMany({
@@ -37,7 +41,10 @@ export async function materializeStructuredCharacterVoices(input: {
     if (!source) continue
     const key = extractStorageKey(source)
     if (!key) throw new ApiError('INVALID_PARAMS', { message: `「${character.name}」音色没有可用的存储文件，请重新上传。` })
-    const existing = await prisma.frameosMaterial.findFirst({ where: { userId: input.userId, projectId: character.projectId, type: 'audio', storageKey: key, status: 'ready', deletedAt: null } })
+    const existing = await prisma.frameosMaterial.findFirst({
+      where: { userId: { in: userIds }, projectId: { in: projectIds }, type: 'audio', storageKey: key, status: 'ready', deletedAt: null },
+      orderBy: [{ projectId: 'asc' }, { createdAt: 'asc' }],
+    })
     const metadata = existing?.metadata && typeof existing.metadata === 'object' && !Array.isArray(existing.metadata) ? existing.metadata as Record<string, unknown> : {}
     if (existing && typeof metadata.durationSeconds === 'number' && metadata.durationSeconds > 0) { voices.push(existing); continue }
     const bytes = await getObjectBuffer(key)

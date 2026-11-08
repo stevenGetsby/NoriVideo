@@ -402,7 +402,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
       where,
       orderBy: { updatedAt: 'desc' },  // 先按更新时间排序获取所有匹配作品
       skip: (page - 1) * pageSize,
-      take: pageSize
+      take: pageSize,
+      include: { work: { select: { name: true } } },
     })
   ])
 
@@ -430,7 +431,6 @@ export const GET = apiHandler(async (request: NextRequest) => {
     // 一次性获取所有作品的费用（代替 N+1 查询）
     projectIds.length > 0 ? prisma.usageCost.findMany({
       where: {
-        userId: session.user.id,
         projectId: { in: projectIds },
       },
       select: {
@@ -484,7 +484,6 @@ export const GET = apiHandler(async (request: NextRequest) => {
     }) : Promise.resolve([]),
     projectIds.length > 0 ? prisma.workflowStageState.findMany({
       where: {
-        userId: session.user.id,
         projectId: { in: projectIds },
       },
       select: {
@@ -505,7 +504,6 @@ export const GET = apiHandler(async (request: NextRequest) => {
     }) : Promise.resolve([]),
     projectIds.length > 0 ? prisma.task.findMany({
       where: {
-        userId: session.user.id,
         projectId: { in: projectIds },
         status: { in: [TASK_STATUS.QUEUED, TASK_STATUS.PROCESSING] },
       },
@@ -627,6 +625,14 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const rawWorkId = rawBody.parentProjectId ?? rawBody.workId ?? rawBody.work_id
   const requestedWorkId = typeof rawWorkId === 'string' ? rawWorkId.trim() : ''
+  if (rawBody.creationMode !== undefined && rawBody.creationMode !== 'canvas' && rawBody.creationMode !== 'workflow') {
+    throw new ApiError('INVALID_PARAMS', { message: '创作方式必须为 canvas 或 workflow。' })
+  }
+  if (rawBody.createBlankCanvas !== undefined && typeof rawBody.createBlankCanvas !== 'boolean' && rawBody.createBlankCanvas !== 'true' && rawBody.createBlankCanvas !== 'false') {
+    throw new ApiError('INVALID_PARAMS', { message: 'createBlankCanvas 必须为布尔值。' })
+  }
+  const creationMode = rawBody.creationMode || (rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true' ? 'canvas' : 'workflow')
+  const createBlankCanvas = creationMode === 'canvas' || rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true'
   const parentIds = [rawBody.parentProjectId, rawBody.workId, rawBody.work_id]
     .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
     .map((value) => value.trim())
@@ -803,7 +809,18 @@ export const POST = apiHandler(async (request: NextRequest) => {
           assignees: projectAssignees,
         })
       }
-      return createdProject
+      const canvas = createBlankCanvas
+        ? await tx.canvas.create({
+          data: {
+            projectId: createdProject.id,
+            userId: actor.actorId,
+            title: '主画布',
+            viewport: { x: 0, y: 0, zoom: 1 },
+          },
+          select: { id: true, projectId: true, title: true },
+        })
+        : null
+      return { ...createdProject, canvas }
     })
   } catch (error) {
     await cleanupUploadedProjectStyleReferences(uploadedStyleReferences)
@@ -820,6 +837,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
   return NextResponse.json({
     work: toProductionWork(project, workId),
     project,
+    canvas: project.canvas,
     initialEpisodesCreated: initialEpisodeRange?.count ?? 0,
   }, { status: 201 })
 })

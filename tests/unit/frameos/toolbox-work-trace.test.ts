@@ -157,7 +157,7 @@ describe('toolbox work trace', () => {
 
     expect(trace.title).toBe('未命名生成')
     expect(trace.prompt).toBe('')
-    expect(trace.model).toBe('Seedance 2.0 Fast')
+    expect(trace.model).toBe('seedance2.0-fast')
     expect(trace.mode).toBe('图片生成')
     expect(trace.options).toEqual([
       { label: '画面比例', value: String(16 / 9) },
@@ -166,6 +166,8 @@ describe('toolbox work trace', () => {
     expect(trace.references).toEqual([])
     expect(trace.createdAtLabel).toBe('not-a-date')
     expect(toolboxModelLabel(null)).toBe('')
-    expect(toolboxModelLabel('nori::seedance2.0')).toBe('Seedance 2.0')
+    expect(toolboxModelLabel('nori::seedance2.0')).toBe('seedance2.0')
+    expect(toolboxModelLabel('nori::norivideo2.5')).toBe('norivideo2.5')
+    expect(toolboxModelLabel('kuaizi::doubao-seedance-2-5-260628')).toBe('doubao-seedance-2-5-260628')
   })
 })

@@ -3,7 +3,6 @@ import { generateAudio } from '@/lib/generator-api'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getKuaiziModelDefinition } from '@/lib/providers/kuaizi/catalog'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
-import { recordServiceUsageInBackground } from '@/lib/platform-services/usage'
 import {
   audioCapabilitiesForModel,
   declaredAudioModes,
@@ -20,6 +19,7 @@ function compact(value: unknown): string {
 }
 
 export function implementedAudioModes(provider: string, _modelId: string): AudioGenerationMode[] {
+  void _modelId
   const providerKey = getProviderKey(provider).toLowerCase()
   if (providerKey === 'kuaizi') return ['tts']
   return []

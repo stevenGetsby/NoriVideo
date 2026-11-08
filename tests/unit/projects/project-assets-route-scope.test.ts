@@ -42,7 +42,10 @@ describe('/api/projects/[projectId]/assets scope', () => {
     })
   })
 
-  it('reads assets only after finding the project in the current user scope', async () => {
+  it('reads assets only after finding the project in the current workspace member scope', async () => {
+    authMock.requireUserAuth.mockResolvedValueOnce({
+      session: { user: { id: 'owner-1', actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'writer' } } as never,
+    })
     const { GET } = await import('@/app/api/projects/[projectId]/assets/route')
 
     const res = await GET(
@@ -62,8 +65,14 @@ describe('/api/projects/[projectId]/assets scope', () => {
     expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
       where: {
         id: 'project-1',
-        userId: 'user-1',
+        userId: 'owner-1',
         deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
       },
       select: { id: true },
     })

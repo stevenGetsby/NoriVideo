@@ -11,6 +11,7 @@ describe('generation entrypoint billing coverage', () => {
     const syncBilling = source('src/lib/billing/service.ts')
     const understand = source('src/app/api/video-repaint/understand/route.ts')
     const adapt = source('src/app/api/video-repaint/adapt/route.ts')
+    const adaptation = source('src/lib/video-repaint/adaptation.ts')
     const enhance = source('src/app/api/video-enhance/route.ts')
     const superAgent = source('src/lib/super-agent/llm-client.ts')
     const assistant = source('src/lib/assistant-platform/runtime.ts')
@@ -21,10 +22,14 @@ describe('generation entrypoint billing coverage', () => {
 
     expect(submitter.indexOf('await requireGenerationCredit(params.userId)')).toBeLessThan(submitter.indexOf('await addTaskJob({'))
     expect(syncBilling.indexOf('await requireGenerationCredit(params.userId)')).toBeLessThan(syncBilling.indexOf('return await execute()'))
-    expect(understand).toContain('status: 410')
-    expect(understand).not.toContain('Ark API')
-    expect(adapt).toContain('status: 410')
-    expect(adapt).not.toContain('withTextBilling')
+    expect(understand).toContain('withTextBilling(')
+    expect(understand).not.toContain('status: 410')
+    expect(understand).not.toContain('getProviderConfig')
+    expect(adapt).toContain('adaptVideoScript')
+    expect(adapt).not.toContain('status: 410')
+    expect(adaptation.indexOf('await withTextBilling(')).toBeLessThan(
+      adaptation.indexOf('runModelGatewayTextCompletion({'),
+    )
     expect(enhance).toContain('status: 410')
     expect(enhance).not.toContain('submitMediaKitEnhanceVideoTask')
     expect(enhance).not.toContain('resolveMediaKitApiKey')

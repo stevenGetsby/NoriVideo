@@ -41,10 +41,8 @@ const css = bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.conte
 assert.ok(script && css, 'fixture bundle must contain JavaScript and CSS')
 
 const videoModel = {
-  modelKey: 'nori::norivideo2.5',
-  name: 'LanMiaoTV 2.5',
-  provider: 'nori',
-  tier: 'pro',
+  modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+  name: 'doubao-seedance-2-5-260628',
   configured: true,
   available: true,
   firstLastFrame: true,
@@ -69,7 +67,7 @@ const historyAsset = {
   materialId: 'result-1',
   type: 'video',
   status: 'completed',
-  modelId: 'nori::norivideo2.5',
+  modelId: 'kuaizi::doubao-seedance-2-5-260628',
   resultUrl: '/result.mp4',
   url: '/result.mp4',
   errorMessage: null,
@@ -136,10 +134,10 @@ try {
       ? {
         imageModels: [],
         videoModels: [videoModel],
-        defaults: { imageModel: null, videoModel: 'nori::norivideo2.5', aspectRatio: '16:9', resolution: '720p' },
+        defaults: { imageModel: null, videoModel: 'kuaizi::doubao-seedance-2-5-260628', aspectRatio: '16:9', resolution: '720p' },
       }
       : url.pathname.endsWith('/api/projects')
-        ? { works: [{ id: 'project-1', name: '小屏验证作品' }], pagination: { totalPages: 1 } }
+        ? { works: [{ id: 'project-1', name: '小屏验证作品', workId: 'work-1', projectId: 'work-1' }], pagination: { totalPages: 1 } }
         : url.pathname.includes('/toolbox/assets')
           ? { assets: [historyAsset] }
           : url.pathname.endsWith('/api/user/balance')
@@ -185,14 +183,17 @@ try {
   assert.ok(badgeState.every((item) => item.clearOfRemove), 'toolbox voice badges must not overlap the remove button')
   assert.ok(badgeState.every((item) => item.fullLabel), 'toolbox voice labels must not truncate')
 
-  const hint = page.getByText('角色音色 1/2；自动带入 1 个已绑定音色，1 个缺音色。')
+  const hint = page.getByText('角色音色 1/2；顾北辰 缺音色，不会自动带入音频。')
   await hint.waitFor()
   assert.ok((await hint.getAttribute('class'))?.includes('text-amber-300/90'), 'missing character voice must be warned')
+  const voiceLink = page.getByRole('link', { name: '配置角色音色', exact: true })
+  assert.equal(await voiceLink.getAttribute('href'), '/workflow/project-1/workbench-premium2/assets/timbre?characterId=char-2')
+  assert.equal(await page.locator('[aria-label="工作留痕"]').count(), 1, 'voice configuration only adds a navigation link')
 
   const trace = page.locator('[aria-label="工作留痕"]')
   await trace.waitFor({ timeout: 15_000 })
   const traceText = await trace.innerText()
-  for (const expected of ['已完成', '120 积分', 'LanMiaoTV 2.5', '全能参考（图片 / 视频 / 音色）', '苏晚卿音色', '7.2 秒']) {
+  for (const expected of ['已完成', '120 积分', 'doubao-seedance-2-5-260628', '全能参考（图片 / 视频 / 音色）', '苏晚卿音色', '7.2 秒']) {
     assert.ok(traceText.includes(expected), `toolbox trace must show ${expected}`)
   }
   await page.screenshot({ path: path.join(artifacts, '01-toolbox-1402.png'), fullPage: true })
@@ -216,6 +217,7 @@ try {
   await page.screenshot({ path: path.join(artifacts, '02-toolbox-1280.png'), fullPage: true })
 
   assert.deepEqual(errors, [], 'no browser errors')
+  assert.ok(!/LanMiaoTV|Seedance 2\.0 Fast/.test(traceText), 'history must show the persisted model id, not a packaged alias')
   console.log(JSON.stringify({ ok: true, viewports: ['1402x970', '1280x720'], badges: badgeState, artifacts }, null, 2))
 } finally {
   await browser.close()

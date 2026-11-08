@@ -75,7 +75,7 @@ function NavItem({
                     ${disabled
                         ? 'cursor-not-allowed'
                         : active
-                            ? 'bg-[linear-gradient(100deg,#3c8bff_0%,#6c5cff_52%,#a855f7_100%)] text-white shadow-[0_8px_24px_-10px_rgba(108,92,255,.85)]'
+                            ? 'bg-[var(--fos-brand-solid)] text-white shadow-[0_8px_24px_-10px_rgba(108,92,255,.85)]'
                             : 'text-white/66 hover:bg-white/7 hover:text-white'}
                     ${!disabled && 'active:scale-[0.98]'}
                 `}

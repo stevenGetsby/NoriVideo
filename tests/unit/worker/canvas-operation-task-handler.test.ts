@@ -21,6 +21,10 @@ const videoOperationsMock = vi.hoisted(() => ({
   }),
   eraseCanvasVideoRegion: vi.fn(async () => ({ body: Buffer.from('erase-output'), width: 1080, height: 1920, duration: 5, fps: 25 })),
   renderCanvasPlaylistVideo: vi.fn(async () => ({ body: Buffer.from('playlist-output'), width: 1920, height: 1080, duration: 3, fps: 30 })),
+  extractCanvasVideoAudio: vi.fn(async (_input: Buffer, _range: unknown, hooks?: { onProgress?: (value: number) => Promise<void> }) => {
+    await hooks?.onProgress?.(0.5)
+    return { body: Buffer.from('mp3-output'), duration: 1.5 }
+  }),
 }))
 const storageMock = vi.hoisted(() => ({
   getObjectBuffer: vi.fn(async () => Buffer.from('source')),
@@ -31,7 +35,7 @@ const storageMock = vi.hoisted(() => ({
 }))
 const materialMock = vi.hoisted(() => ({
   registerFrameosMaterial: vi.fn(async (input: Record<string, unknown>) => ({
-    id: input.type === 'image' ? 'material-image-1' : 'material-video-1',
+    id: input.type === 'image' ? 'material-image-1' : input.type === 'audio' ? 'material-audio-1' : 'material-video-1',
     title: input.title,
     resultUrl: input.storageKey,
     storageKey: input.storageKey,
@@ -182,6 +186,69 @@ describe('canvas operation task handlers', () => {
       results: [{ materialId: 'material-video-1', duration: 6, fps: 30 }],
       materialization: { materialized: true, outputNodeId: 'output-task-video' },
     })
+  })
+
+  it('extracts a selected timeline range to an MP3 material and materializes an audio node', async () => {
+    const taskJob = job(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'audio_extract',
+      engineKey: 'local-ffmpeg',
+      modelKey: 'local-ffmpeg',
+      parameters: { startMs: 500, endMs: 2_000 },
+    })
+    const result = await handleCanvasVideoOperationTask(taskJob)
+
+    expect(videoOperationsMock.extractCanvasVideoAudio).toHaveBeenCalledWith(
+      Buffer.from('source'),
+      { startMs: 500, endMs: 2_000 },
+      expect.objectContaining({ assertActive: expect.any(Function), onProgress: expect.any(Function) }),
+    )
+    expect(storageMock.uploadObject).toHaveBeenCalledWith(
+      Buffer.from('mp3-output'),
+      'canvas-operations/user-1/task-video.mp3',
+      undefined,
+      'audio/mpeg',
+    )
+    expect(materialMock.registerFrameosMaterial).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'project-1',
+      type: 'audio',
+      title: '源视频 · 音频',
+      storageKey: 'canvas-operations/user-1/task-video.mp3',
+      metadata: expect.objectContaining({
+        operation: 'audio_extract',
+        duration: 1.5,
+        startMs: 500,
+        endMs: 2_000,
+      }),
+    }))
+    expect(materializeResultMock).toHaveBeenCalledWith(expect.objectContaining({
+      operation: 'audio_extract',
+      parameters: { startMs: 500, endMs: 2_000 },
+      result: expect.objectContaining({
+        width: 0,
+        height: 0,
+        duration: 1.5,
+        materialId: 'material-audio-1',
+        title: '源视频 · 音频',
+      }),
+    }))
+    expect(result).toMatchObject({
+      operation: 'audio_extract',
+      modelKey: 'local-ffmpeg',
+      results: [{ width: 0, height: 0, materialId: 'material-audio-1', duration: 1.5 }],
+      materialization: { materialized: true, outputNodeId: 'output-task-video' },
+    })
+  })
+
+  it('rejects an inverted audio extraction range before downloading the source', async () => {
+    const taskJob = job(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'audio_extract',
+      engineKey: 'local-ffmpeg',
+      modelKey: 'local-ffmpeg',
+      parameters: { startMs: 2_000, endMs: 1_000 },
+    })
+    await expect(handleCanvasVideoOperationTask(taskJob)).rejects.toThrow('INVALID_PARAMS')
+    expect(storageMock.getObjectBuffer).not.toHaveBeenCalled()
+    expect(videoOperationsMock.extractCanvasVideoAudio).not.toHaveBeenCalled()
   })
 
   it('passes the normalized erase region to the local ffmpeg engine', async () => {

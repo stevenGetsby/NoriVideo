@@ -452,6 +452,26 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
   const [saving, setSaving] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [panelError, setPanelError] = useState<string | null>(null)
+  const [imageQuota, setImageQuota] = useState(9)
+  const [videoQuota, setVideoQuota] = useState(3)
+  const [audioQuota, setAudioQuota] = useState(3)
+  useEffect(() => {
+    let cancelled = false
+    void apiFetch(`/api/frameos/generation-config?projectId=${encodeURIComponent(projectId)}`).then(async (response) => {
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载模型配置失败'))
+      return await response.json()
+    }).then((config: { defaults?: { videoModel?: string }; videoModels?: Array<{ modelKey: string; inputSchema?: { image?: { max?: number }; video?: { max?: number }; audio?: { max?: number } } }> }) => {
+      if (cancelled) return
+      const modelKey = config.defaults?.videoModel || ''
+      const model = config.videoModels?.find((m) => m.modelKey === modelKey) || config.videoModels?.[0]
+      if (model?.inputSchema) {
+        setImageQuota(model.inputSchema.image?.max ?? 9)
+        setVideoQuota(model.inputSchema.video?.max ?? 3)
+        setAudioQuota(model.inputSchema.audio?.max ?? 3)
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [projectId])
   const prompt = seg.videoPrompt || seg.imagePrompt || (seg.freeform ? '' : '等待分镜设计生成视频提示词。')
   const promptAssets: SeedancePromptAsset[] = useMemo(() => seg.refs.map((ref) => ({
     kind: ref.kind === '角色' ? 'character' : ref.kind === '物品' ? 'prop' : 'location',
@@ -462,7 +482,19 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
     promptAssets,
   ), [prompt, promptAssets])
   const [displayPrompt, setDisplayPrompt] = useState(initialPrompt)
+  const hydratedSegIdRef = useRef('')
+  const dirtyRef = useRef(false)
   useEffect(() => {
+    if (hydratedSegIdRef.current !== seg.id) {
+      hydratedSegIdRef.current = seg.id
+      dirtyRef.current = false
+      setRefs(seg.refs)
+      setDisplayPrompt(initialPrompt)
+      setNotice(null)
+      setPanelError(null)
+      return
+    }
+    if (dirtyRef.current) return
     setRefs(seg.refs)
     setDisplayPrompt(initialPrompt)
     setNotice(null)
@@ -521,6 +553,7 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
         body: JSON.stringify({ panelId: seg.panelId, videoPrompt: displayPrompt }),
       })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '保存视频提示词失败'))
+      dirtyRef.current = false
       setNotice('视频提示词已保存；请前往“制作剪辑”生成视频。')
     } catch (saveError) {
       setPanelError(saveError instanceof Error ? saveError.message : '保存视频提示词失败')
@@ -541,7 +574,7 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
       <div className="sd3-right-scroll">
         <section className="sd3-right-section sd3-right-section--assets">
           <div className="sd3-right-section-title" style={{ marginBottom: 8 }}>◎ 参考资产</div>
-          <div className="sd3-ref-constraint">{ASSET_QUOTA_PREFIX}：参考图 {refCount}/9 · 参考视频 0/3 · 参考音频 {audioRefCount}/3</div>
+          <div className="sd3-ref-constraint">{ASSET_QUOTA_PREFIX}：参考图 {refCount}/{imageQuota} · 参考视频 0/{videoQuota} · 参考音频 {audioRefCount}/{audioQuota}</div>
           {groups.map(([key, assets]) => (
             <div key={key} className="sd3-asset-group">
               <div className="sd3-asset-group-label">{key}</div>
@@ -561,7 +594,7 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
             <span className="sd3-right-section-title">◈ 视频提示词</span>
             <span className="flex items-center gap-2"><span className="sd3-prompt-charcount">{Array.from(displayPrompt.replace(/\s+/g, '')).length} 字</span><button type="button" className="text-[11px] font-bold text-[var(--fos-primary-text)]" disabled={!canEdit || saving || !seg.panelId} onClick={() => void savePrompt()}>{canEdit ? saving ? '保存中…' : '保存' : '只读'}</button></span>
           </div>
-          <MentionPromptEditor value={displayPrompt} assets={mentionAssets} onChange={setDisplayPrompt} minHeight={260} placeholder="输入视频提示词；键入 @ 可选择当前分镜素材" readOnly={!canEdit} />
+          <MentionPromptEditor value={displayPrompt} assets={mentionAssets} onChange={(next) => { dirtyRef.current = true; setDisplayPrompt(next) }} minHeight={260} placeholder="输入视频提示词；键入 @ 可选择当前分镜素材" readOnly={!canEdit} />
           {notice ? <div className="mt-2 text-[11px] text-[var(--fos-primary-text)]">{notice}</div> : null}
           {panelError ? <div className="mt-2 text-[11px] text-[#ff8b8b]">{panelError}</div> : null}
         </section>
@@ -571,7 +604,7 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
           <textarea className="sd3-prompt-textarea" style={{ minHeight: 64 }} defaultValue={dataStylePromptFallback} readOnly={!canEdit} />
         </div>
       </div>
-      {canEdit && pickerKind && seg.panelId ? <MaterialPickerDialog projectId={projectId} type="image" assetCategory={pickerKind === '角色' ? 'character' : pickerKind === '环境' ? 'location' : 'prop'} title={`添加${pickerKind}素材`} selectedIds={selectedMaterialIds} maxSelected={9} onSelect={(material) => void addMaterial(material)} onClose={() => setPickerKind(null)} /> : null}
+      {canEdit && pickerKind && seg.panelId ? <MaterialPickerDialog projectId={projectId} type="image" assetCategory={pickerKind === '角色' ? 'character' : pickerKind === '环境' ? 'location' : 'prop'} title={`添加${pickerKind}素材`} selectedIds={selectedMaterialIds} maxSelected={imageQuota} onSelect={(material) => void addMaterial(material)} onClose={() => setPickerKind(null)} /> : null}
     </aside>
   )
 }
@@ -666,7 +699,7 @@ function StoryboardRunProgress({ state, hideCompleted = false }: { state: TaskTa
         <span className={`font-mono font-bold ${failed ? 'text-red-300' : 'text-[var(--fos-primary-text)]'}`}>{failed ? '失败' : `${Math.min(100, progress)}%`}</span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-gradient-to-r from-[#3265ff] via-[#3265ff] to-[#5bd5c4]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
+        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-[var(--fos-brand-solid)]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
       </div>
       {failed && state.lastError?.message ? <p className="mt-2 text-[11px] leading-5 text-red-200">{friendlyStoryboardTaskError(state.lastError.message)}</p> : null}
       {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，作品工作台的“分镜设计”进度会同步显示。</p> : null}

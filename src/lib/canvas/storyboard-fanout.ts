@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client'
 import { resolveModelSelection } from '@/lib/api-config'
 import type { Locale } from '@/i18n/routing'
 import type { CanvasStoryboardPlanTaskPayload } from '@/lib/canvas/generation-task'
+import { composeCanvasGlobalStylePrompt } from '@/lib/canvas/global-style-prompt'
 import { bindCanvasToolboxTaskToNode, projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
 import { MAX_CANVAS_EDGES, MAX_CANVAS_NODES } from '@/lib/canvas/document'
 import { recordCanvasSnapshotInTransaction } from '@/lib/canvas/persistence'
@@ -691,6 +692,9 @@ async function submitStoryboardShot(input: {
 }): Promise<CanvasStoryboardFanoutShot> {
   const { assetId } = canvasStoryboardFanoutIds(input.planningTaskId, input.payload.nodeId, input.shot.index)
   const title = `故事版 · ${input.shot.index} ${input.shot.title}`
+  // Apply the canvas-level style to each shot's model request only. Node data
+  // keeps the raw shot prompt so editors and later regenerations stay clean.
+  const requestPrompt = composeCanvasGlobalStylePrompt(input.shot.prompt, input.payload.globalStylePrompt)
   const options = {
     aspectRatio: input.payload.imageRequest.aspectRatio,
     resolution: input.payload.imageRequest.resolution,
@@ -718,7 +722,7 @@ async function submitStoryboardShot(input: {
       status: 'pending',
       params: inputJson({
         title,
-        prompt: input.shot.prompt,
+        prompt: requestPrompt,
         inputMode: input.payload.imageRequest.inputMode,
         referenceMaterialIds: input.payload.imageRequest.referenceMaterialIds,
         referenceSummary: input.referenceSummary,
@@ -793,7 +797,7 @@ async function submitStoryboardShot(input: {
     targetId: asset.id,
     payload: {
       title,
-      prompt: input.shot.prompt,
+      prompt: requestPrompt,
       inputMode: input.payload.imageRequest.inputMode,
       referenceImages: input.referenceImages,
       referenceVideos: [],

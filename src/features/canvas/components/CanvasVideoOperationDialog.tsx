@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { Captions, LoaderCircle, Maximize2, RotateCcw, ScanText, X } from '@/components/ui/icons'
+import { Captions, LoaderCircle, Maximize2, Music2, RotateCcw, ScanText, X } from '@/components/ui/icons'
 import { toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 import {
@@ -30,8 +30,36 @@ export type CanvasVideoOperationInput =
       engineKey?: string
       modelKey?: string
     }
+  | {
+      operation: 'audio_extract'
+      startMs: number
+      endMs: number
+      engineKey?: string
+      modelKey?: string
+    }
 
 export type CanvasVideoOperationMode = CanvasVideoOperationInput['operation']
+
+const OPERATION_LABELS: Record<CanvasVideoOperationMode, string> = {
+  subtitle_erase: '视频去字幕',
+  video_superresolve: '视频增强',
+  audio_extract: '提取音频',
+}
+
+const SUBMIT_LABELS: Record<CanvasVideoOperationMode, string> = {
+  subtitle_erase: '开始去字幕',
+  video_superresolve: '开始增强',
+  audio_extract: '提取音频',
+}
+
+function formatTimelineTime(ms: number) {
+  const safe = Math.max(0, Math.round(ms))
+  const totalSeconds = Math.floor(safe / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  const tenths = Math.floor((safe % 1000) / 100)
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${tenths}`
+}
 
 const SUBTITLE_REGION = { x: 0.05, y: 0.78, width: 0.9, height: 0.18 }
 const TEXT_REGION = { x: 0.05, y: 0.05, width: 0.9, height: 0.9 }
@@ -62,9 +90,16 @@ export function CanvasVideoOperationDialog({
   const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
   const videoUrl = toPlayableVideoUrl(node.data.videoUrl || node.data.contentUrl || null)
   const stageRef = useRef<HTMLDivElement>(null)
+  const audioVideoRef = useRef<HTMLVideoElement>(null)
+  const initialDurationMs = typeof node.data.duration === 'number' && Number.isFinite(node.data.duration)
+    ? Math.max(0, Math.round(node.data.duration * 1000))
+    : 0
   const [eraseMode, setEraseMode] = useState<'subtitle' | 'text'>('subtitle')
   const [region, setRegion] = useState(SUBTITLE_REGION)
   const [videoAspect, setVideoAspect] = useState(16 / 9)
+  const [videoDurationMs, setVideoDurationMs] = useState(initialDurationMs)
+  const [audioStartMs, setAudioStartMs] = useState(0)
+  const [audioEndMs, setAudioEndMs] = useState(initialDurationMs || 30_000)
   const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null)
   const [target, setTarget] = useState<'2x' | '720p' | '1080p' | '2k' | '4k'>('1080p')
   const [interpolate, setInterpolate] = useState(false)
@@ -121,9 +156,43 @@ export function CanvasVideoOperationDialog({
     setRegion(nextMode === 'subtitle' ? SUBTITLE_REGION : TEXT_REGION)
   }
 
-  const buildInput = (): CanvasVideoOperationInput => mode === 'subtitle_erase'
-    ? { operation: 'subtitle_erase', mode: eraseMode, region, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
-    : { operation: 'video_superresolve', target, interpolate, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
+  const seekAudioPreview = (ms: number) => {
+    const video = audioVideoRef.current
+    if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return
+    video.currentTime = clamp(ms / 1000, 0, video.duration)
+  }
+
+  const updateAudioStart = (value: number) => {
+    const limit = videoDurationMs > 0 ? videoDurationMs : value
+    const next = Math.round(clamp(value, 0, Math.max(0, Math.min(audioEndMs - 100, limit))))
+    setAudioStartMs(next)
+    seekAudioPreview(next)
+  }
+
+  const updateAudioEnd = (value: number) => {
+    const limit = videoDurationMs > 0 ? videoDurationMs : value
+    const next = Math.round(clamp(value, audioStartMs + 100, limit))
+    setAudioEndMs(next)
+    seekAudioPreview(next)
+  }
+
+  const audioRangeValid = audioEndMs > audioStartMs && audioStartMs >= 0 && (videoDurationMs <= 0 || audioEndMs <= videoDurationMs)
+
+  const buildInput = (): CanvasVideoOperationInput => {
+    if (mode === 'subtitle_erase') {
+      return { operation: 'subtitle_erase', mode: eraseMode, region, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
+    }
+    if (mode === 'audio_extract') {
+      return {
+        operation: 'audio_extract',
+        startMs: Math.round(audioStartMs),
+        endMs: Math.round(audioEndMs),
+        engineKey: selectedEngine?.engineKey || undefined,
+        modelKey: selectedEngine?.modelKey || undefined,
+      }
+    }
+    return { operation: 'video_superresolve', target, interpolate, engineKey: selectedEngine?.engineKey || undefined, modelKey: selectedEngine?.modelKey || undefined }
+  }
 
   const submit = async () => {
     if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
@@ -180,13 +249,16 @@ export function CanvasVideoOperationDialog({
     }
   }
 
+  const audioStartPercent = videoDurationMs > 0 ? clamp(audioStartMs / videoDurationMs * 100, 0, 100) : 0
+  const audioEndPercent = videoDurationMs > 0 ? clamp(audioEndMs / videoDurationMs * 100, 0, 100) : 100
+
   return (
     <div className="nori-canvas-dialog-scrim nori-canvas-video-operation-backdrop" onPointerDown={(event) => { if (event.target === event.currentTarget && !submitting) onClose() }}>
-      <section className="nori-canvas-dialog nori-canvas-video-operation-dialog" role="dialog" aria-modal="true" aria-label={`${mode === 'subtitle_erase' ? '视频去字幕' : '视频增强'} · ${node.data.title || '视频节点'}`} onPointerDown={(event) => event.stopPropagation()}>
+      <section className="nori-canvas-dialog nori-canvas-video-operation-dialog" role="dialog" aria-modal="true" aria-label={`${OPERATION_LABELS[mode]} · ${node.data.title || '视频节点'}`} onPointerDown={(event) => event.stopPropagation()}>
         <header>
           <div>
-            <i>{mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}</i>
-            <span><strong>{mode === 'subtitle_erase' ? '视频去字幕' : '视频增强'}</strong><small>{node.data.title || '视频节点'}</small></span>
+            <i>{mode === 'subtitle_erase' ? <Captions /> : mode === 'audio_extract' ? <Music2 /> : <Maximize2 />}</i>
+            <span><strong>{OPERATION_LABELS[mode]}</strong><small>{node.data.title || '视频节点'}</small></span>
           </div>
           <button type="button" title="关闭" disabled={submitting} onClick={onClose}><X /></button>
         </header>
@@ -230,6 +302,65 @@ export function CanvasVideoOperationDialog({
             </div>
             <div className="nori-canvas-video-operation-region-info"><span>区域</span><b>X {Math.round(region.x * 100)}%</b><b>Y {Math.round(region.y * 100)}%</b><b>W {Math.round(region.width * 100)}%</b><b>H {Math.round(region.height * 100)}%</b><button type="button" onClick={() => resetRegion()}><RotateCcw />重置</button></div>
           </>
+        ) : mode === 'audio_extract' ? (
+          <div className="nori-canvas-video-audio-body">
+            <div className="nori-canvas-video-audio-preview">
+              {videoUrl ? (
+                <video
+                  ref={audioVideoRef}
+                  src={videoUrl}
+                  controls
+                  playsInline
+                  onLoadedMetadata={(event) => {
+                    const video = event.currentTarget
+                    if (!Number.isFinite(video.duration) || video.duration <= 0) return
+                    const durationMs = Math.round(video.duration * 1000)
+                    setVideoDurationMs(durationMs)
+                    setAudioStartMs((start) => Math.max(0, Math.min(start, durationMs - 100)))
+                    setAudioEndMs((end) => Math.min(durationMs, Math.max(end, 100)))
+                  }}
+                />
+              ) : <span>视频文件不可用</span>}
+            </div>
+            <div className="nori-canvas-video-audio-timeline" aria-label="音频提取时间线">
+              <div className="nori-canvas-video-audio-track">
+                <span className="nori-canvas-video-audio-selection" style={{ left: `${audioStartPercent}%`, width: `${Math.max(0, audioEndPercent - audioStartPercent)}%` }} />
+              </div>
+              <div className="nori-canvas-video-audio-sliders">
+                <label>
+                  <span>起点</span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={Math.max(100, videoDurationMs)}
+                    step={100}
+                    value={audioStartMs}
+                    onChange={(event) => updateAudioStart(Number(event.target.value))}
+                  />
+                  <b>{formatTimelineTime(audioStartMs)}</b>
+                </label>
+                <label>
+                  <span>终点</span>
+                  <input
+                    type="range"
+                    min={100}
+                    max={Math.max(100, videoDurationMs)}
+                    step={100}
+                    value={Math.min(audioEndMs, Math.max(100, videoDurationMs))}
+                    onChange={(event) => updateAudioEnd(Number(event.target.value))}
+                  />
+                  <b>{formatTimelineTime(audioEndMs)}</b>
+                </label>
+              </div>
+              <div className="nori-canvas-video-audio-range-info">
+                <span>选区 <b>{formatTimelineTime(audioStartMs)} – {formatTimelineTime(audioEndMs)}</b> · 时长 {formatTimelineTime(audioEndMs - audioStartMs)}</span>
+                <button type="button" onClick={() => updateAudioStart((audioVideoRef.current?.currentTime || 0) * 1000)}>当前设为起点</button>
+                <button type="button" onClick={() => updateAudioEnd((audioVideoRef.current?.currentTime || 0) * 1000)}>当前设为终点</button>
+              </div>
+              {!audioRangeValid ? <p className="nori-canvas-video-audio-warning">选区无效：终点必须晚于起点，且不能超出视频时长。</p> : null}
+              <p className="nori-canvas-video-audio-note">按时间线提取为 MP3 音频素材并写入画布；在本机使用 FFmpeg 处理，不调用生成模型，不产生模型费用。</p>
+            </div>
+          </div>
         ) : (
           <div className="nori-canvas-video-enhance-body">
             <div className="nori-canvas-video-enhance-preview">{videoUrl ? <video src={videoUrl} controls playsInline /> : <span>视频文件不可用</span>}</div>
@@ -249,7 +380,7 @@ export function CanvasVideoOperationDialog({
         {taskUpdate ? <CanvasOperationTaskProgress update={taskUpdate} engineLabel={selectedEngine?.label} materialized={isTaskMaterialized(taskUpdate.task.id)} actionBusy={taskActionBusy} onCancel={() => void cancelTask()} onRetry={() => void retryTask()} onRecover={() => void recoverTask()} /> : null}
 
         {error ? <div className="nori-canvas-video-operation-error">{error}</div> : null}
-        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !videoUrl || (engines.length > 0 && !selectedEngine)} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? generationDisabledLabel : mode === 'subtitle_erase' ? '开始去字幕' : '开始增强'}</button></footer>
+        <footer><button type="button" disabled={submitting} onClick={onClose}>取消</button><button type="button" className="is-primary" disabled={!generationAllowed || submitting || taskActive || !videoUrl || (mode === 'audio_extract' && !audioRangeValid) || (engines.length > 0 && !selectedEngine)} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={() => void submit()}>{submitting || taskActive ? <LoaderCircle className="animate-spin" /> : mode === 'subtitle_erase' ? <Captions /> : mode === 'audio_extract' ? <Music2 /> : <Maximize2 />}{submitting || taskActive ? '后台处理中…' : !generationAllowed ? generationDisabledLabel : SUBMIT_LABELS[mode]}</button></footer>
       </section>
     </div>
   )

@@ -90,7 +90,7 @@ describe('canvas deep links and production sync contracts', () => {
     expect(implementation.indexOf('await prepareProductionSync()')).toBeLessThan(
       implementation.indexOf('await canvasApi.syncProduction(projectId, initialGraph.canvas.id, syncInput)'),
     )
-    expect(implementation).toContain('await acceptProductionSyncRevision(syncInput.expectedRevision, graph.canvas.revision)')
+    expect(implementation).toContain('await acceptProductionSyncRevision(syncInput.expectedRevision, graph)')
     expect(implementation).toContain('const syncedNodes = graph.nodes.map(canvasNodeToFlow)')
     expect(implementation).toContain('const syncedEdges = graph.edges.map(canvasEdgeToFlow)')
     expect(implementation).toContain('setNodes(syncedNodes)')

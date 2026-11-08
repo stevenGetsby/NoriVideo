@@ -121,6 +121,7 @@ export const authOptions: any = {
           roleLabel: user.roleLabel,
           status: 'active',
           passwordChangeRequired: user.passwordChangeRequired,
+          projectLeader: user.projectLeader,
           permissions: effectiveAccountPermissions(user.role, user.permissions),
           sessionVersion: user.sessionVersion,
           workspaceOwnerId: user.workspaceOwnerId,
@@ -156,6 +157,7 @@ export const authOptions: any = {
           roleLabel: true,
           status: true,
           permissions: true,
+          projectLeader: true,
           sessionVersion: true,
           passwordChangeRequired: true,
           workspaceOwnerId: true,
@@ -173,6 +175,7 @@ export const authOptions: any = {
       if (!account) {
         token.accountStatus = 'revoked'
         token.permissions = []
+        token.projectLeader = false
         return token
       }
 
@@ -186,6 +189,7 @@ export const authOptions: any = {
       token.accountStatus = versionMatches
         ? (account.status === 'disabled' || managerDisabled ? 'disabled' : 'active')
         : 'revoked'
+      token.projectLeader = !isManagementRole(role) && account.projectLeader
       token.permissions = effectiveAccountPermissions(account.role, account.permissions)
       token.passwordChangeRequired = versionMatches && account.passwordChangeRequired
       token.sessionVersion = tokenVersion
@@ -204,6 +208,7 @@ export const authOptions: any = {
         session.user.roleLabel = typeof token.roleLabel === 'string' ? token.roleLabel : null
         session.user.status = token.accountStatus || 'active'
         session.user.passwordChangeRequired = token.passwordChangeRequired === true
+        session.user.projectLeader = token.projectLeader === true
         session.user.permissions = Array.isArray(token.permissions) ? token.permissions : []
         session.user.sessionVersion = typeof token.sessionVersion === 'number' ? token.sessionVersion : 0
         session.user.workspaceOwnerId = typeof token.workspaceOwnerId === 'string' ? token.workspaceOwnerId : null

@@ -41,7 +41,7 @@ export async function chatCompletion(
   if (selection.llmProtocol !== 'chat-completions') {
     throw new Error(`MODEL_LLM_PROTOCOL_REQUIRED: ${selection.modelKey} 必须使用 chat-completions`)
   }
-  const providerConfig = await getProviderConfig(userId, provider)
+  await getProviderConfig(userId, provider)
   const projectId = options.projectId?.trim() || undefined
   const temperature = options.temperature ?? 0.7
   const reasoning = options.reasoning ?? true

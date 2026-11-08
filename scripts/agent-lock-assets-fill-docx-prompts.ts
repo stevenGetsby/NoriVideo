@@ -31,6 +31,68 @@ type FixedVideoPrompt = {
   props: string[]
 }
 
+type TaskCompletionProgress = {
+  totalCount: number
+  completedCount: number
+  failedCount: number
+  pendingCount: number
+  queuedCount: number
+  processingCount: number
+  averageProgress: number
+}
+
+type AgentOrchestratorStageAccess = {
+  executeStage1(
+    plan: AgentExecutionPlan,
+    context: AgentContext,
+  ): Promise<{
+    projectId: string
+    episodeId: string
+    hasStory: boolean
+  }>
+  executeStage2(
+    projectId: string,
+    episodeId: string,
+    context: AgentContext,
+    plan: AgentExecutionPlan,
+  ): Promise<{
+    characterCount: number
+    locationCount: number
+    clipCount: number
+    hasScript: boolean
+  }>
+  executeAssetConsistencyStage(
+    projectId: string,
+    episodeId: string,
+    plan: AgentExecutionPlan,
+    context: AgentContext,
+  ): Promise<{
+    characterCount: number
+    locationCount: number
+    propCount: number
+    clipCount: number
+    hasConsistencyBrief: boolean
+    characterAppearanceCount: number
+    locationImageSlotCount: number
+    propImageSlotCount: number
+  }>
+  executeAssetImageGenerationStage(
+    projectId: string,
+    context: AgentContext,
+    onTaskProgress?: (progress: TaskCompletionProgress) => Promise<void>,
+  ): Promise<{
+    characterAppearanceCount: number
+    locationImageCount: number
+    propImageCount: number
+    skippedExistingImageCount: number
+    submittedTaskCount: number
+    completedTaskCount: number
+    failedTaskCount: number
+    hasAssetImages: boolean
+    taskIds: string[]
+  }>
+}
+
 function ensureRuntimeDir() {
   fs.mkdirSync(path.dirname(REPORT_PATH), { recursive: true })
 }
@@ -330,21 +392,21 @@ async function main() {
     process.stdout.write(`[agent-fixed-docx] ${stage} ${JSON.stringify(details)}\n`)
   }
 
+  const stages = orchestrator as unknown as AgentOrchestratorStageAccess
+
   recordProgress('stage1.project-init.start', {})
-  const stage1 = await (orchestrator as unknown as {
-    executeStage1: typeof SuperAgentOrchestrator.prototype['createExecutionPlan']
-  } as any).executeStage1(plan, context)
+  const stage1 = await stages.executeStage1(plan, context)
   report.projectId = stage1.projectId
   report.episodeId = stage1.episodeId
   recordProgress('stage1.project-init.done', stage1)
 
   recordProgress('stage2.llm-script-assets.start', { expectedShotCount: videoPrompts.length })
-  const stage2 = await (orchestrator as any).executeStage2(stage1.projectId, stage1.episodeId, context, plan)
+  const stage2 = await stages.executeStage2(stage1.projectId, stage1.episodeId, context, plan)
   report.stage2 = stage2
   recordProgress('stage2.llm-script-assets.done', stage2)
 
   recordProgress('stage3.asset-lock.start', {})
-  const assetLock = await (orchestrator as any).executeAssetConsistencyStage(stage1.projectId, stage1.episodeId, plan, context)
+  const assetLock = await stages.executeAssetConsistencyStage(stage1.projectId, stage1.episodeId, plan, context)
   report.assetLock = assetLock
   recordProgress('stage3.asset-lock.done', assetLock)
 
@@ -353,10 +415,10 @@ async function main() {
     locationImageSlotCount: assetLock.locationImageSlotCount,
     propImageSlotCount: assetLock.propImageSlotCount,
   })
-  const assetImageGeneration = await (orchestrator as any).executeAssetImageGenerationStage(
+  const assetImageGeneration = await stages.executeAssetImageGenerationStage(
     stage1.projectId,
     context,
-    async (progress: Record<string, unknown>) => {
+    async (progress) => {
       recordProgress('stage4.asset-image-generation.progress', progress)
     },
   )

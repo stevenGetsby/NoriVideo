@@ -17,9 +17,9 @@ vi.mock('@/lib/api-config', async () => {
   return {
     ...actual,
     resolveModelSelectionOrSingle: vi.fn(async () => ({
-      provider: 'fal',
-      modelId: 'fal-audio-model',
-      modelKey: 'fal::audio-model',
+      provider: 'kuaizi',
+      modelId: 'speech-2.8-hd',
+      modelKey: 'kuaizi::speech-2.8-hd',
       mediaType: 'audio',
     })),
     getProviderKey: vi.fn((providerId: string) => providerId),
@@ -81,7 +81,7 @@ describe('system - voice generate', () => {
         locale: 'zh',
         episodeId: seeded.episode.id,
         lineId: seeded.voiceLine.id,
-        audioModel: 'fal::audio-model',
+        audioModel: 'kuaizi::speech-2.8-hd',
       },
       { params: { projectId: seeded.project.id } },
     )

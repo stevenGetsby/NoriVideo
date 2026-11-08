@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
-import { validateCanvasDocumentSaveInput } from '@/lib/canvas/document'
+import { validateCanvasDocumentSaveInput, diagnoseCanvasDocumentStructure } from '@/lib/canvas/document'
+import { logEvent } from '@/lib/logging/core'
 import { replaceCanvasDocumentInTransaction } from '@/lib/canvas/persistence'
 import { prisma } from '@/lib/prisma'
 
@@ -18,6 +19,15 @@ export const PUT = apiHandler(async (
   const body = await request.json().catch(() => null)
   const validation = validateCanvasDocumentSaveInput(body)
   if (!validation.success) {
+    if (validation.error.code === 'CANVAS_DOCUMENT_INVALID') {
+      logEvent({
+        level: 'WARN',
+        module: 'canvas.document',
+        action: 'canvas.document.validation',
+        message: 'Canvas document validation failed',
+        details: { canvasId, diagnostic: diagnoseCanvasDocumentStructure(body) },
+      })
+    }
     throw new ApiError('INVALID_PARAMS', {
       message: validation.error.message,
       reason: validation.error.code,

@@ -208,6 +208,7 @@ export function useCharacterCreationSubmit({
     name,
     onClose,
     onSuccess,
+    referenceCharacterGenerationCount,
     referenceImagesBase64.length,
     referenceSubMode,
     t,

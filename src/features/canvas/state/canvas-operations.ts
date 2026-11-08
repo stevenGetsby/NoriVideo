@@ -19,7 +19,7 @@ function equal(left: unknown, right: unknown): boolean {
   return left === right || stable(left) === stable(right)
 }
 
-function withoutCanvasId<T extends { canvasId: string }>(value: T): Omit<T, 'canvasId'> {
+export function withoutCanvasId<T extends { canvasId: string }>(value: T): Omit<T, 'canvasId'> {
   const { canvasId, ...output } = value
   void canvasId
   return output

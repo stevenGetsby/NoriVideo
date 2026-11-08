@@ -100,18 +100,17 @@ describe('assignment navigation gate', () => {
     }))
   })
 
-  it('validates project read access and current stage permission before work navigation', async () => {
-    await expect(validateAssignmentNavigation(session as never, 'assignment-1', 'work')).resolves.toMatchObject({
-      allowed: true,
-      assignment: { id: 'assignment-1', projectId: 'project-1', stage: 'asset' },
-    })
+  it('validates project read access before work navigation regardless of historical account role', async () => {
+    for (const role of ['asset', 'writer', 'storyboard', 'reviewer']) {
+      await expect(validateAssignmentNavigation({ ...session, user: { ...session.user, role } } as never, 'assignment-1', 'work')).resolves.toMatchObject({
+        allowed: true,
+        assignment: { id: 'assignment-1', projectId: 'project-1', stage: 'asset' },
+      })
+    }
     expect(mocks.requireProjectReader).toHaveBeenCalledWith(session, 'project-1')
-
-    await expect(validateAssignmentNavigation({ ...session, user: { ...session.user, role: 'writer' } } as never, 'assignment-1', 'work'))
-      .rejects.toThrow('不再具有该任务阶段的编辑权限')
   })
 
-  it('treats the script assignment as project-level and enforces writer permission', async () => {
+  it('treats the script assignment as project-level for every active creative member', async () => {
     mocks.findAssignment.mockResolvedValue({
       ...assetAssignment,
       stage: 'script',
@@ -127,8 +126,11 @@ describe('assignment navigation gate', () => {
     })
     expect(mocks.findLegacyEpisode).not.toHaveBeenCalled()
 
-    await expect(validateAssignmentNavigation(session as never, 'assignment-1', 'work'))
-      .rejects.toThrow('不再具有该任务阶段的编辑权限')
+    await expect(validateAssignmentNavigation(session as never, 'assignment-1', 'work')).resolves.toMatchObject({
+      allowed: true,
+      assignment: { stage: 'script' },
+    })
+    expect(mocks.findLegacyEpisode).not.toHaveBeenCalled()
   })
 
   it('rejects a stale assignment or a missing cross-project episode', async () => {

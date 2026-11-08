@@ -216,7 +216,7 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8')
     expect(graph).toContain('suppressContextMenuUntilRef.current = Date.now() + 250')
     expect(graph).toContain('if (shouldSuppressContextMenu()) return')
-    expect(graph).toContain('panOnDrag={[1, 2]}')
+    expect(graph).toContain('panOnDrag={[1]}')
   })
 
   it('keeps pane-menu node creation and upload anchored at the clicked point', () => {

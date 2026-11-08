@@ -566,11 +566,9 @@ describe('workflow assignment service authorization and audit', () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
-  it('rejects submit when the assignee no longer has the task-stage write permission', async () => {
-    prismaMock.workflowAssignment.findFirst.mockResolvedValue(assignment({
-      stage: 'asset',
-      assigneeUserId: 'actor-1',
-    }))
+  it('allows an active assignee to submit across creative stages after a historical role change', async () => {
+    const current = assignment({ stage: 'asset', assigneeUserId: 'actor-1' })
+    prismaMock.workflowAssignment.findFirst.mockResolvedValue(current)
     accessMock.requireActiveWorkspaceUser.mockResolvedValueOnce({
       id: 'actor-1',
       name: 'Writer after role change',
@@ -578,11 +576,19 @@ describe('workflow assignment service authorization and audit', () => {
       status: 'active',
       workspaceOwnerId: 'workspace-1',
     })
+    const transaction = {
+      workflowAssignment: { findFirst: vi.fn().mockResolvedValue(current), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      workflowAssignmentEvent: { create: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof transaction) => unknown) => callback(transaction))
+    prismaMock.workflowAssignment.findUnique.mockResolvedValue(hydratedAssignment({ status: 'pending_review' }))
     const { mutateAssignment } = await import('@/lib/collaboration/assignments')
 
     await expect(mutateAssignment(session, 'submit', { assignmentId: 'assignment-1' }))
-      .rejects.toMatchObject({ code: 'FORBIDDEN' })
-    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+      .resolves.toMatchObject({ status: 'pending_review' })
+    expect(transaction.workflowAssignment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'pending_review' }),
+    }))
   })
 
   it('rejects submit when the assignee account is no longer active', async () => {
@@ -597,8 +603,9 @@ describe('workflow assignment service authorization and audit', () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
-  it('rejects assigning a task to an account without the stage write permission', async () => {
-    prismaMock.workflowAssignment.findFirst.mockResolvedValue(assignment({ stage: 'asset', status: 'unassigned', assigneeUserId: null }))
+  it('assigns any active creative member to a stage without changing task management authorization', async () => {
+    const current = assignment({ stage: 'asset', status: 'unassigned', assigneeUserId: null })
+    prismaMock.workflowAssignment.findFirst.mockResolvedValue(current)
     accessMock.requireActiveWorkspaceUser.mockResolvedValue({
       id: 'writer-1',
       name: 'Writer',
@@ -606,35 +613,51 @@ describe('workflow assignment service authorization and audit', () => {
       status: 'active',
       workspaceOwnerId: 'workspace-1',
     })
+    const transaction = {
+      workflowAssignment: { findFirst: vi.fn().mockResolvedValue(current), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      workflowAssignmentEvent: { create: vi.fn() },
+      projectMember: { upsert: vi.fn() },
+    }
+    prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof transaction) => unknown) => callback(transaction))
+    prismaMock.workflowAssignment.findUnique.mockResolvedValue(hydratedAssignment({ status: 'unassigned' }))
     const { mutateAssignment } = await import('@/lib/collaboration/assignments')
 
     await expect(mutateAssignment(session, 'assign', {
       assignmentId: 'assignment-1',
       assigneeUserId: 'writer-1',
-    })).rejects.toMatchObject({ code: 'INVALID_PARAMS' })
-    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    })).resolves.toMatchObject({ id: 'assignment-1' })
+    expect(accessMock.requireProjectAssignmentManager).toHaveBeenCalledWith(session, 'project-1')
+    expect(transaction.workflowAssignment.updateMany).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ assigneeUserId: 'writer-1' }),
+    }))
+    expect(transaction.projectMember.upsert).toHaveBeenCalledWith(expect.objectContaining({ update: {} }))
   })
 
-  it('filters assignment candidates by the selected task stage capability', async () => {
+  it('offers every active creative member for every stage while excluding disabled accounts', async () => {
     accessMock.requireProjectAssignmentManager.mockResolvedValue({
       actor: { workspaceOwnerId: 'workspace-1', actorId: 'actor-1', isManagement: true },
     })
-    prismaMock.user.findMany.mockResolvedValue([
+    prismaMock.user.findMany.mockImplementation(async ({ where }: { where: { status?: string } }) => [
       { id: 'admin-1', name: 'Admin', role: 'admin', status: 'active' },
       { id: 'writer-1', name: 'Writer', role: 'writer', status: 'active' },
       { id: 'asset-1', name: 'Asset', role: 'asset', status: 'active' },
       { id: 'storyboard-1', name: 'Storyboard', role: 'storyboard', status: 'active' },
-    ])
+      { id: 'disabled-1', name: 'Disabled', role: 'reviewer', status: 'disabled' },
+    ].filter((user) => user.status === where.status))
     const { listAssignmentCandidates } = await import('@/lib/collaboration/assignments')
 
     const assetCandidates = await listAssignmentCandidates(session, 'project-1', 'asset')
     const scriptCandidates = await listAssignmentCandidates(session, 'project-1', 'script')
     const storyboardCandidates = await listAssignmentCandidates(session, 'project-1', 'storyboard')
-
-    expect(assetCandidates.map((candidate) => candidate.userId)).toEqual(['admin-1', 'asset-1'])
-    expect(scriptCandidates.map((candidate) => candidate.userId)).toEqual(['admin-1', 'writer-1'])
-    expect(storyboardCandidates.map((candidate) => candidate.userId)).toEqual(['admin-1', 'storyboard-1'])
+    const allActiveIds = ['admin-1', 'writer-1', 'asset-1', 'storyboard-1']
+    expect(assetCandidates.map((candidate) => candidate.userId)).toEqual(allActiveIds)
+    expect(scriptCandidates.map((candidate) => candidate.userId)).toEqual(allActiveIds)
+    expect(storyboardCandidates.map((candidate) => candidate.userId)).toEqual(allActiveIds)
     expect(assetCandidates[0]?.eligibleStages).toEqual(['script', 'asset', 'storyboard', 'video'])
+    expect(assetCandidates.at(-1)?.eligibleStages).toEqual(['script', 'asset', 'storyboard', 'video'])
+    expect(prismaMock.user.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ status: 'active' }),
+    }))
   })
 
   it('rejects stale or illegal transitions before writing an event', async () => {

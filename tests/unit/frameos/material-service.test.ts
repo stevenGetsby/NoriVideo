@@ -59,8 +59,8 @@ describe('FrameOS material service', () => {
       id: 'material-new',
       ...data,
     }))
-    prismaMock.frameosMaterial.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({
-      id: 'material-existing',
+    prismaMock.frameosMaterial.update.mockImplementation(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => ({
+      id: where.id,
       ...data,
     }))
     prismaMock.frameosMaterial.createMany.mockImplementation(async ({ data }: { data: StoredMaterial[] }) => {
@@ -92,7 +92,7 @@ describe('FrameOS material service', () => {
 
     expect(mediaMock.ensureMediaObjectFromStorageKey).toHaveBeenCalledWith('images/su-wanqing.png')
     expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
-      where: { userId: 'user-1', projectId: 'project-1', storageKey: 'images/su-wanqing.png', deletedAt: null },
+      where: { userId: 'user-1', projectId: 'project-1', personalOwnerId: null, storageKey: 'images/su-wanqing.png' },
     })
     expect(prismaMock.frameosMaterial.update).toHaveBeenCalledWith({
       where: { id: 'material-existing' },
@@ -114,7 +114,7 @@ describe('FrameOS material service', () => {
       source: 'upload', storageKey: 'images/shared.png',
     })
     expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({
-      where: { userId: 'user-1', projectId: 'project-2', storageKey: 'images/shared.png', deletedAt: null },
+      where: { userId: 'user-1', projectId: 'project-2', personalOwnerId: null, storageKey: 'images/shared.png' },
     })
     expect(prismaMock.frameosMaterial.update).not.toHaveBeenCalled()
     expect(result.projectId).toBe('project-2')
@@ -213,5 +213,28 @@ describe('FrameOS material service', () => {
       'images/global-location-old.png',
     ]))
     expect(prismaMock.frameosMaterial.createMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not recreate, revive or return a soft-deleted material as a new output', async () => {
+    prismaMock.frameosMaterial.findFirst.mockResolvedValueOnce({ id: 'deleted-material', deletedAt: new Date('2026-11-01T00:00:00Z') })
+    await expect(registerFrameosMaterial({
+      userId: 'user-1', projectId: 'project-1', title: '已删除图片', type: 'image', source: 'creative', storageKey: 'images/deleted.png',
+    })).rejects.toThrow('相同文件已移入回收站')
+    expect(prismaMock.frameosMaterial.findFirst).toHaveBeenCalledWith({ where: expect.not.objectContaining({ deletedAt: null }) })
+    expect(prismaMock.frameosMaterial.create).not.toHaveBeenCalled()
+    expect(prismaMock.frameosMaterial.update).not.toHaveBeenCalled()
+  })
+
+  it('treats soft-deleted generated outputs as already indexed during automatic backfill', async () => {
+    prismaMock.project.findMany.mockResolvedValue([{
+      id: 'project-1', name: '项目', novelPromotionData: {
+        characters: [{ id: 'character', name: '角色', appearances: [{ id: 'appearance', changeReason: '主形象', imageUrl: 'images/deleted.png', imageUrls: null, previousImageUrl: null, previousImageUrls: null }] }],
+        locations: [], episodes: [],
+      },
+    }])
+    state.stored = [{ projectId: 'project-1', storageKey: 'images/deleted.png', resultUrl: 'images/deleted.png' }]
+    await expect(syncGeneratedImagesToMaterialLibrary({ userId: 'user-1' })).resolves.toEqual({ discovered: 1, created: 0 })
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith({ where: { userId: 'user-1', OR: [{ storageKey: { in: ['images/deleted.png'] } }, { resultUrl: { in: ['images/deleted.png'] } }] }, select: { projectId: true, personalOwnerId: true, storageKey: true, resultUrl: true } })
+    expect(prismaMock.frameosMaterial.createMany).not.toHaveBeenCalled()
   })
 })

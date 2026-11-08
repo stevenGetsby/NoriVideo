@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { normalizeStoryConfig, parseStoryConfigInput, reconcileStoryChapters } from '@/lib/interactive/config'
+import {
+  STORY_SEQUENCE_SEGMENT_LIMIT,
+  findStoryLinkCycle,
+  normalizeStoryConfig,
+  parseStoryConfigInput,
+  reconcileStoryChapters,
+} from '@/lib/interactive/config'
 import { compileChapter } from '@/lib/interactive/compile'
+import { validateSequence } from '@/lib/interactive/validate'
 
 describe('interactive story config', () => {
   it('normalizes stored configs tolerantly', () => {
@@ -56,6 +63,84 @@ describe('interactive story config', () => {
     expect(next.chapters.map((chapter) => [chapter.projectId, chapter.order, chapter.status])).toEqual([['p2', 0, 'review'], ['p3', 1, 'drafting']])
     expect(next.links).toEqual([])
     expect(next.start).toBeNull()
+  })
+})
+
+const segment = (id: string, projectId: string, sceneNodeId: string) =>
+  ({ id, projectId, sceneNodeId, title: '片段', branch: false, removed: false })
+
+describe('story sequence config', () => {
+  it('tolerantly normalizes stored segments and drops duplicates', () => {
+    const config = normalizeStoryConfig({
+      sequence: {
+        segments: [
+          { id: 's1', projectId: 'p1', sceneNodeId: 'n1', title: ' 一 ', branch: true, removed: true },
+          { id: 's1', projectId: 'p1', sceneNodeId: 'n1', title: '重复 ID' },
+          { id: 's2', projectId: 'p1', sceneNodeId: 'n1', title: '重复片段' },
+          { id: 's3', projectId: 'p1', sceneNodeId: 'n2' },
+          { id: 'bad id', projectId: 'p1', sceneNodeId: 'n3' },
+          { id: 's4', projectId: '', sceneNodeId: 'n4' },
+          'not-a-segment',
+        ],
+      },
+    })
+    expect(config.sequence?.segments).toEqual([
+      { id: 's1', projectId: 'p1', sceneNodeId: 'n1', title: '一', branch: true, removed: true },
+      { id: 's3', projectId: 'p1', sceneNodeId: 'n2', title: '', branch: false, removed: false },
+    ])
+    expect(normalizeStoryConfig({ sequence: { segments: 'x' } }).sequence).toBeUndefined()
+    expect(normalizeStoryConfig({ sequence: null }).sequence).toBeUndefined()
+  })
+
+  it('rejects malformed client sequence patches instead of dropping them', () => {
+    expect(parseStoryConfigInput({ sequence: [] })).toEqual({ ok: false, message: '作品片段配置格式错误。' })
+    expect(parseStoryConfigInput({ sequence: { segments: [segment('s1', 'p1', 'n1'), segment('s1', 'p1', 'n2')] } }))
+      .toEqual({ ok: false, message: '作品片段 ID 重复。' })
+    expect(parseStoryConfigInput({ sequence: { segments: [segment('s1', 'p1', 'n1'), segment('s2', 'p1', 'n1')] } }))
+      .toEqual({ ok: false, message: '同一个剧情片段只能关联一个作品片段。' })
+    expect(parseStoryConfigInput({ sequence: { segments: [{ id: 's1', projectId: 'p1' }] } }))
+      .toEqual({ ok: false, message: '作品片段缺少合法的 ID、章节或剧情片段。' })
+    const tooMany = Array.from({ length: STORY_SEQUENCE_SEGMENT_LIMIT + 1 }, (_item, index) => segment(`s${index}`, 'p1', `n${index}`))
+    expect(parseStoryConfigInput({ sequence: { segments: tooMany } }))
+      .toEqual({ ok: false, message: `作品片段最多 ${STORY_SEQUENCE_SEGMENT_LIMIT} 个。` })
+    expect(parseStoryConfigInput({ sequence: { segments: [segment('s1', 'p1', 'n1')] } })).toMatchObject({ ok: true })
+  })
+
+  it('rejects duplicate chapters, duplicate link ids and reads cycles for story validation', () => {
+    expect(parseStoryConfigInput({ chapters: [{ projectId: 'p1' }, { projectId: 'p1' }] }))
+      .toEqual({ ok: false, message: '章节重复。' })
+    expect(parseStoryConfigInput({ chapters: 'x' })).toEqual({ ok: false, message: '章节配置格式错误。' })
+    expect(parseStoryConfigInput({ links: [
+      { id: 'l1', fromProjectId: 'p1', exitNodeId: 'e', toProjectId: 'p2', toEntryNodeId: 'n' },
+      { id: 'l1', fromProjectId: 'p2', exitNodeId: 'f', toProjectId: 'p3', toEntryNodeId: 'm' },
+    ] })).toEqual({ ok: false, message: '章节连线 ID 重复。' })
+    expect(parseStoryConfigInput({ links: [
+      { id: 'l1', fromProjectId: 'p1', exitNodeId: 'e', toProjectId: 'p2', toEntryNodeId: 'n' },
+      { id: 'l2', fromProjectId: 'p2', exitNodeId: 'f', toProjectId: 'p1', toEntryNodeId: 'm' },
+    ] })).toMatchObject({ ok: true })
+    expect(findStoryLinkCycle([
+      { id: 'l1', fromProjectId: 'p1', exitNodeId: 'e', toProjectId: 'p2', toEntryNodeId: 'n' },
+      { id: 'l2', fromProjectId: 'p2', exitNodeId: 'f', toProjectId: 'p3', toEntryNodeId: 'm' },
+    ])).toBeNull()
+    expect(findStoryLinkCycle([
+      { id: 'l1', fromProjectId: 'p1', exitNodeId: 'e', toProjectId: 'p2', toEntryNodeId: 'n' },
+      { id: 'l2', fromProjectId: 'p2', exitNodeId: 'f', toProjectId: 'p1', toEntryNodeId: 'm' },
+    ])).toBe('p1')
+  })
+
+  it('reports orphaned sequence references against the live chapter graphs', () => {
+    const chapter = compileChapter({ projectId: 'p1', title: '一' }, [
+      { id: 'n1', type: 'story_scene', data: { title: '片段' } },
+    ], [])
+    const issues = validateSequence({ segments: [
+      segment('s1', 'p1', 'n1'),
+      segment('s2', 'gone', 'n'),
+      segment('s3', 'p1', 'gone'),
+      segment('s4', 'p1', 'n1'),
+      segment('s1', 'p1', 'n2'),
+    ] }, [chapter])
+    expect(issues.map((item) => item.code)).toEqual(expect.arrayContaining(['segment_duplicate_id', 'segment_duplicate_scene', 'segment_orphan_project', 'segment_orphan_scene']))
+    expect(issues.filter((item) => item.code === 'segment_orphan_project')[0]).toMatchObject({ level: 'error', projectId: 'gone' })
   })
 })
 

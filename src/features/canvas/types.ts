@@ -62,6 +62,8 @@ export type CanvasNodeData = {
   modelUrl?: string | null
   isFavorited?: boolean
   prompt?: string | null
+  /** 标记该文本节点为画布唯一的全局风格提示词。 */
+  globalStylePrompt?: boolean
   generation?: CanvasGenerationConfig | null
   generationTask?: CanvasPersistentGenerationTask | null
   history?: CanvasGenerationHistoryItem[]
@@ -179,6 +181,7 @@ export type CanvasProcessType =
   | 'storyboard'
   | 'superresolve'
   | 'subtitle_erase'
+  | 'audio_extract'
 
 export type CanvasGenerationConfig = {
   modelKey?: string

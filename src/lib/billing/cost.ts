@@ -19,6 +19,7 @@ import { getCapabilityOptionFields, validateCapabilitySelectionForModel } from '
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import type { PricingApiType } from '@/lib/model-pricing/catalog'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { getOpenLuxModelDefinition } from '@/lib/providers/openlux/catalog'
 
 export const USD_TO_CNY = 7.2
 
@@ -306,6 +307,10 @@ const SEEDANCE_2_TOKEN_PRICED_MODEL_IDS = new Set([
   'doubao-seedance-2-0-fast-260128',
   'doubao-seedance-2-5-260628',
   'norivideo2.5',
+  'seedance-2.0',
+  'seedance-2.0-fast',
+  'seedance-2.0-mini',
+  'seedance-2.5',
 ])
 
 const SEEDANCE_2_OUTPUT_DIMENSIONS: Record<
@@ -548,6 +553,14 @@ export function calcImage(
   }
 
   if (unitPrice === null) {
+    const parsedModel = parseModelKeyStrict(resolveRuntimeModelKey(model) || model)
+    if (parsedModel?.provider === 'openlux' && !getOpenLuxModelDefinition(parsedModel.modelId, 'image').selectable) {
+      throw new BillingOperationError('BILLING_UNKNOWN_MODEL', `Unknown image model pricing: ${model}`, {
+        apiType: 'image',
+        model,
+        modelId: parsedModel.modelId,
+      })
+    }
     const customResolved = resolveCustomMediaPrice({
       apiType: 'image',
       model,

@@ -21,6 +21,9 @@ vi.mock('@/lib/canvas/material-reference-guard', () => ({
   findCanvasMaterialsReferences: references,
   canvasMaterialReferenceConflictMessage: () => '素材仍被画布引用，无法删除。',
 }))
+vi.mock('@/lib/frameos/character-voice-service', () => ({
+  findBoundCharacterVoices: vi.fn(async () => new Map()),
+}))
 import { POST } from '@/app/api/frameos/materials/bulk-delete/route'
 
 const time = new Date('2026-10-14T00:00:00Z')
@@ -81,27 +84,29 @@ describe('material bulk trash permissions and atomicity', () => {
     expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
   })
 
-  it('verifies project access before accepting project material', async () => {
-    db.frameosMaterial.findMany.mockResolvedValueOnce([material('a', { projectId: 'project-1' })])
+  it('skips an inaccessible project without deleting the otherwise valid upload', async () => {
+    db.frameosMaterial.findMany.mockResolvedValueOnce([material('a', { projectId: 'project-1' }), material('b')])
     db.project.findFirst.mockResolvedValueOnce(null)
-    expect((await POST(request({ materialIds: ['a'] }), context)).status).toBe(404)
-    expect(db.project.findFirst).toHaveBeenCalledWith({
-      where: { id: 'project-1', userId: 'manager-1', deletedAt: null, ...projectParticipantWhere('asset-child') },
-      select: { id: true },
-    })
-    expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
+    const response = await POST(request({ materialIds: ['a', 'b'] }), context)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ materialIds: ['b'], deletedCount: 1, skippedCount: 1 })
+    expect(db.frameosMaterial.updateMany).toHaveBeenCalledTimes(1)
   })
 
-  it('checks the entire batch before writing and refuses generated assets', async () => {
+  it('keeps generated assets while deleting eligible uploads in the same batch', async () => {
     db.frameosMaterial.findMany.mockResolvedValueOnce([material('a'), material('b', { source: 'creative' })])
-    expect((await POST(request({ materialIds: ['a', 'b'] }), context)).status).toBe(403)
-    expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
+    const response = await POST(request({ materialIds: ['a', 'b'] }), context)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ materialIds: ['a'], skippedCount: 1, results: [{ materialId: 'a', deleted: true }, { materialId: 'b', deleted: false, reason: '只能删除本地上传的素材。' }] })
+    expect(db.frameosMaterial.updateMany).toHaveBeenCalledTimes(1)
   })
 
-  it('refuses the whole batch when any item is referenced', async () => {
+  it('deletes unreferenced items and retains referenced items with their reasons', async () => {
     references.mockResolvedValueOnce(new Map([['b', { referenced: true, counts: { currentCanvases: 1 } }]]))
-    expect((await POST(request({ materialIds: ['a', 'b'] }), context)).status).toBe(409)
-    expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
+    const response = await POST(request({ materialIds: ['a', 'b'] }), context)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ materialIds: ['a'], deletedCount: 1, skippedCount: 1, results: [{ materialId: 'a', deleted: true }, { materialId: 'b', deleted: false, reason: '素材仍被画布引用，无法删除。' }] })
+    expect(db.frameosMaterial.updateMany).toHaveBeenCalledTimes(1)
   })
 
   it('allows idempotent retry without overwriting a previous deletedById', async () => {
@@ -109,14 +114,22 @@ describe('material bulk trash permissions and atomicity', () => {
     const response = await POST(request({ materialIds: ['a'] }), context)
     expect(response.status).toBe(200)
     expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
-    expect(await response.json()).toMatchObject({ deletedCount: 0 })
+    expect(await response.json()).toMatchObject({ deletedCount: 1, materialIds: ['a'] })
   })
 
   it('rejects concurrent changes using each exact observed updatedAt', async () => {
     db.frameosMaterial.updateMany.mockResolvedValueOnce({ count: 1 }).mockResolvedValueOnce({ count: 0 })
-    expect((await POST(request({ materialIds: ['a', 'b'] }), context)).status).toBe(409)
+    const response = await POST(request({ materialIds: ['a', 'b'] }), context)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ materialIds: ['a'], skippedCount: 1, results: [{ materialId: 'a', deleted: true }, { materialId: 'b', deleted: false, reason: '素材已发生变化，请刷新后重试。' }] })
     expect(db.frameosMaterial.updateMany).toHaveBeenNthCalledWith(2, expect.objectContaining({
       where: expect.objectContaining({ id: 'b', updatedAt: time }),
     }))
+  })
+
+  it('does not reveal another member personal material through batch results', async () => {
+    db.frameosMaterial.findMany.mockResolvedValueOnce([material('a'), material('b', { projectId: 'personal', personalOwnerId: 'member-2' })])
+    expect((await POST(request({ materialIds: ['a', 'b'] }), context)).status).toBe(404)
+    expect(db.frameosMaterial.updateMany).not.toHaveBeenCalled()
   })
 })

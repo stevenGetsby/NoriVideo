@@ -94,6 +94,64 @@ describe('FrameOS model3d material upload', () => {
     }))
   })
 
+  it('registers a member upload under the shared workspace owner and preserves the project scope', async () => {
+    const memberSession = {
+      user: {
+        id: 'workspace-1',
+        actorId: 'member-1',
+        workspaceOwnerId: 'workspace-1',
+        name: '项目成员',
+      },
+    }
+    const response = await uploadFrameosMaterial(await categorizedImageRequest(), memberSession, verifiedProject)
+    expect(response.status).toBe(200)
+    expect(registerMaterialMock).toHaveBeenCalledWith(expect.objectContaining({
+      userId: 'workspace-1',
+      projectId: 'project-1',
+      ownerName: '项目成员',
+    }))
+    expect(registerMaterialMock).not.toHaveBeenCalledWith(expect.objectContaining({ userId: 'member-1' }))
+  })
+
+  it('keeps project upload context for authorization while defaulting the new file to the acting member personal pool', async () => {
+    const memberSession = {
+      user: { id: 'workspace-1', actorId: 'member-1', workspaceOwnerId: 'workspace-1', name: '项目成员' },
+    }
+    const uploadRequest = await categorizedImageRequest()
+    const form = await uploadRequest.clone().formData()
+    form.set('projectId', 'personal')
+    const response = await uploadFrameosMaterial(new NextRequest(uploadRequest.url, { method: 'POST', body: form }), memberSession, verifiedProject)
+    expect(response.status).toBe(200)
+    expect(registerMaterialMock).toHaveBeenCalledWith(expect.objectContaining({ userId: 'workspace-1', projectId: 'personal', personalOwnerId: 'member-1', ownerName: '项目成员' }))
+    expect(prismaMock.project.findFirst).not.toHaveBeenCalled()
+    await expect(response.json()).resolves.toMatchObject({ material: { projectName: '个人素材' } })
+  })
+
+  it('rejects an unaffiliated project upload before reading the file or writing storage', async () => {
+    prismaMock.project.findFirst.mockResolvedValueOnce(null)
+    const file = new File([Uint8Array.from(glbBuffer())], 'model.glb', { type: 'model/gltf-binary' })
+    const memberSession = {
+      user: { id: 'workspace-1', actorId: 'member-1', workspaceOwnerId: 'workspace-1', name: '非项目成员' },
+    }
+    await expect(uploadFrameosMaterial(request(file), memberSession)).rejects.toMatchObject({ code: 'NOT_FOUND' })
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'project-1',
+        userId: 'workspace-1',
+        deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
+      },
+      select: { id: true },
+    })
+    expect(storageMock.uploadObject).not.toHaveBeenCalled()
+    expect(registerMaterialMock).not.toHaveBeenCalled()
+  })
+
   it('persists a project upload inside its explicit asset category', async () => {
     storageMock.generateUniqueKey.mockReturnValueOnce('frameos-material-user-1/character.jpg')
 
@@ -176,7 +234,7 @@ describe('FrameOS model3d material upload', () => {
     expect(registerMaterialMock).not.toHaveBeenCalled()
   })
 
-  it('returns a clear 429 before parsing when all upload permits are occupied', async () => {
+  it('queues a third upload instead of failing when all permits are occupied', async () => {
     const releases: Array<() => void> = []
     storageMock.uploadObject.mockImplementation(async (_body: Buffer, key: string) => {
       await new Promise<void>((resolve) => releases.push(resolve))
@@ -190,18 +248,134 @@ describe('FrameOS model3d material upload', () => {
     const second = uploadFrameosMaterial(request(makeFile()), session, verifiedProject)
 
     await vi.waitFor(() => expect(storageMock.uploadObject).toHaveBeenCalledTimes(2))
-    const blockedRequest = request(makeFile())
-    const formDataSpy = vi.spyOn(blockedRequest, 'formData')
+    const queuedRequest = request(makeFile())
+    const formDataSpy = vi.spyOn(queuedRequest, 'formData')
+    let settled = false
+    const third = uploadFrameosMaterial(queuedRequest, session, verifiedProject)
+      .finally(() => { settled = true })
     try {
-      await expect(uploadFrameosMaterial(blockedRequest, session, verifiedProject)).rejects.toMatchObject({
+      await new Promise((resolve) => setTimeout(resolve, 40))
+      expect(settled).toBe(false)
+      expect(formDataSpy).not.toHaveBeenCalled()
+
+      releases.splice(0).forEach((release) => release())
+      await vi.waitFor(() => expect(storageMock.uploadObject).toHaveBeenCalledTimes(3))
+      expect(formDataSpy).toHaveBeenCalledTimes(1)
+      releases.splice(0).forEach((release) => release())
+      await expect(third).resolves.toMatchObject({ status: 200 })
+      await Promise.all([first, second])
+    } finally {
+      releases.splice(0).forEach((release) => release())
+      await Promise.allSettled([first, second, third])
+    }
+  })
+
+  it('returns a clear 429 only when the bounded wait queue is saturated', async () => {
+    const releases: Array<() => void> = []
+    storageMock.uploadObject.mockImplementation(async (_body: Buffer, key: string) => {
+      await new Promise<void>((resolve) => releases.push(resolve))
+      return key
+    })
+    const makeFile = () => {
+      const body = glbBuffer()
+      return new File([Uint8Array.from(body)], 'model.glb', { type: 'model/gltf-binary' })
+    }
+    const makeRequest = () => request(makeFile())
+    const pending = Array.from({ length: 10 }, () => uploadFrameosMaterial(makeRequest(), session, verifiedProject))
+    const overflowRequest = request(makeFile())
+    const formDataSpy = vi.spyOn(overflowRequest, 'formData')
+    let unsettled = pending.length
+    const tracked = pending.map((promise) => promise.then(
+      () => { unsettled -= 1 },
+      () => { unsettled -= 1 },
+    ))
+    try {
+      await expect(uploadFrameosMaterial(overflowRequest, session, verifiedProject)).rejects.toMatchObject({
         code: 'RATE_LIMIT',
         status: 429,
         message: '当前素材上传任务较多，为避免内存过载，请稍后重试。',
       })
       expect(formDataSpy).not.toHaveBeenCalled()
     } finally {
-      for (const release of releases) release()
-      await Promise.allSettled([first, second])
+      // Drain every occupied permit, including permits that are only acquired
+      // after an earlier upload finishes normalization.
+      let guard = 0
+      while (unsettled > 0 && guard < 500) {
+        guard += 1
+        if (releases.length === 0) {
+          await new Promise((resolve) => setTimeout(resolve, 10))
+          continue
+        }
+        releases.splice(0).forEach((release) => release())
+      }
+      await Promise.all(tracked)
     }
+  })
+
+  it('cancels a queued upload when the request aborts and keeps the pool usable', async () => {
+    const releases: Array<() => void> = []
+    storageMock.uploadObject.mockImplementation(async (_body: Buffer, key: string) => {
+      await new Promise<void>((resolve) => releases.push(resolve))
+      return key
+    })
+    const makeFile = () => {
+      const body = glbBuffer()
+      return new File([Uint8Array.from(body)], 'model.glb', { type: 'model/gltf-binary' })
+    }
+    const first = uploadFrameosMaterial(request(makeFile()), session, verifiedProject)
+    const second = uploadFrameosMaterial(request(makeFile()), session, verifiedProject)
+    await vi.waitFor(() => expect(storageMock.uploadObject).toHaveBeenCalledTimes(2))
+
+    const controller = new AbortController()
+    const form = new FormData()
+    form.set('file', makeFile())
+    form.set('title', '取消的模型')
+    form.set('projectId', 'project-1')
+    const abortedRequest = new NextRequest('http://localhost/api/frameos/materials', {
+      method: 'POST',
+      body: form,
+      signal: controller.signal,
+    })
+    const aborted = uploadFrameosMaterial(abortedRequest, session, verifiedProject)
+    controller.abort()
+
+    await expect(aborted).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
+      message: '上传请求已取消。',
+    })
+
+    releases.splice(0).forEach((release) => release())
+    await Promise.all([first, second])
+
+    // The aborted waiter must not have consumed a permit.
+    storageMock.uploadObject.mockImplementation(async (_body: Buffer, key: string) => key)
+    const recovered = await uploadFrameosMaterial(request(makeFile()), session, verifiedProject)
+    expect(recovered.status).toBe(200)
+  })
+
+  it('rejects a form projectId that does not match the canvas route project', async () => {
+    const form = new FormData()
+    form.set('file', new File([Uint8Array.from(glbBuffer())], 'model.glb', { type: 'model/gltf-binary' }))
+    form.set('title', '跨项目模型')
+    form.set('projectId', 'someone-elses-project')
+    const mismatched = new NextRequest('http://localhost/api/frameos/materials', { method: 'POST', body: form })
+
+    await expect(uploadFrameosMaterial(mismatched, session, verifiedProject)).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+      message: '上传素材的项目与当前画布不一致。',
+    })
+    expect(storageMock.uploadObject).not.toHaveBeenCalled()
+    expect(registerMaterialMock).not.toHaveBeenCalled()
+  })
+
+  it('releases the permit after a validation failure', async () => {
+    const invalid = request(new File(['{"asset":{"version":"2.0"}}'], 'external.gltf', { type: 'model/gltf+json' }))
+    await expect(uploadFrameosMaterial(invalid, session, verifiedProject)).rejects.toMatchObject({
+      code: 'INVALID_PARAMS',
+    })
+
+    const valid = request(new File([Uint8Array.from(glbBuffer())], 'model.glb', { type: 'model/gltf-binary' }))
+    await expect(uploadFrameosMaterial(valid, session, verifiedProject)).resolves.toMatchObject({ status: 200 })
+    expect(storageMock.uploadObject).toHaveBeenCalledTimes(1)
   })
 })

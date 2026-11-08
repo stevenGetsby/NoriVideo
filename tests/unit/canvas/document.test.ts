@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAX_CANVAS_DOCUMENT_BYTES,
+  diagnoseCanvasDocumentStructure,
   parseCanvasDocumentSaveInput,
   validateCanvasDocumentSaveInput,
 } from '@/lib/canvas/document'
@@ -112,6 +113,22 @@ describe('canvas document validation', () => {
     expect(result.error.actualBytes).toBeGreaterThan(MAX_CANVAS_DOCUMENT_BYTES)
     expect(result.error.message).toContain('16 MiB')
     expect(parseCanvasDocumentSaveInput(oversizedDocument)).toBeNull()
+  })
+
+  it('identifies invalid entities without including their content in diagnostics', () => {
+    const duplicate = documentInput()
+    duplicate.edges.push({ ...duplicate.edges[0], id: 'edge-2' })
+    expect(diagnoseCanvasDocumentStructure(duplicate)).toEqual({
+      scope: 'edge', index: 1, id: 'edge-2', reason: 'duplicate_connection',
+    })
+    expect(JSON.stringify(diagnoseCanvasDocumentStructure(duplicate))).not.toContain('连接两个节点')
+
+    const invalidNode = documentInput()
+    invalidNode.nodes[0].size = { width: 0, height: 200 }
+    expect(diagnoseCanvasDocumentStructure(invalidNode)).toEqual({ scope: 'node', index: 0, id: 'source', reason: 'invalid', field: 'size' })
+    expect(diagnoseCanvasDocumentStructure(invalidNode.nodes[0])).toEqual({ scope: 'document', reason: 'expected_revision' })
+    expect(diagnoseCanvasDocumentStructure({ ...invalidNode, nodes: [] })).toEqual({ scope: 'edge', index: 0, id: 'edge-1', reason: 'dangling' })
+    expect(diagnoseCanvasDocumentStructure(documentInput())).toBeNull()
   })
 
   it.each(['PANORAMA_VIEW', 'STUDIO_CAMERA'])('persists derived canvas edge role %s', (role) => {

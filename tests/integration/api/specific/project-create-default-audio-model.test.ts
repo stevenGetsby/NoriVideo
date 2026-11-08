@@ -33,7 +33,10 @@ const prismaMock = vi.hoisted(() => ({
     })),
   },
   work: {
-    findFirst: vi.fn(async () => ({ id: 'work-1' })),
+    findFirst: vi.fn(async () => ({ id: 'work-1', members: [], projects: [] })),
+  },
+  projectMember: {
+    create: vi.fn(async () => ({ id: 'project-member-1' })),
   },
   novelPromotionProject: {
     create: vi.fn(async () => ({ id: 'np-1', projectId: 'project-1' })),
@@ -51,7 +54,7 @@ describe('api specific - project create default audio model', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1', members: [], projects: [] })
     prismaMock.$transaction.mockImplementation(async (callback: (tx: typeof prismaMock) => unknown) => callback(prismaMock))
   })
 
