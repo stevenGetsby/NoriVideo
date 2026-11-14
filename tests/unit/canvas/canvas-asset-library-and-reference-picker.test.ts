@@ -30,6 +30,40 @@ describe('画布素材上传资产库入口', () => {
     expect(menu).toContain('归类后可复用于画布与其他作品')
   })
 
+  it('文本节点菜单提供视频统一前置提示词的设置与取消，非文本节点和只读不显示', () => {
+    const render = (props: Record<string, unknown>) => renderToStaticMarkup(React.createElement(CanvasContextMenu, {
+      state: { scope: 'node', nodeId: 'node-1', x: 0, y: 0 },
+      canPaste: false,
+      canRegenerate: false,
+      readOnly: false,
+      onAction: vi.fn(),
+      ...props,
+    }))
+    const setMenu = render({ nodeMediaType: 'text' })
+    expect(setMenu).toContain('设为视频统一前置提示词')
+    expect(setMenu).toContain('置于所有视频提示词最前面')
+    expect(setMenu).not.toContain('取消视频统一前置提示词')
+    const clearMenu = render({ nodeMediaType: 'text', isVideoPrefixPrompt: true })
+    expect(clearMenu).toContain('取消视频统一前置提示词')
+    expect(clearMenu).not.toContain('设为视频统一前置提示词')
+    expect(render({ nodeMediaType: 'image' })).not.toContain('视频统一前置提示词')
+    expect(render({ nodeMediaType: 'text', readOnly: true })).not.toContain('视频统一前置提示词')
+  })
+
+  it('视频前置提示词只在视频生成器展示，提交前置于提示词并与全局风格互斥于同一节点', () => {
+    const graph = source('src/features/canvas/CanvasGraph.tsx')
+    const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
+    expect(generator).toContain("type === 'video' && videoPrefixNodeId")
+    expect(generator).toContain('aria-label="视频统一前置提示词"')
+    expect(generator.indexOf('nori-canvas-global-style is-video-prefix')).toBeLessThan(generator.indexOf('<div className="nori-canvas-generator-prompt">'))
+    expect(graph).toContain("composeCanvasVideoPrefixPrompt(styledPrompt, readCanvasVideoPrefixPrompt(nodesRef.current))")
+    expect(graph.indexOf("composeCanvasVideoPrefixPrompt(styledPrompt")).toBeGreaterThan(graph.indexOf('const styledPrompt = '))
+    expect(graph).toContain('videoPrefixNodeId={videoPrefixNode?.id}')
+    expect(graph).toContain('isVideoPrefixPrompt={contextNode?.data.videoPrefixPrompt === true}')
+    const clone = source('src/features/canvas/clone-node-data.ts')
+    expect(clone).toContain('videoPrefixPrompt: false')
+  })
+
   it('只读或不可上传的节点不显示该入口', () => {
     const writableWithoutImage = renderToStaticMarkup(React.createElement(CanvasContextMenu, {
       state: { scope: 'node', nodeId: 'node-1', x: 0, y: 0 },
@@ -73,7 +107,9 @@ describe('生成节点引用素材加号', () => {
   it('引用素材行始终渲染素材库加号，并按模式选择素材类型', () => {
     const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
     expect(generator).toContain('nori-canvas-generator-ref-add')
-    expect(generator).toContain("title=\"从素材库添加引用素材（无需连线）\"")
+    expect(generator).toContain('title="添加引用素材（无需连线）"')
+    expect(generator).toContain('aria-haspopup="menu"')
+    expect(generator).toContain('<span>从素材库选择</span>')
     expect(generator).toContain('onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })')
     expect(generator).toContain('export function resolveReferencePickerMax(')
     expect(generator).toContain("? inputMode === 'text' ? 'all' : 'image'")
@@ -92,6 +128,23 @@ describe('生成节点引用素材加号', () => {
     expect(row).toContain('引用素材')
     expect(row).toContain('nori-canvas-generator-ref-add')
     expect(generator).toContain("{type === 'image' || type === 'video' || type === 'audio' ? (")
+  })
+
+  it('每个引用素材都有独立移除按钮：已连线的同时删除连线，未连线的只移出引用', () => {
+    const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
+    expect(generator).toContain('nori-canvas-generator-ref-remove')
+    expect(generator).toContain('onRemoveReference?: (sourceNodeId: string) => void')
+    expect(generator).toContain('if (onRemoveReference && wiredReferenceIds.has(reference.id))')
+    expect(generator).toContain('点击本次不引用（连线保留）')
+    // The remove control is a sibling of the toggle tile: nested buttons are invalid HTML.
+    const thumbStart = generator.indexOf('function ReferenceThumb(')
+    const thumb = generator.slice(thumbStart, generator.indexOf('export function CanvasGenerator('))
+    // Tile toggle + voice toggle (bound characters only) + remove button, all siblings.
+    expect(thumb.match(/<button/g)?.length).toBe(3)
+    expect(thumb).toContain('nori-canvas-generator-ref-item')
+    const graph = source('src/features/canvas/CanvasGraph.tsx')
+    expect(graph).toContain('const removeReferenceWire = useCallback((targetNodeId: string, sourceNodeId: string) => {')
+    expect(graph).toContain('onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)}')
   })
 
   it('按模式取引用上限，全能参考累加多模态上限', () => {
