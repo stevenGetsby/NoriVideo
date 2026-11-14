@@ -29,6 +29,8 @@ const prismaMock = vi.hoisted(() => ({
   // 每日用量上限：默认「未设置上限、今日零用量」。
   user: {
     findMany: vi.fn(async (): Promise<Array<{ id: string; dailyPointLimit: number | null }>> => []),
+    findUnique: vi.fn(async (): Promise<{ role: string; workspaceOwnerId: string | null; pointMode: string | null }> =>
+      ({ role: 'writer', workspaceOwnerId: null, pointMode: 'unlimited' })),
   },
   balanceFreeze: {
     groupBy: vi.fn(async () => []),
@@ -101,6 +103,7 @@ describe('billing routes internal agent visibility', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.user.findMany.mockResolvedValue([])
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'writer', workspaceOwnerId: null, pointMode: 'unlimited' })
     authMock.requireUserAuth.mockResolvedValue({
       session: { user: { id: 'user-1' } },
     })
@@ -515,27 +518,29 @@ describe('billing routes internal agent visibility', () => {
       })
     }
   })
-  it('/api/user/balance reads shared wallet funds but applies the child quota', async () => {
+  it('/api/user/balance reads the actor wallet and applies the child quota', async () => {
     authMock.requireUserAuth.mockResolvedValue({
       session: { user: { id: 'manager', actorId: 'child', role: 'storyboard', workspaceOwnerId: 'manager' } },
     })
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'storyboard', workspaceOwnerId: 'manager', pointMode: 'allocated' })
     prismaMock.balanceTransaction.findMany.mockResolvedValue([])
     const { GET } = await import('@/app/api/user/balance/route')
     for (const limit of [null, 0, 300]) {
       prismaMock.user.findMany.mockResolvedValue([{ id: 'child', dailyPointLimit: limit }])
       const response = await GET(new NextRequest('http://localhost/api/user/balance') as never, { params: Promise.resolve({}) })
       expect(await response.json()).toMatchObject({
-        balance: 88, balancePoints: 8800, walletUserId: 'manager', quotaUserId: 'child', walletScope: 'workspace',
+        balance: 88, balancePoints: 8800, walletUserId: 'child', quotaUserId: 'child',
+        isMember: true, pointMode: 'allocated', creditAvailable: true,
         dailyLimitPoints: limit, generationAllowed: limit !== 0,
       })
       expect(prismaMock.userBalance.upsert).toHaveBeenLastCalledWith({
-        where: { userId: 'manager' }, create: { userId: 'manager', balance: 0, frozenAmount: 0, totalSpent: 0 }, update: {},
+        where: { userId: 'child' }, create: { userId: 'child', balance: 0, frozenAmount: 0, totalSpent: 0 }, update: {},
       })
     }
-    prismaMock.userBalance.upsert.mockResolvedValue({ id: 'b1', userId: 'manager', balance: 0, frozenAmount: 0, totalSpent: 0, createdAt: new Date(), updatedAt: new Date() })
+    prismaMock.userBalance.upsert.mockResolvedValue({ id: 'b1', userId: 'child', balance: 0, frozenAmount: 0, totalSpent: 0, createdAt: new Date(), updatedAt: new Date() })
     prismaMock.user.findMany.mockResolvedValue([{ id: 'child', dailyPointLimit: null }])
     expect(await (await GET(new NextRequest('http://localhost/api/user/balance') as never, { params: Promise.resolve({}) })).json())
-      .toMatchObject({ generationAllowed: false, balancePoints: 0, dailyLimitPoints: null })
+      .toMatchObject({ generationAllowed: false, balancePoints: 0, creditAvailable: false, dailyLimitPoints: null })
   })
 
   it('/api/user/balance reports visible totalSpent while keeping wallet balance from ledger', async () => {

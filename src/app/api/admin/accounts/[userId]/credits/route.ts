@@ -106,6 +106,21 @@ export const GET = apiHandler(async (
     }),
   ])
 
+  const counterpartIds = Array.from(new Set(transactions.flatMap((transaction) => (
+    transaction.relatedId
+    && ['allocate_out', 'allocate_in', 'reclaim_out', 'reclaim_in', 'auto_allocate_out', 'auto_allocate_in'].includes(transaction.type)
+      ? [transaction.relatedId] : []
+  ))))
+  const counterpartNames = new Map(
+    (counterpartIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: counterpartIds } },
+          select: { id: true, name: true },
+        })
+      : []
+    ).map((user) => [user.id, user.name]),
+  )
+
   return NextResponse.json({
     success: true,
     account: serializeManagedAccount({ ...target, balance: { balance: balance.balance } }),
@@ -121,6 +136,7 @@ export const GET = apiHandler(async (
       ...transaction,
       amountCny: toMoneyNumber(transaction.amount),
       amountPoints: cnyToPoints(toMoneyNumber(transaction.amount)),
+      counterpartName: transaction.relatedId ? counterpartNames.get(transaction.relatedId) ?? null : null,
       balanceAfterCny: selfScope && isManagerPaid(transaction, selfScope) ? null : toMoneyNumber(transaction.balanceAfter),
       balanceAfterPoints: selfScope && isManagerPaid(transaction, selfScope) ? null : cnyToPoints(toMoneyNumber(transaction.balanceAfter)),
       paidBy: selfScope && isManagerPaid(transaction, selfScope) ? 'manager' as const : undefined,

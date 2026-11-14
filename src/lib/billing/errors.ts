@@ -1,13 +1,23 @@
 import { cnyToPoints, GENERATION_CREDIT_FLOOR_CNY } from './credit-policy'
+import type { PointMode } from './point-mode'
 
 export class InsufficientBalanceError extends Error {
   public available: number
   public required: number
 
-  constructor(required: number, available: number) {
-    super(available <= GENERATION_CREDIT_FLOOR_CNY
-      ? `积分已达到生成下限（当前 ${cnyToPoints(available).toFixed(2)} 积分），请补充积分后再生成`
-      : `积分不足，本次需要 ${cnyToPoints(required).toFixed(2)} 积分，当前剩余 ${cnyToPoints(available).toFixed(2)} 积分`)
+  constructor(required: number, available: number, options?: { memberPointMode?: PointMode | null }) {
+    const availablePoints = cnyToPoints(available).toFixed(2)
+    const requiredPoints = cnyToPoints(required).toFixed(2)
+    const memberPointMode = options?.memberPointMode ?? null
+    super(memberPointMode === 'allocated'
+      ? available <= GENERATION_CREDIT_FLOOR_CNY
+        ? `积分已用完（当前 ${availablePoints} 积分），请联系管理账号给你分配积分`
+        : `积分不足，本次需要 ${requiredPoints} 积分，当前剩余 ${availablePoints} 积分。请联系管理账号给你分配积分`
+      : memberPointMode === 'unlimited'
+        ? `管理账号积分不足，无法自动补足本次所需的 ${requiredPoints} 积分，请联系管理账号充值`
+        : available <= GENERATION_CREDIT_FLOOR_CNY
+          ? `积分已达到生成下限（当前 ${availablePoints} 积分），请补充积分后再生成`
+          : `积分不足，本次需要 ${requiredPoints} 积分，当前剩余 ${availablePoints} 积分`)
     this.name = 'InsufficientBalanceError'
     this.required = required
     this.available = available
@@ -67,6 +77,7 @@ export type BillingOperationErrorCode =
   | 'BILLING_IDEMPOTENT_IN_PROGRESS'
   | 'BILLING_IDEMPOTENT_ROLLED_BACK'
   | 'BILLING_INVALID_PROJECT'
+  | 'BILLING_AUTO_FUND_FAILED'
 
 export class BillingOperationError extends Error {
   public readonly code: BillingOperationErrorCode

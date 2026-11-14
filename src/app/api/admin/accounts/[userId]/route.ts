@@ -22,6 +22,7 @@ import {
   isValidDailyPointLimitInput,
   normalizeDailyPointLimit,
 } from '@/lib/billing/daily-limit'
+import { parsePointMode } from '@/lib/billing/point-mode'
 
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
@@ -116,10 +117,18 @@ export const PATCH = apiHandler(async (
     : typeof body.managerId === 'string' ? body.managerId.trim() : ''
   const dailyPointLimitProvided = body.dailyPointLimit !== undefined
   const dailyPointLimit = dailyPointLimitProvided ? readDailyPointLimit(body.dailyPointLimit) : undefined
+  const pointModeProvided = body.pointMode !== undefined
+  const pointMode = pointModeProvided ? parsePointMode(body.pointMode) : undefined
 
   if (status === null) throw new ApiError('INVALID_PARAMS', { message: '无效的账号状态。' })
   if (isManagementAccount && projectLeader !== undefined) {
     throw new ApiError('INVALID_PARAMS', { message: '项目组长身份仅适用于子账号。' })
+  }
+  if (pointModeProvided && isManagementAccount) {
+    throw new ApiError('INVALID_PARAMS', { message: '积分方式仅适用于子账号。' })
+  }
+  if (pointModeProvided && !pointMode) {
+    throw new ApiError('INVALID_PARAMS', { message: '无效的积分方式。' })
   }
   if (requestedManagerId !== undefined) {
     return forbidden('账号归属不能在此修改。角色子账号始终由所属管理账号管理。')
@@ -131,6 +140,7 @@ export const PATCH = apiHandler(async (
     && projectLeader === undefined
     && status === undefined
     && !dailyPointLimitProvided
+    && !pointModeProvided
   ) {
     throw new ApiError('INVALID_PARAMS', { message: '没有可更新的账号字段。' })
   }
@@ -145,6 +155,7 @@ export const PATCH = apiHandler(async (
           ...(projectLeader !== undefined ? { projectLeader } : {}),
           ...(status !== undefined ? { status } : {}),
           ...(dailyPointLimitProvided ? { dailyPointLimit } : {}),
+          ...(pointModeProvided ? { pointMode: pointMode as 'unlimited' | 'allocated' } : {}),
           ...(passwordHash ? { password: passwordHash, passwordChangeRequired: true, sessionVersion: { increment: 1 } } : {}),
         },
       })
@@ -162,6 +173,8 @@ export const PATCH = apiHandler(async (
       changedStatus: status !== undefined,
       changedDailyPointLimit: dailyPointLimitProvided,
       dailyPointLimit: dailyPointLimitProvided ? dailyPointLimit : undefined,
+      changedPointMode: pointModeProvided,
+      pointMode: pointModeProvided ? pointMode : undefined,
       resetPassword: password !== undefined,
     })
 

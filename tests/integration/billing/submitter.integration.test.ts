@@ -85,9 +85,24 @@ describe('billing/submitter integration', () => {
     expect(addTaskJobMock).toHaveBeenCalledWith(expect.objectContaining({
       userId: manager.id, payload: expect.objectContaining({ meta: expect.objectContaining({ quotaUserId: child.id }) }),
     }), expect.anything())
+    // The task still belongs to the manager project, but the acting member is
+    // the payer: the freeze lives in the member wallet and is auto-funded
+    // from the manager wallet in the same transaction.
     const freeze = await prisma.balanceFreeze.findFirst({ where: { taskId: result.taskId } })
-    expect(freeze?.userId).toBe(manager.id)
-    expect(JSON.parse(freeze?.metadata || '{}').quotaUserId).toBe(child.id)
+    expect(freeze?.userId).toBe(child.id)
+    expect(JSON.parse(freeze?.metadata || '{}').quotaUserId).toBeUndefined()
+    const childWallet = await prisma.userBalance.findUnique({ where: { userId: child.id } })
+    expect(Number(childWallet?.balance)).toBe(0)
+    expect(Number(childWallet?.frozenAmount)).toBeCloseTo(Number(freeze?.amount ?? 0), 8)
+    const managerWallet = await prisma.userBalance.findUnique({ where: { userId: manager.id } })
+    expect(Number(managerWallet?.balance)).toBeCloseTo(10 - Number(freeze?.amount ?? 0), 8)
+    expect(Number(managerWallet?.frozenAmount)).toBe(0)
+    expect(await prisma.balanceTransaction.count({
+      where: { freezeId: freeze?.id, type: 'auto_allocate_out', userId: manager.id },
+    })).toBe(1)
+    expect(await prisma.balanceTransaction.count({
+      where: { freezeId: freeze?.id, type: 'auto_allocate_in', userId: child.id },
+    })).toBe(1)
   })
 
   it('marks task as failed when balance is insufficient', async () => {

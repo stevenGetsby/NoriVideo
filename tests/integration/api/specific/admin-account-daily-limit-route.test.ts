@@ -21,6 +21,7 @@ const prismaMock = vi.hoisted(() => ({
     findMany: vi.fn(async () => []),
   },
   balanceFreeze: { groupBy: vi.fn(async (): Promise<unknown[]> => []), findMany: vi.fn(async () => []) },
+  $queryRaw: vi.fn(async () => []),
   $transaction: vi.fn(),
 }))
 
@@ -136,6 +137,33 @@ describe('管理账号设置每日用量上限', () => {
     const response = await patchAccount('child-1', { dailyPointLimit: 800 })
     const payload = await response.json() as { success?: boolean }
     expect(payload.success).toBe(true)
+  })
+
+  it('给子账号设置积分方式并回显', async () => {
+    prismaMock.user.findUniqueOrThrow.mockResolvedValue({ ...childRecord, pointMode: 'allocated' })
+
+    const response = await patchAccount('child-1', { pointMode: 'allocated' })
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.user.update).toHaveBeenCalledWith({
+      where: { id: 'child-1' },
+      data: { pointMode: 'allocated' },
+    })
+    expect((await response.json()).account.pointMode).toBe('allocated')
+  })
+
+  it('拒绝非法积分方式，并禁止给管理账号设置积分方式', async () => {
+    for (const invalid of ['shared', '', true, 1, null]) {
+      expect((await patchAccount('child-1', { pointMode: invalid })).status).toBe(400)
+    }
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
+
+    authAs('super_admin')
+    prismaMock.user.findFirst.mockResolvedValue(managerRecord)
+    const response = await patchAccount('manager-1', { pointMode: 'allocated' })
+    expect(response.status).toBe(400)
+    expect(await response.text()).toContain('积分方式仅适用于子账号')
+    expect(prismaMock.user.update).not.toHaveBeenCalled()
   })
 
   it('账号列表同时返回上限与今日用量', async () => {

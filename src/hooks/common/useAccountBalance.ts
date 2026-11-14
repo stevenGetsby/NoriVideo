@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { normalizeAccountPointCredit } from '@/lib/account/credits'
 import { apiFetch } from '@/lib/api-fetch'
 import { subscribeBalanceChanges } from '@/lib/billing/client'
+import type { PointMode } from '@/lib/billing/point-mode'
 import { resolveBillingPrincipals } from '@/lib/account/billing-identity'
 
 export type DailyBalanceUsage = {
@@ -52,6 +53,7 @@ export function useAccountBalance() {
   const [livePoints, setLivePoints] = useState<number | null>(null)
   const [generationAllowed, setGenerationAllowed] = useState<boolean | null>(null)
   const [dailyUsage, setDailyUsage] = useState<DailyBalanceUsage | null>(null)
+  const [credit, setCredit] = useState<{ isMember: boolean; pointMode: PointMode | null; creditAvailable: boolean } | null>(null)
   const requestSequenceRef = useRef(0)
   const appliedSequenceRef = useRef(0)
   const requestEpochRef = useRef(0)
@@ -66,6 +68,9 @@ export function useAccountBalance() {
       const payload = await response.json() as {
         balancePoints?: unknown
         generationAllowed?: unknown
+        isMember?: unknown
+        pointMode?: unknown
+        creditAvailable?: unknown
         dailyLimitPoints?: unknown
         dailyUsedPoints?: unknown
         dailyRemainingPoints?: unknown
@@ -80,6 +85,11 @@ export function useAccountBalance() {
       const value = Number(payload.balancePoints)
       if (Number.isFinite(value)) setLivePoints(value)
       if (typeof payload.generationAllowed === 'boolean') setGenerationAllowed(payload.generationAllowed)
+      setCredit({
+        isMember: payload.isMember === true,
+        pointMode: payload.pointMode === 'allocated' ? 'allocated' : payload.pointMode === 'unlimited' ? 'unlimited' : null,
+        creditAvailable: payload.creditAvailable === true,
+      })
       setDailyUsage(normalizeDailyBalanceUsage(payload))
       setSnapshotIdentity(identityKey)
     } catch {
@@ -91,6 +101,7 @@ export function useAccountBalance() {
     setLivePoints(null)
     setGenerationAllowed(null)
     setDailyUsage(null)
+    setCredit(null)
     setSnapshotIdentity('')
     if (!identityKey) {
       return
@@ -118,17 +129,27 @@ export function useAccountBalance() {
   const ready = snapshotIdentity === identityKey && Boolean(identityKey)
   const currentDailyUsage = ready ? dailyUsage : null
   const points = (ready ? livePoints : null) ?? normalizeAccountPointCredit(session?.user?.pointCredits)
+  const isMember = (ready ? credit?.isMember : undefined) ?? principals?.isMember ?? false
+  const pointMode = ready ? credit?.pointMode ?? null : null
+  const creditAvailable = ready ? credit?.creditAvailable ?? null : null
   return {
     points,
-    walletScope: principals?.walletScope || 'personal',
+    isMember,
+    pointMode,
+    creditAvailable,
     loading: !ready,
-    // A stale positive login snapshot cannot authorize generation while the
-    // current server wallet/limit is still unknown.
-    generationAllowed: ready && points > 0 && generationAllowed === true && !currentDailyUsage?.exceeded,
+    // An unlimited member's own balance is often 0 while the server still
+    // allows generation, so only the server-side flag authorizes here.
+    generationAllowed: ready && generationAllowed === true && !currentDailyUsage?.exceeded,
     generationDisabledReason: !ready ? '正在核对可用积分与每日额度'
       : currentDailyUsage?.limitPoints === 0
       ? '管理账号已禁止生成（每日上限 0）'
-      : currentDailyUsage?.exceeded ? '今日生成额度已用尽，请联系管理账号调整上限' : points <= 0 ? '积分不足，无法生成' : null,
+      : currentDailyUsage?.exceeded ? '今日生成额度已用尽，请联系管理账号调整上限'
+      : credit?.creditAvailable === false
+        ? isMember && pointMode === 'unlimited' ? '管理账号积分不足，请联系管理账号充值'
+          : isMember && pointMode === 'allocated' ? '积分已用完，请联系管理账号分配积分'
+          : '积分不足，无法生成'
+        : null,
     generationDisabledLabel: !ready ? '核对额度中' : currentDailyUsage?.limitPoints === 0 ? '禁止生成' : currentDailyUsage?.exceeded ? '额度用尽' : '积分不足',
     dailyUsage: currentDailyUsage,
     refreshBalance,

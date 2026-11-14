@@ -1,8 +1,9 @@
 import { ApiError } from '@/lib/api-errors'
+import { resolveGenerationPayerId } from '@/lib/account/request-context'
 import { canStartGeneration, cnyToPoints } from './credit-policy'
 import { assertDailyLimit } from './daily-limit'
 import { DailyLimitExceededError } from './errors'
-import { getBalance } from './ledger'
+import { getSpendableBalance } from './ledger'
 
 /**
  * Hard preflight for generation paths that do not yet have a priced freeze.
@@ -10,11 +11,17 @@ import { getBalance } from './ledger'
  * so passing this check never substitutes for reserving the full quote.
  */
 export async function requireGenerationCredit(userId: string) {
-  const credit = await getBalance(userId)
-  if (!canStartGeneration(credit.balance)) {
-    const availablePoints = cnyToPoints(credit.balance)
+  const payerId = resolveGenerationPayerId(userId)
+  const spendable = await getSpendableBalance(payerId)
+  if (!canStartGeneration(spendable.spendableCny)) {
+    const availablePoints = cnyToPoints(spendable.own.balance)
+    const message = spendable.isMember && spendable.pointMode === 'unlimited'
+      ? '管理账号积分不足，暂时无法生成，请联系管理账号充值'
+      : spendable.isMember && spendable.pointMode === 'allocated'
+        ? `积分已用完（当前 ${availablePoints.toFixed(2)} 积分），请联系管理账号给你分配积分`
+        : `积分不足（当前 ${availablePoints.toFixed(2)} 积分），所有生成服务已暂停`
     throw new ApiError('INSUFFICIENT_BALANCE', {
-      message: `积分不足（当前 ${availablePoints.toFixed(2)} 积分），所有生成服务已暂停`,
+      message,
       required: 0,
       available: availablePoints,
     })
@@ -36,5 +43,5 @@ export async function requireGenerationCredit(userId: string) {
     throw error
   }
 
-  return credit
+  return spendable.own
 }

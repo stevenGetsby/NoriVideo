@@ -30,16 +30,24 @@ describe('project entry and video review surface', () => {
     expect(emptyCanvas).toContain('data-testid="empty-canvas-parent-back"')
   })
 
-  it('reflows project context and actions instead of crushing tags on small screens', () => {
+  it('keeps the title on one ellipsized line and adapts actions by container width', () => {
     const header = source('src/components/frameos/FosProjectHeader.tsx')
     const styles = source('src/styles/frameos-replica.css')
+    const h1Rule = styles.match(/\.fos-stage-context > h1 \{[^}]*\}/)?.[0] ?? ''
 
     expect(header).toContain('className="fos-stage-context')
     expect(header).toContain('className="fos-stage-actions')
-    expect(styles).toContain('.fos-stage-context > h1 { min-width: 0; max-width: 100%; flex: 0 1 auto; white-space: normal; overflow-wrap: anywhere; }')
+    expect(header).toContain('title={fullTitle}')
+    expect(styles).toMatch(/\.fos-stage-header \{[^}]*grid-template-columns: auto minmax\(0, 1fr\) auto;/)
+    expect(styles).toMatch(/\.fos-stage-header \{[^}]*container-type: inline-size;/)
+    expect(h1Rule).toContain('min-width: 8em')
+    expect(h1Rule).toContain('white-space: nowrap')
+    expect(h1Rule).toContain('text-overflow: ellipsis')
+    expect(h1Rule).not.toContain('overflow-wrap')
     expect(styles).toContain('.fos-meta-tag { flex: none; white-space: nowrap; }')
-    expect(styles).toMatch(/@media \(max-width: 900px\) \{[\s\S]*?\.fos-stage-header \{[\s\S]*?grid-template-columns: auto minmax\(0,1fr\)/)
-    expect(styles).toMatch(/\.fos-stage-actions \{[\s\S]*?grid-column: 1 \/ -1;[\s\S]*?flex-wrap: wrap;/)
+    expect(styles).toMatch(/@container \(max-width: 959px\) \{[\s\S]*?\.fos-stage-icon-btn \{[^}]*width: 32px;/)
+    expect(styles).toMatch(/@container \(max-width: 719px\) \{[\s\S]*?\.fos-stage-more \{ display: inline-flex; \}/)
+    expect(header).not.toContain('fos-btn-sm')
   })
 
   it('uses an episode submission workspace for Segment and combined-video review', () => {

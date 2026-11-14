@@ -130,9 +130,11 @@ describe('account session policy', () => {
     expect(result.session.user.actorId).toBe('user-1')
     expect(result.session.user.id).toBe('manager-1')
     expect(result.session.user.role).toBe('writer')
-    expect(result.session.user.pointCredits).toBe(200)
+    // The session snapshot is the member's own wallet (1.25 CNY -> 125
+    // points); the manager wallet is never read to seed member sessions.
+    expect(result.session.user.pointCredits).toBe(125)
     expect(result.session.user.projectLeader).toBe(false)
-    expect(walletFindUniqueMock).toHaveBeenCalledWith({ where: { userId: 'manager-1' }, select: { balance: true } })
+    expect(walletFindUniqueMock).not.toHaveBeenCalled()
   })
 
   it('refreshes projectLeader from the database so revocation takes effect on the next request', async () => {
@@ -161,14 +163,14 @@ describe('account session policy', () => {
   })
   it('keeps the authenticated operator as quota principal, without changing the shared data scope', async () => {
     const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
-    const { withAccountPermissionContext, getGenerationQuotaUserId } = await import('@/lib/account/request-context')
+    const { withAccountPermissionContext, resolveGenerationPayerId } = await import('@/lib/account/request-context')
     await withAccountPermissionContext([], async () => {
       const result = await requireUserAuth()
       expect(isErrorResponse(result)).toBe(false)
-      expect(getGenerationQuotaUserId('manager-1')).toBe('user-1')
-      expect(getGenerationQuotaUserId('another-manager')).toBe('another-manager')
+      expect(resolveGenerationPayerId('manager-1')).toBe('user-1')
+      expect(resolveGenerationPayerId('another-manager')).toBe('another-manager')
     })
-    expect(getGenerationQuotaUserId('manager-1')).toBe('manager-1')
+    expect(resolveGenerationPayerId('manager-1')).toBe('manager-1')
   })
 
   it('uses the current database role for permission checks after a role change', async () => {

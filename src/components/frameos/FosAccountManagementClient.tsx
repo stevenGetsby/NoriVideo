@@ -30,6 +30,7 @@ import {
   BulkAllocateDialog,
 } from './FosAccountManagementParts'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
+import type { PointMode } from '@/lib/billing/point-mode'
 import { updateDailyUsageLimit } from '@/lib/billing/daily-limit-display'
 import { dailyLimitSaveMessage } from '@/lib/billing/daily-limit-policy'
 
@@ -44,6 +45,7 @@ interface ManagedAccount {
   parentAccountId: string | null
   workspaceOwnerId: string | null
   credits: AccountCredits
+  pointMode: PointMode | null
   dailyLimitPoints: number | null
   usageToday?: DailyUsagePayload | null
   createdAt: string
@@ -69,6 +71,7 @@ interface AccountDraft {
   coinCredits: string
   pointCredits: string
   dailyPointLimit: string
+  pointMode: PointMode
 }
 
 const NEW_ACCOUNT_DRAFT: AccountDraft = {
@@ -81,6 +84,7 @@ const NEW_ACCOUNT_DRAFT: AccountDraft = {
   coinCredits: '0',
   pointCredits: '0',
   dailyPointLimit: 'unlimited',
+  pointMode: 'unlimited',
 }
 
 function formatDate(value: string | null) {
@@ -185,7 +189,7 @@ export function FosAccountManagementClient() {
       coinCredits: String(account.credits.coins),
       pointCredits: String(account.credits.points),
       dailyPointLimit: account.dailyLimitPoints === null ? 'unlimited' : String(account.dailyLimitPoints),
-
+      pointMode: account.pointMode ?? 'unlimited',
     })
     setDialogError('')
     setMode('edit')
@@ -206,7 +210,7 @@ export function FosAccountManagementClient() {
             username: draft.username.trim(),
             projectLeader: draft.projectLeader,
             dailyPointLimit: draft.dailyPointLimit === 'unlimited' ? 'unlimited' : Number(draft.dailyPointLimit),
-
+            pointMode: draft.pointMode,
             ...(!isCreate ? { status: draft.status } : {}),
             ...(draft.password ? { password: draft.password } : {}),
           }),
@@ -349,7 +353,8 @@ export function FosAccountManagementClient() {
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {([
-              ['total', '共享可用积分', formatNumber(workspace?.manager.credits.points || 0)],
+              ['total', '我的可用积分', formatNumber(workspace?.manager.credits.points || 0)],
+              ['memberTotal', '成员可用积分合计', formatNumber(subaccounts.reduce((sum, account) => sum + (account.credits.points || 0), 0))],
               ['subaccounts', '角色子账号', subaccounts.length],
               ['projects', '工作区作品', workspace?.usage.projects || 0],
               ['assets', '工作区资产', workspace?.usage.assets || 0],
@@ -378,7 +383,7 @@ export function FosAccountManagementClient() {
             <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
               <div>
                 <h2 className="text-[13px] font-bold text-white">{workspace?.manager.username || '当前管理账号'}的子账号</h2>
-                <p className="mt-1 text-[11px] leading-5 text-white/45">目前成员生成仍从管理账号扣积分；分配给成员的积分会在切换为“谁点生成谁扣积分”后开始使用。</p>
+                <p className="mt-1 text-[11px] leading-5 text-white/45">成员点生成，积分记在成员自己的账上。“无限积分”的成员积分不够时，自动从你的账号补足差额；“分配积分”的成员只用分配给他的积分。每日额度 0 禁止生成，unlimited 不限每日用量。</p>
               </div>
               <button type="button" data-testid="bulk-allocate-open" className="fos-btn fos-btn-ghost" disabled={!selectedIds.size} onClick={openBulkAllocate}>批量分配（{selectedIds.size}）</button>
             </div>
@@ -404,7 +409,12 @@ export function FosAccountManagementClient() {
                         <i className={`h-1.5 w-1.5 rounded-full ${account.status === 'active' ? 'bg-emerald-400' : 'bg-white/25'}`} />
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
-                      <Credits credits={account.credits} />
+                      <span className="flex flex-col gap-1">
+                        <Credits credits={account.credits} />
+                        <span className={`w-fit rounded-full border px-2 py-1 text-[10px] font-semibold ${account.pointMode === 'allocated' ? 'border-white/15 bg-white/[.04] text-white/60' : 'border-emerald-400/25 bg-emerald-400/[.08] text-emerald-200'}`}>
+                          {account.pointMode === 'allocated' ? '分配积分' : '无限积分'}
+                        </span>
+                      </span>
                       <span className="text-[11px] text-white/60">{formatNumber(account.managerPaid90dPoints || 0)}</span>
                       <DailyUsageCell usage={account.usageToday} />
                       <span className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-white/55">
@@ -444,7 +454,9 @@ export function FosAccountManagementClient() {
           workspaces={workspace ? [workspace] : []}
           saving={saving}
           error={dialogError}
-          onDraft={setDraft}
+          initialPointMode={target?.pointMode ?? 'unlimited'}
+          currentPoints={target?.credits.points ?? null}
+          onDraft={(next) => setDraft({ ...next, pointMode: next.pointMode ?? 'unlimited' })}
           onClose={() => setMode(null)}
           onSubmit={() => void submit()}
         />

@@ -1,20 +1,28 @@
 // Real CanvasGraph / generator / account UI; all writes and generation APIs
 // are mocked locally. No paid model calls and no production data changes.
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
-import { mkdir, readFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
-
+import { createRequire } from 'node:module'
 const root = process.cwd()
 const tools = createRequire(path.join(process.env.NORI_BROWSER_TOOLS_DIR || root, 'package.json'))
 const { chromium } = tools('playwright-core')
-const operations = await import(path.join(root, 'src/lib/canvas/operations.ts'))
-const { validateCanvasOperationsSaveInput } = operations.default || operations
-const documentContract = await import(path.join(root, 'src/lib/canvas/document.ts'))
-const { validateCanvasDocumentSaveInput } = documentContract.default || documentContract
 const artifacts = path.join(root, 'test-results/canvas-ui-regression')
 await mkdir(artifacts, { recursive: true })
+const { build } = await import('esbuild')
+const validatorBundle = await build({
+  entryPoints: ['src/lib/canvas/operations.ts', 'src/lib/canvas/document.ts'],
+  bundle: true, write: false, outdir: '/validators', platform: 'node', format: 'cjs', packages: 'external',
+})
+const validators = Object.fromEntries(await Promise.all(validatorBundle.outputFiles.map(async (file) => {
+  const filename = path.join(artifacts, `${path.basename(file.path, '.js')}-validator.cjs`)
+  await writeFile(filename, file.contents)
+  return [path.basename(file.path), createRequire(filename)(filename)]
+})))
+await Promise.all(validatorBundle.outputFiles.map((file) => rm(path.join(artifacts, `${path.basename(file.path, '.js')}-validator.cjs`), { force: true })))
+const { validateCanvasOperationsSaveInput } = validators['operations.js']
+const { validateCanvasDocumentSaveInput } = validators['document.js']
 let appCss
 const workspace = new URL(process.env.NORI_WORKSPACE_URL || 'http://127.0.0.1:3000')
 assert.ok(['localhost', '127.0.0.1'].includes(workspace.hostname))
@@ -99,6 +107,11 @@ async function open(viewport, query = '') {
   page.setQuota = (value) => { savedLimit = value }
   let walletPoints = 1000
   page.setWallet = (value) => { walletPoints = value }
+  const fixtureMember = new URLSearchParams(query).get('session') === 'child'
+  let walletPointMode = 'unlimited'
+  page.setPointMode = (value) => { walletPointMode = value }
+  let creditAvailableOverride = null
+  page.setCreditAvailable = (value) => { creditAvailableOverride = value }
   let holdNextBalance = query.includes('slow=1')
   const heldBalanceReads = []
   let firstHeldBalance
@@ -188,7 +201,15 @@ async function open(viewport, query = '') {
     }
     else if (url.pathname.endsWith('/generation-quote')) payload = { points: 20, costCny: 0.2 }
     else if (url.pathname.endsWith('/balance')) {
-      payload = { balancePoints: walletPoints, generationAllowed: walletPoints > 0 && !usage().exceeded, dailyLimitPoints: savedLimit, dailyUsedPoints: 110, dailyLimitExceeded: usage().exceeded }
+      const creditAvailable = creditAvailableOverride ?? walletPoints > 0
+      payload = {
+        balancePoints: walletPoints,
+        isMember: fixtureMember,
+        pointMode: fixtureMember ? walletPointMode : null,
+        creditAvailable,
+        generationAllowed: creditAvailable && !usage().exceeded,
+        dailyLimitPoints: savedLimit, dailyUsedPoints: 110, dailyLimitExceeded: usage().exceeded,
+      }
       if (holdNextBalance) {
         holdNextBalance = false
         await new Promise((resolve) => { heldBalanceReads.push(resolve); firstHeldBalance() })
@@ -266,6 +287,10 @@ async function open(viewport, query = '') {
           await new Promise((resolve) => { releaseHeldCanvasWrite = resolve; held() })
         }
         const body = route.request().postDataJSON()
+        if (typeof body?.expectedRevision === 'number' && body.expectedRevision !== graph.canvas.revision) {
+          await route.fulfill({ status: 409, contentType: 'application/json', body: JSON.stringify({ message: '画布已在其他标签页更新', actualRevision: graph.canvas.revision }) })
+          return
+        }
         if (failNextRecoverySave && body?.nodes) {
           failNextRecoverySave = false
           await route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ message: '模拟恢复保存失败' }) })
@@ -289,6 +314,7 @@ async function open(viewport, query = '') {
         if (body?.nodes) graph = { ...graph, nodes: body.nodes }
         if (body?.edges) graph = { ...graph, edges: body.edges }
         for (const op of body?.ops || []) {
+          if (op.type === 'canvas.update_meta') graph.canvas = { ...graph.canvas, ...(op.title !== undefined ? { title: op.title } : {}), ...(op.themeColor !== undefined ? { themeColor: op.themeColor } : {}), ...(op.viewport !== undefined ? { viewport: op.viewport } : {}) }
           if (op.type === 'node.upsert') {
             const exists = graph.nodes.some((node) => node.id === op.node.id)
             graph.nodes = exists ? graph.nodes.map((n) => n.id === op.node.id ? { ...n, ...op.node } : n) : [...graph.nodes, op.node]
@@ -304,8 +330,17 @@ async function open(viewport, query = '') {
           if (op.type === 'node.delete') graph.nodes = graph.nodes.filter((node) => node.id !== op.id)
         }
         graph = { ...graph, canvas: { ...graph.canvas, revision: graph.canvas.revision + 1 } }
+        if (body?.ops && route.request().headers()['x-nori-canvas-response'] === 'delta') {
+          payload = {
+            ...graph,
+            nodes: body.ops.filter((op) => op.type === 'node.upsert').map((op) => ({ ...op.node, canvasId: 'canvas-1' })),
+            edges: body.ops.filter((op) => op.type === 'edge.add').map((op) => ({ ...op.edge, canvasId: 'canvas-1' })),
+            deletedNodeIds: body.ops.filter((op) => op.type === 'node.delete').map((op) => op.id),
+            deletedEdgeIds: body.ops.filter((op) => op.type === 'edge.delete').map((op) => op.id),
+          }
+        }
       }
-      payload = graph
+      if (!payload) payload = graph
     } else payload = { voices: [], materials: [], projects: [] }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(payload) })
   })
@@ -885,8 +920,11 @@ try {
   assert.equal(await panoramaGenerator.locator('textarea[role="combobox"]').inputValue(), '把参考场景转换为无缝衔接的 21:9 超宽幅 720° 全景图。保持原场景的建筑、陈设、材质、时间、天气与光影一致；补全画面左右和背后的空间，地平线保持水平，画面边缘可无缝拼接；不要人物特写、文字、水印、边框或多宫格。')
   assert.equal(await globalStyle.locator('.nori-canvas-dialog').count(), 0, '720 panorama creates a linked image-processing draft without paid generation')
   await selectCanvasNode(globalStyle, 'image-near')
-  for (let index = 0; index < 4; index += 1) {
+  const readCanvasZoom = () => globalStyle.locator('.react-flow__viewport').evaluate((element) => Number(element.style.transform.match(/scale\(([^)]+)\)/)?.[1] || 1))
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (await readCanvasZoom() >= 4.5) break
     await globalStyle.locator('.nori-canvas-viewport-controls').getByRole('button', { name: '放大', exact: true }).click()
+    await globalStyle.waitForTimeout(180)
   }
   await globalStyle.waitForFunction(() => {
     const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
@@ -1117,7 +1155,9 @@ try {
 
   const billing = await open({ width: 1024, height: 600 }, '?view=billing&session=child')
   await billing.getByTestId('wallet-points').getByText('1000', { exact: true }).waitFor()
-  assert.equal(await billing.getByTestId('wallet-scope').textContent(), 'workspace')
+  assert.equal(await billing.getByTestId('wallet-member').textContent(), 'true')
+  assert.equal(await billing.getByTestId('wallet-point-mode').textContent(), 'unlimited')
+  assert.equal(await billing.getByTestId('wallet-credit-available').textContent(), 'true')
   assert.equal(await billing.getByTestId('generate').isEnabled(), true)
   billing.armStaleBalanceRead()
   const heldBalanceRequest = billing.waitForRequest((request) => new URL(request.url()).pathname === '/api/user/balance')
@@ -1142,8 +1182,27 @@ try {
   assert.equal(await billing.getByTestId('wallet-points').textContent(), '0', 'Do not show a previous account wallet while switching identity')
   assert.equal(await billing.getByTestId('generate').isDisabled(), true)
   billing.releaseStaleBalanceRead()
-  await billing.getByTestId('wallet-status').getByText('积分不足，无法生成', { exact: true }).waitFor()
+  await billing.getByTestId('wallet-status').getByText('管理账号积分不足，请联系管理账号充值', { exact: true }).waitFor()
   await billing.close()
+
+  const unlimitedMember = await open({ width: 1024, height: 600 }, '?view=billing&session=child')
+  await unlimitedMember.getByTestId('wallet-points').getByText('1000', { exact: true }).waitFor()
+  unlimitedMember.setWallet(0)
+  unlimitedMember.setCreditAvailable(true)
+  await unlimitedMember.getByRole('button', { name: '刷新额度', exact: true }).click()
+  await unlimitedMember.waitForFunction(() => !document.querySelector('[data-testid="generate"]').disabled)
+  assert.equal(await unlimitedMember.getByTestId('wallet-credit-available').textContent(), 'true')
+  assert.equal(await unlimitedMember.getByTestId('wallet-status').textContent(), '可以生成')
+  await unlimitedMember.close()
+
+  const allocatedMember = await open({ width: 1024, height: 600 }, '?view=billing&session=child')
+  await allocatedMember.getByTestId('wallet-points').getByText('1000', { exact: true }).waitFor()
+  allocatedMember.setWallet(0)
+  allocatedMember.setPointMode('allocated')
+  await allocatedMember.getByRole('button', { name: '刷新额度', exact: true }).click()
+  await allocatedMember.getByTestId('wallet-status').getByText('积分已用完，请联系管理账号分配积分', { exact: true }).waitFor()
+  assert.equal(await allocatedMember.getByTestId('generate').isDisabled(), true)
+  await allocatedMember.close()
 
   for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 600 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 768, height: 480 }, { width: 1280, height: 480 }]) {
     const page = await open(viewport)
@@ -1521,15 +1580,15 @@ try {
 
   const accounts = await open({ width: 1280, height: 720 }, '?view=accounts')
   await accounts.getByText('回归子账号', { exact: true }).waitFor()
-  const actionButtons = await accounts.locator('.min-w-\\[1460px\\] > div:not(:first-child) span.sticky button').evaluateAll((elements) => elements.map((element) => {
+  const actionButtons = await accounts.locator('.min-w-\\[1660px\\] > div:not(:first-child) span.sticky button').evaluateAll((elements) => elements.map((element) => {
     const box = element.getBoundingClientRect()
     return { text: element.textContent, left: box.left, right: box.right, top: box.top, bottom: box.bottom }
   }))
-  assert.deepEqual(actionButtons.map((button) => button.text), ['流水', '设置额度', '收回', '编辑', '删除'])
+  assert.deepEqual(actionButtons.map((button) => button.text), ['流水', '分配', '收回', '设置额度', '编辑', '删除'])
   for (let index = 1; index < actionButtons.length; index++) {
     assert.ok(actionButtons[index].left >= actionButtons[index - 1].right, `Account action buttons must not overlap: ${JSON.stringify(actionButtons)}`)
   }
-  const accountTable = accounts.locator('.min-w-\\[1460px\\]').first()
+  const accountTable = accounts.locator('.min-w-\\[1660px\\]').first()
   const tableGeometry = await accountTable.evaluate((element) => ({
     width: element.clientWidth,
     scrollWidth: element.scrollWidth,

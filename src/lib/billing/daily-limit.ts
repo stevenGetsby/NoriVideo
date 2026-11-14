@@ -4,7 +4,7 @@ import { cnyToPoints } from './credit-policy'
 import { DailyLimitExceededError } from './errors'
 import { toMoneyNumber } from './money'
 import { normalizeDailyPointLimit } from './daily-limit-policy'
-import { getGenerationQuotaUserId } from '@/lib/account/request-context'
+import { resolveGenerationPayerId } from '@/lib/account/request-context'
 export { MAX_DAILY_POINT_LIMIT, normalizeDailyPointLimit, isValidDailyPointLimitInput } from './daily-limit-policy'
 
 /**
@@ -170,9 +170,11 @@ export async function getDailyUsageSnapshotMap(
   const pendingByUser = new Map(
     pendingRows.map((row) => [row.userId, Math.abs(toMoneyNumber(row._sum.amount ?? 0))]),
   )
-  // Shared workspace tasks retain their historical wallet ownership, while
-  // quota attribution follows the authenticated operator. Never change which
-  // account is debited as part of a quota/UI update.
+  // Payer switch history: charges created before the switch live in the
+  // manager wallet and carry a quotaUserId, so they are attributed to the
+  // member here. Charges created after the switch live in the member's own
+  // wallet and have no quotaUserId. auto_allocate_* rows are never `consume`,
+  // so the top-up itself does not count toward daily usage.
   const childOwners = new Map(accounts.flatMap((account) => account.workspaceOwnerId && account.workspaceOwnerId !== account.id
     ? [[account.id, account.workspaceOwnerId] as const] : []))
   const quotaWallets = Array.from(new Set([
@@ -233,7 +235,7 @@ export async function assertDailyLimit(
   options?: { additionalCostCny?: number; now?: Date },
   client: DailyUsageClient = prisma,
 ): Promise<DailyUsageSnapshot> {
-  const snapshot = await getDailyUsageSnapshot(getGenerationQuotaUserId(userId), options?.now, client)
+  const snapshot = await getDailyUsageSnapshot(resolveGenerationPayerId(userId), options?.now, client)
   return assertSnapshotLimit(snapshot, options)
 }
 

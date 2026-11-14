@@ -11,6 +11,7 @@ import { apiFetch } from '@/lib/api-fetch'
 import { hasAccountPermissions, isManagementRole } from '@/lib/account/permissions'
 import { assignmentAttentionCount } from './assignments-view-model'
 import { useAccountBalance, type DailyBalanceUsage } from '@/hooks/common/useAccountBalance'
+import type { PointMode } from '@/lib/billing/point-mode'
 import { FeedbackModal, AccountModal, UpdatesToast } from './FosShellModals'
 import { FosCanvasShellContext } from './FosCanvasShellContext'
 import { FosSidebarResizer } from './FosSidebarResizer'
@@ -77,9 +78,17 @@ export function FosTitlebar({ title }: { title?: string }) {
   )
 }
 
-function BalancePill({ points, dailyUsage, walletScope }: { points: number; dailyUsage: DailyBalanceUsage | null; walletScope: 'personal' | 'workspace' }) {
+function BalancePill({ points, dailyUsage, isMember, pointMode, creditAvailable }: {
+  points: number
+  dailyUsage: DailyBalanceUsage | null
+  isMember: boolean
+  pointMode: PointMode | null
+  creditAvailable: boolean | null
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const unlimitedMember = isMember && pointMode === 'unlimited'
+  const short = creditAvailable === false
   const display = (value: number) => Number.isInteger(value)
     ? String(value)
     : value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -104,17 +113,21 @@ function BalancePill({ points, dailyUsage, walletScope }: { points: number; dail
     <div ref={rootRef} className="relative">
       <button type="button" className="fos-credits" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span className="fos-cr-badge blue">◆</span>
-        <span className="fos-cr-label">{walletScope === 'workspace' ? '共享积分' : '积分'}</span>
-        <span className={points <= 0 ? 'text-red-300' : ''}>{display(points)}</span>
+        <span className="fos-cr-label">{unlimitedMember ? '我的积分（无限）' : '我的积分'}</span>
+        <span className={short ? 'text-red-300' : ''}>{display(points)}</span>
       </button>
       {open ? (
         <div className="fos-balance-pop" role="menu">
           <h3>积分账户</h3>
           <div className="fos-bp-cards is-single">
             <div className="fos-bp-card">
-              <div className="fos-bp-card-label">{walletScope === 'workspace' ? '管理账号共享可用积分' : '可用积分'}</div>
-              <div className={`fos-bp-card-value${points <= 0 ? ' text-red-300' : ''}`}>{display(points)}</div>
-              <div className="fos-bp-card-desc">¥1 = 100 积分 · {walletScope === 'workspace' ? '从管理账号共享钱包扣费，另按个人每日限额校验' : '积分不足会停止全部生成服务'}</div>
+              <div className="fos-bp-card-label">可用积分</div>
+              <div className={`fos-bp-card-value${short ? ' text-red-300' : ''}`}>{display(points)}</div>
+              <div className="fos-bp-card-desc">¥1 = 100 积分 · {isMember
+                ? unlimitedMember
+                  ? '无限积分：自己的积分不够时，自动从管理账号补足'
+                  : '积分由管理账号分配，不足时请联系管理账号'
+                : '积分不足会停止全部生成服务'}</div>
             </div>
           </div>
           {dailyUsage?.limitPoints != null ? (
@@ -145,7 +158,7 @@ function BalancePill({ points, dailyUsage, walletScope }: { points: number; dail
 
 export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
   const { data: session } = useSession()
-  const { points, dailyUsage, walletScope } = useAccountBalance()
+  const { points, dailyUsage, isMember, pointMode, creditAvailable } = useAccountBalance()
   const role = session?.user?.role
   const roleLabel = role === 'super_admin'
     ? '平台 Admin · 全部权限'
@@ -166,7 +179,7 @@ export function FosHeader({ canvasMode = false }: { canvasMode?: boolean }) {
             {roleLabel}
           </span>
         ) : null}
-        <BalancePill points={points} dailyUsage={dailyUsage} walletScope={walletScope} />
+        <BalancePill points={points} dailyUsage={dailyUsage} isMember={isMember} pointMode={pointMode} creditAvailable={creditAvailable} />
       </div>
     </div>
   )

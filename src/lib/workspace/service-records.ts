@@ -1,7 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { Prisma } from '@prisma/client'
 import { getBalance } from '@/lib/billing'
-import { resolveBillingPrincipals } from '@/lib/account/billing-identity'
 import { getVisibleUserTotalSpent } from '@/lib/billing/reporting'
 import { isManagerPaid, resolveRecordScope, taskWhere, transactionWhere, usageCostWhere, type RecordScope } from '@/lib/billing/actor-scope'
 import { BILLING_CURRENCY } from '@/lib/billing/currency'
@@ -730,7 +729,7 @@ export async function buildServiceRecordsOverview(userId: string, options: Build
   const taskReadLimit = resolveTaskReadLimit(taskLimit)
   const [tasksRaw, balance, totalSpent, transactions, usageCostsRaw] = await Promise.all([
     readTaskRows(scope, taskReadLimit),
-    getBalance(resolveBillingPrincipals({ id: userId, actorId: options.actorId }).walletUserId),
+    getBalance(scope.kind === 'self' ? scope.actorId : userId),
     scope.kind === 'self'
       ? prisma.balanceTransaction.aggregate({
         where: { AND: [transactionWhere(scope), { type: 'consume' }] },

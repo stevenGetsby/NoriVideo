@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const ledgerMock = vi.hoisted(() => ({
-  getBalance: vi.fn(),
+  getSpendableBalance: vi.fn(),
 }))
 const dailyLimitMock = vi.hoisted(() => ({
   assertDailyLimit: vi.fn(),
@@ -28,7 +28,13 @@ function dailyLimitError(overrides?: { limitPoints?: number; usedPoints?: number
 describe('billing/generation-gate', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ledgerMock.getBalance.mockResolvedValue({ balance: 10 })
+    ledgerMock.getSpendableBalance.mockResolvedValue({
+      own: { balance: 10 },
+      spendableCny: 10,
+      isMember: false,
+      pointMode: null,
+      ownerUserId: null,
+    })
     dailyLimitMock.assertDailyLimit.mockResolvedValue({ limitPoints: null })
   })
 
@@ -38,7 +44,13 @@ describe('billing/generation-gate', () => {
   })
 
   it('余额为 0 时仍先报余额不足', async () => {
-    ledgerMock.getBalance.mockResolvedValue({ balance: 0 })
+    ledgerMock.getSpendableBalance.mockResolvedValue({
+      own: { balance: 0 },
+      spendableCny: 0,
+      isMember: false,
+      pointMode: null,
+      ownerUserId: null,
+    })
 
     await expect(requireGenerationCredit('u1')).rejects.toMatchObject({
       code: 'INSUFFICIENT_BALANCE',

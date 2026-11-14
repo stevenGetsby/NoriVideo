@@ -31,6 +31,7 @@ function account(overrides: Record<string, unknown> = {}) {
     parentAccountId: 'manager-1',
     coinCredits: 0,
     dailyPointLimit: null,
+    pointMode: 'unlimited',
     balance: { balance: 0 },
     createdAt: new Date('2026-11-01T00:00:00.000Z'),
     updatedAt: new Date('2026-11-01T00:00:00.000Z'),
@@ -112,5 +113,46 @@ describe('project leader account administration', () => {
     }
     expect(prismaMock.user.create).toHaveBeenCalledTimes(2)
     expect(prismaMock.user.create.mock.calls.every(([input]) => input.data.role === 'writer' && input.data.workspaceOwnerId === 'manager-1')).toBe(true)
+  })
+
+  it('stores an explicit point mode for subaccounts and defaults to unlimited', async () => {
+    const { POST } = await import('@/app/api/admin/accounts/route')
+    prismaMock.user.create.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      account({ id: String(data.name), name: data.name, pointMode: data.pointMode }))
+    const create = (body: Record<string, unknown>) => POST(new NextRequest('http://localhost/api/admin/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountType: 'subaccount', username: 'member-c', password: 'not-a-real-password', ...body }),
+    }) as never, { params: Promise.resolve({}) })
+
+    const allocated = await create({ pointMode: 'allocated' })
+    expect(allocated.status).toBe(201)
+    expect(prismaMock.user.create.mock.calls[0][0].data.pointMode).toBe('allocated')
+    expect((await allocated.json()).account.pointMode).toBe('allocated')
+
+    const fallback = await create({ username: 'member-d' })
+    expect(fallback.status).toBe(201)
+    expect(prismaMock.user.create.mock.calls[1][0].data.pointMode).toBe('unlimited')
+    expect((await fallback.json()).account.pointMode).toBe('unlimited')
+  })
+
+  it('rejects invalid point modes and point modes on management accounts', async () => {
+    const { POST } = await import('@/app/api/admin/accounts/route')
+    const create = (authRole: 'admin' | 'super_admin', body: Record<string, unknown>) => {
+      authMock.requireAdminAuth.mockResolvedValueOnce({
+        session: { user: { id: authRole === 'super_admin' ? 'root-1' : 'manager-1', actorId: authRole === 'super_admin' ? 'root-1' : 'manager-1', role: authRole } },
+      })
+      return POST(new NextRequest('http://localhost/api/admin/accounts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: 'member-e', password: 'not-a-real-password', ...body }),
+      }) as never, { params: Promise.resolve({}) })
+    }
+
+    for (const pointMode of ['shared', '', true, 1, null]) {
+      expect((await create('admin', { accountType: 'subaccount', pointMode })).status).toBe(400)
+    }
+    expect((await create('super_admin', { accountType: 'manager', pointMode: 'unlimited' })).status).toBe(400)
+    expect(prismaMock.user.create).not.toHaveBeenCalled()
   })
 })

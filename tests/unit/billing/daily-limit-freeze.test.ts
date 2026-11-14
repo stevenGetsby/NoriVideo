@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const prismaMock = vi.hoisted(() => ({
   user: {
     findMany: vi.fn(async (): Promise<Array<{ id: string; dailyPointLimit: number | null }>> => []),
+    findUnique: vi.fn(async () => ({ role: 'admin', workspaceOwnerId: null, pointMode: 'unlimited' })),
   },
   balanceTransaction: {
     groupBy: vi.fn(async (): Promise<Array<{ userId: string; _sum: { amount: unknown } }>> => []),
@@ -31,6 +32,7 @@ describe('billing/daily-limit 冻结闸门', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.user.findMany.mockResolvedValue([])
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'admin', workspaceOwnerId: null, pointMode: 'unlimited' })
     prismaMock.balanceTransaction.groupBy.mockResolvedValue([])
     prismaMock.balanceFreeze.groupBy.mockResolvedValue([])
     prismaMock.balanceFreeze.findUnique.mockResolvedValue(null)

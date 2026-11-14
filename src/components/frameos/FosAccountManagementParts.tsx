@@ -11,6 +11,7 @@ import {
 import type { AccountCredits } from '@/lib/account/credits'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
 import { isValidDailyPointLimitInput } from '@/lib/billing/daily-limit-policy'
+import type { PointMode } from '@/lib/billing/point-mode'
 import { ViewportDialogLayer } from './ViewportDialogLayer'
 import { useDialogDismiss } from './use-dialog-dismiss'
 
@@ -25,6 +26,8 @@ interface ManagedAccount {
   parentAccountId: string | null
   workspaceOwnerId: string | null
   credits: AccountCredits
+  /** 积分方式；管理账号为 null。 */
+  pointMode?: PointMode | null
   /** 每日用量上限（积分），null 表示不限制。 */
   dailyLimitPoints: number | null
   /** 今日（上海自然日）已用积分，读接口返回。 */
@@ -54,6 +57,7 @@ interface CreditLedgerPayload {
     type: string
     amountPoints: number
     balanceAfterPoints: number | null
+    counterpartName?: string | null
     paidBy?: 'manager'
     description: string | null
     createdAt: string
@@ -71,6 +75,8 @@ interface AccountDraft {
   pointCredits: string
   /** 每日用量上限（积分），unlimited 表示不限制，0 禁止生成。 */
   dailyPointLimit: string
+  /** 只有工作区账号弹窗提供该字段；平台后台的草稿没有它，因此不显示积分方式。 */
+  pointMode?: PointMode
 }
 
 function formatPointsValue(value: number) {
@@ -137,6 +143,8 @@ export function AccountDialog({
   allowAccountTypeChoice = true,
   saving,
   error,
+  initialPointMode,
+  currentPoints,
   onDraft,
   onClose,
   onSubmit,
@@ -149,6 +157,8 @@ export function AccountDialog({
   allowAccountTypeChoice?: boolean
   saving: boolean
   error: string
+  initialPointMode?: PointMode
+  currentPoints?: number | null
   onDraft: (draft: AccountDraft) => void
   onClose: () => void
   onSubmit: () => void
@@ -156,12 +166,20 @@ export function AccountDialog({
   const platformOperator = operatorRole === 'super_admin'
   const creatingManager = mode === 'create' && draft.accountType === 'manager'
   const editingManagementAccount = mode === 'edit' && Boolean(target?.isManager)
+  const showZeroPointWarning = mode === 'edit'
+    && initialPointMode === 'unlimited'
+    && draft.pointMode === 'allocated'
+    && (currentPoints ?? 0) <= 0
   const canEditStatus = mode === 'edit'
     && target?.role !== 'super_admin'
     && (platformOperator || !editingManagementAccount)
   const title = mode === 'create'
     ? creatingManager ? '添加管理账号' : '添加子账号'
     : `编辑 ${draft.username}`
+  const pointModeOptions = [
+    { value: 'unlimited', title: '无限积分', desc: '自己的积分不够时，自动从管理账号补足差额' },
+    { value: 'allocated', title: '分配积分', desc: '只用分配给他的积分，用完即停止生成' },
+  ] as const
   useDialogDismiss(true, onClose, !saving)
 
   return (
@@ -277,6 +295,37 @@ export function AccountDialog({
             </label>
           ) : null}
 
+          {draft.accountType === 'subaccount' && draft.pointMode !== undefined ? (
+            <div className="mt-5 block">
+              <span id="account-point-mode-label" className="mb-2 block text-[11px] font-semibold text-white/60">积分方式</span>
+              <div role="radiogroup" aria-labelledby="account-point-mode-label" className="grid grid-cols-2 gap-2">
+                {pointModeOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={draft.pointMode === option.value}
+                    data-testid={`account-point-mode-${option.value}`}
+                    onClick={() => onDraft({ ...draft, pointMode: option.value })}
+                    onKeyDown={(event) => {
+                      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                      event.preventDefault()
+                      onDraft({ ...draft, pointMode: draft.pointMode === 'unlimited' ? 'allocated' : 'unlimited' })
+                    }}
+                    className={`rounded-[10px] border p-3 text-left ${draft.pointMode === option.value ? 'border-violet-400/35 bg-violet-400/[.09]' : 'border-white/[.07] bg-white/[.025]'}`}
+                  >
+                    <span className="block text-[12px] font-semibold">{option.title}</span>
+                    <span className="mt-1 block text-[10px] leading-4 text-white/45">{option.desc}</span>
+                  </button>
+                ))}
+              </div>
+              <span className="mt-1.5 block text-[10px] leading-4 text-white/35">两种方式下，成员的每次生成都记在成员自己的账上。</span>
+              {showZeroPointWarning ? (
+                <span role="alert" className="mt-1.5 block text-[10px] leading-4 text-amber-200">该成员当前积分为 0，改为“分配积分”后将无法生成，请保存后给他分配积分。</span>
+              ) : null}
+            </div>
+          ) : null}
+
           <div className="mt-5 block">
             <label className="mb-3 block">
               <span className="mb-2 block text-[11px] font-semibold text-white/60">每日用量模式</span>
@@ -308,7 +357,9 @@ export function AccountDialog({
 
           {mode === 'create' ? (
             <div className="mt-5 rounded-[10px] border border-white/15 bg-white/[.06] px-4 py-3">
-              <p className="text-[11px] leading-5 text-neutral-200/70">新账号积分默认为 0。创建后请使用独立的充值、分配或收回操作，所有变动都会记录到账本。</p>
+              <p className="text-[11px] leading-5 text-neutral-200/70">{draft.accountType === 'subaccount'
+                ? '新账号积分默认为 0，积分方式默认“无限积分”。之后可以随时分配或收回积分，所有变动都会记录到账本。'
+                : '新账号积分默认为 0。创建后请使用独立的充值、分配或收回操作，所有变动都会记录到账本。'}</p>
             </div>
           ) : null}
 
@@ -356,6 +407,8 @@ const CREDIT_TRANSACTION_LABELS: Record<string, string> = {
   allocate_in: '管理账号分配',
   reclaim_out: '积分被收回',
   reclaim_in: '收回子账号积分',
+  auto_allocate_out: '自动分配给子账号',
+  auto_allocate_in: '管理账号自动分配',
   usage: '服务消耗',
   consume: '服务消耗',
   refund: '消费退回',
@@ -428,7 +481,7 @@ export function CreditLedgerDialog({
                 <div className="min-w-[620px]"><div className="grid grid-cols-[130px_1fr_130px_150px] gap-3 border-b border-white/[.08] bg-white/[.025] px-4 py-3 text-[10px] font-semibold text-white/40"><span>时间</span><span>类型 / 备注</span><span className="text-right">积分变动</span><span className="text-right">变动后余额</span></div>
                 {payload.transactions.length ? payload.transactions.map((transaction) => {
                   const note = transactionNote(transaction.description)
-                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}{transaction.paidBy === 'manager' ? <span className="ml-2 rounded-full border border-white/15 bg-white/[.04] px-2 py-0.5 text-[9px] text-white/55">管理账号代付</span> : null}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints === null ? '—' : transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
+                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}{transaction.counterpartName ? ` · ${transaction.counterpartName}` : ''}{transaction.paidBy === 'manager' ? <span className="ml-2 rounded-full border border-white/15 bg-white/[.04] px-2 py-0.5 text-[9px] text-white/55">管理账号代付</span> : null}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints === null ? '—' : transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
                 }) : <div className="py-12 text-center text-[11px] text-white/35">暂无积分变动</div>}
                 </div>
               </div>

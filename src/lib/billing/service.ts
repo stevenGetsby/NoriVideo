@@ -23,6 +23,7 @@ import {
   getFreezeByIdempotencyKey,
   increasePendingFreezeAmount,
   recordShadowUsage,
+  resolveFundingSource,
   rollbackFreeze,
 } from './ledger'
 import type { ApiType, UsageUnit } from './cost'
@@ -36,7 +37,7 @@ import type {
 } from './types'
 import { BUILTIN_PRICING_VERSION } from '@/lib/model-pricing/version'
 import { requireGenerationCredit } from './generation-gate'
-import { getGenerationQuotaUserId } from '@/lib/account/request-context'
+import { resolveGenerationPayerId } from '@/lib/account/request-context'
 
 type CostInput = {
   apiType: ApiType
@@ -231,7 +232,6 @@ function clampChargedCost(actualCost: number, freezeCost: number) {
 
 async function ensureFreezeCoverage(params: {
   freezeId: string
-  userId: string
   actualCost: number
   quotedCost: number
 }): Promise<number> {
@@ -250,9 +250,19 @@ async function ensureFreezeCoverage(params: {
     return chargedCost
   }
 
+  // The freeze row owns the payer; a task frozen before the payer switch is
+  // still settled against the manager wallet and must not auto-top-up.
+  const freeze = await prisma.balanceFreeze.findUnique({
+    where: { id: params.freezeId },
+    select: { userId: true },
+  })
   await rollbackFreeze(params.freezeId)
-  const balance = await getBalance(params.userId)
-  throw new InsufficientBalanceError(chargedCost, balance.balance)
+  const payerId = freeze?.userId
+  if (!payerId) {
+    throw new InsufficientBalanceError(chargedCost, 0)
+  }
+  const [balance, funding] = await Promise.all([getBalance(payerId), resolveFundingSource(payerId)])
+  throw new InsufficientBalanceError(chargedCost, balance.balance, { memberPointMode: funding.pointMode })
 }
 
 function resolveActualForSync<T>(
@@ -408,7 +418,7 @@ function buildSyncBillingKey<T>(params: SyncBillingParams<T>, recordParams: Bill
 
   if (requestId) {
     const digest = createHash('sha1')
-      .update(`${params.userId}:${getGenerationQuotaUserId(params.userId)}:${params.projectId}:${params.action}:${params.apiType}:${params.model}:${params.quantity}:${metadataFingerprint}:${requestId}`)
+      .update(`${params.userId}:${resolveGenerationPayerId(params.userId)}:${params.projectId}:${params.action}:${params.apiType}:${params.model}:${params.quantity}:${metadataFingerprint}:${requestId}`)
       .digest('hex')
       .slice(0, 16)
     return `sync_${requestId}_${digest}`
@@ -426,6 +436,7 @@ async function withSyncBillingCore<T>(
   // models. No synchronous generation path may contact a provider at zero
   // points; ENFORCE mode then performs the stricter full-cost reservation.
   await requireGenerationCredit(params.userId)
+  const payerId = resolveGenerationPayerId(params.userId)
   const pricingVersion = BUILTIN_PRICING_VERSION
   const pricingSelections = params.metadata || {}
   const mode = await getBillingMode()
@@ -462,7 +473,7 @@ async function withSyncBillingCore<T>(
   if (mode === 'SHADOW') {
     const { result, textUsage } = await executeWithUsage(params.apiType, execute)
     const actual = resolveActualForSync(params, result, textUsage, quotedCost)
-    await recordShadowUsage(params.userId, {
+    await recordShadowUsage(payerId, {
       projectId: params.projectId,
       taskType: params.action || null,
       action: params.action,
@@ -511,7 +522,7 @@ async function withSyncBillingCore<T>(
     }
   }
 
-  const freezeId = await freezeBalance(params.userId, quotedCost, {
+  const freezeId = await freezeBalance(payerId, quotedCost, {
     source: 'sync',
     requestId,
     idempotencyKey: billingKey,
@@ -532,8 +543,8 @@ async function withSyncBillingCore<T>(
     },
   })
   if (!freezeId) {
-    const balance = await getBalance(params.userId)
-    throw new InsufficientBalanceError(quotedCost, balance.balance)
+    const [balance, funding] = await Promise.all([getBalance(payerId), resolveFundingSource(payerId)])
+    throw new InsufficientBalanceError(quotedCost, balance.balance, { memberPointMode: funding.pointMode })
   }
 
   try {
@@ -542,7 +553,6 @@ async function withSyncBillingCore<T>(
     const recordModel = resolveRecordModel(params.model, actual.metadata)
     const chargedCost = await ensureFreezeCoverage({
       freezeId,
-      userId: params.userId,
       actualCost: actual.actualCost,
       quotedCost,
     })
@@ -1019,7 +1029,8 @@ export async function prepareTaskBilling(task: {
     return next
   }
 
-  const freezeId = await freezeBalance(task.userId, quotedCost, {
+  const payerId = resolveGenerationPayerId(task.userId)
+  const freezeId = await freezeBalance(payerId, quotedCost, {
     source: 'task',
     taskId: task.id,
     idempotencyKey: info.billingKey || task.id,
@@ -1037,8 +1048,8 @@ export async function prepareTaskBilling(task: {
     },
   })
   if (!freezeId) {
-    const balance = await getBalance(task.userId)
-    throw new InsufficientBalanceError(quotedCost, balance.balance)
+    const [balance, funding] = await Promise.all([getBalance(payerId), resolveFundingSource(payerId)])
+    throw new InsufficientBalanceError(quotedCost, balance.balance, { memberPointMode: funding.pointMode })
   }
 
   next.status = 'frozen'
@@ -1133,7 +1144,7 @@ export async function settleTaskBilling(task: {
   }
 
   if (mode === 'SHADOW') {
-    await recordShadowUsage(task.userId, {
+    await recordShadowUsage(resolveGenerationPayerId(task.userId), {
       projectId: task.projectId,
       episodeId: typeof task.episodeId === 'string' ? task.episodeId : null,
       taskType: info.taskType || null,
@@ -1180,7 +1191,6 @@ export async function settleTaskBilling(task: {
 
   const chargedCost = await ensureFreezeCoverage({
     freezeId: info.freezeId,
-    userId: task.userId,
     actualCost: actual.actualCost,
     quotedCost,
   })

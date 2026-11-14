@@ -5,9 +5,12 @@ import { recordUsageCostOnly, buildBillingMeta } from './reporting'
 import type { ApiType, UsageUnit } from './cost'
 import { BillingOperationError, DailyLimitExceededError } from './errors'
 import { roundMoney, toMoneyNumber, type MoneyValue } from './money'
-import { canStartGeneration, GENERATION_CREDIT_FLOOR } from './credit-policy'
+import { canStartGeneration, cnyToPoints, GENERATION_CREDIT_FLOOR } from './credit-policy'
 import { assertDailyLimit } from './daily-limit'
-import { getGenerationQuotaUserId } from '@/lib/account/request-context'
+import { resolveGenerationPayerId } from '@/lib/account/request-context'
+import { isManagementRole, normalizeAccountRole } from '@/lib/account/permissions'
+import { normalizePointMode, type PointMode } from './point-mode'
+import { CreditLedgerError, transferPointsInTx } from './credit-ledger'
 
 type LedgerRecordParams = {
   projectId: string
@@ -74,6 +77,118 @@ export async function getBalance(userId: string) {
   return toBalanceSnapshot(balance)
 }
 
+export type FundingSource = {
+  isMember: boolean
+  /** Not a member account: null. */
+  pointMode: PointMode | null
+  /** The member's manager account; null when not a member. */
+  ownerUserId: string | null
+}
+
+/** Same membership test as api-auth/billing-identity: management roles and self-owned wallets have no funding source. */
+export async function resolveFundingSource(userId: string): Promise<FundingSource> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true, workspaceOwnerId: true, pointMode: true },
+  })
+  if (!user || isManagementRole(normalizeAccountRole(user.role)) || !user.workspaceOwnerId || user.workspaceOwnerId === userId) {
+    return { isMember: false, pointMode: null, ownerUserId: null }
+  }
+  return { isMember: true, pointMode: normalizePointMode(user.pointMode), ownerUserId: user.workspaceOwnerId }
+}
+
+/**
+ * Gate/balance display: an unlimited member can spend their own balance plus
+ * the manager's non-negative balance. The manager balance is never returned
+ * to clients, only the resulting boolean.
+ */
+export async function getSpendableBalance(userId: string) {
+  const [own, funding] = await Promise.all([getBalance(userId), resolveFundingSource(userId)])
+  let spendableCny = own.balance
+  if (funding.pointMode === 'unlimited' && funding.ownerUserId) {
+    const owner = await getBalance(funding.ownerUserId)
+    spendableCny = normalizeMoney(own.balance + Math.max(owner.balance, 0))
+  }
+  return { own, spendableCny, ...funding }
+}
+
+/**
+ * First statement in a billing transaction: lock payer, quota owner and
+ * manager `user` rows in id order, then read the current point mode under the
+ * lock. Returns the manager id when auto top-up may be used for this reservation.
+ */
+async function lockPayerRows(
+  tx: Prisma.TransactionClient,
+  payerId: string,
+  funding: FundingSource,
+  extraIds: string[] = [],
+) {
+  const ids = Array.from(new Set([payerId, ...extraIds, ...(funding.ownerUserId ? [funding.ownerUserId] : [])])).sort()
+  const rows = await tx.$queryRaw<Array<{ id: string; pointMode: string | null; workspaceOwnerId: string | null }>>(
+    Prisma.sql`SELECT id, pointMode, workspaceOwnerId FROM user WHERE id IN (${Prisma.join(ids)}) ORDER BY id FOR UPDATE`,
+  )
+  const payer = rows.find((row) => row.id === payerId)
+  if (!funding.ownerUserId || payer?.workspaceOwnerId !== funding.ownerUserId) return null
+  return normalizePointMode(payer.pointMode) === 'unlimited' ? funding.ownerUserId : null
+}
+
+/**
+ * Freeze `amount` inside the already-locked transaction. When the payer is an
+ * unlimited member and cannot cover the reservation, transfer the shortfall
+ * from the manager first, then reserve. Neither side is left half-written:
+ * a failed transfer throws before anything changes, and a failed second
+ * reserve rolls the whole transaction back.
+ */
+async function reserveWithAutoFund(
+  tx: Prisma.TransactionClient,
+  input: {
+    userId: string
+    amount: number
+    fundingUserId: string | null
+    freezeId: string
+  },
+): Promise<boolean> {
+  const need = normalizeMoney(GENERATION_CREDIT_FLOOR + input.amount)
+  const reserve = () => tx.userBalance.updateMany({
+    where: { userId: input.userId, balance: { gte: need } },
+    data: {
+      balance: { decrement: input.amount },
+      frozenAmount: { increment: input.amount },
+    },
+  })
+  if ((await reserve()).count === 1) return true
+  if (!input.fundingUserId) return false
+
+  // Locking read, not a snapshot read: another task may have refunded cents
+  // after this transaction started, and MySQL REPEATABLE READ would hide it,
+  // overstating the shortfall.
+  const [row] = await tx.$queryRaw<Array<{ balance: Prisma.Decimal }>>(
+    Prisma.sql`SELECT balance FROM user_balances WHERE userId = ${input.userId} FOR UPDATE`,
+  )
+  const shortfall = Math.max(normalizeMoney(need - toMoneyNumber(row?.balance ?? 0)), 0.000001)
+  try {
+    await transferPointsInTx(tx, {
+      operation: 'auto_allocate',
+      sourceUserId: input.fundingUserId,
+      targetUserId: input.userId,
+      points: cnyToPoints(shortfall),
+      amountCny: shortfall,
+      operatorId: input.userId,
+      idempotencyKey: null,
+      note: null,
+      freezeId: input.freezeId,
+    })
+  } catch (error) {
+    if (error instanceof CreditLedgerError && error.code === 'INSUFFICIENT_POINTS') return false
+    throw error
+  }
+  if ((await reserve()).count === 1) return true
+  throw new BillingOperationError('BILLING_AUTO_FUND_FAILED', 'Auto top-up did not cover the reservation', {
+    userId: input.userId,
+    freezeId: input.freezeId,
+  })
+}
+
 export async function getFreezeByIdempotencyKey(idempotencyKey: string): Promise<FreezeSnapshot | null> {
   if (!idempotencyKey || !idempotencyKey.trim()) return null
   const freeze = await prisma.balanceFreeze.findUnique({
@@ -138,7 +253,8 @@ export async function freezeBalance(
     if (existingFreeze) return reuseFreeze(existingFreeze)
   }
   await assertDailyLimit(userId, { additionalCostCny: normalizedAmount })
-  const quotaUserId = getGenerationQuotaUserId(userId)
+  const quotaUserId = resolveGenerationPayerId(userId)
+  const funding = await resolveFundingSource(userId)
   const freezeMetadata = { ...(options?.metadata || {}) }
   delete freezeMetadata.quotaUserId
   if (quotaUserId !== userId) freezeMetadata.quotaUserId = quotaUserId
@@ -149,8 +265,7 @@ export async function freezeBalance(
       // alone races: two quotes can both observe the same remaining daily cap.
       // Lock before any consistent read so MySQL's snapshot includes the
       // previous reservation that just committed while this one waited.
-      const quotaOwners = Array.from(new Set([userId, quotaUserId])).sort()
-      await tx.$queryRaw(Prisma.sql`SELECT id FROM user WHERE id IN (${Prisma.join(quotaOwners)}) ORDER BY id FOR UPDATE`)
+      const fundingUserId = await lockPayerRows(tx, userId, funding, [quotaUserId])
       if (options?.idempotencyKey) {
         const existing = await tx.balanceFreeze.findUnique({
           where: { idempotencyKey: options.idempotencyKey },
@@ -168,24 +283,19 @@ export async function freezeBalance(
         })
       }
 
-      const updated = await tx.userBalance.updateMany({
-        where: {
-          userId,
-          // Reserve only when the complete quote fits inside the remaining
-          // evaluation credit. The previous gate checked the pre-decrement
-          // balance and could push one request arbitrarily below the floor.
-          balance: { gte: normalizeMoney(GENERATION_CREDIT_FLOOR + normalizedAmount) },
-        },
-        data: {
-          balance: { decrement: normalizedAmount },
-          frozenAmount: { increment: normalizedAmount },
-        },
-      })
-      if (updated.count === 0) {
+      const freezeId = `freeze_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
+      // Reserve only when the complete quote fits inside the remaining
+      // evaluation credit. Unlimited members may have the shortfall topped up
+      // from their manager in the same transaction before this reserve.
+      if (!await reserveWithAutoFund(tx, {
+        userId,
+        amount: normalizedAmount,
+        fundingUserId,
+        freezeId,
+      })) {
         return null
       }
 
-      const freezeId = `freeze_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
       await tx.balanceFreeze.create({
         data: {
           id: freezeId,
@@ -386,7 +496,13 @@ export async function increasePendingFreezeAmount(freezeId: string, delta: numbe
   }
 
   try {
+    const head = await prisma.balanceFreeze.findUnique({ where: { id: freezeId }, select: { userId: true } })
+    if (!head) {
+      throw new BillingOperationError('BILLING_INVALID_FREEZE', 'Invalid freeze record', { freezeId })
+    }
+    const funding = await resolveFundingSource(head.userId)
     const result = await prisma.$transaction(async (tx) => {
+      const fundingUserId = await lockPayerRows(tx, head.userId, funding)
       const freeze = await tx.balanceFreeze.findUnique({ where: { id: freezeId } })
       if (!freeze) {
         throw new BillingOperationError('BILLING_INVALID_FREEZE', 'Invalid freeze record', { freezeId })
@@ -401,17 +517,12 @@ export async function increasePendingFreezeAmount(freezeId: string, delta: numbe
         })
       }
 
-      const updated = await tx.userBalance.updateMany({
-        where: {
-          userId: freeze.userId,
-          balance: { gte: normalizeMoney(GENERATION_CREDIT_FLOOR + normalizedDelta) },
-        },
-        data: {
-          balance: { decrement: normalizedDelta },
-          frozenAmount: { increment: normalizedDelta },
-        },
-      })
-      if (updated.count === 0) {
+      if (!await reserveWithAutoFund(tx, {
+        userId: freeze.userId,
+        amount: normalizedDelta,
+        fundingUserId,
+        freezeId,
+      })) {
         return false
       }
 

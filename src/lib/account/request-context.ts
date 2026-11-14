@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
+import { logWarn } from '@/lib/logging/core'
 import type { AccountPermission } from './permissions'
 
 type AccountRequestContext = {
@@ -32,17 +33,26 @@ export function setAccountActorContext(actorId: string, workspaceOwnerId: string
   if (context) { context.actorId = actorId; context.workspaceOwnerId = workspaceOwnerId }
 }
 
-export function getGenerationQuotaUserId(walletUserId: string) {
+/**
+ * The wallet that pays for a generation. The ALS context is populated at auth
+ * time for every API request; a missing context means a billing path bypassed
+ * apiHandler, so log it for post-release monitoring.
+ */
+export function resolveGenerationPayerId(walletUserId: string) {
   const context = accountPermissionStorage.getStore()
-  return context?.workspaceOwnerId === walletUserId && context.actorId ? context.actorId : walletUserId
+  if (!context) {
+    logWarn('[Billing] payer resolved without actor context', { walletUserId })
+    return walletUserId
+  }
+  return context.workspaceOwnerId === walletUserId && context.actorId ? context.actorId : walletUserId
 }
 
 /** Never accept quota ownership from a browser-supplied task payload. */
 export function buildTrustedTaskQuotaMeta(walletUserId: string, meta: Record<string, unknown>) {
   const trusted = { ...meta }
   delete trusted.quotaUserId
-  const actorId = getGenerationQuotaUserId(walletUserId)
-  if (actorId !== walletUserId) trusted.quotaUserId = actorId
+  const payerId = resolveGenerationPayerId(walletUserId)
+  if (payerId !== walletUserId) trusted.quotaUserId = payerId
   return trusted
 }
 

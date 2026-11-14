@@ -29,7 +29,7 @@ export {
   getUserCostSummary,
   getVisibleUserTotalSpent,
 } from './reporting'
-export { addBalance, getBalance } from './ledger'
+export { addBalance, getBalance, getSpendableBalance } from './ledger'
 export {
   handleBillingError,
   prepareTaskBilling,

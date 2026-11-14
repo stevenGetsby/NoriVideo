@@ -2,6 +2,7 @@ import { Prisma } from '@prisma/client'
 import { normalizeAccountCredit, normalizeAccountPointCredit } from '@/lib/account/credits'
 import { cnyToPoints } from '@/lib/billing/credit-policy'
 import { normalizeDailyPointLimit } from '@/lib/billing/daily-limit'
+import { normalizePointMode } from '@/lib/billing/point-mode'
 import {
   effectiveAccountPermissions,
   isManagementRole,
@@ -20,6 +21,7 @@ export const managedAccountSelect = {
   parentAccountId: true,
   coinCredits: true,
   dailyPointLimit: true,
+  pointMode: true,
   balance: { select: { balance: true } },
   createdAt: true,
   updatedAt: true,
@@ -52,6 +54,7 @@ export function serializeManagedAccount(account: ManagedAccountRecord) {
     },
     // 每日用量上限（积分），null 表示不限制。
     dailyLimitPoints: normalizeDailyPointLimit(account.dailyPointLimit),
+    pointMode: isManagementRole(role) ? null : normalizePointMode(account.pointMode),
     createdAt: account.createdAt.toISOString(),
     updatedAt: account.updatedAt.toISOString(),
     lastLoginAt: account.lastLoginAt?.toISOString() || null,

@@ -29,6 +29,7 @@ import {
   serializeDailyUsage,
   type DailyUsagePayload,
 } from '@/lib/billing/daily-limit'
+import { DEFAULT_POINT_MODE, parsePointMode } from '@/lib/billing/point-mode'
 
 const USERNAME_MAX_LENGTH = 64
 const PASSWORD_MIN_LENGTH = 8
@@ -170,6 +171,10 @@ export const GET = apiHandler(async () => {
           ABS(bt.amount) AS amount
         FROM balance_transactions bt
         WHERE bt.userId = ${managerId} AND bt.type = 'consume' AND bt.createdAt >= ${managerPaidSince}
+        UNION ALL
+        SELECT bt.relatedId AS actorId, ABS(bt.amount) AS amount
+        FROM balance_transactions bt
+        WHERE bt.userId = ${managerId} AND bt.type = 'auto_allocate_out' AND bt.createdAt >= ${managerPaidSince}
       ) t WHERE t.actorId IS NOT NULL GROUP BY t.actorId
     `)
     for (const row of rows) managerPaid90d.set(row.actorId, Number(row.points) || 0)
@@ -263,6 +268,13 @@ export const POST = apiHandler(async (request: NextRequest) => {
     throw new ApiError('INVALID_PARAMS', { message: '项目组长身份必须是布尔值。' })
   }
   const dailyPointLimit = readDailyPointLimit(body.dailyPointLimit)
+  if (accountType === 'manager' && body.pointMode !== undefined) {
+    throw new ApiError('INVALID_PARAMS', { message: '积分方式仅适用于子账号。' })
+  }
+  const pointMode = body.pointMode === undefined ? DEFAULT_POINT_MODE : parsePointMode(body.pointMode)
+  if (!pointMode) {
+    throw new ApiError('INVALID_PARAMS', { message: '无效的积分方式。' })
+  }
   if (accountType === 'subaccount') {
     const requestedManagerId = typeof body.managerId === 'string' ? body.managerId.trim() : ''
     if (requestedManagerId && requestedManagerId !== actorId) {
@@ -287,6 +299,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           parentAccountId: accountType === 'manager' ? actorId : managerId,
           coinCredits: 0,
           dailyPointLimit,
+          ...(accountType === 'subaccount' ? { pointMode } : {}),
         },
         select: managedAccountSelect,
       })
@@ -310,6 +323,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
       projectLeader,
       permissions,
       dailyPointLimit,
+      pointMode: accountType === 'subaccount' ? pointMode : null,
     })
 
     return NextResponse.json({ success: true, account: serializeManagedAccount(account) }, { status: 201 })

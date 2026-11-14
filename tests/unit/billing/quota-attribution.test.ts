@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withAccountPermissionContext, setAccountActorContext } from '@/lib/account/request-context'
 
 const prismaMock = vi.hoisted(() => ({
-  user: { findMany: vi.fn(async () => []) },
+  user: {
+    findMany: vi.fn(async () => []),
+    findUnique: vi.fn(async () => ({ role: 'admin', workspaceOwnerId: null, pointMode: 'unlimited' })),
+  },
   balanceTransaction: { groupBy: vi.fn(async () => []), findMany: vi.fn(async () => []) },
   balanceFreeze: { groupBy: vi.fn(async () => []), findMany: vi.fn(async () => []), findUnique: vi.fn(), create: vi.fn() },
   userBalance: { findUnique: vi.fn(async () => ({ balance: 100 })), updateMany: vi.fn(async () => ({ count: 1 })) },
@@ -16,6 +19,7 @@ describe('generation quota principal attribution', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.balanceFreeze.findUnique.mockResolvedValue(null)
+    prismaMock.user.findUnique.mockResolvedValue({ role: 'admin', workspaceOwnerId: null, pointMode: 'unlimited' })
     prismaMock.$transaction.mockImplementation(async (run: (tx: unknown) => unknown) => run(prismaMock))
   })
   it('tags a shared-wallet reservation with the trusted actor rather than caller-supplied metadata', async () => {

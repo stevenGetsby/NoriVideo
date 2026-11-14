@@ -179,7 +179,7 @@ export function MaterialUploadDialog({
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [entries, setEntries] = useState<MaterialUploadEntry[]>([])
-  const [projectId, setProjectId] = useState('personal')
+  const [projectId, setProjectId] = useState(initialProjectId || 'personal')
   const [assetCategory, setAssetCategory] = useState<FrameosAssetCategory>(initialAssetCategory)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -286,7 +286,7 @@ export function MaterialUploadDialog({
       <section role="dialog" aria-modal="true" aria-label="批量上传素材" className="fos-dialog" style={{ maxWidth: 680 }}>
         <div className="fos-dialog-head"><div><div className="fos-dialog-title">批量上传素材</div><div className="mt-1 text-[11px] text-[var(--fos-text-4)]">按文件名自动命名，可逐项修改 · 每批最多 100 个 · 单文件 200MB</div></div><button type="button" className="fos-dialog-x" aria-label="关闭上传" disabled={saving} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></div>
         <div className="fos-dialog-body space-y-4">
-          <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">素材归属</span><select aria-label="素材归属" className="fos-input" value={projectId} disabled={lockProject || saving || successCount > 0 || uploadedImagesRef.current.size > 0} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（默认，仅自己可见）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">个人素材可在素材库中编辑名称并共享到有权限的项目。</span></label>
+          <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">素材归属</span><select aria-label="素材归属" className="fos-input" value={projectId} disabled={lockProject || saving || successCount > 0 || entries.length > 0} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（默认，仅自己可见）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">个人素材可在素材库中编辑名称并共享到有权限的项目。</span></label>
           <label className="block"><span className="mb-2 block text-[12px] font-bold text-white">资产归类</span><select aria-label="资产归类" className="fos-input" value={assetCategory} disabled={lockAssetCategory || saving || uploadedImagesRef.current.size > 0 || (successCount > 0 && unfinished.length > 0)} onChange={(event) => { setAssetCategory(event.target.value as FrameosAssetCategory); setVoiceFiles([]); setVoiceMapping({}) }}>{assetCategoryOptions.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select><span className="mt-1.5 block text-[10px] text-[var(--fos-text-4)]">{lockAssetCategory ? `当前入口固定归入${FRAMEOS_ASSET_CATEGORY_LABELS[assetCategory]}，不会混入其他品类。` : '全部上传成功后自动关闭；部分失败时保留弹窗，仅重试失败项。'}</span></label>
           <div>
             <span className="mb-2 block text-[12px] font-bold text-white">本地文件 <span className="text-red-400">*</span></span>

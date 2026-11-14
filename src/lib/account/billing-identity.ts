@@ -7,15 +7,19 @@ export type BillingAccountIdentity = {
   workspaceOwnerId?: string | null
 }
 
-/** Data/charge ownership and personal quota ownership are different principals. */
+/**
+ * The actor pays for their own generation. `ownerUserId` is the manager
+ * account a member belongs to, used only for display and funding checks.
+ */
 export function resolveBillingPrincipals(account: BillingAccountIdentity) {
   const actorUserId = account.actorId || account.id
-  const walletUserId = isManagementRole(normalizeAccountRole(account.role))
+  const ownerUserId = isManagementRole(normalizeAccountRole(account.role))
     ? actorUserId
     : account.workspaceOwnerId || account.id
   return {
+    walletUserId: actorUserId,
     actorUserId,
-    walletUserId,
-    walletScope: walletUserId === actorUserId ? 'personal' as const : 'workspace' as const,
+    ownerUserId,
+    isMember: actorUserId !== ownerUserId,
   }
 }

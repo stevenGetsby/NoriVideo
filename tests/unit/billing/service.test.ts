@@ -6,9 +6,11 @@ const ledgerMock = vi.hoisted(() => ({
   confirmChargeWithRecord: vi.fn(),
   freezeBalance: vi.fn(),
   getBalance: vi.fn(),
+  getSpendableBalance: vi.fn(),
   getFreezeByIdempotencyKey: vi.fn(),
   increasePendingFreezeAmount: vi.fn(),
   recordShadowUsage: vi.fn(),
+  resolveFundingSource: vi.fn(),
   rollbackFreeze: vi.fn(),
 }))
 
@@ -29,6 +31,8 @@ const prismaMock = vi.hoisted(() => ({
   },
   balanceFreeze: {
     groupBy: vi.fn(async () => []),
+    // Overage expansion failures read the freeze payer before rolling back.
+    findUnique: vi.fn(async () => ({ userId: 'u1' })),
   },
 }))
 
@@ -55,6 +59,19 @@ describe('billing/service', () => {
     ledgerMock.confirmChargeWithRecord.mockResolvedValue(true)
     ledgerMock.freezeBalance.mockResolvedValue('freeze_1')
     ledgerMock.getBalance.mockResolvedValue({ balance: 100 })
+    // getSpendableBalance derives its own snapshot from the same mocked wallet
+    // so tests can keep overriding getBalance to simulate zero funds.
+    ledgerMock.getSpendableBalance.mockImplementation(async () => {
+      const own = await ledgerMock.getBalance()
+      return {
+        own,
+        spendableCny: Number(own?.balance ?? 0),
+        isMember: false,
+        pointMode: null,
+        ownerUserId: null,
+      }
+    })
+    ledgerMock.resolveFundingSource.mockResolvedValue({ isMember: false, pointMode: null, ownerUserId: null })
     ledgerMock.getFreezeByIdempotencyKey.mockResolvedValue(null)
     ledgerMock.increasePendingFreezeAmount.mockResolvedValue(true)
     ledgerMock.recordShadowUsage.mockResolvedValue(true)

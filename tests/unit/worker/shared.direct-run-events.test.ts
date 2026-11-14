@@ -28,6 +28,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 vi.mock('@/lib/logging/core', () => ({
+  logWarn: vi.fn(),
   createScopedLogger: () => ({
     info: vi.fn(),
     warn: vi.fn(),
@@ -92,7 +93,7 @@ vi.mock('@/lib/run-runtime/publisher', () => ({
 }))
 
 import { reportTaskProgress, reportTaskStreamChunk, withTaskLifecycle } from '@/lib/workers/shared'
-import { getGenerationQuotaUserId } from '@/lib/account/request-context'
+import { resolveGenerationPayerId } from '@/lib/account/request-context'
 
 function buildJob(taskType: TaskJobData['type']): Job<TaskJobData> {
   return {
@@ -128,10 +129,10 @@ describe('worker shared direct run events', () => {
     job.data.payload = { runId: 'run-1', meta: { quotaUserId: 'child' } }
     await withTaskLifecycle(job, async () => {
       await Promise.resolve()
-      expect(getGenerationQuotaUserId('user-1')).toBe('child')
+      expect(resolveGenerationPayerId('user-1')).toBe('child')
       return { ok: true }
     })
-    expect(getGenerationQuotaUserId('user-1')).toBe('user-1')
+    expect(resolveGenerationPayerId('user-1')).toBe('user-1')
   })
 
   it('publishes run events directly for core analysis progress updates', async () => {

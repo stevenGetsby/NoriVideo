@@ -225,6 +225,46 @@ describe('three-level account management wiring', () => {
     // 被限制的账号在余额接口里能看到自己的今日额度。
     expect(balanceRoute).toContain('dailyLimitPoints: dailyUsage.limitPoints')
   })
+  it('lets each subaccount choose unlimited auto top-up or allocated-only points', () => {
+    const schema = readSource('prisma/schema.prisma')
+    const pointMode = readSource('src/lib/billing/point-mode.ts')
+    const createRoute = readSource('src/app/api/admin/accounts/route.ts')
+    const updateRoute = readSource('src/app/api/admin/accounts/[userId]/route.ts')
+    const management = readSource('src/lib/account/management.ts')
+    const dialog = readSource('src/components/frameos/FosAccountManagementParts.tsx')
+    const subaccounts = readSource('src/components/frameos/FosAccountManagementClient.tsx')
+    const balanceRoute = readSource('src/app/api/user/balance/route.ts')
+    const ledger = readSource('src/lib/billing/ledger.ts')
+    const dailyLimit = readSource('src/lib/billing/daily-limit.ts')
+
+    // 默认无限积分：成员不足时由管理账号自动补足。
+    expect(schema).toMatch(/pointMode\s+String\s+@default\("unlimited"\)\s+@db\.VarChar\(16\)/)
+    expect(pointMode).toContain("export const DEFAULT_POINT_MODE: PointMode = 'unlimited'")
+    expect(createRoute).toContain('DEFAULT_POINT_MODE')
+    expect(createRoute).toContain('积分方式仅适用于子账号。')
+    expect(createRoute).toContain('无效的积分方式。')
+    expect(updateRoute).toContain('积分方式仅适用于子账号。')
+    expect(updateRoute).toContain('changedPointMode')
+    expect(management).toContain('pointMode: true')
+    expect(management).toContain('normalizePointMode(account.pointMode)')
+    // 两个入口共用同一组单选卡片，默认选“无限积分”。
+    expect(dialog).toContain('data-testid={`account-point-mode-${option.value}`}')
+    expect(dialog).toContain("title: '无限积分'")
+    expect(dialog).toContain("title: '分配积分'")
+    // 列表行与账本都展示成员的积分方式。
+    expect(subaccounts).toContain("account.pointMode === 'allocated' ? '分配积分' : '无限积分'")
+    expect(subaccounts).toContain('成员可用积分合计')
+    // 余额接口只下发身份与模式，不泄露管理账号钱包金额。
+    expect(balanceRoute).toContain('pointMode: spendable.pointMode')
+    expect(balanceRoute).toContain('creditAvailable')
+    // 自动补足在同一事务里按冻结钱包锁定并写入 auto_allocate 记账。
+    expect(ledger).toContain('reserveWithAutoFund')
+    expect(ledger).toContain("operation: 'auto_allocate'")
+    expect(ledger).toContain('FOR UPDATE')
+    // 每日额度归属：切换前按 quotaUserId 归到成员，切换后直接记在成员钱包。
+    expect(dailyLimit).toContain('auto_allocate_* rows are never `consume`')
+  })
+
   it('allows individual and bulk allocations while retaining daily usage limits', () => {
     const subaccounts = readSource('src/components/frameos/FosAccountManagementClient.tsx')
     const route = readSource('src/app/api/admin/accounts/[userId]/credits/route.ts')

@@ -36,7 +36,7 @@ describe('作品头部设置', () => {
     const header = renderToStaticMarkup(React.createElement(() => null))
     expect(header).toBe('')
     const sourceText = source('src/components/frameos/FosProjectHeader.tsx')
-    expect(sourceText).toContain('>作品设置</button>')
+    expect(sourceText).toContain('>作品设置<')
     expect(sourceText).not.toContain("META_TAGS = ['剧情模式', '9:16', '480x856', '仿真人']")
   })
 

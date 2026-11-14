@@ -14,7 +14,9 @@ function SharedWalletFixture() {
   const balance = useAccountBalance()
   return <section>
     <output data-testid="wallet-points">{balance.points}</output>
-    <output data-testid="wallet-scope">{balance.walletScope}</output>
+    <output data-testid="wallet-member">{String(balance.isMember)}</output>
+    <output data-testid="wallet-point-mode">{balance.pointMode ?? 'none'}</output>
+    <output data-testid="wallet-credit-available">{String(balance.creditAvailable)}</output>
     <output data-testid="wallet-status">{balance.generationDisabledReason || '可以生成'}</output>
     <button data-testid="generate" disabled={!balance.generationAllowed}>生成</button>
     <button onClick={() => void balance.refreshBalance()}>刷新额度</button>
@@ -38,6 +40,7 @@ createRoot(document.getElementById('root')!).render(
       : new URLSearchParams(location.search).get('view') === 'dialogs' ? <CanvasBoundariesFixture /> : new URLSearchParams(location.search).get('view') === 'accounts'
       ? <FosAccountManagementClient />
       : <main className="fos-app"><CanvasGraph
+        mode={new URLSearchParams(location.search).has('story') ? 'story' : 'canvas'}
         projectId="project-1" projectName="浏览器交互验证" canvasId="canvas-1" canvases={[canvas]} focusNodeId="gen-1"
         onSelectCanvas={() => {}} onCreateCanvas={() => {}} onRenameCanvas={() => {}} onDeleteCanvas={() => {}}
       /></main>}

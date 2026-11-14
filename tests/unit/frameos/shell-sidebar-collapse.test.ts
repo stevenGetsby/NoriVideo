@@ -77,7 +77,7 @@ describe('FosShell collapsible sidebar', () => {
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(styles).toContain('.fos-sidebar.is-collapsed { width: 0; flex-basis: 0; overflow: visible; border-right: 0; padding: 0; }')
-    expect(styles).toContain(".fos-sidebar.is-collapsed + .fos-main .works-heading { padding-left: 56px; }")
+    expect(styles).not.toContain(".fos-sidebar.is-collapsed + .fos-main .works-heading { padding-left: 56px; }")
     expect(styles).toContain(".fos-sidebar.is-collapsed + .fos-main .fa-title-group { padding-left: 81px; }")
     expect(styles).toContain('.fos-sidebar.is-collapsed .fos-sidebar-header { position: fixed; top: 50%; left: 0;')
     expect(styles).toContain('.fos-sidebar-sections[hidden] { display: none; }')
