@@ -35,6 +35,8 @@ import { CANVAS_DOCUMENT_SCHEMA_VERSION } from '@/lib/canvas/document-version'
 import { buildCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
 import { removeDeletedCanvasReferences, requireExistingReferenceNodeIds } from './reference-resolution'
 import { isTextEntryTarget } from './context-menu-target'
+import { selectServerOnlyEntities } from './graph-merge'
+import { resolvePasteDecision } from './paste-target'
 import { createMaterialFlowNode } from './material-node'
 import { downloadFrameosMaterial } from '@/components/frameos/materials/download-material'
 import { getProjectDownloadDirectory, saveProjectDownload } from '@/lib/media/project-download-directory'
@@ -596,6 +598,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const canvasRef = useRef(initialGraph.canvas)
   const clipboardRef = useRef<ClipboardDocument | null>(null)
   const internalCopyTextRef = useRef<string | null>(null)
+  const deletedNodeIdsRef = useRef(new Map<string, number>())
+  const deletedEdgeIdsRef = useRef(new Map<string, number>())
+  const confirmOpenRef = useRef(false)
+  const requestTextEdit = useCallback((nodeId: string) => {
+    wrapperRef.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"] .nori-canvas-text-preview`)
+      ?.dispatchEvent(new CustomEvent('nori:edit-text'))
+  }, [])
   const resizeHistoryRef = useRef(new Set<string>())
   const dragRecordedRef = useRef(false)
   const rightPanGestureRef = useRef<{ pointerId: number; x: number; y: number; moved: boolean } | null>(null)
@@ -625,6 +634,10 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   // A first click only selects a node so its edge lights up and wiring stays
   // unobstructed; the generator opens on the next click of that same node.
   const [generatorSuppressedNodeId, setGeneratorSuppressedNodeId] = useState<string | null>(null)
+  const [textEditingNodeId, setTextEditingNodeId] = useState<string | null>(null)
+  const setTextEditing = useCallback((nodeId: string | null) => {
+    setTextEditingNodeId((current) => nodeId === null || current === null || current === nodeId ? nodeId : current)
+  }, [])
   const soleSelectedNodeIdRef = useRef<string | null>(null)
   const generatorAnchorReleaseTimerRef = useRef<number | null>(null)
   const focusAppliedRef = useRef(false)
@@ -712,6 +725,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const currentSnapshot = useCallback(() => snapshot(nodesRef.current, edgesRef.current, viewportRef.current), [])
   const applySnapshot = useCallback((next: CanvasEditorSnapshot) => {
+    setTextEditingNodeId(null)
     setNodes(next.nodes)
     setEdges(next.edges)
     setViewportState(next.viewport)
@@ -735,17 +749,29 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       return next
     })
     if (serverById.size > 0) {
-      projected.push(...serverById.values())
-      changed = true
+      const additions = selectServerOnlyEntities({
+        serverIds: new Set(serverById.keys()),
+        localIds: new Set(nodesRef.current.map((node) => node.id)),
+        tombstones: deletedNodeIdsRef.current,
+        now: Date.now(),
+      })
+      if (additions.length > 0) {
+        projected.push(...additions.map((id) => serverById.get(id)!))
+        changed = true
+      }
     }
     if (changed) {
       nodesRef.current = projected
       setNodes(projected)
     }
     const localEdgeIds = new Set(edgesRef.current.map((edge) => edge.id))
-    const serverAdditions = graph.edges
-      .map(canvasEdgeToFlow)
-      .filter((edge) => !localEdgeIds.has(edge.id))
+    const serverEdges = graph.edges.map(canvasEdgeToFlow)
+    const serverAdditions = selectServerOnlyEntities({
+      serverIds: new Set(serverEdges.map((edge) => edge.id)),
+      localIds: localEdgeIds,
+      tombstones: deletedEdgeIdsRef.current,
+      now: Date.now(),
+    }).map((id) => serverEdges.find((edge) => edge.id === id)!)
     if (serverAdditions.length > 0) {
       const nextEdges = [...edgesRef.current, ...serverAdditions]
       edgesRef.current = nextEdges
@@ -1154,6 +1180,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[]) => {
     if (readOnly || removedEdges.length === 0) return
     record('删除连线')
+    removedEdges.forEach((edge) => deletedEdgeIdsRef.current.set(edge.id, Date.now()))
     edgesRef.current = remainingEdges
     setEdges(remainingEdges)
     cleanupDisconnectedReferences(removedEdges, remainingEdges)
@@ -1215,10 +1242,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const removeNodes = useCallback((nodeIds: string[]) => {
     if (readOnly || nodeIds.length === 0) return
+    setTextEditingNodeId(null)
     record('删除节点')
     const ids = new Set(nodeIds)
+    ids.forEach((id) => deletedNodeIdsRef.current.set(id, Date.now()))
     setNodes((current) => removeDeletedCanvasReferences(fitCanvasGroupsToMembers(current.filter((node) => !ids.has(node.id)).map((node) => node.type === 'group' ? { ...node, data: { ...node.data, memberIds: (node.data.memberIds || []).filter((id) => !ids.has(id)) } } : node)), ids))
     const removedEdges = edgesRef.current.filter((edge) => ids.has(edge.source) || ids.has(edge.target))
+    removedEdges.forEach((edge) => deletedEdgeIdsRef.current.set(edge.id, Date.now()))
     const remainingEdges = edgesRef.current.filter((edge) => !ids.has(edge.source) && !ids.has(edge.target))
     edgesRef.current = remainingEdges
     setEdges(remainingEdges)
@@ -1228,11 +1258,14 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const removeGroupsWithMembers = useCallback((groupIds: string[], extraNodeIds: string[] = []) => {
     if (readOnly) return
+    setTextEditingNodeId(null)
     const expanded = expandGroupNodeIds([...groupIds, ...extraNodeIds])
     if (expanded.size === 0) return
+    expanded.forEach((id) => deletedNodeIdsRef.current.set(id, Date.now()))
     record('删除组及成员')
     setNodes((current) => removeDeletedCanvasReferences(fitCanvasGroupsToMembers(current.filter((node) => !expanded.has(node.id)).map((node) => node.type === 'group' ? { ...node, data: { ...node.data, memberIds: (node.data.memberIds || []).filter((id) => !expanded.has(id)) } } : node)), expanded))
     const removedEdges = edgesRef.current.filter((edge) => expanded.has(edge.source) || expanded.has(edge.target))
+    removedEdges.forEach((edge) => deletedEdgeIdsRef.current.set(edge.id, Date.now()))
     const remainingEdges = edgesRef.current.filter((edge) => !expanded.has(edge.source) && !expanded.has(edge.target))
     edgesRef.current = remainingEdges
     setEdges(remainingEdges)
@@ -2653,6 +2686,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     redo,
     saveCanvas: flushAutosave,
     updateNodeData,
+    setTextEditing,
+    textEditingNodeId,
     removeNodes,
     duplicateNodes,
     runNodeAction,
@@ -2661,7 +2696,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     startPlaylistRender,
     loadPlaylistReview,
     submitPlaylistReview,
-  }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, startPlaylistRender, submitPlaylistReview, undo, updateNodeData, writeLocked])
+  }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, setTextEditing, startPlaylistRender, submitPlaylistReview, textEditingNodeId, undo, updateNodeData, writeLocked])
 
   const freezeGeneratorAnchor = useCallback(() => {
     const live = generatorAnchorLiveRef.current
@@ -2696,6 +2731,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       }
     }
     const removed = new Set(changes.filter((change) => change.type === 'remove').map((change) => change.id))
+    removed.forEach((id) => deletedNodeIdsRef.current.set(id, Date.now()))
     const selected = changes.flatMap((change) => change.type === 'select' && change.selected ? [change.id] : [])
     const pendingReference = pendingMentionGeneratorRef.current
       && selected.length === 1
@@ -3402,6 +3438,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const pasteFromSystem = useCallback(async (position?: { x: number; y: number }) => {
     if (readOnly) return
+    const selected = nodesRef.current.filter((node) => node.selected)
+    const textTarget = selected.length === 1 && (selected[0].type === 'text' || selected[0].type === 'note') ? selected[0] : null
     const clipboardItems = await navigator.clipboard?.read?.().catch(() => []) || []
     const files: File[] = []
     let systemCanvasJson: string | null = null
@@ -3430,6 +3468,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         // canvas clipboard fallback below.
       }
     }
+    const systemText = await navigator.clipboard?.readText().catch(() => '') || ''
+    const decision = resolvePasteDecision({
+      soleSelectedTextNodeId: textTarget?.id || null,
+      readOnly,
+      systemText,
+      systemHasFiles: files.length > 0,
+      internalClipboardIsLatest: systemCanvasJson !== null || (Boolean(clipboardRef.current?.nodes.length) && (!systemText || systemText.trim() === internalCopyTextRef.current?.trim())),
+    })
+    if (decision === 'insert-text' && textTarget) {
+      const text = systemText.slice(0, 20_000)
+      const previous = typeof textTarget.data.text === 'string' ? textTarget.data.text : ''
+      updateNodeData(textTarget.id, { text: `${previous}${previous && !previous.endsWith('\n') ? '\n' : ''}${text}` }, '粘贴文本')
+      if (systemText.length > 20_000) setToast('文本过长，已截取前 20000 个字符')
+      return
+    }
     const source = resolveCanvasClipboardPasteSource({
       hasSystemCanvas: systemCanvasJson !== null,
       hasSystemMedia: files.length > 0,
@@ -3443,7 +3496,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       return
     }
     await paste(position, source === 'system-canvas' ? systemCanvasJson : null)
-  }, [handleUploads, paste, readOnly])
+  }, [handleUploads, paste, readOnly, updateNodeData])
 
   const selectedNodes = nodes.filter((node) => node.selected)
   const selectionDownloadNodes = selectedNodes.length > 1 ? collectSelectionDownloadNodes(nodes, selectedNodes) : EMPTY_NODE_LIST
@@ -3470,7 +3523,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     && !isStoryNodeType(selectedNodes[0].type)
     ? selectedNodes[0]
     : null
-  const selectedCreativeNode = directlySelectedCreativeNode && directlySelectedCreativeNode.id !== generatorSuppressedNodeId
+  const selectedCreativeNode = directlySelectedCreativeNode && directlySelectedCreativeNode.id !== generatorSuppressedNodeId && directlySelectedCreativeNode.id !== textEditingNodeId
     ? directlySelectedCreativeNode
     : null
   soleSelectedNodeIdRef.current = selectedNodes.length === 1 ? selectedNodes[0].id : null
@@ -3903,6 +3956,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         return
       }
       if (hasInputFocus()) return
+      if (['Backspace', 'Delete', 'Enter'].includes(event.key)) {
+        const target = event.target instanceof Element ? event.target : null
+        const overlayOpen = Boolean(target?.closest('[role="dialog"], [role="menu"], [role="alertdialog"], .fos-overlay, .nori-canvas-generator, .nori-canvas-add-panel'))
+          || Boolean(mediaPreviewNodeId || modelPreviewNodeId || panoramaPreviewNodeId || historyNodeId || revisionsOpen || confirmOpenRef.current)
+        if (overlayOpen || event.repeat) return
+        if ((event.key === 'Enter' || event.code === 'Space') && target?.closest('button, a, summary, [role="button"]')) return
+      }
       if (event.code === 'Space') {
         // React Flow pans on Space; the custom marquee must never compete with it.
         spacePanActiveRef.current = true
@@ -3921,7 +3981,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       if (mod && event.key.toLowerCase() === 'y') { if (readOnly) return; event.preventDefault(); redo(); return }
       if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); void copySelection(); return }
       if (mod && event.key.toLowerCase() === 'x') { if (readOnly) return; event.preventDefault(); void copySelection(true); return }
-      if (mod && event.key.toLowerCase() === 'v') { if (readOnly) return; event.preventDefault(); void pasteFromSystem().catch((error: unknown) => setToast(error instanceof Error ? error.message : '粘贴失败')); return }
+      if (mod && event.key.toLowerCase() === 'v') { if (readOnly) return; event.preventDefault(); event.stopPropagation(); void pasteFromSystem().catch((error: unknown) => setToast(error instanceof Error ? error.message : '粘贴失败')); return }
       if (mod && event.key.toLowerCase() === 'd') { if (readOnly) return; event.preventDefault(); duplicateNodes(nodesRef.current.filter((node) => node.selected).map((node) => node.id)); return }
       if (mod && event.key.toLowerCase() === 'a') { event.preventDefault(); setNodes((current) => current.map((node) => ({ ...node, selected: true }))); return }
       if (mod && event.key.toLowerCase() === 's') { if (readOnly) return; event.preventDefault(); void flushAutosave(); return }
@@ -3941,6 +4001,14 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
               : { x: distance, y: 0 }
         nudgeSelection(delta)
         return
+      }
+      if (event.key === 'Enter' && !(event.metaKey || event.ctrlKey) && !event.shiftKey && !readOnly) {
+        const selected = nodesRef.current.filter((node) => node.selected)
+        if (selected.length === 1 && (selected[0].type === 'text' || selected[0].type === 'note')) {
+          event.preventDefault()
+          requestTextEdit(selected[0].id)
+          return
+        }
       }
       if (event.key === 'Backspace' || event.key === 'Delete') { if (readOnly) return; event.preventDefault(); removeCurrentSelection(); return }
       if (event.key.toLowerCase() === 'm') { setMinimapVisible((value) => !value); return }
@@ -3964,7 +4032,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       window.removeEventListener('keyup', keyup)
       window.removeEventListener('blur', clearSpacePan)
     }
-  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, nudgeSelection, offlineRecoveryBlocking, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, undo])
+  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, historyNodeId, mediaPreviewNodeId, modelPreviewNodeId, nudgeSelection, offlineRecoveryBlocking, panoramaPreviewNodeId, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, requestTextEdit, revisionsOpen, undo])
 
   const handleContextAction = (action: string) => {
     const menu = contextMenu
@@ -4026,13 +4094,14 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       if (action === 'delete') {
         const group = nodesRef.current.find((node) => node.id === menu.groupId && node.type === 'group')
         const count = group?.data.memberIds?.length || 0
-        if (group) {
+        if (group && !confirmOpenRef.current) {
+          confirmOpenRef.current = true
           void confirmAction({
             title: `删除「${group.data.title || '组'}」？`,
             message: `组内 ${count} 个节点会一并删除，删除后可以撤销恢复。`,
             confirmLabel: '删除',
             danger: true,
-          }).then((confirmed) => { if (confirmed) removeGroupsWithMembers([menu.groupId]) })
+          }).then((confirmed) => { confirmOpenRef.current = false; if (confirmed) removeGroupsWithMembers([menu.groupId]) })
         }
       }
       return
@@ -4207,6 +4276,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setNodeTypeMenu(null)
     // A double-click on a title or a text body means rename/edit, not "open the generator".
     if (event.detail > 1 && (node.type === 'text' || node.type === 'note' || (event.target instanceof Element && event.target.closest('.nori-canvas-node-drag-handle')))) return
+    if (node.type === 'text' || node.type === 'note') {
+      if (event.detail === 1 && document.activeElement instanceof HTMLElement && event.target instanceof Element && event.target.closest('.nori-canvas-text-preview')) document.activeElement.blur()
+      const onBody = event.target instanceof Element && event.target.closest('.nori-canvas-text-preview')
+      if (soleSelectedNodeIdRef.current === node.id && onBody && event.detail === 1 && !readOnly) requestTextEdit(node.id)
+      return
+    }
     if (soleSelectedNodeIdRef.current === node.id) setGeneratorSuppressedNodeId((current) => current === node.id ? null : current)
     else setGeneratorSuppressedNodeId(node.id)
   })
