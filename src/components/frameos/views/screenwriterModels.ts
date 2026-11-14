@@ -17,6 +17,8 @@ export interface WriterScript {
   updatedAt: string
   episodes: WriterEpisode[]
   lineage?: string
+  /** 视频转绘 documents keep the 目标设定总纲 and 分镜 as two flat documents instead of episodes. */
+  layout?: 'documents'
 }
 
 export interface WriterTool {
@@ -29,7 +31,7 @@ export interface WriterTool {
 
 export const WRITER_TOOL: WriterTool = {
   title: '视频转绘',
-  subtitle: '整剧视频一键转为目标版本，保持全剧角色、场景和设定一致',
+  subtitle: '上传一个视频，生成目标设定总纲与逐镜分镜两份文档',
   icon: 'sparklesAlt',
   tone: 'redraw2',
 }
@@ -38,4 +40,17 @@ export const SCRIPT_STATUS_LABELS: Record<ScriptStatus, string> = {
   draft: '草稿',
   available: '可用',
   archived: '已归档',
+}
+
+export function writerScriptUnitLabel(script: Pick<WriterScript, 'layout' | 'episodes'>): string {
+  return script.layout === 'documents'
+    ? `${script.episodes.length} 份文档`
+    : `${script.episodes.length} 集`
+}
+
+export function writerScriptExportText(script: Pick<WriterScript, 'layout' | 'episodes'>): string {
+  if (script.layout === 'documents') {
+    return script.episodes.map((document) => `${document.title}\n\n${document.body}`).join('\n\n--------------------\n\n')
+  }
+  return script.episodes.map((episode, index) => `第 ${index + 1} 集  ${episode.title}\n\n${episode.body}`).join('\n\n--------------------\n\n')
 }

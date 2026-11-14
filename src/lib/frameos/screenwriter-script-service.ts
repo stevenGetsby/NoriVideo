@@ -1,5 +1,14 @@
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import {
+  REPAINT_DOCUMENTS_LAYOUT,
+  REPAINT_OUTLINE_TITLE,
+  REPAINT_SCRIPT_TITLE,
+  REPAINT_STORYBOARD_TITLE,
+  repaintOutlineDocId,
+  repaintScriptDocId,
+  repaintStoryboardDocId,
+} from '@/lib/video-repaint/contract'
 
 export const FRAMEOS_SCRIPT_STATUSES = ['draft', 'available', 'archived'] as const
 export type FrameosScriptStatus = typeof FRAMEOS_SCRIPT_STATUSES[number]
@@ -10,15 +19,15 @@ export interface FrameosWriterEpisode {
   body: string
 }
 
+/** Version 2 keeps each generated document separately; 分镜 may be empty because it is optional. */
 interface FrameosVideoRepaintSections {
-  version: 1
+  version: 2
   kind: 'video-repaint'
+  layout: typeof REPAINT_DOCUMENTS_LAYOUT
   episodes: FrameosWriterEpisode[]
   sourceScript: string
-  sourceStoryboard: string
   adaptationBrief: string
   adaptationContract?: unknown
-  resultMode: 'llm' | 'source_copy'
   model: string
   sourceFileName: string
 }
@@ -65,6 +74,7 @@ export function normalizeFrameosScriptStatus(value: unknown): FrameosScriptStatu
 export function toWriterScript(script: StoredFrameosScript) {
   const sections = isRecord(script.sections) ? script.sections : null
   const sourceFileName = cleanText(sections?.sourceFileName)
+  const layout = sections?.layout === REPAINT_DOCUMENTS_LAYOUT ? REPAINT_DOCUMENTS_LAYOUT : undefined
   return {
     id: script.id,
     title: script.title,
@@ -73,38 +83,46 @@ export function toWriterScript(script: StoredFrameosScript) {
     createdAt: script.createdAt.toISOString(),
     updatedAt: script.updatedAt.toISOString(),
     episodes: readEpisodes(sections, script.content, script.id),
+    ...(layout ? { layout } : {}),
     ...(sourceFileName ? { lineage: sourceFileName } : {}),
   }
 }
 
+/**
+ * Target script and outline are the primary documents. An empty optional storyboard document is retained so it
+ * can be generated or edited later without changing the saved script's layout.
+ */
 export function buildVideoRepaintSections(input: {
   scriptId: string
-  targetScript: string
-  sourceScript: string
-  sourceStoryboard?: string
+  outline?: string
+  targetScript?: string
+  storyboard?: string
+  sourceScript?: string
   adaptationBrief?: string
   adaptationContract?: unknown
-  resultMode: 'llm' | 'source_copy'
   model?: string
   sourceFileName?: string
-  episodeTitle?: string
 }): FrameosVideoRepaintSections {
   return {
-    version: 1,
+    version: 2,
     kind: 'video-repaint',
-    episodes: [{
-      id: `${input.scriptId}-ep-1`,
-      title: cleanText(input.episodeTitle) || '第 1 集',
-      body: input.targetScript,
-    }],
-    sourceScript: input.sourceScript,
-    sourceStoryboard: input.sourceStoryboard || '',
+    layout: REPAINT_DOCUMENTS_LAYOUT,
+    episodes: [
+      { id: repaintScriptDocId(input.scriptId), title: REPAINT_SCRIPT_TITLE, body: cleanText(input.targetScript) },
+      { id: repaintOutlineDocId(input.scriptId), title: REPAINT_OUTLINE_TITLE, body: cleanText(input.outline) },
+      { id: repaintStoryboardDocId(input.scriptId), title: REPAINT_STORYBOARD_TITLE, body: cleanText(input.storyboard) },
+    ],
+    sourceScript: cleanText(input.sourceScript),
     adaptationBrief: input.adaptationBrief || '',
     adaptationContract: input.adaptationContract,
-    resultMode: input.resultMode,
     model: input.model || '',
     sourceFileName: input.sourceFileName || '',
   }
+}
+
+/** The `content` column of a saved script: the document bodies in order, the way the editor joins them on every save. */
+export function joinDocumentBodies(documents: readonly FrameosWriterEpisode[]): string {
+  return documents.map((document) => document.body).filter(Boolean).join('\n\n')
 }
 
 export async function listFrameosScriptsForAccount(actorUserId: string) {

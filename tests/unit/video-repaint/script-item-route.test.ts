@@ -22,16 +22,18 @@ function storedScript(overrides?: Record<string, unknown>) {
   return {
     id: 'vr_draft',
     title: '改编第一集',
-    content: '第1集\n场景：目标场景',
+    content: '1. 目标市场版故事核与类型承诺\n北美复仇短剧\n\n## S1 [出租屋 · 夜间 · 内]',
     status: 'draft',
     sections: {
-      version: 1,
+      version: 2,
       kind: 'video-repaint',
-      episodes: [{ id: 'ep-1', title: '第 1 集', body: '第1集\n场景：目标场景' }],
+      layout: 'documents',
+      episodes: [
+        { id: 'vr_draft-doc-outline', title: '目标设定总纲', body: '1. 目标市场版故事核与类型承诺\n北美复仇短剧' },
+        { id: 'vr_draft-doc-storyboard', title: '分镜', body: '## S1 [出租屋 · 夜间 · 内]' },
+      ],
       sourceScript: '第1集\n场景：源场景',
-      sourceStoryboard: '',
       adaptationBrief: '',
-      resultMode: 'llm',
       model: '',
       sourceFileName: 'sample.mp4',
     },
@@ -133,6 +135,42 @@ describe('/api/video-repaint/scripts/[scriptId]', () => {
     })
     expect(payload.script.title).toBe('新标题')
     expect(payload.script.status).toBe('available')
+  })
+
+  it('keeps the documents layout and the source data when a document is edited', async () => {
+    prismaMock.frameosScript.findFirst.mockResolvedValue(storedScript())
+    prismaMock.frameosScript.update.mockImplementation(async ({ data }: { data: Record<string, unknown> }) =>
+      storedScript({ ...data, updatedAt: new Date() }))
+    const { PATCH } = await import('@/app/api/video-repaint/scripts/[scriptId]/route')
+    const response = await PATCH(request('PATCH', {
+      episodes: [
+        { id: 'vr_draft-doc-outline', title: '目标设定总纲', body: '改过的总纲' },
+        { id: 'vr_draft-doc-storyboard', title: '分镜', body: '' },
+      ],
+    }) as never, params())
+    const payload = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosScript.update).toHaveBeenCalledWith({
+      where: { id: 'vr_draft' },
+      data: expect.objectContaining({
+        // An empty document adds no stray blank lines to the searchable content.
+        content: '改过的总纲',
+        sections: expect.objectContaining({
+          version: 2,
+          kind: 'video-repaint',
+          layout: 'documents',
+          sourceScript: '第1集\n场景：源场景',
+          sourceFileName: 'sample.mp4',
+          episodes: [
+            { id: 'vr_draft-doc-outline', title: '目标设定总纲', body: '改过的总纲' },
+            { id: 'vr_draft-doc-storyboard', title: '分镜', body: '' },
+          ],
+        }),
+      }),
+    })
+    expect(payload.script.layout).toBe('documents')
+    expect(payload.script.lineage).toBe('sample.mp4')
   })
 
   it('deletes only the row resolved for the acting account', async () => {

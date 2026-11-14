@@ -5,12 +5,13 @@ import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import {
   buildVideoRepaintSections,
+  joinDocumentBodies,
   listFrameosScriptsForAccount,
   toPrismaSections,
   toWriterScript,
 } from '@/lib/frameos/screenwriter-script-service'
 
-const MAX_SCRIPT_CHARS = 400_000
+const MAX_DOCUMENT_CHARS = 400_000
 const MAX_ANALYSIS_BYTES = 2 * 1024 * 1024
 const MAX_CLIENT_REQUEST_ID_CHARS = 200
 
@@ -55,15 +56,19 @@ export const POST = apiHandler(async (request: NextRequest) => {
   if (!isRecord(payload)) throw new ApiError('INVALID_PARAMS', { message: '无法读取剧本内容' })
 
   const title = cleanText(payload.title).slice(0, 200)
+  const outline = cleanText(payload.outline)
   const targetScript = cleanText(payload.targetScript)
+  const storyboard = cleanText(payload.storyboard)
   const sourceScript = cleanText(payload.sourceScript)
-  if (!title || !targetScript || !sourceScript) {
-    throw new ApiError('INVALID_PARAMS', { message: '任务名称、源剧本和转绘剧本不能为空' })
+  if (!title) {
+    throw new ApiError('INVALID_PARAMS', { message: '任务名称不能为空' })
   }
-  if (targetScript.length > MAX_SCRIPT_CHARS || sourceScript.length > MAX_SCRIPT_CHARS) {
-    throw new ApiError('INVALID_PARAMS', { message: '剧本内容过长，请拆分后重试' })
+  if (!outline && !targetScript && !storyboard) {
+    throw new ApiError('INVALID_PARAMS', { message: '目标剧本、目标设定总纲和分镜都是空的，没有可保存的内容' })
   }
-  const resultMode = payload.resultMode === 'source_copy' ? 'source_copy' : 'llm'
+  if ([outline, targetScript, storyboard, sourceScript].some((text) => text.length > MAX_DOCUMENT_CHARS)) {
+    throw new ApiError('INVALID_PARAMS', { message: '文档内容过长，请拆分后重试' })
+  }
   const ownerId = actorId(authResult.session)
   const clientRequestId = cleanText(payload.clientRequestId)
   if (clientRequestId.length > MAX_CLIENT_REQUEST_ID_CHARS) {
@@ -92,15 +97,14 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const sections = buildVideoRepaintSections({
     scriptId: id,
+    outline,
     targetScript,
+    storyboard,
     sourceScript,
-    sourceStoryboard: cleanText(payload.sourceStoryboard).slice(0, MAX_SCRIPT_CHARS),
     adaptationBrief: cleanText(payload.adaptationBrief).slice(0, 2_000),
     adaptationContract: sourceAnalysis?.adaptation_contract,
-    resultMode,
     model: cleanText(payload.model).slice(0, 200),
     sourceFileName: cleanText(payload.sourceFileName).slice(0, 240),
-    episodeTitle: cleanText(payload.episodeTitle).slice(0, 100),
   })
   try {
     const created = await prisma.frameosScript.create({
@@ -109,7 +113,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
         userId: ownerId,
         projectId: id,
         title,
-        content: targetScript,
+        content: joinDocumentBodies(sections.episodes),
         status: 'draft',
         sections: toPrismaSections(sections),
       },

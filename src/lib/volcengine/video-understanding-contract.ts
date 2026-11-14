@@ -8,7 +8,8 @@ export interface VideoRepaintAnalysisValidation {
 
 type JsonRecord = Record<string, unknown>
 
-const TIMELINE_GAP_TOLERANCE_SECONDS = 0.25
+// The source script has to reach the end of the video, give or take a closing card or a fade-out.
+const SCENE_COVERAGE_TOLERANCE_SECONDS = 5
 
 function isRecord(value: unknown): value is JsonRecord {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -28,7 +29,8 @@ export function extractFormattedEpisodeScript(input: unknown): string {
   return episode ? asString(episode.formatted_text) : ''
 }
 
-function timecodeSeconds(value: unknown): number | null {
+/** `HH:MM:SS.mmm` as seconds; null for anything else. */
+export function parseAnalysisTimecode(value: unknown): number | null {
   const match = asString(value).match(/^(\d+):(\d{2}):(\d{2}(?:\.\d{1,3})?)$/)
   if (!match) return null
   const hours = Number(match[1])
@@ -45,8 +47,59 @@ function formatSeconds(value: number): string {
   return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${seconds.toFixed(3).padStart(6, '0')}`
 }
 
-function collectAssetRefs(value: unknown): Set<string> {
-  return new Set(asArray(value).map((item) => isRecord(item) ? asString(item.asset_ref) : '').filter(Boolean))
+/**
+ * The script as plain text, put together from the scenes and beats. The model normally writes `formatted_text` itself;
+ * this stands in when that field is missing or the reply was cut off before it.
+ */
+export function buildEpisodeScriptFromScenes(input: unknown): string {
+  if (!isRecord(input)) return ''
+  const episode = isRecord(input.source_episode) ? input.source_episode : null
+  if (!episode) return ''
+  const scenes = asArray(episode.scenes).filter(isRecord)
+  if (!scenes.length) return ''
+
+  const assets = isRecord(input.asset_candidates) ? input.asset_candidates : {}
+  const names = new Map<string, string>()
+  for (const character of asArray(assets.characters)) {
+    if (!isRecord(character)) continue
+    const ref = asString(character.asset_ref)
+    if (ref) names.set(ref, asString(character.name_if_heard) || asString(asArray(character.aliases_heard)[0]) || ref)
+  }
+  const nameOf = (ref: unknown): string => names.get(asString(ref)) || asString(ref)
+
+  const episodeNumber = typeof episode.episode_number === 'number' && Number.isInteger(episode.episode_number) && episode.episode_number > 0
+    ? episode.episode_number
+    : 1
+  const lines = [`第${episodeNumber}集`]
+  for (const scene of scenes) {
+    const sceneNumber = asString(scene.scene_number)
+    if (sceneNumber) lines.push(sceneNumber)
+    const heading = isRecord(scene.heading) ? scene.heading : {}
+    const place = [
+      asString(heading.location),
+      asString(heading.time_of_day),
+      asString(heading.weather) || asString(heading.light_condition),
+    ].filter(Boolean).join(' - ')
+    if (place) lines.push(`场景：${place}`)
+    const present = asArray(scene.character_refs).map(nameOf).filter(Boolean)
+    if (present.length) lines.push(`人物：${present.join('、')}`)
+    const lead = asString(scene.lead_shot_cue)
+    if (lead) lines.push(lead)
+
+    for (const beat of asArray(scene.beats)) {
+      if (!isRecord(beat)) continue
+      const text = asString(beat.text)
+      if (!text) continue
+      const type = asString(beat.type)
+      const note = asString(beat.parenthetical)
+      if (type === 'dialogue') lines.push(`${nameOf(beat.speaker_ref) || '未知'}${note ? `（${note}）` : ''}：${text}`)
+      else if (type === 'voiceover') lines.push(`画外音：${text}`)
+      else if (type === 'inner_monologue') lines.push(`（内心OS）：${text}`)
+      else if (type === 'sound') lines.push(`（音效）${text}`)
+      else lines.push(`△${text}`)
+    }
+  }
+  return lines.join('\n')
 }
 
 function checkRequiredRecord(
@@ -67,6 +120,10 @@ function checkRequiredArray(root: JsonRecord, field: string, errors: string[]): 
   return []
 }
 
+/**
+ * Checks the source script (场次, 人物, 对白) and the neutral adaptation contract. The shot-level 分镜 is a separate
+ * document written by its own stage, so nothing here looks at it.
+ */
 export function validateVideoRepaintAnalysis(input: unknown): VideoRepaintAnalysisValidation {
   const errors: string[] = []
   const warnings: string[] = []
@@ -84,16 +141,13 @@ export function validateVideoRepaintAnalysis(input: unknown): VideoRepaintAnalys
   checkRequiredRecord(input, 'series_metadata', errors)
   const episode = checkRequiredRecord(input, 'source_episode', errors)
   const assets = checkRequiredRecord(input, 'asset_candidates', errors)
-  const storyboard = checkRequiredRecord(input, 'source_storyboard', errors)
   const adaptation = checkRequiredRecord(input, 'adaptation_contract', errors)
   checkRequiredRecord(input, 'quality_report', errors)
 
   const scenes = checkRequiredArray(episode, 'scenes', errors)
-  const shots = checkRequiredArray(storyboard, 'shots', errors)
-  checkRequiredArray(storyboard, 'excluded_ranges', errors)
-  const characters = checkRequiredArray(assets, 'characters', errors)
-  const locations = checkRequiredArray(assets, 'locations', errors)
-  const props = checkRequiredArray(assets, 'props', errors)
+  checkRequiredArray(assets, 'characters', errors)
+  checkRequiredArray(assets, 'locations', errors)
+  checkRequiredArray(assets, 'props', errors)
 
   for (const field of [
     'story_invariants',
@@ -118,30 +172,32 @@ export function validateVideoRepaintAnalysis(input: unknown): VideoRepaintAnalys
     if (!formattedText.includes('人物：')) warnings.push('formatted_text is missing character line')
   }
   if (scenes.length === 0) warnings.push('source_episode.scenes is empty')
-  if (shots.length === 0) warnings.push('source_storyboard.shots is empty')
 
   const sceneIds = new Set<string>()
   const beatIds = new Set<string>()
+  let lastSceneEnd: number | null = null
   for (let index = 0; index < scenes.length; index += 1) {
-    const rawScene = scenes[index]
-    if (!isRecord(rawScene)) {
+    const scene = scenes[index]
+    if (!isRecord(scene)) {
       errors.push(`source_episode.scenes[${index}] must be an object`)
       continue
     }
-    const scene = rawScene
     const sceneId = asString(scene.scene_id)
     if (!sceneId) errors.push(`source_episode.scenes[${index}].scene_id is required`)
     else if (sceneIds.has(sceneId)) errors.push(`duplicate scene_id: ${sceneId}`)
     else sceneIds.add(sceneId)
 
+    const range = isRecord(scene.source_range) ? scene.source_range : {}
+    const sceneEnd = parseAnalysisTimecode(range.end_time)
+    if (sceneEnd !== null && (lastSceneEnd === null || sceneEnd > lastSceneEnd)) lastSceneEnd = sceneEnd
+
     const beats = checkRequiredArray(scene, 'beats', errors)
     for (let beatIndex = 0; beatIndex < beats.length; beatIndex += 1) {
-      const rawBeat = beats[beatIndex]
-      if (!isRecord(rawBeat)) {
+      const beat = beats[beatIndex]
+      if (!isRecord(beat)) {
         errors.push(`source_episode.scenes[${index}].beats[${beatIndex}] must be an object`)
         continue
       }
-      const beat = rawBeat
       const beatId = asString(beat.beat_id)
       if (!beatId) errors.push(`source_episode.scenes[${index}].beats[${beatIndex}].beat_id is required`)
       else if (beatIds.has(beatId)) errors.push(`duplicate beat_id: ${beatId}`)
@@ -149,76 +205,13 @@ export function validateVideoRepaintAnalysis(input: unknown): VideoRepaintAnalys
     }
   }
 
-  const assetRefs = new Set([
-    ...collectAssetRefs(characters),
-    ...collectAssetRefs(locations),
-    ...collectAssetRefs(props),
-  ])
-  const panelIds = new Set<string>()
-  const timelineRanges: Array<{ start: number; end: number; label: string }> = []
-  for (let index = 0; index < shots.length; index += 1) {
-    const rawShot = shots[index]
-    if (!isRecord(rawShot)) {
-      errors.push(`source_storyboard.shots[${index}] must be an object`)
-      continue
-    }
-    const shot = rawShot
-    const panelId = asString(shot.panel_id)
-    if (!panelId) errors.push(`source_storyboard.shots[${index}].panel_id is required`)
-    else if (panelIds.has(panelId)) errors.push(`duplicate panel_id: ${panelId}`)
-    else panelIds.add(panelId)
-
-    const anchor = isRecord(shot.source_anchor) ? shot.source_anchor : {}
-    const start = timecodeSeconds(anchor.start_time)
-    const end = timecodeSeconds(anchor.end_time)
-    if (start !== null && end !== null && end > start) {
-      timelineRanges.push({ start, end, label: panelId || `shot ${index + 1}` })
-    }
-
-    const sceneId = asString(shot.scene_id)
-    if (sceneId && !sceneIds.has(sceneId)) warnings.push(`${panelId || `shot ${index + 1}`} references unknown scene_id ${sceneId}`)
-    for (const beatIdRaw of asArray(shot.source_beat_ids)) {
-      const beatId = asString(beatIdRaw)
-      if (beatId && !beatIds.has(beatId)) warnings.push(`${panelId || `shot ${index + 1}`} references unknown beat_id ${beatId}`)
-    }
-
-    const refs = isRecord(shot.referenced_assets) ? shot.referenced_assets : {}
-    const referenced = [
-      ...asArray(refs.characters),
-      refs.location,
-      ...asArray(refs.props),
-    ].map(asString).filter(Boolean)
-    for (const assetRef of referenced) {
-      if (!assetRefs.has(assetRef)) warnings.push(`${panelId || `shot ${index + 1}`} references unknown asset ${assetRef}`)
-    }
-  }
-  const excludedRanges = asArray(storyboard.excluded_ranges)
-  for (let index = 0; index < excludedRanges.length; index += 1) {
-    const rawRange = excludedRanges[index]
-    const range: JsonRecord = isRecord(rawRange) ? rawRange : {}
-    const start = timecodeSeconds(range.start_time)
-    const end = timecodeSeconds(range.end_time)
-    if (start !== null && end !== null && end > start) {
-      timelineRanges.push({ start, end, label: `excluded range ${index + 1}` })
-    }
-  }
-
-  timelineRanges.sort((left, right) => left.start - right.start || left.end - right.end)
-  let coveredUntil = timelineRanges[0]?.end
-  let previousLabel = timelineRanges[0]?.label
-  for (let index = 1; index < timelineRanges.length && coveredUntil !== undefined; index += 1) {
-    const current = timelineRanges[index]
-    if (!current) continue
-    const gap = current.start - coveredUntil
-    if (gap > TIMELINE_GAP_TOLERANCE_SECONDS) {
-      warnings.push(
-        `source timeline has uncovered gap ${formatSeconds(coveredUntil)}-${formatSeconds(current.start)} (${gap.toFixed(3)}s) between ${previousLabel} and ${current.label}`,
-      )
-    }
-    if (current.end > coveredUntil) {
-      coveredUntil = current.end
-      previousLabel = current.label
-    }
+  const duration = typeof episode.duration_seconds === 'number' && Number.isFinite(episode.duration_seconds)
+    ? episode.duration_seconds
+    : 0
+  if (duration > 0 && lastSceneEnd !== null && lastSceneEnd < duration - SCENE_COVERAGE_TOLERANCE_SECONDS) {
+    warnings.push(
+      `source script stops at ${formatSeconds(lastSceneEnd)} but the video runs ${formatSeconds(duration)}; later scenes may be missing`,
+    )
   }
 
   return {

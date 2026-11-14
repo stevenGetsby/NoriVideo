@@ -3,18 +3,15 @@ import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
 import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
-import {
-  adaptVideoScript,
-  VIDEO_REPAINT_ADAPTATION_MODEL,
-  VIDEO_REPAINT_PROJECT_ID,
-} from '@/lib/video-repaint/adaptation'
+import { VIDEO_REPAINT_PROJECT_ID } from '@/lib/video-repaint/contract'
+import { generateTargetOutline, VIDEO_REPAINT_OUTLINE_MODEL } from '@/lib/video-repaint/outline'
 
 export const runtime = 'nodejs'
 export const maxDuration = 600
 
 const MAX_SCRIPT_CHARS = 400_000
 const MAX_BRIEF_CHARS = 2_000
-const MAX_CONTRACT_BYTES = 2 * 1024 * 1024
+const MAX_ANALYSIS_CHARS = 2 * 1024 * 1024
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -36,12 +33,12 @@ function providerFailureDetail(error: unknown): string {
     .slice(0, 240)
 }
 
-function rethrowAdaptationError(error: unknown): never {
+function rethrowOutlineError(error: unknown): never {
   if (error instanceof ApiError) throw error
   const raw = error instanceof Error ? error.message : String(error)
   const normalized = raw.toUpperCase()
   if (error instanceof Error && error.name === 'AbortError') {
-    throw new ApiError('NETWORK_ERROR', { message: '转绘剧本生成请求已取消' })
+    throw new ApiError('NETWORK_ERROR', { message: '目标设定总纲生成请求已取消' })
   }
   if (normalized.includes('MODEL_NOT_CONFIGURED') || normalized.includes('NO LLM MODEL IS ENABLED')) {
     throw new ApiError('MODEL_NOT_CONFIGURED', {
@@ -49,7 +46,7 @@ function rethrowAdaptationError(error: unknown): never {
     })
   }
   if (normalized.includes('EMPTY_RESPONSE')) {
-    throw new ApiError('EMPTY_RESPONSE', { message: '文本模型未返回转绘剧本，请重试' })
+    throw new ApiError('EMPTY_RESPONSE', { message: '文本模型未返回目标设定总纲，请重试' })
   }
   if (normalized.includes('INSUFFICIENT_BALANCE') || normalized.includes('DAILY_LIMIT_EXCEEDED')) {
     throw error
@@ -61,21 +58,22 @@ function rethrowAdaptationError(error: unknown): never {
   }
   const detail = providerFailureDetail(error)
   throw new ApiError('EXTERNAL_ERROR', {
-    message: detail ? `转绘剧本生成失败：${detail}` : '转绘剧本生成失败，请稍后重试',
+    message: detail ? `目标设定总纲生成失败：${detail}` : '目标设定总纲生成失败，请稍后重试',
     provider: 'text-llm',
   })
 }
 
+/** Stage C of the 转绘: the 目标设定总纲, written by the text model from the brief, the source script and the analysis. */
 export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 
   const payload: unknown = await request.json().catch(() => null)
   if (!isRecord(payload)) {
-    throw new ApiError('INVALID_PARAMS', { message: '无法读取转绘剧本参数' })
+    throw new ApiError('INVALID_PARAMS', { message: '无法读取目标设定总纲参数' })
   }
   const sourceScript = cleanText(payload.sourceScript)
-  const adaptationBrief = cleanText(payload.adaptationBrief).slice(0, MAX_BRIEF_CHARS)
+  const brief = cleanText(payload.adaptationBrief).slice(0, MAX_BRIEF_CHARS)
   const title = cleanText(payload.title).slice(0, 200)
   if (!sourceScript) {
     throw new ApiError('INVALID_PARAMS', { message: '源剧本为空，请先完成视频反译' })
@@ -84,56 +82,53 @@ export const POST = apiHandler(async (request: NextRequest) => {
     throw new ApiError('INVALID_PARAMS', { message: '源剧本内容过长，请拆分后重试' })
   }
 
-  const adaptationContract = isRecord(payload.sourceAnalysis)
-    ? payload.sourceAnalysis.adaptation_contract
-    : payload.adaptationContract
-  if (adaptationContract !== undefined) {
-    let contractLength = 0
+  const sourceAnalysis = isRecord(payload.sourceAnalysis) ? payload.sourceAnalysis : undefined
+  if (sourceAnalysis) {
+    let analysisLength = 0
     try {
-      contractLength = JSON.stringify(adaptationContract).length
+      analysisLength = JSON.stringify(sourceAnalysis).length
     } catch {
-      throw new ApiError('INVALID_PARAMS', { message: '改编约束数据无法序列化' })
+      throw new ApiError('INVALID_PARAMS', { message: '视频理解数据无法序列化' })
     }
-    if (contractLength > MAX_CONTRACT_BYTES) {
-      throw new ApiError('INVALID_PARAMS', { message: '改编约束数据过大' })
+    if (analysisLength > MAX_ANALYSIS_CHARS) {
+      throw new ApiError('INVALID_PARAMS', { message: '视频理解数据过大' })
     }
   }
 
   const startedAt = Date.now()
   let result
   try {
-    result = await adaptVideoScript({
+    result = await generateTargetOutline({
       userId: authResult.session.user.id,
-      sourceScript,
-      adaptationBrief,
-      adaptationContract,
       title,
+      brief,
+      sourceScript,
+      sourceAnalysis,
       requestId: getRequestId(request),
       projectId: VIDEO_REPAINT_PROJECT_ID,
     })
   } catch (error) {
-    rethrowAdaptationError(error)
+    rethrowOutlineError(error)
   }
 
-  if (result.mode === 'llm') {
-    await recordServiceUsage({
-      provider: 'text-llm',
-      modelKey: VIDEO_REPAINT_ADAPTATION_MODEL,
-      serviceType: 'video-repaint',
-      operation: 'script-adaptation',
-      userId: actorId(authResult.session),
-      inputTokens: result.usage.inputTokens,
-      outputTokens: result.usage.outputTokens,
-      latencyMs: Date.now() - startedAt,
-    })
-  }
+  await recordServiceUsage({
+    provider: 'text-llm',
+    modelKey: VIDEO_REPAINT_OUTLINE_MODEL,
+    serviceType: 'video-repaint',
+    operation: 'target-outline',
+    userId: actorId(authResult.session),
+    inputTokens: result.usage.inputTokens,
+    outputTokens: result.usage.outputTokens,
+    latencyMs: Date.now() - startedAt,
+  })
 
+  // The business model key stays on the server, like the rest of the protected text-model routes.
   return NextResponse.json({
     success: true,
     result: {
-      script: result.script,
-      mode: result.mode,
+      outline: result.outline,
       usage: result.usage,
+      missingSections: result.missingSections,
     },
   })
 })

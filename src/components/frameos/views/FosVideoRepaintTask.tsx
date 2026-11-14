@@ -3,17 +3,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
+import {
+  REPAINT_EPISODE_NUMBER,
+  REPAINT_MAX_STORYBOARD_ROUNDS,
+  type RepaintOutlineRequest,
+  type RepaintOutlineResult,
+  type RepaintProgress,
+  type RepaintSaveRequest,
+  type RepaintStoryboardRequest,
+  type RepaintStoryboardResult,
+  type RepaintTargetScriptRequest,
+  type RepaintTargetScriptResult,
+  type RepaintUsage,
+  type RepaintValidation,
+} from '@/lib/video-repaint/contract'
 import type { WriterScript } from './screenwriterModels'
 import { FosVideoRepaintProgress } from './FosVideoRepaintProgress'
 import { FosVideoRepaintRail } from './FosVideoRepaintRail'
 import { FosVideoRepaintSetup } from './FosVideoRepaintSetup'
 import {
   MAX_REPAINT_VIDEO_BYTES,
+  createEmptyOutlineTrack,
+  createEmptyStoryboardTrack,
+  createEmptyTargetScriptTrack,
+  isSessionExpiredMessage,
   validateRepaintSetup,
   type LocalVideoItem,
-  type RepaintResultMode,
+  type RepaintOutlineTrack,
   type RepaintRunState,
   type RepaintSetupErrors,
+  type RepaintStoryboardTrack,
+  type RepaintTargetScriptTrack,
   type VideoUnderstandingEpisode,
 } from './videoRepaintState'
 
@@ -43,6 +63,146 @@ function abortError(): Error {
   return new DOMException('Aborted', 'AbortError')
 }
 
+function numberOrZero(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0
+}
+
+function readUsage(value: unknown): RepaintUsage {
+  const usage = isRecord(value) ? value : {}
+  return {
+    inputTokens: typeof usage.inputTokens === 'number' ? usage.inputTokens : 0,
+    outputTokens: typeof usage.outputTokens === 'number' ? usage.outputTokens : 0,
+  }
+}
+
+function readValidation(value: unknown): RepaintValidation {
+  const validation = isRecord(value) ? value : {}
+  const readList = (item: unknown) => Array.isArray(item)
+    ? item.filter((entry): entry is string => typeof entry === 'string')
+    : []
+  return {
+    valid: validation.valid === true,
+    errors: readList(validation.errors),
+    warnings: readList(validation.warnings),
+  }
+}
+
+function addUsage(left: RepaintUsage, right: RepaintUsage): RepaintUsage {
+  return {
+    inputTokens: left.inputTokens + right.inputTokens,
+    outputTokens: left.outputTokens + right.outputTokens,
+  }
+}
+
+type SourceStage = 'upload' | 'preprocess' | 'analyze'
+
+function isSourceStage(value: unknown): value is SourceStage {
+  return value === 'upload' || value === 'preprocess' || value === 'analyze'
+}
+
+interface StreamOutcome {
+  result: Record<string, unknown> | null
+  error: string
+}
+
+/** The understand routes stream long model stages over SSE so the pipeline can
+ * show liveness during multi-minute preprocessing and generation. */
+async function consumeUnderstandResponse(
+  response: Response,
+  onProgress: (progress: RepaintProgress) => void,
+  fallbackMessage: string,
+): Promise<StreamOutcome> {
+  const contentType = response.headers.get('content-type') || ''
+  if (!contentType.includes('text/event-stream')) {
+    const payload: unknown = await response.json().catch(() => ({}))
+    if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
+      return {
+        result: null,
+        error: readApiError(payload) || `${fallbackMessage}（HTTP ${response.status}）`,
+      }
+    }
+    return { result: payload.result, error: '' }
+  }
+
+  const reader = response.body?.getReader()
+  if (!reader) return { result: null, error: `${fallbackMessage}（HTTP ${response.status}）` }
+
+  let eventName = ''
+  let dataLines: string[] = []
+  let result: Record<string, unknown> | null = null
+  let error = ''
+
+  const dispatch = () => {
+    const name = eventName
+    eventName = ''
+    if (!dataLines.length) return
+    const raw = dataLines.join('\n')
+    dataLines = []
+    let payload: unknown
+    try {
+      payload = JSON.parse(raw)
+    } catch {
+      return
+    }
+    if (name === 'progress' && isRecord(payload)) {
+      const stage = payload.stage
+      if (stage === 'upload' || stage === 'preprocess' || stage === 'analyze' || stage === 'storyboard') {
+        onProgress({
+          stage,
+          elapsedSeconds: typeof payload.elapsedSeconds === 'number' ? payload.elapsedSeconds : undefined,
+          outputChars: typeof payload.outputChars === 'number' ? payload.outputChars : undefined,
+          shots: typeof payload.shots === 'number' ? payload.shots : undefined,
+        })
+      }
+      return
+    }
+    if (name === 'result' && isRecord(payload) && isRecord(payload.result)) {
+      result = payload.result
+      return
+    }
+    if (name === 'error') {
+      error = readApiError(payload) || `${fallbackMessage}，请稍后重试`
+    }
+  }
+
+  const consumeLine = (line: string) => {
+    if (line === '') {
+      dispatch()
+      return
+    }
+    if (line.startsWith('event:')) {
+      eventName = line.slice(6).trim()
+      return
+    }
+    if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart())
+  }
+
+  const decoder = new TextDecoder()
+  let buffer = ''
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let boundary = buffer.indexOf('\n')
+      while (boundary >= 0) {
+        consumeLine(buffer.slice(0, boundary).replace(/\r$/, ''))
+        buffer = buffer.slice(boundary + 1)
+        boundary = buffer.indexOf('\n')
+      }
+    }
+    buffer += decoder.decode()
+    if (buffer.trim()) consumeLine(buffer.replace(/\r$/, ''))
+    dispatch()
+  } finally {
+    reader.releaseLock()
+  }
+
+  if (error) return { result: null, error }
+  if (!result) return { result: null, error: `${fallbackMessage}（HTTP ${response.status}）` }
+  return { result, error: '' }
+}
+
 function readVideoDuration(url: string, signal: AbortSignal): Promise<number> {
   return new Promise((resolve) => {
     if (signal.aborted) {
@@ -70,180 +230,177 @@ function readVideoDuration(url: string, signal: AbortSignal): Promise<number> {
   })
 }
 
+/** Stage A: upload the single video and receive the source script plus the cut hints. */
 async function understandOneVideo(
   video: LocalVideoItem,
   signal: AbortSignal,
-  adaptationBrief: string,
-  onPhase: (phase: 'upload' | 'script' | 'storyboard') => void,
-  onSourceReady: (source: VideoUnderstandingEpisode) => void,
+  onProgress: (progress: RepaintProgress) => void,
 ): Promise<VideoUnderstandingEpisode> {
   const durationPromise = readVideoDuration(video.url, signal)
-  onPhase('upload')
+  onProgress({ stage: 'upload' })
   const localDuration = await durationPromise
   if (signal.aborted) throw abortError()
 
   const formData = new FormData()
   formData.append('file', video.file, video.file.name)
   formData.append('mode', 'script')
-  formData.append('episodeNumber', '1')
-  formData.append('adaptationBrief', adaptationBrief)
+  formData.append('episodeNumber', String(REPAINT_EPISODE_NUMBER))
   if (localDuration > 0) formData.append('durationSeconds', String(localDuration))
 
   const response = await fetch('/api/video-repaint/understand', {
     method: 'POST',
+    headers: { Accept: 'text/event-stream' },
     body: formData,
     signal,
   })
-  const payload: unknown = await response.json().catch(() => ({}))
-  if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
-    throw new Error(readApiError(payload) || `视频反译失败（HTTP ${response.status}）`)
-  }
+  const upload = await consumeUnderstandResponse(response, onProgress, '视频反译失败')
+  if (!upload.result) throw new Error(upload.error)
 
-  onPhase('script')
-  const result = payload.result
-  const usage = isRecord(result.usage) ? result.usage : {}
-  const validation = isRecord(result.validation) ? result.validation : {}
+  const result = upload.result
   const analysis = isRecord(result.analysis) ? result.analysis : null
   const fileHandle = typeof result.fileHandle === 'string' ? result.fileHandle : ''
-  const analyzedDuration = typeof result.durationSeconds === 'number' ? result.durationSeconds : 0
-  const durationSeconds = localDuration || analyzedDuration
-  if (!fileHandle || !analysis || !durationSeconds) {
-    throw new Error('视频反译未返回可用于分镜阶段的源数据')
+  if (!fileHandle || !analysis) {
+    throw new Error('视频反译未返回可用于文档生成的源数据')
   }
+  const cutHints = Array.isArray(result.cutHints)
+    ? result.cutHints.filter((item): item is number => typeof item === 'number' && Number.isFinite(item) && item >= 0)
+    : []
 
-  const sourceEpisode: VideoUnderstandingEpisode = {
+  return {
     fileName: video.file.name,
-    model: '',
+    fileHandle,
     script: typeof result.script === 'string' ? result.script : '',
-    storyboard: '',
-    text: '',
     analysis,
-    durationSeconds,
-    usage: {
-      inputTokens: typeof usage.inputTokens === 'number' ? usage.inputTokens : 0,
-      outputTokens: typeof usage.outputTokens === 'number' ? usage.outputTokens : 0,
-    },
-    validation: {
-      valid: validation.valid === true,
-      errors: Array.isArray(validation.errors) ? validation.errors.filter((item): item is string => typeof item === 'string') : [],
-      warnings: Array.isArray(validation.warnings) ? validation.warnings.filter((item): item is string => typeof item === 'string') : [],
-    },
+    durationSeconds: localDuration || numberOrZero(result.durationSeconds),
+    cutHints,
+    usage: readUsage(result.usage),
+    validation: readValidation(result.validation),
   }
-  onSourceReady(sourceEpisode)
+}
 
-  onPhase('storyboard')
-  const storyboardController = new AbortController()
-  const abortStoryboard = () => storyboardController.abort()
-  signal.addEventListener('abort', abortStoryboard, { once: true })
-  const timeout = window.setTimeout(() => storyboardController.abort(), STORYBOARD_STAGE_TIMEOUT_MS)
-  let storyboardPayload: unknown = {}
-  let storyboardResponse: Response | null = null
+function parseStoryboardResult(result: Record<string, unknown>): RepaintStoryboardResult {
+  return {
+    fileHandle: typeof result.fileHandle === 'string' ? result.fileHandle : '',
+    storyboard: typeof result.storyboard === 'string' ? result.storyboard : '',
+    complete: result.complete === true,
+    coveredSeconds: numberOrZero(result.coveredSeconds),
+    durationSeconds: numberOrZero(result.durationSeconds),
+    shotCount: numberOrZero(result.shotCount),
+    addedShots: numberOrZero(result.addedShots),
+    usage: readUsage(result.usage),
+    validation: readValidation(result.validation),
+  }
+}
+
+interface StoryboardRoundInput {
+  source: VideoUnderstandingEpisode
+  continuation: string
+  signal: AbortSignal
+  onProgress: (progress: RepaintProgress) => void
+}
+
+/** One streamed storyboard round, capped by the existing ten-minute stage timeout. */
+async function requestStoryboardRound(input: StoryboardRoundInput): Promise<RepaintStoryboardResult> {
+  const controller = new AbortController()
+  const forwardAbort = () => controller.abort()
+  input.signal.addEventListener('abort', forwardAbort, { once: true })
+  const timeout = window.setTimeout(() => controller.abort(), STORYBOARD_STAGE_TIMEOUT_MS)
   try {
-    storyboardResponse = await fetch('/api/video-repaint/understand', {
+    const request: RepaintStoryboardRequest = {
+      stage: 'storyboard',
+      fileHandle: input.source.fileHandle,
+      sourceAnalysis: input.source.analysis ?? {},
+      episodeNumber: REPAINT_EPISODE_NUMBER,
+      cutHints: input.source.cutHints,
+    }
+    if (input.continuation.trim()) request.continuation = { storyboard: input.continuation }
+    const response = await fetch('/api/video-repaint/understand', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        stage: 'storyboard',
-        fileHandle,
-        sourceAnalysis: analysis,
-        episodeNumber: 1,
-      }),
-      signal: storyboardController.signal,
+      headers: { 'Content-Type': 'application/json', Accept: 'text/event-stream' },
+      body: JSON.stringify(request),
+      signal: controller.signal,
     })
-    storyboardPayload = await storyboardResponse.json().catch(() => ({}))
+    const outcome = await consumeUnderstandResponse(response, input.onProgress, '分镜生成失败')
+    if (!outcome.result) throw new Error(outcome.error || '分镜生成失败')
+    return parseStoryboardResult(outcome.result)
   } catch (error) {
-    if (signal.aborted) throw abortError()
-    if (storyboardController.signal.aborted) {
-      throw new Error('源分镜提取超时，已保留反译得到的原剧本，可继续编辑。')
+    if (input.signal.aborted) throw abortError()
+    if (controller.signal.aborted) {
+      throw new Error('分镜生成超时（10 分钟），可点击重试继续生成。')
     }
     throw error
   } finally {
     window.clearTimeout(timeout)
-    signal.removeEventListener('abort', abortStoryboard)
-  }
-
-  if (!storyboardResponse) throw new Error('源分镜提取失败，请重试')
-  if (signal.aborted) throw abortError()
-  if (!storyboardResponse.ok || !isRecord(storyboardPayload) || !isRecord(storyboardPayload.result)) {
-    throw new Error(readApiError(storyboardPayload) || `源分镜提取失败（HTTP ${storyboardResponse.status}）`)
-  }
-
-  const storyboardResult = storyboardPayload.result
-  const storyboardUsage = isRecord(storyboardResult.usage) ? storyboardResult.usage : {}
-  const storyboardValidation = isRecord(storyboardResult.validation) ? storyboardResult.validation : {}
-  const scriptWarnings = sourceEpisode.validation.warnings
-  const storyboardWarnings = Array.isArray(storyboardValidation.warnings)
-    ? storyboardValidation.warnings.filter((item): item is string => typeof item === 'string')
-    : []
-  const storyboardErrors = Array.isArray(storyboardValidation.errors)
-    ? storyboardValidation.errors.filter((item): item is string => typeof item === 'string')
-    : []
-
-  return {
-    ...sourceEpisode,
-    storyboard: typeof storyboardResult.storyboard === 'string' ? storyboardResult.storyboard : '',
-    analysis: isRecord(storyboardResult.analysis) ? storyboardResult.analysis : analysis,
-    usage: {
-      inputTokens: sourceEpisode.usage.inputTokens + (typeof storyboardUsage.inputTokens === 'number' ? storyboardUsage.inputTokens : 0),
-      outputTokens: sourceEpisode.usage.outputTokens + (typeof storyboardUsage.outputTokens === 'number' ? storyboardUsage.outputTokens : 0),
-    },
-    validation: {
-      valid: sourceEpisode.validation.valid && storyboardValidation.valid === true,
-      errors: [...sourceEpisode.validation.errors, ...storyboardErrors],
-      warnings: [...scriptWarnings, ...storyboardWarnings],
-    },
+    input.signal.removeEventListener('abort', forwardAbort)
   }
 }
 
-interface AdaptationResponse {
-  script: string
-  mode: RepaintResultMode
-  model: string
-  usage: { inputTokens: number; outputTokens: number }
-}
-
-async function requestAdaptation(input: {
+async function requestOutline(input: {
   title: string
   brief: string
-  result: VideoUnderstandingEpisode
-  signal?: AbortSignal
-}): Promise<AdaptationResponse> {
-  const response = await fetch('/api/video-repaint/adapt', {
+  source: VideoUnderstandingEpisode
+  signal: AbortSignal
+}): Promise<RepaintOutlineResult> {
+  const request: RepaintOutlineRequest = {
+    title: input.title,
+    adaptationBrief: input.brief,
+    sourceScript: input.source.script,
+    sourceAnalysis: input.source.analysis ?? undefined,
+  }
+  const response = await fetch('/api/video-repaint/outline', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      title: input.title,
-      sourceScript: input.result.script,
-      sourceAnalysis: input.result.analysis,
-      adaptationBrief: input.brief,
-    }),
+    body: JSON.stringify(request),
     signal: input.signal,
   })
   const payload: unknown = await response.json().catch(() => ({}))
   if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
-    throw new Error(readApiError(payload) || `转绘剧本生成失败（HTTP ${response.status}）`)
+    throw new Error(readApiError(payload) || `目标设定总纲生成失败（HTTP ${response.status}）`)
   }
   const result = payload.result
-  const usage = isRecord(result.usage) ? result.usage : {}
-  const script = typeof result.script === 'string' ? result.script.trim() : ''
-  if (!script) throw new Error('文本模型未返回转绘剧本')
+  const outline = typeof result.outline === 'string' ? result.outline.trim() : ''
+  if (!outline) throw new Error('文本模型未返回目标设定总纲')
   return {
-    script,
-    mode: result.mode === 'source_copy' ? 'source_copy' : 'llm',
+    outline,
     model: typeof result.model === 'string' ? result.model : '',
-    usage: {
-      inputTokens: typeof usage.inputTokens === 'number' ? usage.inputTokens : 0,
-      outputTokens: typeof usage.outputTokens === 'number' ? usage.outputTokens : 0,
-    },
+    usage: readUsage(result.usage),
+    missingSections: Array.isArray(result.missingSections)
+      ? result.missingSections.filter((item): item is number => Number.isInteger(item))
+      : [],
   }
 }
 
-function sourceCopy(result: VideoUnderstandingEpisode): AdaptationResponse {
+async function requestTargetScript(input: {
+  title: string
+  brief: string
+  source: VideoUnderstandingEpisode
+  outline: string
+  signal: AbortSignal
+}): Promise<RepaintTargetScriptResult> {
+  const request: RepaintTargetScriptRequest = {
+    title: input.title,
+    adaptationBrief: input.brief,
+    sourceScript: input.source.script,
+    sourceAnalysis: input.source.analysis ?? undefined,
+    durationSeconds: input.source.durationSeconds,
+    outline: input.outline,
+  }
+  const response = await fetch('/api/video-repaint/script', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(request),
+    signal: input.signal,
+  })
+  const payload: unknown = await response.json().catch(() => ({}))
+  if (!response.ok || !isRecord(payload) || !isRecord(payload.result)) {
+    throw new Error(readApiError(payload) || `目标剧本生成失败（HTTP ${response.status}）`)
+  }
+  const targetScript = typeof payload.result.targetScript === 'string' ? payload.result.targetScript.trim() : ''
+  if (!targetScript) throw new Error('文本模型未返回目标剧本')
   return {
-    script: result.script,
-    mode: 'source_copy',
-    model: '',
-    usage: { inputTokens: 0, outputTokens: 0 },
+    targetScript,
+    model: typeof payload.result.model === 'string' ? payload.result.model : '',
+    usage: readUsage(payload.result.usage),
   }
 }
 
@@ -259,31 +416,92 @@ export function FosVideoRepaintTask({ scriptId = 'new', embedded = false, onExit
   const router = useRouter()
   const [title, setTitle] = useState(scriptId !== 'new' ? `转绘任务 ${scriptId}` : '')
   const [brief, setBrief] = useState('')
+  const [generateStoryboard, setGenerateStoryboard] = useState(false)
   const [videos, setVideos] = useState<LocalVideoItem[]>([])
   const [errors, setErrors] = useState<RepaintSetupErrors>({})
   const [runState, setRunState] = useState<RepaintRunState>('setup')
-  const [submitPhase, setSubmitPhase] = useState<'upload' | 'script' | 'storyboard'>('upload')
+  const [sourceStage, setSourceStage] = useState<SourceStage>('upload')
+  const [sourceOutputChars, setSourceOutputChars] = useState(0)
+  const [elapsedSeconds, setElapsedSeconds] = useState(0)
   const [notice, setNotice] = useState('')
   const [understandingResult, setUnderstandingResult] = useState<VideoUnderstandingEpisode | null>(null)
-  const [targetScript, setTargetScript] = useState('')
-  const [resultMode, setResultMode] = useState<RepaintResultMode>('source_copy')
-  const [targetUsage, setTargetUsage] = useState({ inputTokens: 0, outputTokens: 0 })
+  const [outlineState, setOutlineState] = useState<RepaintOutlineTrack>(createEmptyOutlineTrack)
+  const [targetScriptState, setTargetScriptState] = useState<RepaintTargetScriptTrack>(createEmptyTargetScriptTrack)
+  const [storyboardState, setStoryboardState] = useState<RepaintStoryboardTrack>(createEmptyStoryboardTrack)
   const [savedScriptId, setSavedScriptId] = useState('')
+
   const videosRef = useRef<LocalVideoItem[]>([])
   const requestAbortRef = useRef<AbortController | null>(null)
-  const adaptationAbortRef = useRef<AbortController | null>(null)
-  const partialSourceRef = useRef<VideoUnderstandingEpisode | null>(null)
+  const outlineAbortRef = useRef<AbortController | null>(null)
+  const targetScriptAbortRef = useRef<AbortController | null>(null)
+  const storyboardAbortRef = useRef<AbortController | null>(null)
   const submitLockRef = useRef(false)
-  const adaptationLockRef = useRef(false)
+  const outlineLockRef = useRef(false)
+  const targetScriptLockRef = useRef(false)
+  const storyboardLockRef = useRef(false)
   const savingRef = useRef(false)
+  const mountedRef = useRef(true)
   const saveRequestIdRef = useRef('')
+  const outlineTrackRef = useRef<RepaintOutlineTrack>(createEmptyOutlineTrack())
+  const targetScriptTrackRef = useRef<RepaintTargetScriptTrack>(createEmptyTargetScriptTrack())
+  const storyboardTrackRef = useRef<RepaintStoryboardTrack>(createEmptyStoryboardTrack())
+
+  const commitOutlineTrack = (patch: Partial<RepaintOutlineTrack>) => {
+    const next = { ...outlineTrackRef.current, ...patch }
+    outlineTrackRef.current = next
+    if (mountedRef.current) setOutlineState(next)
+  }
+
+  const commitTargetScriptTrack = (patch: Partial<RepaintTargetScriptTrack>) => {
+    const next = { ...targetScriptTrackRef.current, ...patch }
+    targetScriptTrackRef.current = next
+    if (mountedRef.current) setTargetScriptState(next)
+  }
+
+  const commitStoryboardTrack = (patch: Partial<RepaintStoryboardTrack>) => {
+    const next = { ...storyboardTrackRef.current, ...patch }
+    storyboardTrackRef.current = next
+    if (mountedRef.current) setStoryboardState(next)
+  }
+
+  const revealReviewIfDeliverable = () => {
+    if (outlineTrackRef.current.status === 'done' || targetScriptTrackRef.current.status === 'done' || storyboardTrackRef.current.status === 'done') {
+      setRunState((current) => current === 'processing' ? 'review' : current)
+    }
+  }
+
+  const resetTracks = () => {
+    outlineTrackRef.current = createEmptyOutlineTrack()
+    targetScriptTrackRef.current = createEmptyTargetScriptTrack()
+    storyboardTrackRef.current = createEmptyStoryboardTrack()
+    setOutlineState(outlineTrackRef.current)
+    setTargetScriptState(targetScriptTrackRef.current)
+    setStoryboardState(storyboardTrackRef.current)
+  }
+
+  useEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      requestAbortRef.current?.abort()
+      outlineAbortRef.current?.abort()
+      targetScriptAbortRef.current?.abort()
+      storyboardAbortRef.current?.abort()
+      videosRef.current.forEach((video) => URL.revokeObjectURL(video.url))
+    }
+  }, [])
 
   useEffect(() => { videosRef.current = videos }, [videos])
-  useEffect(() => () => {
-    requestAbortRef.current?.abort()
-    adaptationAbortRef.current?.abort()
-    videosRef.current.forEach((video) => URL.revokeObjectURL(video.url))
-  }, [])
+
+  useEffect(() => {
+    if (runState !== 'processing') return
+    const startedAt = Date.now() - elapsedSeconds * 1_000
+    const timer = window.setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1_000))
+    }, 1_000)
+    return () => window.clearInterval(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runState])
 
   const addFiles = (incoming: File[]) => {
     const file = incoming.find((item) => VIDEO_EXTENSION.test(item.name))
@@ -311,17 +529,176 @@ export function FosVideoRepaintTask({ scriptId = 'new', embedded = false, onExit
     })
   }
 
-  const applyAdaptation = (adapted: AdaptationResponse) => {
-    setTargetScript(adapted.script)
-    setResultMode(adapted.mode)
-    setTargetUsage(adapted.usage)
+  const runOutline = async (source: VideoUnderstandingEpisode, briefText: string): Promise<RepaintOutlineResult | null> => {
+    if (outlineLockRef.current) return null
+    outlineLockRef.current = true
+    outlineAbortRef.current?.abort()
+    const controller = new AbortController()
+    outlineAbortRef.current = controller
+    commitOutlineTrack({ status: 'running', error: '' })
+    try {
+      const result = await requestOutline({
+        title: title.trim() || source.fileName,
+        brief: briefText.trim(),
+        source,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) throw abortError()
+      commitOutlineTrack({
+        status: 'done',
+        error: '',
+        text: result.outline,
+        model: result.model,
+        missingSections: result.missingSections,
+        usage: result.usage,
+      })
+      revealReviewIfDeliverable()
+      return result
+    } catch (error) {
+      if (!mountedRef.current) return null
+      const message = controller.signal.aborted
+        ? '已取消目标设定总纲生成，可点击重试。'
+        : error instanceof Error ? error.message : '目标设定总纲生成失败'
+      commitOutlineTrack({ status: 'failed', error: message })
+      revealReviewIfDeliverable()
+      return null
+    } finally {
+      outlineLockRef.current = false
+      if (outlineAbortRef.current === controller) outlineAbortRef.current = null
+    }
   }
 
-  const recoverWithSource = (source: VideoUnderstandingEpisode, message: string) => {
-    setUnderstandingResult(source)
-    applyAdaptation(sourceCopy(source))
-    setRunState('review')
-    setNotice(message)
+  const runTargetScript = async (source: VideoUnderstandingEpisode, outline: string, briefText: string) => {
+    if (targetScriptLockRef.current || !outline.trim()) return
+    targetScriptLockRef.current = true
+    targetScriptAbortRef.current?.abort()
+    const controller = new AbortController()
+    targetScriptAbortRef.current = controller
+    commitTargetScriptTrack({ status: 'running', error: '' })
+    try {
+      const result = await requestTargetScript({
+        title: title.trim() || source.fileName,
+        brief: briefText.trim(),
+        source,
+        outline,
+        signal: controller.signal,
+      })
+      if (controller.signal.aborted) throw abortError()
+      commitTargetScriptTrack({
+        status: 'done', error: '', text: result.targetScript, model: result.model, usage: result.usage,
+      })
+      revealReviewIfDeliverable()
+    } catch (error) {
+      if (!mountedRef.current) return
+      const message = controller.signal.aborted
+        ? '已取消目标剧本生成，可点击重试。'
+        : error instanceof Error ? error.message : '目标剧本生成失败'
+      commitTargetScriptTrack({ status: 'failed', error: message })
+      revealReviewIfDeliverable()
+    } finally {
+      targetScriptLockRef.current = false
+      if (targetScriptAbortRef.current === controller) targetScriptAbortRef.current = null
+    }
+  }
+
+  const runStoryboard = async (source: VideoUnderstandingEpisode, options?: { continueFrom?: string }) => {
+    if (storyboardLockRef.current) return
+    storyboardLockRef.current = true
+    storyboardAbortRef.current?.abort()
+    const controller = new AbortController()
+    storyboardAbortRef.current = controller
+
+    const continuing = options?.continueFrom?.trim() ? options.continueFrom : ''
+    const previous = storyboardTrackRef.current
+    let text = continuing || ''
+    let usage = continuing ? previous.usage : { inputTokens: 0, outputTokens: 0 }
+    let coveredSeconds = continuing ? previous.coveredSeconds : 0
+    let shotCount = continuing ? previous.shotCount : 0
+    let durationSeconds = previous.durationSeconds || source.durationSeconds
+    let warnings: string[] = continuing ? previous.warnings : []
+    let rounds = 0
+    commitStoryboardTrack({
+      status: 'running',
+      error: '',
+      sessionExpired: false,
+      text,
+      complete: false,
+      round: 0,
+      shotCount,
+      coveredSeconds,
+      durationSeconds,
+      warnings,
+      usage,
+    })
+
+    try {
+      while (rounds < REPAINT_MAX_STORYBOARD_ROUNDS) {
+        if (controller.signal.aborted) throw abortError()
+        rounds += 1
+        commitStoryboardTrack({ round: rounds })
+        const result = await requestStoryboardRound({
+          source,
+          continuation: text,
+          signal: controller.signal,
+          onProgress: (progress) => {
+            if (progress.stage !== 'storyboard' || controller.signal.aborted) return
+            const patch: Partial<RepaintStoryboardTrack> = { round: rounds }
+            if (typeof progress.shots === 'number') patch.shotCount = progress.shots
+            commitStoryboardTrack(patch)
+          },
+        })
+        if (controller.signal.aborted) throw abortError()
+        if (result.storyboard.trim()) text = result.storyboard
+        usage = addUsage(usage, result.usage)
+        coveredSeconds = result.coveredSeconds || coveredSeconds
+        shotCount = result.shotCount || shotCount
+        durationSeconds = result.durationSeconds || durationSeconds
+        warnings = result.validation.warnings
+        commitStoryboardTrack({
+          text,
+          complete: result.complete,
+          coveredSeconds,
+          shotCount,
+          durationSeconds,
+          warnings,
+          usage,
+        })
+        if (result.complete) break
+        if (result.addedShots <= 0) break
+      }
+      if (controller.signal.aborted) throw abortError()
+      commitStoryboardTrack({ status: 'done', error: '' })
+      revealReviewIfDeliverable()
+    } catch (error) {
+      if (!mountedRef.current) return
+      const aborted = controller.signal.aborted
+      const message = aborted
+        ? '已取消分镜生成，可点击重试继续。'
+        : error instanceof Error ? error.message : '分镜生成失败'
+      commitStoryboardTrack({
+        status: 'failed',
+        error: message,
+        sessionExpired: !aborted && isSessionExpiredMessage(message),
+      })
+      revealReviewIfDeliverable()
+    } finally {
+      storyboardLockRef.current = false
+      if (storyboardAbortRef.current === controller) storyboardAbortRef.current = null
+    }
+  }
+
+  const resetToSetup = () => {
+    requestAbortRef.current?.abort()
+    outlineAbortRef.current?.abort()
+    targetScriptAbortRef.current?.abort()
+    storyboardAbortRef.current?.abort()
+    setRunState('setup')
+    setUnderstandingResult(null)
+    resetTracks()
+    setSourceStage('upload')
+    setSourceOutputChars(0)
+    setSavedScriptId('')
+    saveRequestIdRef.current = ''
   }
 
   const submit = async () => {
@@ -337,148 +714,134 @@ export function FosVideoRepaintTask({ scriptId = 'new', embedded = false, onExit
     submitLockRef.current = true
     setNotice('')
     requestAbortRef.current?.abort()
-    adaptationAbortRef.current?.abort()
+    outlineAbortRef.current?.abort()
+    targetScriptAbortRef.current?.abort()
+    storyboardAbortRef.current?.abort()
     const controller = new AbortController()
     requestAbortRef.current = controller
-    partialSourceRef.current = null
+    resetTracks()
     setSavedScriptId('')
     saveRequestIdRef.current = ''
-    setRunState('submitting')
-    setSubmitPhase('upload')
+    setUnderstandingResult(null)
+    setSourceStage('upload')
+    setSourceOutputChars(0)
+    setElapsedSeconds(0)
+    setRunState('processing')
     try {
-      const source = await understandOneVideo(
-        video,
-        controller.signal,
-        brief,
-        setSubmitPhase,
-        (partial) => {
-          partialSourceRef.current = partial
-          setUnderstandingResult(partial)
-        },
-      )
-      partialSourceRef.current = source
+      const source = await understandOneVideo(video, controller.signal, (progress) => {
+        if (progress.stage === 'storyboard' || !isSourceStage(progress.stage)) return
+        setSourceStage(progress.stage)
+        setSourceOutputChars(progress.outputChars ?? 0)
+      })
       if (controller.signal.aborted) throw abortError()
       setUnderstandingResult(source)
-      if (brief.trim()) {
-        setRunState('adapting')
-        try {
-          applyAdaptation(await requestAdaptation({ title, brief, result: source, signal: controller.signal }))
-        } catch (error) {
-          if (controller.signal.aborted) throw abortError()
-          applyAdaptation(sourceCopy(source))
-          setRunState('review')
-          setNotice(error instanceof Error ? error.message : '转绘剧本生成失败，已保留原剧本')
-          return
-        }
-      } else {
-        applyAdaptation(sourceCopy(source))
-      }
-      if (!controller.signal.aborted) setRunState('review')
+      void runOutline(source, brief).then((outline) => {
+        if (outline) return runTargetScript(source, outline.outline, brief)
+      })
+      if (generateStoryboard) void runStoryboard(source)
     } catch (error) {
-      const partial = partialSourceRef.current
       if (controller.signal.aborted) {
-        if (partial) {
-          recoverWithSource(partial, '已取消源分镜提取，已保留反译得到的原剧本，可继续编辑或重新生成。')
-        } else {
-          setRunState('setup')
-          setNotice('已取消本次视频反译。')
-        }
+        setRunState('setup')
+        setNotice('已取消本次视频反译。')
         return
       }
       const message = error instanceof Error ? error.message : '视频转绘失败，请稍后重试'
-      if (partial) {
-        recoverWithSource(partial, `${message} 已保留原剧本，可继续编辑。`)
-      } else {
-        setRunState('setup')
-        setErrors((current) => ({ ...current, videos: message }))
-        setNotice(message)
-      }
+      setRunState('setup')
+      setErrors((current) => ({ ...current, videos: message }))
+      setNotice(message)
     } finally {
       submitLockRef.current = false
       if (requestAbortRef.current === controller) requestAbortRef.current = null
     }
   }
 
-  const cancelSubmit = () => {
-    if (!requestAbortRef.current) return
+  const cancelProcessing = () => {
+    if (!requestAbortRef.current && !outlineAbortRef.current && !targetScriptAbortRef.current && !storyboardAbortRef.current) return
     setNotice('正在取消本次处理…')
-    requestAbortRef.current.abort()
+    requestAbortRef.current?.abort()
+    outlineAbortRef.current?.abort()
+    targetScriptAbortRef.current?.abort()
+    storyboardAbortRef.current?.abort()
   }
 
-  const regenerate = async () => {
-    if (!understandingResult || adaptationLockRef.current) return
-    if (!brief.trim()) {
-      applyAdaptation(sourceCopy(understandingResult))
-      setNotice('未填写转绘要求，已恢复为原剧本；没有调用文本 LLM。')
-      return
-    }
-    adaptationLockRef.current = true
-    adaptationAbortRef.current?.abort()
-    const controller = new AbortController()
-    adaptationAbortRef.current = controller
-    setNotice('')
-    setRunState('adapting')
-    try {
-      applyAdaptation(await requestAdaptation({ title, brief, result: understandingResult, signal: controller.signal }))
-      setRunState('review')
-    } catch (error) {
-      setRunState('review')
-      if (controller.signal.aborted) {
-        setNotice('已取消重新生成，保留了之前的转绘稿。')
-      } else {
-        setNotice(error instanceof Error ? error.message : '转绘剧本重新生成失败')
-      }
-    } finally {
-      adaptationLockRef.current = false
-      if (adaptationAbortRef.current === controller) adaptationAbortRef.current = null
-    }
+  const retryOutline = () => {
+    if (!understandingResult || outlineLockRef.current) return
+    void runOutline(understandingResult, brief).then((outline) => {
+      if (outline) return runTargetScript(understandingResult, outline.outline, brief)
+    })
   }
 
-  const cancelAdaptation = () => {
-    adaptationAbortRef.current?.abort()
+  const retryTargetScript = () => {
+    const outline = outlineTrackRef.current.text.trim()
+    if (!understandingResult || targetScriptLockRef.current || !outline) return
+    void runTargetScript(understandingResult, outline, brief)
   }
 
-  const restoreSource = () => {
-    if (!understandingResult) return
-    applyAdaptation(sourceCopy(understandingResult))
-    setNotice('已将右侧转绘稿恢复为原剧本。')
+  const retryStoryboard = () => {
+    if (!understandingResult || storyboardLockRef.current) return
+    const continueFrom = storyboardTrackRef.current.text.trim()
+    void runStoryboard(understandingResult, continueFrom ? { continueFrom } : undefined)
+  }
+
+  const regenerateOutline = () => {
+    if (!understandingResult || outlineLockRef.current || targetScriptLockRef.current) return
+    void runOutline(understandingResult, brief).then((outline) => {
+      if (outline) return runTargetScript(understandingResult, outline.outline, brief)
+    })
+  }
+
+  const regenerateStoryboard = () => {
+    if (!understandingResult || storyboardLockRef.current) return
+    commitStoryboardTrack(createEmptyStoryboardTrack())
+    void runStoryboard(understandingResult)
+  }
+
+  const reupload = () => {
+    resetToSetup()
+    setNotice('视频会话已失效，请重新上传同一视频后再次生成。')
   }
 
   const saveScript = async () => {
-    if (!understandingResult || !targetScript.trim() || savingRef.current) return
+    const source = understandingResult
+    if (!source || savingRef.current) return
+    const outlineText = outlineTrackRef.current.text.trim()
+    const targetScriptText = targetScriptTrackRef.current.text.trim()
+    const storyboardText = storyboardTrackRef.current.text.trim()
+    if (!outlineText && !targetScriptText && !storyboardText) return
     savingRef.current = true
     setRunState('saving')
     setNotice('')
     if (!saveRequestIdRef.current) saveRequestIdRef.current = newRequestId()
     try {
+      const request: RepaintSaveRequest = {
+        clientRequestId: saveRequestIdRef.current,
+        title: title.trim() || source.fileName,
+        sourceScript: source.script,
+        adaptationBrief: brief.trim(),
+        sourceFileName: source.fileName,
+        ...(outlineText ? { outline: outlineText } : {}),
+        ...(targetScriptText ? { targetScript: targetScriptText } : {}),
+        ...(storyboardText ? { storyboard: storyboardText } : {}),
+        ...(outlineTrackRef.current.model ? { model: outlineTrackRef.current.model } : {}),
+        ...(source.analysis ? { sourceAnalysis: source.analysis } : {}),
+      }
       const response = await fetch('/api/video-repaint/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          clientRequestId: saveRequestIdRef.current,
-          title,
-          targetScript,
-          sourceScript: understandingResult.script,
-          sourceStoryboard: understandingResult.storyboard,
-          sourceAnalysis: understandingResult.analysis,
-          adaptationBrief: brief,
-          resultMode,
-          model: '',
-          sourceFileName: understandingResult.fileName,
-          episodeTitle: '第 1 集',
-        }),
+        body: JSON.stringify(request),
       })
       const payload: unknown = await response.json().catch(() => ({}))
       if (!response.ok || !isRecord(payload) || !isRecord(payload.script) || typeof payload.script.id !== 'string') {
         throw new Error(readApiError(payload) || '剧本保存失败')
       }
+      requestAbortRef.current?.abort()
+      outlineAbortRef.current?.abort()
+      targetScriptAbortRef.current?.abort()
+      storyboardAbortRef.current?.abort()
       setSavedScriptId(payload.script.id)
       setRunState('done')
-      if (onSaved) {
-        const saved = payload.script
-        if (Array.isArray(saved.episodes)) {
-          onSaved(saved as unknown as WriterScript)
-        }
+      if (onSaved && Array.isArray(payload.script.episodes)) {
+        onSaved(payload.script as unknown as WriterScript)
       }
     } catch (error) {
       setRunState('review')
@@ -498,65 +861,64 @@ export function FosVideoRepaintTask({ scriptId = 'new', embedded = false, onExit
 
   const handleBack = () => {
     requestAbortRef.current?.abort()
-    adaptationAbortRef.current?.abort()
+    outlineAbortRef.current?.abort()
+    targetScriptAbortRef.current?.abort()
+    storyboardAbortRef.current?.abort()
     goWorkbench()
   }
 
-  const submitCopy = submitPhase === 'upload'
-    ? '正在上传视频并等待服务端完成理解…'
-    : submitPhase === 'script'
-      ? '原剧本已返回，正在校验源数据…'
-      : '正在根据真实剪辑点提取原分镜…'
+  const sourceFileName = understandingResult?.fileName ?? videos[0]?.file.name ?? ''
 
   return (
     <div className={`rv2-wizard${embedded ? ' rv2-wizard--embedded' : ''}`}>
-      <FosVideoRepaintRail state={runState} onBack={handleBack} />
-      <main className={`rv2-main${runState === 'submitting' ? ' rv2-main--submitting' : ''}`}>
-        <div className={`rv2-main-scroll${runState === 'setup' || runState === 'submitting' ? ' rv2-main--setup' : ' rv2-main--has-task'}`}>
-          {runState === 'setup' || runState === 'submitting' ? (
+      <FosVideoRepaintRail state={runState} sourceReady={Boolean(understandingResult)} onBack={handleBack} />
+      <main className="rv2-main">
+        <div className={`rv2-main-scroll${runState === 'setup' ? ' rv2-main--setup' : ' rv2-main--has-task'}`}>
+          {runState === 'setup' ? (
             <FosVideoRepaintSetup
               title={title}
               brief={brief}
+              generateStoryboard={generateStoryboard}
               videos={videos}
               errors={errors}
               onTitleChange={(value) => { setTitle(value); setErrors((current) => ({ ...current, title: undefined })) }}
               onBriefChange={setBrief}
+              onGenerateStoryboardChange={setGenerateStoryboard}
               onFiles={addFiles}
               onRemoveVideo={removeVideo}
               onSubmit={submit}
             />
-          ) : understandingResult ? (
+          ) : (
             <FosVideoRepaintProgress
-              state={runState}
+              state={runState as Extract<RepaintRunState, 'processing' | 'review' | 'saving' | 'done'>}
               title={title}
               brief={brief}
-              sourceScript={understandingResult.script}
-              sourceStoryboard={understandingResult.storyboard}
-              targetScript={targetScript}
-              sourceFileName={understandingResult.fileName}
-              resultMode={resultMode}
-              usage={targetUsage}
+              sourceFileName={sourceFileName}
+              sourceReady={Boolean(understandingResult)}
+              sourceStage={sourceStage}
+              sourceOutputChars={sourceOutputChars}
+              elapsedSeconds={elapsedSeconds}
+              source={understandingResult}
+              outline={outlineState}
+              targetScript={targetScriptState}
+              storyboard={storyboardState}
               savedScriptId={savedScriptId}
               onBriefChange={setBrief}
-              onTargetScriptChange={setTargetScript}
-              onRegenerate={() => { void regenerate() }}
-              onRestoreSource={restoreSource}
-              onCancelAdaptation={runState === 'adapting' ? cancelAdaptation : undefined}
+              onOutlineChange={(value) => commitOutlineTrack({ text: value })}
+              onTargetScriptChange={(value) => commitTargetScriptTrack({ text: value })}
+              onStoryboardChange={(value) => commitStoryboardTrack({ text: value })}
+              onRetryOutline={retryOutline}
+              onRetryTargetScript={retryTargetScript}
+              onRetryStoryboard={retryStoryboard}
+              onRegenerateOutline={regenerateOutline}
+              onRegenerateStoryboard={regenerateStoryboard}
+              onReupload={reupload}
+              onCancelProcessing={runState === 'processing' ? cancelProcessing : undefined}
               onSave={() => { void saveScript() }}
               onGoWorkbench={goWorkbench}
             />
-          ) : null}
+          )}
         </div>
-
-        {runState === 'submitting' ? (
-          <div className="rv2-main-submit-overlay" role="status" aria-live="polite" aria-busy="true">
-            <AppIcon name="loader" className="rv2-main-submit-overlay-icon" />
-            <p className="rv2-main-submit-overlay-text">{submitCopy}</p>
-            <div className="rv2-main-submit-overlay-progress"><span className="rv2-main-submit-overlay-progress-bar rv2-main-submit-overlay-progress-bar--indeterminate" /></div>
-            <p className="rv2-main-submit-overlay-hint">服务端密钥不会返回浏览器；视频反译通常比文本生成耗时更长。</p>
-            <button type="button" className="rv2-btn rv2-btn--secondary" onClick={cancelSubmit}>取消本次处理</button>
-          </div>
-        ) : null}
 
         {notice ? <div className="rv2-toast" role="status"><AppIcon name="info" className="h-4 w-4" /><span>{notice}</span><button type="button" aria-label="关闭提示" onClick={() => setNotice('')}><AppIcon name="close" className="h-3.5 w-3.5" /></button></div> : null}
       </main>

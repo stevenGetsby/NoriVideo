@@ -3,6 +3,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import {
+  joinDocumentBodies,
   normalizeFrameosScriptStatus,
   toPrismaSections,
   toWriterScript,
@@ -82,7 +83,7 @@ export const PATCH = apiHandler(async (
       title: nextTitle,
       status: payload.status === undefined ? current.status : normalizeFrameosScriptStatus(payload.status),
       ...(nextEpisodes ? {
-        content: nextEpisodes.map((episode) => episode.body).join('\n\n'),
+        content: joinDocumentBodies(nextEpisodes),
         sections: toPrismaSections({ ...currentSections, episodes: nextEpisodes }),
       } : {}),
     },

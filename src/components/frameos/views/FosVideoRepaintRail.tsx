@@ -5,27 +5,26 @@ import type { RepaintRunState } from './videoRepaintState'
 
 interface FosVideoRepaintRailProps {
   state: RepaintRunState
+  sourceReady?: boolean
   onBack: () => void
 }
 
 const NODES = [
-  { title: '上传设置', subtitle: '一个视频作为一集' },
-  { title: '视频反译', subtitle: '提取原剧本与原分镜' },
-  { title: '剧本转绘', subtitle: '文本 LLM + 转绘要求' },
-  { title: '对照审核', subtitle: '编辑并确认目标剧本' },
+  { title: '上传设置', subtitle: '一个视频生成剧本与总纲' },
+  { title: '视频反译', subtitle: '提取原剧本与剪辑点' },
+  { title: '文档生成', subtitle: '目标剧本 + 总纲，分镜可选' },
+  { title: '对照审核', subtitle: '编辑并确认生成文档' },
   { title: '保存完成', subtitle: '写入当前账号草稿' },
 ] as const
 
-export function FosVideoRepaintRail({ state, onBack }: FosVideoRepaintRailProps) {
+export function FosVideoRepaintRail({ state, sourceReady = false, onBack }: FosVideoRepaintRailProps) {
   const currentOrder = state === 'setup'
     ? 0
-    : state === 'submitting'
-      ? 1
-      : state === 'adapting'
-        ? 2
-        : state === 'done'
-          ? 4
-          : 3
+    : state === 'processing'
+      ? (sourceReady ? 2 : 1)
+      : state === 'done'
+        ? 4
+        : 3
 
   return (
     <aside className="rv2-rail">

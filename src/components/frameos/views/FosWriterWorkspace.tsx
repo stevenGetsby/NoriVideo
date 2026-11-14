@@ -5,7 +5,11 @@ import { useMemo, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import type { ScriptStatus, WriterEpisode, WriterScript } from './screenwriterModels'
-import { SCRIPT_STATUS_LABELS } from './screenwriterModels'
+import {
+  SCRIPT_STATUS_LABELS,
+  writerScriptExportText,
+  writerScriptUnitLabel,
+} from './screenwriterModels'
 
 interface FosWriterWorkspaceProps {
   scripts: WriterScript[]
@@ -27,6 +31,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
   const [moreOpen, setMoreOpen] = useState(false)
   const filtered = useMemo(() => scripts.filter((script) => script.status === status), [scripts, status])
   const activeScript = scripts.find((script) => script.id === activeId)
+  const documentsLayout = activeScript?.layout === 'documents'
   const activeEpisode = activeScript?.episodes.find((episode) => episode.id === activeEpisodeId)
     ?? activeScript?.episodes[0]
 
@@ -67,7 +72,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
 
   const exportScript = () => {
     if (!activeScript) return
-    const content = activeScript.episodes.map((episode, index) => `第 ${index + 1} 集  ${episode.title}\n\n${episode.body}`).join('\n\n--------------------\n\n')
+    const content = writerScriptExportText(activeScript)
     const url = URL.createObjectURL(new Blob([content], { type: 'text/plain;charset=utf-8' }))
     const anchor = document.createElement('a')
     anchor.href = url
@@ -82,7 +87,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
     setMoreOpen(false)
     if (!await confirmAction({
       title: `删除剧本「${activeScript.title || '未命名剧本'}」？`,
-      message: `剧本及其 ${activeScript.episodes.length} 集内容会被永久删除，无法恢复。不想再看到它可以改用「归档」。`,
+      message: `剧本及其 ${writerScriptUnitLabel(activeScript)}内容会被永久删除，无法恢复。不想再看到它可以改用「归档」。`,
       confirmLabel: '删除剧本',
       danger: true,
     })) return
@@ -95,7 +100,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
   }
 
   const addEpisode = () => {
-    if (!activeScript) return
+    if (!activeScript || activeScript.layout === 'documents') return
     const number = activeScript.episodes.length + 1
     const id = `${activeScript.id}-ep-${Date.now()}`
     updateScript((script) => ({
@@ -107,7 +112,8 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
   }
 
   const deleteEpisode = async (episodeId: string) => {
-    if (!activeScript || activeScript.episodes.length <= 1) {
+    if (!activeScript || activeScript.layout === 'documents') return
+    if (activeScript.episodes.length <= 1) {
       onNotice('剧本至少需要保留 1 集')
       return
     }
@@ -156,7 +162,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
                   <button key={script.id} type="button" className={`list-row${script.id === activeId ? ' active' : ''}`} onClick={() => chooseScript(script)}>
                     <span className="list-title-row">
                       <span className="list-title">{script.title}</span>
-                      <span className="list-title-count">{script.episodes.length} 集</span>
+                      <span className="list-title-count">{writerScriptUnitLabel(script)}</span>
                     </span>
                     <span className="list-meta">
                       <span className="list-type">{script.type}</span>
@@ -213,21 +219,23 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
             </header>
 
             <div className="writer-detail-frame">
-              <nav className="writer-rail" aria-label="分集导航">
+              <nav className="writer-rail" aria-label={documentsLayout ? '文档导航' : '分集导航'}>
                 <div className="writer-rail-scroll">
                   <div className="writer-rail-inner">
                     {activeScript.episodes.map((episode, index) => (
                       <div key={episode.id} className="rail-item-wrap">
                         <button type="button" className={`rail-item${episode.id === activeEpisode?.id ? ' active' : ''}`} onClick={() => setActiveEpisodeId(episode.id)}>
-                          <span className="rail-ep-num">E{String(index + 1).padStart(2, '0')}</span>
-                          <span className="rail-ep-title">{episode.title || '未命名分集'}</span>
+                          {documentsLayout ? null : <span className="rail-ep-num">E{String(index + 1).padStart(2, '0')}</span>}
+                          <span className="rail-ep-title">{episode.title || (documentsLayout ? '未命名文档' : '未命名分集')}</span>
                         </button>
-                        <div className="rail-item-actions">
-                          <button type="button" className="rail-action-btn rail-action-btn--danger" title="删除分集" aria-label={`删除${episode.title || '分集'}`} onClick={() => void deleteEpisode(episode.id)}><AppIcon name="trash" className="h-3 w-3" /></button>
-                        </div>
+                        {documentsLayout ? null : (
+                          <div className="rail-item-actions">
+                            <button type="button" className="rail-action-btn rail-action-btn--danger" title="删除分集" aria-label={`删除${episode.title || '分集'}`} onClick={() => void deleteEpisode(episode.id)}><AppIcon name="trash" className="h-3 w-3" /></button>
+                          </div>
+                        )}
                       </div>
                     ))}
-                    <button type="button" className="rail-item rail-item--add" onClick={addEpisode}><AppIcon name="plus" className="h-3.5 w-3.5" />添加分集</button>
+                    {documentsLayout ? null : <button type="button" className="rail-item rail-item--add" onClick={addEpisode}><AppIcon name="plus" className="h-3.5 w-3.5" />添加分集</button>}
                   </div>
                 </div>
               </nav>
@@ -236,20 +244,26 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
                 <article className="writer-pane">
                   <div className="writer-pane-toolbar">
                     <div className="writer-pane-ep-head">
-                      <span className="writer-pane-ep-num">E{String(activeScript.episodes.findIndex((episode) => episode.id === activeEpisode.id) + 1).padStart(2, '0')}</span>
-                      <input className="writer-pane-episode-title" value={activeEpisode.title} maxLength={100} aria-label="分集标题" onChange={(event) => updateEpisode((episode) => ({ ...episode, title: event.target.value }))} />
+                      {documentsLayout ? (
+                        <span className="writer-pane-document-title">{activeEpisode.title || '未命名文档'}</span>
+                      ) : (
+                        <>
+                          <span className="writer-pane-ep-num">E{String(activeScript.episodes.findIndex((episode) => episode.id === activeEpisode.id) + 1).padStart(2, '0')}</span>
+                          <input className="writer-pane-episode-title" value={activeEpisode.title} maxLength={100} aria-label="分集标题" onChange={(event) => updateEpisode((episode) => ({ ...episode, title: event.target.value }))} />
+                        </>
+                      )}
                     </div>
                     <span className="writer-pane-wordcount">{[...activeEpisode.body].length} 字</span>
                   </div>
                   <textarea
                     className="body-textarea"
                     value={activeEpisode.body}
-                    placeholder="在这里编写本集剧本……"
+                    placeholder={documentsLayout ? '尚未生成该文档内容。' : '在这里编写本集剧本……'}
                     spellCheck={false}
                     onChange={(event) => updateEpisode((episode) => ({ ...episode, body: event.target.value }))}
                   />
                 </article>
-              ) : <div className="writer-detail-empty-pane"><strong>暂无分集</strong><span>添加分集后即可开始编辑</span></div>}
+              ) : <div className="writer-detail-empty-pane"><strong>{documentsLayout ? '暂无文档' : '暂无分集'}</strong><span>{documentsLayout ? '上传一个视频生成目标设定总纲和分镜' : '添加分集后即可开始编辑'}</span></div>}
             </div>
           </>
         ) : (
@@ -257,7 +271,7 @@ export function FosWriterWorkspace(props: FosWriterWorkspaceProps) {
             <div className="empty-state">
               <AppIcon name="fileText" className="empty-state-icon" />
               <h2>{loading ? '正在读取当前账号剧本…' : '当前账号还没有剧本'}</h2>
-              <p>{loading ? '请稍候' : '从上方“视频转绘”上传一集视频，即可生成第一份稿件。'}</p>
+              <p>{loading ? '请稍候' : '从上方“视频转绘”上传一个视频，即可生成目标设定总纲和分镜两份文档。'}</p>
             </div>
           </div>
         )}
