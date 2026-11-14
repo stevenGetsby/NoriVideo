@@ -4,6 +4,9 @@ const prismaMock = vi.hoisted(() => ({
   task: {
     findMany: vi.fn(),
   },
+  user: {
+    findMany: vi.fn(async () => []),
+  },
   usageCost: {
     findMany: vi.fn<(...args: unknown[]) => Promise<Array<Record<string, unknown>>>>(async () => []),
   },
@@ -12,6 +15,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   balanceTransaction: {
     findMany: vi.fn<(...args: unknown[]) => Promise<Array<Record<string, unknown>>>>(async () => []),
+    aggregate: vi.fn(async () => ({ _sum: { amount: null } })),
   },
   novelPromotionEpisode: {
     findMany: vi.fn<(...args: unknown[]) => Promise<Array<Record<string, unknown>>>>(async () => []),

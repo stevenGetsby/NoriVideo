@@ -20,12 +20,14 @@ import {
   type ModelUsageSummary,
 } from '@/lib/platform-services/model-type-usage'
 import { FosShell } from './FosShell'
+import { TeamManagementTabs } from './TeamManagementTabs'
 import {
   AccountDialog,
   CreditLedgerDialog,
   CreditOperationDialog,
   DailyUsageCell,
   AccountCapabilitiesNotice,
+  BulkAllocateDialog,
 } from './FosAccountManagementParts'
 import type { DailyUsagePayload } from '@/lib/billing/daily-limit'
 import { updateDailyUsageLimit } from '@/lib/billing/daily-limit-display'
@@ -48,6 +50,7 @@ interface ManagedAccount {
   updatedAt: string
   lastLoginAt: string | null
   usage: ModelUsageSummary
+  managerPaid90dPoints?: number
 }
 
 interface ManagedWorkspace {
@@ -119,13 +122,18 @@ export function FosAccountManagementClient() {
   const [saving, setSaving] = useState(false)
   const [deletingId, setDeletingId] = useState('')
   const [dialogError, setDialogError] = useState('')
-  const [creditOperation, setCreditOperation] = useState<'reclaim' | null>(null)
+  const [creditOperation, setCreditOperation] = useState<'reclaim' | 'allocate' | null>(null)
   const [creditTarget, setCreditTarget] = useState<ManagedAccount | null>(null)
   const [ledgerTarget, setLedgerTarget] = useState<ManagedAccount | null>(null)
   const [creditRequestKey, setCreditRequestKey] = useState('')
   const [creditSaving, setCreditSaving] = useState(false)
   const [creditError, setCreditError] = useState('')
   const accountsRequests = useRef(createLatestRequestTracker())
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkAllocating, setBulkAllocating] = useState(false)
+  const [bulkSaving, setBulkSaving] = useState(false)
+  const [bulkError, setBulkError] = useState('')
+  const [bulkRequestKey, setBulkRequestKey] = useState('')
 
   const loadAccounts = useCallback(async (silent = false) => {
     if (session?.user?.role !== 'admin') return
@@ -177,6 +185,7 @@ export function FosAccountManagementClient() {
       coinCredits: String(account.credits.coins),
       pointCredits: String(account.credits.points),
       dailyPointLimit: account.dailyLimitPoints === null ? 'unlimited' : String(account.dailyLimitPoints),
+
     })
     setDialogError('')
     setMode('edit')
@@ -197,6 +206,7 @@ export function FosAccountManagementClient() {
             username: draft.username.trim(),
             projectLeader: draft.projectLeader,
             dailyPointLimit: draft.dailyPointLimit === 'unlimited' ? 'unlimited' : Number(draft.dailyPointLimit),
+
             ...(!isCreate ? { status: draft.status } : {}),
             ...(draft.password ? { password: draft.password } : {}),
           }),
@@ -225,7 +235,7 @@ export function FosAccountManagementClient() {
     }
   }
 
-  const openCreditOperation = (operation: 'reclaim', account: ManagedAccount) => {
+  const openCreditOperation = (operation: 'reclaim' | 'allocate', account: ManagedAccount) => {
     setCreditOperation(operation)
     setCreditTarget(account)
     setCreditRequestKey(createCreditIdempotencyKey(operation, account.id))
@@ -247,7 +257,7 @@ export function FosAccountManagementClient() {
         signal: AbortSignal.timeout(15_000),
       })
       if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, '收回历史积分失败'))
+        throw new Error(await readApiErrorMessage(response, creditOperation === 'reclaim' ? '收回积分失败' : '分配积分失败'))
       }
       setCreditOperation(null)
       setCreditTarget(null)
@@ -284,6 +294,42 @@ export function FosAccountManagementClient() {
   }
 
   const subaccounts = workspace?.subaccounts || []
+  const selectedAccounts = subaccounts.filter((account) => selectedIds.has(account.id))
+  const openBulkAllocate = () => {
+    setBulkRequestKey(crypto.randomUUID())
+    setBulkError('')
+    setBulkAllocating(true)
+  }
+  const bulkAllocate = async ({ points, note }: { points: number; note: string }) => {
+    if (!bulkRequestKey) return
+    setBulkSaving(true)
+    setBulkError('')
+    try {
+      const response = await apiFetch('/api/admin/accounts/bulk-credits', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Idempotency-Key': bulkRequestKey },
+        body: JSON.stringify({ points, userIds: selectedAccounts.map((account) => account.id), note, idempotencyKey: bulkRequestKey }),
+      })
+      if (!response.ok) throw new Error(response.status === 403 ? '没有权限执行这个操作。' : await readApiErrorMessage(response, '批量分配失败'))
+      const result = await response.json() as { allocated: Array<{ idempotent: boolean }> }
+      const replayed = result.allocated.filter((row) => row.idempotent).length
+      setPageNotice(`已给 ${result.allocated.length} 名成员各分配 ${points.toLocaleString('zh-CN')} 积分${replayed ? `（其中 ${replayed} 人之前已分配过，这次没有重复扣）` : ''}`)
+      setBulkAllocating(false)
+      setSelectedIds(new Set())
+      notifyBalanceChanged()
+      await loadAccounts(true)
+    } catch (error) {
+      setBulkError(error instanceof Error ? error.message : '网络异常，请重试。')
+    } finally {
+      setBulkSaving(false)
+    }
+  }
+  const toggleSelected = (id: string) => setSelectedIds((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
 
   return (
     <FosShell activeKey="accounts">
@@ -291,13 +337,15 @@ export function FosAccountManagementClient() {
         <section className="mx-auto w-full max-w-[1180px] px-8 py-7">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-[24px] font-bold text-white">子账号管理</h1>
+              <h1 className="text-[24px] font-bold text-white">团队管理</h1>
               <p className="mt-1 text-[12px] text-white/40">统一创作能力，集中管理账号、项目组长、状态、密码、积分和用量。</p>
             </div>
             <button type="button" className="fos-btn fos-btn-primary" onClick={openCreate}>
               <AppIcon name="plus" className="h-4 w-4" />添加子账号
             </button>
           </div>
+
+          <TeamManagementTabs active="members" />
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {([
@@ -330,13 +378,14 @@ export function FosAccountManagementClient() {
             <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
               <div>
                 <h2 className="text-[13px] font-bold text-white">{workspace?.manager.username || '当前管理账号'}的子账号</h2>
-                <p className="mt-1 text-[11px] leading-5 text-white/45">所有子账号从管理账号共享钱包扣费；个人每日额度 0 禁止生成，unlimited 不限每日用量。历史个人积分不参与共享生成，可收回共享钱包。</p>
+                <p className="mt-1 text-[11px] leading-5 text-white/45">目前成员生成仍从管理账号扣积分；分配给成员的积分会在切换为“谁点生成谁扣积分”后开始使用。</p>
               </div>
+              <button type="button" data-testid="bulk-allocate-open" className="fos-btn fos-btn-ghost" disabled={!selectedIds.size} onClick={openBulkAllocate}>批量分配（{selectedIds.size}）</button>
             </div>
             <div className="overflow-x-auto">
-              <div className="min-w-[1460px] w-full">
-                <div className="grid grid-cols-[minmax(170px,1.2fr)_120px_80px_130px_130px_210px_130px_360px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40 [&>*]:min-w-0">
-                  <span>子账号</span><span>身份</span><span>状态</span><span>历史个人积分</span><span>今日额度 / 用量</span><span>模型金额</span><span>最后登录</span>
+              <div className="min-w-[1660px] w-full">
+                <div className="grid grid-cols-[36px_minmax(170px,1.2fr)_120px_80px_130px_120px_130px_210px_130px_360px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40 [&>*]:min-w-0">
+                  <span><input type="checkbox" data-testid="account-select-all" aria-label="全选启用子账号" checked={subaccounts.some((account) => account.status === 'active' && selectedIds.has(account.id)) && subaccounts.filter((account) => account.status === 'active').every((account) => selectedIds.has(account.id))} onChange={() => setSelectedIds(new Set(subaccounts.filter((account) => account.status === 'active' && !selectedIds.has(account.id)).length ? subaccounts.filter((account) => account.status === 'active').map((account) => account.id) : []))} /></span><span>子账号</span><span>身份</span><span>状态</span><span>个人积分</span><span title="近 90 天管理账号为该成员承担的积分：切换前直接从管理账号扣的生成，加上切换后自动补足给该成员的积分。">近90天代付</span><span>今日额度 / 用量</span><span>模型金额</span><span>最后登录</span>
                   <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#131319] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
                 </div>
                 {loading ? (
@@ -344,7 +393,8 @@ export function FosAccountManagementClient() {
                 ) : subaccounts.length === 0 ? (
                   <div className="px-5 py-12 text-center text-[11px] text-white/25">当前工作区还没有子账号</div>
                 ) : subaccounts.map((account) => (
-                    <div key={account.id} className="grid grid-cols-[minmax(170px,1.2fr)_120px_80px_130px_130px_210px_130px_360px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0 [&>*]:min-w-0">
+                    <div key={account.id} className="grid grid-cols-[36px_minmax(170px,1.2fr)_120px_80px_130px_120px_130px_210px_130px_360px] items-center gap-3 border-b border-white/[.045] px-5 py-4 last:border-b-0 [&>*]:min-w-0">
+                      <input type="checkbox" data-testid={`account-select-${account.id}`} aria-label={`选择 ${account.username}`} checked={selectedIds.has(account.id)} disabled={account.status !== 'active'} title={account.status !== 'active' ? '已停用的账号不能分配' : '选择成员'} onChange={() => toggleSelected(account.id)} />
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]"><AppIcon name="user" className="h-4 w-4" /></span>
                         <span className="truncate text-[12px] font-semibold text-white">{account.username}</span>
@@ -355,6 +405,7 @@ export function FosAccountManagementClient() {
                         {account.status === 'active' ? '启用' : '停用'}
                       </span>
                       <Credits credits={account.credits} />
+                      <span className="text-[11px] text-white/60">{formatNumber(account.managerPaid90dPoints || 0)}</span>
                       <DailyUsageCell usage={account.usageToday} />
                       <span className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-white/55">
                         {(account.usage.byType || emptyModelUsageSummary().byType).map((row) => (
@@ -367,8 +418,9 @@ export function FosAccountManagementClient() {
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
                       <span className="sticky right-0 z-10 -my-4 flex shrink-0 items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
+                        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openCreditOperation('allocate', account)}>分配</button>
+                        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="把该成员的积分收回到管理账号" onClick={() => openCreditOperation('reclaim', account)}>收回</button>
                         <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => openEdit(account)}>设置额度</button>
-                        <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="将历史个人积分收回共享钱包" onClick={() => openCreditOperation('reclaim', account)}>收回</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openEdit(account)}>编辑</button>
                         <button type="button" className="fos-btn fos-btn-danger fos-btn-sm" title="删除子账号" aria-label={`删除子账号 ${account.username}`} disabled={deletingId === account.id} onClick={() => void deleteAccount(account)}>
                           <AppIcon name="trash" className="h-3.5 w-3.5" />
@@ -397,14 +449,25 @@ export function FosAccountManagementClient() {
           onSubmit={() => void submit()}
         />
       ) : null}
+      {bulkAllocating ? (
+        <BulkAllocateDialog
+          targets={selectedAccounts}
+          availablePoints={workspace?.manager.credits.points || 0}
+          saving={bulkSaving}
+          error={bulkError}
+          onClose={() => { if (!bulkSaving) { setBulkAllocating(false); setBulkRequestKey('') } }}
+          onRemove={(id) => toggleSelected(id)}
+          onSubmit={(input) => void bulkAllocate(input)}
+        />
+      ) : null}
       {creditOperation && creditTarget ? (
         <CreditOperationDialog
           operation={creditOperation}
           target={creditTarget}
-          sourceBalancePoints={creditTarget.credits.points}
+          sourceBalancePoints={creditOperation === 'allocate' ? workspace?.manager.credits.points : creditTarget.credits.points}
           saving={creditSaving}
           error={creditError}
-          onClose={() => { setCreditOperation(null); setCreditTarget(null); setCreditRequestKey('') }}
+          onClose={() => { if (!creditSaving) { setCreditOperation(null); setCreditTarget(null); setCreditRequestKey('') } }}
           onSubmit={(input) => void mutateCredits(input)}
         />
       ) : null}

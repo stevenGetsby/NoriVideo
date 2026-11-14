@@ -38,8 +38,8 @@
 - `http://<host>:8080/{locale}/admin/signin`：平台 Admin 的独立登录页。
 - `http://<host>:8080/{locale}/admin/accounts`：独立平台控制台，只显示和 CRUD 直属管理账号以及工作区汇总数字；不使用 NoriVideo 顶栏、侧栏或生产工作台。
 - `/{locale}/auth/signin`：NoriVideo 登录页，仅允许管理账号和角色子账号登录；平台 Admin 会被服务端拒绝，并通过页面入口前往独立管理端口。
-- `/{locale}/account-management`：集成在 NoriVideo 内的子账号管理页，只允许管理账号访问，只显示当前管理账号自己的角色子账号。
-- 平台 Admin 访问 NoriVideo 主工作台时会被送回独立控制台；NoriVideo 侧栏只向管理账号显示“子账号管理”。
+- `/{locale}/account-management`：集成在 NoriVideo 内的团队管理页，只允许管理账号访问，只显示当前管理账号自己的角色子账号。
+- 平台 Admin 访问 NoriVideo 主工作台时会被送回独立控制台；NoriVideo 侧栏只向管理账号显示“团队管理”。
 - 两个入口使用不同的会话 Cookie。浏览器 Cookie 不按端口隔离，因此不能共用默认 NextAuth Cookie 名称；平台 Admin 账号也会在服务端拒绝从工作台端口登录，管理账号和角色子账号反向同理。
 
 ## 账号积分

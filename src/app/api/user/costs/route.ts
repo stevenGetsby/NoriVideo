@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import { findHiddenProjectIds } from '@/lib/collaboration/access'
+import { resolveRecordScope, usageCostWhere } from '@/lib/billing/actor-scope'
 
 /**
  * GET /api/user/costs
@@ -19,7 +20,8 @@ export const GET = apiHandler(async () => {
   const userId = session.user.id
 
   // 获取用户费用汇总
-  const fullSummary = await getUserCostSummary(userId)
+  const scope = await resolveRecordScope(session.user)
+  const fullSummary = await getUserCostSummary(userId, usageCostWhere(scope))
   const hiddenProjectIds = await findHiddenProjectIds(session, fullSummary.byProject.map(p => p.projectId))
   const visibleByProject = fullSummary.byProject.filter(p => !hiddenProjectIds.has(p.projectId))
   const costSummary = {

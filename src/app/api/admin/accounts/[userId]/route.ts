@@ -5,6 +5,7 @@ import { apiHandler, ApiError } from '@/lib/api-errors'
 import { forbidden, isErrorResponse, requireAdminAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { logInfo } from '@/lib/logging/core'
+import { cnyToPoints } from '@/lib/billing/credit-policy'
 import {
   isAccountStatus,
   isSubaccountRole,
@@ -232,8 +233,10 @@ async function permanentlyRemoveSubaccount(account: ManagedAccountRecord) {
       select: { balance: true, frozenAmount: true },
     })
     if (Number(wallet?.balance || 0) > 0 || Number(wallet?.frozenAmount || 0) > 0) {
+      const balancePoints = cnyToPoints(Number(wallet?.balance || 0))
+      const frozenPoints = cnyToPoints(Number(wallet?.frozenAmount || 0))
       throw new ApiError('CONFLICT', {
-        message: '该子账号仍有历史个人积分或冻结积分，请先收回可用积分并等待冻结结算；也可先停用账号。删除已取消，积分不会丢失。',
+        message: `该成员还有 ${balancePoints} 积分（冻结 ${frozenPoints} 积分），请先收回再删除。`,
       })
     }
 

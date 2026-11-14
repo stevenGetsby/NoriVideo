@@ -7,6 +7,7 @@ import type { Prisma } from '@prisma/client'
 import { toMoneyNumber } from '@/lib/billing/money'
 import { projectReadScopeWhere } from '@/lib/collaboration/access'
 import { normalizeBillingPagination } from '@/lib/billing/reporting'
+import { isManagerPaid, resolveRecordScope, transactionWhere } from '@/lib/billing/actor-scope'
 import {
     isInternalBalanceTransactionRecord,
     parseJsonRecord,
@@ -49,24 +50,26 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const startDate = searchParams.get('startDate')
     const endDate = searchParams.get('endDate')
 
-    const where: Prisma.BalanceTransactionWhereInput = { userId: session.user.id }
+    const scope = await resolveRecordScope(session.user)
+    const filters: Prisma.BalanceTransactionWhereInput = {}
     if (type && type !== 'all') {
-        where.type = type
+        filters.type = type
     }
 
     // 日期筛选
     if (startDate || endDate) {
-        where.createdAt = {}
+        filters.createdAt = {}
         if (startDate) {
-            where.createdAt.gte = new Date(startDate)
+            filters.createdAt.gte = new Date(startDate)
         }
         if (endDate) {
             // 包含结束日期的整天
             const endDateTime = new Date(endDate)
             endDateTime.setHours(23, 59, 59, 999)
-            where.createdAt.lte = endDateTime
+            filters.createdAt.lte = endDateTime
         }
     }
+    const where: Prisma.BalanceTransactionWhereInput = { AND: [transactionWhere(scope), filters] }
 
     // 获取流水记录；先过滤内部 Agent 记录，再分页，避免第一页被内部流水占满。
     const transactionsAll = await prisma.balanceTransaction.findMany({
@@ -114,7 +117,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
         return {
             ...item,
             amount: toMoneyNumber(item.amount),
-            balanceAfter: toMoneyNumber(item.balanceAfter),
+            balanceAfter: isManagerPaid(item, scope) ? null : toMoneyNumber(item.balanceAfter),
+            paidBy: isManagerPaid(item, scope) ? 'manager' as const : undefined,
             // 优先用新字段 taskType，其次从 description 解析，供前端做 i18n 翻译
             action: item.taskType ?? extractActionFromDescription(item.description),
             // 项目名（新记录有 projectId 时有值，老记录为 null）

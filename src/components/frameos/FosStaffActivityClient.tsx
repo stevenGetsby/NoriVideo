@@ -21,6 +21,7 @@ import {
   type MediaCounts,
 } from '@/lib/account/activity-stats-shared'
 import { FosShell } from './FosShell'
+import { TeamManagementTabs } from './TeamManagementTabs'
 import { ViewportDialogLayer } from './ViewportDialogLayer'
 import { useDialogDismiss } from './use-dialog-dismiss'
 
@@ -181,12 +182,12 @@ export function FosStaffActivityClient() {
   ]
 
   return (
-    <FosShell activeKey="activity">
+    <FosShell activeKey="accounts">
       <div className="fos-scroll">
         <section className="mx-auto w-full max-w-[1180px] px-8 py-7" data-testid="staff-activity">
           <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
             <div>
-              <h1 className="text-[24px] font-bold text-white">工作监督</h1>
+              <h1 className="text-[24px] font-bold text-white">团队管理</h1>
               <p className="mt-1 text-[12px] text-white/40">
                 只读统计子账号的生成、上传与消耗，仅管理员可见；按上海时间自然日计算。
               </p>
@@ -210,6 +211,8 @@ export function FosStaffActivityClient() {
               </button>
             </div>
           </div>
+
+          <TeamManagementTabs active="activity" />
 
           <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             {tiles.map(([key, label, value, hint]) => (

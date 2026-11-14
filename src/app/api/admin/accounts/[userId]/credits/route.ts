@@ -6,6 +6,7 @@ import { normalizeAccountRole, isSubaccountRole } from '@/lib/account/permission
 import { isDirectSubaccountOf, managedAccountSelect, serializeManagedAccount } from '@/lib/account/management'
 import {
   CreditLedgerError,
+  allocateAccountPoints,
   reclaimAccountPoints,
   rechargeAccountPoints,
   type CreditOperation,
@@ -14,6 +15,7 @@ import { prisma } from '@/lib/prisma'
 import { logInfo } from '@/lib/logging/core'
 import { cnyToPoints } from '@/lib/billing/credit-policy'
 import { toMoneyNumber } from '@/lib/billing/money'
+import { isManagerPaid, transactionWhere } from '@/lib/billing/actor-scope'
 
 const MAX_OPERATION_POINTS = 2_000_000_000
 
@@ -71,6 +73,11 @@ export const GET = apiHandler(async (
     || (operatorRole === 'admin' && isSubaccountRole(targetRole) && isDirectSubaccountOf(target, operatorId))
   if (!allowed) return forbidden('只能查看自己直接管理账号的积分流水。')
 
+  // A manager's self-scope would mark its own consume rows as manager-paid;
+  // only subaccounts have a separate payer to attribute.
+  const selfScope = target.workspaceOwnerId && target.workspaceOwnerId !== target.id
+    ? { kind: 'self' as const, ownerId: target.workspaceOwnerId, actorId: target.id }
+    : null
   const [balance, transactions] = await Promise.all([
     prisma.userBalance.upsert({
       where: { userId: target.id },
@@ -78,11 +85,12 @@ export const GET = apiHandler(async (
       update: {},
     }),
     prisma.balanceTransaction.findMany({
-      where: { userId: target.id },
+      where: selfScope ? transactionWhere(selfScope) : { userId: target.id },
       orderBy: { createdAt: 'desc' },
       take: 50,
       select: {
         id: true,
+        userId: true,
         type: true,
         amount: true,
         balanceAfter: true,
@@ -113,8 +121,9 @@ export const GET = apiHandler(async (
       ...transaction,
       amountCny: toMoneyNumber(transaction.amount),
       amountPoints: cnyToPoints(toMoneyNumber(transaction.amount)),
-      balanceAfterCny: toMoneyNumber(transaction.balanceAfter),
-      balanceAfterPoints: cnyToPoints(toMoneyNumber(transaction.balanceAfter)),
+      balanceAfterCny: selfScope && isManagerPaid(transaction, selfScope) ? null : toMoneyNumber(transaction.balanceAfter),
+      balanceAfterPoints: selfScope && isManagerPaid(transaction, selfScope) ? null : cnyToPoints(toMoneyNumber(transaction.balanceAfter)),
+      paidBy: selfScope && isManagerPaid(transaction, selfScope) ? 'manager' as const : undefined,
       amount: undefined,
       balanceAfter: undefined,
       createdAt: transaction.createdAt.toISOString(),
@@ -163,9 +172,7 @@ export const POST = apiHandler(async (
             return null
           }
           return operation === 'allocate'
-            ? (() => { throw new ApiError('INVALID_PARAMS', {
-                message: '子账号使用管理账号共享钱包，请通过“设置额度”配置每日积分上限或 unlimited；不再向子账号个人钱包转入积分。',
-              }) })()
+            ? allocateAccountPoints(operatorId, target.id, points, { operatorId, idempotencyKey, note })
             : reclaimAccountPoints(operatorId, target.id, points, { operatorId, idempotencyKey, note })
         })()
 

@@ -1,6 +1,9 @@
 import { prisma } from '@/lib/prisma'
+import type { Prisma } from '@prisma/client'
 import { getBalance } from '@/lib/billing'
+import { resolveBillingPrincipals } from '@/lib/account/billing-identity'
 import { getVisibleUserTotalSpent } from '@/lib/billing/reporting'
+import { isManagerPaid, resolveRecordScope, taskWhere, transactionWhere, usageCostWhere, type RecordScope } from '@/lib/billing/actor-scope'
 import { BILLING_CURRENCY } from '@/lib/billing/currency'
 import { toMoneyNumber } from '@/lib/billing/money'
 import { cnyToPoints } from '@/lib/billing/credit-policy'
@@ -42,6 +45,7 @@ type ServiceTask = Awaited<ReturnType<typeof readTaskRows>>[number]
 type UsageCostRow = Awaited<ReturnType<typeof readUsageCosts>>[number]
 export interface BuildServiceRecordsOverviewOptions {
   limit?: number
+  actorId?: string | null
 }
 
 function extractActionFromDescription(description: string | null): string | null {
@@ -120,9 +124,9 @@ function resolveTaskReadLimit(visibleLimit: number) {
   return Math.min(Math.max(visibleLimit * 5, visibleLimit), 500)
 }
 
-async function readTaskRows(userId: string, take = 80) {
+async function readTaskRows(scope: RecordScope, take = 80) {
   const tasks = await prisma.task.findMany({
-    where: { userId },
+    where: taskWhere(scope),
     orderBy: { createdAt: 'desc' },
     take,
   })
@@ -140,9 +144,9 @@ async function readTaskRows(userId: string, take = 80) {
   }))
 }
 
-async function readUsageCosts(userId: string) {
+async function readUsageCosts(scope: RecordScope) {
   return await prisma.usageCost.findMany({
-    where: { userId },
+    where: usageCostWhere(scope),
     orderBy: { createdAt: 'desc' },
     take: 5_000,
   })
@@ -215,7 +219,9 @@ function usageActorId(row: UsageCostRow) {
   return typeof actorId === 'string' && actorId.trim() ? actorId.trim() : row.userId
 }
 
-async function buildFilterableReport(userId: string) {
+async function buildFilterableReport(scope: RecordScope) {
+  const userId = scope.ownerId
+  const actorId = scope.kind === 'self' ? scope.actorId : userId
   const prismaModels = prisma as unknown as {
     user?: { findMany(args: unknown): Promise<ReportAccount[]> }
     project?: { findMany(args: unknown): Promise<ReportProject[]> }
@@ -232,7 +238,9 @@ async function buildFilterableReport(userId: string) {
   const since = new Date(Date.now() - 180 * 24 * 60 * 60 * 1_000)
   const [accounts, projects] = await Promise.all([
     prismaModels.user.findMany({
-      where: { OR: [{ id: userId }, { workspaceOwnerId: userId }], status: 'active' },
+      where: scope.kind === 'self'
+        ? { id: actorId }
+        : { OR: [{ id: userId }, { workspaceOwnerId: userId }] },
       select: { id: true, name: true, role: true, roleLabel: true },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
     }),
@@ -246,7 +254,7 @@ async function buildFilterableReport(userId: string) {
   const [rawRecords, teamUsageCostsRaw] = accountIds.length > 0
     ? await Promise.all([
       prismaModels.serviceUsageRecord.findMany({
-        where: { userId: { in: accountIds }, createdAt: { gte: since } },
+        where: { userId: scope.kind === 'self' ? actorId : { in: accountIds }, createdAt: { gte: since } },
         select: {
           id: true,
           userId: true,
@@ -265,7 +273,7 @@ async function buildFilterableReport(userId: string) {
         take: 5_000,
       }),
       prisma.usageCost.findMany({
-        where: { userId: { in: accountIds }, createdAt: { gte: since } },
+        where: { AND: [usageCostWhere(scope), { createdAt: { gte: since } }] },
         orderBy: { createdAt: 'desc' },
         take: 5_000,
       }),
@@ -364,12 +372,18 @@ async function buildFilterableReport(userId: string) {
     name: record.modelName,
   }])).values()).sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
   const works = Array.from(new Map(projects.map((project) => [project.work.id, project.work])).values())
+  const visibleProjects = scope.kind === 'self'
+    ? projects.filter((project) => records.some((record) => record.projectId === project.id))
+    : projects
+  const visibleWorks = scope.kind === 'self'
+    ? Array.from(new Map(visibleProjects.map((project) => [project.work.id, project.work])).values())
+    : works
 
   return {
     records,
     options: {
-      works,
-      projects: projects.map((project) => ({ id: project.id, name: project.name, workId: project.workId })),
+      works: visibleWorks,
+      projects: visibleProjects.map((project) => ({ id: project.id, name: project.name, workId: project.workId })),
       accounts: accounts.map((account) => ({
         id: account.id,
         name: account.name,
@@ -632,9 +646,10 @@ async function buildCostSummary(userId: string, usageCosts: UsageCostRow[]) {
   }
 }
 
-async function buildTransactions(userId: string) {
+async function buildTransactions(scope: RecordScope) {
+  const userId = scope.ownerId
   const transactionsRaw = await prisma.balanceTransaction.findMany({
-    where: { userId },
+    where: transactionWhere(scope),
     orderBy: { createdAt: 'desc' },
     take: 6,
   })
@@ -671,11 +686,13 @@ async function buildTransactions(userId: string) {
 
   return visibleTransactions.map((item) => {
     const billingMeta = parseJsonRecord(item.billingMeta ?? null)
+    const managerPaid = isManagerPaid(item, scope)
 
     return {
       ...item,
       amount: toMoneyNumber(item.amount),
-      balanceAfter: toMoneyNumber(item.balanceAfter),
+      balanceAfter: managerPaid ? null : toMoneyNumber(item.balanceAfter),
+      paidBy: managerPaid ? 'manager' as const : undefined,
       action: item.taskType ?? extractActionFromDescription(item.description),
       projectName: item.projectId ? (projectMap.get(item.projectId) ?? null) : null,
       episodeNumber: item.episodeId ? (episodeMap.get(item.episodeId)?.episodeNumber ?? null) : null,
@@ -708,14 +725,20 @@ function buildPricingSummary() {
 }
 
 export async function buildServiceRecordsOverview(userId: string, options: BuildServiceRecordsOverviewOptions = {}) {
+  const scope = await resolveRecordScope({ id: userId, actorId: options.actorId })
   const taskLimit = normalizeTaskLimit(options.limit)
   const taskReadLimit = resolveTaskReadLimit(taskLimit)
-  const [tasksRaw, balance, visibleTotalSpent, transactions, usageCostsRaw] = await Promise.all([
-    readTaskRows(userId, taskReadLimit),
-    getBalance(userId),
-    getVisibleUserTotalSpent(userId),
-    buildTransactions(userId),
-    readUsageCosts(userId),
+  const [tasksRaw, balance, totalSpent, transactions, usageCostsRaw] = await Promise.all([
+    readTaskRows(scope, taskReadLimit),
+    getBalance(resolveBillingPrincipals({ id: userId, actorId: options.actorId }).walletUserId),
+    scope.kind === 'self'
+      ? prisma.balanceTransaction.aggregate({
+        where: { AND: [transactionWhere(scope), { type: 'consume' }] },
+        _sum: { amount: true },
+      })
+      : getVisibleUserTotalSpent(userId),
+    buildTransactions(scope),
+    readUsageCosts(scope),
   ])
   const visibleTasks = tasksRaw.filter((task) => !isInternalTask(task))
   const tasks = visibleTasks.slice(0, taskLimit)
@@ -724,7 +747,12 @@ export async function buildServiceRecordsOverview(userId: string, options: Build
   const usageRows = buildUsageRows(tasks, usageCosts)
   const dailyUsage = buildDailyUsage(tasks, usageCosts)
   const usageSummary = buildUsageSummary(tasks, usageCosts, usageRows)
-  const report = await buildFilterableReport(userId)
+  const report = await buildFilterableReport(scope)
+  const visibleTotalSpent = scope.kind === 'self'
+    ? Math.abs(toMoneyNumber((totalSpent as Prisma.GetBalanceTransactionAggregateType<{
+      _sum: { amount: true }
+    }>)._sum.amount))
+    : totalSpent as number
 
   return {
     success: true,

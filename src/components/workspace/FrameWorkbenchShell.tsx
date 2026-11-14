@@ -16,7 +16,6 @@ export type FrameWorkbenchNavKey =
   | 'materialLibrary'
   | 'prompts'
   | 'team'
-  | 'activity'
   | 'serviceRecords'
   | 'feedback'
   | 'updates'
@@ -89,8 +88,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
     { key: 'prompts', label: t('nav.prompts'), icon: 'bookmark', href: '/prompts' },
     ...(session?.user?.role === 'admin'
       ? [
-          { key: 'team' as const, label: '子账号管理', icon: 'userRoundCog' as AppIconName, href: '/account-management' },
-          { key: 'activity' as const, label: '工作监督', icon: 'barChart' as AppIconName, href: '/account-management/activity' },
+          { key: 'team' as const, label: '团队管理', icon: 'userRoundCog' as AppIconName, href: '/account-management' },
         ]
       : []),
   ]

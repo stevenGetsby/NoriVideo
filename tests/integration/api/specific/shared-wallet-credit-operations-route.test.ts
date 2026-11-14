@@ -39,11 +39,11 @@ describe('shared-wallet management credit operations', () => {
     mocks.target.mockResolvedValue(child)
     mocks.reclaim.mockResolvedValue({ operation: 'reclaim', points: 100, amountCny: 1, idempotent: false })
   })
-  it('rejects legacy monetary allocation instead of draining the shared generation wallet', async () => {
+  it('allows a manager to allocate points to a direct child wallet', async () => {
+    mocks.allocate.mockResolvedValue({ operation: 'allocate', points: 100, amountCny: 1, idempotent: false })
     const response = await request({ operation: 'allocate', points: 100, idempotencyKey: 'allocation' })
-    expect(response.status).toBe(400)
-    expect((await response.json()).message).toContain('设置额度')
-    expect(mocks.allocate).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mocks.allocate).toHaveBeenCalledWith('manager', 'child', 100, expect.objectContaining({ operatorId: 'manager', idempotencyKey: 'allocation' }))
     expect(mocks.reclaim).not.toHaveBeenCalled()
     expect(mocks.recharge).not.toHaveBeenCalled()
   })

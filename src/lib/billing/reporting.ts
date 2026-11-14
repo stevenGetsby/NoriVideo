@@ -213,10 +213,10 @@ export async function getProjectCostDetails(projectId: string) {
   }
 }
 
-export async function getUserCostSummary(userId: string) {
+export async function getUserCostSummary(userId: string, where?: Prisma.UsageCostWhereInput) {
   try {
     const recordsRaw = await prisma.usageCost.findMany({
-      where: { userId },
+      where: where ?? { userId },
     })
     const records = recordsRaw.filter((item) => !isInternalUsageCostRecord(item))
     const byProjectMap = new Map<string, { projectId: string; _sum: { cost: number }; _count: number }>()

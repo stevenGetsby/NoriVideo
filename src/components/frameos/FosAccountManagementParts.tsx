@@ -29,6 +29,7 @@ interface ManagedAccount {
   dailyLimitPoints: number | null
   /** 今日（上海自然日）已用积分，读接口返回。 */
   usageToday?: DailyUsagePayload | null
+  managerPaid90dPoints?: number
   createdAt: string
   updatedAt: string
   lastLoginAt: string | null
@@ -52,7 +53,8 @@ interface CreditLedgerPayload {
     id: string
     type: string
     amountPoints: number
-    balanceAfterPoints: number
+    balanceAfterPoints: number | null
+    paidBy?: 'manager'
     description: string | null
     createdAt: string
   }>
@@ -72,7 +74,7 @@ interface AccountDraft {
 }
 
 function formatPointsValue(value: number) {
-  return value.toLocaleString('zh-CN', { maximumFractionDigits: 2 })
+  return value.toLocaleString('zh-CN', { maximumFractionDigits: 4 })
 }
 
 /**
@@ -339,12 +341,12 @@ const CREDIT_OPERATION_COPY: Record<CreditOperationKind, { title: string; action
   allocate: {
     title: '分配积分',
     action: '确认分配',
-    hint: '积分将从管理账号余额转入该子账号。',
+    hint: '积分将从你的账号转入该成员，成员生成时先用这部分积分。',
   },
   reclaim: {
-    title: '收回历史个人积分',
+    title: '收回积分',
     action: '确认收回',
-    hint: '将旧版分配在子账号个人钱包中的可用积分收回管理账号共享钱包；已消耗或被冻结积分不能收回，不改变该账号的每日用量上限。',
+    hint: '把该成员的可用积分收回到你的账号。冻结中（正在生成）的积分不能收回。',
   },
 }
 
@@ -355,6 +357,7 @@ const CREDIT_TRANSACTION_LABELS: Record<string, string> = {
   reclaim_out: '积分被收回',
   reclaim_in: '收回子账号积分',
   usage: '服务消耗',
+  consume: '服务消耗',
   refund: '消费退回',
 }
 
@@ -425,7 +428,7 @@ export function CreditLedgerDialog({
                 <div className="min-w-[620px]"><div className="grid grid-cols-[130px_1fr_130px_150px] gap-3 border-b border-white/[.08] bg-white/[.025] px-4 py-3 text-[10px] font-semibold text-white/40"><span>时间</span><span>类型 / 备注</span><span className="text-right">积分变动</span><span className="text-right">变动后余额</span></div>
                 {payload.transactions.length ? payload.transactions.map((transaction) => {
                   const note = transactionNote(transaction.description)
-                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
+                  return <div key={transaction.id} className="grid grid-cols-[130px_1fr_130px_150px] items-center gap-3 border-b border-white/[.055] px-4 py-3 text-[11px] last:border-0"><span className="text-white/40">{new Date(transaction.createdAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Shanghai' })}</span><span className="min-w-0"><strong className="block text-white/80">{CREDIT_TRANSACTION_LABELS[transaction.type] || transaction.type}{transaction.paidBy === 'manager' ? <span className="ml-2 rounded-full border border-white/15 bg-white/[.04] px-2 py-0.5 text-[9px] text-white/55">管理账号代付</span> : null}</strong>{note ? <small className="mt-1 block truncate text-white/35">{note}</small> : null}</span><strong className={`text-right ${transaction.amountPoints >= 0 ? 'text-emerald-300' : 'text-amber-200'}`}>{transaction.amountPoints >= 0 ? '+' : ''}{transaction.amountPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</strong><span className="text-right text-white/65">{transaction.balanceAfterPoints === null ? '—' : transaction.balanceAfterPoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })}</span></div>
                 }) : <div className="py-12 text-center text-[11px] text-white/35">暂无积分变动</div>}
                 </div>
               </div>
@@ -434,6 +437,68 @@ export function CreditLedgerDialog({
         </div>
       </section>
     </div>
+    </ViewportDialogLayer>
+  )
+}
+
+export function BulkAllocateDialog({
+  targets,
+  availablePoints,
+  saving,
+  error,
+  onClose,
+  onRemove,
+  onSubmit,
+}: {
+  targets: ManagedAccount[]
+  availablePoints: number
+  saving: boolean
+  error: string
+  onClose: () => void
+  onRemove: (userId: string) => void
+  onSubmit: (input: { points: number; note: string }) => void
+}) {
+  const [points, setPoints] = useState('')
+  const [note, setNote] = useState('')
+  const parsedPoints = Number(points)
+  const valid = Number.isSafeInteger(parsedPoints) && parsedPoints > 0 && parsedPoints <= 2_000_000_000
+  const total = valid ? parsedPoints * targets.length : 0
+  const remaining = availablePoints - total
+  const canSubmit = valid && targets.length >= 1 && targets.length <= 100 && remaining >= 0 && !saving
+  useDialogDismiss(true, onClose, !saving)
+  const submit = () => { if (canSubmit) onSubmit({ points: parsedPoints, note }) }
+  return (
+    <ViewportDialogLayer>
+      <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
+        <section role="dialog" aria-modal="true" aria-label="批量分配积分" className="fos-dialog w-full max-w-[700px]" onKeyDown={(event) => {
+          if (event.key === 'Enter' && event.target instanceof HTMLElement && event.target.dataset.creditNote !== 'true') { event.preventDefault(); submit() }
+        }}>
+          <div className="fos-dialog-head">
+            <div><h2 className="text-[16px] font-bold text-white">批量分配积分</h2><p className="mt-1 text-[11px] text-white/40">给所选成员分配相同数量的积分。</p></div>
+            <button type="button" className="fos-icon-btn" disabled={saving} onClick={onClose} aria-label="关闭"><AppIcon name="close" className="h-4 w-4" /></button>
+          </div>
+          <div className="fos-dialog-body">
+            <label className="block"><span className="mb-2 block text-[11px] font-semibold text-white/60">每人分配积分</span>
+              <input data-testid="bulk-allocate-points" className="fos-input w-full" type="number" min="1" step="1" inputMode="numeric" autoFocus value={points} onChange={(event) => setPoints(event.target.value)} placeholder="请输入正整数积分" />
+            </label>
+            <div className="mt-4 overflow-hidden rounded-[10px] border border-white/[.07]">
+              <div className="grid grid-cols-[1fr_110px_120px_50px] gap-3 border-b border-white/[.07] bg-white/[.025] px-4 py-3 text-[10px] text-white/40"><span>成员</span><span>当前积分</span><span>近90天代付</span><span /></div>
+              <div className="max-h-[220px] overflow-y-auto">
+                {targets.length ? targets.map((target) => <div key={target.id} data-testid={`bulk-allocate-row-${target.id}`} className="grid grid-cols-[1fr_110px_120px_50px] items-center gap-3 border-b border-white/[.05] px-4 py-3 text-[11px] last:border-0"><span className="truncate text-white/80">{target.username}</span><span>{formatPointsValue(target.credits.points)}</span><span>{formatPointsValue(target.managerPaid90dPoints || 0)}</span><button type="button" data-testid={`bulk-allocate-remove-${target.id}`} className="text-white/45 underline disabled:opacity-30" disabled={saving} onClick={() => onRemove(target.id)}>移除</button></div>) : <p className="px-4 py-6 text-center text-[11px] text-white/40">请至少选择一名成员</p>}
+              </div>
+            </div>
+            <div data-testid="bulk-allocate-total" className="mt-4 rounded-[10px] border border-white/[.07] bg-white/[.025] px-4 py-3 text-[12px]">
+              <p>合计 {targets.length} 人 × {valid ? formatPointsValue(parsedPoints) : '—'} = {formatPointsValue(total)} 积分</p>
+              <p className="mt-2 text-white/55">你的可用积分 {formatPointsValue(availablePoints)} → 分配后剩余 <strong className={remaining < 0 ? 'text-red-300' : 'text-white'}>{formatPointsValue(remaining)}</strong></p>
+              {valid && remaining < 0 ? <p className="mt-2 text-[10px] text-red-300">可用积分不足：需要 {formatPointsValue(total)} 积分，当前可用 {formatPointsValue(availablePoints)} 积分。</p> : null}
+              {targets.length > 100 ? <p className="mt-2 text-[10px] text-red-300">一次最多给 100 人分配</p> : null}
+            </div>
+            <label className="mt-4 block"><span className="mb-2 block text-[11px] font-semibold text-white/60">备注（可选）</span><input data-credit-note="true" className="fos-input w-full" maxLength={200} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+            {error ? <p role="alert" className="mt-4 rounded-[8px] border border-red-400/20 bg-red-400/10 px-3 py-2 text-[11px] text-red-200">{error}</p> : null}
+          </div>
+          <div className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-lg fos-btn-ghost" onClick={onClose} disabled={saving}>取消</button><button type="button" data-testid="bulk-allocate-submit" className="fos-btn fos-btn-lg fos-btn-primary" disabled={!canSubmit} onClick={submit}>{saving ? '处理中…' : '确认分配'}</button></div>
+        </section>
+      </div>
     </ViewportDialogLayer>
   )
 }
@@ -463,6 +528,7 @@ export function CreditOperationDialog({
     ? Number.isFinite(parsedPoints) && Math.abs(parsedPoints * 10_000 - Math.round(parsedPoints * 10_000)) <= 0.00001
     : Number.isSafeInteger(parsedPoints)
   const valid = precisionValid && parsedPoints > 0 && parsedPoints <= 2_000_000_000
+    && (operation === 'recharge' || typeof sourceBalancePoints !== 'number' || parsedPoints <= sourceBalancePoints)
   const unlimitedAvailable = (operation === 'allocate' || operation === 'reclaim') && typeof sourceBalancePoints === 'number'
     && sourceBalancePoints > 0
     && Number.isFinite(sourceBalancePoints)
@@ -476,7 +542,12 @@ export function CreditOperationDialog({
   return (
     <ViewportDialogLayer>
     <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
-      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px]">
+      <section role="dialog" aria-modal="true" aria-label={copy.title} className="fos-dialog credit-operation-dialog w-full max-w-[500px]" onKeyDown={(event) => {
+        if (event.key === 'Enter' && event.target instanceof HTMLElement && event.target.dataset.creditNote !== 'true') {
+          event.preventDefault()
+          if (!saving && valid) onSubmit({ points: parsedPoints, note })
+        }
+      }}>
         <div className="fos-dialog-head">
           <div>
             <h2 className="text-[16px] font-bold text-white">{copy.title}</h2>
@@ -501,7 +572,7 @@ export function CreditOperationDialog({
           ) : null}
           {typeof sourceBalancePoints === 'number' && operation !== 'recharge' ? (
             <div className="mt-4 flex items-center justify-between rounded-[9px] border border-white/[.07] bg-white/[.025] px-4 py-3">
-              <span className="text-[11px] text-white/45">可操作余额</span>
+              <span className="text-[11px] text-white/45">{operation === 'allocate' ? '你的可用积分' : '该成员可用积分'}</span>
               <strong className="text-[15px] text-white">{sourceBalancePoints.toLocaleString('zh-CN', { maximumFractionDigits: 4 })} 积分</strong>
             </div>
           ) : null}
@@ -511,12 +582,14 @@ export function CreditOperationDialog({
                 type="button"
                 className="fos-btn fos-btn-ghost"
                 disabled={saving}
-                onClick={() => setPoints(String(sourceBalancePoints))}
+                onClick={() => setPoints(String(operation === 'allocate' ? Math.floor(sourceBalancePoints) : sourceBalancePoints))}
               >
                 全部
               </button>
               <small className="text-[10px] leading-4 text-white/35">
-                「全部」按当前可操作余额填写；收回历史积分可保留 4 位小数，避免遗漏余额零头，完整保留账本流水。
+                {operation === 'reclaim'
+                  ? '“全部”按成员当前可用积分填写，可保留 4 位小数，不留零头。'
+                  : '“全部”按你的可用积分向下取整填写。'}
               </small>
             </div>
           ) : null}
@@ -533,13 +606,14 @@ export function CreditOperationDialog({
               onChange={(event) => setPoints(event.target.value)}
               placeholder={operation === 'reclaim' ? '可输入小数积分，或点击全部' : '请输入正整数积分'}
             />
-            {valid ? <span className="mt-2 block text-[10px] text-white/35">人民币等值 ¥{(parsedPoints / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}</span> : null}
+            {valid ? <span className="mt-2 block text-[10px] text-white/35">{operation === 'allocate' ? `分配后你剩余 ${formatPointsValue((sourceBalancePoints || 0) - parsedPoints)} 积分；该成员 ${formatPointsValue(currentTargetPoints)} → ${formatPointsValue(currentTargetPoints + parsedPoints)} 积分` : operation === 'reclaim' ? `收回后该成员剩余 ${formatPointsValue(currentTargetPoints - parsedPoints)} 积分` : `人民币等值 ¥${(parsedPoints / 100).toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`}</span> : null}
           </label>
           <label className="mt-4 block">
             <span className="mb-2 block text-[11px] font-semibold text-white/60">备注（选填）</span>
             <input
               className="fos-input w-full"
               maxLength={200}
+              data-credit-note="true"
               value={note}
               onChange={(event) => setNote(event.target.value)}
               placeholder="例如：7 月作品额度"

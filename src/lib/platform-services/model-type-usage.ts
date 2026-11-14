@@ -131,13 +131,23 @@ export function accumulateModelUsageCost(target: ModelUsageSummary, row: ModelUs
   })
 }
 
-export function buildModelUsageByAccount(rows: ModelUsageCostRow[]): Map<string, ModelUsageSummary> {
+function usageAccountId(row: ModelUsageCostRow, accountIds?: Set<string>) {
+  if (!accountIds) return row.userId || null
+  try {
+    const actorId = (JSON.parse(row.metadata || '{}') as { quotaUserId?: unknown }).quotaUserId
+    if (typeof actorId === 'string' && accountIds.has(actorId)) return actorId
+  } catch { /* Ignore legacy non-JSON metadata and use its billing owner. */ }
+  return row.userId || null
+}
+
+export function buildModelUsageByAccount(rows: ModelUsageCostRow[], accountIds?: Set<string>): Map<string, ModelUsageSummary> {
   const usage = new Map<string, ModelUsageSummary>()
   for (const row of rows) {
-    if (!row.userId) continue
-    const current = usage.get(row.userId) || emptyModelUsageSummary()
+    const accountId = usageAccountId(row, accountIds)
+    if (!accountId) continue
+    const current = usage.get(accountId) || emptyModelUsageSummary()
     accumulateModelUsageCost(current, row)
-    usage.set(row.userId, current)
+    usage.set(accountId, current)
   }
   return usage
 }

@@ -17,6 +17,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   const overview = await buildServiceRecordsOverview(authResult.session.user.id, {
     limit: parseLimit(request),
+    actorId: authResult.session.user.actorId,
   })
   return NextResponse.json(overview)
 })

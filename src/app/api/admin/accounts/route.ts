@@ -159,7 +159,21 @@ export const GET = apiHandler(async () => {
     return snapshot ? serializeDailyUsage(snapshot) : null
   }
 
-  const usageByAccount = buildModelUsageByAccount(costRows)
+  const usageByAccount = buildModelUsageByAccount(costRows, new Set(accountIds))
+
+  const managerPaidSince = new Date(Date.now() - 90 * 86_400_000)
+  const managerPaid90d = new Map<string, number>()
+  for (const managerId of managerIds) {
+    const rows = await prisma.$queryRaw<Array<{ actorId: string; points: number }>>(Prisma.sql`
+      SELECT t.actorId, ROUND(SUM(t.amount) * 100, 4) AS points FROM (
+        SELECT CASE WHEN JSON_VALID(bt.billingMeta) THEN JSON_UNQUOTE(JSON_EXTRACT(bt.billingMeta, '$.quotaUserId')) END AS actorId,
+          ABS(bt.amount) AS amount
+        FROM balance_transactions bt
+        WHERE bt.userId = ${managerId} AND bt.type = 'consume' AND bt.createdAt >= ${managerPaidSince}
+      ) t WHERE t.actorId IS NOT NULL GROUP BY t.actorId
+    `)
+    for (const row of rows) managerPaid90d.set(row.actorId, Number(row.points) || 0)
+  }
 
   const usage = new Map(managerIds.map((id) => [id, { projects: 0, assets: 0 }]))
   addUsage(usage, projects, 'projects')
@@ -178,6 +192,7 @@ export const GET = apiHandler(async () => {
       .map((account) => ({
         ...serializeManagedAccount(account),
         usage: usageByAccount.get(account.id) || emptyModelUsageSummary(),
+        managerPaid90dPoints: managerPaid90d.get(account.id) || 0,
         usageToday: dailyUsageFor(account.id),
       }))
     const modelUsage = mergeModelUsageSummaries(
