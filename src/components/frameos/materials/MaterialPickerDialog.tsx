@@ -406,7 +406,6 @@ export function MaterialPickerDialog({
     >
       <div
         className="fos-dialog material-picker-dialog flex flex-col overflow-hidden"
-        style={{ width: 'min(1120px, calc(100vw - 32px))', maxWidth: 1120, maxHeight: 'min(88vh, calc(100dvh - 32px))' }}
       >
         <div className="fos-dialog-head shrink-0">
           <div>

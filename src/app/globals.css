@@ -107,6 +107,7 @@ html[data-zoom-mode="legacy"] {
 
 @supports (height: 100dvh) {
   :root {
+    --nori-interface-viewport-height: 83.333333vh;
     --nori-interface-viewport-height: 83.333333dvh;
   }
 }

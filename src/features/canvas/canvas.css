@@ -3089,6 +3089,7 @@
 .nori-canvas-dialog {
   position: relative;
   width: min(920px, 92vw);
+  max-height: min(86vh, calc(100vh - 28px));
   max-height: min(86vh, calc(100dvh - 28px));
   overflow: hidden;
   border: 1px solid var(--canvas-border);
@@ -3112,6 +3113,7 @@
 .nori-canvas-dialog > header button { display: flex; width: 29px; height: 29px; align-items: center; justify-content: center; border: 0; border-radius: 7px; color: rgba(255, 255, 255, .4); background: transparent; }
 .nori-canvas-dialog > header button:hover { color: white; background: rgba(255, 255, 255, .06); }
 .nori-canvas-dialog > header button svg { width: 15px; height: 15px; }
+.nori-canvas-dialog-body { max-height: calc(min(86vh, 100vh - 28px) - 52px); overflow-y: auto; padding: 18px; }
 .nori-canvas-dialog-body { max-height: calc(min(86vh, 100dvh - 28px) - 52px); overflow-y: auto; padding: 18px; }
 
 .nori-canvas-management-scrim {
@@ -3876,6 +3878,7 @@
 
   .nori-canvas-management-dialog {
     width: 100%;
+    max-height: calc(100vh - 24px);
     max-height: calc(100dvh - 24px);
     border-radius: 14px;
   }
@@ -3927,6 +3930,7 @@
   }
 
   .nori-canvas-hub-project-menu > div {
+    max-height: min(300px, calc(100vh - 160px));
     max-height: min(300px, calc(100dvh - 160px));
   }
 }
@@ -4379,6 +4383,7 @@
 }
 
 @media (max-width: 560px) {
+  .nori-canvas-video-operation-dialog { width: calc(100vw - 20px); max-height: calc(100vh - 20px); }
   .nori-canvas-video-operation-dialog { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); }
   .nori-canvas-video-operation-modes { overflow-x: auto; }
   .nori-canvas-video-operation-modes button { flex: none; }
@@ -6438,6 +6443,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 }
 .nori-canvas-generator-head { flex: none; }
 .nori-canvas-generator:not(.is-node-anchored):not(.is-fullscreen) .nori-canvas-generator-scroll {
+  max-height: calc(100vh / var(--nori-interface-scale, 1.2) - 180px);
   max-height: calc(100dvh / var(--nori-interface-scale, 1.2) - 180px);
 }
 .nori-canvas-generator-content { min-width: 0; min-height: 0; flex: 1 1 auto; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
@@ -6479,6 +6485,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   min-width: 0;
   min-height: 0;
   max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 24px);
   max-height: calc(100dvh - 24px);
   flex-direction: column;
 }
@@ -6486,6 +6493,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   min-width: 0;
   min-height: 52px;
   height: auto;
+  max-height: min(160px, 30vh);
   max-height: min(160px, 30dvh);
   flex: none;
   gap: 12px;
@@ -6504,6 +6512,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-revision-list span,
 .nori-canvas-video-operation-dialog > header small { max-width: none; overflow: visible; white-space: normal; text-overflow: clip; overflow-wrap: anywhere; }
 .nori-canvas-history-meta span { flex-wrap: wrap; }
+.nori-canvas-history-zero { min-height: min(260px, 45vh); }
 .nori-canvas-history-zero { min-height: min(260px, 45dvh); }
 .nori-canvas-image-operation-body,
 .nori-canvas-image-edit-body { min-height: 0; max-height: none; overflow: auto; flex: 1 1 auto; }
@@ -6524,6 +6533,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-video-operation-region-info,
 .nori-canvas-video-operation-engine { min-width: 0; flex-wrap: wrap; }
 .nori-canvas-video-enhance-body { min-height: 0; }
+.nori-canvas-model-dialog > .nori-canvas-model-viewer { height: min(620px, 65vh); min-height: 180px; }
 .nori-canvas-model-dialog > .nori-canvas-model-viewer { height: min(620px, 65dvh); min-height: 180px; }
 .nori-canvas-media-preview { grid-template-rows: auto minmax(0, 1fr) auto; }
 .nori-canvas-media-preview > header { min-height: 52px; flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
@@ -6576,6 +6586,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-panorama-dialog > footer > b { max-width: 100%; overflow: visible; white-space: normal; overflow-wrap: anywhere; }
 .nori-canvas-panorama-dialog > footer > span { display: block; flex-basis: 100%; }
 .nori-canvas-studio-dialog { grid-template-rows: auto minmax(0, 1fr) auto; }
+.nori-canvas-studio-dialog > header { min-height: 54px; max-height: 25vh; overflow-y: auto; gap: 10px; padding: 10px; }
 .nori-canvas-studio-dialog > header { min-height: 54px; max-height: 25dvh; overflow-y: auto; gap: 10px; padding: 10px; }
 .nori-canvas-studio-dialog > header strong,
 .nori-canvas-studio-items article strong,
@@ -6585,12 +6596,14 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-studio-dialog > footer { min-width: 0; flex-wrap: wrap; min-height: 46px; height: auto; }
 .nori-canvas-studio-layout { overflow: auto; }
 .nori-canvas-model-loading { max-width: 100%; padding: 12px; text-align: center; overflow-wrap: anywhere; }
+.nori-canvas-viewport-layer .nori-canvas-media-preview > header strong { max-height: 15vh; overflow-y: auto; }
 .nori-canvas-viewport-layer .nori-canvas-media-preview > header strong { max-height: 15dvh; overflow-y: auto; }
 .nori-canvas-media-preview.is-video-preview { inset: 16px; grid-template-rows: minmax(52px, auto) minmax(0, 1fr) minmax(34px, auto); border-radius: 18px; background: #0b0b10; }
 .nori-canvas-media-preview.is-video-preview > header { position: relative; z-index: 6; min-height: 52px; flex-wrap: nowrap; padding: 8px 10px 8px 16px; }
 .nori-canvas-media-preview.is-video-preview > header > div:first-child { min-width: 0; flex: 1; }
 .nori-canvas-media-preview.is-video-preview > header > div:first-child > svg { color: var(--dm-hue-video, #a78bfa); }
 .nori-canvas-media-preview.is-video-preview > header > div:last-child { flex: none; flex-wrap: nowrap; }
+.nori-canvas-media-preview.is-video-preview > header strong { display: block; max-width: 100%; max-height: 16vh; overflow: hidden auto; font-size: 13px; white-space: normal; }
 .nori-canvas-media-preview.is-video-preview > header strong { display: block; max-width: 100%; max-height: 16dvh; overflow: hidden auto; font-size: 13px; white-space: normal; }
 .nori-canvas-media-preview.is-video-preview > header small { font-size: 10px; }
 .nori-canvas-media-preview.is-video-preview > header button { flex: none; width: 32px; height: 32px; }
@@ -6618,6 +6631,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-studio-dock-shell { width: min(620px, calc(100% - 16px)); }
 .nori-canvas-studio-dock { width: 100%; min-height: 52px; height: auto; flex-wrap: wrap; justify-content: center; }
 .nori-canvas-studio-dock > button { flex: none; }
+.nori-canvas-studio-dock-menu { max-width: 100%; max-height: min(440px, 65vh); overflow: auto; }
 .nori-canvas-studio-dock-menu { max-width: 100%; max-height: min(440px, 65dvh); overflow: auto; }
 .nori-canvas-studio-dock-menu.nori-viewport-popover { max-width: none; }
 .nori-canvas-studio-dock-menu.nori-viewport-popover .nori-canvas-studio-add-flyout { position: static; width: 100%; max-width: 100%; margin-top: 8px; }
@@ -6626,7 +6640,9 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   .nori-canvas-image-edit-body { grid-template-columns: minmax(0, 1fr); }
   .nori-canvas-image-operation-settings,
   .nori-canvas-image-edit-settings { overflow: visible; }
+  .nori-canvas-image-operation-preview-shell { min-height: 180px; max-height: 40vh; }
   .nori-canvas-image-operation-preview-shell { min-height: 180px; max-height: 40dvh; }
+  .nori-canvas-image-edit-stage { min-height: 220px; max-height: 55vh; }
   .nori-canvas-image-edit-stage { min-height: 220px; max-height: 55dvh; }
   .nori-canvas-video-enhance-body { grid-template-columns: minmax(0, 1fr); }
 }
@@ -7603,6 +7619,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-reference-add-menu > button:disabled { cursor: not-allowed; opacity: .45; }
 .nori-canvas-reference-add-menu > button > small { margin-left: auto; color: #9c9dae; font-size: 11px; font-variant-numeric: tabular-nums; }
 
+.nori-canvas-reference-picker { width: min(780px, 92vw); height: min(640px, calc(100vh - 24px)); }
 .nori-canvas-reference-picker { width: min(780px, 92vw); height: min(640px, calc(100dvh - 24px)); }
 .nori-canvas-reference-picker-toolbar {
   display: flex;

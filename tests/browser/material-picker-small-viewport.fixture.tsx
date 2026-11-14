@@ -1,5 +1,6 @@
 import React from 'react'
 import { createRoot } from 'react-dom/client'
+import { NextIntlClientProvider } from 'next-intl'
 import { MaterialPickerDialog } from '../../src/components/frameos/materials/MaterialPickerDialog'
 import '../../src/styles/frameos-replica.css'
 
@@ -16,7 +17,7 @@ function Fixture() {
         }}
       >
         {open ? <MaterialPickerDialog
-          projectId="project-1"
+          projectId="project-1" allowAllTypes
           multiple
           confirmLabel="添加引用"
           onConfirm={() => undefined}
@@ -27,4 +28,4 @@ function Fixture() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<Fixture />)
+createRoot(document.getElementById('root')!).render(<NextIntlClientProvider locale="zh" messages={{}}><Fixture /></NextIntlClientProvider>)

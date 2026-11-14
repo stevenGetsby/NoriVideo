@@ -392,7 +392,7 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onVoiceChange, 
         aria-label={`${item.title || '素材'}大图预览`}
         data-testid="material-large-preview"
         className="fos-dialog material-preview-dialog"
-        style={{ maxWidth: 1280, height: 'min(88dvh, 900px)' }}
+        style={{ maxWidth: 1280 }}
       >
         <header className="flex h-14 shrink-0 items-center justify-between border-b border-[var(--fos-border-soft)] px-5">
           <div className="min-w-0"><h3 className="truncate text-[16px] font-bold text-white">{item.title || '未命名素材'}</h3><p className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">大图预览 · 按 Esc 关闭</p></div>

@@ -27,8 +27,10 @@ const bundle = await build({
   define: { 'process.env.NODE_ENV': '"development"' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.contents
-const css = bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.contents
-assert.ok(script && css, 'fixture bundle must contain JavaScript and CSS')
+const fixtureCss = bundle.outputFiles.find((file) => file.path.endsWith('.css'))?.text
+assert.ok(script && fixtureCss, 'fixture bundle must contain JavaScript and CSS')
+const { readFileSync } = await import('node:fs')
+const css = `${readFileSync(path.join(root, 'test-results/material-bundles/global.css'), 'utf8')}\n${fixtureCss}`
 
 const server = createServer((request, response) => {
   if (request.url === '/fixture.js') {
@@ -106,7 +108,9 @@ try {
   } catch (error) {
     throw new Error(`${error.message}\n\nDialog text:\n${await dialog.innerText()}\n\nBrowser errors:\n${browserErrors.join('\n')}`)
   }
-  const voiceBadges = await page.locator('.material-picker-voice-badge').evaluateAll((items) => items.map((item) => {
+  const voiceBadges = await page.locator('.material-picker-voice-badge').evaluateAll(async (items) => {
+    await new Promise((resolve) => setTimeout(resolve, 250))
+    return items.map((item) => {
     const card = item.closest('article')
     const thumb = item.closest('div.relative')
     const badge = item.getBoundingClientRect()
@@ -126,12 +130,13 @@ try {
         && badge.right <= cardBox.right && badge.bottom <= cardBox.bottom),
       clearOfTypeLabel: !typeBox || badge.left >= typeBox.right + 4,
     }
-  }))
+    })
+  })
   assert.equal(voiceBadges.length, 2, 'both character cards must show a voice badge')
   assert.deepEqual(voiceBadges.map((item) => item.text).sort(), ['有音色', '缺音色'])
   assert.ok(voiceBadges.some((item) => item.tone.includes('nori-voice-badge-bound')))
   assert.ok(voiceBadges.some((item) => item.tone.includes('nori-voice-badge-missing')))
-  assert.ok(voiceBadges.every((item) => item.insideCard), 'voice badges must not be clipped by the card')
+  assert.ok(voiceBadges.every((item) => item.insideCard), `voice badges must not be clipped by the card: ${JSON.stringify(voiceBadges)}`)
   assert.ok(voiceBadges.every((item) => item.clearOfTypeLabel), 'voice badge must not overlap the type label')
 
   const metrics = await dialog.evaluate((element) => {
