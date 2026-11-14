@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import {
@@ -235,9 +236,8 @@ export function AccountDialog({
               <span className="mb-2 block text-[11px] font-semibold text-white/60">
                 {mode === 'create' ? '初始密码' : '重置密码（留空则不修改）'}
               </span>
-              <input
+              <PasswordInput
                 className="fos-input w-full"
-                type="password"
                 value={draft.password}
                 autoComplete="new-password"
                 onChange={(event) => onDraft({ ...draft, password: event.target.value })}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { AppIcon } from '@/components/ui/icons'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 interface StorageConfig {
   storageType: string
@@ -144,7 +145,7 @@ export function StorageConfigCard() {
         </label>
         <label className="space-y-1.5 text-sm font-semibold text-[var(--glass-text-primary)]">
           SecretAccessKey {config.hasSecretKey ? <span className="text-xs text-[var(--glass-tone-success-fg)]">已配置</span> : null}
-          <input type="password" value={secretKey} onChange={(event) => setSecretKey(event.target.value)} placeholder={config.hasSecretKey ? '留空则保持现有值' : ''} className="glass-input-base w-full px-3 py-2 text-sm font-normal" />
+          <PasswordInput value={secretKey} onChange={(event) => setSecretKey(event.target.value)} placeholder={config.hasSecretKey ? '留空则保持现有值' : ''} className="glass-input-base w-full px-3 py-2 text-sm font-normal" />
         </label>
       </div>
 

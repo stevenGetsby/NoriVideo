@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { apiFetch } from '@/lib/api-fetch'
 import { AppIcon } from '@/components/ui/icons'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 
 interface ConfigState {
   accessKeyId: string
@@ -124,8 +125,7 @@ export function SeedanceAssetLibraryConfigCard() {
         </label>
         <label className="block">
           <span className="mb-1.5 block text-xs font-semibold text-[var(--glass-text-secondary)]">Secret Access Key</span>
-          <input
-            type="password"
+          <PasswordInput
             value={config.secretAccessKey}
             onChange={(event) => setConfig((current) => ({ ...current, secretAccessKey: event.target.value }))}
             placeholder="SK..."

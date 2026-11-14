@@ -2,6 +2,7 @@
 
 import type { Dispatch, SetStateAction } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { AdminHealthBadge } from '@/components/admin/PlatformAdminShell'
 import {
   MODEL_TIER_LABELS,
@@ -76,7 +77,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                 </div>
                 <label className="nori-admin-field">
                   <span className="nori-admin-field-label"><span>API Key</span><span className={`nori-admin-secret-status ${pending ? 'is-pending' : provider.hasApiKey ? 'is-ok' : 'is-missing'}`}>{pending ? '待保存' : provider.hasApiKey ? '已配置' : '待配置'}</span></span>
-                  <input type="password" autoComplete="new-password" className="fos-input" value={providerSecrets[provider.id] || ''} placeholder={provider.hasApiKey ? '已安全保存；留空不修改' : '粘贴平台 API Key'} onChange={(event) => { props.setProviderSecrets((current) => ({ ...current, [provider.id]: event.target.value })); props.setDirty(true) }} />
+                  <PasswordInput autoComplete="new-password" className="fos-input" value={providerSecrets[provider.id] || ''} placeholder={provider.hasApiKey ? '已安全保存；留空不修改' : '粘贴平台 API Key'} onChange={(event) => { props.setProviderSecrets((current) => ({ ...current, [provider.id]: event.target.value })); props.setDirty(true) }} />
                 </label>
                 {isKuaizi ? <label className="nori-admin-field mt-3">素材组 ID <span className="nori-admin-muted">选填</span><input className="fos-input" value={provider.assetGroupId || ''} placeholder="用于 Kuaizi 素材归属" onChange={(event) => props.updateProvider(index, { assetGroupId: event.target.value.trim() })} /></label> : null}
                 <div className="nori-admin-provider-foot">
@@ -120,8 +121,8 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           <summary>存储连接与高级设置<AppIcon name="chevronDown" /></summary>
           <div className="nori-admin-panel-body grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {([['endpoint', 'Endpoint'], ['publicEndpoint', 'Public Endpoint'], ['region', 'Region'], ['bucket', 'Bucket']] as const).map(([field, label]) => <label key={field} className="nori-admin-field">{label}<input className="fos-input" value={config.storage[field]} onChange={(event) => props.markConfig((current) => ({ ...current, storage: { ...current.storage, [field]: event.target.value } }))} /></label>)}
-            <label className="nori-admin-field">AccessKey ID<input type="password" autoComplete="new-password" className="fos-input" value={props.storageAccessKey} placeholder={config.storage.hasAccessKey ? '已配置；留空不修改' : '请输入 AccessKey ID'} onChange={(event) => { props.setStorageAccessKey(event.target.value); props.setDirty(true) }} /></label>
-            <label className="nori-admin-field">SecretAccessKey<input type="password" autoComplete="new-password" className="fos-input" value={props.storageSecretKey} placeholder={config.storage.hasSecretKey ? '已配置；留空不修改' : '请输入 SecretAccessKey'} onChange={(event) => { props.setStorageSecretKey(event.target.value); props.setDirty(true) }} /></label>
+            <label className="nori-admin-field">AccessKey ID<PasswordInput autoComplete="new-password" className="fos-input" value={props.storageAccessKey} placeholder={config.storage.hasAccessKey ? '已配置；留空不修改' : '请输入 AccessKey ID'} onChange={(event) => { props.setStorageAccessKey(event.target.value); props.setDirty(true) }} /></label>
+            <label className="nori-admin-field">SecretAccessKey<PasswordInput autoComplete="new-password" className="fos-input" value={props.storageSecretKey} placeholder={config.storage.hasSecretKey ? '已配置；留空不修改' : '请输入 SecretAccessKey'} onChange={(event) => { props.setStorageSecretKey(event.target.value); props.setDirty(true) }} /></label>
           </div>
         </details>
       </section>

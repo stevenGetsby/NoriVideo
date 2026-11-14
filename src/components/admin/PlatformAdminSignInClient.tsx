@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getSession, signIn, signOut } from 'next-auth/react'
 import { useLocale } from 'next-intl'
 import { AppIcon } from '@/components/ui/icons'
+import { PasswordInput } from '@/components/ui/PasswordInput'
 import { AdminBrand } from '@/components/admin/PlatformAdminShell'
 import { SURFACE_LOGIN_ERRORS } from '@/lib/app-surface'
 
@@ -88,9 +89,8 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
             </label>
             <label className="nori-admin-field">
               密码
-              <input
+              <PasswordInput
                 className="fos-input"
-                type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
