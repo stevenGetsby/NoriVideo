@@ -278,10 +278,38 @@ describe('/api/projects/[projectId] GET privacy', () => {
         userId: 'user-1',
         deletedAt: null,
       },
+      include: { work: { select: { id: true, name: true } } },
     })
     expect(payload.project).not.toHaveProperty('user')
     expect(payload.project).not.toHaveProperty('password')
     expect(payload.project.canDelete).toBe(true)
+  })
+
+  it('returns the parent work id and name for the breadcrumb fallback', async () => {
+    prismaMock.project.findFirst.mockResolvedValueOnce({
+      id: 'project-1',
+      userId: 'user-1',
+      name: '第一章',
+      workId: 'work-1',
+      createdById: 'user-1',
+      canDelete: false,
+      lastAccessedAt: null,
+      work: { id: 'work-1', name: '西游记' },
+    })
+    const { GET } = await import('@/app/api/projects/[projectId]/route')
+    const response = await GET(
+      new NextRequest('http://localhost/api/projects/project-1'),
+      { params: Promise.resolve({ projectId: 'project-1' }) },
+    )
+    const payload = await response.json() as {
+      work: { workId: string | null; workName: string | null }
+      project: { work: { id: string; name: string } }
+    }
+
+    expect(response.status).toBe(200)
+    expect(payload.work.workId).toBe('work-1')
+    expect(payload.work.workName).toBe('西游记')
+    expect(payload.project.work).toEqual({ id: 'work-1', name: '西游记' })
   })
 
   it('lets a child delete their own work but never another member\'s work', async () => {
@@ -294,15 +322,18 @@ describe('/api/projects/[projectId] GET privacy', () => {
     const context = { params: Promise.resolve({ projectId: 'project-1' }) }
     const own = await GET(request, context)
     expect((await own.json()).project.canDelete).toBe(true)
-    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({ where: {
-      id: 'project-1', userId: 'user-1', deletedAt: null,
-      work: {
-        OR: [
-          { createdById: 'member-1' },
-          { members: { some: { userId: 'member-1' } } },
-        ],
+    expect(prismaMock.project.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'project-1', userId: 'user-1', deletedAt: null,
+        work: {
+          OR: [
+            { createdById: 'member-1' },
+            { members: { some: { userId: 'member-1' } } },
+          ],
+        },
       },
-    } })
+      include: { work: { select: { id: true, name: true } } },
+    })
 
     prismaMock.project.findFirst.mockResolvedValueOnce({
       id: 'project-1', userId: 'user-1', name: 'Another member work', createdById: 'member-2',

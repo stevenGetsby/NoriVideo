@@ -39,7 +39,9 @@ export const GET = apiHandler(async (
 
   // 只获取基础作品信息，不包含模式特定数据
   const project = await prisma.project.findFirst({
-    where: projectReadWhere(session, projectId)
+    where: projectReadWhere(session, projectId),
+    // 面包屑回退需要所属项目：项目数据接口失败时，这个接口是唯一的名称来源。
+    include: { work: { select: { id: true, name: true } } },
   })
 
   if (!project) {

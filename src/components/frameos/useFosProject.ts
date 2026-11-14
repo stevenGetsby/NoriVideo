@@ -87,6 +87,13 @@ export interface FosProjectData {
 
 type FosProjectSnapshot = Omit<FosProjectData, 'loading' | 'refetch'>
 
+export interface FosFallbackProject {
+  projectName: string | null
+  parentProjectId: string | null
+  parentProjectName: string | null
+  canDelete: boolean
+}
+
 const PROJECT_DATA_CACHE_TTL_MS = 15_000
 const projectDataCache = new Map<string, { snapshot: FosProjectSnapshot; storedAt: number }>()
 
@@ -96,6 +103,27 @@ function asString(v: unknown): string | null {
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+export function readFallbackProjectPayload(payload: unknown): FosFallbackProject | null {
+  if (!isRecord(payload)) return null
+  const project = isRecord(payload.project) ? payload.project : null
+  const work = isRecord(payload.work) ? payload.work : null
+  if (!project && !work) return null
+  const workRelation = project && isRecord(project.work) ? project.work : null
+  return {
+    projectName: asString(project?.name) ?? asString(work?.name),
+    parentProjectId: asString(work?.workId) ?? asString(work?.projectId)
+      ?? asString(project?.workId) ?? asString(workRelation?.id),
+    parentProjectName: asString(work?.workName) ?? asString(workRelation?.name),
+    canDelete: project?.canDelete === true || work?.canDelete === true,
+  }
+}
+
+export function canCacheProjectSnapshot(
+  snapshot: Pick<FosProjectSnapshot, 'parentProjectId' | 'parentProjectName'>,
+): boolean {
+  return Boolean(snapshot.parentProjectId && snapshot.parentProjectName)
 }
 
 function mapAssetVariants(raw: unknown): FosAssetVariant[] {
@@ -200,7 +228,11 @@ export function useFosProject(projectId: string): FosProjectData {
     let cancelled = false
     async function load() {
       if (!workspaceId) return
-      const cached = projectDataCache.get(cacheKey)
+      let cached = projectDataCache.get(cacheKey)
+      if (cached && !canCacheProjectSnapshot(cached.snapshot)) {
+        projectDataCache.delete(cacheKey)
+        cached = undefined
+      }
       if (cached && Date.now() - cached.storedAt < PROJECT_DATA_CACHE_TTL_MS && reloadKey === 0) {
         setSnapshotCacheKey(cacheKey)
         setData({ ...cached.snapshot, loading: false, refetch })
@@ -247,11 +279,10 @@ export function useFosProject(projectId: string): FosProjectData {
         return { projectName: null, parentProjectId: null, parentProjectName: null, canDelete: false, scriptImportStatus: null, world: null }
       }
 
-      const loadFallbackProject = async (): Promise<{ name: string | null; canDelete: boolean } | null> => {
+      const loadFallbackProject = async (): Promise<FosFallbackProject | null> => {
         const res = await apiFetch(`/api/projects/${projectId}`)
         if (!res.ok) return null
-        const p = await res.json() as { project?: { name?: string; canDelete?: boolean } }
-        return { name: p.project?.name?.trim() || null, canDelete: p.project?.canDelete === true }
+        return readFallbackProjectPayload(await res.json().catch(() => null))
       }
 
       const loadEpisodes = async (): Promise<FosEpisode[]> => {
@@ -308,7 +339,9 @@ export function useFosProject(projectId: string): FosProjectData {
       ])
 
       const fallbackProject = baseResult.projectName ? null : await loadFallbackProject().catch(() => null)
-      const projectName = baseResult.projectName || fallbackProject?.name || '未命名作品'
+      const projectName = baseResult.projectName || fallbackProject?.projectName || '未命名作品'
+      const parentProjectId = baseResult.parentProjectId ?? fallbackProject?.parentProjectId ?? null
+      const parentProjectName = baseResult.parentProjectName ?? fallbackProject?.parentProjectName ?? null
       const canDelete = baseResult.canDelete || fallbackProject?.canDelete === true
       const { scriptImportStatus, world } = baseResult
       const { characters, items, environments } = assets
@@ -317,8 +350,8 @@ export function useFosProject(projectId: string): FosProjectData {
         const snapshot: FosProjectSnapshot = {
           projectId,
           projectName,
-          parentProjectId: baseResult.parentProjectId,
-          parentProjectName: baseResult.parentProjectName,
+          parentProjectId,
+          parentProjectName,
           canDelete,
           scriptImportStatus,
           episodes,
@@ -328,7 +361,9 @@ export function useFosProject(projectId: string): FosProjectData {
           world,
           scriptApproved,
         }
-        projectDataCache.set(cacheKey, { snapshot, storedAt: Date.now() })
+        if (canCacheProjectSnapshot(snapshot)) {
+          projectDataCache.set(cacheKey, { snapshot, storedAt: Date.now() })
+        }
         setSnapshotCacheKey(cacheKey)
         setData({
           ...snapshot,
