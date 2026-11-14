@@ -828,6 +828,8 @@ model User {
   pointCredits                  Int                       @default(0)
   /// 每日用量上限（积分，100 积分 = ¥1）。0 禁止生成，NULL 表示 unlimited。
   dailyPointLimit               Int?
+  /// 子账号积分方式：unlimited 不足时自动从管理账号补足；allocated 只用分配的积分。
+  pointMode                     String                    @default("unlimited") @db.VarChar(16)
   createdAt                     DateTime                  @default(now())
   updatedAt                     DateTime                  @default(now()) @updatedAt
   accounts                      Account[]
