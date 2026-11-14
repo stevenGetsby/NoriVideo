@@ -8,7 +8,7 @@ import { compileChapter, isStoryNodeType } from '@/lib/interactive/compile'
 import type { StoryChapterGraph, StoryProgram } from '@/lib/interactive/types'
 import { countIssues, validateChapter } from '@/lib/interactive/validate'
 import { InteractivePlayer } from '@/features/interactive/InteractivePlayer'
-import { StoryVariablesEditor } from '@/features/interactive/StoryVariablesEditor'
+import { StoryGameplaySettings } from '@/features/interactive/StoryGameplaySettings'
 import { useStoryCanvasContext, type StoryCanvasContextValue } from './StoryCanvasContext'
 
 /** The chapter as the player sees it, recompiled only when story-relevant content changes. */
@@ -49,10 +49,24 @@ function StoryTips() {
 function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFocusNode: (nodeId: string) => void }) {
   const chapterName = story.story.chapters.find((chapter) => chapter.projectId === story.projectId)?.name || '本章'
   const chapter = useLiveChapter(story.projectId, chapterName)
-  const issues = useMemo(() => validateChapter(chapter, story.variables), [chapter, story.variables])
+  const { shop, achievements, personality, map, playback } = story.story.config
+  const issues = useMemo(() => validateChapter(chapter, story.variables, shop), [chapter, shop, story.variables])
   const { errors, warnings } = countIssues(issues)
-  const program = useMemo<StoryProgram>(() => ({ variables: story.variables, chapters: [chapter], links: [], start: null }), [chapter, story.variables])
-  const togglePanel = (panel: 'variables' | 'checks') => story.setPanel(story.panel === panel ? null : panel)
+  const program = useMemo<StoryProgram>(
+    () => ({
+      variables: story.variables,
+      chapters: [chapter],
+      links: [],
+      start: null,
+      ...(shop ? { shop } : {}),
+      ...(achievements?.length ? { achievements } : {}),
+      ...(personality ? { personality } : {}),
+      ...(map ? { map } : {}),
+      ...(playback ? { playback } : {}),
+    }),
+    [achievements, chapter, map, personality, playback, shop, story.variables],
+  )
+  const togglePanel = (panel: 'gameplay' | 'checks') => story.setPanel(story.panel === panel ? null : panel)
 
   return (
     <>
@@ -60,8 +74,8 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
         <span className="nori-story-bar-title"><i />影游<strong>{story.story.name}</strong><small>{chapterName}</small></span>
         <span className="nori-story-bar-format">{story.story.aspectRatio === '9:16' ? '竖屏' : '横屏'} · {story.story.resolution}</span>
         {story.readOnly ? null : <button type="button" title="按剧情走向自动排版" onClick={story.actions.organize}><LayoutGrid />整理剧情</button>}
-        <button type="button" className={story.panel === 'variables' ? 'is-open' : ''} onClick={() => togglePanel('variables')}>
-          <SlidersHorizontal />全局变量<b>{story.variables.length}</b>
+        <button type="button" className={story.panel === 'gameplay' ? 'is-open' : ''} onClick={() => togglePanel('gameplay')}>
+          <SlidersHorizontal />玩法设置<b>{story.variables.length}</b>
         </button>
         <button type="button" className={`${story.panel === 'checks' ? 'is-open ' : ''}${errors ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`} onClick={() => togglePanel('checks')}>
           {errors || warnings ? <AlertTriangle /> : <CheckCircle2 />}
@@ -73,10 +87,21 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
 
       {story.readOnly ? null : <StoryTips />}
 
-      {story.panel === 'variables' ? (
-        <section className="nori-story-panel" aria-label="全局变量">
-          <header><strong>全局变量</strong><button type="button" aria-label="关闭" onClick={() => story.setPanel(null)}><X /></button></header>
-          <StoryVariablesEditor key={JSON.stringify(story.variables)} variables={story.variables} readOnly={story.readOnly} onSave={story.saveVariables} />
+      {story.panel === 'gameplay' ? (
+        <section className="nori-story-panel" aria-label="玩法设置">
+          <header><strong>玩法设置</strong><button type="button" aria-label="关闭" onClick={() => story.setPanel(null)}><X /></button></header>
+          <StoryGameplaySettings
+            variables={story.variables}
+            shop={shop}
+            chapters={[chapter]}
+            achievements={achievements}
+            personality={personality}
+            map={map}
+            playback={playback}
+            workId={story.story.workId}
+            readOnly={story.readOnly}
+            onSaveConfig={story.saveConfig}
+          />
         </section>
       ) : null}
 
@@ -104,6 +129,7 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
           mode="chapter"
           aspectRatio={story.story.aspectRatio}
           title={`${story.story.name} · ${chapterName}`}
+          storageKey={story.story.workId}
           projectId={story.projectId}
           entryNodeId={story.trialEntryId}
           onClose={story.closeTrial}

@@ -3,7 +3,7 @@
 import { useLayoutEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react'
 import type { ReactFlowInstance, ReactFlowState } from '@xyflow/react'
 import { isStoryNodeType } from '@/lib/interactive/compile'
-import { STORY_OUTPUT_HANDLE } from '@/lib/interactive/types'
+import { STORY_INTERACT_HANDLE, STORY_MOUNT_HANDLE, STORY_OUTPUT_HANDLE, type StoryInteractionKind } from '@/lib/interactive/types'
 import { canvasGroupIdsContainingMembers, fitCanvasGroupsToMembers } from '../actions/layout'
 import {
   createFlowNode,
@@ -16,12 +16,12 @@ import {
   type CanvasWireMenuState,
 } from '../editor-types'
 import type { StoryCanvasActions, StoryCanvasState } from './StoryCanvasContext'
-import { applyStoryConnection, resolveStoryConnection, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storySourceHandles, type StoryConnectionPlan } from './story-connection'
+import { nextBeatStart } from './story-beats'
+import { applyStoryConnection, resolveStoryConnection, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storyReplaceNotice, storySourceHandles, type StoryConnectionPlan, type StoryLinkPlan } from './story-connection'
 import { nodeBox, paneRenderedScale, resolveStoryWireTarget, storyHandleCenter, storyNodeAt, storyWireRole, type StoryPoint, type StoryWireRole } from './story-geometry'
 import { layoutObstacles, layoutStoryChapter, nearestFreeSpot, revealOffset, roomAbove, storyDropBox, STORY_NEW_NODE_SIZES, type LayoutBox } from './story-layout'
 
 type Ref<T> = { current: T }
-type LinkPlan = Extract<StoryConnectionPlan, { kind: 'flow' | 'media' }>
 type NodeData = Partial<CanvasFlowNode['data']>
 
 export type StoryActionDeps = {
@@ -48,7 +48,7 @@ export type StoryEditorActions = StoryCanvasActions & {
   /** Settles a released story wire: connect, explain the refusal, or offer what to create. False = not a story wire. */
   finishWire: (fromId: string, fromHandle: string | null | undefined, client: StoryPoint) => boolean
   /** Creates the node picked from a story wire menu, placed and wired in one undo step. False = ordinary pick. */
-  pickWireNode: (menu: CanvasWireMenuState, type: CanvasNodeMenuType) => boolean
+  pickWireNode: (menu: CanvasWireMenuState, type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => boolean
   commit: (plan: StoryConnectionPlan) => void
   /** Top-left for a new node centred near `center` that keeps clear of existing cards. */
   placeNew: (type: CanvasNodeMenuType, center: StoryPoint) => StoryPoint
@@ -58,11 +58,11 @@ export type StoryEditorActions = StoryCanvasActions & {
   pasteOffset: (nodes: readonly CanvasFlowNode[]) => StoryPoint
 }
 
-const REPLACED_NOTICE = { flow: '已改连：每个出口只保留一条剧情线', media: '已替换片段画面' } as const
 const MEDIA_GAP = 72
 const QUICK_ADD_REACH = 140
+const QUICK_MOUNT_REACH = 72
 const newId = () => crypto.randomUUID()
-const isLinkPlan = (plan: StoryConnectionPlan | null): plan is LinkPlan => plan?.kind === 'flow' || plan?.kind === 'media'
+const isLinkPlan = (plan: StoryConnectionPlan | null): plan is StoryLinkPlan => plan?.kind === 'flow' || plan?.kind === 'media' || plan?.kind === 'mount'
 const inside = (point: StoryPoint, box: LayoutBox) => point.x >= box.x && point.x <= box.x + box.width && point.y >= box.y && point.y <= box.y + box.height
 
 export const newStoryNodeSize = (type: string) => STORY_NEW_NODE_SIZES[type] ?? DEFAULT_NODE_SIZES[type] ?? { width: 300, height: 200 }
@@ -71,12 +71,16 @@ export const newStoryNodeSize = (type: string) => STORY_NEW_NODE_SIZES[type] ?? 
 export function storyWireLink(role: StoryWireRole, fromId: string, fromHandle: string | null, node: { id: string; type?: string; data?: unknown }): CanvasConnectionInput {
   if (role === 'forward') return { source: fromId, sourceHandle: fromHandle || STORY_OUTPUT_HANDLE, target: node.id, targetHandle: 'input' }
   if (role === 'backward') return { source: node.id, sourceHandle: storySourceHandles(node)[0] ?? STORY_OUTPUT_HANDLE, target: fromId, targetHandle: 'input' }
+  if (role === 'mount') return { source: fromId, sourceHandle: STORY_INTERACT_HANDLE, target: node.id, targetHandle: STORY_MOUNT_HANDLE }
+  if (role === 'mount-pick') return { source: node.id, sourceHandle: STORY_INTERACT_HANDLE, target: fromId, targetHandle: STORY_MOUNT_HANDLE }
   if (role === 'media') return { source: fromId, sourceHandle: 'output', target: node.id, targetHandle: STORY_MEDIA_HANDLE }
   return { source: node.id, sourceHandle: 'output', target: fromId, targetHandle: STORY_MEDIA_HANDLE }
 }
 
 /** Why a story wire dropped on `hit` cannot connect, phrased as what to do instead. */
 export function storyWireRefusal(role: StoryWireRole, fromId: string, fromHandle: string | null | undefined, hit: { id: string; type?: string }, nodes: readonly CanvasFlowNode[]): string {
+  if (role === 'mount') return '片段底部的互动口只能连接互动节点（含「限时抉择」）'
+  if (role === 'mount-pick') return '互动要挂在剧情片段底部的互动口上'
   if (role === 'media-pick') return '画面接口只能连接视频或图片节点'
   if (role === 'media' || STORY_MEDIA_SOURCE_TYPES.has(hit.type || '')) return '视频和图片只能作为剧情片段的画面，请连到片段顶部的接口'
   if (!isStoryNodeType(hit.type)) return '剧情连线只能连接剧情节点'
@@ -113,13 +117,14 @@ function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
     d.edgesRef.current = next
     d.setEdges(next)
     d.markChanged('添加剧情连线')
-    if (next.length <= edges.length) d.toast(REPLACED_NOTICE[plan.kind])
+    const notice = storyReplaceNotice(edges, next, plan)
+    if (notice) d.toast(notice)
   }
 
-  const insert = (type: CanvasNodeMenuType, position: StoryPoint, link?: (node: CanvasFlowNode) => CanvasConnectionInput, data?: NodeData) => {
+  const insert = (type: CanvasNodeMenuType, position: StoryPoint, link?: (node: CanvasFlowNode) => CanvasConnectionInput, data?: NodeData, interaction?: StoryInteractionKind) => {
     const d = deps()
     if (d.writeLocked || !d.ensureNodeCapacity(1)) return false
-    const node = createFlowNode(type, position)
+    const node = createFlowNode(type, position, interaction)
     if (data) node.data = { ...node.data, ...data }
     const nodes = [...d.nodesRef.current.map((item) => (item.selected ? { ...item, selected: false } : item)), node]
     const edges = d.edgesRef.current
@@ -133,7 +138,10 @@ function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
     d.markChanged(label)
     d.setWireMenu(null)
     if (plan?.kind === 'invalid') d.toast(plan.reason)
-    else if (isLinkPlan(plan) && linked && linked.length <= edges.length) d.toast(REPLACED_NOTICE[plan.kind])
+    else if (isLinkPlan(plan) && linked) {
+      const notice = storyReplaceNotice(edges, linked, plan)
+      if (notice) d.toast(notice)
+    }
     reveal({ ...position, ...newStoryNodeSize(type) })
     return true
   }
@@ -199,13 +207,19 @@ function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
     return true
   }
 
-  const pickWireNode = (menu: CanvasWireMenuState, type: CanvasNodeMenuType) => {
+  /** Hanging a new interaction on a scene starts it where it clears the interactions already mounted there. */
+  const mountSeed = (sceneId: string, interaction: StoryInteractionKind | undefined): NodeData => ({
+    startSec: nextBeatStart(sceneId, interaction ?? 'tap', deps().nodesRef.current, deps().edgesRef.current),
+  })
+
+  const pickWireNode = (menu: CanvasWireMenuState, type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => {
     const role = menu.story
-    if (!role || !menu.flowPosition || (role === 'media' && type !== 'story_scene')) return false
+    if (!role || !menu.flowPosition) return false
+    if ((role === 'media' && type !== 'story_scene') || (role === 'mount' && type !== 'story_interaction') || (role === 'mount-pick' && type !== 'story_scene')) return false
     const drop = storyDropBox(role, menu.flowPosition, newStoryNodeSize(type))
     const source = deps().nodesRef.current.find((node) => node.id === menu.sourceNodeId)
-    insert(type, freeSpot(drop.box, drop.upward), (node) => storyWireLink(role, menu.sourceNodeId, menu.sourceHandle, node),
-      role === 'media-pick' ? mediaSeed(source, type) : undefined)
+    const seed = role === 'media-pick' ? mediaSeed(source, type) : role === 'mount' ? mountSeed(menu.sourceNodeId, interaction) : undefined
+    insert(type, freeSpot(drop.box, drop.upward), (node) => storyWireLink(role, menu.sourceNodeId, menu.sourceHandle, node), seed, interaction)
     return true
   }
 
@@ -232,7 +246,15 @@ function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
     const node = flowState().nodeLookup.get(nodeId)
     const port = node && !d.writeLocked ? storyHandleCenter(node, handleId, paneScale()) : null
     if (!port) return
-    d.setWireMenu({ x: anchor.x, y: anchor.y, flowPosition: { x: port.x + QUICK_ADD_REACH, y: port.y }, sourceNodeId: nodeId, sourceHandle: handleId, story: 'forward' })
+    const mount = handleId === STORY_INTERACT_HANDLE
+    d.setWireMenu({
+      x: anchor.x,
+      y: anchor.y,
+      flowPosition: mount ? { x: port.x, y: port.y + QUICK_MOUNT_REACH } : { x: port.x + QUICK_ADD_REACH, y: port.y },
+      sourceNodeId: nodeId,
+      sourceHandle: handleId,
+      story: mount ? 'mount' : 'forward',
+    })
   }
 
   const focusNode = (nodeId: string) => {

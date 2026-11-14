@@ -62,7 +62,7 @@ function Fixture() {
       chapters: [{ projectId: 'p1', name: '第一章' }],
     },
     variables: [],
-    saveVariables: async () => undefined,
+    saveConfig: async () => undefined,
     trialEntryId: undefined,
     openTrial: () => undefined,
     closeTrial: () => undefined,

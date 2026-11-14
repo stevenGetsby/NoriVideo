@@ -1,23 +1,22 @@
 import {
-  STORY_COMPARE_OPS,
   STORY_ENDING_TYPES,
   STORY_FLOW_ROLE,
+  STORY_MOUNT_ROLE,
   STORY_NODE_TYPES,
   STORY_OUTPUT_HANDLE,
   type StoryChapterGraph,
-  type StoryChoiceOption,
-  type StoryCompareOp,
-  type StoryCondition,
   type StoryConditionBranch,
-  type StoryEffect,
   type StoryEndingType,
   type StoryFlow,
+  type StoryInteractionNode,
   type StoryMedia,
   type StoryNode,
   type StoryNodeKind,
   type StoryNodeType,
-  type StoryValue,
+  type StorySavePoint,
 } from './types'
+import { readChoiceOptions, readChoicePresentation, readInteractionData } from './interaction'
+import { id, readStoryConditions, readStoryEffects, record, text } from './read'
 import { normalizeSceneText } from './scene-text'
 
 export interface CanvasNodeLike { id: string; type: string; data?: unknown }
@@ -30,6 +29,7 @@ export const STORY_KIND_BY_TYPE: Record<StoryNodeType, StoryNodeKind> = {
   story_condition: 'condition',
   story_exit: 'exit',
   story_ending: 'ending',
+  story_interaction: 'interaction',
 }
 
 export const STORY_KIND_LABEL: Record<StoryNodeKind, string> = {
@@ -39,6 +39,7 @@ export const STORY_KIND_LABEL: Record<StoryNodeKind, string> = {
   condition: '条件',
   exit: '出口',
   ending: '结局',
+  interaction: '互动',
 }
 
 export const STORY_ENDING_LABEL: Record<StoryEndingType, string> = {
@@ -52,40 +53,9 @@ export function isStoryNodeType(type: unknown): type is StoryNodeType {
   return STORY_NODE_TYPES.includes(type as StoryNodeType)
 }
 
-const record = (value: unknown): Record<string, unknown> =>
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : {}
-const text = (value: unknown) => (typeof value === 'string' ? value : '')
-const id = (value: unknown) => (typeof value === 'string' && value ? value : null)
-const storyValue = (value: unknown): StoryValue => (typeof value === 'boolean' ? value : Number.isFinite(value) ? value as number : 0)
-
-export function readStoryEffects(raw: unknown): StoryEffect[] {
-  if (!Array.isArray(raw)) return []
-  return raw.flatMap((item) => {
-    const effect = record(item)
-    const variableId = id(effect.variableId)
-    if (!variableId) return []
-    return [{ variableId, op: effect.op === 'add' ? 'add' : 'set', value: storyValue(effect.value) } satisfies StoryEffect]
-  })
-}
-
-export function readStoryConditions(raw: unknown): StoryCondition[] {
-  if (!Array.isArray(raw)) return []
-  return raw.flatMap((item) => {
-    const condition = record(item)
-    const variableId = id(condition.variableId)
-    if (!variableId) return []
-    const op = STORY_COMPARE_OPS.includes(condition.op as StoryCompareOp) ? condition.op as StoryCompareOp : '=='
-    return [{ variableId, op, value: storyValue(condition.value) }]
-  })
-}
-
 export function readChoiceData(raw: unknown) {
   const data = record(raw)
-  const options: StoryChoiceOption[] = (Array.isArray(data.options) ? data.options : []).flatMap((item) => {
-    const option = record(item)
-    const optionId = id(option.id)
-    return optionId ? [{ id: optionId, label: text(option.label), effects: readStoryEffects(option.effects) }] : []
-  })
+  const options = readChoiceOptions(data.options)
   const timeout = Number(data.timeoutSec)
   const defaultOptionId = id(data.defaultOptionId)
   return {
@@ -93,6 +63,7 @@ export function readChoiceData(raw: unknown) {
     options,
     timeoutSec: Number.isFinite(timeout) && timeout > 0 ? Math.min(Math.round(timeout), 120) : null,
     defaultOptionId: defaultOptionId && options.some((o) => o.id === defaultOptionId) ? defaultOptionId : null,
+    ...readChoicePresentation(data),
   }
 }
 
@@ -115,18 +86,43 @@ export function readConditionData(raw: unknown) {
 export function readEndingData(raw: unknown) {
   const data = record(raw)
   const endingType = STORY_ENDING_TYPES.includes(data.endingType as StoryEndingType) ? data.endingType as StoryEndingType : 'normal'
-  return { endingType, description: text(data.description) }
+  return { endingType, description: text(data.description), ...(data.showPersonality === true ? { showPersonality: true } : {}) }
+}
+
+export const STORY_SAVE_POINT_NAME_MAX = 24
+
+/** A segment is a save point only while the creator keeps it ticked; the name is optional, the caller supplies a fallback. */
+export function readSavePoint(raw: unknown, fallbackName = ''): StorySavePoint | undefined {
+  const data = record(raw)
+  if (data.enabled !== true) return undefined
+  return { name: text(data.name).trim().slice(0, STORY_SAVE_POINT_NAME_MAX) || fallbackName, coverUrl: id(data.coverUrl) }
 }
 
 export function readSceneData(raw: unknown) {
   const data = record(raw)
+  const savePoint = readSavePoint(data.savePoint)
   return {
     lines: normalizeSceneText(data.lines),
     videoUrl: id(data.videoUrl),
+    videoDurationSec: positiveNumber(data.videoDurationSec),
     imageUrl: id(data.imageUrl),
     posterUrl: id(data.posterUrl),
     effects: readStoryEffects(data.effects),
+    ...(savePoint ? { savePoint } : {}),
   }
+}
+
+function positiveNumber(value: unknown): number | undefined {
+  const parsed = typeof value === 'number' ? value : typeof value === 'string' && value.trim() ? Number(value) : Number.NaN
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+/** Length of a video node in seconds, from whatever the canvas recorded about its source. */
+function videoNodeDurationSec(data: Record<string, unknown>): number | undefined {
+  const metadata = record(data.sourceMetadata)
+  const ms = positiveNumber(metadata.durationMs)
+  if (ms) return ms / 1000
+  return positiveNumber(metadata.durationSeconds) ?? positiveNumber(data.videoDurationSec) ?? positiveNumber(record(data.generation).duration)
 }
 
 function mediaFromNode(node: CanvasNodeLike): StoryMedia | null {
@@ -134,7 +130,8 @@ function mediaFromNode(node: CanvasNodeLike): StoryMedia | null {
   const poster = id(data.posterUrl) ?? id(data.imageUrl)
   if (node.type === 'video' || node.type === 'production_video') {
     const url = id(data.videoUrl) ?? id(data.contentUrl)
-    if (url) return { kind: 'video', url, posterUrl: poster }
+    const durationSec = videoNodeDurationSec(data)
+    if (url) return { kind: 'video', url, posterUrl: poster, ...(durationSec ? { durationSec } : {}) }
   }
   if (node.type === 'image' || node.type === 'production_panel') {
     const url = id(data.imageUrl) ?? id(data.contentUrl)
@@ -146,7 +143,9 @@ function mediaFromNode(node: CanvasNodeLike): StoryMedia | null {
 /** Scene media: own pick first, otherwise the first linked video, otherwise a linked image. */
 export function resolveSceneMedia(sceneId: string, data: unknown, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]): StoryMedia | null {
   const scene = readSceneData(data)
-  if (scene.videoUrl) return { kind: 'video', url: scene.videoUrl, posterUrl: scene.posterUrl ?? scene.imageUrl }
+  if (scene.videoUrl) {
+    return { kind: 'video', url: scene.videoUrl, posterUrl: scene.posterUrl ?? scene.imageUrl, ...(scene.videoDurationSec ? { durationSec: scene.videoDurationSec } : {}) }
+  }
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const linked = edges
     .filter((edge) => edge.target === sceneId && edge.role !== STORY_FLOW_ROLE)
@@ -159,6 +158,17 @@ export function resolveSceneMedia(sceneId: string, data: unknown, nodes: CanvasN
   return null
 }
 
+/** The scene an interaction is mounted on, or null when it is wired into the flow instead. */
+export function mountedSceneId(interactionId: string, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]): string | null {
+  const edge = edges.find((item) => item.role === STORY_MOUNT_ROLE && item.target === interactionId)
+  if (!edge) return null
+  return nodes.find((node) => node.id === edge.source)?.type === 'story_scene' ? edge.source : null
+}
+
+function compileInteraction(node: CanvasNodeLike, mountedOn: string | null): StoryInteractionNode {
+  return { id: node.id, kind: 'interaction', mountedOn, ...readInteractionData(node.data) }
+}
+
 export function compileStoryNode(node: CanvasNodeLike, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]): StoryNode | null {
   if (!isStoryNodeType(node.type)) return null
   const kind = STORY_KIND_BY_TYPE[node.type]
@@ -169,8 +179,24 @@ export function compileStoryNode(node: CanvasNodeLike, nodes: CanvasNodeLike[], 
       return { id: node.id, kind, title }
     case 'scene': {
       const scene = readSceneData(node.data)
-      return { id: node.id, kind, title, lines: scene.lines, effects: scene.effects, media: resolveSceneMedia(node.id, node.data, nodes, edges) }
+      const beats = nodes
+        .filter((item) => item.type === 'story_interaction' && mountedSceneId(item.id, nodes, edges) === node.id)
+        .map((item) => compileInteraction(item, node.id))
+        .sort((a, b) => a.startSec - b.startSec || a.id.localeCompare(b.id))
+      const savePoint = readSavePoint(record(node.data).savePoint, title)
+      return {
+        id: node.id,
+        kind,
+        title,
+        lines: scene.lines,
+        effects: scene.effects,
+        media: resolveSceneMedia(node.id, node.data, nodes, edges),
+        beats,
+        ...(savePoint ? { savePoint } : {}),
+      }
     }
+    case 'interaction':
+      return compileInteraction(node, mountedSceneId(node.id, nodes, edges))
     case 'choice':
       return { id: node.id, kind, title, ...readChoiceData(node.data) }
     case 'condition':

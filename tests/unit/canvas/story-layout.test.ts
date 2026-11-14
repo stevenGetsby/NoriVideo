@@ -46,6 +46,11 @@ describe('storyDropBox', () => {
     expect(storyDropBox('media', { x: 600, y: 100 }, size)).toEqual({ box: { x: 450, y: 100, ...size }, upward: false })
     expect(storyDropBox('media-pick', { x: 600, y: 100 }, size)).toEqual({ box: { x: 450, y: -230, ...size }, upward: true })
   })
+
+  it('hangs a new interaction below the scene port, and puts a new scene above an interaction port', () => {
+    expect(storyDropBox('mount', { x: 600, y: 100 }, size)).toEqual({ box: { x: 450, y: 100, ...size }, upward: false })
+    expect(storyDropBox('mount-pick', { x: 600, y: 100 }, size)).toEqual({ box: { x: 450, y: -230, ...size }, upward: true })
+  })
 })
 
 describe('revealOffset', () => {
@@ -89,6 +94,48 @@ describe('layoutStoryChapter', () => {
     expect(positions.has('note')).toBe(false)
   })
 
+  it('hangs mounted interactions in a row below their scene in play order and keeps them out of the columns', () => {
+    const mountEdge = (scene: string, beat: string) => ({ source: scene, target: beat, sourceHandle: 'interact', data: { role: 'STORY_MOUNT' } })
+    const beat = (id: string, startSec: number, x: number) => sized(id, 'story_interaction', x, 700, { interaction: 'tap', startSec }, 300, 250)
+    const nodes = [
+      sized('e', 'story_entry', 0, 0, {}, 240, 100),
+      sized('s1', 'story_scene', 400, 0, {}, 300, 330),
+      sized('s2', 'story_scene', 900, 0, {}, 300, 330),
+      beat('late', 40, 0),
+      beat('early', 5, 900),
+    ]
+    const positions = layoutStoryChapter(nodes, [flow('e', 's1'), flow('s1', 's2'), mountEdge('s1', 'late'), mountEdge('s1', 'early')])
+    const at = (id: string) => positions.get(id)!
+    expect(at('early')).toEqual({ x: at('s1').x, y: at('s1').y + 330 + 56 })
+    expect(at('late')).toEqual({ x: at('s1').x + 300 + 32, y: at('early').y })
+    expect(at('s1').x).toBeLessThan(at('s2').x)
+    expect(at('s2').x).toBeGreaterThan(at('late').x + 300)
+  })
+
+  it('stacks the next card of a column below the mounted row, and lets a standalone interaction take part in the flow', () => {
+    const nodes = [
+      sized('e', 'story_entry', 0, 0, {}, 240, 100),
+      sized('a', 'story_scene', 400, 0, {}, 300, 330),
+      sized('b', 'story_scene', 400, 400, {}, 300, 330),
+      sized('beat', 'story_interaction', 0, 900, { interaction: 'tap' }, 300, 250),
+      sized('alone', 'story_interaction', 0, 1200, { interaction: 'tap' }, 300, 250),
+    ]
+    const edges = [flow('e', 'a'), flow('e', 'b'), flow('b', 'alone', 'output'), { source: 'a', target: 'beat', sourceHandle: 'interact', data: { role: 'STORY_MOUNT' } }]
+    const positions = layoutStoryChapter(nodes, edges)
+    const at = (id: string) => positions.get(id)!
+    expect(at('b').y).toBeGreaterThanOrEqual(at('beat').y + 250)
+    expect(at('alone').x).toBeGreaterThan(at('b').x)
+    expect(at('beat').y).toBe(at('a').y + 330 + 56)
+  })
+
+  it('ignores a mount that does not join a scene to an interaction', () => {
+    const nodes = [sized('e', 'story_entry', 0, 0), sized('a', 'story_scene', 400, 0), sized('c', 'story_choice', 800, 0, { options })]
+    const positions = layoutStoryChapter(nodes, [flow('e', 'a'), { source: 'a', target: 'c', sourceHandle: 'interact', data: { role: 'STORY_MOUNT' } }])
+    expect(positions.get('c')!.x).toBe(positions.get('e')!.x)
+    expect(positions.get('c')!.y).toBeGreaterThan(positions.get('e')!.y)
+    expect(positions.get('a')!.x).toBeGreaterThan(positions.get('c')!.x)
+  })
+
   it('survives loops and leaves canvases without story nodes alone', () => {
     const nodes = [sized('e', 'story_entry', 0, 0), sized('a', 'story_scene', 400, 0), sized('b', 'story_scene', 800, 0)]
     const positions = layoutStoryChapter(nodes, [flow('e', 'a'), flow('a', 'b'), flow('b', 'a')])
@@ -101,5 +148,6 @@ describe('new story card sizes', () => {
   it('uses the measured story card sizes and falls back for other nodes', () => {
     expect(newStoryNodeSize('story_scene')).toEqual(STORY_NEW_NODE_SIZES.story_scene)
     expect(newStoryNodeSize('unknown-type')).toEqual({ width: 300, height: 200 })
+    expect(newStoryNodeSize('story_interaction')).toEqual({ width: 300, height: 250 })
   })
 })

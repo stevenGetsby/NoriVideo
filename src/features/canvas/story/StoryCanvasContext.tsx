@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { ArrowRight, Film, GitBranch, ListTree, Play, Sparkles, type IconComponent } from '@/components/ui/icons'
+import { ArrowRight, Film, GitBranch, ListTree, Mouse, Play, Sparkles, type IconComponent } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { storyErrorMessage } from '@/features/interactive/story-api-error'
 import type { InteractiveStoryConfig, StoryAspectRatio, StoryNodeType, StoryVariable } from '@/lib/interactive/types'
@@ -13,6 +13,7 @@ export const STORY_NODE_ICONS: Record<StoryNodeType, IconComponent> = {
   story_condition: ListTree,
   story_exit: ArrowRight,
   story_ending: Sparkles,
+  story_interaction: Mouse,
 }
 
 export const STORY_NODE_HUES: Record<StoryNodeType, string> = {
@@ -22,6 +23,7 @@ export const STORY_NODE_HUES: Record<StoryNodeType, string> = {
   story_condition: '#38bdf8',
   story_exit: '#fb923c',
   story_ending: '#fbbf24',
+  story_interaction: '#a3e635',
 }
 
 export type StoryCanvasInfo = {
@@ -34,7 +36,7 @@ export type StoryCanvasInfo = {
   chapters: Array<{ projectId: string; name: string }>
 }
 
-export type StoryCanvasPanel = 'variables' | 'checks' | null
+export type StoryCanvasPanel = 'gameplay' | 'checks' | null
 
 /** Canvas-level story commands the node cards can trigger. */
 export type StoryCanvasActions = {
@@ -52,7 +54,8 @@ export type StoryCanvasState = {
   readOnly: boolean
   story: StoryCanvasInfo
   variables: StoryVariable[]
-  saveVariables: (variables: StoryVariable[]) => Promise<void>
+  /** Patches one or more config keys (variables, shop, …) and refreshes the stored config. */
+  saveConfig: (patch: Partial<InteractiveStoryConfig>) => Promise<void>
   trialEntryId: string | null | undefined
   openTrial: (entryNodeId?: string | null) => void
   closeTrial: () => void
@@ -78,14 +81,14 @@ export function useStoryCanvas(projectId: string, readOnly: boolean): StoryCanva
     return () => { cancelled = true }
   }, [projectId])
 
-  const saveVariables = useCallback(async (variables: StoryVariable[]) => {
+  const saveConfig = useCallback(async (patch: Partial<InteractiveStoryConfig>) => {
     if (!story) return
     const response = await apiFetch(`/api/interactive/${encodeURIComponent(story.workId)}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ config: { variables } }),
+      body: JSON.stringify({ config: patch }),
     })
-    if (!response.ok) throw new Error(await storyErrorMessage(response, '保存全局变量失败'))
+    if (!response.ok) throw new Error(await storyErrorMessage(response, '保存玩法设置失败'))
     const payload = await response.json() as { story: { config: InteractiveStoryConfig } }
     setStory((current) => (current ? { ...current, config: payload.story.config } : current))
   }, [story])
@@ -98,13 +101,13 @@ export function useStoryCanvas(projectId: string, readOnly: boolean): StoryCanva
     readOnly,
     story,
     variables: story.config.variables,
-    saveVariables,
+    saveConfig,
     trialEntryId,
     openTrial,
     closeTrial,
     panel,
     setPanel,
-  } : null), [closeTrial, openTrial, panel, projectId, readOnly, saveVariables, story, trialEntryId])
+  } : null), [closeTrial, openTrial, panel, projectId, readOnly, saveConfig, story, trialEntryId])
 }
 
 const StoryCanvasContext = createContext<StoryCanvasContextValue | null>(null)

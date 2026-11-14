@@ -3,12 +3,17 @@
 import type { CSSProperties } from 'react'
 import { ImageIcon, Video, type IconComponent } from '@/components/ui/icons'
 import { isStoryNodeType } from '@/lib/interactive/compile'
+import type { StoryInteractionKind } from '@/lib/interactive/types'
 import { CanvasMenuPortal } from '../components/CanvasMenuPortal'
-import type { CanvasNodeMenuType, CanvasWireMenuState } from '../editor-types'
+import { storyAddItemKey, STORY_INTERACTION_ADD_ITEMS, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
 import { STORY_NODE_HUES, STORY_NODE_ICONS } from './StoryCanvasContext'
 
-type MenuItem = { type: CanvasNodeMenuType; label: string; hint: string }
-type StoryMenuRole = 'forward' | 'backward' | 'media-pick'
+type MenuItem = { type: CanvasNodeMenuType; label: string; hint: string; interaction?: StoryInteractionKind }
+type StoryMenuRole = 'forward' | 'backward' | 'media-pick' | 'mount' | 'mount-pick'
+
+const interactionItems = (kinds?: readonly StoryInteractionKind[]): MenuItem[] => STORY_INTERACTION_ADD_ITEMS
+  .filter((item) => !kinds || (item.interaction && kinds.includes(item.interaction)))
+  .map((item) => ({ type: item.type, label: item.label, hint: item.description, interaction: item.interaction }))
 
 /** What a released story wire can grow into, phrased by where the new card sits in the story. */
 const STORY_WIRE_MENUS: Record<StoryMenuRole, { title: string; items: MenuItem[] }> = {
@@ -18,6 +23,7 @@ const STORY_WIRE_MENUS: Record<StoryMenuRole, { title: string; items: MenuItem[]
       { type: 'story_scene', label: '剧情片段', hint: '播放一段画面与台词' },
       { type: 'story_choice', label: '选择', hint: '让玩家做出决定' },
       { type: 'story_condition', label: '条件', hint: '按全局变量自动分支' },
+      ...interactionItems(['tap', 'swipe', 'timing', 'hold']),
       { type: 'story_exit', label: '出口', hint: '离开本章，进入下一章' },
       { type: 'story_ending', label: '结局', hint: '故事在这里结束' },
     ],
@@ -38,6 +44,14 @@ const STORY_WIRE_MENUS: Record<StoryMenuRole, { title: string; items: MenuItem[]
       { type: 'image', label: '图片', hint: '用一张图片作为画面' },
     ],
   },
+  mount: {
+    title: '挂载互动',
+    items: interactionItems(),
+  },
+  'mount-pick': {
+    title: '挂到片段',
+    items: [{ type: 'story_scene', label: '剧情片段', hint: '互动在这个片段播放时触发' }],
+  },
 }
 
 const MEDIA_LOOK: Record<string, { icon: IconComponent; hue: string }> = {
@@ -49,7 +63,7 @@ function lookOf(type: CanvasNodeMenuType) {
   return isStoryNodeType(type) ? { icon: STORY_NODE_ICONS[type], hue: STORY_NODE_HUES[type] } : MEDIA_LOOK[type] ?? MEDIA_LOOK.video
 }
 
-export function StoryWireMenu({ state, onPick }: { state: CanvasWireMenuState; onPick: (type: CanvasNodeMenuType) => void }) {
+export function StoryWireMenu({ state, onPick }: { state: CanvasWireMenuState; onPick: (type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => void }) {
   const menu = state.story && state.story !== 'media' ? STORY_WIRE_MENUS[state.story] : null
   if (!menu) return null
   return (
@@ -60,7 +74,7 @@ export function StoryWireMenu({ state, onPick }: { state: CanvasWireMenuState; o
           const look = lookOf(item.type)
           const Icon = look.icon
           return (
-            <button key={item.type} type="button" role="menuitem" style={{ '--story-hue': look.hue } as CSSProperties} onClick={() => onPick(item.type)}>
+            <button key={storyAddItemKey(item)} type="button" role="menuitem" style={{ '--story-hue': look.hue } as CSSProperties} onClick={() => onPick(item.type, item.interaction)}>
               <span className="nori-story-wire-menu-icon"><Icon /></span>
               <span className="nori-story-wire-menu-text"><strong>{item.label}</strong><small>{item.hint}</small></span>
             </button>

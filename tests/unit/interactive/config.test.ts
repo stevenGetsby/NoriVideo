@@ -144,6 +144,119 @@ describe('story sequence config', () => {
   })
 })
 
+describe('story variable presentation fields', () => {
+  it('keeps icon, hud flag, cap and scope only when they are set', () => {
+    const config = normalizeStoryConfig({
+      variables: [
+        { id: 'plain', name: '普通', type: 'number', initial: 2 },
+        { id: 'coin', name: '金币', type: 'number', initial: 3, max: 10, icon: ' 🪙 ', showInHud: true, scope: 'permanent' },
+        { id: 'flag', name: '开关', type: 'boolean', initial: true, icon: '/api/storage/sign?key=a', showInHud: true, scope: 'permanent', max: 4 },
+        { id: 'weird', name: '怪', type: 'number', initial: 0, max: 'x', icon: 7, showInHud: 'yes', scope: 'run' },
+        { id: 'long', name: '长图标', type: 'number', icon: 'x'.repeat(501) },
+        { id: 'blank', name: '空图标', type: 'number', icon: '   ' },
+      ],
+    })
+    expect(config.variables).toEqual([
+      { id: 'plain', name: '普通', type: 'number', initial: 2 },
+      { id: 'coin', name: '金币', type: 'number', initial: 3, max: 10, icon: '🪙', showInHud: true, scope: 'permanent' },
+      { id: 'flag', name: '开关', type: 'boolean', initial: true, icon: '/api/storage/sign?key=a', showInHud: true, scope: 'permanent' },
+      { id: 'weird', name: '怪', type: 'number', initial: 0 },
+      { id: 'long', name: '长图标', type: 'number', initial: 0 },
+      { id: 'blank', name: '空图标', type: 'number', initial: 0 },
+    ])
+    expect(Object.keys(config.variables[0]!)).toEqual(['id', 'name', 'type', 'initial'])
+    expect(Object.keys(config.variables[3]!)).toEqual(['id', 'name', 'type', 'initial'])
+  })
+
+  it('round-trips a variable list through parse without growing keys', () => {
+    const stored = [{ id: 'coin', name: '金币', type: 'number', initial: 3, max: 10, icon: '🪙', showInHud: true, scope: 'permanent' }, { id: 'k', name: '钥匙', type: 'number', initial: 0 }]
+    const parsed = parseStoryConfigInput({ variables: stored })
+    expect(parsed).toMatchObject({ ok: true })
+    if (parsed.ok) expect(parsed.config.variables).toEqual(stored)
+  })
+})
+
+describe('story shop config', () => {
+  const item = (extra: Record<string, unknown> = {}) => ({ id: 'a', name: '钥匙', price: 5, effects: [{ variableId: 'key', op: 'add', value: 1 }], ...extra })
+
+  it('is left out when the stored config has no shop', () => {
+    expect('shop' in normalizeStoryConfig({ variables: [] })).toBe(false)
+    expect('shop' in normalizeStoryConfig({ shop: 'x' })).toBe(false)
+    expect('shop' in normalizeStoryConfig({ shop: null })).toBe(false)
+    expect('shop' in normalizeStoryConfig({ shop: [] })).toBe(false)
+  })
+
+  it('reads an empty or half-written shop as a disabled one', () => {
+    expect(normalizeStoryConfig({ shop: {} }).shop).toEqual({ enabled: false, currencyVariableId: null, items: [] })
+    expect(normalizeStoryConfig({ shop: { enabled: 'yes', currencyVariableId: 'bad id', items: 'x' } }).shop)
+      .toEqual({ enabled: false, currencyVariableId: null, items: [] })
+    expect(normalizeStoryConfig({ shop: { enabled: true, currencyVariableId: 'coin' } }).shop)
+      .toEqual({ enabled: true, currencyVariableId: 'coin', items: [] })
+  })
+
+  it('trims, rounds and clamps every item field', () => {
+    const { shop } = normalizeStoryConfig({
+      shop: {
+        enabled: true,
+        currencyVariableId: 'coin',
+        items: [
+          item({ id: 'a', name: ' 钥匙 ', icon: ' 🔑 ', description: ' 能开门 ', price: 5.678, limit: 2.6 }),
+          item({ id: 'b', name: '免费', price: -3, limit: -1 }),
+          item({ id: 'c', name: '天价', price: 5_000_000, limit: 500 }),
+          item({ id: 'd', name: '缺省' }),
+          item({ id: 'e', name: 'x'.repeat(40), description: 'y'.repeat(300), icon: 'z'.repeat(501), price: 'abc', limit: 'abc' }),
+        ],
+      },
+    })
+    expect(shop?.items).toEqual([
+      { id: 'a', name: '钥匙', icon: '🔑', description: '能开门', price: 5.68, limit: 3, effects: [{ variableId: 'key', op: 'add', value: 1 }] },
+      { id: 'b', name: '免费', icon: null, description: '', price: 0, limit: 0, effects: [{ variableId: 'key', op: 'add', value: 1 }] },
+      { id: 'c', name: '天价', icon: null, description: '', price: 999_999, limit: 99, effects: [{ variableId: 'key', op: 'add', value: 1 }] },
+      { id: 'd', name: '缺省', icon: null, description: '', price: 5, limit: 1, effects: [{ variableId: 'key', op: 'add', value: 1 }] },
+      { id: 'e', name: 'x'.repeat(24), icon: null, description: 'y'.repeat(120), price: 0, limit: 1, effects: [{ variableId: 'key', op: 'add', value: 1 }] },
+    ])
+  })
+
+  it('drops malformed items, duplicate ids and anything past the cap while normalizing', () => {
+    const many = Array.from({ length: 40 }, (_unused, index) => item({ id: `i${index}`, name: `货${index}` }))
+    expect(normalizeStoryConfig({ shop: { items: many } }).shop?.items).toHaveLength(30)
+    const { shop } = normalizeStoryConfig({
+      shop: { items: [item({ id: 'a' }), item({ id: 'a', name: '重复' }), item({ id: 'bad id' }), item({ id: 'n', name: '  ' }), 'nope', item({ id: 'ok', name: '好', effects: 'x' })] },
+    })
+    expect(shop?.items.map((entry) => entry.id)).toEqual(['a', 'ok'])
+    expect(shop?.items[1]?.effects).toEqual([])
+  })
+
+  it('rejects malformed client shop patches instead of dropping them', () => {
+    expect(parseStoryConfigInput({ shop: 'x' })).toEqual({ ok: false, message: '商城配置格式错误。' })
+    expect(parseStoryConfigInput({ shop: [] })).toEqual({ ok: false, message: '商城配置格式错误。' })
+    expect(parseStoryConfigInput({ shop: { items: 'x' } })).toEqual({ ok: false, message: '商城配置格式错误。' })
+    expect(parseStoryConfigInput({ shop: { items: [{ id: 'a', price: 1 }] } })).toEqual({ ok: false, message: '商品需要合法的 ID 和名称。' })
+    expect(parseStoryConfigInput({ shop: { items: [{ id: 'bad id', name: '甲' }] } })).toEqual({ ok: false, message: '商品需要合法的 ID 和名称。' })
+    expect(parseStoryConfigInput({ shop: { items: [item({ id: 'a' }), item({ id: 'a', name: '乙' })] } })).toEqual({ ok: false, message: '商品 ID 重复。' })
+    const tooMany = Array.from({ length: 31 }, (_unused, index) => item({ id: `i${index}`, name: `货${index}` }))
+    expect(parseStoryConfigInput({ shop: { items: tooMany } })).toEqual({ ok: false, message: '商城商品最多 30 个。' })
+  })
+
+  it('accepts a clean shop, a missing shop and an explicit null', () => {
+    const parsed = parseStoryConfigInput({ shop: { enabled: true, currencyVariableId: 'coin', items: [item()] } })
+    expect(parsed).toMatchObject({ ok: true })
+    if (parsed.ok) expect(parsed.config.shop).toEqual({ enabled: true, currencyVariableId: 'coin', items: [{ id: 'a', name: '钥匙', icon: null, description: '', price: 5, limit: 1, effects: [{ variableId: 'key', op: 'add', value: 1 }] }] })
+    expect(parseStoryConfigInput({ shop: {} })).toMatchObject({ ok: true })
+    const absent = parseStoryConfigInput({ variables: [] })
+    expect(absent).toMatchObject({ ok: true })
+    if (absent.ok) expect('shop' in absent.config).toBe(false)
+    const nulled = parseStoryConfigInput({ shop: null })
+    expect(nulled).toMatchObject({ ok: true })
+    if (nulled.ok) expect('shop' in nulled.config).toBe(false)
+  })
+
+  it('keeps the shop through chapter reconciliation', () => {
+    const config = normalizeStoryConfig({ chapters: [{ projectId: 'p1' }], shop: { enabled: true, currencyVariableId: 'coin', items: [item()] } })
+    expect(reconcileStoryChapters(config, ['p1']).shop).toEqual(config.shop)
+  })
+})
+
 describe('chapter compilation', () => {
   it('keeps story nodes, story flows and resolves scene media', () => {
     const chapter = compileChapter({ projectId: 'p1', title: '一' }, [

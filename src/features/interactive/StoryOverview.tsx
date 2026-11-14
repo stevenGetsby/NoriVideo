@@ -132,7 +132,7 @@ export function StoryOverview({ workId }: { workId: string }) {
             onMove={(projectId, position) => saveChapters((chapter) => (chapter.projectId === projectId ? { ...chapter, position } : chapter))}
             onFocus={setFocusedId}
           />
-          <StoryOverviewSide story={story} issues={issues} readOnly={readOnly} onFocusIssue={focusIssue} onSave={(body) => patch(body)} />
+          <StoryOverviewSide story={story} chapters={data.chapters} issues={issues} readOnly={readOnly} onFocusIssue={focusIssue} onSave={(body) => patch(body)} />
         </div>
       </div>
       {trial ? (
@@ -141,6 +141,7 @@ export function StoryOverview({ workId }: { workId: string }) {
           mode="story"
           aspectRatio={story.aspectRatio}
           title={story.name}
+          storageKey={story.workId}
           onClose={() => setTrial(false)}
           onLocate={(projectId) => { setTrial(false); setFocusedId(projectId) }}
         />

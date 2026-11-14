@@ -69,11 +69,11 @@ try {
   assert.equal(await page.locator('.nori-scene-text-head label').textContent(), '剧情文字')
   assert.equal(await page.locator('.nori-scene-text-count').textContent(), '5 / 2000')
 
-  // The text editor is the first thing in the card body; the media strip is
-  // below it and is only a compact production status.
+  // The text editor is the first thing in the card body; the interaction hint
+  // and the media strip below it are compact status only.
   assert.deepEqual(
     await page.locator('.nori-story-node-body > *').evaluateAll((elements) => elements.map((element) => element.className)),
-    ['nori-scene-text', 'nori-story-effects', 'nori-story-scene-media-strip is-empty'],
+    ['nori-scene-text', 'nori-story-effects', 'nori-story-save-point', 'nori-story-beat-empty', 'nori-story-scene-media-strip is-empty'],
   )
   assert.equal(await page.locator('.nori-story-scene-media-actions').count(), 0)
   assert.equal(await page.getByRole('button', { name: '生成视频' }).count(), 0)
@@ -98,11 +98,15 @@ try {
   assert.equal(await page.locator('.nori-scene-text-count').textContent(), '2000 / 2000')
   assert.equal(await page.locator('.nori-scene-text-count.is-full').count(), 1)
 
-  // The cut happens between code points, never inside a surrogate pair.
+  // The native limit counts UTF-16 units: an emoji that does not fit is dropped whole, never split into a lone surrogate.
   await textarea().fill('a'.repeat(1999) + '😀')
-  await page.waitForFunction(() => Array.from(document.querySelector('.nori-scene-text-area').value).length === 2000)
-  const boundary = await textarea().evaluate((element) => ({ points: Array.from(element.value).length, tail: element.value.slice(-2) }))
-  assert.deepEqual(boundary, { points: 2000, tail: '😀' })
+  await page.waitForFunction(() => document.querySelector('.nori-scene-text-area').value.length >= 1999)
+  const boundary = await textarea().evaluate((element) => ({
+    units: element.value.length,
+    loneSurrogates: Array.from(element.value).filter((char) => char.length === 1 && /[\ud800-\udfff]/.test(char)).length,
+  }))
+  assert.ok(boundary.units <= 2000, `kept ${boundary.units} units`)
+  assert.equal(boundary.loneSurrogates, 0)
   await page.screenshot({ path: path.join(artifacts, 'scene-text-editor.png'), fullPage: true })
 
   // Read-only keeps the writing surface visible but disables edits and actions.

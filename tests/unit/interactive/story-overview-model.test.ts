@@ -74,8 +74,31 @@ describe('story overview model', () => {
     expect(program.start).toEqual({ projectId: 'p2', entryNodeId: 'e1' })
     expect(program.variables).toHaveLength(1)
     expect(program.chapters.map((item) => item.projectId)).toEqual(['p1', 'p2'])
+    expect('shop' in program).toBe(false)
+    const shop = { enabled: true, currencyVariableId: 'v1', items: [{ id: 'i1', name: '补品', icon: null, description: '', price: 1, limit: 0, effects: [{ variableId: 'v1', op: 'add' as const, value: 1 }] }] }
+    expect(buildStoryProgram(withConfig(data, { shop })).shop).toEqual(shop)
     const moved = withConfig(data, { start: null })
     expect(moved.story.config.start).toBeNull()
     expect(moved.story.config.variables).toBe(data.story.config.variables)
+  })
+
+  it('hands achievements, the personality test and the map to the program only when the creator set them', () => {
+    const plain = buildStoryProgram(data)
+    expect('achievements' in plain || 'personality' in plain || 'map' in plain).toBe(false)
+    const achievements = [{
+      id: 'a1',
+      name: '全成就',
+      description: '',
+      icon: null,
+      condition: { type: 'all_endings' as const },
+      reward: { title: '最强王者', frameUrl: null },
+    }]
+    const personality = { enabled: true, results: {} }
+    const map = { enabled: true }
+    const rich = buildStoryProgram(withConfig(data, { achievements, personality, map }))
+    expect(rich.achievements).toEqual(achievements)
+    expect(rich.personality).toEqual(personality)
+    expect(rich.map).toEqual(map)
+    expect('achievements' in buildStoryProgram(withConfig(data, { achievements: [] }))).toBe(false)
   })
 })

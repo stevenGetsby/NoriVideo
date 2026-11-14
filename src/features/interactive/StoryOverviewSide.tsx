@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import { AlertTriangle, CheckCircle2 } from '@/components/ui/icons'
 import { countIssues } from '@/lib/interactive/validate'
-import type { StoryAspectRatio, StoryIssue, StoryResolution, StoryVariable } from '@/lib/interactive/types'
+import type { StoryAspectRatio, StoryIssue, StoryResolution } from '@/lib/interactive/types'
 import { StoryFormatPicker } from './CreateStoryDialog'
-import { StoryVariablesEditor } from './StoryVariablesEditor'
-import type { OverviewStory } from './story-overview-model'
+import { StoryGameplaySettings } from './StoryGameplaySettings'
+import type { OverviewChapter, OverviewStory } from './story-overview-model'
 import type { StoryPatch } from './useStoryOverview'
 
-type Tab = 'checks' | 'variables' | 'settings'
+type Tab = 'checks' | 'gameplay' | 'settings'
 
 function StorySettings({ story, readOnly, onSave }: { story: OverviewStory; readOnly: boolean; onSave: (patch: StoryPatch) => Promise<void> }) {
   const [name, setName] = useState(story.name)
@@ -62,8 +62,9 @@ function StorySettings({ story, readOnly, onSave }: { story: OverviewStory; read
   )
 }
 
-export function StoryOverviewSide({ story, issues, readOnly, onFocusIssue, onSave }: {
+export function StoryOverviewSide({ story, chapters, issues, readOnly, onFocusIssue, onSave }: {
   story: OverviewStory
+  chapters: readonly OverviewChapter[]
   issues: StoryIssue[]
   readOnly: boolean
   onFocusIssue: (issue: StoryIssue) => void
@@ -71,11 +72,13 @@ export function StoryOverviewSide({ story, issues, readOnly, onFocusIssue, onSav
 }) {
   const [tab, setTab] = useState<Tab>('checks')
   const { errors, warnings } = countIssues(issues)
+  const gameplayCount = story.config.variables.length + (story.config.achievements?.length ?? 0) + (story.config.shop?.items.length ?? 0)
   const tabs: Array<{ key: Tab; label: string; badge?: number; tone?: string }> = [
     { key: 'checks', label: '检查', badge: errors || warnings || undefined, tone: errors ? 'is-error' : 'is-warning' },
-    { key: 'variables', label: '全局变量', badge: story.config.variables.length || undefined },
+    { key: 'gameplay', label: '玩法设置', badge: gameplayCount || undefined },
     { key: 'settings', label: '设置' },
   ]
+  const chapterGraphs = chapters.map((chapter) => chapter.graph)
 
   return (
     <aside className="nori-ix-side" aria-label="故事面板">
@@ -110,12 +113,18 @@ export function StoryOverviewSide({ story, issues, readOnly, onFocusIssue, onSav
         </div>
       ) : null}
 
-      {tab === 'variables' ? (
-        <StoryVariablesEditor
-          key={JSON.stringify(story.config.variables)}
+      {tab === 'gameplay' ? (
+        <StoryGameplaySettings
           variables={story.config.variables}
+          shop={story.config.shop}
+          chapters={chapterGraphs}
+          achievements={story.config.achievements}
+          personality={story.config.personality}
+          map={story.config.map}
+          playback={story.config.playback}
+          workId={story.workId}
           readOnly={readOnly}
-          onSave={(variables: StoryVariable[]) => onSave({ config: { variables } })}
+          onSaveConfig={(patch) => onSave({ config: patch })}
         />
       ) : null}
 

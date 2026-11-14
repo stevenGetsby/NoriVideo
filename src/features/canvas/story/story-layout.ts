@@ -1,5 +1,6 @@
 import { isStoryNodeType } from '@/lib/interactive/compile'
-import { STORY_FLOW_ROLE, STORY_OUTPUT_HANDLE } from '@/lib/interactive/types'
+import { readInteractionData } from '@/lib/interactive/interaction'
+import { STORY_FLOW_ROLE, STORY_MOUNT_ROLE, STORY_OUTPUT_HANDLE } from '@/lib/interactive/types'
 import { STORY_MEDIA_SOURCE_TYPES, storySourceHandles } from './story-connection'
 import { nodeBox, STORY_PORT_Y, type StoryGeometryNode, type StoryWireRole } from './story-geometry'
 
@@ -13,6 +14,7 @@ export const STORY_NEW_NODE_SIZES: Record<string, { width: number; height: numbe
   story_condition: { width: 320, height: 214 },
   story_exit: { width: 240, height: 92 },
   story_ending: { width: 260, height: 150 },
+  story_interaction: { width: 300, height: 250 },
 }
 
 const overlaps = (a: LayoutBox, b: LayoutBox, gap: number) =>
@@ -55,13 +57,14 @@ export function roomAbove(scene: IdBox, picture: LayoutBox, cards: readonly IdBo
 
 /**
  * A node created from a released wire puts the matching side on the drop point: its input for a
- * forward wire, its output for a backward one, its bottom edge for a scene's picture, and a new
- * scene's picture port for a wire pulled out of a video or image.
+ * forward wire, its output for a backward one, its bottom edge for a scene's picture, a new
+ * scene's picture port for a wire pulled out of a video or image, a new interaction's top port for
+ * a wire pulled from a scene's bottom port, and a new scene's bottom port for the reverse.
  */
 export function storyDropBox(role: StoryWireRole, drop: { x: number; y: number }, size: { width: number; height: number }) {
   if (role === 'forward') return { box: { x: drop.x, y: drop.y - STORY_PORT_Y, ...size }, upward: false }
   if (role === 'backward') return { box: { x: drop.x - size.width, y: drop.y - STORY_PORT_Y, ...size }, upward: false }
-  if (role === 'media') return { box: { x: drop.x - size.width / 2, y: drop.y, ...size }, upward: false }
+  if (role === 'media' || role === 'mount') return { box: { x: drop.x - size.width / 2, y: drop.y, ...size }, upward: false }
   return { box: { x: drop.x - size.width / 2, y: drop.y - size.height, ...size }, upward: true }
 }
 
@@ -93,16 +96,32 @@ type LayoutEdge = { source: string; target: string; sourceHandle?: string | null
 const COLUMN_GAP = 150
 const ROW_GAP = 44
 const MEDIA_GAP = 56
+const MOUNT_GAP = 56
+const MOUNT_ROW_GAP = 32
 
 /**
  * Story-aware 整理: columns follow the longest path from the entries (loops ignored), children
- * stack in option / branch order beside their parent, and each scene keeps its picture above it.
- * Nodes outside the story graph stay where they are.
+ * stack in option / branch order beside their parent, each scene keeps its picture above it and
+ * its mounted interactions in a row below it, in the order they play. Nodes outside the story
+ * graph stay where they are.
  */
 export function layoutStoryChapter(nodes: readonly SizedNode[], edges: readonly LayoutEdge[]): Map<string, { x: number; y: number }> {
   const byId = new Map(nodes.map((node) => [node.id, node]))
-  const story = nodes.filter((node) => isStoryNodeType(node.type))
   const positions = new Map<string, { x: number; y: number }>()
+
+  const mountedOn = new Map<string, SizedNode[]>()
+  const mounted = new Set<string>()
+  for (const edge of edges) {
+    const scene = byId.get(edge.source)
+    const interaction = byId.get(edge.target)
+    if (edge.data?.role !== STORY_MOUNT_ROLE || scene?.type !== 'story_scene' || interaction?.type !== 'story_interaction' || mounted.has(interaction.id)) continue
+    mounted.add(interaction.id)
+    mountedOn.set(scene.id, [...(mountedOn.get(scene.id) ?? []), interaction])
+  }
+  for (const list of mountedOn.values()) {
+    list.sort((a, b) => readInteractionData(a.data).startSec - readInteractionData(b.data).startSec || a.position.x - b.position.x)
+  }
+  const story = nodes.filter((node) => isStoryNodeType(node.type) && !mounted.has(node.id))
   if (!story.length) return positions
 
   const outgoing = new Map<string, LayoutEdge[]>()
@@ -113,6 +132,7 @@ export function layoutStoryChapter(nodes: readonly SizedNode[], edges: readonly 
     const source = byId.get(edge.source)
     const target = byId.get(edge.target)
     if (!source || !target) continue
+    if (edge.data?.role === STORY_MOUNT_ROLE) continue
     if (edge.data?.role === STORY_FLOW_ROLE) {
       outgoing.set(source.id, [...(outgoing.get(source.id) ?? []), edge])
       incoming.add(target.id)
@@ -174,8 +194,14 @@ export function layoutStoryChapter(nodes: readonly SizedNode[], edges: readonly 
       positions.set(node.id, { x, y })
       const media = mediaOf.get(node.id)
       if (media) positions.set(media.id, { x: x + node.width / 2 - media.width / 2, y: y - lift })
-      bottom = y + node.height
-      width = Math.max(width, node.width, media?.width ?? 0)
+      const hanging = mountedOn.get(node.id) ?? []
+      let hangX = x
+      for (const interaction of hanging) {
+        positions.set(interaction.id, { x: hangX, y: y + node.height + MOUNT_GAP })
+        hangX += interaction.width + MOUNT_ROW_GAP
+      }
+      bottom = hanging.length ? y + node.height + MOUNT_GAP + Math.max(...hanging.map((interaction) => interaction.height)) : y + node.height
+      width = Math.max(width, node.width, media?.width ?? 0, hanging.length ? hangX - MOUNT_ROW_GAP - x : 0)
     }
     x += width + COLUMN_GAP
   }

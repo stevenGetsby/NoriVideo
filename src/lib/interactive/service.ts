@@ -167,6 +167,14 @@ async function requireStory(session: AuthSession, workId: string) {
   return { access, story, config: reconcileStoryChapters(normalizeStoryConfig(story.config), projectIds), projectIds }
 }
 
+/** For routes that only need to know the viewer may work on this 影游 (e.g. uploading its art). */
+export async function requireInteractiveStoryAccess(session: AuthSession, workId: string) {
+  const access = await getWorkAccess(session, workId)
+  const exists = await prisma.interactiveStory.findUnique({ where: { workId }, select: { id: true } })
+  if (!exists) throw new ApiError('NOT_FOUND', { message: '影游项目不存在。' })
+  return access
+}
+
 export async function listInteractiveStories(session: AuthSession) {
   const works = await prisma.work.findMany({
     where: { ...workReadScopeWhere(session), interactiveStory: { isNot: null } },

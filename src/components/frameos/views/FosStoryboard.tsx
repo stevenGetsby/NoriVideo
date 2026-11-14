@@ -446,7 +446,7 @@ function AssetThumb({ asset, onRemove }: { asset: StoryAssetRef; onRemove?: () =
   )
 }
 
-function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StorySegment; scene: StoryScene; projectId: string; canEdit: boolean; onChanged: () => void | Promise<void> }) {
+function RightPanel({ seg, scene, projectId, canEdit, onChanged, onPromptSaved }: { seg: StorySegment; scene: StoryScene; projectId: string; canEdit: boolean; onChanged: () => void | Promise<void>; onPromptSaved: () => void }) {
   const [refs, setRefs] = useState<StoryAssetRef[]>(seg.refs)
   const [pickerKind, setPickerKind] = useState<StoryAssetKind | null>(null)
   const [saving, setSaving] = useState(false)
@@ -555,6 +555,9 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged }: { seg: StoryS
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '保存视频提示词失败'))
       dirtyRef.current = false
       setNotice('视频提示词已保存；请前往“制作剪辑”生成视频。')
+      // Drop the cached storyboard page instead of re-rendering the editor, so
+      // leaving and returning cannot restore the pre-save prompt.
+      onPromptSaved()
     } catch (saveError) {
       setPanelError(saveError instanceof Error ? saveError.message : '保存视频提示词失败')
     } finally {
@@ -727,6 +730,7 @@ function StoryboardSuccess({
   onConfirmEpisode,
   onUnconfirmEpisode,
   onStoryboardChanged,
+  onPromptSaved,
 }: {
   projectId: string
   sb: StoryboardEpisode
@@ -747,6 +751,7 @@ function StoryboardSuccess({
   onConfirmEpisode: () => void
   onUnconfirmEpisode: () => void
   onStoryboardChanged: (message?: string) => void | Promise<void>
+  onPromptSaved: () => void
 }) {
   const [expanded, setExpanded] = useState(false)
   const [selectedSeg, setSelectedSeg] = useState('')
@@ -940,7 +945,7 @@ function StoryboardSuccess({
             ))}
           </div>
         </div>
-        {selSeg && selScene ? <RightPanel seg={selSeg} scene={selScene} projectId={projectId} canEdit={canEdit} onChanged={() => onStoryboardChanged()} /> : <RightPanelEmpty />}
+        {selSeg && selScene ? <RightPanel seg={selSeg} scene={selScene} projectId={projectId} canEdit={canEdit} onChanged={() => onStoryboardChanged()} onPromptSaved={onPromptSaved} /> : <RightPanelEmpty />}
       </div>
 
       <div className="sd3-bottom">
@@ -986,9 +991,22 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
   const refreshTimers = useRef<number[]>([])
   const refreshedTask = useRef('')
   const initialEpisodeApplied = useRef(false)
+  const loadRequestRef = useRef(0)
+  const loadedEpisodeRef = useRef('')
+  const loadStoryboardsRef = useRef<(force?: boolean) => Promise<void>>(async () => {})
+  const watchAttemptsRef = useRef(0)
+  const [watchEpisodeId, setWatchEpisodeId] = useState('')
 
   const activeEpisode = episodes.find((episode) => episode.episodeNumber === activeEp) || episodes[0]
   const activeEpisodeId = activeEpisode?.id || ''
+  const switchEpisode = (episodeNumber: number) => {
+    setActiveEp(episodeNumber)
+    const next = episodes.find((episode) => episode.episodeNumber === episodeNumber)
+    if (!next || typeof window === 'undefined') return
+    const url = new URL(window.location.href)
+    url.searchParams.set('episode_id', next.id)
+    window.history.replaceState(window.history.state, '', url)
+  }
   const storyboardTaskTargets = useMemo(() => activeEpisodeId ? [{
     targetType: 'NovelPromotionEpisode',
     targetId: activeEpisodeId,
@@ -1016,7 +1034,9 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
   }, [activeEp, episodes, initialEpisodeId])
 
   const loadStoryboards = useCallback(async (force = false) => {
+    const requestId = ++loadRequestRef.current
     if (!activeEpisode) {
+      loadedEpisodeRef.current = ''
       setStoryboards([])
       setStoryboardReviewState(null)
       setReviewAssignmentStatus(null)
@@ -1024,33 +1044,37 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
       setLoading(false)
       return
     }
-    const cacheKey = `${data.projectId}:${activeEpisode.id}`
+    const episodeId = activeEpisode.id
+    const cacheKey = `${data.projectId}:${episodeId}`
     const cached = storyboardCache.get(cacheKey)
-    if (!force && cached && Date.now() - cached.storedAt < STORYBOARD_CACHE_TTL_MS) {
-      setStoryboards(cached.storyboards)
-      setStoryboardReviewState(cached.reviewState)
-      setReviewAssignmentStatus(cached.assignmentStatus)
-      setReviewNote(cached.lastReviewNote)
-      setLoading(false)
-      return
-    }
     if (!force && cached) {
+      loadedEpisodeRef.current = episodeId
       setStoryboards(cached.storyboards)
       setStoryboardReviewState(cached.reviewState)
       setReviewAssignmentStatus(cached.assignmentStatus)
       setReviewNote(cached.lastReviewNote)
+      if (Date.now() - cached.storedAt < STORYBOARD_CACHE_TTL_MS) {
+        setLoading(false)
+        return
+      }
+    } else if (loadedEpisodeRef.current !== episodeId) {
+      // Never render another episode's storyboard while the new one loads.
+      setStoryboards([])
+      setStoryboardReviewState(null)
+      setReviewAssignmentStatus(null)
+      setReviewNote(null)
     }
     setLoading(true)
     setError(null)
     try {
       const [json, stageJson, assignmentJson] = await Promise.all([
         (async () => {
-          const res = await apiFetch(`/api/novel-promotion/${data.projectId}/storyboards?episodeId=${encodeURIComponent(activeEpisode.id)}`)
+          const res = await apiFetch(`/api/novel-promotion/${data.projectId}/storyboards?episodeId=${encodeURIComponent(episodeId)}`)
           if (!res.ok) throw new Error(await readApiErrorMessage(res, '加载分镜失败'))
           return await res.json() as { storyboards?: StoryboardRaw[] }
         })(),
         (async () => {
-          const res = await apiFetch(`/api/workflow/projects/${data.projectId}/stages/storyboard?episodeId=${encodeURIComponent(activeEpisode.id)}`)
+          const res = await apiFetch(`/api/workflow/projects/${data.projectId}/stages/storyboard?episodeId=${encodeURIComponent(episodeId)}`)
           if (!res.ok) return null
           return await res.json() as { stage?: StoryboardStageState }
         })().catch(() => null),
@@ -1060,9 +1084,10 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
           return await res.json() as { assignments?: CollaborationAssignment[] }
         })().catch(() => null),
       ])
+      if (requestId !== loadRequestRef.current) return
       const nextStoryboards = Array.isArray(json.storyboards) ? json.storyboards : []
       const nextReviewState = stageJson?.stage?.reviewState || null
-      const reviewAssignment = (assignmentJson?.assignments || []).find((assignment) => assignment.stage === 'storyboard' && assignment.episodeId === activeEpisode.id)
+      const reviewAssignment = (assignmentJson?.assignments || []).find((assignment) => assignment.stage === 'storyboard' && assignment.episodeId === episodeId)
       const nextAssignmentStatus = reviewAssignment?.status || null
       const nextReviewNote = reviewAssignment?.lastReviewNote?.trim() || null
       storyboardCache.set(cacheKey, {
@@ -1072,21 +1097,32 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
         lastReviewNote: nextReviewNote,
         storedAt: Date.now(),
       })
+      loadedEpisodeRef.current = episodeId
       setStoryboards(nextStoryboards)
       setStoryboardReviewState(nextReviewState)
       setReviewAssignmentStatus(nextAssignmentStatus)
       setReviewNote(nextReviewNote)
     } catch (err) {
+      if (requestId !== loadRequestRef.current) return
       logError('[FosStoryboard] 加载分镜失败', err)
-      setStoryboards([])
-      setStoryboardReviewState(null)
-      setReviewAssignmentStatus(null)
-      setReviewNote(null)
+      // A background refresh must not tear down the storyboard being edited.
+      // Only clear when the rendered data belongs to another episode.
+      if (loadedEpisodeRef.current !== episodeId) {
+        loadedEpisodeRef.current = ''
+        setStoryboards([])
+        setStoryboardReviewState(null)
+        setReviewAssignmentStatus(null)
+        setReviewNote(null)
+      }
       setError(err instanceof Error ? err.message : '加载分镜失败')
     } finally {
-      setLoading(false)
+      if (requestId === loadRequestRef.current) setLoading(false)
     }
   }, [activeEpisode, data.projectId])
+
+  useEffect(() => {
+    loadStoryboardsRef.current = loadStoryboards
+  }, [loadStoryboards])
 
   useEffect(() => {
     void loadStoryboards()
@@ -1103,18 +1139,39 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
     void loadStoryboards(true)
   }, [activeEpisodeId, data, loadStoryboards, taskCompletionSignature])
 
+  // Switching episodes invalidates scheduled refreshes queued for the previous one.
+  useEffect(() => () => {
+    refreshTimers.current.forEach((timer) => window.clearTimeout(timer))
+    refreshTimers.current = []
+  }, [activeEpisodeId])
+
+  // Keep polling the submitted task even if the first state read raced the
+  // task creation and reported idle; otherwise the page stays stale until F5.
+  const refetchTaskState = storyboardTaskQuery.refetch
+  const storyboardTaskPhase = storyboardTaskState?.phase
   useEffect(() => {
-    return () => {
-      refreshTimers.current.forEach((timer) => window.clearTimeout(timer))
+    if (!watchEpisodeId || watchEpisodeId !== activeEpisodeId) return
+    if (storyboardTaskPhase === 'completed' || storyboardTaskPhase === 'failed') {
+      setWatchEpisodeId('')
+      return
     }
-  }, [])
+    const timer = window.setInterval(() => {
+      if (watchAttemptsRef.current >= 200) {
+        setWatchEpisodeId('')
+        return
+      }
+      watchAttemptsRef.current += 1
+      void refetchTaskState()
+    }, 3_000)
+    return () => window.clearInterval(timer)
+  }, [activeEpisodeId, refetchTaskState, storyboardTaskPhase, watchEpisodeId])
 
   const scheduleRefreshes = () => {
     refreshTimers.current.forEach((timer) => window.clearTimeout(timer))
     refreshTimers.current = [4_000, 10_000, 20_000, 40_000].map((delay) => (
       window.setTimeout(() => {
         data.refetch()
-        void loadStoryboards(true)
+        void loadStoryboardsRef.current(true)
       }, delay)
     ))
   }
@@ -1136,6 +1193,8 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
       })
       if (!submitRes.ok) throw new Error(await readApiErrorMessage(submitRes, '提交分镜设计失败'))
       setNotice('已提交本集分镜设计任务；本页与作品工作台将同步显示进度。')
+      watchAttemptsRef.current = 0
+      setWatchEpisodeId(activeEpisode.id)
       await storyboardTaskQuery.refetch()
       scheduleRefreshes()
     } catch (err) {
@@ -1224,7 +1283,7 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
           <span className="sd3-ep-label">分集：</span>
           <div className="sd3-ep-tabs-body">
             {episodes.map((episode) => (
-              <button key={episode.id} className={`sd3-ep-tab${episode.episodeNumber === activeEp ? ' is-active' : ''}`} onClick={() => setActiveEp(episode.episodeNumber)}>
+              <button key={episode.id} className={`sd3-ep-tab${episode.episodeNumber === activeEp ? ' is-active' : ''}`} onClick={() => switchEpisode(episode.episodeNumber)}>
                 E{episode.episodeNumber} {episode.name}
               </button>
             ))}
@@ -1270,7 +1329,7 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
       reviewNote={reviewNote}
       reviewSubmitting={reviewSubmitting}
       canEdit={canEdit}
-      onSwitchEp={setActiveEp}
+      onSwitchEp={switchEpisode}
       onStartDesign={handleStartDesign}
       onConfirmEpisode={() => void handleReviewAction(true)}
       onUnconfirmEpisode={() => void handleReviewAction(false)}
@@ -1280,6 +1339,7 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
         data.refetch()
         if (message) setNotice(message)
       }}
+      onPromptSaved={() => storyboardCache.delete(`${data.projectId}:${activeEpisode.id}`)}
     />
   )
 }

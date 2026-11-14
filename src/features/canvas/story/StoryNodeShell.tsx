@@ -4,7 +4,7 @@ import { useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { Handle, Position, useNodeId, useStore } from '@xyflow/react'
 import { Plus } from '@/components/ui/icons'
 import { STORY_KIND_BY_TYPE, STORY_KIND_LABEL } from '@/lib/interactive/compile'
-import { STORY_FLOW_ROLE, STORY_OUTPUT_HANDLE, type StoryNodeType } from '@/lib/interactive/types'
+import { STORY_FLOW_ROLE, STORY_INTERACT_HANDLE, STORY_MOUNT_HANDLE, STORY_OUTPUT_HANDLE, type StoryNodeType } from '@/lib/interactive/types'
 import { useCanvasEditor } from '../CanvasEditorContext'
 import { STORY_NODE_HUES, STORY_NODE_ICONS, useStoryCanvasContext } from './StoryCanvasContext'
 import { STORY_MEDIA_HANDLE } from './story-connection'
@@ -17,34 +17,39 @@ export function useStoryNodeEditing(id: string) {
     readOnly,
     story,
     variables: story?.variables ?? [],
-    manageVariables: story && !story.readOnly ? () => story.setPanel('variables') : undefined,
+    manageVariables: story && !story.readOnly ? () => story.setPanel('gameplay') : undefined,
     patch: (patch: Record<string, unknown>, label?: string) => { if (!readOnly) editor.updateNodeData(id, patch, label) },
   }
 }
 
-type HandleSide = 'in' | 'out' | 'media'
+type HandleSide = 'in' | 'out' | 'media' | 'mount' | 'interact'
 
 const HANDLE_LOOK: Record<HandleSide, { position: Position; title?: string }> = {
   in: { position: Position.Left, title: '剧情从这里进入' },
   out: { position: Position.Right },
   media: { position: Position.Top, title: '画面（制作层）：连接视频或图片' },
+  mount: { position: Position.Top, title: '挂到剧情片段：连接片段底部的互动口' },
+  interact: { position: Position.Bottom, title: '互动口：只能连接互动节点（含「限时抉择」），在片段播放中触发' },
 }
+
+const INTERACTION_HUE = { '--story-hue': STORY_NODE_HUES.story_interaction } as CSSProperties
 
 /** The "+" beside a free out-port answers "what happens next?" without dragging a wire. */
 function StoryQuickAdd({ handleId }: { handleId: string }) {
   const nodeId = useNodeId()
   const editor = useCanvasEditor()
   const story = useStoryCanvasContext()
-  const linked = useStore((state) => state.edges.some((edge) => (
+  const mount = handleId === STORY_INTERACT_HANDLE
+  const linked = useStore((state) => !mount && state.edges.some((edge) => (
     edge.source === nodeId && edge.data?.role === STORY_FLOW_ROLE && (edge.sourceHandle || STORY_OUTPUT_HANDLE) === handleId
   )))
   if (!nodeId || !story || editor.readOnly || linked) return null
   return (
     <button
       type="button"
-      className="nori-story-quick-add nodrag nopan"
-      aria-label="添加下一步"
-      title="添加下一步（也可以从连接点拖出连线）"
+      className={`nori-story-quick-add nodrag nopan${mount ? ' is-mount' : ''}`}
+      aria-label={mount ? '添加互动' : '添加下一步'}
+      title={mount ? '在这个片段上添加互动（也可以从互动口拖出连线）' : '添加下一步（也可以从连接点拖出连线）'}
       onPointerDown={(event) => event.stopPropagation()}
       onClick={(event) => {
         event.stopPropagation()
@@ -67,10 +72,11 @@ export function StoryHandle({ id, side }: { id: string; side: HandleSide }) {
         id={id}
         position={look.position}
         className={`nori-story-handle is-${side}`}
+        style={side === 'mount' || side === 'interact' ? INTERACTION_HUE : undefined}
         isConnectable={!editor.readOnly}
         title={editor.readOnly ? undefined : look.title}
       />
-      {side === 'out' ? <StoryQuickAdd handleId={id} /> : null}
+      {side === 'out' || side === 'interact' ? <StoryQuickAdd handleId={id} /> : null}
     </>
   )
 }
@@ -118,7 +124,7 @@ function StoryTitle({ title, placeholder, readOnly, onRename }: { title: string;
   )
 }
 
-export function StoryNodeShell({ id, type, selected, title, input = true, output = false, media = false, badge, className, children }: {
+export function StoryNodeShell({ id, type, selected, title, input = true, output = false, media = false, interact = false, mount = false, badge, className, children }: {
   id: string
   type: StoryNodeType
   selected: boolean
@@ -127,6 +133,10 @@ export function StoryNodeShell({ id, type, selected, title, input = true, output
   output?: boolean
   /** Adds the top picture port (scenes). */
   media?: boolean
+  /** Adds the bottom interaction port that hosts mounted interactions (scenes). */
+  interact?: boolean
+  /** Adds the top port that mounts this card on a scene (interactions). */
+  mount?: boolean
   badge?: ReactNode
   className?: string
   children?: ReactNode
@@ -148,6 +158,8 @@ export function StoryNodeShell({ id, type, selected, title, input = true, output
       {input ? <StoryHandle id="input" side="in" /> : null}
       {output ? <StoryHandle id={STORY_OUTPUT_HANDLE} side="out" /> : null}
       {media ? <StoryHandle id={STORY_MEDIA_HANDLE} side="media" /> : null}
+      {interact ? <StoryHandle id={STORY_INTERACT_HANDLE} side="interact" /> : null}
+      {mount ? <StoryHandle id={STORY_MOUNT_HANDLE} side="mount" /> : null}
     </div>
   )
 }

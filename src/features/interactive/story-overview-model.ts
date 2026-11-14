@@ -49,7 +49,17 @@ export const EXIT_HANDLE_PREFIX = 'exit:'
 
 export function buildStoryProgram(data: StoryOverviewData): StoryProgram {
   const { config } = data.story
-  return { variables: config.variables, chapters: data.chapters.map((chapter) => chapter.graph), links: config.links, start: config.start }
+  return {
+    variables: config.variables,
+    chapters: data.chapters.map((chapter) => chapter.graph),
+    links: config.links,
+    start: config.start,
+    ...(config.shop ? { shop: config.shop } : {}),
+    ...(config.achievements?.length ? { achievements: config.achievements } : {}),
+    ...(config.personality ? { personality: config.personality } : {}),
+    ...(config.map ? { map: config.map } : {}),
+    ...(config.playback ? { playback: config.playback } : {}),
+  }
 }
 
 /** Ordered chapters joined with their stored map metadata. */

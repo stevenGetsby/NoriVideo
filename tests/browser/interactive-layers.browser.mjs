@@ -55,8 +55,8 @@ const chapters = [
       projectId: 'p1', title: '第一章',
       nodes: [
         { id: 'in1', kind: 'entry', title: '开场' },
-        { id: 's1', kind: 'scene', title: '城头', lines: '敌军压境。', effects: [], media: { kind: 'image', url: poster, posterUrl: null } },
-        { id: 's2', kind: 'scene', title: '冲阵', lines: '出城迎战。', effects: [], media: null },
+        { id: 's1', kind: 'scene', title: '城头', lines: '敌军压境。', effects: [], beats: [], media: { kind: 'image', url: poster, posterUrl: null } },
+        { id: 's2', kind: 'scene', title: '冲阵', lines: '出城迎战。', effects: [], beats: [], media: null },
         { id: 'e1', kind: 'exit', title: '离开' },
       ],
       flows: [
@@ -71,8 +71,8 @@ const chapters = [
       projectId: 'p2', title: '第二章',
       nodes: [
         { id: 'in2', kind: 'entry', title: '凯旋' },
-        { id: 's3', kind: 'scene', title: '凯旋', lines: '城门大开。', effects: [], media: null },
-        { id: 's4', kind: 'scene', title: '流亡', lines: '孤城落日。', effects: [], media: null },
+        { id: 's3', kind: 'scene', title: '凯旋', lines: '城门大开。', effects: [], beats: [], media: null },
+        { id: 's4', kind: 'scene', title: '流亡', lines: '孤城落日。', effects: [], beats: [], media: null },
         { id: 'end', kind: 'ending', title: '终', endingType: 'normal', description: '' },
       ],
       flows: [

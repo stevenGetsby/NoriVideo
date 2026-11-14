@@ -1,21 +1,47 @@
 import {
   STORY_ASPECT_RATIOS,
   STORY_CHAPTER_STATUSES,
+  STORY_COMPARE_OPS,
   STORY_RESOLUTIONS,
   type InteractiveStoryConfig,
+  type StoryAchievement,
+  type StoryAchievementCondition,
   type StoryAspectRatio,
   type StoryChapterMeta,
   type StoryChapterStatus,
+  type StoryCompareOp,
   type StoryLink,
+  type StoryMapConfig,
+  type StoryPersonality,
+  type StoryPlaybackConfig,
+  type StoryPersonalityResult,
   type StoryResolution,
+  type StoryReward,
   type StorySequence,
   type StorySequenceSegment,
+  type StoryShop,
+  type StoryShopItem,
   type StoryStart,
   type StoryVariable,
 } from './types'
+import { STORY_PERSONALITY_TYPES } from './personality'
+import { playbackSpeeds } from './playback'
+import { readStoryEffects, storyValue } from './read'
 
 export const STORY_VARIABLE_LIMIT = 50
 export const STORY_VARIABLE_NAME_MAX = 24
+export const STORY_ICON_MAX = 500
+export const STORY_SHOP_ITEM_LIMIT = 30
+export const STORY_SHOP_ITEM_NAME_MAX = 24
+export const STORY_SHOP_ITEM_DESCRIPTION_MAX = 120
+export const STORY_SHOP_PRICE_MAX = 999_999
+export const STORY_SHOP_ITEM_PURCHASE_MAX = 99
+export const STORY_ACHIEVEMENT_LIMIT = 40
+export const STORY_ACHIEVEMENT_NAME_MAX = 24
+export const STORY_ACHIEVEMENT_DESCRIPTION_MAX = 120
+export const STORY_REWARD_TITLE_MAX = 12
+export const STORY_PERSONALITY_NAME_MAX = 24
+export const STORY_PERSONALITY_DESCRIPTION_MAX = 300
 export const STORY_SEQUENCE_SEGMENT_LIMIT = 400
 const SEGMENT_TITLE_MAX = 80
 const ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
@@ -35,13 +61,139 @@ export function isStoryResolution(value: unknown): value is StoryResolution {
   return STORY_RESOLUTIONS.includes(value as StoryResolution)
 }
 
+/** An emoji or a picture URL; anything else (or something absurdly long) reads as no icon. */
+function readIcon(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const icon = value.trim()
+  return icon && icon.length <= STORY_ICON_MAX ? icon : null
+}
+
 function readVariable(raw: unknown): StoryVariable | null {
   if (!isRecord(raw) || !isId(raw.id)) return null
   const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, STORY_VARIABLE_NAME_MAX) : ''
   if (!name) return null
-  if (raw.type === 'boolean') return { id: raw.id, name, type: 'boolean', initial: raw.initial === true }
-  if (raw.type === 'number') return { id: raw.id, name, type: 'number', initial: finite(raw.initial, 0) }
+  if (raw.type !== 'boolean' && raw.type !== 'number') return null
+  // Presentation fields are only written when set, so a plain variable keeps its old shape.
+  const icon = readIcon(raw.icon)
+  const extras = {
+    ...(icon ? { icon } : {}),
+    ...(raw.showInHud === true ? { showInHud: true } : {}),
+    ...(raw.scope === 'permanent' ? { scope: 'permanent' as const } : {}),
+  }
+  if (raw.type === 'boolean') return { id: raw.id, name, type: 'boolean', initial: raw.initial === true, ...extras }
+  const max = typeof raw.max === 'number' && Number.isFinite(raw.max) ? raw.max : null
+  return { id: raw.id, name, type: 'number', initial: finite(raw.initial, 0), ...(max !== null ? { max } : {}), ...extras }
+}
+
+/** A reward needs a title or a frame picture; anything else reads as no reward. */
+function readReward(raw: unknown): StoryReward | undefined {
+  if (!isRecord(raw)) return undefined
+  const title = typeof raw.title === 'string' ? raw.title.trim().slice(0, STORY_REWARD_TITLE_MAX) : ''
+  const frameUrl = readIcon(raw.frameUrl)
+  return title || frameUrl ? { title, frameUrl } : undefined
+}
+
+function readShopItem(raw: unknown): StoryShopItem | null {
+  if (!isRecord(raw) || !isId(raw.id)) return null
+  const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, STORY_SHOP_ITEM_NAME_MAX) : ''
+  if (!name) return null
+  const price = Math.min(STORY_SHOP_PRICE_MAX, Math.max(0, finite(raw.price, 0)))
+  const limit = Math.min(STORY_SHOP_ITEM_PURCHASE_MAX, Math.max(0, Math.round(finite(raw.limit, 1))))
+  const reward = readReward(raw.reward)
+  return {
+    id: raw.id,
+    name,
+    icon: readIcon(raw.icon),
+    description: typeof raw.description === 'string' ? raw.description.trim().slice(0, STORY_SHOP_ITEM_DESCRIPTION_MAX) : '',
+    price: Math.round(price * 100) / 100,
+    limit,
+    effects: readStoryEffects(raw.effects),
+    ...(reward ? { reward } : {}),
+  }
+}
+
+function readShop(raw: unknown): StoryShop | undefined {
+  if (!isRecord(raw)) return undefined
+  const seen = new Set<string>()
+  const items: StoryShopItem[] = []
+  for (const entry of Array.isArray(raw.items) ? raw.items : []) {
+    const item = readShopItem(entry)
+    if (!item || seen.has(item.id)) continue
+    seen.add(item.id)
+    items.push(item)
+    if (items.length >= STORY_SHOP_ITEM_LIMIT) break
+  }
+  return { enabled: raw.enabled === true, currencyVariableId: isId(raw.currencyVariableId) ? raw.currencyVariableId : null, items }
+}
+
+function readAchievementCondition(raw: unknown): StoryAchievementCondition | null {
+  if (!isRecord(raw)) return null
+  const type = raw.type
+  if (type === 'ending' || type === 'segment') {
+    const { projectId, nodeId } = raw
+    if (typeof projectId !== 'string' || !projectId || typeof nodeId !== 'string' || !nodeId) return null
+    return { type, projectId, nodeId }
+  }
+  if (type === 'value') {
+    if (!isId(raw.variableId)) return null
+    const op = STORY_COMPARE_OPS.includes(raw.op as StoryCompareOp) ? raw.op as StoryCompareOp : '>='
+    return { type, variableId: raw.variableId, op, value: storyValue(raw.value) }
+  }
+  if (type === 'all_endings' || type === 'all_achievements') return { type }
   return null
+}
+
+function readAchievement(raw: unknown): StoryAchievement | null {
+  if (!isRecord(raw) || !isId(raw.id)) return null
+  const name = typeof raw.name === 'string' ? raw.name.trim().slice(0, STORY_ACHIEVEMENT_NAME_MAX) : ''
+  const condition = readAchievementCondition(raw.condition)
+  if (!name || !condition) return null
+  return {
+    id: raw.id,
+    name,
+    description: typeof raw.description === 'string' ? raw.description.trim().slice(0, STORY_ACHIEVEMENT_DESCRIPTION_MAX) : '',
+    icon: readIcon(raw.icon),
+    condition,
+    reward: readReward(raw.reward) ?? { title: '', frameUrl: null },
+  }
+}
+
+function readAchievements(raw: unknown): StoryAchievement[] | undefined {
+  if (!Array.isArray(raw)) return undefined
+  const seen = new Set<string>()
+  const achievements: StoryAchievement[] = []
+  for (const entry of raw) {
+    const achievement = readAchievement(entry)
+    if (!achievement || seen.has(achievement.id)) continue
+    seen.add(achievement.id)
+    achievements.push(achievement)
+    if (achievements.length >= STORY_ACHIEVEMENT_LIMIT) break
+  }
+  return achievements
+}
+
+function readPersonality(raw: unknown): StoryPersonality | undefined {
+  if (!isRecord(raw)) return undefined
+  const stored = isRecord(raw.results) ? raw.results : {}
+  const results: Record<string, StoryPersonalityResult> = {}
+  for (const type of STORY_PERSONALITY_TYPES) {
+    const entry = stored[type]
+    if (!isRecord(entry)) continue
+    const name = typeof entry.name === 'string' ? entry.name.trim().slice(0, STORY_PERSONALITY_NAME_MAX) : ''
+    const description = typeof entry.description === 'string' ? entry.description.trim().slice(0, STORY_PERSONALITY_DESCRIPTION_MAX) : ''
+    const imageUrl = readIcon(entry.imageUrl)
+    if (name || description || imageUrl) results[type] = { name, description, imageUrl }
+  }
+  return { enabled: raw.enabled === true, results }
+}
+
+function readMap(raw: unknown): StoryMapConfig | undefined {
+  return isRecord(raw) ? { enabled: raw.enabled === true } : undefined
+}
+
+function readPlayback(raw: unknown): StoryPlaybackConfig | undefined {
+  if (!isRecord(raw)) return undefined
+  return { speeds: playbackSpeeds({ speeds: Array.isArray(raw.speeds) ? raw.speeds : [] }) }
 }
 
 function readChapter(raw: unknown, index: number): StoryChapterMeta | null {
@@ -149,6 +301,11 @@ export function normalizeStoryConfig(raw: unknown): InteractiveStoryConfig {
     (l) => `${l.fromProjectId}:${l.exitNodeId}`,
   )
   const sequence = readSequence(raw.sequence)
+  const shop = readShop(raw.shop)
+  const achievements = readAchievements(raw.achievements)
+  const personality = readPersonality(raw.personality)
+  const map = readMap(raw.map)
+  const playback = readPlayback(raw.playback)
   return {
     version: 1,
     variables: variables.slice(0, STORY_VARIABLE_LIMIT),
@@ -156,6 +313,11 @@ export function normalizeStoryConfig(raw: unknown): InteractiveStoryConfig {
     links,
     start: readStart(raw.start),
     ...(sequence ? { sequence } : {}),
+    ...(shop ? { shop } : {}),
+    ...(achievements ? { achievements } : {}),
+    ...(personality ? { personality } : {}),
+    ...(map ? { map } : {}),
+    ...(playback ? { playback } : {}),
   }
 }
 
@@ -213,6 +375,36 @@ export function parseStoryConfigInput(raw: unknown): StoryConfigInputResult {
       segmentIds.add(segment.id)
       segmentScenes.add(sceneKey)
     }
+  }
+  if (raw.shop !== undefined && raw.shop !== null) {
+    if (!isRecord(raw.shop) || (raw.shop.items !== undefined && !Array.isArray(raw.shop.items))) return { ok: false, message: '商城配置格式错误。' }
+    const items = Array.isArray(raw.shop.items) ? raw.shop.items : []
+    if (items.length > STORY_SHOP_ITEM_LIMIT) return { ok: false, message: `商城商品最多 ${STORY_SHOP_ITEM_LIMIT} 个。` }
+    const itemIds = new Set<string>()
+    for (const entry of items) {
+      const item = readShopItem(entry)
+      if (!item) return { ok: false, message: '商品需要合法的 ID 和名称。' }
+      if (itemIds.has(item.id)) return { ok: false, message: '商品 ID 重复。' }
+      itemIds.add(item.id)
+    }
+  }
+  if (raw.achievements !== undefined && raw.achievements !== null) {
+    if (!Array.isArray(raw.achievements)) return { ok: false, message: '成就配置格式错误。' }
+    if (raw.achievements.length > STORY_ACHIEVEMENT_LIMIT) return { ok: false, message: `成就最多 ${STORY_ACHIEVEMENT_LIMIT} 个。` }
+    const achievementIds = new Set<string>()
+    for (const entry of raw.achievements) {
+      const achievement = readAchievement(entry)
+      if (!achievement) return { ok: false, message: '成就需要合法的 ID、名称和达成条件。' }
+      if (achievementIds.has(achievement.id)) return { ok: false, message: '成就 ID 重复。' }
+      achievementIds.add(achievement.id)
+    }
+  }
+  if (raw.personality !== undefined && raw.personality !== null) {
+    if (!isRecord(raw.personality) || (raw.personality.results !== undefined && !isRecord(raw.personality.results))) return { ok: false, message: '人格测试配置格式错误。' }
+  }
+  if (raw.map !== undefined && raw.map !== null && !isRecord(raw.map)) return { ok: false, message: '地图配置格式错误。' }
+  if (raw.playback !== undefined && raw.playback !== null) {
+    if (!isRecord(raw.playback) || (raw.playback.speeds !== undefined && !Array.isArray(raw.playback.speeds))) return { ok: false, message: '倍速配置格式错误。' }
   }
   if (raw.start != null && !readStart(raw.start)) return { ok: false, message: '故事起点格式错误。' }
   return { ok: true, config: normalizeStoryConfig(raw) }
