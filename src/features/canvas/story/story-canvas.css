@@ -680,11 +680,11 @@
 }
 @keyframes nori-story-spin { to { transform: rotate(360deg); } }
 
-/* First-run guide, top-right where the canvas is otherwise quiet. */
+/* First-run guide, below the canvas chrome so the toolbar never covers it. */
 .nori-story-tips {
   position: absolute;
-  top: 64px;
-  right: 14px;
+  top: calc(var(--nori-canvas-chrome-h, 102px) + 12px);
+  right: 24px;
   z-index: 30;
   display: flex;
   width: 284px;

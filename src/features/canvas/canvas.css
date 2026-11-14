@@ -7,6 +7,7 @@
   --canvas-text: #f5f5fa;
   --canvas-muted: #9c9dae;
   --canvas-primary: #6e7bff;
+  --nori-canvas-chrome-h: 102px;
   position: relative;
   display: flex;
   min-height: 0;
@@ -2108,7 +2109,7 @@
   z-index: 2100;
   display: flex;
   min-width: 0;
-  height: 102px;
+  height: var(--nori-canvas-chrome-h, 102px);
   align-items: flex-end;
   justify-content: space-between;
   gap: 14px;
@@ -5245,11 +5246,13 @@
 .nori-canvas-media-preview > footer small { color: #a2a3b1; font-size: 10px; }
 
 @media (max-width: 720px) {
+  .nori-canvas-workspace { --nori-canvas-chrome-h: 102px; }
+
   .nori-canvas-chrome {
     top: 0;
     right: 10px;
     left: 10px;
-    height: 102px;
+    height: var(--nori-canvas-chrome-h, 102px);
     align-items: flex-end;
   }
 

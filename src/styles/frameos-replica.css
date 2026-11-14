@@ -1149,14 +1149,40 @@ select.fos-input option:disabled { color: #797a8c; }
 
 /* stage / project context header */
 .fos-stage-header {
-  display: flex; align-items: center; gap: 16px; flex: none;
-  padding: 12px 24px; background: var(--fos-bg-1);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  flex: none;
+  padding: 11px 24px;
+  background: var(--fos-bg-1);
   border-bottom: 1px solid var(--fos-border-soft);
+  container-type: inline-size;
 }
-.fos-stage-context { flex: 1 1 auto; }
-.fos-stage-context > h1 { min-width: 0; max-width: 100%; flex: 0 1 auto; white-space: normal; overflow-wrap: anywhere; }
+.fos-stage-context { display: flex; min-width: 0; align-items: center; gap: 10px; overflow: hidden; }
+.fos-stage-context > h1 { min-width: 8em; max-width: 100%; flex: 0 1 auto; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fos-meta-tag { flex: none; white-space: nowrap; }
-.fos-stage-actions { min-width: max-content; }
+.fos-stage-actions { display: flex; min-width: 0; align-items: center; justify-self: end; gap: 8px; }
+.fos-stage-more { display: none; }
+
+/* The header is its own container: action density follows the space left by
+ * the sidebar, not the raw viewport (the shell renders at 120% zoom). */
+@container (max-width: 1279px) {
+  .fos-stage-header .fos-meta-tag { display: none; }
+}
+@container (max-width: 899px) {
+  .fos-stage-header .fos-stage-parent-project { display: none; }
+}
+@container (max-width: 959px) {
+  .fos-stage-header .fos-stage-icon-btn { width: 32px; padding: 0; gap: 0; }
+  .fos-stage-header .fos-stage-icon-btn .fos-stage-action-label { display: none; }
+}
+@container (max-width: 719px) {
+  .fos-stage-header .fos-stage-action-assignments,
+  .fos-stage-header .fos-stage-action-settings,
+  .fos-stage-header .fos-stage-action-more-legacy { display: none; }
+  .fos-stage-header .fos-stage-more { display: inline-flex; }
+}
 .fos-back-btn { display: inline-flex; align-items: center; justify-content: center; width: auto; min-width: 32px; height: 32px; gap: 5px; border-radius: 8px; border: 1px solid var(--fos-border-mid); background: var(--fos-bg-2); padding: 0 10px 0 8px; color: var(--fos-text-2); flex: none; }
 .fos-back-btn:hover { color: var(--fos-text-1); background: var(--fos-bg-3); }
 .fos-back-btn span { font-size: 11px; font-weight: 650; white-space: nowrap; }
@@ -1377,7 +1403,6 @@ select.fos-input option:disabled { color: #797a8c; }
 .works-scroll:hover { scrollbar-color: rgba(255,255,255,.2) transparent; }
 .works-view { min-height: 100%; padding: 20px 28px 60px; background: transparent; }
 .works-view-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-.fos-sidebar.is-collapsed + .fos-main .works-heading { padding-left: 56px; }
 .works-heading, .works-search-group { display: flex; min-width: 0; max-width: 100%; flex-wrap: wrap; align-items: center; gap: 12px; }
 .works-all-projects { display: inline-flex; height: 28px; align-items: center; gap: 3px; border: 1px solid var(--fos-border-mid); border-radius: 7px; padding: 0 8px 0 5px; color: var(--fos-text-2); background: var(--fos-bg-2); font-size: 12px; }
 .works-all-projects:hover { color: #fff; background: var(--fos-bg-3); }
@@ -1392,8 +1417,6 @@ select.fos-input option:disabled { color: #797a8c; }
 .works-create-work:active { transform: scale(.98); }
 @media (max-width: 767px) {
   .works-view-header > .works-heading { flex-basis: 100%; }
-  .fos-sidebar.is-collapsed + .fos-main .works-heading { padding-left: 0; }
-  .fos-sidebar.is-collapsed + .fos-main .works-heading .works-view-title { padding-left: 56px; }
 }
 .works-create-work svg, .works-recycle-trigger svg, .works-search-group svg { width: 16px; height: 16px; }
 .works-refreshing { display: inline-flex; align-items: center; gap: 5px; color: var(--fos-text-4); font-size: 11px; }
@@ -1448,7 +1471,7 @@ select.fos-input option:disabled { color: #797a8c; }
 .works-project-card.is-selected { border-color: rgba(124,102,255,.75); box-shadow: 0 0 0 2px rgba(124,102,255,.25), 0 8px 24px -16px rgba(0,0,0,.6); }
 .works-project-main { display: flex; min-width: 0; flex: 1; flex-direction: column; overflow: hidden; border-radius: inherit; color: inherit; text-decoration: none; }
 .works-project-cover-image { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
-.work-cover { position: relative; display: flex; height: 156px; flex: none; overflow: hidden; border-radius: 13px 13px 0 0; background: var(--cover-base, #141a2b); color: #f7f9ff; }
+.work-cover { position: relative; display: flex; height: 156px; flex: none; overflow: hidden; contain: paint; border-radius: 13px 13px 0 0; background: var(--cover-base, #141a2b); color: #f7f9ff; }
 .work-cover-image { object-fit: cover; }
 .work-cover-art { position: absolute; inset: 0; overflow: hidden; isolation: isolate; background: radial-gradient(ellipse at var(--cover-x1) var(--cover-y1), color-mix(in srgb, var(--cover-a) 38%, transparent), transparent 63%), radial-gradient(ellipse at var(--cover-x2) var(--cover-y2), color-mix(in srgb, var(--cover-b) 34%, transparent), transparent 66%), var(--cover-base); }
 .work-cover-art::before { position: absolute; inset: 0; z-index: -1; background-image: linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px); background-size: 22px 22px; content: ''; mask-image: linear-gradient(120deg, rgba(0,0,0,.65), transparent 76%); }
@@ -2642,32 +2665,19 @@ select.fos-input option:disabled { color: #797a8c; }
   .fos-back-btn span { display: none; }
   .fos-back-btn { width: 32px; padding: 0; }
   .fos-stage-header {
-    flex-wrap: wrap;
-    align-items: flex-start;
+    align-items: center;
     gap: 8px 10px;
     padding-inline: 12px;
     overflow: hidden;
   }
   .fos-stage-context {
-    order: 2;
-    flex: 1 1 calc(100% - 44px);
     min-width: 0;
-    align-self: flex-start;
-  }
-  .fos-stage-context > h1 {
-    max-width: 100%;
-    overflow: visible;
-    white-space: normal;
-    overflow-wrap: anywhere;
-    word-break: break-word;
-    line-height: 1.35;
+    align-self: center;
   }
   .fos-stage-actions {
-    order: 3;
-    width: 100%;
+    width: auto;
     min-width: 0;
-    flex-wrap: wrap;
-    justify-content: flex-start;
+    justify-content: flex-end;
     overflow: visible;
   }
   .fos-stage-actions > .fos-btn,
