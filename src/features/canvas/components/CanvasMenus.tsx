@@ -186,6 +186,7 @@ export function CanvasNodeTypeMenu({
             <Plus /><span>{item.label}</span>
           </button>
         ))}
+        <button type="button" role="menuitem" disabled title="音频节点暂不支持新建，请通过下方“上传文件”添加"><Plus /><span>音频</span></button>
         <i />
         <button type="button" role="menuitem" onClick={onUpload}><Upload /><span>上传文件</span></button>
       </div>
