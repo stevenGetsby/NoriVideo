@@ -7,6 +7,9 @@ import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { APP_VERSION } from '@/lib/app-meta'
 import { notify } from '@/lib/ui/feedback'
+import { useNoriTheme } from '@/lib/theme/useNoriTheme'
+
+const THEME_OPTIONS = [['dark', '深色'], ['light', '日间'], ['system', '跟随系统']] as const
 
 const FEEDBACK_TYPES = [
   ['bug', '页面问题'],
@@ -114,6 +117,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
 }
 
 export function AccountModal({ account, onLogout, onClose }: { account: string; onLogout: () => void; onClose: () => void }) {
+  const { preference, setPreference } = useNoriTheme()
   return (
     <ModalShell title="个人中心" width={620} onClose={onClose}>
       <div className="space-y-4">
@@ -136,6 +140,13 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
             <div className="text-[13px] font-bold text-white">已设置登录密码</div>
             <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">可使用账号+密码方式登录</div>
           </div>
+        </div>
+        <div className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-5">
+          <div className="mb-4 text-[15px] font-bold text-white">外观</div>
+          <div className="flex gap-2 border-t border-[var(--fos-border-soft)] pt-4" role="radiogroup" aria-label="外观">
+            {THEME_OPTIONS.map(([value, label]) => <button key={value} type="button" role="radio" aria-checked={preference === value} className={`fos-btn fos-btn-sm${preference === value ? ' is-active' : ''}`} onClick={() => setPreference(value)}>{label}</button>)}
+          </div>
+          <p className="mt-3 text-[12px] text-[var(--fos-text-4)]">只影响当前这台设备上的显示。</p>
         </div>
         <button type="button" onClick={onLogout} className="fos-btn fos-btn-ghost w-full border-red-400/20 text-red-300 hover:bg-red-400/10">
           <AppIcon name="logout" className="h-4 w-4" />退出当前账号

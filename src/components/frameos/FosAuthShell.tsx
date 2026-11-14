@@ -25,7 +25,7 @@ export function FosAuthShell({
     : [{ icon: PenLine, title: '故事构建', detail: '让灵感落笔' }, { icon: Layers3, title: '资产创作', detail: '让世界成形' }, { icon: Clapperboard, title: '镜头叙事', detail: '让故事发生' }]
 
   return (
-    <main className="nori-auth">
+    <main className="nori-auth nori-force-dark">
       <div className="nori-auth-ambient" aria-hidden="true" />
       <AuthCreativeScene />
       <header className="nori-auth-header">

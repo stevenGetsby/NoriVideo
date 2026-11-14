@@ -2134,7 +2134,7 @@ export function CanvasStudio3DDialog({
     <>
       <div
         ref={dialogRef}
-        className={'nori-canvas-studio-dialog' + (fullscreen ? ' is-fullscreen' : '') + (!studioDocumentReady || studioConflict || closing ? ' is-document-blocked' : '')}
+        className={'nori-canvas-studio-dialog nori-force-dark' + (fullscreen ? ' is-fullscreen' : '') + (!studioDocumentReady || studioConflict || closing ? ' is-document-blocked' : '')}
         role="dialog"
         aria-modal="true"
         aria-label="3D 导演台"

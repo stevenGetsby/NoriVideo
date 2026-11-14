@@ -302,7 +302,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         lineClassName="nori-canvas-resize-line"
         handleClassName="nori-canvas-resize-handle"
       />
-      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType} nodrag nowheel`}>
+      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType}${mediaType === 'image' || mediaType === 'video' || mediaType === 'model_3d' ? ' nori-force-dark' : ''} nodrag nowheel`}>
         <div ref={toolbarRef} className="nori-canvas-node-toolbar-anchor" aria-hidden="true" />
         {canReplaceContent ? (
           <button

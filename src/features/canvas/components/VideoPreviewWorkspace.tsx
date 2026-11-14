@@ -381,7 +381,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
   const unsaved = keyframes.filter((keyframe) => !savedIds.has(keyframe.id))
   const frameTotal = previewFrameCount(duration, fps)
 
-  return <div className={`nori-video-workspace${inspectorOpen ? ' is-inspector-open' : ''}`} data-fps-source={fpsSource} data-inspector-tab={inspectorTab}>
+  return <div className={`nori-video-workspace nori-force-dark${inspectorOpen ? ' is-inspector-open' : ''}`} data-fps-source={fpsSource} data-inspector-tab={inspectorTab}>
     <section className="nori-video-player" aria-label="视频播放器">
       <div ref={stageRef} className={`nori-video-stage${fullscreen ? ' is-fullscreen' : ''}`} style={{ '--video-aspect': String(aspect) } as CSSProperties} onClick={(event) => { if (event.target === event.currentTarget) togglePlay() }} onDoubleClick={toggleFullscreen}>
         <video

@@ -247,7 +247,7 @@ export function CanvasPanoramaDialog({
   if (!portalRoot) return null
 
   return createPortal(
-    <div className="nori-canvas-panorama-overlay" onPointerDown={(event) => event.stopPropagation()}>
+    <div className="nori-canvas-panorama-overlay nori-force-dark" onPointerDown={(event) => event.stopPropagation()}>
     <div
       className={`nori-canvas-panorama-dialog${fullscreen ? ' is-fullscreen' : ''}`}
       role="dialog"

@@ -8,6 +8,9 @@ import type { Canvas, CanvasProjectOption, CanvasStoryNavigation } from '../type
 import { projectHref, projectLinkProps } from '@/lib/projects/navigation'
 import { chapterHref } from '@/lib/interactive/routes'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
+import { useNoriTheme } from '@/lib/theme/useNoriTheme'
+
+const THEME_LABELS = { dark: '深色', light: '日间', system: '跟随系统' } as const
 
 export type CanvasSaveState = 'idle' | 'pending' | 'saving' | 'saved' | 'conflict' | 'error' | 'offline' | 'recovery'
 
@@ -89,6 +92,7 @@ export function CanvasChrome({
   onSyncProduction: () => void
 }) {
   const canvasShell = useFosCanvasShell()
+  const { preference, setPreference } = useNoriTheme()
   const [menu, setMenu] = useState<'work' | 'project' | 'canvas' | null>(null)
   const [keyword, setKeyword] = useState('')
   const rootRef = useRef<HTMLDivElement>(null)
@@ -313,6 +317,7 @@ export function CanvasChrome({
               </div>
             )}
             <div className="nori-canvas-dropdown-utilities">
+              <button type="button" data-testid="canvas-theme-cycle" title="切换深色、日间或跟随系统" aria-label={`外观：${THEME_LABELS[preference]}`} onClick={() => setPreference(preference === 'dark' ? 'light' : preference === 'light' ? 'system' : 'dark')}><AppIcon name="settingsHex" /><span>外观</span><small>{THEME_LABELS[preference]}</small></button>
               <button type="button" className="nori-canvas-project-assets-button" title={readOnly ? '当前账号只有查看权限' : '打开作品资产'} disabled={readOnly} onClick={() => { onOpenProjectAssets(); setMenu(null) }}><AppIcon name="folderOpen" /><span>作品资产</span></button>
               <button type="button" className="nori-canvas-sync-button" title={canSyncProduction ? '同步作品剧本、分镜、图片和视频到当前画布' : '当前账号只有查看权限'} disabled={!canSyncProduction || syncingProduction} onClick={() => { onSyncProduction(); setMenu(null) }}>
                 <AppIcon name="refresh" className={syncingProduction ? 'animate-spin' : ''} /><span>{syncingProduction ? '同步中' : '同步作品'}</span>

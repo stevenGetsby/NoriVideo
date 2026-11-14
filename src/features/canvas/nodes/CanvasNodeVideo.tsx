@@ -96,14 +96,14 @@ export function CanvasNodeVideo({
       />
       <button
         type="button"
-        className="nori-canvas-video-toggle nodrag"
+        className="nori-canvas-video-toggle nori-force-dark nodrag"
         aria-label={playing ? '暂停' : '播放'}
         title={playing ? '暂停' : '播放'}
         onClick={(event) => { event.stopPropagation(); toggle() }}
       >
         {playing ? <Pause /> : <Play />}
       </button>
-      <div className="nori-canvas-video-bar nodrag nowheel" onClick={(event) => event.stopPropagation()}>
+      <div className="nori-canvas-video-bar nori-force-dark nodrag nowheel" onClick={(event) => event.stopPropagation()}>
         <span>{formatTime(time)} / {formatTime(duration)}</span>
         <input
           type="range"

@@ -76,7 +76,7 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
   const persistKeyframes = !readOnly && onKeyframesChange
 
   return (
-    <div className={`nori-canvas-media-preview${type === 'video' ? ' is-video-preview' : ''}`} role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
+    <div className={`nori-canvas-media-preview nori-force-dark${type === 'video' ? ' is-video-preview' : ''}`} role="dialog" aria-modal="true" aria-label={`${node.data.title || '素材'}预览`} onPointerDown={(event) => event.stopPropagation()}>
       <header>
         <div><Clapperboard /><span><strong>{node.data.title || '素材预览'}</strong><small>{type === 'video' ? '视频审阅 · 时间线与关键帧' : type === 'audio' ? '音频预览' : '图片预览'}</small></span></div>
         <div>

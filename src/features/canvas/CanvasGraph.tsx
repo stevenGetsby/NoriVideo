@@ -27,6 +27,8 @@ import {
 import '@xyflow/react/dist/style.css'
 import './canvas.css'
 import './story/story-canvas.css'
+import { useNoriTheme } from '@/lib/theme/useNoriTheme'
+import { canvasThemeColors } from './theme-colors'
 
 import { apiFetch } from '@/lib/api-fetch'
 import { settleWithConcurrency } from '@/lib/async/settle-with-concurrency'
@@ -441,10 +443,6 @@ const FLOW_PAN_ON_DRAG = [1]
 const FLOW_VISIBLE_ONLY_NODE_THRESHOLD = 40
 const FLOW_MULTI_SELECTION_KEYS = ['Shift', 'Meta', 'Control']
 
-function minimapNodeStrokeColor(node: CanvasFlowNode) {
-  return node.selected ? '#b8c8ff' : 'rgba(255,255,255,.2)'
-}
-
 function minimapNodeColor(node: CanvasFlowNode) {
   const type = getMediaType(node)
   if (node.type === 'group') return 'rgba(121, 139, 184, .34)'
@@ -515,6 +513,8 @@ function createHistoryItem(request: CanvasGenerateRequest, assetId?: string, tas
 
 function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
+  const { resolved: resolvedTheme } = useNoriTheme()
+  const themeColors = canvasThemeColors(resolvedTheme)
   const flowStore = useStoreApi<CanvasFlowNode, CanvasFlowEdge>()
   const readOnly = !canEditInfiniteCanvas(session?.user)
   const [nodes, setNodes] = useState<CanvasFlowNode[]>(() => initialGraph.nodes.map(canvasNodeToFlow))
@@ -4557,9 +4557,9 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
             multiSelectionKeyCode={FLOW_MULTI_SELECTION_KEYS}
             deleteKeyCode={null}
             proOptions={FLOW_PRO_OPTIONS}
-            colorMode="dark"
+            colorMode={resolvedTheme}
           >
-            <Background id="minor-grid" color="rgba(163,172,255,.12)" gap={24} size={1} />
+            <Background id="minor-grid" color={themeColors.background} gap={24} size={1} />
             {minimapVisible ? <MiniMap<CanvasFlowNode>
               position="bottom-left"
               pannable={false}
@@ -4569,10 +4569,10 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
               ariaLabel="画布小地图：拖动蓝色视口可快速定位节点"
               className="nori-canvas-minimap"
               nodeColor={minimapNodeColor}
-              nodeStrokeColor={minimapNodeStrokeColor}
+              nodeStrokeColor={(node) => node.selected ? (resolvedTheme === 'light' ? '#5b67f5' : '#b8c8ff') : themeColors.minimapStroke}
               nodeStrokeWidth={3}
-              maskColor="rgba(4,6,10,.58)"
-              maskStrokeColor="rgba(126,159,255,.92)"
+              maskColor={themeColors.minimapMask}
+              maskStrokeColor={themeColors.minimapMaskStroke}
               maskStrokeWidth={2}
             /> : null}
           </ReactFlow>

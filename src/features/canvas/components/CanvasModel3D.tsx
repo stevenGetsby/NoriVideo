@@ -81,7 +81,7 @@ export function CanvasModel3DViewer({ src, compact = false }: { src: string; com
 
 export function CanvasModel3DDialog({ src, title, onClose }: { src: string; title: string; onClose: () => void }) {
   return (
-    <div className="nori-canvas-dialog-scrim" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
+    <div className="nori-canvas-dialog-scrim nori-force-dark" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose() }}>
       <div className="nori-canvas-dialog nori-canvas-model-dialog">
         <header><span><Box />3D 预览 · {title}</span><button type="button" title="关闭" onClick={onClose}><X /></button></header>
         <CanvasModel3DViewer src={src} />

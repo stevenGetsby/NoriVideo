@@ -55,7 +55,7 @@ export function PlatformAdminSignInClient({ workspaceSignInUrl }: { workspaceSig
   }
 
   return (
-    <main className="nori-admin-login">
+    <main className="nori-admin-login nori-force-dark">
       <header className="nori-admin-header">
         <AdminBrand />
         <span className="nori-admin-role-pill ml-auto">独立管理入口</span>

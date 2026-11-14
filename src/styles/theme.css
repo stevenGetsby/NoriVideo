@@ -21,6 +21,11 @@
   --nori-color-scheme: dark;
 }
 
+:root, .nori-force-dark, html[data-nori-theme="light"] .nori-force-dark {
+  --color-white: #ffffff;
+  color-scheme: dark;
+}
+
 @theme {
   --color-white: #ffffff;
   --color-on-brand: #ffffff;
@@ -46,4 +51,12 @@ html[data-nori-theme="light"] {
   --nori-page-bg: 245 246 250;
   --nori-color-scheme: light;
   --color-white: #161827;
+  --fos-shadow-card: 0 1px 2px rgb(22 24 39 / .06), 0 8px 24px -12px rgb(22 24 39 / .14);
+  --fos-shadow-pop: 0 24px 64px -16px rgb(22 24 39 / .28), 0 0 0 1px rgb(22 24 39 / .08);
+  --fos-grain: none;
+  --fos-danger-text: #c42b31;
+  --fos-warning: #b45309;
+  --fos-success: #15803d;
+  --nori-dm-line: #d6d9e4;
+  --nori-dm-line-strong: #9a9db0;
 }
