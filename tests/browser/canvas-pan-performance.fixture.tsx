@@ -23,6 +23,7 @@ createRoot(document.getElementById('root')!).render(
       <main className="fos-app">
         <Profiler id="canvas" onRender={(_id, _phase, actualDuration) => { commits.push(actualDuration) }}>
           <CanvasGraph
+            mode="canvas"
             projectId="project-1" projectName="拖动性能验证" canvasId="canvas-1" canvases={[canvas]}
             onSelectCanvas={() => {}} onCreateCanvas={() => {}} onRenameCanvas={() => {}} onDeleteCanvas={() => {}}
           />

@@ -262,6 +262,7 @@ export function FosCanvasHubClient({
       <div key={navigationSurfaceKey} className="contents">
         {selectedProject ? (
           <CanvasWorkspace
+            mode="canvas"
             projectId={selectedProject.id}
             projectName={selectedProject.name}
             initialCanvasId={initialCanvasId}

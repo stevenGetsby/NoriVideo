@@ -1,5 +1,6 @@
 'use client'
 
+import { Link } from '@/i18n/navigation'
 import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useSession } from 'next-auth/react'
@@ -95,6 +96,7 @@ import {
   writeCanvasClipboard,
 } from './clipboard'
 import { cloneCanvasNodeDataForNewNode } from './clone-node-data'
+import { filterStoryClipboardDocument } from './clipboard'
 import { resolvePastedWires, selectCopiedWires } from './clipboard-wires'
 import { collectSelectionDownloadNodes } from './selection-download'
 import { createVideoComparisonDraft, persistVideoComparisonDraft, shouldCreateVideoComparison } from './video-comparison'
@@ -290,6 +292,8 @@ const EMPTY_NODE_ID_SET: ReadonlySet<string> = new Set()
 const EMPTY_NODE_LIST: CanvasFlowNode[] = []
 
 type Props = {
+  /** Required: plain canvases never get story nodes, story wires, or the story overlay. */
+  mode: 'canvas' | 'story'
   projectId: string
   projectName: string
   canvasId: string
@@ -346,6 +350,12 @@ function nodeSize(node: CanvasFlowNode) {
 function hasInputFocus() {
   const active = document.activeElement
   return active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement || active instanceof HTMLSelectElement || (active instanceof HTMLElement && active.isContentEditable)
+}
+
+/** True when either end of a proposed wire is a story node. */
+function connectionTouchesStoryNode(input: { source?: string | null; target?: string | null }, nodes: readonly CanvasFlowNode[]) {
+  const ids = [input.source, input.target].filter((id): id is string => Boolean(id))
+  return nodes.some((node) => ids.includes(node.id) && isStoryNodeType(node.type))
 }
 
 function isCanvasBlankPointerTarget(target: EventTarget | null) {
@@ -501,7 +511,7 @@ function createHistoryItem(request: CanvasGenerateRequest, assetId?: string, tas
   }
 }
 
-function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
+function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
   const flowStore = useStoreApi<CanvasFlowNode, CanvasFlowEdge>()
   const readOnly = !canEditInfiniteCanvas(session?.user)
@@ -1247,7 +1257,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     return rect ? screenToCanvasPosition({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }) : { x: 280, y: 220 }
   }, [screenToCanvasPosition])
 
-  const storyCanvas = useStoryCanvas(projectId, readOnly)
+  const storyLoad = useStoryCanvas(projectId, readOnly, mode === 'story')
+  const storyCanvas = storyLoad.story
   const storyActions = useStoryCanvasActions({
     story: storyCanvas, writeLocked, flow, flowStore, nodesRef, edgesRef,
     setNodes, setEdges, setWireMenu, record, markChanged, ensureNodeCapacity,
@@ -1255,16 +1266,26 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     removeEdges: removeEdgesById, maxEdges: CANVAS_EDGE_HARD_LIMIT,
   })
   const storyContextValue = useMemo(() => (storyCanvas ? { ...storyCanvas, actions: storyActions } : null), [storyCanvas, storyActions])
+  const storyNavigation = useMemo(() => (mode === 'story' && storyCanvas ? {
+    workId: storyCanvas.story.workId,
+    workName: storyCanvas.story.name,
+    chapters: storyCanvas.story.chapters,
+    currentProjectId: projectId,
+  } : undefined), [mode, projectId, storyCanvas])
 
   const duplicateNodes = useCallback((requestedIds: string[]) => {
     if (readOnly) return
     const expanded = expandGroupNodeIds(requestedIds)
-    const originals = nodesRef.current.filter((node) => expanded.has(node.id))
+    const allOriginals = nodesRef.current.filter((node) => expanded.has(node.id))
+    // A plain canvas must not spawn story nodes through copy / duplicate.
+    const originalCopy = filterStoryClipboardDocument(allOriginals, [], mode === 'story')
+    if (originalCopy.filtered) setToast('剧情节点只能用在影游画布')
+    const originals = originalCopy.nodes
     if (originals.length === 0) return
     if (!ensureNodeCapacity(originals.length)) return
     const includesGroup = requestedIds.some((id) => nodesRef.current.some((node) => node.id === id && node.type === 'group'))
     // A copy never takes over an outside card's story line: every exit keeps exactly one flow.
-    const sourceEdges = selectCopiedWires(edgesRef.current, expanded, includesGroup)
+    const sourceEdges = selectCopiedWires(edgesRef.current, new Set(originals.map((node) => node.id)), includesGroup)
     const copiedEdgeCount = sourceEdges.length
     if (edgesRef.current.length + copiedEdgeCount > CANVAS_EDGE_HARD_LIMIT) { setToast('连线数量将超过 4000 条上限'); return }
     record('创建副本')
@@ -1276,10 +1297,14 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setEdges((current) => [...current, ...copiedEdges])
     markChanged('创建副本')
     setToast(`已复制 ${clones.length} 个节点`)
-  }, [ensureNodeCapacity, expandGroupNodeIds, markChanged, readOnly, record, storyActions, storyCanvas])
+  }, [ensureNodeCapacity, expandGroupNodeIds, markChanged, mode, readOnly, record, storyActions, storyCanvas])
 
   const addNode = useCallback((type: CanvasNodeMenuType, position = centerPosition(), interaction?: StoryInteractionKind) => {
     if (readOnly) return null
+    if (mode !== 'story' && isStoryNodeType(type)) {
+      setToast('剧情节点只能用在影游画布')
+      return null
+    }
     if (!ensureNodeCapacity(1)) return null
     record('添加节点')
     const node = createFlowNode(type, position, interaction)
@@ -1292,7 +1317,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setAddOpen(false)
     setWireMenu(null)
     return node
-  }, [centerPosition, ensureNodeCapacity, markChanged, readOnly, record, storyActions, storyCanvas])
+  }, [centerPosition, ensureNodeCapacity, markChanged, mode, readOnly, record, storyActions, storyCanvas])
 
   const createGroup = useCallback(() => {
     const members = nodesRef.current.filter((node) => node.selected && node.type !== 'group')
@@ -1375,23 +1400,29 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   }, [expandGroupNodeIds, markChanged, readOnly, record])
 
   const validateConnection = useCallback((connection: Connection | CanvasFlowEdge, pendingNodes: CanvasFlowNode[] = []) => {
-    return !writeLocked && isCanvasConnectionAllowed(connection, [...nodesRef.current, ...pendingNodes], edgesRef.current, CANVAS_EDGE_HARD_LIMIT)
-  }, [writeLocked])
+    return !writeLocked && isCanvasConnectionAllowed(connection, [...nodesRef.current, ...pendingNodes], edgesRef.current, CANVAS_EDGE_HARD_LIMIT, mode === 'story')
+  }, [mode, writeLocked])
 
   const connect = useCallback((connection: Connection, pendingNodes: CanvasFlowNode[] = []) => {
-    const storyPlan = resolveStoryConnection(connection, [...nodesRef.current, ...pendingNodes])
+    const allNodes = [...nodesRef.current, ...pendingNodes]
+    const storyPlan = mode === 'story' ? resolveStoryConnection(connection, allNodes) : { kind: 'not_story' as const }
     if (storyPlan.kind !== 'not_story') {
       if (!readOnly) storyActions.commit(storyPlan)
+      return
+    }
+    if (mode !== 'story' && connectionTouchesStoryNode(connection, allNodes)) {
+      setToast('剧情节点只能在影游画布里连线')
       return
     }
     const normalized = normalizeCanvasConnection(connection)
     if (readOnly || !normalized?.source || !normalized.target || !validateConnection(normalized, pendingNodes)) return
     const result = planCanvasBatchConnections({
-      nodes: [...new Map([...nodesRef.current, ...pendingNodes].map((node) => [node.id, node])).values()],
+      nodes: [...new Map(allNodes.map((node) => [node.id, node])).values()],
       edges: edgesRef.current,
       sourceNodeIds: [normalized.source],
       targetNodeId: normalized.target,
       maxEdges: CANVAS_EDGE_HARD_LIMIT,
+      allowStory: mode === 'story',
     })
     if (!result.added) {
       setToast('未新增连线：节点不兼容、素材未就绪或已达到引用上限')
@@ -1403,13 +1434,23 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setNodes(result.nodes)
     setEdges(result.edges)
     markChanged('添加连线')
-  }, [markChanged, readOnly, record, storyActions, validateConnection])
+  }, [markChanged, mode, readOnly, record, storyActions, validateConnection])
 
   const connectBatch = useCallback((sourceIds: string[], targetId: string, alreadyRecorded = false) => {
     if (writeLocked) return false
+    if (mode !== 'story' && connectionTouchesStoryNode({ source: sourceIds[0], target: targetId }, nodesRef.current)) {
+      setToast('剧情节点只能在影游画布里连线')
+      return false
+    }
+    const storySource = sourceIds.find((id) => nodesRef.current.some((node) => node.id === id && isStoryNodeType(node.type)))
+    if (mode !== 'story' && storySource) {
+      setToast('剧情节点只能在影游画布里连线')
+      return false
+    }
     const result = planCanvasBatchConnections({
       nodes: nodesRef.current, edges: edgesRef.current, sourceNodeIds: sourceIds,
       targetNodeId: targetId, maxEdges: CANVAS_EDGE_HARD_LIMIT,
+      allowStory: mode === 'story',
     })
     if (result.added > 0) {
       if (!alreadyRecorded) record('批量连接节点')
@@ -1423,7 +1464,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       ? `已连接 ${result.added} 个节点${result.skipped ? `；${result.skipped} 个因已连接、不兼容或超出引用上限跳过` : ''}`
       : '未新增连线：节点已连接、不兼容或已达到引用上限')
     return result.added > 0
-  }, [markChanged, record, writeLocked])
+  }, [markChanged, mode, record, writeLocked])
 
   const connectGesture = useCallback((connection: Connection) => {
     const normalized = normalizeCanvasConnection(connection)
@@ -1432,13 +1473,15 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     } else connect(connection)
   }, [connect, connectBatch])
   const validateGestureConnection = useCallback((connection: Connection | CanvasFlowEdge) => {
+    // Story wiring only exists in story mode; a plain canvas rejects both ends outright.
+    if (mode !== 'story') return !connectionTouchesStoryNode(connection, nodesRef.current) && validateConnection(connection)
     // Story wires settle in onConnectEnd, which snaps them to the port the preview showed.
     if (resolveStoryConnection(connection, nodesRef.current).kind !== 'not_story') return false
     const normalized = normalizeCanvasConnection(connection)
     return normalized && batchWireSourcesRef.current.length > 1
       ? batchWireSourcesRef.current.some((source) => validateConnection({ ...normalized, source }))
       : validateConnection(connection)
-  }, [validateConnection])
+  }, [mode, validateConnection])
 
   const copySelection = useCallback(async (cut = false, requestedNodeIds?: string[]) => {
     const requested = requestedNodeIds || nodesRef.current.filter((node) => node.selected).map((node) => node.id)
@@ -1447,15 +1490,18 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const selected = nodesRef.current.filter((node) => expanded.has(node.id))
     const ids = new Set(selected.map((node) => node.id))
     const includesGroup = requested.some((id) => nodesRef.current.some((node) => node.id === id && node.type === 'group'))
-    const payload = { nodes: structuredClone(selected), edges: structuredClone(selectCopiedWires(edgesRef.current, ids, includesGroup)) }
+    const copied = filterStoryClipboardDocument(selected, selectCopiedWires(edgesRef.current, ids, includesGroup), mode === 'story')
+    if (copied.filtered) setToast('剧情节点只能用在影游画布')
+    if (copied.nodes.length === 0) return
+    const payload = { nodes: structuredClone(copied.nodes), edges: structuredClone(copied.edges) }
     clipboardRef.current = payload
     setClipboardCanPaste(true)
-    const plainText = collectCanvasClipboardText(selected)
+    const plainText = collectCanvasClipboardText(copied.nodes)
     const { canvasFormat } = await writeCanvasClipboard(JSON.stringify(payload), plainText)
     internalCopyTextRef.current = canvasFormat ? null : plainText
-    if (cut) removeNodes([...ids])
-    else setToast(`已复制 ${selected.length} 个节点`)
-  }, [expandGroupNodeIds, removeNodes])
+    if (cut) removeNodes(copied.nodes.map((node) => node.id))
+    else setToast(`已复制 ${copied.nodes.length} 个节点`)
+  }, [expandGroupNodeIds, mode, removeNodes])
 
   const refreshClipboardAvailability = useCallback(async () => {
     const text = await navigator.clipboard?.readText().catch(() => '') || ''
@@ -1504,22 +1550,26 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       return
     }
     if (!payload?.nodes.length) return
-    if (!ensureNodeCapacity(payload.nodes.length)) return
-    const idMap = new Map(payload.nodes.map((node) => [node.id, crypto.randomUUID()]))
-    const pastedEdges = resolvePastedWires(payload.edges, idMap, new Set(nodesRef.current.map((node) => node.id)))
+    // A plain canvas silently drops story nodes (and their wires) pasted from a story chapter.
+    const prepared = filterStoryClipboardDocument(payload.nodes, payload.edges, mode === 'story')
+    if (prepared.filtered) setToast('剧情节点只能用在影游画布')
+    if (!prepared.nodes.length) return
+    if (!ensureNodeCapacity(prepared.nodes.length)) return
+    const idMap = new Map(prepared.nodes.map((node) => [node.id, crypto.randomUUID()]))
+    const pastedEdges = resolvePastedWires(prepared.edges, idMap, new Set(nodesRef.current.map((node) => node.id)))
       .map((edge) => ({ ...structuredClone(edge), id: crypto.randomUUID(), selected: false }))
     if (edgesRef.current.length + pastedEdges.length > CANVAS_EDGE_HARD_LIMIT) { setToast('粘贴后的连线数量将超过 4000 条上限'); return }
     record('粘贴节点')
-    const minX = Math.min(...payload.nodes.map((node) => node.position.x))
-    const minY = Math.min(...payload.nodes.map((node) => node.position.y))
+    const minX = Math.min(...prepared.nodes.map((node) => node.position.x))
+    const minY = Math.min(...prepared.nodes.map((node) => node.position.y))
     const anchor = position || { x: minX + 48, y: minY + 48 }
-    const placed = payload.nodes.map((node) => ({ ...node, position: { x: anchor.x + node.position.x - minX, y: anchor.y + node.position.y - minY } }))
+    const placed = prepared.nodes.map((node) => ({ ...node, position: { x: anchor.x + node.position.x - minX, y: anchor.y + node.position.y - minY } }))
     const shift = storyCanvas ? storyActions.pasteOffset(placed) : { x: 0, y: 0 }
     const pasted = placed.map((node) => ({ ...structuredClone(node), id: idMap.get(node.id)!, position: { x: node.position.x + shift.x, y: node.position.y + shift.y }, selected: true, data: cloneCanvasNodeDataForNewNode(node.data, (id) => idMap.get(id)) }))
     setNodes((current) => [...current.map((node) => ({ ...node, selected: false })), ...pasted])
     setEdges((current) => [...current, ...pastedEdges])
     markChanged('粘贴节点')
-  }, [addNode, centerPosition, ensureNodeCapacity, markChanged, readOnly, record, storyActions, storyCanvas, updateNodeData])
+  }, [addNode, centerPosition, ensureNodeCapacity, markChanged, mode, readOnly, record, storyActions, storyCanvas, updateNodeData])
 
   const ensureReferenceMaterialIds = useCallback(async (referenceNodeIds: string[]) => {
     const orderedNodeIds = requireExistingReferenceNodeIds(referenceNodeIds, nodesRef.current)
@@ -3983,14 +4033,14 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       if (action === 'add-node') { pendingInsertPositionRef.current = menu.flowPosition || null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen(true); return }
       if (action === 'upload') { openUploadPicker(menu.flowPosition); return }
       if (action === 'paste') { void pasteFromSystem(menu.flowPosition).catch((error: unknown) => setToast(error instanceof Error ? error.message : '粘贴失败')); return }
-      if (action === 'organize') { if (storyCanvas) storyActions.organize(); else organize('horizontal'); return }
+      if (action === 'organize') { if (mode === 'story' && storyCanvas) storyActions.organize(); else organize('horizontal'); return }
       if (action === 'reset-viewport') void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })
     }
   }
 
   const handleWirePick = (type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => {
     if (!wireMenu) return
-    if (storyActions.pickWireNode(wireMenu, type, interaction)) return
+    if (mode === 'story' && storyActions.pickWireNode(wireMenu, type, interaction)) return
     const created = addNode(type, wireMenu.flowPosition || centerPosition(), interaction)
     if (!created) return
     if (wireMenu.sourceHandle === 'input' || wireMenu.sourceHandle === 'left') {
@@ -4080,7 +4130,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     if (writeLocked || state.isValid || !state.fromNode) return
     const point = 'clientX' in event ? { x: event.clientX, y: event.clientY } : { x: event.changedTouches[0]?.clientX || 0, y: event.changedTouches[0]?.clientY || 0 }
-    if (storyActions.finishWire(state.fromNode.id, state.fromHandle?.id, point)) return
+    if (mode === 'story' && storyActions.finishWire(state.fromNode.id, state.fromHandle?.id, point)) return
     if (state.toHandle) return
     if (state.toNode) {
       const sourceHandle = state.fromHandle?.id || 'output'
@@ -4145,6 +4195,16 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const handlePaneContextMenu = useStableCallback((event: React.MouseEvent | MouseEvent) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setClipboardCanPaste(Boolean(clipboardRef.current?.nodes.length)); void refreshClipboardAvailability(); setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: screenToCanvasPosition({ x: event.clientX, y: event.clientY }) }) })
   const handleNodeContextMenu = useStableCallback<NodeMouseHandler<CanvasFlowNode>>((event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; const nodeMenuHeight = 230 + (getMediaType(node) === 'image' ? 118 : getMediaType(node) === 'text' ? 46 : 0); setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : nodeMenuHeight) }) })
   const handleEdgeContextMenu = useStableCallback<EdgeMouseHandler<CanvasFlowEdge>>((event, edge) => { event.preventDefault(); if (!writeLocked) setContextMenu({ scope: 'edge', edgeId: edge.id, ...visibleMenuPoint(event.clientX, event.clientY, 50) }) })
+
+  // Story mode only reaches here through the chapter route; a missing story means broken data.
+  if (mode === 'story' && storyLoad.status === 'missing') {
+    return (
+      <div className="nori-canvas-loading is-error">
+        <span>这个章节不属于任何影游</span>
+        <Link href={{ pathname: '/interactive' }}>返回影游画布</Link>
+      </div>
+    )
+  }
 
   return (
     <CanvasEditorProvider value={editorContext}>
@@ -4420,12 +4480,12 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {productionSyncing ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在同步项目内容，请稍候…</span></div> : null}
         {autosave.offlineRecoveryState === 'loading' ? <div className="nori-canvas-sync-lock" role="status" aria-live="polite"><span><i />正在检查本地未同步版本…</span></div> : null}
 
-        <CanvasChrome projectId={projectId} projectName={projectName} canvases={canvases} activeCanvas={{ ...(canvases.find((canvas) => canvas.id === canvasRef.current.id) || canvasRef.current), nodeCount: nodes.length }} saveState={autosave.saveState} canUndo={canUndo} canRedo={canRedo} onSelectCanvas={onSelectCanvas} onCreateCanvas={onCreateCanvas} onRenameCanvas={onRenameCanvas} onDeleteCanvas={onDeleteCanvas} projectOptions={projectOptions} parentProjectId={parentProjectId} parentProjectName={parentProjectName} onSelectProject={onSelectProject} canvasHomeHref={canvasHomeHref} createProjectHref={createProjectHref} onUndo={undo} onRedo={redo} onRetrySave={autosave.retry} onOpenRevisions={openRevisions} syncingProduction={productionSyncing} canSyncProduction={!readOnly} readOnly={readOnly} onOpenProjectAssets={() => { setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen(true) }} onSyncProduction={() => void syncProduction()} />
+        <CanvasChrome projectId={projectId} projectName={projectName} canvases={canvases} activeCanvas={{ ...(canvases.find((canvas) => canvas.id === canvasRef.current.id) || canvasRef.current), nodeCount: nodes.length }} saveState={autosave.saveState} canUndo={canUndo} canRedo={canRedo} onSelectCanvas={onSelectCanvas} onCreateCanvas={onCreateCanvas} onRenameCanvas={onRenameCanvas} onDeleteCanvas={onDeleteCanvas} projectOptions={projectOptions} storyNavigation={storyNavigation} parentProjectId={parentProjectId} parentProjectName={parentProjectName} onSelectProject={onSelectProject} canvasHomeHref={canvasHomeHref} createProjectHref={createProjectHref} onUndo={undo} onRedo={redo} onRetrySave={autosave.retry} onOpenRevisions={openRevisions} syncingProduction={productionSyncing} canSyncProduction={!readOnly} readOnly={readOnly} onOpenProjectAssets={() => { setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen(true) }} onSyncProduction={() => void syncProduction()} />
 
         <CanvasToolRail editable={!readOnly} addOpen={addOpen} assetsOpen={assetsOpen} onToggleAdd={() => { pendingInsertPositionRef.current = null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen((value) => !value) }} onToggleAssets={() => { pendingInsertPositionRef.current = null; setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen((value) => !value) }} onOpenLibrary={() => setPickerOpen(true)} onUpload={() => openUploadPicker()} onHelp={() => { setAddOpen(false); setAssetsOpen(false); setOrganizeOpen(false); setHelpOpen((value) => !value) }} />
-        {!readOnly && addOpen ? <CanvasAddPanel storyItems={storyCanvas ? STORY_ADD_NODE_ITEMS : undefined} interactionItems={storyCanvas ? STORY_INTERACTION_ADD_ITEMS : undefined} onAddNode={(type, interaction) => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; addNode(type, position, interaction) }} onUpload={() => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; openUploadPicker(position) }} /> : null}
+        {!readOnly && addOpen ? <CanvasAddPanel storyItems={mode === 'story' && storyCanvas ? STORY_ADD_NODE_ITEMS : undefined} interactionItems={mode === 'story' && storyCanvas ? STORY_INTERACTION_ADD_ITEMS : undefined} onAddNode={(type, interaction) => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; addNode(type, position, interaction) }} onUpload={() => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; openUploadPicker(position) }} /> : null}
         {!readOnly && assetsOpen ? <CanvasProjectAssets projectId={projectId} onInsert={insertMaterial} onInsertWorkflow={insertWorkflow} onClose={() => setAssetsOpen(false)} refreshKey={workflowRefreshKey} /> : null}
-        <CanvasViewportControls minimapVisible={minimapVisible} zoom={viewport.zoom} organizeMode={organizeMode} organizeOpen={organizeOpen} canOrganize={!readOnly && !storyCanvas} onToggleMinimap={() => setMinimapVisible((value) => !value)} onZoomIn={() => void flow?.zoomIn({ duration: 120 })} onZoomOut={() => void flow?.zoomOut({ duration: 120 })} onFitView={() => void flow?.fitView({ padding: 0.18, duration: 250 })} onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })} onToggleOrganize={() => { setAddOpen(false); setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen((value) => !value) }} onOrganize={organize} />
+        <CanvasViewportControls minimapVisible={minimapVisible} zoom={viewport.zoom} organizeMode={organizeMode} organizeOpen={organizeOpen} canOrganize={!readOnly} storyOrganize={mode === 'story' && storyCanvas ? storyActions.organize : undefined} onToggleMinimap={() => setMinimapVisible((value) => !value)} onZoomIn={() => void flow?.zoomIn({ duration: 120 })} onZoomOut={() => void flow?.zoomOut({ duration: 120 })} onFitView={() => void flow?.fitView({ padding: 0.18, duration: 250 })} onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })} onToggleOrganize={() => { setAddOpen(false); setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen((value) => !value) }} onOrganize={organize} />
         {nodes.length === 0 ? <CanvasEmptyState readOnly={readOnly} onAdd={(type) => addNode(type)} onUpload={() => openUploadPicker()} /> : null}
         {helpOpen ? <CanvasHelpPanel onClose={() => setHelpOpen(false)} /> : null}
         {(selectedNodes.length > 1 || selectedEdges.length > 0) && !readOnly ? <div className="nori-canvas-selection-toolbar">{selectedNodes.length > 1 ? <>
@@ -4449,7 +4509,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}
         {!readOnly && wireMenu ? (wireMenu.story && wireMenu.story !== 'media'
           ? <StoryWireMenu state={wireMenu} onPick={handleWirePick} />
-          : <CanvasWireMenu state={wireMenu} items={wireMenu.story === 'media' ? MEDIA_WIRE_MENU_ITEMS : undefined} onPick={handleWirePick} />) : null}
+          : <CanvasWireMenu state={wireMenu} items={wireMenu.story === 'media' ? (mode === 'story' ? MEDIA_WIRE_MENU_ITEMS : CANVAS_ADD_NODE_ITEMS) : undefined} onPick={handleWirePick} />) : null}
         {historyNode ? <CanvasHistoryDialog node={historyNode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => { const type = getMediaType(historyNode); updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本'); setHistoryNodeId(null) }} /> : null}
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} initialGrid={imageOperation.initialGrid} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
@@ -4519,7 +4579,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         </CanvasViewportLayer>
         {!readOnly ? <input ref={uploadRef} type="file" multiple accept="image/*,video/*,audio/*,.glb,model/gltf-binary" className="hidden" onChange={(event) => { const files = event.target.files ? Array.from(event.target.files) : []; const position = pendingUploadPositionRef.current || undefined; pendingUploadPositionRef.current = null; event.target.value = ''; if (files.length > 0) void handleUploads(files, position).catch((error: unknown) => setToast(error instanceof Error ? error.message : '上传失败')) }} /> : null}
         {!readOnly ? <input ref={replacementUploadRef} type="file" accept="image/*,video/*,audio/*,.glb,model/gltf-binary" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; const nodeId = replacementNodeIdRef.current; event.target.value = ''; replacementNodeIdRef.current = null; if (file && nodeId) void handleContentReplacement(nodeId, file).catch((error: unknown) => setToast(error instanceof Error ? error.message : '替换内容失败')) }} /> : null}
-        <StoryCanvasOverlay onFocusNode={focusStoryNode} />
+        {mode === 'story' ? <StoryCanvasOverlay onFocusNode={focusStoryNode} /> : null}
         {toast ? <div className="nori-canvas-toast">{toast}</div> : null}
       </div>
       </StoryCanvasProvider>

@@ -193,6 +193,9 @@ function ProjectCard({
   const running = generationRunning(project)
   const coverImageUrl = project.coverImageUrl?.trim() || null
   const workbenchHref = `/workflow/${project.id}/workbench-premium2`
+  const canvasHref = `${workbenchHref}/canvas`
+  // F: cover clicks follow how the 作品 was created; the quick entry links to the other place.
+  const entryHref = project.creationMode === 'canvas' ? canvasHref : workbenchHref
   const menuId = `project-actions-${project.id}`
   return (
     <article
@@ -216,11 +219,11 @@ function ProjectCard({
         <div className="works-project-running" aria-live="polite" data-testid="project-background-task-status">
           <AppIcon name="loader" className="h-6 w-6 animate-spin" />
           <p>AI 正在拆解剧集<br /><span>后台任务不影响进入作品</span></p>
-          <Link href={{ pathname: workbenchHref }} className="works-project-running-enter">进入作品</Link>
+          <Link href={{ pathname: entryHref }} className="works-project-running-enter">进入作品</Link>
         </div>
       ) : null}
       <Link
-        href={{ pathname: workbenchHref }}
+        href={{ pathname: entryHref }}
         className="works-project-main"
         tabIndex={selectable ? -1 : 0}
         onClick={(event) => { if (selectable) event.preventDefault() }}
@@ -247,12 +250,13 @@ function ProjectCard({
       </Link>
       {!selectable ? (
         <Link
-          href={{ pathname: `/workflow/${project.id}/workbench-premium2/canvas` }}
+          href={{ pathname: project.creationMode === 'canvas' ? workbenchHref : canvasHref }}
           className="works-project-canvas-entry"
-          data-testid="project-card-canvas-entry"
+          data-testid={project.creationMode === 'canvas' ? 'project-card-workbench-entry' : 'project-card-canvas-entry'}
           onClick={(event) => event.stopPropagation()}
         >
-          <AppIcon name="clapperboard" />进入画布
+          {project.creationMode === 'canvas' ? <AppIcon name="monitor" /> : <AppIcon name="clapperboard" />}
+          {project.creationMode === 'canvas' ? '工作台' : '进入画布'}
         </Link>
       ) : null}
       {!selectable ? (

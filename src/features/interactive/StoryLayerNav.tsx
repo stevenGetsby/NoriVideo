@@ -8,7 +8,7 @@ export type StoryLayer = 'story' | 'works' | 'production'
 const LAYERS: Array<{ key: StoryLayer; label: string; hint: string; icon: IconComponent; path: (workId: string) => string }> = [
   { key: 'story', label: '剧情画布', hint: '故事、条件与分支', icon: GitBranch, path: (workId) => `/interactive/${encodeURIComponent(workId)}` },
   { key: 'works', label: '作品画布', hint: '线性片段与成片预览', icon: Layers3, path: (workId) => `/interactive/${encodeURIComponent(workId)}/works` },
-  { key: 'production', label: '制作画布', hint: '下钻现有生成画布', icon: Clapperboard, path: (workId) => `/interactive/${encodeURIComponent(workId)}/production` },
+  { key: 'production', label: '章节画布', hint: '下钻现有生成画布', icon: Clapperboard, path: (workId) => `/interactive/${encodeURIComponent(workId)}/production` },
 ]
 
 /** The three layers share one strip so switching never hides which layer is active. */

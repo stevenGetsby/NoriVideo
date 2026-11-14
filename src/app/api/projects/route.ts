@@ -664,7 +664,10 @@ export const POST = apiHandler(async (request: NextRequest) => {
     })
   }
   const workId = requestedWorkId
-  await requireWorkProjectCreator(session, workId)
+  const workAccess = await requireWorkProjectCreator(session, workId)
+  if (workAccess.work.productLine === 'story') {
+    throw new ApiError('CONFLICT', { message: '影游章节请在影游画布里新建' })
+  }
 
   const projectAssignees = await validateProjectRoleAssignees(
     actor.workspaceOwnerId,
@@ -693,6 +696,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           workId,
           createdById: actor.actorId,
           collaborationMode,
+          creationMode,
         },
       })
 

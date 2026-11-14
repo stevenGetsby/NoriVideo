@@ -160,7 +160,7 @@ function OverlayApp() {
       resolution: '720p',
       canManage: true,
       config,
-      chapters: [{ projectId: 'p1', name: '第一章' }],
+      chapters: [{ projectId: 'p1', name: '第一章', order: 0 }],
     },
     variables: config.variables,
     saveConfig,

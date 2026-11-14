@@ -279,6 +279,19 @@ function mapIssues(program: StoryProgram): StoryIssue[] {
   return []
 }
 
+/**
+ * D5: a chapter that only holds its entry node and has no flows is still at
+ * step one. Its missing exit/ending reports are guidance for what to build
+ * next, not defects, so callers render them as a neutral checklist.
+ */
+export function isFreshStoryChapter(chapter: Pick<StoryChapterGraph, 'nodes' | 'flows'>): boolean {
+  return chapter.flows.length === 0 && chapter.nodes.every((node) => node.kind === 'entry')
+}
+
+export function isFreshStory(chapters: ReadonlyArray<Pick<StoryChapterGraph, 'nodes' | 'flows'>>): boolean {
+  return chapters.length > 0 && chapters.every(isFreshStoryChapter)
+}
+
 export function validateChapter(chapter: StoryChapterGraph, variables: StoryVariable[], shop?: StoryShop): StoryIssue[] {
   const { projectId, nodes, flows } = chapter
   const issues: StoryIssue[] = []

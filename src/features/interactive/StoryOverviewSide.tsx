@@ -1,8 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { AlertTriangle, CheckCircle2 } from '@/components/ui/icons'
-import { countIssues } from '@/lib/interactive/validate'
+import { AlertTriangle, CheckCircle2, Sparkles } from '@/components/ui/icons'
+import { countIssues, isFreshStory } from '@/lib/interactive/validate'
 import type { StoryAspectRatio, StoryIssue, StoryResolution } from '@/lib/interactive/types'
 import { StoryFormatPicker } from './CreateStoryDialog'
 import { StoryGameplaySettings } from './StoryGameplaySettings'
@@ -72,13 +72,15 @@ export function StoryOverviewSide({ story, chapters, issues, readOnly, onFocusIs
 }) {
   const [tab, setTab] = useState<Tab>('checks')
   const { errors, warnings } = countIssues(issues)
+  const chapterGraphs = chapters.map((chapter) => chapter.graph)
+  // D5: a new/empty 影游 shows the first steps instead of a red error count.
+  const nextSteps = isFreshStory(chapterGraphs)
   const gameplayCount = story.config.variables.length + (story.config.achievements?.length ?? 0) + (story.config.shop?.items.length ?? 0)
   const tabs: Array<{ key: Tab; label: string; badge?: number; tone?: string }> = [
-    { key: 'checks', label: '检查', badge: errors || warnings || undefined, tone: errors ? 'is-error' : 'is-warning' },
+    { key: 'checks', label: '检查', badge: nextSteps ? undefined : errors || warnings || undefined, tone: errors ? 'is-error' : 'is-warning' },
     { key: 'gameplay', label: '玩法设置', badge: gameplayCount || undefined },
     { key: 'settings', label: '设置' },
   ]
-  const chapterGraphs = chapters.map((chapter) => chapter.graph)
 
   return (
     <aside className="nori-ix-side" aria-label="故事面板">
@@ -92,14 +94,20 @@ export function StoryOverviewSide({ story, chapters, issues, readOnly, onFocusIs
 
       {tab === 'checks' ? (
         <div className="nori-ix-checks">
-          <div className={`nori-ix-checks-summary ${errors ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`}>
-            {errors || warnings ? <AlertTriangle /> : <CheckCircle2 />}
+          <div className={`nori-ix-checks-summary ${nextSteps ? 'is-next' : errors ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`}>
+            {nextSteps ? <Sparkles /> : errors || warnings ? <AlertTriangle /> : <CheckCircle2 />}
             <div>
-              <strong>{errors ? `${errors} 个问题需要处理` : warnings ? `${warnings} 个提醒` : '整部影游可以完整走通'}</strong>
-              <span>{errors ? '问题会让观众卡住或走不到结局。' : '检查覆盖起点、章节连线、条件与变量。'}</span>
+              <strong>{nextSteps ? '下一步：搭起第一段剧情' : errors ? `${errors} 个问题需要处理` : warnings ? `${warnings} 个提醒` : '整部影游可以完整走通'}</strong>
+              <span>{nextSteps ? '写一段剧情并连到下一步，有了内容后这里会开始检查。' : errors ? '问题会让观众卡住或走不到结局。' : '检查覆盖起点、章节连线、条件与变量。'}</span>
             </div>
           </div>
-          {issues.length ? (
+          {nextSteps ? (
+            <ul className="nori-ix-next">
+              <li><b>1</b><span><strong>写第一段剧情</strong>在章节画布的片段卡片里写动作、台词和旁白。</span></li>
+              <li><b>2</b><span><strong>连到下一步</strong>从卡片右侧圆点拖出连线，选择下一段剧情。</span></li>
+              <li><b>3</b><span><strong>用出口或结局收尾</strong>一章写完后加出口，整部影游至少要有一个结局。</span></li>
+            </ul>
+          ) : issues.length ? (
             <ul>
               {issues.map((issue, index) => (
                 <li key={`${issue.code}:${issue.projectId}:${issue.nodeId}:${index}`} className={`is-${issue.level}`}>

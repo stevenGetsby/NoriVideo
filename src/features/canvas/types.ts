@@ -20,6 +20,14 @@ export type CanvasWorkOption = {
   canCreateProjects?: boolean
 }
 
+/** Story-mode breadcrumb data: the parent 影游 and its chapters in config order. */
+export type CanvasStoryNavigation = {
+  workId: string
+  workName: string
+  chapters: Array<{ projectId: string; name: string; order: number }>
+  currentProjectId: string
+}
+
 export type Canvas = {
   id: string
   projectId: string

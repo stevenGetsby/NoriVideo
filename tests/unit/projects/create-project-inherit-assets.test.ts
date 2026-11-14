@@ -128,7 +128,7 @@ describe('POST /api/projects inherits assets into the new canvas 作品', () => 
     authMock.requireUserAuth.mockResolvedValue({ session })
     accessMock.getWorkspaceActor.mockReturnValue({ actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'member', isManagement: false })
     accessMock.projectReadWhere.mockImplementation((_session: unknown, id: string) => ({ id, readable: true }))
-    accessMock.requireWorkProjectCreator.mockResolvedValue(undefined)
+    accessMock.requireWorkProjectCreator.mockResolvedValue({ work: { id: 'work-1', productLine: 'canvas' } })
     accessMock.workspaceUserWhere.mockImplementation((ownerId: string) => ({ OR: [{ id: ownerId }, { workspaceOwnerId: ownerId }] }))
     styleMock.cleanupUploadedProjectStyleReferences.mockResolvedValue(undefined)
     styleMock.persistProjectStyleReferenceMedia.mockResolvedValue([])

@@ -4,12 +4,14 @@ import { createContext, useContext, type CSSProperties } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
 import { AlertTriangle, ArrowUpRight, Play, Star } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
+import { chapterHref } from '@/lib/interactive/routes'
 import { STORY_CHAPTER_STATUSES, type StoryChapterMeta, type StoryChapterStatus, type StoryStart } from '@/lib/interactive/types'
 import { generativeCoverStyle } from '@/lib/ui/generative-cover'
 import { CHAPTER_STATUS_LABEL, chapterMonogram, ENTRY_HANDLE_PREFIX, EXIT_HANDLE_PREFIX, type OverviewChapter } from './story-overview-model'
 
 export type ChapterMapActions = {
   readOnly: boolean
+  workId: string
   start: StoryStart | null
   onStatus: (projectId: string, status: StoryChapterStatus) => void
   onSetStart: (projectId: string, entryNodeId: string) => void
@@ -117,9 +119,9 @@ export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>)
       </div>
       <footer className="nori-ix-chapter-foot">
         <span>{chapter.nodeCount} 个节点{chapter.runningCount ? ` · ${chapter.runningCount} 个生成中` : ''}</span>
-        {chapter.canvasId ? (
-          <Link className="nodrag" href={`/canvas/${encodeURIComponent(chapter.projectId)}/${encodeURIComponent(chapter.canvasId)}`}>
-            打开画布<ArrowUpRight />
+        {chapter.canvasId && actions ? (
+          <Link className="nodrag" href={chapterHref(actions.workId, chapter.projectId, chapter.canvasId)}>
+            打开章节画布<ArrowUpRight />
           </Link>
         ) : null}
       </footer>

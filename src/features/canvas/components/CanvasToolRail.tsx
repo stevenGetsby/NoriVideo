@@ -95,6 +95,7 @@ export function CanvasViewportControls({
   organizeMode,
   organizeOpen,
   canOrganize,
+  storyOrganize,
   disabled = false,
   onToggleMinimap,
   onZoomIn,
@@ -109,6 +110,7 @@ export function CanvasViewportControls({
   organizeMode: CanvasOrganizeMode
   organizeOpen: boolean
   canOrganize: boolean
+  storyOrganize?: () => void
   disabled?: boolean
   onToggleMinimap: () => void
   onZoomIn: () => void
@@ -134,7 +136,7 @@ export function CanvasViewportControls({
           <button type="button" className={organizeOpen ? 'is-active' : ''} title={canvasControlTitle('选择整理方式', disabled)} aria-haspopup="menu" aria-expanded={organizeOpen} disabled={disabled} onClick={onToggleOrganize}><ChevronDown /></button>
         </div>
       </> : null}
-      {canOrganize && organizeOpen && !disabled ? <CanvasOrganizeMenu mode={organizeMode} onOrganize={onOrganize} onResetViewport={onResetViewport} /> : null}
+      {canOrganize && organizeOpen && !disabled ? <CanvasOrganizeMenu mode={organizeMode} storyOrganize={storyOrganize} onOrganize={onOrganize} onResetViewport={onResetViewport} /> : null}
     </div>
   )
 }

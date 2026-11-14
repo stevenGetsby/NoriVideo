@@ -1,5 +1,6 @@
 import type { AccountPermission } from '@/lib/account/permissions'
 import type { ScopePermission } from '@/lib/permissions/catalog'
+import type { ProjectCreationMode, WorkProductLine } from '@/lib/works/product-line'
 
 export type CollaborationMode = 'solo' | 'team'
 
@@ -44,6 +45,8 @@ export interface WorkProject {
   artStyle?: string | null
   /** Signed URL of a user-provided cover image; null keeps the generative cover. */
   coverImageUrl?: string | null
+  /** Which editor created the 作品; absent on legacy DTOs means workflow. */
+  creationMode?: ProjectCreationMode
   novelPromotionData?: WorkProjectConfig | null
 }
 
@@ -53,7 +56,7 @@ export type ProductionWorkSummary = Omit<WorkProject, 'workId'> & {
   projectId: string | null
 }
 
-export type RecycleBinWork = Pick<RecycleBinProject, 'id' | 'name' | 'deletedAt' | 'restoreDeadline' | 'remainingDays' | 'expired'>
+export type RecycleBinWork = Pick<RecycleBinProject, 'id' | 'name' | 'productLine' | 'deletedAt' | 'restoreDeadline' | 'remainingDays' | 'expired'>
 
 export interface RecycleBinProject {
   id: string
@@ -67,6 +70,7 @@ export interface RecycleBinProject {
   restoreDeadline?: string | null
   remainingDays?: number
   expired?: boolean | null
+  productLine?: WorkProductLine
 }
 
 export interface WorkMember {
@@ -95,6 +99,7 @@ export interface WorkSummary {
   canDelete?: boolean
   canMoveProjects?: boolean
   projectCount: number
+  productLine?: WorkProductLine
   memberCount?: number
   members?: WorkMember[]
   projects: WorkProject[]
@@ -200,6 +205,7 @@ export function normalizeWorkProject(value: unknown): WorkProject | null {
     aspectRatio: optionalText(source.aspectRatio || source.aspect_ratio || config.videoRatio || config.video_ratio),
     artStyle: optionalText(source.artStyle || source.art_style || config.projectStyle || config.project_style || config.artStyle || config.art_style),
     coverImageUrl: optionalText(source.coverImageUrl || source.cover_image_url),
+    creationMode: (source.creationMode ?? source.creation_mode) === 'canvas' ? 'canvas' : 'workflow',
     novelPromotionData: Object.keys(config).length ? {
       projectLevel: optionalText(config.projectLevel || config.project_level),
       projectLevelName: optionalText(config.projectLevelName || config.project_level_name),
@@ -273,6 +279,7 @@ export function normalizeWork(value: unknown): WorkSummary | null {
     canCreateProjects: bool(source.canCreateWorks ?? source.canCreateProjects ?? source.can_create_projects),
     canDelete: bool(source.canDelete ?? source.can_delete, projects.length === 0),
     canMoveProjects: bool(source.canMoveWorks ?? source.canMoveProjects ?? source.can_move_projects),
+    productLine: (source.productLine ?? source.product_line) === 'story' ? 'story' : 'canvas',
     projectCount: integer(source.workCount ?? source.projectCount ?? source.project_count, projects.length),
     memberCount: integer(source.memberCount ?? source.member_count, members.length),
     members,

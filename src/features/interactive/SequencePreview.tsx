@@ -93,7 +93,7 @@ export function SequencePreview({ items, title, aspectRatio, onClose }: {
             ) : (
               <div className="nori-player-placeholder">
                 <strong>{current?.segment.title || '未命名作品片段'}</strong>
-                <span>这一段还没有生成视频或图片素材，可在制作画布中补充。</span>
+                <span>这一段还没有生成视频或图片素材，可在章节画布中补充。</span>
               </div>
             )}
             {!finished && current ? (

@@ -53,6 +53,48 @@ describe('global infinite canvas hierarchy', () => {
     expect(fetchAllWorks).toContain('pagination.totalPages')
     expect(fetchAllWorks).toMatch(/(?:page|nextPage)\s*<=\s*[^\n]*totalPages/)
     expect(fetchAllWorks).toMatch(/pageSize/)
+    expect(fetchAllWorks).toContain("params.set('productLine', productLine)")
+  })
+})
+
+describe('product-line separation and story chapter routes', () => {
+  it('gives story chapters their own route and requires an explicit editor mode', () => {
+    const workspace = readSource('src/features/canvas/CanvasWorkspace.tsx')
+    const client = readSource('src/components/frameos/StoryChapterCanvasClient.tsx')
+    const page = readSource('src/app/[locale]/interactive/[workId]/chapters/[projectId]/[[...canvas]]/page.tsx')
+    const legacyCanvas = readSource('src/app/[locale]/canvas/[[...segments]]/page.tsx')
+    const legacyWorkflow = readSource('src/app/[locale]/workflow/[projectId]/workbench-premium2/[[...segments]]/page.tsx')
+    const routes = readSource('src/lib/interactive/routes.ts')
+
+    expect(routes).toContain('export function chapterHref(workId: string, projectId: string, canvasId?: string | null)')
+    expect(workspace).toContain("mode: 'canvas' | 'story'")
+    expect(workspace).toContain('mode={mode}')
+    expect(client).toContain('mode="story"')
+    expect(client).toContain('routeBase={`/interactive/${encodeURIComponent(workId)}/chapters/${encodeURIComponent(projectId)}`}')
+    expect(page).toContain('findInteractiveStoryByProject')
+    expect(page).toContain("project.work.productLine !== 'story'")
+    expect(legacyCanvas).toContain('findStoryChapterRoute')
+    expect(legacyCanvas).toContain('chapterHref')
+    expect(legacyWorkflow).toContain('findStoryChapterRoute')
+    expect(legacyWorkflow).toContain('chapterHref')
+  })
+
+  it('keeps story breadcrumbs and story-only canvas affordances', () => {
+    const chrome = readSource('src/features/canvas/components/CanvasChrome.tsx')
+    const emptyChrome = readSource('src/features/canvas/components/EmptyCanvasChrome.tsx')
+    const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    const context = readSource('src/features/canvas/story/StoryCanvasContext.tsx')
+
+    expect(chrome).toContain('storyNavigation?: CanvasStoryNavigation')
+    expect(chrome).toContain('chapterHref(story.workId, chapter.projectId)')
+    expect(chrome).toContain('返回影游总览')
+    expect(emptyChrome).toContain('storyNavigation?: CanvasStoryNavigation')
+    expect(emptyChrome).toContain('empty-canvas-chapter-picker')
+    expect(graph).toContain("useStoryCanvas(projectId, readOnly, mode === 'story')")
+    expect(graph).toContain("mode === 'story' && storyLoad.status === 'missing'")
+    expect(graph).toContain("mode === 'story' ? <StoryCanvasOverlay onFocusNode={focusStoryNode}")
+    expect(context).toContain("enabled = true")
+    expect(context).toContain("status: StoryCanvasLoadStatus")
   })
 })
 

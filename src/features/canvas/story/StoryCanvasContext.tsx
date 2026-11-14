@@ -33,7 +33,7 @@ export type StoryCanvasInfo = {
   resolution: string
   canManage: boolean
   config: InteractiveStoryConfig
-  chapters: Array<{ projectId: string; name: string }>
+  chapters: Array<{ projectId: string; name: string; order: number }>
 }
 
 export type StoryCanvasPanel = 'gameplay' | 'checks' | null
@@ -65,21 +65,39 @@ export type StoryCanvasState = {
 
 export type StoryCanvasContextValue = StoryCanvasState & { actions: StoryCanvasActions }
 
-/** Loads the 影游 a chapter canvas belongs to; null for ordinary 作品. */
-export function useStoryCanvas(projectId: string, readOnly: boolean): StoryCanvasState | null {
+export type StoryCanvasLoadStatus = 'disabled' | 'loading' | 'ready' | 'missing'
+
+export type StoryCanvasLoad = {
+  story: StoryCanvasState | null
+  status: StoryCanvasLoadStatus
+}
+
+/** Loads the 影游 a chapter canvas belongs to; null for ordinary 作品, or when story mode is off. */
+export function useStoryCanvas(projectId: string, readOnly: boolean, enabled = true): StoryCanvasLoad {
   const [story, setStory] = useState<StoryCanvasInfo | null>(null)
+  const [status, setStatus] = useState<StoryCanvasLoadStatus>(enabled ? 'loading' : 'disabled')
   const [trialEntryId, setTrialEntryId] = useState<string | null | undefined>(undefined)
   const [panel, setPanel] = useState<StoryCanvasPanel>(null)
 
   useEffect(() => {
     let cancelled = false
     setStory(null)
+    // Canvas works must not hit the story API at all, so plain canvases stay plain.
+    if (!enabled) {
+      setStatus('disabled')
+      return () => { cancelled = true }
+    }
+    setStatus('loading')
     void apiFetch(`/api/interactive?projectId=${encodeURIComponent(projectId)}`, { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : null))
-      .then((payload: { story?: StoryCanvasInfo | null } | null) => { if (!cancelled) setStory(payload?.story ?? null) })
-      .catch(() => undefined)
+      .then((payload: { story?: StoryCanvasInfo | null } | null) => {
+        if (cancelled) return
+        setStory(payload?.story ?? null)
+        setStatus(payload?.story ? 'ready' : 'missing')
+      })
+      .catch(() => { if (!cancelled) setStatus('missing') })
     return () => { cancelled = true }
-  }, [projectId])
+  }, [enabled, projectId])
 
   const saveConfig = useCallback(async (patch: Partial<InteractiveStoryConfig>) => {
     if (!story) return
@@ -96,7 +114,7 @@ export function useStoryCanvas(projectId: string, readOnly: boolean): StoryCanva
   const openTrial = useCallback((entryNodeId?: string | null) => setTrialEntryId(entryNodeId ?? null), [])
   const closeTrial = useCallback(() => setTrialEntryId(undefined), [])
 
-  return useMemo(() => (story ? {
+  const state = useMemo(() => (story ? {
     projectId,
     readOnly,
     story,
@@ -108,6 +126,7 @@ export function useStoryCanvas(projectId: string, readOnly: boolean): StoryCanva
     panel,
     setPanel,
   } : null), [closeTrial, openTrial, panel, projectId, readOnly, saveConfig, story, trialEntryId])
+  return { story: state, status }
 }
 
 const StoryCanvasContext = createContext<StoryCanvasContextValue | null>(null)

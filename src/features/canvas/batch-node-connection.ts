@@ -1,3 +1,4 @@
+import { isStoryNodeType } from '@/lib/interactive/compile'
 import { normalizeCanvasConnection, type CanvasConnectionInput, type CanvasFlowEdge, type CanvasFlowNode } from './editor-types'
 import { appendCanvasVideoSourceToPlaylist, isCanvasVideoSource } from './playlist-node-drop'
 import { resolveMaterialReferenceSchema } from './material-reference-drop'
@@ -26,15 +27,24 @@ function createsCycle(edges: readonly CanvasFlowEdge[], source: string, target: 
   return false
 }
 
+/** True when either end of a wire is a story node. */
+function touchesStoryNode(input: CanvasConnectionInput, nodes: readonly CanvasFlowNode[]) {
+  const ids = new Set([input.source, input.target].filter((id): id is string => Boolean(id)))
+  return nodes.some((node) => ids.has(node.id) && isStoryNodeType(node.type))
+}
+
 /** Single wires and batch drops share direction, duplicate and type rules. */
 export function isCanvasConnectionAllowed(
   input: CanvasConnectionInput,
   nodes: readonly CanvasFlowNode[],
   edges: readonly CanvasFlowEdge[],
   maxEdges = 4000,
+  allowStory = true,
 ) {
   if (edges.length >= maxEdges) return false
-  const story = resolveStoryConnection(input, nodes)
+  // Plain canvases have no story layer: story nodes never connect, even to media.
+  if (!allowStory && touchesStoryNode(input, nodes)) return false
+  const story = allowStory ? resolveStoryConnection(input, nodes) : { kind: 'not_story' as const }
   if (story.kind !== 'not_story') return story.kind !== 'invalid'
   const connection = normalizeCanvasConnection(input)
   if (!connection || connection.source === connection.target || edges.length >= maxEdges) return false
@@ -65,6 +75,7 @@ export function planCanvasBatchConnections(input: {
   targetNodeId: string
   maxEdges?: number
   createId?: () => string
+  allowStory?: boolean
 }) {
   let nodes = [...input.nodes]
   const edges = [...input.edges]
@@ -96,11 +107,11 @@ export function planCanvasBatchConnections(input: {
     const source = nodes.find((node) => node.id === id)
     const currentTarget = nodes.find((node) => node.id === input.targetNodeId)
     const connection = { source: id, target: input.targetNodeId, sourceHandle: 'output', targetHandle: 'input' }
-    if (!source || !currentTarget || !isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges)) {
+    if (!source || !currentTarget || !isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges, input.allowStory !== false)) {
       skipped++
       continue
     }
-    const story = resolveStoryConnection(connection, nodes)
+    const story = input.allowStory === false ? { kind: 'not_story' as const } : resolveStoryConnection(connection, nodes)
     if (story.kind === 'flow' || story.kind === 'media') {
       const next = applyStoryConnection(edges, story, createId)
       if (!next) { skipped++; continue }

@@ -6,7 +6,7 @@ import { AlertTriangle, ArrowUpRight, CheckCircle2, LayoutGrid, Play, SlidersHor
 import { Link } from '@/i18n/navigation'
 import { compileChapter, isStoryNodeType } from '@/lib/interactive/compile'
 import type { StoryChapterGraph, StoryProgram } from '@/lib/interactive/types'
-import { countIssues, validateChapter } from '@/lib/interactive/validate'
+import { countIssues, isFreshStoryChapter, validateChapter } from '@/lib/interactive/validate'
 import { InteractivePlayer } from '@/features/interactive/InteractivePlayer'
 import { StoryGameplaySettings } from '@/features/interactive/StoryGameplaySettings'
 import { useStoryCanvasContext, type StoryCanvasContextValue } from './StoryCanvasContext'
@@ -52,6 +52,9 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
   const { shop, achievements, personality, map, playback } = story.story.config
   const issues = useMemo(() => validateChapter(chapter, story.variables, shop), [chapter, shop, story.variables])
   const { errors, warnings } = countIssues(issues)
+  // D5: remain neutral until the chapter has content or the user has tried it.
+  const [trialled, setTrialled] = useState(false)
+  const nextSteps = isFreshStoryChapter(chapter) && !trialled
   const program = useMemo<StoryProgram>(
     () => ({
       variables: story.variables,
@@ -77,11 +80,11 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
         <button type="button" className={story.panel === 'gameplay' ? 'is-open' : ''} onClick={() => togglePanel('gameplay')}>
           <SlidersHorizontal />玩法设置<b>{story.variables.length}</b>
         </button>
-        <button type="button" className={`${story.panel === 'checks' ? 'is-open ' : ''}${errors ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`} onClick={() => togglePanel('checks')}>
-          {errors || warnings ? <AlertTriangle /> : <CheckCircle2 />}
-          {errors ? `${errors} 个问题` : warnings ? `${warnings} 个提醒` : '检查通过'}
+        <button type="button" className={`${story.panel === 'checks' ? 'is-open ' : ''}${nextSteps ? 'is-next' : errors ? 'is-error' : warnings ? 'is-warning' : 'is-ok'}`} onClick={() => togglePanel('checks')}>
+          {nextSteps ? <Sparkles /> : errors || warnings ? <AlertTriangle /> : <CheckCircle2 />}
+          {nextSteps ? '下一步' : errors ? `${errors} 个问题` : warnings ? `${warnings} 个提醒` : '检查通过'}
         </button>
-        <button type="button" className="is-primary" onClick={() => story.openTrial(null)}><Play />试玩本章</button>
+        <button type="button" className="is-primary" onClick={() => { setTrialled(true); story.openTrial(null) }}><Play />试玩本章</button>
         <Link href={`/interactive/${story.story.workId}`} className="nori-story-bar-link">故事总览<ArrowUpRight /></Link>
       </div>
 
@@ -108,7 +111,13 @@ function Overlay({ story, onFocusNode }: { story: StoryCanvasContextValue; onFoc
       {story.panel === 'checks' ? (
         <section className="nori-story-panel" aria-label="本章检查">
           <header><strong>本章检查</strong><button type="button" aria-label="关闭" onClick={() => story.setPanel(null)}><X /></button></header>
-          {issues.length === 0 ? <p className="nori-story-checks-ok"><CheckCircle2 />本章没有发现问题，可以试玩。</p> : (
+          {nextSteps ? (
+            <ul className="nori-story-next">
+              <li><b>1</b><span><strong>写第一段剧情</strong>在片段卡片里写动作、台词和旁白。</span></li>
+              <li><b>2</b><span><strong>连到下一步</strong>点卡片右侧的 +，或从圆点拖出连线。</span></li>
+              <li><b>3</b><span><strong>用出口或结局收尾</strong>本章收尾后再去总览检查跨章连线。</span></li>
+            </ul>
+          ) : issues.length === 0 ? <p className="nori-story-checks-ok"><CheckCircle2 />本章没有发现问题，可以试玩。</p> : (
             <ul className="nori-story-checks">
               {issues.map((issue, index) => (
                 <li key={`${issue.code}:${issue.nodeId}:${index}`} className={`is-${issue.level}`}>

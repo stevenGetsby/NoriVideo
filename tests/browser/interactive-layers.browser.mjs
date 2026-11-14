@@ -1,4 +1,4 @@
-// Real three-layer interactive story UI (剧情画布 / 作品画布 / 制作画布) in
+// Real three-layer interactive story UI (剧情画布 / 作品画布 / 章节画布) in
 // headless Chromium. Story APIs are mocked locally: no generation, no paid
 // calls and no production data changes.
 import assert from 'node:assert/strict'
@@ -226,8 +226,8 @@ try {
   assert.equal(await page.locator('[data-testid="production-chapter"]').count(), 2)
   assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p1"] [data-testid="production-segment"]').count(), 2)
   assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p2"] [data-testid="production-segment"]').count(), 2)
-  assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p1"] a[href="/canvas/p1/c1"]').count() >= 1, true)
-  assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p2"] a[href="/canvas/p2/c2"]').count() >= 1, true)
+  assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p1"] a[href="/interactive/work-1/chapters/p1/c1"]').count() >= 1, true)
+  assert.equal(await page.locator('[data-testid="production-chapter"][data-project-id="p2"] a[href="/interactive/work-1/chapters/p2/c2"]').count() >= 1, true)
   assert.ok((await page.textContent('body')).includes('不另造生成引擎'))
   assert.equal(await page.locator('.nori-ix-prod-warning').count(), 0)
 

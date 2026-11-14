@@ -390,6 +390,8 @@ model Project {
   seedanceAssetGroupId      String?
   seedanceAssetsProjectName String?
   collaborationMode         String                 @default("solo") @db.VarChar(32)
+  // How the 作品 is edited: 'workflow' opens the workbench, 'canvas' opens the canvas editor.
+  creationMode              String                 @default("workflow") @db.VarChar(16)
   // Storage key for a user-provided cover image. Null keeps the generative cover.
   coverImageKey             String?                @db.VarChar(512)
   createdAt                 DateTime               @default(now())
@@ -421,6 +423,8 @@ model Work {
   id               String   @id @default(uuid())
   workspaceOwnerId String
   name             String
+  // Broad category of the 项目: ordinary canvas works or interactive 影游.
+  productLine      String   @default("canvas") @db.VarChar(16)
   createdById      String
   createdAt        DateTime @default(now())
   updatedAt        DateTime @default(now()) @updatedAt
@@ -434,6 +438,7 @@ model Work {
   interactiveStory InteractiveStory?
 
   @@index([workspaceOwnerId, updatedAt])
+  @@index([workspaceOwnerId, productLine])
   @@index([createdById])
   @@index([deletedAt])
   @@map("works")

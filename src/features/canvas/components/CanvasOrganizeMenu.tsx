@@ -1,6 +1,6 @@
 'use client'
 
-import { Check, OrganizeLayoutIcon, RotateCcw } from '@/components/ui/icons'
+import { Check, GitBranch, OrganizeLayoutIcon, RotateCcw } from '@/components/ui/icons'
 import type { CanvasOrganizeMode } from '../actions/layout'
 
 type OrganizeOption = { mode: CanvasOrganizeMode; label: string; hint: string; toast: string }
@@ -34,15 +34,27 @@ export function canvasOrganizeOption(mode: CanvasOrganizeMode): OrganizeOption {
 
 export function CanvasOrganizeMenu({
   mode,
+  storyOrganize,
   onOrganize,
   onResetViewport,
 }: {
   mode: CanvasOrganizeMode
+  /** Story mode leads with the story-flow arrangement; plain canvases omit it. */
+  storyOrganize?: () => void
   onOrganize: (mode: CanvasOrganizeMode) => void
   onResetViewport: () => void
 }) {
   return (
     <div className="nori-canvas-organize-menu" role="menu" aria-label="整理方式">
+      {storyOrganize ? (
+        <div role="group" aria-label="按剧情">
+          <p className="nori-canvas-organize-caption">按剧情</p>
+          <button type="button" role="menuitem" className="nori-canvas-organize-option" onClick={storyOrganize}>
+            <span className="nori-canvas-organize-glyph"><GitBranch /></span>
+            <span className="nori-canvas-organize-copy"><b>按剧情走向</b><small>入口在左，选项与条件分支自上而下</small></span>
+          </button>
+        </div>
+      ) : null}
       {CANVAS_ORGANIZE_SECTIONS.map((section) => (
         <div key={section.key} role="group" aria-label={section.label}>
           <p className="nori-canvas-organize-caption">{section.label}</p>

@@ -45,7 +45,8 @@ describe('FrameOS-compatible infinite canvas entry', () => {
     const projectPanels = readSource('src/components/frameos/works/FosWorkPanels.tsx')
 
     expect(projects).toContain("import { WorkPanel } from './works/FosWorkPanels'")
-    expect(projectPanels).toContain('data-testid="project-card-canvas-entry"')
+    expect(projectPanels).toContain('project-card-canvas-entry')
+    expect(projectPanels).toContain('project-card-workbench-entry')
     expect(projectPanels).toContain('className="works-project-canvas-entry"')
     expect(projectPanels).toContain('进入画布')
     expect(projectPanels).toContain('data-testid="project-card-canvas-menu-entry"')

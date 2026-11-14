@@ -1,15 +1,18 @@
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import type { WorkProductLine } from '@/lib/works/product-line'
 import { normalizeWorksResponse, type WorkPagination, type WorkSummary } from './types'
 
 export async function fetchAllWorks({
   pageSize = 50,
   search = '',
+  productLine,
   signal,
   fallbackErrorMessage = '加载项目失败',
 }: {
   pageSize?: number
   search?: string
+  productLine?: WorkProductLine | 'all'
   signal?: AbortSignal
   fallbackErrorMessage?: string
 } = {}): Promise<{ works: WorkSummary[]; pagination: WorkPagination }> {
@@ -22,6 +25,7 @@ export async function fetchAllWorks({
   do {
     const params = new URLSearchParams({ page: String(page), pageSize: String(normalizedPageSize) })
     if (search.trim()) params.set('search', search.trim())
+    if (productLine) params.set('productLine', productLine)
     const response = await apiFetch(`/api/works?${params}`, { signal })
     if (!response.ok) throw new Error(await readApiErrorMessage(response, fallbackErrorMessage))
 

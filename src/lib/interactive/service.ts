@@ -177,7 +177,7 @@ export async function requireInteractiveStoryAccess(session: AuthSession, workId
 
 export async function listInteractiveStories(session: AuthSession) {
   const works = await prisma.work.findMany({
-    where: { ...workReadScopeWhere(session), interactiveStory: { isNot: null } },
+    where: { ...workReadScopeWhere(session), productLine: 'story' },
     orderBy: { updatedAt: 'desc' },
     select: {
       id: true,
@@ -204,7 +204,7 @@ async function insertChapter(
 ) {
   const actor = getWorkspaceActor(session)
   const project = await tx.project.create({
-    data: { name: input.name, userId: actor.workspaceOwnerId, workId: input.workId, createdById: actor.actorId },
+    data: { name: input.name, userId: actor.workspaceOwnerId, workId: input.workId, createdById: actor.actorId, creationMode: 'canvas' },
     select: { id: true, name: true },
   })
   await tx.novelPromotionProject.create({
@@ -236,6 +236,7 @@ export async function createInteractiveStory(session: AuthSession, input: { name
         workspaceOwnerId: actor.workspaceOwnerId,
         createdById: actor.actorId,
         name,
+        productLine: 'story',
         members: { create: [{ userId: actor.actorId, role: 'member', canManage: false }] },
       },
       select: { id: true, name: true },
@@ -250,25 +251,39 @@ export async function createInteractiveStory(session: AuthSession, input: { name
   })
 }
 
+/** Where a chapter 作品 lives, or null when the 作品 is not a 影游 chapter. */
+export async function findStoryChapterRoute(session: AuthSession, projectId: string) {
+  const project = await prisma.project.findFirst({
+    where: { ...projectReadScopeWhere(session), id: projectId },
+    select: { id: true, work: { select: { id: true, productLine: true } } },
+  })
+  if (!project || project.work.productLine !== 'story') return null
+  return { workId: project.work.id, projectId: project.id }
+}
+
 /** The story a chapter 作品 belongs to, or null when the 作品 is an ordinary one. */
 export async function findInteractiveStoryByProject(session: AuthSession, projectId: string) {
-  const project = await prisma.project.findFirst({ where: { ...projectReadScopeWhere(session), id: projectId }, select: { workId: true } })
-  if (!project) return null
-  const exists = await prisma.interactiveStory.findUnique({ where: { workId: project.workId }, select: { id: true } })
-  if (!exists) return null
-  const { access, story, config } = await requireStory(session, project.workId)
+  const route = await findStoryChapterRoute(session, projectId)
+  if (!route) return null
+  const { access, story, config } = await requireStory(session, route.workId)
   const chapters = await prisma.project.findMany({
-    where: { ...projectReadScopeWhere(session), workId: project.workId },
+    where: { ...projectReadScopeWhere(session), workId: route.workId },
     select: { id: true, name: true },
   })
+  // Follow the story's own chapter order instead of the database's arbitrary row order.
+  const byId = new Map(chapters.map((chapter) => [chapter.id, chapter]))
+  const ordered = config.chapters.flatMap((chapter) => {
+    const row = byId.get(chapter.projectId)
+    return row ? [{ projectId: row.id, name: row.name, order: chapter.order }] : []
+  })
   return {
-    workId: project.workId,
+    workId: route.workId,
     name: access.work.name,
     aspectRatio: story.aspectRatio,
     resolution: story.resolution,
     canManage: access.canManage,
     config,
-    chapters: chapters.map((chapter) => ({ projectId: chapter.id, name: chapter.name })),
+    chapters: ordered,
   }
 }
 

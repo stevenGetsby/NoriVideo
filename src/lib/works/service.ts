@@ -107,6 +107,7 @@ const workProjectSelect = {
   workId: true,
   createdById: true,
   collaborationMode: true,
+  creationMode: true,
   coverImageKey: true,
   novelPromotionData: {
     select: {
@@ -134,20 +135,26 @@ export async function listWorks(session: AuthSession, input: {
   page?: unknown
   pageSize?: unknown
   search?: unknown
+  productLine?: unknown
 }) {
   const actor = getWorkspaceActor(session)
   const page = normalizePage(input.page, 1)
   const pageSize = normalizePage(input.pageSize, 20, 100)
   const search = typeof input.search === 'string' ? input.search.trim() : ''
+  // Ordinary projects and 影游 are separate product lines unless the caller asks for both.
+  const productLine = input.productLine === 'story' || input.productLine === 'all' ? input.productLine : 'canvas'
   const accessWhere = workReadScopeWhere(session)
+  const scopeWhere: Prisma.WorkWhereInput = productLine === 'all'
+    ? accessWhere
+    : { AND: [accessWhere, { productLine }] }
   const searchWhere = buildWorkSearchWhere(search)
   const where: Prisma.WorkWhereInput = searchWhere
-    ? { AND: [accessWhere, searchWhere] }
-    : accessWhere
+    ? { AND: [scopeWhere, searchWhere] }
+    : scopeWhere
 
   const [total, searchedTotal, rows] = await Promise.all([
     // FrameOS keeps the header count stable while filtering by search.
-    prisma.work.count({ where: accessWhere }),
+    prisma.work.count({ where: scopeWhere }),
     searchWhere ? prisma.work.count({ where }) : Promise.resolve<number | null>(null),
     prisma.work.findMany({
       where,
@@ -211,6 +218,7 @@ export async function listWorks(session: AuthSession, input: {
     return {
       id: work.id,
       name: work.name,
+      productLine: work.productLine,
       createdAt: work.createdAt,
       updatedAt: work.updatedAt,
       createdById: work.createdById,
@@ -352,7 +360,6 @@ export async function moveProjects(session: AuthSession, input: {
     include: {
       work: {
         include: {
-          interactiveStory: { select: { id: true } },
           members: {
             where: { userId: actor.actorId },
             select: { role: true, canManage: true, permissions: true },
@@ -376,12 +383,13 @@ export async function moveProjects(session: AuthSession, input: {
   if (unauthorized) {
     throw new ApiError('FORBIDDEN', { message: '当前账号没有移动部分作品的权限。' })
   }
-  const sourceStory = projects.some((project) => Boolean(project.work.interactiveStory))
-  const targetStory = await prisma.interactiveStory.findUnique({
-    where: { workId: targetWorkId },
-    select: { id: true },
+  const targetWork = await prisma.work.findUnique({
+    where: { id: targetWorkId },
+    select: { productLine: true },
   })
-  if (sourceStory !== Boolean(targetStory)) {
+  const sourceStory = projects.some((project) => project.work.productLine === 'story')
+  const targetStory = targetWork?.productLine === 'story'
+  if (sourceStory !== targetStory) {
     throw new ApiError('CONFLICT', { message: '普通作品与影游章节不能互相移动，以免改变项目类型或破坏剧情关联。' })
   }
 

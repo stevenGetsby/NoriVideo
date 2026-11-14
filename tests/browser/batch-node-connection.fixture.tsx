@@ -14,7 +14,7 @@ const canvas: Canvas = { id: 'canvas-1', projectId: 'project-1', title: '批量�
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
     <NextIntlClientProvider locale="zh" messages={{}} timeZone="Asia/Shanghai">
-      <main className="fos-app"><CanvasGraph projectId="project-1" projectName="批量连接验证" canvasId="canvas-1" canvases={[canvas]}
+      <main className="fos-app"><CanvasGraph mode="canvas" projectId="project-1" projectName="批量连接验证" canvasId="canvas-1" canvases={[canvas]}
         onSelectCanvas={() => {}} onCreateCanvas={() => {}} onRenameCanvas={() => {}} onDeleteCanvas={() => {}} /></main>
     </NextIntlClientProvider>
   </QueryClientProvider>,

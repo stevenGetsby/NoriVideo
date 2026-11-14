@@ -30,6 +30,7 @@ export const GET = apiHandler(async () => {
           select: {
             id: true,
             name: true,
+            productLine: true,
             createdById: true,
             deletedAt: true,
             members: { where: { userId: actor.actorId }, select: { role: true, canManage: true, permissions: true }, take: 1 },
@@ -45,6 +46,7 @@ export const GET = apiHandler(async () => {
       select: {
         id: true,
         name: true,
+        productLine: true,
         createdById: true,
         deletedAt: true,
         members: { where: { userId: actor.actorId }, select: { role: true, canManage: true, permissions: true }, take: 1 },
@@ -67,6 +69,7 @@ export const GET = apiHandler(async () => {
       return {
         id: work.id,
         name: work.name,
+        productLine: work.productLine,
         deletedAt: work.deletedAt?.toISOString() || null,
         restoreDeadline: deadline.toISOString(),
         remainingDays: Math.max(0, Math.ceil((deadline.getTime() - Date.now()) / (24 * 60 * 60 * 1000))),
@@ -80,6 +83,7 @@ export const GET = apiHandler(async () => {
         name: project.name,
         workId: project.work.id,
         workName: project.work.name,
+        productLine: project.work.productLine,
         workDeletedAt: project.work.deletedAt?.toISOString() || null,
         deletedWithWork: project.deletedWithWork,
         deletedAt: project.deletedAt?.toISOString() || null,

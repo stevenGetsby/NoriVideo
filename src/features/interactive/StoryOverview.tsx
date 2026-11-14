@@ -63,6 +63,7 @@ export function StoryOverview({ workId }: { workId: string }) {
   }
   const actions: ChapterMapActions = {
     readOnly,
+    workId: story.workId,
     start: config.start,
     onStatus: (projectId, status) => saveChapters((chapter) => (chapter.projectId === projectId ? { ...chapter, status } : chapter)),
     onSetStart: (projectId, entryNodeId) => {

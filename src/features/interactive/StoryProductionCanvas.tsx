@@ -13,6 +13,7 @@ import {
   Video,
 } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
+import { chapterHref } from '@/lib/interactive/routes'
 import type { ResolvedSequenceSegment } from '@/lib/interactive/sequence'
 import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
 import { CHAPTER_STATUS_LABEL, orderedChapters } from './story-overview-model'
@@ -21,10 +22,8 @@ import { useStoryOverview } from './useStoryOverview'
 import { workSequenceGroups } from './work-canvas-model'
 import './interactive.css'
 
-function SegmentRow({ item }: { item: ResolvedSequenceSegment }) {
-  const href = item.canvasId
-    ? `/canvas/${encodeURIComponent(item.segment.projectId)}/${encodeURIComponent(item.canvasId)}`
-    : null
+function SegmentRow({ item, workId }: { item: ResolvedSequenceSegment; workId: string }) {
+  const href = item.canvasId ? chapterHref(workId, item.segment.projectId, item.canvasId) : null
   return (
     <li className="nori-ix-prod-seg" data-testid="production-segment">
       <span className={`nori-ix-prod-dot is-${item.segment.branch ? 'branch' : item.segment.removed ? 'removed' : item.media ? 'ready' : 'empty'}`} aria-hidden="true" />
@@ -36,7 +35,7 @@ function SegmentRow({ item }: { item: ResolvedSequenceSegment }) {
           {item.media ? (item.media.kind === 'video' ? '已有视频' : '已有图片') : '素材待生成'}
         </span>
       </div>
-      {href ? <Link href={href}>打开制作画布<ArrowUpRight /></Link> : <em>本章还没有画布</em>}
+      {href ? <Link href={href}>打开章节画布<ArrowUpRight /></Link> : <em>本章还没有画布</em>}
     </li>
   )
 }
@@ -90,7 +89,7 @@ export function StoryProductionCanvas({ workId }: { workId: string }) {
             <h1>{story.name}</h1>
             <span>
               <i className={isPortrait ? 'is-portrait' : 'is-landscape'} aria-hidden="true" />
-              制作画布 · {chapters.length} 章 · {canvasCount} 张现有画布
+              章节画布 · {chapters.length} 章 · {canvasCount} 张现有画布
             </span>
           </div>
           <div className="nori-ix-ov-actions">
@@ -103,7 +102,7 @@ export function StoryProductionCanvas({ workId }: { workId: string }) {
         <main className="nori-ix-prod-body">
           <section className="nori-ix-work-intro">
             <div>
-              <span className="nori-ix-eyebrow"><Clapperboard />制作画布</span>
+              <span className="nori-ix-eyebrow"><Clapperboard />章节画布</span>
               <h2>进入现有作品画布</h2>
               <p>每个作品片段都下钻到原来的作品画布。生成、模型配置与资产归属全部复用现有画布，不另造生成引擎，也不会在这里自动生成或导出。</p>
             </div>
@@ -135,13 +134,13 @@ export function StoryProductionCanvas({ workId }: { workId: string }) {
                   </div>
                   {segments.length ? (
                     <ul className="nori-ix-prod-segs">
-                      {segments.map((item) => <SegmentRow key={item.segment.id} item={item} />)}
+                      {segments.map((item) => <SegmentRow key={item.segment.id} item={item} workId={workId} />)}
                     </ul>
                   ) : <p className="nori-ix-prod-empty">本章还没有剧情片段，先在剧情画布中连接场景。</p>}
                   <footer>
                     {chapter.canvasId ? (
-                      <Link className="fos-btn fos-btn-primary" href={`/canvas/${encodeURIComponent(chapter.projectId)}/${encodeURIComponent(chapter.canvasId)}`}>
-                        <Video />打开本章制作画布
+                      <Link className="fos-btn fos-btn-primary" href={chapterHref(workId, chapter.projectId, chapter.canvasId)}>
+                        <Video />打开本章章节画布
                       </Link>
                     ) : <span className="nori-ix-prod-nocanvas">本章还没有画布</span>}
                     <Link className="fos-btn fos-btn-ghost" href={`/interactive/${encodeURIComponent(workId)}`}><ArrowLeft />剧情画布</Link>

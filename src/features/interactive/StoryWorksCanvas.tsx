@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
 import { hasAccountPermissions } from '@/lib/account/permissions'
+import { chapterHref } from '@/lib/interactive/routes'
 import { moveSequenceSegment, type ResolvedSequenceSegment } from '@/lib/interactive/sequence'
 import type { StorySequenceSegment } from '@/lib/interactive/types'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
@@ -171,8 +172,8 @@ export function StoryWorksCanvas({ workId }: { workId: string }) {
                       <button type="button" aria-label={`下移 ${item.segment.title || '片段'}`} title="下移" disabled={readOnly || index === cut.length - 1} onClick={() => move(item, 1)}>↓</button>
                       <button type="button" className="is-quiet" disabled={readOnly} onClick={() => setRemoved(item, true)}><Trash2 />移除</button>
                       {item.canvasId ? (
-                        <Link className="nori-ix-seg-canvas" href={`/canvas/${encodeURIComponent(item.segment.projectId)}/${encodeURIComponent(item.canvasId)}`}>
-                          制作画布<ArrowUpRight />
+                        <Link className="nori-ix-seg-canvas" href={chapterHref(workId, item.segment.projectId, item.canvasId)}>
+                          章节画布<ArrowUpRight />
                         </Link>
                       ) : <span className="nori-ix-seg-canvas is-disabled">无画布</span>}
                     </div>
@@ -250,18 +251,18 @@ export function StoryWorksCanvas({ workId }: { workId: string }) {
               <ol>
                 <li><b>剧情画布</b><span>用入口、场景、条件、选项和分支把故事连起来，每个场景就是一个作品级片段。</span></li>
                 <li><b>作品画布</b><span>在这里排序线性片段并预览成片；分支片段不会混入。</span></li>
-                <li><b>制作画布</b><span>下钻到现有作品画布生成与替换素材，资产归属不变。</span></li>
+                <li><b>章节画布</b><span>下钻到现有作品画布生成与替换素材，资产归属不变。</span></li>
               </ol>
               <div className="nori-ix-work-links">
                 <Link href={`/interactive/${encodeURIComponent(workId)}`}><ArrowLeft />剧情画布</Link>
-                <Link href={`/interactive/${encodeURIComponent(workId)}/production`}>制作画布<ArrowUpRight /></Link>
+                <Link href={`/interactive/${encodeURIComponent(workId)}/production`}>章节画布<ArrowUpRight /></Link>
               </div>
             </section>
             <section className="nori-ix-work-card">
               <h3>成片规则</h3>
               <ul className="nori-ix-rules">
                 <li>只按这里的顺序播放线性片段，不重新渲染、不拼接文件。</li>
-                <li>没有素材的片段会明确提示，可在制作画布补齐。</li>
+                <li>没有素材的片段会明确提示，可在章节画布补齐。</li>
                 <li>移除片段会进入「已移除」区，可恢复。</li>
               </ul>
             </section>

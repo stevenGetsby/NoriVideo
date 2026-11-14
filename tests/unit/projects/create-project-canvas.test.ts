@@ -28,7 +28,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/collaboration/access', () => ({
   getWorkspaceActor: () => ({ actorId: 'member-1', workspaceOwnerId: 'owner-1', role: 'member', isManagement: false }),
   projectReadScopeWhere: vi.fn(),
-  requireWorkProjectCreator: vi.fn(),
+  requireWorkProjectCreator: vi.fn(async () => ({ work: { id: 'work-1', productLine: 'canvas' } })),
   workspaceUserWhere: (ownerId: string) => ({ OR: [{ id: ownerId }, { workspaceOwnerId: ownerId }] }),
 }))
 vi.mock('@/lib/projects/style-reference-upload', () => ({

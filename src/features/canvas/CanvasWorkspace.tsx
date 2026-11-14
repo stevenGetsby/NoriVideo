@@ -9,29 +9,35 @@ import { canvasApi } from './api/client'
 import { EmptyCanvasChrome, EmptyCanvasSurfaceControls } from './components/EmptyCanvasChrome'
 import { CanvasManagementDialog, type CanvasManagementIntent } from './components/CanvasManagementDialog'
 import { canEditInfiniteCanvas } from './permissions'
-import type { Canvas, CanvasProjectOption } from './types'
+import type { Canvas, CanvasProjectOption, CanvasStoryNavigation } from './types'
 import { projectHref } from '@/lib/projects/navigation'
 import './canvas.css'
 
 export function CanvasWorkspace({
+  mode,
   projectId,
   projectName,
   initialCanvasId,
   initialNodeId,
   routeBase,
   projectOptions,
+  storyNavigation,
   parentProjectId,
   parentProjectName,
   onSelectProject,
   canvasHomeHref,
   createProjectHref,
 }: {
+  /** 'story' adds the 影游 layer; 'canvas' is the plain infinite canvas with no story affordances. */
+  mode: 'canvas' | 'story'
   projectId: string
   projectName: string
   initialCanvasId?: string
   initialNodeId?: string
   routeBase?: string
   projectOptions?: CanvasProjectOption[]
+  /** Server-resolved 影游 breadcrumb for the empty-canvas state. */
+  storyNavigation?: CanvasStoryNavigation
   parentProjectId?: string | null
   parentProjectName?: string | null
   onSelectProject?: (projectId: string) => void
@@ -195,6 +201,7 @@ export function CanvasWorkspace({
             projectId={projectId}
             projectName={projectName}
             projectOptions={projectOptions}
+            storyNavigation={storyNavigation}
             parentProjectId={workId}
             parentProjectName={workName}
             parentProjectHref={parentHref}
@@ -219,6 +226,7 @@ export function CanvasWorkspace({
   return (
     <>
       <CanvasGraph
+        mode={mode}
         projectId={projectId}
         projectName={projectName}
         canvasId={activeCanvas.id}

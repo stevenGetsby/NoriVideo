@@ -668,7 +668,7 @@ export function FosProjectsClient() {
               {recycleError ? <div className="works-form-error">{recycleError}</div> : null}
               {!recycleLoading && recycledWorks.length > 0 ? <div className="works-recycle-list">
                 {recycledWorks.map((work) => <article key={work.id} className="works-recycle-item">
-                  <div><strong>项目 · {work.name}</strong><small>恢复项目及本次随项目删除的作品；原先已删除的作品仍留在回收站。</small></div>
+                  <div><strong>项目 · {work.name}{work.productLine === 'story' ? <em className="works-recycle-tag">影游</em> : null}</strong><small>恢复项目及本次随项目删除的作品；原先已删除的作品仍留在回收站。</small></div>
                   <div><span>{work.expired ? '已到期' : '15 天内可恢复'}</span><button type="button" className="fos-btn fos-btn-primary" disabled={work.expired || restoringProjectId === work.id} onClick={() => void restoreWork(work.id)}>{restoringProjectId === work.id ? '恢复中…' : '恢复整个项目'}</button></div>
                 </article>)}
               </div> : null}
@@ -677,7 +677,7 @@ export function FosProjectsClient() {
                   {recycleProjects.map((project) => (
                     <article key={project.id} className="works-recycle-item">
                       <div>
-                        <strong>{project.name}</strong>
+                        <strong>{project.name}{project.productLine === 'story' ? <em className="works-recycle-tag">影游</em> : null}</strong>
                         <small>{project.workName || '未归属项目'} · 删除于 {project.deletedAt ? new Date(project.deletedAt).toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai' }) : '—'}</small>
                       </div>
                       <div>

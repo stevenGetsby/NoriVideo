@@ -35,9 +35,12 @@ describe('FrameOS assignment page replica contract', () => {
 
     expect(client).toContain("import { fetchAllWorks } from './works/fetch-all-works'")
     expect(client).toContain('void fetchAllWorks({')
+    expect(client).toContain("productLine: 'all'")
+    expect(client).toContain("work.productLine === 'story' ? `${work.name}（影游）` : work.name")
     expect(client).toContain('setUnassignedProjects(unassigned?.projects ?? [])')
-    expect(client).toContain('return projects.length > 0 ? [{ value: work.id, label: work.name, projects }] : []')
+    expect(client).toContain('return projects.length > 0 ? [{ value: work.id, label, projects }] : []')
     expect(loader).toContain('while (page <= totalPages)')
+    expect(loader).toContain("params.set('productLine', productLine)")
   })
 
   it('retries failed work filters independently and clamps stale pages after mutations', () => {

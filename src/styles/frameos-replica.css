@@ -1427,7 +1427,8 @@ select.fos-input option:disabled { color: #797a8c; }
 .works-recycle-state { padding: 36px 0; color: var(--fos-text-4); font-size: 13px; text-align: center; }
 .works-recycle-list { display: grid; max-height: min(58vh,560px); gap: 10px; overflow-y: auto; }
 .works-recycle-item { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 14px; border: 1px solid rgba(255,255,255,.08); border-radius: 10px; background: rgba(255,255,255,.025); }
-.works-recycle-item strong { display: block; color: #fff; font-size: 13px; }
+.works-recycle-item strong { display: flex; align-items: center; gap: 6px; color: #fff; font-size: 13px; }
+.works-recycle-tag { padding: 1px 6px; border: 1px solid rgba(124,102,255,.45); border-radius: 999px; background: rgba(124,102,255,.16); color: #c9bdff; font-size: 10px; font-style: normal; line-height: 16px; }
 .works-recycle-item small { display: block; margin-top: 3px; color: var(--fos-text-4); font-size: 11px; }
 .works-recycle-item > div:last-child { display: flex; flex: none; align-items: center; gap: 12px; }
 .works-recycle-item > div:last-child > span { color: #fbbf24; font-size: 11px; white-space: nowrap; }

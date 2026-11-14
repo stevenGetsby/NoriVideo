@@ -1,5 +1,9 @@
+import { redirect } from 'next/navigation'
 import { FosWorkflowClient, type FosView } from '@/components/frameos/FosWorkflowClient'
 import { assignmentReturnPath } from '@/components/frameos/assignments-view-model'
+import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
+import { chapterHref } from '@/lib/interactive/routes'
+import { findStoryChapterRoute } from '@/lib/interactive/service'
 
 interface WorkflowPremiumWorkbenchPageProps {
   params: Promise<{
@@ -35,6 +39,19 @@ function firstQueryValue(value: string | string[] | undefined): string | undefin
 export default async function WorkflowPremiumWorkbenchPage({ params, searchParams }: WorkflowPremiumWorkbenchPageProps) {
   const [resolved, query] = await Promise.all([params, searchParams])
   const { view, focus } = resolveView(resolved.segments)
+  // Only canvas views of a story chapter move to the chapter route; other workbench views stay.
+  if (view === 'canvas') {
+    const auth = await requireUserAuth()
+    if (!isErrorResponse(auth)) {
+      const chapter = await findStoryChapterRoute(auth.session, decodeURIComponent(resolved.projectId))
+      if (chapter) {
+        const canvasId = resolved.segments?.[0] === 'canvas' && resolved.segments[1]
+          ? decodeURIComponent(resolved.segments[1])
+          : undefined
+        redirect(`/${resolved.locale}${chapterHref(chapter.workId, chapter.projectId, canvasId)}`)
+      }
+    }
+  }
   return (
     <FosWorkflowClient
       projectId={resolved.projectId}

@@ -52,6 +52,7 @@ interface WorkProjectDto {
 interface WorkDto {
   id: string
   name: string
+  productLine?: string
   projects?: WorkProjectDto[]
 }
 
@@ -154,7 +155,8 @@ export function FosAssignmentsClient() {
       const projects = (work.projects ?? []).map((project) => ({ value: project.id, label: project.name }))
       // FrameOS builds this filter from the active project list, so a work
       // without a selectable project is intentionally absent here.
-      return projects.length > 0 ? [{ value: work.id, label: work.name, projects }] : []
+      const label = work.productLine === 'story' ? `${work.name}（影游）` : work.name
+      return projects.length > 0 ? [{ value: work.id, label, projects }] : []
     })
     if (unassignedProjects.length > 0) {
       result.push({
@@ -248,6 +250,7 @@ export function FosAssignmentsClient() {
     setWorksError(null)
     void fetchAllWorks({
       pageSize: 50,
+      productLine: 'all',
       signal: controller.signal,
       fallbackErrorMessage: '加载项目失败',
     })

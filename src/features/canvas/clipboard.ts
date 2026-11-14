@@ -1,3 +1,5 @@
+import { isStoryNodeType } from '@/lib/interactive/compile'
+
 /** Custom async-clipboard format ("web " prefix) that carries copied canvas nodes and wires. */
 export const CANVAS_CLIPBOARD_MIME = 'web application/x-nori-canvas+json'
 
@@ -13,6 +15,26 @@ type ClipboardTextNodeLike = { type?: string; data?: { text?: unknown; mediaType
 
 export function isCanvasClipboardTextAvailable(value: string): boolean {
   return value.trim().length > 0
+}
+
+/**
+ * Plain canvases never accept story nodes, including ones copied from a story
+ * chapter. Wires touching a removed node go with it.
+ */
+export function filterStoryClipboardDocument<N extends { id: string; type?: string }, E extends { source: string; target: string }>(
+  nodes: readonly N[],
+  edges: readonly E[],
+  allowStory: boolean,
+): { nodes: N[]; edges: E[]; filtered: boolean } {
+  if (allowStory) return { nodes: [...nodes], edges: [...edges], filtered: false }
+  const kept = nodes.filter((node) => !isStoryNodeType(node.type))
+  if (kept.length === nodes.length) return { nodes: [...nodes], edges: [...edges], filtered: false }
+  const ids = new Set(kept.map((node) => node.id))
+  return {
+    nodes: kept,
+    edges: edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
+    filtered: true,
+  }
 }
 
 export function hasCanvasClipboardMime(types: readonly string[]): boolean {

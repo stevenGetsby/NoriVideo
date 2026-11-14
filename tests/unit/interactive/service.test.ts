@@ -53,7 +53,8 @@ describe('interactive story service', () => {
     const story = await createInteractiveStory(session, { name: ' 夜长安 ', aspectRatio: '16:9', resolution: '4K' })
 
     expect(story).toMatchObject({ workId: 'w-new', aspectRatio: '16:9', resolution: '4K', firstChapter: { projectId: 'p-new', canvasId: 'cv-new', entryNodeId: 'entry-new' } })
-    expect(db.work.create.mock.calls[0][0].data).toMatchObject({ name: '夜长安', workspaceOwnerId: 'owner', createdById: 'actor', members: { create: [{ userId: 'actor', role: 'member', canManage: false }] } })
+    expect(db.work.create.mock.calls[0][0].data).toMatchObject({ name: '夜长安', productLine: 'story', workspaceOwnerId: 'owner', createdById: 'actor', members: { create: [{ userId: 'actor', role: 'member', canManage: false }] } })
+    expect(db.project.create.mock.calls[0][0].data).toMatchObject({ name: '第 1 章', workId: 'w-new', creationMode: 'canvas' })
     expect(db.novelPromotionProject.create).toHaveBeenCalledWith({ data: { projectId: 'p-new', videoRatio: '16:9', videoResolution: '4K' } })
     expect(db.canvasNode.create.mock.calls[0][0].data).toMatchObject({ canvasId: 'cv-new', type: 'story_entry' })
     const saved = db.interactiveStory.create.mock.calls[0][0].data
@@ -136,15 +137,29 @@ describe('interactive story service', () => {
     expect(data.config.variables).toHaveLength(1)
   })
 
-  it('finds the story of a chapter and returns null for ordinary 作品', async () => {
+  it('finds the story of a chapter, follows config order, and returns null for ordinary 作品', async () => {
     db.project.findFirst.mockResolvedValueOnce(null)
     expect(await findInteractiveStoryByProject(session, 'gone')).toBeNull()
-    db.project.findFirst.mockResolvedValue({ workId: 'w1' })
-    db.interactiveStory.findUnique.mockResolvedValueOnce(null)
+    db.project.findFirst.mockResolvedValue({ id: 'plain', work: { id: 'w-plain', productLine: 'canvas' } })
     expect(await findInteractiveStoryByProject(session, 'plain')).toBeNull()
-    db.project.findMany.mockResolvedValue([{ id: 'p1', name: '第一章' }])
+    expect(db.interactiveStory.findUnique).not.toHaveBeenCalled()
+    db.project.findFirst.mockResolvedValue({ id: 'p1', work: { id: 'w1', productLine: 'story' } })
+    db.project.findMany.mockResolvedValue([{ id: 'p1', name: '第一章' }, { id: 'p2', name: '第二章' }])
+    db.interactiveStory.findUnique.mockResolvedValue({
+      id: 's1', workId: 'w1', aspectRatio: '16:9', resolution: '720p',
+      config: { variables: [], chapters: [{ projectId: 'p2', order: 0 }, { projectId: 'p1', order: 1 }], links: [], start: { projectId: 'p1', entryNodeId: 'n1' } },
+    })
     const story = await findInteractiveStoryByProject(session, 'p1')
-    expect(story).toMatchObject({ workId: 'w1', name: '长安', aspectRatio: '16:9', canManage: true, chapters: [{ projectId: 'p1', name: '第一章' }] })
+    expect(story).toMatchObject({
+      workId: 'w1',
+      name: '长安',
+      aspectRatio: '16:9',
+      canManage: true,
+      chapters: [
+        { projectId: 'p2', name: '第二章', order: 0 },
+        { projectId: 'p1', name: '第一章', order: 1 },
+      ],
+    })
     expect(story?.config.start).toEqual({ projectId: 'p1', entryNodeId: 'n1' })
   })
 
@@ -159,7 +174,7 @@ describe('interactive story service', () => {
     const chapter = await createInteractiveChapter(session, 'w1', {})
     expect(access.requireWorkProjectCreator).toHaveBeenCalledWith(session, 'w1')
     expect(chapter).toMatchObject({ projectId: 'p3', name: '第 3 章' })
-    expect(db.project.create.mock.calls[0][0].data.name).toBe('第 3 章')
+    expect(db.project.create.mock.calls[0][0].data).toMatchObject({ name: '第 3 章', creationMode: 'canvas' })
     expect(db.novelPromotionProject.create).toHaveBeenCalledWith({ data: { projectId: 'p3', videoRatio: '16:9', videoResolution: '720p' } })
     const config = db.interactiveStory.update.mock.calls[0][0].data.config
     expect(config.chapters.map((item: { projectId: string; position: { x: number } }) => [item.projectId, item.position.x])).toEqual([['p1', 0], ['p2', 340], ['p3', 680]])

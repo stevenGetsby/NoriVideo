@@ -76,6 +76,7 @@ export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, in
     return (
       <FosShell activeKey="canvas" canvasShell titlebarTitle={data.projectName} projectNavigation={projectNavigation}>
         <div key={navigationSurfaceKey} className="contents">{data.loading ? <div className="fos-loading">加载中…</div> : <CanvasWorkspace
+          mode="canvas"
           projectId={projectId}
           projectName={data.projectName}
           parentProjectId={data.parentProjectId}

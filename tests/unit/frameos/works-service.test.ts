@@ -8,6 +8,7 @@ const prismaMock = vi.hoisted(() => ({
     deleteMany: vi.fn(),
     findFirst: vi.fn(),
     findMany: vi.fn(),
+    findUnique: vi.fn(),
     update: vi.fn(),
   },
   project: {
@@ -100,6 +101,7 @@ describe('works service behavior', () => {
     prismaMock.work.count.mockResolvedValue(0)
     prismaMock.work.deleteMany.mockResolvedValue({ count: 1 })
     prismaMock.work.findFirst.mockResolvedValue({ id: 'work-1' })
+    prismaMock.work.findUnique.mockResolvedValue({ id: 'target-work', productLine: 'canvas' })
     prismaMock.work.update.mockResolvedValue({ id: 'work-1' })
     prismaMock.work.findMany.mockResolvedValue([])
     prismaMock.project.findMany.mockResolvedValue([])
@@ -201,12 +203,12 @@ describe('works service behavior', () => {
     })
 
     expect(prismaMock.work.count).toHaveBeenNthCalledWith(1, {
-      where: { workspaceOwnerId: 'workspace-1' },
+      where: { AND: [{ workspaceOwnerId: 'workspace-1' }, { productLine: 'canvas' }] },
     })
     expect(prismaMock.work.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: {
         AND: [
-          { workspaceOwnerId: 'workspace-1' },
+          { AND: [{ workspaceOwnerId: 'workspace-1' }, { productLine: 'canvas' }] },
           expect.objectContaining({ OR: expect.any(Array) }),
         ],
       },
@@ -237,6 +239,36 @@ describe('works service behavior', () => {
       'project-readable',
       'project-hidden',
     ])
+  })
+
+  it('separates canvas, story and mixed product-line listings', async () => {
+    prismaMock.work.findMany.mockResolvedValue([{
+      id: 'work-story',
+      name: '影游一',
+      productLine: 'story',
+      createdAt: new Date('2026-07-17T00:00:00Z'),
+      updatedAt: new Date('2026-07-18T00:00:00Z'),
+      createdById: 'actor-1',
+      createdBy: { id: 'actor-1', name: 'Actor', role: 'admin', projectLeader: false },
+      members: [],
+      projects: [],
+      _count: { projects: 0 },
+    }])
+    const { listWorks } = await import('@/lib/works/service')
+
+    const storyResult = await listWorks(session, { productLine: 'story' })
+    expect(prismaMock.work.count).toHaveBeenLastCalledWith({
+      where: { AND: [{ workspaceOwnerId: 'workspace-1' }, { productLine: 'story' }] },
+    })
+    expect(storyResult.works[0]).toMatchObject({ id: 'work-story', productLine: 'story' })
+
+    await listWorks(session, { productLine: 'all' })
+    expect(prismaMock.work.count).toHaveBeenLastCalledWith({ where: { workspaceOwnerId: 'workspace-1' } })
+
+    await listWorks(session, { productLine: 'unexpected' })
+    expect(prismaMock.work.count).toHaveBeenLastCalledWith({
+      where: { AND: [{ workspaceOwnerId: 'workspace-1' }, { productLine: 'canvas' }] },
+    })
   })
 
   it('allows recycling a parent project even while its works are already in the recycle bin', async () => {
@@ -277,14 +309,14 @@ describe('works service behavior', () => {
         id: 'project-1',
         workId: 'source-work',
         createdById: 'actor-1',
-        work: { createdById: 'creator-1', members: [] },
+        work: { createdById: 'creator-1', productLine: 'canvas', members: [] },
         members: [],
       },
       {
         id: 'project-2',
         workId: 'source-work',
         createdById: 'actor-1',
-        work: { createdById: 'creator-1', members: [{ role: 'member', permissions: ['projectManage'] }] },
+        work: { createdById: 'creator-1', productLine: 'canvas', members: [{ role: 'member', permissions: ['projectManage'] }] },
         members: [],
       },
     ])
@@ -311,9 +343,9 @@ describe('works service behavior', () => {
   it('rejects moving ordinary works into an interactive project or chapters out of one', async () => {
     prismaMock.project.findMany.mockResolvedValue([{
       id: 'project-1', workId: 'source-work', createdById: 'actor-1',
-      work: { createdById: 'actor-1', members: [], interactiveStory: null }, members: [],
+      work: { createdById: 'actor-1', productLine: 'canvas', members: [] }, members: [],
     }])
-    prismaMock.interactiveStory.findUnique.mockResolvedValue({ id: 'story-target' })
+    prismaMock.work.findUnique.mockResolvedValue({ id: 'target-work', productLine: 'story' })
     const { moveProjects } = await import('@/lib/works/service')
     await expect(moveProjects(session, { workIds: ['project-1'], targetWorkId: 'target-work' }))
       .rejects.toMatchObject({ code: 'CONFLICT', message: expect.stringContaining('普通作品与影游章节不能互相移动') })
@@ -321,9 +353,9 @@ describe('works service behavior', () => {
 
     prismaMock.project.findMany.mockResolvedValue([{
       id: 'project-1', workId: 'source-work', createdById: 'actor-1',
-      work: { createdById: 'actor-1', members: [], interactiveStory: { id: 'story-source' } }, members: [],
+      work: { createdById: 'actor-1', productLine: 'story', members: [] }, members: [],
     }])
-    prismaMock.interactiveStory.findUnique.mockResolvedValue(null)
+    prismaMock.work.findUnique.mockResolvedValue({ id: 'target-work', productLine: 'canvas' })
     await expect(moveProjects(session, { workIds: ['project-1'], targetWorkId: 'target-work' }))
       .rejects.toMatchObject({ code: 'CONFLICT' })
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
