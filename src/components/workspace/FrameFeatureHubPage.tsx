@@ -56,7 +56,7 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           {action ? (
             <Link
               href={action.href}
-              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white shadow-[var(--fos-cta-shadow)] transition-colors hover:brightness-110"
+              className="inline-flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-on-brand shadow-[var(--fos-cta-shadow)] transition-colors hover:brightness-110"
             >
               <AppIcon name={action.icon} className="h-4 w-4" />
               {t(`common.${action.labelKey}`)}
@@ -73,7 +73,7 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
             <article
               key={card.title}
               style={hueStyle(CARD_HUES[cardIndex % CARD_HUES.length])}
-              className="fos-hue-card rounded-xl border border-white/10 bg-[#16161d] p-3"
+              className="fos-hue-card rounded-xl border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-3"
             >
               <div className="mb-2 flex items-center justify-between gap-3">
                 <span className="fos-hue-tile">
@@ -89,7 +89,7 @@ export function FrameFeatureHubPage({ activeKey, pageKey, icon, primaryAction, c
           ))}
         </div>
 
-        <aside className="rounded-md border border-white/10 bg-[#16161d] p-3">
+        <aside className="rounded-md border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-3">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white/78">
             <AppIcon name="clipboardCheck" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('common.workflowTitle')}

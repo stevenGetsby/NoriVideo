@@ -142,7 +142,7 @@ export function FramePromptsDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -153,7 +153,7 @@ export function FramePromptsDashboard() {
           </div>
           <Link
             href={{ pathname: '/profile' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-on-brand hover:brightness-110"
           >
             <AppIcon name="settingsHexMinor" className="h-4 w-4" />
             {t('openEditor')}
@@ -170,7 +170,7 @@ export function FramePromptsDashboard() {
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-md border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-3 py-2 text-sm text-[#ffb1b1]">
+          <div className="mb-4 rounded-md border border-[rgb(var(--nori-s-ff6b6b))]/30 bg-[rgb(var(--nori-s-ff6b6b))]/10 px-3 py-2 text-sm text-[rgb(var(--nori-t-ffb1b1))]">
             {t('loadFailed')}: {error}
           </div>
         ) : null}
@@ -184,11 +184,11 @@ export function FramePromptsDashboard() {
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('coverageSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[rgb(var(--nori-bg-2))] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('coverage.local')}
             </span>
           </div>
-          <div className="grid grid-cols-[.8fr_.55fr_.55fr_.55fr_.55fr_.65fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.8fr_.55fr_.55fr_.55fr_.55fr_.65fr] gap-2 border-b border-white/10 bg-[rgb(var(--nori-bg-2))] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('coverage.columns.group')}</div>
             <div>{t('coverage.columns.templates')}</div>
             <div>{t('coverage.columns.variables')}</div>
@@ -202,9 +202,9 @@ export function FramePromptsDashboard() {
                 <div className="truncate font-medium text-white/74">{t(`groups.${row.group}`)}</div>
                 <div className="text-white/56">{row.templates}</div>
                 <div className="text-white/56">{row.variableCount}</div>
-                <div className={row.zhOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.zhOverrides}</div>
-                <div className={row.enOverrides > 0 ? 'font-medium text-[#8ff0b9]' : 'text-white/42'}>{row.enOverrides}</div>
-                <div className={row.missingCoverage > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.missingCoverage}</div>
+                <div className={row.zhOverrides > 0 ? 'font-medium text-[rgb(var(--nori-t-8ff0b9))]' : 'text-white/42'}>{row.zhOverrides}</div>
+                <div className={row.enOverrides > 0 ? 'font-medium text-[rgb(var(--nori-t-8ff0b9))]' : 'text-white/42'}>{row.enOverrides}</div>
+                <div className={row.missingCoverage > 0 ? 'font-medium text-[rgb(var(--nori-t-ffd98a))]' : 'text-white/42'}>{row.missingCoverage}</div>
               </div>
             ))}
           </div>
@@ -255,7 +255,7 @@ export function FramePromptsDashboard() {
                         key={locale}
                         className={`rounded border px-1.5 py-0.5 text-[11px] ${
                           prompt.hasOverride[locale]
-                            ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                            ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
                             : 'border-white/10 bg-white/5 text-white/34'
                         }`}
                       >
@@ -270,7 +270,7 @@ export function FramePromptsDashboard() {
         </div>
       </section>
 
-      <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+      <aside className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
           <AppIcon name="folderOpen" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('groupsTitle')}

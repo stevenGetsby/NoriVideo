@@ -36,27 +36,27 @@ export function AssetTabs({ projectId, active }: { projectId: string; active: As
 export function AssetPlaceholder({ kind }: { kind: AssetTab }) {
   if (kind === 'items') {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#f4f4f4]">
-        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-[#e7e7e7] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
+      <div className="flex h-full w-full items-center justify-center bg-[rgb(var(--nori-s-f4f4f4))]">
+        <div className="relative h-20 w-44 rotate-[-8deg] rounded-full bg-[rgb(var(--nori-s-e7e7e7))] shadow-[0_12px_36px_rgba(0,0,0,.18)]" />
       </div>
     )
   }
   if (kind === 'environments') {
     return (
-      <div className="grid h-full w-full grid-cols-2 bg-[#1d1915]">
-        <div className="relative overflow-hidden bg-[#2a231d]">
-          <div className="absolute inset-x-0 top-0 h-10 bg-[#3a3028]" />
-          <div className="absolute bottom-0 inset-x-0 h-12 bg-[#443424]" />
-          <div className="absolute right-10 top-12 h-24 w-20 rounded-full bg-[#d58f3a]/30 blur-2xl" />
+      <div className="grid h-full w-full grid-cols-2 bg-[rgb(var(--nori-s-1d1915))]">
+        <div className="relative overflow-hidden bg-[rgb(var(--nori-s-2a231d))]">
+          <div className="absolute inset-x-0 top-0 h-10 bg-[rgb(var(--nori-s-3a3028))]" />
+          <div className="absolute bottom-0 inset-x-0 h-12 bg-[rgb(var(--nori-s-443424))]" />
+          <div className="absolute right-10 top-12 h-24 w-20 rounded-full bg-[rgb(var(--nori-s-d58f3a))]/30 blur-2xl" />
         </div>
-        <div className="bg-[#211812] p-5"><div className="h-full rounded-sm border border-[#6a4d2d]/40 bg-[#211812]/70" /></div>
+        <div className="bg-[rgb(var(--nori-s-211812))] p-5"><div className="h-full rounded-sm border border-[rgb(var(--nori-s-6a4d2d))]/40 bg-[rgb(var(--nori-s-211812))]/70" /></div>
       </div>
     )
   }
   return (
     <div className="grid h-full w-full grid-cols-[1.3fr_.9fr_.9fr_.9fr] items-end gap-3 bg-white px-6 pt-6">
-      <div className="h-40 w-40 self-center rounded-full bg-[#e7e7e7]" />
-      {[1, 2, 3].map((i) => <div key={i} className="h-44 rounded-t-full bg-[#f2f2f2]" />)}
+      <div className="h-40 w-40 self-center rounded-full bg-[rgb(var(--nori-s-e7e7e7))]" />
+      {[1, 2, 3].map((i) => <div key={i} className="h-44 rounded-t-full bg-[rgb(var(--nori-s-f2f2f2))]" />)}
     </div>
   )
 }
@@ -193,7 +193,7 @@ export function AddAssetDialog({
             <div className="mb-1.5 text-[13px] font-semibold text-white">{labels.bgLabel}</div>
             <textarea className="fos-textarea" style={{ minHeight: 90 }} value={background} onChange={(e) => setBackground(e.target.value)} placeholder={`请输入${labels.bgLabel}`} />
           </div>
-          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[#ff8589]">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[rgb(var(--nori-t-ff8589))]">{error}</div> : null}
         </div>
         <div className="fos-dialog-foot">
           <button type="button" className="fos-btn fos-btn-ghost" onClick={() => void requestClose()} disabled={submitting}>取消</button>
@@ -263,7 +263,7 @@ export function AddCharacterVariantDialog({
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">变体名称</span><input className="fos-input" autoFocus value={label} onChange={(event) => setLabel(event.target.value)} placeholder="例如：雨夜逃亡、受伤后、宴会礼服" /></label>
           <div><span className="mb-1.5 block text-[13px] font-semibold text-white">对应分集</span><div className="flex max-h-28 flex-wrap gap-1.5 overflow-y-auto rounded-[10px] border border-[var(--fos-border-mid)] bg-[var(--fos-bg-1)] p-3">{episodeNumbers.map((episodeNumber) => <button key={episodeNumber} type="button" aria-pressed={selectedEpisodes.has(episodeNumber)} className="h-7 w-10 rounded-md text-[11px] font-bold" style={{ background: selectedEpisodes.has(episodeNumber) ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)', color: selectedEpisodes.has(episodeNumber) ? '#fff' : 'var(--fos-text-3)' }} onClick={() => setSelectedEpisodes((current) => { const next = new Set(current); if (next.has(episodeNumber)) next.delete(episodeNumber); else next.add(episodeNumber); return next })}>E{episodeNumber}</button>)}</div></div>
           <label><span className="mb-1.5 block text-[13px] font-semibold text-white">形象变化与生图提示词</span><textarea className="fos-textarea" style={{ minHeight: 150 }} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="例如：保持脸型、五官和体型不变；服装被暴雨浸湿，发丝贴脸，右手掌有擦伤……" /></label>
-          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[#ff8589]">{error}</div> : null}
+          {error ? <div role="alert" className="rounded-lg border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[rgb(var(--nori-t-ff8589))]">{error}</div> : null}
         </div>
         <div className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={submitting} onClick={() => void requestClose()}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={!label.trim() || !description.trim() || submitting}>{submitting ? '创建中…' : '添加变体'}</button></div>
       </form>

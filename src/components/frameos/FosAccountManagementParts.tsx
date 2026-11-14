@@ -126,7 +126,7 @@ export function DailyUsageCell({ usage }: { usage?: DailyUsagePayload | null }) 
 
 export function AccountCapabilitiesNotice() {
   return (
-    <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
+    <section className="mb-5 overflow-hidden rounded-[12px] border border-white/[.07] bg-[rgb(var(--nori-bg-2))]">
       <div className="px-5 py-4">
         <h2 className="text-[13px] font-bold text-white">统一创作能力</h2>
         <p className="mt-1 text-[10px] leading-5 text-white/45">子账号均可使用剧本、资产、分镜、工具箱和无限画布。管理员仅管理账号、额度和项目组长身份；项目访问范围由项目成员关系决定。</p>
@@ -615,7 +615,7 @@ export function CreditOperationDialog({
             {copy.hint} 换算标准：¥1 = 100 积分。
           </div>
           {operation === 'recharge' ? (
-            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-white/15 bg-[#16161d] px-4 py-4 text-center">
+            <div className="mt-4 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2 rounded-[12px] border border-white/15 bg-[rgb(var(--nori-s-16161d))] px-4 py-4 text-center">
               <span><small className="block text-[10px] text-white/45">当前余额</small><strong className="mt-1 block text-[15px] text-white">{currentTargetPoints.toLocaleString('zh-CN')}</strong></span>
               <span className="text-[15px] text-neutral-200/55">+</span>
               <span><small className="block text-[10px] text-white/45">本次充值</small><strong className="mt-1 block text-[15px] text-neutral-200">{valid ? parsedPoints.toLocaleString('zh-CN') : '—'}</strong></span>

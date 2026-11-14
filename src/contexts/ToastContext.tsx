@@ -167,7 +167,7 @@ function ToastContainer({
                         rounded-xl
                         animate-in fade-in slide-in-from-bottom-2 duration-300
                         max-w-md
-                        border border-[#31313c] bg-[#1b1b23] text-white
+                        border border-[rgb(var(--nori-s-31313c))] bg-[rgb(var(--nori-bg-3))] text-white
                         shadow-[0_16px_48px_rgba(0,0,0,.6)]
                     `}
                 >
@@ -182,7 +182,7 @@ function ToastContainer({
                         type="button"
                         aria-label="关闭"
                         onClick={() => onDismiss(toast.id)}
-                        className="flex w-6 h-6 shrink-0 items-center justify-center rounded-md text-[#9b9caa] transition-colors hover:bg-white/10 hover:text-white"
+                        className="flex w-6 h-6 shrink-0 items-center justify-center rounded-md text-[rgb(var(--nori-t-9b9caa))] transition-colors hover:bg-white/10 hover:text-white"
                     >
                         <AppIcon name="close" className="w-4 h-4" />
                     </button>
@@ -203,7 +203,7 @@ function getToastTone(type: Toast['type']): string {
         case 'warning':
             return 'bg-[var(--glass-tone-warning-bg)] text-[var(--glass-tone-warning-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-warning-fg)_22%,transparent)]'
         case 'info':
-            return 'text-[#9b9caa]'
+            return 'text-[rgb(var(--nori-t-9b9caa))]'
         default:
             return 'bg-[var(--glass-tone-info-bg)] text-[var(--glass-tone-info-fg)] border-[color:color-mix(in_srgb,var(--glass-tone-info-fg)_22%,transparent)]'
     }

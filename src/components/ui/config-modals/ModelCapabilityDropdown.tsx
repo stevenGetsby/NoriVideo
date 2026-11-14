@@ -313,7 +313,7 @@ export function ModelCapabilityDropdown({
                     {(visibleCapabilityFields.length > 0 || booleanToggles.length > 0) && (
                         <div data-capability-params className="shrink-0 bg-[var(--glass-bg-surface)]">
                             <div className="px-4 py-3">
-                                <div className="text-[10px] font-bold text-[#8e8e93] uppercase tracking-wider mb-2.5">
+                                <div className="text-[10px] font-bold text-[rgb(var(--nori-t-8e8e93))] uppercase tracking-wider mb-2.5">
                                     {t('paramConfig')}
                                 </div>
                                 <div className="max-h-[156px] overflow-y-auto app-scrollbar pr-1">
@@ -346,7 +346,7 @@ export function ModelCapabilityDropdown({
                                                             <select
                                                                 value={selectValue}
                                                                 onChange={(event) => onCapabilityChange(def.field, event.target.value, def.options[0])}
-                                                                className="appearance-none bg-transparent hover:bg-[#f2f2f7] dark:hover:bg-[#1b1b23] text-[13px] font-bold text-[var(--glass-text-primary)] pl-3 pr-7 py-1 rounded-md transition-colors outline-none cursor-pointer border border-transparent"
+                                                                className="appearance-none bg-transparent hover:bg-[rgb(var(--nori-s-f2f2f7))] dark:hover:bg-[rgb(var(--nori-bg-3))] text-[13px] font-bold text-[var(--glass-text-primary)] pl-3 pr-7 py-1 rounded-md transition-colors outline-none cursor-pointer border border-transparent"
                                                             >
                                                                 {def.options.map((opt) => {
                                                                     const s = String(opt)
@@ -360,7 +360,7 @@ export function ModelCapabilityDropdown({
                                                             <AppIcon name="chevronDown" className="w-3.5 h-3.5 text-[var(--glass-text-tertiary)] absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none group-hover:text-[var(--glass-text-primary)] transition-colors" />
                                                         </div>
                                                     ) : (
-                                                        <div className="flex bg-[#f2f2f7] dark:bg-[#1b1b23] p-[3px] rounded-lg shadow-inner">
+                                                        <div className="flex bg-[rgb(var(--nori-s-f2f2f7))] dark:bg-[rgb(var(--nori-bg-3))] p-[3px] rounded-lg shadow-inner">
                                                             {def.options.map((opt) => {
                                                                 const s = String(opt)
                                                                 const disabled = isOptionDisabled(def, opt)
@@ -371,10 +371,10 @@ export function ModelCapabilityDropdown({
                                                                         type="button"
                                                                         onClick={() => onCapabilityChange(def.field, s, def.options[0])}
                                                                         className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-all flex items-center gap-1 cursor-pointer ${on
-                                                                            ? 'bg-white text-black dark:bg-[#2b2b36] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
+                                                                            ? 'bg-white text-black dark:bg-[rgb(var(--nori-s-2b2b36))] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
                                                                             : disabled
-                                                                                ? 'text-[#8e8e93] opacity-75 hover:opacity-95'
-                                                                                : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
+                                                                                ? 'text-[rgb(var(--nori-t-8e8e93))] opacity-75 hover:opacity-95'
+                                                                                : 'text-[rgb(var(--nori-t-8e8e93))] hover:text-[rgb(var(--nori-t-3a3a3c))] dark:hover:text-[rgb(var(--nori-t-ececec))]'
                                                                             }`}
                                                                     >
                                                                         {isR && isValidRatioText(s) && <RatioIcon ratio={s} size={10} selected={on} />}
@@ -392,13 +392,13 @@ export function ModelCapabilityDropdown({
                                                 <span className="text-[13px] text-[var(--glass-text-secondary)] font-semibold shrink-0">
                                                     {toggle.label}
                                                 </span>
-                                                <div className="flex bg-[#f2f2f7] dark:bg-[#1b1b23] p-[3px] rounded-lg shadow-inner">
+                                                <div className="flex bg-[rgb(var(--nori-s-f2f2f7))] dark:bg-[rgb(var(--nori-bg-3))] p-[3px] rounded-lg shadow-inner">
                                                     <button
                                                         type="button"
                                                         onClick={() => toggle.onChange(true)}
                                                         className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-all ${toggle.value
-                                                            ? 'bg-white text-black dark:bg-[#2b2b36] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
-                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
+                                                            ? 'bg-white text-black dark:bg-[rgb(var(--nori-s-2b2b36))] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
+                                                            : 'text-[rgb(var(--nori-t-8e8e93))] hover:text-[rgb(var(--nori-t-3a3a3c))] dark:hover:text-[rgb(var(--nori-t-ececec))]'
                                                             }`}
                                                     >
                                                         {toggle.onLabel || 'On'}
@@ -407,8 +407,8 @@ export function ModelCapabilityDropdown({
                                                         type="button"
                                                         onClick={() => toggle.onChange(false)}
                                                         className={`px-3 py-1.5 text-[12px] font-medium rounded-md transition-all ${!toggle.value
-                                                            ? 'bg-white text-black dark:bg-[#2b2b36] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
-                                                            : 'text-[#8e8e93] hover:text-[#3a3a3c] dark:hover:text-[#ececec]'
+                                                            ? 'bg-white text-black dark:bg-[rgb(var(--nori-s-2b2b36))] dark:text-white shadow-[0_3px_8px_rgba(0,0,0,0.12),0_3px_1px_rgba(0,0,0,0.04)] font-bold'
+                                                            : 'text-[rgb(var(--nori-t-8e8e93))] hover:text-[rgb(var(--nori-t-3a3a3c))] dark:hover:text-[rgb(var(--nori-t-ececec))]'
                                                             }`}
                                                     >
                                                         {toggle.offLabel || 'Off'}

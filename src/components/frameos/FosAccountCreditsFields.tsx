@@ -38,7 +38,7 @@ export function FosAccountCreditsFields({
         </label>
         <label className="block">
           <span className="mb-2 flex items-center gap-1.5 text-[10px] text-white/45">
-            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--fos-brand-solid)] text-[8px] not-italic text-white">◆</i>
+            <i className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--fos-brand-solid)] text-[8px] not-italic text-on-brand">◆</i>
             积分
           </span>
           <input

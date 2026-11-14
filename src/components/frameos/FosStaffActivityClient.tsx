@@ -231,7 +231,7 @@ export function FosStaffActivityClient() {
             </div>
           ) : null}
 
-          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
+          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[rgb(var(--nori-bg-2))]">
             <div className="overflow-x-auto">
               <div className="min-w-[1020px] w-full" role="table" aria-label="子账号工作统计">
                 <div role="row" className={`grid ${GRID} gap-3 border-b border-white/[.055] px-5 py-2 text-[11px] font-semibold text-white/40 [&>*]:min-w-0`}>

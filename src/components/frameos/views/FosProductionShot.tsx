@@ -405,7 +405,7 @@ export function FosProductionShot({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-[var(--fos-primary-text)]">{shot.scene} · Segment {String(shot.panelNumber ?? shot.panelIndex + 1).padStart(2, '0')}</span>
-                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[#62d99b]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
+                    <span className={`text-[10px] font-bold ${videoReady ? 'text-[rgb(var(--nori-t-62d99b))]' : 'text-[var(--fos-text-4)]'}`}>{videoReady ? '已生成' : '待生成'}</span>
                   </div>
                   <div className="mt-1.5 truncate text-[13px] font-bold text-white">{shot.title}</div>
                   <div className="mt-1 flex items-center justify-between text-[10px] text-[var(--fos-text-4)]">
@@ -444,7 +444,7 @@ export function FosProductionShot({
               </div>
               {centerTab === 'history' ? (
                 <div className="space-y-2 py-4">
-                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[#62d99b]' : task.status === 'failed' ? 'text-red-300' : 'text-[var(--fos-info)]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
+                  {tasks.map((task) => <div key={task.id} className="flex items-center justify-between rounded-lg border border-[var(--fos-border-soft)] px-3 py-2 text-[11px]"><span className="text-[var(--fos-text-3)]">{new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</span><span className={task.status === 'completed' ? 'text-[rgb(var(--nori-t-62d99b))]' : task.status === 'failed' ? 'text-red-300' : 'text-[var(--fos-info)]'}>{task.status === 'completed' ? '完成' : task.status === 'failed' ? `失败 · ${task.errorMessage || ''}` : `${task.status} · ${task.progress}%`}</span></div>)}
                   {tasks.length === 0 ? <div className="py-8 text-center text-[12px] text-[var(--fos-text-4)]">暂无生成记录</div> : null}
                 </div>
               ) : null}

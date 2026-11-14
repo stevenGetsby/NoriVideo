@@ -9,71 +9,71 @@
 
 [data-theme="frameos-dark"] {
   /* ---- 1.1 背景色层级 ---- */
-  --fos-bg-1: #0c0c11;        /* 页面最底层 */
-  --fos-bg-2: #131319;        /* 卡片 / 面板 / 主内容容器 */
-  --fos-bg-3: #1b1b23;        /* 悬浮层 / 弹窗 / 下拉 / popover */
-  --fos-bg-4: #2f2f3b;        /* 填充块（输入框填充态、tag 背景） */
-  --fos-bg-5: #24242e;        /* 浅填充（hover 态） */
-  --fos-bg-6: #3a3a48;        /* 深填充（强调块） */
-  --fos-fill-lighter: #1b1b23;
-  --fos-fill-extra-light: #16161d;
+  --fos-bg-1: rgb(var(--nori-bg-1));        /* 页面最底层 */
+  --fos-bg-2: rgb(var(--nori-bg-2));        /* 卡片 / 面板 / 主内容容器 */
+  --fos-bg-3: rgb(var(--nori-bg-3));        /* 悬浮层 / 弹窗 / 下拉 / popover */
+  --fos-bg-4: rgb(var(--nori-bg-5));        /* 填充块（输入框填充态、tag 背景） */
+  --fos-bg-5: rgb(var(--nori-bg-4));        /* 浅填充（hover 态） */
+  --fos-bg-6: rgb(var(--nori-s-3a3a48));        /* 深填充（强调块） */
+  --fos-fill-lighter: rgb(var(--nori-bg-3));
+  --fos-fill-extra-light: rgb(var(--nori-s-16161d));
   --fos-mask: rgba(0, 0, 0, 0.8);
 
   /* ---- 1.2 文字色层级 ---- */
-  --fos-text-title: #f5f5fa;     /* 标题 / 主文字 */
-  --fos-text-regular: #d5d6e0;   /* 常规正文 */
-  --fos-text-secondary: #a9aabb; /* 次级文字 */
-  --fos-text-tertiary: #8d8ea0;  /* 占位符 / 三级文字 */
-  --fos-text-disabled: #5e5f70;  /* 禁用文字 */
+  --fos-text-title: rgb(var(--nori-text-1));     /* 标题 / 主文字 */
+  --fos-text-regular: rgb(var(--nori-s-d5d6e0));   /* 常规正文 */
+  --fos-text-secondary: rgb(var(--nori-s-a9aabb)); /* 次级文字 */
+  --fos-text-tertiary: rgb(var(--nori-s-8d8ea0));  /* 占位符 / 三级文字 */
+  --fos-text-disabled: rgb(var(--nori-text-5));  /* 禁用文字 */
 
   /* ---- 1.3 主题色 / 品牌色 ---- */
-  --fos-primary: #6e7bff;          /* token 源头品牌主色 */
-  --fos-primary-interactive: #6e7bff; /* 组件层最高频蓝（按钮/链接/选中/焦点） */
-  --fos-primary-light-5: #a3acff;  /* hover 高亮 */
-  --fos-primary-light-7: #c0c6ff;
-  --fos-primary-light-8: #d6daff;
-  --fos-primary-light-9: #ebedff;
-  --fos-primary-dark-2: #5f6cf5;   /* 按下态 / 渐变终点 */
+  --fos-primary: rgb(var(--nori-primary-));          /* token 源头品牌主色 */
+  --fos-primary-interactive: rgb(var(--nori-primary-)); /* 组件层最高频蓝（按钮/链接/选中/焦点） */
+  --fos-primary-light-5: rgb(var(--nori-primary-text-));  /* hover 高亮 */
+  --fos-primary-light-7: rgb(var(--nori-s-c0c6ff));
+  --fos-primary-light-8: rgb(var(--nori-s-d6daff));
+  --fos-primary-light-9: rgb(var(--nori-s-ebedff));
+  --fos-primary-dark-2: rgb(var(--nori-primary-hover-));   /* 按下态 / 渐变终点 */
 
   /* Solid brand tokens: the interface is intentionally gradient-free. Legacy
    * gradient variable names stay as aliases so untouched feature stylesheets
    * (for example the canvas stylesheet owned by another workstream) also
    * render a flat brand colour. */
-  --fos-brand-solid: #6e7bff;
-  --fos-brand-solid-hover: #5f6cf5;
-  --fos-brand-solid-active: #5360e8;
-  --fos-accent-purple: #a855f7;
-  --fos-accent-success: #10b981;
+  --fos-brand-solid: rgb(var(--nori-primary-));
+  --fos-brand-solid-hover: rgb(var(--nori-primary-hover-));
+  --fos-brand-solid-active: rgb(var(--nori-s-5360e8));
+  --fos-accent-purple: rgb(var(--nori-s-a855f7));
+  --fos-accent-success: rgb(var(--nori-s-10b981));
   --fos-gradient-primary: var(--fos-brand-solid);
   --fos-gradient-primary-hover: var(--fos-brand-solid-hover);
   --fos-gradient-purple: var(--fos-accent-purple);
   --fos-gradient-success: var(--fos-accent-success);
 
   /* ---- 1.4 状态色 ---- */
-  --fos-success: #34d399;
-  --fos-success-light: #6ee7b7;
-  --fos-success-dark: #10b981;
-  --fos-warning: #fbbf24;
-  --fos-warning-light: #fcd34d;
-  --fos-warning-dark: #f59e0b;
-  --fos-danger: #ef4444;
-  --fos-danger-light: #ff8589;
-  --fos-danger-dark: #dc2626;
-  --fos-info: #38bdf8;
+  --fos-success: rgb(var(--nori-s-34d399));
+  --fos-success-light: rgb(var(--nori-s-6ee7b7));
+  --fos-success-dark: rgb(var(--nori-s-10b981));
+  --fos-warning: rgb(var(--nori-s-fbbf24));
+  --fos-warning-light: rgb(var(--nori-s-fcd34d));
+  --fos-warning-dark: rgb(var(--nori-s-f59e0b));
+  --fos-danger: rgb(var(--nori-s-ef4444));
+  --fos-danger-light: rgb(var(--nori-s-ff8589));
+  --fos-danger-dark: rgb(var(--nori-s-dc2626));
+  --fos-info: rgb(var(--nori-s-38bdf8));
 
   /* ---- 1.5 边框色 ---- */
-  --fos-border: #3a3a48;
-  --fos-border-hover: rgba(255, 255, 255, 0.3);
-  --fos-border-darker: #4a4a5a;
-  --fos-border-dark: #424252;
-  --fos-border-light: #34343f;
-  --fos-border-lighter: #2a2a35;
-  --fos-border-extra-light: #22222b;
+  --fos-border: rgb(var(--nori-s-3a3a48));
+  --fos-border-hover: rgb(var(--nori-ink) / calc(0.3 * var(--nori-a)));
+  --fos-border-darker: rgb(var(--nori-s-4a4a5a));
+  --fos-border-dark: rgb(var(--nori-s-424252));
+  --fos-border-light: rgb(var(--nori-s-34343f));
+  --fos-border-lighter: rgb(var(--nori-s-2a2a35));
+  --fos-border-extra-light: rgb(var(--nori-s-22222b));
 
   /* ---- 1.6 滚动条 ---- */
-  --fos-scrollbar-thumb: rgba(255, 255, 255, 0.2);
-  --fos-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
-  --fos-scrollbar-track: rgba(255, 255, 255, 0.05);
+  --fos-scrollbar-thumb: rgb(var(--nori-ink) / calc(0.2 * var(--nori-a)));
+  --fos-scrollbar-thumb-hover: rgb(var(--nori-ink) / calc(0.3 * var(--nori-a)));
+  --fos-scrollbar-track: rgb(var(--nori-ink) / calc(0.05 * var(--nori-a)));
 
   /* ---- 2 字体 ---- */
   --fos-font-sans: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -95,7 +95,7 @@
   --fos-radius-pill: 9999px;
 
   /* ---- 5 阴影 ---- */
-  --fos-shadow-inset-hi: inset 0 0 0 1px rgba(255, 255, 255, 0.1); /* 卡片高光描边 */
+  --fos-shadow-inset-hi: inset 0 0 0 1px rgb(var(--nori-ink) / calc(0.1 * var(--nori-a))); /* 卡片高光描边 */
   --fos-shadow-float: 0 8px 24px rgba(0, 0, 0, 0.4);
   --fos-shadow-btn-glow: 0 6px 20px rgba(0, 0, 0, 0.35);
   --fos-shadow-overlay: 0px 12px 32px 4px rgba(0, 0, 0, 0.36), 0px 8px 20px rgba(0, 0, 0, 0.72);
@@ -111,16 +111,16 @@
   --fos-size-sm: 24px;
 
   /* ---- Aurora 品牌扩展（与 .fos-app 同名 token 对齐） ---- */
-  --fos-primary-hover: #5f6cf5;
-  --fos-primary-text: #a3acff;
+  --fos-primary-hover: rgb(var(--nori-primary-hover-));
+  --fos-primary-text: rgb(var(--nori-primary-text-));
   --fos-primary-soft: rgba(110, 123, 255, 0.14);
   --fos-primary-border: rgba(110, 123, 255, 0.4);
   --fos-gradient-brand: var(--fos-brand-solid);
-  --fos-cta-shadow: 0 8px 24px -10px rgba(108, 92, 255, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.2);
-  --fos-hue-image: #38bdf8;
-  --fos-hue-video: #a78bfa;
-  --fos-hue-audio: #34d399;
-  --fos-hue-text: #fbbf24;
+  --fos-cta-shadow: 0 8px 24px -10px rgba(108, 92, 255, 0.85), inset 0 1px 0 rgb(var(--nori-ink) / calc(0.2 * var(--nori-a)));
+  --fos-hue-image: rgb(var(--nori-s-38bdf8));
+  --fos-hue-video: rgb(var(--nori-s-a78bfa));
+  --fos-hue-audio: rgb(var(--nori-s-34d399));
+  --fos-hue-text: rgb(var(--nori-s-fbbf24));
 }
 
 /* ===== FrameOS 作用域基础样式 ===== */
@@ -193,7 +193,7 @@
 .fos-btn-primary {
   background: var(--fos-brand-solid);
   border-color: transparent;
-  color: #fff;
+  color: rgb(var(--nori-text-1));
 }
 .fos-btn-primary:hover {
   background: var(--fos-brand-solid-hover);
@@ -245,10 +245,10 @@
 [data-theme="frameos-dark"] .fos-hero {
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid rgb(var(--nori-ink) / calc(0.1 * var(--nori-a)));
   border-radius: 14px;
   background: var(--fos-bg-3);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgb(var(--nori-ink) / calc(0.06 * var(--nori-a)));
 }
 [data-theme="frameos-dark"] .fos-hero-tile {
   display: flex;
@@ -257,11 +257,11 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid rgb(var(--nori-ink) / calc(0.24 * var(--nori-a)));
   border-radius: 14px;
-  color: #fff;
+  color: rgb(var(--nori-s-ffffff));
   background: var(--fos-brand-solid);
-  box-shadow: 0 10px 26px -8px rgba(108, 92, 255, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  box-shadow: 0 10px 26px -8px rgba(108, 92, 255, 0.75), inset 0 1px 0 rgb(var(--nori-ink) / calc(0.32 * var(--nori-a)));
 }
 [data-theme="frameos-dark"] .fos-hue-tile {
   display: flex;
@@ -293,5 +293,5 @@
 .fos-app .fos-stat-tile {
   border: 1px solid color-mix(in srgb, var(--hue) 26%, transparent);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--hue) 10%, rgba(255, 255, 255, 0.03));
+  background: color-mix(in srgb, var(--hue) 10%, rgb(var(--nori-ink) / calc(0.03 * var(--nori-a))));
 }

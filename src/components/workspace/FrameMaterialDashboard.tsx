@@ -133,7 +133,7 @@ export function FrameMaterialDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -144,7 +144,7 @@ export function FrameMaterialDashboard() {
           </div>
           <Link
             href={{ pathname: '/asset-hub' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-on-brand hover:brightness-110"
           >
             <AppIcon name="folderHeart" className="h-4 w-4" />
             {t('openAssetHub')}
@@ -161,7 +161,7 @@ export function FrameMaterialDashboard() {
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-md border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-3 py-2 text-sm text-[#ffb1b1]">
+          <div className="mb-4 rounded-md border border-[rgb(var(--nori-s-ff6b6b))]/30 bg-[rgb(var(--nori-s-ff6b6b))]/10 px-3 py-2 text-sm text-[rgb(var(--nori-t-ffb1b1))]">
             {t('loadFailed')}: {error}
           </div>
         ) : null}
@@ -175,11 +175,11 @@ export function FrameMaterialDashboard() {
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('readinessSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[rgb(var(--nori-bg-2))] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('readiness.local')}
             </span>
           </div>
-          <div className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 border-b border-white/10 bg-[rgb(var(--nori-bg-2))] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('readiness.columns.kind')}</div>
             <div>{t('readiness.columns.total')}</div>
             <div>{t('readiness.columns.ready')}</div>
@@ -193,10 +193,10 @@ export function FrameMaterialDashboard() {
               <div key={row.key} className="grid grid-cols-[.7fr_.45fr_.45fr_.55fr_.55fr_.45fr_1fr] gap-2 px-3 py-3 text-xs">
                 <div className="truncate font-medium text-white/74">{t(`kinds.${row.key}`)}</div>
                 <div className="text-white/56">{row.total}</div>
-                <div className="font-medium text-[#8ff0b9]">{row.ready}</div>
-                <div className={row.missingPreview > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.missingPreview}</div>
-                <div className={row.running > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.running}</div>
-                <div className={row.failed > 0 ? 'font-medium text-[#ff9a9a]' : 'text-white/42'}>{row.failed}</div>
+                <div className="font-medium text-[rgb(var(--nori-t-8ff0b9))]">{row.ready}</div>
+                <div className={row.missingPreview > 0 ? 'font-medium text-[rgb(var(--nori-t-ffd98a))]' : 'text-white/42'}>{row.missingPreview}</div>
+                <div className={row.running > 0 ? 'font-medium text-[rgb(var(--nori-t-ffd98a))]' : 'text-white/42'}>{row.running}</div>
+                <div className={row.failed > 0 ? 'font-medium text-[rgb(var(--nori-t-ff9a9a))]' : 'text-white/42'}>{row.failed}</div>
                 <div className="truncate text-white/42">{row.latestName}</div>
               </div>
             ))}
@@ -241,13 +241,13 @@ export function FrameMaterialDashboard() {
                     <div className="text-white/58">{countVisualRenders(asset)}</div>
                     <div className="flex flex-wrap gap-1">
                       {isRunning(asset) ? (
-                        <span className="rounded border border-[#ffcc66]/35 bg-[#ffcc66]/10 px-2 py-0.5 text-xs text-[#ffd98a]">{t('status.running')}</span>
+                        <span className="rounded border border-[rgb(var(--nori-s-ffcc66))]/35 bg-[rgb(var(--nori-s-ffcc66))]/10 px-2 py-0.5 text-xs text-[rgb(var(--nori-t-ffd98a))]">{t('status.running')}</span>
                       ) : null}
                       {hasError(asset) ? (
-                        <span className="rounded border border-[#ff6b6b]/35 bg-[#ff6b6b]/10 px-2 py-0.5 text-xs text-[#ff9a9a]">{t('status.failed')}</span>
+                        <span className="rounded border border-[rgb(var(--nori-s-ff6b6b))]/35 bg-[rgb(var(--nori-s-ff6b6b))]/10 px-2 py-0.5 text-xs text-[rgb(var(--nori-t-ff9a9a))]">{t('status.failed')}</span>
                       ) : null}
                       {!isRunning(asset) && !hasError(asset) ? (
-                        <span className="rounded border border-[#45d483]/30 bg-[#45d483]/10 px-2 py-0.5 text-xs text-[#8ff0b9]">{t('status.ready')}</span>
+                        <span className="rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-2 py-0.5 text-xs text-[rgb(var(--nori-t-8ff0b9))]">{t('status.ready')}</span>
                       ) : null}
                     </div>
                   </div>
@@ -258,7 +258,7 @@ export function FrameMaterialDashboard() {
         </div>
       </section>
 
-      <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+      <aside className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
         <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
           <AppIcon name="folderOpen" className="h-4 w-4 text-[var(--fos-primary-text)]" />
           {t('groupsTitle')}

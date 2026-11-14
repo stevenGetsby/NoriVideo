@@ -57,7 +57,7 @@ export default function AiWriteModal({
                 className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
                 style={{ background: 'rgba(255,255,255,.1)' }}
               >
-                <AppIcon name="sparkles" className="w-5 h-5 text-[#7c3aed]" />
+                <AppIcon name="sparkles" className="w-5 h-5 text-[rgb(var(--nori-t-7c3aed))]" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-[var(--glass-text-primary)]">

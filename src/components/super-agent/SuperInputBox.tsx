@@ -513,13 +513,13 @@ export function SuperInputBox({
   return (
     <div className="mx-auto w-full max-w-5xl">
       <div>
-        <div className="relative rounded-[26px] border border-[rgba(17,17,17,.08)] bg-[#fafcfe]/90 p-4 shadow-[0_22px_54px_rgba(17,17,17,.095),0_4px_12px_rgba(17,17,17,.055)]">
+        <div className="relative rounded-[26px] border border-[rgba(17,17,17,.08)] bg-[rgb(var(--nori-s-fafcfe))]/90 p-4 shadow-[0_22px_54px_rgba(17,17,17,.095),0_4px_12px_rgba(17,17,17,.055)]">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(17,17,17,.08)] bg-white/84 px-3 py-2 shadow-[0_1px_2px_rgba(17,17,17,.035),0_1px_5px_rgba(17,17,17,.025)]">
               <NoriBrandMark size={24} />
-              <span className="text-sm font-bold text-[#111111]">LanmiaoTV Agent</span>
+              <span className="text-sm font-bold text-[rgb(var(--nori-t-111111))]">LanmiaoTV Agent</span>
             </div>
-            <span className="rounded-full bg-[#EFEFFD] px-3 py-1 text-xs font-semibold text-[#4B4DED]">
+            <span className="rounded-full bg-[rgb(var(--nori-s-efeffd))] px-3 py-1 text-xs font-semibold text-[rgb(var(--nori-t-4b4ded))]">
               Workflow
             </span>
           </div>
@@ -530,7 +530,7 @@ export function SuperInputBox({
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleKeyDown}
               placeholder={placeholder || '描述你想要的视频...'}
-              className="h-36 w-full resize-none p-5 pr-16 text-base leading-relaxed transition-all duration-200 placeholder:text-[#8e8e8e]"
+              className="h-36 w-full resize-none p-5 pr-16 text-base leading-relaxed transition-all duration-200 placeholder:text-[rgb(var(--nori-t-8e8e8e))]"
               style={{
                 background: '#ffffff',
                 color: '#111111',
@@ -572,8 +572,8 @@ export function SuperInputBox({
       </div>
 
       {isAgentRunning && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#f6f6f6]/78 px-4 py-6 backdrop-blur-md">
-          <div className="h-[min(760px,calc(100vh-48px))] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[rgba(214,255,0,.75)] bg-[#fafcfe] shadow-[0_28px_80px_rgba(17,17,17,.2),0_6px_18px_rgba(17,17,17,.08)]">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgb(var(--nori-s-f6f6f6))]/78 px-4 py-6 backdrop-blur-md">
+          <div className="h-[min(760px,calc(100vh-48px))] w-full max-w-5xl overflow-hidden rounded-[28px] border border-[rgba(214,255,0,.75)] bg-[rgb(var(--nori-s-fafcfe))] shadow-[0_28px_80px_rgba(17,17,17,.2),0_6px_18px_rgba(17,17,17,.08)]">
             <SuperExecutingPanel
               plan={plan}
               runSnapshot={runSnapshot}
@@ -1029,7 +1029,7 @@ function SuperExecutingPanel({
                 进入工作区查看
               </button>
             )}
-            <span className="rounded-full bg-[#D6FF00] px-3 py-1 text-xs font-bold text-[#111111]">
+            <span className="rounded-full bg-[rgb(var(--nori-s-d6ff00))] px-3 py-1 text-xs font-bold text-[rgb(var(--nori-t-111111))]">
               Live
             </span>
           </div>

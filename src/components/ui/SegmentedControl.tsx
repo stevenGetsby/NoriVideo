@@ -54,7 +54,7 @@ export function SegmentedControl<T extends string = string>({
 
     return (
         <div
-            className={`rounded-xl p-[3px] bg-[#e8e8ed] dark:bg-[#1b1b23] ${isCompact ? 'inline-block max-w-full' : 'block w-full'} ${className}`}
+            className={`rounded-xl p-[3px] bg-[rgb(var(--nori-s-e8e8ed))] dark:bg-[rgb(var(--nori-bg-3))] ${isCompact ? 'inline-block max-w-full' : 'block w-full'} ${className}`}
         >
             <div
                 ref={gridRef}
@@ -63,7 +63,7 @@ export function SegmentedControl<T extends string = string>({
             >
                 {/* Sliding pill indicator */}
                 <div
-                    className="absolute top-0 bottom-0 rounded-[10px] bg-white dark:bg-[#3a3a3c] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.05)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+                    className="absolute top-0 bottom-0 rounded-[10px] bg-white dark:bg-[rgb(var(--nori-s-3a3a3c))] shadow-[0_1px_3px_rgba(0,0,0,0.08),0_4px_12px_rgba(0,0,0,0.05)] transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
                     style={{ left: indicator.left, width: indicator.width }}
                 />
                 {options.map((opt) => (
@@ -72,8 +72,8 @@ export function SegmentedControl<T extends string = string>({
                         type="button"
                         onClick={() => onChange(opt.value)}
                         className={`relative z-10 flex items-center justify-center gap-1.5 rounded-[10px] px-3 py-1.5 text-[13px] font-semibold transition-colors duration-200 cursor-pointer ${value === opt.value
-                            ? 'text-[#1d1d1f] dark:text-white'
-                            : 'text-[#86868b] hover:text-[#6e6e73]'
+                            ? 'text-[rgb(var(--nori-t-1d1d1f))] dark:text-white'
+                            : 'text-[rgb(var(--nori-t-86868b))] hover:text-[rgb(var(--nori-t-6e6e73))]'
                             }`}
                     >
                         {opt.label}

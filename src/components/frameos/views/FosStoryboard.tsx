@@ -599,7 +599,7 @@ function RightPanel({ seg, scene, projectId, canEdit, onChanged, onPromptSaved }
           </div>
           <MentionPromptEditor value={displayPrompt} assets={mentionAssets} onChange={(next) => { dirtyRef.current = true; setDisplayPrompt(next) }} minHeight={260} placeholder="输入视频提示词；键入 @ 可选择当前分镜素材" readOnly={!canEdit} />
           {notice ? <div className="mt-2 text-[11px] text-[var(--fos-primary-text)]">{notice}</div> : null}
-          {panelError ? <div className="mt-2 text-[11px] text-[#ff8b8b]">{panelError}</div> : null}
+          {panelError ? <div className="mt-2 text-[11px] text-[rgb(var(--nori-t-ff8b8b))]">{panelError}</div> : null}
         </section>
 
         <div className="sd3-right-section sd3-right-section--style" style={{ paddingTop: 0 }}>
@@ -702,7 +702,7 @@ function StoryboardRunProgress({ state, hideCompleted = false }: { state: TaskTa
         <span className={`font-mono font-bold ${failed ? 'text-red-300' : 'text-[var(--fos-primary-text)]'}`}>{failed ? '失败' : `${Math.min(100, progress)}%`}</span>
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/[.08]">
-        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[#ff7272]' : 'bg-[var(--fos-brand-solid)]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
+        <div className={`h-full rounded-full transition-[width] duration-700 ${failed ? 'bg-[rgb(var(--nori-s-ff7272))]' : 'bg-[var(--fos-brand-solid)]'}`} style={{ width: `${failed ? Math.max(4, state.progress || 0) : Math.min(100, progress)}%` }} />
       </div>
       {failed && state.lastError?.message ? <p className="mt-2 text-[11px] leading-5 text-red-200">{friendlyStoryboardTaskError(state.lastError.message)}</p> : null}
       {running ? <p className="mt-2 text-[11px] text-[var(--fos-text-3)]">任务在后台持续执行；离开本页后，作品工作台的“分镜设计”进度会同步显示。</p> : null}
@@ -873,7 +873,7 @@ function StoryboardSuccess({
           {visibleEps.map((episode) => (
             <button key={episode.id} className={`sd3-ep-tab${episode.episodeNumber === activeEp ? ' is-active' : ''}`} onClick={() => onSwitchEp(episode.episodeNumber)}>
               E{episode.episodeNumber} {episode.name}
-              {FAILED.has(episode.episodeNumber) ? <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff5f5f] px-1 text-[10px] text-white">!</span> : null}
+              {FAILED.has(episode.episodeNumber) ? <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[rgb(var(--nori-s-ff5f5f))] px-1 text-[10px] text-white">!</span> : null}
             </button>
           ))}
         </div>
@@ -888,7 +888,7 @@ function StoryboardSuccess({
         <div className="border-b border-[var(--fos-border-soft)] px-4 py-2 text-[12px] font-semibold">
           {loading ? <span className="text-[var(--fos-text-3)]">正在加载本集分镜…</span> : null}
           {notice ? <span className="text-[var(--fos-primary-text)]">{notice}</span> : null}
-          {error || manualError ? <span className="text-[#ff7777]">{error || manualError}</span> : null}
+          {error || manualError ? <span className="text-[rgb(var(--nori-t-ff7777))]">{error || manualError}</span> : null}
         </div>
       ) : null}
 

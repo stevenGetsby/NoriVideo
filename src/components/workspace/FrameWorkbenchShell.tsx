@@ -49,12 +49,12 @@ function FrameNavLink({
         compact
           ? `inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border px-3 text-[13px] transition-colors ${
             active
-              ? 'border-transparent bg-[var(--fos-brand-solid)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              ? 'border-transparent bg-[var(--fos-brand-solid)] text-on-brand shadow-[var(--fos-shadow-btn-glow)]'
               : 'border-[var(--fos-border-lighter)] bg-[var(--fos-bg-4)] text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
           : `flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-[13px] transition-colors ${
             active
-              ? 'bg-[var(--fos-brand-solid)] text-white shadow-[var(--fos-shadow-btn-glow)]'
+              ? 'bg-[var(--fos-brand-solid)] text-on-brand shadow-[var(--fos-shadow-btn-glow)]'
               : 'text-[var(--fos-text-secondary)] hover:bg-[var(--fos-bg-5)] hover:text-[var(--fos-text-title)]'
           }`
       }
@@ -94,7 +94,7 @@ export function FrameWorkbenchShell({ activeKey, children }: FrameWorkbenchShell
   ]
 
   if (session?.user?.role === 'super_admin') {
-    return <div className="min-h-screen bg-[#08080c] pt-24 text-center text-sm text-white/45">正在进入平台管理控制台…</div>
+    return <div className="min-h-screen bg-[rgb(var(--nori-bg-0))] pt-24 text-center text-sm text-white/45">正在进入平台管理控制台…</div>
   }
 
   return (

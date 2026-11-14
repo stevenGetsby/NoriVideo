@@ -134,7 +134,7 @@ async function main() {
   const root = fileURLToPath(new URL('../..', import.meta.url))
   const tokens = new Map()
   const report = []
-  const sourceFiles = (await files(path.join(root, 'src'))).filter((file) => /\.(css|tsx)$/.test(file))
+  const sourceFiles = (await files(path.join(root, 'src'))).filter((file) => /\.css$/.test(file))
   for (const file of sourceFiles) {
     if (file.endsWith('theme.css') || file.endsWith('theme-generated.css')) continue
     const source = await readFile(file, 'utf8')
@@ -143,7 +143,17 @@ async function main() {
     report.push(`${path.relative(root, file)}: ${[...source].filter((char, index) => char !== next[index]).length} characters differ`)
     if (process.argv.includes('--write')) await writeFile(file, next)
   }
-  if (process.argv.includes('--write')) await writeFile(path.join(root, 'src/styles/theme-generated.css'), generatedCss(tokens))
+  if (process.argv.includes('--write')) {
+    const existing = await readFile(path.join(root, 'src/styles/theme-generated.css'), 'utf8')
+    for (const match of existing.matchAll(/--nori-([st]-[0-9a-f]{6}):\s*([\d ]+);/g)) {
+      if (!tokens.has(match[1])) {
+        const dark = match[2].trim().split(' ').map((value) => Number(value).toString(16).padStart(2, '0')).join('')
+        const role = match[1][0]
+        tokens.set(match[1], { dark, light: lightColor(dark, role) })
+      }
+    }
+    await writeFile(path.join(root, 'src/styles/theme-generated.css'), generatedCss(tokens))
+  }
   await mkdir(path.join(root, 'test-results/theme'), { recursive: true })
   await writeFile(path.join(root, 'test-results/theme/tokenize-report.md'), `${process.argv.includes('--write') ? 'Written' : 'Check'}\n\n${report.join('\n')}\n`)
   console.log(JSON.stringify({ files: report.length, tokens: tokens.size, write: process.argv.includes('--write') }))

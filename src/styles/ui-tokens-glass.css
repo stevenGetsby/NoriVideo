@@ -1,18 +1,18 @@
 :root {
   /* Surface and text */
-  --glass-bg-canvas: #f3f4f6;
-  --glass-bg-surface: rgba(255, 255, 255, 0.88);
-  --glass-bg-surface-strong: rgba(255, 255, 255, 0.94);
-  --glass-bg-surface-modal: rgba(255, 255, 255, 0.97);
-  --glass-bg-muted: rgba(255, 255, 255, 0.86);
-  --glass-bg-nav: rgba(255, 255, 255, 0.96);
-  --glass-text-primary: #0a0a0a;
-  --glass-text-secondary: #111111;
-  --glass-text-tertiary: #4b5563;
-  --glass-text-on-accent: #ffffff;
+  --glass-bg-canvas: rgb(var(--nori-s-f3f4f6));
+  --glass-bg-surface: rgb(var(--nori-ink) / calc(0.88 * var(--nori-a)));
+  --glass-bg-surface-strong: rgb(var(--nori-ink) / calc(0.94 * var(--nori-a)));
+  --glass-bg-surface-modal: rgb(var(--nori-ink) / calc(0.97 * var(--nori-a)));
+  --glass-bg-muted: rgb(var(--nori-ink) / calc(0.86 * var(--nori-a)));
+  --glass-bg-nav: rgb(var(--nori-ink) / calc(0.96 * var(--nori-a)));
+  --glass-text-primary: rgb(var(--nori-s-0a0a0a));
+  --glass-text-secondary: rgb(var(--nori-s-111111));
+  --glass-text-tertiary: rgb(var(--nori-s-4b5563));
+  --glass-text-on-accent: rgb(var(--nori-s-ffffff));
 
   /* Border strategy: default weak stroke, focus/error stronger */
-  --glass-stroke-soft: rgba(255, 255, 255, 0.22);
+  --glass-stroke-soft: rgb(var(--nori-ink) / calc(0.22 * var(--nori-a)));
   --glass-stroke-base: rgba(111, 126, 153, 0.24);
   --glass-stroke-strong: rgba(93, 109, 138, 0.36);
   --glass-stroke-focus: rgba(47, 123, 255, 0.64);
@@ -52,47 +52,47 @@
 
   /* Tone system */
   --glass-tone-neutral-bg: rgba(100, 116, 139, 0.18);
-  --glass-tone-neutral-fg: #374151;
+  --glass-tone-neutral-fg: rgb(var(--nori-s-374151));
   --glass-tone-info-bg: rgba(47, 123, 255, 0.2);
-  --glass-tone-info-fg: #1d63e8;
+  --glass-tone-info-fg: rgb(var(--nori-s-1d63e8));
   --glass-tone-success-bg: rgba(16, 185, 129, 0.2);
-  --glass-tone-success-fg: #0f9f62;
+  --glass-tone-success-fg: rgb(var(--nori-s-0f9f62));
   --glass-tone-warning-bg: rgba(245, 158, 11, 0.24);
-  --glass-tone-warning-fg: #b86400;
+  --glass-tone-warning-fg: rgb(var(--nori-s-b86400));
   --glass-tone-danger-bg: rgba(239, 68, 68, 0.2);
-  --glass-tone-danger-fg: #cb3a3a;
+  --glass-tone-danger-fg: rgb(var(--nori-s-cb3a3a));
 
   --glass-overlay-soft: rgba(10, 16, 30, 0.34);
   --glass-overlay: rgba(10, 16, 30, 0.46);
   --glass-overlay-strong: rgba(10, 16, 30, 0.58);
 
   /* Accent + interactive rings */
-  --glass-accent-from: #2f7bff;
-  --glass-accent-to: #5ca8ff;
+  --glass-accent-from: rgb(var(--nori-s-2f7bff));
+  --glass-accent-to: rgb(var(--nori-s-5ca8ff));
   --glass-accent-shadow-soft: rgba(47, 123, 255, 0.24);
   --glass-accent-shadow-strong: rgba(47, 123, 255, 0.32);
   --glass-focus-ring: rgba(47, 123, 255, 0.16);
   --glass-focus-ring-strong: rgba(47, 123, 255, 0.22);
   --glass-danger-ring: rgba(239, 68, 68, 0.14);
-  --glass-ghost-hover-bg: rgba(255, 255, 255, 0.5);
+  --glass-ghost-hover-bg: rgb(var(--nori-ink) / calc(0.5 * var(--nori-a)));
 }
 
 /* ===== Dark mode overrides ===== */
 .dark {
-  --glass-bg-canvas: #0c0c11;
+  --glass-bg-canvas: rgb(var(--nori-bg-1));
   --glass-bg-surface: rgba(27, 27, 35, 0.88);
   --glass-bg-surface-strong: rgba(36, 36, 46, 0.94);
   --glass-bg-surface-modal: rgba(19, 19, 25, 0.97);
   --glass-bg-muted: rgba(36, 36, 46, 0.86);
   --glass-bg-nav: rgba(12, 12, 17, 0.96);
-  --glass-text-primary: #f0f0f6;
-  --glass-text-secondary: #c2c3d0;
-  --glass-text-tertiary: #8f90a2;
-  --glass-text-on-accent: #ffffff;
+  --glass-text-primary: rgb(var(--nori-s-f0f0f6));
+  --glass-text-secondary: rgb(var(--nori-s-c2c3d0));
+  --glass-text-tertiary: rgb(var(--nori-s-8f90a2));
+  --glass-text-on-accent: rgb(var(--nori-s-ffffff));
 
-  --glass-stroke-soft: rgba(255, 255, 255, 0.08);
-  --glass-stroke-base: rgba(255, 255, 255, 0.12);
-  --glass-stroke-strong: rgba(255, 255, 255, 0.2);
+  --glass-stroke-soft: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
+  --glass-stroke-base: rgb(var(--nori-ink) / calc(0.12 * var(--nori-a)));
+  --glass-stroke-strong: rgb(var(--nori-ink) / calc(0.2 * var(--nori-a)));
   --glass-stroke-focus: rgba(124, 102, 255, 0.6);
   --glass-stroke-danger: rgba(255, 100, 100, 0.64);
   --glass-stroke-warning: rgba(255, 180, 50, 0.62);
@@ -104,37 +104,37 @@
   --glass-shadow-modal: 0 14px 34px rgba(0, 0, 0, 0.42);
   --glass-shadow-nav: 0 8px 18px rgba(0, 0, 0, 0.3);
 
-  --glass-tone-neutral-bg: rgba(255, 255, 255, 0.08);
-  --glass-tone-neutral-fg: #b4b5c4;
+  --glass-tone-neutral-bg: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
+  --glass-tone-neutral-fg: rgb(var(--nori-s-b4b5c4));
   --glass-tone-info-bg: rgba(56, 189, 248, 0.14);
-  --glass-tone-info-fg: #7dd3fc;
+  --glass-tone-info-fg: rgb(var(--nori-s-7dd3fc));
   --glass-tone-success-bg: rgba(50, 210, 140, 0.16);
-  --glass-tone-success-fg: #50d8a0;
+  --glass-tone-success-fg: rgb(var(--nori-s-50d8a0));
   --glass-tone-warning-bg: rgba(255, 180, 50, 0.18);
-  --glass-tone-warning-fg: #f0b840;
+  --glass-tone-warning-fg: rgb(var(--nori-s-f0b840));
   --glass-tone-danger-bg: rgba(255, 100, 100, 0.16);
-  --glass-tone-danger-fg: #ff7878;
+  --glass-tone-danger-fg: rgb(var(--nori-s-ff7878));
 
   --glass-overlay-soft: rgba(0, 0, 0, 0.5);
   --glass-overlay: rgba(0, 0, 0, 0.62);
   --glass-overlay-strong: rgba(0, 0, 0, 0.74);
 
-  --glass-accent-from: #5b6cff;
-  --glass-accent-to: #a855f7;
+  --glass-accent-from: rgb(var(--nori-s-5b6cff));
+  --glass-accent-to: rgb(var(--nori-s-a855f7));
   --glass-accent-shadow-soft: rgba(108, 92, 255, 0.3);
   --glass-accent-shadow-strong: rgba(108, 92, 255, 0.42);
   --glass-focus-ring: rgba(124, 102, 255, 0.22);
   --glass-focus-ring-strong: rgba(124, 102, 255, 0.32);
   --glass-danger-ring: rgba(255, 100, 100, 0.14);
-  --glass-ghost-hover-bg: rgba(255, 255, 255, 0.08);
+  --glass-ghost-hover-bg: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
 }
 
 /* Low-cost preset for performance-sensitive environments */
 [data-glass-preset='subtle'] {
-  --glass-bg-surface: rgba(255, 255, 255, 0.92);
-  --glass-bg-surface-strong: rgba(255, 255, 255, 0.96);
-  --glass-bg-surface-modal: rgba(255, 255, 255, 0.98);
-  --glass-bg-nav: rgba(255, 255, 255, 0.98);
+  --glass-bg-surface: rgb(var(--nori-ink) / calc(0.92 * var(--nori-a)));
+  --glass-bg-surface-strong: rgb(var(--nori-ink) / calc(0.96 * var(--nori-a)));
+  --glass-bg-surface-modal: rgb(var(--nori-ink) / calc(0.98 * var(--nori-a)));
+  --glass-bg-nav: rgb(var(--nori-ink) / calc(0.98 * var(--nori-a)));
   --glass-blur-sm: 2px;
   --glass-blur-md: 4px;
   --glass-blur-lg: 8px;

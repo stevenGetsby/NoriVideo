@@ -285,14 +285,14 @@ function HistoryPanel({
               <div className="min-w-0">
                 <div className="truncate font-bold text-[var(--fos-text-2)]">{target?.label || '资产图片'}</div>
                 <div className="truncate text-[var(--fos-text-4)]">{historyModel(task)} · {new Date(task.createdAt).toLocaleString('zh-CN', { hour12: false })}</div>
-                {failed && task.errorMessage ? <div className="mt-0.5 line-clamp-1 text-[#ff8e8e]" title={task.errorMessage}>{task.errorMessage}</div> : null}
+                {failed && task.errorMessage ? <div className="mt-0.5 line-clamp-1 text-[rgb(var(--nori-t-ff8e8e))]" title={task.errorMessage}>{task.errorMessage}</div> : null}
               </div>
-              <div className={failed ? 'text-right font-bold text-[#ff7777]' : completed ? 'text-right font-bold text-[#5bd08f]' : 'text-right font-bold text-[var(--fos-info)]'}>{status}</div>
+              <div className={failed ? 'text-right font-bold text-[rgb(var(--nori-t-ff7777))]' : completed ? 'text-right font-bold text-[rgb(var(--nori-t-5bd08f))]' : 'text-right font-bold text-[var(--fos-info)]'}>{status}</div>
             </div>
           )
         })}
         {loading ? <div className="px-4 py-6 text-center text-[12px] text-[var(--fos-text-4)]">正在读取真实任务记录…</div> : null}
-        {!loading && loadError ? <div className="px-4 py-4 text-[12px] text-[#ff8e8e]">{loadError}</div> : null}
+        {!loading && loadError ? <div className="px-4 py-4 text-[12px] text-[rgb(var(--nori-t-ff8e8e))]">{loadError}</div> : null}
         {!loading && !loadError && visibleRows.length === 0 ? <div className="px-4 py-6 text-center text-[12px] text-[var(--fos-text-4)]">暂无生图记录</div> : null}
       </div>
     </div>
@@ -323,7 +323,7 @@ function AssetPreview({ kind, imageUrl, alt }: { kind: AssetTab; imageUrl?: stri
   if (!src) {
     const mediaName = kind === 'characters' ? '形象设定图' : kind === 'items' ? '物品设定图' : '环境设定图'
     return (
-      <div className="flex h-full w-full flex-col items-center justify-center bg-[#08080c] px-6 text-center" data-testid="asset-image-empty-state">
+      <div className="flex h-full w-full flex-col items-center justify-center bg-[rgb(var(--nori-bg-0))] px-6 text-center" data-testid="asset-image-empty-state">
         <span className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-white/[.035] text-white/25"><AppIcon name="imageLandscape" className="h-5 w-5" /></span>
         <strong className="mt-3 text-[13px] font-bold text-white/65">{mediaName}还未生成</strong>
         <span className="mt-1 text-[11px] text-white/30">可生成图片，或从素材库与本地导入</span>
@@ -331,7 +331,7 @@ function AssetPreview({ kind, imageUrl, alt }: { kind: AssetTab; imageUrl?: stri
     )
   }
   return (
-    <div className="relative h-full w-full bg-[#f4f4f4]">
+    <div className="relative h-full w-full bg-[rgb(var(--nori-s-f4f4f4))]">
       <MediaImage
         src={src}
         alt={alt}
@@ -811,7 +811,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="min-w-0 truncate text-[13px] font-bold text-white">{a.name}</span>
-                    <AppIcon name="check" className="h-4 w-4 shrink-0 text-[#5bd08f]" />
+                    <AppIcon name="check" className="h-4 w-4 shrink-0 text-[rgb(var(--nori-t-5bd08f))]" />
                   </div>
                   <div className="mt-0.5 text-[12px] text-[var(--fos-text-4)]">{a.type}</div>
                   {isActive && a.variants?.length ? (
@@ -827,7 +827,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                     type="button"
                     onClick={() => void handleDeleteAsset(a)}
                     disabled={Boolean(deletingId)}
-                    className="mr-2 mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--fos-text-4)] opacity-70 transition hover:bg-[rgba(239,68,68,.14)] hover:text-[#ff7777] group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
+                    className="mr-2 mt-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[var(--fos-text-4)] opacity-70 transition hover:bg-[rgba(239,68,68,.14)] hover:text-[rgb(var(--nori-t-ff7777))] group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-40"
                     title={`删除${tab === 'characters' ? '角色' : tab === 'items' ? '物品' : '环境'} ${a.name}`}
                     aria-label={`删除${tab === 'characters' ? '角色' : tab === 'items' ? '物品' : '环境'} ${a.name}`}
                   >
@@ -869,7 +869,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[#ff7777]">{error}</div>
+          <div className="mb-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[rgb(var(--nori-t-ff7777))]">{error}</div>
         ) : null}
         {notice ? (
           <div className="mb-4 rounded-[10px] border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 py-2 text-[13px] font-semibold text-[var(--fos-primary-text)]">{notice}</div>
@@ -950,7 +950,7 @@ export function FosAssetSetting({ data, tab }: { data: FosProjectData; tab: Excl
                   <div className="mb-2 flex items-center gap-2">
                     <span className="text-[14px] font-bold text-white">{v.label}</span>
                     {v.episodes ? <span className="rounded-md bg-[var(--fos-fill-mid)] px-2 py-0.5 text-[11px] text-[var(--fos-text-3)]">{v.episodes}</span> : null}
-                    {tab === 'characters' && canEdit && v.appearanceId ? <button type="button" className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-bold text-[#ff9292] hover:bg-red-500/10" disabled={Boolean(deletingVariantId)} title={`删除角色变体 ${v.label}`} onClick={() => void handleDeleteCharacterVariant(v)}><AppIcon name="trash" className="h-3.5 w-3.5" />{deletingVariantId === v.appearanceId ? '删除中…' : '删除变体'}</button> : null}
+                    {tab === 'characters' && canEdit && v.appearanceId ? <button type="button" className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-bold text-[rgb(var(--nori-t-ff9292))] hover:bg-red-500/10" disabled={Boolean(deletingVariantId)} title={`删除角色变体 ${v.label}`} onClick={() => void handleDeleteCharacterVariant(v)}><AppIcon name="trash" className="h-3.5 w-3.5" />{deletingVariantId === v.appearanceId ? '删除中…' : '删除变体'}</button> : null}
                   </div>
                   <div className="mb-3 rounded-[8px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-3">
                     <div className="mb-2 flex items-center justify-between gap-2">

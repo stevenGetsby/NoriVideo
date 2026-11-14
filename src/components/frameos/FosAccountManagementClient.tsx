@@ -109,7 +109,7 @@ function Credits({ credits }: { credits: AccountCredits }) {
   return (
     <span className="flex items-center gap-2 text-[10px] text-white/55">
       <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] not-italic text-amber-950">¥</i>{credits.coins}</span>
-      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--fos-brand-solid)] text-[8px] not-italic text-white">◆</i>{credits.points}</span>
+      <span className="inline-flex items-center gap-1"><i className="flex h-4 w-4 items-center justify-center rounded-full bg-[var(--fos-brand-solid)] text-[8px] not-italic text-on-brand">◆</i>{credits.points}</span>
     </span>
   )
 }
@@ -379,7 +379,7 @@ export function FosAccountManagementClient() {
             </div>
           ) : null}
 
-          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[#131319]">
+          <section className="overflow-hidden rounded-[12px] border border-white/[.07] bg-[rgb(var(--nori-bg-2))]">
             <div className="flex items-center justify-between border-b border-white/[.07] px-5 py-4">
               <div>
                 <h2 className="text-[13px] font-bold text-white">{workspace?.manager.username || '当前管理账号'}的子账号</h2>
@@ -391,7 +391,7 @@ export function FosAccountManagementClient() {
               <div className="min-w-[1660px] w-full">
                 <div className="grid grid-cols-[36px_minmax(170px,1.2fr)_120px_80px_130px_120px_130px_210px_130px_360px] gap-3 border-b border-white/[.055] px-5 py-3 text-[11px] font-semibold text-white/40 [&>*]:min-w-0">
                   <span><input type="checkbox" data-testid="account-select-all" aria-label="全选启用子账号" checked={subaccounts.some((account) => account.status === 'active' && selectedIds.has(account.id)) && subaccounts.filter((account) => account.status === 'active').every((account) => selectedIds.has(account.id))} onChange={() => setSelectedIds(new Set(subaccounts.filter((account) => account.status === 'active' && !selectedIds.has(account.id)).length ? subaccounts.filter((account) => account.status === 'active').map((account) => account.id) : []))} /></span><span>子账号</span><span>身份</span><span>状态</span><span>个人积分</span><span title="近 90 天管理账号为该成员承担的积分：切换前直接从管理账号扣的生成，加上切换后自动补足给该成员的积分。">近90天代付</span><span>今日额度 / 用量</span><span>模型金额</span><span>最后登录</span>
-                  <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[#131319] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
+                  <span className="sticky right-0 z-10 -my-3 flex items-center justify-end border-l border-white/[.055] bg-[rgb(var(--nori-bg-2))] py-3 pl-3 text-white/55 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">操作</span>
                 </div>
                 {loading ? (
                   <div className="px-5 py-12 text-center text-[11px] text-white/30">正在加载子账号…</div>
@@ -426,7 +426,7 @@ export function FosAccountManagementClient() {
                         ))}
                       </span>
                       <span className="text-[10px] text-white/35">{formatDate(account.lastLoginAt)}</span>
-                      <span className="sticky right-0 z-10 -my-4 flex shrink-0 items-center justify-end gap-2 border-l border-white/[.055] bg-[#131319] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
+                      <span className="sticky right-0 z-10 -my-4 flex shrink-0 items-center justify-end gap-2 border-l border-white/[.055] bg-[rgb(var(--nori-bg-2))] py-4 pl-3 shadow-[-12px_0_18px_rgba(19,19,25,.92)]">
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(account)}>流水</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openCreditOperation('allocate', account)}>分配</button>
                         <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={account.credits.points <= 0} title="把该成员的积分收回到管理账号" onClick={() => openCreditOperation('reclaim', account)}>收回</button>

@@ -161,7 +161,7 @@ export function FrameFeedbackDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
-      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -199,8 +199,8 @@ export function FrameFeedbackDashboard() {
                   onClick={() => setType(item)}
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     type === item
-                      ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-white'
-                      : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
+                      ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-on-brand'
+                      : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-on-brand'
                   }`}
                 >
                   {t(`types.${item}`)}
@@ -218,7 +218,7 @@ export function FrameFeedbackDashboard() {
                 onChange={(event) => setTitle(event.target.value)}
                 onInput={(event) => setTitle(event.currentTarget.value)}
                 maxLength={80}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#0c0c11] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+                className="h-10 w-full rounded-md border border-white/10 bg-[rgb(var(--nori-bg-1))] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder={t('placeholders.title')}
               />
             </div>
@@ -229,7 +229,7 @@ export function FrameFeedbackDashboard() {
                 value={route}
                 onChange={(event) => setRoute(event.target.value)}
                 onInput={(event) => setRoute(event.currentTarget.value)}
-                className="h-10 w-full rounded-md border border-white/10 bg-[#0c0c11] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+                className="h-10 w-full rounded-md border border-white/10 bg-[rgb(var(--nori-bg-1))] px-3 text-sm text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
                 placeholder="/zh/workspace"
               />
             </div>
@@ -244,7 +244,7 @@ export function FrameFeedbackDashboard() {
               onInput={(event) => setDescription(event.currentTarget.value)}
               rows={5}
               maxLength={1200}
-              className="w-full resize-none rounded-md border border-white/10 bg-[#0c0c11] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
+              className="w-full resize-none rounded-md border border-white/10 bg-[rgb(var(--nori-bg-1))] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
               placeholder={t('placeholders.description')}
             />
           </div>
@@ -259,14 +259,14 @@ export function FrameFeedbackDashboard() {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
               data-ready={title.trim() && description.trim() ? 'true' : 'false'}
-              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-4 text-sm font-semibold text-white transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-4 text-sm font-semibold text-on-brand transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
               {saved ? t('saved') : t('submit')}
             </button>
           </div>
           {error ? (
-            <div className="rounded-md border border-[#ffd98a]/20 bg-[#ffd98a]/8 px-3 py-2 text-xs text-[#ffd98a]">
+            <div className="rounded-md border border-[rgb(var(--nori-s-ffd98a))]/20 bg-[rgb(var(--nori-s-ffd98a))]/8 px-3 py-2 text-xs text-[rgb(var(--nori-t-ffd98a))]">
               {t('syncWarning', { error })}
             </div>
           ) : null}
@@ -281,11 +281,11 @@ export function FrameFeedbackDashboard() {
               </div>
               <p className="mt-1 text-xs leading-5 text-white/40">{t('triageSubtitle')}</p>
             </div>
-            <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
+            <span className="w-fit rounded border border-white/10 bg-[rgb(var(--nori-bg-2))] px-2 py-1 text-[11px] font-medium text-white/42">
               {t('serverTriage')}
             </span>
           </div>
-          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
+          <div className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 border-b border-white/10 bg-[rgb(var(--nori-bg-2))] px-3 py-2 text-[11px] font-medium text-white/42">
             <div>{t('triage.columns.type')}</div>
             <div>{t('triage.columns.total')}</div>
             <div>{t('triage.columns.open')}</div>
@@ -299,7 +299,7 @@ export function FrameFeedbackDashboard() {
               <div key={row.type} className="grid grid-cols-[.75fr_.5fr_.5fr_1fr_.75fr] gap-2 px-3 py-3 text-xs">
                 <div className="truncate font-medium text-white/72">{t(`types.${row.type}`)}</div>
                 <div className="text-white/56">{row.count}</div>
-                <div className={row.open > 0 ? 'font-medium text-[#ffd98a]' : 'text-white/42'}>{row.open}</div>
+                <div className={row.open > 0 ? 'font-medium text-[rgb(var(--nori-t-ffd98a))]' : 'text-white/42'}>{row.open}</div>
                 <div className="truncate font-mono text-white/42">{row.latestRoute}</div>
                 <div className="truncate text-white/42">{row.latestAt}</div>
               </div>
@@ -309,7 +309,7 @@ export function FrameFeedbackDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+        <div className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <AppIcon name="infoCircle" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('contextTitle')}
@@ -326,7 +326,7 @@ export function FrameFeedbackDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+        <div className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <AppIcon name="clock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('recentTitle')}
@@ -353,9 +353,9 @@ export function FrameFeedbackDashboard() {
                   <div className="mt-3 flex items-center justify-between gap-2">
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       record.status === 'resolved'
-                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                        ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
                         : record.status === 'triaged'
-                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[rgb(var(--nori-s-ffd98a))]/30 bg-[rgb(var(--nori-s-ffd98a))]/10 text-[rgb(var(--nori-t-ffd98a))]'
                           : 'border-white/10 bg-white/5 text-white/42'
                     }`}>
                       {t(`status.${record.status}`)}

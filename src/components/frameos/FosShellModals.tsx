@@ -79,7 +79,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
           <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="反馈类型">
             {FEEDBACK_TYPES.map(([value, label]) => (
               <button key={value} type="button" role="radio" aria-checked={type === value} onClick={() => setType(value)}
-                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-transparent bg-[var(--fos-brand-solid)] font-semibold text-white' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-[var(--fos-primary-border)] hover:text-white'}`}>
+                className={`h-8 rounded-[8px] border px-3 text-[13px] transition-colors ${type === value ? 'border-transparent bg-[var(--fos-brand-solid)] font-semibold text-on-brand' : 'border-[var(--fos-border-strong)] text-[var(--fos-text-2)] hover:border-[var(--fos-primary-border)] hover:text-on-brand'}`}>
                 {label}
               </button>
             ))}
@@ -100,7 +100,7 @@ export function FeedbackModal({ onClose }: { onClose: () => void }) {
           </span>
           <input className="fos-input" value={contact} onChange={(event) => setContact(event.target.value)} maxLength={80} placeholder="微信或邮箱，方便我们回复您" />
         </label>
-        {error ? <div role="alert" className="rounded-[8px] border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[#ff8589]">{error}</div> : null}
+        {error ? <div role="alert" className="rounded-[8px] border border-[rgba(229,72,77,.3)] bg-[rgba(229,72,77,.1)] px-3 py-2 text-[12px] text-[rgb(var(--nori-t-ff8589))]">{error}</div> : null}
         <div className="flex items-center justify-end gap-3">
           {!text ? <span className="mr-auto text-[12px] text-[var(--fos-text-4)]">填写描述后即可提交</span> : null}
           <button type="button" onClick={onClose} disabled={submitting} className="fos-btn fos-btn-ghost">取消</button>
@@ -119,7 +119,7 @@ export function AccountModal({ account, onLogout, onClose }: { account: string; 
       <div className="space-y-4">
         <div className="rounded-[12px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-1)] p-5">
           <div className="mb-4 flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--fos-primary-soft)] text-white"><AppIcon name="userCircle" className="h-5 w-5" /></span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--fos-primary-soft)] text-on-brand"><AppIcon name="userCircle" className="h-5 w-5" /></span>
             <span className="text-[15px] font-bold text-white">账号信息</span>
           </div>
           <div className="flex items-center justify-between border-t border-[var(--fos-border-soft)] pt-4">
@@ -150,7 +150,7 @@ export function UpdatesToast({ onDone }: { onDone: () => void }) {
   return (
     <div className="fixed left-1/2 top-4 z-[70] -translate-x-1/2">
       <div className="flex items-center gap-2 rounded-[10px] border border-[rgba(34,197,94,.3)] bg-[rgba(20,40,28,.95)] px-4 py-2.5 text-[13px] text-white shadow-xl">
-        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#22c55e] text-white"><AppIcon name="check" className="h-3 w-3" /></span>
+        <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[rgb(var(--nori-s-22c55e))] text-white"><AppIcon name="check" className="h-3 w-3" /></span>
         当前已是最新版本 <span className="text-[var(--fos-text-3)]">v{APP_VERSION}</span>
       </div>
     </div>

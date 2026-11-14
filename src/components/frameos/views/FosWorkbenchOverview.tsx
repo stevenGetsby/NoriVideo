@@ -562,7 +562,7 @@ export function FosWorkbenchOverview({ data }: { data: FosProjectData }) {
                 >
                   <div className="text-[12px] font-bold text-white">{label}</div>
                   <div className="min-w-0">
-                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[#59c98d]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
+                    <div className={statusText.startsWith('已') ? 'text-[11px] font-bold text-[rgb(var(--nori-t-59c98d))]' : 'text-[11px] font-bold text-[var(--fos-text-3)]'}>{statusText}</div>
                     <div className="mt-0.5 truncate text-[10px] text-[var(--fos-text-4)]">{detail}</div>
                   </div>
                   <Link href={{ pathname: `${base}/assets/${href}` }} className="fos-btn fos-btn-soft fos-btn-sm">{label === '音色' ? '设置' : '查看'}</Link>

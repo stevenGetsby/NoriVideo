@@ -75,7 +75,7 @@ export function AiModifyDescriptionField({
               <TaskStatusInline state={aiModifyingState} className="text-[var(--glass-tone-info-fg)] [&>span]:text-[var(--glass-tone-info-fg)] [&_svg]:text-[var(--glass-tone-info-fg)]" />
             ) : (
               <>
-                <AppIcon name="sparkles" className="h-4 w-4 text-[#7c3aed]" />
+                <AppIcon name="sparkles" className="h-4 w-4 text-[rgb(var(--nori-t-7c3aed))]" />
                 <span
                   className="font-medium"
                   style={{ color: '#3265ff' }}

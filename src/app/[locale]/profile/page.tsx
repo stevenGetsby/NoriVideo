@@ -43,14 +43,14 @@ export default function ProfilePage() {
   ]
 
   return (
-    <div className="glass-page min-h-screen bg-[#0c0c11]">
+    <div className="glass-page min-h-screen bg-[rgb(var(--nori-bg-1))]">
       <Navbar />
 
       <main className="mx-auto max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8">
         <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-          <aside className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+          <aside className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4 shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="mb-5 flex items-center gap-3 border-b border-white/10 pb-4">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--fos-brand-solid)] text-sm font-bold text-white">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-[var(--fos-brand-solid)] text-sm font-bold text-on-brand">
                 {(session.user?.name || session.user?.email || 'N').slice(0, 1).toUpperCase()}
               </div>
               <div className="min-w-0">
@@ -61,14 +61,14 @@ export default function ProfilePage() {
 
             <div className="mb-5 rounded-md border border-white/10 bg-white/4 p-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="userRoundCog" className="h-4 w-4 text-[#a3acff]" />
+                <AppIcon name="userRoundCog" className="h-4 w-4 text-[rgb(var(--nori-primary-text-))]" />
                 {t('settingsTitle')}
               </div>
               <div className="mt-2 text-xs leading-5 text-white/42">{t('settingsSubtitle')}</div>
             </div>
 
             <nav className="space-y-2">
-              <div className="flex w-full items-center gap-3 rounded-md bg-[var(--fos-brand-solid)] px-3 py-2.5 text-left text-sm font-medium text-white shadow-[0_10px_24px_rgba(255,255,255,.14)]">
+              <div className="flex w-full items-center gap-3 rounded-md bg-[var(--fos-brand-solid)] px-3 py-2.5 text-left text-sm font-medium text-on-brand shadow-[0_10px_24px_rgba(255,255,255,.14)]">
                 <AppIcon name="settingsHexAlt" className="h-4 w-4" />
                 {t('apiConfig')}
               </div>
@@ -78,7 +78,7 @@ export default function ProfilePage() {
                   href={item.href}
                   className="flex items-start gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-2.5 transition-colors hover:bg-white/8"
                 >
-                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[#a3acff]" />
+                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--nori-primary-text-))]" />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-white/72">{item.label}</span>
                     <span className="mt-0.5 block text-xs leading-5 text-white/36">{item.detail}</span>
@@ -89,17 +89,17 @@ export default function ProfilePage() {
 
             <button
               onClick={() => signOut({ callbackUrl: '/' })}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-3 py-2.5 text-sm font-semibold text-[#ffb1b1] transition-colors hover:bg-[#ff6b6b]/14"
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-md border border-[rgb(var(--nori-s-ff6b6b))]/30 bg-[rgb(var(--nori-s-ff6b6b))]/10 px-3 py-2.5 text-sm font-semibold text-[rgb(var(--nori-t-ffb1b1))] transition-colors hover:bg-[rgb(var(--nori-s-ff6b6b))]/14"
             >
               <AppIcon name="logout" className="h-4 w-4" />
               {t('logout')}
             </button>
           </aside>
 
-          <section className="min-w-0 rounded-lg border border-white/10 bg-[#16161d] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
+          <section className="min-w-0 rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[#a3acff]" />
+                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[rgb(var(--nori-primary-text-))]" />
                 {t('apiConfig')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/45">{t('apiConfigHint')}</p>

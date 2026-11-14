@@ -281,7 +281,7 @@ export function FrameToolboxDashboard() {
 
   return (
     <div className="grid gap-5 xl:grid-cols-[1fr_340px]">
-      <section className="rounded-lg border border-white/10 bg-[#16161d] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
+      <section className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4 shadow-[0_18px_50px_rgba(0,0,0,.18)]">
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
@@ -292,7 +292,7 @@ export function FrameToolboxDashboard() {
           </div>
           <Link
             href={{ pathname: '/service-records' }}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-white hover:brightness-110"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-3 text-sm font-semibold text-on-brand hover:brightness-110"
           >
             <AppIcon name="receipt" className="h-4 w-4" />
             {t('openRecords')}
@@ -300,7 +300,7 @@ export function FrameToolboxDashboard() {
         </div>
 
         {error ? (
-          <div className="mb-4 rounded-md border border-[#ff6b6b]/30 bg-[#ff6b6b]/10 px-3 py-2 text-sm text-[#ffb1b1]">
+          <div className="mb-4 rounded-md border border-[rgb(var(--nori-s-ff6b6b))]/30 bg-[rgb(var(--nori-s-ff6b6b))]/10 px-3 py-2 text-sm text-[rgb(var(--nori-t-ffb1b1))]">
             {t('loadFailed')}: {error}
           </div>
         ) : null}
@@ -323,8 +323,8 @@ export function FrameToolboxDashboard() {
                     <div className="text-sm font-medium text-white/76">{t(`checks.${check.key}.title`)}</div>
                     <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                       check.ok
-                        ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
-                        : 'border-[#ffcc66]/35 bg-[#ffcc66]/10 text-[#ffd98a]'
+                        ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
+                        : 'border-[rgb(var(--nori-s-ffcc66))]/35 bg-[rgb(var(--nori-s-ffcc66))]/10 text-[rgb(var(--nori-t-ffd98a))]'
                     }`}>
                       {check.ok ? t('status.ok') : t('status.review')}
                     </span>
@@ -363,11 +363,11 @@ export function FrameToolboxDashboard() {
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('capabilitySubtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-white/10 bg-[#131319] px-2 py-1 text-[11px] font-medium text-white/42">
+                <span className="w-fit rounded border border-white/10 bg-[rgb(var(--nori-bg-2))] px-2 py-1 text-[11px] font-medium text-white/42">
                   {t('capability.local')}
                 </span>
               </div>
-              <div className="grid grid-cols-[.8fr_.55fr_.65fr_.65fr_.9fr] gap-2 border-b border-white/10 bg-[#131319] px-3 py-2 text-[11px] font-medium text-white/42">
+              <div className="grid grid-cols-[.8fr_.55fr_.65fr_.65fr_.9fr] gap-2 border-b border-white/10 bg-[rgb(var(--nori-bg-2))] px-3 py-2 text-[11px] font-medium text-white/42">
                 <div>{t('capability.columns.module')}</div>
                 <div>{t('capability.columns.status')}</div>
                 <div>{t('capability.columns.primary')}</div>
@@ -384,8 +384,8 @@ export function FrameToolboxDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.status === 'ok'
-                          ? 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
-                          : 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
+                          ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
+                          : 'border-[rgb(var(--nori-s-ffd98a))]/30 bg-[rgb(var(--nori-s-ffd98a))]/10 text-[rgb(var(--nori-t-ffd98a))]'
                       }`}>
                         {t(`status.${row.status}`)}
                       </span>
@@ -404,7 +404,7 @@ export function FrameToolboxDashboard() {
       </section>
 
       <aside className="space-y-4">
-        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+        <div className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <AppIcon name="settingsHexMinor" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('shortcutsTitle')}
@@ -428,7 +428,7 @@ export function FrameToolboxDashboard() {
           </div>
         </div>
 
-        <div className="rounded-lg border border-white/10 bg-[#16161d] p-4">
+        <div className="rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] p-4">
           <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-white">
             <AppIcon name="clock" className="h-4 w-4 text-[var(--fos-primary-text)]" />
             {t('taskQueueTitle')}
@@ -443,10 +443,10 @@ export function FrameToolboxDashboard() {
                     <div className="min-w-0 truncate text-xs font-medium text-white/72">{taskTypeDisplayName(task.type)}</div>
                     <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] ${
                       task.status === 'failed'
-                        ? 'border-[#ff6b6b]/35 bg-[#ff6b6b]/10 text-[#ff9a9a]'
+                        ? 'border-[rgb(var(--nori-s-ff6b6b))]/35 bg-[rgb(var(--nori-s-ff6b6b))]/10 text-[rgb(var(--nori-t-ff9a9a))]'
                         : activeStatuses(task.status)
-                          ? 'border-[#ffd98a]/30 bg-[#ffd98a]/10 text-[#ffd98a]'
-                          : 'border-[#45d483]/30 bg-[#45d483]/10 text-[#8ff0b9]'
+                          ? 'border-[rgb(var(--nori-s-ffd98a))]/30 bg-[rgb(var(--nori-s-ffd98a))]/10 text-[rgb(var(--nori-t-ffd98a))]'
+                          : 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
                     }`}>
                       {taskStatusDisplayName(task.status)}
                     </span>

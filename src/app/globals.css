@@ -25,8 +25,8 @@ html[data-zoom-mode="legacy"] {
   padding: 12px 16px;
   max-width: min(640px, calc(100vw - 32px));
   border-radius: 12px;
-  background: var(--fos-bg-4, #24242e);
-  color: var(--fos-text-2, #bcbdcb);
+  background: var(--fos-bg-4, rgb(var(--nori-bg-4)));
+  color: var(--fos-text-2, rgb(var(--nori-text-2)));
   font-size: 13px;
   line-height: 1.5;
   z-index: 100300;
@@ -37,12 +37,12 @@ html[data-zoom-mode="legacy"] {
   padding: 4px 10px;
   border-radius: 6px;
   background: transparent;
-  color: var(--fos-text-1, #f5f5fa);
-  border: 1px solid var(--fos-border-mid, rgba(255, 255, 255, .085));
+  color: var(--fos-text-1, rgb(var(--nori-text-1)));
+  border: 1px solid var(--fos-border-mid, rgb(var(--nori-ink) / calc(0.085 * var(--nori-a))));
   cursor: pointer;
   font-size: 12px;
 }
-.nori-old-browser-notice-dismiss:hover { background: var(--fos-fill-mid, rgba(255, 255, 255, .07)); }
+.nori-old-browser-notice-dismiss:hover { background: var(--fos-fill-mid, rgb(var(--nori-ink) / calc(0.07 * var(--nori-a)))); }
 
 .nori-password-field { position: relative; display: block; width: 100%; }
 .nori-password-field > input { width: 100%; padding-right: 40px; }
@@ -552,5 +552,5 @@ body {
 html,
 body {
   min-height: 100%;
-  background-color: #0d0d0d;
+  background-color: rgb(var(--nori-page-bg));
 }

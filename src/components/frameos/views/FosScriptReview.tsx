@@ -221,12 +221,12 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
         : 'border-white/10 bg-white/[.035] text-[var(--fos-text-2)]'
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[#08080c]">
+    <div className="flex min-h-0 flex-1 flex-col bg-[rgb(var(--nori-bg-0))]">
       <div className="grid min-h-0 flex-1" style={{ gridTemplateColumns: '280px 1fr' }}>
-        <aside className="overflow-y-auto border-r border-[rgba(255,255,255,.08)] bg-[#0c0c11]">
+        <aside className="overflow-y-auto border-r border-[rgba(255,255,255,.08)] bg-[rgb(var(--nori-bg-1))]">
           <div className="flex h-[40px] items-center justify-between border-b border-[rgba(255,255,255,.06)] px-4">
             <h3 className="text-[14px] font-bold text-white">分集列表</h3>
-            <span className="text-[13px] font-semibold text-[#a3a4b1]">共 {episodes.length} 集</span>
+            <span className="text-[13px] font-semibold text-[rgb(var(--nori-t-a3a4b1))]">共 {episodes.length} 集</span>
           </div>
           <div className="space-y-1 p-2">
             {episodes.map((ep) => {
@@ -243,7 +243,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
                     <span className="mr-2 text-[var(--fos-primary-text)]">E{ep.episodeNumber}</span>
                     <span>{ep.name}</span>
                   </div>
-                  <div className="mt-1 text-[12px] font-medium text-[#8c8d9d]">字数 {ep.wordCount} 字</div>
+                  <div className="mt-1 text-[12px] font-medium text-[rgb(var(--nori-t-8c8d9d))]">字数 {ep.wordCount} 字</div>
                 </button>
               )
             })}
@@ -267,7 +267,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
 
         <article className="overflow-y-auto">
           <div className="flex h-[40px] items-center justify-between border-b border-[rgba(255,255,255,.06)] px-5">
-            <h3 className="text-[15px] font-bold text-white">
+            <h3 className="text-[15px] font-bold text-on-brand">
               {active ? (
                 <>
                   <span className="mr-2 rounded-[4px] bg-[var(--fos-primary-soft)] px-2 py-0.5 text-[12px] text-[var(--fos-primary-text)]">E{active.episodeNumber}</span>
@@ -276,7 +276,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
               ) : '剧本解析'}
             </h3>
             <div className="flex items-center gap-3">
-              <span className="text-[13px] font-semibold text-[#a3a4b1]">字数 {activeWordCount} 字</span>
+              <span className="text-[13px] font-semibold text-[rgb(var(--nori-t-a3a4b1))]">字数 {activeWordCount} 字</span>
               {canEdit ? <span className="text-[12px] text-[var(--fos-text-4)]">可直接编辑</span> : null}
             </div>
           </div>
@@ -298,7 +298,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
           ) : null}
 
           {error ? (
-            <div className="mx-6 mt-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[#ff7777]">{error}</div>
+            <div className="mx-6 mt-4 rounded-[10px] border border-[rgba(239,68,68,.4)] bg-[rgba(239,68,68,.1)] px-3 py-2 text-[13px] font-semibold text-[rgb(var(--nori-t-ff7777))]">{error}</div>
           ) : null}
           {notice ? (
             <div className="mx-6 mt-4 rounded-[10px] border border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] px-3 py-2 text-[13px] font-semibold text-[var(--fos-text-1)]">{notice}</div>

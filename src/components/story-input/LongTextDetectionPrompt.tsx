@@ -64,7 +64,7 @@ export default function LongTextDetectionPrompt({
               className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl"
               style={{ background: 'rgba(255,255,255,.1)' }}
             >
-              <AppIcon name="sparkles" className="h-5 w-5 text-[#7c3aed]" />
+              <AppIcon name="sparkles" className="h-5 w-5 text-[rgb(var(--nori-t-7c3aed))]" />
             </div>
             <h3 className="text-lg font-bold text-[var(--glass-text-primary)]">
               {copy.title}
