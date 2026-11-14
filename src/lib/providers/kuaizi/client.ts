@@ -63,6 +63,7 @@ export async function postKuaiziApiKey(input: {
   path: string
   body: Record<string, unknown>
   timeoutMs?: number
+  signal?: AbortSignal
 }): Promise<unknown> {
   const response = await fetch(buildKuaiziUrl(input.baseUrl, input.path), {
     method: 'POST',
@@ -71,7 +72,7 @@ export async function postKuaiziApiKey(input: {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(input.body),
-    signal: AbortSignal.timeout(input.timeoutMs || 60_000),
+    signal: input.signal || AbortSignal.timeout(input.timeoutMs || 60_000),
   })
   const payload = await readJsonResponse(response)
   if (!response.ok) {
@@ -87,6 +88,7 @@ export async function requestKuaiziBearer(input: {
   method: 'GET' | 'POST'
   body?: Record<string, unknown>
   timeoutMs?: number
+  signal?: AbortSignal
 }): Promise<unknown> {
   const response = await fetch(buildKuaiziUrl(input.baseUrl, input.path), {
     method: input.method,
@@ -95,7 +97,7 @@ export async function requestKuaiziBearer(input: {
       ...(input.body ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(input.body ? { body: JSON.stringify(input.body) } : {}),
-    signal: AbortSignal.timeout(input.timeoutMs || 60_000),
+    signal: input.signal || AbortSignal.timeout(input.timeoutMs || 60_000),
   })
   const payload = await readJsonResponse(response)
   if (!response.ok) {

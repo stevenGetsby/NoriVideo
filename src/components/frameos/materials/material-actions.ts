@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
+import { isImageUpload, MAX_MATERIAL_FILE_BYTES } from '@/lib/frameos/upload-file-policy'
 import type { FrameosMaterialItem } from './contracts'
 
 export async function renameFrameosMaterial(materialId: string, value: string) {
@@ -34,6 +35,60 @@ export async function updateFrameosMaterial(materialId: string, input: { title: 
     throw new Error('服务未返回更新后的素材，请刷新后确认。')
   }
   return { ...payload.material, voiceCleared: payload.voiceCleared === true, notice: payload.message || null }
+}
+
+export interface MaterialImageReplaceResult {
+  material: FrameosMaterialItem
+  previousMaterialId: string
+  retired: 'trashed' | 'superseded'
+  referenceCount: number
+  voiceKept: boolean
+  voiceDropped: boolean
+}
+
+export function describeMaterialImageReplacement(name: string, result: Pick<MaterialImageReplaceResult, 'retired' | 'referenceCount' | 'voiceKept' | 'voiceDropped'>) {
+  const parts = [`已替换「${name}」的图片。`]
+  if (result.voiceKept) parts.push('角色音色已保持绑定，无需重新上传音频。')
+  if (result.voiceDropped) parts.push('原绑定的音色已不可用，请重新设置角色音色。')
+  parts.push(result.retired === 'superseded'
+    ? `仍有 ${Math.max(1, result.referenceCount)} 个画布或工作流模板在使用原图片，它们会继续按原图片生成；需要时请在画布中手动更换。`
+    : '原图片已移入回收站，可随时恢复。')
+  return parts.join('')
+}
+
+export async function replaceFrameosMaterialImage(materialId: string, file: File): Promise<MaterialImageReplaceResult> {
+  if (!isImageUpload(file)) throw new Error('请选择图片文件（JPG、PNG、WebP 等）。')
+  if (file.size <= 0 || file.size > MAX_MATERIAL_FILE_BYTES) throw new Error('素材文件大小必须在 200MB 以内。')
+  const form = new FormData()
+  form.append('file', file)
+  const response = await apiFetch(`/api/frameos/materials/${encodeURIComponent(materialId)}/replace-image`, {
+    method: 'POST',
+    body: form,
+  })
+  if (!response.ok) throw new Error(await readApiErrorMessage(response, '替换图片失败'))
+  const payload = await response.json() as {
+    success?: boolean
+    material?: FrameosMaterialItem
+    previousMaterialId?: string
+    retired?: string
+    referenceCounts?: { currentCanvases?: number; workflowTemplates?: number }
+    voiceKept?: boolean
+    voiceDropped?: boolean
+  }
+  if (payload.success !== true || !payload.material?.id || payload.material.id === materialId
+    || payload.previousMaterialId !== materialId
+    || (payload.retired !== 'trashed' && payload.retired !== 'superseded')) {
+    throw new Error('服务未返回替换后的素材，请刷新后确认。')
+  }
+  return {
+    material: payload.material,
+    previousMaterialId: payload.previousMaterialId,
+    retired: payload.retired,
+    referenceCount: Math.max(0, Math.floor(Number(payload.referenceCounts?.currentCanvases) || 0))
+      + Math.max(0, Math.floor(Number(payload.referenceCounts?.workflowTemplates) || 0)),
+    voiceKept: payload.voiceKept === true,
+    voiceDropped: payload.voiceDropped === true,
+  }
 }
 
 export interface MaterialTrashResult {

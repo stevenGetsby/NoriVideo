@@ -4,6 +4,7 @@ import { isErrorResponse, requireUserPermission } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { getWorkspaceActor, projectReadWhere } from '@/lib/collaboration/access'
 import { findBoundCharacterVoices } from '@/lib/frameos/character-voice-service'
+import { isUserManagedMaterial } from '@/lib/frameos/material-inherit'
 import { canActorAccessMaterial } from '@/lib/frameos/material-ownership'
 import {
   canvasMaterialReferenceConflictMessage,
@@ -45,8 +46,8 @@ export const POST = apiHandler(async (request: NextRequest) => {
         item.deleted = true
         continue
       }
-      if (material.source !== 'upload') {
-        item.reason = '只能删除本地上传的素材。'
+      if (!isUserManagedMaterial(material)) {
+        item.reason = '只能删除本地上传或继承的素材。'
         continue
       }
       if (!canActorAccessMaterial(session, material)) throw new ApiError('NOT_FOUND')
@@ -60,7 +61,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
       }
     }
     const candidates = materials.filter((material) => !material.deletedAt && !resultById.get(material.id)?.reason)
-    const activeMaterials = candidates.filter((material) => material.source === 'upload')
+    const activeMaterials = candidates.filter(isUserManagedMaterial)
     const audioIds = activeMaterials.filter((material) => material.type === 'audio').map((material) => material.id)
     const voiceConflicts = await findBoundCharacterVoices(tx, actor.workspaceOwnerId, audioIds)
     const referencesById = activeMaterials.length > 0
@@ -83,7 +84,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
           id: material.id,
           userId: actor.workspaceOwnerId,
           projectId: material.projectId,
-          source: 'upload',
+          source: material.source,
           updatedAt: material.updatedAt,
           deletedAt: null,
         },

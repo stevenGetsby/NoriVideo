@@ -7,9 +7,9 @@ import {
   resolveVideoSourceFromGeneration,
   uploadVideoSourceToCos,
 } from '../utils'
-import { normalizeSeedanceImageReferences, normalizeSeedanceMediaReference } from '@/lib/media/seedance-reference'
+import { normalizeSeedanceImageReference, normalizeSeedanceMediaReference } from '@/lib/media/seedance-reference'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
-import { compileSeedancePromptForSubmission } from '@/lib/novel-promotion/seedance-prompt-assets'
+import { compileSeedanceMentionPrompt, type SeedanceMentionReference } from '@/lib/novel-promotion/seedance-prompt-assets'
 import { projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
 import { workerTaskWillRetry } from '../retry-state'
 import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
@@ -57,8 +57,41 @@ function readJsonObject(value: unknown): AnyObj {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as AnyObj : {}
 }
 
+function readNestedStringArray(value: unknown): string[][] {
+  return Array.isArray(value) ? value.map(readStringArray) : []
+}
+
 async function normalizeReferenceMedia(values: string[], modelKey: string): Promise<string[]> {
   return await Promise.all(values.map(async (value) => await normalizeSeedanceMediaReference(value, modelKey)))
+}
+
+/**
+ * Prompt text addresses images as 图片N, so every submitted image must keep a
+ * known position. A failed image aborts the task instead of silently shifting
+ * every later reference onto the wrong character.
+ */
+async function normalizeIndexedImageReferences(values: string[], names: string[], modelKey: string) {
+  const positions = new Map<string, number>()
+  const unique: Array<{ value: string; name: string }> = []
+  const imageNumbers = values.map((value, index) => {
+    const key = value.trim()
+    let position = positions.get(key)
+    if (position === undefined) {
+      position = unique.length
+      positions.set(key, position)
+      unique.push({ value: key, name: names[index] || `第 ${index + 1} 张参考图` })
+    }
+    return position + 1
+  })
+  const urls = await Promise.all(unique.map(async ({ value, name }) => {
+    try {
+      return await normalizeSeedanceImageReference(value, modelKey)
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      throw new Error(`参考图片「${name}」无法读取，已停止生成以免图片编号错位：${reason}`)
+    }
+  }))
+  return { urls, imageNumbers }
 }
 
 export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
@@ -77,6 +110,9 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   const referenceImageNames = readStringArray(payload.referenceImageNames)
   const referenceVideoNames = readStringArray(payload.referenceVideoNames)
   const referenceAudioNames = readStringArray(payload.referenceAudioNames)
+  const referenceImageMentionNames = readNestedStringArray(payload.referenceImageMentionNames)
+  const referenceVideoMentionNames = readNestedStringArray(payload.referenceVideoMentionNames)
+  const referenceAudioMentionNames = readNestedStringArray(payload.referenceAudioMentionNames)
   const inputMode = readString(payload.inputMode) || 'text'
   const videoCapabilities = resolveBuiltinCapabilitiesByModelKey('video', modelId)
   const videoInputSchema = resolveCanvasGenerationInputSchema('video', videoCapabilities)
@@ -94,7 +130,9 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   try {
     if (!materialReferenceContract.success) throw new Error(materialReferenceContract.message)
     await reportTaskProgress(job, 15, { stage: 'generate_toolbox_video' })
+    const imageTitles = referenceImageNames.length > 0 ? referenceImageNames : referenceNames
     let normalized: string[]
+    let imageNumbers: number[]
     if (asset.bizType === 'character_audition' && isKuaiziSeedanceModel(modelId)) {
       const characterId = readString(readJsonObject(asset.params).characterId)
       if (!characterId) throw new Error('角色试镜任务缺少 characterId。')
@@ -113,16 +151,38 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         },
       })
       normalized = [privateAsset.assetUri]
+      imageNumbers = referenceImages.length > 0 ? referenceImages.map(() => 1) : [1]
     } else {
-      normalized = await normalizeSeedanceImageReferences(referenceImages, modelId)
+      const indexed = await normalizeIndexedImageReferences(referenceImages, imageTitles, modelId)
+      normalized = indexed.urls
+      imageNumbers = indexed.imageNumbers
     }
-    const prompt = compileSeedancePromptForSubmission(
-      rawPrompt,
-      (referenceImageNames.length > 0 ? referenceImageNames : referenceNames)
-        .map((name) => ({ kind: 'prop' as const, name })),
-    )
+    const imageAt = (position: number) => (position >= 0 && imageNumbers[position] ? normalized[imageNumbers[position] - 1] || '' : '')
     const isFirstLastFrame = inputMode === 'firstlastframe'
     const isImageToVideo = inputMode === 'image'
+    const useReferenceMode = !isImageToVideo && !isFirstLastFrame
+    const mentionReferences: SeedanceMentionReference[] = [
+      ...imageNumbers.map((imageNumber, index) => ({
+        type: 'image' as const,
+        index: imageNumber,
+        names: referenceImageMentionNames[index] || [],
+        fallbackNames: imageTitles[index] ? [imageTitles[index]] : [],
+        kind: 'prop' as const,
+      })),
+      ...referenceVideos.map((_, index) => ({
+        type: 'video' as const,
+        index: index + 1,
+        names: referenceVideoMentionNames[index] || [],
+        fallbackNames: referenceVideoNames[index] ? [referenceVideoNames[index]] : [],
+      })),
+      ...referenceAudios.map((_, index) => ({
+        type: 'audio' as const,
+        index: index + 1,
+        names: referenceAudioMentionNames[index] || [],
+        fallbackNames: referenceAudioNames[index] ? [referenceAudioNames[index]] : [],
+      })),
+    ]
+    const prompt = compileSeedanceMentionPrompt(rawPrompt, mentionReferences, { mediaReferences: useReferenceMode }).prompt
     const expectedImageRoles = materialReferenceContract.references.map((item) => item.role)
     if (
       isFirstLastFrame
@@ -135,27 +195,33 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
     }
     const firstFrameIndex = isFirstLastFrame ? referenceImageRoles.indexOf('FIRST_FRAME') : 0
     const lastFrameIndex = isFirstLastFrame ? referenceImageRoles.indexOf('LAST_FRAME') : -1
-    const sourceImage = (isImageToVideo || isFirstLastFrame) ? (normalized[firstFrameIndex] || '') : ''
+    const sourceImage = (isImageToVideo || isFirstLastFrame) ? imageAt(firstFrameIndex) : ''
     if ((isImageToVideo || isFirstLastFrame) && !sourceImage) {
       throw new Error('Toolbox video mode requires a reference image')
     }
-    if (isFirstLastFrame && (lastFrameIndex < 0 || !normalized[lastFrameIndex])) {
+    const lastFrameImage = isFirstLastFrame ? imageAt(lastFrameIndex) : ''
+    if (isFirstLastFrame && !lastFrameImage) {
       throw new Error('First/last frame mode requires two images')
     }
-    const useReferenceMode = !isImageToVideo && !isFirstLastFrame
     const normalizedVideos = useReferenceMode ? await normalizeReferenceMedia(referenceVideos, modelId) : []
     const normalizedAudios = useReferenceMode ? await normalizeReferenceMedia(referenceAudios, modelId) : []
+    const hasEditIntent = /(?:编辑视频|编辑|增加|删除|替换|修改)/.test(prompt)
+    const hasExtendIntent = /(?:向前延长|向后延长|延长|延续|续写)/.test(prompt)
+    const inferredOmniTaskType = useReferenceMode && normalizedVideos.length > 0
+      ? (hasExtendIntent ? 'extend' as const : hasEditIntent ? 'edit' as const : null)
+      : null
     const buildGenerationOptions = (images: string[]) => ({
       prompt,
       ...(useReferenceMode && images.length > 0 ? { referenceImages: images } : {}),
       ...(useReferenceMode && normalizedVideos.length > 0 ? { videos: normalizedVideos } : {}),
       ...(useReferenceMode && normalizedAudios.length > 0 ? { audios: normalizedAudios } : {}),
-      ...(isFirstLastFrame ? { lastFrameImageUrl: images[lastFrameIndex] } : {}),
+      ...(isFirstLastFrame ? { lastFrameImageUrl: lastFrameImage } : {}),
       ...(readNumber(payload.duration) !== undefined ? { duration: readNumber(payload.duration) } : {}),
       ...(readNumber(payload.fps) !== undefined ? { fps: readNumber(payload.fps) } : {}),
       ...(readString(payload.resolution) ? { resolution: readString(payload.resolution) } : {}),
       ...(readString(payload.aspectRatio) ? { aspectRatio: readString(payload.aspectRatio) } : {}),
       ...(typeof payload.generateAudio === 'boolean' ? { generateAudio: payload.generateAudio } : {}),
+      ...(inferredOmniTaskType ? { omniReferenceTaskType: inferredOmniTaskType } : {}),
       generationMode: isFirstLastFrame ? 'firstlastframe' as const : 'normal' as const,
     })
     const generated: GeneratedVideo = await resolveVideoSourceFromGeneration(job, {

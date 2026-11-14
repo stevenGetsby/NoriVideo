@@ -95,9 +95,7 @@ describe('canvas parity polish contracts', () => {
   it('only enables pane paste for actual clipboard content', () => {
     expect(isCanvasClipboardTextAvailable('')).toBe(false)
     expect(isCanvasClipboardTextAvailable('普通文本')).toBe(true)
-    expect(isCanvasClipboardTextAvailable('NORI_CANVAS:{"nodes":[]}')).toBe(false)
-    expect(isCanvasClipboardTextAvailable('NORI_CANVAS:{"nodes":[{"id":"n1"}]}')).toBe(true)
-    expect(isCanvasClipboardTextAvailable('NORI_CANVAS:not-json')).toBe(false)
+    expect(isCanvasClipboardTextAvailable('  \n ')).toBe(false)
     expect(isCanvasClipboardMimeAvailable(['image/png'])).toBe(true)
     expect(isCanvasClipboardMimeAvailable(['video/mp4'])).toBe(true)
     expect(isCanvasClipboardMimeAvailable(['audio/mpeg'])).toBe(true)

@@ -51,7 +51,7 @@ export function parseExternalId(externalId: string): ParsedExternalId {
   throw new Error(RETIRED_MESSAGE)
 }
 
-export async function pollAsyncTask(externalId: string, userId: string): Promise<PollResult> {
+export async function pollAsyncTask(externalId: string, userId: string, signal?: AbortSignal): Promise<PollResult> {
   if (!userId) throw new Error('缺少用户ID，无法获取 API Key')
   const parsed = parseExternalId(externalId)
   if (parsed.provider === 'HUIMENGI') {
@@ -61,6 +61,7 @@ export async function pollAsyncTask(externalId: string, userId: string): Promise
       userId,
       providerToken: parsed.providerToken,
       modelToken: parsed.modelKeyToken,
+      signal,
     })
   }
   return pollKuaiziTask({
@@ -69,6 +70,7 @@ export async function pollAsyncTask(externalId: string, userId: string): Promise
     userId,
     providerToken: parsed.providerToken,
     modelToken: parsed.modelKeyToken,
+    signal,
   })
 }
 

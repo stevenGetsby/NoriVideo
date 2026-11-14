@@ -37,6 +37,7 @@ import {
   workspaceUserWhere,
 } from '@/lib/collaboration/access'
 import type { AssignmentStage } from '@/lib/collaboration/assignment-policy'
+import { inheritMaterialsIntoProject, readInheritAssetsRequest } from '@/lib/frameos/material-inherit-service'
 import {
   cleanupUploadedProjectStyleReferences,
   persistProjectStyleReferenceMedia,
@@ -633,6 +634,13 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
   const creationMode = rawBody.creationMode || (rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true' ? 'canvas' : 'workflow')
   const createBlankCanvas = creationMode === 'canvas' || rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true'
+  const inheritRequest = readInheritAssetsRequest(rawBody)
+  if (inheritRequest && !createBlankCanvas) {
+    throw new ApiError('INVALID_PARAMS', {
+      code: 'INHERIT_REQUIRES_CANVAS',
+      message: '只有以画布方式创建作品时才能继承资产。',
+    })
+  }
   const parentIds = [rawBody.parentProjectId, rawBody.workId, rawBody.work_id]
     .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
     .map((value) => value.trim())
@@ -674,9 +682,9 @@ export const POST = apiHandler(async (request: NextRequest) => {
   )
 
   // 基础作品和模式数据必须原子创建，避免任一写入失败后留下半成品作品。
-  let project
+  let created
   try {
-    project = await prisma.$transaction(async (tx) => {
+    created = await prisma.$transaction(async (tx) => {
       const createdProject = await tx.project.create({
         data: {
           name: name.trim(),
@@ -820,12 +828,16 @@ export const POST = apiHandler(async (request: NextRequest) => {
           select: { id: true, projectId: true, title: true },
         })
         : null
-      return { ...createdProject, canvas }
+      const inheritedAssets = inheritRequest
+        ? await inheritMaterialsIntoProject(tx, { session, request: inheritRequest, targetProjectId: createdProject.id })
+        : null
+      return { ...createdProject, canvas, inheritedAssets }
     })
   } catch (error) {
     await cleanupUploadedProjectStyleReferences(uploadedStyleReferences)
     throw error
   }
+  const { inheritedAssets, ...project } = created
 
   if (initialImportDraft.pendingImportText) {
     startInitialProjectImport({
@@ -839,5 +851,6 @@ export const POST = apiHandler(async (request: NextRequest) => {
     project,
     canvas: project.canvas,
     initialEpisodesCreated: initialEpisodeRange?.count ?? 0,
+    inheritedAssets,
   }, { status: 201 })
 })

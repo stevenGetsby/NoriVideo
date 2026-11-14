@@ -101,6 +101,7 @@ const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
     maxReferenceVideos: 3,
     maxReferenceAudios: 3,
     supportsReturnLastFrame: true,
+    supportsHumanReview: true,
   },
   {
     modelId: 'seedance-2.0-fast',
@@ -117,6 +118,7 @@ const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
     maxReferenceVideos: 3,
     maxReferenceAudios: 3,
     supportsReturnLastFrame: true,
+    supportsHumanReview: true,
   },
   {
     modelId: 'seedance-2.0',
@@ -133,6 +135,7 @@ const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
     maxReferenceVideos: 3,
     maxReferenceAudios: 3,
     supportsReturnLastFrame: true,
+    supportsHumanReview: true,
   },
   {
     modelId: 'seedance-2.5',
@@ -149,6 +152,7 @@ const HUIMENGI_CATALOG: readonly HuimengiModelDefinition[] = [
     maxReferenceVideos: 10,
     maxReferenceAudios: 10,
     supportsReturnLastFrame: true,
+    supportsHumanReview: true,
   },
   {
     modelId: 'seedance-1.5-pro',

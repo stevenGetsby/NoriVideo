@@ -57,7 +57,9 @@ function renderStoryConnectionLine(
       : { point: handleBoxCenter(props.fromNode.internals.positionAbsolute, props.fromHandle, scale), position: props.fromPosition }
   const end = target ?? { point: pointerFlow, position: OPPOSITE[start.position] }
   const [path] = getBezierPath({ sourceX: start.point.x, sourceY: start.point.y, sourcePosition: start.position, targetX: end.point.x, targetY: end.point.y, targetPosition: end.position })
-  const hue = STORY_NODE_HUES[props.fromNode.type as keyof typeof STORY_NODE_HUES] ?? 'var(--dm-hue-video)'
+  const hue = role === 'mount' || role === 'mount-pick'
+    ? STORY_NODE_HUES.story_interaction
+    : STORY_NODE_HUES[props.fromNode.type as keyof typeof STORY_NODE_HUES] ?? 'var(--dm-hue-video)'
   const state = target ? ' is-snapped' : refused ? ' is-refused' : ''
   return (
     <g className={`nori-story-wire${state}`} style={{ '--wire-hue': hue } as CSSProperties}>

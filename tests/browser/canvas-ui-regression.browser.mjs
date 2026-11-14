@@ -28,6 +28,7 @@ else {
   appCss = (await Promise.all(styles.map(async (href) => (await fetch(new URL(href, workspace))).text()))).join('\n')
 }
 const media = await readFile(process.env.NORI_TEST_VIDEO_PATH || path.join(artifacts, 'sample.mp4'))
+const imageMedia = await readFile(path.join(root, 'public/icon.png'))
 const bundle = process.env.NORI_BROWSER_PREBUILT_DIR ? {
   outputFiles: await Promise.all(['js', 'css'].map(async (extension) => ({
     path: `/fixture/fixture.${extension}`,
@@ -47,7 +48,13 @@ const bundle = process.env.NORI_BROWSER_PREBUILT_DIR ? {
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
 const css = bundle.outputFiles.find((file) => file.path.endsWith('.css')).contents
 const server = createServer((request, response) => {
-  if (request.url.startsWith('/api/storage/sign')) {
+  const requestUrl = new URL(request.url, 'http://127.0.0.1')
+  if (requestUrl.pathname === '/api/storage/sign') {
+    if (requestUrl.searchParams.get('key')?.endsWith('.png')) {
+      response.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': imageMedia.length })
+      response.end(imageMedia)
+      return
+    }
     const match = request.headers.range?.match(/^bytes=(\d+)-(\d*)$/)
     const start = match ? Math.min(Number(match[1]), media.length - 1) : 0
     const end = match?.[2] ? Math.min(Number(match[2]), media.length - 1) : media.length - 1
@@ -115,6 +122,13 @@ async function open(viewport, query = '') {
   page.holdNextCanvasWrite = () => new Promise((held) => { holdNextCanvasWrite = held })
   page.releaseCanvasWrite = () => releaseHeldCanvasWrite?.()
   page.canvasWrites = []
+  page.assetPollRequests = []
+  page.imageRequests = []
+  page.on('request', (request) => {
+    const url = new URL(request.url())
+    if (url.pathname === '/api/storage/sign' && url.searchParams.get('key')?.endsWith('.png')) page.imageRequests.push(url)
+  })
+  let videoPollCount = 0
   const usage = () => ({
     timeZone: 'Asia/Shanghai', limitPoints: savedLimit, usedPoints: 110, consumedPoints: 80, pendingPoints: 30,
     remainingPoints: savedLimit !== null ? Math.max(0, savedLimit - 110) : null, exceeded: savedLimit !== null && savedLimit <= 110, resetsAt: '2026-10-08T16:00:00.000Z',
@@ -128,10 +142,10 @@ async function open(viewport, query = '') {
     nodes: [
       query.includes('first=1')
         ? { ...common, id: 'gen-1', type: 'video', position: { x: 440, y: 140 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: '视频生成节点', mediaType: 'video', prompt: '', origin: 'empty', generation: { modelKey: model.modelKey }, history: [] } }
-        : { ...common, id: 'gen-1', type: 'video', position: { x: 440, y: 140 }, size: { width: 320, height: 180 }, status: 'RUNNING', taskId: 'task-1', data: { title: '视频生成节点', mediaType: 'video', prompt: '', origin: 'generate', generation: { assetId: 'video-1', taskId: 'task-1', modelKey: model.modelKey, ...(query.includes('superresolve') ? { parameters: { superresolveTarget: '720p' } } : {}) }, history: [{ id: 'history-1', assetId: 'video-1', taskId: 'task-1', status: 'processing', createdAt: '2026-10-08T00:00:00.000Z' }] } },
+        : { ...common, id: 'gen-1', type: 'video', position: { x: 440, y: 140 }, size: { width: 320, height: 180 }, status: 'RUNNING', taskId: 'task-1', data: { title: '视频生成节点', mediaType: 'video', prompt: '', origin: 'generate', ...(query.includes('progress=45') ? { progress: 45 } : {}), generation: { ...(query.includes('missing-asset=1') ? {} : { assetId: 'video-1', taskId: 'task-1' }), modelKey: model.modelKey, ...(query.includes('superresolve') ? { parameters: { superresolveTarget: '720p' } } : {}) }, history: [{ id: 'history-1', assetId: 'video-1', taskId: 'task-1', status: 'processing', createdAt: '2026-10-08T00:00:00.000Z' }] } },
       ...Array.from({ length: 20 }, (_, i) => ({ ...common, id: `ref-${i + 1}`, type: 'image', position: { x: -1100, y: i * 230 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: `参考素材${i + 1}`, mediaType: 'image', origin: 'upload', contentUrl: reference, imageUrl: reference, materialId: `material-${i + 1}` } })),
       ...(query.includes('globalstyle=1') ? [
-        { ...common, id: 'image-near', type: 'image', position: { x: 860, y: 140 }, size: { width: 300, height: 170 }, status: 'IDLE', taskId: null, data: { title: '近景图片', mediaType: 'image', origin: 'upload', contentUrl: reference, imageUrl: reference, materialId: 'material-near' } },
+        { ...common, id: 'image-near', type: 'image', position: { x: 860, y: 140 }, size: { width: 300, height: 170 }, status: 'IDLE', taskId: null, data: { title: '近景图片', mediaType: 'image', origin: 'upload', contentUrl: 'images/ui-4k.png', imageUrl: 'images/ui-4k.png', materialId: 'material-near' } },
         { ...common, id: 'style-1', type: 'text', position: { x: 60, y: 470 }, size: { width: 300, height: 150 }, status: 'IDLE', taskId: null, data: { title: '风格源', mediaType: 'text', text: '统一水彩绘本风，柔和自然光', origin: 'upload' } },
         { ...common, id: 'style-2', type: 'text', position: { x: 420, y: 470 }, size: { width: 300, height: 150 }, status: 'IDLE', taskId: null, data: { title: '备用风格', mediaType: 'text', text: '霓虹黑金质感', origin: 'upload' } },
       ] : []),
@@ -182,9 +196,20 @@ async function open(viewport, query = '') {
     }
     else if (url.pathname.endsWith('/toolbox/assets')) {
       const ids = url.searchParams.get('assetIds')?.split(',') || []
+      const requestedTaskIds = url.searchParams.get('taskIds')?.split(',') || []
       const assets = [{ id: 'video-1', type: 'video', status: 'ready', resultUrl: 'images/ui.mp4', url: 'images/ui.mp4', materialId: 'video-material', task: { id: 'task-1', status: 'completed', progress: 100, costPoints: 20 } }]
+      const generationPoll = ids.length > 0 || requestedTaskIds.length > 0
+      if (generationPoll) page.assetPollRequests.push(Object.fromEntries(url.searchParams))
+      if (generationPoll && query.includes('progress=45') && ids.includes('video-1')) {
+        videoPollCount += 1
+        Object.assign(assets[0], videoPollCount === 1
+          ? { status: 'processing', resultUrl: null, url: null, materialId: null, task: { id: 'task-1', status: 'processing', progress: 45, costPoints: null } }
+          : {})
+      }
       if (ids.includes('comparison-asset')) assets.push({ id: 'comparison-asset', type: 'video', status: 'processing', resultUrl: null, url: null, materialId: null, task: { id: 'comparison-task', status: 'processing', progress: 2, costPoints: 20 } })
-      payload = { assets: assets.filter((asset) => ids.includes(asset.id)) }
+      payload = generationPoll
+        ? { assets: assets.filter((asset) => ids.includes(asset.id) || requestedTaskIds.includes(asset.task.id)) }
+        : { assets: [] }
     }
     else if (url.pathname.endsWith('/materials') && route.request().method() === 'POST') {
       if (query.includes('capture-fail')) {
@@ -348,7 +373,15 @@ async function clearCanvasGlobalStyle(page, nodeId) {
   const menu = await openNodeContextMenu(page, nodeId)
   await menu.getByRole('menuitem', { name: /取消全局风格/ }).click()
 }
-async function selectCanvasNode(page, nodeId) {
+async function setCanvasVideoPrefix(page, nodeId) {
+  const menu = await openNodeContextMenu(page, nodeId)
+  await menu.getByRole('menuitem', { name: /设为视频统一前置提示词/ }).click()
+}
+async function clearCanvasVideoPrefix(page, nodeId) {
+  const menu = await openNodeContextMenu(page, nodeId)
+  await menu.getByRole('menuitem', { name: /取消视频统一前置提示词/ }).click()
+}
+async function selectCanvasNode(page, nodeId, { open = true } = {}) {
   const node = page.locator(`.react-flow__node[data-id="${nodeId}"]`)
   const isSelected = () => page.waitForFunction((id) => document.querySelector(`.react-flow__node[data-id="${id}"]`)?.classList.contains('selected'), nodeId, { timeout: 4000 })
   await node.locator('.nori-canvas-node-drag-handle').evaluate((element) => element.click())
@@ -359,6 +392,12 @@ async function selectCanvasNode(page, nodeId) {
     // handle click; select through the node wrapper instead.
     await node.evaluate((element) => element.click())
     await isSelected()
+  }
+  // The first click only lights the node edge; the generator opens on the
+  // next click of the same node. The extra click is a no-op when it is open.
+  if (open) {
+    await page.waitForTimeout(40)
+    await node.locator('.nori-canvas-node-drag-handle').evaluate((element) => element.click())
   }
 }
 async function pasteInto(locator, text) {
@@ -383,8 +422,49 @@ async function findEmptyCanvasPoint(page, pane) {
   assert.ok(point, 'The canvas must expose an empty point for pan and zoom gestures')
   return point
 }
+async function verifyCanvasImageThumbnails(page) {
+  await selectCanvasNode(page, 'image-near')
+  const nodeImage = page.locator('.react-flow__node[data-id="image-near"] img')
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
+    return image?.src.includes('thumbnail=480') && image.complete && image.naturalWidth > 0
+  })
+  assert.equal(page.imageRequests.some((url) => url.searchParams.get('key') === 'images/ui-4k.png' && !url.searchParams.has('thumbnail')), false, 'The canvas card must not download the original image')
+  for (let index = 0; index < 4; index += 1) {
+    await page.locator('.nori-canvas-viewport-controls').getByRole('button', { name: '放大', exact: true }).click()
+  }
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
+    return image?.src.includes('thumbnail=960') && image.complete && image.naturalWidth > 0
+  })
+  for (let index = 0; index < 2; index += 1) {
+    await page.locator('.nori-canvas-viewport-controls').getByRole('button', { name: '放大', exact: true }).click()
+  }
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
+    return image?.src.includes('thumbnail=1440') && image.complete && image.naturalWidth > 0
+  })
+  assert.equal(page.imageRequests.at(-1).searchParams.get('thumbnail'), '1440')
+  await page.getByRole('button', { name: '全屏预览', exact: true }).click()
+  const imagePreview = page.locator('.nori-canvas-media-preview')
+  await imagePreview.waitFor()
+  await page.waitForFunction(() => {
+    const image = document.querySelector('.nori-canvas-media-preview img')
+    return image?.src.includes('key=images%2Fui-4k.png') && !image.src.includes('thumbnail=') && image.complete && image.naturalWidth > 0
+  })
+  await page.keyboard.press('Escape')
+  await imagePreview.waitFor({ state: 'hidden' })
+  await nodeImage.waitFor()
+  await page.screenshot({ path: path.join(artifacts, 'canvas-image-thumbnails.png') })
+}
 try {
-  if (process.env.NORI_CANVAS_LEGACY_FRAME_RECOVERY_ONLY) {
+  if (process.env.NORI_CANVAS_THUMBNAILS_ONLY) {
+    const page = await open({ width: 1440, height: 900 }, '?globalstyle=1')
+    await verifyCanvasImageThumbnails(page)
+    await page.close()
+    assert.deepEqual(errors, [], 'No uncaught browser errors')
+    console.log(JSON.stringify({ ok: true, thumbnailsOnly: true, artifacts }, null, 2))
+  } else if (process.env.NORI_CANVAS_LEGACY_FRAME_RECOVERY_ONLY) {
     const page = await open({ width: 1440, height: 900 }, '?legacy-frame-recovery=1')
     await page.getByText('发现本地未同步版本', { exact: true }).waitFor()
     const recoverySave = page.waitForResponse(async (response) => response.request().method() === 'PUT'
@@ -539,6 +619,41 @@ try {
     assert.deepEqual(errors, [], 'No uncaught browser errors')
     console.log(JSON.stringify({ ok: true, cases, legacyFrameRecoveryOnly: true }, null, 2))
   } else {
+  const videoProgress = await open({ width: 1280, height: 720 }, '?progress=45')
+  const firstVideoPoll = videoProgress.waitForRequest((request) => (
+    new URL(request.url()).pathname.endsWith('/toolbox/assets')
+    && new URL(request.url()).searchParams.get('assetIds') === 'video-1'
+  ), { timeout: 5000 })
+  await firstVideoPoll
+  await videoProgress.waitForFunction(() => {
+    const node = document.querySelector('.react-flow__node[data-id="gen-1"]')
+    return Boolean(node?.querySelector('video') && !node.querySelector('.nori-canvas-node-progress'))
+  }, undefined, { timeout: 8000 })
+  assert.ok(videoProgress.assetPollRequests.some((params) => params.type === 'video' && params.assetIds === 'video-1'), 'The running video node must query its exact asset instead of stopping at 45%')
+  cases.push('video generation advances past 45%, removes its progress overlay and renders the ready video')
+  await videoProgress.close()
+
+  const missingVideoAsset = await open({ width: 1280, height: 720 }, '?missing-asset=1')
+  const missingAssetPoll = missingVideoAsset.waitForRequest((request) => (
+    new URL(request.url()).pathname.endsWith('/toolbox/assets')
+    && new URL(request.url()).searchParams.get('taskIds') === 'task-1'
+  ), { timeout: 5000 })
+  await missingAssetPoll
+  await missingVideoAsset.waitForFunction(() => {
+    const node = document.querySelector('.react-flow__node[data-id="gen-1"]')
+    return Boolean(node?.querySelector('video') && !node.querySelector('.nori-canvas-node-progress'))
+  }, undefined, { timeout: 5000 })
+  cases.push('video generation with a task but no generation.assetId recovers polling and shows the completed video')
+  await missingVideoAsset.close()
+
+  if (process.env.NORI_CANVAS_GENERATION_ONLY) {
+    assert.deepEqual(errors, [], 'No uncaught browser errors')
+    console.log(JSON.stringify({ ok: true, cases, generationOnly: true }, null, 2))
+    await browser.close()
+    await new Promise((resolve) => server.close(resolve))
+    process.exit(0)
+  }
+
   const shared = await open({ width: 1024, height: 600 }, '?session=child')
   const sharedGenerator = shared.locator('.nori-canvas-generator')
   await sharedGenerator.getByRole('button', { name: '生成', exact: true }).waitFor()
@@ -729,6 +844,11 @@ try {
   for (const label of inlineActionLabels) await imageToolbar.getByRole('button', { name: label, exact: true }).waitFor()
   assert.equal(await imageToolbar.getByRole('button', { name: '更多操作', exact: true }).count(), 0, 'Image tools must not hide behind an overflow menu')
   assert.equal(await imageToolbar.getByRole('button', { name: '生成历史', exact: true }).count(), 0, 'Image tools still omit actions without history')
+  await globalStyle.waitForFunction(() => {
+    const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
+    return image?.src.includes('thumbnail=480') && image.complete && image.naturalWidth > 0
+  })
+  assert.equal(globalStyle.imageRequests.some((url) => url.searchParams.get('key') === 'images/ui-4k.png' && !url.searchParams.has('thumbnail')), false, 'The canvas card must not download the original image')
   await imageToolbar.waitFor()
   if (process.env.NORI_CANVAS_TOOLBAR_DIAGNOSTICS) console.log(await globalStyle.evaluate(async () => {
     const samples = []
@@ -765,9 +885,23 @@ try {
   assert.equal(await panoramaGenerator.locator('textarea[role="combobox"]').inputValue(), '把参考场景转换为无缝衔接的 21:9 超宽幅 720° 全景图。保持原场景的建筑、陈设、材质、时间、天气与光影一致；补全画面左右和背后的空间，地平线保持水平，画面边缘可无缝拼接；不要人物特写、文字、水印、边框或多宫格。')
   assert.equal(await globalStyle.locator('.nori-canvas-dialog').count(), 0, '720 panorama creates a linked image-processing draft without paid generation')
   await selectCanvasNode(globalStyle, 'image-near')
-  for (let index = 0; index < 3; index += 1) {
+  for (let index = 0; index < 4; index += 1) {
     await globalStyle.locator('.nori-canvas-viewport-controls').getByRole('button', { name: '放大', exact: true }).click()
   }
+  await globalStyle.waitForFunction(() => {
+    const image = document.querySelector('.react-flow__node[data-id="image-near"] img')
+    return image?.src.includes('thumbnail=1440') && image.complete && image.naturalWidth > 0
+  })
+  assert.equal(globalStyle.imageRequests.at(-1).searchParams.get('thumbnail'), '1440')
+  await imageToolbar.getByRole('button', { name: '全屏预览', exact: true }).click()
+  const imagePreview = globalStyle.locator('.nori-canvas-media-preview')
+  await imagePreview.waitFor()
+  await globalStyle.waitForFunction(() => {
+    const image = document.querySelector('.nori-canvas-media-preview img')
+    return image?.src.includes('key=images%2Fui-4k.png') && !image.src.includes('thumbnail=') && image.complete && image.naturalWidth > 0
+  })
+  await globalStyle.keyboard.press('Escape')
+  await imagePreview.waitFor({ state: 'hidden' })
   await globalStyle.waitForTimeout(350)
   await bounded(imageToolbar, 'Zoomed image toolbar')
   const imageDragHandle = globalStyle.locator('.react-flow__node[data-id="image-near"] .nori-canvas-node-drag-handle')
@@ -780,6 +914,7 @@ try {
   await globalStyle.waitForTimeout(250)
   await bounded(imageToolbar, 'Dragged image toolbar')
   cases.push('image tools stay inline, fit the node, follow zoom and drag, and invoke grid, inpaint and panorama actions')
+  cases.push('image cards request 480/1440 derivatives by rendered size while original preview stays unchanged')
   await selectCanvasNode(globalStyle, 'gen-1')
   await globalPrompt.fill('第一次带全局风格的镜头')
   const globalSubmission = globalStyle.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/generate'))
@@ -792,6 +927,91 @@ try {
   await globalStyle.waitForFunction(() => document.querySelector('.react-flow__node[data-id="style-1"]')?.textContent?.includes('浅金色描边'))
   cases.push('global style text node feeds video and image editors, stays unique, syncs edits, and injects one block')
   await globalStyle.close()
+
+  const videoPrefix = await open({ width: 1440, height: 900 }, '?first=1&globalstyle=1')
+  const prefixGenerator = videoPrefix.locator('.nori-canvas-generator')
+  const prefixPrompt = prefixGenerator.locator('textarea[role="combobox"]')
+  await prefixPrompt.waitFor()
+  assert.equal(await prefixGenerator.locator('.is-video-prefix').count(), 0, 'No video prefix is injected before a text node is flagged')
+  await setCanvasVideoPrefix(videoPrefix, 'style-2')
+  await setCanvasGlobalStyle(videoPrefix, 'style-1')
+  await selectCanvasNode(videoPrefix, 'gen-1')
+  const prefixBlock = prefixGenerator.locator('.nori-canvas-global-style.is-video-prefix')
+  await prefixBlock.waitFor()
+  assert.ok((await prefixBlock.innerText()).includes('来自文本节点「备用风格」'))
+  assert.equal(await prefixBlock.evaluate((element) => getComputedStyle(element).backgroundImage), 'none', 'The video prefix must use a solid colour rather than a decorative gradient')
+  assert.equal(await prefixGenerator.locator('.nori-canvas-global-style').count(), 2, 'A video prefix and a global style on different nodes coexist')
+  const prefixEditor = prefixBlock.getByLabel('视频统一前置提示词')
+  assert.equal(await prefixEditor.inputValue(), '霓虹黑金质感')
+  const prefixBeforePrompt = await prefixGenerator.evaluate((element) => {
+    const block = element.querySelector('.is-video-prefix')
+    const prompt = element.querySelector('.nori-canvas-generator-prompt')
+    return Boolean(block && prompt && (block.compareDocumentPosition(prompt) & Node.DOCUMENT_POSITION_FOLLOWING))
+  })
+  assert.ok(prefixBeforePrompt, 'The video prefix block must sit above the ordinary prompt')
+  await prefixEditor.fill('镜头保持电影感，缓慢推进')
+  await videoPrefix.waitForFunction(() => document.querySelector('.react-flow__node[data-id="style-2"]')?.textContent?.includes('缓慢推进'))
+  await selectCanvasNode(videoPrefix, 'image-near')
+  await videoPrefix.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.textContent?.includes('来自文本节点「风格源」'))
+  assert.equal(await prefixGenerator.locator('.is-video-prefix').count(), 0, 'Image editors must not show the video-only prefix')
+  await selectCanvasNode(videoPrefix, 'gen-1')
+  await prefixPrompt.fill('第一次带前置提示词的镜头')
+  const prefixSubmission = videoPrefix.waitForRequest((request) => request.method() === 'POST' && new URL(request.url()).pathname.endsWith('/generate'))
+  await prefixGenerator.getByRole('button', { name: '生成', exact: true }).click()
+  const prefixGenerate = (await prefixSubmission).postDataJSON()
+  await videoPrefix.getByText('已提交 1 个生成任务', { exact: true }).waitFor()
+  assert.equal(prefixGenerate.prompt, '[视频统一前置提示词]\n镜头保持电影感，缓慢推进\n[/视频统一前置提示词]\n\n第一次带前置提示词的镜头\n\n[画布全局风格]\n统一水彩绘本风，柔和自然光\n[/画布全局风格]')
+  assert.equal((prefixGenerate.prompt.match(/\[视频统一前置提示词\]/g) || []).length, 1, 'Request assembly must inject exactly one video prefix block')
+  await videoPrefix.close()
+
+  const prefixRoles = await open({ width: 1440, height: 900 }, '?first=1&globalstyle=1')
+  await prefixRoles.locator('.nori-canvas-generator textarea[role="combobox"]').waitFor()
+  await setCanvasGlobalStyle(prefixRoles, 'style-1')
+  await setCanvasVideoPrefix(prefixRoles, 'style-1')
+  await selectCanvasNode(prefixRoles, 'gen-1')
+  await prefixRoles.locator('.nori-canvas-global-style.is-video-prefix').waitFor()
+  assert.equal(await prefixRoles.locator('.nori-canvas-global-style:not(.is-video-prefix)').count(), 0, 'One text node cannot be both the global style and the video prefix')
+  await setCanvasVideoPrefix(prefixRoles, 'style-2')
+  await selectCanvasNode(prefixRoles, 'gen-1')
+  await prefixRoles.waitForFunction(() => document.querySelector('.is-video-prefix')?.textContent?.includes('备用风格'))
+  const movedPrefixMenu = await openNodeContextMenu(prefixRoles, 'style-1')
+  await movedPrefixMenu.getByRole('menuitem', { name: /设为视频统一前置提示词/ }).waitFor()
+  await prefixRoles.keyboard.press('Escape')
+  await clearCanvasVideoPrefix(prefixRoles, 'style-2')
+  await prefixRoles.waitForFunction(() => !document.querySelector('.is-video-prefix'))
+  assert.ok((await prefixRoles.locator('.react-flow__node[data-id="style-2"]').innerText()).includes('霓虹黑金质感'), 'Clearing the video prefix must retain the text node content')
+  cases.push('video prefix text node is video-only, unique, exclusive with global style, syncs edits, and leads the request prompt')
+  await prefixRoles.close()
+
+  const twoStep = await open({ width: 1440, height: 900 }, '?first=1&globalstyle=1')
+  await twoStep.locator('.nori-canvas-generator').waitFor()
+  await twoStep.locator('.react-flow__pane').click({ position: { x: 700, y: 780 } })
+  await twoStep.waitForFunction(() => !document.querySelector('.nori-canvas-generator'))
+  const nearNode = twoStep.locator('.react-flow__node[data-id="image-near"]')
+  const nearBox = await nearNode.boundingBox()
+  const idleBorder = await nearNode.locator('.nori-canvas-node-body').evaluate((element) => getComputedStyle(element).borderTopColor)
+  await twoStep.mouse.click(nearBox.x + nearBox.width / 2, nearBox.y + nearBox.height / 2)
+  await twoStep.waitForFunction(() => document.querySelector('.react-flow__node[data-id="image-near"]')?.classList.contains('selected'))
+  await twoStep.waitForTimeout(300)
+  assert.equal(await twoStep.locator('.nori-canvas-generator').count(), 0, 'The first click only selects the node and must not cover the canvas with the generator')
+  assert.notEqual(await nearNode.locator('.nori-canvas-node-body').evaluate((element) => getComputedStyle(element).borderTopColor), idleBorder, 'The first click lights the node edge')
+  await twoStep.waitForTimeout(600)
+  await twoStep.mouse.click(nearBox.x + nearBox.width / 2, nearBox.y + nearBox.height / 2)
+  await twoStep.locator('.nori-canvas-generator').waitFor()
+  assert.ok(await twoStep.locator('.nori-canvas-generator').isVisible(), 'The second click on the same node opens the generator')
+  await twoStep.locator('.react-flow__pane').click({ position: { x: 700, y: 780 } })
+  await twoStep.waitForFunction(() => !document.querySelector('.nori-canvas-generator'))
+  await twoStep.waitForTimeout(600)
+  await twoStep.mouse.click(nearBox.x + nearBox.width / 2, nearBox.y + nearBox.height / 2)
+  await twoStep.waitForTimeout(300)
+  assert.equal(await twoStep.locator('.nori-canvas-generator').count(), 0, 'Re-selecting a node after deselecting starts the two-step flow again')
+  const styleBox = await twoStep.locator('.react-flow__node[data-id="style-1"]').boundingBox()
+  await twoStep.mouse.click(styleBox.x + styleBox.width / 2, styleBox.y + styleBox.height / 2)
+  await twoStep.waitForFunction(() => document.querySelector('.react-flow__node[data-id="style-1"]')?.classList.contains('selected'))
+  await twoStep.waitForTimeout(300)
+  assert.equal(await twoStep.locator('.nori-canvas-generator').count(), 0, 'Switching straight to another node also needs its own second click')
+  cases.push('first node click only lights the edge; the second click on the same node opens the generator')
+  await twoStep.close()
 
   const styledComparison = await open({ width: 1440, height: 900 }, '?story=1&globalstyle=1')
   const styledGenerator = styledComparison.locator('.nori-canvas-generator')
@@ -859,12 +1079,13 @@ try {
   const nodesBeforePaste = await secondary.locator('.react-flow__node').count()
   const edgesBeforePaste = await secondary.locator('.react-flow__edge').count()
   await pasteInto(secondaryPrompt, '林夏和雨夜街巷')
-  assert.equal(await secondaryPrompt.inputValue(), '@林夏和@雨夜街巷', 'Pasting must prefix known asset names while preserving ordinary text')
-  await secondary.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 2, nodesBeforePaste)
-  await secondary.waitForFunction((before) => document.querySelectorAll('.react-flow__edge').length === before + 2, edgesBeforePaste)
-  assert.equal(await secondaryGenerator.getByRole('button', { name: /林夏/ }).count(), 1)
-  assert.equal(await secondaryGenerator.getByRole('button', { name: /雨夜街巷/ }).count(), 1)
-  cases.push('mention picker separates direct and second-hop inputs; pasted prompts bind known library asset names')
+  assert.equal(await secondaryPrompt.inputValue(), '', 'Paste must be left to the browser instead of auto-tagging asset names')
+  await secondary.waitForTimeout(300)
+  assert.equal(await secondary.locator('.react-flow__node').count(), nodesBeforePaste, 'Paste must not add nodes')
+  assert.equal(await secondary.locator('.react-flow__edge').count(), edgesBeforePaste, 'Paste must not bind references')
+  assert.equal(await secondaryGenerator.getByRole('button', { name: /林夏/ }).count(), 0)
+  assert.equal(await secondaryGenerator.getByRole('button', { name: /雨夜街巷/ }).count(), 0)
+  cases.push('mention picker separates direct and second-hop inputs; paste no longer auto-tags or binds asset names')
   await secondary.close()
 
   if (process.env.NORI_CANVAS_FRAME_CAPTURE_ONLY) {
@@ -892,9 +1113,6 @@ try {
     cases.push('captured video frame persists through the real document and operations validators')
     assert.deepEqual(errors, [], 'No uncaught browser errors')
     console.log(JSON.stringify({ ok: true, cases, frameCaptureOnly: true }, null, 2))
-  } else if (process.env.NORI_CANVAS_GENERATION_ONLY) {
-    assert.deepEqual(errors, [], 'No uncaught browser errors')
-    console.log(JSON.stringify({ ok: true, cases, generationOnly: true }, null, 2))
   }
 
   const billing = await open({ width: 1024, height: 600 }, '?view=billing&session=child')
@@ -1021,7 +1239,7 @@ try {
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountBeforeLibrary)
     await page.waitForFunction(() => document.querySelectorAll('.react-flow__node[data-id="gen-1"]').length === 1)
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__edge').length === before + 1, edgeCountBeforeLibrary)
-    assert.equal(await generator.getByRole('button', { name: /林夏/ }).count(), 1)
+    assert.equal(await generator.locator('.nori-canvas-generator-ref', { hasText: '林夏' }).count(), 1)
     const nodeCountAfterLibrary = await page.locator('.react-flow__node').count()
     const edgeCountAfterLibrary = await page.locator('.react-flow__edge').count()
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
@@ -1037,10 +1255,11 @@ try {
     assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 ')
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountAfterLibrary)
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__edge').length === before + 1, edgeCountAfterLibrary)
-    await generator.getByRole('button', { name: /雨夜街巷/ }).waitFor()
+    await generator.locator('.nori-canvas-generator-ref', { hasText: '雨夜街巷' }).waitFor()
     const nodeCountAfterTwoMaterials = await page.locator('.react-flow__node').count()
     const edgeCountAfterTwoMaterials = await page.locator('.react-flow__edge').count()
     await generator.getByRole('button', { name: '添加引用素材', exact: true }).click()
+    await page.getByRole('menuitem', { name: '从素材库选择', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '选择引用素材', exact: true })
     await picker.waitFor()
     await picker.getByRole('button', { name: '关闭素材选择器', exact: true }).click()
@@ -1059,7 +1278,7 @@ try {
     await prompt.focus()
     await page.keyboard.press('Escape')
     assert.equal(await generator.count(), 0, 'A second Escape must dismiss the generator')
-    await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').click()
+    await selectCanvasNode(page, 'gen-1')
     await generator.waitFor()
     const video = page.locator('.react-flow__node[data-id="gen-1"] video').first()
     await video.evaluate((element) => element.load())
@@ -1131,9 +1350,11 @@ try {
     await page.locator('.nori-canvas-marquee').waitFor()
     await page.mouse.up()
     assert.equal(await page.locator('.nori-canvas-marquee').count(), 0)
+    // The marquee resolves its covered elements on the next frame; a person cannot click inside that frame.
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))))
     assert.equal(await page.locator('.react-flow__node.selected').count(), selectionBefore, 'An empty marquee must preserve existing selections')
 
-    await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').click()
+    await selectCanvasNode(page, 'gen-1')
     await page.locator('.nori-canvas-generator').waitFor()
     const spacePrompt = page.locator('.nori-canvas-generator textarea[role="combobox"]').first()
     await spacePrompt.click()

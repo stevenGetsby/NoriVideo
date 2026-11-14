@@ -49,7 +49,10 @@ const externalMock = vi.hoisted(() => ({
     url: 'https://result.test/edited.mp4', durationSeconds: 6.25, resolution: '720p',
     actualVideoTokens: 120000, fps: 24,
   })),
-  generateKuaiziVideo: vi.fn(async () => ({ success: true, externalId: 'KUAIZI:VIDEO:new-task' })),
+  resolveVideoSourceFromGeneration: vi.fn(async () => ({
+    url: 'https://result.test/edited.mp4', durationSeconds: 6.25, resolution: '720p',
+    actualVideoTokens: 120000, fps: 24,
+  })),
 }))
 const materializeResultMock = vi.hoisted(() => vi.fn(async (input: { taskId: string }) => ({
   materialized: true,
@@ -68,7 +71,6 @@ vi.mock('@/lib/storage', () => storageMock)
 vi.mock('@/lib/frameos/material-service', () => materialMock)
 vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: reportTaskProgressMock }))
 vi.mock('@/lib/workers/utils', () => ({ assertTaskActive: assertTaskActiveMock, ...externalMock }))
-vi.mock('@/lib/providers/kuaizi', () => ({ generateKuaiziVideo: externalMock.generateKuaiziVideo }))
 vi.mock('@/lib/canvas/operation-output-nodes', () => ({
   materializeCanvasAsyncOperationResult: materializeResultMock,
 }))
@@ -107,17 +109,51 @@ describe('canvas operation task handlers', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  it.each([false, true])('video edit returns actual output duration and resumes without resubmission (resume=%s)', async (resume) => {
-    if (resume) externalMock.getTaskExistingExternalId.mockResolvedValue('KUAIZI:VIDEO:existing-task')
+  it('resumes an existing external edit without resubmitting generation', async () => {
+    externalMock.getTaskExistingExternalId.mockResolvedValue('KUAIZI:VIDEO:existing-task')
     vi.stubGlobal('fetch', vi.fn(async () => new Response('edited-video')))
     const result = await handleCanvasVideoOperationTask(job(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
-      operation: 'video_edit', engineKey: 'kuaizi-seedance25', modelKey: 'doubao-seedance-2-5-260628',
+      operation: 'video_edit', engineKey: 'nori::norivideo2.5', modelKey: 'nori::norivideo2.5',
       parameters: { startMs: 0, endMs: 5000, prompt: 'change color', generateAudio: false },
     }))
-    expect(result).toMatchObject({ durationSeconds: 6.25, resolution: '720p', actualVideoTokens: 120000 })
-    expect(externalMock.generateKuaiziVideo).toHaveBeenCalledTimes(resume ? 0 : 1)
+    expect(externalMock.resolveVideoSourceFromGeneration).not.toHaveBeenCalled()
     expect(externalMock.waitExternalResult).toHaveBeenCalledWith(expect.anything(),
-      resume ? 'KUAIZI:VIDEO:existing-task' : 'KUAIZI:VIDEO:new-task', 'user-1', expect.anything())
+      'KUAIZI:VIDEO:existing-task', 'user-1', expect.anything())
+    expect(result).toMatchObject({
+      operation: 'video_edit',
+      modelKey: 'nori::norivideo2.5',
+      results: [expect.objectContaining({ materialId: 'material-video-1' })],
+      durationSeconds: 6.25,
+      resolution: '720p',
+      actualVideoTokens: 120000,
+    })
+  })
+
+  it('submits new video edits through the unified generation path without resubmission on resume', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('edited-video')))
+    const result = await handleCanvasVideoOperationTask(job(TASK_TYPE.CANVAS_VIDEO_OPERATION, {
+      operation: 'video_edit', engineKey: 'nori::norivideo2.5', modelKey: 'nori::norivideo2.5',
+      parameters: { startMs: 0, endMs: 5000, prompt: 'change color', generateAudio: false },
+    }))
+    expect(externalMock.resolveVideoSourceFromGeneration).toHaveBeenCalledTimes(1)
+    expect(externalMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(expect.anything(),
+      expect.objectContaining({
+        modelId: 'nori::norivideo2.5',
+        options: expect.objectContaining({
+          omniReferenceTaskType: 'edit',
+          ratio: 'adaptive',
+          duration: -1,
+        }),
+      }))
+    expect(externalMock.waitExternalResult).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      operation: 'video_edit',
+      modelKey: 'nori::norivideo2.5',
+      results: [expect.objectContaining({ materialId: 'material-video-1' })],
+      durationSeconds: 6.25,
+      resolution: '720p',
+      actualVideoTokens: 120000,
+    })
   })
 
   it('executes image superresolve and persists an idempotent task-keyed material', async () => {

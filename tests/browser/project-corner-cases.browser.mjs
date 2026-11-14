@@ -97,14 +97,14 @@ async function open({
       }
     } else if (url.pathname === '/api/projects') {
       const pageNumber = Number(url.searchParams.get('page'))
-      const first = Array.from({ length: 100 }, (_, i) => ({ id: `work-${i + 1}`, name: `作品 ${i + 1}` }))
+      const first = Array.from({ length: 100 }, (_, i) => ({ id: `work-${i + 1}`, name: `作品 ${i + 1}`, workId: 'parent-a', workName: '项目甲' }))
       if (pageNumber === 2) {
         pageTwoRequested()
         if (query.includes('holdPage=1')) await new Promise((resolve) => { heldResolve = resolve })
         if (failure) {
           status = 503
           payload = { error: { message: '第二页暂不可用' } }
-        } else payload = { works: [{ id: 'work-101', name: '作品 101' }], pagination: { totalPages: 2, total: 101 } }
+        } else payload = { works: [{ id: 'work-101', name: '作品 101', workId: 'parent-a', workName: '项目甲' }], pagination: { totalPages: 2, total: 101 } }
       } else payload = { projects: first, pagination: { totalPages: 2, total: 101 } }
     } else if (url.pathname === '/api/user/balance') {
       payload = { balancePoints: 1000, generationAllowed: true, pointsPerCny: 100, dailyLimitPoints: null }
@@ -125,6 +125,8 @@ async function open({
     releaseSecondPage: () => { heldResolve?.() },
   }
 }
+// Only the open searchable list: the toolbox also holds native selects whose <option>s share the role.
+const listOptions = (page, name) => page.locator('.fa-select-popover').getByRole('option', name ? { name, exact: true } : undefined)
 async function bounded(locator) {
   const box = await locator.boundingBox()
   const size = locator.page().viewportSize()
@@ -220,24 +222,39 @@ try {
   const toolbox = await open({ query: '?view=toolbox&holdPage=1' })
   await toolbox.secondPageSeen
   const owner = toolbox.page.getByRole('combobox', { name: '归属作品', exact: true })
-  assert.equal(await owner.isDisabled(), true)
-  assert.equal(await owner.locator('option[value="work-1"]').count(), 0, 'Do not expose an incomplete first page')
+  const ownerReady = () => toolbox.page.waitForFunction(() => document.querySelector('[role="combobox"][aria-label="归属作品"]')?.getAttribute('aria-disabled') === 'false')
+  assert.equal(await owner.getAttribute('aria-disabled'), 'true')
+  assert.equal(await listOptions(toolbox.page).count(), 0, 'Do not expose an incomplete first page')
   toolbox.releaseSecondPage()
-  await owner.locator('option[value="work-101"]').waitFor({ state: 'attached' })
-  await owner.selectOption('work-101')
-  assert.equal(await owner.inputValue(), 'work-101')
-  assert.equal(await owner.locator('option').count(), 101)
-  cases.push('toolbox-all-101-works-late-page-loading-and-selection')
+  await ownerReady()
+  await owner.click()
+  assert.equal(await listOptions(toolbox.page).count(), 101)
+  await toolbox.page.keyboard.type('101')
+  const filteredOwners = listOptions(toolbox.page)
+  assert.deepEqual(await filteredOwners.allInnerTexts(), ['作品 101'], 'Typing narrows the works to the fuzzy match')
+  await toolbox.page.keyboard.press('Enter')
+  assert.equal(await listOptions(toolbox.page).count(), 0, 'Choosing closes the list')
+  assert.equal(await owner.innerText(), '作品 101')
+  await owner.click()
+  assert.equal(await listOptions(toolbox.page, '作品 101').getAttribute('aria-selected'), 'true')
+  await toolbox.page.keyboard.type('zzz')
+  assert.match(await toolbox.page.locator('.fa-select-empty').innerText(), /没有匹配/)
+  await toolbox.page.keyboard.press('Escape')
+  cases.push('toolbox-all-101-works-late-page-loading-fuzzy-search-and-selection')
   await toolbox.context.close()
 
   const failed = await open({ query: '?view=toolbox', failSecondPage: true })
   await failed.page.getByRole('alert').getByText('第二页暂不可用', { exact: true }).waitFor()
   const failedOwner = failed.page.getByRole('combobox', { name: '归属作品', exact: true })
-  assert.equal(await failedOwner.locator('option[value="work-1"]').count(), 0)
+  assert.equal(await failedOwner.getAttribute('aria-disabled'), 'true')
+  assert.equal(await listOptions(failed.page).count(), 0)
   assert.equal(await failed.page.getByRole('button', { name: '生成图片', exact: true }).isDisabled(), true)
   failed.recoverSecondPage()
   await failed.page.getByRole('button', { name: '重新加载作品', exact: true }).click()
-  await failedOwner.locator('option[value="work-101"]').waitFor({ state: 'attached' })
+  await failed.page.waitForFunction(() => document.querySelector('[role="combobox"][aria-label="归属作品"]')?.getAttribute('aria-disabled') === 'false')
+  await failedOwner.click()
+  await listOptions(failed.page, '作品 101').waitFor()
+  await failed.page.keyboard.press('Escape')
   assert.equal(await failed.page.getByRole('button', { name: '重新加载作品', exact: true }).count(), 0)
   assert.equal(failed.writes.length, 0)
   cases.push('toolbox-later-page-failure-no-partial-list-and-successful-retry')

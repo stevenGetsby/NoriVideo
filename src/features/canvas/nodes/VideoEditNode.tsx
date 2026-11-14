@@ -1,12 +1,12 @@
 'use client'
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Handle, NodeResizer, Position, useStore, type NodeProps } from '@xyflow/react'
+import { Handle, NodeResizer, Position, useStore, type NodeProps, type ReactFlowState } from '@xyflow/react'
 import { Clapperboard, FolderOpen, GitBranch, ImageIcon, Music2, Sparkles, Upload } from '@/components/ui/icons'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
-import { useCanvasEditor } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
 import type { CanvasFlowNode, CanvasFlowNodeData } from '../editor-types'
 import { CANVAS_REPLACE_CONTENT_EVENT } from './CreativeNode'
 
@@ -30,6 +30,49 @@ function sourceUrlFor(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null)
   return toPlayableVideoUrl(raw || null)
 }
 
+type MentionNode = {
+  id: string
+  type: 'image' | 'audio'
+  title: string
+  imageUrl: string | null
+  contentUrl: string | null
+  audioUrl: string | null
+  materialId: string | null
+}
+
+// Plain descriptors compared by value: dragging any node swaps the node array but must not re-render this card.
+function selectMentionNodes(state: ReactFlowState): MentionNode[] {
+  const result: MentionNode[] = []
+  for (const node of state.nodes as CanvasFlowNode[]) {
+    if (node.type !== 'image' && node.type !== 'audio') continue
+    result.push({
+      id: node.id,
+      type: node.type,
+      title: node.data.title || '',
+      imageUrl: node.data.imageUrl || null,
+      contentUrl: node.data.contentUrl || null,
+      audioUrl: node.data.audioUrl || null,
+      materialId: node.data.materialId || null,
+    })
+  }
+  return result
+}
+
+function sameMentionNodes(left: MentionNode[], right: MentionNode[]) {
+  if (left === right) return true
+  if (left.length !== right.length) return false
+  return left.every((item, index) => {
+    const other = right[index]
+    return item.id === other.id
+      && item.type === other.type
+      && item.title === other.title
+      && item.imageUrl === other.imageUrl
+      && item.contentUrl === other.contentUrl
+      && item.audioUrl === other.audioUrl
+      && item.materialId === other.materialId
+  })
+}
+
 function sourceLabel(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null) {
   if (incoming) return `已接入：${incoming.data.title || '视频节点'}`
   if (data.videoEdit?.sourceKind === 'material') return '素材库视频'
@@ -39,18 +82,19 @@ function sourceLabel(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null) 
 
 export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const multiSelected = useCanvasMultiSelection()
+  const chromeVisible = selected && !multiSelected
   const { generationAllowed, generationDisabledReason, generationDisabledLabel } = useAccountBalance()
-  const graphNodes = useStore((state) => state.nodes) as CanvasFlowNode[]
   const videoRef = useRef<HTMLVideoElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const dragFrameRef = useRef<{ role: 'start' | 'end' | 'playhead'; frameMs: number } | null>(null)
   const editConfig = data.videoEdit || { sourceKind: 'none' as const, generateAudio: true }
-  const incoming = useMemo(
-    () => editConfig.sourceKind === 'node' && editConfig.sourceNodeId
-      ? graphNodes.find((node) => node.id === editConfig.sourceNodeId) || null
-      : null,
-    [editConfig.sourceKind, editConfig.sourceNodeId, graphNodes],
-  )
+  const incomingNodeId = editConfig.sourceKind === 'node' && editConfig.sourceNodeId ? editConfig.sourceNodeId : null
+  // Subscribing to the whole node array re-rendered this card on every drag tick of any node.
+  const incoming = useStore((state) => (
+    incomingNodeId ? (state.nodeLookup.get(incomingNodeId)?.internals.userNode as CanvasFlowNode | undefined) ?? null : null
+  ))
+  const mentionNodes = useStore(selectMentionNodes, sameMentionNodes)
   const sourceUrl = sourceUrlFor(data, incoming)
   const references = useMemo(
     () => Array.isArray(editConfig.references) ? editConfig.references : [],
@@ -82,14 +126,12 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
   }, [editConfig.generateAudio])
 
   const mentionAssets = useMemo<MentionPromptAsset[]>(() => {
-    const assets = graphNodes
-      .filter((node) => node.type === 'image' || node.type === 'audio')
-      .map((node) => ({
-        id: node.id,
-        name: node.data.title || (node.type === 'image' ? '图片素材' : '音频素材'),
-        imageUrl: node.data.imageUrl || node.data.contentUrl || null,
-        mediaType: node.type as 'image' | 'audio',
-      }))
+    const assets = mentionNodes.map((node) => ({
+      id: node.id,
+      name: node.title || (node.type === 'image' ? '图片素材' : '音频素材'),
+      imageUrl: node.imageUrl || node.contentUrl || null,
+      mediaType: node.type,
+    }))
     assets.sort((left, right) => {
       const leftConnected = references.some((reference) => reference.id === left.id)
       const rightConnected = references.some((reference) => reference.id === right.id)
@@ -106,11 +148,11 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
       })
     }
     return assets
-  }, [graphNodes, references])
+  }, [mentionNodes, references])
 
   const selectMentionAsset = (asset: MentionPromptAsset) => {
     if (references.some((reference) => reference.id === asset.id)) return
-    const sourceNode = graphNodes.find((node) => node.id === asset.id)
+    const sourceNode = mentionNodes.find((node) => node.id === asset.id)
     const type = asset.mediaType === 'audio' ? 'audio' : 'image'
     editor.updateNodeData(id, {
       videoEdit: {
@@ -122,8 +164,8 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
             title: asset.name,
             type,
             previewUrl: asset.imageUrl || null,
-            url: sourceNode?.data.contentUrl || sourceNode?.data.imageUrl || sourceNode?.data.audioUrl || asset.imageUrl || null,
-            materialId: sourceNode?.data.materialId || null,
+            url: sourceNode?.contentUrl || sourceNode?.imageUrl || sourceNode?.audioUrl || asset.imageUrl || null,
+            materialId: sourceNode?.materialId || null,
           },
         ],
       },
@@ -250,7 +292,7 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
 
   return (
     <article className={`nori-canvas-node nori-canvas-video-edit-node${selected ? ' is-selected' : ''}${running ? ' is-running' : ''}`}>
-      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={420} minHeight={360} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
+      <NodeResizer isVisible={chromeVisible && !editor.readOnly} minWidth={420} minHeight={360} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
 
       <header className="nori-canvas-video-edit-header">
         <span className="nori-canvas-video-edit-title"><Clapperboard />视频编辑</span>

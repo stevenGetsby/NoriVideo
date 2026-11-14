@@ -1,22 +1,22 @@
-export const CANVAS_CLIPBOARD_PREFIX = 'NORI_CANVAS:'
+/** Custom async-clipboard format ("web " prefix) that carries copied canvas nodes and wires. */
+export const CANVAS_CLIPBOARD_MIME = 'web application/x-nori-canvas+json'
 
 export type CanvasClipboardPasteSource =
-  | 'system-media'
   | 'system-canvas'
-  | 'system-text'
+  | 'system-media'
   | 'internal-canvas'
+  | 'system-text'
   | 'none'
 
+type ClipboardNodeLike = { id: string; position: { x: number; y: number } }
+type ClipboardTextNodeLike = { type?: string; data?: { text?: unknown; mediaType?: unknown; [key: string]: unknown } | null }
+
 export function isCanvasClipboardTextAvailable(value: string): boolean {
-  const text = value.trim()
-  if (!text) return false
-  if (!text.startsWith(CANVAS_CLIPBOARD_PREFIX)) return true
-  try {
-    const payload = JSON.parse(text.slice(CANVAS_CLIPBOARD_PREFIX.length)) as { nodes?: unknown }
-    return Array.isArray(payload.nodes) && payload.nodes.length > 0
-  } catch {
-    return false
-  }
+  return value.trim().length > 0
+}
+
+export function hasCanvasClipboardMime(types: readonly string[]): boolean {
+  return types.includes(CANVAS_CLIPBOARD_MIME)
 }
 
 export function isCanvasClipboardMimeAvailable(types: readonly string[]): boolean {
@@ -28,15 +28,73 @@ export function isCanvasClipboardMimeAvailable(types: readonly string[]): boolea
   ))
 }
 
+/** The plain-text flavour of a copy: only the body of the copied text nodes. */
+export function collectCanvasClipboardText(nodes: readonly ClipboardTextNodeLike[]): string {
+  return nodes
+    .filter((node) => node.type === 'text' || node.type === 'note' || node.data?.mediaType === 'text')
+    .map((node) => (typeof node.data?.text === 'string' ? node.data.text.trim() : ''))
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export function parseCanvasClipboardDocument<N extends ClipboardNodeLike, E>(raw: string): { nodes: N[]; edges: E[] } | null {
+  let value: unknown
+  try {
+    value = JSON.parse(raw)
+  } catch {
+    return null
+  }
+  if (!value || typeof value !== 'object') return null
+  const { nodes, edges } = value as { nodes?: unknown; edges?: unknown }
+  if (!Array.isArray(nodes) || nodes.length === 0) return null
+  const wellFormed = nodes.every((node) => (
+    node
+    && typeof node === 'object'
+    && typeof (node as ClipboardNodeLike).id === 'string'
+    && Number.isFinite((node as ClipboardNodeLike).position?.x)
+    && Number.isFinite((node as ClipboardNodeLike).position?.y)
+  ))
+  if (!wellFormed) return null
+  return { nodes: nodes as N[], edges: Array.isArray(edges) ? edges as E[] : [] }
+}
+
+/**
+ * Writes the canvas data in its own clipboard format next to a plain-text flavour.
+ * `canvasFormat` is false when the browser refused the custom format and only text was written.
+ */
+export async function writeCanvasClipboard(documentJson: string, plainText: string): Promise<{ canvasFormat: boolean }> {
+  const clipboard = typeof navigator === 'undefined' ? undefined : navigator.clipboard
+  if (!clipboard) return { canvasFormat: false }
+  try {
+    const entries: Record<string, Blob> = {
+      [CANVAS_CLIPBOARD_MIME]: new Blob([documentJson], { type: CANVAS_CLIPBOARD_MIME }),
+    }
+    if (plainText) entries['text/plain'] = new Blob([plainText], { type: 'text/plain' })
+    await clipboard.write([new ClipboardItem(entries)])
+    return { canvasFormat: true }
+  } catch {
+    await clipboard.writeText(plainText).catch(() => undefined)
+    return { canvasFormat: false }
+  }
+}
+
 export function resolveCanvasClipboardPasteSource(input: {
+  hasSystemCanvas: boolean
   hasSystemMedia: boolean
   systemTextReadable: boolean
   systemText: string
   hasInternalCanvas: boolean
+  /**
+   * Set only when the last copy could not store the custom format: the system clipboard then holds
+   * just the plain text of that copy, which still identifies it as our own canvas copy.
+   */
+  internalCopyText: string | null
 }): CanvasClipboardPasteSource {
+  if (input.hasSystemCanvas) return 'system-canvas'
   if (input.hasSystemMedia) return 'system-media'
-  if (input.systemTextReadable && input.systemText.startsWith(CANVAS_CLIPBOARD_PREFIX)) return 'system-canvas'
-  if (input.systemTextReadable && input.systemText.trim()) return 'system-text'
+  const text = input.systemTextReadable ? input.systemText : ''
+  if (input.hasInternalCanvas && input.internalCopyText !== null && text.trim() === input.internalCopyText.trim()) return 'internal-canvas'
+  if (text.trim()) return 'system-text'
   if (input.hasInternalCanvas) return 'internal-canvas'
   return 'none'
 }

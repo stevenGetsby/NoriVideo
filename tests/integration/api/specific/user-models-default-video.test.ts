@@ -35,6 +35,14 @@ describe('api specific - user models default video', () => {
           type: 'image',
         },
       ],
+      businessModels: [
+        { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::nori-image', name: 'nori-image', description: '', type: 'image', tier: 'standard' },
+      ],
+      modelRouting: {
+        'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
+        'nori::nori-image': 'openlux::gpt-image-2.5-sunburst',
+      },
     })
   })
 
@@ -46,12 +54,12 @@ describe('api specific - user models default video', () => {
     expect(res.status).toBe(200)
     expect(body.video).toHaveLength(1)
     expect(body.video[0]).toMatchObject({
-      value: 'kuaizi::doubao-seedance-2-5-260628',
+      value: 'nori::norivideo2.5',
       label: 'doubao-seedance-2-5-260628',
     })
     expect(body.video[0]).not.toHaveProperty('providerName')
     expect(body.video[0]).not.toHaveProperty('tier')
-    expect(JSON.stringify(body.video)).not.toMatch(/LanMiaoTV|norivideo|Packaged| · (?:Mini|Fast|标准|Pro)/i)
+    expect(JSON.stringify(body.video)).not.toMatch(/LanMiaoTV|Packaged| · (?:Mini|Fast|标准|Pro)/i)
   })
 
   it('hides unconfigured media providers without exposing their credentials', async () => {

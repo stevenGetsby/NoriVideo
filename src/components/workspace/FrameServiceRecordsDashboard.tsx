@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
+import { FosFilterSelect, type FilterSelectOption } from '@/components/frameos/FosFilterSelect'
 import { apiFetch } from '@/lib/api-fetch'
 import {
   buildAccountModelUsageCsv,
@@ -79,6 +80,7 @@ const ACTION_LABELS: Record<string, string> = {
   'video-understanding-board': '视频分镜反译',
   'video-understanding-script': '视频剧本反译',
   'script-adaptation': '转绘剧本生成',
+  'target-outline': '转绘目标设定总纲',
   'generate-image': '图片生成',
   'generate-video': '视频生成',
   'generate-audio': '音频生成',
@@ -229,6 +231,22 @@ function ReportCard({ title, subtitle, children, className = '' }: { title: stri
   return <section className={`rounded-[12px] border border-white/[.075] bg-[var(--fos-bg-2)] ${className}`}><header className="flex min-h-[45px] items-center justify-between gap-3 border-b border-white/[.055] px-4"><div><strong className="text-[13px] font-semibold text-white/82">{title}</strong>{subtitle ? <span className="ml-2 text-[10px] text-white/32">{subtitle}</span> : null}</div></header><div className="px-4 py-2">{children}</div></section>
 }
 
+function ReportFilter({ label, allLabel, value, options, searchable = true, onChange }: {
+  label: string
+  allLabel: string
+  value: string
+  options: FilterSelectOption[]
+  searchable?: boolean
+  onChange: (value: string) => void
+}) {
+  return (
+    <div className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38">
+      <span>{label}</span>
+      <FosFilterSelect className="is-fluid" ariaLabel={label} placeholder={allLabel} searchable={searchable} value={value === 'all' ? '' : value} options={options} onChange={(next) => onChange(next || 'all')} />
+    </div>
+  )
+}
+
 export function FrameServiceRecordsDashboard() {
   const initialDates = useMemo(() => presetDates('7d'), [])
   const [report, setReport] = useState<ServiceReport | null>(null)
@@ -374,12 +392,12 @@ export function FrameServiceRecordsDashboard() {
 
       <section className="rounded-[12px] border border-white/[.075] bg-[var(--fos-bg-2)] p-3">
         <div className="grid gap-2 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_.8fr]">
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>项目</span><select className={selectClass} value={workId} onChange={(event) => setWorkId(event.target.value)}><option value="all">全部项目</option>{report?.options.works.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>作品</span><select className={selectClass} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="all">全部作品</option>{projectOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>账号</span><select className={selectClass} value={accountId} onChange={(event) => setAccountId(event.target.value)}><option value="all">全部账号</option>{report?.options.accounts.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.role}</option>)}</select></label>
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>服务</span><select className={selectClass} value={serviceType} onChange={(event) => setServiceType(event.target.value)}><option value="all">全部服务</option>{report?.options.services.map((item) => <option key={item} value={item}>{serviceLabel(item)}</option>)}</select></label>
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>模型</span><select className={selectClass} value={modelKey} onChange={(event) => setModelKey(event.target.value)}><option value="all">全部模型</option>{report?.options.models.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-          <label className="grid grid-cols-[38px_1fr] items-center gap-2 text-[11px] text-white/38"><span>状态</span><select className={selectClass} value={status} onChange={(event) => setStatus(event.target.value)}><option value="all">全部状态</option><option value="success">成功</option><option value="failed">失败</option></select></label>
+          <ReportFilter label="项目" allLabel="全部项目" value={workId} options={(report?.options.works || []).map((item) => ({ value: item.id, label: item.name }))} onChange={setWorkId} />
+          <ReportFilter label="作品" allLabel="全部作品" value={projectId} options={projectOptions.map((item) => ({ value: item.id, label: item.name }))} onChange={setProjectId} />
+          <ReportFilter label="账号" allLabel="全部账号" value={accountId} options={(report?.options.accounts || []).map((item) => ({ value: item.id, label: `${item.name} · ${item.role}` }))} onChange={setAccountId} />
+          <ReportFilter label="服务" allLabel="全部服务" value={serviceType} options={(report?.options.services || []).map((item) => ({ value: item, label: serviceLabel(item) }))} onChange={setServiceType} />
+          <ReportFilter label="模型" allLabel="全部模型" value={modelKey} options={(report?.options.models || []).map((item) => ({ value: item.id, label: item.name }))} onChange={setModelKey} />
+          <ReportFilter label="状态" allLabel="全部状态" value={status} searchable={false} options={[{ value: 'success', label: '成功' }, { value: 'failed', label: '失败' }]} onChange={setStatus} />
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[.055] pt-3">
           <span className="mr-1 text-[11px] text-white/38">时间</span>

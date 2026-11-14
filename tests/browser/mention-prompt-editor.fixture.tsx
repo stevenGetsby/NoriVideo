@@ -11,7 +11,6 @@ const assets: MentionPromptAsset[] = [
 function Fixture() {
   const [value, setValue] = useState('')
   const [selected, setSelected] = useState<string[]>([])
-  const [pasted, setPasted] = useState<string[]>([])
   return (
     <main style={{ padding: 48, maxWidth: 700 }}>
       <MentionPromptEditor
@@ -20,11 +19,9 @@ function Fixture() {
         onChange={setValue}
         hint={null}
         onSelectAsset={(asset) => { setSelected((items) => [...items, asset.id || asset.name]) }}
-        onPasteMatch={(_value, matched) => { setPasted(matched.map((asset) => asset.id || asset.name)) }}
       />
       <output data-testid="prompt-value">{value}</output>
       <output data-testid="selected-assets">{JSON.stringify(selected)}</output>
-      <output data-testid="pasted-assets">{JSON.stringify(pasted)}</output>
       <button type="button" onClick={() => setValue('外部重置 @雨')}>外部重置</button>
     </main>
   )

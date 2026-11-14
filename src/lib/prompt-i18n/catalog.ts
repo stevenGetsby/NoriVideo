@@ -178,8 +178,12 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'video-repaint/source_storyboard_system',
     variableKeys: [],
   },
-  [PROMPT_IDS.VIDEO_REPAINT_SCRIPT_ADAPTATION_SYSTEM]: {
-    pathStem: 'video-repaint/video_script_adaptation_system',
+  [PROMPT_IDS.VIDEO_REPAINT_TARGET_OUTLINE_SYSTEM]: {
+    pathStem: 'video-repaint/target_outline_system',
+    variableKeys: [],
+  },
+  [PROMPT_IDS.VIDEO_REPAINT_TARGET_SCRIPT_SYSTEM]: {
+    pathStem: 'video-repaint/target_script_system',
     variableKeys: [],
   },
   [PROMPT_IDS.VIDEO_REPAINT_VIDEO_UNDERSTANDING_SYSTEM]: {

@@ -28,7 +28,9 @@ interface PureRecordParams extends RecordParams {
   taskType?: string | null
 }
 
-const VIRTUAL_PROJECT_IDS = new Set(['asset-hub', 'global-asset-hub', 'system'])
+// `video-repaint` is a pseudo-project: the 转绘 tool bills against a constant and has
+// no projects row, so it must stay out of project-scoped usage records.
+const VIRTUAL_PROJECT_IDS = new Set(['asset-hub', 'global-asset-hub', 'system', 'video-repaint'])
 const DEFAULT_BILLING_PAGE = 1
 const DEFAULT_BILLING_PAGE_SIZE = 20
 const MAX_BILLING_PAGE_SIZE = 100

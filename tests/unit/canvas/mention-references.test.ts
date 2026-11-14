@@ -8,8 +8,6 @@ import {
   findActiveMention,
   insertPromptMention,
   isPromptCompositionKey,
-  matchPromptAssetNames,
-  pastePromptAssets,
   redoPromptInsertion,
   replacePromptMention,
   splitPromptMentionParts,
@@ -20,6 +18,7 @@ import {
   buildCanvasMentionAssets,
   collectCanvasSecondaryNodeIds,
   mergeCanvasReferenceNodeIds,
+  planCanvasPromptMentions,
   shouldBindCanvasMentionReference,
 } from '@/features/canvas/components/canvas-mention-references'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
@@ -172,34 +171,6 @@ describe('canvas @mention references', () => {
     ])
   })
 
-  it('prefixes pasted asset names longest-first while skipping existing mentions and preserving text', () => {
-    const assets = [{ name: '张三' }, { name: '张三丰' }, { name: '雨夜街巷' }]
-    expect(matchPromptAssetNames('张三丰走进 @雨夜街巷，张三跟上', assets)).toEqual({
-      value: '@张三丰走进 @雨夜街巷，@张三跟上',
-      matched: ['张三丰', '张三'],
-    })
-    expect(matchPromptAssetNames('普通文字没有任何素材名', assets)).toEqual({
-      value: '普通文字没有任何素材名',
-      matched: [],
-    })
-    expect(matchPromptAssetNames('', assets)).toEqual({ value: '', matched: [] })
-  })
-
-  it('escapes regex characters, enforces ASCII word boundaries and deduplicates names case-insensitively', () => {
-    expect(matchPromptAssetNames('A+B 与 AAAB 和 a.b', [{ name: 'A+B' }, { name: 'a.b' }])).toEqual({
-      value: '@A+B 与 AAAB 和 @a.b',
-      matched: ['A+B', 'a.b'],
-    })
-    const duplicated = matchPromptAssetNames('LANMIAO 与 lanmiao', [{ name: 'LanMiao' }, { name: 'lanmiao' }])
-    expect(duplicated).toEqual({
-      value: '@LANMIAO 与 @lanmiao',
-      matched: ['LanMiao'],
-    })
-    expect(matchPromptAssetNames('张三', [{ name: '   ' }, { name: '@张三' }])).toEqual({
-      value: '@张三',
-      matched: ['张三'],
-    })
-  })
 })
 
 describe('mention detection while deleting Chinese prompt text', () => {
@@ -310,52 +281,6 @@ describe('mention detection while deleting Chinese prompt text', () => {
   })
 })
 
-describe('mention paste matching against a live selection', () => {
-  const assets = [{ name: '张三' }, { name: '张三丰' }, { name: '雨夜街巷' }]
-
-  it('auto-prefixes every known name and reports them once', () => {
-    expect(pastePromptAssets('开头：', 3, 3, '张三丰走进雨夜街巷，张三跟上', assets)).toEqual({
-      value: '开头：@张三丰走进@雨夜街巷，@张三跟上',
-      cursor: 20,
-      matched: ['张三丰', '雨夜街巷', '张三'],
-    })
-  })
-
-  it('does not double the @ when the user already typed one', () => {
-    expect(pastePromptAssets('开头 @', 4, 4, '雨夜街巷', assets)).toEqual({
-      value: '开头 @雨夜街巷',
-      cursor: 8,
-      matched: ['雨夜街巷'],
-    })
-  })
-
-  it('replaces the selected text instead of inserting beside it', () => {
-    expect(pastePromptAssets('开头 XXX 结尾', 3, 6, '张三', assets)).toEqual({
-      value: '开头 @张三 结尾',
-      cursor: 6,
-      matched: ['张三'],
-    })
-  })
-
-  it('preserves newlines between matched names', () => {
-    expect(pastePromptAssets('', 0, 0, '张三\n李四', [{ name: '张三' }])?.value).toBe('@张三\n李四')
-  })
-
-  it('returns null for empty, unmatched or selection-free ordinary text', () => {
-    expect(pastePromptAssets('abc', 3, 3, '', assets)).toBeNull()
-    expect(pastePromptAssets('abc', 3, 3, '普通文字', assets)).toBeNull()
-    expect(pastePromptAssets('abc', 3, 3, '张三', [])).toBeNull()
-  })
-
-  it('clamps a selection that extends beyond the current value', () => {
-    expect(pastePromptAssets('开头', 99, 120, '张三', assets)).toEqual({
-      value: '开头@张三',
-      cursor: 5,
-      matched: ['张三'],
-    })
-  })
-})
-
 describe('programmatic mention insertion history', () => {
   const record = { before: '@雨', after: '@雨夜街巷 ', cursorBefore: 2, cursorAfter: 6 }
 
@@ -414,9 +339,88 @@ describe('editor wiring contracts', () => {
     expect(source).toContain('replacePromptMention(liveValue, liveMention, selectionStart, selectionEnd')
   })
 
-  it('routes paste through the live selection helper and records undoable inserts', () => {
-    expect(source).toContain('pastePromptAssets(liveValue, selectionStart, selectionEnd, pastedText, assets)')
+  it('leaves paste to the browser instead of auto-tagging asset names', () => {
+    expect(source).not.toContain('onPaste')
+    expect(source).not.toContain('pastePromptAssets')
+    expect(source).not.toContain('onPasteMatch')
+  })
+
+  it('records undoable mention inserts against the live value', () => {
     expect(source).toContain('undoPromptInsertion(event.currentTarget.value, record)')
     expect(source).toContain('redoPromptInsertion(event.currentTarget.value, record)')
+  })
+})
+
+describe('canvas prompt mention planning', () => {
+  const canvasAssets = () => buildCanvasMentionAssets([
+    node('target', 'video', '生成结果'),
+    node('wired', 'image', '林夏', { contentUrl: '/wired.webp', materialId: 'material-wired' }),
+    node('upstream', 'image', '雨夜街巷', { contentUrl: '/upstream.webp' }),
+  ], 'target', ['image', 'video', 'audio'], new Set(['wired']), new Set(['upstream']))
+  const libraryAssets = () => buildCanvasLibraryMentionAssets([
+    material('lib-linxia', '林夏'),
+    material('lib-voice', '林夏音色', { type: 'audio' }),
+    material('lib-mask', '蒙面人'),
+  ], ['image', 'video', 'audio'])
+  const unbound = { nodeIds: new Set<string>(), materialIds: new Set<string>() }
+
+  it('resolves a name to the wired node before a same-named library asset', () => {
+    const plan = planCanvasPromptMentions(['@林夏 走进@雨夜街巷'], [...canvasAssets(), ...libraryAssets()], unbound)
+    expect(plan.unknown).toEqual([])
+    expect(plan.mentioned.map(({ asset, names }) => ({ id: asset.id, section: asset.section, names }))).toEqual([
+      { id: 'wired', section: 'connected', names: ['林夏'] },
+      { id: 'upstream', section: 'secondary', names: ['雨夜街巷'] },
+    ])
+  })
+
+  it('lets an already-bound library reference win a name collision', () => {
+    const plan = planCanvasPromptMentions(['@林夏'], [...canvasAssets(), ...libraryAssets()], {
+      nodeIds: new Set(), materialIds: new Set(['lib-linxia']),
+    })
+    expect(plan.mentioned[0]?.asset).toMatchObject({ section: 'library', materialId: 'lib-linxia' })
+  })
+
+  it('groups repeated mentions per asset and reports every dangling @ across all texts', () => {
+    const plan = planCanvasPromptMentions(
+      ['@蒙面人 拔刀，@蒙面人 用@林夏音色 冷笑', '风格：@旧角色 @女主_萧令仪'],
+      [...canvasAssets(), ...libraryAssets()],
+      unbound,
+    )
+    expect(plan.mentioned.map(({ asset, names }) => [asset.materialId, names])).toEqual([
+      ['lib-mask', ['蒙面人']],
+      ['lib-voice', ['林夏音色']],
+    ])
+    expect(plan.unknown.map((item) => item.text)).toEqual(['旧角色', '女主_萧令仪'])
+  })
+
+  it('treats an unwired reference picked from the library as a direct input', () => {
+    const assets = buildCanvasMentionAssets([
+      node('target', 'video', '生成结果'),
+      node('picked', 'image', '道具·银簪', { contentUrl: '/pin.webp', materialId: 'material-pin' }),
+    ], 'target', ['image'], new Set(['picked']))
+    const plan = planCanvasPromptMentions(['握紧@道具·银簪'], assets, { nodeIds: new Set(['picked']), materialIds: new Set() })
+    expect(plan.unknown).toEqual([])
+    expect(plan.mentioned[0]?.asset.id).toBe('picked')
+  })
+})
+
+describe('mention highlight states', () => {
+  it('marks bound, unbound and unknown mentions without changing any character', () => {
+    const text = '@林夏 看着@蒙面人 和@旧角色。'
+    const parts = splitPromptMentionParts(text, [{ name: '林夏' }, { name: '蒙面人' }], {
+      boundNames: new Set(['林夏']),
+      flagUnknown: true,
+    })
+    expect(parts.filter((part) => part.mention).map(({ text: value, state }) => [value, state])).toEqual([
+      ['@林夏', 'bound'],
+      ['@蒙面人', 'unbound'],
+      ['@旧角色', 'unknown'],
+    ])
+    expect(parts.map((part) => part.text).join('')).toBe(text)
+  })
+
+  it('does not flag unknown mentions until the library has loaded', () => {
+    const parts = splitPromptMentionParts('@旧角色 走路', [], { boundNames: new Set() })
+    expect(parts).toEqual([{ text: '@旧角色 走路', mention: false }])
   })
 })

@@ -97,7 +97,7 @@ describe('material bulk trash permissions and atomicity', () => {
     db.frameosMaterial.findMany.mockResolvedValueOnce([material('a'), material('b', { source: 'creative' })])
     const response = await POST(request({ materialIds: ['a', 'b'] }), context)
     expect(response.status).toBe(200)
-    expect(await response.json()).toMatchObject({ materialIds: ['a'], skippedCount: 1, results: [{ materialId: 'a', deleted: true }, { materialId: 'b', deleted: false, reason: '只能删除本地上传的素材。' }] })
+    expect(await response.json()).toMatchObject({ materialIds: ['a'], skippedCount: 1, results: [{ materialId: 'a', deleted: true }, { materialId: 'b', deleted: false, reason: '只能删除本地上传或继承的素材。' }] })
     expect(db.frameosMaterial.updateMany).toHaveBeenCalledTimes(1)
   })
 

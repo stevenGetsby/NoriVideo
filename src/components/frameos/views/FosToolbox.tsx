@@ -8,6 +8,7 @@ import { apiFetch } from '@/lib/api-fetch'
 import { buildCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
+import { FosFilterSelect } from '../FosFilterSelect'
 import { FosMaterialLibrary } from './FosMaterialLibrary'
 import { MaterialPickerDialog } from '../materials/MaterialPickerDialog'
 import { MentionPromptEditor } from '../materials/MentionPromptEditor'
@@ -31,6 +32,7 @@ import {
   formatToolboxWorkTrace,
 } from './toolbox-work-trace'
 import { WorkTraceCard } from './ToolboxWorkTraceCard'
+import { TOOLBOX_HISTORY_PAGE_SIZE, formatToolboxHistoryPageLabel } from './toolbox-history-page'
 import {
   buildToolboxGenerationRequestBody,
   buildToolboxRegenerationDraft,
@@ -205,7 +207,7 @@ function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintAc
   )
 }
 
-function ResultPane({ type, history, selectedAsset, loading, refreshRevision, pagination, onSelect, onRefresh, onPage, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; selectedAsset: ToolboxAsset | null; loading: boolean; refreshRevision: number; pagination: { page: number; hasNext: boolean }; onSelect: (asset: ToolboxAsset) => void; onRefresh: () => void; onPage: (direction: -1 | 1) => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
+function ResultPane({ type, history, selectedAsset, loading, refreshRevision, pagination, onSelect, onRefresh, onPage, onOpenMaterial, onDownload }: { type: ActiveGenerationTab; history: ToolboxAsset[]; selectedAsset: ToolboxAsset | null; loading: boolean; refreshRevision: number; pagination: { page: number; hasNext: boolean; total: number | null }; onSelect: (asset: ToolboxAsset) => void; onRefresh: () => void; onPage: (direction: -1 | 1) => void; onOpenMaterial: (materialId: string) => void; onDownload: (materialId: string) => Promise<void> }) {
   const [downloading, setDownloading] = useState(false)
   const [traceCopyState, setTraceCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const selected = selectedAsset || history[0] || null
@@ -253,7 +255,7 @@ function ResultPane({ type, history, selectedAsset, loading, refreshRevision, pa
         })}
       </div>
       <nav className="mt-4 flex items-center justify-between gap-3" aria-label="生成历史分页">
-        <span className="text-[11px] text-[var(--fos-text-4)]">第 {pagination.page} 页 · 每页 12 条</span>
+        <span className="text-[11px] text-[var(--fos-text-4)]">{formatToolboxHistoryPageLabel(pagination.page, pagination.total)}</span>
         <div className="flex items-center gap-2">
           <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" aria-label="上一页生成历史" disabled={loading || pagination.page <= 1} onClick={() => onPage(-1)}><AppIcon name="chevronLeft" className="h-3.5 w-3.5" />上一页</button>
           <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" aria-label="下一页生成历史" disabled={loading || !pagination.hasNext} onClick={() => onPage(1)}>下一页<AppIcon name="chevronRight" className="h-3.5 w-3.5" /></button>
@@ -297,6 +299,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const [history, setHistory] = useState<ToolboxAsset[]>([])
   const [historyPage, setHistoryPage] = useState(1)
   const [historyNextCursor, setHistoryNextCursor] = useState<string | null>(null)
+  const [historyTotal, setHistoryTotal] = useState<number | null>(null)
   const [selectedHistoryAsset, setSelectedHistoryAsset] = useState<ToolboxAsset | null>(null)
   const [focusedMaterialId, setFocusedMaterialId] = useState<string | null>(null)
   const [historyLoading, setHistoryLoading] = useState(false)
@@ -566,7 +569,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         projectId,
         type: activeType,
         source: 'toolbox',
-        limit: '12',
+        limit: String(TOOLBOX_HISTORY_PAGE_SIZE),
       })
       const readPage = async (page: number) => {
         const pageParams = new URLSearchParams(params)
@@ -574,10 +577,11 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         if (cursor) pageParams.set('cursor', cursor)
         const response = await apiFetch(`/api/frameos/toolbox/assets?${pageParams}`, { signal: controller.signal, cache: 'no-store' })
         if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载生成历史失败'))
-        const payload = await response.json() as { assets?: ToolboxAsset[]; pagination?: { nextCursor?: string | null } }
+        const payload = await response.json() as { assets?: ToolboxAsset[]; pagination?: { nextCursor?: string | null; total?: number | null } }
         return {
           assets: Array.isArray(payload.assets) ? payload.assets : [],
           nextCursor: payload.pagination?.nextCursor || null,
+          total: typeof payload.pagination?.total === 'number' ? payload.pagination.total : null,
         }
       }
       let loadedPage = targetPage
@@ -590,6 +594,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
       }
       setHistory(result.assets)
       setHistoryNextCursor(result.nextCursor)
+      setHistoryTotal(result.total)
       if (result.nextCursor) historyCursors.current.set(loadedPage + 1, result.nextCursor)
       else historyCursors.current.delete(loadedPage + 1)
       setHistoryPage(loadedPage)
@@ -631,6 +636,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   useEffect(() => {
     setHistory([])
     setHistoryNextCursor(null)
+    setHistoryTotal(null)
     void loadHistory(false, historyPage)
     return cancelHistoryReads
   }, [cancelHistoryReads, historyPage, historyScopeKey, loadHistory])
@@ -781,26 +787,42 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   const toolboxHeader = (
       <div className="fos-toolbox-header flex shrink-0 flex-wrap items-center gap-3 border-b border-[var(--fos-border-soft)] px-6 py-3">
         <h1 className="text-[16px] font-bold text-white">工具箱</h1>
-        <label className="fos-toolbox-function flex min-w-0 items-center gap-2">
+        <div className="fos-toolbox-function flex min-w-0 items-center gap-2">
           <span className="text-[12px] text-[var(--fos-text-3)]">功能</span>
-          <select aria-label="工具箱功能" className="fos-input h-9 w-[150px]" value={tab} disabled={submitting} onChange={(event) => {
-            setTab(event.target.value as ToolTab)
-            setFocusedMaterialId(null)
-            setSelectedHistoryAsset(null)
-            setReferences([])
-            setMessage(null)
-            setError(null)
-          }}>
-            {TABS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
-          </select>
-        </label>
-        <label className="fos-toolbox-project">
-        <span className="text-[12px] text-[var(--fos-text-3)]">归属作品</span>
-        <select aria-label="归属作品" className="fos-input h-9 max-w-[280px]" value={projectId} disabled={projectsLoading || submitting} onChange={(event) => { setProjectId(event.target.value); setSelectedHistoryAsset(null); setReferences([]) }}>
-          {projects.length === 0 ? <option value="">{projectsLoading ? '正在加载作品…' : projectsError ? '作品加载失败' : '暂无作品'}</option>
-            : projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
-        </select>
-        </label>
+          <FosFilterSelect
+            searchable
+            allowClear={false}
+            ariaLabel="工具箱功能"
+            placeholder="选择功能"
+            value={tab}
+            disabled={submitting}
+            options={TABS.map((item) => ({ value: item.key, label: item.label }))}
+            onChange={(next) => {
+              if (!next || next === tab) return
+              setTab(next as ToolTab)
+              setFocusedMaterialId(null)
+              setSelectedHistoryAsset(null)
+              setReferences([])
+              setMessage(null)
+              setError(null)
+            }}
+          />
+        </div>
+        <div className="fos-toolbox-project">
+          <span className="text-[12px] text-[var(--fos-text-3)]">归属作品</span>
+          <FosFilterSelect
+            searchable
+            allowClear={false}
+            ariaLabel="归属作品"
+            placeholder={projects.length > 0 ? '选择作品' : projectsLoading ? '正在加载作品…' : projectsError ? '作品加载失败' : '暂无作品'}
+            emptyText="暂无作品"
+            value={projectId}
+            disabled={projectsLoading || submitting || projects.length === 0}
+            loading={projectsLoading}
+            options={projects.map((project) => ({ value: project.id, label: project.name }))}
+            onChange={(next) => { if (!next || next === projectId) return; setProjectId(next); setSelectedHistoryAsset(null); setReferences([]) }}
+          />
+        </div>
         {projectsError ? <div className="flex min-w-0 items-center gap-2 text-[12px] text-red-300" role="alert">
           <span>{projectsError}</span>
           <button type="button" className="fos-btn fos-btn-ghost" onClick={() => setProjectListRevision((revision) => revision + 1)}>重新加载作品</button>
@@ -869,7 +891,7 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
         </aside>
         <div className="fos-toolbox-results flex min-h-0 min-w-0 flex-col">
           {historyRefreshMessage ? <p role="status" className="shrink-0 px-6 pt-3 text-[11px] text-[var(--fos-text-3)]">{historyRefreshMessage}</p> : null}
-          <ResultPane type={activeType} history={history} selectedAsset={selectedHistoryAsset} pagination={{ page: historyPage, hasNext: Boolean(historyNextCursor) }} onPage={(direction) => {
+          <ResultPane type={activeType} history={history} selectedAsset={selectedHistoryAsset} pagination={{ page: historyPage, hasNext: Boolean(historyNextCursor), total: historyTotal }} onPage={(direction) => {
         cancelHistoryReads()
         setHistoryPage((page) => Math.max(1, page + direction))
       }} onSelect={applyHistoryAsset} loading={historyLoading} refreshRevision={historyRefreshRevision} onRefresh={() => void loadHistory(true)} onOpenMaterial={(materialId) => { setFocusedMaterialId(materialId); setTab('material') }} onDownload={async (materialId) => {

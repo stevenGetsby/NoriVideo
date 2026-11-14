@@ -24,6 +24,7 @@ export async function queryHuimengiTaskStatus(input: {
   taskId: string
   apiKey: string
   baseUrl?: string
+  signal?: AbortSignal
 }): Promise<PollResult> {
   try {
     const payload = await requestHuimengi({
@@ -31,6 +32,7 @@ export async function queryHuimengiTaskStatus(input: {
       baseUrl: input.baseUrl,
       path: `/api/v1/tasks/${encodeURIComponent(input.taskId)}`,
       method: 'GET',
+      signal: input.signal,
     })
     const record = asRecord(payload)
     if (!record) throw new Error('HUIMENGI_STATUS_RESPONSE_INVALID')
@@ -85,6 +87,7 @@ export async function pollHuimengiTask(input: {
   userId: string
   providerToken: string
   modelToken: string
+  signal?: AbortSignal
 }): Promise<PollResult> {
   const providerId = decodeHuimengiExternalToken(input.providerToken)
   decodeHuimengiExternalToken(input.modelToken)
@@ -94,5 +97,6 @@ export async function pollHuimengiTask(input: {
     taskId: input.taskId,
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
+    signal: input.signal,
   })
 }

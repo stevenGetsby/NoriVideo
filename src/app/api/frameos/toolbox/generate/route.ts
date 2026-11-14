@@ -50,7 +50,14 @@ import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-referenc
 import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
 import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
 import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
-import { getWorkspaceActor, workspaceUserWhere } from '@/lib/collaboration/access'
+import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
+import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import {
+  describeUnknownPromptMentions,
+  normalizePromptMentionName,
+  scanPromptMentions,
+  unknownPromptMentionMessage,
+} from '@/lib/prompt-mentions'
 
 type GenerateType = 'image' | 'video' | 'audio' | 'model3d'
 
@@ -118,6 +125,8 @@ const TRUSTED_GENERATION_FIELDS = new Set([
   'referenceAudioNames',
   'referenceMaterialIds',
   'referenceMaterials',
+  'referenceMentionNames',
+  'voiceDetachedMaterialIds',
   'referenceSummary',
   'generationMode',
   'generationOptions',
@@ -142,6 +151,22 @@ function cleanMaterialIds(value: unknown, limit = 9): string[] {
     .map(cleanText)
     .filter(Boolean)))
     .slice(0, limit)
+}
+
+/** Editor-inserted @names per material id; the material title stays the fallback alias. */
+function cleanReferenceMentionNames(value: unknown, materialIds: readonly string[]): Map<string, string[]> {
+  const source = record(value)
+  const result = new Map<string, string[]>()
+  for (const id of materialIds) {
+    const raw = source[id]
+    if (!Array.isArray(raw)) continue
+    const names = Array.from(new Set(raw
+      .map((item) => (typeof item === 'string' ? normalizePromptMentionName(item).slice(0, 80) : ''))
+      .filter(Boolean)))
+      .slice(0, 8)
+    if (names.length > 0) result.set(id, names)
+  }
+  return result
 }
 
 function cleanOptions(
@@ -406,12 +431,28 @@ async function executeToolboxGeneration(
   const assetScope = workId
     ? await resolveProjectAssetScope(session, { workId, projectId })
     : { projects: [{ id: projectId, name: '', workId }], projectIds: [projectId] }
-  const availableMaterialProjectIds = [...assetScope.projectIds, 'global', 'global-asset-hub']
-  const workspaceUsers = await prisma.user.findMany({
-    where: workspaceUserWhere(getWorkspaceActor(session).workspaceOwnerId),
-    select: { id: true },
-  })
+  const workspaceActor = getWorkspaceActor(session)
+  const [workspaceUsers, readableProjects] = await Promise.all([
+    prisma.user.findMany({
+      where: workspaceUserWhere(workspaceActor.workspaceOwnerId),
+      select: { id: true },
+    }),
+    prisma.project.findMany({
+      where: projectReadScopeWhere(session),
+      select: { id: true },
+    }),
+  ])
   const workspaceUserIds = workspaceUsers.map((user) => user.id)
+  const readableProjectIds = Array.from(new Set([
+    ...readableProjects.map((project) => project.id),
+    ...assetScope.projectIds,
+    'global',
+    'global-asset-hub',
+    PERSONAL_MATERIAL_PROJECT_ID,
+  ]))
+  // Anything already placed on a shared canvas must stay referenceable by every
+  // collaborator, whoever uploaded it, so the workspace is one material scope.
+  const materialAccessWhere = { userId: { in: workspaceUserIds } }
 
   const canvasId = cleanText(routeParams?.canvasId) || cleanText(body.canvasId)
   const nodeId = cleanText(body.nodeId)
@@ -636,12 +677,11 @@ async function executeToolboxGeneration(
   const materials = materialIds.length > 0
     ? await prisma.frameosMaterial.findMany({
       where: {
+        ...materialAccessWhere,
         id: { in: materialIds },
-        userId: { in: workspaceUserIds },
         type: type === 'video' ? { in: ['image', 'video', 'audio'] } : type,
         status: 'ready',
         deletedAt: null,
-        projectId: { in: availableMaterialProjectIds },
       },
     })
     : []
@@ -654,12 +694,11 @@ async function executeToolboxGeneration(
   const maskMaterial = imageEdit
     ? await prisma.frameosMaterial.findFirst({
       where: {
+        ...materialAccessWhere,
         id: maskMaterialId,
-        userId: { in: workspaceUserIds },
         type: 'image',
         status: 'ready',
         deletedAt: null,
-        projectId: { in: availableMaterialProjectIds },
       },
     })
     : null
@@ -684,21 +723,24 @@ async function executeToolboxGeneration(
   // must never receive hidden audio inputs.
   if (type === 'video' && inputMode === 'text' && body.textOnly !== true && options.generateAudio !== false
     && resolveCanvasGenerationInputSchema(type, capabilities).audio.max > 0) {
+    // The user can detach a character image's bound voice per canvas asset.
+    const voiceDetachedIds = new Set(cleanMaterialIds(body.voiceDetachedMaterialIds, 200))
+    const voiceCarryingImages = orderedMaterials.filter((material) => material.type === 'image' && !voiceDetachedIds.has(material.id))
     const structuredVoices = await materializeStructuredCharacterVoices({
-      userId: session.user.id, projectId, projectIds: assetScope.projectIds, workspaceUserIds,
-      images: orderedMaterials.filter((material) => material.type === 'image'),
+      userId: session.user.id, projectId, projectIds: readableProjectIds, workspaceUserIds,
+      images: voiceCarryingImages,
     })
     for (const voice of structuredVoices) {
       if (materialIds.includes(voice.id)) continue
       referenceMaterials.push({ materialId: voice.id, role: 'REF' })
       materialIds.push(voice.id); orderedMaterials.push(voice)
     }
-    const voiceIds = [...new Set(orderedMaterials.filter((material) => material.type === 'image')
+    const voiceIds = [...new Set(voiceCarryingImages
       .map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
       .filter((id) => !materialIds.includes(id))
     if (voiceIds.length) {
       const voices = await prisma.frameosMaterial.findMany({
-        where: { id: { in: voiceIds }, userId: { in: workspaceUserIds }, projectId: { in: availableMaterialProjectIds }, type: 'audio', status: 'ready', deletedAt: null },
+        where: { ...materialAccessWhere, id: { in: voiceIds }, type: 'audio', status: 'ready', deletedAt: null },
       })
       for (const id of voiceIds) {
         const voice = voices.find((material) => material.id === id)
@@ -760,6 +802,19 @@ async function executeToolboxGeneration(
     }) : []),
   ]
   if (inputErrors.length > 0) throw new ApiError('INVALID_PARAMS', { message: inputErrors[0] })
+
+  const mentionNamesByMaterialId = cleanReferenceMentionNames(body.referenceMentionNames, materialIds)
+  const mentionNamesFor = (material: typeof orderedMaterials[number]) => mentionNamesByMaterialId.get(material.id) || []
+  if (type === 'video') {
+    // A dangling @ makes Seedance invent the person instead of using the reference image.
+    const knownMentionNames = orderedMaterials.flatMap((material) => [...mentionNamesFor(material), material.title?.trim() || ''])
+    const unknownMentions = scanPromptMentions(prompt, knownMentionNames).filter((mention) => mention.name === null)
+    if (unknownMentions.length > 0) {
+      throw new ApiError('INVALID_PARAMS', {
+        message: unknownPromptMentionMessage(describeUnknownPromptMentions(unknownMentions)),
+      })
+    }
+  }
 
   if (type === 'audio') {
     let audioRequest: ReturnType<typeof normalizeAudioGenerationRequest>
@@ -1040,13 +1095,23 @@ async function executeToolboxGeneration(
   }
   const locale = resolveRequiredTaskLocale(request, body)
   const materialSource = (material: typeof orderedMaterials[number]) => material.storageKey || material.resultUrl || ''
-  const imageReferences = referenceImages.map(materialSource).filter(Boolean)
-  const videoReferences = referenceVideos.map(materialSource).filter(Boolean)
-  const audioReferences = referenceAudios.map(materialSource).filter(Boolean)
+  // Media, names and 图片N/视频N/音频N numbering must stay index-aligned.
+  const sourcelessMaterial = [...referenceImages, ...referenceVideos, ...referenceAudios].find((material) => !materialSource(material))
+  if (sourcelessMaterial) {
+    throw new ApiError('INVALID_PARAMS', {
+      message: `参考素材「${sourcelessMaterial.title?.trim() || '未命名素材'}」没有可用的文件内容，请重新上传或移除后再生成。`,
+    })
+  }
+  const imageReferences = referenceImages.map(materialSource)
+  const videoReferences = referenceVideos.map(materialSource)
+  const audioReferences = referenceAudios.map(materialSource)
   const referenceNames = orderedMaterials.map((material) => material.title?.trim() || '未命名素材')
   const referenceImageNames = referenceImages.map((material) => material.title?.trim() || '未命名素材')
   const referenceVideoNames = referenceVideos.map((material) => material.title?.trim() || '未命名素材')
   const referenceAudioNames = referenceAudios.map((material) => material.title?.trim() || '未命名素材')
+  const referenceImageMentionNames = referenceImages.map(mentionNamesFor)
+  const referenceVideoMentionNames = referenceVideos.map(mentionNamesFor)
+  const referenceAudioMentionNames = referenceAudios.map(mentionNamesFor)
   const referenceImageRoles = referenceImages.map((material) => referenceRoleByMaterialId.get(material.id) || 'REF')
   const maskImage = maskMaterial ? maskMaterial.storageKey || maskMaterial.resultUrl || '' : ''
   if (imageEdit && !maskImage) {
@@ -1164,6 +1229,9 @@ async function executeToolboxGeneration(
         referenceImageNames,
         referenceVideoNames,
         referenceAudioNames,
+        referenceImageMentionNames,
+        referenceVideoMentionNames,
+        referenceAudioMentionNames,
         referenceMaterialIds: materialIds,
         referenceMaterials,
         referenceImageRoles,

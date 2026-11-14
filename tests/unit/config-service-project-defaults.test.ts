@@ -118,10 +118,10 @@ describe('config-service project model defaults', () => {
     const { getProjectModelConfig, getUserModelConfig } = await import('@/lib/config-service')
 
     await expect(getProjectModelConfig('project-1', 'user-1')).resolves.toEqual(
-      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::seedance2.0' }),
+      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::norivideo2.5' }),
     )
     await expect(getUserModelConfig('user-1')).resolves.toEqual(
-      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::seedance2.0' }),
+      expect.objectContaining({ analysisModel: 'nori::nori-gpt', videoModel: 'nori::norivideo2.5' }),
     )
   })
 })

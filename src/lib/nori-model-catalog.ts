@@ -2,6 +2,7 @@ import { parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-c
 import { getServiceLlmConfig } from '@/lib/service-config'
 import { getRawProviderKey } from '@/lib/model-provider-contract'
 import { fixedPlatformModels } from '@/lib/platform-services/config'
+import { findBuiltinPricingCatalogEntry, type PricingApiType } from '@/lib/model-pricing/catalog'
 
 export const NORI_PROVIDER_ID = 'nori'
 
@@ -107,6 +108,15 @@ export const NORI_BUSINESS_MODELS = [
     suggestedRoute: 'openlux::gpt-image-2.6-sunburst-c',
   },
   {
+    key: 'nori::norivideo2.5',
+    modelId: 'norivideo2.5',
+    name: 'LanMiaoTV 2.5',
+    description: 'Seedance 2.5 高质量视频（最长 30 秒，多模态参考）',
+    type: 'video',
+    tier: 'pro',
+    suggestedRoute: 'kuaizi::doubao-seedance-2-5-260628',
+  },
+  {
     key: 'nori::seedance2.0-mini',
     modelId: 'seedance2.0-mini',
     name: 'seedance2.0-mini',
@@ -132,15 +142,6 @@ export const NORI_BUSINESS_MODELS = [
     type: 'video',
     tier: 'pro',
     suggestedRoute: 'kuaizi::doubao-seedance-2-0-260128',
-  },
-  {
-    key: 'nori::norivideo2.5',
-    modelId: 'norivideo2.5',
-    name: 'LanMiaoTV 2.5',
-    description: 'Seedance 2.5 高质量视频（最长 30 秒，多模态参考）',
-    type: 'video',
-    tier: 'pro',
-    suggestedRoute: 'kuaizi::doubao-seedance-2-5-260628',
   },
   {
     key: 'nori::nori-audio',
@@ -186,7 +187,7 @@ export type NoriBusinessModelType = NoriBusinessModel['type']
 export const NORI_DEFAULT_MODEL_KEYS = {
   llm: 'nori::nori-gpt',
   image: 'nori::nori-image',
-  video: 'nori::seedance2.0',
+  video: 'nori::norivideo2.5',
   audio: 'nori::nori-audio',
 } as const satisfies Record<NoriBusinessModelType, NoriBusinessModelKey>
 
@@ -235,6 +236,13 @@ export function resolveNoriModelRoute(modelKey: string | null | undefined): stri
         ? ['kuaizi', 'huimengi']
         : ['kuaizi']
   if (!allowedProviders.includes(provider)) return null
+  const pricingType: PricingApiType = businessModel.type === 'llm'
+    ? 'text'
+    : businessModel.type === 'audio'
+      ? 'voice'
+      : businessModel.type
+  if (!findBuiltinPricingCatalogEntry(pricingType, NORI_PROVIDER_ID, businessModel.modelId)
+    && !findBuiltinPricingCatalogEntry(pricingType, parsed.provider, parsed.modelId)) return null
   return parsed.modelKey
 }
 
@@ -256,7 +264,8 @@ function inferLegacyBusinessModel(modelKey: string, type: NoriBusinessModelType)
   if (type === 'video') {
     if (/(?:lite|mini)/.test(lower)) return 'nori::seedance2.0-mini'
     if (/(?:fast|flash|turbo)/.test(lower)) return 'nori::seedance2.0-fast'
-    return NORI_DEFAULT_MODEL_KEYS.video
+    // Legacy keys keep their historical tier so a default change never silently reprices old projects.
+    return /(?<!\d)2[.\-_]?5(?!\d)/.test(lower) ? 'nori::norivideo2.5' : 'nori::seedance2.0'
   }
   if (type === 'image') {
     if (/(?:mini|2\.5-flash)/.test(lower)) return 'nori::nori-image-mini'
@@ -287,17 +296,16 @@ export function normalizeProjectBusinessModelKey(
   if (!compacted) return NORI_DEFAULT_MODEL_KEYS[type]
   if (!parsed) return inferLegacyBusinessModel(compacted, type)
   if (parsed.provider === NORI_PROVIDER_ID) return inferLegacyBusinessModel(parsed.modelKey, type)
+  const routedMatches = NORI_BUSINESS_MODELS.filter(
+    (candidate) => candidate.type === type && resolveNoriModelRoute(candidate.key) === parsed.modelKey,
+  )
+  if (routedMatches.length === 1) return routedMatches[0].key
+  if (routedMatches.length > 1) return '__ambiguous__'
   if (fixedPlatformModels().some((model) => (
     model.provider === parsed.provider
     && model.modelId === parsed.modelId
     && model.type === type
-  ))) return parsed.modelKey
+  ))) return '__unrouted__'
 
-  // Retired provider keys are normalized to their routed business model so
-  // saved projects continue to run. Configured real keys never reverse-map
-  // to a different model merely because an administrator shares a route.
-  const routedMatch = NORI_BUSINESS_MODELS.find(
-    (candidate) => candidate.type === type && resolveNoriModelRoute(candidate.key) === parsed.modelKey,
-  )
-  return routedMatch?.key || inferLegacyBusinessModel(parsed.modelKey, type)
+  return inferLegacyBusinessModel(parsed.modelKey, type)
 }

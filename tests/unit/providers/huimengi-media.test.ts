@@ -158,6 +158,7 @@ describe('HuiMeng media adapter', () => {
         duration: 10,
         generate_audio: true,
         return_last_frame: false,
+        human_review: true,
       },
     })
     expect(result).toMatchObject({ success: true, async: true, requestId: 'seedance-25' })
@@ -174,6 +175,30 @@ describe('HuiMeng media adapter', () => {
       },
     })).rejects.toThrow('HUIMENGI_VIDEO_REFERENCE_VIDEOS_LIMIT')
     expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('always enables human review for models that document it and omits it elsewhere', async () => {
+    for (const modelId of ['seedance-2.0-mini', 'seedance-2.0-fast', 'seedance-2.0', 'seedance-2.5']) {
+      fetchMock.mockResolvedValueOnce(jsonResponse({ task_id: `task-${modelId}` }))
+      await generateHuimengiVideo({
+        userId: 'user-1',
+        imageUrl: '',
+        prompt: 'walk cycle',
+        options: { provider: 'huimengi', modelId, modelKey: `huimengi::${modelId}` },
+      })
+      const body = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))
+      expect(body.params.human_review, modelId).toBe(true)
+    }
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ task_id: 'task-1.5' }))
+    await generateHuimengiVideo({
+      userId: 'user-1',
+      imageUrl: '',
+      prompt: 'walk cycle',
+      options: { provider: 'huimengi', modelId: 'seedance-1.5-pro', modelKey: 'huimengi::seedance-1.5-pro' },
+    })
+    const legacyBody = JSON.parse(String(fetchMock.mock.calls.at(-1)?.[1]?.body))
+    expect(legacyBody.params).not.toHaveProperty('human_review')
   })
 
   it('rejects invalid parameters and missing task ids without paid submission', async () => {

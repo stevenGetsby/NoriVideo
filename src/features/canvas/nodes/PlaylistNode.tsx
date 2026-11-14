@@ -26,7 +26,7 @@ import {
 } from '@/lib/canvas/playlist'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { CANVAS_MATERIAL_DRAG_TYPE } from '../components/CanvasProjectAssets'
-import { useCanvasEditor, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasMultiSelection, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasPlaylistItem, CanvasPlaylistRenderSummary, CanvasPlaylistReviewSummary } from '../types'
 
@@ -98,6 +98,8 @@ function renderLabel(render: CanvasPlaylistRenderSummary) {
 
 function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const multiSelected = useCanvasMultiSelection()
+  const chromeVisible = selected && !multiSelected
   const acceptingNodeDrop = editor.playlistDropTargetId === id
   const videoRef = useRef<HTMLVideoElement>(null)
   const continuePlaybackRef = useRef(false)
@@ -522,7 +524,7 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
 
   return (
     <div className={`nori-canvas-playlist-node${selected ? ' is-selected' : ''}${review.status === 'rejected' ? ' is-rejected' : ''}${acceptingNodeDrop ? ' is-node-drop-target' : ''}`}>
-      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={720} minHeight={680} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
+      <NodeResizer isVisible={chromeVisible && !editor.readOnly} minWidth={720} minHeight={680} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
       <header className="nori-playlist-header">
         <div className="nori-playlist-heading">
           <ListVideo />

@@ -8,10 +8,10 @@ import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { parseModelKeyStrict, type CapabilitySelections, type CapabilityValue } from '@/lib/model-config-contract'
 import { resolveBuiltinModelContext, validateCapabilitySelectionsPayload } from '@/lib/model-capabilities/lookup'
-import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { normalizeWorkflowConcurrencyConfig } from '@/lib/workflow-concurrency'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
 import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
+import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
 
 interface ApiConfigPutBody {
   models?: unknown
@@ -92,13 +92,14 @@ export const GET = apiHandler(async () => {
   const available = new Map((['llm', 'image', 'video', 'audio'] as const).flatMap((type) => (
     listConfiguredSelectableModels(config, type)
   )).map((model) => [model.modelKey, model]))
-  const legacyModels: Record<DefaultModelField, string> = { analysisModel: 'deepseek::deepseek-chat', characterModel: 'openlux::gpt-image-2.5-sunburst', locationModel: 'openlux::gpt-image-2.5-sunburst', storyboardModel: 'openlux::gpt-image-2.5-sunburst', editModel: 'openlux::gpt-image-2.5-sunburst', videoModel: 'kuaizi::doubao-seedance-2-0-260128', audioModel: 'kuaizi::speech-2.8-hd' }
   for (const field of DEFAULT_MODEL_FIELDS) {
     const stored = parseModelKeyStrict(typeof pref?.[field] === 'string' ? pref[field] : '')
-    const fallback = parseModelKeyStrict(config.defaultModels[field as keyof typeof config.defaultModels] || legacyModels[field])
-    const selected = stored && available.has(stored.modelKey) ? stored : fallback
-    const model = selected ? available.get(selected.modelKey) : null
-    defaultModels[field] = selected && model?.type === MODEL_TYPES[field] ? selected.modelKey : ''
+    const fallback = parseModelKeyStrict(config.defaultModels[field as keyof typeof config.defaultModels])
+    const selected = [stored, fallback].find((candidate) => {
+      const model = candidate ? available.get(candidate.modelKey) : null
+      return model?.type === MODEL_TYPES[field]
+    })
+    defaultModels[field] = selected?.modelKey || ''
   }
   return NextResponse.json({
     models: [...available.values()].map((model) => ({
@@ -106,11 +107,11 @@ export const GET = apiHandler(async () => {
       modelId: model.modelId,
       name: model.modelId,
       type: model.type,
-      provider: model.modelKey.split('::')[0],
+      provider: findNoriBusinessModel(model.modelKey) ? 'nori' : model.modelKey.split('::')[0],
       enabled: true,
       price: 0,
       priceLabel: '--',
-      capabilities: findBuiltinCapabilities(model.type, model.modelKey.split('::')[0], model.modelId),
+      capabilities: resolveBuiltinModelContext(model.type, model.modelKey)?.capabilities,
     })),
     providers: config.providers.map((provider) => ({ id: provider.id, name: provider.name, baseUrl: provider.baseUrl, hasApiKey: provider.hasApiKey })),
     defaultModels, capabilityDefaults: storedCapabilities(pref?.capabilityDefaults), pricingDisplay: {},

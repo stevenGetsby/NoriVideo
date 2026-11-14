@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resetServiceConfigCache } from '@/lib/service-config'
 import {
   listNoriBusinessModels,
+  NORI_DEFAULT_MODEL_KEYS,
   normalizeProjectBusinessModelKey,
   resolveNoriModelRoute,
 } from '@/lib/nori-model-catalog'
@@ -39,11 +40,12 @@ describe('Nori business model catalog', () => {
       ['nori::nori-image-2.6-pro', 'pro'],
     ])
     expect(listNoriBusinessModels('video').map((model) => [model.key, model.tier])).toEqual([
+      ['nori::norivideo2.5', 'pro'],
       ['nori::seedance2.0-mini', 'mini'],
       ['nori::seedance2.0-fast', 'fast'],
       ['nori::seedance2.0', 'pro'],
-      ['nori::norivideo2.5', 'pro'],
     ])
+    expect(NORI_DEFAULT_MODEL_KEYS.video).toBe('nori::norivideo2.5')
     expect(listNoriBusinessModels('audio').map((model) => model.key)).toEqual([
       'nori::nori-audio',
       'nori::nori-music',
@@ -73,11 +75,20 @@ describe('Nori business model catalog', () => {
 
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBe('deepseek::deepseek-chat')
     expect(resolveNoriModelRoute('nori::nori-image')).toBe('openlux::gpt-image-2.5-sunburst')
-    expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('deepseek::deepseek-chat')
+    expect(normalizeProjectBusinessModelKey('deepseek::deepseek-chat', 'llm')).toBe('__ambiguous__')
     expect(normalizeProjectBusinessModelKey('hfsy::gpt-image-2', 'image')).toBe('nori::nori-image')
-    expect(normalizeProjectBusinessModelKey('openlux::gpt-image-2.6-flare-c', 'image')).toBe('openlux::gpt-image-2.6-flare-c')
+    expect(normalizeProjectBusinessModelKey('openlux::gpt-image-2.6-flare-c', 'image')).toBe('nori::nori-image-2.6')
     expect(normalizeProjectBusinessModelKey('ark::doubao-seedance-1-5-pro', 'video')).toBe('nori::seedance2.0')
-    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('kuaizi::doubao-seedance-2-5-260628')
+    expect(normalizeProjectBusinessModelKey('legacy::seedance-2.5-pro', 'video')).toBe('nori::norivideo2.5')
+    expect(normalizeProjectBusinessModelKey('legacy::seedance-pro-250528', 'video')).toBe('nori::seedance2.0')
+    expect(normalizeProjectBusinessModelKey('', 'video')).toBe('nori::norivideo2.5')
+    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('nori::norivideo2.5')
+  })
+
+  it('marks a registered upstream without an enabled admin route as unavailable', () => {
+    configure({ 'nori::norivideo2.5': '' })
+
+    expect(normalizeProjectBusinessModelKey('kuaizi::doubao-seedance-2-5-260628', 'video')).toBe('__unrouted__')
   })
 
   it('accepts HuiMeng for image and video while keeping text and audio fixed', () => {

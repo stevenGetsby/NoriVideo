@@ -26,6 +26,7 @@ export type FosNavKey =
   | 'interactive'
   | 'assetHub'
   | 'accounts'
+  | 'activity'
   | 'records'
   | 'feedback'
   | 'updates'
@@ -360,6 +361,12 @@ function Sidebar({
               <span className="min-w-0 truncate">子账号管理</span>
             </Link>
           ) : null}
+          {isAdmin ? (
+            <Link href={{ pathname: '/account-management/activity' }} className={`fos-nav-item${activeKey === 'activity' ? ' active' : ''}`}>
+              <AppIcon name="barChart" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">工作监督</span>
+            </Link>
+          ) : null}
           {secondaryNav.map((item) => (
             item.key === 'records' ? (
               <Link key={item.key} href={{ pathname: '/service-records' }} className={`fos-nav-item${activeKey === 'records' ? ' active' : ''}`}>
@@ -494,14 +501,14 @@ export function FosShell({
     return <div className="fos-app"><div className="fos-loading">正在验证账号…</div></div>
   }
 
-  const canAccess = TEST_MODE || activeKey !== 'accounts' || session?.user?.role === 'admin'
+  const canAccess = TEST_MODE || (activeKey !== 'accounts' && activeKey !== 'activity') || session?.user?.role === 'admin'
   if (!canAccess) {
     return (
       <div className="fos-app flex items-center justify-center">
         <div className="max-w-md rounded-[12px] border border-white/10 bg-white/[.035] p-8 text-center">
           <AppIcon name="lock" className="mx-auto h-7 w-7 text-white/40" />
           <h1 className="mt-4 text-[16px] font-bold text-white">没有访问权限</h1>
-          <p className="mt-2 text-[12px] leading-6 text-white/45">仅管理账号可以进入子账号管理。</p>
+          <p className="mt-2 text-[12px] leading-6 text-white/45">仅管理账号可以进入子账号管理和工作监督。</p>
         </div>
       </div>
     )

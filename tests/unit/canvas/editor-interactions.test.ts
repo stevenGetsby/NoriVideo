@@ -51,8 +51,8 @@ describe('canvas editor interaction contracts', () => {
     const pointerUpStart = graph.indexOf('onPointerUpCapture={(event) => {')
     const pointerUpEnd = graph.indexOf('onPointerCancelCapture=', pointerUpStart)
     const pointerUp = graph.slice(pointerUpStart, pointerUpEnd)
-    const paneClickStart = graph.indexOf('onPaneClick={() => {')
-    const paneClickEnd = graph.indexOf('onPaneContextMenu=', paneClickStart)
+    const paneClickStart = graph.indexOf('const handlePaneClick = useStableCallback(() => {')
+    const paneClickEnd = graph.indexOf('const handleNodeClick = ', paneClickStart)
     const paneClick = graph.slice(paneClickStart, paneClickEnd)
 
     expect(graph).toContain('const clearCanvasSelection = useCallback(() => {')
@@ -63,7 +63,9 @@ describe('canvas editor interaction contracts', () => {
     expect(graph).toContain('edge.selected ? { ...edge, selected: false } : edge')
     expect(pointerUp).toContain('} else if (!edgeSelection.additive) {')
     expect(pointerUp).toContain('clearCanvasSelection()')
+    expect(paneClickStart).toBeGreaterThan(-1)
     expect(paneClick).toContain('clearCanvasSelection()')
+    expect(graph).toContain('onPaneClick={handlePaneClick}')
   })
 
   it('matches FrameOS bidirectional side-port wiring and canonical edge direction', () => {
@@ -81,7 +83,8 @@ describe('canvas editor interaction contracts', () => {
     expect(graph).toContain('connectionMode={ConnectionMode.Loose}')
     expect(graph).toContain('connectOnClick={false}')
     expect(graph).toContain('selectionMode={SelectionMode.Partial}')
-    expect(graph).toContain("multiSelectionKeyCode={['Shift', 'Meta', 'Control']}")
+    expect(graph).toContain("const FLOW_MULTI_SELECTION_KEYS = ['Shift', 'Meta', 'Control']")
+    expect(graph).toContain('multiSelectionKeyCode={FLOW_MULTI_SELECTION_KEYS}')
     expect(graph).toContain('minZoom={0.15}')
     expect(graph).toContain('maxZoom={5}')
     expect(creativeNode).toContain('<Handle type="source" position={Position.Left} id="input"')

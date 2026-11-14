@@ -44,8 +44,28 @@ vi.mock('@/lib/model-capabilities/catalog', () => ({
   findBuiltinCapabilities: vi.fn(() => undefined),
 }))
 vi.mock('@/lib/model-pricing/catalog', () => ({
-  findBuiltinPricingCatalogEntry: vi.fn(() => undefined),
+  findBuiltinPricingCatalogEntry: vi.fn((type: string, provider: string, modelId: string) => (
+    type === 'voice' && (provider === 'nori' || provider === 'kuaizi') && (modelId === 'nori-audio' || modelId === 'speech-2.8-hd')
+      ? { apiType: 'voice', provider, modelId, pricing: { mode: 'flat', flatAmount: 1 } }
+      : null
+  )),
 }))
+
+const configMock = vi.hoisted(() => vi.fn(() => ({
+  providers: [{ id: 'kuaizi', name: 'Kuaizi', hasApiKey: true }],
+  models: [{ provider: 'kuaizi', modelId: 'speech-2.8-hd', modelKey: 'kuaizi::speech-2.8-hd', name: 'Speech', type: 'audio' }],
+  businessModels: [
+    { key: 'nori::nori-audio', name: 'nori-audio', description: '', type: 'audio', tier: 'standard' },
+    { key: 'nori::nori-music', name: 'nori-music', description: '', type: 'audio', tier: 'standard' },
+    { key: 'nori::nori-sfx', name: 'nori-sfx', description: '', type: 'audio', tier: 'standard' },
+  ],
+  modelRouting: {
+    'nori::nori-audio': 'kuaizi::speech-2.8-hd',
+    'nori::nori-music': '',
+    'nori::nori-sfx': '',
+  },
+})))
+vi.mock('@/lib/platform-services/config', () => ({ getPlatformServiceConfigResponse: configMock }))
 
 describe('api specific - user models audio filter', () => {
   const routeContext = { params: Promise.resolve({}) }
@@ -54,7 +74,7 @@ describe('api specific - user models audio filter', () => {
     vi.clearAllMocks()
   })
 
-  it('exposes platform speech, music and sound-effects models and hides legacy providers', async () => {
+  it('exposes only speech capabilities enabled by the administrator', async () => {
     const mod = await import('@/app/api/user/models/route')
     const req = buildMockRequest({
       path: '/api/user/models',
@@ -64,9 +84,7 @@ describe('api specific - user models audio filter', () => {
 
     expect(res.status).toBe(200)
     const body = await res.json() as { audio: Array<{ value: string }>; vision: Array<{ value: string }> }
-    expect(body.audio.map((item) => item.value)).toEqual([
-      'nori::nori-audio', 'nori::nori-music', 'nori::nori-sfx',
-    ])
+    expect(body.audio.map((item) => item.value)).toEqual(['nori::nori-audio'])
     expect(body.vision).toEqual([])
   })
 })

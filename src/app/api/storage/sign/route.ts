@@ -3,8 +3,10 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { getObjectBuffer, getSignedObjectUrl } from '@/lib/storage'
+import { ensureCanvasThumbnail, normalizeCanvasThumbnailWidth } from '@/lib/media/thumbnail'
 
 const DEFAULT_EXPIRES_SECONDS = 3600
+const REDIRECT_MAX_CACHE_SECONDS = 600
 const MAX_INLINE_IMAGE_BYTES = 40 * 1024 * 1024
 const MAX_INLINE_AUDIO_BYTES = 60 * 1024 * 1024
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads'
@@ -85,6 +87,14 @@ function inlineAudioResponse(buffer: Buffer, storageKey: string, rangeHeader: st
   })
 }
 
+// A fresh signature per request gives every remount a new URL the browser cannot reuse, so the same
+// signed URL is kept cacheable for a while (never longer than half its own lifetime).
+function signedRedirect(signedUrl: string, ttl: number): NextResponse {
+  const response = NextResponse.redirect(signedUrl)
+  response.headers.set('Cache-Control', `private, max-age=${Math.min(REDIRECT_MAX_CACHE_SECONDS, Math.floor(ttl / 2))}`)
+  return response
+}
+
 function resolveLocalFilePath(storageKey: string): string | null {
   const normalizedKey = storageKey.replace(/^\/+/, '')
   const uploadDirPath = path.normalize(path.join(process.cwd(), UPLOAD_DIR))
@@ -110,6 +120,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const expiresRaw = searchParams.get('expires')
   const inline = searchParams.get('inline') === '1'
   const playback = searchParams.get('playback') === '1'
+  const thumbnail = searchParams.get('thumbnail')
 
   if (!key) {
     throw new ApiError('INVALID_PARAMS')
@@ -121,6 +132,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   const expires = expiresRaw ? Number.parseInt(expiresRaw, 10) : DEFAULT_EXPIRES_SECONDS
   const ttl = Number.isFinite(expires) && expires > 0 ? expires : DEFAULT_EXPIRES_SECONDS
+
+  if (thumbnail) {
+    if (!isSupportedInlineImage(key) || path.extname(key).toLowerCase() === '.gif' || inline || playback) {
+      throw new ApiError('INVALID_PARAMS', { message: '画布缩略图仅支持静态 PNG、JPEG 和 WebP 图片。' })
+    }
+    const thumbnailKey = await ensureCanvasThumbnail(key, normalizeCanvasThumbnailWidth(thumbnail))
+    return signedRedirect(await getSignedObjectUrl(thumbnailKey, ttl), ttl)
+  }
 
   if (inline) {
     if (!isSupportedInlineImage(key) && !isSupportedInlineAudio(key)) {
@@ -175,7 +194,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
       // Forward the stream and byte range, not a fully buffered video in RAM.
       return new NextResponse(upstream.body, { status: upstream.status, headers })
     }
-    return NextResponse.redirect(signedUrl)
+    return signedRedirect(signedUrl, ttl)
   } catch (error) {
     if (error instanceof ApiError) throw error
     const localFile = await readLocalFile(key)

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { isErrorResponse, requireUserPermission, type AuthSession } from '@/lib/api-auth'
+import { isErrorResponse, requireUserPermission } from '@/lib/api-auth'
 import { projectReadWhere } from '@/lib/collaboration/access'
 import { getWorkspaceActor } from '@/lib/collaboration/access'
 import { canActorAccessMaterial, PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
+import { ACCOUNT_MATERIAL_PROJECT_IDS, requireMaterialProjectAccess } from '@/lib/frameos/material-access'
 import {
   canvasMaterialReferenceConflictMessage,
   findCanvasMaterialReferences,
@@ -20,23 +21,7 @@ import {
 import { MAX_MATERIAL_TITLE_LENGTH } from '@/lib/frameos/upload-file-policy'
 import { characterVoiceMaterialId, withCharacterVoiceMaterial } from '@/lib/frameos/character-voice-reference'
 import { assertCharacterVoiceNotBound } from '@/lib/frameos/character-voice-service'
-
-const ACCOUNT_MATERIAL_PROJECT_IDS = new Set(['global', 'global-asset-hub'])
-
-async function requireMaterialProjectAccess(
-  tx: Prisma.TransactionClient,
-  session: AuthSession,
-  projectId: string,
-) {
-  if (ACCOUNT_MATERIAL_PROJECT_IDS.has(projectId) || projectId === PERSONAL_MATERIAL_PROJECT_ID) return
-  const project = await tx.project.findFirst({
-    where: projectReadWhere(session, projectId),
-    select: { id: true },
-  })
-  // Keep the response indistinguishable from an unknown material id. In
-  // particular, a subaccount must not be able to probe another project's ids.
-  if (!project) throw new ApiError('NOT_FOUND')
-}
+import { isUserManagedMaterial } from '@/lib/frameos/material-inherit'
 
 export const PATCH = apiHandler(async (
   request: NextRequest,
@@ -260,8 +245,8 @@ export const DELETE = apiHandler(async (
     if (!material || !canActorAccessMaterial(session, material)) throw new ApiError('NOT_FOUND')
     await requireMaterialProjectAccess(tx, session, material.projectId)
     if (material.deletedAt) return material
-    if (material.source !== 'upload') {
-      throw new ApiError('FORBIDDEN', { message: '这里只能删除本地上传的素材；项目产物请在对应工作流中管理。' })
+    if (!isUserManagedMaterial(material)) {
+      throw new ApiError('FORBIDDEN', { message: '这里只能删除本地上传或继承的素材；项目产物请在对应工作流中管理。' })
     }
     if (material.type === 'audio') await assertCharacterVoiceNotBound(tx, actor.workspaceOwnerId, [material.id])
 
@@ -279,7 +264,7 @@ export const DELETE = apiHandler(async (
         id: material.id,
         userId: actor.workspaceOwnerId,
         projectId: material.projectId,
-        source: 'upload',
+        source: material.source,
         updatedAt: material.updatedAt,
         deletedAt: null,
       },

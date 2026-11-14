@@ -11,14 +11,14 @@ import { toDisplayImageUrl, toPlayableVideoUrl, toPlayableAudioUrl } from '@/lib
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { ConfirmActionDialog } from '../works/FosWorksDialogs'
 import { renameFrameosMaterial, trashFrameosMaterials, updateFrameosMaterial } from '../materials/material-actions'
-import { fetchAllFrameosMaterials } from '../materials/fetch-all-materials'
 import { fetchAllProjectOptions } from '../works/fetch-all-projects'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
 import { ProjectDownloadDirectory } from '../ProjectDownloadDirectory'
 import { downloadFrameosMaterial } from '../materials/download-material'
 import { createMaterialUploadEntryId, runMaterialUploadQueue, type MaterialUploadEntry } from '../materials/upload-queue'
 import { isImageUpload, materialTitleFromFilename, MAX_MATERIAL_BATCH_FILES, MAX_MATERIAL_FILE_BYTES, MAX_MATERIAL_TITLE_LENGTH } from '@/lib/frameos/upload-file-policy'
-import { matchCharacterVoiceFile, validateCharacterAudioFile } from '@/lib/frameos/character-voice-reference'
+import { matchCharacterVoiceFile, validateCharacterAudioFile, withCharacterVoiceMaterial } from '@/lib/frameos/character-voice-reference'
+import { CharacterMaterialVoiceDialog } from '../materials/CharacterMaterialVoiceDialog'
 import {
   FRAMEOS_ASSET_CATEGORIES,
   FRAMEOS_ASSET_CATEGORY_LABELS,
@@ -26,8 +26,11 @@ import {
   frameosCharacterBindingFromMetadata,
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
+import { inheritedMaterialSource, isInheritedMaterial, isUserManagedMaterial } from '@/lib/frameos/material-inherit'
 import {
   MATERIAL_SOURCE_LABELS,
+  materialSourceLabel,
+  type FrameosMaterialCreatorOption,
   type FrameosMaterialItem,
   type MaterialType,
 } from '../materials/contracts'
@@ -45,6 +48,8 @@ export interface MaterialUploadProjectItem {
 }
 
 type ProjectItem = MaterialUploadProjectItem
+
+const MATERIAL_PAGE_SIZE = 60
 
 const FILTER_TABS: Array<{ key: FilterTab; label: string }> = [
   { key: 'all', label: '全部' },
@@ -112,9 +117,11 @@ function MaterialCard({
   const assetCategory = frameosAssetCategoryFromMetadata(item.metadata)
   const characterBinding = frameosCharacterBindingFromMetadata(item.metadata)
   const showVoiceBadge = assetCategory === 'character' && item.type === 'image'
+  const inherited = isInheritedMaterial(item)
+  const deleteLabel = inherited ? '删除继承资产' : '删除上传资产'
   return (
     <article className={`relative overflow-hidden rounded-[10px] border bg-[var(--fos-bg-2)] transition-colors hover:border-[var(--fos-border-mid)] ${selected ? 'border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : 'border-[var(--fos-border-soft)]'}`}>
-      {item.source === 'upload' && canEdit ? <button
+      {isUserManagedMaterial(item) && canEdit ? <button
         type="button"
         aria-label={selected ? `取消选择 ${item.title || '未命名素材'}` : `选择 ${item.title || '未命名素材'}`}
         aria-pressed={selected}
@@ -135,13 +142,13 @@ function MaterialCard({
         <div className="truncate px-3 pt-2.5 text-[13px] font-bold text-white" title={item.title || ''}>{item.title || '未命名素材'}</div>
         <div className="flex items-center justify-between gap-2 px-3 pb-2.5 pt-1 text-[11px] text-[var(--fos-text-4)]">
           <span className="min-w-0 truncate">{item.projectName} · {FRAMEOS_ASSET_CATEGORY_LABELS[assetCategory]}{characterBinding ? ` · @${characterBinding.characterName || '已绑定角色'}` : ''}</span>
-          <span className="shrink-0 rounded bg-[var(--fos-fill-mid)] px-1.5 py-0.5">{MATERIAL_SOURCE_LABELS[item.source]}</span>
+          <span className={`shrink-0 rounded px-1.5 py-0.5 ${inherited ? 'nori-origin-inherited' : 'bg-[var(--fos-fill-mid)]'}`} title={inherited ? materialSourceLabel(item) : undefined}>{inherited ? '继承' : MATERIAL_SOURCE_LABELS[item.source]}</span>
         </div>
       </button>
       <div className="flex min-h-[38px] items-center justify-between gap-2 border-t border-[var(--fos-border-soft)] px-3 py-2">
         <span className="truncate text-[10px] text-[var(--fos-text-4)]">{formatDate(item.createdAt)}</span>
         <div className="flex items-center gap-2">
-          {item.source === 'upload' && canEdit ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title="删除上传资产" aria-label={`删除上传资产 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
+          {isUserManagedMaterial(item) && canEdit ? <button type="button" onClick={(event) => { event.stopPropagation(); onDelete() }} title={deleteLabel} aria-label={`${deleteLabel} ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-red-300"><AppIcon name="trash" className="h-4 w-4" /></button> : null}
           {canEdit ? <button type="button" onClick={(event) => { event.stopPropagation(); onRename() }} title="编辑素材名称与归属" aria-label={`编辑素材 ${item.title || '未命名素材'}`} className="text-[var(--fos-text-4)] hover:text-neutral-200"><AppIcon name="edit" className="h-4 w-4" /></button> : null}
         </div>
       </div>
@@ -320,10 +327,11 @@ export function MaterialUploadDialog({
   )
 }
 
-function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClose, onDownload }: {
+function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onVoiceChange, onRename, onClose, onDownload }: {
   item: FrameosMaterialItem
   canEdit: boolean
   onCharacterBind: (characterId: string | null) => void
+  onVoiceChange: (voice: FrameosMaterialItem | null) => void
   onRename: () => void
   onClose: () => void
   onDownload: () => Promise<void>
@@ -338,14 +346,16 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClo
   const [charactersLoading, setCharactersLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
+  const [voiceOpen, setVoiceOpen] = useState(false)
+  const canSetVoice = item.type === 'image' && assetCategory === 'character'
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose()
+      if (event.key === 'Escape' && !voiceOpen) onClose()
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [onClose])
+  }, [onClose, voiceOpen])
 
   useEffect(() => {
     if (!canBindProjectCharacter) {
@@ -367,11 +377,13 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClo
     ['素材名称', item.title || '未命名素材'],
     ['归属作品', item.projectName],
     ['素材类型', item.type === 'image' ? '图片' : item.type === 'video' ? '视频' : item.type === 'audio' ? '音频' : '3D 模型'],
-    ['来源', MATERIAL_SOURCE_LABELS[item.source]],
+    ['来源', materialSourceLabel(item)],
+    ...(inheritedMaterialSource(item.metadata) ? [['原始来源', MATERIAL_SOURCE_LABELS[item.source]] as [string, string]] : []),
     ['创建者', item.ownerName || '-'],
     ['创建时间', formatDate(item.createdAt)],
   ]
   return (
+    <>
     <ViewportDialogLayer>
     <div className="fos-overlay material-preview-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}>
       <section
@@ -394,12 +406,15 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onRename, onClo
             <div className="mb-3 text-[12px] font-bold text-[var(--fos-text-3)]">素材信息</div>
             <div className="divide-y divide-[var(--fos-border-soft)] rounded-[10px] border border-[var(--fos-border-soft)]">{rows.map(([key, value]) => <div key={key} className="px-3.5 py-3 text-[12px]"><span className="block text-[var(--fos-text-4)]">{key}</span><span className="mt-1 block break-words font-bold text-white">{value}</span>{key === '素材名称' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" onClick={onRename}><AppIcon name="edit" className="h-3.5 w-3.5" />修改名称</button> : null}</div>)}</div>
             {canBindProjectCharacter ? <label className="mt-4 block"><span className="mb-2 block text-[12px] font-bold text-[var(--fos-text-3)]">绑定作品角色</span><select className="fos-input" value={characterBinding?.characterId || ''} disabled={!canEdit || charactersLoading} onChange={(event) => onCharacterBind(event.target.value || null)}><option value="">不绑定具体角色</option>{characters.map((character) => <option key={character.id} value={character.id}>@{character.name}</option>)}</select><span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">同一角色的图片与音频会在资产库聚合显示；绑定音频后同步设为该角色音色。</span></label> : null}
+            {canSetVoice ? <div className="mt-4" data-testid="material-character-voice"><span className="mb-2 block text-[12px] font-bold text-[var(--fos-text-3)]">角色音色</span>{item.voice ? <>{item.voice.url ? <audio controls preload="metadata" aria-label={`${item.title || '角色'}音色试听`} src={toPlayableAudioUrl(item.voice.url) || item.voice.url} className="w-full" /> : null}<span className="mt-1.5 block truncate text-[11px] text-[var(--fos-text-3)]" title={item.voice.title || ''}>已绑定：{item.voice.title || '角色音色'}</span></> : <span className="block text-[11px] leading-4 text-[var(--fos-text-4)]">尚未绑定音色，视频全能参考引用这张角色图时不会带入声音。</span>}{canEdit ? <button type="button" className="fos-btn fos-btn-soft fos-btn-sm mt-2" onClick={() => setVoiceOpen(true)}>{item.voice ? '更换音色' : '设置音色'}</button> : null}<span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">新角色没有初始音频：可先在画布生成声音并截取音色，再上传或从音色素材库选择后回绑到这张角色卡复用。</span></div> : null}
             <div className="mt-4 space-y-3"><ProjectDownloadDirectory projectId={item.projectId} /><button type="button" className="fos-btn fos-btn-primary" disabled={downloading} onClick={() => { setDownloading(true); setDownloadError(null); void onDownload().catch((cause) => setDownloadError(cause instanceof Error ? cause.message : '下载失败')).finally(() => setDownloading(false)) }}>{downloading ? '下载中…' : '按项目规则下载素材'}</button>{downloadError ? <p role="alert" className="break-words text-[12px] text-red-200">{downloadError}</p> : null}</div>
           </aside>
         </div>
       </section>
     </div>
     </ViewportDialogLayer>
+    {voiceOpen && canSetVoice ? <CharacterMaterialVoiceDialog material={{ id: item.id, name: item.title || '角色', projectId: item.projectId, voiceUrl: item.voice?.url }} onSaved={onVoiceChange} onClose={() => setVoiceOpen(false)} /> : null}
+    </>
   )
 }
 
@@ -430,7 +445,8 @@ export function FosMaterialLibrary({
   const [materials, setMaterials] = useState<FrameosMaterialItem[]>([])
   const [projects, setProjects] = useState<ProjectItem[]>([])
   const [projectId, setProjectId] = useState<string | null>(initialProjectId || null)
-  const [workId, setWorkId] = useState<string | null>(null)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [projectScopeResolved, setProjectScopeResolved] = useState(!initialProjectId)
   const [projectScopeError, setProjectScopeError] = useState<string | null>(null)
   const [projectScopeAttempt, setProjectScopeAttempt] = useState(0)
@@ -465,7 +481,6 @@ export function FosMaterialLibrary({
   useEffect(() => {
     setProjectId(initialProjectId || null)
     setMaterialScope(initialProjectId ? 'project' : 'all')
-    setWorkId(null)
     setProjectScopeResolved(!initialProjectId)
     setProjectScopeError(null)
     setSelectedIds([])
@@ -484,18 +499,33 @@ export function FosMaterialLibrary({
         if (initialProjectId && !items.some((project) => project.id === initialProjectId)) {
           throw new Error('当前作品不存在或无权访问，请刷新后重试。')
         }
-        setWorkId(items.find((project) => project.id === initialProjectId)?.workId || null)
         setProjectScopeResolved(true)
       }
     }).catch((cause) => {
       if (controller.signal.aborted) return
-      setWorkId(null)
       setMaterials([])
       setProjectScopeError(cause instanceof Error ? cause.message : '加载项目归属失败')
       setProjectScopeResolved(true)
     })
     return () => controller.abort()
   }, [initialProjectId, projectScopeAttempt])
+
+  const materialQuery = useCallback((sync = false) => {
+    const params = new URLSearchParams({ limit: String(MATERIAL_PAGE_SIZE), scope: materialScope })
+    if (materialScope !== 'personal' && projectId) params.set('projectId', projectId)
+    if (materialScope === 'project') params.set('available', '0')
+    if (filter === 'image' || filter === 'video' || filter === 'audio' || filter === 'model3d') params.set('type', filter)
+    if (sourceFilter !== 'all') params.set('source', sourceFilter)
+    if (creator.trim()) {
+      params.set('creator', creator.trim())
+      params.set('creatorExact', '1')
+    }
+    const createdFrom = createdFromForFilter(timeFilter)
+    if (createdFrom) params.set('createdFrom', createdFrom)
+    if (query.trim()) params.set('query', query.trim())
+    if (sync) params.set('sync', '1')
+    return params
+  }, [creator, filter, materialScope, projectId, query, sourceFilter, timeFilter])
 
   const load = useCallback(async (sync = false) => {
     const sequence = ++loadSequence.current
@@ -505,38 +535,61 @@ export function FosMaterialLibrary({
     setLoading(true)
     setError(null)
     try {
-      const params = new URLSearchParams({ limit: '500', scope: materialScope })
-      if (materialScope !== 'personal' && projectId && !workId) params.set('projectId', projectId)
-      if (materialScope !== 'personal' && workId) params.set('workId', workId)
-      if (materialScope === 'project') params.set('available', '0')
-      if (filter === 'image' || filter === 'video' || filter === 'audio' || filter === 'model3d') params.set('type', filter)
-      if (sourceFilter !== 'all') params.set('source', sourceFilter)
-      if (creator.trim()) {
-        params.set('creator', creator.trim())
-        params.set('creatorExact', '1')
-      }
-      const createdFrom = createdFromForFilter(timeFilter)
-      if (createdFrom) params.set('createdFrom', createdFrom)
-      if (query.trim()) params.set('query', query.trim())
-      if (sync) params.set('sync', '1')
-      let creatorNames: string[] | null = null
-      const items = await fetchAllFrameosMaterials(params, controller.signal, (options) => {
-        creatorNames = options.map((option) => option.name?.trim()).filter(Boolean)
+      const response = await apiFetch(`/api/frameos/materials?${materialQuery(sync)}`, {
+        cache: 'no-store',
+        signal: controller.signal,
       })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载上传素材失败'))
+      const payload = await response.json() as {
+        materials?: FrameosMaterialItem[]
+        creators?: FrameosMaterialCreatorOption[]
+        pagination?: { nextCursor?: string | null }
+      }
       if (sequence !== loadSequence.current || controller.signal.aborted) return
+      const items = payload.materials || []
       setMaterials(items)
+      setNextCursor(payload.pagination?.nextCursor || null)
+      const creatorNames = (payload.creators || []).map((option) => option.name?.trim()).filter(Boolean)
       setCreatorOptions((current) => Array.from(new Set([
-        ...(creatorNames ?? current),
+        ...creatorNames,
         ...items.map((item) => item.ownerName?.trim() || '').filter(Boolean),
       ])).sort((left, right) => left.localeCompare(right, 'zh-CN')))
     } catch (loadError) {
       if (sequence !== loadSequence.current || controller.signal.aborted) return
       setMaterials([])
+      setNextCursor(null)
       setError(loadError instanceof Error ? loadError.message : '加载资产库失败')
     } finally {
       if (sequence === loadSequence.current) setLoading(false)
     }
-  }, [creator, filter, materialScope, projectId, query, sourceFilter, timeFilter, workId])
+  }, [materialQuery])
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor || loadingMore) return
+    const sequence = loadSequence.current
+    setLoadingMore(true)
+    setError(null)
+    try {
+      const params = materialQuery()
+      params.set('cursor', nextCursor)
+      const response = await apiFetch(`/api/frameos/materials?${params}`, { cache: 'no-store' })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载上传素材失败'))
+      const payload = await response.json() as {
+        materials?: FrameosMaterialItem[]
+        pagination?: { nextCursor?: string | null }
+      }
+      if (sequence !== loadSequence.current) return
+      setMaterials((current) => {
+        const seen = new Set(current.map((item) => item.id))
+        return [...current, ...(payload.materials || []).filter((item) => !seen.has(item.id))]
+      })
+      setNextCursor(payload.pagination?.nextCursor || null)
+    } catch (cause) {
+      if (sequence === loadSequence.current) setError(cause instanceof Error ? cause.message : '加载更多素材失败')
+    } finally {
+      setLoadingMore(false)
+    }
+  }, [loadingMore, materialQuery, nextCursor])
 
   const cancelMaterialReads = useCallback(() => {
     loadSequence.current++
@@ -547,20 +600,19 @@ export function FosMaterialLibrary({
     setLoading(true)
     setSelectedIds([])
     const timer = window.setTimeout(() => {
-      if (projectScopeError || (initialProjectId && materialScope !== 'personal' && (!projectScopeResolved || !workId))) return
+      if (projectScopeError || (initialProjectId && materialScope !== 'personal' && !projectScopeResolved)) return
       const sync = !initialSyncRef.current
       initialSyncRef.current = true
       void load(sync)
     }, query ? 250 : 0)
     return () => { window.clearTimeout(timer); cancelMaterialReads() }
-  }, [cancelMaterialReads, creator, initialProjectId, load, materialScope, projectScopeError, projectScopeResolved, query, workId])
+  }, [cancelMaterialReads, creator, initialProjectId, load, materialScope, projectScopeError, projectScopeResolved, query])
 
   const activeProjectName = materialScope === 'personal'
     ? '个人素材'
     : materialScope === 'all' && !projectId
       ? '全部可访问资产'
-      : workId ? `${projects.find((project) => project.id === projectId)?.name || '项目'}${projects.filter((project) => project.workId === workId).length > 1 ? ' 等项目' : ''}`
-        : projectId ? projects.find((project) => project.id === projectId)?.name || '项目资产' : '项目素材'
+      : projectId ? projects.find((project) => project.id === projectId)?.name || '项目资产' : '项目素材'
   const counts = useMemo(() => ({
     image: materials.filter((item) => item.type === 'image').length,
     video: materials.filter((item) => item.type === 'video').length,
@@ -572,15 +624,18 @@ export function FosMaterialLibrary({
     : materials.filter((item) => frameosAssetCategoryFromMetadata(item.metadata) === categoryFilter),
   [categoryFilter, materials])
   const deletableVisibleMaterials = useMemo(
-    () => visibleMaterials.filter((item) => item.source === 'upload' && item.canEdit !== false),
+    () => visibleMaterials.filter((item) => isUserManagedMaterial(item) && item.canEdit !== false),
     [visibleMaterials],
   )
+  const deletableIncludesInherited = deletableVisibleMaterials.some(isInheritedMaterial)
   const selectedVisibleIds = useMemo(
     () => selectedIds.filter((id) => deletableVisibleMaterials.some((item) => item.id === id)),
     [deletableVisibleMaterials, selectedIds],
   )
   const allVisibleSelected = deletableVisibleMaterials.length > 0
     && selectedVisibleIds.length === deletableVisibleMaterials.length
+  const batchIncludesInherited = batchDeleteTarget.length > 0
+    && materials.some((item) => batchDeleteTarget.includes(item.id) && isInheritedMaterial(item))
 
   useEffect(() => {
     if (initialMaterialOpenedRef.current || !initialMaterialId || materials.length === 0) return
@@ -612,6 +667,16 @@ export function FosMaterialLibrary({
       ...item,
       ...payload.material,
       url: payload.material.resultUrl || payload.material.storageKey || item.url,
+    }
+    setMaterials((current) => current.map((material) => material.id === item.id ? next : material))
+    setDetail((current) => current?.id === item.id ? next : current)
+  }
+
+  const updateCharacterVoice = (item: FrameosMaterialItem, voice: FrameosMaterialItem | null) => {
+    const next: FrameosMaterialItem = {
+      ...item,
+      metadata: withCharacterVoiceMaterial(item.metadata, voice?.id || null),
+      voice: voice ? { materialId: voice.id, title: voice.title, url: voice.url } : null,
     }
     setMaterials((current) => current.map((material) => material.id === item.id ? next : material))
     setDetail((current) => current?.id === item.id ? next : current)
@@ -689,20 +754,23 @@ export function FosMaterialLibrary({
     <div className="fml-layout flex min-h-0 flex-1">
       <aside className="fml-tree flex w-[230px] shrink-0 flex-col overflow-y-auto border-r border-[var(--fos-border-soft)] p-3">
         <div className="mb-2 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">资产范围</div>
-        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'all' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'all' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('all') }}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问资产</button>
-        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'personal' ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'personal' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('personal') }}><AppIcon name="user" className="h-4 w-4" />个人素材</button>
-        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'project' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'project' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setWorkId(null); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" />项目素材</button>
+        <button type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'all' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'all' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setMaterialScope('all') }}><AppIcon name="folderOpen" className="h-4 w-4" />全部可访问资产</button>
+        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'personal' ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'personal' ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setMaterialScope('personal') }}><AppIcon name="user" className="h-4 w-4" />个人素材</button>
+        <button type="button" className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: materialScope === 'project' && !projectId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: materialScope === 'project' && !projectId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(null); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" />项目素材</button>
         {projects.length > 0 ? <div className="mb-1 mt-5 px-2 text-[12px] font-bold text-[var(--fos-text-4)]">我的项目</div> : null}
         {Array.from(new Map(projects.map((project) => [project.workId, projects.filter((item) => item.workId === project.workId)])).entries()).map(([groupId, groupProjects]) => <section key={groupId} className="mt-1">
           <div className="px-3 py-1 text-[11px] font-bold text-[var(--fos-text-3)]">{groupProjects[0]?.workName || '项目资产'}</div>
-          {groupProjects.map((project) => <button key={project.id} type="button" className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: workId === groupId ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: workId === groupId ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(project.id); setWorkId(groupId); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}{groupProjects.length > 1 ? ` 等项目资产` : ''}</span></button>)}
+          {groupProjects.map((project) => {
+            const active = materialScope === 'project' && projectId === project.id
+            return <button key={project.id} type="button" aria-pressed={active} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-[13px]" style={{ color: active ? 'var(--fos-primary-text)' : 'var(--fos-text-2)', background: active ? 'var(--fos-primary-soft)' : 'transparent' }} onClick={() => { setProjectId(project.id); setMaterialScope('project') }}><AppIcon name="folder" className="h-4 w-4" /><span className="truncate">{project.name}</span></button>
+          })}
         </section>)}
         <div className="fml-index mt-5 rounded-[10px] border border-[var(--fos-border-soft)] bg-[var(--fos-bg-2)] p-3 text-[11px] text-[var(--fos-text-4)]"><div className="mb-2 font-bold text-[var(--fos-text-2)]">当前索引</div><div>图片 {counts.image}</div><div className="mt-1">视频 {counts.video}</div><div className="mt-1">音频 {counts.audio}</div><div className="mt-1">3D {counts.model3d}</div></div>
       </aside>
 
       <main className="fml-main flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="fml-header flex flex-wrap items-center gap-3 border-b border-[var(--fos-border-soft)] px-5 py-3">
-          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">统一查看同一项目内生成与上传的图片、视频、音频及 3D 资产。<Link href={projectId && projectId !== 'global' ? `/workflow/${projectId}/workbench-premium2/assets/timbre` : '/workspace/asset-hub'} className="ml-1 font-bold text-[var(--fos-primary-text)] hover:underline">设置角色音色</Link></div></div>
+          <div className="fml-heading"><div className="text-[15px] font-bold text-white">{activeProjectName}</div><div className="mt-0.5 text-[11px] text-[var(--fos-text-4)]">统一查看该作品内生成与上传的图片、视频、音频及 3D 资产。<Link href={projectId && projectId !== 'global' ? `/workflow/${projectId}/workbench-premium2/assets/timbre` : '/workspace/asset-hub?view=assets'} className="ml-1 font-bold text-[var(--fos-primary-text)] hover:underline">设置角色音色</Link></div></div>
           <div className="fml-header-actions ml-auto flex items-center gap-2">
             <label className="fos-material-search"><AppIcon name="search" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索素材名称" /></label>
             <button type="button" className="fos-btn fos-btn-ghost" disabled={loading} onClick={() => void load(true)}><AppIcon name="refresh" className="h-3.5 w-3.5" />刷新</button>
@@ -723,12 +791,12 @@ export function FosMaterialLibrary({
           </select>
           {(sourceFilter !== 'all' || categoryFilter !== 'all' || timeFilter !== 'all' || creator.trim()) ? <button type="button" className="fos-btn fos-btn-ghost" onClick={() => { setSourceFilter('all'); setCategoryFilter('all'); setTimeFilter('all'); setCreator('') }}>清除筛选</button> : null}
           <div className="ml-auto flex items-center gap-2">
-            {canEditAssets ? <button type="button" className="fos-btn fos-btn-ghost" disabled={deletableVisibleMaterials.length === 0} onClick={() => setSelectedIds(allVisibleSelected ? [] : deletableVisibleMaterials.map((item) => item.id))}>{allVisibleSelected ? '取消全选' : '全选上传素材'}</button> : null}
+            {canEditAssets ? <button type="button" className="fos-btn fos-btn-ghost" disabled={deletableVisibleMaterials.length === 0} onClick={() => setSelectedIds(allVisibleSelected ? [] : deletableVisibleMaterials.map((item) => item.id))}>{allVisibleSelected ? '取消全选' : deletableIncludesInherited ? '全选上传与继承素材' : '全选上传素材'}</button> : null}
             {canEditAssets ? <button
               type="button"
               className="fos-btn fos-btn-danger"
               disabled={selectedVisibleIds.length === 0 || selectedVisibleIds.length > 200 || batchDeleting || loading}
-              title="仅可批量删除本地上传且未被画布引用的素材；每批最多 200 个"
+              title={deletableIncludesInherited ? '仅可批量删除本地上传或继承、且未被画布引用的素材；每批最多 200 个' : '仅可批量删除本地上传且未被画布引用的素材；每批最多 200 个'}
               onClick={() => setBatchDeleteTarget(selectedVisibleIds)}
             >
               <AppIcon name="trash" className="h-3.5 w-3.5" />批量删除{selectedVisibleIds.length > 0 ? ` (${selectedVisibleIds.length})` : ''}
@@ -750,6 +818,10 @@ export function FosMaterialLibrary({
             onToggleSelect={() => setSelectedIds((current) => current.includes(item.id) ? current.filter((id) => id !== item.id) : [...current, item.id])}
             onRename={() => openMaterialEditor(item)}
           />)}</div>
+          {!loading && materials.length > 0 ? <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+            <span className="text-[11px] text-[var(--fos-text-4)]">已加载 {materials.length} 个素材{nextCursor ? '，滚动到底部可继续加载' : '，已全部加载'}</span>
+            {nextCursor ? <button type="button" className="fos-btn fos-btn-ghost" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '加载中…' : '加载更多'}</button> : null}
+          </div> : null}
         </div>
       </main>
 
@@ -760,12 +832,12 @@ export function FosMaterialLibrary({
           setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)])
         }
       }} onClose={() => { setUploadOpen(false); void load() }} /> : null}
-      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets && detail.canEdit !== false} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onRename={() => openMaterialEditor(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
+      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets && detail.canEdit !== false} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onVoiceChange={(voice) => updateCharacterVoice(detail, voice)} onRename={() => openMaterialEditor(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
         await downloadFrameosMaterial(session?.user?.id || '', detail.projectId, detail.id)
       }} /> : null}
       {renameTarget && canEditAssets ? <MaterialEditDialog key={renameTarget.id} item={renameTarget} projects={projects} busy={renaming} error={editError} onClose={() => { if (!renamingRef.current) { setRenameTarget(null); setEditError(null) } }} onSave={renameMaterial} /> : null}
       {deleteTarget && canEditAssets ? <ConfirmActionDialog
-        title="删除上传素材"
+        title={isInheritedMaterial(deleteTarget) ? '删除继承素材' : '删除上传素材'}
         description={`确定删除「${deleteTarget.title || '未命名素材'}」吗？素材将移入回收站；如果仍被画布引用，系统会拒绝删除。${deleteError ? ` ${deleteError}` : ''}`}
         confirmLabel="确认删除"
         danger
@@ -774,8 +846,8 @@ export function FosMaterialLibrary({
         onConfirm={deleteUploadedMaterial}
       /> : null}
       {batchDeleteTarget.length > 0 && canEditAssets ? <ConfirmActionDialog
-        title="批量删除上传素材"
-        description={`确定将选中的 ${batchDeleteTarget.length} 个本地上传素材移入回收站吗？可删除的素材会正常处理；仍被画布、工作流或角色音色引用的素材会保留，并显示逐项原因。`}
+        title={batchIncludesInherited ? '批量删除上传与继承素材' : '批量删除上传素材'}
+        description={`确定将选中的 ${batchDeleteTarget.length} 个${batchIncludesInherited ? '上传或继承的' : '本地上传'}素材移入回收站吗？可删除的素材会正常处理；仍被画布、工作流或角色音色引用的素材会保留，并显示逐项原因。`}
         confirmLabel="确认批量删除"
         danger
         busy={batchDeleting}

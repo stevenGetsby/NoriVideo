@@ -57,6 +57,8 @@ vi.mock('@/lib/model-pricing/catalog', () => ({
 const configMock = vi.hoisted(() => vi.fn(() => ({
   providers: [{ id: 'deepseek', name: 'DeepSeek', hasApiKey: true }],
   models: [{ provider: 'deepseek', modelId: 'deepseek-chat', modelKey: 'deepseek::deepseek-chat', name: 'Packaged text alias', type: 'llm' }],
+  businessModels: [{ key: 'nori::nori-gpt', name: 'nori-gpt', description: '', type: 'llm', tier: 'standard' }],
+  modelRouting: { 'nori::nori-gpt': 'deepseek::deepseek-chat' },
 })))
 vi.mock('@/lib/platform-services/config', () => ({ getPlatformServiceConfigResponse: configMock }))
 
@@ -81,7 +83,7 @@ describe('api specific - user models vision group', () => {
       vision: Array<{ value: string; label: string }>
     }
 
-    expect(body.llm).toEqual([{ value: 'deepseek::deepseek-chat', label: 'deepseek-chat' }])
+    expect(body.llm).toEqual([{ value: 'nori::nori-gpt', label: 'deepseek-chat' }])
     expect(body.vision).toEqual([])
   })
 })

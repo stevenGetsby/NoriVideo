@@ -134,9 +134,16 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     let kuaiziCode = ''
     if (bodyText) {
       try {
-        const payload = JSON.parse(bodyText) as { code?: unknown; data?: unknown; models?: unknown }
+        const payload = JSON.parse(bodyText) as {
+          code?: unknown
+          data?: unknown
+          models?: unknown
+          error?: { code?: unknown }
+        }
         if (isKuaizi) {
-          kuaiziCode = compact(payload.code)
+          // The live API nests validation codes under error.code; older
+          // responses used a top-level code. Accept both.
+          kuaiziCode = compact(payload.error?.code) || compact(payload.code)
         } else {
           const list = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : null
           modelCount = list?.length ?? null

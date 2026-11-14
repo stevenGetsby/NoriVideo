@@ -7,6 +7,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type WheelEvent as ReactWheelEvent,
 } from 'react'
 import { flushSync } from 'react-dom'
 import { requireExistingReferenceNodeIds } from '../reference-resolution'
@@ -16,6 +17,7 @@ import {
   ChevronDown,
   Film,
   Focus,
+  FolderOpen,
   ImageIcon,
   LayoutGrid,
   LoaderCircle,
@@ -82,14 +84,24 @@ import {
 } from '../generator-panel-width'
 import type { CanvasFlowNode } from '../editor-types'
 import {
+  buildCanvasReferencePickerItems,
+  canvasReferenceOrderLabel,
+  canvasReferencePickerTypes,
+  canvasReferenceRemaining,
+  mergePickedReferenceIds,
+} from '../canvas-reference-picker'
+import { CanvasReferencePickerDialog } from './CanvasReferencePickerDialog'
+import {
   buildCanvasLibraryMentionAssets,
   buildCanvasMentionAssets,
   canvasMentionCategoryLabel,
   mergeCanvasReferenceNodeIds,
+  planCanvasPromptMentions,
   shouldBindCanvasMentionReference,
   type CanvasMentionAsset,
   type CanvasMentionMediaType,
 } from './canvas-mention-references'
+import { describeUnknownPromptMentions, unknownPromptMentionMessage } from '@/lib/prompt-mentions'
 
 type ModelOption = {
   modelKey: string
@@ -164,6 +176,8 @@ export type CanvasGenerateRequest = {
   modelLabel: string
   referenceNodeIds: string[]
   referenceSummary?: CanvasReferenceMediaSummary[]
+  /** Reference node id → the @names the prompt uses for it. */
+  referenceMentionNames?: Record<string, string[]>
   inputMode: 'text' | 'image' | 'firstlastframe'
   aspectRatio: string
   resolution: string
@@ -267,6 +281,37 @@ function referenceSummary(
   }
 }
 
+function materialReferenceSummary(id: string, material: FrameosMaterialItem): CanvasReferenceMediaSummary | null {
+  const type = material.type
+  if (type !== 'image' && type !== 'video' && type !== 'audio') return null
+  const durationSeconds = type === 'image' ? null : readMediaDurationSeconds(material.metadata)
+  return {
+    id,
+    title: material.title?.trim() || '未命名素材',
+    type,
+    previewUrl: material.url,
+    ...(durationSeconds !== null ? { durationSeconds } : {}),
+  }
+}
+
+function orderedReferenceSummaries(
+  ids: string[],
+  referenceNodes: CanvasFlowNode[],
+  firstLastFrame: boolean,
+  created: readonly CanvasReferenceMediaSummary[] = [],
+): CanvasReferenceMediaSummary[] {
+  return ids.flatMap((id, index) => {
+    const role: CanvasGenerationReferenceRole = firstLastFrame ? index === 0 ? 'FIRST_FRAME' : 'LAST_FRAME' : 'REF'
+    const selected = referenceNodes.find((item) => item.id === id)
+    if (selected) {
+      const summary = referenceSummary(selected, role)
+      return summary ? [summary] : []
+    }
+    const pending = created.find((item) => item.id === id)
+    return pending ? [{ ...pending, role }] : []
+  })
+}
+
 export function quoteInputVideoSeconds(referenceNodeIds: string[], referenceNodes: CanvasFlowNode[]): number {
   const seconds = referenceNodeIds.flatMap((id) => {
     const node = referenceNodes.find((item) => item.id === id)
@@ -287,7 +332,7 @@ export function estimateTtsSeconds(prompt: string): number {
   return Math.max(1, Math.ceil((cjkCharacters / 4 + words / 2.6) * 1.15))
 }
 
-function ReferenceThumb({ node, selected, order, onToggle }: { node: CanvasFlowNode; selected: boolean; order: string | null; onToggle: () => void }) {
+function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void }) {
   const mediaType = mediaTypeForReference(node)
   const image = toDisplayImageUrl(mediaType === 'video'
     ? node.data.posterUrl || node.data.imageUrl || null
@@ -296,25 +341,50 @@ function ReferenceThumb({ node, selected, order, onToggle }: { node: CanvasFlowN
   const Icon = node.type === 'text' ? Type : node.type === 'video' ? Film : node.type === 'audio' ? Music2 : ImageIcon
   const isCharacter = mediaType === 'image' && frameosAssetCategoryFromMetadata(node.data.sourceMetadata) === 'character'
   const characterVoiceBound = isCharacter && Boolean(characterVoiceMaterialId(node.data.sourceMetadata))
+  const voiceDetached = characterVoiceBound && node.data.voiceDetached === true
   const title = node.data.title || '上游节点'
   const voiceHint = isCharacter
     ? characterVoiceBound
-      ? ' · 角色已绑定音色，全能参考且开启声音时会自动带入'
+      ? voiceDetached
+        ? ' · 角色音色已拆卸，生成时不会带入音频'
+        : ' · 角色已绑定音色，全能参考且开启声音时会自动带入'
       : ' · 角色未绑定音色，全能参考时不会带入音频'
     : ''
+  const toggleHint = !selected
+    ? ' · 点击加入本次引用'
+    : wired ? ' · 点击本次不引用（连线保留）' : ' · 点击移出引用'
   return (
-    <button
-      type="button"
-      className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}${image || video ? '' : ' is-icon'}`}
-      title={`${title}${voiceHint}${selected ? '' : ' · 点击加入本次引用'}`}
-      aria-pressed={selected}
-      onClick={onToggle}
-    >
-      {image ? <MediaImage src={image} alt="" /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
-      {order ? <b className="nori-canvas-generator-ref-order">{order}</b> : null}
-      {isCharacter ? <em className={`nori-canvas-generator-ref-voice${characterVoiceBound ? ' is-bound' : ' is-missing'}`}>{characterVoiceBound ? '音色' : '缺音色'}</em> : null}
-      <span className="nori-canvas-generator-ref-name">{title}</span>
-    </button>
+    <span className="nori-canvas-generator-ref-item">
+      <button
+        type="button"
+        className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}${image || video ? '' : ' is-icon'}`}
+        title={`${title}${voiceHint}${toggleHint}`}
+        aria-pressed={selected}
+        onClick={onToggle}
+      >
+        {image ? <MediaImage src={image} alt="" /> : video ? <video src={video} muted playsInline preload="metadata" /> : <Icon />}
+        {order ? <b className="nori-canvas-generator-ref-order">{order}</b> : null}
+        {isCharacter && !(characterVoiceBound && onToggleVoice) ? <em className={`nori-canvas-generator-ref-voice${characterVoiceBound ? ' is-bound' : ' is-missing'}`}>{characterVoiceBound ? '音色' : '缺音色'}</em> : null}
+        <span className="nori-canvas-generator-ref-name">{title}</span>
+      </button>
+      {characterVoiceBound && onToggleVoice ? <button
+        type="button"
+        className={`nori-canvas-generator-ref-voice nori-canvas-generator-ref-voice-toggle${voiceDetached ? ' is-detached' : ' is-bound'}`}
+        aria-pressed={!voiceDetached}
+        aria-label={voiceDetached ? `恢复携带角色音色 ${title}` : `拆卸角色音色 ${title}`}
+        title={voiceDetached ? '音色已拆卸：生成时不带入这张角色图的音频。点击恢复携带' : '携带音色：生成时会带入这张角色图的音频。点击拆卸（仅本画布生效）'}
+        onClick={onToggleVoice}
+      >{voiceDetached ? '已拆卸' : '音色'}</button> : null}
+      <button
+        type="button"
+        className="nori-canvas-generator-ref-remove"
+        aria-label={`移除引用素材 ${title}`}
+        title={wired ? '移除引用并删除这条连线' : '移除引用（素材仍保留在画布上）'}
+        onClick={onRemove}
+      >
+        <X />
+      </button>
+    </span>
   )
 }
 
@@ -330,6 +400,8 @@ export function CanvasGenerator({
   onClose,
   onFocus,
   onAddReferences,
+  onRemoveReference,
+  onToggleReferenceVoice,
   onSelectLibraryMaterial,
   injectedReferenceNodeIds,
   anchor,
@@ -339,6 +411,10 @@ export function CanvasGenerator({
   globalStyleSourceTitle,
   globalStylePrompt,
   onGlobalStylePromptChange,
+  videoPrefixNodeId,
+  videoPrefixSourceTitle,
+  videoPrefixPrompt,
+  onVideoPrefixPromptChange,
 }: {
   projectId: string
   node: CanvasFlowNode
@@ -351,6 +427,8 @@ export function CanvasGenerator({
   onClose: () => void
   onFocus: () => void
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
+  onRemoveReference?: (sourceNodeId: string) => void
+  onToggleReferenceVoice?: (nodeId: string) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
   anchor?: CanvasGeneratorAnchor | null
@@ -360,6 +438,10 @@ export function CanvasGenerator({
   globalStyleSourceTitle?: string
   globalStylePrompt?: string
   onGlobalStylePromptChange?: (value: string) => void
+  videoPrefixNodeId?: string | null
+  videoPrefixSourceTitle?: string
+  videoPrefixPrompt?: string
+  onVideoPrefixPromptChange?: (value: string) => void
 }) {
   const { generationAllowed, generationDisabledReason } = useAccountBalance()
   const type = nodeKind(node)
@@ -383,19 +465,10 @@ export function CanvasGenerator({
         : NO_MENTION_TYPES
   const [libraryMaterials, setLibraryMaterials] = useState<CanvasMentionAsset[]>([])
   const [libraryLoading, setLibraryLoading] = useState(false)
-  const libraryLoadedRef = useRef(false)
+  const [libraryReady, setLibraryReady] = useState(false)
+  const libraryPromiseRef = useRef<Promise<CanvasMentionAsset[]> | null>(null)
   const libraryRequestRef = useRef<AbortController | null>(null)
   const mentionSignature = mentionAllowedTypes.join('|')
-  const mentionAssets = useMemo(() => [
-    ...buildCanvasMentionAssets(
-      referenceNodes,
-      node.id,
-      mentionAllowedTypes,
-      new Set(incomingNodes.map((item) => item.id)),
-      secondaryNodeIds,
-    ),
-    ...libraryMaterials,
-  ], [incomingNodes, libraryMaterials, mentionAllowedTypes, node.id, referenceNodes, secondaryNodeIds])
   const mentionGroups = useMemo(() => [
     { id: 'favorites', label: '收藏' },
     ...(['character', 'location', 'prop', 'shot', 'other'] as const).map((category) => ({
@@ -403,30 +476,38 @@ export function CanvasGenerator({
       label: canvasMentionCategoryLabel(category),
     })),
   ], [])
-  const loadMentionLibrary = () => {
-    if (libraryLoadedRef.current) return
-    libraryLoadedRef.current = true
+  const ensureMentionLibrary = (): Promise<CanvasMentionAsset[]> => {
+    if (libraryPromiseRef.current) return libraryPromiseRef.current
     const controller = new AbortController()
     libraryRequestRef.current?.abort()
     libraryRequestRef.current = controller
     setLibraryLoading(true)
     const query = new URLSearchParams({ projectId, available: '1', limit: '500' })
-    void fetchAllFrameosMaterials(query, controller.signal).then((materials) => {
-      if (controller.signal.aborted) return
-      setLibraryMaterials(buildCanvasLibraryMentionAssets(materials, mentionAllowedTypes))
+    const request: Promise<CanvasMentionAsset[]> = fetchAllFrameosMaterials(query, controller.signal).then((materials) => {
+      const assets = buildCanvasLibraryMentionAssets(materials, mentionAllowedTypes)
+      if (!controller.signal.aborted) {
+        setLibraryMaterials(assets)
+        setLibraryReady(true)
+      }
+      return assets
     }).catch((loadError: unknown) => {
-      if (controller.signal.aborted) return
-      libraryLoadedRef.current = false
-      setError(loadError instanceof Error ? loadError.message : '加载个人素材库失败')
+      if (libraryPromiseRef.current === request) libraryPromiseRef.current = null
+      const message = loadError instanceof Error ? loadError.message : '加载个人素材库失败'
+      if (!controller.signal.aborted) setError(message)
+      throw new Error(message)
     }).finally(() => {
       if (!controller.signal.aborted) setLibraryLoading(false)
     })
+    libraryPromiseRef.current = request
+    return request
   }
+  const loadMentionLibrary = () => { void ensureMentionLibrary().catch(() => undefined) }
   useEffect(() => {
     libraryRequestRef.current?.abort()
     libraryRequestRef.current = null
-    libraryLoadedRef.current = false
+    libraryPromiseRef.current = null
     setLibraryMaterials([])
+    setLibraryReady(false)
     setLibraryLoading(false)
     // Reload a material list only when the active generator's accepted media changes.
   }, [node.id, projectId, mentionSignature])
@@ -450,6 +531,53 @@ export function CanvasGenerator({
   const [generateAudio, setGenerateAudio] = useState(node.data.generation?.generateAudio ?? true)
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
+  // Unwired references picked from the library count as direct inputs, so a
+  // prompt that names them resolves to the node that is actually submitted.
+  const directMentionNodeIds = useMemo(
+    () => new Set([...incomingNodes.map((item) => item.id), ...referenceNodeIds]),
+    [incomingNodes, referenceNodeIds],
+  )
+  const canvasMentionAssets = useMemo(() => buildCanvasMentionAssets(
+    referenceNodes,
+    node.id,
+    mentionAllowedTypes,
+    directMentionNodeIds,
+    secondaryNodeIds,
+  ), [directMentionNodeIds, mentionAllowedTypes, node.id, referenceNodes, secondaryNodeIds])
+  const mentionAssets = useMemo(
+    () => [...canvasMentionAssets, ...libraryMaterials],
+    [canvasMentionAssets, libraryMaterials],
+  )
+  const bindsMentionReferences = shouldBindCanvasMentionReference(type)
+  const mentionBinding = useMemo(() => ({
+    nodeIds: new Set(referenceNodeIds),
+    materialIds: new Set(referenceNodeIds.flatMap((id) => {
+      const materialId = referenceNodes.find((item) => item.id === id)?.data.materialId
+      return typeof materialId === 'string' && materialId.trim() ? [materialId.trim()] : []
+    })),
+  }), [referenceNodeIds, referenceNodes])
+  const promptMentionPlan = useMemo(
+    () => planCanvasPromptMentions([prompt], mentionAssets, mentionBinding),
+    [mentionAssets, mentionBinding, prompt],
+  )
+  const mentionHighlight = useMemo(() => {
+    if (!bindsMentionReferences) return undefined
+    const boundNames = new Set<string>()
+    for (const [name, asset] of promptMentionPlan.targets) {
+      const bound = asset.section === 'library'
+        ? Boolean(asset.materialId && mentionBinding.materialIds.has(asset.materialId))
+        : mentionBinding.nodeIds.has(asset.id)
+      if (bound) boundNames.add(name)
+    }
+    // Unknown @tokens are only flagged once the library is loaded, so a
+    // library asset is never shown as broken while it is still loading.
+    return { boundNames, flagUnknown: libraryReady }
+  }, [bindsMentionReferences, libraryReady, mentionBinding, promptMentionPlan])
+  const hasUnresolvedPromptMentions = promptMentionPlan.unknown.length > 0
+  useEffect(() => {
+    if (bindsMentionReferences && hasUnresolvedPromptMentions && !libraryReady) loadMentionLibrary()
+    // loadMentionLibrary is cached per node; only a change in resolution state matters.
+  }, [bindsMentionReferences, hasUnresolvedPromptMentions, libraryReady])
   const [storyboard, setStoryboard] = useState(node.data.processType === 'storyboard')
   const [audioMode, setAudioMode] = useState<AudioMode>('tts')
   const [audioVoice, setAudioVoice] = useState(() => String(node.data.generation?.parameters?.voice || ''))
@@ -462,6 +590,11 @@ export function CanvasGenerator({
   const [fullscreen, setFullscreen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
   const parameterTriggerRef = useRef<HTMLButtonElement>(null)
+  const [referenceMenuOpen, setReferenceMenuOpen] = useState(false)
+  const [canvasPickerOpen, setCanvasPickerOpen] = useState(false)
+  const referenceAddRef = useRef<HTMLButtonElement>(null)
+  const canvasPickItemRef = useRef<HTMLButtonElement>(null)
+  const libraryPickItemRef = useRef<HTMLButtonElement>(null)
   const [quote, setQuote] = useState<GenerationQuote | null>(null)
   const [quoteError, setQuoteError] = useState<string | null>(null)
   const [quoteLoading, setQuoteLoading] = useState(false)
@@ -574,6 +707,8 @@ export function CanvasGenerator({
     setModel3dGenerateTexture(node.data.generation?.parameters?.generateTexture !== false)
     const nextModel3dPose = node.data.generation?.parameters?.pose
     setModel3dPose(nextModel3dPose === 'a_pose' || nextModel3dPose === 't_pose' ? nextModel3dPose : 'none')
+    setReferenceMenuOpen(false)
+    setCanvasPickerOpen(false)
     setError(null)
     // Rehydrate fields only when switching nodes. Reference ids have a separate
     // sync effect so adding or removing wires cannot overwrite an in-progress draft.
@@ -698,14 +833,10 @@ export function CanvasGenerator({
     }
     return null
   }, [currentModel?.raw?.inputSchema, inputMode, maximumVideoReferenceImages, type])
-  const selectedReferenceSummaries = useMemo(() => referenceNodeIds.flatMap((id, index) => {
-    const selected = referenceNodes.find((item) => item.id === id)
-    const role: CanvasGenerationReferenceRole = type === 'video' && inputMode === 'firstlastframe'
-      ? index === 0 ? 'FIRST_FRAME' : 'LAST_FRAME'
-      : 'REF'
-    const summary = selected ? referenceSummary(selected, role) : null
-    return summary ? [summary] : []
-  }), [inputMode, referenceNodeIds, referenceNodes, type])
+  const selectedReferenceSummaries = useMemo(
+    () => orderedReferenceSummaries(referenceNodeIds, referenceNodes, type === 'video' && inputMode === 'firstlastframe'),
+    [inputMode, referenceNodeIds, referenceNodes, type],
+  )
   const missingReferenceCount = referenceNodeIds.filter((id) => !referenceNodes.some((item) => item.id === id)).length
   const visibleIncomingNodes = type === 'video' && inputMode !== 'text'
     ? compatibleIncomingNodes.filter((item) => mediaTypeForReference(item) === 'image')
@@ -733,8 +864,10 @@ export function CanvasGenerator({
       && frameosAssetCategoryFromMetadata(item.data.sourceMetadata) === 'character'
     ))
     if (characterRefs.length === 0) return null
-    const bound = characterRefs.filter((item) => Boolean(characterVoiceMaterialId(item.data.sourceMetadata))).length
-    return { total: characterRefs.length, bound, missing: characterRefs.length - bound }
+    const hasVoice = characterRefs.filter((item) => Boolean(characterVoiceMaterialId(item.data.sourceMetadata)))
+    const detached = hasVoice.filter((item) => item.data.voiceDetached === true).length
+    const bound = hasVoice.length - detached
+    return { total: characterRefs.length, bound, detached, missing: characterRefs.length - hasVoice.length }
   }, [displayedReferenceNodes, type])
   const characterVoiceHint = characterVoiceSummary
     ? inputMode !== 'text'
@@ -742,8 +875,10 @@ export function CanvasGenerator({
       : !generateAudio
         ? `已关闭「同步生成声音」，本次不会提交角色音色${characterVoiceSummary.bound > 0 ? `（已绑定 ${characterVoiceSummary.bound} 个）` : ''}。`
         : characterVoiceSummary.bound > 0
-          ? `全能参考将自动带入 ${characterVoiceSummary.bound} 个角色音色${characterVoiceSummary.missing > 0 ? `；另有 ${characterVoiceSummary.missing} 个角色缺音色` : ''}。`
-          : `当前 ${characterVoiceSummary.total} 个角色均未绑定音色，生成时不会带入角色音频。`
+          ? `全能参考将自动带入 ${characterVoiceSummary.bound} 个角色音色${characterVoiceSummary.detached > 0 ? `；${characterVoiceSummary.detached} 个已拆卸` : ''}${characterVoiceSummary.missing > 0 ? `；另有 ${characterVoiceSummary.missing} 个角色缺音色` : ''}。`
+          : characterVoiceSummary.detached > 0
+            ? `${characterVoiceSummary.detached} 个角色音色已拆卸，生成时不会带入角色音频。`
+            : `当前 ${characterVoiceSummary.total} 个角色均未绑定音色，生成时不会带入角色音频。`
     : null
   const characterVoiceHintTone = characterVoiceSummary && inputMode === 'text' && generateAudio
     ? characterVoiceSummary.missing > 0 ? ' is-warning' : ''
@@ -845,15 +980,17 @@ export function CanvasGenerator({
     onDraftChangeRef.current(draftPatch)
   }, [draftPatch, draftSignature])
 
-  const referenceErrors = (ids: string[], strict: boolean) => {
+  /** `created` describes reference nodes inserted during this submit, which are not in props yet. */
+  const referenceErrors = (ids: string[], strict: boolean, created: readonly CanvasReferenceMediaSummary[] = []) => {
     if (!effectiveInputSchema) return []
+    const createdById = new Map(created.map((summary) => [summary.id, summary]))
     if (strict) {
-      try { requireExistingReferenceNodeIds(ids, referenceNodes) }
+      try { requireExistingReferenceNodeIds(ids.filter((id) => !createdById.has(id)), referenceNodes) }
       catch (error) { return [error instanceof Error ? error.message : '引用素材失效，请重新选择。'] }
     }
     const summaries = ids.flatMap((id) => {
       const selected = referenceNodes.find((item) => item.id === id)
-      const summary = selected ? referenceSummary(selected) : null
+      const summary = selected ? referenceSummary(selected) : createdById.get(id) || null
       return summary ? [summary] : []
     })
     return [
@@ -890,31 +1027,6 @@ export function CanvasGenerator({
     setReferenceNodeIds(nextReferenceNodeIds)
   }
 
-  const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
-    if (!shouldBindCanvasMentionReference(type)) return true
-    let nextIds = referenceNodeIds
-    for (const asset of matched) {
-      const mentionAsset = asset as CanvasMentionAsset
-      let nodeId = asset.id
-      if (mentionAsset.section === 'library' && mentionAsset.material) {
-        nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
-        if (!nodeId) {
-          setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
-          return false
-        }
-      }
-      nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
-    }
-    const errors = referenceErrors(nextIds, false)
-    if (errors.length > 0) {
-      setError(errors[0])
-      return false
-    }
-    setError(null)
-    setReferenceNodeIds(nextIds)
-    return true
-  }
-
   const toggleReferenceNode = (reference: CanvasFlowNode) => {
     setReferenceNodeIds((current) => {
       if (current.includes(reference.id)) {
@@ -930,6 +1042,16 @@ export function CanvasGenerator({
       setError(null)
       return next
     })
+  }
+
+  const wiredReferenceIds = useMemo(() => new Set(incomingNodes.map((item) => item.id)), [incomingNodes])
+  const removeReference = (reference: CanvasFlowNode) => {
+    setError(null)
+    if (onRemoveReference && wiredReferenceIds.has(reference.id)) {
+      onRemoveReference(reference.id)
+      return
+    }
+    setReferenceNodeIds((current) => current.filter((id) => id !== reference.id))
   }
 
   // 从素材库挑选的引用素材会先落到画布成为节点，再通过这个注入合并进来，
@@ -952,6 +1074,71 @@ export function CanvasGenerator({
     // 只有新的注入批次才需要合并，签名保证同一批不会重复触发。
   }, [injectedSignature])
 
+  /**
+   * Every @mention must resolve to a reference that is actually submitted;
+   * otherwise the model reads a bare name and substitutes whoever is in the
+   * reference images. Mentioned but unbound assets are bound here, and the
+   * mention names travel with each node so the server can compile 图片N.
+   */
+  const bindPromptMentions = async (texts: string[]): Promise<
+    | { ok: true; ids: string[]; created: CanvasReferenceMediaSummary[]; names: Record<string, string[]> }
+    | { ok: false; error: string }
+  > => {
+    let plan = planCanvasPromptMentions(texts, mentionAssets, mentionBinding)
+    if (plan.unknown.length > 0 && !libraryReady) {
+      let library: CanvasMentionAsset[]
+      try { library = await ensureMentionLibrary() }
+      catch (loadError) {
+        const message = loadError instanceof Error ? loadError.message : '素材库加载失败'
+        return { ok: false, error: `无法核对提示词中的 @ 素材（${message}），请稍后重试。` }
+      }
+      plan = planCanvasPromptMentions(texts, [...canvasMentionAssets, ...library], mentionBinding)
+    }
+    if (plan.unknown.length > 0) {
+      return { ok: false, error: unknownPromptMentionMessage(describeUnknownPromptMentions(plan.unknown)) }
+    }
+
+    const referencedNodeFor = (materialId: string) => referenceNodeIds.find((id) => (
+      referenceNodes.find((item) => item.id === id)?.data.materialId === materialId
+    ))
+    let ids = referenceNodeIds
+    const pending: Array<{ placeholder: string; material: FrameosMaterialItem }> = []
+    const created: CanvasReferenceMediaSummary[] = []
+    const names = new Map<string, string[]>()
+    for (const { asset, names: mentionNames } of plan.mentioned) {
+      let nodeId: string | undefined = asset.section === 'library' ? undefined : asset.id
+      if (!nodeId && asset.materialId) nodeId = referencedNodeFor(asset.materialId)
+      if (!nodeId && asset.material) {
+        // Validate limits before touching the canvas, so a rejected submit
+        // never leaves stray reference nodes behind.
+        nodeId = `pending-mention:${asset.material.id}`
+        const summary = materialReferenceSummary(nodeId, asset.material)
+        if (!summary) return { ok: false, error: `素材「${asset.name}」的类型不能作为当前节点的引用。` }
+        pending.push({ placeholder: nodeId, material: asset.material })
+        created.push(summary)
+      }
+      if (!nodeId) return { ok: false, error: `素材「${asset.name}」未能引用到当前生成节点，请重新选择该素材。` }
+      ids = mergeCanvasReferenceNodeIds(ids, nodeId)
+      names.set(nodeId, [...new Set([...(names.get(nodeId) || []), ...mentionNames])])
+    }
+    const limitErrors = referenceErrors(ids, false, created)
+    if (limitErrors.length > 0) return { ok: false, error: limitErrors[0] }
+
+    for (const { placeholder, material } of pending) {
+      const nodeId = onSelectLibraryMaterial(material)
+        || referenceNodes.find((item) => item.id !== node.id && item.data.materialId === material.id)?.id
+      if (!nodeId) return { ok: false, error: `素材「${material.title || '未命名素材'}」未能引用到当前生成节点，请检查画布节点与连线上限。` }
+      ids = ids.includes(nodeId) ? ids.filter((id) => id !== placeholder) : ids.map((id) => (id === placeholder ? nodeId : id))
+      const index = created.findIndex((item) => item.id === placeholder)
+      if (referenceNodes.some((item) => item.id === nodeId)) created.splice(index, 1)
+      else created[index] = { ...created[index], id: nodeId }
+      const placeholderNames = names.get(placeholder) || []
+      names.delete(placeholder)
+      names.set(nodeId, [...new Set([...(names.get(nodeId) || []), ...placeholderNames])])
+    }
+    return { ok: true, ids, created, names: Object.fromEntries(names) }
+  }
+
   const submit = async () => {
     if (!generationAllowed) { setError(generationDisabledReason || '当前账号不可生成'); return }
     const upstreamText = incomingNodes
@@ -965,6 +1152,26 @@ export function CanvasGenerator({
     if (currentModel?.raw?.available === false) { setError(currentModel.raw.unavailableReason || '3D 模型服务尚未配置。'); return }
     if (superresolveResolutionError) { setError(superresolveResolutionError); return }
     if (imageEditModelUnavailable) { setError('当前图片模型不支持蒙版重绘，请在管理平台接入并选择支持 Inpaint 的模型。'); return }
+    if (submitting) return
+    let submitReferenceNodeIds = referenceNodeIds
+    let createdReferences: CanvasReferenceMediaSummary[] = []
+    let referenceMentionNames: Record<string, string[]> | undefined
+    if (bindsMentionReferences) {
+      setSubmitting(true)
+      const binding = await bindPromptMentions([
+        cleanPrompt,
+        globalStylePrompt || '',
+        type === 'video' ? videoPrefixPrompt || '' : '',
+      ]).finally(() => setSubmitting(false))
+      if (!binding.ok) { setError(binding.error); return }
+      submitReferenceNodeIds = binding.ids
+      createdReferences = binding.created
+      if (Object.keys(binding.names).length > 0) referenceMentionNames = binding.names
+      if (submitReferenceNodeIds !== referenceNodeIds) setReferenceNodeIds(submitReferenceNodeIds)
+    }
+    const submitReferenceSummaries = submitReferenceNodeIds === referenceNodeIds
+      ? selectedReferenceSummaries
+      : orderedReferenceSummaries(submitReferenceNodeIds, referenceNodes, type === 'video' && inputMode === 'firstlastframe', createdReferences)
     if (effectiveInputSchema) {
       const requiredErrors = validateCanvasRequiredFields(effectiveInputSchema, {
         prompt: cleanPrompt,
@@ -978,7 +1185,7 @@ export function CanvasGenerator({
         ...(fps !== null ? { fps } : {}),
         generateAudio,
       })
-      const mediaErrors = referenceErrors(referenceNodeIds, true)
+      const mediaErrors = referenceErrors(submitReferenceNodeIds, true, createdReferences)
       const validationError = requiredErrors[0] || mediaErrors[0]
       if (validationError) { setError(validationError); return }
     }
@@ -994,7 +1201,7 @@ export function CanvasGenerator({
     flushSync(() => persistDraft({
       ...draftPatch,
       prompt: cleanPrompt,
-      generation: { ...draftPatch.generation, referenceNodeIds },
+      generation: { ...draftPatch.generation, referenceNodeIds: submitReferenceNodeIds, referenceSummary: submitReferenceSummaries },
     }))
     try {
       await onGenerate({
@@ -1003,8 +1210,9 @@ export function CanvasGenerator({
         prompt: cleanPrompt,
         modelKey,
         modelLabel: currentModel?.label || modelKey,
-        referenceNodeIds,
-        referenceSummary: selectedReferenceSummaries,
+        referenceNodeIds: submitReferenceNodeIds,
+        referenceSummary: submitReferenceSummaries,
+        ...(referenceMentionNames ? { referenceMentionNames } : {}),
         inputMode,
         aspectRatio,
         resolution,
@@ -1083,6 +1291,11 @@ export function CanvasGenerator({
     onPanelWidthChange(clampCanvasGeneratorPanelWidth(panelWidth + delta, window.innerWidth))
   }
 
+  const keepWheelInEditor = (event: ReactWheelEvent<HTMLElement>) => {
+    const target = event.target instanceof Element ? event.target : null
+    if (!target?.closest('.mention-prompt-options, .nori-canvas-generator-more')) event.stopPropagation()
+  }
+
   const TypeIcon = type === 'text' ? Type : type === 'video' ? Film : type === 'audio' ? Music2 : type === 'model3d' ? Box : ImageIcon
   const referencePickerType: 'all' | 'image' | 'video' | 'audio' | null = type === 'video'
     ? inputMode === 'text' ? 'all' : 'image'
@@ -1096,6 +1309,49 @@ export function CanvasGenerator({
     video: effectiveInputSchema?.video.max || 0,
     audio: effectiveInputSchema?.audio.max || 0,
   })
+  const firstLastFrameMode = type === 'video' && inputMode === 'firstlastframe'
+  const canvasPickerTypes = useMemo(
+    () => canvasReferencePickerTypes(referencePickerType, effectiveInputSchema),
+    [effectiveInputSchema, referencePickerType],
+  )
+  // Scanning every canvas node is only worth it while the menu or dialog is showing.
+  const canvasPickerActive = referenceMenuOpen || canvasPickerOpen
+  const canvasPickerItems = useMemo(() => canvasPickerActive
+    ? buildCanvasReferencePickerItems({
+        nodes: referenceNodes,
+        generatorNodeId: node.id,
+        allowedTypes: canvasPickerTypes,
+        selectedIds: referenceNodeIds,
+        wiredIds: wiredReferenceIds,
+        isCharacter: (item) => frameosAssetCategoryFromMetadata(item.data.sourceMetadata) === 'character',
+      })
+    : [], [canvasPickerActive, canvasPickerTypes, node.id, referenceNodeIds, referenceNodes, wiredReferenceIds])
+  const canvasPickerRemaining = useMemo(() => {
+    if (!canvasPickerActive) return canvasReferenceRemaining(null, [], [])
+    const nodeById = new Map(referenceNodes.map((item) => [item.id, item]))
+    const selectedNodes = referenceNodeIds.flatMap((id) => nodeById.get(id) || [])
+    return canvasReferenceRemaining(effectiveInputSchema, canvasPickerTypes, selectedNodes)
+  }, [canvasPickerActive, canvasPickerTypes, effectiveInputSchema, referenceNodeIds, referenceNodes])
+  const closeCanvasPicker = () => {
+    setCanvasPickerOpen(false)
+    referenceAddRef.current?.focus()
+  }
+  const confirmCanvasReferencePick = (pickedIds: string[]): string | null => {
+    const next = mergePickedReferenceIds(referenceNodeIds, pickedIds)
+    const errors = referenceErrors(next, false)
+    if (errors.length > 0) return errors[0]
+    setError(null)
+    setReferenceNodeIds(next)
+    closeCanvasPicker()
+    return null
+  }
+  useEffect(() => {
+    if (!referenceMenuOpen) return
+    const first = canvasPickItemRef.current && !canvasPickItemRef.current.disabled
+      ? canvasPickItemRef.current
+      : libraryPickItemRef.current
+    first?.focus()
+  }, [referenceMenuOpen])
   const qualityLabel = quality === 'low' ? '低' : quality === 'medium' ? '中' : '高'
   let superresolveGenerationResolution: string | null = null
   let superresolveResolutionError: string | null = null
@@ -1124,7 +1380,7 @@ export function CanvasGenerator({
       }
     : undefined
   return (
-    <aside className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : ''}${anchor && !fullscreen ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-anchor-placement={anchor?.placement} style={{ ...anchorStyle, ...(fullscreen ? {} : { width: `${panelWidth}px` }) }} onPointerDown={(event) => event.stopPropagation()}>
+    <aside className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : ''}${anchor && !fullscreen ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-anchor-placement={anchor?.placement} style={{ ...anchorStyle, ...(fullscreen ? {} : { width: `${panelWidth}px` }) }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
       {anchor && !fullscreen ? <span className="nori-canvas-generator-tether" aria-hidden="true" style={{ left: `${anchor.tetherX}px`, height: `${anchor.tetherLength}px` }} /> : null}
       <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `${anchor.maxHeight}px` } : undefined}>
       {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
@@ -1150,8 +1406,23 @@ export function CanvasGenerator({
           <span className="nori-canvas-generator-refs-label">引用素材</span>
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
-          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} />)}
-          {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /><span aria-hidden="true">参考</span></button> : null}
+          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
+          {referencePickerType ? <button ref={referenceAddRef} type="button" className={`nori-canvas-generator-ref-add${referenceMenuOpen ? ' is-active' : ''}`} title="添加引用素材（无需连线）" aria-label="添加引用素材" aria-haspopup="menu" aria-expanded={referenceMenuOpen} onClick={() => setReferenceMenuOpen((open) => !open)}><Plus /><span aria-hidden="true">参考</span></button> : null}
+          {referenceMenuOpen && referencePickerType ? (
+            <ViewportPopover anchorRef={referenceAddRef} onClose={() => setReferenceMenuOpen(false)} preferredSide="below" width={208} maxHeight={160} role="menu" aria-label="添加引用素材" className="nori-canvas-reference-add-menu">
+              <button ref={canvasPickItemRef} type="button" role="menuitem" disabled={canvasPickerItems.length === 0} title={canvasPickerItems.length === 0 ? '画布上暂无当前模型可引用的素材' : undefined} onClick={() => { setReferenceMenuOpen(false); setCanvasPickerOpen(true) }}><LayoutGrid /><span>从画布选择</span><small>{canvasPickerItems.length}</small></button>
+              {onAddReferences ? <button ref={libraryPickItemRef} type="button" role="menuitem" onClick={() => { setReferenceMenuOpen(false); onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax }) }}><FolderOpen /><span>从素材库选择</span></button> : null}
+            </ViewportPopover>
+          ) : null}
+          {canvasPickerOpen ? (
+            <CanvasReferencePickerDialog
+              items={canvasPickerItems}
+              remaining={canvasPickerRemaining}
+              orderLabel={(position) => canvasReferenceOrderLabel(referenceOrderLabels.size + position, firstLastFrameMode)}
+              onConfirm={confirmCanvasReferencePick}
+              onClose={closeCanvasPicker}
+            />
+          ) : null}
         </div>
       ) : null}
       {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
@@ -1181,15 +1452,33 @@ export function CanvasGenerator({
       {isImageEdit ? <p className="nori-canvas-storyboard-hint">白色涂抹区域会作为独立蒙版提交；仅可选择明确支持 Inpaint 的图片模型。</p> : null}
       {isPanorama ? <p className="nori-canvas-storyboard-hint">生成无缝 21:9 超宽幅全景图；完成后可进入球形预览并生成四视角或十二视角截图。</p> : null}
       {type === 'model3d' ? <p className="nori-canvas-storyboard-hint">输入物体或角色描述，帧界 3D 1.0 将生成可预览、下载并送入 3D 导演台的 GLB 模型。</p> : null}
+      {type === 'video' && videoPrefixNodeId ? (
+        <div className="nori-canvas-global-style is-video-prefix">
+          <div className="nori-canvas-global-style-head">
+            <Film />
+            <span>
+              <strong>视频统一前置提示词</strong>
+              <small>{videoPrefixSourceTitle ? `来自文本节点「${videoPrefixSourceTitle}」` : '来自画布视频前置提示词文本节点'} · 置于提示词最前面 · 编辑会同步该节点</small>
+            </span>
+          </div>
+          <textarea
+            aria-label="视频统一前置提示词"
+            value={videoPrefixPrompt || ''}
+            onChange={(event) => onVideoPrefixPromptChange?.(event.target.value)}
+            placeholder="例如：所有镜头保持电影感、24fps、镜头缓慢推进、人物不出戏"
+          />
+        </div>
+      ) : null}
+
       <div className="nori-canvas-generator-prompt">
         {mentionAllowedTypes.length > 0 ? (
           <MentionPromptEditor
             className="nori-canvas-mention-editor"
             value={prompt}
             assets={mentionAssets}
+            highlight={mentionHighlight}
             onChange={setPrompt}
             onSelectAsset={selectMentionAsset}
-            onPasteMatch={(_nextValue, matched) => bindPastedMentionAssets(matched)}
             onMentionOpen={loadMentionLibrary}
             groups={mentionGroups}
             loading={libraryLoading}

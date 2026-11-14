@@ -71,4 +71,29 @@ describe('kuaizi service health probe', () => {
     expect(persistMock).toHaveBeenCalledTimes(1)
     expect(recordUsageMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))
   })
+
+  it('accepts the live nested error envelope as proof of authentication', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      error: {
+        code: 'InvalidParameter',
+        message: 'content is required',
+        type: 'BadRequest',
+        request_id: 'abc123',
+      },
+    }), {
+      status: 400,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+
+    const result = await probeProviderHealth('kuaizi', 'admin-1')
+
+    expect(result).toMatchObject({
+      status: 'healthy',
+      message: '连接正常，鉴权通过',
+    })
+    expect(persistMock).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'healthy' }),
+    }))
+    expect(recordUsageMock).toHaveBeenCalledWith(expect.objectContaining({ status: 'success' }))
+  })
 })

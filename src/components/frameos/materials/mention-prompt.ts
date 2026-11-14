@@ -1,10 +1,15 @@
+import { scanPromptMentions } from '@/lib/prompt-mentions'
+
 export interface MentionPromptName {
   name: string
 }
 
+export type MentionPromptPartState = 'bound' | 'unbound' | 'unknown'
+
 export interface MentionPromptPart {
   text: string
   mention: boolean
+  state?: MentionPromptPartState
 }
 
 export interface ActivePromptMention {
@@ -132,32 +137,6 @@ export function insertPromptMention(
   return replacePromptMention(value, mention, cursor, cursor, rawName) ?? { value, cursor }
 }
 
-/**
- * Applies the paste path against the live value/selection. Returns null when
- * the pasted text has no known asset name, so the browser can paste normally.
- */
-export function pastePromptAssets(
-  value: string,
-  selectionStart: number,
-  selectionEnd: number,
-  pastedText: string,
-  assets: readonly MentionPromptName[],
-): { value: string; cursor: number; matched: string[] } | null {
-  if (!pastedText) return null
-  const start = clampIndex(selectionStart, value.length)
-  const end = Math.max(start, clampIndex(selectionEnd, value.length))
-  const result = matchPromptAssetNames(pastedText, assets)
-  if (result.matched.length === 0) return null
-  let inserted = result.value
-  // Typing @ and then pasting a known name must not produce @@name.
-  if (start > 0 && value[start - 1] === '@' && inserted.startsWith('@')) inserted = inserted.slice(1)
-  return {
-    value: `${value.slice(0, start)}${inserted}${value.slice(end)}`,
-    cursor: start + inserted.length,
-    matched: result.matched,
-  }
-}
-
 export interface PromptInsertionRecord {
   before: string
   after: string
@@ -200,52 +179,41 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-/**
- * Auto-prefix pasted prompt text with @ for known asset names. Existing mention
- * tokens and overlapping names are skipped; ordinary text is preserved byte for
- * byte. Names are matched longest-first so 张三丰 wins over 张三.
- */
-export function matchPromptAssetNames(
+export interface MentionPromptHighlightOptions {
+  /** Lower-cased names already bound as generation references. */
+  boundNames: ReadonlySet<string>
+  /** Also mark @tokens that match no asset, so they can be fixed before submit. */
+  flagUnknown?: boolean
+}
+
+function splitPromptMentionPartsWithState(
   value: string,
   assets: readonly MentionPromptName[],
-): { value: string; matched: string[] } {
-  if (!value) return { value, matched: [] }
-
-  const names: string[] = []
-  const seen = new Set<string>()
-  for (const asset of assets) {
-    const name = asset.name.trim().replace(/^@+/, '')
-    const key = name.toLocaleLowerCase()
-    if (!name || seen.has(key)) continue
-    seen.add(key)
-    names.push(name)
+  options: MentionPromptHighlightOptions,
+): MentionPromptPart[] {
+  const parts: MentionPromptPart[] = []
+  let cursor = 0
+  for (const match of scanPromptMentions(value, assets.map((asset) => asset.name))) {
+    if (match.name === null && !options.flagUnknown) continue
+    if (match.start > cursor) parts.push({ text: value.slice(cursor, match.start), mention: false })
+    const state: MentionPromptPartState = match.name === null
+      ? 'unknown'
+      : options.boundNames.has(match.name.toLocaleLowerCase()) ? 'bound' : 'unbound'
+    parts.push({ text: value.slice(match.start, match.end), mention: true, state })
+    cursor = match.end
   }
-  names.sort((left, right) => right.length - left.length)
-  if (names.length === 0) return { value, matched: [] }
-
-  const pattern = new RegExp(names.map((name) => {
-    const escaped = escapeRegExp(name)
-    const prefix = /^[A-Za-z0-9_]/.test(name) ? '(?<![A-Za-z0-9_])' : ''
-    const suffix = /[A-Za-z0-9_]$/.test(name) ? '(?![A-Za-z0-9_])' : ''
-    return `${prefix}${escaped}${suffix}`
-  }).join('|'), 'giu')
-  const matched = new Set<string>()
-  const output = splitPromptMentionParts(value, assets).map((part) => {
-    if (part.mention) return part.text
-    return part.text.replace(pattern, (name) => {
-      if (name.startsWith('@')) return name
-      const canonical = names.find((item) => item.toLocaleLowerCase() === name.toLocaleLowerCase()) || name
-      matched.add(canonical)
-      return `@${name}`
-    })
-  }).join('')
-
-  return { value: output, matched: [...matched] }
+  if (cursor < value.length) parts.push({ text: value.slice(cursor), mention: false })
+  return parts
 }
 
 /** Splits the prompt without changing its text so bound @asset names can be styled. */
-export function splitPromptMentionParts(value: string, assets: readonly MentionPromptName[]): MentionPromptPart[] {
+export function splitPromptMentionParts(
+  value: string,
+  assets: readonly MentionPromptName[],
+  options?: MentionPromptHighlightOptions,
+): MentionPromptPart[] {
   if (!value) return []
+  if (options) return splitPromptMentionPartsWithState(value, assets, options)
 
   const names = Array.from(new Set(
     assets

@@ -19,10 +19,14 @@ import { canvasPlaylistFingerprint } from '@/lib/canvas/playlist'
 import { parseCanvasPlaylistRenderTaskPayload } from '@/lib/canvas/playlist-render-task'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 import { getObjectBuffer, getSignedObjectUrl, getSignedUrl, uploadObject } from '@/lib/storage'
-import { generateKuaiziVideo } from '@/lib/providers/kuaizi'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
-import { assertTaskActive, getTaskExistingExternalId, waitExternalResult } from '@/lib/workers/utils'
+import {
+  assertTaskActive,
+  getTaskExistingExternalId,
+  resolveVideoSourceFromGeneration,
+  waitExternalResult,
+} from '@/lib/workers/utils'
 import { pickVideoResultMetadata } from '@/lib/video-result'
 
 function safeSegment(value: string): string {
@@ -426,14 +430,12 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
     await assertTaskActive(job, 'canvas_video_edit_submit')
     let externalId = await getTaskExistingExternalId(job.data.taskId)
     if (!externalId) {
-      const generated = await generateKuaiziVideo({
+      const generated = await resolveVideoSourceFromGeneration(job, {
         userId: job.data.userId,
+        modelId: payload.modelKey,
         imageUrl: '',
-        prompt,
         options: {
-          provider: 'kuaizi',
-          modelId: 'doubao-seedance-2-5-260628',
-          modelKey: 'kuaizi::doubao-seedance-2-5-260628',
+          prompt,
           videos: [await getSignedObjectUrl(segmentKey, 60 * 60)],
           referenceImages: references.filter((item) => item.type === 'image').map((item) => item.url),
           audios: references.filter((item) => item.type === 'audio').map((item) => item.url),
@@ -446,11 +448,92 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
           bitrateMode: 'standard',
           outputFormat: 'mp4',
         },
+        pollProgress: { start: 55, end: 80 },
       })
-      if (!generated.success || !generated.externalId) {
-        throw new Error(generated.success ? '视频编辑任务未返回任务 ID' : '视频编辑任务提交失败')
+      if (!generated.url) {
+        throw new Error('视频编辑任务未返回可用结果')
       }
-      externalId = generated.externalId
+      const editedUrl = generated.url
+      const videoMetadata = pickVideoResultMetadata(generated)
+
+      await assertTaskActive(job, 'canvas_video_edit_download')
+      await reportTaskProgress(job, 84, { stage: 'canvas_video_edit_download' })
+      const editedResponse = await fetch(editedUrl)
+      if (!editedResponse.ok) throw new Error(`无法下载编辑结果：${editedResponse.status}`)
+      const editedBody = Buffer.from(await editedResponse.arrayBuffer())
+      const processed = {
+        width: trimmed.width,
+        height: trimmed.height,
+        duration: videoMetadata.durationSeconds || trimmed.duration,
+        fps: videoMetadata.fps || trimmed.fps,
+        body: editedBody,
+      }
+      const result = await persistVideoResult(job, payload, processed)
+      const now = new Date().toISOString()
+      const sourceNode = await prisma.canvasNode.findFirst({
+        where: { id: payload.sourceNodeId, canvasId: payload.canvasId, canvas: { projectId: job.data.projectId } },
+        select: { data: true },
+      })
+      if (sourceNode) {
+        const currentData = sourceNode.data && typeof sourceNode.data === 'object' && !Array.isArray(sourceNode.data)
+          ? sourceNode.data as Record<string, unknown>
+          : {}
+        await prisma.canvasNode.update({
+          where: { id: payload.sourceNodeId },
+          data: {
+            data: JSON.parse(JSON.stringify({
+              ...currentData,
+              processType: 'video_edit',
+              mediaType: 'video',
+              title: result.title,
+              contentUrl: result.url,
+              videoUrl: result.url,
+              materialId: result.materialId,
+              videoEdit: {
+                ...(currentData.videoEdit && typeof currentData.videoEdit === 'object' && !Array.isArray(currentData.videoEdit)
+                  ? currentData.videoEdit as Record<string, unknown>
+                  : {}),
+                sourceKind: 'none',
+                sourceNodeId: null,
+              },
+              duration: processed.duration,
+              fps: processed.fps,
+              progress: 100,
+              errorMessage: null,
+              pollErrorMessage: null,
+              history: [{
+                id: `task:${job.data.taskId}`,
+                taskId: job.data.taskId,
+                url: result.url,
+                materialId: result.materialId,
+                prompt,
+                modelKey: payload.modelKey,
+                source: 'generation',
+                status: 'ready',
+                createdAt: now,
+              }],
+            })),
+            status: 'SUCCEEDED',
+            taskId: job.data.taskId,
+            mediaObjectId: result.materialId,
+          },
+        })
+      }
+      return {
+        operation: payload.operation,
+        engineKey: payload.engineKey,
+        modelKey: payload.modelKey,
+        results: [result],
+        durationSeconds: processed.duration,
+        resolution: '720p',
+        ...videoMetadata,
+        materialization: {
+          materialized: true,
+          outputNodeId: payload.sourceNodeId,
+          canvasRevision: null,
+          reason: 'created' as const,
+        },
+      }
     }
     await reportTaskProgress(job, 55, { stage: 'canvas_video_edit_poll' })
     // Shared polling persists the external ID, resumes after restart and releases

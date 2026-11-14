@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Grid2X2, Group, ListTree, Rows3, Save, Ungroup } from '@/components/ui/icons'
 import { NodeResizer, NodeToolbar, Position, useReactFlow, type NodeProps, type ShouldResize } from '@xyflow/react'
-import { useCanvasEditor } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
@@ -24,6 +24,8 @@ const GROUP_COLORS: Array<string | null> = [
 
 export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const multiSelected = useCanvasMultiSelection()
+  const chromeVisible = selected && !multiSelected
   const flow = useReactFlow<CanvasFlowNode>()
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(data.title || '组')
@@ -65,8 +67,8 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
       <span className="nori-canvas-group-drag-edge is-right" aria-hidden="true" />
       <span className="nori-canvas-group-drag-edge is-bottom" aria-hidden="true" />
       <span className="nori-canvas-group-drag-edge is-left" aria-hidden="true" />
-      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={260} minHeight={180} shouldResize={shouldResize} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
-      <NodeToolbar isVisible={selected} position={Position.Top} offset={8} className="nori-canvas-group-toolbar">
+      <NodeResizer isVisible={chromeVisible && !editor.readOnly} minWidth={260} minHeight={180} shouldResize={shouldResize} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
+      <NodeToolbar isVisible={chromeVisible} position={Position.Top} offset={8} className="nori-canvas-group-toolbar">
         {!editor.readOnly ? <>
           <div ref={toolbarRef} className="nori-canvas-group-toolbar-inner">
             <div className="nori-canvas-group-toolbar-item">

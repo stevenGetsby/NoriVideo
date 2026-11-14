@@ -52,7 +52,8 @@ describe('FrameOS assignment page replica contract', () => {
   })
 
   it('supports FrameOS keyboard search, dismissal, and focus semantics in custom task filters', () => {
-    const controls = readSource('src/components/frameos/FosAssignmentControls.tsx')
+    const controls = readSource('src/components/frameos/FosFilterSelect.tsx')
+    const assignmentControls = readSource('src/components/frameos/FosAssignmentControls.tsx')
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(controls).toContain("event.key === 'Escape'")
@@ -60,12 +61,14 @@ describe('FrameOS assignment page replica contract', () => {
     expect(controls).toContain("event.key === 'ArrowDown' || event.key === 'ArrowUp'")
     expect(controls).toContain("!open && event.key === 'Enter'")
     expect(controls).toContain('event.key.length === 1')
-    expect(controls).toContain('setQuery(event.key)')
+    expect(controls).toContain('updateQuery(event.key)')
     expect(controls).toContain('event.currentTarget.contains(event.relatedTarget as Node | null)')
     expect(controls).toContain('moveAssignmentFilterOptionIndex')
     expect(controls).toContain('aria-activedescendant={activeOptionId}')
     expect(controls).toContain('aria-autocomplete="none"')
-    expect(controls).toContain('aria-label={`筛选${filterName}`}')
+    expect(controls).toContain('`筛选${filterName}`')
+    expect(controls).toContain('aria-label={accessibleName}')
+    expect(assignmentControls).toContain("export { FosFilterSelect as AssignmentFilterSelect } from './FosFilterSelect'")
     expect(controls).toContain('fa-select-inline-input')
     expect(controls).toContain('className="fa-select-clear"')
     expect(controls).not.toContain('<span>{placeholder}</span>')

@@ -32,9 +32,17 @@ describe('/api/frameos/generation-config real model names', () => {
       sourceFile: 'fixture.json',
       updatedAt: null,
       providers: [{ id: 'kuaizi', name: 'provider', hasApiKey: true }, { id: 'openlux', name: 'provider', hasApiKey: true }],
-      models: [],
+      models: [
+        { provider: 'kuaizi', modelId: 'doubao-seedance-2-5-260628', modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'Seedance 2.5', type: 'video' },
+        { provider: 'kuaizi', modelId: 'doubao-seedance-2-0-fast-260128', modelKey: 'kuaizi::doubao-seedance-2-0-fast-260128', name: 'Unrouted', type: 'video' },
+        { provider: 'openlux', modelId: 'gpt-image-2.5-sunburst', modelKey: 'openlux::gpt-image-2.5-sunburst', name: 'GPT Image', type: 'image' },
+      ],
       defaultModels: {},
-      businessModels: [],
+      businessModels: [
+        { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::nori-image-pro', name: 'nori-image-pro', description: '', type: 'image', tier: 'pro' },
+        { key: 'nori::nori-image', name: 'nori-image', description: '', type: 'image', tier: 'standard' },
+      ],
       modelRouting: {
         'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
         'nori::nori-image-pro': 'openlux::gpt-image-2.5-sunburst',
@@ -66,6 +74,7 @@ describe('/api/frameos/generation-config real model names', () => {
       name: 'doubao-seedance-2-5-260628',
       runtimeModelKey: 'kuaizi::doubao-seedance-2-5-260628',
     })
+    expect(body.imageModels).toHaveLength(1)
     expect(body.imageModels[0]).toMatchObject({
       modelKey: 'nori::nori-image-pro',
       name: 'gpt-image-2.5-sunburst',

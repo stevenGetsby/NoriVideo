@@ -11,7 +11,7 @@ describe('Seedance toolbox and canvas interaction surface', () => {
     const toolbox = source('src/components/frameos/views/FosToolbox.tsx')
 
     expect(toolbox).toContain("source: 'toolbox'")
-    expect(toolbox).toContain("limit: '12'")
+    expect(toolbox).toContain('limit: String(TOOLBOX_HISTORY_PAGE_SIZE)')
     expect(toolbox).toContain("pageParams.set('cursor', cursor)")
     expect(toolbox).toContain('失败原因')
     expect(toolbox).toContain('selectedFailureCode')

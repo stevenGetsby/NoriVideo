@@ -124,8 +124,8 @@ export async function readCanvasGenerationSubmission(response: Response): Promis
   }
 }
 
-export async function fetchCanvasGenerationTask(statusUrl: string): Promise<CanvasGenerationTaskUpdate> {
-  const response = await apiFetch(statusUrl, { cache: 'no-store' })
+export async function fetchCanvasGenerationTask(statusUrl: string, signal?: AbortSignal): Promise<CanvasGenerationTaskUpdate> {
+  const response = await apiFetch(statusUrl, { cache: 'no-store', signal })
   const payload = await response.json().catch(() => null)
   if (!response.ok) throw new Error(resolveTaskErrorMessage(payload, '读取画布生成进度失败'))
   const update = parseCanvasGenerationTaskUpdate(payload)
@@ -146,19 +146,6 @@ export async function cancelCanvasGenerationTask(
   const update = parseCanvasGenerationTaskUpdate(payload)
   if (!update) throw new Error('取消任务返回格式无效')
   return update
-}
-
-export async function retryCanvasGenerationTask(
-  projectId: string,
-  canvasId: string,
-  taskId: string,
-): Promise<ReturnType<typeof readCanvasGenerationSubmission> extends Promise<infer T> ? T : never> {
-  const response = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}/canvas/${encodeURIComponent(canvasId)}/generation-tasks/${encodeURIComponent(taskId)}/retry`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({}),
-  })
-  return readCanvasGenerationSubmission(response)
 }
 
 export function canvasGenerationTaskError(task: CanvasGenerationTask, fallback = '画布生成失败') {

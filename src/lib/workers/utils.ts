@@ -4,7 +4,7 @@ import { createScopedLogger } from '@/lib/logging/core'
 import { withLogContext } from '@/lib/logging/context'
 import { generateImage, generateVideo } from '@/lib/generator-api'
 import { generateLipSync } from '@/lib/lipsync'
-import { pollAsyncTask } from '@/lib/async-poll'
+import { pollAsyncTask, type PollResult } from '@/lib/async-poll'
 import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { initializeFonts, createLabelSVG } from '@/lib/fonts'
 import { processMediaResult } from '@/lib/media-process'
@@ -19,6 +19,7 @@ import {
   resolveProjectModelCapabilityGenerationOptions,
 } from '@/lib/config-service'
 import { TaskTerminatedError } from '@/lib/task/errors'
+import { AsyncTimeoutError, withAsyncTimeout } from '@/lib/async-timeout'
 import { isTaskActive, trySetTaskExternalId } from '@/lib/task/service'
 import { type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from './shared'
@@ -116,7 +117,20 @@ export async function waitExternalResult(
 
   while (Date.now() - startAt <= timeoutMs) {
     await assertTaskActive(job, 'polling_external')
-    const status = await pollAsyncTask(externalId, userId)
+    let status: PollResult
+    try {
+      status = await withAsyncTimeout(
+        (signal) => pollAsyncTask(externalId, userId, signal),
+        60_000,
+        'EXTERNAL_STATUS_QUERY_TIMEOUT: 上游任务状态查询超时，请重试',
+      )
+    } catch (error) {
+      if (error instanceof AsyncTimeoutError) {
+        status = { status: 'pending' }
+      } else {
+        throw error
+      }
+    }
 
     if (status.status === 'completed') {
       const url = status.resultUrl || status.imageUrl || status.videoUrl

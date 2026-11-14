@@ -120,6 +120,32 @@ describe('FrameOS toolbox generation route', () => {
     expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceAudios: [] }) }))
   })
 
+  it('skips the saved voice of a character image the user detached on the canvas', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '试镜', prompt: '关羽说话', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['material-1'], voiceDetachedMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
+    } }), routeContext)
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledTimes(1)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceAudios: [], referenceMaterialIds: ['material-1'] }) }))
+  })
+
+  it('still attaches the voice of other characters when only one is detached', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+      { id: 'material-2', title: '张飞', type: 'image', storageKey: 'images/zhangfei.png', metadata: { voiceMaterialId: 'voice-2' } },
+    ]).mockResolvedValueOnce([
+      { id: 'voice-2', title: '张飞音色', type: 'audio', storageKey: 'voice/zhangfei.wav', metadata: { durationSeconds: 6 } },
+    ])
+    const response = await POST(buildMockRequest({ path: '/api/frameos/toolbox/generate', method: 'POST', body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: '试镜', prompt: '二人对话', modelKey: 'nori::norivideo2.5',
+      inputMode: 'text', referenceMaterialIds: ['material-1', 'material-2'], voiceDetachedMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
+    } }), routeContext)
+    expect(response.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceAudios: ['voice/zhangfei.wav'], referenceMaterialIds: ['material-1', 'material-2', 'voice-2'] }) }))
+  })
+
   it('rejects unavailable saved voices without creating a paid task', async () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
       { id: 'material-1', type: 'image', storageKey: 'images/role.png', metadata: { voiceMaterialId: 'deleted-voice' } },
@@ -1103,6 +1129,66 @@ describe('FrameOS toolbox generation route', () => {
         referenceVideoNames: ['奔跑动作'],
         referenceAudioNames: ['雨声'],
         referenceMaterialIds: ['material-video', 'material-audio', 'material-image'],
+      }),
+    }))
+  })
+
+  it('rejects a video prompt whose @mention points at no submitted reference', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-image', title: '萧令仪', type: 'image', storageKey: 'images/xiao.png', resultUrl: null },
+    ])
+
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: {
+        workId: 'work-1', projectId: 'project-1',
+        type: 'video',
+        title: '悬空引用',
+        prompt: '@女主_萧令仪 回头看向@蒙面人',
+        modelKey: 'hfsy::doubao-seedance-2-0',
+        referenceMaterialIds: ['material-image'],
+        inputMode: 'text',
+        options: { aspectRatio: '9:16', resolution: '1080p', duration: 6, generateAudio: false },
+      },
+    }), routeContext)
+    const body = await response.json() as { message?: string }
+
+    expect(response.status).toBe(400)
+    expect(body.message).toContain('@女主_萧令仪、@蒙面人')
+    expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
+    expect(prismaMock.frameosToolboxAsset.upsert).not.toHaveBeenCalled()
+    expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards the editor mention names of each reference so the worker compiles 图片N', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
+      { id: 'material-image', title: '剪贴板素材-1', type: 'image', storageKey: 'images/clip.png', resultUrl: null },
+    ])
+
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate',
+      method: 'POST',
+      body: {
+        workId: 'work-1', projectId: 'project-1',
+        type: 'video',
+        title: '重名引用',
+        prompt: '@剪贴板素材-1·图片1 转身',
+        modelKey: 'hfsy::doubao-seedance-2-0',
+        referenceMaterialIds: ['material-image'],
+        referenceMentionNames: { 'material-image': ['剪贴板素材-1·图片1', 42], 'material-other': ['不在本次引用中'] },
+        inputMode: 'text',
+        options: { aspectRatio: '9:16', resolution: '1080p', duration: 6, generateAudio: false },
+      },
+    }), routeContext)
+
+    expect(response.status).toBe(200)
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({
+        referenceImages: ['images/clip.png'],
+        referenceImageMentionNames: [['剪贴板素材-1·图片1']],
+        referenceVideoMentionNames: [],
+        referenceAudioMentionNames: [],
       }),
     }))
   })

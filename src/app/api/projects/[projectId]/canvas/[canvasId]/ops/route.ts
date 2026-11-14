@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ApiError, apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
+import { CANVAS_DELTA_RESPONSE_HEADER } from '@/features/canvas/types'
 import { requireCanvasInProject } from '@/lib/canvas/access'
 import { validateCanvasOperationsSaveInput } from '@/lib/canvas/operations'
 import { applyCanvasOperationsInTransaction } from '@/lib/canvas/persistence'
@@ -34,12 +35,25 @@ export const POST = apiHandler(async (
     })
   }
 
-  const graph = await prisma.$transaction((tx) => applyCanvasOperationsInTransaction(tx, {
+  const result = await prisma.$transaction((tx) => applyCanvasOperationsInTransaction(tx, {
     projectId,
     canvasId,
     userId: authResult.session.user.actorId || authResult.session.user.id,
     templateOwnerId: authResult.session.user.id,
     input,
   }))
-  return NextResponse.json(graph)
+  // A full graph is ~2 MB for a large canvas; callers that keep their own confirmed
+  // document opt into the delta instead. Without the header (older tabs) keep sending
+  // everything, since a client that treated a delta as the whole graph would delete
+  // every node it did not see on its next diff.
+  if (request.headers.get(CANVAS_DELTA_RESPONSE_HEADER) !== 'delta') {
+    return NextResponse.json({ canvas: result.canvas, nodes: result.nodes, edges: result.edges })
+  }
+  return NextResponse.json({
+    canvas: result.canvas,
+    nodes: result.delta.nodes,
+    edges: result.delta.edges,
+    deletedNodeIds: result.delta.deletedNodeIds,
+    deletedEdgeIds: result.delta.deletedEdgeIds,
+  })
 })

@@ -166,21 +166,45 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     throw new Error(`HUIMENGI_VIDEO_GENERATE_AUDIO_UNSUPPORTED: ${model.modelId}`)
   }
 
-  const ratioInput = readString(params.options.aspectRatio) || readString(params.options.ratio)
-  const ratio = model.modelId === 'minimax-h3' && firstFrame
-    ? 'adaptive'
-    : normalizeRatio(ratioInput, constraints.ratios)
-  const resolution = normalizeResolution(
-    readString(params.options.resolution),
-    model.resolutionCase,
-    constraints.resolutions,
-  )
-  const duration = normalizeDuration(params.options.duration, constraints.duration)
   const seed = readFiniteNumber(params.options.seed)
   const resolvedFirstFrame = firstFrame ? await normalizeToPublicImageUrlForGeneration(firstFrame) : ''
   const resolvedLastFrame = lastFrame ? await normalizeToPublicImageUrlForGeneration(lastFrame) : ''
   const resolvedReferenceVideos = await Promise.all(referenceVideos.map((url) => normalizeMediaUrl(url, 'video')))
   const resolvedReferenceAudios = await Promise.all(referenceAudios.map((url) => normalizeMediaUrl(url, 'audio')))
+  const resolution = normalizeResolution(
+    readString(params.options.resolution),
+    model.resolutionCase,
+    constraints.resolutions,
+  )
+
+  const ratioInput = readString(params.options.aspectRatio) || readString(params.options.ratio)
+  const promptText = prompt || ''
+  const hasEditIntent = /(?:编辑视频|编辑|增加|删除|替换|修改)/.test(promptText)
+  const hasExtendIntent = /(?:向前延长|向后延长|延长|延续|续写)/.test(promptText)
+  const isSeedance25 = model.modelId === 'seedance-2.5'
+  const requestedTaskType = readString(
+    params.options.omniReferenceTaskType ?? params.options.omni_reference_task_type,
+  ).toLowerCase()
+  const omniTaskType: 'reference' | 'edit' | 'extend' | '' = isSeedance25 && resolvedReferenceVideos.length > 0
+    ? (requestedTaskType === 'edit' || requestedTaskType === 'extend' || requestedTaskType === 'reference'
+        ? requestedTaskType
+        : hasExtendIntent ? 'extend' : hasEditIntent ? 'edit' : '')
+    : ''
+
+  let ratio: string | undefined
+  let duration: number | undefined
+  if (omniTaskType === 'edit') {
+    ratio = 'adaptive'
+    duration = -1
+  } else if (omniTaskType === 'extend') {
+    ratio = 'adaptive'
+    duration = normalizeDuration(params.options.duration, constraints.duration)
+  } else {
+    ratio = model.modelId === 'minimax-h3' && firstFrame
+      ? 'adaptive'
+      : normalizeRatio(ratioInput, constraints.ratios)
+    duration = normalizeDuration(params.options.duration, constraints.duration)
+  }
 
   const requestParams: Record<string, unknown> = {
     ...(prompt ? { prompt } : {}),
@@ -195,6 +219,7 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     ...(typeof duration === 'number' ? { duration } : {}),
     ...(typeof seed === 'number' && Number.isInteger(seed) ? { seed } : {}),
     ...(typeof generateAudio === 'boolean' && model.audioParam ? { [model.audioParam]: generateAudio } : {}),
+    ...(omniTaskType ? { omni_reference_task_type: omniTaskType } : {}),
     ...(model.supportsWatermark && typeof params.options.watermark === 'boolean'
       ? { watermark: params.options.watermark }
       : {}),
@@ -207,6 +232,9 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     ...(model.supportsReturnLastFrame && typeof params.options.returnLastFrame === 'boolean'
       ? { return_last_frame: params.options.returnLastFrame }
       : {}),
+    // Always on for models that document it: real-person material must be
+    // whitelisted through the provider's human-review pipeline before use.
+    ...(model.supportsHumanReview ? { human_review: true } : {}),
   }
 
   const config = await getProviderConfig(params.userId, params.options.provider)

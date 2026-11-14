@@ -106,7 +106,7 @@
       "locationModel": "nori::nori-image",
       "storyboardModel": "nori::nori-image",
       "editModel": "nori::nori-image",
-      "videoModel": "nori::seedance2.0"
+      "videoModel": "nori::norivideo2.5"
     },
     "modelRouting": {
       "nori::nori-gpt": "deepseek::deepseek-chat",

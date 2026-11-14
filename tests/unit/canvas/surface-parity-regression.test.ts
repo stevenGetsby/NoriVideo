@@ -216,7 +216,8 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('Math.hypot(event.clientX - gesture.x, event.clientY - gesture.y) > 8')
     expect(graph).toContain('suppressContextMenuUntilRef.current = Date.now() + 250')
     expect(graph).toContain('if (shouldSuppressContextMenu()) return')
-    expect(graph).toContain('panOnDrag={[1]}')
+    expect(graph).toContain('const FLOW_PAN_ON_DRAG = [1]')
+    expect(graph).toContain('panOnDrag={FLOW_PAN_ON_DRAG}')
   })
 
   it('keeps pane-menu node creation and upload anchored at the clicked point', () => {
@@ -225,7 +226,7 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('setAddOpen(true)')
     expect(graph).toContain('openUploadPicker(menu.flowPosition)')
     expect(graph).toContain('const position = pendingInsertPositionRef.current || undefined')
-    expect(graph).toContain('addNode(type, position)')
+    expect(graph).toContain('addNode(type, position, interaction)')
     expect(graph).toContain('const position = pendingUploadPositionRef.current || undefined')
     expect(graph).toContain('handleUploads(files, position)')
   })
@@ -255,7 +256,8 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('dismissTransientUi()')
     expect(graph).toContain('setAssetsOpen(false)')
     expect(graph).toContain('setPickerOpen(false)')
-    expect(graph).toContain('onPaneClick={() => {')
+    expect(graph).toContain('const handlePaneClick = useStableCallback(() => {')
+    expect(graph).toContain('onPaneClick={handlePaneClick}')
     expect(graph).toContain('setAddOpen(false)')
     expect(graph).toContain('setOrganizeOpen(false)')
     expect(chrome).toContain("if (event.key !== 'Escape') return")

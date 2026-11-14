@@ -7,12 +7,14 @@ import Cuboid from '@/components/ui/icons/ph/cube-transparent'
 import Download from '@/components/ui/icons/ph/download-simple'
 import Maximize2 from '@/components/ui/icons/ph/arrows-out-simple'
 import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { useCanvasEditor } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { normalizeCanvasStudioSummary, STUDIO_NODE_MIN_SIZE } from '../studio-types'
 
 export function Studio3DNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const multiSelected = useCanvasMultiSelection()
+  const chromeVisible = selected && !multiSelected
   const studio = normalizeCanvasStudioSummary(data.studioSummary, data.studioScene)
   const openStudio = () => editor.runNodeAction(id, 'studio_3d')
   const openFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
@@ -24,8 +26,8 @@ export function Studio3DNode({ id, data, selected }: NodeProps<CanvasFlowNode>) 
   const openHint = editor.readOnly ? '双击查看导演台' : '拖动节点 · 双击进入导演台'
   return (
     <article className={`nori-canvas-node nori-canvas-studio-node${selected ? ' is-selected' : ''}${editor.readOnly ? ' is-readonly' : ''}`}>
-      <NodeResizer isVisible={selected && !editor.readOnly} minWidth={STUDIO_NODE_MIN_SIZE.width} minHeight={STUDIO_NODE_MIN_SIZE.height} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
-      <NodeToolbar isVisible={selected} position={Position.Top} offset={34} className="nori-canvas-node-toolbar nodrag nowheel">
+      <NodeResizer isVisible={chromeVisible && !editor.readOnly} minWidth={STUDIO_NODE_MIN_SIZE.width} minHeight={STUDIO_NODE_MIN_SIZE.height} lineClassName="nori-canvas-resize-line" handleClassName="nori-canvas-resize-handle" />
+      <NodeToolbar isVisible={chromeVisible} position={Position.Top} offset={34} className="nori-canvas-node-toolbar nodrag nowheel">
         <button type="button" title={editor.readOnly ? '查看导演台' : '进入导演台'} onClick={() => editor.runNodeAction(id, 'studio_3d')}><Maximize2 /><span>{editor.readOnly ? '查看导演台' : '进入导演台'}</span></button>
         <button type="button" title={studio.captureCount > 0 ? '批量下载截图' : '暂无可下载截图'} disabled={studio.captureCount === 0} onClick={() => editor.runNodeAction(id, 'download')}><Download /></button>
       </NodeToolbar>

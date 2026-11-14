@@ -84,7 +84,7 @@ describe('account role permission policy', () => {
 
   it('lets the screenwriter role run and save video repaint scripts', () => {
     expect(requiredPermissionsForApiPath('/api/video-repaint/understand', 'POST')).toEqual(['scriptWrite'])
-    expect(requiredPermissionsForApiPath('/api/video-repaint/adapt', 'POST')).toEqual(['scriptWrite'])
+    expect(requiredPermissionsForApiPath('/api/video-repaint/outline', 'POST')).toEqual(['scriptWrite'])
     expect(requiredPermissionsForApiPath('/api/video-repaint/scripts', 'GET')).toEqual(['read'])
   })
 

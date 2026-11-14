@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 import { ApiError } from '@/lib/api-errors'
+import { supersededByMaterialId } from './material-supersede'
 
 export async function findBoundCharacterVoices(tx: Prisma.TransactionClient, userId: string, materialIds: string[]): Promise<Map<string, string>> {
   const conflicts = new Map<string, string>()
@@ -11,7 +12,14 @@ export async function findBoundCharacterVoices(tx: Prisma.TransactionClient, use
   for (const image of linked) {
     const metadata = image.metadata && typeof image.metadata === 'object' && !Array.isArray(image.metadata) ? image.metadata : {}
     const id = typeof metadata.voiceMaterialId === 'string' ? metadata.voiceMaterialId : ''
-    if (materialIds.includes(id)) conflicts.set(id, `音色仍被角色「${image.title || '未命名角色'}」使用，请先解除角色卡音色绑定。`)
+    if (!materialIds.includes(id)) continue
+    const name = image.title || '未命名角色'
+    // A replaced picture that canvases still use is hidden from the library, so say why the voice is held.
+    if (supersededByMaterialId(image.metadata)) {
+      if (!conflicts.has(id)) conflicts.set(id, `音色仍被角色「${name}」替换前的旧图片使用（仍有画布引用旧图片），请先在这些画布中改用新图片。`)
+      continue
+    }
+    conflicts.set(id, `音色仍被角色「${name}」使用，请先解除角色卡音色绑定。`)
   }
   const remaining = materialIds.filter((id) => !conflicts.has(id))
   if (!remaining.length) return conflicts

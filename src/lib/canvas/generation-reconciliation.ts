@@ -79,12 +79,22 @@ function generationAssetId(node: ReconciliableCanvasNode): string {
   return cleanText(generation?.assetId)
 }
 
+function mediaTaskId(node: ReconciliableCanvasNode): string {
+  if (node.status !== 'RUNNING') return ''
+  const data = record(node.data)
+  if (record(data?.generationTask)) return ''
+  const generation = record(data?.generation)
+  return cleanText(generation?.assetId)
+    ? ''
+    : cleanText(node.taskId) || cleanText(generation?.taskId)
+}
+
 function generationTaskId(node: ReconciliableCanvasNode): string {
   if (node.status !== 'RUNNING') return ''
   const data = record(node.data)
   const generation = record(data?.generation)
-  if (cleanText(generation?.assetId)) return ''
   const generationTask = record(data?.generationTask)
+  if (cleanText(generation?.assetId) || !generationTask) return ''
   return cleanText(node.taskId) || cleanText(generationTask?.taskId) || cleanText(generation?.taskId)
 }
 
@@ -202,12 +212,13 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
   nodes: T[]
 }): Promise<T[]> {
   const assetIds = Array.from(new Set(nodes.map(generationAssetId).filter(Boolean)))
-  if (assetIds.length === 0) {
+  const taskIds = Array.from(new Set(nodes.map(mediaTaskId).filter(Boolean)))
+  if (assetIds.length === 0 && taskIds.length === 0) {
     return await reconcileCanvasTextGenerationNodes({ projectId, canvasId, nodes })
   }
 
-  const [assets, tasks] = await Promise.all([
-    prisma.frameosToolboxAsset.findMany({
+  const [assets, tasks, recoveredTasks] = await Promise.all([
+    assetIds.length > 0 ? prisma.frameosToolboxAsset.findMany({
       where: { id: { in: assetIds }, projectId },
       select: {
         id: true,
@@ -217,8 +228,8 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
         materialId: true,
         errorMessage: true,
       },
-    }),
-    prisma.task.findMany({
+    }) : Promise.resolve([]),
+    assetIds.length > 0 ? prisma.task.findMany({
       where: {
         projectId,
         targetType: 'FrameosToolboxAsset',
@@ -234,9 +245,38 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
         externalId: true,
         billingInfo: true,
       },
-    }),
+    }) : Promise.resolve([]),
+    taskIds.length > 0 ? prisma.task.findMany({
+      where: {
+        id: { in: taskIds },
+        projectId,
+        targetType: 'FrameosToolboxAsset',
+      },
+      select: {
+        id: true,
+        targetId: true,
+        status: true,
+        progress: true,
+        errorMessage: true,
+        externalId: true,
+        billingInfo: true,
+      },
+    }) : Promise.resolve([]),
   ])
-  const assetById = new Map(assets.map((asset) => [asset.id, asset]))
+  const taskById = new Map(recoveredTasks.map((task) => [task.id, task]))
+  const missingAssetIds = recoveredTasks.map((task) => task.targetId).filter((id) => !assetIds.includes(id))
+  const recoveredAssets = missingAssetIds.length > 0 ? await prisma.frameosToolboxAsset.findMany({
+    where: { id: { in: missingAssetIds }, projectId },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      resultUrl: true,
+      materialId: true,
+      errorMessage: true,
+    },
+  }) : []
+  const assetById = new Map([...assets, ...recoveredAssets].map((asset) => [asset.id, asset]))
   const taskByAssetId = new Map<string, ToolboxTaskState>()
   for (const task of tasks) {
     if (!taskByAssetId.has(task.targetId)) taskByAssetId.set(task.targetId, task)
@@ -249,11 +289,20 @@ export async function reconcileCanvasGenerationNodes<T extends ReconciliableCanv
   }> = []
   for (const node of nodes) {
     const assetId = generationAssetId(node)
-    if (!assetId) continue
-    const task = taskByAssetId.get(assetId)
-    const terminal = terminalState(assetById.get(assetId), task)
+    const taskId = mediaTaskId(node)
+    if (!assetId && !taskId) continue
+    const recoveredTask = taskById.get(taskId)
+    const resolvedAssetId = assetId || recoveredTask?.targetId || ''
+    if (!resolvedAssetId) continue
+    const task = assetId ? taskByAssetId.get(assetId) : recoveredTask
+    const terminal = terminalState(assetById.get(resolvedAssetId), task)
     if (!terminal) continue
-    const data = reconcileNodeData(node.data, assetId, task, terminal, task ? completedTaskCostPoints(task) : null)
+    const current = record(node.data) || {}
+    const generation = record(current.generation)
+    const data = reconcileNodeData({
+      ...current,
+      generation: { ...generation, assetId: resolvedAssetId, taskId: task?.id || taskId },
+    }, resolvedAssetId, task, terminal, task ? completedTaskCostPoints(task) : null)
     const next = {
       ...node,
       data,

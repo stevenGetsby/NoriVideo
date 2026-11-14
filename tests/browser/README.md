@@ -43,6 +43,22 @@ NORI_BROWSER_TOOLS_DIR=/path/to/browser-tools node tests/browser/project-corner-
 
 截图保存在忽略的 `test-results/project-corner-cases/`。
 
+### 创建作品与继承资产
+
+`create-project-small-viewport.browser.mjs` 与 `create-project-inherit-assets.browser.mjs`
+都把真实 `CreateProjectDialog`（经 `create-project-dialog.fixture.tsx`）自行打包，
+并用本地 HTTP 服务和路由拦截模拟素材接口，不连接数据库、不写生产数据、不调用生成服务。
+前者验证画布模式草稿（无工作流设置、不加载剧本）以及小视口下内容可滚动、底部操作栏始终可见；后者覆盖「不继承 / 上一个作品 / 指定作品」、
+生成/上传/继承来源筛选与计数、模糊搜索、全选/清空、200 项上限、分页读取、读取失败与重试、
+慢请求、仅有不可继承素材的空状态、同名作品区分、390px 窄屏边界、纯色徽标以及提交载荷。
+
+```sh
+NORI_BROWSER_TOOLS_DIR=/path/to/browser-tools node tests/browser/create-project-inherit-assets.browser.mjs
+```
+
+独立打包没有 Tailwind preflight，元素默认 `content-box`，断言已按此换算。
+截图保存在忽略的 `test-results/create-project-inherit-assets/`。
+
 ## 3D 导演台节点
 
 独立测试页使用真实 `Studio3DNode`、React Flow、项目画布 CSS，以及本地工作台已经编译的全局样式（包含 120% 界面缩放）。

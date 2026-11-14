@@ -8,7 +8,7 @@ import {
   flowNodeToCanvas,
 } from './editor-types'
 import type { CanvasFlowEdge, CanvasFlowNode } from './editor-types'
-import type { CanvasGenerationConfig, CanvasGraphResponse, CanvasOperationsInput } from './types'
+import type { CanvasGenerationConfig, CanvasGraphResponse, CanvasOperation } from './types'
 
 export function shouldCreateVideoComparison(node: CanvasFlowNode): boolean {
   if ((node.data.mediaType || node.type) !== 'video' || (node.data.generationTask && !node.data.generationTask.completed)) return false
@@ -75,52 +75,61 @@ export async function persistVideoComparisonDraft(input: {
   draft: ReturnType<typeof createVideoComparisonDraft>
   nodes: CanvasFlowNode[]
   edges: CanvasFlowEdge[]
-  prepare: () => Promise<{ expectedRevision: number; clientId: string }>
-  saveOperations: (projectId: string, canvasId: string, operations: CanvasOperationsInput) => Promise<CanvasGraphResponse>
-  acceptRevision: (expectedRevision: number, graph: CanvasGraphResponse) => Promise<boolean>
-  loadServer: () => Promise<void>
+  saveRevisioned: (input: { changeSummary: string; ops: CanvasOperation[] }) => Promise<CanvasGraphResponse>
+  loadServer: () => Promise<CanvasGraphResponse>
 }) {
-  const current = await input.prepare()
-  const graph = await input.saveOperations(input.projectId, input.canvasId, {
-    expectedRevision: current.expectedRevision,
-    clientId: current.clientId,
-    changeSummary: '创建对照视频节点',
-    ops: [
-      { type: 'node.upsert', node: withoutCanvasId(flowNodeToCanvas(input.draft.node, input.canvasId)) },
-      ...input.draft.edges.map((edge) => ({ type: 'edge.add' as const, edge: withoutCanvasId(flowEdgeToCanvas(edge, input.canvasId)) })),
-    ],
-  })
-  if (!await input.acceptRevision(current.expectedRevision, graph)) {
-    await input.loadServer()
-    throw new CanvasRevisionConflictError('画布在创建对照节点时发生变化，请重试生成。')
+  const draftNodeId = input.draft.node.id
+  // The draft node is committed by the revisioned save before generation binds
+  // a task to it. If anything after that commit fails, the blank node must not
+  // survive on the canvas; always delete it against the authoritative graph.
+  const removeDraft = async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const graph = await input.loadServer()
+      const persisted = graph.nodes.find((node) => node.id === draftNodeId)
+      if (!persisted || persisted.taskId) return
+      const edgeIds = graph.edges
+        .filter((edge) => edge.targetNodeId === draftNodeId)
+        .map((edge) => edge.id)
+      try {
+        await input.saveRevisioned({
+          changeSummary: '清理未提交的对照视频',
+          ops: [
+            ...edgeIds.map((id) => ({ type: 'edge.delete' as const, id })),
+            { type: 'node.delete' as const, id: draftNodeId },
+          ],
+        })
+        await input.loadServer()
+        return
+      } catch (error) {
+        if (!(error instanceof CanvasRevisionConflictError) || attempt > 0) throw error
+      }
+    }
   }
-  const persistedNode = graph.nodes.find((node) => node.id === input.draft.node.id)
+  let graph: CanvasGraphResponse
+  try {
+    graph = await input.saveRevisioned({
+      changeSummary: '创建对照视频节点',
+      ops: [
+        { type: 'node.upsert', node: withoutCanvasId(flowNodeToCanvas(input.draft.node, input.canvasId)) },
+        ...input.draft.edges.map((edge) => ({ type: 'edge.add' as const, edge: withoutCanvasId(flowEdgeToCanvas(edge, input.canvasId)) })),
+      ],
+    })
+  } catch (error) {
+    // An ambiguous failure can still have committed the operations server-side.
+    await removeDraft().catch(() => undefined)
+    throw error
+  }
+  const persistedNode = graph.nodes.find((node) => node.id === draftNodeId)
   if (!persistedNode || persistedNode.taskId) {
-    await input.loadServer()
+    await removeDraft().catch(() => undefined)
     throw new Error('对照节点已变化，请核对画布后重试生成。')
   }
   const persistedFlowNode = canvasNodeToFlow(persistedNode)
-  const persistedEdges = graph.edges.filter((edge) => edge.targetNodeId === input.draft.node.id).map(canvasEdgeToFlow)
+  const persistedEdges = graph.edges.filter((edge) => edge.targetNodeId === draftNodeId).map(canvasEdgeToFlow)
   return {
-    nodes: input.nodes.map((node) => node.id === input.draft.node.id ? { ...persistedFlowNode, selected: true } : node),
-    edges: [...input.edges.filter((edge) => edge.target !== input.draft.node.id), ...persistedEdges],
+    nodes: input.nodes.map((node) => node.id === draftNodeId ? { ...persistedFlowNode, selected: true } : node),
+    edges: [...input.edges.filter((edge) => edge.target !== draftNodeId), ...persistedEdges],
     graph,
-    discard: async () => {
-      const latest = await input.prepare()
-      const removed = await input.saveOperations(input.projectId, input.canvasId, {
-        expectedRevision: latest.expectedRevision,
-        clientId: latest.clientId,
-        changeSummary: '清理未提交的对照视频',
-        ops: [
-          ...input.draft.edges.map((edge) => ({ type: 'edge.delete' as const, id: edge.id })),
-          { type: 'node.delete', id: input.draft.node.id },
-        ],
-      })
-      if (!await input.acceptRevision(latest.expectedRevision, removed)) {
-        await input.loadServer()
-        throw new CanvasRevisionConflictError('画布版本已变化，无法安全清理未提交的对照节点。')
-      }
-      await input.loadServer()
-    },
+    discard: removeDraft,
   }
 }

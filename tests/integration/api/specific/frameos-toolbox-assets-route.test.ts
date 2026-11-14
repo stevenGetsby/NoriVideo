@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   frameosToolboxAsset: {
     findMany: vi.fn(),
+    count: vi.fn(),
   },
   task: {
     findMany: vi.fn(),
@@ -84,6 +85,7 @@ describe('FrameOS toolbox asset list access', () => {
     prismaMock.project.findFirst.mockResolvedValue({ id: 'project-assigned' })
     prismaMock.project.findMany.mockResolvedValue([{ id: 'project-assigned' }])
     prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([])
+    prismaMock.frameosToolboxAsset.count.mockResolvedValue(0)
     prismaMock.task.findMany.mockResolvedValue([])
     prismaMock.frameosMaterial.findMany.mockResolvedValue([])
     prismaMock.user.findMany.mockResolvedValue([{ id: 'owner-1' }, { id: 'storyboard-child' }])
@@ -263,6 +265,20 @@ describe('FrameOS toolbox asset list access', () => {
     expect(payload.pagination.nextCursor).toBe('asset-12')
   })
 
+  it('reports the total history size for the page counter, but not for exact-id lookups', async () => {
+    prismaMock.frameosToolboxAsset.count.mockResolvedValue(37)
+    const listing = await GET(request({ projectId: 'project-assigned', limit: '12' }), { params: Promise.resolve({}) })
+    expect((await listing.json()).pagination.total).toBe(37)
+    expect(prismaMock.frameosToolboxAsset.count).toHaveBeenCalledWith({
+      where: { userId: sharedUsers, projectId: 'project-assigned' },
+    })
+
+    prismaMock.frameosToolboxAsset.count.mockClear()
+    const lookup = await GET(request({ projectId: 'project-assigned', assetIds: 'asset-old' }), { params: Promise.resolve({}) })
+    expect((await lookup.json()).pagination.total).toBeNull()
+    expect(prismaMock.frameosToolboxAsset.count).not.toHaveBeenCalled()
+  })
+
   it('queries the exact requested assets so an old running canvas node is not lost behind pagination', async () => {
     const response = await GET(request({
       projectId: 'project-assigned',
@@ -284,13 +300,51 @@ describe('FrameOS toolbox asset list access', () => {
     })
   })
 
-  it('rejects an oversized exact-asset query before hitting the database', async () => {
-    const response = await GET(request({
+  it('rejects oversized or ambiguous exact-asset queries before hitting the database', async () => {
+    const oversized = await GET(request({
       projectId: 'project-assigned',
       assetIds: Array.from({ length: 201 }, (_, index) => `asset-${index}`).join(','),
     }), { params: Promise.resolve({}) })
+    const ambiguous = await GET(request({
+      projectId: 'project-assigned',
+      assetIds: 'asset-1',
+      taskIds: 'task-1',
+    }), { params: Promise.resolve({}) })
 
-    expect(response.status).toBe(400)
+    expect(oversized.status).toBe(400)
+    expect(ambiguous.status).toBe(400)
     expect(prismaMock.frameosToolboxAsset.findMany).not.toHaveBeenCalled()
+  })
+
+  it('recovers a video asset from an exact task without exposing another project', async () => {
+    prismaMock.task.findMany.mockResolvedValueOnce([{
+      id: 'task-1',
+      targetId: 'video-1',
+      targetType: 'FrameosToolboxAsset',
+      status: 'completed',
+      progress: 100,
+      externalId: null,
+      errorCode: null,
+      errorMessage: null,
+      billingInfo: null,
+    }])
+    prismaMock.frameosToolboxAsset.findMany.mockImplementationOnce(async () => []).mockResolvedValueOnce([{
+      id: 'video-1', type: 'video', status: 'ready', userId: 'owner-1', projectId: 'project-assigned',
+      resultUrl: 'video/clip.mp4', materialId: 'material-1', errorMessage: null,
+    }])
+
+    const response = await GET(request({
+      projectId: 'project-assigned', type: 'video', taskIds: 'task-1',
+    }), { params: Promise.resolve({}) })
+    const payload = await response.json()
+
+    expect(prismaMock.task.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: sharedUsers, targetType: 'FrameosToolboxAsset', id: { in: ['task-1'] } },
+    }))
+    expect(prismaMock.frameosToolboxAsset.findMany).toHaveBeenCalledWith({
+      where: { userId: sharedUsers, projectId: 'project-assigned', id: { in: ['video-1'] }, type: 'video' },
+    })
+    expect(payload.assets).toHaveLength(1)
+    expect(payload.assets[0]).toMatchObject({ id: 'video-1', status: 'ready', task: { id: 'task-1', progress: 100 } })
   })
 })

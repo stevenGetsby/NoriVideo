@@ -12,6 +12,7 @@ import { hasAccountPermissions } from '@/lib/account/permissions'
 import { fetchAllFrameosMaterials } from './fetch-all-materials'
 import {
   MATERIAL_SOURCE_LABELS,
+  materialSourceLabel,
   type FrameosMaterialCreatorOption,
   type FrameosMaterialItem,
   type FrameosMaterialLibraryCapabilities,
@@ -32,6 +33,7 @@ import {
   FRAMEOS_ASSET_CATEGORIES,
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
+import { collapseInheritedDuplicates, isInheritedMaterial } from '@/lib/frameos/material-inherit'
 import { characterVoiceBindingState, characterVoiceBindingStats } from './character-voice'
 
 interface Props {
@@ -145,12 +147,15 @@ export function MaterialPickerDialog({
     [multiple, onSelect, pendingSelected, selectedIds],
   )
   const selectedCount = selectedIdSet.size
-  const visibleMaterials = useMemo(
-    () => sortMaterialPickerItems(categoryFilter === 'voice'
+  const visibleMaterials = useMemo(() => {
+    const categorized = categoryFilter === 'voice'
       ? materials.filter((material) => material.type === 'audio')
-      : filterMaterialPickerItemsByCategory(materials, categoryFilter === 'all' ? undefined : categoryFilter), sort),
-    [categoryFilter, materials, sort],
-  )
+      : filterMaterialPickerItemsByCategory(materials, categoryFilter === 'all' ? undefined : categoryFilter)
+    const listed = activeScope === 'trash'
+      ? categorized
+      : collapseInheritedDuplicates(categorized, projectId?.trim() || '', selectedIdSet)
+    return sortMaterialPickerItems(listed, sort)
+  }, [activeScope, categoryFilter, materials, projectId, selectedIdSet, sort])
   const visibleVoiceStats = useMemo(
     () => characterVoiceBindingStats(visibleMaterials),
     [visibleMaterials],
@@ -549,7 +554,7 @@ export function MaterialPickerDialog({
                           {selected ? <span className="absolute right-2 top-2 rounded-md bg-[var(--fos-brand-solid)] px-2 py-1 text-[10px] font-bold text-white">{multiple ? '已选择' : '已添加'}</span> : null}
                         </div>
                         <div className="truncate px-2.5 pt-2 text-[12px] font-bold text-white" title={material.title || ''}>{material.title || '未命名素材'}</div>
-                        <div className="flex items-center justify-between gap-2 px-2.5 pt-1 text-[10px] text-[var(--fos-text-4)]"><span className="min-w-0 truncate">{material.projectName}</span><span className="shrink-0 rounded bg-[var(--fos-fill-mid)] px-1.5 py-0.5">{MATERIAL_SOURCE_LABELS[material.source]}</span></div>
+                        <div className="flex items-center justify-between gap-2 px-2.5 pt-1 text-[10px] text-[var(--fos-text-4)]"><span className="min-w-0 truncate">{material.projectName}</span>{isInheritedMaterial(material) ? <span className="nori-origin-inherited shrink-0 rounded px-1.5 py-0.5" title={materialSourceLabel(material)}>继承</span> : <span className="shrink-0 rounded bg-[var(--fos-fill-mid)] px-1.5 py-0.5">{MATERIAL_SOURCE_LABELS[material.source]}</span>}</div>
                         <div className="flex items-center justify-between gap-2 px-2.5 pb-2 pt-1.5 text-[9px] text-[var(--fos-text-4)]"><span className="min-w-0 truncate">{material.ownerName || '未记录创建者'}</span><span className="shrink-0">{formatDate(material.createdAt)}</span></div>
                       </button>
                       {browsingTrash ? (

@@ -41,6 +41,24 @@ export function CanvasNodeVideo({
     return video ? attachMediaPlayer(src, video) : undefined
   }, [src])
 
+  useEffect(() => {
+    if (!playing) return
+    const video = videoRef.current
+    if (!video) return
+    let frame = 0
+    let lastTime = -1
+    const update = () => {
+      if (video.currentTime !== lastTime) {
+        lastTime = video.currentTime
+        setTime(video.currentTime)
+        rememberPlayback(src, video.currentTime, !video.paused && !video.ended)
+      }
+      if (!video.paused && !video.ended) frame = window.requestAnimationFrame(update)
+    }
+    update()
+    return () => window.cancelAnimationFrame(frame)
+  }, [playing, src])
+
   const toggle = () => {
     const video = videoRef.current
     if (!video) return

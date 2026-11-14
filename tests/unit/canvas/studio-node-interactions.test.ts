@@ -6,7 +6,7 @@ import { STUDIO_NODE_MIN_SIZE } from '@/features/canvas/studio-types'
 import type { CanvasNode } from '@/features/canvas/types'
 
 const editor = vi.hoisted(() => ({ readOnly: false, runNodeAction: vi.fn() }))
-vi.mock('@/features/canvas/CanvasEditorContext', () => ({ useCanvasEditor: () => editor }))
+vi.mock('@/features/canvas/CanvasEditorContext', () => ({ useCanvasEditor: () => editor, useCanvasMultiSelection: () => false }))
 vi.mock('@xyflow/react', async (importOriginal) => ({
   ...await importOriginal<typeof import('@xyflow/react')>(),
   NodeToolbar: ({ children, className }: { children: React.ReactNode; className: string }) => React.createElement('div', { className }, children),

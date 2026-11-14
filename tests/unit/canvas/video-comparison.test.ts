@@ -146,7 +146,7 @@ describe('video comparison generation', () => {
     expect(source.data.videoUrl).toBe('https://example.com/previous.mp4')
   })
 
-  it('persists the blank node and inputs before generation and removes only that draft on failure', async () => {
+  function comparisonFixture() {
     const source = createFlowNode('video', { x: 800, y: 240 })
     const reference = createFlowNode('image', { x: 0, y: 240 })
     const draft = createVideoComparisonDraft({
@@ -158,35 +158,111 @@ describe('video comparison generation', () => {
       createId: (() => { let index = 0; return () => `draft-${++index}` })(),
     })
     const canvasId = 'canvas-1'
-    const nodes = [reference, source, draft.node]
-    const edges = draft.edges
-    let revision = 4
-    const writes: CanvasOperation[][] = []
-    const loadServer = vi.fn(async () => undefined)
     const graph = {
-      canvas: { id: canvasId, projectId: 'project-1', title: '测试', revision, viewport: { x: 0, y: 0, zoom: 1 }, themeColor: null, visibility: 'workspace' as const, forkedFromId: null, createdAt: '', updatedAt: '' },
+      canvas: { id: canvasId, projectId: 'project-1', title: '测试', revision: 4, viewport: { x: 0, y: 0, zoom: 1 }, themeColor: null, visibility: 'workspace' as const, forkedFromId: null, createdAt: '', updatedAt: '' },
       nodes: [reference, source, draft.node].map((node) => flowNodeToCanvas(node, canvasId)),
       edges: draft.edges.map((edge) => flowEdgeToCanvas(edge, canvasId)),
     }
+    return {
+      source,
+      reference,
+      draft,
+      canvasId,
+      graph,
+      nodes: [reference, source, draft.node],
+      edges: draft.edges,
+    }
+  }
+
+  it('persists the blank node and inputs before generation and removes only that draft on failure', async () => {
+    const fixture = comparisonFixture()
+    const writes: CanvasOperation[][] = []
+    let revision = 4
+    const saveRevisioned = vi.fn(async (input: { changeSummary: string; ops: CanvasOperation[] }) => {
+      const validated = validateCanvasOperationsSaveInput({
+        expectedRevision: revision, clientId: 'test-client', changeSummary: input.changeSummary, ops: input.ops,
+      })
+      expect(validated.success).toBe(true)
+      writes.push(input.ops)
+      revision += 1
+      return { ...fixture.graph, canvas: { ...fixture.graph.canvas, revision } }
+    })
+    const loadServer = vi.fn(async () => ({ ...fixture.graph, canvas: { ...fixture.graph.canvas, revision } }))
     const persisted = await persistVideoComparisonDraft({
-      projectId: 'project-1', canvasId, sourceNodeId: source.id, draft, nodes, edges,
-      prepare: async () => ({ expectedRevision: revision, clientId: 'test-client' }),
-      saveOperations: async (_projectId, _canvasId, input) => {
-        const validated = validateCanvasOperationsSaveInput(input)
-        expect(validated.success).toBe(true)
-        writes.push(input.ops)
-        revision += 1
-        return { ...graph, canvas: { ...graph.canvas, revision } }
-      },
-      acceptRevision: async () => true,
+      projectId: 'project-1', canvasId: fixture.canvasId, sourceNodeId: fixture.source.id,
+      draft: fixture.draft, nodes: fixture.nodes, edges: fixture.edges,
+      saveRevisioned,
       loadServer,
     })
     expect(writes[0]?.map((operation) => operation.type)).toEqual(['node.upsert', 'edge.add'])
-    expect(persisted.nodes.find((node) => node.id === draft.node.id)?.data.__server?.status).toBe('IDLE')
-    expect(persisted.edges.filter((edge) => edge.target === draft.node.id)).toHaveLength(1)
+    expect(persisted.nodes.find((node) => node.id === fixture.draft.node.id)?.data.__server?.status).toBe('IDLE')
+    expect(persisted.edges.filter((edge) => edge.target === fixture.draft.node.id)).toHaveLength(1)
     await persisted.discard()
+    expect(saveRevisioned).toHaveBeenCalledTimes(2)
     expect(writes[1]?.map((operation) => operation.type)).toEqual(['edge.delete', 'node.delete'])
-    expect(writes[1]).not.toContainEqual({ type: 'node.delete', id: source.id })
-    expect(loadServer).toHaveBeenCalledOnce()
+    expect(writes[1]).not.toContainEqual({ type: 'node.delete', id: fixture.source.id })
+    expect(loadServer).toHaveBeenCalledTimes(2)
+  })
+
+  it('deletes the draft from the authoritative graph when the save result is missing it', async () => {
+    const fixture = comparisonFixture()
+    const writes: CanvasOperation[][] = []
+    const saveRevisioned = vi.fn(async (input: { changeSummary: string; ops: CanvasOperation[] }) => {
+      writes.push(input.ops)
+      return {
+        ...fixture.graph,
+        nodes: fixture.graph.nodes.filter((node) => node.id !== fixture.draft.node.id),
+        edges: fixture.graph.edges.filter((edge) => edge.targetNodeId !== fixture.draft.node.id),
+      }
+    })
+    const loadServer = vi.fn(async () => ({ ...fixture.graph, canvas: { ...fixture.graph.canvas, revision: 5 } }))
+    await expect(persistVideoComparisonDraft({
+      projectId: 'project-1', canvasId: fixture.canvasId, sourceNodeId: fixture.source.id,
+      draft: fixture.draft, nodes: fixture.nodes, edges: fixture.edges,
+      saveRevisioned,
+      loadServer,
+    })).rejects.toThrow('对照节点已变化')
+    expect(saveRevisioned).toHaveBeenCalledTimes(2)
+    expect(writes[1]?.map((operation) => operation.type)).toEqual(['edge.delete', 'node.delete'])
+  })
+
+  it('removes an ambiguously committed draft when the revisioned save reports an error', async () => {
+    const fixture = comparisonFixture()
+    const writes: CanvasOperation[][] = []
+    const failure = new Error('网络中断')
+    const saveRevisioned = vi.fn(async (input: { changeSummary: string; ops: CanvasOperation[] }) => {
+      if (saveRevisioned.mock.calls.length === 1) throw failure
+      writes.push(input.ops)
+      return { ...fixture.graph, canvas: { ...fixture.graph.canvas, revision: 6 } }
+    })
+    const loadServer = vi.fn(async () => ({ ...fixture.graph, canvas: { ...fixture.graph.canvas, revision: 5 } }))
+    await expect(persistVideoComparisonDraft({
+      projectId: 'project-1', canvasId: fixture.canvasId, sourceNodeId: fixture.source.id,
+      draft: fixture.draft, nodes: fixture.nodes, edges: fixture.edges,
+      saveRevisioned,
+      loadServer,
+    })).rejects.toThrow('网络中断')
+    expect(writes[0]?.map((operation) => operation.type)).toEqual(['edge.delete', 'node.delete'])
+  })
+
+  it('leaves a draft that a concurrent submission already bound to a task', async () => {
+    const fixture = comparisonFixture()
+    const saveRevisioned = vi.fn(async (input: { changeSummary: string; ops: CanvasOperation[] }) => ({
+      ...fixture.graph,
+      nodes: fixture.graph.nodes.map((node) => node.id === fixture.draft.node.id ? { ...node, taskId: 'bound-task' } : node),
+      edges: fixture.graph.edges.filter((edge) => edge.targetNodeId !== fixture.draft.node.id),
+    }))
+    const loadServer = vi.fn(async () => ({
+      ...fixture.graph,
+      canvas: { ...fixture.graph.canvas, revision: 5 },
+      nodes: fixture.graph.nodes.map((node) => node.id === fixture.draft.node.id ? { ...node, taskId: 'bound-task' } : node),
+    }))
+    await expect(persistVideoComparisonDraft({
+      projectId: 'project-1', canvasId: fixture.canvasId, sourceNodeId: fixture.source.id,
+      draft: fixture.draft, nodes: fixture.nodes, edges: fixture.edges,
+      saveRevisioned,
+      loadServer,
+    })).rejects.toThrow('对照节点已变化')
+    expect(saveRevisioned).toHaveBeenCalledOnce()
   })
 })

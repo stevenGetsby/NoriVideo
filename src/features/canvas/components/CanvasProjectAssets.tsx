@@ -30,6 +30,11 @@ import {
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
+import {
+  collapseInheritedDuplicates,
+  inheritedMaterialSource,
+  isUserManagedMaterial,
+} from '@/lib/frameos/material-inherit'
 import type { CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -73,6 +78,15 @@ function isCharacterImage(material: FrameosMaterialItem) {
 
 function hasCharacterVoice(material: FrameosMaterialItem) {
   return Boolean(material.voice || characterVoiceMaterialId(material.metadata))
+}
+
+function materialOriginText(material: FrameosMaterialItem) {
+  const inherited = inheritedMaterialSource(material.metadata)
+  if (inherited) return `继承自「${inherited.projectName}」`
+  return material.source === 'production' ? '作品制作'
+    : material.source === 'creative' ? '资产生成'
+      : material.source === 'toolbox' ? '工具箱生成'
+        : '本地上传'
 }
 
 export function CanvasProjectAssetContextMenu({
@@ -298,24 +312,25 @@ export function CanvasProjectAssets({
   }
 
   const startMaterialRename = (material: FrameosMaterialItem) => {
-    if (!canEditAssets || material.source !== 'upload') return
+    if (!canEditAssets || !isUserManagedMaterial(material)) return
     setContextMenu(null)
     setDeleteConfirmId(null)
     setRenamingId(material.id)
     setRenameValue(material.title || '未命名素材')
   }
 
+  const listedMaterials = useMemo(() => collapseInheritedDuplicates(materials, projectId), [materials, projectId])
   const missingVoiceCount = useMemo(() => {
     const keyword = query.trim().toLowerCase()
-    return materials.filter((material) => (
+    return listedMaterials.filter((material) => (
       isCharacterImage(material)
       && !hasCharacterVoice(material)
       && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
     )).length
-  }, [materials, query])
+  }, [listedMaterials, query])
   const visible = useMemo(() => {
     const keyword = query.trim().toLowerCase()
-    return materials.filter((material) => (
+    return listedMaterials.filter((material) => (
       (filter === 'all' || material.type === filter)
       && (categoryFilter === 'all'
         || (categoryFilter === 'voice'
@@ -325,7 +340,7 @@ export function CanvasProjectAssets({
             : frameosAssetCategoryFromMetadata(material.metadata) === categoryFilter))
       && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
     ))
-  }, [categoryFilter, filter, materials, query])
+  }, [categoryFilter, filter, listedMaterials, query])
   const selectedVisibleIds = useMemo(() => visible.map((material) => material.id).filter((id) => selectedIds.includes(id)), [selectedIds, visible])
   const selectedVisibleIdSet = useMemo(() => new Set(selectedVisibleIds), [selectedVisibleIds])
   const selectedMaterials = useMemo(() => visible.filter((item) => selectedVisibleIdSet.has(item.id)), [selectedVisibleIdSet, visible])
@@ -420,7 +435,7 @@ export function CanvasProjectAssets({
 
   return (
     <aside className="nori-canvas-project-assets" onPointerDown={(event) => event.stopPropagation()}>
-      <header><span><strong>{section === 'assets' ? '作品资产' : '工作流模板'}</strong><small>{section === 'assets' ? `${materials.length} 项可用素材` : `${templates.length} 个可复用工作流`}</small></span><button type="button" title="关闭" onClick={onClose}><X /></button></header>
+      <header><span><strong>{section === 'assets' ? '作品资产' : '工作流模板'}</strong><small>{section === 'assets' ? `${listedMaterials.length} 项可用素材` : `${templates.length} 个可复用工作流`}</small></span><button type="button" title="关闭" onClick={onClose}><X /></button></header>
       <div className="nori-canvas-project-assets-sections"><button type="button" className={section === 'assets' ? 'is-active' : ''} onClick={() => { setContextMenu(null); setDeleteConfirmId(null); setSection('assets'); setQuery(''); void load() }}><Boxes />作品资产</button><button type="button" className={section === 'workflows' ? 'is-active' : ''} onClick={() => { setContextMenu(null); setDeleteConfirmId(null); setSection('workflows'); setQuery('') }}><GitBranch />工作流</button></div>
       <div className="nori-canvas-project-assets-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={section === 'assets' ? '搜索资产…' : '搜索工作流…'} /><button type="button" title="刷新" aria-label="刷新资产列表" disabled={loading} onClick={() => void (section === 'assets' ? load(true) : loadTemplates())}><RefreshCw className={loading ? 'animate-spin' : ''} /></button></div>
       {section === 'assets' ? <div className="nori-canvas-project-assets-tabs">{FILTERS.map((item) => <button type="button" key={item.value} className={filter === item.value ? 'is-active' : ''} onClick={() => setFilter(item.value)}>{item.label}</button>)}</div> : null}
@@ -461,7 +476,7 @@ export function CanvasProjectAssets({
               }}
               onDoubleClick={() => onInsert(material)}
               onContextMenu={(event) => {
-                if (material.source === 'upload' && canEditAssets) openContextMenu(event, 'material', material.id)
+                if (isUserManagedMaterial(material) && canEditAssets) openContextMenu(event, 'material', material.id)
               }}
             >
               <div className="nori-canvas-project-assets-thumb">
@@ -476,8 +491,8 @@ export function CanvasProjectAssets({
                 aria-pressed={selectedIds.includes(material.id)}
                 onClick={(event) => { event.stopPropagation(); toggleSelected(material.id) }}
               ><Check /></button>
-              <div>{canEditAssets && renamingId === material.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void renameMaterial(material.id)} onKeyDown={(event) => { if (event.key === 'Enter') void renameMaterial(material.id); if (event.key === 'Escape') setRenamingId(null) }} onDoubleClick={(event) => event.stopPropagation()} /> : <strong>{material.title || '未命名素材'}</strong>}<small>{material.projectName} · {material.source === 'production' ? '作品制作' : material.source === 'creative' ? '资产生成' : material.source === 'toolbox' ? '工具箱生成' : '本地上传'}</small>{canEditAssets ? <select className="nori-canvas-project-assets-category" aria-label={`${material.title || '未命名素材'}资产归类`} value={frameosAssetCategoryFromMetadata(material.metadata)} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { event.stopPropagation(); void updateMaterialCategory(material, event.target.value as FrameosAssetCategory) }}>{FRAMEOS_ASSET_CATEGORIES.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select> : <small>{FRAMEOS_ASSET_CATEGORY_LABELS[frameosAssetCategoryFromMetadata(material.metadata)]}</small>}</div>
-              {material.source === 'upload' && canEditAssets ? <div className="nori-canvas-workflow-actions"><button type="button" title="重命名" onClick={(event) => { event.stopPropagation(); startMaterialRename(material) }}><Pencil /></button><button type="button" className={deleteConfirmId === material.id ? 'is-confirm' : ''} title={deleteConfirmId === material.id ? '再次点击确认删除' : '删除本地上传'} onClick={(event) => { event.stopPropagation(); void deleteMaterial(material.id) }}>{deleteConfirmId === material.id ? <span>确认</span> : <Trash2 />}</button><button type="button" onClick={(event) => { event.stopPropagation(); onInsert(material) }}>添加</button></div> : <button type="button" onClick={() => onInsert(material)}>添加</button>}
+              <div>{canEditAssets && renamingId === material.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void renameMaterial(material.id)} onKeyDown={(event) => { if (event.key === 'Enter') void renameMaterial(material.id); if (event.key === 'Escape') setRenamingId(null) }} onDoubleClick={(event) => event.stopPropagation()} /> : <strong>{material.title || '未命名素材'}</strong>}<small>{material.projectName} · {materialOriginText(material)}</small>{canEditAssets ? <select className="nori-canvas-project-assets-category" aria-label={`${material.title || '未命名素材'}资产归类`} value={frameosAssetCategoryFromMetadata(material.metadata)} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { event.stopPropagation(); void updateMaterialCategory(material, event.target.value as FrameosAssetCategory) }}>{FRAMEOS_ASSET_CATEGORIES.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select> : <small>{FRAMEOS_ASSET_CATEGORY_LABELS[frameosAssetCategoryFromMetadata(material.metadata)]}</small>}</div>
+              {isUserManagedMaterial(material) && canEditAssets ? <div className="nori-canvas-workflow-actions"><button type="button" title="重命名" onClick={(event) => { event.stopPropagation(); startMaterialRename(material) }}><Pencil /></button><button type="button" className={deleteConfirmId === material.id ? 'is-confirm' : ''} title={deleteConfirmId === material.id ? '再次点击确认删除' : material.source === 'upload' ? '删除本地上传' : '删除继承资产'} onClick={(event) => { event.stopPropagation(); void deleteMaterial(material.id) }}>{deleteConfirmId === material.id ? <span>确认</span> : <Trash2 />}</button><button type="button" onClick={(event) => { event.stopPropagation(); onInsert(material) }}>添加</button></div> : <button type="button" onClick={() => onInsert(material)}>添加</button>}
             </article>
           )
         }) : null}

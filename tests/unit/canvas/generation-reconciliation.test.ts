@@ -57,7 +57,95 @@ describe('canvas generation reconciliation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([])
+    prismaMock.task.findMany.mockImplementation(async ({ where }: {
+      where: { targetType?: string }
+    }) => where.targetType === 'FrameosToolboxAsset' ? [{
+      id: 'task-1',
+      targetId: 'asset-1',
+      status: 'processing',
+      progress: 12,
+      errorMessage: null,
+      externalId: null,
+      billingInfo: null,
+    }] : [])
+  })
+
+  it('recovers a completed media task when the running node lost its generation asset binding', async () => {
+    prismaMock.task.findMany.mockImplementation(async ({ where }: {
+      where: { id?: { in: string[] }; targetType?: string }
+    }) => {
+      if (where.targetType !== 'FrameosToolboxAsset' || !where.id?.in?.includes('task-video')) return []
+      return [{
+        id: 'task-video',
+        targetId: 'asset-video',
+        status: 'completed',
+        progress: 100,
+        errorMessage: null,
+        billingInfo: null,
+      }]
+    })
+    prismaMock.frameosToolboxAsset.findMany.mockResolvedValue([{
+      id: 'asset-video',
+      type: 'video',
+      status: 'ready',
+      resultUrl: 'video/final.mp4',
+      materialId: 'material-video',
+      errorMessage: null,
+    }])
+
+    const [node] = await reconcileCanvasGenerationNodes({
+      projectId: 'project-1',
+      canvasId: 'canvas-1',
+      nodes: [runningNode({
+        taskId: 'task-video',
+        data: {
+          mediaType: 'video',
+          progress: 45,
+          generation: { modelKey: 'nori::norivideo2.5' },
+          history: [],
+        },
+      })],
+    })
+
+    expect(node).toMatchObject({
+      status: 'SUCCEEDED',
+      taskId: 'task-video',
+      data: {
+        generation: { assetId: 'asset-video', taskId: 'task-video' },
+        contentUrl: 'video/final.mp4',
+        videoUrl: 'video/final.mp4',
+        progress: 100,
+      },
+    })
+  })
+
+  it('does not recover a media task from another project or replace a newer node binding', async () => {
     prismaMock.task.findMany.mockResolvedValue([])
+    const original = runningNode({
+      taskId: 'task-old',
+      data: { mediaType: 'video', progress: 45, generation: { modelKey: 'nori::norivideo2.5' } },
+    })
+
+    const [node] = await reconcileCanvasGenerationNodes({
+      projectId: 'project-1',
+      canvasId: 'canvas-1',
+      nodes: [original],
+    })
+
+    expect(node).toEqual(original)
+    expect(prismaMock.canvasNode.updateMany).not.toHaveBeenCalled()
+    expect(prismaMock.task.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ id: { in: ['task-old'] }, projectId: 'project-1' }),
+    }))
+    const assetWithNewerTask = runningNode({
+      taskId: 'task-new',
+      data: { generation: { assetId: 'asset-new', taskId: 'task-new' } },
+    })
+    const [unchanged] = await reconcileCanvasGenerationNodes({
+      projectId: 'project-1', canvasId: 'canvas-1', nodes: [assetWithNewerTask],
+    })
+    expect(unchanged).toEqual(assetWithNewerTask)
+    expect(prismaMock.task.findMany).toHaveBeenCalledTimes(2)
   })
 
   it('persists and returns a completed toolbox asset as a succeeded canvas node', async () => {
@@ -69,7 +157,7 @@ describe('canvas generation reconciliation', () => {
       materialId: 'material-1',
       errorMessage: null,
     }])
-    prismaMock.task.findMany.mockResolvedValueOnce([{
+    prismaMock.task.findMany.mockResolvedValue([{
       id: 'task-completed',
       targetId: 'asset-1',
       status: 'completed',
@@ -172,7 +260,7 @@ describe('canvas generation reconciliation', () => {
       materialId: null,
       errorMessage: null,
     }])
-    prismaMock.task.findMany.mockResolvedValueOnce([{
+    prismaMock.task.findMany.mockResolvedValue([{
       id: 'task-failed',
       targetId: 'asset-1',
       status: 'failed',
@@ -238,7 +326,7 @@ describe('canvas generation reconciliation', () => {
       materialId: null,
       errorMessage: null,
     }])
-    prismaMock.task.findMany.mockResolvedValueOnce([{
+    prismaMock.task.findMany.mockResolvedValue([{
       id: 'task-active',
       targetId: 'asset-1',
       status: 'processing',
@@ -259,7 +347,7 @@ describe('canvas generation reconciliation', () => {
   })
 
   it('turns a completed task without a persisted media result into an explicit failure', async () => {
-    prismaMock.task.findMany.mockResolvedValueOnce([{
+    prismaMock.task.findMany.mockResolvedValue([{
       id: 'task-completed',
       targetId: 'asset-1',
       status: 'completed',

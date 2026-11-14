@@ -52,6 +52,7 @@ async function open(view, viewport, child = false, initialState = {}) {
     failVoiceBinding: false,
     voiceUploads: [], failStructuredVoice: true,
     failUploadName: null,
+    replacements: [], failReplace: false, replaceReferenced: false,
     projectDetailFailures: 0,
     ...initialState,
   }
@@ -84,12 +85,18 @@ async function open(view, viewport, child = false, initialState = {}) {
       const source = url.searchParams.get('source')
       let materials = state.materials.filter((item) => (scope === 'personal' ? item.projectId === 'personal' : scope === 'project' ? !item.personal && (all || workProjects.includes(item.projectId) || (!work && item.projectId === project)) : source ? item.projectId === project : (all || workProjects.includes(item.projectId) || (!work && item.projectId === project)))
         && (!creator || item.ownerName === creator) && (!source || item.source === source))
+      materials = materials.filter((item) => !item.metadata?.supersededByMaterialId)
       materials = materials.map((item) => {
         const voice = state.materials.find((candidate) => candidate.id === item.metadata?.voiceMaterialId)
         return { ...item, voice: voice ? { materialId: voice.id, title: voice.title, url: voice.url } : null }
       })
       if (url.searchParams.get('state') === 'deleted') materials = []
-      payload = { materials, projects: [{ id: 'project-1', name: '当前作品' }, { id: 'project-2', name: '其他作品' }],
+      const limit = Number(url.searchParams.get('limit') || 200)
+      const cursor = url.searchParams.get('cursor')
+      const cursorIndex = cursor ? materials.findIndex((item) => item.id === cursor) : -1
+      const remaining = cursorIndex >= 0 ? materials.slice(cursorIndex + 1) : materials
+      const pageMaterials = remaining.slice(0, limit)
+      payload = { materials: pageMaterials, pagination: { nextCursor: pageMaterials.length === limit && remaining.length > limit ? pageMaterials.at(-1).id : null }, projects: [{ id: 'project-1', name: '当前作品' }, { id: 'project-2', name: '其他作品' }],
         creators: [{ id: 'creator-a', name: '测试资产师' }, { id: 'creator-b', name: '其他创建人' }],
         projects: [{ id: 'project-1', name: '当前作品', workId: 'work-1' }, { id: 'project-2', name: '其他作品', workId: 'work-2' }],
         capabilities: { trash: { supported: true, count: 0 } } }
@@ -129,6 +136,30 @@ async function open(view, viewport, child = false, initialState = {}) {
         } else {
           state.materials = state.materials.filter((item) => !ids.includes(item.id))
           payload = { success: true, materialIds: ids, deletedCount: ids.length, skippedCount: 0, results: ids.map((materialId) => ({ materialId, deleted: true, reason: null })) }
+        }
+      }
+    } else if (/^\/api\/frameos\/materials\/[^/]+\/replace-image$/.test(url.pathname) && req.method() === 'POST') {
+      const id = decodeURIComponent(url.pathname.split('/').at(-2))
+      const form = await new Response(req.postDataBuffer(), { headers: { 'Content-Type': req.headers()['content-type'] } }).formData()
+      const file = form.get('file')
+      state.replacements.push({ id, name: file.name, type: file.type })
+      await new Promise((resolve) => setTimeout(resolve, 60))
+      const previous = state.materials.find((item) => item.id === id)
+      if (state.failReplace) { state.failReplace = false; status = 409; payload = { message: '素材已发生变化，请刷新后重试。' } }
+      else if (!previous) { status = 404; payload = { message: '素材不存在或无权访问。' } }
+      else {
+        const created = material(`replacement-${state.replacements.length}`, previous.projectId, previous.title, {
+          metadata: { ...previous.metadata, replacesMaterialId: id, originalName: file.name },
+          createdAt: '2026-11-12T00:00:00Z', updatedAt: '2026-11-12T00:00:00Z',
+        })
+        const superseded = state.replaceReferenced
+        state.materials = [created, ...state.materials
+          .filter((item) => superseded || item.id !== id)
+          .map((item) => superseded && item.id === id ? { ...item, metadata: { ...item.metadata, supersededByMaterialId: created.id } } : item)]
+        payload = {
+          success: true, material: created, previousMaterialId: id, retired: superseded ? 'superseded' : 'trashed',
+          referenceCounts: { currentCanvases: superseded ? 2 : 0, workflowTemplates: 0, historySnapshots: 0 },
+          voiceKept: Boolean(previous.metadata?.voiceMaterialId), voiceDropped: false,
         }
       }
     } else if (url.pathname.startsWith('/api/frameos/materials/') && req.method() === 'DELETE') {
@@ -201,6 +232,10 @@ async function bounded(locator) {
     return ancestors
   }).catch(() => 'unavailable')
   assert.ok(box && box.x >= -1 && box.y >= -1 && box.x + box.width <= viewport.width + 1 && box.y + box.height <= viewport.height + 1, `Out of viewport: ${JSON.stringify(box)}; viewport: ${JSON.stringify(viewport)}; element: ${JSON.stringify(element)}`)
+}
+async function chooseFilterOption(page, name, optionName) {
+  await page.getByRole('combobox', { name, exact: true }).click()
+  await page.getByRole('option', { name: optionName, exact: true }).click()
 }
 async function waitForRead(page, predicate, timeout = 10_000) {
   const deadline = Date.now() + timeout
@@ -300,20 +335,31 @@ try {
 
   const library = await open('materials', { width: 768, height: 480 })
   await library.getByRole('button', { name: '编辑素材 自己的角色一' }).waitFor()
-  assert.equal(library.state.reads[0].workId, 'work-1', JSON.stringify(library.state.reads))
-  assert.equal(library.state.reads[0].projectId ?? null, null, JSON.stringify(library.state.reads))
+  assert.equal(library.state.reads[0].workId ?? null, null, JSON.stringify(library.state.reads))
+  assert.equal(library.state.reads[0].projectId, 'project-1', JSON.stringify(library.state.reads))
   assert.equal(await library.getByText('测试项目', { exact: true }).count() > 0, true)
   assert.equal(await library.getByText('其他项目', { exact: true }).count() > 0, true)
   assert.equal(await library.getByRole('button', { name: /同项目第二作品/ }).count(), 1)
+  assert.equal(await library.getByRole('button', { name: '当前作品', exact: true }).getAttribute('aria-pressed'), 'true')
+  assert.equal(await library.getByRole('button', { name: '其他作品', exact: true }).getAttribute('aria-pressed'), 'false')
+  assert.equal(await library.getByRole('button', { name: '同项目第二作品', exact: true }).getAttribute('aria-pressed'), 'false')
   await library.getByRole('button', { name: '其他作品', exact: true }).click()
   await library.getByText('别的作品素材', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 }).catch(async (error) => {
     throw new Error(`${error.message}\nLibrary: ${await library.locator('body').innerText()}\nReads: ${JSON.stringify(library.state.reads)}`)
   })
   assert.equal(await library.getByText('自己的角色一', { exact: true }).count(), 0)
-  assert.equal(library.state.reads.at(-1).workId, 'work-2')
+  assert.equal(library.state.reads.at(-1).workId ?? null, null, JSON.stringify(library.state.reads))
+  assert.equal(library.state.reads.at(-1).projectId, 'project-2')
+  await library.getByRole('button', { name: '同项目第二作品', exact: true }).click()
+  await library.getByText('同项目共享素材', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
+  assert.equal(await library.getByText('自己的角色一', { exact: true }).count(), 0)
+  assert.equal(library.state.reads.at(-1).projectId, 'project-shared')
+  assert.equal(await library.getByRole('button', { name: '同项目第二作品', exact: true }).getAttribute('aria-pressed'), 'true')
+  assert.equal(await library.getByRole('button', { name: '当前作品', exact: true }).getAttribute('aria-pressed'), 'false')
   await library.getByRole('button', { name: /当前作品/ }).click()
   await library.getByRole('button', { name: '编辑素材 自己的角色一' }).waitFor()
   assert.equal(await library.getByText('账号角色', { exact: true }).count(), 0)
+  assert.equal(await library.getByText('同项目共享素材', { exact: true }).count(), 0)
   await library.locator('.fml-voice-badge').first().waitFor()
   assert.ok(await library.getByText('缺音色', { exact: true }).count() > 0)
   await library.getByRole('combobox', { name: '创建人', exact: true }).selectOption('其他创建人')
@@ -323,6 +369,17 @@ try {
   await library.getByText('自己的角色一', { exact: true }).click()
   const preview = library.getByTestId('material-large-preview')
   await bounded(preview)
+  const characterVoice = preview.getByTestId('material-character-voice')
+  await characterVoice.waitFor()
+  assert.equal(await characterVoice.getByText('尚未绑定音色', { exact: false }).count() > 0, true, 'an unbound character card says it has no voice yet')
+  await characterVoice.getByRole('button', { name: '设置音色', exact: true }).click()
+  const previewVoiceDialog = library.getByRole('dialog', { name: '设置角色音色 自己的角色一', exact: true })
+  await previewVoiceDialog.waitFor()
+  await bounded(previewVoiceDialog)
+  await library.keyboard.press('Escape')
+  await previewVoiceDialog.waitFor({ state: 'hidden' })
+  assert.equal(await preview.count(), 1, 'Escape closes only the voice dialog, not the preview behind it')
+  cases.push('material-preview-character-voice-entry-opens-voice-dialog-and-escape-stays-layered')
   await preview.getByRole('button', { name: '修改名称', exact: true }).click()
   const rename = library.getByRole('dialog', { name: '编辑素材', exact: true })
   await bounded(rename)
@@ -339,9 +396,9 @@ try {
   await preview.getByRole('button', { name: '关闭大图预览', exact: true }).click()
   await preview.waitFor({ state: 'hidden' })
   await library.getByRole('button', { name: '全选上传素材', exact: true }).click()
-  assert.equal(await library.getByRole('button', { name: '取消选择 同项目共享素材', exact: true }).count(), 1, 'Project members may delete shared upload assets')
+  assert.equal(await library.getByRole('button', { name: '取消选择 自己的角色二', exact: true }).count(), 1, 'Only the selected work may be actionable')
   library.state.denyDelete = true
-  await library.getByRole('button', { name: '批量删除 (3)', exact: true }).click()
+  await library.getByRole('button', { name: '批量删除 (2)', exact: true }).click()
   const deletion = library.getByRole('dialog', { name: '批量删除上传素材', exact: true })
   await bounded(deletion)
   await deletion.getByRole('button', { name: '确认批量删除', exact: true }).click()
@@ -350,10 +407,11 @@ try {
   await deletion.waitFor({ state: 'visible' })
   await deletion.getByRole('button', { name: '取消', exact: true }).click()
   await deletion.waitFor({ state: 'hidden' })
-  await library.getByRole('button', { name: '批量删除 (3)', exact: true }).click()
+  await library.getByRole('button', { name: '批量删除 (2)', exact: true }).click()
   await library.getByRole('dialog', { name: '批量删除上传素材', exact: true }).getByRole('button', { name: '确认批量删除', exact: true }).click()
   await deletion.waitFor({ state: 'hidden' })
-  assert.equal(library.state.materials.filter((item) => item.projectId === 'project-1' || item.projectId === 'project-shared').length, 0)
+  assert.equal(library.state.materials.filter((item) => item.projectId === 'project-1').length, 0)
+  assert.equal(library.state.materials.filter((item) => item.projectId === 'project-shared').length, 1, 'Other works in the same project must stay untouched')
   assert.equal(library.state.materials.filter((item) => item.projectId !== 'project-1' && item.projectId !== 'project-shared').length, 2)
   await library.close()
   cases.push('creator-select-preview-rename-failure-retry-and-atomic-delete')
@@ -367,6 +425,21 @@ try {
   assert.equal(allMaterials.state.materials.length, 0)
   await allMaterials.close()
   cases.push('account-wide-library-keeps-upload-deletion-available-without-a-selected-work')
+
+  const paged = await open('materials-all', { width: 768, height: 700 }, false, {
+    materials: Array.from({ length: 65 }, (_, index) => material(`page-${index}`, 'global', `分页素材${index}`)),
+  })
+  await paged.getByRole('button', { name: '加载更多', exact: true }).waitFor()
+  assert.equal(await paged.locator('.fml-grid > article').count(), 60, 'The first page must render only one page of materials')
+  assert.equal(paged.state.reads[0].limit, '60', JSON.stringify(paged.state.reads))
+  assert.equal(paged.state.reads[0].cursor ?? null, null, JSON.stringify(paged.state.reads))
+  await paged.getByRole('button', { name: '加载更多', exact: true }).click()
+  await paged.getByText('分页素材64', { exact: true }).waitFor({ state: 'visible', timeout: 10_000 })
+  assert.equal(await paged.locator('.fml-grid > article').count(), 65)
+  assert.equal(paged.state.reads.at(-1).cursor, 'page-59', JSON.stringify(paged.state.reads))
+  assert.equal(await paged.getByRole('button', { name: '加载更多', exact: true }).count(), 0)
+  await paged.close()
+  cases.push('asset-library-loads-one-cursor-page-and-appends-on-demand')
 
   for (const viewport of [{ width: 768, height: 480 }, { width: 390, height: 700 }]) {
     const assets = await open('assets', viewport)
@@ -424,6 +497,69 @@ try {
   await voiceBadge.close()
   cases.push('character-voice-badges-and-missing-voice-filter')
 
+  const replace = await open('assets', { width: 1280, height: 720 })
+  replace.state.materials.push(material('replace-voice', 'global', '账号角色音色', { type: 'audio', metadata: { assetCategory: 'voice' } }))
+  replace.state.materials = replace.state.materials.map((item) => item.id === 'account'
+    ? { ...item, metadata: { ...item.metadata, voiceMaterialId: 'replace-voice' } }
+    : item)
+  await replace.reload()
+  await replace.getByText('有音色', { exact: true }).first().waitFor()
+  const replaceCard = () => replace.locator('.fal-asset-card').filter({ hasText: '账号角色' })
+  const replaceButton = replace.getByRole('button', { name: '替换图片 账号角色', exact: true })
+  await replaceButton.waitFor()
+  const replaceBox = await replaceButton.boundingBox()
+  const replaceRenameBox = await replace.getByRole('button', { name: '重命名资产 账号角色' }).boundingBox()
+  const replaceCardBox = await replaceCard().boundingBox()
+  assert.ok(replaceBox && replaceRenameBox && replaceCardBox
+    && replaceBox.x >= replaceCardBox.x && replaceBox.y >= replaceCardBox.y
+    && replaceBox.y + replaceBox.height <= replaceCardBox.y + replaceCardBox.height
+    && replaceBox.x + replaceBox.width <= replaceRenameBox.x + 1,
+  `Replace button must stay inside its card and clear of the rename control: ${JSON.stringify({ replaceBox, replaceRenameBox, replaceCardBox })}`)
+  const chooseReplacement = async (page, trigger, file) => {
+    const [chooser] = await Promise.all([page.waitForEvent('filechooser'), trigger.click()])
+    await chooser.setFiles(file)
+  }
+  await chooseReplacement(replace, replaceButton, { name: '新形象.png', mimeType: 'image/png', buffer: png })
+  const replaced = replace.getByRole('status').filter({ hasText: '已替换「账号角色」的图片' })
+  await replaced.waitFor()
+  const replacedText = await replaced.innerText()
+  assert.ok(replacedText.includes('角色音色已保持绑定，无需重新上传音频') && replacedText.includes('回收站'), replacedText)
+  assert.deepEqual(replace.state.replacements, [{ id: 'account', name: '新形象.png', type: 'image/png' }])
+  assert.deepEqual(replace.state.writes.map((write) => `${write.method} ${write.path}`), ['POST /api/frameos/materials/account/replace-image'])
+  assert.deepEqual(replace.state.uploads, [], 'Replacing a picture must not re-upload or touch the role voice audio')
+  await replace.getByText('有音色', { exact: true }).first().waitFor()
+  assert.equal(await replaceCard().count(), 1)
+  assert.equal(await replace.getByText('缺音色', { exact: true }).count(), 0)
+  await replace.screenshot({ path: path.join(output, 'replace-image-success.png') })
+
+  replace.state.failReplace = true
+  await chooseReplacement(replace, replaceButton, { name: '失败形象.png', mimeType: 'image/png', buffer: png })
+  await replace.getByRole('alert').filter({ hasText: '素材已发生变化，请刷新后重试。' }).waitFor()
+  assert.equal(await replaceCard().count(), 1, 'A failed replacement must leave the library unchanged')
+  assert.equal(replace.state.replacements.length, 2)
+
+  await chooseReplacement(replace, replaceButton, { name: '说明.txt', mimeType: 'text/plain', buffer: Buffer.from('not an image') })
+  await replace.getByRole('alert').filter({ hasText: '请选择图片文件' }).waitFor()
+  assert.equal(replace.state.replacements.length, 2, 'A non-image file must be rejected before any request is sent')
+
+  replace.state.replaceReferenced = true
+  await chooseReplacement(replace, replaceButton, { name: '被引用形象.png', mimeType: 'image/png', buffer: png })
+  await replace.getByRole('status').filter({ hasText: '仍有 2 个画布或工作流模板在使用原图片' }).waitFor()
+  assert.equal(await replaceCard().count(), 1, 'A retired original that canvases still use must stay hidden from the library')
+  assert.equal(replace.state.materials.filter((item) => item.metadata?.supersededByMaterialId).length, 1)
+  await replace.screenshot({ path: path.join(output, 'replace-image-referenced.png') })
+
+  replace.state.replaceReferenced = false
+  await replaceCard().getByRole('button').first().click()
+  const lightboxReplace = replace.getByRole('button', { name: '在预览中替换图片 账号角色', exact: true })
+  await lightboxReplace.waitFor()
+  await chooseReplacement(replace, lightboxReplace, { name: '预览内替换.png', mimeType: 'image/png', buffer: png })
+  await replace.getByRole('status').filter({ hasText: '已替换「账号角色」的图片' }).waitFor()
+  await lightboxReplace.waitFor({ state: 'hidden' })
+  assert.deepEqual(replace.state.replacements.map((item) => item.name), ['新形象.png', '失败形象.png', '被引用形象.png', '预览内替换.png'])
+  await replace.close()
+  cases.push('replacing-a-library-character-picture-keeps-voice-without-reuploading-audio')
+
   const child = await open('assets', { width: 768, height: 480 }, true)
   await child.getByRole('checkbox', { name: '选择资产 账号角色' }).waitFor()
   assert.equal(await child.locator('.fal-asset-card').count() > 0, true)
@@ -431,6 +567,7 @@ try {
   assert.equal(await child.getByRole('button', { name: '批量删除', exact: false }).count() > 0, true)
   assert.equal(await child.getByRole('checkbox').count() > 0, true)
   assert.equal(await child.getByRole('button', { name: '重命名资产', exact: false }).count() > 0, true)
+  assert.equal(await child.getByRole('button', { name: /^替换图片/ }).count() > 0, true)
   await child.close()
   cases.push('active-subaccount-retains-shared-asset-editing-without-functional-role-templates')
 
@@ -513,9 +650,11 @@ try {
     const functions = toolbox.getByRole('combobox', { name: '工具箱功能', exact: true })
     await functions.waitFor()
     await bounded(functions)
-    for (const value of ['video', 'material', 'image']) {
-      await functions.selectOption(value)
-      assert.equal(await functions.inputValue(), value)
+    for (const label of ['视频生成', '资产库', '图片生成']) {
+      await functions.click()
+      await bounded(toolbox.locator('.fa-select-popover'))
+      await toolbox.getByRole('option', { name: label, exact: true }).click()
+      assert.equal(await functions.innerText(), label)
     }
     await toolbox.getByRole('button', { name: '选择人物', exact: true }).scrollIntoViewIfNeeded()
     await bounded(toolbox.getByRole('button', { name: '选择人物', exact: true }))
@@ -568,7 +707,7 @@ try {
   await confirm.click()
   await referenceDialog.waitFor({ state: 'hidden' })
   assert.equal(await interactions.locator('aside').getByText('1. 自己的角色一', { exact: true }).count(), 1)
-  await interactions.getByRole('combobox', { name: '工具箱功能' }).selectOption('video')
+  await chooseFilterOption(interactions, '工具箱功能', '视频生成')
   await interactions.getByRole('combobox', { name: '视频生成模式' }).selectOption('reference')
   await interactions.getByRole('button', { name: '选择人物', exact: true }).click()
   const videoRefs = interactions.getByRole('dialog', { name: '选择角色资产', exact: true })
@@ -641,7 +780,7 @@ try {
   })
   await directories.getByRole('button', { name: '设置本地下载目录', exact: true }).click()
   await directories.getByRole('button', { name: '更改本地下载目录', exact: true }).waitFor()
-  await directories.getByRole('combobox', { name: '工具箱功能' }).selectOption('video')
+  await chooseFilterOption(directories, '工具箱功能', '视频生成')
   directories.state.toolboxHistory = [{ id: 'download-video', type: 'video', status: 'ready', url: imageUrl, materialId: 'video-material', params: { title: '命名下载视频' } }]
   await directories.getByRole('button', { name: '刷新', exact: true }).click()
   await directories.getByRole('button', { name: '按项目规则下载视频', exact: true }).click()
@@ -658,9 +797,9 @@ try {
   assert.equal(savedNames.length, 2)
   await directories.reload()
   await directories.getByRole('button', { name: '更改本地下载目录', exact: true }).waitFor()
-  await directories.getByRole('combobox', { name: '归属作品' }).selectOption('project-2')
+  await chooseFilterOption(directories, '归属作品', '其他作品')
   await directories.getByRole('button', { name: '设置本地下载目录', exact: true }).waitFor()
-  await directories.getByRole('combobox', { name: '归属作品' }).selectOption('project-1')
+  await chooseFilterOption(directories, '归属作品', '当前作品')
   await directories.getByRole('button', { name: '更改本地下载目录', exact: true }).waitFor()
   await directories.evaluate(() => window.changeFixtureAccount({ id: 'child-1', name: '子账号', role: 'storyboard', permissions: ['canvasWrite', 'toolboxUse'], workspaceOwnerId: 'user-1' }))
   await directories.getByRole('button', { name: '设置本地下载目录', exact: true }).waitFor()
@@ -725,7 +864,7 @@ try {
   const moveWrite = personalLibrary.state.writes.find((write) => write.method === 'PATCH' && write.body.projectId === 'project-1')
   assert.deepEqual(moveWrite.body, { title: '共享角色', projectId: 'project-1' })
   assert.equal(personalLibrary.state.materials.find((item) => item.id === 'personal-a').personalOwnerId, null)
-  await personalLibrary.getByRole('button', { name: '当前作品 等项目资产', exact: true }).click()
+  await personalLibrary.getByRole('button', { name: '当前作品', exact: true }).click()
   await personalLibrary.getByText('共享角色', { exact: true }).waitFor()
   await personalLibrary.getByRole('button', { name: '全选上传素材', exact: true }).click()
   personalLibrary.state.partialDelete = true

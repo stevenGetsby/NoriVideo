@@ -3,6 +3,7 @@
 import { SessionProvider } from "next-auth/react"
 import { ToastProvider } from "@/contexts/ToastContext"
 import { QueryProvider } from "@/components/providers/QueryProvider"
+import "@/lib/web-crypto-compat"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (

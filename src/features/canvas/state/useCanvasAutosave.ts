@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { canvasApi, CanvasRevisionConflictError } from '../api/client'
-import type { CanvasDocumentInput, CanvasGraphResponse } from '../types'
+import type { CanvasDocumentInput, CanvasGraphResponse, CanvasOperation } from '../types'
 import type { CanvasSaveState } from '../components/CanvasChrome'
 import {
   createCanvasOfflineDraft,
@@ -18,6 +18,7 @@ import {
   createCanvasOfflineDraftBuffer,
 } from './canvas-autosave-runtime'
 import {
+  applyCanvasDocumentDelta,
   buildCanvasOperations,
   canvasGraphToDocument,
 } from './canvas-operations'
@@ -46,6 +47,23 @@ export function canvasTabSaveDelay(baseDelay: number, tabId: string) {
   let hash = 0
   for (let index = 0; index < tabId.length; index += 1) hash = (hash * 31 + tabId.charCodeAt(index)) >>> 0
   return Math.max(0, Math.floor(baseDelay)) + (hash % 181)
+}
+
+async function saveOperationDelta(input: {
+  projectId: string
+  canvasId: string
+  operations: CanvasOperation[]
+  expectedRevision: number
+  clientId: string
+  changeSummary: string
+}) {
+  const delta = await canvasApi.saveOperationsDelta(input.projectId, input.canvasId, {
+    expectedRevision: input.expectedRevision,
+    clientId: input.clientId,
+    changeSummary: input.changeSummary,
+    ops: input.operations,
+  })
+  return { graph: delta, delta }
 }
 
 function getClientId() {
@@ -123,7 +141,7 @@ export function useCanvasAutosave({
   const onMergeDocumentRef = useRef(onMergeDocument)
   const onRestoreLocalRef = useRef(onRestoreLocal)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const savingRef = useRef<Promise<void> | null>(null)
+  const savingRef = useRef<Promise<unknown> | null>(null)
   const dirtyRef = useRef(false)
   const pausedRef = useRef(false)
   const mountedRef = useRef(true)
@@ -219,25 +237,29 @@ export function useCanvasAutosave({
     if (mountedRef.current) setSaveState('saving')
     const task = (async () => {
       try {
-        const graph = forceFullSaveRef.current || !confirmed
-          ? await canvasApi.saveDocument(projectId, canvasId, document)
+        const saved = forceFullSaveRef.current || !confirmed
+          ? { graph: await canvasApi.saveDocument(projectId, canvasId, document), delta: null }
           : operations.length > 0
-            ? await canvasApi.saveOperations(projectId, canvasId, {
+            ? await saveOperationDelta({
+                projectId,
+                canvasId,
+                operations,
                 expectedRevision,
                 clientId: clientIdRef.current,
                 changeSummary: summaryRef.current,
-                ops: operations,
               })
             : null
-        if (graph) {
-          revisionRef.current = graph.canvas.revision
-          confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current, summaryRef.current)
+        if (saved) {
+          revisionRef.current = saved.graph.canvas.revision
+          confirmedDocumentRef.current = saved.delta && confirmed
+            ? applyCanvasDocumentDelta(confirmed, saved.delta, clientIdRef.current, summaryRef.current)
+            : canvasGraphToDocument(saved.graph, clientIdRef.current, summaryRef.current)
           forceFullSaveRef.current = false
           pendingFullDocumentRef.current = null
           revisionChannelRef.current?.postMessage({
             type: 'canvas-revision',
             source: tabIdRef.current,
-            revision: graph.canvas.revision,
+            revision: saved.graph.canvas.revision,
           } satisfies CanvasRevisionBroadcast)
         }
         automaticConflictMergesRef.current = 0
@@ -249,7 +271,7 @@ export function useCanvasAutosave({
           await offlineBufferRef.current?.clear()
         }
         if (!mountedRef.current) return
-        if (graph) onSavedRef.current(graph)
+        if (saved) onSavedRef.current(saved.graph)
         if (dirtyRef.current) {
           setSaveState('pending')
         } else {
@@ -510,6 +532,7 @@ export function useCanvasAutosave({
     setConflictOpen(false)
     setSaveState('idle')
     onLoadServerRef.current(graph)
+    return graph
   }, [canvasId, projectId])
 
   const mergeServerVersion = useCallback(async () => {
@@ -616,6 +639,95 @@ export function useCanvasAutosave({
     }
   }, [])
 
+  /**
+   * Revisioned operation saves (generation drafts and their cleanup) must join
+   * the same in-flight slot as autosave. Otherwise a timer-driven flush can
+   * send a stale expectedRevision mid-flight, lose the 409 race, merge the
+   * server revision and invalidate this save's revision handoff afterwards.
+   */
+  const saveRevisionedOperations = useCallback(async (input: {
+    changeSummary: string
+    ops: CanvasOperation[]
+  }) => {
+    const pendingSave = savingRef.current
+    if (pendingSave) await pendingSave
+    if (pausedRef.current) {
+      throw new CanvasRevisionConflictError('画布存在尚未处理的本地版本或版本冲突，请先完成恢复选择。')
+    }
+    for (let pass = 0; pass < 3; pass += 1) {
+      if (dirtyRef.current) await flushRef.current()
+      const trailingSave = savingRef.current
+      if (trailingSave) await trailingSave
+      if (pausedRef.current || !dirtyRef.current || lastErrorRef.current) break
+    }
+    if (pausedRef.current) {
+      throw new CanvasRevisionConflictError('画布保存时发生版本冲突，请先处理冲突后再同步。')
+    }
+    if (dirtyRef.current) {
+      throw new Error('画布仍有未保存的更改；本地副本已缓存，请联网并保存成功后重试同步。')
+    }
+    if (!clientIdRef.current) clientIdRef.current = getClientId()
+    const expectedRevision = revisionRef.current
+    const clientId = clientIdRef.current
+    const task = (async () => {
+      try {
+        const graph = await canvasApi.saveOperations(projectId, canvasId, {
+          expectedRevision,
+          clientId,
+          changeSummary: input.changeSummary,
+          ops: input.ops,
+        })
+        revisionRef.current = graph.canvas.revision
+        confirmedDocumentRef.current = canvasGraphToDocument(graph, clientId, input.changeSummary)
+        forceFullSaveRef.current = false
+        pendingFullDocumentRef.current = null
+        lastErrorRef.current = null
+        retryControllerRef.current?.reset()
+        revisionChannelRef.current?.postMessage({
+          type: 'canvas-revision',
+          source: tabIdRef.current,
+          revision: graph.canvas.revision,
+        } satisfies CanvasRevisionBroadcast)
+        if (dirtyRef.current) {
+          offlineBufferRef.current?.schedule()
+          if (mountedRef.current) setSaveState('pending')
+          clearSaveTimer()
+          timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
+        } else {
+          await offlineBufferRef.current?.clear()
+          if (mountedRef.current) {
+            setSaveState('saved')
+            window.setTimeout(() => setSaveState((current) => current === 'saved' ? 'idle' : current), 2_200)
+          }
+        }
+        onSavedRef.current(graph)
+        return graph
+      } catch (error) {
+        dirtyRef.current = true
+        lastErrorRef.current = error instanceof Error ? error.message : '画布保存失败'
+        await offlineBufferRef.current?.flush().catch(() => undefined)
+        if (error instanceof CanvasRevisionConflictError) {
+          retryControllerRef.current?.reset()
+          if (!await mergeLatestServerVersion()) {
+            pausedRef.current = true
+            if (mountedRef.current) {
+              setConflictOpen(true)
+              setSaveState('conflict')
+            }
+          }
+        } else {
+          retryControllerRef.current?.scheduleAfterFailure()
+          if (mountedRef.current) setSaveState('offline')
+        }
+        throw error
+      } finally {
+        savingRef.current = null
+      }
+    })()
+    savingRef.current = task
+    return await task
+  }, [canvasId, clearSaveTimer, mergeLatestServerVersion, projectId])
+
   const acceptExternalRevision = useCallback(async (expectedRevision: number, graph: CanvasGraphResponse) => {
     const pendingSave = savingRef.current
     if (pendingSave) await pendingSave
@@ -679,6 +791,7 @@ export function useCanvasAutosave({
     restoreLocalVersion,
     useServerVersion,
     prepareRevisionedMutation,
+    saveRevisionedOperations,
     acceptExternalRevision,
   }
 }

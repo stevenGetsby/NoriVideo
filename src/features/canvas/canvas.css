@@ -143,8 +143,8 @@
 }
 
 .nori-canvas-node.is-selected .nori-canvas-node-body {
-  border-color: rgba(110, 123, 255, .5);
-  box-shadow: 0 0 0 1px rgba(110, 123, 255, .45), 0 18px 44px rgba(0, 0, 0, .38);
+  border-color: #8f9bff;
+  box-shadow: 0 0 0 1px rgba(143, 155, 255, .72), 0 18px 44px rgba(0, 0, 0, .38);
 }
 
 .nori-canvas-node.is-error .nori-canvas-node-body {
@@ -1614,6 +1614,22 @@
   font-weight: inherit;
 }
 
+.nori-canvas-generator-prompt .mention-prompt-highlight__asset.is-unbound {
+  background: rgba(110, 123, 255, .08);
+  box-shadow: none;
+  outline: 1px dashed rgba(110, 123, 255, .55);
+  outline-offset: 0;
+}
+
+.nori-canvas-generator-prompt .mention-prompt-highlight__asset.is-unknown {
+  color: #ffb4ab;
+  background: rgba(255, 92, 72, .14);
+  box-shadow: none;
+  text-decoration: underline wavy rgba(255, 92, 72, .85);
+  text-decoration-skip-ink: none;
+  text-underline-offset: 3px;
+}
+
 .nori-canvas-generator-prompt .mention-prompt-hint {
   color: rgba(255, 255, 255, .38);
   font-size: 10px;
@@ -1686,6 +1702,17 @@
 .nori-canvas-global-style textarea:focus {
   border-color: rgba(163, 172, 255, .54);
 }
+
+.nori-canvas-global-style.is-video-prefix {
+  border-color: rgba(245, 182, 87, .32);
+  background: rgba(245, 182, 87, .09);
+}
+
+.nori-canvas-global-style.is-video-prefix .nori-canvas-global-style-head > svg { color: #f5b657; }
+.nori-canvas-global-style.is-video-prefix .nori-canvas-global-style-head strong { color: #ffe3b3; }
+.nori-canvas-global-style.is-video-prefix .nori-canvas-global-style-head small { color: rgba(255, 227, 179, .5); }
+.nori-canvas-global-style.is-video-prefix textarea { border-color: rgba(245, 182, 87, .2); }
+.nori-canvas-global-style.is-video-prefix textarea:focus { border-color: rgba(245, 182, 87, .56); }
 
 .nori-canvas-generator-prompt .mention-prompt-option.is-active {
   background: rgba(110, 123, 255, .14);
@@ -5043,6 +5070,14 @@
 
 .nori-canvas-sidebar-reveal svg { width: 15px; height: 15px; }
 .nori-canvas-chrome.is-sidebar-collapsed .nori-canvas-breadcrumbs { padding-left: 8px; }
+.nori-canvas-breadcrumbs > .nori-canvas-sidebar-toggle {
+  color: #e8e9f3;
+  background: rgba(255, 255, 255, .07);
+}
+.nori-canvas-breadcrumbs > .nori-canvas-sidebar-toggle:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, .14);
+}
 
 .nori-canvas-project-assets,
 .nori-canvas-help-panel {
@@ -7085,6 +7120,19 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   pointer-events: none;
 }
 .nori-canvas-generator-ref-voice.is-missing { background: rgba(217, 119, 6, .92); }
+.nori-canvas-generator-ref-voice-toggle {
+  z-index: 3;
+  border: 0;
+  border-radius: 0 0 8px 8px;
+  padding: 0;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color .15s ease;
+}
+.nori-canvas-generator-ref-voice-toggle.is-bound:hover { background: rgba(4, 120, 87, .98); }
+.nori-canvas-generator-ref-voice-toggle.is-detached { color: #d4d4dc; background: rgba(82, 82, 91, .94); text-decoration: line-through; }
+.nori-canvas-generator-ref-voice-toggle.is-detached:hover { background: rgba(113, 113, 122, .98); }
+.nori-canvas-generator-ref-voice-toggle:focus-visible { outline: 2px solid rgba(163, 172, 255, .9); outline-offset: -2px; }
 .nori-canvas-generator-ref.is-icon .nori-canvas-generator-ref-name {
   position: static;
   width: auto;
@@ -7095,6 +7143,44 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   text-overflow: ellipsis;
 }
 
+/* The remove button is a sibling of the tile (never nested in its button) so the
+   tile keeps clipping its media while the badge can overhang the corner. */
+.nori-canvas-generator-ref-item {
+  position: relative;
+  display: inline-flex;
+  width: 42px;
+  height: 42px;
+  flex: none;
+}
+.nori-canvas-generator-ref-remove {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  z-index: 4;
+  display: inline-flex;
+  width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, .3);
+  border-radius: 50%;
+  padding: 0;
+  color: #fff;
+  background: #1b1b23;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .5);
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease;
+}
+.nori-canvas-generator-ref-remove::before {
+  position: absolute;
+  inset: -3px;
+  content: '';
+}
+.nori-canvas-generator-ref-remove svg { width: 9px; height: 9px; flex: none; }
+.nori-canvas-generator-ref-remove:hover { border-color: #ef4444; background: #ef4444; }
+.nori-canvas-generator-ref-remove:focus-visible { outline: 2px solid rgba(163, 172, 255, .9); outline-offset: 1px; }
+
 .nori-canvas-generator .nori-canvas-generator-voice-hint { margin: 6px 10px 0; padding: 5px 8px; font-size: 10px; }
 .nori-canvas-generator .nori-canvas-storyboard-hint { margin: 6px 10px 0; }
 .nori-canvas-generator .nori-canvas-generator-reference-warning { margin: 8px 10px 0; }
@@ -7104,8 +7190,9 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator .nori-canvas-model3d-options { padding-right: 10px; padding-left: 10px; }
 
 .nori-canvas-generator-prompt { padding: 6px 10px 2px; }
-.nori-canvas-generator-prompt .mention-prompt-editor-layer,
-.nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within { border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt .mention-prompt-editor-layer,
+.nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within { display: grid; max-height: 260px; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt .mention-prompt-highlight { grid-area: 1 / 1; height: auto; min-height: 96px; max-height: 260px; }
 .nori-canvas-generator-prompt textarea,
 .nori-canvas-generator-prompt .mention-prompt-highlight { border: 0; border-radius: 0; padding: 2px 0; background: transparent; font-size: 12px; line-height: 1.7; }
 .nori-canvas-generator-prompt textarea:focus { border: 0; box-shadow: none; }
@@ -7113,10 +7200,13 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-prompt .fos-textarea.mention-prompt-textarea::placeholder { color: rgba(245, 245, 250, .38); -webkit-text-fill-color: rgba(245, 245, 250, .38); }
 .nori-canvas-generator-prompt .mention-prompt-hint { margin-top: 6px; color: rgba(245, 245, 250, .4); font-size: 11px; }
 /* The overlay must stay exactly the textarea's size or scroll sync drifts. */
-.nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt textarea { min-height: 96px; max-height: 260px; }
+.nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt textarea { grid-area: 1 / 1; height: 100%; min-height: 0; max-height: 260px; }
 .nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt .mention-prompt-highlight { min-height: 0; }
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-prompt .mention-prompt-editor-layer,
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within { display: block; min-height: 280px; max-height: none; flex: 1; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.nori-canvas-generator.is-fullscreen .nori-canvas-generator-prompt textarea { height: 100%; min-height: 280px; max-height: none; }
 @supports (field-sizing: content) {
-  .nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt textarea { field-sizing: content; resize: none; }
+  .nori-canvas-generator:not(.is-fullscreen) .nori-canvas-generator-prompt textarea { field-sizing: content; height: auto; resize: none; }
   .nori-canvas-generator-controls .nori-canvas-generator-select select { field-sizing: content; }
 }
 .nori-canvas-generator.is-fullscreen .nori-canvas-generator-prompt textarea,
@@ -7470,3 +7560,229 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-organize-menu .nori-canvas-organize-check { width: 14px; height: 14px; color: #fff; }
 .nori-canvas-organize-menu > i { margin: 6px 6px 4px; }
 .nori-canvas-node-body > .nori-canvas-video-load-error { z-index: 7; }
+
+/* "从画布选择": the add-reference menu and the dialog that picks existing canvas
+   media as generator references. Solid fills only. */
+.nori-canvas-reference-add-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 1px solid rgba(216, 217, 224, .15);
+  border-radius: 12px;
+  padding: 6px;
+  color: #e6e7ed;
+  background: #1b1b23;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .58);
+}
+.nori-canvas-reference-add-menu > button {
+  display: flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: inherit;
+  background: transparent;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+.nori-canvas-reference-add-menu > button svg { width: 16px; height: 16px; flex: none; color: #a3acff; }
+.nori-canvas-reference-add-menu > button:hover:not(:disabled),
+.nori-canvas-reference-add-menu > button:focus-visible { background: #2f2f3b; outline: 0; }
+.nori-canvas-reference-add-menu > button:disabled { cursor: not-allowed; opacity: .45; }
+.nori-canvas-reference-add-menu > button > small { margin-left: auto; color: #9c9dae; font-size: 11px; font-variant-numeric: tabular-nums; }
+
+.nori-canvas-reference-picker { width: min(780px, 92vw); height: min(640px, calc(100dvh - 24px)); }
+.nori-canvas-reference-picker-toolbar {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, .07);
+  padding: 12px 16px;
+}
+.nori-canvas-reference-picker-search {
+  position: relative;
+  display: flex;
+  min-width: 200px;
+  flex: 1 1 240px;
+  align-items: center;
+}
+.nori-canvas-reference-picker-search svg { position: absolute; left: 10px; width: 14px; height: 14px; color: #9c9dae; pointer-events: none; }
+.nori-canvas-reference-picker-search input {
+  width: 100%;
+  height: 32px;
+  border: 1px solid #34343f;
+  border-radius: 8px;
+  padding: 0 10px 0 32px;
+  color: #f5f5fa;
+  background: #131319;
+  font-size: 12px;
+  outline: 0;
+}
+.nori-canvas-reference-picker-search input::placeholder { color: #7f8091; }
+.nori-canvas-reference-picker-search input:focus { border-color: #6e7bff; }
+.nori-canvas-reference-picker-types { display: flex; flex: none; flex-wrap: wrap; gap: 6px; }
+.nori-canvas-reference-picker-types > button {
+  height: 28px;
+  border: 1px solid #34343f;
+  border-radius: 8px;
+  padding: 0 10px;
+  color: #c7c8d1;
+  background: transparent;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+.nori-canvas-reference-picker-types > button:hover { color: #fff; background: #2f2f3b; }
+.nori-canvas-reference-picker-types > button.is-active { border-color: #6e7bff; color: #fff; background: #3a3f78; }
+.nori-canvas-reference-picker-body { min-height: 0; flex: 1 1 auto; overflow: auto; overscroll-behavior: contain; padding: 14px 16px; }
+.nori-canvas-reference-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(112px, 1fr)); gap: 12px; }
+.nori-canvas-reference-picker-empty { display: grid; min-height: 160px; place-items: center; margin: 0; padding: 0 24px; color: #9c9dae; font-size: 12px; line-height: 1.7; text-align: center; }
+.nori-canvas-reference-picker-tile {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+  border: 0;
+  padding: 0;
+  color: #d6d7df;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.nori-canvas-reference-picker-tile:focus-visible { outline: 0; }
+.nori-canvas-reference-picker-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  border: 1px solid #34343f;
+  border-radius: 10px;
+  background: #131319;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.nori-canvas-reference-picker-preview > video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.nori-canvas-reference-picker-placeholder { position: absolute; top: 50%; left: 50%; width: 28px; height: 28px; color: #6f7084; transform: translate(-50%, -50%); }
+.nori-canvas-reference-picker-tile:hover:not(.is-referenced):not(.is-limited) .nori-canvas-reference-picker-preview { border-color: #6f7084; }
+.nori-canvas-reference-picker-tile:focus-visible .nori-canvas-reference-picker-preview { border-color: #a3acff; box-shadow: 0 0 0 2px rgba(163, 172, 255, .55); }
+.nori-canvas-reference-picker-tile.is-selected .nori-canvas-reference-picker-preview { border-color: #6e7bff; box-shadow: 0 0 0 2px #6e7bff; }
+.nori-canvas-reference-picker-tile.is-referenced,
+.nori-canvas-reference-picker-tile.is-limited { cursor: not-allowed; }
+.nori-canvas-reference-picker-tile.is-referenced .nori-canvas-reference-picker-preview > img,
+.nori-canvas-reference-picker-tile.is-referenced .nori-canvas-reference-picker-preview > video,
+.nori-canvas-reference-picker-tile.is-limited .nori-canvas-reference-picker-preview > img,
+.nori-canvas-reference-picker-tile.is-limited .nori-canvas-reference-picker-preview > video { opacity: .4; }
+.nori-canvas-reference-picker-kind {
+  position: absolute;
+  bottom: 6px;
+  left: 6px;
+  z-index: 2;
+  display: grid;
+  width: 20px;
+  height: 20px;
+  place-items: center;
+  border-radius: 6px;
+  color: #fff;
+  background: #1b1b23;
+  font-style: normal;
+  pointer-events: none;
+}
+.nori-canvas-reference-picker-kind svg { width: 12px; height: 12px; }
+.nori-canvas-reference-picker-order {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  z-index: 3;
+  display: inline-flex;
+  min-width: 22px;
+  height: 22px;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  border-radius: 6px;
+  padding: 0 6px;
+  color: #fff;
+  background: #6e7bff;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+.nori-canvas-reference-picker-order svg { width: 11px; height: 11px; }
+.nori-canvas-reference-picker-preview > em {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  z-index: 2;
+  max-width: calc(100% - 12px);
+  overflow: hidden;
+  border-radius: 6px;
+  padding: 3px 6px;
+  color: #d6d7df;
+  background: #34343f;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.nori-canvas-reference-picker-preview > em.is-wired { color: #fff; background: #3a3f78; }
+.nori-canvas-reference-picker-preview > em.is-character { color: #fff; background: #0d6b4f; }
+.nori-canvas-reference-picker-name { overflow: hidden; color: #d6d7df; font-size: 11px; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-reference-picker-tile.is-selected .nori-canvas-reference-picker-name { color: #fff; }
+.nori-canvas-reference-picker-error {
+  flex: none;
+  margin: 0 16px 10px;
+  border: 1px solid #7a2f3a;
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #ffd0d0;
+  background: #3b1c23;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.nori-canvas-reference-picker > footer {
+  display: flex;
+  min-height: 64px;
+  flex: none;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid rgba(255, 255, 255, .07);
+  padding: 12px 16px;
+  background: #131319;
+}
+.nori-canvas-reference-picker-summary { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 2px; margin-right: auto; }
+.nori-canvas-reference-picker-summary > b { color: #f5f5fa; font-size: 12px; font-weight: 600; }
+.nori-canvas-reference-picker-summary > small { overflow: hidden; color: #9c9dae; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-reference-picker > footer > button {
+  display: inline-flex;
+  min-width: 88px;
+  height: 40px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #34343f;
+  border-radius: 10px;
+  padding: 0 18px;
+  color: #d6d7df;
+  background: #1b1b23;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.nori-canvas-reference-picker > footer > button:hover:not(:disabled) { color: #fff; background: #2f2f3b; }
+.nori-canvas-reference-picker > footer > button.is-primary { border-color: transparent; color: var(--fos-on-cta, #fff); background: var(--fos-brand-solid, #6e7bff); }
+.nori-canvas-reference-picker > footer > button.is-primary:hover:not(:disabled) { color: var(--fos-on-cta, #fff); background: var(--fos-brand-solid-hover, #5f6cf5); }
+.nori-canvas-reference-picker > footer > button:disabled { cursor: not-allowed; opacity: .4; }

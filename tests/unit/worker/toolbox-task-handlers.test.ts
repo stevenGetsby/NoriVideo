@@ -226,7 +226,7 @@ describe('toolbox task handlers', () => {
       videoModel: 'ark::doubao-seedance-2-0',
       assetCategory: 'shot',
       inputMode: 'firstlastframe',
-      referenceImages: ['images/start.png', 'images/end.png'],
+      referenceImages: ['images/ref-1.png', 'images/ref-2.png'],
       referenceMaterialIds: ['material-start', 'material-end'],
       referenceMaterials: [
         { materialId: 'material-start', role: 'FIRST_FRAME' },
@@ -248,7 +248,7 @@ describe('toolbox task handlers', () => {
       modelId: 'ark::doubao-seedance-2-0',
       imageUrl: 'https://public.example/reference-1.png',
       options: expect.objectContaining({
-        prompt: '图片1中的苏晚卿 从门边跑向 图片2中的柴房',
+        prompt: '苏晚卿 从门边跑向 柴房',
         lastFrameImageUrl: 'https://public.example/reference-2.png',
         duration: 5,
         fps: 24,
@@ -374,7 +374,7 @@ describe('toolbox task handlers', () => {
       modelId: 'hfsy::doubao-seedance-2-0',
       imageUrl: '',
       options: {
-        prompt: '图片1中的苏晚卿 模仿 @奔跑动作 穿过雨夜，保留 @雨声',
+        prompt: '图1（@图片1）是资产苏晚卿，后文出现 @图片1 时必须始终指代该资产，视频1是参考视频奔跑动作，音频1是雨声的声音\n@图片1（苏晚卿） 模仿 视频1 穿过雨夜，保留 音频1',
         referenceImages: ['https://public.example/reference-1.png'],
         videos: ['https://public.example/run.mp4'],
         audios: ['https://public.example/rain.wav'],

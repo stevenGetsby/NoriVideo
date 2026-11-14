@@ -759,5 +759,15 @@ export async function applyCanvasOperationsInTransaction(
     } as Prisma.InputJsonValue,
   })
 
-  return { canvas, nodes: finalNodes, edges: finalEdges }
+  return {
+    canvas,
+    nodes: finalNodes,
+    edges: finalEdges,
+    delta: {
+      nodes: upsertedNodes.map((node) => ({ ...node, canvasId })),
+      edges: addedEdges.map((edge) => ({ ...edge, canvasId })),
+      deletedNodeIds: Array.from(deletedNodeIds),
+      deletedEdgeIds: Array.from(deletedEdgeIds),
+    },
+  }
 }

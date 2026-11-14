@@ -66,6 +66,7 @@ export async function queryKuaiziTaskStatus(input: {
   taskId: string
   apiKey: string
   baseUrl?: string
+  signal?: AbortSignal
 }): Promise<PollResult> {
   try {
     const modality = input.type === 'IMAGE' ? 'image' : input.type === 'VIDEO' ? 'video' : 'audio'
@@ -76,6 +77,7 @@ export async function queryKuaiziTaskStatus(input: {
         baseUrl: input.baseUrl,
         path: `/ai-open-platform-api/api/v3/contents/generations/tasks/${encodeURIComponent(input.taskId)}`,
         method: 'GET',
+        signal: input.signal,
       })
       const record = asRecord(payload)
       if (!record) throw new Error('KUAIZI_SEEDANCE_STATUS_RESPONSE_INVALID')
@@ -115,6 +117,7 @@ export async function queryKuaiziTaskStatus(input: {
       baseUrl: input.baseUrl,
       path: standardStatusPath(model.family),
       body: { task_id: input.taskId },
+      signal: input.signal,
     })
     const record = asRecord(payload)
     if (!record) throw new Error('KUAIZI_STATUS_RESPONSE_INVALID')
@@ -142,6 +145,7 @@ export async function pollKuaiziTask(input: {
   userId: string
   providerToken: string
   modelToken: string
+  signal?: AbortSignal
 }): Promise<PollResult> {
   const providerId = decodeKuaiziExternalToken(input.providerToken)
   const modelId = decodeKuaiziExternalToken(input.modelToken)
@@ -152,5 +156,6 @@ export async function pollKuaiziTask(input: {
     taskId: input.taskId,
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
+    signal: input.signal,
   })
 }

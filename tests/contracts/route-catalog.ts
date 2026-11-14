@@ -101,6 +101,7 @@ const ROUTE_FILES = [
   'src/app/api/frameos/generation-config/route.ts',
   'src/app/api/frameos/generation-quote/route.ts',
   'src/app/api/frameos/materials/[materialId]/download/route.ts',
+  'src/app/api/frameos/materials/[materialId]/replace-image/route.ts',
   'src/app/api/frameos/materials/[materialId]/route.ts',
   'src/app/api/frameos/materials/bulk-delete/route.ts',
   'src/app/api/frameos/materials/route.ts',
@@ -274,7 +275,7 @@ const ROUTE_FILES = [
   'src/app/api/video-enhance/route.ts',
   'src/app/api/video-enhance/save-to-path/route.ts',
   'src/app/api/video-enhance/select-directory/route.ts',
-  'src/app/api/video-repaint/adapt/route.ts',
+  'src/app/api/video-repaint/outline/route.ts',
   'src/app/api/video-repaint/scripts/[scriptId]/route.ts',
   'src/app/api/video-repaint/scripts/route.ts',
   'src/app/api/video-repaint/understand/route.ts',
@@ -333,7 +334,7 @@ function resolveContractGroup(routeFile: string): RouteContractGroup {
     || routeFile.includes('/story-to-script-stream/')
     || routeFile.includes('/script-to-storyboard-stream/')
     || routeFile.includes('/screenplay-conversion/')
-    || routeFile.endsWith('/video-repaint/adapt/route.ts')
+    || routeFile.endsWith('/video-repaint/outline/route.ts')
     || routeFile.includes('/reference-to-character/')
     || routeFile.includes('/character-profile/')
     || routeFile.endsWith('/clips/route.ts')

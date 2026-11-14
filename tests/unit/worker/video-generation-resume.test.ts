@@ -33,6 +33,7 @@ vi.mock('@/lib/storage', () => ({
 }))
 vi.mock('@/lib/fonts', () => ({ initializeFonts: vi.fn(), createLabelSVG: vi.fn() }))
 vi.mock('@/lib/media-process', () => ({ processMediaResult: vi.fn() }))
+vi.mock('@/lib/workers/shared', () => ({ reportTaskProgress: vi.fn(async () => undefined) }))
 vi.mock('@/lib/config-service', () => ({
   getProjectModelConfig: vi.fn(),
   getUserModelConfig: vi.fn(),
@@ -94,8 +95,41 @@ describe('worker utils video generation resume', () => {
         Authorization: 'Bearer oa-key',
       },
     })
-    expect(asyncPollMock.pollAsyncTask).toHaveBeenCalledWith(externalId, 'user-1')
+    expect(asyncPollMock.pollAsyncTask).toHaveBeenCalledWith(externalId, 'user-1', expect.any(AbortSignal))
     expect(generatorApiMock.generateVideo).not.toHaveBeenCalled()
+  })
+
+  it('times out a hung status query and resumes polling without resubmitting', async () => {
+    vi.useFakeTimers()
+    try {
+      const externalId = 'KUAIZI:VIDEO:provider-token:model-token:task-1'
+      prismaMock.task.findUnique.mockResolvedValueOnce({ externalId })
+      const signals: AbortSignal[] = []
+      asyncPollMock.pollAsyncTask
+        .mockImplementationOnce((_externalId: string, _userId: string, signal: AbortSignal) => {
+          signals.push(signal)
+          return new Promise(() => undefined)
+        })
+        .mockResolvedValueOnce({
+          status: 'completed',
+          resultUrl: 'https://provider.example/video.mp4',
+        })
+
+      const resultPromise = resolveVideoSourceFromGeneration(buildJob(), {
+        userId: 'user-1',
+        modelId: 'kuaizi::doubao-seedance-2-5-260628',
+        imageUrl: 'data:image/png;base64,QQ==',
+      })
+      await vi.advanceTimersByTimeAsync(60_000)
+      await vi.advanceTimersByTimeAsync(3_000)
+
+      await expect(resultPromise).resolves.toEqual({ url: 'https://provider.example/video.mp4' })
+      expect(signals[0].aborted).toBe(true)
+      expect(asyncPollMock.pollAsyncTask).toHaveBeenCalledTimes(2)
+      expect(generatorApiMock.generateVideo).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('prevents duplicate panel candidates by skipping task externalId resume when requested', async () => {

@@ -1,3 +1,5 @@
+import { normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
+
 export type SeedancePromptAssetKind = 'character' | 'location' | 'prop'
 
 export interface SeedancePromptAsset {
@@ -99,10 +101,20 @@ function replaceNamedAssets(
   const byName = new Map(ordered.map((entry) => [entry.asset.name.toLocaleLowerCase(), entry]))
   const alternatives = ordered.map((entry) => escapeRegExp(entry.asset.name)).join('|')
   const pattern = new RegExp(`@?(${alternatives})`, 'giu')
+  const unknownMentions = scanPromptMentions(prompt, ordered.map((entry) => entry.asset.name))
+    .filter((mention) => mention.name === null)
 
   return prompt.replace(pattern, (match, rawName: string, offset: number, source: string) => {
     const entry = byName.get(rawName.toLocaleLowerCase())
     if (!entry) return match
+
+    if (!match.startsWith('@')) {
+      // "@女主_萧令仪" is an unknown mention; never rewrite the 萧令仪 inside it.
+      if (unknownMentions.some((mention) => offset > mention.start && offset < mention.end)) return match
+      // "萧令仪@萧令仪" already carries the mention; compiling both duplicates it.
+      const following = source.slice(offset + rawName.length).replace(/^\s+/u, '')
+      if (following.toLocaleLowerCase().startsWith(`@${rawName.toLocaleLowerCase()}`)) return match
+    }
 
     // Avoid turning the asset name "Ava" into a mention inside an unrelated word.
     if (!match.startsWith('@')) {
@@ -164,15 +176,22 @@ export function formatSeedancePromptForEditor(
 export function compileSeedancePromptForSubmission(
   prompt: string,
   assets: SeedancePromptAsset[],
+  audioNames: readonly string[] = [],
 ): string {
   const entries = indexedAssets(assets)
   const editorPrompt = formatSeedancePromptForEditor(prompt, assets)
-
-  return replaceNamedAssets(editorPrompt, entries, ({ asset, imageNumber }) => (
-    asset.kind === 'location'
-      ? `图片${imageNumber}所示的${asset.name}`
-      : `图片${imageNumber}中的${asset.name}`
+  const body = replaceNamedAssets(editorPrompt, entries, ({ asset, imageNumber }) => (
+    `@图片${imageNumber}（${asset.name}）`
   ))
+  const declarations = entries.map(({ asset, imageNumber }) => {
+    const kind = asset.kind === 'character' ? '角色' : asset.kind === 'location' ? '场景' : '道具'
+    return `图${imageNumber}（@图片${imageNumber}）是${kind}${asset.name}，后文出现 @图片${imageNumber} 时必须始终指代该资产`
+  })
+  audioNames.map(compact).filter(Boolean).forEach((name, index) => {
+    declarations.push(`音频${index + 1}是角色${name}的声音`)
+  })
+
+  return declarations.length > 0 ? `${declarations.join('，')}\n${body}` : body
 }
 
 /** Removes UI-only @ markers when the request is not using reference-image mode. */
@@ -184,4 +203,88 @@ export function stripSeedancePromptAssetMentions(
   const editorPrompt = formatSeedancePromptForEditor(prompt, assets)
   const withoutKnownMentions = replaceNamedAssets(editorPrompt, entries, ({ asset }) => asset.name)
   return withoutKnownMentions.replace(/@(?=[\p{L}\p{N}_])/gu, '')
+}
+
+export type SeedanceMentionMediaType = 'image' | 'video' | 'audio'
+
+export interface SeedanceMentionReference {
+  type: SeedanceMentionMediaType
+  /** 1-based position inside the submitted array of this media type. */
+  index: number
+  /** Exact names the editor inserted; these win over every fallback. */
+  names: string[]
+  /** Material titles and other aliases, used only when no primary name claims them. */
+  fallbackNames?: string[]
+  kind?: SeedancePromptAssetKind
+}
+
+export interface SeedanceMentionCompileResult {
+  prompt: string
+  unresolved: PromptMentionMatch[]
+}
+
+const MEDIA_TYPE_ORDER: Record<SeedanceMentionMediaType, number> = { image: 0, video: 1, audio: 2 }
+
+/**
+ * Compiles only explicit `@mentions` into Volcengine's ordered multimodal
+ * syntax (图片N / 视频N / 音频N). Bare names and text inside unknown mentions
+ * are never rewritten; unknown mentions are reported so callers can refuse to
+ * send a prompt that points the model at a reference it was never given.
+ */
+export function compileSeedanceMentionPrompt(
+  prompt: string,
+  references: readonly SeedanceMentionReference[],
+  options: { mediaReferences: boolean },
+): SeedanceMentionCompileResult {
+  const byName = new Map<string, SeedanceMentionReference>()
+  const ordered = [...references].sort((left, right) => (
+    MEDIA_TYPE_ORDER[left.type] - MEDIA_TYPE_ORDER[right.type] || left.index - right.index
+  ))
+  const register = (rawName: string, reference: SeedanceMentionReference) => {
+    const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
+    if (key && !byName.has(key)) byName.set(key, reference)
+  }
+  for (const reference of ordered) reference.names.forEach((name) => register(name, reference))
+  for (const reference of ordered) (reference.fallbackNames || []).forEach((name) => register(name, reference))
+
+  const names = ordered.flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
+  const mentions = scanPromptMentions(prompt, names)
+  const unresolved: PromptMentionMatch[] = []
+  let compiled = ''
+  let cursor = 0
+  for (const mention of mentions) {
+    const reference = mention.name === null ? null : byName.get(mention.name.toLocaleLowerCase())
+    if (!reference) {
+      unresolved.push(mention)
+      continue
+    }
+    compiled += prompt.slice(cursor, mention.start)
+    if (reference.type === 'image') {
+      compiled += options.mediaReferences ? `@图片${reference.index}（${mention.text}）` : mention.text
+    }
+    // Frame modes never submit videos/audios, so 视频N/音频N would point at nothing.
+    else if (!options.mediaReferences) compiled += mention.text
+    else compiled += `${reference.type === 'video' ? '视频' : '音频'}${reference.index}`
+    cursor = mention.end
+  }
+  compiled += prompt.slice(cursor)
+  const declarations = ordered.filter((reference) => {
+    if (!options.mediaReferences) return false
+    const label = reference.type === 'image' ? `@图片${reference.index}` : `${reference.type === 'video' ? '视频' : '音频'}${reference.index}`
+    return compiled.includes(label)
+  }).map((reference) => {
+    const label = reference.type === 'image' ? `图片${reference.index}` : `${reference.type === 'video' ? '视频' : '音频'}${reference.index}`
+    const name = reference.names[0] || reference.fallbackNames?.[0] || label
+    const kind = reference.type === 'audio' ? '音频' : reference.kind === 'location' ? '场景' : reference.kind === 'character' ? '角色' : '资产'
+    return reference.type === 'image'
+      ? `图${reference.index}（@${label}）是${kind}${name}，后文出现 @${label} 时必须始终指代该资产`
+      : reference.type === 'audio'
+        ? `${label}是${name}的声音`
+        : `${label}是参考视频${name}`
+  })
+
+  return {
+    prompt: declarations.length > 0 ? `${declarations.join('，')}\n${compiled}` : compiled,
+    unresolved,
+  }
 }

@@ -15,7 +15,7 @@ describe('canvas asynchronous operation contract', () => {
       expect.objectContaining({ operation: 'superresolve', engineKey: 'local-sharp', modelKey: 'local-sharp', isDefault: true }),
       expect.objectContaining({ operation: 'video_superresolve', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
       expect.objectContaining({ operation: 'subtitle_erase', engineKey: 'local-ffmpeg', modelKey: 'local-ffmpeg', isDefault: true }),
-      expect.objectContaining({ operation: 'video_edit', engineKey: 'kuaizi-seedance25', modelKey: 'doubao-seedance-2-5-260628', isDefault: true }),
+      expect.objectContaining({ operation: 'video_edit', engineKey: 'nori::norivideo2.5', modelKey: 'nori::norivideo2.5', isDefault: true }),
       expect.objectContaining({
         operation: 'audio_extract',
         engineKey: 'local-ffmpeg',
@@ -100,8 +100,8 @@ describe('canvas asynchronous operation contract', () => {
       generateAudio: false,
     })).toEqual({
       operation: 'video_edit',
-      engineKey: 'kuaizi-seedance25',
-      modelKey: 'doubao-seedance-2-5-260628',
+      engineKey: 'nori::norivideo2.5',
+      modelKey: 'nori::norivideo2.5',
       parameters: {
         prompt: '把背景换成黄昏',
         startMs: 1_000,

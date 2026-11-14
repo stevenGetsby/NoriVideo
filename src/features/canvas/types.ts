@@ -64,6 +64,10 @@ export type CanvasNodeData = {
   prompt?: string | null
   /** 标记该文本节点为画布唯一的全局风格提示词。 */
   globalStylePrompt?: boolean
+  /** 标记该文本节点为画布唯一的视频统一前置提示词（仅作用于视频生成，置于提示词最前）。 */
+  videoPrefixPrompt?: boolean
+  /** 角色图片节点：用户选择在画布生成中不携带该角色卡绑定的音色。 */
+  voiceDetached?: boolean
   generation?: CanvasGenerationConfig | null
   generationTask?: CanvasPersistentGenerationTask | null
   history?: CanvasGenerationHistoryItem[]
@@ -160,6 +164,14 @@ export type CanvasGraphResponse = {
   edges: CanvasEdge[]
 }
 
+/** Opts the operation save into a delta response; absent means the full graph. */
+export const CANVAS_DELTA_RESPONSE_HEADER = 'x-nori-canvas-response'
+
+export type CanvasGraphDelta = CanvasGraphResponse & {
+  deletedNodeIds: string[]
+  deletedEdgeIds: string[]
+}
+
 export type CanvasRevision = {
   id: string
   revision: number
@@ -192,6 +204,8 @@ export type CanvasGenerationConfig = {
   inputMode?: 'text' | 'image' | 'firstlastframe'
   referenceNodeIds?: string[]
   referenceSummary?: CanvasGenerationReferenceSummary[]
+  /** Reference node id → the @names the last submitted prompt used for it. */
+  referenceMentionNames?: Record<string, string[]>
   aspectRatio?: string
   resolution?: string
   quality?: 'low' | 'medium' | 'high'

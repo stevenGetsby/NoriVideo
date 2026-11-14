@@ -3,6 +3,8 @@ import { buildMockRequest } from '../../../helpers/request'
 
 const storage = vi.hoisted(() => ({ getSignedObjectUrl: vi.fn(), getObjectBuffer: vi.fn() }))
 vi.mock('@/lib/storage', () => storage)
+const thumbnail = vi.hoisted(() => ({ ensureCanvasThumbnail: vi.fn(), normalizeCanvasThumbnailWidth: vi.fn() }))
+vi.mock('@/lib/media/thumbnail', () => thumbnail)
 import { GET } from '@/app/api/storage/sign/route'
 
 async function get(key = 'images/video.mp4', range?: string, playback = true) {
@@ -50,5 +52,47 @@ describe('range-capable canvas video playback', () => {
     const failed = await get()
     expect(failed.status).toBe(502)
     expect(await failed.text()).not.toContain('private-upstream-diagnostic')
+  })
+})
+
+describe('signed image redirect caching', () => {
+  beforeEach(() => { vi.clearAllMocks(); storage.getSignedObjectUrl.mockResolvedValue('https://storage.test/image.png?sig=1') })
+
+  const redirect = (query: Record<string, string>) => GET(buildMockRequest({
+    path: '/api/storage/sign', method: 'GET', query: { key: 'images/image.png', ...query },
+  }), { params: Promise.resolve({}) })
+
+  it('lets the browser reuse one signed URL for a bounded time instead of re-signing every remount', async () => {
+    const result = await redirect({})
+    expect(result.status).toBe(307)
+    expect(result.headers.get('location')).toBe('https://storage.test/image.png?sig=1')
+    expect(result.headers.get('cache-control')).toBe('private, max-age=600')
+  })
+
+  it('never caches a redirect for longer than half of the signature lifetime', async () => {
+    expect((await redirect({ expires: '300' })).headers.get('cache-control')).toBe('private, max-age=150')
+    expect((await redirect({ expires: '1' })).headers.get('cache-control')).toBe('private, max-age=0')
+    expect((await redirect({ expires: '86400' })).headers.get('cache-control')).toBe('private, max-age=600')
+  })
+
+  it('returns a cached redirect to a generated thumbnail without proxying its bytes', async () => {
+    thumbnail.normalizeCanvasThumbnailWidth.mockReturnValue(960)
+    thumbnail.ensureCanvasThumbnail.mockResolvedValue('images/thumbnails/ab/cdef/w960.webp')
+
+    const result = await redirect({ thumbnail: '960' })
+
+    expect(thumbnail.normalizeCanvasThumbnailWidth).toHaveBeenCalledWith('960')
+    expect(thumbnail.ensureCanvasThumbnail).toHaveBeenCalledWith('images/image.png', 960)
+    expect(storage.getSignedObjectUrl).toHaveBeenCalledWith('images/thumbnails/ab/cdef/w960.webp', 3600)
+    expect(result.status).toBe(307)
+    expect(result.headers.get('cache-control')).toBe('private, max-age=600')
+  })
+
+  it('rejects animated thumbnails and conflicting media modes', async () => {
+    expect((await redirect({ thumbnail: '480', inline: '1' })).status).toBe(400)
+    expect((await GET(buildMockRequest({
+      path: '/api/storage/sign', method: 'GET', query: { key: 'images/motion.gif', thumbnail: '480' },
+    }), { params: Promise.resolve({}) })).status).toBe(400)
+    expect(thumbnail.ensureCanvasThumbnail).not.toHaveBeenCalled()
   })
 })

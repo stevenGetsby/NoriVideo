@@ -2,7 +2,7 @@ const LOCAL_ORIGIN = 'http://localhost'
 const NEXT_IMAGE_PATH = '/_next/image'
 const COS_SIGN_PATH = '/api/storage/sign'
 const MAX_NEXT_UNWRAP_DEPTH = 5
-const STORAGE_KEY_PREFIXES = ['images/', 'video/', 'voice/'] as const
+const STORAGE_KEY_PREFIXES = ['images/', 'video/', 'voice/', 'toolbox-video-superresolved/'] as const
 
 function isStorageKey(value: string): boolean {
   return STORAGE_KEY_PREFIXES.some((prefix) => value.startsWith(prefix))
@@ -59,6 +59,21 @@ export function toDisplayImageUrl(input: string | null | undefined): string | nu
   }
 
   return unwrapped
+}
+
+export function toCanvasDisplayImageUrl(
+  input: string | null | undefined,
+  width: 480 | 960 | 1440,
+): string | null {
+  const displayUrl = toDisplayImageUrl(input)
+  if (!displayUrl) return null
+  const parsed = tryParseUrl(displayUrl)
+  if (!parsed || parsed.pathname !== COS_SIGN_PATH || !parsed.searchParams.get('key')) return displayUrl
+  parsed.searchParams.set('thumbnail', String(width))
+  parsed.searchParams.delete('expires')
+  parsed.searchParams.delete('inline')
+  parsed.searchParams.delete('playback')
+  return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
 }
 
 /** Signed playback URLs fix legacy videos stored with download-only headers. */

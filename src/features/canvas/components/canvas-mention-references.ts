@@ -1,6 +1,7 @@
 import type { MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { FRAMEOS_ASSET_CATEGORY_LABELS, frameosAssetCategoryFromMetadata, type FrameosAssetCategory } from '@/lib/frameos/material-category'
+import { normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
 import type { CanvasFlowNode } from '../editor-types'
 
 export type CanvasMentionMediaType = 'image' | 'video' | 'audio'
@@ -193,6 +194,63 @@ export function buildCanvasLibraryMentionAssets(
       }
     })
   }).sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN', { numeric: true, sensitivity: 'base' }))
+}
+
+export interface CanvasPromptMentionPlan {
+  /** Lower-cased mention name → the asset it resolves to. */
+  targets: Map<string, CanvasMentionAsset>
+  /** Distinct assets the prompt mentions, in first-mention order. */
+  mentioned: Array<{ asset: CanvasMentionAsset; names: string[] }>
+  unknown: PromptMentionMatch[]
+}
+
+function mentionAssetKey(asset: CanvasMentionAsset): string {
+  return asset.section === 'library' ? `material:${asset.materialId}` : `node:${asset.id}`
+}
+
+/**
+ * Resolves every @mention in the prompt texts to exactly one asset. When names
+ * collide, already-bound references win, then connected, secondary and library
+ * assets, so the editor highlight and the submitted references always agree.
+ */
+export function planCanvasPromptMentions(
+  texts: readonly string[],
+  assets: readonly CanvasMentionAsset[],
+  bound: { nodeIds: ReadonlySet<string>; materialIds: ReadonlySet<string> },
+): CanvasPromptMentionPlan {
+  const isBound = (asset: CanvasMentionAsset) => (asset.section === 'library'
+    ? Boolean(asset.materialId && bound.materialIds.has(asset.materialId))
+    : bound.nodeIds.has(asset.id))
+  const tiers: Array<(asset: CanvasMentionAsset) => boolean> = [
+    isBound,
+    (asset) => asset.section === 'connected',
+    (asset) => asset.section === 'secondary',
+    (asset) => asset.section === 'library',
+  ]
+  const targets = new Map<string, CanvasMentionAsset>()
+  for (const tier of tiers) {
+    for (const asset of assets) {
+      const key = normalizePromptMentionName(asset.name).toLocaleLowerCase()
+      if (key && !targets.has(key) && tier(asset)) targets.set(key, asset)
+    }
+  }
+  const names = assets.map((asset) => asset.name)
+  const mentioned = new Map<string, { asset: CanvasMentionAsset; names: string[] }>()
+  const unknown: PromptMentionMatch[] = []
+  for (const text of texts) {
+    for (const match of scanPromptMentions(text, names)) {
+      const asset = match.name === null ? undefined : targets.get(match.name.toLocaleLowerCase())
+      if (!asset || match.name === null) {
+        unknown.push(match)
+        continue
+      }
+      const key = mentionAssetKey(asset)
+      const entry = mentioned.get(key) || { asset, names: [] }
+      if (!entry.names.includes(match.name)) entry.names.push(match.name)
+      mentioned.set(key, entry)
+    }
+  }
+  return { targets, mentioned: [...mentioned.values()], unknown }
 }
 
 /** Adds a mention reference without reordering or dropping wired references. */

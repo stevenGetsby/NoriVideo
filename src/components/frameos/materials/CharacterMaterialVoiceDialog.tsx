@@ -11,7 +11,7 @@ import type { FrameosMaterialItem } from './contracts'
 
 export function CharacterMaterialVoiceDialog({ material, onSaved, onClose }: {
   material: { id: string; name: string; projectId: string; voiceUrl?: string | null; globalCharacter?: boolean }
-  onSaved: () => void
+  onSaved: (voice: FrameosMaterialItem | null) => void
   onClose: () => void
 }) {
   const [picker, setPicker] = useState(false)
@@ -32,7 +32,7 @@ export function CharacterMaterialVoiceDialog({ material, onSaved, onClose }: {
     })
     if (!response.ok) throw new Error(await readApiErrorMessage(response, '绑定音色失败'))
     setVoiceUrl(voice?.url || null)
-    onSaved()
+    onSaved(voice)
   }
   const run = async (operation: () => Promise<void>) => {
     if (busyRef.current) return

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireUserAuth, isErrorResponse } from '@/lib/api-auth'
 import { apiHandler } from '@/lib/api-errors'
 import { listNoriBusinessModels, resolveNoriModelRoute, type NoriBusinessModel } from '@/lib/nori-model-catalog'
-import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities, type UnifiedModelType } from '@/lib/model-config-contract'
+import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities } from '@/lib/model-config-contract'
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
@@ -38,20 +38,24 @@ function toOption(input: {
 }
 
 function toConfiguredOptions(type: SelectableModelType) {
-  return listConfiguredSelectableModels(getPlatformServiceConfigResponse(), type).map((model) => toOption({
-    value: model.modelKey,
-    label: model.modelId,
-    provider: model.modelKey.split('::')[0],
-    modelId: model.modelId,
-    type,
-  }))
+  return listConfiguredSelectableModels(getPlatformServiceConfigResponse(), type).map((model) => {
+    const runtime = parseModelKeyStrict(model.runtimeModelKey)
+    if (!runtime) return { value: model.modelKey, label: model.modelId }
+    return toOption({
+      value: model.modelKey,
+      label: model.modelId,
+      provider: runtime.provider,
+      modelId: runtime.modelId,
+      type,
+    })
+  })
 }
 
-function toAudioOption(model: NoriBusinessModel): UserModelOption {
+function toAudioOption(model: NoriBusinessModel): UserModelOption | null {
   const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')
   return target
-    ? toOption({ value: model.key, label: target.modelId, provider: target.provider, modelId: target.modelId, type: model.type as Extract<UnifiedModelType, 'audio'> })
-    : { value: model.key, label: model.name }
+    ? toOption({ value: model.key, label: target.modelId, provider: target.provider, modelId: target.modelId, type: model.type })
+    : null
 }
 
 export const GET = apiHandler(async () => {
@@ -61,6 +65,6 @@ export const GET = apiHandler(async () => {
   const llm = toConfiguredOptions('llm')
   const image = toConfiguredOptions('image')
   const video = toConfiguredOptions('video')
-  const audio = listNoriBusinessModels('audio').map(toAudioOption)
+  const audio = listNoriBusinessModels('audio').map(toAudioOption).filter((model): model is UserModelOption => model !== null)
   return NextResponse.json({ text: llm, llm, vision: [], image, video, audio, lipsync: [] })
 })

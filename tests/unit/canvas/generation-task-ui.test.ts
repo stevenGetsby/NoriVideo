@@ -42,18 +42,22 @@ describe('canvas persistent generation task UI helpers', () => {
     })).toEqual({ count: 1, storyboard: false })
   })
 
-  it('exposes cancel and original-task retry actions on persistent generation nodes', () => {
+  it('exposes cancel on running generation nodes but never a one-click retry on a failed node', () => {
     const graph = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/CanvasGraph.tsx'), 'utf8')
     const node = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/nodes/CreativeNode.tsx'), 'utf8')
     const client = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/generation-task-client.ts'), 'utf8')
 
     expect(node).toContain("editor.runNodeAction(id, 'cancel_generation')")
-    expect(node).toContain("data.generationTask?.taskId ? 'retry_generation_task' : 'regenerate'")
     expect(graph).toContain("action === 'cancel_generation'")
-    expect(graph).toContain("action === 'retry_generation_task'")
-    expect(graph).toContain("retryOf: previousTask.taskId")
     expect(client).toContain("method: 'DELETE'")
-    expect(client).toContain('/retry`')
+
+    // A failed node only reports its error: re-submitting a paid generation takes the explicit context-menu action.
+    const failed = node.slice(node.indexOf("status === 'FAILED' ? ("), node.indexOf("status === 'FAILED' && data.cgtid"))
+    expect(failed).toContain('nori-canvas-node-error')
+    expect(failed).not.toContain('<button')
+    expect(failed).not.toContain('runNodeAction')
+    expect(node).not.toContain('retry_generation_task')
+    expect(graph).not.toContain('retry_generation_task')
   })
 
   it('surfaces bounded polling errors while retaining a recoverable running task', () => {

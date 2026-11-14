@@ -254,9 +254,13 @@ export async function resolveModelSelection(
       throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
     }
   }
-  const controlledModelKey = mediaType === 'llm' || mediaType === 'image' || mediaType === 'video'
-    ? normalizeProjectBusinessModelKey(requested.modelKey, mediaType)
-    : requested.modelKey
+  const controlledModelKey = normalizeProjectBusinessModelKey(
+    requested.modelKey,
+    mediaType === 'lipsync' ? 'video' : mediaType,
+  )
+  if (controlledModelKey === '__unrouted__' || controlledModelKey === '__ambiguous__') {
+    throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
+  }
   const runtimeModelKey = resolveRuntimeModelKey(controlledModelKey)
   if (!runtimeModelKey) {
     throw new Error(`MODEL_ROUTE_NOT_CONFIGURED: ${requested.modelKey}`)

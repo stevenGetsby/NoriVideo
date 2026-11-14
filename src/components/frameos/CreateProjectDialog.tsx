@@ -22,8 +22,11 @@ import {
   type CreateProjectStyle,
   type CreateProjectType,
 } from './works/create-project-variants'
+import { InheritAssetsSection } from './works/InheritAssetsSection'
+import { isInheritIssueMessage, type InheritSourceOption } from './works/inherit-sources'
 import { fetchAllMemberCandidates } from './works/member-candidates'
 import type { MemberCandidate } from './works/types'
+import { useInheritAssets } from './works/useInheritAssets'
 import type { AccountPermission } from '@/lib/account/permissions'
 import {
   focusCreateProjectDialogInitial,
@@ -66,6 +69,8 @@ export interface CreateProjectDraft {
   initialEpisodeStart: number
   initialEpisodeEnd: number
   styleReferenceFiles: ProjectStyleReferenceDraftFile[]
+  inheritSourceProjectId?: string
+  inheritMaterialIds?: string[]
 }
 
 type CreateProjectFormDraft = Omit<CreateProjectDraft, 'episodeDurationValue'> & {
@@ -172,12 +177,18 @@ function validateScriptFile(file: File): string | null {
   return null
 }
 
+const NO_INHERIT_SOURCES: readonly InheritSourceOption[] = []
+
 export function CreateProjectDialog({
   workName,
+  currentWorkId = '',
+  inheritSources = NO_INHERIT_SOURCES,
   onClose,
   onCreate,
 }: {
   workName?: string
+  currentWorkId?: string
+  inheritSources?: readonly InheritSourceOption[]
   onClose: () => void
   onCreate: (
     draft: CreateProjectDraft,
@@ -200,6 +211,10 @@ export function CreateProjectDialog({
   const [membersLoading, setMembersLoading] = useState(false)
   const [membersError, setMembersError] = useState<string | null>(null)
   const [styleAnalyzing, setStyleAnalyzing] = useState(false)
+  const inherit = useInheritAssets({ sources: inheritSources, currentWorkId })
+  useEffect(() => {
+    if (isInheritIssueMessage(error) && error !== inherit.issue) setError(null)
+  }, [error, inherit.issue])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dialogRef = useRef<HTMLFormElement>(null)
   const initialFocusRef = useRef<HTMLInputElement>(null)
@@ -356,6 +371,7 @@ export function CreateProjectDialog({
     event.preventDefault()
     if (submittingRef.current) return
     if (!draft.name.trim()) { setError('作品名称必填'); return }
+    if (draft.creationMode === 'canvas' && inherit.issue) { setError(inherit.issue); return }
     if (draft.creationMode === 'workflow' && draft.materialType === 'script' && source === 'writer' && !draft.importedScriptText.trim()) { setError('请选择一个状态为“可用”的剧本'); return }
     if (draft.creationMode === 'workflow' && source === 'local' && !draft.scriptFile) { setError(`请上传 txt、docx 或 pdf ${draft.materialType === 'script' ? '剧本' : '小说/大纲'}文件`); return }
     if (draft.creationMode === 'workflow' && variant.showStyleReferences && styleReferenceItems.some((item) => item.validationStatus === 'validating')) { setError('画风参考视频仍在读取，请稍候。'); return }
@@ -408,7 +424,18 @@ export function CreateProjectDialog({
         : []
       const normalizedDraft: CreateProjectDraft = { ...draft, episodeDurationValue: durationValue }
       const nextDraft = draft.creationMode === 'canvas'
-        ? { ...normalizedDraft, collaborationMode: 'solo' as const, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false, styleReferenceFiles: [] }
+        ? {
+          ...normalizedDraft,
+          collaborationMode: 'solo' as const,
+          scriptFile: null,
+          importedScriptText: '',
+          importedScriptTitle: '',
+          initializeEpisodeRange: false,
+          styleReferenceFiles: [],
+          ...(inherit.request
+            ? { inheritSourceProjectId: inherit.request.sourceProjectId, inheritMaterialIds: inherit.request.materialIds }
+            : {}),
+        }
         : source === 'blank'
         ? { ...normalizedDraft, scriptFile: null, importedScriptText: '', importedScriptTitle: '', initializeEpisodeRange: false, styleReferenceFiles }
         : variant.allowEpisodeRange && source === 'range'
@@ -497,6 +524,8 @@ export function CreateProjectDialog({
             </div>
             {draft.creationMode === 'canvas' ? <p className="works-dialog-intro">创建作品与空白画布，立即开始创作。</p> : null}
           </div>
+
+          {draft.creationMode === 'canvas' ? <InheritAssetsSection inherit={inherit} sources={inheritSources} /> : null}
 
           {draft.creationMode === 'workflow' && <section className="create-project-workflow-settings">
           <section className="create-project-section">

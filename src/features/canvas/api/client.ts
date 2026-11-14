@@ -1,6 +1,8 @@
 import { apiFetch } from '@/lib/api-fetch'
+import { CANVAS_DELTA_RESPONSE_HEADER } from '../types'
 import type {
   Canvas,
+  CanvasGraphDelta,
   CanvasGraphResponse,
   CanvasListResponse,
   CanvasDocumentInput,
@@ -8,6 +10,27 @@ import type {
   CanvasRevision,
   Viewport,
 } from '../types'
+
+async function postOperations(
+  projectId: string,
+  canvasId: string,
+  input: CanvasOperationsInput,
+  delta = false,
+): Promise<Response> {
+  const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/ops`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(delta ? { [CANVAS_DELTA_RESPONSE_HEADER]: 'delta' } : {}),
+    },
+    body: JSON.stringify(input),
+  })
+  if (res.status === 409) {
+    const payload: unknown = await res.json().catch(() => null)
+    throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
+  }
+  return res
+}
 
 export class CanvasRevisionConflictError extends Error {
   readonly status = 409
@@ -127,16 +150,17 @@ export const canvasApi = {
     canvasId: string,
     input: CanvasOperationsInput,
   ): Promise<CanvasGraphResponse> => {
-    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/ops`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    })
-    if (res.status === 409) {
-      const payload: unknown = await res.json().catch(() => null)
-      throw new CanvasRevisionConflictError(readApiErrorMessage(payload) || undefined, readActualRevision(payload))
-    }
+    const res = await postOperations(projectId, canvasId, input)
     return asJson<CanvasGraphResponse>(res)
+  },
+
+  saveOperationsDelta: async (
+    projectId: string,
+    canvasId: string,
+    input: CanvasOperationsInput,
+  ): Promise<CanvasGraphDelta> => {
+    const res = await postOperations(projectId, canvasId, input, true)
+    return asJson<CanvasGraphDelta>(res)
   },
 
   listRevisions: async (

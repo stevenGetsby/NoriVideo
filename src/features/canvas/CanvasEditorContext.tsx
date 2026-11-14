@@ -21,7 +21,6 @@ export type CanvasNodeAction =
   | 'history'
   | 'regenerate'
   | 'cancel_generation'
-  | 'retry_generation_task'
   | 'superresolve'
   | 'panorama_720'
   | 'panorama_preview'
@@ -64,4 +63,14 @@ export function useCanvasEditor() {
   const value = useContext(CanvasEditorContext)
   if (!value) throw new Error('CanvasEditorProvider is missing')
   return value
+}
+
+// Kept apart from the editor context so only the boolean flip (not every
+// editor state change) re-renders nodes that hide their chrome on multi-select.
+const CanvasMultiSelectionContext = createContext(false)
+
+export const CanvasMultiSelectionProvider = CanvasMultiSelectionContext.Provider
+
+export function useCanvasMultiSelection() {
+  return useContext(CanvasMultiSelectionContext)
 }

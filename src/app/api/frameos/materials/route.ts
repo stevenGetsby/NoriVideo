@@ -10,6 +10,7 @@ import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { extractStorageKey, getSignedUrl } from '@/lib/storage'
 import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
+import { supersededByMaterialId } from '@/lib/frameos/material-supersede'
 import {
   syncGeneratedImagesToMaterialLibrary,
   type FrameosMaterialType,
@@ -152,7 +153,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
     }),
     prisma.frameosMaterial.count({ where: { ...scopeWhere, deletedAt: { not: null } } }),
   ])
-  const realProjectIds = Array.from(new Set(materials
+  // Retired-but-still-referenced images stay alive for old canvases only; never list them.
+  const visibleMaterials = materials.filter((material) => !supersededByMaterialId(material.metadata))
+  const realProjectIds = Array.from(new Set(visibleMaterials
     .map((material) => material.projectId)
     .filter((id) => id !== 'global' && id !== 'global-asset-hub' && id !== PERSONAL_MATERIAL_PROJECT_ID)))
   const readableProjectNames = new Map(readableProjects.map((project) => [project.id, project.name]))
@@ -164,7 +167,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
     : []
   for (const project of projects) readableProjectNames.set(project.id, project.name)
-  const voiceIds = [...new Set(materials.map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
+  const voiceIds = [...new Set(visibleMaterials.map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
   const voices = voiceIds.length ? await prisma.frameosMaterial.findMany({
     where: { ...scopeWhere, id: { in: voiceIds }, type: 'audio', status: 'ready', deletedAt: null },
   }) : []
@@ -185,7 +188,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
         reason: null,
       },
     },
-    materials: materials.map((material) => ({
+    materials: visibleMaterials.map((material) => ({
       ...material,
       voice: (() => {
         const voice = voicesById.get(characterVoiceMaterialId(material.metadata) || '')

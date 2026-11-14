@@ -50,11 +50,18 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const assetIds = assetIdsParam === null
     ? []
     : Array.from(new Set(assetIdsParam.split(',').map((value) => value.trim()).filter(Boolean)))
+  const taskIdsParam = request.nextUrl.searchParams.get('taskIds')
+  const taskIds = taskIdsParam === null
+    ? []
+    : Array.from(new Set(taskIdsParam.split(',').map((value) => value.trim()).filter(Boolean)))
   if (
-    assetIdsParam !== null
-    && (assetIds.length === 0 || assetIds.length > 200 || assetIds.some((id) => id.length > 191))
+    (assetIdsParam !== null
+      && (assetIds.length === 0 || assetIds.length > 200 || assetIds.some((id) => id.length > 191)))
+    || (taskIdsParam !== null
+      && (taskIds.length === 0 || taskIds.length > 200 || taskIds.some((id) => id.length > 191)))
+    || (assetIdsParam !== null && taskIdsParam !== null)
   ) {
-    throw new ApiError('INVALID_PARAMS', { message: 'assetIds 格式无效或超过 200 个。' })
+    throw new ApiError('INVALID_PARAMS', { message: 'assetIds/taskIds 格式无效或超过 200 个。' })
   }
   const limitRaw = Number(request.nextUrl.searchParams.get('limit') || 80)
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(200, Math.floor(limitRaw))) : 80
@@ -97,30 +104,36 @@ export const GET = apiHandler(async (request: NextRequest) => {
     select: { id: true },
   })
   const workspaceUserIds = workspaceUsers.map((user) => user.id)
-  const assets = await prisma.frameosToolboxAsset.findMany({
-    where: {
-      userId: { in: workspaceUserIds },
-      ...projectScope,
-      ...(source ? {
-        source,
-        // Character audition/voice-binding tasks also use the same durable
-        // asset table. A source-only filter is therefore not strong enough
-        // for the Toolbox history surface, especially for legacy rows.
-        bizType: { in: toolboxBizTypesFor(type) },
-      } : {}),
-      ...(assetIds.length > 0 ? { id: { in: assetIds } } : {}),
-      ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
-    },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: assetIds.length > 0 ? assetIds.length : limit,
-    ...(cursor && assetIds.length === 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
-  })
-  const tasks = assets.length > 0
+  const listWhere: Prisma.FrameosToolboxAssetWhereInput = {
+    userId: { in: workspaceUserIds },
+    ...projectScope,
+    ...(source ? {
+      source,
+      // Character audition/voice-binding tasks also use the same durable
+      // asset table. A source-only filter is therefore not strong enough
+      // for the Toolbox history surface, especially for legacy rows.
+      bizType: { in: toolboxBizTypesFor(type) },
+    } : {}),
+    ...(assetIds.length > 0 ? { id: { in: assetIds } } : {}),
+    ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
+  }
+  const isHistoryListing = assetIdsParam === null && taskIdsParam === null
+  const [assets, total] = await Promise.all([
+    prisma.frameosToolboxAsset.findMany({
+      where: listWhere,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: assetIds.length > 0 ? assetIds.length : limit,
+      ...(cursor && assetIds.length === 0 ? { cursor: { id: cursor }, skip: 1 } : {}),
+    }),
+    isHistoryListing ? prisma.frameosToolboxAsset.count({ where: listWhere }) : Promise.resolve(null),
+  ])
+  const tasks = assets.length > 0 || taskIds.length > 0
     ? await prisma.task.findMany({
       where: {
         userId: { in: workspaceUserIds },
         targetType: 'FrameosToolboxAsset',
-        targetId: { in: assets.map((asset) => asset.id) },
+        ...(assets.length > 0 && taskIdsParam === null ? { targetId: { in: assets.map((asset) => asset.id) } } : {}),
+        ...(taskIds.length > 0 ? { id: { in: taskIds } } : {}),
       },
       orderBy: { createdAt: 'desc' },
     })
@@ -129,7 +142,20 @@ export const GET = apiHandler(async (request: NextRequest) => {
   for (const task of tasks) {
     if (!latestTask.has(task.targetId)) latestTask.set(task.targetId, task)
   }
-  const materialIds = Array.from(new Set(assets.map((asset) => asset.materialId).filter((id): id is string => Boolean(id))))
+  const recoveredTaskAssets = await prisma.frameosToolboxAsset.findMany({
+    where: {
+      userId: { in: workspaceUserIds },
+      ...projectScope,
+      id: { in: tasks.map((task) => task.targetId) },
+      ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
+    },
+  })
+  const recoveredAssetById = new Map(recoveredTaskAssets.map((asset) => [asset.id, asset]))
+  const orderedAssets = taskIdsParam !== null
+    ? tasks.map((task) => recoveredAssetById.get(task.targetId))
+      .filter((asset): asset is NonNullable<typeof asset> => Boolean(asset))
+    : assets
+  const materialIds = Array.from(new Set(orderedAssets.map((asset) => asset.materialId).filter((id): id is string => Boolean(id))))
   const materials = materialIds.length > 0
     ? await prisma.frameosMaterial.findMany({
       where: { id: { in: materialIds }, userId: { in: workspaceUserIds }, deletedAt: null },
@@ -139,10 +165,11 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const materialMetadata = new Map(materials.map((material) => [material.id, material.metadata]))
   return NextResponse.json({
     pagination: {
-      nextCursor: assetIds.length === 0 && assets.length === limit ? assets.at(-1)?.id || null : null,
+      nextCursor: assetIds.length === 0 && taskIds.length === 0 && assets.length === limit ? assets.at(-1)?.id || null : null,
+      total,
     },
-    assets: await Promise.all(assets.map(async (asset) => {
-      const task = latestTask.get(asset.id)
+    assets: await Promise.all(orderedAssets.map(async (asset) => {
+      const task = taskIdsParam !== null ? tasks.find((item) => item.targetId === asset.id) : latestTask.get(asset.id)
       const storageKey = extractStorageKey(asset.resultUrl)
       return {
         ...asset,

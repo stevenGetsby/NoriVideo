@@ -25,6 +25,8 @@ export interface HuimengiModelDefinition {
   supportsPromptExtend?: boolean
   supportsCameraFixed?: boolean
   supportsReturnLastFrame?: boolean
+  /** Enables the provider's human-review whitelist so real human faces are accepted. */
+  supportsHumanReview?: boolean
 }
 
 export interface HuimengiGenerateRequestOptions {

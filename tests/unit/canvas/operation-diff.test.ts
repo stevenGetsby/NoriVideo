@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { buildCanvasOperations } from '@/features/canvas/state/canvas-operations'
-import type { CanvasDocumentInput } from '@/features/canvas/types'
+import { applyCanvasDocumentDelta, buildCanvasOperations } from '@/features/canvas/state/canvas-operations'
+import type { Canvas, CanvasDocumentInput, CanvasGraphDelta } from '@/features/canvas/types'
 import { canvasNodeToFlow, mergeServerTerminalFlowNode } from '@/features/canvas/editor-types'
 
 function document(): CanvasDocumentInput {
@@ -48,6 +48,79 @@ function document(): CanvasDocumentInput {
     }],
   }
 }
+
+function canvas(overrides: Partial<Canvas> = {}): Canvas {
+  return {
+    id: 'canvas-1',
+    projectId: 'project-1',
+    title: '画布',
+    themeColor: null,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    revision: 3,
+    visibility: 'private',
+    forkedFromId: null,
+    createdAt: '2026-11-13T00:00:00.000Z',
+    updatedAt: '2026-11-13T00:00:00.000Z',
+    ...overrides,
+  }
+}
+
+function delta(overrides: Partial<CanvasGraphDelta> = {}): CanvasGraphDelta {
+  return {
+    canvas: canvas(),
+    nodes: [],
+    edges: [],
+    deletedNodeIds: [],
+    deletedEdgeIds: [],
+    ...overrides,
+  }
+}
+
+describe('canvas delta application', () => {
+  it('keeps every untouched node so the next diff cannot delete them', () => {
+    const confirmed = document()
+    const moved = { ...confirmed.nodes[0]!, position: { x: 200, y: 300 } }
+
+    const next = applyCanvasDocumentDelta(confirmed, delta({ nodes: [moved] }), 'tab-1', '移动节点')
+
+    expect(next.nodes.map((node) => node.id)).toEqual(['node-1', 'node-2'])
+    expect(next.nodes[0]!.position).toEqual({ x: 200, y: 300 })
+    expect(next.edges).toEqual(confirmed.edges)
+    expect(next.expectedRevision).toBe(3)
+    expect(buildCanvasOperations(next, { ...next, expectedRevision: 3 })).toEqual([])
+  })
+
+  it('drops deleted nodes and edges and applies added ones', () => {
+    const confirmed = document()
+    const next = applyCanvasDocumentDelta(confirmed, delta({
+      deletedNodeIds: ['node-2'],
+      deletedEdgeIds: ['edge-1'],
+      nodes: [{ ...confirmed.nodes[0]!, status: 'SUCCEEDED' }],
+      edges: [{
+        id: 'edge-2',
+        canvasId: 'canvas-1',
+        sourceNodeId: 'node-1',
+        targetNodeId: 'node-1',
+        sourceHandle: null,
+        targetHandle: null,
+        role: 'REF',
+      }],
+    }), 'tab-1', null)
+
+    expect(next.nodes.map((node) => node.id)).toEqual(['node-1'])
+    expect(next.nodes[0]!.status).toBe('SUCCEEDED')
+    expect(next.edges.map((edge) => edge.id)).toEqual(['edge-2'])
+  })
+
+  it('uses the server viewport unless the canvas has none', () => {
+    const confirmed = document()
+    const withViewport = applyCanvasDocumentDelta(confirmed, delta({ canvas: canvas({ viewport: { x: 5, y: 6, zoom: 0.5 } }) }), 'tab-1', null)
+    expect(withViewport.viewport).toEqual({ x: 5, y: 6, zoom: 0.5 })
+
+    const withoutViewport = applyCanvasDocumentDelta(confirmed, delta({ canvas: canvas({ viewport: null }) }), 'tab-1', null)
+    expect(withoutViewport.viewport).toEqual(confirmed.viewport)
+  })
+})
 
 describe('canvas operation compression', () => {
   it('collapses a current document into one final operation per changed entity', () => {

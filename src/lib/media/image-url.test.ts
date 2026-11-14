@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOriginalImageUrl, toCanvasTextureUrl, toDisplayImageUrl, toPlayableVideoUrl, unwrapNextImageUrl } from './image-url'
+import { resolveOriginalImageUrl, toCanvasDisplayImageUrl, toCanvasTextureUrl, toDisplayImageUrl, toPlayableVideoUrl, unwrapNextImageUrl } from './image-url'
 
 describe('image-url helpers', () => {
   it('unwraps next/image nested url', () => {
@@ -9,6 +9,14 @@ describe('image-url helpers', () => {
 
   it('maps storage key to display signing route', () => {
     expect(toDisplayImageUrl('images/a.png')).toBe('/api/storage/sign?key=images%2Fa.png')
+  })
+
+  it('uses only storage-backed images for canvas thumbnails and preserves the original key', () => {
+    expect(toCanvasDisplayImageUrl('images/a.png', 960))
+      .toBe('/api/storage/sign?key=images%2Fa.png&thumbnail=960')
+    expect(toCanvasDisplayImageUrl('/api/storage/sign?key=images%2Fa.png&inline=1&playback=1&expires=60', 480))
+      .toBe('/api/storage/sign?key=images%2Fa.png&thumbnail=480')
+    expect(toCanvasDisplayImageUrl('https://cdn.example/a.png', 960)).toBe('https://cdn.example/a.png')
   })
 
   it('keeps WebGL textures on the same origin instead of following a CORS-sensitive redirect', () => {

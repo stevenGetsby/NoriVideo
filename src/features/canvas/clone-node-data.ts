@@ -38,9 +38,10 @@ export function cloneCanvasNodeDataForNewNode(
     : null
   return {
     ...data,
-    // The global style prompt is unique per canvas; a duplicate must not
-    // silently compete with the original text node.
+    // The global style and video prefix prompts are unique per canvas; a
+    // duplicate must not silently compete with the original text node.
     globalStylePrompt: false,
+    videoPrefixPrompt: false,
     generation,
     generationTask: null,
     memberIds: data.memberIds?.map((id) => remapId(id)).filter((id): id is string => Boolean(id)),

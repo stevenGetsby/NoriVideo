@@ -14,6 +14,7 @@ import {
 } from '@/lib/projects/create-project-request'
 import { PROJECT_STYLE_REFERENCE_FIELD } from '@/lib/projects/style-reference-contract'
 import { logError } from '@/lib/logging/core'
+import { notify } from '@/lib/ui/feedback'
 import { isManagementRole } from '@/lib/account/permissions'
 import { FosShell } from './FosShell'
 import { CreateProjectDialog, type CreateProjectDraft } from './CreateProjectDialog'
@@ -21,6 +22,7 @@ import { FosProjectModelConfigDialog } from './FosProjectModelConfigDialog'
 import { notifyProjectChanged } from '@/lib/projects/change-client'
 import { WorkPanel } from './works/FosWorkPanels'
 import { fetchAllWorks } from './works/fetch-all-works'
+import { buildInheritSourceOptions } from './works/inherit-sources'
 import { filterWorksByQuery } from './works/work-search'
 import {
   ConfirmActionDialog,
@@ -217,6 +219,10 @@ export function FosProjectsClient() {
     return filteredWorks.filter((work) => work.id === selectedWork.id)
   }, [filteredWorks, selectedWork])
   const allProjectNames = useMemo(() => works.flatMap((work) => work.projects.map((project) => project.name)), [works])
+  const inheritSources = useMemo(
+    () => createProjectWork ? buildInheritSourceOptions(works, createProjectWork.id) : [],
+    [createProjectWork, works],
+  )
   const clearSearch = useCallback(() => {
     setSearchInput('')
     setSearchQuery('')
@@ -264,6 +270,14 @@ export function FosProjectsClient() {
     form.set('name', draft.name.trim())
     form.set('creationMode', draft.creationMode)
     if (draft.creationMode === 'canvas') form.set('createBlankCanvas', 'true')
+    const inheritMaterialIds = draft.creationMode === 'canvas' && draft.inheritSourceProjectId
+      ? draft.inheritMaterialIds ?? []
+      : []
+    if (draft.inheritSourceProjectId && inheritMaterialIds.length > 0) {
+      form.set('inheritSourceProjectId', draft.inheritSourceProjectId)
+      form.set('inheritMaterialIds', JSON.stringify(inheritMaterialIds))
+      setProgress(`创建作品并继承 ${inheritMaterialIds.length} 项资产…`)
+    }
     form.set('parentProjectId', createProjectWork.id)
     form.set('workId', createProjectWork.id)
     form.set('collaborationMode', draft.collaborationMode)
@@ -326,10 +340,21 @@ export function FosProjectsClient() {
       }
       throw new Error(await readApiErrorMessage(response, '创建作品失败'))
     }
-    const payload = await response.json() as { work?: { id?: string }; project?: { id?: string }; canvas?: { id?: string } }
+    const payload = await response.json() as {
+      work?: { id?: string }
+      project?: { id?: string }
+      canvas?: { id?: string }
+      inheritedAssets?: { copied?: number; voicesDropped?: number; sourceProjectName?: string }
+    }
     const projectId = payload.work?.id || payload.project?.id
     if (!projectId) throw new Error('创建作品失败：服务未返回作品 ID')
     if (draft.creationMode === 'canvas' && !payload.canvas?.id) throw new Error('创建画布失败：服务未返回画布 ID')
+    const inherited = payload.inheritedAssets
+    if (inherited && typeof inherited.copied === 'number' && inherited.copied > 0) {
+      const from = inherited.sourceProjectName ? `「${inherited.sourceProjectName}」` : '所选作品'
+      notify(`已从${from}继承 ${inherited.copied} 项资产。`, 'success')
+      if (inherited.voicesDropped) notify(`${inherited.voicesDropped} 个角色音色来自其他作品，需要在新作品里重新绑定。`, 'warning')
+    }
     setProgress(draft.creationMode === 'canvas' ? '进入画布…' : '进入工作台…')
     setCreateProjectWork(null)
     router.push({ pathname: draft.creationMode === 'canvas'
@@ -558,6 +583,8 @@ export function FosProjectsClient() {
       {createProjectWork ? (
         <CreateProjectDialog
           workName={createProjectWork.name}
+          currentWorkId={createProjectWork.id}
+          inheritSources={inheritSources}
           onClose={() => setCreateProjectWork(null)}
           onCreate={createProject}
         />

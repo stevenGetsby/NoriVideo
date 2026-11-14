@@ -12,7 +12,7 @@ describe('FosShell collapsible sidebar', () => {
     const styles = readSource('src/styles/frameos-replica.css')
 
     expect(shell).toContain('className="fos-titlebar"')
-    expect(shell).toContain('className="fos-titlebar-title">LanMiaoTV</span>')
+    expect(shell).toContain('className="fos-titlebar-title">LanmiaoTV</span>')
     expect(shell).toContain('aria-label="刷新页面"')
     expect(styles).toContain('--fos-titlebar-height: 32px;')
     expect(styles).toContain('height: var(--fos-titlebar-height);')
@@ -139,6 +139,18 @@ describe('FosShell collapsible sidebar', () => {
     expect(shell).toContain('if (!canvasMode || collapsed) return')
     expect(shell).toContain("target instanceof HTMLElement && target.closest('a')")
     expect(shell).toContain('if (target instanceof HTMLElement && target.closest(\'a\')) onToggle()')
+  })
+
+  it('keeps a visible collapse button inside the expanded canvas-shell sidebar', () => {
+    const styles = readSource('src/styles/frameos-replica.css')
+    const canvasStyles = readSource('src/features/canvas/canvas.css')
+
+    const header = styles.match(/\.fos-app\.is-canvas-shell \.fos-sidebar-header \{([^}]*)\}/)
+    expect(header).not.toBeNull()
+    expect(header?.[1]).not.toMatch(/display:\s*none/)
+    expect(header?.[1]).toMatch(/position:\s*absolute/)
+    expect(styles).toContain('.fos-app.is-canvas-shell .fos-collapse-btn {')
+    expect(canvasStyles).toMatch(/\.nori-canvas-breadcrumbs > \.nori-canvas-sidebar-toggle \{[^}]*color: #e8e9f3;/)
   })
 
   it('reserves a readable, collision-free safe area below canvas chrome', () => {

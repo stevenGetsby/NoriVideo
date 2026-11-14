@@ -1,3 +1,5 @@
+import { inheritedMaterialSource } from '@/lib/frameos/material-inherit'
+
 export type MaterialType = 'image' | 'video' | 'audio' | 'model3d'
 
 export interface FrameosMaterialItem {
@@ -49,4 +51,9 @@ export const MATERIAL_SOURCE_LABELS: Record<FrameosMaterialItem['source'], strin
   creative: '资产生成',
   production: '作品制作',
   upload: '本地上传',
+}
+
+export function materialSourceLabel(item: Pick<FrameosMaterialItem, 'source' | 'metadata'>): string {
+  const inherited = inheritedMaterialSource(item.metadata)
+  return inherited ? `继承自「${inherited.projectName}」` : MATERIAL_SOURCE_LABELS[item.source]
 }

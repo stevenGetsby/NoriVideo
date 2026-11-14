@@ -8,7 +8,7 @@ import {
   resolveCanvasNodeEdgeEndpoint,
   type CanvasEdgePosition,
 } from '../connection-line-geometry'
-import { STORY_FLOW_ROLE } from '@/lib/interactive/types'
+import { STORY_FLOW_ROLE, STORY_MOUNT_ROLE } from '@/lib/interactive/types'
 import { STORY_NODE_HUES, useStoryCanvasContext } from '../story/StoryCanvasContext'
 import { paneRenderedScale, storyEdgeEnds } from '../story/story-geometry'
 
@@ -52,12 +52,15 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
   const sourceNode = store.nodeLookup.get(source)
   const targetNode = store.nodeLookup.get(target)
 
-  // Story flows leave from a specific option / branch row, and pictures enter a scene from its top port.
+  // Story flows leave from a specific option / branch row, pictures enter a scene from its top port,
+  // and a mounted interaction hangs from the scene's bottom port.
   const storyFlow = props.data?.role === STORY_FLOW_ROLE
-  const storyEnds = sourceNode && targetNode && (storyFlow || targetNode.type === 'story_scene')
-    ? storyEdgeEnds({ source: sourceNode, target: targetNode, sourceHandle: sourceHandleId, flow: storyFlow, scale: paneRenderedScale(store.domNode, store.width) })
+  const storyMount = props.data?.role === STORY_MOUNT_ROLE
+  const storyLine = storyFlow || storyMount
+  const storyEnds = sourceNode && targetNode && (storyLine || targetNode.type === 'story_scene')
+    ? storyEdgeEnds({ source: sourceNode, target: targetNode, sourceHandle: sourceHandleId, flow: storyFlow, mount: storyMount, scale: paneRenderedScale(store.domNode, store.width) })
     : null
-  const from = storyEnds?.source ?? (sourceNode && !storyFlow
+  const from = storyEnds?.source ?? (sourceNode && !storyLine
     ? resolveCanvasNodeEdgeEndpoint({
         positionAbsolute: sourceNode.internals.positionAbsolute,
         measuredWidth: measuredSize(sourceNode.measured?.width, sourceNode.width ?? sourceNode.internals.bounds?.width ?? 0),
@@ -65,7 +68,7 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
         position: sourcePosition as CanvasEdgePosition,
       })
     : { x: sourceX, y: sourceY })
-  const to = storyEnds?.target ?? (targetNode && !storyFlow
+  const to = storyEnds?.target ?? (targetNode && !storyLine
     ? resolveCanvasNodeEdgeEndpoint({
         positionAbsolute: targetNode.internals.positionAbsolute,
         measuredWidth: measuredSize(targetNode.measured?.width, targetNode.width ?? targetNode.internals.bounds?.width ?? 0),
@@ -83,10 +86,11 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
     targetPosition: storyEnds?.targetPosition ?? targetPosition,
   })
 
-  const edgeHue = sourceNode?.type ? EDGE_HUE_BY_NODE_TYPE[sourceNode.type] : undefined
+  const edgeHue = storyMount ? STORY_NODE_HUES.story_interaction : sourceNode?.type ? EDGE_HUE_BY_NODE_TYPE[sourceNode.type] : undefined
   const edgeStyle = edgeHue ? ({ ...style, '--edge-hue': edgeHue } as CSSProperties) : style
-  const storyClass = storyFlow ? 'is-story-flow' : storyEnds ? 'is-story-media' : undefined
+  const storyClass = storyFlow ? 'is-story-flow' : storyMount ? 'is-story-mount' : storyEnds ? 'is-story-media' : undefined
   const canDelete = Boolean(storyEnds && selected && story && !story.readOnly)
+  const deleteLabel = storyFlow ? '断开剧情连线' : storyMount ? '从片段上取下互动' : '移除片段画面'
 
   return (
     <>
@@ -97,8 +101,8 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
             type="button"
             className="nori-story-edge-delete nodrag nopan"
             style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`, '--edge-hue': edgeHue } as CSSProperties}
-            aria-label={storyFlow ? '断开剧情连线' : '移除片段画面'}
-            title={storyFlow ? '断开剧情连线' : '移除片段画面'}
+            aria-label={deleteLabel}
+            title={deleteLabel}
             onClick={() => story.actions.removeEdge(id)}
           >
             <X />

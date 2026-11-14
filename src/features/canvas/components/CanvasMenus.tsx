@@ -1,6 +1,6 @@
 'use client'
 
-import { Clipboard, Copy, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
+import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
@@ -33,6 +33,7 @@ export function CanvasContextMenu({
   canUploadToAssetLibrary,
   nodeMediaType,
   isGlobalStylePrompt,
+  isVideoPrefixPrompt,
   readOnly,
   onAction,
 }: {
@@ -42,6 +43,7 @@ export function CanvasContextMenu({
   canUploadToAssetLibrary?: boolean
   nodeMediaType?: string | null
   isGlobalStylePrompt?: boolean
+  isVideoPrefixPrompt?: boolean
   readOnly: boolean
   onAction: (action: string) => void
 }) {
@@ -71,6 +73,9 @@ export function CanvasContextMenu({
         isGlobalStylePrompt
           ? { key: 'clear-global-style', label: '取消全局风格', icon: Sparkles, hint: '不再注入图片/视频提示词' }
           : { key: 'set-global-style', label: '设为全局风格', icon: Sparkles, hint: '注入所有图片/视频提示词' },
+        isVideoPrefixPrompt
+          ? { key: 'clear-video-prefix', label: '取消视频统一前置提示词', icon: Film, hint: '不再约束视频提示词' }
+          : { key: 'set-video-prefix', label: '设为视频统一前置提示词', icon: Film, hint: '置于所有视频提示词最前面' },
       ] : []),
       { key: 'divider', divider: true },
       { key: 'regenerate', label: '重新生成', icon: RefreshCw, disabled: !canRegenerate },

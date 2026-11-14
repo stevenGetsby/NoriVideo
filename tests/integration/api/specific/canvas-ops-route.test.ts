@@ -24,10 +24,11 @@ vi.mock('@/lib/canvas/access', () => scopeMock)
 vi.mock('@/lib/canvas/persistence', () => persistenceMock)
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 
-function request(expectedRevision = 7) {
+function request(expectedRevision = 7, headers: Record<string, string> = {}) {
   return buildMockRequest({
     path: '/api/projects/project-1/canvas/canvas-1/ops',
     method: 'POST',
+    headers,
     body: {
       expectedRevision,
       clientId: 'tab-1',
@@ -50,8 +51,14 @@ describe('canvas operation API', () => {
     scopeMock.requireCanvasInProject.mockResolvedValue({ id: 'canvas-1', projectId: 'project-1', revision: 7 })
     persistenceMock.applyCanvasOperationsInTransaction.mockResolvedValue({
       canvas: { id: 'canvas-1', projectId: 'project-1', revision: 8 },
-      nodes: [],
-      edges: [],
+      nodes: [{ id: 'node-1', canvasId: 'canvas-1' }],
+      edges: [{ id: 'edge-1', canvasId: 'canvas-1' }],
+      delta: {
+        nodes: [{ id: 'node-1', canvasId: 'canvas-1' }],
+        edges: [],
+        deletedNodeIds: ['node-1'],
+        deletedEdgeIds: ['edge-9'],
+      },
     })
   })
 
@@ -74,6 +81,32 @@ describe('canvas operation API', () => {
         input: expect.objectContaining({ expectedRevision: 7 }),
       }),
     )
+  })
+
+  it('returns the whole graph when the caller does not opt into a delta', async () => {
+    const { POST } = await import('@/app/api/projects/[projectId]/canvas/[canvasId]/ops/route')
+    const response = await POST(request(), {
+      params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }),
+    })
+
+    const body = await response.json() as Record<string, unknown>
+    expect(body.nodes).toEqual([{ id: 'node-1', canvasId: 'canvas-1' }])
+    expect(body.edges).toEqual([{ id: 'edge-1', canvasId: 'canvas-1' }])
+    expect(body).not.toHaveProperty('deletedNodeIds')
+  })
+
+  it('returns only the written and deleted entities when the delta header is sent', async () => {
+    const { POST } = await import('@/app/api/projects/[projectId]/canvas/[canvasId]/ops/route')
+    const response = await POST(request(7, { 'x-nori-canvas-response': 'delta' }), {
+      params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }),
+    })
+
+    const body = await response.json() as Record<string, unknown>
+    expect(body.canvas).toMatchObject({ revision: 8 })
+    expect(body.nodes).toEqual([{ id: 'node-1', canvasId: 'canvas-1' }])
+    expect(body.edges).toEqual([])
+    expect(body.deletedNodeIds).toEqual(['node-1'])
+    expect(body.deletedEdgeIds).toEqual(['edge-9'])
   })
 
   it('returns a 409 with actualRevision before opening a stale transaction', async () => {

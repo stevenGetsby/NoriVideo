@@ -10,8 +10,10 @@ describe('generation entrypoint billing coverage', () => {
     const submitter = source('src/lib/task/submitter.ts')
     const syncBilling = source('src/lib/billing/service.ts')
     const understand = source('src/app/api/video-repaint/understand/route.ts')
-    const adapt = source('src/app/api/video-repaint/adapt/route.ts')
-    const adaptation = source('src/lib/video-repaint/adaptation.ts')
+    const outlineRoute = source('src/app/api/video-repaint/outline/route.ts')
+    const outline = source('src/lib/video-repaint/outline.ts')
+    const scriptRoute = source('src/app/api/video-repaint/script/route.ts')
+    const targetScript = source('src/lib/video-repaint/target-script.ts')
     const enhance = source('src/app/api/video-enhance/route.ts')
     const superAgent = source('src/lib/super-agent/llm-client.ts')
     const assistant = source('src/lib/assistant-platform/runtime.ts')
@@ -25,10 +27,13 @@ describe('generation entrypoint billing coverage', () => {
     expect(understand).toContain('withTextBilling(')
     expect(understand).not.toContain('status: 410')
     expect(understand).not.toContain('getProviderConfig')
-    expect(adapt).toContain('adaptVideoScript')
-    expect(adapt).not.toContain('status: 410')
-    expect(adaptation.indexOf('await withTextBilling(')).toBeLessThan(
-      adaptation.indexOf('runModelGatewayTextCompletion({'),
+    expect(outlineRoute).toContain('generateTargetOutline')
+    expect(outlineRoute).not.toContain('status: 410')
+    expect(scriptRoute).toContain('generateTargetScript')
+    expect(scriptRoute).not.toContain('getProviderConfig')
+    expect(targetScript.indexOf('await withTextBilling(')).toBeLessThan(targetScript.indexOf('runModelGatewayTextCompletion({'))
+    expect(outline.indexOf('await withTextBilling(')).toBeLessThan(
+      outline.indexOf('runModelGatewayTextCompletion({'),
     )
     expect(enhance).toContain('status: 410')
     expect(enhance).not.toContain('submitMediaKitEnhanceVideoTask')

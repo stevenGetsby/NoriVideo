@@ -218,7 +218,7 @@ describe('canvas 3D studio UI permissions', () => {
     expect(assets).toContain("hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['assetWrite'])")
     expect(assets).toContain("hasAccountPermissions({ role: session?.user?.role, permissions: session?.user?.permissions }, ['canvasWrite'])")
     expect(assets).toContain("if (!canEditAssets) return")
-    expect(assets).toContain("material.source === 'upload' && canEditAssets")
+    expect(assets).toContain('isUserManagedMaterial(material) && canEditAssets')
     expect(assets).toContain('<button type="button" onClick={() => onInsert(material)}>添加</button>')
   })
 })

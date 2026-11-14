@@ -28,7 +28,19 @@ describe('platform-controlled user API config', () => {
         { modelId: 'doubao-seedance-2-5-260628', name: 'Internal video alias', provider: 'kuaizi', type: 'video' },
         { modelId: 'speech-2.8-hd', name: 'Internal speech alias', provider: 'kuaizi', type: 'audio' },
       ],
-      defaultModels: { analysisModel: 'deepseek::deepseek-chat' },
+      defaultModels: { analysisModel: 'nori::nori-gpt' },
+      businessModels: [
+        { key: 'nori::nori-gpt', name: 'nori-gpt', description: '', type: 'llm', tier: 'standard' },
+        { key: 'nori::nori-image', name: 'nori-image', description: '', type: 'image', tier: 'standard' },
+        { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::nori-audio', name: 'nori-audio', description: '', type: 'audio', tier: 'standard' },
+      ],
+      modelRouting: {
+        'nori::nori-gpt': 'deepseek::deepseek-chat',
+        'nori::nori-image': 'openlux::gpt-image-2.5-sunburst',
+        'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
+        'nori::nori-audio': 'kuaizi::speech-2.8-hd',
+      },
     })
   })
 
@@ -38,14 +50,12 @@ describe('platform-controlled user API config', () => {
     const route = await import('@/app/api/user/api-config/route')
     const response = await route.GET(buildMockRequest({ path: '/api/user/api-config', method: 'GET' }), context)
     const body = await response.json()
-    const providerIds = ['deepseek', 'openlux', 'kuaizi', 'huimengi']
-    expect(response.status).toBe(200)
-    expect(body.providers.map((provider: { id: string }) => provider.id)).toEqual(providerIds)
     expect(body.models.every((model: { provider: string; name: string; modelId: string }) => (
-      providerIds.includes(model.provider) && model.name === model.modelId
+      model.provider === 'nori' && model.name === model.modelId
     ))).toBe(true)
-    expect(body.models.some((model: { modelKey: string; name: string }) => model.modelKey === 'deepseek::deepseek-chat' && model.name === 'deepseek-chat')).toBe(true)
-    expect(body.defaultModels.analysisModel).toBe('deepseek::deepseek-chat')
+    expect(body.models.some((model: { modelKey: string; name: string }) => model.modelKey === 'nori::nori-gpt' && model.name === 'deepseek-chat')).toBe(true)
+    expect(body.defaultModels.analysisModel).toBe('nori::nori-gpt')
+    expect(body.defaultModels.audioModel).toBe('')
     expect(JSON.stringify(body)).not.toContain('legacy-secret')
   })
 
@@ -62,7 +72,7 @@ describe('platform-controlled user API config', () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
-    const response = await route.PUT(buildMockRequest({ path: '/api/user/api-config', method: 'PUT', body: { defaultModels: { analysisModel: 'deepseek::deepseek-chat' }, workflowConcurrency: { analysis: 3 } } }), context)
+    const response = await route.PUT(buildMockRequest({ path: '/api/user/api-config', method: 'PUT', body: { defaultModels: { analysisModel: 'nori::nori-gpt' }, workflowConcurrency: { analysis: 3 } } }), context)
     expect(response.status).toBe(200)
     expect(prismaMock.userPreference.upsert).toHaveBeenCalled()
   })
@@ -76,13 +86,24 @@ describe('platform-controlled user API config', () => {
     expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
   })
 
-  it('stores a valid priced media default and concurrency without provider credentials', async () => {
+  it('stores a valid routed media default and concurrency without provider credentials', async () => {
     installAuthMocks()
     mockAuthenticated('user-1')
     const route = await import('@/app/api/user/api-config/route')
-    const response = await route.PUT(buildMockRequest({ path: '/api/user/api-config', method: 'PUT', body: { defaultModels: { videoModel: 'kuaizi::doubao-seedance-2-5-260628' }, workflowConcurrency: { analysis: 3 } } }), context)
+    const response = await route.PUT(buildMockRequest({ path: '/api/user/api-config', method: 'PUT', body: { defaultModels: { videoModel: 'nori::norivideo2.5' }, workflowConcurrency: { analysis: 3 } } }), context)
     expect(response.status).toBe(200)
     const call = prismaMock.userPreference.upsert.mock.calls[0][0]
-    expect(call.update).toEqual({ videoModel: 'kuaizi::doubao-seedance-2-5-260628', analysisConcurrency: 3 })
+    expect(call.update).toEqual({ videoModel: 'nori::norivideo2.5', analysisConcurrency: 3 })
+  })
+
+  it('rejects a disabled capability and a direct upstream default', async () => {
+    installAuthMocks()
+    mockAuthenticated('user-1')
+    const route = await import('@/app/api/user/api-config/route')
+    for (const videoModel of ['nori::nori-music', 'kuaizi::doubao-seedance-2-5-260628']) {
+      const response = await route.PUT(buildMockRequest({ path: '/api/user/api-config', method: 'PUT', body: { defaultModels: { videoModel } } }), context)
+      expect(response.status).toBe(400)
+    }
+    expect(prismaMock.userPreference.upsert).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,8 @@
 import { MarkerType, type Edge, type Node, type XYPosition } from '@xyflow/react'
 import { STUDIO_NODE_MIN_SIZE } from './studio-types'
 import { isStoryNodeType } from '@/lib/interactive/compile'
-import type { StoryNodeType } from '@/lib/interactive/types'
+import { defaultInteractionData } from '@/lib/interactive/interaction'
+import type { StoryInteractionKind, StoryNodeType } from '@/lib/interactive/types'
 import type { StoryWireRole } from './story/story-geometry'
 import {
   prependCanvasGenerationHistory,
@@ -298,9 +299,12 @@ export const DEFAULT_NODE_SIZES: Record<string, { width: number; height: number 
   story_condition: { width: 320, height: 220 },
   story_exit: { width: 240, height: 120 },
   story_ending: { width: 260, height: 160 },
+  story_interaction: { width: 300, height: 250 },
 }
 
-export const STORY_ADD_NODE_ITEMS: Array<{ type: StoryNodeType; label: string; description: string }> = [
+export type StoryAddNodeItem = { type: StoryNodeType; label: string; description: string; interaction?: StoryInteractionKind }
+
+export const STORY_ADD_NODE_ITEMS: StoryAddNodeItem[] = [
   { type: 'story_scene', label: '剧情片段', description: '一段视频或画面与台词' },
   { type: 'story_choice', label: '选择', description: '玩家在多个选项中做决定' },
   { type: 'story_condition', label: '条件', description: '按全局变量自动分支' },
@@ -309,11 +313,22 @@ export const STORY_ADD_NODE_ITEMS: Array<{ type: StoryNodeType; label: string; d
   { type: 'story_ending', label: '结局', description: '故事在此结束' },
 ]
 
+/** Interactions hang on a scene's bottom port (or follow a story wire); each kind seeds its own defaults. */
+export const STORY_INTERACTION_ADD_ITEMS: StoryAddNodeItem[] = [
+  { type: 'story_interaction', interaction: 'choice', label: '限时抉择', description: '倒计时内选择，可带图片，超时可单独走向' },
+  { type: 'story_interaction', interaction: 'tap', label: '快速点击', description: '限时连点，成功或失败走不同剧情' },
+  { type: 'story_interaction', interaction: 'swipe', label: '方向滑动', description: '按箭头方向滑动，滑错或超时算失败' },
+  { type: 'story_interaction', interaction: 'timing', label: '时机点击', description: '指针划过时点击：完美 / 普通 / 失误' },
+  { type: 'story_interaction', interaction: 'hold', label: '长按蓄力', description: '按住蓄力，在区间内松手才成功' },
+]
+
+export const storyAddItemKey = (item: { type: string; interaction?: string }) => (item.interaction ? `${item.type}:${item.interaction}` : item.type)
+
 function storyId(prefix: string) {
   return `${prefix}_${crypto.randomUUID().slice(0, 8)}`
 }
 
-function defaultStoryNodeData(type: StoryNodeType): CanvasNodeData {
+function defaultStoryNodeData(type: StoryNodeType, interaction?: StoryInteractionKind): CanvasNodeData {
   switch (type) {
     case 'story_entry':
       return { title: '入口' }
@@ -336,6 +351,8 @@ function defaultStoryNodeData(type: StoryNodeType): CanvasNodeData {
       return { title: '出口' }
     case 'story_ending':
       return { title: '结局', endingType: 'normal', description: '' }
+    case 'story_interaction':
+      return defaultInteractionData(interaction ?? 'tap', () => storyId('opt')) as CanvasNodeData
   }
 }
 
@@ -343,8 +360,8 @@ function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value)
 }
 
-export function defaultCanvasNodeData(type: CanvasNodeMenuType): CanvasNodeData {
-  if (isStoryNodeType(type)) return defaultStoryNodeData(type)
+export function defaultCanvasNodeData(type: CanvasNodeMenuType, interaction?: StoryInteractionKind): CanvasNodeData {
+  if (isStoryNodeType(type)) return defaultStoryNodeData(type, interaction)
   if (type === CANVAS_NODE_TYPE_TEXT) {
     return { title: '文本节点', mediaType: 'text', origin: 'empty', text: '', prompt: '' }
   }
@@ -540,7 +557,7 @@ export function flowEdgeToCanvas(edge: CanvasFlowEdge, canvasId: string): Canvas
   }
 }
 
-export function createFlowNode(type: CanvasNodeMenuType, position: XYPosition): CanvasFlowNode {
+export function createFlowNode(type: CanvasNodeMenuType, position: XYPosition, interaction?: StoryInteractionKind): CanvasFlowNode {
   const persistentType = type === CANVAS_NODE_TYPE_VIDEO_SUPERRESOLVE ? CANVAS_NODE_TYPE_VIDEO : type
   const size = DEFAULT_NODE_SIZES[persistentType]
   return {
@@ -552,7 +569,7 @@ export function createFlowNode(type: CanvasNodeMenuType, position: XYPosition): 
     zIndex: 1,
     selected: true,
     data: {
-      ...defaultCanvasNodeData(type),
+      ...defaultCanvasNodeData(type, interaction),
       __server: {
         status: 'IDLE',
         taskId: null,

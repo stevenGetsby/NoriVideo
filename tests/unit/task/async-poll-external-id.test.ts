@@ -46,6 +46,7 @@ describe('Kuaizi and HuiMeng async task recovery', () => {
       userId: 'user-1',
       providerToken: 'provider-token',
       modelToken: 'model-token',
+      signal: undefined,
     })
     expect(fetch).not.toHaveBeenCalled()
   })
@@ -82,6 +83,7 @@ describe('Kuaizi and HuiMeng async task recovery', () => {
       userId: 'user-1',
       providerToken: expect.any(String),
       modelToken: expect.any(String),
+      signal: undefined,
     })
     expect(pollKuaiziTaskMock).not.toHaveBeenCalled()
     expect(fetch).not.toHaveBeenCalled()

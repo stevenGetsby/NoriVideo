@@ -60,6 +60,7 @@ export async function requestHuimengi(input: {
   method: 'GET' | 'POST'
   body?: Record<string, unknown>
   timeoutMs?: number
+  signal?: AbortSignal
 }): Promise<unknown> {
   const response = await fetch(buildHuimengiUrl(input.baseUrl, input.path), {
     method: input.method,
@@ -68,7 +69,7 @@ export async function requestHuimengi(input: {
       ...(input.body ? { 'Content-Type': 'application/json' } : {}),
     },
     ...(input.body ? { body: JSON.stringify(input.body) } : {}),
-    signal: AbortSignal.timeout(input.timeoutMs || HUIMENGI_DEFAULT_TIMEOUT_MS),
+    signal: input.signal || AbortSignal.timeout(input.timeoutMs || HUIMENGI_DEFAULT_TIMEOUT_MS),
   })
   const payload = await readJsonResponse(response)
   if (!response.ok) {

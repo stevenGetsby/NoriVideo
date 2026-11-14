@@ -63,7 +63,7 @@ await page.route('**/api/**', async (route) => {
     const cursor = url.searchParams.get('cursor')
     const start = cursor ? history.findIndex((asset) => asset.id === cursor) + 1 : 0
     const assets = history.slice(start, start + 12)
-    return json({ assets, pagination: { nextCursor: start + 12 < history.length ? assets.at(-1)?.id || null : null } })
+    return json({ assets, pagination: { nextCursor: start + 12 < history.length ? assets.at(-1)?.id || null : null, total: history.length } })
   }
   if (url.pathname === '/api/projects') return json({ projects: [{ id: 'project-1', name: '当前作品', workId: 'work-1' }], pagination: { totalPages: 1 } })
   if (url.pathname.includes('/generation-config')) return json({
@@ -125,7 +125,7 @@ try {
   await page.getByRole('button', { name: '选择历史素材：历史素材 13', exact: true }).waitFor().catch(async (error) => {
     throw new Error(`${error.message}\nPage: ${await page.locator('body').innerText()}\nReads: ${JSON.stringify(historyReads)}\nErrors: ${JSON.stringify(errors)}`)
   })
-  assert.equal(await page.getByText('第 2 页 · 每页 12 条', { exact: true }).count(), 1)
+  assert.equal(await page.getByText('第 2 / 2 页 · 共 24 条 · 每页 12 条', { exact: true }).count(), 1, 'History pager must show the page count and total')
   assert.equal(historyReads.at(-1).cursor, 'history-12', 'An emptied last page must load its previous cursor directly')
   assert.deepEqual(errors, [])
   console.log('[toolbox-regeneration] history details, edited draft and fresh idempotency payload passed')

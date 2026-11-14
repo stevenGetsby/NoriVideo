@@ -3,7 +3,6 @@ import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth } from '@/lib/api-auth'
 import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
 import { resolveBuiltinCapabilitiesByModelKey, getCapabilityOptionFields } from '@/lib/model-capabilities/lookup'
-import { listNoriBusinessModels, resolveNoriModelRoute } from '@/lib/nori-model-catalog'
 import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
 import { getFrameos3DModelAvailability } from '@/lib/model3d/frameos-3d-provider'
 import { resolveCanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
@@ -34,21 +33,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const imageModels = listConfiguredSelectableModels(platformConfig, 'image')
   const videoModels = listConfiguredSelectableModels(platformConfig, 'video')
 
-  function mapModels(type: 'llm' | 'image' | 'video', models: ReturnType<typeof listConfiguredSelectableModels>, defaultKey: string | null) {
-    const unique = new Map(models.map((model) => [model.modelKey, model]))
-    if (defaultKey?.startsWith('nori::') && !unique.has(defaultKey)) {
-      const legacy = listNoriBusinessModels(type).find((model) => model.key === defaultKey)
-      if (legacy) {
-        const runtime = resolveNoriModelRoute(defaultKey)
-        unique.set(defaultKey, {
-          modelKey: legacy.key,
-          modelId: runtime?.split('::')[1] || legacy.modelId,
-          name: legacy.name,
-          type,
-        })
-      }
-    }
-    return Array.from(unique.values()).map((model) => {
+  function mapModels(type: 'llm' | 'image' | 'video', models: ReturnType<typeof listConfiguredSelectableModels>) {
+    return models.map((model) => {
       const capabilities = resolveBuiltinCapabilitiesByModelKey(type, model.modelKey)
       const availability = resolveConfiguredModelAvailability({
         modelKey: model.modelKey,
@@ -70,19 +56,19 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
   }
 
-  const audioModels = await Promise.all(listNoriBusinessModels('audio').filter((model) => model.key === 'nori::nori-audio').map(async (model) => {
-    const capabilities = resolveBuiltinCapabilitiesByModelKey('audio', model.key)
-    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey: model.key })
+  const audioModels = await Promise.all(listConfiguredSelectableModels(platformConfig, 'audio').filter((model) => model.modelKey === 'nori::nori-audio').map(async (model) => {
+    const capabilities = resolveBuiltinCapabilitiesByModelKey('audio', model.modelKey)
+    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey: model.modelKey })
     const configuredAvailability = resolveConfiguredModelAvailability({
-      modelKey: model.key,
+      modelKey: model.modelKey,
       type: 'audio',
       config: platformConfig,
       health: cachedHealth,
     })
     const duration = audioDurationBounds(capabilities?.audio)
     return {
-      modelKey: model.key,
-      name: resolveNoriModelRoute(model.key)?.split('::')[1] || model.modelId,
+      modelKey: model.modelKey,
+      name: model.modelId,
       description: null,
       options: getCapabilityOptionFields('audio', capabilities),
       inputSchema: resolveCanvasGenerationInputSchema('audio', capabilities),
@@ -102,9 +88,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   const model3dAvailability = getFrameos3DModelAvailability()
   return NextResponse.json({
-    textModels: mapModels('llm', textModels, defaults.analysisModel),
-    imageModels: mapModels('image', imageModels, defaults.characterModel || defaults.locationModel || defaults.editModel),
-    videoModels: mapModels('video', videoModels, defaults.videoModel),
+    textModels: mapModels('llm', textModels),
+    imageModels: mapModels('image', imageModels),
+    videoModels: mapModels('video', videoModels),
     audioModels,
     model3dModels: [{
       ...model3dAvailability,

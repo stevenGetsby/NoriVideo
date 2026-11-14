@@ -94,7 +94,7 @@ async function assertProjectAccess(session: MaterialUploadSession, projectId: st
   if (!project) throw new ApiError('NOT_FOUND')
 }
 
-function assertUploadContentLength(request: NextRequest) {
+export function assertUploadContentLength(request: NextRequest) {
   const rawContentLength = request.headers.get('content-length')?.trim()
   if (!rawContentLength || !/^\d+$/.test(rawContentLength)) return
   const contentLength = Number(rawContentLength)
@@ -103,7 +103,55 @@ function assertUploadContentLength(request: NextRequest) {
   }
 }
 
-async function withMaterialUploadPermit<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+/**
+ * Validates an uploaded image and normalises it to an upright JPEG, the same
+ * way every library image upload is stored.
+ */
+export async function normalizeFrameosImageUpload(original: Buffer) {
+  // 先松开像素上限读元数据，才能把“像素过大”和“文件损坏”区分开，
+  // 否则超限图片只会得到一句无法定位问题的“无法读取这张图片”。
+  const metadata = await sharp(original, { limitInputPixels: false, sequentialRead: true })
+    .metadata()
+    .catch(() => null)
+  if (!metadata?.width || !metadata.height) {
+    throw new ApiError('INVALID_PARAMS', { message: '无法读取这张图片，请更换文件。' })
+  }
+  assertFrameosImagePixelLimit(metadata.width, metadata.height)
+  const body = await sharp(original, {
+    limitInputPixels: MAX_IMAGE_PIXELS,
+    sequentialRead: true,
+  }).rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer()
+  return {
+    body,
+    width: metadata.width,
+    height: metadata.height,
+    extension: 'jpg',
+    contentType: 'image/jpeg',
+  }
+}
+
+export async function storeFrameosMaterialObject(
+  body: Buffer<ArrayBufferLike>,
+  userId: string,
+  extension: string,
+  contentType: string | undefined,
+): Promise<string> {
+  const storageKey = generateUniqueKey(`frameos-material-${userId}`, extension)
+  try {
+    await uploadObject(body, storageKey, undefined, contentType)
+  } catch (error) {
+    if (isDisabledStorageAccountError(error)) {
+      throw new ApiError('EXTERNAL_ERROR', {
+        message: '平台素材存储暂不可用，请联系管理员检查对象存储账户状态。',
+        storageStatus: 'account_disabled',
+      })
+    }
+    throw error
+  }
+  return storageKey
+}
+
+export async function withMaterialUploadPermit<T>(task: () => Promise<T>, signal?: AbortSignal): Promise<T> {
   try {
     return await materialUploadPermits.run(task, { signal })
   } catch (error) {
@@ -194,37 +242,15 @@ async function processFrameosMaterialUpload(
     }
   }
   if (type === 'image') {
-    // 先松开像素上限读元数据，才能把“像素过大”和“文件损坏”区分开，
-    // 否则超限图片只会得到一句无法定位问题的“无法读取这张图片”。
-    const metadata = await sharp(original, { limitInputPixels: false, sequentialRead: true })
-      .metadata()
-      .catch(() => null)
-    if (!metadata?.width || !metadata.height) {
-      throw new ApiError('INVALID_PARAMS', { message: '无法读取这张图片，请更换文件。' })
-    }
-    assertFrameosImagePixelLimit(metadata.width, metadata.height)
-    width = metadata.width
-    height = metadata.height
-    body = await sharp(original, {
-      limitInputPixels: MAX_IMAGE_PIXELS,
-      sequentialRead: true,
-    }).rotate().jpeg({ quality: 92, mozjpeg: true }).toBuffer()
-    extension = 'jpg'
-    contentType = 'image/jpeg'
+    const image = await normalizeFrameosImageUpload(original)
+    width = image.width
+    height = image.height
+    body = image.body
+    extension = image.extension
+    contentType = image.contentType
   }
 
-  const storageKey = generateUniqueKey(`frameos-material-${session.user.id}`, extension)
-  try {
-    await uploadObject(body, storageKey, undefined, contentType)
-  } catch (error) {
-    if (isDisabledStorageAccountError(error)) {
-      throw new ApiError('EXTERNAL_ERROR', {
-        message: '平台素材存储暂不可用，请联系管理员检查对象存储账户状态。',
-        storageStatus: 'account_disabled',
-      })
-    }
-    throw error
-  }
+  const storageKey = await storeFrameosMaterialObject(body, session.user.id, extension, contentType)
   const actor = getWorkspaceActor(session)
   const personalOwnerId = projectId === PERSONAL_MATERIAL_PROJECT_ID ? actor.actorId : null
   const material = await registerFrameosMaterial({

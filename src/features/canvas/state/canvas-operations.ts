@@ -1,5 +1,6 @@
 import type {
   CanvasDocumentInput,
+  CanvasGraphDelta,
   CanvasGraphResponse,
   CanvasOperation,
 } from '../types'
@@ -38,6 +39,34 @@ export function canvasGraphToDocument(
     viewport: graph.canvas.viewport || { x: 0, y: 0, zoom: 1 },
     nodes: graph.nodes,
     edges: graph.edges,
+  }
+}
+
+/**
+ * Rebuilds the server-confirmed document from a save response that only carried
+ * the nodes and edges the server actually wrote. The confirmed document stays
+ * complete, so `buildCanvasOperations` keeps diffing against the whole graph.
+ */
+export function applyCanvasDocumentDelta(
+  confirmed: CanvasDocumentInput,
+  delta: CanvasGraphDelta,
+  clientId: string,
+  changeSummary: string | null,
+): CanvasDocumentInput {
+  const nodes = new Map(confirmed.nodes.map((node) => [node.id, node]))
+  for (const id of delta.deletedNodeIds) nodes.delete(id)
+  for (const node of delta.nodes) nodes.set(node.id, node)
+  const edges = new Map(confirmed.edges.map((edge) => [edge.id, edge]))
+  for (const id of delta.deletedEdgeIds) edges.delete(id)
+  for (const edge of delta.edges) edges.set(edge.id, edge)
+  return {
+    schema_version: CANVAS_DOCUMENT_SCHEMA_VERSION,
+    expectedRevision: delta.canvas.revision,
+    clientId,
+    changeSummary,
+    viewport: delta.canvas.viewport || confirmed.viewport,
+    nodes: Array.from(nodes.values()),
+    edges: Array.from(edges.values()),
   }
 }
 

@@ -1,10 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import {
+  compileSeedanceMentionPrompt,
   compileSeedancePromptForSubmission,
   extractSeedanceVideoPromptBody,
   formatSeedancePromptForEditor,
   isSeedanceVideoPromptBody,
   stripSeedancePromptAssetMentions,
+  type SeedanceMentionReference,
   type SeedancePromptAsset,
 } from '@/lib/novel-promotion/seedance-prompt-assets'
 
@@ -19,7 +21,7 @@ describe('Seedance asset prompt conventions', () => {
     const prompt = '@苏晚卿走进@陆府小院，握紧@陈阿婆留的银簪。'
 
     expect(compileSeedancePromptForSubmission(prompt, assets)).toBe(
-      '图片1中的苏晚卿走进图片2所示的陆府小院，握紧图片3中的陈阿婆留的银簪。',
+      '图1（@图片1）是角色苏晚卿，后文出现 @图片1 时必须始终指代该资产，图2（@图片2）是场景陆府小院，后文出现 @图片2 时必须始终指代该资产，图3（@图片3）是道具陈阿婆留的银簪，后文出现 @图片3 时必须始终指代该资产\n@图片1（苏晚卿）走进@图片2（陆府小院），握紧@图片3（陈阿婆留的银簪）。',
     )
   })
 
@@ -33,7 +35,7 @@ describe('Seedance asset prompt conventions', () => {
     ]
 
     expect(compileSeedancePromptForSubmission(prompt, orderedAssets)).toBe(
-      '图片3中的苏晚卿离开图片2所示的陆府小院，图片4中的Ava 站在 Avarice 标牌旁。',
+      '图1（@图片1）是场景陆府，后文出现 @图片1 时必须始终指代该资产，图2（@图片2）是场景陆府小院，后文出现 @图片2 时必须始终指代该资产，图3（@图片3）是角色苏晚卿，后文出现 @图片3 时必须始终指代该资产，图4（@图片4）是角色Ava，后文出现 @图片4 时必须始终指代该资产\n@图片3（苏晚卿）离开@图片2（陆府小院），@图片4（Ava） 站在 Avarice 标牌旁。',
     )
   })
 
@@ -42,6 +44,12 @@ describe('Seedance asset prompt conventions', () => {
       '图片1中的苏晚卿走进图片2所示的陆府小院，银簪仍在袖中。',
       assets,
     )).toBe('@苏晚卿走进@陆府小院，银簪仍在袖中。')
+  })
+
+  it('declares bound voices in their submitted audio order', () => {
+    const submitted = compileSeedancePromptForSubmission('@苏晚卿看向@陆府小院。', assets, ['苏晚卿'])
+
+    expect(submitted).toContain('音频1是角色苏晚卿的声音\n@图片1（苏晚卿）看向@图片2（陆府小院）。')
   })
 
   it('removes UI markers for text/first-frame modes without reference assets', () => {
@@ -130,9 +138,62 @@ describe('Seedance asset prompt conventions', () => {
       assets,
     )
 
-    expect(submitted).toMatch(/^开场状态：\n环境：图片2所示的陆府小院/u)
-    expect(submitted).toContain('图片1中的苏晚卿握紧图片3中的陈阿婆留的银簪')
+    expect(submitted).toMatch(/环境：@图片2（陆府小院），夜。/u)
+    expect(submitted).toContain('@图片1（苏晚卿）握紧@图片3（陈阿婆留的银簪）')
     expect(submitted).not.toContain('◈ 视频提示词')
     expect(submitted).not.toContain('【本分镜负面要求】')
+  })
+})
+
+describe('Seedance @mention compilation (production regressions)', () => {
+  const reference = (
+    type: SeedanceMentionReference['type'],
+    index: number,
+    names: string[],
+    fallbackNames: string[] = [],
+  ): SeedanceMentionReference => ({ type, index, names, fallbackNames })
+
+  it('never lets a bare title claim the tail of a longer, unknown @mention', () => {
+    const result = compileSeedanceMentionPrompt(
+      '@女主_萧令仪 抬头看向萧令仪的倒影',
+      [reference('image', 1, [], ['萧令仪'])],
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toBe('@女主_萧令仪 抬头看向萧令仪的倒影')
+    expect(result.unresolved.map((item) => item.text)).toEqual(['女主_萧令仪'])
+  })
+
+  it('compiles editor-generated duplicate names to the submitted image position', () => {
+    const result = compileSeedanceMentionPrompt(
+      '@剪贴板素材-1·图片2 站在@剪贴板素材-1·图片1 身后',
+      [
+        reference('image', 1, ['剪贴板素材-1·图片1'], ['剪贴板素材-1']),
+        reference('image', 2, ['剪贴板素材-1·图片2'], ['剪贴板素材-1']),
+      ],
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('@图片2（剪贴板素材-1·图片2） 站在@图片1（剪贴板素材-1·图片1） 身后')
+    expect(result.unresolved).toEqual([])
+  })
+
+  it('compiles audio and video mentions only when those media are actually submitted', () => {
+    const references = [
+      reference('image', 1, ['蒙面人']),
+      reference('audio', 1, ['蒙面人音色(1)']),
+      reference('video', 1, ['打斗参考']),
+    ]
+    expect(compileSeedanceMentionPrompt('@蒙面人 模仿@打斗参考，用@蒙面人音色(1)说话', references, { mediaReferences: true }).prompt)
+      .toContain('@图片1（蒙面人） 模仿视频1，用音频1说话')
+    expect(compileSeedanceMentionPrompt('@蒙面人 用@蒙面人音色(1)说话', references, { mediaReferences: false }).prompt)
+      .toBe('蒙面人 用蒙面人音色(1)说话')
+  })
+
+  it('prefers the exact editor name over another reference whose title is the same', () => {
+    const result = compileSeedanceMentionPrompt(
+      '@林夏 回头',
+      [reference('image', 1, [], ['林夏']), reference('image', 2, ['林夏'], ['林夏 定妆照'])],
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('@图片2（林夏） 回头')
   })
 })

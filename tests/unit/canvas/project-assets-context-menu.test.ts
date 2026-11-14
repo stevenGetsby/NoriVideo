@@ -54,9 +54,9 @@ describe('canvas project asset context menus', () => {
     expect(renderMenu(state, { deleteConfirmId: 'workflow-1' })).toContain('确认删除工作流')
   })
 
-  it('opens only for local uploads, clamps to the viewport, and closes before the panel on Escape', () => {
+  it('opens only for local uploads and inherited copies, clamps to the viewport, and closes before the panel on Escape', () => {
     const source = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/components/CanvasProjectAssets.tsx'), 'utf8')
-    expect(source).toContain("material.source === 'upload' && canEditAssets")
+    expect(source).toContain('isUserManagedMaterial(material) && canEditAssets')
     expect(source).toContain("openContextMenu(event, 'workflow', template.id)")
     expect(source).toContain('Math.min(event.clientX, window.innerWidth - menuWidth - 8)')
     expect(source).toContain("if (event.key !== 'Escape') return")

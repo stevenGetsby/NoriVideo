@@ -5,6 +5,7 @@ import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  AlertTriangle,
   Box,
   Captions,
   Download,
@@ -29,11 +30,12 @@ import {
   NodeResizer,
   NodeToolbar,
   Position,
+  useStore,
   type NodeProps,
 } from '@xyflow/react'
 import { MediaImage } from '@/components/media/MediaImage'
-import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
-import { useCanvasEditor, type CanvasNodeAction } from '../CanvasEditorContext'
+import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
+import { useCanvasEditor, useCanvasMultiSelection, type CanvasNodeAction } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
 import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog'
@@ -150,12 +152,18 @@ function ReferencePreview({ reference }: { reference: CanvasGenerationReferenceS
 export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const { id, data, selected } = props
   const editor = useCanvasEditor()
+  const multiSelected = useCanvasMultiSelection()
+  const chromeVisible = selected && !multiSelected
   const mediaType = displayType(props as unknown as CanvasFlowNode)
   const Icon = ICONS[mediaType as keyof typeof ICONS] || ImageIcon
   const status = data.__server?.status || 'IDLE'
-  const imageUrl = toDisplayImageUrl(mediaType === 'image'
+  const imageSource = mediaType === 'image'
     ? data.contentUrl || data.imageUrl || data.posterUrl || null
-    : data.posterUrl || data.imageUrl || null)
+    : data.posterUrl || data.imageUrl || null
+  const originalImageUrl = toDisplayImageUrl(imageSource)
+  const viewportZoom = useStore((state) => state.transform[2])
+  const [imageUrl, setImageUrl] = useState(() => toCanvasDisplayImageUrl(imageSource, 480))
+  const imageContainerRef = useRef<HTMLDivElement>(null)
   const videoUrl = toPlayableVideoUrl(data.videoUrl || data.contentUrl || null)
   const audioUrl = toDisplayImageUrl(data.audioUrl || data.contentUrl || null)
   const hasContent = mediaType === 'text'
@@ -224,10 +232,30 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
 
   useEffect(() => setTitle(data.title || '未命名节点'), [data.title])
   useEffect(() => {
-    if (!selected) setMoreActionsOpen(false)
-  }, [selected])
+    if (!chromeVisible) setMoreActionsOpen(false)
+  }, [chromeVisible])
+  useEffect(() => {
+    setImageUrl(toCanvasDisplayImageUrl(imageSource, 480))
+    if (!originalImageUrl || !imageContainerRef.current) return
+    const element = imageContainerRef.current
+    let frame = 0
+    let lastWidth = 0
+    const update = () => {
+      frame = 0
+      const displayedWidth = element.getBoundingClientRect().width * (window.devicePixelRatio || 1)
+      const width = displayedWidth <= 480 ? 480 : displayedWidth <= 960 ? 960 : 1440
+      if (width === lastWidth) return
+      lastWidth = width
+      setImageUrl(toCanvasDisplayImageUrl(originalImageUrl, width))
+    }
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(update) }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(element)
+    update()
+    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame) }
+  }, [originalImageUrl, viewportZoom])
   useLayoutEffect(() => {
-    if (!selected || mediaType !== 'image') return
+    if (!chromeVisible || mediaType !== 'image') return
     const toolbar = toolbarRef.current?.parentElement
     if (!toolbar) return
     const surface = toolbar.closest('.nori-canvas-workspace')
@@ -293,7 +321,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       transformObserver.disconnect()
       window.removeEventListener('resize', keepVisible)
     }
-  }, [actions.length, canReplaceContent, id, mediaType, selected])
+  }, [actions.length, canReplaceContent, id, mediaType, chromeVisible])
 
   const saveTitle = () => {
     setRenaming(false)
@@ -305,14 +333,14 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   return (
     <article className={`nori-canvas-node nori-canvas-node--${mediaType}${selected ? ' is-selected' : ''}${status === 'FAILED' ? ' is-error' : ''}`}>
       <NodeResizer
-        isVisible={selected && !editor.readOnly}
+        isVisible={chromeVisible && !editor.readOnly}
         keepAspectRatio={false}
         minWidth={180}
         minHeight={mediaType === 'audio' ? 110 : 120}
         lineClassName="nori-canvas-resize-line"
         handleClassName="nori-canvas-resize-handle"
       />
-      <NodeToolbar isVisible={selected && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType} nodrag nowheel`}>
+      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType} nodrag nowheel`}>
         <div ref={toolbarRef} className="nori-canvas-node-toolbar-anchor" aria-hidden="true" />
         {canReplaceContent ? (
           <button
@@ -395,10 +423,10 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         ) : null}
       </header>
 
-      <div className="nori-canvas-node-body">
+      <div ref={imageContainerRef} className="nori-canvas-node-body">
         {mediaType !== 'text' ? <span className="nori-canvas-node-drag-frame" title="拖动节点" aria-hidden="true" /> : null}
         {mediaType === 'text' ? <TextContent id={id} value={data.text || ''} readOnly={editor.readOnly} /> : null}
-        {mediaType === 'image' && imageUrl ? <MediaImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} /> : null}
+        {mediaType === 'image' && imageUrl ? <MediaImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} onError={() => { if (originalImageUrl) setImageUrl(originalImageUrl) }} /> : null}
         {canPreviewPanorama ? (
           <button
             type="button"
@@ -459,9 +487,8 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
           </div>
         ) : null}
         {status === 'FAILED' ? (
-          editor.readOnly
-            ? <div className="nodrag nori-canvas-node-error"><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败')}</div>
-            : <button type="button" className="nodrag nori-canvas-node-error" onClick={() => editor.runNodeAction(id, data.generationTask?.taskId ? 'retry_generation_task' : 'regenerate')}><RefreshCw />{sanitizePublicError(data.errorMessage || '生成失败，点击重试')}</button>
+          // Display-only on purpose: a one-click retry here was mis-triggered and re-submitted paid generations.
+          <div className="nodrag nori-canvas-node-error" role="alert"><AlertTriangle />{sanitizePublicError(data.errorMessage || '生成失败')}</div>
         ) : null}
         {status === 'FAILED' && data.cgtid ? <div className="nodrag nori-canvas-node-error">cgtid：{data.cgtid}（向上游反馈时提供）</div> : null}
       </div>

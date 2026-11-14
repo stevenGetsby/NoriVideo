@@ -313,7 +313,7 @@ function panelReferenceNames(panel: PanelRecord): string[] {
   return Array.from(names)
 }
 
-async function resolvePanelAudioReferencesForVideo(projectId: string, panel: PanelRecord): Promise<string[]> {
+async function resolvePanelAudioReferencesForVideo(projectId: string, panel: PanelRecord): Promise<Array<{ url: string; name: string }>> {
   const names = panelReferenceNames(panel)
   if (names.length === 0) return []
   const normalizedNames = names.map(normalizeAssetNameForMatch).filter(Boolean)
@@ -331,7 +331,7 @@ async function resolvePanelAudioReferencesForVideo(projectId: string, panel: Pan
     },
   })
   const characters = projectAssets?.characters || []
-  const urls: string[] = []
+  const references: Array<{ url: string; name: string }> = []
   const seen = new Set<string>()
 
   for (const character of characters) {
@@ -348,11 +348,11 @@ async function resolvePanelAudioReferencesForVideo(projectId: string, panel: Pan
     )
     if (!url || seen.has(url)) continue
     seen.add(url)
-    urls.push(url)
-    if (urls.length >= 3) break
+    references.push({ url, name: character.name })
+    if (references.length >= 3) break
   }
 
-  return urls
+  return references
 }
 
 async function generateVideoForPanel(
@@ -449,6 +449,7 @@ async function generateVideoForPanel(
   const panelAudioReferences = seedanceReferenceMode
     ? await resolvePanelAudioReferencesForVideo(job.data.projectId, panel)
     : []
+  const panelAudioUrls = panelAudioReferences.map((reference) => reference.url)
   const usesSeedanceReferenceMediaMode = seedanceReferenceMode
     && (panelReferenceAssets.length > 0 || panelAudioReferences.length > 0)
   const effectiveReferenceImages = usesSeedanceReferenceMediaMode
@@ -457,7 +458,7 @@ async function generateVideoForPanel(
     ? [inputImage.sourceImageUrl]
     : panelReferenceImages
   const providerBasePrompt = usesSeedanceReferenceImageMode
-    ? compileSeedancePromptForSubmission(editorPrompt, panelReferenceAssets)
+    ? compileSeedancePromptForSubmission(editorPrompt, panelReferenceAssets, panelAudioReferences.map((reference) => reference.name))
     : seedanceReferenceMode
       ? stripSeedancePromptAssetMentions(editorPrompt, panelReferenceAssets)
       : editorPrompt
@@ -472,7 +473,7 @@ async function generateVideoForPanel(
     ...(panelAudioReferences.length > 0 ? { generateAudio: true } : {}),
     generationMode,
     ...(effectiveReferenceImages.length > 0 ? { referenceImages: effectiveReferenceImages } : {}),
-    ...(panelAudioReferences.length > 0 ? { audios: panelAudioReferences } : {}),
+    ...(panelAudioUrls.length > 0 ? { audios: panelAudioUrls } : {}),
     ...(lastFrameImageBase64 ? { lastFrameImageUrl: lastFrameImageBase64 } : {}),
   }
 
