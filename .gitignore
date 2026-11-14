@@ -63,3 +63,12 @@ final-check-*.png
 
 # External reference checkouts kept locally only
 reference/
+
+# Finder duplicate files (" 2" / " 3" / " 4" suffix) — not part of the build
+* 2.*
+* 3.*
+* 4.*
+
+# Software copyright registration materials (handled outside the repo)
+/software-copyright/
+/software-copyright.zip
