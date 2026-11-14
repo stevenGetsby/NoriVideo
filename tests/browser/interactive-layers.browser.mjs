@@ -243,13 +243,11 @@ try {
   assert.ok(storyText.includes('作品片段'))
   assert.ok(storyText.includes('支线片段'))
 
-  const gradientElements = await page.locator('body *').evaluateAll((elements) => elements.flatMap((element) => {
-    const style = getComputedStyle(element)
-    return ['backgroundImage', 'maskImage'].some((property) => style[property].includes('gradient('))
-      ? [element.className || element.tagName]
-      : []
-  }))
-  assert.deepEqual(gradientElements, [], 'The three-layer story UI must not render decorative gradients')
+  const generatedCovers = page.locator('.nori-gen-cover')
+  assert.equal(await generatedCovers.count(), 3)
+  assert(await generatedCovers.evaluateAll((elements) => elements.every((element) => (
+    element.classList.contains('nori-ix-ov-cover') || element.classList.contains('nori-ix-chapter-cover')
+  ))), 'Generated story and chapter covers must retain their WorkCover-style treatment')
   await page.screenshot({ path: path.join(artifacts, 'story-layer-solid-ui.png'), fullPage: true })
   await page.locator('[data-testid="story-layer-nav"] [data-layer="works"]').click()
   await page.waitForSelector('[data-testid="linear-cut"]')
