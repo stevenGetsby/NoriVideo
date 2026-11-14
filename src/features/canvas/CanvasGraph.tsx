@@ -2035,6 +2035,23 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     })().catch((error) => setToast(error instanceof Error ? error.message : '下载失败'))
   }, [initialGraph.canvas.id, projectId, projectName, session?.user?.id])
 
+  const regenerateNode = useCallback(async (nodeId: string, promptOverride?: string) => {
+    const node = nodesRef.current.find((item) => item.id === nodeId)
+    if (!node) return
+    const config = node.data.generation
+    const prompt = promptOverride ?? node.data.prompt
+    if (!config?.modelKey) { setToast('缺少模型配置，请在生成面板里重新选择模型后生成'); return }
+    if (!prompt) { setToast('请先填写提示词'); return }
+    const regeneration = resolveCanvasRegenerationMode(node.data)
+    try {
+      await handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], ...(config.referenceMentionNames ? { referenceMentionNames: config.referenceMentionNames } : {}), inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), ...(config.parameters?.superresolveTarget === '720p' || config.parameters?.superresolveTarget === '1080p' || config.parameters?.superresolveTarget === '4k' ? { superresolveTarget: config.parameters.superresolveTarget } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
+    } catch (error) {
+      setNodes((current) => current.map((item) => ({ ...item, selected: item.id === nodeId })))
+      setToast(error instanceof Error ? error.message : '生成提交失败，请检查引用素材。')
+      throw error
+    }
+  }, [handleGenerate])
+
   const runNodeAction = useCallback((nodeId: string, action: CanvasNodeAction) => {
     const node = nodesRef.current.find((item) => item.id === nodeId)
     if (!node) return
@@ -2097,13 +2114,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       return
     }
     if (action === 'regenerate') {
-      const config = node.data.generation
-      const regeneration = resolveCanvasRegenerationMode(node.data)
-      if (node.data.prompt && config?.modelKey) void handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt: node.data.prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], ...(config.referenceMentionNames ? { referenceMentionNames: config.referenceMentionNames } : {}), inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), ...(config.parameters?.superresolveTarget === '720p' || config.parameters?.superresolveTarget === '1080p' || config.parameters?.superresolveTarget === '4k' ? { superresolveTarget: config.parameters.superresolveTarget } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
-        .catch((error) => {
-          setNodes((current) => current.map((item) => ({ ...item, selected: item.id === nodeId })))
-          setToast(error instanceof Error ? error.message : '生成提交失败，请检查引用素材。')
-        })
+      void regenerateNode(nodeId).catch(() => undefined)
       return
     }
     if (readOnly) return
@@ -2151,7 +2162,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setNodes((current) => [...current.map((item) => ({ ...item, selected: false })), derived])
     setEdges((current) => [...current, edge])
     markChanged('创建处理节点')
-  }, [animateNodeLayout, downloadCanvasNodes, handleGenerate, initialGraph.canvas.id, loadAutosaveServerVersion, markChanged, projectId, projectName, readOnly, record, session?.user?.id, updateNodeData])
+  }, [animateNodeLayout, downloadCanvasNodes, initialGraph.canvas.id, loadAutosaveServerVersion, markChanged, projectId, projectName, readOnly, record, regenerateNode, session?.user?.id, updateNodeData])
 
   const applyImageOperationResults = useCallback(async (operationInput: CanvasImageOperationInput, payload: ResolvedCanvasOperation) => {
     if (!imageOperation || readOnly) return
@@ -4615,7 +4626,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} initialGrid={imageOperation.initialGrid} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
         {!readOnly && videoOperation ? (() => { const node = nodes.find((item) => item.id === videoOperation.sourceNodeId); return node ? <CanvasVideoOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={videoOperation.mode} node={node} onSubmit={handleVideoOperation} onRecover={applyVideoOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setVideoOperation(null)} /> : null })() : null}
-        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onKeyframesChange={(keyframes, source) => updateNodeData(source.id, { videoKeyframes: keyframes }, '更新视频关键帧')} onClose={() => setMediaPreviewNodeId(null)} /> : null}
+        {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onKeyframesChange={(keyframes, source) => updateNodeData(source.id, { videoKeyframes: keyframes }, '更新视频关键帧')} onPromptSave={readOnly ? undefined : (prompt, source) => updateNodeData(source.id, { prompt }, '修改提示词')} onPromptRegenerate={readOnly ? undefined : async (prompt, source) => {
+          updateNodeData(source.id, { prompt }, '修改提示词')
+          await regenerateNode(source.id, prompt)
+          setMediaPreviewNodeId(null)
+          setToast('已提交重新生成，完成后可在节点的历史版本里对比')
+        }} onClose={() => setMediaPreviewNodeId(null)} /> : null}
         {modelPreviewNode?.data.modelUrl ? <CanvasModel3DDialog src={toDisplayImageUrl(modelPreviewNode.data.modelUrl) || modelPreviewNode.data.modelUrl} title={modelPreviewNode.data.title || '3D 模型'} onClose={() => setModelPreviewNodeId(null)} /> : null}
         {panoramaPreviewNode && (panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) ? <CanvasPanoramaDialog src={toDisplayImageUrl(panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl) || panoramaPreviewNode.data.contentUrl || panoramaPreviewNode.data.imageUrl || ''} title={panoramaPreviewNode.data.title || '720 全景图'} readOnly={readOnly} onCapture={handlePanoramaCapture} onClose={() => setPanoramaPreviewNodeId(null)} /> : null}
         {studioNode ? <CanvasStudio3DDialog projectId={projectId} canvasId={initialGraph.canvas.id} node={studioNode} incomingNodes={studioIncomingNodes} readOnly={readOnly} onSummaryChange={handleStudioSummaryChange} onStageCaptures={handleStudioStageCaptures} onSendCaptures={handleStudioCapture} onClose={() => setStudioNodeId(null)} /> : null}

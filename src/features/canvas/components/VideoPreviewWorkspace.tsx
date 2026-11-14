@@ -1,12 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { Camera, ChevronLeft, ChevronRight, Eye, ImageIcon, ListVideo, LoaderCircle, Maximize2, Minimize2, Minus, Pause, Play, Plus, Sparkles, Trash2, Volume2, VolumeX, X } from '@/components/ui/icons'
+import { Camera, ChevronLeft, ChevronRight, Eye, ImageIcon, ListVideo, LoaderCircle, Maximize2, Minimize2, Minus, Pause, Play, Plus, ScanText, Sparkles, Trash2, Volume2, VolumeX, X } from '@/components/ui/icons'
 import { createIcon } from '@/components/ui/icons/ph/createIcon'
 import Diamond from '@/components/ui/icons/ph/diamond'
 import Repeat from '@/components/ui/icons/ph/arrows-clockwise'
 import FitWidth from '@/components/ui/icons/ph/arrows-in-simple'
 import type { CanvasVideoKeyframe } from '../types'
+import type { VideoVersionPrompt } from '../video-prompt'
+import { VideoPromptPanel } from './VideoPromptPanel'
 import { attachMediaPlayer, handOffMediaPlayback, rememberPlayback, syncMediaPlayers } from '../media-playback'
 import { captureVideoFrame } from '../video-frame-capture'
 import { SampleCancelledError, VideoFrameSampler } from '../video-frame-sampler'
@@ -31,7 +33,7 @@ function editableTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && Boolean(target.closest('input, select, textarea, [contenteditable="true"]'))
 }
 
-export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, keyframes: storedKeyframes, onKeyframesChange, onCaptureFrame, onMessage }: {
+export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, keyframes: storedKeyframes, onKeyframesChange, onCaptureFrame, nodeId, version, currentPrompt, hasVideoPrefix, onPromptSave, onPromptRegenerate, onMessage }: {
   src: string
   poster?: string
   title: string
@@ -40,6 +42,12 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
   keyframes?: unknown
   onKeyframesChange?: (keyframes: CanvasVideoKeyframe[]) => void
   onCaptureFrame?: (file: File) => Promise<void>
+  nodeId: string
+  version: VideoVersionPrompt
+  currentPrompt: string
+  hasVideoPrefix: boolean
+  onPromptSave?: (prompt: string) => void
+  onPromptRegenerate?: (prompt: string) => Promise<void>
   onMessage: (message: string) => void
 }) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -59,6 +67,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
   const [snapping, setSnapping] = useState(true)
   const [hoverPreview, setHoverPreview] = useState(true)
   const [inspectorOpen, setInspectorOpen] = useState(() => typeof window === 'undefined' || window.innerWidth > 1000)
+  const [inspectorTab, setInspectorTab] = useState<'keyframes' | 'prompt'>('keyframes')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busy, setBusy] = useState<'current' | 'batch' | null>(null)
   const [detectProgress, setDetectProgress] = useState<number | null>(null)
@@ -328,8 +337,13 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
     }
   }
 
-  const actions = useRef({ togglePlay, stepFrames, seekKeyframe, seekFrameTime, toggleKeyframe, toggleMute, toggleFullscreen, removeKeyframe, setZoom, zoom, selectedId, activeKeyframe, lastFrame })
-  actions.current = { togglePlay, stepFrames, seekKeyframe, seekFrameTime, toggleKeyframe, toggleMute, toggleFullscreen, removeKeyframe, setZoom, zoom, selectedId, activeKeyframe, lastFrame }
+  const togglePrompt = () => {
+    if (inspectorOpen && inspectorTab === 'prompt') setInspectorOpen(false)
+    else { setInspectorOpen(true); setInspectorTab('prompt') }
+  }
+
+  const actions = useRef({ togglePlay, stepFrames, seekKeyframe, seekFrameTime, toggleKeyframe, toggleMute, toggleFullscreen, togglePrompt, removeKeyframe, setZoom, zoom, selectedId, activeKeyframe, lastFrame })
+  actions.current = { togglePlay, stepFrames, seekKeyframe, seekFrameTime, toggleKeyframe, toggleMute, toggleFullscreen, togglePrompt, removeKeyframe, setZoom, zoom, selectedId, activeKeyframe, lastFrame }
 
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -350,6 +364,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
       else if (key === 'k') { handled(); current.toggleKeyframe() }
       else if (key === 'm') { handled(); current.toggleMute() }
       else if (key === 'f') { handled(); current.toggleFullscreen() }
+      else if (key === 'p') { handled(); current.togglePrompt() }
       else if (key === 'z' && event.shiftKey) { handled(); current.setZoom(1) }
       else if (key === 'Delete' || key === 'Backspace') {
         const target = current.selectedId || current.activeKeyframe?.id
@@ -366,7 +381,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
   const unsaved = keyframes.filter((keyframe) => !savedIds.has(keyframe.id))
   const frameTotal = previewFrameCount(duration, fps)
 
-  return <div className={`nori-video-workspace${inspectorOpen ? ' is-inspector-open' : ''}`} data-fps-source={fpsSource}>
+  return <div className={`nori-video-workspace${inspectorOpen ? ' is-inspector-open' : ''}`} data-fps-source={fpsSource} data-inspector-tab={inspectorTab}>
     <section className="nori-video-player" aria-label="视频播放器">
       <div ref={stageRef} className={`nori-video-stage${fullscreen ? ' is-fullscreen' : ''}`} style={{ '--video-aspect': String(aspect) } as CSSProperties} onClick={(event) => { if (event.target === event.currentTarget) togglePlay() }} onDoubleClick={toggleFullscreen}>
         <video
@@ -422,12 +437,13 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
       </div>
     </section>
 
-    {inspectorOpen ? <aside className="nori-video-inspector" aria-label="关键帧面板">
-      <header>
-        <div><Diamond /><strong>关键帧</strong><b>{keyframes.length}</b></div>
-        <button type="button" aria-label="清除全部关键帧" title="清除全部关键帧" disabled={!keyframes.length || readOnly} onClick={() => { commitKeyframes([]); setSelectedId(null) }}><Trash2 /></button>
-        <button type="button" className="nori-video-inspector-close" aria-label="收起关键帧面板" title="收起关键帧面板" onClick={() => setInspectorOpen(false)}><X /></button>
-      </header>
+    {inspectorOpen ? <aside className="nori-video-inspector" aria-label={inspectorTab === 'prompt' ? '提示词面板' : '关键帧面板'}>
+      <header className="nori-video-inspector-top"><div role="tablist" aria-label="视频审阅面板">
+        <button type="button" role="tab" aria-selected={inspectorTab === 'keyframes'} className={inspectorTab === 'keyframes' ? 'is-active' : ''} onClick={() => setInspectorTab('keyframes')}><Diamond />关键帧<b>{keyframes.length}</b></button>
+        <button type="button" role="tab" aria-selected={inspectorTab === 'prompt'} className={inspectorTab === 'prompt' ? 'is-active' : ''} onClick={() => setInspectorTab('prompt')}><ScanText />提示词</button>
+      </div><button type="button" className="nori-video-inspector-close" aria-label="收起审阅面板" title="收起审阅面板" onClick={() => setInspectorOpen(false)}><X /></button></header>
+      {inspectorTab === 'prompt' ? <VideoPromptPanel nodeId={nodeId} version={version} currentPrompt={currentPrompt} currentTime={currentTime} readOnly={readOnly} hasVideoPrefix={hasVideoPrefix} onSave={onPromptSave} onRegenerate={onPromptRegenerate} onMessage={onMessage} /> : <>
+      <header className="nori-video-keyframe-heading"><span>播放头标记</span><button type="button" aria-label="清除全部关键帧" title="清除全部关键帧" disabled={!keyframes.length || readOnly} onClick={() => { commitKeyframes([]); setSelectedId(null) }}><Trash2 /></button></header>
       {keyframes.length ? <ol>
         {keyframes.map((keyframe, index) => {
           const frame = previewFrameIndex(keyframe.time + 1e-4, fps)
@@ -462,6 +478,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
         <div><dt>总帧数</dt><dd>{frameTotal || '—'}</dd></div>
         <div><dt>时长</dt><dd>{previewTimecode(duration, fps)}</dd></div>
       </dl>
+      </>}
     </aside> : null}
 
     <section className="nori-video-timeline nodrag nowheel" aria-label="视频时间线">
@@ -472,6 +489,7 @@ export function VideoPreviewWorkspace({ src, poster, title, readOnly, fpsHint, k
             {detectProgress !== null ? <LoaderCircle className="is-spinning" /> : <Sparkles />}<span>{detectProgress !== null ? `识别中 ${detectProgress}%` : '识别镜头'}</span>
           </button>
           {canSave ? <button type="button" aria-label="截取当前帧" title="把播放头处的画面保存到画布" onClick={() => void captureCurrent()} disabled={Boolean(busy) || !duration}>{busy === 'current' ? <LoaderCircle className="is-spinning" /> : <Camera />}<span>{busy === 'current' ? '正在截取…' : '截取当前帧'}</span></button> : null}
+          <button type="button" className={inspectorOpen && inspectorTab === 'prompt' ? 'is-active' : ''} aria-label="对照提示词" title="对照提示词 (P)" aria-pressed={inspectorOpen && inspectorTab === 'prompt'} onClick={togglePrompt}><ScanText /><span>对照提示词</span></button>
         </div>
         <div className="nori-video-timeline-view">
           <button type="button" className={snapping ? 'is-active' : ''} aria-label="吸附" title={snapping ? '关闭吸附' : '开启吸附：拖动时对齐关键帧与片段边界'} aria-pressed={snapping} onClick={() => setSnapping(!snapping)}><Magnet /></button>

@@ -6,6 +6,7 @@ import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasVideoKeyframe } from '../types'
+import { resolveVideoVersionPrompt } from '../video-prompt'
 import { VideoPreviewWorkspace } from './VideoPreviewWorkspace'
 
 function mediaType(node: CanvasFlowNode) {
@@ -17,13 +18,15 @@ function clampScale(value: number) {
   return Math.max(0.2, Math.min(5, Math.round(value * 10) / 10))
 }
 
-const VIDEO_SHORTCUTS = 'Space 播放 · ← → 逐帧 · ↑ ↓ 关键帧 · K 标记 · ⌘/Ctrl ± 缩放 · Shift+Z 适应 · Esc 关闭'
+const VIDEO_SHORTCUTS = 'Space 播放 · ← → 逐帧 · ↑ ↓ 关键帧 · K 标记 · ⌘/Ctrl ± 缩放 · Shift+Z 适应 · P 对照提示词 · Esc 关闭'
 
-export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFrame, onKeyframesChange, onClose }: {
+export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFrame, onKeyframesChange, onPromptSave, onPromptRegenerate, onClose }: {
   node: CanvasFlowNode
   readOnly?: boolean
   onCaptureFrame?: (file: File, sourceNode: CanvasFlowNode) => Promise<void>
   onKeyframesChange?: (keyframes: CanvasVideoKeyframe[], sourceNode: CanvasFlowNode) => void
+  onPromptSave?: (prompt: string, sourceNode: CanvasFlowNode) => void
+  onPromptRegenerate?: (prompt: string, sourceNode: CanvasFlowNode) => Promise<void>
   onClose: () => void
 }) {
   const type = mediaType(node)
@@ -46,6 +49,11 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
         if (document.fullscreenElement) return
         event.preventDefault()
         event.stopPropagation()
+        const target = event.target
+        if (target instanceof HTMLTextAreaElement && target.closest('.nori-video-prompt-panel') && target.dataset.dirty === 'true') {
+          target.blur()
+          return
+        }
         onClose()
         return
       }
@@ -101,6 +109,12 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
           keyframes={node.data.videoKeyframes}
           onKeyframesChange={persistKeyframes ? (keyframes) => onKeyframesChange(keyframes, node) : undefined}
           onCaptureFrame={onCaptureFrame && !readOnly ? (file) => onCaptureFrame(file, node) : undefined}
+          nodeId={node.id}
+          version={resolveVideoVersionPrompt(node.data)}
+          currentPrompt={node.data.prompt || ''}
+          hasVideoPrefix={Boolean(node.data.videoPrefixPrompt)}
+          onPromptSave={!readOnly && onPromptSave ? (prompt) => onPromptSave(prompt, node) : undefined}
+          onPromptRegenerate={!readOnly && onPromptRegenerate ? (prompt) => onPromptRegenerate(prompt, node) : undefined}
           onMessage={setMessage}
         /> : null}
         {url && type === 'audio' ? <div className="nori-canvas-media-preview-audio"><i><Music2 /></i><strong>{node.data.title || '音频素材'}</strong><audio src={url} controls autoPlay /></div> : null}
