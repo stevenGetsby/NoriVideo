@@ -1,0 +1,49 @@
+@import "./theme-generated.css";
+
+:root, .nori-force-dark, html[data-nori-theme="light"] .nori-force-dark {
+  --nori-bg-0: 8 8 12;
+  --nori-bg-1: 12 12 17;
+  --nori-bg-2: 19 19 25;
+  --nori-bg-3: 27 27 35;
+  --nori-bg-4: 36 36 46;
+  --nori-bg-5: 47 47 59;
+  --nori-text-1: 245 245 250;
+  --nori-text-2: 188 189 203;
+  --nori-text-3: 156 157 174;
+  --nori-text-4: 135 136 154;
+  --nori-text-5: 94 95 112;
+  --nori-primary: 110 123 255;
+  --nori-primary-hover: 95 108 245;
+  --nori-primary-text: 163 172 255;
+  --nori-ink: 255 255 255;
+  --nori-a: 1;
+  --nori-page-bg: 13 13 13;
+  --nori-color-scheme: dark;
+}
+
+@theme {
+  --color-white: #ffffff;
+  --color-on-brand: #ffffff;
+}
+
+html[data-nori-theme="light"] {
+  --nori-bg-0: 236 238 245;
+  --nori-bg-1: 245 246 250;
+  --nori-bg-2: 255 255 255;
+  --nori-bg-3: 255 255 255;
+  --nori-bg-4: 240 241 246;
+  --nori-bg-5: 228 231 240;
+  --nori-text-1: 22 24 39;
+  --nori-text-2: 61 64 84;
+  --nori-text-3: 93 96 117;
+  --nori-text-4: 117 120 140;
+  --nori-text-5: 112 115 135;
+  --nori-primary: 91 103 245;
+  --nori-primary-hover: 75 86 216;
+  --nori-primary-text: 75 86 216;
+  --nori-ink: 22 24 39;
+  --nori-a: 1.7;
+  --nori-page-bg: 245 246 250;
+  --nori-color-scheme: light;
+  --color-white: #161827;
+}
