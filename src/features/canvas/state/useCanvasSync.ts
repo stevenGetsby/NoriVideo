@@ -10,5 +10,6 @@ export function useCanvasGraph(projectId: string, canvasId: string) {
     queryKey: canvasQueryKeys.detail(projectId, canvasId),
     queryFn: () => canvasApi.get(projectId, canvasId),
     staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 }
