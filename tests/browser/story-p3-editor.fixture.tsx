@@ -154,6 +154,8 @@ function App() {
     redo: () => {},
     saveCanvas: async () => {},
     updateNodeData,
+    setTextEditing: () => {},
+    textEditingNodeId: null,
     removeNodes: () => {},
     duplicateNodes: () => {},
     runNodeAction: () => {},

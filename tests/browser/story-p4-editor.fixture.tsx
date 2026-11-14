@@ -141,6 +141,8 @@ function OverlayApp() {
     redo: () => {},
     saveCanvas: async () => {},
     updateNodeData: () => {},
+    setTextEditing: () => {},
+    textEditingNodeId: null,
     removeNodes: () => {},
     duplicateNodes: () => {},
     runNodeAction: () => {},

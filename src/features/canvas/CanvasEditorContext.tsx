@@ -45,6 +45,8 @@ export type CanvasEditorContextValue = {
   redo: () => void
   saveCanvas: () => Promise<void>
   updateNodeData: (nodeId: string, patch: Partial<CanvasFlowNodeData>, historyLabel?: string) => void
+  setTextEditing: (nodeId: string | null) => void
+  textEditingNodeId: string | null
   removeNodes: (nodeIds: string[]) => void
   duplicateNodes: (nodeIds: string[]) => void
   runNodeAction: (nodeId: string, action: CanvasNodeAction) => void

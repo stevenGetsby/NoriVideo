@@ -94,15 +94,26 @@ function derivativeActions(type: string) {
 
 function TextContent({ id, value, readOnly }: { id: string; value: string; readOnly: boolean }) {
   const editor = useCanvasEditor()
-  const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(value)
+  const editing = editor.textEditingNodeId === id
   const ref = useRef<HTMLTextAreaElement>(null)
+  const previewRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
-  useEffect(() => { if (editing) ref.current?.focus() }, [editing])
+  useEffect(() => {
+    const preview = previewRef.current
+    const edit = () => { if (!readOnly) editor.setTextEditing(id) }
+    preview?.addEventListener('nori:edit-text', edit)
+    return () => preview?.removeEventListener('nori:edit-text', edit)
+  }, [id, readOnly, editor])
+  useEffect(() => {
+    if (!editing || !ref.current) return
+    ref.current.focus({ preventScroll: true })
+    ref.current.setSelectionRange(ref.current.value.length, ref.current.value.length)
+  }, [editing])
 
   const save = () => {
-    setEditing(false)
+    editor.setTextEditing(null)
     if (draft !== value) editor.updateNodeData(id, { text: draft }, '编辑文本')
   }
 
@@ -115,7 +126,7 @@ function TextContent({ id, value, readOnly }: { id: string; value: string; readO
         onChange={(event) => setDraft(event.target.value)}
         onBlur={save}
         onKeyDown={(event) => {
-          if (event.key === 'Escape') { setDraft(value); setEditing(false) }
+          if (event.key === 'Escape') { setDraft(value); editor.setTextEditing(null) }
           if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') save()
         }}
       />
@@ -123,9 +134,10 @@ function TextContent({ id, value, readOnly }: { id: string; value: string; readO
   }
   return (
     <button
+      ref={previewRef}
       type="button"
       className="nori-canvas-text-preview"
-      onDoubleClick={() => !readOnly && setEditing(true)}
+      onDoubleClick={() => !readOnly && editor.setTextEditing(id)}
     >
       {value.trim() || <span>（双击编辑文本）</span>}
     </button>
