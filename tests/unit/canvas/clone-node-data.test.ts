@@ -58,4 +58,8 @@ describe('canvas node duplication execution state', () => {
     expect(cloned.generation).not.toHaveProperty('taskId')
     expect(cloned).toMatchObject({ progress: 100, __server: { status: 'SUCCEEDED', taskId: null } })
   })
+  it('preserves text annotations when copying a node', () => {
+    const cloned = cloneCanvasNodeDataForNewNode({ text: '重点', textMarks: [{ start: 0, end: 2, bold: true, highlight: 'yellow' }] }, () => undefined)
+    expect(cloned.textMarks).toEqual([{ start: 0, end: 2, bold: true, highlight: 'yellow' }])
+  })
 })

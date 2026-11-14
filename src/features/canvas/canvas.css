@@ -275,7 +275,8 @@
 .nori-canvas-panorama-preview small { color: rgba(217, 218, 225, .62); font-size: 8px; font-weight: 700; }
 
 .nori-canvas-text-preview,
-.nori-canvas-text-editor {
+.nori-canvas-text-editor,
+.nori-canvas-text-mirror {
   width: 100%;
   height: 100%;
   resize: none;
@@ -285,11 +286,36 @@
   padding: 18px 20px;
   color: rgba(255, 255, 255, .86);
   background: transparent;
+  font: inherit;
   font-size: 14px;
   line-height: 1.75;
+  letter-spacing: normal;
   text-align: left;
   white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
+
+.nori-canvas-text-editor-wrap { position: relative; width: 100%; height: 100%; }
+.nori-canvas-text-mirror { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.nori-canvas-text-editor { position: relative; }
+.nori-canvas-text-editor.has-marks { color: transparent; caret-color: var(--canvas-text); }
+.nori-canvas-text-preview > span:not(.nori-text-mark) { color: rgba(255, 255, 255, .42); }
+.nori-text-mark.is-bold { -webkit-text-stroke: .55px currentColor; }
+.nori-text-mark.hl-yellow { background: rgba(250, 204, 21, .38); }
+.nori-text-mark.hl-green { background: rgba(52, 211, 153, .34); }
+.nori-text-mark.hl-pink { background: rgba(244, 114, 182, .34); }
+.nori-text-mark.hl-blue { background: rgba(56, 189, 248, .34); }
+.nori-text-mark { border-radius: 3px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.nori-text-mark-bar { position: fixed; z-index: 100200; display: flex; gap: 4px; align-items: center; padding: 6px; border: 1px solid var(--fos-border-mid); border-radius: 8px; background: var(--fos-bg-4); box-shadow: var(--fos-shadow-pop); }
+.nori-text-mark-bar button { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; color: var(--fos-text-1); background: transparent; cursor: pointer; }
+.nori-text-mark-bar button[aria-pressed="true"] { background: var(--fos-fill-mid); }
+.nori-text-mark-bar i { width: 1px; height: 18px; background: var(--fos-border-mid); }
+.nori-text-mark-color span { width: 14px; height: 14px; border-radius: 50%; }
+.nori-text-mark-color.hl-yellow span { background: #facc15; }
+.nori-text-mark-color.hl-green span { background: #34d399; }
+.nori-text-mark-color.hl-pink span { background: #f472b6; }
+.nori-text-mark-color.hl-blue span { background: #38bdf8; }
 
 .nori-canvas-text-preview span {
   color: rgba(255, 255, 255, .42);

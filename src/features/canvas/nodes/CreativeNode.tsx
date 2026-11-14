@@ -92,57 +92,7 @@ function derivativeActions(type: string) {
   return []
 }
 
-function TextContent({ id, value, readOnly }: { id: string; value: string; readOnly: boolean }) {
-  const editor = useCanvasEditor()
-  const [draft, setDraft] = useState(value)
-  const editing = editor.textEditingNodeId === id
-  const ref = useRef<HTMLTextAreaElement>(null)
-  const previewRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => { if (!editing) setDraft(value) }, [editing, value])
-  useEffect(() => {
-    const preview = previewRef.current
-    const edit = () => { if (!readOnly) editor.setTextEditing(id) }
-    preview?.addEventListener('nori:edit-text', edit)
-    return () => preview?.removeEventListener('nori:edit-text', edit)
-  }, [id, readOnly, editor])
-  useEffect(() => {
-    if (!editing || !ref.current) return
-    ref.current.focus({ preventScroll: true })
-    ref.current.setSelectionRange(ref.current.value.length, ref.current.value.length)
-  }, [editing])
-
-  const save = () => {
-    editor.setTextEditing(null)
-    if (draft !== value) editor.updateNodeData(id, { text: draft }, '编辑文本')
-  }
-
-  if (editing && !readOnly) {
-    return (
-      <textarea
-        ref={ref}
-        className="nodrag nowheel nori-canvas-text-editor"
-        value={draft}
-        onChange={(event) => setDraft(event.target.value)}
-        onBlur={save}
-        onKeyDown={(event) => {
-          if (event.key === 'Escape') { setDraft(value); editor.setTextEditing(null) }
-          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') save()
-        }}
-      />
-    )
-  }
-  return (
-    <button
-      ref={previewRef}
-      type="button"
-      className="nori-canvas-text-preview"
-      onDoubleClick={() => !readOnly && editor.setTextEditing(id)}
-    >
-      {value.trim() || <span>（双击编辑文本）</span>}
-    </button>
-  )
-}
+import CanvasTextContent from './CanvasTextContent'
 
 function EmptyMedia({ type }: { type: string }) {
   const Icon = type === 'video' ? Film : type === 'audio' ? Music2 : type === 'model3d' ? Box : ImageIcon
@@ -437,7 +387,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
 
       <div ref={imageContainerRef} className="nori-canvas-node-body">
         {mediaType !== 'text' ? <span className="nori-canvas-node-drag-frame" title="拖动节点" aria-hidden="true" /> : null}
-        {mediaType === 'text' ? <TextContent id={id} value={data.text || ''} readOnly={editor.readOnly} /> : null}
+        {mediaType === 'text' ? <CanvasTextContent id={id} value={data.text || ''} marks={data.textMarks} readOnly={editor.readOnly} /> : null}
         {mediaType === 'image' && imageUrl ? <MediaImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} onError={() => { if (originalImageUrl) setImageUrl(originalImageUrl) }} /> : null}
         {canPreviewPanorama ? (
           <button

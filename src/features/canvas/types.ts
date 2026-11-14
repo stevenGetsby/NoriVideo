@@ -56,9 +56,13 @@ export type CanvasNode = {
   parentNodeId: string | null
 }
 
+export type CanvasTextHighlight = 'yellow' | 'green' | 'pink' | 'blue'
+export type CanvasTextMark = { start: number; end: number; bold?: true; highlight?: CanvasTextHighlight }
+
 export type CanvasNodeData = {
   /** Note 节点的纯文本内容（M0） */
   text?: string
+  textMarks?: CanvasTextMark[]
   title?: string
   mediaType?: CanvasMediaType
   origin?: 'empty' | 'upload' | 'generate' | 'project' | 'derivative'
