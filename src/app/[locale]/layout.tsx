@@ -55,8 +55,20 @@ export default async function LocaleLayout({
     const messages = await getMessages();
 
     return (
-        <html lang={locale}>
+        <html lang={locale} suppressHydrationWarning>
             <head>
+                <Script id="nori-env-flags" strategy="beforeInteractive">{`
+                  (function () {
+                    try {
+                      var m = /Chrome\\/(\\d+)/.exec(navigator.userAgent);
+                      var v = m ? +m[1] : 0;
+                      var d = document.documentElement;
+                      if (v && v < 128 && !('currentCSSZoom' in Element.prototype)) d.setAttribute('data-zoom-mode', 'legacy');
+                      if (v && v < 128) d.setAttribute('data-engine-version', String(v));
+                      if (/Trident\\/|MSIE /.test(navigator.userAgent)) d.setAttribute('data-engine-version', '0');
+                    } catch (e) {}
+                  })();
+                `}</Script>
                 {process.env.NODE_ENV === "development" && (
                     <Script
                         src="//unpkg.com/react-grab/dist/index.global.js"

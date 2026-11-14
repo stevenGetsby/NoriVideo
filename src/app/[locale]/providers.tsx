@@ -3,6 +3,7 @@
 import { SessionProvider } from "next-auth/react"
 import { ToastProvider } from "@/contexts/ToastContext"
 import { QueryProvider } from "@/components/providers/QueryProvider"
+import { OldBrowserNotice } from "@/components/OldBrowserNotice"
 import "@/lib/web-crypto-compat"
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -18,6 +19,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <QueryProvider>
         <ToastProvider>
           {children}
+          <OldBrowserNotice />
         </ToastProvider>
       </QueryProvider>
     </SessionProvider>

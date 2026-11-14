@@ -7,6 +7,43 @@
 
 @custom-variant dark (&:is(.dark *));
 
+html[data-zoom-mode="legacy"] {
+  --nori-interface-scale: 1;
+  --nori-interface-viewport-width: 100vw;
+  --nori-interface-viewport-height: 100vh;
+}
+
+.nori-old-browser-notice {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  max-width: min(640px, calc(100vw - 32px));
+  border-radius: 12px;
+  background: var(--fos-bg-4, #24242e);
+  color: var(--fos-text-2, #bcbdcb);
+  font-size: 13px;
+  line-height: 1.5;
+  z-index: 100300;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .4);
+}
+.nori-old-browser-notice-dismiss {
+  flex: none;
+  padding: 4px 10px;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fos-text-1, #f5f5fa);
+  border: 1px solid var(--fos-border-mid, rgba(255, 255, 255, .085));
+  cursor: pointer;
+  font-size: 12px;
+}
+.nori-old-browser-notice-dismiss:hover { background: var(--fos-fill-mid, rgba(255, 255, 255, .07)); }
+
+
 :root {
 
   /* 统一按 120% 展示产品界面；全屏壳层使用补偿后的逻辑视口。 */
