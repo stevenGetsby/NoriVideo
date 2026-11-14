@@ -1,7 +1,9 @@
 'use client'
 
+import { useEffect } from 'react'
 import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
-import { CANVAS_ADD_NODE_ITEMS, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState } from '../editor-types'
+import { CANVAS_ADD_NODE_ITEMS, STORY_ADD_NODE_ITEMS, STORY_INTERACTION_ADD_ITEMS, storyAddItemKey, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState, type StoryAddNodeItem } from '../editor-types'
+import type { StoryInteractionKind } from '@/lib/interactive/types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
 
 const iconFor = (type: CanvasNodeMenuType) => CANVAS_ADD_NODE_ITEMS.find((item) => item.type === type)?.label || type
@@ -125,5 +127,68 @@ export function CanvasEmptyState({ readOnly, onAdd, onUpload }: { readOnly: bool
           <button type="button" onClick={onUpload}><Upload /><span>上传文件</span></button>
         </div>}
     </div>
+  )
+}
+
+export type CanvasNodeTypeMenuState = { x: number; y: number; flowPosition: { x: number; y: number } }
+
+export function CanvasNodeTypeMenu({
+  state,
+  storyMode,
+  onPick,
+  onUpload,
+  onDismiss,
+}: {
+  state: CanvasNodeTypeMenuState
+  storyMode: boolean
+  onPick: (type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => void
+  onUpload: () => void
+  onDismiss: () => void
+}) {
+  useEffect(() => {
+    const close = () => onDismiss()
+    window.addEventListener('wheel', close, { passive: true })
+    return () => window.removeEventListener('wheel', close)
+  }, [onDismiss])
+
+  const storyItems: StoryAddNodeItem[] = storyMode ? STORY_ADD_NODE_ITEMS : []
+  const interactionItems: StoryAddNodeItem[] = storyMode ? STORY_INTERACTION_ADD_ITEMS : []
+
+  return (
+    <CanvasMenuPortal point={state}>
+      <div
+        className="nori-canvas-wire-menu nori-canvas-node-type-menu"
+        role="menu"
+        aria-label="添加节点"
+        style={{ left: state.x, top: state.y }}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <div>添加节点</div>
+        {storyItems.length > 0 ? (
+          <>
+            <div className="nori-canvas-node-type-group">剧情节点</div>
+            {storyItems.map((item) => (
+              <button type="button" role="menuitem" key={storyAddItemKey(item)} onClick={() => onPick(item.type)}>
+                <Plus /><span>{item.label}</span>
+              </button>
+            ))}
+            {interactionItems.length > 0 ? <div className="nori-canvas-node-type-group">互动节点</div> : null}
+            {interactionItems.map((item) => (
+              <button type="button" role="menuitem" key={storyAddItemKey(item)} onClick={() => onPick(item.type, item.interaction)}>
+                <Plus /><span>{item.label}</span>
+              </button>
+            ))}
+            <i />
+          </>
+        ) : null}
+        {CANVAS_ADD_NODE_ITEMS.map((item) => (
+          <button type="button" role="menuitem" key={item.type} onClick={() => onPick(item.type)}>
+            <Plus /><span>{item.label}</span>
+          </button>
+        ))}
+        <i />
+        <button type="button" role="menuitem" onClick={onUpload}><Upload /><span>上传文件</span></button>
+      </div>
+    </CanvasMenuPortal>
   )
 }

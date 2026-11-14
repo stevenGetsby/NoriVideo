@@ -81,7 +81,7 @@ import {
   type PanoramaCaptureCommitResult,
 } from './panorama-capture'
 import { CanvasAddPanel, CanvasToolRail, CanvasViewportControls } from './components/CanvasToolRail'
-import { CanvasContextMenu, CanvasEmptyState, CanvasWireMenu } from './components/CanvasMenus'
+import { CanvasContextMenu, CanvasEmptyState, CanvasNodeTypeMenu, CanvasWireMenu } from './components/CanvasMenus'
 import { CanvasConnectionLine } from './components/CanvasConnectionLine'
 import { collectCanvasSecondaryNodeIds } from './components/canvas-mention-references'
 import { CanvasEdge } from './components/CanvasEdge'
@@ -522,6 +522,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const [addOpen, setAddOpen] = useState(false)
   const [assetsOpen, setAssetsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const addOpenRef = useRef(false)
+  const assetsOpenRef = useRef(false)
+  const helpOpenRef = useRef(false)
+  useEffect(() => { addOpenRef.current = addOpen; if (!addOpen) pendingInsertPositionRef.current = null }, [addOpen])
+  useEffect(() => { assetsOpenRef.current = assetsOpen }, [assetsOpen])
+  useEffect(() => { helpOpenRef.current = helpOpen }, [helpOpen])
   const [minimapVisible, setMinimapVisible] = useState(false)
   const [organizeMode, setOrganizeMode] = useState<CanvasOrganizeMode>('horizontal')
   const [organizeOpen, setOrganizeOpen] = useState(false)
@@ -534,6 +540,9 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const [contextMenu, setContextMenu] = useState<CanvasContextMenuState | null>(null)
   const [clipboardCanPaste, setClipboardCanPaste] = useState(false)
   const [wireMenu, setWireMenu] = useState<CanvasWireMenuState | null>(null)
+  const [nodeTypeMenu, setNodeTypeMenu] = useState<{ x: number; y: number; flowPosition: { x: number; y: number } } | null>(null)
+  const nodeTypeMenuRef = useRef<typeof nodeTypeMenu>(null)
+  useEffect(() => { nodeTypeMenuRef.current = nodeTypeMenu }, [nodeTypeMenu])
   const [pickerOpen, setPickerOpen] = useState(false)
   const [videoEditMaterialNodeId, setVideoEditMaterialNodeId] = useState<string | null>(null)
   const [videoEditReferencePicker, setVideoEditReferencePicker] = useState<{ nodeId: string; type: 'image' | 'audio' } | null>(null)
@@ -3854,6 +3863,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       const dismissTransientUi = () => {
         setContextMenu(null)
         setWireMenu(null)
+        setNodeTypeMenu(null)
         setAddOpen(false)
         setAssetsOpen(false)
         setPickerOpen(false)
@@ -4030,7 +4040,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     if (menu.scope === 'edge' && action === 'delete-edge') { removeEdgesById([menu.edgeId]); return }
     if (menu.scope === 'pane') {
       if (action === 'add-playlist') { addNode('playlist', menu.flowPosition || centerPosition()); return }
-      if (action === 'add-node') { pendingInsertPositionRef.current = menu.flowPosition || null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen(true); return }
+      if (action === 'add-node') {
+        setContextMenu(null)
+        setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen(false)
+        setNodeTypeMenu({ ...visibleMenuPoint(menu.x, menu.y, 420), flowPosition: menu.flowPosition || { x: 0, y: 0 } })
+        return
+      }
       if (action === 'upload') { openUploadPicker(menu.flowPosition); return }
       if (action === 'paste') { void pasteFromSystem(menu.flowPosition).catch((error: unknown) => setToast(error instanceof Error ? error.message : '粘贴失败')); return }
       if (action === 'organize') { if (mode === 'story' && storyCanvas) storyActions.organize(); else organize('horizontal'); return }
@@ -4155,7 +4170,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     }
     setWireMenu({ ...visibleMenuPoint(point.x, point.y, 210), flowPosition: screenToCanvasPosition(point), sourceNodeId: state.fromNode.id, sourceHandle: state.fromHandle?.id || null })
   })
-  const handleMoveStart = useStableCallback<OnMove>(() => { viewportMoveStartRef.current = { ...viewportRef.current } })
+  const handleMoveStart = useStableCallback<OnMove>(() => { setNodeTypeMenu(null); viewportMoveStartRef.current = { ...viewportRef.current } })
   const handleMove = useStableCallback<OnMove>((_event, next) => {
     viewportRef.current = next
     // ReactFlow moves its own surface every frame. Only the anchored
@@ -4183,18 +4198,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setOrganizeOpen(false)
     setContextMenu(null)
     setWireMenu(null)
+    setNodeTypeMenu(null)
     clearCanvasSelection()
   })
   const handleNodeClick = useStableCallback<NodeMouseHandler<CanvasFlowNode>>((event, node) => {
     if (event.shiftKey || event.metaKey || event.ctrlKey) return
+    setAddOpen(false)
+    setNodeTypeMenu(null)
     // A double-click on a title or a text body means rename/edit, not "open the generator".
     if (event.detail > 1 && (node.type === 'text' || node.type === 'note' || (event.target instanceof Element && event.target.closest('.nori-canvas-node-drag-handle')))) return
     if (soleSelectedNodeIdRef.current === node.id) setGeneratorSuppressedNodeId((current) => current === node.id ? null : current)
     else setGeneratorSuppressedNodeId(node.id)
   })
-  const handlePaneContextMenu = useStableCallback((event: React.MouseEvent | MouseEvent) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setClipboardCanPaste(Boolean(clipboardRef.current?.nodes.length)); void refreshClipboardAvailability(); setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: screenToCanvasPosition({ x: event.clientX, y: event.clientY }) }) })
-  const handleNodeContextMenu = useStableCallback<NodeMouseHandler<CanvasFlowNode>>((event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; const nodeMenuHeight = 230 + (getMediaType(node) === 'image' ? 118 : getMediaType(node) === 'text' ? 46 : 0); setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : nodeMenuHeight) }) })
-  const handleEdgeContextMenu = useStableCallback<EdgeMouseHandler<CanvasFlowEdge>>((event, edge) => { event.preventDefault(); if (!writeLocked) setContextMenu({ scope: 'edge', edgeId: edge.id, ...visibleMenuPoint(event.clientX, event.clientY, 50) }) })
+  const handlePaneContextMenu = useStableCallback((event: React.MouseEvent | MouseEvent) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setNodeTypeMenu(null); setClipboardCanPaste(Boolean(clipboardRef.current?.nodes.length)); void refreshClipboardAvailability(); setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: screenToCanvasPosition({ x: event.clientX, y: event.clientY }) }) })
+  const handleNodeContextMenu = useStableCallback<NodeMouseHandler<CanvasFlowNode>>((event, node) => { event.preventDefault(); if (shouldSuppressContextMenu()) return; setNodeTypeMenu(null); const nodeMenuHeight = 230 + (getMediaType(node) === 'image' ? 118 : getMediaType(node) === 'text' ? 46 : 0); setContextMenu(node.type === 'group' ? { scope: 'group', groupId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 145) } : { scope: 'node', nodeId: node.id, ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : nodeMenuHeight) }) })
+  const handleEdgeContextMenu = useStableCallback<EdgeMouseHandler<CanvasFlowEdge>>((event, edge) => { event.preventDefault(); if (!writeLocked) { setNodeTypeMenu(null); setContextMenu({ scope: 'edge', edgeId: edge.id, ...visibleMenuPoint(event.clientX, event.clientY, 50) }) } })
 
   // Story mode only reaches here through the chapter route; a missing story means broken data.
   if (mode === 'story' && storyLoad.status === 'missing') {
@@ -4216,6 +4234,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         tabIndex={0}
         onPointerDownCapture={(event) => {
           wireReleaseClickRef.current = false
+          // Close popover panels when the click lands outside them.
+          const target = event.target instanceof Element ? event.target : null
+          if (nodeTypeMenuRef.current && target && !target.closest('.nori-canvas-wire-menu')) setNodeTypeMenu(null)
+          if (addOpenRef.current && target && !target.closest('.nori-canvas-add-panel, .nori-canvas-tool-rail')) setAddOpen(false)
+          if (assetsOpenRef.current && target && !target.closest('.nori-canvas-project-assets, .nori-canvas-tool-rail, .nori-canvas-chrome')) setAssetsOpen(false)
+          if (helpOpenRef.current && target && !target.closest('.nori-canvas-help-panel, .nori-canvas-tool-rail')) setHelpOpen(false)
           if (startMiniMapDrag(event)) return
           if (event.button === 2) {
             // Suppression belongs to the previous drag, never to a fresh click.
@@ -4510,6 +4534,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         {!readOnly && wireMenu ? (wireMenu.story && wireMenu.story !== 'media'
           ? <StoryWireMenu state={wireMenu} onPick={handleWirePick} />
           : <CanvasWireMenu state={wireMenu} items={wireMenu.story === 'media' ? (mode === 'story' ? MEDIA_WIRE_MENU_ITEMS : CANVAS_ADD_NODE_ITEMS) : undefined} onPick={handleWirePick} />) : null}
+        {nodeTypeMenu ? <CanvasNodeTypeMenu state={nodeTypeMenu} storyMode={mode === 'story' && Boolean(storyCanvas)} onDismiss={() => setNodeTypeMenu(null)} onPick={(type, interaction) => { addNode(type, nodeTypeMenu.flowPosition, interaction); setNodeTypeMenu(null) }} onUpload={() => { openUploadPicker(nodeTypeMenu.flowPosition); setNodeTypeMenu(null) }} /> : null}
         {historyNode ? <CanvasHistoryDialog node={historyNode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => { const type = getMediaType(historyNode); updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本'); setHistoryNodeId(null) }} /> : null}
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} initialGrid={imageOperation.initialGrid} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}

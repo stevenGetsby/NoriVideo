@@ -3002,6 +3002,10 @@
   font-weight: 700;
 }
 
+.nori-canvas-node-type-menu { max-height: 480px; overflow-y: auto; }
+.nori-canvas-node-type-menu > i { display: block; height: 1px; margin: 4px 6px; background: rgba(255, 255, 255, .08); }
+.nori-canvas-node-type-menu > div.nori-canvas-node-type-group { padding-top: 8px; }
+
 .nori-canvas-empty-state {
   position: absolute;
   top: 50%;
