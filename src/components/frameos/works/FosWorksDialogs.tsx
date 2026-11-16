@@ -94,12 +94,14 @@ function CandidatePicker({
   selectedIds,
   existingMemberIds = NO_EXISTING_MEMBER_IDS,
   disabled = false,
+  emptyHint,
   onToggle,
 }: {
   candidatesPath: string
   selectedIds: string[]
   existingMemberIds?: readonly string[]
   disabled?: boolean
+  emptyHint?: string
   onToggle: (candidate: MemberCandidate) => void
 }) {
   const [keyword, setKeyword] = useState('')
@@ -169,7 +171,7 @@ function CandidatePicker({
       {open ? <div id={listboxId} className="works-candidate-list" role="listbox" aria-label="可添加成员">
         {loading ? <div className="works-list-hint"><AppIcon name="loader" className="h-4 w-4 animate-spin" />加载中…</div> : null}
         {!loading && error ? <div className="works-list-hint is-error">{error}</div> : null}
-        {!loading && !error && candidates.length === 0 ? <div className="works-list-hint">暂无数据</div> : null}
+        {!loading && !error && candidates.length === 0 ? <div className="works-list-hint">{emptyHint ?? '暂无数据'}</div> : null}
         {!loading && !error ? candidates.map((candidate) => {
           const selected = selectedIds.includes(candidate.id)
           return (
@@ -523,6 +525,8 @@ export function MemberManagerDialog({
   endpoint,
   candidatesPath,
   readOnly = false,
+  note,
+  emptyHint,
   onClose,
   onChanged,
 }: {
@@ -530,6 +534,10 @@ export function MemberManagerDialog({
   endpoint: string
   candidatesPath: string
   readOnly?: boolean
+  /** 覆盖底部权限说明；/works 不传即沿用原文案。 */
+  note?: string
+  /** 覆盖候选为空时的提示。 */
+  emptyHint?: string
   onClose: () => void
   onChanged: () => void
 }) {
@@ -622,6 +630,7 @@ export function MemberManagerDialog({
             selectedIds={selectedIds}
             existingMemberIds={existingMemberIds}
             disabled={saving}
+            emptyHint={emptyHint}
             onToggle={(candidate) => setSelected((current) => current.some((item) => item.id === candidate.id)
               ? current.filter((item) => item.id !== candidate.id)
               : [...current, candidate])}
@@ -678,7 +687,7 @@ export function MemberManagerDialog({
             )
           }) : null}
         </div>
-        <p className="works-permission-note">项目组长可创建项目并随时增删成员；成员可创建和管理项目内作品，只有作品创建者可删除作品。组长身份由管理员在账号管理中统一设置。</p>
+        <p className="works-permission-note">{note ?? '项目组长可创建项目并随时增删成员；成员可创建和管理项目内作品，只有作品创建者可删除作品。组长身份由管理员在账号管理中统一设置。'}</p>
         {error ? <div className="works-form-error">{error}</div> : null}
       </div>
     </Modal>

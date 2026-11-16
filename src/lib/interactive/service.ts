@@ -332,6 +332,7 @@ export async function getInteractiveStory(session: AuthSession, workId: string) 
       resolution: story.resolution,
       canManage: access.canManage,
       canCreateChapters: access.canCreateProjects,
+      canManageMembers: access.canManageMembers,
       config: { ...config, sequence },
     },
     chapters,

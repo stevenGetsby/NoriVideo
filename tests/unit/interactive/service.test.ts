@@ -103,6 +103,26 @@ describe('interactive story service', () => {
     expect(result.chapters[0].graph.nodes).toEqual([{ id: 'n1', kind: 'entry', title: '入口' }])
   })
 
+  it('exposes member administration from the work access for the 影游 surface', async () => {
+    access.getWorkAccess.mockResolvedValue({
+      work: { id: 'w1', name: '长安', projects: [{ id: 'p1' }] },
+      canManage: true, canCreateProjects: true, canManageMembers: true,
+    })
+    db.project.findMany.mockResolvedValue([])
+    const result = await getInteractiveStory(session, 'w1')
+    expect(result.story.canManageMembers).toBe(true)
+  })
+
+  it('keeps member administration false for a plain member', async () => {
+    access.getWorkAccess.mockResolvedValue({
+      work: { id: 'w1', name: '长安', projects: [{ id: 'p1' }] },
+      canManage: false, canCreateProjects: true, canManageMembers: false,
+    })
+    db.project.findMany.mockResolvedValue([])
+    const result = await getInteractiveStory(session, 'w1')
+    expect(result.story.canManageMembers).toBe(false)
+  })
+
   it('derives a work sequence for configs saved before the work canvas existed', async () => {
     seedChapterGraph()
     const result = await getInteractiveStory(session, 'w1')

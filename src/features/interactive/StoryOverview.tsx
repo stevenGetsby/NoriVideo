@@ -4,12 +4,13 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { useSession } from 'next-auth/react'
 import type { Connection } from '@xyflow/react'
 import { FosShell } from '@/components/frameos/FosShell'
-import { ArrowLeft, Loader2, Play, Plus, RefreshCw, X } from '@/components/ui/icons'
+import { ArrowLeft, Loader2, Play, Plus, RefreshCw, UsersRound, X } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import type { StoryChapterMeta, StoryIssue } from '@/lib/interactive/types'
 import { sortIssues, validateSequence, validateStory } from '@/lib/interactive/validate'
 import { coverMonogram, generativeCoverStyle } from '@/lib/ui/generative-cover'
+import { MemberManagerDialog, workMemberCandidatesEndpoint, workMembersEndpoint } from '@/components/frameos/works/FosWorksDialogs'
 import { InteractivePlayer } from './InteractivePlayer'
 import { StoryChapterMap } from './StoryChapterMap'
 import { StoryLayerNav } from './StoryLayerNav'
@@ -29,6 +30,7 @@ export function StoryOverview({ workId }: { workId: string }) {
   const readOnly = !hasAccountPermissions(session?.user || {}, ['canvasWrite'])
   const [focusedId, setFocusedId] = useState<string | null>(null)
   const [trial, setTrial] = useState(false)
+  const [membersOpen, setMembersOpen] = useState(false)
   const program = useMemo(() => (data ? buildStoryProgram(data) : null), [data])
   const issues = useMemo(() => {
     if (!program) return []
@@ -107,6 +109,11 @@ export function StoryOverview({ workId }: { workId: string }) {
             <span className={`nori-ix-save-state${overview.saving ? ' is-saving' : ''}`} aria-live="polite">
               {overview.saving ? '保存中…' : '已同步'}
             </span>
+            {story.canManageMembers === true ? (
+              <button type="button" className="fos-btn fos-btn-ghost" onClick={() => setMembersOpen(true)}>
+                <UsersRound />协作成员
+              </button>
+            ) : null}
             {story.canCreateChapters && !readOnly ? (
               <button type="button" className="fos-btn fos-btn-ghost" disabled={overview.creatingChapter} onClick={() => void addChapter()}>
                 {overview.creatingChapter ? <Loader2 className="nori-ix-spin" /> : <Plus />}新建章节
@@ -145,6 +152,20 @@ export function StoryOverview({ workId }: { workId: string }) {
           storageKey={story.workId}
           onClose={() => setTrial(false)}
           onLocate={(projectId) => { setTrial(false); setFocusedId(projectId) }}
+        />
+      ) : null}
+      {membersOpen ? (
+        <MemberManagerDialog
+          title={`${story.canManageMembers === true ? '设置' : '查看'}协作成员 · ${story.name}`}
+          endpoint={workMembersEndpoint(story.workId)}
+          candidatesPath={workMemberCandidatesEndpoint(story.workId)}
+          readOnly={story.canManageMembers !== true}
+          note={story.canManageMembers === true
+            ? '被添加的成员可以在「影游画布」里看到这个项目，一起编辑每一章；改名、画幅和成员管理仍然只有项目组长可以操作。'
+            : '只有被管理员设为项目组长的账号可以增删成员；需要调整请联系管理员。'}
+          emptyHint="没有可添加的账号。请先在「账号管理」里创建子账号，再回到这里添加。"
+          onClose={() => setMembersOpen(false)}
+          onChanged={() => void overview.reload()}
         />
       ) : null}
     </FosShell>

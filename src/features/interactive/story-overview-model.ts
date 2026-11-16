@@ -26,6 +26,8 @@ export type OverviewStory = {
   resolution: StoryResolution
   canManage: boolean
   canCreateChapters: boolean
+  /** 只有项目组长/管理员为 true；缺字段一律按只读处理。 */
+  canManageMembers?: boolean
   config: InteractiveStoryConfig
 }
 
