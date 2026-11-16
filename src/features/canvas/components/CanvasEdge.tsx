@@ -10,6 +10,7 @@ import {
 } from '../connection-line-geometry'
 import { STORY_FLOW_ROLE, STORY_MOUNT_ROLE } from '@/lib/interactive/types'
 import { STORY_NODE_HUES, useStoryCanvasContext } from '../story/StoryCanvasContext'
+import { isStoryMediaTarget } from '../story/story-connection'
 import { paneRenderedScale, storyEdgeEnds } from '../story/story-geometry'
 
 const EDGE_HUE_BY_NODE_TYPE: Record<string, string> = {
@@ -57,7 +58,7 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
   const storyFlow = props.data?.role === STORY_FLOW_ROLE
   const storyMount = props.data?.role === STORY_MOUNT_ROLE
   const storyLine = storyFlow || storyMount
-  const storyEnds = sourceNode && targetNode && (storyLine || targetNode.type === 'story_scene')
+  const storyEnds = sourceNode && targetNode && (storyLine || isStoryMediaTarget(targetNode.type))
     ? storyEdgeEnds({ source: sourceNode, target: targetNode, sourceHandle: sourceHandleId, flow: storyFlow, mount: storyMount, scale: paneRenderedScale(store.domNode, store.width) })
     : null
   const from = storyEnds?.source ?? (sourceNode && !storyLine
@@ -90,7 +91,7 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
   const edgeStyle = edgeHue ? ({ ...style, '--edge-hue': edgeHue } as CSSProperties) : style
   const storyClass = storyFlow ? 'is-story-flow' : storyMount ? 'is-story-mount' : storyEnds ? 'is-story-media' : undefined
   const canDelete = Boolean(storyEnds && selected && story && !story.readOnly)
-  const deleteLabel = storyFlow ? '断开剧情连线' : storyMount ? '从片段上取下互动' : '移除片段画面'
+  const deleteLabel = storyFlow ? '断开剧情连线' : storyMount ? '从片段上取下互动' : targetNode?.type === 'story_scene' ? '移除片段画面' : '移除互动画面'
 
   return (
     <>

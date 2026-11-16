@@ -19,7 +19,11 @@ function card(id: string, type: string, x: number, y: number, width: number, hei
       { id: 'media', x: width / 2 - PORT / 2, y: -PORT / 2, width: PORT, height: PORT },
       { id: 'interact', x: width / 2 - PORT / 2, y: height - PORT / 2, width: PORT, height: PORT },
     ] : []),
-    ...(type === 'story_interaction' ? [{ id: 'mount', x: width / 2 - PORT / 2, y: -PORT / 2, width: PORT, height: PORT }] : []),
+    ...(type === 'story_interaction' ? [
+      { id: 'media', x: width / 2 - 34 - PORT / 2, y: -PORT / 2, width: PORT, height: PORT },
+      { id: 'mount', x: width / 2 + 34 - PORT / 2, y: -PORT / 2, width: PORT, height: PORT },
+    ] : []),
+    ...(type === 'story_choice' ? [{ id: 'media', x: width / 2 - PORT / 2, y: -PORT / 2, width: PORT, height: PORT }] : []),
   ]
   const isStory = type.startsWith('story_')
   return { id, type, data, measured: { width, height }, internals: { positionAbsolute: { x, y }, handleBounds: { source: isStory ? handles : [] } } }
@@ -93,7 +97,7 @@ describe('story interaction wires', () => {
 
   it('snaps a mount wire to the interaction top port, or to the port of the card under the pointer', () => {
     const near = target(sceneA, 'interact', { x: 160, y: 590 })
-    expect(near?.point).toEqual({ x: 150, y: 600 })
+    expect(near?.point).toEqual({ x: 184, y: 600 })
     expect(near?.position).toBe(Position.Top)
     expect(near?.connection).toEqual({ source: 'a', sourceHandle: 'interact', target: 'i', targetHandle: 'mount' })
     expect(target(sceneA, 'interact', { x: 40, y: 780 })?.connection.target).toBe('i')
@@ -111,7 +115,7 @@ describe('story interaction wires', () => {
 
   it('hangs a mounted interaction from the scene bottom port into its top port', () => {
     expect(storyEdgeEnds({ source: sceneA, target: tap, flow: false, mount: true, scale: 1 })).toEqual({
-      source: { x: 150, y: 330 }, sourcePosition: Position.Bottom, target: { x: 150, y: 600 }, targetPosition: Position.Top,
+      source: { x: 150, y: 330 }, sourcePosition: Position.Bottom, target: { x: 184, y: 600 }, targetPosition: Position.Top,
     })
     expect(storyEdgeEnds({ source: sceneB, target: sceneA, flow: false, mount: true, scale: 1 })).toBeNull()
   })
@@ -120,6 +124,34 @@ describe('story interaction wires', () => {
     const win = target(tap, 'success', { x: 520, y: 30 })
     expect(win?.connection).toEqual({ source: 'i', sourceHandle: 'success', target: 'b', targetHandle: 'input' })
     expect(storyEdgeEnds({ source: tap, target: sceneB, sourceHandle: 'fail', flow: true, scale: 1 })).toMatchObject({ source: { x: 300, y: 734 }, target: { x: 500, y: 22 } })
+  })
+})
+
+describe('story picture ports on interactions and choices', () => {
+  it('names the picture port on interactions and choices', () => {
+    expect(storyWireRole(tap, 'media')).toBe('media-pick')
+    expect(storyWireRole(choice, 'media')).toBe('media-pick')
+  })
+
+  it('snaps a media wire to the interaction picture port, left of the mount port', () => {
+    const near = target(video, 'output', { x: 120, y: 590 })
+    expect(near?.point).toEqual({ x: 116, y: 600 })
+    expect(near?.position).toBe(Position.Top)
+    expect(near?.connection).toEqual({ source: 'v', sourceHandle: 'output', target: 'i', targetHandle: 'media' })
+    const pick = target(choice, 'media', { x: 650, y: 480 })
+    expect(pick).toBeNull()
+  })
+
+  it('routes a wire dragged from the interaction picture port back onto a media card', () => {
+    const back = target(tap, 'media', { x: 150, y: -300 })
+    expect(back?.connection).toEqual({ source: 'v', sourceHandle: 'output', target: 'i', targetHandle: 'media' })
+  })
+
+  it('draws the picture wire into the interaction and choice top ports', () => {
+    expect(storyEdgeEnds({ source: video, target: tap, flow: false, scale: 1 }))
+      .toMatchObject({ source: { x: 150, y: -200 }, sourcePosition: Position.Bottom, target: { x: 116, y: 600 }, targetPosition: Position.Top })
+    expect(storyEdgeEnds({ source: video, target: choice, flow: false, scale: 1 }))
+      .toMatchObject({ target: { x: 650, y: 500 }, targetPosition: Position.Top })
   })
 })
 
@@ -136,7 +168,7 @@ describe('story wire outcomes', () => {
 
   it('explains a refused drop as what to do instead', () => {
     expect(storyWireRefusal('media-pick', 'a', 'media', { id: 't', type: 'text' }, flowNodes)).toContain('视频或图片')
-    expect(storyWireRefusal('forward', 'a', 'output', { id: 'v', type: 'video' }, flowNodes)).toContain('顶部的接口')
+    expect(storyWireRefusal('forward', 'a', 'output', { id: 'v', type: 'video' }, flowNodes)).toContain('顶部的画面接口')
     expect(storyWireRefusal('forward', 'a', 'output', { id: 't', type: 'text' }, flowNodes)).toContain('只能连接剧情节点')
     expect(storyWireRefusal('forward', 'a', 'output', { id: 'e', type: 'story_entry' }, flowNodes)).toContain('入口不能被连入')
     expect(storyWireRefusal('mount', 'a', 'interact', { id: 'b', type: 'story_scene' }, flowNodes)).toContain('互动节点')

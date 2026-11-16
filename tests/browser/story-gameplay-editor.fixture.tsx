@@ -124,10 +124,12 @@ function App() {
     setPanel: (next) => { log.panels.push(next) },
     actions: {
       quickAdd: () => {},
-      createSceneMedia: () => {},
+      createPictureNode: () => {},
       focusNode: () => {},
       removeEdge: () => {},
       organize: () => {},
+      retargetInteraction: async () => {},
+      removeInteractionHandle: async () => true,
     },
   }), [readOnly, saveConfig, shop, variables])
 

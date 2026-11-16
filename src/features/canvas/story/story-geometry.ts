@@ -1,7 +1,7 @@
 import { Position } from '@xyflow/react'
 import { isStoryNodeType } from '@/lib/interactive/compile'
 import { STORY_FLOW_ROLE, STORY_INTERACT_HANDLE, STORY_MOUNT_HANDLE, STORY_OUTPUT_HANDLE } from '@/lib/interactive/types'
-import { STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storySourceHandles } from './story-connection'
+import { isStoryMediaTarget, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storySourceHandles } from './story-connection'
 
 /** Distance from a story card's top edge to the centre of its header ports. */
 export const STORY_PORT_Y = 22
@@ -90,7 +90,7 @@ export function storyEdgeEnds(input: { source: StoryGeometryNode; target: StoryG
     const target = storyHandleCenter(input.target, 'input', input.scale)
     return source && target ? { source, sourcePosition: Position.Right, target, targetPosition: Position.Left } : null
   }
-  if (input.target.type !== 'story_scene') return null
+  if (!isStoryMediaTarget(input.target.type)) return null
   const port = storyHandleCenter(input.target, STORY_MEDIA_HANDLE, input.scale)
   if (!port) return null
   const anchor = storyMediaAnchor(nodeBox(input.source), port)
@@ -106,7 +106,7 @@ export function storyWireRole(node: { type?: string } | null | undefined, handle
   if (isStoryNodeType(node.type)) {
     if (handleId === STORY_INTERACT_HANDLE) return node.type === 'story_scene' ? 'mount' : null
     if (handleId === STORY_MOUNT_HANDLE) return node.type === 'story_interaction' ? 'mount-pick' : null
-    if (handleId === STORY_MEDIA_HANDLE) return node.type === 'story_scene' ? 'media-pick' : null
+    if (handleId === STORY_MEDIA_HANDLE) return isStoryMediaTarget(node.type) ? 'media-pick' : null
     if (isLeftHandle(handleId)) return node.type === 'story_entry' ? null : 'backward'
     return storySourceHandles(node).length ? 'forward' : null
   }
@@ -125,7 +125,7 @@ function port(node: StoryGeometryNode, handleId: string, position: Position, sca
 function portsFor(role: StoryWireRole, node: StoryGeometryNode, scale: number): Port[] {
   if (role === 'forward') return isStoryNodeType(node.type) && node.type !== 'story_entry' ? port(node, 'input', Position.Left, scale) : []
   if (role === 'backward') return isStoryNodeType(node.type) ? storySourceHandles(node).flatMap((id) => port(node, id, Position.Right, scale)) : []
-  if (role === 'media') return node.type === 'story_scene' ? port(node, STORY_MEDIA_HANDLE, Position.Top, scale) : []
+  if (role === 'media') return isStoryMediaTarget(node.type) ? port(node, STORY_MEDIA_HANDLE, Position.Top, scale) : []
   if (role === 'mount') return node.type === 'story_interaction' ? port(node, STORY_MOUNT_HANDLE, Position.Top, scale) : []
   if (role === 'mount-pick') return node.type === 'story_scene' ? port(node, STORY_INTERACT_HANDLE, Position.Bottom, scale) : []
   return []
@@ -149,10 +149,10 @@ export function storyNodeAt(nodes: Iterable<StoryGeometryNode>, point: StoryPoin
 
 function areaPort(role: StoryWireRole, hit: StoryGeometryNode, from: StoryGeometryNode, point: StoryPoint, edges: readonly FlowEdgeLike[], scale: number): Port | null {
   const hitIsMedia = STORY_MEDIA_SOURCE_TYPES.has(hit.type || '')
-  if (role === 'media-pick' || (from.type === 'story_scene' && hitIsMedia && role !== 'mount')) {
-    const scenePort = hitIsMedia ? storyHandleCenter(from, STORY_MEDIA_HANDLE, scale) : null
-    if (!scenePort) return null
-    const anchor = storyMediaAnchor(nodeBox(hit), scenePort)
+  if (role === 'media-pick' || (isStoryMediaTarget(from.type) && hitIsMedia && role !== 'mount')) {
+    const picturePort = hitIsMedia ? storyHandleCenter(from, STORY_MEDIA_HANDLE, scale) : null
+    if (!picturePort) return null
+    const anchor = storyMediaAnchor(nodeBox(hit), picturePort)
     return { node: hit, handleId: 'output', point: anchor.point, position: anchor.position }
   }
   const ports = portsFor(role, hit, scale)

@@ -42,8 +42,8 @@ export type StoryCanvasPanel = 'gameplay' | 'checks' | null
 export type StoryCanvasActions = {
   /** Opens the "what comes next" menu for a free out-port. */
   quickAdd: (nodeId: string, handleId: string, anchor: { x: number; y: number }) => void
-  /** Adds a video / image node above the scene and wires it in as the scene's picture. */
-  createSceneMedia: (sceneId: string, type: 'video' | 'image') => void
+  /** Adds a video / image node above the target card and wires it in as its picture. */
+  createPictureNode: (targetId: string, type: 'video' | 'image') => void
   focusNode: (nodeId: string) => void
   removeEdge: (edgeId: string) => void
   /** Migrates semantic result ports and confirms any branches that must be disconnected. */

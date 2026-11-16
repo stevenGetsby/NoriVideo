@@ -182,8 +182,8 @@ export interface StoryChoiceNode extends StoryNodeBase {
   panelStyle: StoryChoicePanel
   layout: StoryChoiceLayout
   timeoutMode: StoryTimeoutMode
-  /** Optional backdrop behind the choice panel: a video/image wired into this node on the canvas.
-   *  Absent falls back to the previous scene's last frame. */
+  /** Optional backdrop behind the choice panel: a video/image wired into this node's top picture port
+   *  on the canvas. Absent falls back to the previous scene's last frame. */
   backdrop?: StoryMedia | null
 }
 export interface StoryInteractionNode extends StoryNodeBase {
@@ -199,6 +199,9 @@ export interface StoryInteractionNode extends StoryNodeBase {
   startSec: number
   /** Per result port (tap/swipe/hold success|fail, timing perfect|normal|miss, choice timeout). */
   results: Record<string, StoryResultConfig>
+  /** 独立摆放时的底图：画面节点连进来的视频或图片。挂载时恒为 null（画面跟随宿主片段）。
+   *  缺省 = 没有自己的画面，播放器回退到上一段最后一帧，再回退到占位。 */
+  picture?: StoryMedia | null
 }
 export interface StoryConditionNode extends StoryNodeBase {
   kind: 'condition'

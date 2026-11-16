@@ -135,6 +135,9 @@
 .react-flow__node:hover .nori-story-handle.is-media::before { opacity: 1; }
 /* Interaction ports: lime squares. A scene's bottom port hosts interactions; an interaction's top port hangs it on a scene. */
 .nori-story-node > .react-flow__handle.nori-story-handle.is-mount { top: 0; }
+/* 互动节点顶边同时有画面口与挂载口：左右分站，避免重叠。 */
+.nori-story-node.is-interaction > .react-flow__handle.nori-story-handle.is-media { left: calc(50% - 34px); }
+.nori-story-node.is-interaction > .react-flow__handle.nori-story-handle.is-mount { left: calc(50% + 34px); }
 .nori-story-node > .react-flow__handle.nori-story-handle.is-interact { top: auto; bottom: 0; }
 .nori-story-handle.is-mount::after,
 .nori-story-handle.is-interact::after { inset: 3.5px; border-radius: 3px; }

@@ -188,7 +188,7 @@ function App() {
     setPanel: () => {},
     actions: {
       quickAdd: () => {},
-      createSceneMedia: () => {},
+      createPictureNode: () => {},
       focusNode: (nodeId: string) => { log.focused.push(nodeId) },
       removeEdge: () => {},
       organize: () => {},
@@ -241,7 +241,7 @@ function LegacyApp() {
     projectId: 'project-1', readOnly,
     story: { workId: 'work-1', name: '互动节点测试', aspectRatio: '9:16', resolution: '720p', canManage: true, config: { version: 1, variables: [], chapters: [], links: [], start: null }, chapters: [] },
     variables: [], saveConfig: async () => {}, trialEntryId: undefined, openTrial: () => {}, closeTrial: () => {}, panel: null, setPanel: () => {},
-    actions: { quickAdd: () => {}, createSceneMedia: () => {}, focusNode: (nodeId) => { log.focused.push(nodeId) }, removeEdge: () => {}, organize: () => {}, retargetInteraction: async () => {}, removeInteractionHandle: async () => true },
+    actions: { quickAdd: () => {}, createPictureNode: () => {}, focusNode: (nodeId) => { log.focused.push(nodeId) }, removeEdge: () => {}, organize: () => {}, retargetInteraction: async () => {}, removeInteractionHandle: async () => true },
   }), [readOnly])
   return (
     <CanvasEditorProvider value={editor}>

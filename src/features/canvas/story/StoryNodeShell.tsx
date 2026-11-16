@@ -28,7 +28,7 @@ const HANDLE_LOOK: Record<HandleSide, { position: Position; title?: string }> = 
   in: { position: Position.Left, title: '剧情从这里进入' },
   out: { position: Position.Right },
   media: { position: Position.Top, title: '画面（制作层）：连接视频或图片' },
-  mount: { position: Position.Top, title: '挂到剧情片段：连接片段底部的互动口' },
+  mount: { position: Position.Top, title: '挂到剧情片段：连接片段底部的互动口。挂上后画面跟随片段视频' },
   interact: { position: Position.Bottom, title: '互动口：只能连接互动节点（含「限时抉择」），在片段播放中触发' },
 }
 
@@ -124,7 +124,7 @@ function StoryTitle({ title, placeholder, readOnly, onRename }: { title: string;
   )
 }
 
-export function StoryNodeShell({ id, type, selected, title, input = true, output = false, media = false, interact = false, mount = false, badge, className, children }: {
+export function StoryNodeShell({ id, type, selected, title, input = true, output = false, media = false, picture = false, interact = false, mount = false, badge, className, children }: {
   id: string
   type: StoryNodeType
   selected: boolean
@@ -133,6 +133,8 @@ export function StoryNodeShell({ id, type, selected, title, input = true, output
   output?: boolean
   /** Adds the top picture port (scenes). */
   media?: boolean
+  /** 这张卡可以接画面（互动/抉择的独立底图口），与挂载口左右分站。 */
+  picture?: boolean
   /** Adds the bottom interaction port that hosts mounted interactions (scenes). */
   interact?: boolean
   /** Adds the top port that mounts this card on a scene (interactions). */
@@ -158,6 +160,7 @@ export function StoryNodeShell({ id, type, selected, title, input = true, output
       {input ? <StoryHandle id="input" side="in" /> : null}
       {output ? <StoryHandle id={STORY_OUTPUT_HANDLE} side="out" /> : null}
       {media ? <StoryHandle id={STORY_MEDIA_HANDLE} side="media" /> : null}
+      {picture ? <StoryHandle id={STORY_MEDIA_HANDLE} side="media" /> : null}
       {interact ? <StoryHandle id={STORY_INTERACT_HANDLE} side="interact" /> : null}
       {mount ? <StoryHandle id={STORY_MOUNT_HANDLE} side="mount" /> : null}
     </div>

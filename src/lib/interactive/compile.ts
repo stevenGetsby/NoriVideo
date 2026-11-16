@@ -140,22 +140,28 @@ function mediaFromNode(node: CanvasNodeLike): StoryMedia | null {
   return null
 }
 
-/** Scene media: own pick first, otherwise the first linked video, otherwise a linked image. */
-export function resolveSceneMedia(sceneId: string, data: unknown, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]): StoryMedia | null {
-  const scene = readSceneData(data)
-  if (scene.videoUrl) {
+/** 节点画面：自己的选取优先，其次第一条连进来的视频，再次连进来的图片。
+ *  互动/抉择节点没有「自己的选取」（sceneFields: false），直接落到连线分支；片段行为逐字节不变。 */
+export function resolveNodeMedia(nodeId: string, data: unknown, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[], options?: { sceneFields?: boolean }): StoryMedia | null {
+  const scene = options?.sceneFields !== false ? readSceneData(data) : null
+  if (scene?.videoUrl) {
     return { kind: 'video', url: scene.videoUrl, posterUrl: scene.posterUrl ?? scene.imageUrl, ...(scene.videoDurationSec ? { durationSec: scene.videoDurationSec } : {}) }
   }
   const byId = new Map(nodes.map((node) => [node.id, node]))
   const linked = edges
-    .filter((edge) => edge.target === sceneId && edge.role !== STORY_FLOW_ROLE)
+    .filter((edge) => edge.target === nodeId && edge.role !== STORY_FLOW_ROLE && edge.role !== STORY_MOUNT_ROLE)
     .map((edge) => byId.get(edge.source))
     .flatMap((node) => (node ? [mediaFromNode(node)] : []))
     .filter((media): media is StoryMedia => !!media)
   const linkedMedia = linked.find((media) => media.kind === 'video') ?? linked[0]
   if (linkedMedia) return linkedMedia
-  if (scene.imageUrl) return { kind: 'image', url: scene.imageUrl, posterUrl: scene.imageUrl }
+  if (scene?.imageUrl) return { kind: 'image', url: scene.imageUrl, posterUrl: scene.imageUrl }
   return null
+}
+
+/** Scene media: own pick first, otherwise the first linked video, otherwise a linked image. */
+export function resolveSceneMedia(sceneId: string, data: unknown, nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]): StoryMedia | null {
+  return resolveNodeMedia(sceneId, data, nodes, edges)
 }
 
 /** The scene an interaction is mounted on, or null when it is wired into the flow instead. */
@@ -195,10 +201,12 @@ export function compileStoryNode(node: CanvasNodeLike, nodes: CanvasNodeLike[], 
         ...(savePoint ? { savePoint } : {}),
       }
     }
-    case 'interaction':
-      return compileInteraction(node, mountedSceneId(node.id, nodes, edges))
+    case 'interaction': {
+      const mountedOn = mountedSceneId(node.id, nodes, edges)
+      return { ...compileInteraction(node, mountedOn), picture: mountedOn ? null : resolveNodeMedia(node.id, node.data, nodes, edges, { sceneFields: false }) }
+    }
     case 'choice':
-      return { id: node.id, kind, title, ...readChoiceData(node.data), backdrop: resolveSceneMedia(node.id, node.data, nodes, edges) }
+      return { id: node.id, kind, title, ...readChoiceData(node.data), backdrop: resolveNodeMedia(node.id, node.data, nodes, edges, { sceneFields: false }) }
     case 'condition':
       return { id: node.id, kind, title, ...readConditionData(node.data) }
     case 'ending':

@@ -226,7 +226,7 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
 
   return (
     <StoryNodeShell
-      id={id} type="story_interaction" selected={selected} title={interaction.title} mount
+      id={id} type="story_interaction" selected={selected} title={interaction.title} mount picture
       badge={story ? (
         <select
           className="nodrag nori-story-select nori-story-kind-select"

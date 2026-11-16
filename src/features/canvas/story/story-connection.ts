@@ -12,7 +12,10 @@ import {
 import type { CanvasConnectionInput, CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
 
 export const STORY_MEDIA_SOURCE_TYPES = new Set(['video', 'image', 'production_video', 'production_panel'])
-/** A scene's top port: its picture comes in here, separate from the left-to-right story flow. */
+/** 可以接「画面」口的节点：片段（制作层画面）、互动节点与限时抉择（独立停靠点的底图）。 */
+export const STORY_MEDIA_TARGET_TYPES = new Set(['story_scene', 'story_interaction', 'story_choice'])
+export const isStoryMediaTarget = (type: string | null | undefined) => STORY_MEDIA_TARGET_TYPES.has(type ?? '')
+/** A story card's top picture port: the picture comes in here, separate from the left-to-right story flow. */
 export const STORY_MEDIA_HANDLE = 'media'
 
 export type StoryConnectionPlan =
@@ -71,9 +74,9 @@ export function resolveStoryConnection(input: CanvasConnectionInput, nodes: read
     return resolveMount(input, a, b)
   }
   if (input.sourceHandle === STORY_MEDIA_HANDLE || input.targetHandle === STORY_MEDIA_HANDLE) {
-    const [scene, media] = input.targetHandle === STORY_MEDIA_HANDLE ? [b, a] : [a, b]
-    if (scene.type === 'story_scene' && STORY_MEDIA_SOURCE_TYPES.has(media.type || '')) return { kind: 'media', source: media.id, target: scene.id }
-    return { kind: 'invalid', reason: '片段顶部的画面接口只能连接视频或图片节点' }
+    const [host, media] = input.targetHandle === STORY_MEDIA_HANDLE ? [b, a] : [a, b]
+    if (isStoryMediaTarget(host.type) && STORY_MEDIA_SOURCE_TYPES.has(media.type || '')) return { kind: 'media', source: media.id, target: host.id }
+    return { kind: 'invalid', reason: '画面接口只能连接视频或图片节点' }
   }
   if (isLeft(input.sourceHandle) === isLeft(input.targetHandle ?? 'input')) {
     return { kind: 'invalid', reason: '请从节点右侧连到另一个节点左侧' }
@@ -83,8 +86,8 @@ export function resolveStoryConnection(input: CanvasConnectionInput, nodes: read
     : [a, input.sourceHandle || STORY_OUTPUT_HANDLE, b]
 
   if (!isStoryNodeType(from.type)) {
-    if (to.type === 'story_scene' && STORY_MEDIA_SOURCE_TYPES.has(from.type || '')) return { kind: 'media', source: from.id, target: to.id }
-    return { kind: 'invalid', reason: '只有视频或图片可以连到剧情片段作为画面' }
+    if (isStoryMediaTarget(to.type) && STORY_MEDIA_SOURCE_TYPES.has(from.type || '')) return { kind: 'media', source: from.id, target: to.id }
+    return { kind: 'invalid', reason: '只有视频或图片可以连接为画面' }
   }
   if (!isStoryNodeType(to.type)) return { kind: 'invalid', reason: '剧情节点只能连接剧情节点' }
   if (to.type === 'story_entry') return { kind: 'invalid', reason: '入口不能被连入；跨章节请在故事总览连线' }
@@ -97,8 +100,8 @@ export function resolveStoryConnection(input: CanvasConnectionInput, nodes: read
 }
 
 /**
- * Returns the next edge list, or null when nothing changes. A handle keeps one outgoing flow, a scene one
- * picture, and an interaction is either mounted on one scene or wired into the story flow, never both.
+ * Returns the next edge list, or null when nothing changes. A handle keeps one outgoing flow, a picture
+ * port one media wire, and an interaction is either mounted on one scene or wired into the story flow, never both.
  */
 export function applyStoryConnection(
   edges: readonly CanvasFlowEdge[],
@@ -106,10 +109,10 @@ export function applyStoryConnection(
   createId: () => string,
 ): CanvasFlowEdge[] | null {
   if (plan.kind === 'media') {
-    const intoScene = (edge: CanvasFlowEdge) => edge.target === plan.target && edge.data?.role !== STORY_FLOW_ROLE && !isMountEdge(edge)
-    if (edges.some((edge) => intoScene(edge) && edge.source === plan.source)) return null
+    const intoTarget = (edge: CanvasFlowEdge) => edge.target === plan.target && edge.data?.role !== STORY_FLOW_ROLE && !isMountEdge(edge)
+    if (edges.some((edge) => intoTarget(edge) && edge.source === plan.source)) return null
     return [
-      ...edges.filter((edge) => !intoScene(edge)),
+      ...edges.filter((edge) => !intoTarget(edge)),
       { id: createId(), source: plan.source, target: plan.target, sourceHandle: 'output', targetHandle: STORY_MEDIA_HANDLE, type: 'bezier', data: { role: 'REF' } },
     ]
   }
@@ -133,7 +136,7 @@ export function applyStoryConnection(
 /** Why a connection replaced something, phrased for the toast; null when it only added a wire. */
 export function storyReplaceNotice(before: readonly CanvasFlowEdge[], after: readonly CanvasFlowEdge[], plan: StoryLinkPlan): string | null {
   if (after.length > before.length) return null
-  if (plan.kind === 'media') return '已替换片段画面'
+  if (plan.kind === 'media') return '已替换画面'
   if (plan.kind === 'mount') {
     return before.some((edge) => edge.target === plan.target && edge.data?.role === STORY_FLOW_ROLE)
       ? '互动已从剧情连线上取下，改为挂在这个片段上'

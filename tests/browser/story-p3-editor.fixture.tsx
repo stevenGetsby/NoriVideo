@@ -187,7 +187,7 @@ function App() {
     setPanel: (next) => { log.panels.push(next) },
     actions: {
       quickAdd: () => {},
-      createSceneMedia: () => {},
+      createPictureNode: () => {},
       focusNode: () => {},
       removeEdge: () => {},
       organize: () => {},

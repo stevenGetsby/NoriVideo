@@ -163,3 +163,53 @@ describe('story interaction connections', () => {
     expect(pruneStoryFlows(edges, defaulted).map((edge) => edge.id)).toEqual(['i3:a'])
   })
 })
+
+describe('story picture ports on interactions and choices', () => {
+  const tap = node('i1', 'story_interaction', { interaction: 'tap' })
+  const pick = node('c1', 'story_choice', { options: [{ id: 'o1', label: 'A', effects: [] }] })
+  const image = node('p', 'image')
+  const all = [...nodes, tap, pick, image]
+  const mount = (source: string, target: string): CanvasFlowEdge => ({ id: `${source}>${target}`, source, target, sourceHandle: 'interact', targetHandle: 'mount', data: { role: 'STORY_MOUNT' } })
+  const media = (source: string, target: string): CanvasFlowEdge => ({ id: `${source}~${target}`, source, target, sourceHandle: 'output', targetHandle: 'media', data: { role: 'REF' } })
+  const fresh = () => 'fresh'
+
+  it('accepts a video as an interaction picture from either end of the wire', () => {
+    expect(resolveStoryConnection({ source: 'v', sourceHandle: 'output', target: 'i1', targetHandle: 'media' }, all))
+      .toEqual({ kind: 'media', source: 'v', target: 'i1' })
+    expect(resolveStoryConnection({ source: 'i1', sourceHandle: 'media', target: 'v', targetHandle: 'output' }, all))
+      .toEqual({ kind: 'media', source: 'v', target: 'i1' })
+    expect(resolveStoryConnection({ source: 'v', sourceHandle: 'output', target: 'i1', targetHandle: 'input' }, all))
+      .toEqual({ kind: 'media', source: 'v', target: 'i1' })
+  })
+
+  it('accepts an image as a choice backdrop from either end of the wire', () => {
+    expect(resolveStoryConnection({ source: 'p', sourceHandle: 'output', target: 'c1', targetHandle: 'media' }, all))
+      .toEqual({ kind: 'media', source: 'p', target: 'c1' })
+    expect(resolveStoryConnection({ source: 'c1', sourceHandle: 'media', target: 'p', targetHandle: 'output' }, all))
+      .toEqual({ kind: 'media', source: 'p', target: 'c1' })
+  })
+
+  it('still refuses story wires and non-media cards on the picture port', () => {
+    expect(resolveStoryConnection({ source: 's1', sourceHandle: 'output', target: 'i1', targetHandle: 'media' }, all))
+      .toEqual({ kind: 'invalid', reason: '画面接口只能连接视频或图片节点' })
+    const text = resolveStoryConnection({ source: 't', sourceHandle: 'output', target: 'i1', targetHandle: 'input' }, all)
+    expect(text.kind === 'invalid' && text.reason).toContain('只有视频或图片')
+    expect(resolveStoryConnection({ source: 'i1', sourceHandle: 'success', target: 's1', targetHandle: 'input' }, all))
+      .toEqual({ kind: 'flow', source: 'i1', sourceHandle: 'success', target: 's1' })
+  })
+
+  it('keeps one picture per target, preserves the mount wire and ignores duplicates', () => {
+    const edges = [media('v', 'i1'), mount('s1', 'i1'), flow('s2', 'output', 'i1')]
+    const replaced = applyStoryConnection(edges, { kind: 'media', source: 'p', target: 'i1' }, fresh)
+    expect(replaced?.map((edge) => edge.id)).toEqual(['s1>i1', 's2:output', 'fresh'])
+    expect(replaced?.[2]).toMatchObject({ source: 'p', target: 'i1', sourceHandle: 'output', targetHandle: 'media', data: { role: 'REF' } })
+    expect(applyStoryConnection(edges, { kind: 'media', source: 'v', target: 'i1' }, fresh)).toBeNull()
+  })
+
+  it('replaces the picture of a choice without touching its option flows', () => {
+    const edges = [media('v', 'c1'), flow('c1', 'o1', 's1')]
+    const replaced = applyStoryConnection(edges, { kind: 'media', source: 'p', target: 'c1' }, fresh)
+    expect(replaced?.map((edge) => edge.id)).toEqual(['c1:o1', 'fresh'])
+    expect(storyReplaceNotice(edges, replaced!, { kind: 'media', source: 'p', target: 'c1' })).toBe('已替换画面')
+  })
+})

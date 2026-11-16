@@ -26,7 +26,7 @@ export const StoryChoiceNode = memo(function StoryChoiceNode({ id, data, selecte
   useHandleSync(id, `${choice.options.map((option) => option.id).join('|')}|${choice.timeoutMode}|${choice.timeoutSec ? 'timed' : 'open'}`)
   const orientation = story?.story.aspectRatio === '16:9' ? 'landscape' as const : 'portrait' as const
   return (
-    <StoryNodeShell id={id} type="story_choice" selected={selected} title={titleOf(data)}>
+    <StoryNodeShell id={id} type="story_choice" selected={selected} title={titleOf(data)} picture>
       <StoryChoicePanelFields
         data={data}
         mode="choice"

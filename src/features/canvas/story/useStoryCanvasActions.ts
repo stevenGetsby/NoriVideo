@@ -19,7 +19,7 @@ import {
 } from '../editor-types'
 import type { StoryCanvasActions, StoryCanvasState } from './StoryCanvasContext'
 import { nextBeatStart } from './story-beats'
-import { applyStoryConnection, resolveStoryConnection, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storyReplaceNotice, storySourceHandles, type StoryConnectionPlan, type StoryLinkPlan } from './story-connection'
+import { applyStoryConnection, isStoryMediaTarget, resolveStoryConnection, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storyReplaceNotice, storySourceHandles, type StoryConnectionPlan, type StoryLinkPlan } from './story-connection'
 import { nodeBox, paneRenderedScale, resolveStoryWireTarget, storyHandleCenter, storyNodeAt, storyWireRole, type StoryPoint, type StoryWireRole } from './story-geometry'
 import { removeChoiceOption } from './story-choice-edit'
 import { layoutObstacles, layoutStoryChapter, nearestFreeSpot, revealOffset, roomAbove, storyDropBox, STORY_NEW_NODE_SIZES, type LayoutBox } from './story-layout'
@@ -85,7 +85,7 @@ export function storyWireRefusal(role: StoryWireRole, fromId: string, fromHandle
   if (role === 'mount') return '片段底部的互动口只能连接互动节点（含「限时抉择」）'
   if (role === 'mount-pick') return '互动要挂在剧情片段底部的互动口上'
   if (role === 'media-pick') return '画面接口只能连接视频或图片节点'
-  if (role === 'media' || STORY_MEDIA_SOURCE_TYPES.has(hit.type || '')) return '视频和图片只能作为剧情片段的画面，请连到片段顶部的接口'
+  if (role === 'media' || STORY_MEDIA_SOURCE_TYPES.has(hit.type || '')) return '视频和图片只能作为画面，请连到片段或互动顶部的画面接口'
   if (!isStoryNodeType(hit.type)) return '剧情连线只能连接剧情节点'
   const plan = resolveStoryConnection(role === 'forward'
     ? { source: fromId, sourceHandle: fromHandle || STORY_OUTPUT_HANDLE, target: hit.id, targetHandle: 'input' }
@@ -218,7 +218,7 @@ export function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorAction
   const pickWireNode = (menu: CanvasWireMenuState, type: CanvasNodeMenuType, interaction?: StoryInteractionKind) => {
     const role = menu.story
     if (!role || !menu.flowPosition) return false
-    if ((role === 'media' && type !== 'story_scene') || (role === 'mount' && type !== 'story_interaction') || (role === 'mount-pick' && type !== 'story_scene')) return false
+    if ((role === 'media' && !isStoryMediaTarget(type)) || (role === 'mount' && type !== 'story_interaction') || (role === 'mount-pick' && type !== 'story_scene')) return false
     const drop = storyDropBox(role, menu.flowPosition, newStoryNodeSize(type))
     const source = deps().nodesRef.current.find((node) => node.id === menu.sourceNodeId)
     const seed = role === 'media-pick' ? mediaSeed(source, type) : role === 'mount' ? mountSeed(menu.sourceNodeId, interaction) : undefined
@@ -226,22 +226,22 @@ export function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorAction
     return true
   }
 
-  const createSceneMedia = (sceneId: string, type: 'video' | 'image') => {
+  const createPictureNode = (targetId: string, type: 'video' | 'image') => {
     const lookup = flowState().nodeLookup
-    const internal = lookup.get(sceneId)
+    const internal = lookup.get(targetId)
     if (!internal) return
-    const scene = { id: sceneId, ...nodeBox(internal) }
+    const target = { id: targetId, ...nodeBox(internal) }
     const size = newStoryNodeSize(type)
-    const picture = { x: scene.x + scene.width / 2 - size.width / 2, y: scene.y - MEDIA_GAP - size.height, ...size }
-    const room = roomAbove(scene, picture, [...lookup.values()].filter((node) => node.type !== 'group').map((node) => ({ id: node.id, ...nodeBox(node) })))
-    const data = mediaSeed(deps().nodesRef.current.find((node) => node.id === sceneId), type)
+    const picture = { x: target.x + target.width / 2 - size.width / 2, y: target.y - MEDIA_GAP - size.height, ...size }
+    const room = roomAbove(target, picture, [...lookup.values()].filter((node) => node.type !== 'group').map((node) => ({ id: node.id, ...nodeBox(node) })))
+    const data = mediaSeed(deps().nodesRef.current.find((node) => node.id === targetId), type)
     const placed = insert(type, { x: picture.x, y: picture.y + room.shift },
-      (node) => ({ source: node.id, sourceHandle: 'output', target: sceneId, targetHandle: STORY_MEDIA_HANDLE }), data)
+      (node) => ({ source: node.id, sourceHandle: 'output', target: targetId, targetHandle: STORY_MEDIA_HANDLE }), data)
     if (!placed || !room.shift) return
     moveDown(room.moved, room.shift, '添加并连接节点')
-    const left = Math.min(picture.x, scene.x)
-    reveal({ x: left, y: picture.y + room.shift, width: Math.max(picture.x + picture.width, scene.x + scene.width) - left, height: scene.y + scene.height - picture.y })
-    deps().toast('已在片段上方腾出画面位置')
+    const left = Math.min(picture.x, target.x)
+    reveal({ x: left, y: picture.y + room.shift, width: Math.max(picture.x + picture.width, target.x + target.width) - left, height: target.y + target.height - picture.y })
+    deps().toast('已在上方腾出画面位置')
   }
 
   const quickAdd = (nodeId: string, handleId: string, anchor: StoryPoint) => {
@@ -406,7 +406,7 @@ export function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorAction
     return true
   }
 
-  return { quickAdd, createSceneMedia, focusNode, removeEdge, organize, finishWire, pickWireNode, commit, placeNew, copyOffset, pasteOffset, retargetInteraction, removeInteractionHandle }
+  return { quickAdd, createPictureNode, focusNode, removeEdge, organize, finishWire, pickWireNode, commit, placeNew, copyOffset, pasteOffset, retargetInteraction, removeInteractionHandle }
 }
 
 /** Story editing commands with a stable identity; they always read the latest canvas state. */

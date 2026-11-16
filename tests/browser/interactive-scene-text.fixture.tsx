@@ -70,7 +70,7 @@ function Fixture() {
     setPanel: () => undefined,
     actions: {
       quickAdd: () => undefined,
-      createSceneMedia: () => undefined,
+      createPictureNode: () => undefined,
       focusNode: () => undefined,
       removeEdge: () => undefined,
       organize: () => undefined,
