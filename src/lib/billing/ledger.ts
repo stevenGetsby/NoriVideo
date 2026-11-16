@@ -48,6 +48,15 @@ function normalizeMoney(value: number): number {
   return roundMoney(value, MONEY_SCALE)
 }
 
+/**
+ * Bind money as an exact 6-decimal value. Passing a JS number to Prisma makes
+ * MySQL compare DECIMAL(18,6) against a DOUBLE, so a balance topped up to
+ * exactly the quote (e.g. 9.583602) reads as insufficient (9.58360199…).
+ */
+function moneyToDecimal(value: number): Prisma.Decimal {
+  return new Prisma.Decimal(normalizeMoney(value).toFixed(MONEY_SCALE))
+}
+
 function toBalanceSnapshot(balance: {
   id: string
   userId: string
@@ -148,9 +157,9 @@ async function reserveWithAutoFund(
     freezeId: string
   },
 ): Promise<boolean> {
-  const need = normalizeMoney(GENERATION_CREDIT_FLOOR + input.amount)
+  const needDecimal = moneyToDecimal(GENERATION_CREDIT_FLOOR + input.amount)
   const reserve = () => tx.userBalance.updateMany({
-    where: { userId: input.userId, balance: { gte: need } },
+    where: { userId: input.userId, balance: { gte: needDecimal } },
     data: {
       balance: { decrement: input.amount },
       frozenAmount: { increment: input.amount },
@@ -165,7 +174,12 @@ async function reserveWithAutoFund(
   const [row] = await tx.$queryRaw<Array<{ balance: Prisma.Decimal }>>(
     Prisma.sql`SELECT balance FROM user_balances WHERE userId = ${input.userId} FOR UPDATE`,
   )
-  const shortfall = Math.max(normalizeMoney(need - toMoneyNumber(row?.balance ?? 0)), 0.000001)
+  const balanceDecimal = row?.balance ?? new Prisma.Decimal(0)
+  const shortfall = normalizeMoney(
+    needDecimal.greaterThan(balanceDecimal)
+      ? toMoneyNumber(needDecimal.minus(balanceDecimal))
+      : 0.000001,
+  )
   try {
     await transferPointsInTx(tx, {
       operation: 'auto_allocate',

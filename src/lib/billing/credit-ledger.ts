@@ -36,6 +36,14 @@ export type CreditMutationResult = {
   idempotent: boolean
 }
 
+/**
+ * Bind money as an exact 6-decimal value so MySQL compares DECIMAL(18,6)
+ * against DECIMAL instead of DOUBLE, which misjudges exact equality.
+ */
+function toAmountDecimal(value: number): Prisma.Decimal {
+  return new Prisma.Decimal(toMoneyNumber(value).toFixed(6))
+}
+
 function readPositiveIntegerPoints(points: number) {
   if (!Number.isSafeInteger(points) || points <= 0) {
     throw new CreditLedgerError('INVALID_POINTS', '积分必须是大于 0 的整数。')
@@ -225,7 +233,7 @@ export async function transferPointsInTx(
   const targetType = `${operation}_in`
   await readBalanceInTransaction(tx, sourceUserId)
   const debited = await tx.userBalance.updateMany({
-    where: { userId: sourceUserId, balance: { gte: amountCny } },
+    where: { userId: sourceUserId, balance: { gte: toAmountDecimal(amountCny) } },
     data: { balance: { decrement: amountCny } },
   })
   if (debited.count !== 1) {
