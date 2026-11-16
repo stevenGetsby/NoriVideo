@@ -8,6 +8,7 @@ import {
   Controls,
   ReactFlow,
   ReactFlowProvider,
+  useEdgesState,
   useNodesState,
   useReactFlow,
   type Connection,
@@ -67,7 +68,7 @@ function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, 
     setNodes((current) => derived.map((node) => ({ ...node, selected: current.find((item) => item.id === node.id)?.selected ?? false })))
   }, [derived, setNodes])
 
-  const edges = useMemo<Edge[]>(() => data.story.config.links.map((link) => ({
+  const derivedEdges = useMemo<Edge[]>(() => data.story.config.links.map((link) => ({
     id: link.id,
     source: link.fromProjectId,
     sourceHandle: `${EXIT_HANDLE_PREFIX}${link.exitNodeId}`,
@@ -76,6 +77,11 @@ function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, 
     className: 'nori-ix-link',
     deletable: !actions.readOnly,
   })), [actions.readOnly, data.story.config.links])
+  // Controlled edges drop selection/remove changes unless onEdgesChange applies them.
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(derivedEdges)
+  useEffect(() => {
+    setEdges((current) => derivedEdges.map((edge) => ({ ...edge, selected: current.find((item) => item.id === edge.id)?.selected ?? false })))
+  }, [derivedEdges, setEdges])
 
   const count = derived.length
   const fitted = useRef(0)
@@ -101,6 +107,7 @@ function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, 
         edges={edges}
         nodeTypes={NODE_TYPES}
         onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
         fitView
         fitViewOptions={{ padding: 0.22, maxZoom: 1 }}
         onNodeDragStop={(_event, node) => onMove(node.id, { x: Math.round(node.position.x), y: Math.round(node.position.y) })}

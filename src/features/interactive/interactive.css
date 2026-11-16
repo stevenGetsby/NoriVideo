@@ -481,7 +481,11 @@
   --xy-controls-button-border-color: var(--ix-line);
   --xy-controls-box-shadow: 0 10px 30px -12px rgba(0, 0, 0, .7);
 }
-.nori-ix-map .react-flow__controls { overflow: hidden; border: 1px solid var(--ix-line); border-radius: 10px; }
+/* 抵消应用级 CSS zoom：React Flow 用 getBoundingClientRect 量圆点偏移（视觉像素），
+   却用 offsetWidth 量节点（布局像素），两者在 zoom 下不一致。 */
+.nori-ix-map .react-flow { zoom: calc(1 / var(--nori-interface-scale, 1.2)); }
+.nori-ix-map .nori-ix-chapter { zoom: var(--nori-interface-scale, 1.2); }
+.nori-ix-map .react-flow__controls { zoom: var(--nori-interface-scale, 1.2); overflow: hidden; border: 1px solid var(--ix-line); border-radius: 10px; }
 .nori-ix-map .react-flow__edge.nori-ix-link .react-flow__edge-path { stroke-width: 2.25; filter: drop-shadow(0 0 6px rgba(139, 123, 255, .45)); }
 .nori-ix-map .react-flow__edge.nori-ix-link.selected .react-flow__edge-path { stroke-width: 3; filter: drop-shadow(0 0 8px rgba(244, 114, 182, .6)); }
 .nori-ix-map-hint { position: absolute; top: 14px; left: 50%; z-index: 5; margin: 0; border: 1px solid var(--ix-line); border-radius: 999px; padding: 6px 14px; color: var(--ix-dim); background: rgba(19, 19, 25, .82); font-size: 12px; white-space: nowrap; backdrop-filter: blur(10px); transform: translateX(-50%); pointer-events: none; }
