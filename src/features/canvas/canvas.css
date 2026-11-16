@@ -3801,7 +3801,7 @@
 
 .nori-canvas-hub-direct-projects > div > button {
   display: grid;
-  grid-template-columns: 42px minmax(0, 1fr) 16px;
+  grid-template-columns: 58px minmax(0, 1fr) 16px;
   min-width: 0;
   align-items: center;
   gap: 12px;
@@ -3822,24 +3822,7 @@
   transform: translateY(-1px);
 }
 
-.nori-canvas-hub-direct-projects > div > button > i {
-  position: relative;
-  display: flex;
-  width: 42px;
-  height: 42px;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border: 1px solid rgb(var(--nori-ink) / calc(0.14 * var(--nori-a)));
-  border-radius: 11px;
-  color: rgb(var(--nori-s-ffffff));
-  font-size: 18px;
-  font-style: normal;
-  box-shadow: inset 0 1px 0 rgb(var(--nori-ink) / calc(0.18 * var(--nori-a)));
-}
-
-.nori-canvas-hub-direct-projects > div > button > i > b { position: relative; z-index: 1; font-weight: 800; text-shadow: 0 1px 10px rgba(0, 0, 0, .35); }
-.nori-canvas-hub-direct-projects > div > button > i > img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: cover; }
+.nori-canvas-hub-direct-projects > div > button > .work-cover { width: 58px; height: 46px; min-width: 0; }
 .nori-canvas-hub-direct-projects > div > button > svg { width: 14px; height: 14px; transition: transform .18s ease; }
 .nori-canvas-hub-direct-projects > div > button:hover > svg { transform: translateX(2px); }
 .nori-canvas-hub-direct-projects > div > button > span { min-width: 0; }
