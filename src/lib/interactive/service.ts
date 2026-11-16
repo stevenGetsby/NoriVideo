@@ -184,7 +184,7 @@ export async function listInteractiveStories(session: AuthSession) {
       name: true,
       updatedAt: true,
       interactiveStory: { select: { aspectRatio: true, resolution: true, updatedAt: true } },
-      _count: { select: { projects: { where: { deletedAt: null } } } },
+      _count: { select: { projects: { where: { deletedAt: null } }, members: true } },
     },
   })
   return works.map((work) => ({
@@ -193,6 +193,7 @@ export async function listInteractiveStories(session: AuthSession) {
     aspectRatio: work.interactiveStory?.aspectRatio ?? '9:16',
     resolution: work.interactiveStory?.resolution ?? '1080p',
     chapterCount: work._count.projects,
+    memberCount: work._count.members,
     updatedAt: (work.interactiveStory && work.interactiveStory.updatedAt > work.updatedAt ? work.interactiveStory.updatedAt : work.updatedAt).toISOString(),
   }))
 }

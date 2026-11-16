@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type CSSProperties } from 'react'
 import { FosShell } from '@/components/frameos/FosShell'
-import { Clock3, GitBranch, Layers3, Plus, RefreshCw } from '@/components/ui/icons'
+import { Clock3, GitBranch, Layers3, Plus, RefreshCw, UsersRound } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
 import { apiFetch } from '@/lib/api-fetch'
 import { storyErrorMessage } from './story-api-error'
@@ -17,6 +17,7 @@ type StorySummary = {
   aspectRatio: StoryAspectRatio
   resolution: StoryResolution
   chapterCount: number
+  memberCount?: number
   updatedAt: string
 }
 
@@ -105,6 +106,9 @@ export function InteractiveHub() {
                       <strong>{story.name}</strong>
                       <span className="nori-ix-card-meta">
                         <span><Layers3 />{story.chapterCount} 章</span>
+                        {typeof story.memberCount === 'number' && story.memberCount > 1 ? (
+                          <span><UsersRound />{story.memberCount} 人协作</span>
+                        ) : null}
                         <span><Clock3 />{formatUpdated(story.updatedAt)}</span>
                       </span>
                     </span>
