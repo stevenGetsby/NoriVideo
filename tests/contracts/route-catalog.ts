@@ -127,6 +127,8 @@ const ROUTE_FILES = [
   'src/app/api/interactive/[workId]/publish/route.ts',
   'src/app/api/interactive/[workId]/route.ts',
   'src/app/api/interactive/route.ts',
+  'src/app/api/mp/auth/login/route.ts',
+  'src/app/api/mp/me/route.ts',
   'src/app/api/storage/sign/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-character/route.ts',
   'src/app/api/novel-promotion/[projectId]/ai-create-location/route.ts',

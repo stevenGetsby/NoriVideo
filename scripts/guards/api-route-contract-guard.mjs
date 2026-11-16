@@ -18,6 +18,7 @@ export const PUBLIC_ROUTE_ALLOWLIST = new Set([
   'src/app/api/auth/register/route.ts',
   'src/app/api/cos/image/route.ts',
   'src/app/api/files/[...path]/route.ts',
+  'src/app/api/mp/auth/login/route.ts',
   'src/app/api/storage/sign/route.ts',
 ])
 
@@ -71,8 +72,16 @@ function hasApiHandlerWrapper(content) {
   return /\bapiHandler\s*\(/.test(content)
 }
 
+// C 端（/api/mp/*）用独立的 consumer JWT 鉴权，与 B 端 session 完全隔离（R4）。
+// 只放行 mp 前缀，B 端路由仍然必须使用 session 鉴权。
+const CONSUMER_AUTH_CALL_PATTERNS = [
+  /\brequireConsumerAuth\s*\(/,
+  /\boptionalConsumer\s*\(/,
+]
+
 function hasRequiredAuth(relPath, content) {
   if (SESSION_AUTH_ROUTE_ALLOWLIST.has(relPath) && /\bgetAuthSession\s*\(/.test(content)) return true
+  if (relPath.startsWith('src/app/api/mp/') && CONSUMER_AUTH_CALL_PATTERNS.some((pattern) => pattern.test(content))) return true
   return AUTH_CALL_PATTERNS.some((pattern) => pattern.test(content))
 }
 
