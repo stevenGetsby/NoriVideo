@@ -8,11 +8,14 @@ import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { NoriBrandMark } from '@/components/brand/NoriBrandMark'
 import { statTileStyle } from '@/components/workspace/stat-tile-hue'
 
-export type AdminNavKey = 'accounts' | 'services'
+export type AdminNavKey = 'accounts' | 'services' | 'mp-review' | 'mp-ops' | 'mp-stats'
 
 const NAV: Array<{ key: AdminNavKey; href: string; label: string; caption: string; icon: AppIconName }> = [
   { key: 'accounts', href: 'accounts', label: '账号与用量', caption: '工作区、额度与账本', icon: 'usersRound' },
   { key: 'services', href: 'services', label: '服务配置', caption: '模型、存储与健康', icon: 'settingsHex' },
+  { key: 'mp-review', href: 'mp-review', label: '内容审核', caption: '小程序作品版本审核', icon: 'clipboardCheckSolid' },
+  { key: 'mp-ops', href: 'mp-ops', label: '内容运营', caption: '推荐位、专题、渠道、举报', icon: 'sparkles' },
+  { key: 'mp-stats', href: 'mp-stats', label: '小程序数据', caption: '用户、游玩与渠道', icon: 'statsBarGradient' },
 ]
 
 const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; text: string }> = {
@@ -24,6 +27,18 @@ const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; tex
     icon: 'alert',
     tone: 'warn',
     text: '这里修改的是全平台服务，保存后会影响全部管理账号和角色子账号。',
+  },
+  'mp-review': {
+    icon: 'infoCircle',
+    text: '通过或驳回都会记录审核人与时间；驳回原因对创作者可见。',
+  },
+  'mp-ops': {
+    icon: 'infoCircle',
+    text: '推荐位、专题、渠道与举报处理将在后续版本开放。',
+  },
+  'mp-stats': {
+    icon: 'infoCircle',
+    text: '用户、游玩与渠道数据将在后续版本开放。',
   },
 }
 
