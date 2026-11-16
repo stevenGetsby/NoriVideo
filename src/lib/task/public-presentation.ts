@@ -1,4 +1,5 @@
 import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+import { getTggUserMessage } from '@/lib/errors/user-messages'
 import { normalizeTaskError } from '@/lib/errors/normalize'
 
 function text(value: unknown): string | null {
@@ -26,11 +27,19 @@ export function publicGenerationTaskId(externalId: unknown): string | null {
     ) return null
     return text(parts.slice(4).join(':'))
   }
+  if (value.startsWith('TGG:')) {
+    const parts = value.split(':')
+    const type = parts[1]
+    if (type !== 'VIDEO' || !parts[2]?.trim() || !parts[3]?.trim()) return null
+    return text(parts.slice(4).join(':'))
+  }
   if (/^[A-Z][A-Z0-9_]*:/.test(value)) return null
   return value
 }
 
 export function publicTaskError(code: string | null, message: string | null) {
+  // 脱敏会把 TGG_ 前缀替换成 GENERATION_SERVICE_，所以中文文案要在脱敏前按原始码匹配
+  const tggMessage = getTggUserMessage(message) || getTggUserMessage(code)
   const error = normalizeTaskError(
     code ? sanitizePublicError(code) : null,
     message ? sanitizePublicError(message) : null,
@@ -38,7 +47,7 @@ export function publicTaskError(code: string | null, message: string | null) {
   if (!error) return null
   return {
     ...error,
-    message: sanitizePublicError(error.message),
+    message: tggMessage ?? sanitizePublicError(error.message),
     provider: null,
     details: error.details
       ? JSON.parse(sanitizePublicError(JSON.stringify(error.details))) as Record<string, unknown>
@@ -99,7 +108,7 @@ export function sanitizePublicCanvasData(value: unknown): unknown {
       return [key, key === 'externalTaskId' ? publicGenerationTaskId(item) : null]
     }
     if (key === 'errorMessage' || key === 'pollErrorMessage') {
-      return [key, typeof item === 'string' ? sanitizePublicError(item) : item]
+      return [key, typeof item === 'string' ? (getTggUserMessage(item) ?? sanitizePublicError(item)) : item]
     }
     return [key, sanitizePublicCanvasData(item)]
   }))

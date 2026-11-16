@@ -110,7 +110,7 @@ describe('tgg http client', () => {
     }
     expect(message).toContain('TGG_HTTP_ERROR(400)')
     expect(message).toContain('[已隐藏访问参数]')
-    expect(message).toContain('Bearer [已隐藏令牌]')
+    expect(message).toContain('Bearer [已隐藏密钥]')
     expect(message).not.toContain('X-Tos-Signature=secret')
     expect(message).not.toContain('sk-live-abcdef123456')
   })

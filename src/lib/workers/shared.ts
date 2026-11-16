@@ -28,6 +28,7 @@ import { RUN_EVENT_TYPE } from '@/lib/run-runtime/types'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { resolveExecutedModelKeyFromExternalId } from '@/lib/async-poll'
 import { withTaskQuotaContext } from '@/lib/account/request-context'
 
 function toObject(value: unknown): Record<string, unknown> {
@@ -488,7 +489,10 @@ async function runTaskLifecycle(job: Job<TaskJobData>, handler: (job: Job<TaskJo
     }
     const actualVideoTokens = Number(toObject(result).actualVideoTokens)
     if (billingInfo?.billable && (billingInfo.apiType === 'video' || billingInfo.apiType === 'voice')) {
-      const runtimeModel = resolveRuntimeModelKey(billingInfo.model) || billingInfo.model
+      // 记账必须钉住提交时实际执行的服务商：任务运行期间管理员可能切换视频路由
+      const pinnedExternalId = (await prisma.task.findUnique({ where: { id: taskId }, select: { externalId: true } }))?.externalId ?? null
+      const pinnedModel = resolveExecutedModelKeyFromExternalId(pinnedExternalId)
+      const runtimeModel = pinnedModel || resolveRuntimeModelKey(billingInfo.model) || billingInfo.model
       const parsedModel = parseModelKeyStrict(runtimeModel)
       if (billingInfo.apiType === 'video') {
         const durationSeconds = firstPositiveNumber([completedVideoDurationSeconds(data, result), billingInfo.metadata?.duration])

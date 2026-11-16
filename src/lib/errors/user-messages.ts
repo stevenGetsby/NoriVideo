@@ -32,3 +32,27 @@ export const USER_ERROR_MESSAGES_ZH: Record<UnifiedErrorCode, string> = {
 export function getUserMessageByCode(code: UnifiedErrorCode) {
   return USER_ERROR_MESSAGES_ZH[code]
 }
+
+export const TGG_ERROR_MESSAGES_ZH: Record<string, string> = {
+  TGG_SUBMIT_UNCONFIRMED: '视频生成服务响应超时，任务可能已提交也可能未提交；为避免重复扣费请不要立刻重试，稍后在作品里确认，仍无结果再重新生成。',
+  TGG_QUOTA_INSUFFICIENT: '视频生成服务额度不足，请联系管理员充值。',
+  TGG_RATE_LIMITED: '视频生成服务繁忙，请稍后再试。',
+  TGG_VIDEO_DURATION_UNSUPPORTED: '当前视频模型不支持所选时长。',
+  TGG_VIDEO_RATIO_UNSUPPORTED: '当前视频模型不支持所选画幅。',
+  TGG_VIDEO_RESOLUTION_UNSUPPORTED: '当前视频模型不支持所选分辨率。',
+  TGG_VIDEO_REFERENCES_LIMIT_EXCEEDED: '参考素材数量超出当前视频模型的上限。',
+  TGG_VIDEO_FIRST_LAST_FRAME_UNSUPPORTED: '当前视频模型不支持首尾帧。',
+  TGG_VIDEO_PROMPT_REQUIRED: '请先填写视频提示词。',
+  TGG_VIDEO_FILENAME_REQUIRED: '参考素材缺少带扩展名的文件名，请重新上传。',
+  TGG_MEDIA_URL_PUBLIC_REQUIRED: '参考素材需要可公开访问的地址，请重新上传。',
+  TGG_DELIVERY_FAILED: '视频已生成但交付失败，请稍后重试下载或联系管理员。',
+  TGG_HTTP_ERROR: '视频生成服务暂时不可用，请稍后再试。',
+}
+
+/** 上游错误码常带后缀（如 TGG_HTTP_ERROR(502): …），按码词前缀匹配而非整串精确匹配。 */
+export function getTggUserMessage(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const match = raw.match(/\bTGG_[A-Z_]+\b/)
+  if (!match) return null
+  return TGG_ERROR_MESSAGES_ZH[match[0]] ?? null
+}
