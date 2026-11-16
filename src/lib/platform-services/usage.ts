@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { logWarn } from '@/lib/logging/core'
 import { getLogContext } from '@/lib/logging/context'
 import { summarizeUsageRowsByType } from '@/lib/platform-services/model-type-usage'
+import { summarizeUsageRowsByProvider } from '@/lib/platform-services/provider-usage'
 import { calculateUsageCost } from '@/lib/platform-services/usage-cost'
 
 export { calculateUsageCost } from '@/lib/platform-services/usage-cost'
@@ -199,6 +200,7 @@ export async function getPlatformServiceUsageOverview(days = 30) {
       byType,
     },
     rows,
+    byProvider: summarizeUsageRowsByProvider(rows),
     storage: {
       objectCount: media._count.id,
       knownBytes: Number(media._sum.sizeBytes || 0),

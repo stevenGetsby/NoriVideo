@@ -360,6 +360,11 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     },
   }
 
+  await writeServiceConfigFile(next)
+  return getPlatformServiceConfigResponse()
+}
+
+async function writeServiceConfigFile(next: ServiceConfig): Promise<void> {
   const targetPath = resolveWritablePath()
   await fsp.mkdir(path.dirname(targetPath), { recursive: true })
   const temporaryPath = `${targetPath}.${process.pid}.${randomUUID()}.tmp`
@@ -368,6 +373,29 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
   await fsp.chmod(targetPath, 0o600)
   resetServiceConfigCache()
   resetStorageProvider()
+}
+
+/** 只替换视频等用途的路由，不触碰 providers/key/storage；供管理页一键切换视频上游使用。 */
+export async function savePlatformModelRouting(patch: Record<string, string>): Promise<PlatformServiceConfigResponse> {
+  const current = readMaterializedPlatformServiceConfig()
+  const modelRouting = normalizeRoutingInput(patch, current.llm?.modelRouting || {}, fixedPlatformModels())
+  if (
+    Object.values(modelRouting).some((value) => getRawProviderKey(value).toLowerCase() === 'tgg')
+    && !isUsableServiceSecret(current.llm?.providers?.find((provider) => provider.id === 'tgg')?.apiKey)
+  ) {
+    throw new Error('SERVICE_CONFIG_INVALID: TGG 尚未配置 API Key，不能把视频路由到 TGG')
+  }
+  const next = cloneConfig(current)
+  next.llm = {
+    ...next.llm,
+    // 与 savePlatformServiceConfig 的落盘格式一致：空 key 不写 apiKey 字段
+    providers: (next.llm?.providers || []).map((provider) => {
+      const { apiKey, ...rest } = provider
+      return isUsableServiceSecret(apiKey) ? { ...rest, apiKey } : rest
+    }),
+    modelRouting,
+  }
+  await writeServiceConfigFile(next)
   return getPlatformServiceConfigResponse()
 }
 

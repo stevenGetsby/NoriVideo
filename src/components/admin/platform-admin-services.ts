@@ -80,6 +80,22 @@ export interface UsageTypeAmount {
   lastUsedAt: string | null
 }
 
+export interface ProviderUsageTypeAmount {
+  serviceType: string
+  calls: number
+  cost: number
+  units: number
+}
+
+export interface ProviderUsageAmount {
+  provider: string
+  calls: number
+  success: number
+  failed: number
+  cost: number
+  byType: ProviderUsageTypeAmount[]
+}
+
 export interface UsageOverview {
   rangeDays: number
   collectedSince: string
@@ -92,6 +108,7 @@ export interface UsageOverview {
     byType: UsageTypeAmount[]
   }
   rows: UsageRow[]
+  byProvider: ProviderUsageAmount[]
   storage: { objectCount: number; knownBytes: number }
 }
 
