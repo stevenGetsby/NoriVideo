@@ -436,6 +436,8 @@ model Work {
   projects         Project[]
   members          WorkMember[]
   interactiveStory InteractiveStory?
+  mpWork           MpWork?
+  storyReleases    StoryRelease[]
 
   @@index([workspaceOwnerId, updatedAt])
   @@index([workspaceOwnerId, productLine])
@@ -1906,4 +1908,337 @@ model FrameosToolboxPromptHistory {
   @@index([userId, assetId])
   @@index([sessionId])
   @@map("frameos_toolbox_prompt_history")
+}
+
+// ───────────── 小程序内容平台 ─────────────
+
+// 影游发布版本：生成成功后不可变（program / manifest / 派生文件永不修改）
+model StoryRelease {
+  id               String    @id @default(uuid())
+  workId           String
+  version          Int
+  // building | build_failed | reviewing | rejected | approved | live | retired
+  status           String    @default("building") @db.VarChar(16)
+  taskId           String?   @db.VarChar(191)
+  progress         Int       @default(0)
+  pipelineVersion  Int       @default(1)
+  program          Json?
+  manifest         Json?
+  meta             Json?
+  issues           Json?
+  failure          String?   @db.VarChar(500)
+  programKey       String?   @db.VarChar(255)
+  programHash      String?   @db.VarChar(64)
+  aspectRatio      String    @default("9:16") @db.VarChar(16)
+  chapterCount     Int       @default(0)
+  endingCount      Int       @default(0)
+  totalDurationSec Int       @default(0)
+  sizeBytes        BigInt    @default(0)
+  note             String?   @db.VarChar(200)
+  createdById      String
+  reviewNote       String?   @db.VarChar(200)
+  reviewedById     String?   @db.VarChar(191)
+  reviewedAt       DateTime?
+  liveAt           DateTime?
+  retiredAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@unique([workId, version])
+  @@index([status, createdAt])
+  @@map("story_releases")
+}
+
+// 上架条目：创作者编辑的上架信息草稿 + 状态 + 计数（对外展示一律读版本 meta，见 B.3）
+model MpWork {
+  id               String    @id @default(uuid())
+  workId           String    @unique
+  slug             String    @unique @db.VarChar(16)
+  // draft | scheduled | live | offline | banned
+  status           String    @default("draft") @db.VarChar(16)
+  title            String    @db.VarChar(40)
+  tagline          String    @default("") @db.VarChar(60)
+  synopsis         String    @db.Text
+  tags             Json
+  creatorName      String    @default("") @db.VarChar(24)
+  coverKey         String?   @db.VarChar(255)
+  shareCoverKey    String?   @db.VarChar(255)
+  trailerEnabled   Boolean   @default(true)
+  reservable       Boolean   @default(true)
+  scheduledAt      DateTime?
+  liveReleaseId    String?   @unique @db.VarChar(191)
+  pendingReleaseId String?   @db.VarChar(191)
+  firstLiveAt      DateTime?
+  bannedReason     String?   @db.VarChar(200)
+  playerCount      Int       @default(0)
+  players7d        Int       @default(0)
+  hotScore         Float     @default(0)
+  favoriteCount    Int       @default(0)
+  reserveCount     Int       @default(0)
+  ratingCount      Int       @default(0)
+  ratingSum        Int       @default(0)
+  ratingScore      Float     @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @default(now()) @updatedAt
+
+  work Work @relation(fields: [workId], references: [id], onDelete: Cascade)
+
+  @@index([status, hotScore])
+  @@index([status, firstLiveAt])
+  @@index([status, ratingScore])
+  @@index([status, reserveCount])
+  @@map("mp_works")
+}
+
+model ConsumerUser {
+  id             String   @id @default(uuid())
+  openid         String   @unique @db.VarChar(64)
+  unionid        String?  @unique @db.VarChar(64)
+  nickname       String   @db.VarChar(32)
+  avatarIndex    Int      @default(0)
+  // active | banned
+  status         String   @default("active") @db.VarChar(16)
+  tokenVersion   Int      @default(0)
+  firstSource    String?  @db.VarChar(24)
+  firstChannelId String?  @db.VarChar(191)
+  firstShareId   String?  @db.VarChar(16)
+  firstMpWorkId  String?  @db.VarChar(191)
+  createdAt      DateTime @default(now())
+  lastSeenAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([firstChannelId])
+  @@map("consumer_users")
+}
+
+// 一人一作品一行：云存档 + 游玩记录（行数 = 该作品累计玩家数）
+model ConsumerSave {
+  id           String   @id @default(uuid())
+  consumerId   String   @db.VarChar(191)
+  mpWorkId     String   @db.VarChar(191)
+  releaseId    String   @db.VarChar(191)
+  profile      Json
+  saves        Json
+  permanent    Json
+  rev          Int      @default(0)
+  progress     Float    @default(0)
+  endingsGot   Int      @default(0)
+  lastPlayedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  @@unique([consumerId, mpWorkId])
+  @@index([consumerId, lastPlayedAt])
+  @@index([mpWorkId])
+  @@map("consumer_saves")
+}
+
+model ConsumerFavorite {
+  id         String   @id @default(uuid())
+  consumerId String   @db.VarChar(191)
+  mpWorkId   String   @db.VarChar(191)
+  createdAt  DateTime @default(now())
+
+  @@unique([consumerId, mpWorkId])
+  @@index([consumerId, createdAt])
+  @@map("consumer_favorites")
+}
+
+model ConsumerRating {
+  id         String   @id @default(uuid())
+  consumerId String   @db.VarChar(191)
+  mpWorkId   String   @db.VarChar(191)
+  score      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([consumerId, mpWorkId])
+  @@index([mpWorkId])
+  @@map("consumer_ratings")
+}
+
+model MpReservation {
+  id         String   @id @default(uuid())
+  consumerId String   @db.VarChar(191)
+  mpWorkId   String   @db.VarChar(191)
+  createdAt  DateTime @default(now())
+
+  @@unique([consumerId, mpWorkId])
+  @@index([mpWorkId])
+  @@map("mp_reservations")
+}
+
+// 订阅消息额度：每次用户在 requestSubscribeMessage 里点「允许」= credits + 1，发一条 = credits - 1
+model MpSubscription {
+  id         String   @id @default(uuid())
+  consumerId String   @db.VarChar(191)
+  mpWorkId   String   @db.VarChar(191)
+  // work_live | chapter_update
+  kind       String   @db.VarChar(16)
+  credits    Int      @default(0)
+  lastSentRef String? @db.VarChar(191)
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  @@unique([consumerId, mpWorkId, kind])
+  @@index([mpWorkId, kind])
+  @@map("mp_subscriptions")
+}
+
+model MpShare {
+  id           String   @id @db.VarChar(16)
+  consumerId   String   @db.VarChar(191)
+  mpWorkId     String   @db.VarChar(191)
+  // work | ending | timeline | poster
+  kind         String   @db.VarChar(16)
+  endingNodeId String?  @db.VarChar(64)
+  channelId    String?  @db.VarChar(191)
+  opens        Int      @default(0)
+  newUsers     Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  @@index([mpWorkId, createdAt])
+  @@index([consumerId])
+  @@map("mp_shares")
+}
+
+model MpChannel {
+  id               String    @id @default(uuid())
+  code             String    @unique @db.VarChar(8)
+  name             String    @db.VarChar(40)
+  // creator | ops
+  kind             String    @db.VarChar(16)
+  mpWorkId         String?   @db.VarChar(191)
+  topicId          String?   @db.VarChar(191)
+  createdByUserId  String    @db.VarChar(191)
+  wxacodeKey       String?   @db.VarChar(255)
+  urlLink          String?   @db.VarChar(255)
+  urlLinkExpiresAt DateTime?
+  archived         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+
+  @@index([mpWorkId])
+  @@map("mp_channels")
+}
+
+model MpEvent {
+  id         BigInt   @id @default(autoincrement())
+  name       String   @db.VarChar(32)
+  consumerId String?  @db.VarChar(191)
+  anonId     String   @db.VarChar(32)
+  sessionId  String   @db.VarChar(32)
+  mpWorkId   String?  @db.VarChar(191)
+  releaseId  String?  @db.VarChar(191)
+  nodeId     String?  @db.VarChar(64)
+  optionId   String?  @db.VarChar(64)
+  value      Int?
+  flag       Boolean?
+  source     String?  @db.VarChar(24)
+  channelId  String?  @db.VarChar(191)
+  shareId    String?  @db.VarChar(16)
+  clientTs   DateTime
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([mpWorkId, name, createdAt])
+  @@index([channelId, createdAt])
+  @@map("mp_events")
+}
+
+model MpWorkDailyStat {
+  id          String   @id @default(uuid())
+  mpWorkId    String   @db.VarChar(191)
+  date        DateTime @db.Date
+  views       Int      @default(0)
+  starts      Int      @default(0)
+  players     Int      @default(0)
+  completions Int      @default(0)
+  shares      Int      @default(0)
+  shareOpens  Int      @default(0)
+  newUsers    Int      @default(0)
+  watchSec    Int      @default(0)
+  favorites   Int      @default(0)
+  reserves    Int      @default(0)
+
+  @@unique([mpWorkId, date])
+  @@map("mp_work_daily_stats")
+}
+
+// 选择分歧 / 结局稀有度；optionId = '' 表示「到达该结局的玩家数（首次）」
+model MpBranchStat {
+  id       String @id @default(uuid())
+  mpWorkId String @db.VarChar(191)
+  nodeId   String @db.VarChar(64)
+  optionId String @default("") @db.VarChar(64)
+  count    Int    @default(0)
+
+  @@unique([mpWorkId, nodeId, optionId])
+  @@map("mp_branch_stats")
+}
+
+model MpFeatureSlot {
+  id        String    @id @default(uuid())
+  // home_hero | home_pick
+  placement String    @db.VarChar(16)
+  mpWorkId  String?   @db.VarChar(191)
+  topicId   String?   @db.VarChar(191)
+  title     String?   @db.VarChar(30)
+  subtitle  String?   @db.VarChar(40)
+  imageKey  String?   @db.VarChar(255)
+  sort      Int       @default(0)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  enabled   Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @default(now()) @updatedAt
+
+  @@index([placement, enabled, sort])
+  @@map("mp_feature_slots")
+}
+
+model MpTopic {
+  id          String    @id @default(uuid())
+  slug        String    @unique @db.VarChar(16)
+  title       String    @db.VarChar(30)
+  subtitle    String    @default("") @db.VarChar(60)
+  description String    @db.Text
+  coverKey    String?   @db.VarChar(255)
+  mpWorkIds   Json
+  // draft | live | ended
+  status      String    @default("draft") @db.VarChar(16)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  sort        Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
+
+  @@index([status, sort])
+  @@map("mp_topics")
+}
+
+model MpReport {
+  id          String    @id @default(uuid())
+  consumerId  String    @db.VarChar(191)
+  mpWorkId    String    @db.VarChar(191)
+  // vulgar | violence | politics | copyright | minor | other
+  reason      String    @db.VarChar(16)
+  detail      String    @default("") @db.VarChar(200)
+  // open | resolved | dismissed
+  status      String    @default("open") @db.VarChar(16)
+  handledById String?   @db.VarChar(191)
+  handledAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, createdAt])
+  @@map("mp_reports")
+}
+
+// 定时任务的持久化水位（统计聚合的 lastEventId 等）。不放在 Redis，Redis 重启丢了会导致重复累加
+model MpJobState {
+  key       String   @id @db.VarChar(64)
+  value     String   @db.VarChar(191)
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("mp_job_states")
 }

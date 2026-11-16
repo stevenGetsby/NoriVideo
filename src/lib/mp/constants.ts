@@ -1,0 +1,13 @@
+export const MP_TAGS = ['悬疑', '恋爱', '奇幻', '科幻', '都市', '古风', '惊悚', '喜剧', '冒险', '治愈', '职场', '校园'] as const
+export const MP_AVATAR_COUNT = 8
+export const MP_SLUG_LENGTH = 8           // base62
+export const MP_SHARE_ID_LENGTH = 10      // base62
+export const MP_CHANNEL_CODE_LENGTH = 6   // 小写 base32（去掉 0/1/l/o）
+export const MP_SAVE_MAX_BYTES = 256 * 1024
+export const MP_EVENT_BATCH_MAX = 50
+export const MP_EVENT_RETENTION_DAYS = 90
+export const MP_BRANCH_MIN_SAMPLES = 30   // 选择分歧最少样本
+export const MP_ENDING_MIN_SAMPLES = 50   // 结局稀有度最少样本
+export const MP_RATING_MIN_COUNT = 10
+export const MP_RATING_PRIOR_M = 20       // 贝叶斯平均先验权重
+export const MP_JWT_TTL_DAYS = 30
