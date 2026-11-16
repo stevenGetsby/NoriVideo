@@ -288,10 +288,19 @@ export async function findInteractiveStoryByProject(session: AuthSession, projec
   }
 }
 
-export async function getInteractiveStory(session: AuthSession, workId: string) {
-  const { access, story, config } = await requireStory(session, workId)
+type StoryChapterRow = {
+  projectId: string
+  name: string
+  canvasId: string | null
+  nodeCount: number
+  runningCount: number
+  updatedAt: string
+  graph: StoryChapterGraph
+}
+
+async function loadStoryChapters(workId: string, projectWhere: Prisma.ProjectWhereInput): Promise<StoryChapterRow[]> {
   const projects = await prisma.project.findMany({
-    where: { ...projectReadScopeWhere(session), workId },
+    where: { ...projectWhere, workId },
     select: {
       id: true,
       name: true,
@@ -308,7 +317,7 @@ export async function getInteractiveStory(session: AuthSession, workId: string) 
       },
     },
   })
-  const chapters = projects.map((project) => {
+  return projects.map((project) => {
     const canvas = project.canvases[0]
     const nodes = canvas?.nodes ?? []
     const edges = (canvas?.edges ?? []).map((edge) => ({
@@ -324,6 +333,28 @@ export async function getInteractiveStory(session: AuthSession, workId: string) 
       graph: compileChapter({ projectId: project.id, title: project.name }, nodes, edges),
     }
   })
+}
+
+/** Session-free full load for the release pipeline; callers must have already checked publish permission. */
+export async function loadStoryForRelease(workId: string): Promise<{
+  story: { workId: string; name: string; aspectRatio: string; resolution: string; config: InteractiveStoryConfig & { sequence: unknown } }
+  chapters: StoryChapterRow[]
+}> {
+  const work = await prisma.work.findFirst({ where: { id: workId, deletedAt: null }, select: { id: true, name: true } })
+  const story = await prisma.interactiveStory.findUnique({ where: { workId } })
+  if (!work || !story) throw new ApiError('NOT_FOUND', { message: '影游项目不存在。' })
+  const chapters = await loadStoryChapters(workId, { deletedAt: null })
+  const config = reconcileStoryChapters(normalizeStoryConfig(story.config), chapters.map((chapter) => chapter.projectId))
+  const sequence = ensureStorySequence(config, chapters.map((chapter) => chapter.graph), config.sequence)
+  return {
+    story: { workId, name: work.name, aspectRatio: story.aspectRatio, resolution: story.resolution, config: { ...config, sequence } },
+    chapters,
+  }
+}
+
+export async function getInteractiveStory(session: AuthSession, workId: string) {
+  const { access, story, config } = await requireStory(session, workId)
+  const chapters = await loadStoryChapters(workId, projectReadScopeWhere(session))
   const sequence = ensureStorySequence(config, chapters.map((chapter) => chapter.graph), config.sequence)
   return {
     story: {
