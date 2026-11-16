@@ -2,6 +2,10 @@ import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+
+const tggSelectableMock = vi.hoisted(() => vi.fn(() => [] as Array<{ modelId: string; name: string; modality: string }>))
+vi.mock('@/lib/providers/tgg/catalog', () => ({ listTggSelectableModels: tggSelectableMock }))
+
 import { resetServiceConfigCache } from '@/lib/service-config'
 import { getPlatformServiceConfigResponse, savePlatformServiceConfig } from '@/lib/platform-services/config'
 
@@ -33,6 +37,7 @@ function stubPlatformEnv() {
   vi.stubEnv('OPENLUX_API_KEY', '')
   vi.stubEnv('KUAIZI_API_KEY', '')
   vi.stubEnv('HUIMENGI_API_KEY', '')
+  vi.stubEnv('TGG_API_KEY', '')
   vi.stubEnv('ARK_API_KEY', 'must-not-return')
   vi.stubEnv('HFSY_API_KEY', 'must-not-return')
 }
@@ -40,22 +45,26 @@ function stubPlatformEnv() {
 describe('platform service config', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
+    tggSelectableMock.mockReturnValue([])
     resetServiceConfigCache()
   })
 
-  it('publishes only DeepSeek, OpenLux, Kuaizi and HuiMeng, removes retired fallbacks and masks secrets', () => {
+  it('publishes only DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG, removes retired fallbacks and masks secrets', () => {
     const filePath = fixturePath()
     vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
     stubPlatformEnv()
     resetServiceConfigCache()
 
     const config = getPlatformServiceConfigResponse()
-    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi'])
+    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'])
     expect(config.providers.every((provider) => !('apiKey' in provider))).toBe(true)
     expect(config.providers[0].hasApiKey).toBe(true)
     expect(config.providers[1].hasApiKey).toBe(false)
     expect(config.providers[2].hasApiKey).toBe(false)
     expect(config.providers[3].hasApiKey).toBe(false)
+    // Old config files without a tgg entry gain an empty-key provider on read.
+    expect(config.providers[4]).toMatchObject({ id: 'tgg', name: 'TGG Token API', baseUrl: 'https://tggtoken.org', hasApiKey: false })
+    expect(config.models.some((model) => model.provider === 'tgg')).toBe(false)
     expect(config.models.some((model) => ['ark', 'hfsy', 'ghc'].includes(model.provider))).toBe(false)
     expect(config.models[0]).toMatchObject({ modelId: 'deepseek-chat', name: 'DeepSeek Chat', modelKey: 'deepseek::deepseek-chat', provider: 'deepseek', type: 'llm', llmProtocol: 'chat-completions' })
     expect(config.models.some((model) => model.provider === 'kuaizi' && model.type === 'llm')).toBe(false)
@@ -112,11 +121,12 @@ describe('platform service config', () => {
     })
 
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi'])
+    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'])
     expect(raw.llm.providers[0].apiKey).toBe('deepseek-key-old')
     expect(raw.llm.providers[1].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].apiKey).toBe('kuaizi-key-for-test')
     expect(raw.llm.providers[3].apiKey).toBeUndefined()
+    expect(raw.llm.providers[4].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].assetGroupId).toBe('184860178674352156')
     expect(raw.llm.models.some((model: { modelId: string }) => model.modelId === 'injected')).toBe(false)
     expect(raw.llm.modelRouting['nori::nori-gpt']).toBe('deepseek::deepseek-reasoner')
@@ -163,5 +173,65 @@ describe('platform service config', () => {
     })
     resetServiceConfigCache()
     expect(getPlatformServiceConfigResponse().modelRouting['nori::nori-image-pro']).toBe('')
+  })
+
+  it('uses TGG_API_KEY as the TGG environment fallback without echoing it', () => {
+    const filePath = fixturePath()
+    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
+    stubPlatformEnv()
+    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
+    resetServiceConfigCache()
+
+    const config = getPlatformServiceConfigResponse()
+    const tgg = config.providers.find((provider) => provider.id === 'tgg')
+    expect(tgg?.hasApiKey).toBe(true)
+    expect(JSON.stringify(config)).not.toContain('tgg-env-key-for-test')
+  })
+
+  it('only exposes verified TGG models and refuses TGG routes without a key', async () => {
+    const filePath = fixturePath()
+    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
+    stubPlatformEnv()
+    resetServiceConfigCache()
+    tggSelectableMock.mockReturnValue([{ modelId: 'tgg-fixture-video', name: 'TGG Fixture Video', modality: 'video' }])
+
+    const before = getPlatformServiceConfigResponse()
+    expect(before.models.some((model) => model.modelKey === 'tgg::tgg-fixture-video' && model.type === 'video')).toBe(true)
+
+    const routeToTgg = { ...before.modelRouting, 'nori::norivideo2.5': 'tgg::tgg-fixture-video' }
+    await expect(savePlatformServiceConfig({
+      providers: before.providers,
+      modelRouting: routeToTgg,
+      storage: before.storage,
+    })).rejects.toThrow('TGG 尚未配置 API Key')
+    expect(JSON.parse(fs.readFileSync(filePath, 'utf8')).llm.modelRouting['nori::norivideo2.5']).not.toBe('tgg::tgg-fixture-video')
+
+    const saved = await savePlatformServiceConfig({
+      providers: before.providers.map((provider) => provider.id === 'tgg' ? { ...provider, apiKey: 'tgg-test-secret-value' } : provider),
+      modelRouting: routeToTgg,
+      storage: before.storage,
+    })
+    expect(saved.modelRouting['nori::norivideo2.5']).toBe('tgg::tgg-fixture-video')
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
+    expect(raw.llm.providers[4].apiKey).toBe('tgg-test-secret-value')
+    expect(JSON.stringify(saved)).not.toContain('tgg-test-secret-value')
+  })
+
+  it('accepts a TGG route backed only by the environment key', async () => {
+    const filePath = fixturePath()
+    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
+    stubPlatformEnv()
+    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
+    resetServiceConfigCache()
+    tggSelectableMock.mockReturnValue([{ modelId: 'tgg-fixture-video', name: 'TGG Fixture Video', modality: 'video' }])
+
+    const before = getPlatformServiceConfigResponse()
+    const saved = await savePlatformServiceConfig({
+      providers: before.providers,
+      modelRouting: { ...before.modelRouting, 'nori::norivideo2.5': 'tgg::tgg-fixture-video' },
+      storage: before.storage,
+    })
+    expect(saved.modelRouting['nori::norivideo2.5']).toBe('tgg::tgg-fixture-video')
+    expect(JSON.stringify(saved)).not.toContain('tgg-env-key-for-test')
   })
 })

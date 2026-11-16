@@ -226,14 +226,14 @@ export function resolveNoriModelRoute(modelKey: string | null | undefined): stri
   const parsed = parseModelKeyStrict(target)
   const provider = getRawProviderKey(parsed?.provider).toLowerCase()
   if (!parsed || parsed.provider === NORI_PROVIDER_ID) return null
-  // Images may run on OpenLux or HuiMeng; video on Kuaizi or HuiMeng. The
+  // Images may run on OpenLux or HuiMeng; video on Kuaizi, HuiMeng or TGG. The
   // administrator picks the upstream per business model and can switch freely.
   const allowedProviders = businessModel.type === 'llm'
     ? ['deepseek']
     : businessModel.type === 'image'
       ? ['openlux', 'huimengi']
       : businessModel.type === 'video'
-        ? ['kuaizi', 'huimengi']
+        ? ['kuaizi', 'huimengi', 'tgg']
         : ['kuaizi']
   if (!allowedProviders.includes(provider)) return null
   const pricingType: PricingApiType = businessModel.type === 'llm'

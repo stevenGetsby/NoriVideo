@@ -17,6 +17,7 @@ import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provide
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
+import { listTggSelectableModels } from '@/lib/providers/tgg/catalog'
 import {
   listNoriBusinessModels,
   type NoriBusinessModelKey,
@@ -38,13 +39,15 @@ const PROVIDER_BASE_URLS = {
   openlux: 'https://api.openlux.ai/v1',
   kuaizi: 'https://aiopenapi.kuaizi.cn',
   huimengi: 'https://api.huimengi.com',
+  tgg: 'https://tggtoken.org',
 } as const
-const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi'] as const
+const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'] as const
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   deepseek: 'DeepSeek 官方',
   openlux: 'OpenLux API',
   kuaizi: 'Kuaizi API',
   huimengi: '绘梦工坊 API',
+  tgg: 'TGG Token API',
 }
 
 type JsonRecord = Record<string, unknown>
@@ -135,6 +138,7 @@ function environmentProviderKey(providerId: string): string {
   if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
+  if (providerKey === 'tgg') return string(process.env.TGG_API_KEY)
   return ''
 }
 
@@ -168,6 +172,15 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
       type: model.modality,
       provider: 'huimengi',
       modelKey: `huimengi::${model.modelId}`,
+    })),
+    // Only fully verified TGG models (capability + profile + pricing JSON) are
+    // selectable; the JSON catalogs stay empty until the vendor data lands.
+    ...listTggSelectableModels().map((model): ServiceConfigModel => ({
+      modelId: model.modelId,
+      name: model.name,
+      type: 'video',
+      provider: 'tgg',
+      modelKey: `tgg::${model.modelId}`,
     })),
   ]
 }
@@ -323,10 +336,19 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     providerIds.size !== providers.length
     || !PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux, Kuaizi and HuiMeng are required')
+    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG are required')
   }
 
   const models = fixedPlatformModels()
+  const modelRouting = normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models)
+  // Routing to TGG without a usable key would silently break every video task
+  // on that route; reject the save instead of writing an unusable config.
+  if (
+    Object.values(modelRouting).some((value) => getRawProviderKey(value).toLowerCase() === 'tgg')
+    && !isUsableServiceSecret(providers.find((provider) => provider.id === 'tgg')?.apiKey)
+  ) {
+    throw new Error('SERVICE_CONFIG_INVALID: TGG 尚未配置 API Key，不能把视频路由到 TGG')
+  }
 
   const next: ServiceConfig = {
     storage: normalizeStorage(input.storage, current),
@@ -334,7 +356,7 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
       providers,
       models,
       defaultModels: isRecord(input.defaultModels) ? input.defaultModels : current.llm?.defaultModels || {},
-      modelRouting: normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models),
+      modelRouting,
     },
   }
 

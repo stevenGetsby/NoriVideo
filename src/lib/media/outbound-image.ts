@@ -292,9 +292,9 @@ function extensionFromMimeType(mimeType: string): string {
   return 'jpg'
 }
 
-async function signStorageKey(storageKey: string): Promise<string> {
+async function signStorageKey(storageKey: string, ttlSeconds?: number): Promise<string> {
   const { getSignedObjectUrl, toFetchableUrl } = await getStorageHelpers()
-  const signedUrl = await getSignedObjectUrl(storageKey, SIGNED_URL_TTL_SECONDS)
+  const signedUrl = await getSignedObjectUrl(storageKey, ttlSeconds ?? SIGNED_URL_TTL_SECONDS)
   return signedUrl.startsWith('/') ? toFetchableUrl(signedUrl) : signedUrl
 }
 
@@ -335,14 +335,14 @@ function isLocalHttpUrl(value: string): boolean {
     || hostname === '::1'
 }
 
-async function uploadImageBufferToStorage(buffer: Buffer, mimeType: string): Promise<string> {
+async function uploadImageBufferToStorage(buffer: Buffer, mimeType: string, ttlSeconds?: number): Promise<string> {
   const { generateUniqueKey, uploadObject } = await getStorageHelpers()
   const key = generateUniqueKey('outbound-reference', extensionFromMimeType(mimeType))
   const storageKey = await uploadObject(buffer, key, undefined, mimeType)
-  return await signStorageKey(storageKey)
+  return await signStorageKey(storageKey, ttlSeconds)
 }
 
-async function uploadDataUrlToStorage(dataUrl: string): Promise<string> {
+async function uploadDataUrlToStorage(dataUrl: string, ttlSeconds?: number): Promise<string> {
   const marker = ';base64,'
   const markerIndex = dataUrl.indexOf(marker)
   if (markerIndex === -1) {
@@ -356,10 +356,10 @@ async function uploadDataUrlToStorage(dataUrl: string): Promise<string> {
 
   const mimeType = dataUrl.slice(5, markerIndex) || 'image/png'
   const base64 = dataUrl.slice(markerIndex + marker.length)
-  return await uploadImageBufferToStorage(Buffer.from(base64, 'base64'), mimeType)
+  return await uploadImageBufferToStorage(Buffer.from(base64, 'base64'), mimeType, ttlSeconds)
 }
 
-async function uploadFetchableImageToStorage(input: string): Promise<string> {
+async function uploadFetchableImageToStorage(input: string, ttlSeconds?: number): Promise<string> {
   const fetchUrl = await toFetchableAbsoluteUrl(input)
   let response: Response
   try {
@@ -384,7 +384,7 @@ async function uploadFetchableImageToStorage(input: string): Promise<string> {
 
   const buffer = Buffer.from(await response.arrayBuffer())
   const mimeType = guessContentType(input, response.headers.get('content-type'), buffer)
-  return await uploadImageBufferToStorage(buffer, mimeType)
+  return await uploadImageBufferToStorage(buffer, mimeType, ttlSeconds)
 }
 
 function unwrapNextImageInternal(input: string): string {
@@ -407,7 +407,7 @@ function unwrapNextImageInternal(input: string): string {
   return current
 }
 
-async function normalizeMediaRouteUrl(input: string): Promise<string | null> {
+async function normalizeMediaRouteUrl(input: string, ttlSeconds?: number): Promise<string | null> {
   const parsed = toUrlMaybe(input)
   if (!parsed || !parsed.pathname.startsWith('/m/')) {
     return null
@@ -424,14 +424,15 @@ async function normalizeMediaRouteUrl(input: string): Promise<string | null> {
     })
   }
 
-  return await signStorageKey(storageKey)
+  return await signStorageKey(storageKey, ttlSeconds)
 }
 
 export function unwrapNextImageDisplayUrl(input: string): string {
   return unwrapNextImageInternal(input)
 }
 
-export async function normalizeToOriginalMediaUrl(input: string): Promise<string> {
+export async function normalizeToOriginalMediaUrl(input: string, options?: { ttlSeconds?: number }): Promise<string> {
+  const ttlSeconds = options?.ttlSeconds
   const normalizedInput = normalizeInput(input)
   if (isDataUrl(normalizedInput)) {
     return normalizedInput
@@ -439,19 +440,19 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
 
   const unwrappedInput = unwrapNextImageInternal(normalizedInput)
   if (unwrappedInput !== normalizedInput) {
-    return await normalizeToOriginalMediaUrl(unwrappedInput)
+    return await normalizeToOriginalMediaUrl(unwrappedInput, options)
   }
 
   if (isStorageKey(unwrappedInput)) {
-    return await signStorageKey(unwrappedInput)
+    return await signStorageKey(unwrappedInput, ttlSeconds)
   }
 
   const appRouteStorageKey = resolveStorageKeyFromAppRoute(unwrappedInput)
   if (appRouteStorageKey) {
-    return await signStorageKey(appRouteStorageKey)
+    return await signStorageKey(appRouteStorageKey, ttlSeconds)
   }
 
-  const mediaRouteUrl = await normalizeMediaRouteUrl(unwrappedInput)
+  const mediaRouteUrl = await normalizeMediaRouteUrl(unwrappedInput, ttlSeconds)
   if (mediaRouteUrl) {
     return mediaRouteUrl
   }
@@ -463,7 +464,7 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
     }
     const rootStorageKey = unwrappedInput.slice(1)
     if (isStorageKey(rootStorageKey)) {
-      return await signStorageKey(rootStorageKey)
+      return await signStorageKey(rootStorageKey, ttlSeconds)
     }
     throw new OutboundImageNormalizeError({
       code: 'OUTBOUND_IMAGE_UNSUPPORTED_INPUT',
@@ -479,7 +480,7 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
 
   const storageKey = await resolveStorageKeyFromMediaValue(unwrappedInput)
   if (storageKey) {
-    return await signStorageKey(storageKey)
+    return await signStorageKey(storageKey, ttlSeconds)
   }
 
   throw new OutboundImageNormalizeError({
@@ -490,13 +491,13 @@ export async function normalizeToOriginalMediaUrl(input: string): Promise<string
   })
 }
 
-export async function normalizeToPublicImageUrlForGeneration(input: string): Promise<string> {
-  const normalizedUrl = await normalizeToOriginalMediaUrl(input)
+export async function normalizeToPublicImageUrlForGeneration(input: string, options?: { ttlSeconds?: number }): Promise<string> {
+  const normalizedUrl = await normalizeToOriginalMediaUrl(input, options)
   if (isDataUrl(normalizedUrl)) {
-    return await uploadDataUrlToStorage(normalizedUrl)
+    return await uploadDataUrlToStorage(normalizedUrl, options?.ttlSeconds)
   }
   if (normalizedUrl.startsWith('/') || isLocalHttpUrl(normalizedUrl)) {
-    return await uploadFetchableImageToStorage(normalizedUrl)
+    return await uploadFetchableImageToStorage(normalizedUrl, options?.ttlSeconds)
   }
   return normalizedUrl
 }
@@ -562,6 +563,9 @@ export async function normalizeReferenceImagesForGeneration(
   options: {
     onIssue?: (issue: OutboundImageNormalizationIssue) => void
     context?: Record<string, unknown>
+    // Providers whose workers fetch references hours after submission (TGG
+    // queues can outlive the default 1h signature) pass a longer TTL here.
+    ttlSeconds?: number
   } = {},
 ): Promise<string[]> {
   const seen = new Set<string>()
@@ -577,7 +581,7 @@ export async function normalizeReferenceImagesForGeneration(
     candidateCount += 1
 
     try {
-      normalized.push(await normalizeToPublicImageUrlForGeneration(trimmed))
+      normalized.push(await normalizeToPublicImageUrlForGeneration(trimmed, { ttlSeconds: options.ttlSeconds }))
     } catch (error) {
       const issue = toNormalizationIssue(error, trimmed, index)
       options.onIssue?.(issue)

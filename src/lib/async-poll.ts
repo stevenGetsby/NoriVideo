@@ -2,6 +2,8 @@ import { pollHuimengiTask } from './providers/huimengi/poll'
 import type { HuimengiAsyncType } from './providers/huimengi/external-id'
 import { pollKuaiziTask } from './providers/kuaizi/poll'
 import type { KuaiziAsyncType } from './providers/kuaizi/external-id'
+import { pollTggTask } from './providers/tgg/poll'
+import type { TggAsyncType } from './providers/tgg/external-id'
 import type { VideoResultMetadata } from './video-result'
 
 export interface PollResult extends VideoResultMetadata {
@@ -26,8 +28,9 @@ interface BaseParsedExternalId {
 export type ParsedExternalId =
   | (BaseParsedExternalId & { provider: 'KUAIZI'; type: KuaiziAsyncType })
   | (BaseParsedExternalId & { provider: 'HUIMENGI'; type: HuimengiAsyncType })
+  | (BaseParsedExternalId & { provider: 'TGG'; type: TggAsyncType })
 
-const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi 和绘梦工坊的图片、视频任务'
+const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi、绘梦工坊和 TGG 的图片、视频任务'
 
 export function parseExternalId(externalId: string): ParsedExternalId {
   const parts = externalId.split(':')
@@ -48,6 +51,12 @@ export function parseExternalId(externalId: string): ParsedExternalId {
     }
     return { provider: 'HUIMENGI', type, providerToken, modelKeyToken, requestId }
   }
+  if (namespace === 'TGG') {
+    if (type !== 'VIDEO' || !providerToken || !modelKeyToken || !requestId) {
+      throw new Error(RETIRED_MESSAGE)
+    }
+    return { provider: 'TGG', type, providerToken, modelKeyToken, requestId }
+  }
   throw new Error(RETIRED_MESSAGE)
 }
 
@@ -64,6 +73,16 @@ export async function pollAsyncTask(externalId: string, userId: string, signal?:
       signal,
     })
   }
+  if (parsed.provider === 'TGG') {
+    return pollTggTask({
+      type: parsed.type,
+      taskId: parsed.requestId,
+      userId,
+      providerToken: parsed.providerToken,
+      modelToken: parsed.modelKeyToken,
+      signal,
+    })
+  }
   return pollKuaiziTask({
     type: parsed.type,
     taskId: parsed.requestId,
@@ -72,6 +91,21 @@ export async function pollAsyncTask(externalId: string, userId: string, signal?:
     modelToken: parsed.modelKeyToken,
     signal,
   })
+}
+
+// Billing must charge the provider that actually executed the task, not the
+// route configured later. The pinned provider/model tokens inside externalId
+// are the only trustworthy source for in-flight tasks.
+export function resolveExecutedModelKeyFromExternalId(externalId: string | null | undefined): string | null {
+  if (!externalId) return null
+  try {
+    const parsed = parseExternalId(externalId)
+    const provider = Buffer.from(parsed.providerToken, 'base64url').toString('utf8').trim()
+    const modelId = Buffer.from(parsed.modelKeyToken, 'base64url').toString('utf8').trim()
+    return provider && modelId ? `${provider}::${modelId}` : null
+  } catch {
+    return null
+  }
 }
 
 export function formatExternalId(

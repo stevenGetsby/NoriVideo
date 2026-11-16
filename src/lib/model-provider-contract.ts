@@ -5,6 +5,7 @@ export const MODEL_PROVIDER = {
   OPENLUX: 'openlux',
   KUAIZI: 'kuaizi',
   HUIMENGI: 'huimengi',
+  TGG: 'tgg',
 } as const
 
 export type ModelProviderKey = (typeof MODEL_PROVIDER)[keyof typeof MODEL_PROVIDER]
@@ -29,6 +30,7 @@ export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
   { id: MODEL_PROVIDER.OPENLUX, name: 'OpenLux API', baseUrl: 'https://api.openlux.ai/v1' },
   { id: MODEL_PROVIDER.KUAIZI, name: 'Kuaizi API', baseUrl: 'https://aiopenapi.kuaizi.cn' },
   { id: MODEL_PROVIDER.HUIMENGI, name: '绘梦工坊 API', baseUrl: 'https://api.huimengi.com' },
+  { id: MODEL_PROVIDER.TGG, name: 'TGG Token API', baseUrl: 'https://tggtoken.org' },
 ]
 
 export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<string, string>> = Object.fromEntries(
@@ -54,6 +56,7 @@ export function normalizeModelProviderKey(providerId?: string): ModelProviderKey
     || rawKey === MODEL_PROVIDER.OPENLUX
     || rawKey === MODEL_PROVIDER.KUAIZI
     || rawKey === MODEL_PROVIDER.HUIMENGI
+    || rawKey === MODEL_PROVIDER.TGG
     ? rawKey
     : null
 }

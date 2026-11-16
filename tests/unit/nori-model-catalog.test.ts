@@ -105,6 +105,20 @@ describe('Nori business model catalog', () => {
     expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()
   })
 
+  it('accepts TGG for video while keeping text, image and audio off TGG', () => {
+    configure({
+      'nori::norivideo2.5': 'tgg::tgg-fixture-video',
+      'nori::nori-image': 'tgg::tgg-fixture-video',
+      'nori::nori-gpt': 'tgg::tgg-fixture-video',
+      'nori::nori-audio': 'tgg::tgg-fixture-video',
+    })
+
+    expect(resolveNoriModelRoute('nori::norivideo2.5')).toBe('tgg::tgg-fixture-video')
+    expect(resolveNoriModelRoute('nori::nori-image')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-gpt')).toBeNull()
+    expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()
+  })
+
   it('rejects routes that cross the fixed provider boundaries', () => {
     configure({
       'nori::nori-gpt': 'openlux::gpt-image-2.5-sunburst',
