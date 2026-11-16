@@ -89,6 +89,7 @@ export const TASK_TYPE = {
   ASSET_HUB_REFERENCE_TO_CHARACTER: 'asset_hub_reference_to_character',
   SUPER_AGENT_EXECUTE: 'super_agent_execute',
   EXPORT_DELIVERY: 'export_delivery',
+  STORY_RELEASE_BUILD: 'story_release_build',
 } as const
 
 export type TaskType = (typeof TASK_TYPE)[keyof typeof TASK_TYPE]

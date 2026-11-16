@@ -73,6 +73,7 @@ const TASK_INTENT_BY_TYPE: Record<TaskType, TaskIntent> = {
   [TASK_TYPE.ASSET_HUB_REFERENCE_TO_CHARACTER]: 'process',
   [TASK_TYPE.SUPER_AGENT_EXECUTE]: 'build',
   [TASK_TYPE.EXPORT_DELIVERY]: 'build',
+  [TASK_TYPE.STORY_RELEASE_BUILD]: 'build',
 }
 
 export function resolveTaskIntent(taskType: string | null | undefined): TaskIntent {

@@ -60,6 +60,7 @@ const TASK_TYPE_OWNER_MAP = {
   [TASK_TYPE.ASSET_HUB_REFERENCE_TO_CHARACTER]: 'tests/unit/worker/reference-to-character.test.ts',
   [TASK_TYPE.SUPER_AGENT_EXECUTE]: 'tests/unit/worker/super-agent-execute.test.ts',
   [TASK_TYPE.EXPORT_DELIVERY]: 'tests/unit/worker/export-delivery.test.ts',
+  [TASK_TYPE.STORY_RELEASE_BUILD]: 'tests/unit/mp/release-build.test.ts',
 } as const satisfies Record<TaskType, string>
 
 export const TASK_TYPE_CATALOG: ReadonlyArray<TaskTypeCoverageEntry> = (Object.values(TASK_TYPE) as TaskType[])

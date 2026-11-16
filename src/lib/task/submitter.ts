@@ -190,7 +190,7 @@ export async function submitTask(params: {
   // rejected task first so the UI can explain why nothing started, but stop
   // before creating a run, reserving funds, enqueueing, or contacting a
   // provider. Reusing an already-active task does not start another service.
-  if (!deduped && params.type !== TASK_TYPE.EXPORT_DELIVERY) {
+  if (!deduped && params.type !== TASK_TYPE.EXPORT_DELIVERY && params.type !== TASK_TYPE.STORY_RELEASE_BUILD) {
     try {
       await requireGenerationCredit(params.userId)
     } catch (error) {

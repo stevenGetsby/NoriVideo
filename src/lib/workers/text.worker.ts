@@ -44,6 +44,7 @@ import { handleShotAITask } from './handlers/shot-ai-tasks'
 import { handleCharacterProfileTask } from './handlers/character-profile'
 import { handleSuperAgentExecuteTask } from './handlers/super-agent-execute'
 import { handleExportDeliveryTask } from './handlers/export-delivery'
+import { handleStoryReleaseBuildTask } from '@/lib/mp/release/build'
 import { handleAssetExtractionTask } from './handlers/asset-extraction'
 import { handleCanvasGenerationTask } from './handlers/canvas-generation-task-handler'
 
@@ -727,6 +728,8 @@ async function processTextTask(job: Job<TaskJobData>) {
       return await handleInsertPanelTask(job)
     case TASK_TYPE.EXPORT_DELIVERY:
       return await handleExportDeliveryTask(job)
+    case TASK_TYPE.STORY_RELEASE_BUILD:
+      return await handleStoryReleaseBuildTask(job)
     case TASK_TYPE.SUPER_AGENT_EXECUTE:
       return await handleSuperAgentExecuteTask(job)
     default:
