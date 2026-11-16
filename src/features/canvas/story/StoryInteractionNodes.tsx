@@ -1,22 +1,28 @@
 'use client'
 
-import { memo, useState } from 'react'
+import { memo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { useStore, type NodeProps } from '@xyflow/react'
-import { AlertTriangle } from '@/components/ui/icons'
+import { MediaImage } from '@/components/media/MediaImage'
+import { AlertTriangle, Plus, X } from '@/components/ui/icons'
 import {
   beatWindowsOverlap,
   clampBeatStart,
+  hasRandomResults,
   interactionHandleLabel,
   interactionHandles,
   readInteractionData,
   STORY_DURING_LABEL,
   STORY_INTERACTION_DEFAULT_HINT,
+  STORY_INTERACTION_LABEL,
   STORY_SWIPE_LABEL,
 } from '@/lib/interactive/interaction'
 import {
   STORY_BEAT_DURINGS,
+  STORY_INTERACTION_KINDS,
   STORY_MOUNT_ROLE,
   STORY_SWIPE_DIRECTIONS,
+  type StoryHotspotZone,
+  type StoryInteractionSpec,
   type StoryResultConfig,
 } from '@/lib/interactive/types'
 import type { CanvasFlowEdge, CanvasFlowNode, CanvasFlowNodeData } from '../editor-types'
@@ -26,6 +32,7 @@ import { StoryEffectsEditor } from './StoryFields'
 import { StoryImageField } from './StoryImageField'
 import { StoryHandle, StoryNodeShell, useStoryNodeEditing } from './StoryNodeShell'
 import { mountedBeats, sceneVideoDurationSec, type SceneBeat } from './story-beats'
+import { toDisplayImageUrl } from '@/lib/media/image-url'
 
 const SWIPE_ARROW = { up: '↑', down: '↓', left: '←', right: '→' } as const
 const DEFAULT_RESULT: StoryResultConfig = { effects: [], when: 'now', retry: false }
@@ -85,6 +92,73 @@ function TextField({ label, value, placeholder, disabled, onChange }: {
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  )
+}
+
+import { dragHotspotZone, type HotspotDragHandle } from '@/lib/interactive/hotspot'
+
+function WeightField({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (weight?: number) => void }) {
+  return (
+    <label className="nori-story-weight is-inline">
+      <span>权重</span>
+      <input className="nodrag nori-story-input is-number" type="number" min={0} max={999} step={1} value={value} disabled={disabled} aria-label={`${label}随机权重`} onChange={(event) => {
+        const weight = Math.max(0, Math.min(999, event.target.valueAsNumber || 0))
+        onChange(weight > 0 ? weight : undefined)
+      }} />
+    </label>
+  )
+}
+
+function HotspotEditor({ spec, workId, readOnly, orientation, onChange, onRemove }: {
+  spec: Extract<StoryInteractionSpec, { type: 'hotspot' }>
+  workId: string | null
+  readOnly: boolean
+  orientation: 'portrait' | 'landscape'
+  onChange: (patch: Record<string, unknown>, label?: string) => void
+  onRemove: (zoneId: string) => Promise<boolean>
+}) {
+  const previewRef = useRef<HTMLDivElement | null>(null)
+  const dragRef = useRef<{ id: string; handle: HotspotDragHandle; zone: StoryHotspotZone; x: number; y: number } | null>(null)
+  const move = (event: ReactPointerEvent) => {
+    const drag = dragRef.current
+    const preview = previewRef.current
+    if (!drag || !preview) return
+    const rect = preview.getBoundingClientRect()
+    const zone = dragHotspotZone(drag.zone, (event.clientX - drag.x) / rect.width, (event.clientY - drag.y) / rect.height, drag.handle)
+    onChange({ zones: spec.zones.map((item) => item.id === zone.id ? zone : item) })
+  }
+  const commitDrag = () => {
+    if (dragRef.current) onChange({}, '调整热区')
+    dragRef.current = null
+  }
+  return (
+    <>
+      <StoryImageField label="背景帧" value={spec.frameImageUrl} workId={workId} readOnly={readOnly} onChange={(frameImageUrl) => onChange({ frameImageUrl }, '更换热区背景帧')} />
+      <button type="button" className={`nori-story-chip nodrag${spec.showZones ? ' is-active' : ''}`} aria-pressed={spec.showZones} disabled={readOnly} onClick={() => onChange({ showZones: !spec.showZones }, '设置热区可见性')}>向观众显示热区</button>
+      <div ref={previewRef} className="nori-hotspot-editor nodrag nopan" style={{ aspectRatio: orientation === 'landscape' ? '16 / 9' : '9 / 16' }} data-testid="hotspot-editor">
+        {spec.frameImageUrl ? <MediaImage src={toDisplayImageUrl(spec.frameImageUrl) || spec.frameImageUrl} alt="" fill sizes="260px" draggable={false} /> : null}
+        {spec.zones.map((zone) => (
+          <div key={zone.id} className="nori-hotspot-editor-zone" data-zone-id={zone.id} style={{ left: `${zone.x * 100}%`, top: `${zone.y * 100}%`, width: `${zone.w * 100}%`, height: `${zone.h * 100}%` } as CSSProperties}>
+            <button type="button" className="nori-hotspot-editor-move" aria-label={`移动${zone.label || '热区'}`} disabled={readOnly} onPointerDown={(event) => {
+              if (readOnly) return
+              event.preventDefault()
+              event.currentTarget.setPointerCapture(event.pointerId)
+              dragRef.current = { id: zone.id, handle: 'move', zone, x: event.clientX, y: event.clientY }
+            }} onPointerMove={move} onPointerUp={commitDrag} onPointerCancel={commitDrag} />
+            {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => <button key={handle} type="button" className={`nori-hotspot-editor-resize is-${handle}`} aria-label={`缩放${zone.label || '热区'}${handle}`} disabled={readOnly} onPointerDown={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              event.currentTarget.setPointerCapture(event.pointerId)
+              dragRef.current = { id: zone.id, handle, zone, x: event.clientX, y: event.clientY }
+            }} onPointerMove={move} onPointerUp={commitDrag} onPointerCancel={commitDrag} />)}
+          </div>
+        ))}
+      </div>
+      <ol className="nori-hotspot-editor-list">
+        {spec.zones.map((zone) => <li key={zone.id}><input className="nodrag nori-story-input" aria-label="热区名称" value={zone.label} readOnly={readOnly} onChange={(event) => onChange({ zones: spec.zones.map((item) => item.id === zone.id ? { ...item, label: event.target.value } : item) })} /><button type="button" className="nori-story-icon-button nodrag" aria-label={`删除热区${zone.label}`} disabled={readOnly} onClick={() => void onRemove(zone.id)}><X /></button></li>)}
+      </ol>
+      <button type="button" className="nori-story-add-rule nodrag" disabled={readOnly} onClick={() => onChange({ zones: [...spec.zones, { id: `opt_${crypto.randomUUID().slice(0, 8)}`, label: `线索${['一', '二', '三', '四', '五', '六'][spec.zones.length] ?? spec.zones.length + 1}`, x: 0.4, y: 0.4, w: 0.2, h: 0.2 }] }, '添加热区')}><Plus />热区</button>
+    </>
   )
 }
 
@@ -151,7 +225,26 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
   }
 
   return (
-    <StoryNodeShell id={id} type="story_interaction" selected={selected} title={interaction.title} mount>
+    <StoryNodeShell
+      id={id} type="story_interaction" selected={selected} title={interaction.title} mount
+      badge={story ? (
+        <select
+          className="nodrag nori-story-select nori-story-kind-select"
+          aria-label="互动类型"
+          value={spec.type}
+          disabled={readOnly}
+          onChange={(event) => {
+            const next = event.target.value
+            if (STORY_INTERACTION_KINDS.includes(next as (typeof STORY_INTERACTION_KINDS)[number])) {
+              void story.actions.retargetInteraction(id, next as (typeof STORY_INTERACTION_KINDS)[number])
+            }
+          }}
+        >
+          {STORY_INTERACTION_KINDS.map((kind) => <option key={kind} value={kind}>{STORY_INTERACTION_LABEL[kind]}</option>)}
+        </select>
+      ) : undefined}
+    >
+      {hasRandomResults(interaction.results) ? <span className="nori-story-random-badge" data-testid="random-badge">随机</span> : null}
       <div className={`nori-story-status${mount ? ' is-mounted' : ''}`}>
         <span className="nori-story-status-dot" aria-hidden="true" />
         <span>{mount ? `挂在「${mount.sceneTitle || '剧情片段'}」` : '未挂载：接在上一步之后，上一步结束时触发'}</span>
@@ -303,6 +396,8 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
         </>
       ) : null}
 
+      {spec.type === 'hotspot' ? <HotspotEditor spec={spec} workId={workId} readOnly={readOnly} orientation={orientation} onChange={patch} onRemove={(zoneId) => story?.actions.removeInteractionHandle(id, zoneId) ?? Promise.resolve(false)} /> : null}
+
       {spec.type === 'choice' ? (
         <StoryChoicePanelFields
           data={data}
@@ -316,6 +411,7 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
           onOpenGameplay={story && !readOnly ? () => story.setPanel('gameplay') : undefined}
           workId={workId}
           orientation={orientation}
+          onRemoveOption={story && !readOnly ? (optionId) => story.actions.removeInteractionHandle(id, optionId) : undefined}
           patch={patch}
           onDurationChange={(durationSec) => setDuration(durationSec, '设置互动时长')}
         />
@@ -363,6 +459,7 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
                   >
                     失败重来
                   </button>
+                  <WeightField label={label} value={result.weight ?? 0} disabled={readOnly} onChange={(weight) => updateResult(handle, { weight }, '设置随机权重')} />
                   <StoryHandle id={handle} side="out" />
                 </div>
                 {openEffects === handle ? (

@@ -8,6 +8,7 @@ import { interactionTimeoutHandle, STORY_SWIPE_LABEL } from '@/lib/interactive/i
 import type { StoryInteractionNode, StoryInteractionSpec, StorySwipeDirection, StoryVariable } from '@/lib/interactive/types'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { ChoicePanel } from '../ChoicePanel'
+import { HotspotOverlay } from './HotspotOverlay'
 import { InteractionCountdown } from './InteractionCountdown'
 import { lockedOptionPress } from './locked-choice'
 import {
@@ -134,6 +135,10 @@ export function InteractionOverlay({
     else if (press.kind !== 'none') setLockedHint((count) => count + 1)
   }
   const rootClass = `nori-int-overlay is-${spec.type} is-${orientation}${className ? ` ${className}` : ''}`
+
+  if (spec.type === 'hotspot') {
+    return <HotspotOverlay node={node} orientation={orientation} startedAt={startedAt} durationSec={durationSec} turn={turn} className={className} onResult={emit} />
+  }
 
   if (spec.type === 'choice') {
     return (

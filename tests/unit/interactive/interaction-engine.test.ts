@@ -117,6 +117,26 @@ describe('mounted interactions in the engine', () => {
     expect(resolveBeat(early, startRun(early, { mode: 'story' }), 'b', 'fail')).toMatchObject({ kind: 'retry', seekSec: 0 })
   })
 
+  it('settles a weighted beat once, preserves its exact result, and allows a retry to draw again', () => {
+    const nodes = [
+      entry,
+      scene('door', { videoDurationSec: 20 }),
+      beat('random', { interaction: 'hotspot', startSec: 3, zones: [{ id: 'win', label: '赢', x: 0, y: 0, w: 1, h: 1 }], results: { win: { weight: 1, retry: true, effects: [{ variableId: 'courage', op: 'add', value: 1 }] }, timeout: { weight: 1 } } }),
+      ending('done'),
+    ]
+    const program = programOf(nodes, [flow('f1', 'in', 'door'), mount('m1', 'door', 'random'), flow('f2', 'random', 'done', 'timeout'), flow('f3', 'door', 'done')])
+    const run = startRun(program, { mode: 'story' })
+    const first = resolveBeat(program, run, 'random', 'win')
+    expect(first.kind).toBe('retry')
+    expect(first.run.trail.at(-1)).toMatchObject({ handle: 'win', attempt: 1 })
+    const second = resolveBeat(program, first.run, 'random', 'timeout')
+    expect(second.kind).toBe('cut')
+    const repeated = resolveBeat(program, second.run, 'random', 'win')
+    expect(repeated).toEqual({ kind: 'continue', run: second.run })
+    expect(second.run.trail.findLast((step) => step.nodeId === 'random')).toMatchObject({ handle: 'timeout', attempt: 2 })
+    expect(first.run.vars.courage).toBe(1)
+  })
+
   it('ignores unknown interactions and result handles that the interaction does not have', () => {
     const program = elevator()
     const run = startRun(program, { mode: 'story' })
@@ -207,7 +227,11 @@ describe('standalone interactions in the flow', () => {
     const again = advanceRun(program, run, 'fail')
     expect(again.stop).toBe(run.stop)
     expect(again.vars.courage).toBe(-1)
-    expect(advanceRun(program, again, 'success').stop.kind).toBe('ending')
+    expect(again.trail.at(-1)).toMatchObject({ handle: 'fail', attempt: 1 })
+    const done = advanceRun(program, again, 'success')
+    expect(done.stop.kind).toBe('ending')
+    expect(done.trail.filter((step) => step.nodeId === 'hold').map((step) => [step.handle, step.attempt])).toEqual([['fail', 1], ['success', 2]])
+    expect(advanceRun(program, done, 'fail')).toBe(done)
   })
 
   it('halts instead of crashing when a result has no link', () => {
@@ -333,6 +357,28 @@ describe('interaction validation', () => {
     ]
     const program = programOf(nodes, [flow('f1', 'in', 's'), mount('m1', 's', 'b'), flow('f2', 's', 'e'), flow('f3', 'b', 'e', 'o2')])
     expect(codes(program)).toEqual(expect.arrayContaining(['choice_image_missing', 'unknown_variable', 'result_retry_linked']))
+  })
+
+  it('validates hotspot geometry, timeout guidance and random weight coverage', () => {
+    const program = programOf([
+      entry,
+      scene('s', { videoDurationSec: 30 }),
+      beat('h', {
+        interaction: 'hotspot', startSec: 2,
+        zones: [
+          { id: 'a', label: '照片', x: 0.8, y: 0.2, w: 0.4, h: 0.4 },
+          { id: 'b', label: '花瓶', x: 0.1, y: 0.1, w: 0.3, h: 0.3 },
+          { id: 'c', label: '重叠', x: 0.2, y: 0.2, w: 0.3, h: 0.3 },
+        ],
+        results: { a: { weight: 1 }, b: { effects: [] }, c: { weight: 1 }, timeout: { effects: [] } },
+      }),
+      ending('e'),
+    ], [flow('f1', 'in', 's'), mount('m1', 's', 'h'), flow('f2', 's', 'e')])
+    expect(codes(program)).toEqual(expect.arrayContaining(['hotspot_zone_out_of_frame', 'hotspot_zone_overlap', 'hotspot_timeout_unwired', 'random_partial_weight', 'random_no_destination']))
+    const empty = programOf([entry, scene('s'), beat('h', { interaction: 'hotspot', zones: [] }), ending('e')], [flow('f1', 'in', 's'), mount('m1', 's', 'h'), flow('f2', 's', 'e')])
+    expect(codes(empty)).toContain('hotspot_no_zone')
+    const wired = programOf([entry, scene('s'), beat('h', { interaction: 'hotspot', results: { a: { weight: 1 }, timeout: { weight: 1 } } }), ending('e')], [flow('f1', 'in', 's'), mount('m1', 's', 'h'), flow('f2', 's', 'e'), flow('f3', 'h', 'e', 'a'), flow('f4', 'h', 'e', 'timeout')])
+    expect(codes(wired)).not.toEqual(expect.arrayContaining(['hotspot_timeout_unwired', 'random_partial_weight', 'random_no_destination']))
   })
 
   it('treats a scene whose exit is replaced by interaction results as complete only when every result is covered', () => {

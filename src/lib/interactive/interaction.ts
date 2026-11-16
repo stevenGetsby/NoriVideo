@@ -14,6 +14,7 @@ import {
   type StoryInteractionKind,
   type StoryInteractionNode,
   type StoryInteractionSpec,
+  type StoryHotspotZone,
   type StoryOptionUnlock,
   type StoryResultConfig,
   type StorySwipeDirection,
@@ -28,6 +29,7 @@ export const STORY_INTERACTION_LABEL: Record<StoryInteractionKind, string> = {
   swipe: '方向滑动',
   timing: '时机点击',
   hold: '长按蓄力',
+  hotspot: '隐藏热区',
 }
 
 /** Shown to the viewer when the creator left the hint empty. */
@@ -37,6 +39,7 @@ export const STORY_INTERACTION_DEFAULT_HINT: Record<StoryInteractionKind, string
   swipe: '快速滑动！',
   timing: '看准时机点击！',
   hold: '长按蓄力，到位松手！',
+  hotspot: '找出画面里的线索！',
 }
 
 export const STORY_SWIPE_LABEL: Record<StorySwipeDirection, string> = { up: '向上', down: '向下', left: '向左', right: '向右' }
@@ -57,7 +60,7 @@ const RESULT_LABEL: Record<string, string> = {
   [STORY_TIMEOUT_HANDLE]: '超时',
 }
 
-const DEFAULT_DURATION: Record<StoryInteractionKind, number> = { choice: 3, tap: 3, swipe: 1, timing: 3, hold: 4 }
+const DEFAULT_DURATION: Record<StoryInteractionKind, number> = { choice: 3, tap: 3, swipe: 1, timing: 3, hold: 4, hotspot: 5 }
 
 export const isInteractionKind = (value: unknown): value is StoryInteractionKind =>
   STORY_INTERACTION_KINDS.includes(value as StoryInteractionKind)
@@ -96,6 +99,7 @@ export function readChoiceOptions(raw: unknown): StoryChoiceOption[] {
       imageUrl: id(option.imageUrl),
       when: readCutWhen(option.when),
       retry: option.retry === true,
+      ...(boundedNumber(option.weight, 0, 0, 999) > 0 ? { weight: boundedNumber(option.weight, 0, 0, 999) } : {}),
       ...(unlock ? { unlock } : {}),
       ...(tags.length ? { tags } : {}),
     } satisfies StoryChoiceOption]
@@ -112,7 +116,7 @@ export function readChoicePresentation(data: Record<string, unknown>): { panelSt
 
 export function readResultConfig(raw: unknown): StoryResultConfig {
   const item = record(raw)
-  return { effects: readStoryEffects(item.effects), when: readCutWhen(item.when), retry: item.retry === true }
+  return { effects: readStoryEffects(item.effects), when: readCutWhen(item.when), retry: item.retry === true, ...(boundedNumber(item.weight, 0, 0, 999) > 0 ? { weight: boundedNumber(item.weight, 0, 0, 999) } : {}) }
 }
 
 function readSpec(kind: StoryInteractionKind, data: Record<string, unknown>): StoryInteractionSpec {
@@ -141,6 +145,25 @@ function readSpec(kind: StoryInteractionKind, data: Record<string, unknown>): St
         buttonImageUrl,
       }
     }
+    case 'hotspot':
+      return {
+        type: 'hotspot',
+        frameImageUrl: id(data.frameImageUrl),
+        showZones: data.showZones === true,
+        zones: (Array.isArray(data.zones) ? data.zones : []).flatMap((raw) => {
+          const zone = record(raw)
+          const zoneId = id(zone.id)
+          if (!zoneId) return []
+          return [{
+            id: zoneId,
+            label: text(zone.label),
+            x: boundedNumber(zone.x, 0.4, -1000, 1000),
+            y: boundedNumber(zone.y, 0.4, -1000, 1000),
+            w: boundedNumber(zone.w, 0.2, -1000, 1000),
+            h: boundedNumber(zone.h, 0.2, -1000, 1000),
+          }]
+        }),
+      }
     case 'choice': {
       const options = readChoiceOptions(data.options)
       const defaultOptionId = id(data.defaultOptionId)
@@ -166,6 +189,8 @@ export function interactionHandles(spec: StoryInteractionSpec): string[] {
       return ['perfect', 'normal', 'miss']
     case 'choice':
       return [...spec.options.map((option) => option.id), ...(spec.timeoutMode === 'exit' ? [STORY_TIMEOUT_HANDLE] : [])]
+    case 'hotspot':
+      return [...spec.zones.map((zone) => zone.id), STORY_TIMEOUT_HANDLE]
   }
 }
 
@@ -173,6 +198,10 @@ export function interactionHandleLabel(spec: StoryInteractionSpec, handle: strin
   if (spec.type === 'choice') {
     const option = spec.options.find((item) => item.id === handle)
     if (option) return option.label.trim() || '未命名选项'
+  }
+  if (spec.type === 'hotspot') {
+    const zone = spec.zones.find((item) => item.id === handle)
+    if (zone) return zone.label.trim() || '未命名热区'
   }
   return RESULT_LABEL[handle] ?? handle
 }
@@ -186,6 +215,8 @@ export function interactionTimeoutHandle(spec: StoryInteractionSpec): string | n
       return 'fail'
     case 'timing':
       return 'miss'
+    case 'hotspot':
+      return STORY_TIMEOUT_HANDLE
     case 'choice':
       return spec.timeoutMode === 'exit' ? STORY_TIMEOUT_HANDLE : spec.defaultOptionId ?? spec.options[0]?.id ?? null
   }
@@ -210,7 +241,7 @@ export function readInteractionData(raw: unknown): InteractionData {
   const results: Record<string, StoryResultConfig> = {}
   for (const handle of interactionHandles(spec)) {
     const option = spec.type === 'choice' ? spec.options.find((item) => item.id === handle) : undefined
-    results[handle] = option ? { effects: option.effects, when: option.when, retry: option.retry } : readResultConfig(rawResults[handle])
+    results[handle] = option ? { effects: option.effects, when: option.when, retry: option.retry, ...(option.weight ? { weight: option.weight } : {}) } : readResultConfig(rawResults[handle])
   }
   return {
     title: text(data.title).trim() || STORY_INTERACTION_LABEL[kind],
@@ -238,6 +269,7 @@ export function defaultInteractionData(kind: StoryInteractionKind, createId: () 
     case 'swipe': return { ...base, direction: 'up', buttonText: '', buttonImageUrl: null }
     case 'timing': return { ...base, propImageUrl: null, speed: 1, perfectWidth: 10, normalWidth: 30 }
     case 'hold': return { ...base, fillSec: 2, rangeMin: 80, rangeMax: 100, overchargeFails: false, buttonText: '', buttonImageUrl: null }
+    case 'hotspot': return { ...base, frameImageUrl: null, showZones: false, zones: [{ id: createId(), label: '线索一', x: 0.4, y: 0.4, w: 0.2, h: 0.2 }] }
     case 'choice': {
       const option = (label: string) => ({ id: createId(), label, effects: [], imageUrl: null, when: 'now', retry: false })
       return { ...base, prompt: '', options: [option('选项一'), option('选项二')], panelStyle: 'text', layout: 'auto', timeoutMode: 'default', defaultOptionId: null }
@@ -264,6 +296,69 @@ const DEFAULT_RESULT: StoryResultConfig = { effects: [], when: 'now', retry: fal
 /** What one result port of an interaction does: its value effects, cut timing and retry flag. */
 export function beatResult(node: Pick<StoryInteractionNode, 'results'>, handle: string): StoryResultConfig {
   return node.results[handle] ?? DEFAULT_RESULT
+}
+
+export const hasRandomResults = (results: Record<string, StoryResultConfig>) =>
+  Object.values(results).some((result) => typeof result.weight === 'number' && result.weight > 0)
+
+/** Draws from the weighted ports in their display order. No weights means the viewer's result is unchanged. */
+export function resolveRandomHandle(spec: StoryInteractionSpec, results: Record<string, StoryResultConfig>, roll: number): string | null {
+  const weighted = interactionHandles(spec).flatMap((handle) => {
+    const weight = results[handle]?.weight ?? 0
+    return weight > 0 ? [{ handle, weight }] : []
+  })
+  const total = weighted.reduce((sum, item) => sum + item.weight, 0)
+  if (!total) return null
+  let cursor = Math.min(1 - Number.EPSILON, Math.max(0, roll)) * total
+  for (const item of weighted) {
+    if (cursor < item.weight) return item.handle
+    cursor -= item.weight
+  }
+  return weighted[weighted.length - 1].handle
+}
+
+export function retargetHandleMap(prev: StoryInteractionSpec, next: StoryInteractionSpec): Map<string, string | null> {
+  const map = new Map<string, string | null>()
+  const simple = new Set<StoryInteractionKind>(['tap', 'swipe', 'hold'])
+  const identity = prev.type === next.type
+  const success = simple.has(next.type) ? 'success' : next.type === 'timing' ? 'normal' : null
+  const failure = simple.has(next.type) ? 'fail' : next.type === 'timing' ? 'miss' : next.type === 'hotspot' || (next.type === 'choice' && next.timeoutMode === 'exit') ? STORY_TIMEOUT_HANDLE : null
+  for (const handle of interactionHandles(prev)) {
+    if (identity) map.set(handle, handle)
+    else if (handle === STORY_TIMEOUT_HANDLE) {
+      map.set(handle, failure)
+    } else if (prev.type === 'choice' || prev.type === 'hotspot') {
+      map.set(handle, next.type === prev.type ? handle : null)
+    } else if (handle === 'perfect') {
+      map.set(handle, simple.has(next.type) ? 'success' : null)
+    } else if (handle === 'normal') {
+      map.set(handle, success)
+    } else if (handle === 'miss' || handle === 'fail') {
+      map.set(handle, failure)
+    } else if (handle === 'success') {
+      map.set(handle, success)
+    }
+  }
+  return map
+}
+
+/** Changes the type-specific fields while carrying shared timing and result settings to matching ports. */
+export function retargetInteractionData(current: InteractionData, nextKind: StoryInteractionKind, createId: () => string): Record<string, unknown> {
+  const nextSpec = readInteractionData({ ...defaultInteractionData(nextKind, createId), durationSec: current.durationSec })
+  const mapping = retargetHandleMap(current.spec, nextSpec.spec)
+  const results: Record<string, StoryResultConfig> = {}
+  for (const [handle, target] of mapping) {
+    if (target && !results[target]) results[target] = { ...current.results[handle], effects: [...(current.results[handle]?.effects ?? [])] }
+  }
+  return {
+    ...defaultInteractionData(nextKind, createId),
+    title: current.title === STORY_INTERACTION_LABEL[current.spec.type] ? STORY_INTERACTION_LABEL[nextKind] : current.title,
+    startSec: current.startSec,
+    durationSec: nextSpec.durationSec,
+    during: current.during,
+    hint: current.hint,
+    results,
+  }
 }
 
 export interface BeatWindow { startSec: number; durationSec: number }

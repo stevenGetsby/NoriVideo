@@ -86,6 +86,8 @@ export interface StoryChoiceOption {
   when: StoryCutWhen
   /** Only used by a mounted choice: rewind and ask again instead of branching. */
   retry: boolean
+  /** Only used by a choice interaction: positive weights settle by one random draw. */
+  weight?: number
   /** Absent = always available. */
   unlock?: StoryOptionUnlock
   /** Personality-test letters this option scores; absent = scores nothing. */
@@ -99,7 +101,7 @@ export type StoryChoiceLayout = (typeof STORY_CHOICE_LAYOUTS)[number]
 export const STORY_TIMEOUT_MODES = ['default', 'exit'] as const
 export type StoryTimeoutMode = (typeof STORY_TIMEOUT_MODES)[number]
 
-export const STORY_INTERACTION_KINDS = ['choice', 'tap', 'swipe', 'timing', 'hold'] as const
+export const STORY_INTERACTION_KINDS = ['choice', 'tap', 'swipe', 'timing', 'hold', 'hotspot'] as const
 export type StoryInteractionKind = (typeof STORY_INTERACTION_KINDS)[number]
 export const STORY_SWIPE_DIRECTIONS = ['up', 'down', 'left', 'right'] as const
 export type StorySwipeDirection = (typeof STORY_SWIPE_DIRECTIONS)[number]
@@ -111,6 +113,17 @@ export interface StoryResultConfig {
   effects: StoryEffect[]
   when: StoryCutWhen
   retry: boolean
+  /** Positive weights make this interaction settle by one random draw; absent keeps the original result. */
+  weight?: number
+}
+
+export type StoryHotspotZone = {
+  id: string
+  label: string
+  x: number
+  y: number
+  w: number
+  h: number
 }
 
 export type StoryInteractionSpec =
@@ -118,6 +131,7 @@ export type StoryInteractionSpec =
   | { type: 'swipe'; direction: StorySwipeDirection; buttonText: string; buttonImageUrl: string | null }
   | { type: 'timing'; propImageUrl: string | null; speed: number; perfectWidth: number; normalWidth: number }
   | { type: 'hold'; fillSec: number; rangeMin: number; rangeMax: number; overchargeFails: boolean; buttonText: string; buttonImageUrl: string | null }
+  | { type: 'hotspot'; frameImageUrl: string | null; showZones: boolean; zones: StoryHotspotZone[] }
   | {
     type: 'choice'
     prompt: string
@@ -168,6 +182,9 @@ export interface StoryChoiceNode extends StoryNodeBase {
   panelStyle: StoryChoicePanel
   layout: StoryChoiceLayout
   timeoutMode: StoryTimeoutMode
+  /** Optional backdrop behind the choice panel: a video/image wired into this node on the canvas.
+   *  Absent falls back to the previous scene's last frame. */
+  backdrop?: StoryMedia | null
 }
 export interface StoryInteractionNode extends StoryNodeBase {
   kind: 'interaction'

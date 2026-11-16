@@ -38,6 +38,7 @@ export const StoryChoiceNode = memo(function StoryChoiceNode({ id, data, selecte
         onOpenGameplay={story && !readOnly ? () => story.setPanel('gameplay') : undefined}
         workId={story?.story.workId ?? null}
         orientation={orientation}
+        onRemoveOption={story && !readOnly ? (optionId) => story.actions.removeInteractionHandle(id, optionId) : undefined}
         patch={patch}
       />
     </StoryNodeShell>

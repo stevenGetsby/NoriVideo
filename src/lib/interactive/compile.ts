@@ -198,7 +198,7 @@ export function compileStoryNode(node: CanvasNodeLike, nodes: CanvasNodeLike[], 
     case 'interaction':
       return compileInteraction(node, mountedSceneId(node.id, nodes, edges))
     case 'choice':
-      return { id: node.id, kind, title, ...readChoiceData(node.data) }
+      return { id: node.id, kind, title, ...readChoiceData(node.data), backdrop: resolveSceneMedia(node.id, node.data, nodes, edges) }
     case 'condition':
       return { id: node.id, kind, title, ...readConditionData(node.data) }
     case 'ending':

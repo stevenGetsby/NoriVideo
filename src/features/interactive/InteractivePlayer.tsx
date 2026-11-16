@@ -15,6 +15,7 @@ import {
   type StoryRun,
 } from '@/lib/interactive/engine'
 import { nextSpeed, normalizeSpeed, playbackSpeeds } from '@/lib/interactive/playback'
+import { hasRandomResults, resolveRandomHandle } from '@/lib/interactive/interaction'
 import {
   restoreRun,
   snapshotLabel,
@@ -352,7 +353,10 @@ export function InteractivePlayer({ program, mode, aspectRatio, title, projectId
   }
 
   const choose = (handle: string) => {
-    const next = advanceRun(program, run, handle)
+    const node = run.stop.kind === 'interaction' ? run.stop.node : null
+    const settled = node && hasRandomResults(node.results) ? resolveRandomHandle(node.spec, node.results, Math.random()) : handle
+    if (!settled) return
+    const next = advanceRun(program, run, settled)
     setAttempt(nextAttempt(attempt, run.stop, next))
     if (next.stop !== run.stop) setStopId((id) => id + 1)
     setRun(next)

@@ -6,6 +6,7 @@ import { AlertTriangle, ArrowRight, RotateCcw } from '@/components/ui/icons'
 import { STORY_ENDING_LABEL } from '@/lib/interactive/compile'
 import { beatTimeoutHandle, choiceTimeoutOption, resolveBeat, visibleOptions, type StoryRun, type StoryStop } from '@/lib/interactive/engine'
 import { dueBeat, interactionTimeoutHandle } from '@/lib/interactive/interaction'
+import { hasRandomResults, resolveRandomHandle } from '@/lib/interactive/interaction'
 import { personalityView } from '@/lib/interactive/personality'
 import type {
   StoryBeatDuring,
@@ -54,12 +55,15 @@ export type PlayerStageProps = {
   onLocate?: (projectId: string, nodeId: string) => void
 }
 
-function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1 }: {
+function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1, freezeLastFrame = false }: {
   media: StoryMedia | null
   onEnded?: () => void
   videoRef?: RefObject<HTMLVideoElement | null>
   paused?: boolean
   rate?: number
+  /** Render the video paused on its last frame: used as the backdrop behind a choice panel
+   *  so the previous segment does not replay while the viewer is deciding. */
+  freezeLastFrame?: boolean
 }) {
   const localRef = useRef<HTMLVideoElement | null>(null)
   const ref = videoRef ?? localRef
@@ -74,6 +78,14 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1 }: {
     if (video.defaultPlaybackRate !== rateRef.current) video.defaultPlaybackRate = rateRef.current
     if (video.playbackRate !== rateRef.current) video.playbackRate = rateRef.current
   }
+  const seekToEnd = () => {
+    const video = ref.current
+    if (!video || !freezeLastFrame) return
+    if (Number.isFinite(video.duration) && video.duration > 0) {
+      try { video.currentTime = Math.max(0, video.duration - 0.04) } catch { /* metadata not ready */ }
+    }
+    video.pause()
+  }
   useEffect(() => {
     applyRate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,6 +93,10 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1 }: {
   useEffect(() => {
     const video = ref.current
     if (!video || media?.kind !== 'video') return
+    if (freezeLastFrame) {
+      seekToEnd()
+      return
+    }
     if (paused) {
       if (!video.paused) {
         video.pause()
@@ -90,7 +106,7 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1 }: {
       pausedByShop.current = false
       if (!video.ended) void video.play().catch(() => {})
     }
-  }, [media, paused, ref])
+  }, [media, paused, ref, freezeLastFrame])
   if (!media) return <div className="nori-player-media is-empty" />
   if (media.kind === 'video') {
     return (
@@ -101,10 +117,11 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1 }: {
         data-testid="scene-video"
         src={display(media.url) ?? undefined}
         poster={display(media.posterUrl) ?? undefined}
-        autoPlay
+        autoPlay={!freezeLastFrame}
         playsInline
-        onLoadedMetadata={applyRate}
-        onPlay={applyRate}
+        onLoadedMetadata={() => { applyRate(); seekToEnd() }}
+        onLoadedData={seekToEnd}
+        onPlay={(e) => { if (freezeLastFrame) { e.currentTarget.pause(); return } applyRate() }}
         onEnded={onEnded}
       />
     )
@@ -176,7 +193,9 @@ function SceneStage({
 
   const finishBeat = (beat: StoryInteractionNode, handle: string, fromEnded: boolean) => {
     const state = latest.current
-    const outcome = resolveBeat(state.program, state.run, beat.id, handle)
+    const settled = hasRandomResults(beat.results) ? resolveRandomHandle(beat.spec, beat.results, Math.random()) : handle
+    if (!settled) return
+    const outcome = resolveBeat(state.program, state.run, beat.id, settled)
     const plan = applyBeatOutcome(outcome, beat, state.beats, firedRef.current)
     firedRef.current = plan.fired
     activeRef.current = null
@@ -259,12 +278,16 @@ function SceneStage({
       else latest.current.onContinue()
       return
     }
+    // The video element can outlive its SceneStage while React swaps stops; an ended event
+    // from the old element must not advance the run again.
+    if (latest.current.run.stop.kind !== 'scene') return
     latest.current.onContinue()
   }
 
   return (
     <>
       {node.media ? <StageMedia media={node.media} onEnded={videoMedia ? handleEnded : undefined} videoRef={videoRef} paused={!picture.playing} rate={picture.rate} /> : <div className="nori-player-media is-empty" />}
+      {active?.beat.spec.type === 'hotspot' && active.beat.spec.frameImageUrl && active.beat.during !== 'play' ? <div className="nori-player-media nori-hotspot-backdrop"><MediaImage src={display(active.beat.spec.frameImageUrl) || ''} alt="" fill sizes="80vw" draggable={false} /></div> : null}
       {!node.media ? <div className="nori-player-placeholder"><strong>{node.title}</strong><span>这段剧情还没有画面</span></div> : null}
       {node.lines ? <p className="nori-player-subtitle">{node.lines}</p> : null}
       {run.pending ? <div className="nori-int-pending" data-testid="pending-chip">待切换：{run.pending.label}</div> : null}
@@ -405,7 +428,9 @@ function ChoiceStage({ program, run, node, orientation, backdrop, baseRate, paus
   }
   return (
     <>
-      <StageMedia media={backdrop} paused={paused} rate={baseRate} />
+      {node.backdrop
+        ? <StageMedia media={node.backdrop} paused={paused} rate={baseRate} />
+        : <StageMedia media={backdrop} paused={paused} rate={baseRate} freezeLastFrame />}
       <div className={`nori-player-choice is-${orientation}`}>
         <ChoicePanel
           prompt={node.prompt || node.title}
@@ -482,7 +507,7 @@ export function PlayerStage({
   if (stop.kind === 'interaction') {
     return (
       <>
-        <InteractionBackdrop media={backdrop} during={stop.node.during} baseRate={baseRate} paused={paused} />
+        <InteractionBackdrop media={stop.node.spec.type === 'hotspot' && stop.node.spec.frameImageUrl && stop.node.during !== 'play' ? { kind: 'image', url: stop.node.spec.frameImageUrl, posterUrl: null } : backdrop} during={stop.node.during} baseRate={baseRate} paused={paused} />
         <StandaloneOverlay
           key={`${stop.node.id}:${attempt}`}
           program={program}

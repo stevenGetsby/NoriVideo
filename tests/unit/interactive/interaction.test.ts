@@ -17,7 +17,10 @@ import {
   judgeTap,
   judgeTiming,
   readInteractionData,
+  resolveRandomHandle,
   resolveChoiceLayout,
+  retargetHandleMap,
+  retargetInteractionData,
   swipeDirectionOf,
   timingPointer,
 } from '@/lib/interactive/interaction'
@@ -113,6 +116,24 @@ describe('interaction data reader', () => {
     expect(interactionTimeoutHandle(exit)).toBe('timeout')
     expect(interactionHandleLabel(exit, 'timeout')).toBe('超时')
     expect(interactionTimeoutHandle(readInteractionData({ interaction: 'choice', options: [] }).spec)).toBeNull()
+  })
+
+  it('reads hotspot zones without hiding invalid coordinates from validation', () => {
+    const spec = readInteractionData({ interaction: 'hotspot', zones: [{ id: 'photo', label: '照片', x: 0.8, y: 0.8, w: 0.4, h: 0.4 }] }).spec
+    expect(interactionHandles(spec)).toEqual(['photo', 'timeout'])
+    expect(interactionTimeoutHandle(spec)).toBe('timeout')
+    expect(interactionHandleLabel(spec, 'photo')).toBe('照片')
+    expect(spec).toMatchObject({ type: 'hotspot', frameImageUrl: null, showZones: false, zones: [{ x: 0.8, y: 0.8, w: 0.4, h: 0.4 }] })
+  })
+
+  it('resolves weighted results at both roll boundaries and ignores zero weights', () => {
+    const spec = readInteractionData({ interaction: 'timing' }).spec
+    const results = { perfect: { effects: [], when: 'now' as const, retry: false, weight: 1 }, normal: { effects: [], when: 'now' as const, retry: false }, miss: { effects: [], when: 'now' as const, retry: false, weight: 3 } }
+    expect(resolveRandomHandle(spec, results, 0)).toBe('perfect')
+    expect(resolveRandomHandle(spec, results, 0.249)).toBe('perfect')
+    expect(resolveRandomHandle(spec, results, 0.25)).toBe('miss')
+    expect(resolveRandomHandle(spec, results, 0.999)).toBe('miss')
+    expect(resolveRandomHandle(spec, { perfect: results.perfect, normal: results.normal, miss: { ...results.miss, weight: 0 } }, 0.999)).toBe('perfect')
   })
 
   it('creates fresh node data for every kind that reads back to the same kind', () => {
@@ -279,8 +300,80 @@ describe('compiling interactions', () => {
   })
 })
 
-describe('choice panel presentation', () => {
-  it('lays cards out by orientation on auto and obeys a forced direction', () => {
+describe('retargeting', () => {
+  it('maps every type pair to semantic ports and drops entity ports outside their own type', () => {
+    const expected: Record<string, string[]> = {
+      'tap>tap': ['success:success', 'fail:fail'],
+      'tap>swipe': ['success:success', 'fail:fail'],
+      'tap>hold': ['success:success', 'fail:fail'],
+      'tap>timing': ['success:normal', 'fail:miss'],
+      'tap>choice': ['success:null', 'fail:timeout'],
+      'tap>hotspot': ['success:null', 'fail:timeout'],
+      'swipe>tap': ['success:success', 'fail:fail'],
+      'swipe>hold': ['success:success', 'fail:fail'],
+      'swipe>timing': ['success:normal', 'fail:miss'],
+      'swipe>choice': ['success:null', 'fail:timeout'],
+      'swipe>hotspot': ['success:null', 'fail:timeout'],
+      'hold>tap': ['success:success', 'fail:fail'],
+      'hold>swipe': ['success:success', 'fail:fail'],
+      'hold>timing': ['success:normal', 'fail:miss'],
+      'hold>choice': ['success:null', 'fail:timeout'],
+      'hold>hotspot': ['success:null', 'fail:timeout'],
+      'timing>tap': ['perfect:success', 'normal:success', 'miss:fail'],
+      'timing>swipe': ['perfect:success', 'normal:success', 'miss:fail'],
+      'timing>hold': ['perfect:success', 'normal:success', 'miss:fail'],
+      'timing>timing': ['perfect:perfect', 'normal:normal', 'miss:miss'],
+      'timing>choice': ['perfect:null', 'normal:null', 'miss:timeout'],
+      'timing>hotspot': ['perfect:null', 'normal:null', 'miss:timeout'],
+      'choice>tap': ['opt_a:null', 'opt_b:null', 'timeout:fail'],
+      'choice>timing': ['opt_a:null', 'opt_b:null', 'timeout:miss'],
+      'choice>choice': ['opt_a:opt_a', 'opt_b:opt_b', 'timeout:timeout'],
+      'choice>hotspot': ['opt_a:null', 'opt_b:null', 'timeout:timeout'],
+      'hotspot>tap': ['opt_a:null', 'timeout:fail'],
+      'hotspot>timing': ['opt_a:null', 'timeout:miss'],
+      'hotspot>choice': ['opt_a:null', 'timeout:timeout'],
+      'hotspot>hotspot': ['opt_a:opt_a', 'timeout:timeout'],
+      'choice>swipe': ['opt_a:null', 'opt_b:null', 'timeout:fail'],
+      'choice>hold': ['opt_a:null', 'opt_b:null', 'timeout:fail'],
+      'hotspot>swipe': ['opt_a:null', 'timeout:fail'],
+      'hotspot>hold': ['opt_a:null', 'timeout:fail'],
+    }
+    let sequence = 0
+    const createId = () => `opt_generated_${sequence += 1}`
+    for (const from of STORY_INTERACTION_KINDS) {
+      for (const to of STORY_INTERACTION_KINDS) {
+        const prev = readInteractionData({
+          ...defaultInteractionData(from, createId),
+          ...(from === 'choice' || from === 'hotspot' ? { timeoutMode: 'exit', options: [{ id: 'opt_a', label: '甲' }, { id: 'opt_b', label: '乙' }], zones: [{ id: 'opt_a', label: '甲', x: 0, y: 0, w: 0.5, h: 0.5 }] } : {}),
+        }).spec
+        const next = readInteractionData({
+          ...defaultInteractionData(to, createId),
+          ...(to === 'choice' ? { timeoutMode: 'exit', options: prev.type === 'choice' ? prev.options : undefined } : {}),
+          ...(to === 'hotspot' && prev.type === 'hotspot' ? { zones: prev.zones } : {}),
+        }).spec
+        const actual = [...retargetHandleMap(prev, next)].map(([handle, target]) => `${handle}:${target ?? 'null'}`)
+        if (from === to) expect(actual).toEqual(interactionHandles(next).map((handle) => `${handle}:${handle}`))
+        else expect(actual, `${from}>${to}`).toEqual(expected[`${from}>${to}`])
+      }
+    }
+  })
+
+  it('migrates result settings and shared timing without duplicating default generated data', () => {
+    let sequence = 0
+    const current = readInteractionData({
+      ...defaultInteractionData('tap', () => `generated_${sequence += 1}`),
+      title: '快速点击', startSec: 7, durationSec: 9.5, during: 'slow', hint: '快！',
+      results: { success: { weight: 2, effects: [{ variableId: 'v', op: 'add', value: 1 }], when: 'after', retry: true }, fail: { effects: [], when: 'now', retry: false } },
+    })
+    const next = readInteractionData(retargetInteractionData(current, 'timing', () => `generated_${sequence += 1}`))
+    expect(next).toMatchObject({ title: '时机点击', startSec: 7, durationSec: 9.5, during: 'slow', hint: '快！' })
+    expect(next.results.normal).toEqual(current.results.success)
+    expect(next.results.miss).toEqual(current.results.fail)
+    expect(next.results.perfect).toEqual({ effects: [], when: 'now', retry: false })
+  })
+})
+
+describe('choice panel presentation', () => {  it('lays cards out by orientation on auto and obeys a forced direction', () => {
     expect(resolveChoiceLayout('auto', 'portrait')).toBe('vertical')
     expect(resolveChoiceLayout('auto', 'landscape')).toBe('horizontal')
     expect(resolveChoiceLayout('horizontal', 'portrait')).toBe('horizontal')

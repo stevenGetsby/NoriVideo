@@ -1,4 +1,5 @@
 import { findStoryLinkCycle } from './config'
+import { hotspotZonesOverlap } from './hotspot'
 import { beatResult, beatWindowsOverlap, interactionHandleLabel, interactionHandles, STORY_MOUNTED_CHOICE_MAX_OPTIONS } from './interaction'
 import {
   STORY_ELSE_HANDLE,
@@ -91,6 +92,25 @@ function interactionIssues(node: StoryInteractionNode, handles: Set<string>, var
   }
   if ([...handles].some((handle) => !known.has(handle))) {
     issues.push(issue('warning', 'stale_flow', `互动「${node.title}」有连线指向已删除的结果。`, projectId, node.id))
+  }
+  if (spec.type === 'hotspot') {
+    if (!spec.zones.length) issues.push(issue('error', 'hotspot_no_zone', `互动「${node.title}」还没有热区。`, projectId, node.id))
+    for (const zone of spec.zones) {
+      if ([zone.x, zone.y, zone.w, zone.h].some((value) => value < 0 || value > 1) || zone.x + zone.w > 1 || zone.y + zone.h > 1) {
+        issues.push(issue('error', 'hotspot_zone_out_of_frame', `互动「${node.title}」的热区「${zone.label || '未命名热区'}」超出了背景帧。`, projectId, node.id))
+      }
+    }
+    if (spec.zones.some((zone, index) => spec.zones.slice(index + 1).some((other) => hotspotZonesOverlap(zone, other)))) {
+      issues.push(issue('warning', 'hotspot_zone_overlap', `互动「${node.title}」有重叠热区，重叠处以后绘制的热区为准。`, projectId, node.id))
+    }
+    if (!handles.has(STORY_TIMEOUT_HANDLE) && !beatResult(node, STORY_TIMEOUT_HANDLE).retry) {
+      issues.push(issue('warning', 'hotspot_timeout_unwired', `互动「${node.title}」的观众找不到线索时剧情照样继续，确认这是你要的吗？`, projectId, node.id))
+    }
+  }
+  const weighted = interactionHandles(spec).filter((handle) => (beatResult(node, handle).weight ?? 0) > 0)
+  if (weighted.length) {
+    if (weighted.length < interactionHandles(spec).length) issues.push(issue('warning', 'random_partial_weight', `互动「${node.title}」只有部分结果设置了权重，未设置权重的结果不会被抽中。`, projectId, node.id))
+    if (weighted.every((handle) => !handles.has(handle))) issues.push(issue('warning', 'random_no_destination', `互动「${node.title}」的随机结果都没有连线，抽了也白抽。`, projectId, node.id))
   }
   if (spec.type === 'choice') {
     if (!spec.options.length) issues.push(issue('error', 'choice_empty', `互动「${node.title}」没有选项。`, projectId, node.id))

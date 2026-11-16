@@ -200,6 +200,20 @@ function unlinkedProgram(): StoryProgram {
   )
 }
 
+/** A choice after a finished clip must hold its final frame, not replay the clip. */
+function choiceBackdropProgram(): StoryProgram {
+  const ask = choiceNode({
+    prompt: '线索指向哪里？',
+    timeoutSec: 8,
+    defaultOptionId: 'o_stay',
+    options: [option('o_stay', '留下'), option('o_go', '前进')],
+  })
+  return program(
+    [entry(), videoScene('clue', '线索'), ask, videoScene('next', '后续'), ending('done', '完成')],
+    [flow('in', 'output', 'clue'), flow('clue', 'output', 'ask'), flow('ask', 'o_stay', 'next'), flow('ask', 'o_go', 'next'), flow('next', 'output', 'done')],
+  )
+}
+
 /** 画面定格 then 画面慢放, both resolved as an unlinked success. */
 function freezeSlowProgram(): StoryProgram {
   const freeze = videoScene('show', '演出', [
@@ -241,6 +255,68 @@ function retryProgram(): StoryProgram {
   return program([entry(), door, ending('out', '完成')], [flow('in', 'output', 'door'), flow('door', 'output', 'out')])
 }
 
+/** A mounted 隐藏热区 with a static background, letterboxing, and an overlap. */
+function hotspotProgram(showZones: boolean): StoryProgram {
+  const search = videoScene('search', '搜查', [
+    beat('clues', {
+      title: '隐藏热区',
+      mountedOn: 'search',
+      startSec: 0.5,
+      durationSec: 10,
+      during: 'freeze',
+      spec: {
+        type: 'hotspot',
+        frameImageUrl: IMAGE,
+        showZones,
+        zones: [
+          { id: 'opt_photo', label: '照片', x: 0, y: 0, w: 1, h: 1 },
+          { id: 'opt_clue', label: '线索', x: 0.5, y: 0.25, w: 0.5, h: 0.5 },
+        ],
+      },
+      results: {},
+    }),
+  ])
+  return program(
+    [entry(), search, ending('found', '找到线索', 'good'), ending('wrong', '只是照片'), ending('missed', '错过线索', 'bad')],
+    [
+      flow('in', 'output', 'search'),
+      flow('clues', 'opt_clue', 'found'),
+      flow('clues', 'opt_photo', 'wrong'),
+      flow('clues', 'timeout', 'missed'),
+    ],
+  )
+}
+
+function hotspotTimeoutProgram(): StoryProgram {
+  const search = videoScene('search', '搜查', [
+    beat('clues', {
+      title: '隐藏热区', mountedOn: 'search', startSec: 0.5, durationSec: 0.5, during: 'freeze',
+      spec: { type: 'hotspot', frameImageUrl: IMAGE, showZones: true, zones: [{ id: 'opt_photo', label: '照片', x: 0.4, y: 0.4, w: 0.2, h: 0.2 }] },
+      results: {},
+    }),
+  ])
+  return program(
+    [entry(), search, ending('found', '找到线索'), ending('missed', '错过线索', 'bad')],
+    [flow('in', 'output', 'search'), flow('clues', 'opt_photo', 'found'), flow('clues', 'timeout', 'missed')],
+  )
+}
+
+function randomProgram(): StoryProgram {
+  const draw = beat('draw', {
+    title: '随机试炼',
+    durationSec: 30,
+    spec: tapSpec(1),
+    results: {
+      success: { effects: [], when: 'now', retry: false, weight: 1 },
+      fail: { effects: [], when: 'now', retry: true, weight: 1 },
+    },
+  })
+  return program(
+    [entry(), imageScene('altar', '试炼'), draw, ending('won', '试炼通过', 'good'), ending('lost', '再试一次')],
+    [flow('in', 'output', 'altar'), flow('altar', 'output', 'draw'), flow('draw', 'success', 'won'), flow('draw', 'fail', 'altar')],
+  )
+}
+
 function choiceImagesProgram(): StoryProgram {
   const ask = choiceNode({
     id: 'ask',
@@ -266,12 +342,18 @@ function scenarioOf(name: string): Scenario {
   switch (name) {
     case 'elevator': return { program: elevatorProgram(), aspectRatio: '9:16' }
     case 'standalone-choice': return { program: standaloneChoiceProgram(), aspectRatio: '9:16' }
+    case 'choice-backdrop': return { program: choiceBackdropProgram(), aspectRatio: '9:16' }
     case 'swipe': return { program: swipeProgram(), aspectRatio: '9:16' }
     case 'timing': return { program: timingProgram(), aspectRatio: '9:16' }
     case 'hold': return { program: holdProgram(), aspectRatio: '9:16' }
     case 'unlinked': return { program: unlinkedProgram(), aspectRatio: '9:16' }
     case 'freeze-slow': return { program: freezeSlowProgram(), aspectRatio: '9:16' }
     case 'retry': return { program: retryProgram(), aspectRatio: '9:16' }
+    case 'hotspot-hidden': return { program: hotspotProgram(false), aspectRatio: '9:16' }
+    case 'hotspot-visible': return { program: hotspotProgram(true), aspectRatio: '9:16' }
+    case 'hotspot-landscape': return { program: hotspotProgram(true), aspectRatio: '16:9' }
+    case 'hotspot-timeout': return { program: hotspotTimeoutProgram(), aspectRatio: '9:16' }
+    case 'random': return { program: randomProgram(), aspectRatio: '9:16' }
     case 'choice-images-portrait': return { program: choiceImagesProgram(), aspectRatio: '9:16' }
     case 'choice-images-landscape': return { program: choiceImagesProgram(), aspectRatio: '16:9' }
     default: throw new Error(`unknown scenario ${name}`)

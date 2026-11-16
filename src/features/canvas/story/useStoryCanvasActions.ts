@@ -2,8 +2,10 @@
 
 import { useLayoutEffect, useMemo, useRef, type Dispatch, type SetStateAction } from 'react'
 import type { ReactFlowInstance, ReactFlowState } from '@xyflow/react'
-import { isStoryNodeType } from '@/lib/interactive/compile'
-import { STORY_INTERACT_HANDLE, STORY_MOUNT_HANDLE, STORY_OUTPUT_HANDLE, type StoryInteractionKind } from '@/lib/interactive/types'
+import { isStoryNodeType, readChoiceData } from '@/lib/interactive/compile'
+import { defaultInteractionData, interactionHandleLabel, readInteractionData, retargetHandleMap, retargetInteractionData, STORY_INTERACTION_LABEL } from '@/lib/interactive/interaction'
+import { STORY_FLOW_ROLE, STORY_INTERACT_HANDLE, STORY_MOUNT_HANDLE, STORY_OUTPUT_HANDLE, type StoryInteractionKind } from '@/lib/interactive/types'
+import { confirmAction } from '@/lib/ui/feedback'
 import { canvasGroupIdsContainingMembers, fitCanvasGroupsToMembers } from '../actions/layout'
 import {
   createFlowNode,
@@ -19,6 +21,7 @@ import type { StoryCanvasActions, StoryCanvasState } from './StoryCanvasContext'
 import { nextBeatStart } from './story-beats'
 import { applyStoryConnection, resolveStoryConnection, STORY_MEDIA_HANDLE, STORY_MEDIA_SOURCE_TYPES, storyReplaceNotice, storySourceHandles, type StoryConnectionPlan, type StoryLinkPlan } from './story-connection'
 import { nodeBox, paneRenderedScale, resolveStoryWireTarget, storyHandleCenter, storyNodeAt, storyWireRole, type StoryPoint, type StoryWireRole } from './story-geometry'
+import { removeChoiceOption } from './story-choice-edit'
 import { layoutObstacles, layoutStoryChapter, nearestFreeSpot, revealOffset, roomAbove, storyDropBox, STORY_NEW_NODE_SIZES, type LayoutBox } from './story-layout'
 
 type Ref<T> = { current: T }
@@ -90,7 +93,7 @@ export function storyWireRefusal(role: StoryWireRole, fromId: string, fromHandle
   return plan.kind === 'invalid' ? plan.reason : '这里无法连接'
 }
 
-function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
+export function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
   const deps = () => ref.current
   const flowState = () => ref.current.flowStore.getState()
   const paneScale = () => { const state = flowState(); return paneRenderedScale(state.domNode, state.width) }
@@ -301,7 +304,109 @@ function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorActions {
 
   const removeEdge = (edgeId: string) => { if (!deps().writeLocked) deps().removeEdges([edgeId]) }
 
-  return { quickAdd, createSceneMedia, focusNode, removeEdge, organize, finishWire, pickWireNode, commit, placeNew, copyOffset, pasteOffset }
+  const retargetInteraction = async (nodeId: string, nextKind: StoryInteractionKind) => {
+    const d = deps()
+    if (d.writeLocked) return
+    const node = d.nodesRef.current.find((item) => item.id === nodeId)
+    if (!node || node.type !== 'story_interaction') return
+    const current = readInteractionData(node.data)
+    if (current.spec.type === nextKind) return
+    const next = readInteractionData(defaultInteractionData(nextKind, newId))
+    const mapping = retargetHandleMap(current.spec, next.spec)
+    const targets = new Map(d.nodesRef.current.map((item) => [item.id, typeof item.data.title === 'string' && item.data.title.trim() ? item.data.title.trim() : '未命名片段']))
+    const dropped = d.edgesRef.current.filter((edge) => edge.source === nodeId && edge.data?.role === STORY_FLOW_ROLE && !mapping.get(edge.sourceHandle || STORY_OUTPUT_HANDLE))
+    if (dropped.length) {
+      const detail = dropped.map((edge) => `${interactionHandleLabel(current.spec, edge.sourceHandle || STORY_OUTPUT_HANDLE)}→${targets.get(edge.target) ?? '已删除节点'}`).join('、')
+      const confirmed = await confirmAction({
+        title: '切换互动类型',
+        message: `换成「${STORY_INTERACTION_LABEL[nextKind]}」后，${dropped.length} 条分支线没有对应的出口，将断开：${detail}。`,
+        confirmLabel: '断开并切换',
+        danger: true,
+      })
+      if (!confirmed) return
+    }
+    const droppedIds = new Set(dropped.map((edge) => edge.id))
+    const edges = d.edgesRef.current.flatMap((edge) => {
+      if (edge.source !== nodeId || edge.data?.role !== STORY_FLOW_ROLE) return [edge]
+      if (droppedIds.has(edge.id)) return []
+      const sourceHandle = mapping.get(edge.sourceHandle || STORY_OUTPUT_HANDLE)
+      return sourceHandle ? [{ ...edge, sourceHandle }] : []
+    })
+    const nodes = d.nodesRef.current.map((item) => item.id === nodeId
+      ? { ...item, data: { ...item.data, ...retargetInteractionData(current, nextKind, newId) } }
+      : item)
+    d.record('切换互动类型')
+    d.nodesRef.current = nodes
+    d.edgesRef.current = edges
+    d.setNodes(nodes)
+    d.setEdges(edges)
+    d.markChanged('切换互动类型')
+  }
+
+  const removeInteractionHandle = async (nodeId: string, handle: string) => {
+    const d = deps()
+    if (d.writeLocked) return false
+    const node = d.nodesRef.current.find((item) => item.id === nodeId)
+    if (!node || (node.type !== 'story_interaction' && node.type !== 'story_choice')) return false
+    if (node.type === 'story_choice') {
+      const choice = readChoiceData(node.data)
+      const option = choice.options.find((item) => item.id === handle)
+      if (!option) return false
+      const dropped = d.edgesRef.current.filter((edge) => edge.source === nodeId && edge.data?.role === STORY_FLOW_ROLE && edge.sourceHandle === handle)
+      const targets = new Map(d.nodesRef.current.map((item) => [item.id, typeof item.data.title === 'string' && item.data.title.trim() ? item.data.title.trim() : '未命名片段']))
+      if (dropped.length) {
+        const confirmed = await confirmAction({
+          title: '删除选项',
+          message: `删除「${option.label || '未命名'}」将断开 ${dropped.length} 条分支线：${dropped.map((edge) => targets.get(edge.target) ?? '已删除节点').join('、')}。`,
+          confirmLabel: '断开并删除',
+          danger: true,
+        })
+        if (!confirmed) return false
+      }
+      const next = removeChoiceOption(choice.options, handle, choice.defaultOptionId, 1)
+      if (next.options === choice.options) return false
+      const droppedIds = new Set(dropped.map((edge) => edge.id))
+      d.record('删除选项')
+      d.nodesRef.current = d.nodesRef.current.map((item) => item.id === nodeId ? {
+        ...item,
+        data: { ...item.data, options: next.options, ...(next.defaultOptionId !== choice.defaultOptionId ? { defaultOptionId: next.defaultOptionId } : {}) },
+      } : item)
+      d.edgesRef.current = d.edgesRef.current.filter((edge) => !droppedIds.has(edge.id))
+      d.setNodes(d.nodesRef.current)
+      d.setEdges(d.edgesRef.current)
+      d.markChanged('删除选项')
+      return true
+    }
+    const current = readInteractionData(node.data)
+    if (current.spec.type !== 'choice' && current.spec.type !== 'hotspot') return false
+    const entity = current.spec.type === 'choice' ? current.spec.options.find((option) => option.id === handle) : current.spec.zones.find((zone) => zone.id === handle)
+    if (!entity) return false
+    const dropped = d.edgesRef.current.filter((edge) => edge.source === nodeId && edge.data?.role === STORY_FLOW_ROLE && edge.sourceHandle === handle)
+    const targets = new Map(d.nodesRef.current.map((item) => [item.id, typeof item.data.title === 'string' && item.data.title.trim() ? item.data.title.trim() : '未命名片段']))
+    if (dropped.length) {
+      const confirmed = await confirmAction({
+        title: current.spec.type === 'choice' ? '删除选项' : '删除热区',
+        message: `删除「${entity.label || '未命名'}」将断开 ${dropped.length} 条分支线：${dropped.map((edge) => targets.get(edge.target) ?? '已删除节点').join('、')}。`,
+        confirmLabel: '断开并删除',
+        danger: true,
+      })
+      if (!confirmed) return false
+    }
+    const droppedIds = new Set(dropped.map((edge) => edge.id))
+    const data = current.spec.type === 'choice'
+      ? { options: current.spec.options.filter((option) => option.id !== handle), ...(current.spec.defaultOptionId === handle ? { defaultOptionId: null } : {}) }
+      : { zones: current.spec.zones.filter((zone) => zone.id !== handle) }
+    const results = Object.fromEntries(Object.entries(current.results).filter(([key]) => key !== handle))
+    d.record(current.spec.type === 'choice' ? '删除选项' : '删除热区')
+    d.nodesRef.current = d.nodesRef.current.map((item) => item.id === nodeId ? { ...item, data: { ...item.data, ...data, results } } : item)
+    d.edgesRef.current = d.edgesRef.current.filter((edge) => !droppedIds.has(edge.id))
+    d.setNodes(d.nodesRef.current)
+    d.setEdges(d.edgesRef.current)
+    d.markChanged(current.spec.type === 'choice' ? '删除选项' : '删除热区')
+    return true
+  }
+
+  return { quickAdd, createSceneMedia, focusNode, removeEdge, organize, finishWire, pickWireNode, commit, placeNew, copyOffset, pasteOffset, retargetInteraction, removeInteractionHandle }
 }
 
 /** Story editing commands with a stable identity; they always read the latest canvas state. */

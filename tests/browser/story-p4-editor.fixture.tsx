@@ -177,6 +177,8 @@ function OverlayApp() {
       focusNode: () => {},
       removeEdge: () => {},
       organize: () => {},
+      retargetInteraction: async () => {},
+      removeInteractionHandle: async () => true,
     },
   }), [config, readOnly, saveConfig])
   return (

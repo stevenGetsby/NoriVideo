@@ -9,6 +9,7 @@ export const STORY_BEAT_COLORS: Record<StoryInteractionKind, string> = {
   timing: '#fbbf24',
   hold: '#f472b6',
   choice: '#a78bfa',
+  hotspot: '#2dd4bf',
 }
 
 const EPS = 1e-6

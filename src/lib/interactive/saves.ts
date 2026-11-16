@@ -55,6 +55,8 @@ function readTrailStep(raw: unknown): StoryTrailStep[] {
     kind: raw.kind as StoryNodeKind,
     title: typeof raw.title === 'string' ? raw.title.slice(0, SNAPSHOT_TITLE_MAX) : '',
     ...(typeof raw.choice === 'string' ? { choice: raw.choice.slice(0, SNAPSHOT_TITLE_MAX) } : {}),
+    ...(nonEmpty(raw.handle) ? { handle: raw.handle.slice(0, SNAPSHOT_TITLE_MAX) } : {}),
+    ...(typeof raw.attempt === 'number' && Number.isInteger(raw.attempt) && raw.attempt > 0 ? { attempt: raw.attempt } : {}),
   }]
 }
 

@@ -191,6 +191,8 @@ function App() {
       focusNode: () => {},
       removeEdge: () => {},
       organize: () => {},
+      retargetInteraction: async () => {},
+      removeInteractionHandle: async () => true,
     },
   }), [config, saveConfig])
 

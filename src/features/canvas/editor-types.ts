@@ -320,6 +320,7 @@ export const STORY_INTERACTION_ADD_ITEMS: StoryAddNodeItem[] = [
   { type: 'story_interaction', interaction: 'swipe', label: '方向滑动', description: '按箭头方向滑动，滑错或超时算失败' },
   { type: 'story_interaction', interaction: 'timing', label: '时机点击', description: '指针划过时点击：完美 / 普通 / 失误' },
   { type: 'story_interaction', interaction: 'hold', label: '长按蓄力', description: '按住蓄力，在区间内松手才成功' },
+  { type: 'story_interaction', interaction: 'hotspot', label: '隐藏热区', description: '在画面上放看不见的触发点，点中走向不同剧情' },
 ]
 
 export const storyAddItemKey = (item: { type: string; interaction?: string }) => (item.interaction ? `${item.type}:${item.interaction}` : item.type)

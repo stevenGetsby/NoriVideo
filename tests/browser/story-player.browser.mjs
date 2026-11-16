@@ -236,6 +236,20 @@ try {
   await waitEnding('安全', 8000)
   assert.ok((await page.locator('.nori-player-side li em').allTextContents()).includes('→ 按兵不动'))
 
+  await open('choice-backdrop')
+  await until(async () => (await videoState()).time > 1, 'the source clip did not start')
+  await page.waitForSelector('[data-testid="choice-panel"]', { timeout: 12000 })
+  await until(async () => {
+    const state = await videoState()
+    return state.paused && state.time > 7.5
+  }, 'the choice backdrop replayed instead of holding the last frame', 4000)
+  const frozenBackdrop = await videoState()
+  await page.waitForTimeout(350)
+  assert.equal((await videoState()).time, frozenBackdrop.time)
+  await page.locator('[data-option-id="o_stay"]').click()
+  await until(async () => (await videoState()).time < 1 && !(await videoState()).paused, 'choosing must start the next segment from its beginning')
+  await shot('choice-backdrop-last-frame.png')
+
   /* ---------- 3. standalone swipe: correct direction succeeds, the wrong one fails ---------- */
   await open('swipe')
   await page.locator('.nori-player-continue').click()
@@ -358,7 +372,86 @@ try {
   await swipe(0, -120)
   await waitEnding('完成', 6000)
 
-  /* ---------- 9. choice panel with pictures in both orientations ---------- */
+  /* ---------- 9. 隐藏热区: contain hit testing, later-zone priority, timeout, rotation ---------- */
+  await open('hotspot-hidden')
+  await waitOverlay('hotspot')
+  await page.locator('.nori-hotspot-frame').evaluate((image) => image.decode())
+  assert.equal(await page.locator('.nori-hotspot-backdrop').count(), 1, 'a freeze hotspot must show its static background')
+  assert.equal(await page.locator('.nori-hotspot-layer').evaluate((element) => getComputedStyle(element).touchAction), 'none')
+  const hiddenBorder = await page.locator('.nori-hotspot-zone').first().evaluate((element) => getComputedStyle(element).borderTopColor)
+  assert.equal(hiddenBorder, 'rgba(0, 0, 0, 0)', 'hotspots must be invisible by default')
+  const mediaBox = await page.locator('.nori-hotspot-frame').boundingBox()
+  assert.ok(mediaBox, 'hotspot media is missing')
+  // The static picture is 16:9 letterboxed into the portrait stage.
+  const pictureHeight = mediaBox.width * 180 / 320
+  const pictureTop = mediaBox.y + (mediaBox.height - pictureHeight) / 2
+  await page.mouse.click(mediaBox.x + mediaBox.width * 0.75, pictureTop + pictureHeight * 0.5)
+  await waitEnding('找到线索')
+  assert.ok((await page.locator('.nori-player-side li em').allTextContents()).includes('→ 线索'))
+  await shot('hotspot-hit.png')
+
+  await open('hotspot-hidden')
+  await waitOverlay('hotspot')
+  await page.locator('.nori-hotspot-frame').evaluate((image) => image.decode())
+  await page.mouse.click(mediaBox.x + mediaBox.width * 0.25, pictureTop + pictureHeight * 0.5)
+  await waitEnding('只是照片')
+
+  await open('hotspot-visible')
+  await waitOverlay('hotspot')
+  await page.locator('.nori-hotspot-frame').evaluate((image) => image.decode())
+  const visibleBorder = await page.locator('.nori-hotspot-zone').first().evaluate((element) => getComputedStyle(element).borderTopColor)
+  assert.notEqual(visibleBorder, 'rgba(0, 0, 0, 0)', 'showZones must make the outlines visible')
+  await page.mouse.click(mediaBox.x + mediaBox.width * 0.5, mediaBox.y + 8)
+  await page.waitForTimeout(150)
+  assert.equal(await page.locator('.nori-player-card').count(), 0, 'letterbox padding must never hit a hotspot')
+  await shot('hotspot-visible.png')
+
+  await open('hotspot-timeout')
+  await waitOverlay('hotspot')
+  await waitEnding('错过线索', 5000)
+  assert.ok((await page.locator('.nori-player-side li em').allTextContents()).includes('→ 超时'))
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await open('hotspot-landscape')
+  await waitOverlay('hotspot')
+  await page.waitForSelector('.nori-player-turn.is-turned')
+  await page.locator('.nori-hotspot-frame').evaluate((image) => image.decode())
+  await shot('hotspot-turned.png')
+  const turnedBox = await page.locator('.nori-hotspot-frame').boundingBox()
+  assert.ok(turnedBox, 'turned hotspot media is missing')
+  const clueZone = await page.getByLabel('线索', { exact: true }).boundingBox()
+  assert.ok(clueZone, 'the rotated clue zone is missing')
+  await page.mouse.click(clueZone.x + clueZone.width / 2, clueZone.y + clueZone.height / 2)
+  await waitEnding('找到线索')
+  await page.setViewportSize({ width: 1440, height: 960 })
+
+  /* ---------- 10. 随机结果: one fixed draw per attempt, retry draws again ---------- */
+  await open('random')
+  await page.locator('.nori-player-continue').click()
+  await waitOverlay('tap')
+  await page.evaluate(() => { Math.random = () => 0 })
+  await page.locator('[data-testid="tap-button"]').dispatchEvent('pointerdown')
+  await waitEnding('试炼通过')
+  assert.ok((await page.locator('.nori-player-side li em').allTextContents()).includes('→ 成功'))
+
+  await open('random')
+  await page.locator('.nori-player-continue').click()
+  await waitOverlay('tap')
+  await page.evaluate(() => {
+    let roll = 0
+    Math.random = () => { roll += 1; return roll === 1 ? 0.999 : 0 }
+  })
+  await page.locator('[data-testid="tap-button"]').dispatchEvent('pointerdown')
+  await until(async () => (await page.locator('.nori-player-side li em').allTextContents()).includes('→ 失败'), 'the first weighted retry never settled')
+  await page.locator('[data-testid="tap-button"]').waitFor()
+  assert.ok((await page.locator('.nori-player-side li em').allTextContents()).includes('→ 失败'))
+  await shot('random-retry.png')
+  await page.locator('[data-testid="tap-button"]').dispatchEvent('pointerdown')
+  await waitEnding('试炼通过')
+  const attempts = await page.locator('.nori-player-side li').filter({ hasText: '随机试炼' }).count()
+  assert.equal(attempts, 2, 'a retry must create a separate settled attempt')
+
+  /* ---------- 11. choice panel with pictures in both orientations ---------- */
   await open('choice-images-portrait')
   await page.locator('.nori-player-continue').click()
   const portraitPanel = page.locator('[data-testid="choice-panel"]')

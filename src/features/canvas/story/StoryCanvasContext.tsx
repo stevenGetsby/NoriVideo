@@ -4,7 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { ArrowRight, Film, GitBranch, ListTree, Mouse, Play, Sparkles, type IconComponent } from '@/components/ui/icons'
 import { apiFetch } from '@/lib/api-fetch'
 import { storyErrorMessage } from '@/features/interactive/story-api-error'
-import type { InteractiveStoryConfig, StoryAspectRatio, StoryNodeType, StoryVariable } from '@/lib/interactive/types'
+import type { InteractiveStoryConfig, StoryAspectRatio, StoryInteractionKind, StoryNodeType, StoryVariable } from '@/lib/interactive/types'
 
 export const STORY_NODE_ICONS: Record<StoryNodeType, IconComponent> = {
   story_entry: Play,
@@ -46,6 +46,10 @@ export type StoryCanvasActions = {
   createSceneMedia: (sceneId: string, type: 'video' | 'image') => void
   focusNode: (nodeId: string) => void
   removeEdge: (edgeId: string) => void
+  /** Migrates semantic result ports and confirms any branches that must be disconnected. */
+  retargetInteraction: (nodeId: string, nextKind: StoryInteractionKind) => Promise<void>
+  /** Removes a result entity and its connected branch in one undoable transaction. */
+  removeInteractionHandle: (nodeId: string, handle: string) => Promise<boolean>
   organize: () => void
 }
 

@@ -40,6 +40,10 @@ export interface StoryTrailStep {
   kind: StoryNodeKind
   title: string
   choice?: string
+  /** The exact settled result, retained through saves; never inferred from translated labels. */
+  handle?: string
+  /** A retry is a new attempt and may draw a new random result. */
+  attempt?: number
 }
 
 export type StoryRunMode = 'story' | 'chapter'
@@ -302,10 +306,14 @@ export function advanceRun(program: StoryProgram, run: StoryRun, optionId?: stri
   if (stop.kind === 'interaction') {
     if (!optionId || !interactionHandles(stop.node.spec).includes(optionId)) return run
     if (!handleIsOpen(stop.node.spec, optionId, vars, program.variables)) return run
+    const last = trail[trail.length - 1]
+    const previous = run.trail.filter((step) => step.nodeId === stop.node.id && step.handle)
+    if (last?.nodeId === stop.node.id && last.handle && !beatResult(stop.node, last.handle).retry) return run
+    const attempt = previous.length + 1
     const result = beatResult(stop.node, optionId)
     vars = applyEffects(vars, result.effects, program.variables)
-    const last = trail[trail.length - 1]
-    if (last?.nodeId === stop.node.id) trail = [...trail.slice(0, -1), { ...last, choice: interactionHandleLabel(stop.node.spec, optionId) }]
+    if (last?.nodeId === stop.node.id && !last.handle) trail = [...trail.slice(0, -1), { ...last, choice: interactionHandleLabel(stop.node.spec, optionId), handle: optionId, attempt }]
+    else trail = withTrailChoice(trail, { projectId: stop.projectId, nodeId: stop.node.id, kind: 'interaction', title: stop.node.title, choice: interactionHandleLabel(stop.node.spec, optionId), handle: optionId, attempt })
     if (result.retry) return { ...run, vars, trail }
     if (stop.node.spec.type === 'choice') personality = tallyPersonality(personality, stop.node.spec.options.find((item) => item.id === optionId)?.tags)
     handle = optionId
@@ -337,9 +345,12 @@ export function resolveBeat(program: StoryProgram, run: StoryRun, beatId: string
   if (stop.kind !== 'scene') return { kind: 'continue', run }
   const beat = stop.node.beats.find((item) => item.id === beatId)
   if (!beat || !interactionHandles(beat.spec).includes(handle) || !handleIsOpen(beat.spec, handle, run.vars, program.variables)) return { kind: 'continue', run }
+  const previous = run.trail.filter((step) => step.nodeId === beatId && step.handle)
+  if (previous.some((step) => !beatResult(beat, step.handle!).retry)) return { kind: 'continue', run }
+  const attempt = previous.length + 1
   const result = beatResult(beat, handle)
   const vars = applyEffects(run.vars, result.effects, program.variables)
-  const trail = withTrailChoice(run.trail, { projectId: stop.projectId, nodeId: beat.id, kind: 'interaction', title: beat.title, choice: interactionHandleLabel(beat.spec, handle) })
+  const trail = withTrailChoice(run.trail, { projectId: stop.projectId, nodeId: beat.id, kind: 'interaction', title: beat.title, choice: interactionHandleLabel(beat.spec, handle), handle, attempt })
   if (result.retry) return { kind: 'retry', run: { ...run, vars, trail }, seekSec: Math.max(0, beat.startSec - STORY_RETRY_REWIND_SEC) }
   const picked = beat.spec.type === 'choice' ? beat.spec.options.find((option) => option.id === handle) : undefined
   const personality = tallyPersonality(run.personality, picked?.tags)

@@ -28,13 +28,7 @@ import {
 import { everyOptionGated, newOptionUnlock, togglePersonalityTag, withOptionTags, withOptionUnlock } from '@/features/interactive/gameplay-edit'
 import { StoryEffectsEditor } from './StoryFields'
 import { StoryOptionUnlockEditor } from './StoryOptionUnlockEditor'
-import {
-  addChoiceOption,
-  choiceCountdownOptions,
-  choiceOrdinal,
-  removeChoiceOption,
-  STANDALONE_CHOICE_MAX_OPTIONS,
-} from './story-choice-edit'
+import { addChoiceOption, removeChoiceOption, choiceCountdownOptions, choiceOrdinal, STANDALONE_CHOICE_MAX_OPTIONS } from './story-choice-edit'
 import { StoryImageField } from './StoryImageField'
 import { StoryHandle } from './StoryNodeShell'
 
@@ -52,7 +46,7 @@ type ChoiceFieldsMode = 'choice' | 'interaction'
  * The mounted variant stores its countdown in `durationSec` and gives every option its own
  * cut / retry settings; the standalone one uses `timeoutSec`.
  */
-export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, variables, manageVariables, shop, personalityEnabled = false, onOpenGameplay, workId, orientation, onDurationChange, patch }: {
+export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, variables, manageVariables, shop, personalityEnabled = false, onOpenGameplay, workId, orientation, onDurationChange, onRemoveOption, patch }: {
   data: Record<string, unknown>
   mode: ChoiceFieldsMode
   /** True when the interaction is hung on a scene's timeline. */
@@ -69,6 +63,7 @@ export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, 
   orientation: 'portrait' | 'landscape'
   /** The mounted interaction re-clamps its start when its length grows. */
   onDurationChange?: (durationSec: number) => void
+  onRemoveOption?: (optionId: string) => Promise<boolean>
   patch: (patch: Record<string, unknown>, label?: string) => void
 }) {
   const choice = readChoiceData(data)
@@ -107,7 +102,11 @@ export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, 
       if (rule) updateOption(option.id, { unlock: rule }, '编辑解锁条件')
     }
   }
-  const deleteOption = (optionId: string) => {
+  const deleteOption = async (optionId: string) => {
+    if (onRemoveOption) {
+      await onRemoveOption(optionId)
+      return
+    }
     const next = removeChoiceOption(choice.options, optionId, choice.defaultOptionId, minOptions)
     if (next.options === choice.options) return
     updateOptions(next.options, '删除选项', next.defaultOptionId !== choice.defaultOptionId ? { defaultOptionId: next.defaultOptionId } : {})
@@ -181,10 +180,18 @@ export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, 
                 解锁条件{option.unlock ? ` ${option.unlock.conditions.length}` : ''}
               </button>
               {disabled || choice.options.length <= minOptions ? null : (
-                <button type="button" className="nori-story-icon-button nodrag" aria-label="删除选项" onClick={() => deleteOption(option.id)}><X /></button>
+                <button type="button" className="nori-story-icon-button nodrag" aria-label="删除选项" onClick={() => void deleteOption(option.id)}><X /></button>
               )}
               <StoryHandle id={option.id} side="out" />
             </div>
+            {mode === 'interaction' ? <label className="nori-story-weight">
+              <span>权重</span>
+              <input className="nodrag nori-story-input is-number" type="number" min={0} max={999} step={1} value={option.weight ?? 0} disabled={disabled} aria-label={`选项${index + 1}随机权重`} onChange={(event) => {
+                const weight = Math.max(0, Math.min(999, event.target.valueAsNumber || 0))
+                updateOption(option.id, weight > 0 ? { weight } : { weight: undefined }, '设置随机权重')
+              }} />
+              <span>大于 0 参与随机</span>
+            </label> : null}
             {personalityEnabled || option.tags?.length ? (
               <div className="nori-story-tag-chips nodrag" role="group" aria-label={`选项${index + 1}人格标签`}>
                 {STORY_PERSONALITY_AXES.map(([left, right]) => (
@@ -338,6 +345,10 @@ export function StoryChoicePanelFields({ data, mode, mounted = false, disabled, 
         <div className="nori-story-option is-timeout">
           <div className="nori-story-row">
             <span className="nori-story-result-label">超时出口</span>
+            {mode === 'interaction' ? <label className="nori-story-weight is-inline"><span>权重</span><input className="nodrag nori-story-input is-number" type="number" min={0} max={999} step={1} value={timeoutResult?.weight ?? 0} disabled={disabled} aria-label="超时随机权重" onChange={(event) => {
+            const weight = Math.max(0, Math.min(999, event.target.valueAsNumber || 0))
+            updateTimeoutResult(weight > 0 ? { weight } : { weight: undefined }, '设置随机权重')
+          }} /></label> : null}
             {mode === 'interaction' ? (
               <>
                 <button
