@@ -4,7 +4,7 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { useSession } from 'next-auth/react'
 import type { Connection } from '@xyflow/react'
 import { FosShell } from '@/components/frameos/FosShell'
-import { ArrowLeft, Loader2, Play, Plus, RefreshCw, UsersRound, X } from '@/components/ui/icons'
+import { ArrowLeft, Loader2, Play, Plus, RefreshCw, Send, UsersRound, X } from '@/components/ui/icons'
 import { Link } from '@/i18n/navigation'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import type { StoryChapterMeta, StoryIssue } from '@/lib/interactive/types'
@@ -118,6 +118,9 @@ export function StoryOverview({ workId }: { workId: string }) {
               <button type="button" className="fos-btn fos-btn-ghost" disabled={overview.creatingChapter} onClick={() => void addChapter()}>
                 {overview.creatingChapter ? <Loader2 className="nori-ix-spin" /> : <Plus />}新建章节
               </button>
+            ) : null}
+            {story.canManage === true ? (
+              <Link href={`/interactive/${encodeURIComponent(story.workId)}/publish`} className="fos-btn fos-btn-ghost"><Send />发布到小程序</Link>
             ) : null}
             <button type="button" className="fos-btn fos-btn-primary" onClick={() => setTrial(true)}><Play />全剧试玩</button>
           </div>

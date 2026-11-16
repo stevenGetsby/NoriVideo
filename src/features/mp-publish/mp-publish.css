@@ -1,0 +1,71 @@
+/* 发布到小程序: single-column publish workspace, shares the 影游 visual system. */
+.nori-mp-publish { display: flex; flex-direction: column; gap: 20px; padding: 28px 32px 48px; }
+.nori-mp-publish.is-loading { align-items: center; justify-content: center; min-height: 320px; }
+.nori-mp-empty { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--ix-dim); }
+.nori-mp-empty svg { width: 22px; height: 22px; }
+.nori-mp-empty p { margin: 0; font-size: 13px; }
+
+.nori-mp-head { display: flex; width: 100%; max-width: 960px; margin: 0 auto; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.nori-mp-head h1 { margin: 0; font-size: 20px; font-weight: 700; }
+.nori-mp-head-side { display: flex; align-items: center; gap: 10px; }
+.nori-mp-banned-reason { margin: 6px 0 0; color: rgb(var(--nori-t-fda4af)); font-size: 12px; }
+.nori-mp-capsule { display: inline-flex; align-items: center; height: 26px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--ix-line); color: var(--ix-muted); background: var(--ix-card-2); font-size: 12px; white-space: nowrap; }
+.nori-mp-capsule.is-live { border-color: rgb(var(--nori-t-34d399) / 0.4); color: rgb(var(--nori-t-6ee7b7)); background: rgb(var(--nori-s-34d399) / 0.1); }
+.nori-mp-capsule.is-scheduled { border-color: rgb(var(--nori-s-fbbf24) / 0.32); color: rgb(var(--nori-t-fcd34d)); background: rgb(var(--nori-s-fbbf24) / 0.08); }
+.nori-mp-capsule.is-banned { border-color: rgb(var(--nori-s-f43f5e) / 0.32); color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.1); }
+
+.nori-mp-body { display: flex; flex-direction: column; gap: 16px; width: 100%; max-width: 960px; margin: 0 auto; }
+.nori-mp-card { display: flex; flex-direction: column; gap: 14px; border: 1px solid var(--ix-line); border-radius: 14px; padding: 18px 20px; background: var(--ix-card); }
+.nori-mp-card h2 { margin: 0; font-size: 14px; font-weight: 700; }
+.nori-mp-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.nori-mp-card-head-side { display: flex; align-items: center; gap: 10px; }
+.nori-mp-check-count { color: var(--ix-dim); font-size: 12px; }
+.nori-mp-card-foot { display: flex; justify-content: flex-end; }
+.nori-mp-fields { display: flex; flex-direction: column; gap: 14px; }
+.nori-mp-count { text-align: right; }
+.nori-mp-field-error { margin: 0; color: rgb(var(--nori-t-fda4af)); font-size: 11.5px; }
+
+.nori-mp-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.nori-mp-chip { height: 28px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--ix-line); color: var(--ix-muted); background: transparent; font-size: 12px; cursor: pointer; }
+.nori-mp-chip:not(:disabled):hover { border-color: var(--ix-line-strong); color: var(--ix-text); }
+.nori-mp-chip.is-on { border-color: var(--ix-cta); color: rgb(var(--nori-text-1)); background: var(--ix-cta); font-weight: 600; }
+.nori-mp-chip:disabled { opacity: .55; cursor: default; }
+
+.nori-mp-cover { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.nori-mp-cover img { width: 72px; height: 96px; object-fit: cover; border-radius: 8px; border: 1px solid var(--ix-line); }
+.nori-mp-cover.is-share img { width: 100px; height: 80px; }
+.nori-mp-cover-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 8px; border: 1px dashed var(--ix-line); color: var(--ix-dim); font-size: 12px; }
+.nori-mp-cover-chip svg { width: 14px; height: 14px; }
+
+.nori-mp-switch, .nori-mp-check { display: flex; align-items: flex-start; gap: 8px; color: var(--ix-muted); font-size: 12.5px; cursor: pointer; }
+.nori-mp-switch input, .nori-mp-check input { margin-top: 2px; accent-color: var(--ix-cta); }
+.nori-mp-switch small { display: block; color: var(--ix-dim); font-size: 11.5px; }
+
+.nori-mp-ok { display: flex; align-items: center; gap: 6px; margin: 0; color: rgb(var(--nori-t-6ee7b7)); font-size: 12.5px; }
+.nori-mp-ok svg { width: 15px; height: 15px; }
+.nori-mp-issue-group { display: flex; flex-direction: column; gap: 8px; }
+.nori-mp-issue-group h3 { margin: 0; color: var(--ix-dim); font-size: 12px; font-weight: 600; }
+.nori-mp-issues { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.nori-mp-issues li { display: flex; align-items: baseline; gap: 8px; border: 1px solid var(--ix-line); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
+.nori-mp-issues li > span { flex: none; font-size: 11px; font-weight: 600; }
+.nori-mp-issues li.is-error > span { color: rgb(var(--nori-t-fda4af)); }
+.nori-mp-issues li.is-warning > span { color: rgb(var(--nori-t-fcd34d)); }
+.nori-mp-issues li p { flex: 1; margin: 0; color: var(--ix-muted); }
+.nori-mp-issue-link { flex: none; color: var(--ix-cta); font-size: 12px; text-decoration: none; }
+.nori-mp-issue-link:hover { text-decoration: underline; }
+
+.nori-mp-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.nori-mp-table th { padding: 8px 10px; border-bottom: 1px solid var(--ix-line); color: var(--ix-dim); font-size: 12px; font-weight: 600; text-align: left; }
+.nori-mp-table td { padding: 10px; border-bottom: 1px solid var(--ix-line); color: var(--ix-muted); vertical-align: top; }
+.nori-mp-table tr:last-child td { border-bottom: 0; }
+.nori-mp-status-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.nori-mp-failure { color: var(--ix-dim); font-size: 11.5px; }
+.nori-mp-link { border: 0; padding: 0; background: transparent; color: var(--ix-cta); font-size: 12px; cursor: pointer; }
+.nori-mp-link:hover { text-decoration: underline; }
+.nori-mp-placeholder { margin: 0; color: var(--ix-dim); font-size: 12.5px; }
+
+.nori-mp-radio { display: flex; flex-wrap: wrap; gap: 16px; color: var(--ix-muted); font-size: 12.5px; }
+.nori-mp-radio label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.nori-mp-radio input { accent-color: var(--ix-cta); }
+.nori-mp-publish input[type="datetime-local"] { color-scheme: var(--nori-color-scheme); }
+.nori-mp-publish .nori-ix-banner { border: 1px solid rgb(var(--nori-s-f43f5e) / 0.28); border-radius: 10px; }
