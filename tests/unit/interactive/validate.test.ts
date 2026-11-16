@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compileChapter } from '@/lib/interactive/compile'
+import { compileChapter, type CanvasEdgeLike, type CanvasNodeLike } from '@/lib/interactive/compile'
 import { countIssues, validateChapter, validateStory } from '@/lib/interactive/validate'
 import { buildProgram, chapterOneEdges, chapterOneNodes, variables } from './fixture'
 
@@ -9,7 +9,7 @@ describe('interactive story checks', () => {
   it('passes a complete story with only the expected warning', () => {
     const issues = validateStory(buildProgram())
     expect(countIssues(issues).errors).toBe(0)
-    expect(codes(issues)).toEqual(['scene_no_media'])
+    expect(codes(issues)).toEqual(['choice_no_picture', 'scene_no_media'])
   })
 
   it('flags chapter-level gaps', () => {
@@ -68,5 +68,66 @@ describe('interactive story checks', () => {
     program.start = { projectId: 'p1', entryNodeId: 'a_s1' }
     program.chapters[1] = compileChapter({ projectId: 'p2', title: '第二章' }, [], [])
     expect(codes(validateStory(program))).toEqual(expect.arrayContaining(['start_invalid', 'no_ending', 'link_invalid']))
+  })
+})
+
+describe('picture checks', () => {
+  const entry: CanvasNodeLike = { id: 'in', type: 'story_entry', data: {} }
+  const exit: CanvasNodeLike = { id: 'out', type: 'story_ending', data: {} }
+  const video: CanvasNodeLike = { id: 'v', type: 'video', data: { videoUrl: '/v.mp4', posterUrl: '/v.png' } }
+  const image: CanvasNodeLike = { id: 'img', type: 'image', data: { imageUrl: '/i.png' } }
+  const tap: CanvasNodeLike = { id: 'i', type: 'story_interaction', data: { title: '快点', interaction: 'tap', count: 5, durationSec: 3 } }
+  const choice: CanvasNodeLike = {
+    id: 'c',
+    type: 'story_choice',
+    data: { title: '抉择', timeoutSec: 5, defaultOptionId: 'o1', options: [{ id: 'o1', label: '走' }, { id: 'o2', label: '留' }] },
+  }
+  const hotspot: CanvasNodeLike = {
+    id: 'i',
+    type: 'story_interaction',
+    data: { title: '找线索', interaction: 'hotspot', frameImageUrl: '/frame.png', durationSec: 6, zones: [{ id: 'z1', label: '线索', x: 0.4, y: 0.4, w: 0.2, h: 0.2 }] },
+  }
+  const flow = (id: string, source: string, target: string, sourceHandle = 'output'): CanvasEdgeLike =>
+    ({ id, source, target, sourceHandle, role: 'STORY_FLOW' })
+  const media = (id: string, source: string, target: string): CanvasEdgeLike =>
+    ({ id, source, target, sourceHandle: 'output', role: 'REF' })
+  const mount = (id: string, source: string, target: string): CanvasEdgeLike =>
+    ({ id, source, target, sourceHandle: 'output', role: 'STORY_MOUNT' })
+  const issuesOf = (nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]) =>
+    validateChapter(compileChapter({ projectId: 'p1', title: '第一章' }, nodes, edges), variables)
+  const pictureCodes = (nodes: CanvasNodeLike[], edges: CanvasEdgeLike[]) =>
+    codes(issuesOf(nodes, edges)).filter((code) => ['interaction_no_picture', 'choice_no_picture', 'hotspot_picture_and_frame'].includes(code))
+
+  it('warns when a standalone interaction has no picture', () => {
+    const issues = issuesOf([entry, tap, exit], [flow('f1', 'in', 'i'), flow('f2', 'i', 'out')])
+    expect(issues.find((item) => item.code === 'interaction_no_picture')).toMatchObject({ level: 'warning', nodeId: 'i', projectId: 'p1' })
+  })
+
+  it('stays quiet once a video or image is wired to the interaction', () => {
+    expect(pictureCodes([entry, tap, video, exit], [flow('f1', 'in', 'i'), flow('f2', 'i', 'out'), media('m1', 'v', 'i')])).toEqual([])
+    expect(pictureCodes([entry, tap, image, exit], [flow('f1', 'in', 'i'), flow('f2', 'i', 'out'), media('m1', 'img', 'i')])).toEqual([])
+  })
+
+  it('does not warn for an interaction mounted on a scene with its own video', () => {
+    const scene: CanvasNodeLike = { id: 's', type: 'story_scene', data: { title: '片段', videoUrl: '/s.mp4' } }
+    expect(pictureCodes(
+      [entry, scene, tap, exit],
+      [flow('f1', 'in', 's'), flow('f2', 's', 'out'), mount('m1', 's', 'i')],
+    )).toEqual([])
+  })
+
+  it('warns when a choice has no backdrop and stays quiet with one', () => {
+    const edges = [flow('f1', 'in', 'c'), flow('f2', 'c', 'out', 'o1'), flow('f3', 'c', 'out', 'o2')]
+    const issues = issuesOf([entry, choice, exit], edges)
+    expect(issues.find((item) => item.code === 'choice_no_picture')).toMatchObject({ level: 'warning', nodeId: 'c', projectId: 'p1' })
+    expect(pictureCodes([entry, choice, image, exit], [...edges, media('m1', 'img', 'c')])).toEqual([])
+  })
+
+  it('only flags hotspot frame+picture together when both exist', () => {
+    const edges = [flow('f1', 'in', 'i'), flow('f2', 'i', 'out', 'z1'), flow('f3', 'i', 'out', 'timeout')]
+    expect(pictureCodes([entry, hotspot, exit], edges)).not.toContain('hotspot_picture_and_frame')
+    const issues = issuesOf([entry, hotspot, video, exit], [...edges, media('m1', 'v', 'i')])
+    expect(issues.find((item) => item.code === 'hotspot_picture_and_frame')).toMatchObject({ level: 'warning', nodeId: 'i', projectId: 'p1' })
+    expect(codes(issues)).not.toContain('interaction_no_picture')
   })
 })

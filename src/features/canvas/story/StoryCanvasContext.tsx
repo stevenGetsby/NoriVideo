@@ -38,6 +38,13 @@ export type StoryCanvasInfo = {
 
 export type StoryCanvasPanel = 'gameplay' | 'checks' | null
 
+/** 卡片拿不到 CanvasGraph 的 toast state，用 window 事件把提示送过去。 */
+export const STORY_CANVAS_TOAST_EVENT = 'nori:story-toast'
+
+export function notifyStoryCanvas(message: string) {
+  window.dispatchEvent(new CustomEvent(STORY_CANVAS_TOAST_EVENT, { detail: { message } }))
+}
+
 /** Canvas-level story commands the node cards can trigger. */
 export type StoryCanvasActions = {
   /** Opens the "what comes next" menu for a free out-port. */
@@ -45,7 +52,7 @@ export type StoryCanvasActions = {
   /** Adds a video / image node above the target card and wires it in as its picture. */
   createPictureNode: (targetId: string, type: 'video' | 'image') => void
   focusNode: (nodeId: string) => void
-  removeEdge: (edgeId: string) => void
+  removeEdge: (edgeId: string, label?: string) => void
   /** Migrates semantic result ports and confirms any branches that must be disconnected. */
   retargetInteraction: (nodeId: string, nextKind: StoryInteractionKind) => Promise<void>
   /** Removes a result entity and its connected branch in one undoable transaction. */

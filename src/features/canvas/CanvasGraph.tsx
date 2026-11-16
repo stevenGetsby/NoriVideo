@@ -153,7 +153,7 @@ import { isCanvasConnectionAllowed, planCanvasBatchConnections } from './batch-n
 import { STORY_HANDLE_PATCH_KEYS, pruneStoryFlows, resolveStoryConnection } from './story/story-connection'
 import { StoryWireMenu } from './story/StoryWireMenu'
 import { useStoryCanvasActions } from './story/useStoryCanvasActions'
-import { StoryCanvasProvider, useStoryCanvas } from './story/StoryCanvasContext'
+import { STORY_CANVAS_TOAST_EVENT, StoryCanvasProvider, useStoryCanvas } from './story/StoryCanvasContext'
 import { StoryCanvasOverlay } from './story/StoryCanvasOverlay'
 import { StoryEndingNode, StoryEntryNode, StoryExitNode, StorySceneNode } from './story/StoryLinearNodes'
 import { StoryChoiceNode, StoryConditionNode } from './story/StoryBranchNodes'
@@ -1177,22 +1177,22 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setEdges(deselectedEdges)
   }, [])
 
-  const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[]) => {
+  const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[], label?: string) => {
     if (readOnly || removedEdges.length === 0) return
-    record('删除连线')
+    record(label ?? '删除连线')
     removedEdges.forEach((edge) => deletedEdgeIdsRef.current.set(edge.id, Date.now()))
     edgesRef.current = remainingEdges
     setEdges(remainingEdges)
     cleanupDisconnectedReferences(removedEdges, remainingEdges)
-    markChanged('删除连线')
+    markChanged(label ?? '删除连线')
   }, [cleanupDisconnectedReferences, markChanged, readOnly, record])
 
-  const removeEdgesById = useCallback((edgeIds: string[]) => {
+  const removeEdgesById = useCallback((edgeIds: string[], label?: string) => {
     const ids = new Set(edgeIds)
     const removedEdges = edgesRef.current.filter((edge) => ids.has(edge.id))
     if (removedEdges.length === 0) return
     const remainingEdges = edgesRef.current.filter((edge) => !ids.has(edge.id))
-    commitEdgeRemoval(removedEdges, remainingEdges)
+    commitEdgeRemoval(removedEdges, remainingEdges, label)
   }, [commitEdgeRemoval])
 
   const removeReferenceWire = useCallback((targetNodeId: string, sourceNodeId: string) => {
@@ -3128,6 +3128,15 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     window.addEventListener(CANVAS_REPLACE_CONTENT_EVENT, handleReplacementRequest)
     return () => window.removeEventListener(CANVAS_REPLACE_CONTENT_EVENT, handleReplacementRequest)
   }, [requestContentReplacement])
+
+  useEffect(() => {
+    const handleStoryToast = (event: Event) => {
+      const message = (event as CustomEvent<{ message?: unknown }>).detail?.message
+      if (typeof message === 'string' && message) setToast(message)
+    }
+    window.addEventListener(STORY_CANVAS_TOAST_EVENT, handleStoryToast)
+    return () => window.removeEventListener(STORY_CANVAS_TOAST_EVENT, handleStoryToast)
+  }, [])
 
   useEffect(() => {
     const handleMaterialRequest = (event: Event) => {

@@ -4,9 +4,10 @@ import { memo, useEffect } from 'react'
 import { useUpdateNodeInternals, type NodeProps } from '@xyflow/react'
 import { Plus, X } from '@/components/ui/icons'
 import { readChoiceData, readConditionData } from '@/lib/interactive/compile'
-import { STORY_ELSE_HANDLE, type StoryConditionBranch } from '@/lib/interactive/types'
+import { STORY_ELSE_HANDLE, type StoryConditionBranch, type StoryInteractionSpec } from '@/lib/interactive/types'
 import { StoryChoicePanelFields } from './StoryChoicePanelFields'
 import { StoryConditionsEditor } from './StoryFields'
+import { hintStoryPicturePort, StoryInteractionPreview, StoryPictureCaption, StoryPictureEmptyActions, storyPicturePoster, useStoryPictureSource } from './StoryInteractionPreview'
 import { StoryHandle, StoryNodeShell, useStoryNodeEditing } from './StoryNodeShell'
 
 const MAX_ROWS = 6
@@ -25,8 +26,30 @@ export const StoryChoiceNode = memo(function StoryChoiceNode({ id, data, selecte
   const choice = readChoiceData(data)
   useHandleSync(id, `${choice.options.map((option) => option.id).join('|')}|${choice.timeoutMode}|${choice.timeoutSec ? 'timed' : 'open'}`)
   const orientation = story?.story.aspectRatio === '16:9' ? 'landscape' as const : 'portrait' as const
+  const picture = useStoryPictureSource(id)
+  const previewSpec: StoryInteractionSpec = {
+    type: 'choice',
+    prompt: choice.prompt,
+    options: choice.options,
+    panelStyle: choice.panelStyle,
+    layout: choice.layout,
+    timeoutMode: choice.timeoutMode,
+    defaultOptionId: choice.defaultOptionId,
+  }
+  const previewTitle = titleOf(data).trim() || '选择'
   return (
     <StoryNodeShell id={id} type="story_choice" selected={selected} title={titleOf(data)} picture>
+      {picture ? (
+        <>
+          <StoryInteractionPreview spec={previewSpec} orientation={orientation} posterUrl={storyPicturePoster(picture.media)} mounted={false} startSec={0} durationSec={choice.timeoutSec ?? 0} videoSec={null} title={previewTitle} />
+          <StoryPictureCaption picture={picture} readOnly={readOnly} removeLabel="移除选择画面" onRemove={(edgeId, label) => story?.actions.removeEdge(edgeId, label)} />
+        </>
+      ) : (
+        <>
+          <StoryInteractionPreview spec={previewSpec} orientation={orientation} posterUrl={null} mounted={false} startSec={0} durationSec={choice.timeoutSec ?? 0} videoSec={null} title={previewTitle} emptyNote={<span>选择还没有画面<br />将借用上一段的最后一帧</span>} />
+          <StoryPictureEmptyActions readOnly={readOnly} onCreate={() => story?.actions.createPictureNode(id, 'video')} onHint={() => hintStoryPicturePort(id)} />
+        </>
+      )}
       <StoryChoicePanelFields
         data={data}
         mode="choice"

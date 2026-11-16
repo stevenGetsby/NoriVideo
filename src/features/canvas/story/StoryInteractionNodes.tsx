@@ -16,6 +16,8 @@ import {
   STORY_INTERACTION_LABEL,
   STORY_SWIPE_LABEL,
 } from '@/lib/interactive/interaction'
+import { difficultyPreset, matchesDifficultyPreset, STORY_DIFFICULTIES, STORY_DIFFICULTY_LABEL, type StoryDifficulty } from '@/lib/interactive/presets'
+import { resolveSceneMedia } from '@/lib/interactive/compile'
 import {
   STORY_BEAT_DURINGS,
   STORY_INTERACTION_KINDS,
@@ -30,7 +32,10 @@ import { useHandleSync } from './StoryBranchNodes'
 import { StoryChoicePanelFields } from './StoryChoicePanelFields'
 import { StoryEffectsEditor } from './StoryFields'
 import { StoryImageField } from './StoryImageField'
+import { notifyStoryCanvas } from './StoryCanvasContext'
+import { hintStoryPicturePort, StoryInteractionPreview, StoryPictureCaption, StoryPictureEmptyActions, storyPicturePoster, useStoryPictureSource } from './StoryInteractionPreview'
 import { StoryHandle, StoryNodeShell, useStoryNodeEditing } from './StoryNodeShell'
+import { beatRangeLabel } from './story-beat-timeline'
 import { mountedBeats, sceneVideoDurationSec, type SceneBeat } from './story-beats'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 
@@ -200,20 +205,39 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
       sourceHandle: edge.sourceHandle,
       data: edge.data as CanvasFlowEdge['data'],
     }))
+    const sceneNode = state.nodeLookup.get(sceneId)
+    const sceneMedia = sceneNode
+      ? resolveSceneMedia(
+        sceneId,
+        sceneNode.data,
+        nodes.map((node) => ({ id: node.id, type: node.type ?? '', data: node.data })),
+        edges.map((edge) => ({ id: edge.id, source: edge.source, target: edge.target, sourceHandle: edge.sourceHandle, role: edge.data?.role })),
+      )
+      : null
     return JSON.stringify({
       beats: mountedBeats(sceneId, nodes, edges).filter((beat) => beat.nodeId !== id),
       videoSec: sceneVideoDurationSec(sceneId, nodes, edges),
+      poster: sceneMedia ? storyPicturePoster(sceneMedia) : null,
     })
   })
   const sceneTimeline = sceneTimelineKey
-    ? JSON.parse(sceneTimelineKey) as { beats: SceneBeat[]; videoSec: number | null }
-    : { beats: [] as SceneBeat[], videoSec: null as number | null }
+    ? JSON.parse(sceneTimelineKey) as { beats: SceneBeat[]; videoSec: number | null; poster: string | null }
+    : { beats: [] as SceneBeat[], videoSec: null as number | null, poster: null as string | null }
   const videoSec = sceneTimeline.videoSec
   const neighbouringBeats = sceneTimeline.beats
   const outsideVideo = Boolean(mount) && videoSec != null && interaction.startSec + interaction.durationSec > videoSec + 0.001
   const overlappingBeat = mount ? neighbouringBeats.find((beat) => beatWindowsOverlap(interaction, beat)) : undefined
   const orientation = story?.story.aspectRatio === '16:9' ? 'landscape' as const : 'portrait' as const
   const workId = story?.story.workId ?? null
+  const picture = useStoryPictureSource(id)
+  const presetCurrent: Record<string, unknown> = { ...spec, durationSec: interaction.durationSec }
+
+  const applyPreset = (difficulty: StoryDifficulty) => {
+    const preset = difficultyPreset(spec.type, difficulty)
+    const durationSec = Number(preset.durationSec)
+    patch(mount ? { ...preset, startSec: clampBeatStart(interaction.startSec, durationSec, videoSec) } : preset, '套用难度预设')
+    notifyStoryCanvas(`已套用${STORY_DIFFICULTY_LABEL[difficulty]}难度（可继续微调）`)
+  }
 
   const updateResult = (handle: string, next: Partial<StoryResultConfig>, label?: string) => {
     const current = interaction.results[handle] ?? DEFAULT_RESULT
@@ -249,6 +273,23 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
         <span className="nori-story-status-dot" aria-hidden="true" />
         <span>{mount ? `挂在「${mount.sceneTitle || '剧情片段'}」` : '未挂载：接在上一步之后，上一步结束时触发'}</span>
       </div>
+
+      {mount ? (
+        <>
+          <StoryInteractionPreview spec={spec} orientation={orientation} posterUrl={sceneTimeline.poster} mounted startSec={interaction.startSec} durationSec={interaction.durationSec} videoSec={videoSec} title={interaction.title} />
+          <p className="nori-story-note">{picture ? '已挂载：画面跟随片段视频（这里接的画面不会显示）' : `挂在片段上，画面跟随片段视频 · ${beatRangeLabel(interaction.startSec, interaction.durationSec)}`}</p>
+        </>
+      ) : picture ? (
+        <>
+          <StoryInteractionPreview spec={spec} orientation={orientation} posterUrl={storyPicturePoster(picture.media)} mounted={false} startSec={interaction.startSec} durationSec={interaction.durationSec} videoSec={null} title={interaction.title} />
+          <StoryPictureCaption picture={picture} readOnly={readOnly} removeLabel="移除互动画面" onRemove={(edgeId, label) => story?.actions.removeEdge(edgeId, label)} />
+        </>
+      ) : (
+        <>
+          <StoryInteractionPreview spec={spec} orientation={orientation} posterUrl={null} mounted={false} startSec={interaction.startSec} durationSec={interaction.durationSec} videoSec={null} title={interaction.title} emptyNote={<span>互动还没有画面<br />试玩时会是黑屏</span>} />
+          <StoryPictureEmptyActions readOnly={readOnly} onCreate={() => story?.actions.createPictureNode(id, 'video')} onHint={() => hintStoryPicturePort(id)} />
+        </>
+      )}
 
       {mount ? (
         <div className="nori-story-field-grid">
@@ -290,6 +331,28 @@ export const StoryInteractionNode = memo(function StoryInteractionNode({ id, dat
             {STORY_DURING_LABEL[during].replace('画面', '')}
           </button>
         ))}
+      </div>
+
+      <div className="nori-story-difficulty">
+        <span className="nori-story-difficulty-label">难度</span>
+        <div className="nori-story-segmented is-three nodrag" role="radiogroup" aria-label="难度预设">
+          {STORY_DIFFICULTIES.map((difficulty) => {
+            const active = matchesDifficultyPreset(spec.type, difficulty, presetCurrent)
+            return (
+              <button
+                key={difficulty}
+                type="button"
+                role="radio"
+                aria-checked={active}
+                className={active ? 'is-active' : ''}
+                disabled={readOnly}
+                onClick={() => applyPreset(difficulty)}
+              >
+                {STORY_DIFFICULTY_LABEL[difficulty]}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {spec.type === 'tap' ? (

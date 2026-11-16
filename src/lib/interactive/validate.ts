@@ -337,11 +337,20 @@ export function validateChapter(chapter: StoryChapterGraph, variables: StoryVari
     }
     if (node.kind === 'interaction') {
       issues.push(...interactionIssues(node, handles, variables, shop, projectId))
+      if (!node.mountedOn && !node.picture) {
+        issues.push(issue('warning', 'interaction_no_picture', `互动「${node.title}」没有画面，试玩时只剩黑屏。接一个视频或图片到它顶部的画面口。`, projectId, node.id))
+      }
+      if (node.spec.type === 'hotspot' && node.spec.frameImageUrl && node.picture) {
+        issues.push(issue('warning', 'hotspot_picture_and_frame', `互动「${node.title}」同时有背景帧和画面：背景帧决定热区位置，画面决定底图，两者宽高比要一致。`, projectId, node.id))
+      }
       if (node.mountedOn && flows.some((flow) => flow.to === node.id)) {
         issues.push(issue('error', 'mount_and_flow', `互动「${node.title}」既挂在片段上又被连线进入，请只保留一种。`, projectId, node.id))
       }
     }
     if (node.kind === 'choice') {
+      if (!node.backdrop) {
+        issues.push(issue('warning', 'choice_no_picture', `选择「${node.title}」没有自己的画面，将借用上一段的最后一帧。`, projectId, node.id))
+      }
       if (!node.options.length) issues.push(issue('error', 'choice_empty', `选择「${node.title}」没有选项。`, projectId, node.id))
       else if (node.options.length === 1) issues.push(issue('warning', 'choice_single', `选择「${node.title}」只有一个选项。`, projectId, node.id))
       for (const option of node.options) {

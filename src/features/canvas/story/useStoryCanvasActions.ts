@@ -43,7 +43,7 @@ export type StoryActionDeps = {
   toast: (message: string) => void
   toFlowPoint: (client: StoryPoint) => StoryPoint
   animateNodeLayout: (build: (current: CanvasFlowNode[]) => CanvasFlowNode[], onComplete?: () => void) => void
-  removeEdges: (edgeIds: string[]) => void
+  removeEdges: (edgeIds: string[], label?: string) => void
   maxEdges: number
 }
 
@@ -302,7 +302,7 @@ export function createStoryActions(ref: Ref<StoryActionDeps>): StoryEditorAction
     return spot
   }
 
-  const removeEdge = (edgeId: string) => { if (!deps().writeLocked) deps().removeEdges([edgeId]) }
+  const removeEdge = (edgeId: string, label?: string) => { if (!deps().writeLocked) deps().removeEdges([edgeId], label) }
 
   const retargetInteraction = async (nodeId: string, nextKind: StoryInteractionKind) => {
     const d = deps()
