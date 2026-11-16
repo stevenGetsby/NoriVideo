@@ -14,6 +14,7 @@
 /docker-logs
 /data
 /downloads
+/miniprogram
 .tmp*
 tsconfig.tsbuildinfo
 .npm-logs
