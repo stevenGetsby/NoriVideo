@@ -112,6 +112,30 @@ export interface UsageOverview {
   storage: { objectCount: number; knownBytes: number }
 }
 
+export type VideoProviderState = 'kuaizi' | 'tgg' | 'mixed'
+
+export interface VideoSwitchPlanRow {
+  businessKey: string
+  name: string
+  from: string
+  to: string
+  action: 'switch' | 'keep' | 'unavailable'
+  reason?: string
+}
+
+export interface VideoSwitchPlan {
+  current: VideoProviderState
+  target: 'kuaizi' | 'tgg'
+  rows: VideoSwitchPlanRow[]
+  blockers: string[]
+  applied: boolean
+}
+
+export interface VideoProviderStatus {
+  current: VideoProviderState
+  inFlight: { kuaizi: number; tgg: number }
+}
+
 export interface ServicesPayload {
   config: ServiceConfig
   health: HealthRow[]

@@ -18,6 +18,8 @@ import {
   type ServiceConfig,
   type ServicesPayload,
   type UsageOverview,
+  type VideoProviderStatus,
+  type VideoSwitchPlan,
 } from '@/components/admin/platform-admin-services'
 
 export function PlatformAdminServicesClient() {
@@ -35,6 +37,10 @@ export function PlatformAdminServicesClient() {
   const [dirty, setDirty] = useState(false)
   const [pageError, setPageError] = useState('')
   const [notice, setNotice] = useState('')
+  const [videoProvider, setVideoProvider] = useState<VideoProviderStatus | null>(null)
+  const [videoPlan, setVideoPlan] = useState<VideoSwitchPlan | null>(null)
+  const [videoSwitching, setVideoSwitching] = useState(false)
+  const [videoNotice, setVideoNotice] = useState('')
 
   const loadServices = useCallback(async (days = 30, preserveDraft = false) => {
     if (session?.user?.role !== 'super_admin') return
@@ -65,6 +71,26 @@ export function PlatformAdminServicesClient() {
 
   useEffect(() => { void loadServices(rangeDays) }, [loadServices, rangeDays])
 
+  const loadVideoProviderStatus = useCallback(async (): Promise<VideoProviderStatus | null> => {
+    if (session?.user?.role !== 'super_admin') return null
+    try {
+      const response = await apiFetch('/api/admin/services/video-provider', {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '获取视频服务商状态失败'))
+      const payload = await response.json() as VideoProviderStatus & { success: boolean }
+      const status: VideoProviderStatus = { current: payload.current, inFlight: payload.inFlight }
+      setVideoProvider(status)
+      return status
+    } catch (error) {
+      setPageError(errorText(error, '获取视频服务商状态失败'))
+      return null
+    }
+  }, [session?.user?.role])
+
+  useEffect(() => { void loadVideoProviderStatus() }, [loadVideoProviderStatus])
+
   const healthMap = useMemo(() => new Map(health.map((row) => [`${row.targetType}:${row.targetId}`, row])), [health])
   const usageByProvider = useMemo(() => {
     const map = new Map<string, { calls: number; cost: number }>()
@@ -81,12 +107,79 @@ export function PlatformAdminServicesClient() {
     setConfig((current) => current ? updater(current) : current)
     setDirty(true)
     setNotice('')
+    setVideoPlan(null)
   }
 
   const updateProvider = (index: number, patch: Partial<ProviderDraft>) => markConfig((current) => ({
     ...current,
     providers: current.providers.map((provider, providerIndex) => providerIndex === index ? { ...provider, ...patch } : provider),
   }))
+
+  const requestVideoPlan = async (target: 'kuaizi' | 'tgg') => {
+    setVideoSwitching(true)
+    setPageError('')
+    setVideoNotice('')
+    try {
+      const response = await apiFetch('/api/admin/services/video-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target, dryRun: true }),
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '获取切换预览失败'))
+      const payload = await response.json() as { success: boolean; plan: VideoSwitchPlan }
+      setVideoPlan(payload.plan)
+    } catch (error) {
+      setPageError(errorText(error, '获取切换预览失败'))
+    } finally {
+      setVideoSwitching(false)
+    }
+  }
+
+  const cancelVideoPlan = () => setVideoPlan(null)
+
+  const applyVideoPlan = async () => {
+    if (!videoPlan) return
+    const target = videoPlan.target
+    setVideoSwitching(true)
+    setPageError('')
+    setVideoNotice('')
+    try {
+      const response = await apiFetch('/api/admin/services/video-provider', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target }),
+        signal: AbortSignal.timeout(20_000),
+      })
+      const payload = await response.json().catch(() => null) as { success?: boolean; plan?: VideoSwitchPlan } | null
+      if (!response.ok || !payload?.success) {
+        if (payload?.plan) setVideoPlan(payload.plan)
+        throw new Error(payload?.plan?.blockers?.length ? payload.plan.blockers.join('；') : '视频服务商切换失败')
+      }
+      const switchedKeys = (payload.plan?.rows || []).map((row) => row.businessKey)
+      setVideoPlan(null)
+      const status = await loadVideoProviderStatus()
+      const counts = status?.inFlight || videoProvider?.inFlight || { kuaizi: 0, tgg: 0 }
+      setVideoNotice(`已切换到 ${target === 'tgg' ? 'TGG' : 'Kuaizi'}，新任务立即生效；进行中的 ${counts.kuaizi + counts.tgg} 个任务不受影响`)
+      // 切换只改视频路由：仅用服务端结果覆盖本次涉及的业务键，保留用户未保存的其它修改
+      const servicesResponse = await apiFetch(`/api/admin/services?days=${rangeDays}`, {
+        cache: 'no-store',
+        signal: AbortSignal.timeout(20_000),
+      })
+      if (!servicesResponse.ok) throw new Error('切换已生效，但刷新服务配置失败，请刷新页面')
+      const servicesPayload = await servicesResponse.json() as ServicesPayload
+      setConfig((current) => {
+        if (!current) return current
+        const modelRouting = { ...current.modelRouting }
+        for (const key of switchedKeys) modelRouting[key] = servicesPayload.config.modelRouting[key] || ''
+        return { ...current, modelRouting }
+      })
+    } catch (error) {
+      setPageError(errorText(error, '视频服务商切换失败'))
+    } finally {
+      setVideoSwitching(false)
+    }
+  }
 
 
 
@@ -131,6 +224,8 @@ export function PlatformAdminServicesClient() {
       setStorageAccessKey('')
       setStorageSecretKey('')
       setDirty(false)
+      setVideoPlan(null)
+      void loadVideoProviderStatus()
       setNotice(changedProviderIds.length
         ? '配置已保存并热加载，正在验证新密钥…'
         : '配置已保存并热加载，不需要重启服务。')
@@ -212,7 +307,7 @@ export function PlatformAdminServicesClient() {
       active="services"
       eyebrow="平台管理"
       title="服务配置"
-      description="四套 API 各司其职：DeepSeek 文本、Kuaizi 语音，图片和视频可在 OpenLux / Kuaizi 与绘梦工坊之间切换。"
+      description="五套 API 各司其职：DeepSeek 文本、Kuaizi 语音，图片可在 OpenLux / 绘梦工坊 之间切换，视频可在 Kuaizi / 绘梦工坊 / TGG 之间切换。"
       actions={(
         <>
           <span className={dirty ? 'nori-admin-dirty' : 'nori-admin-muted'}>
@@ -253,6 +348,14 @@ export function PlatformAdminServicesClient() {
             setDirty={setDirty}
             setRangeDays={setRangeDays}
             probe={probe}
+            videoProvider={videoProvider}
+            videoPlan={videoPlan}
+            videoSwitching={videoSwitching}
+            videoNotice={videoNotice}
+            dirty={dirty}
+            requestVideoPlan={(target) => void requestVideoPlan(target)}
+            cancelVideoPlan={cancelVideoPlan}
+            applyVideoPlan={() => void applyVideoPlan()}
           />
         </>
       )}
