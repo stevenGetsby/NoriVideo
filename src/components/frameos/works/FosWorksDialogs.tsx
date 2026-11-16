@@ -547,6 +547,7 @@ export function MemberManagerDialog({
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [savedNote, setSavedNote] = useState<string | null>(null)
 
   const reload = useCallback(async () => {
     setLoading(true)
@@ -580,6 +581,7 @@ export function MemberManagerDialog({
     if (!hasChanges) return
     setSaving(true)
     setError(null)
+    setSavedNote(null)
     try {
       for (const candidate of changeSet.additions) {
         const response = await apiFetch(endpoint, {
@@ -597,9 +599,16 @@ export function MemberManagerDialog({
         })
         if (!response.ok) throw new Error(await readApiErrorMessage(response, `移除 ${member.name} 失败`))
       }
+      const added = changeSet.additions.length
+      const removed = changeSet.removals.length
       setSelected([])
       setPendingRemovalIds([])
       await reload()
+      setSavedNote(
+        added && removed ? `已添加 ${added} 位、移除 ${removed} 位成员。`
+        : added ? (note ? `已添加 ${added} 位成员，他们现在可以在影游列表中看到这个项目。` : `已添加 ${added} 位成员。`)
+        : `已移除 ${removed} 位成员。`,
+      )
       onChanged()
     } catch (saveError) {
       setError(saveError instanceof Error ? saveError.message : '保存成员失败')
@@ -624,6 +633,7 @@ export function MemberManagerDialog({
       )}
     >
       <div className="works-form">
+        {savedNote ? <p className="works-dialog-intro" role="status">{savedNote}</p> : null}
         {!readOnly ? (
           <CandidatePicker
             candidatesPath={candidatesPath}
@@ -631,9 +641,9 @@ export function MemberManagerDialog({
             existingMemberIds={existingMemberIds}
             disabled={saving}
             emptyHint={emptyHint}
-            onToggle={(candidate) => setSelected((current) => current.some((item) => item.id === candidate.id)
+            onToggle={(candidate) => { setSavedNote(null); setSelected((current) => current.some((item) => item.id === candidate.id)
               ? current.filter((item) => item.id !== candidate.id)
-              : [...current, candidate])}
+              : [...current, candidate]) }}
           />
         ) : <p className="works-dialog-intro">你可以查看当前成员，但没有修改权限。</p>}
         {!readOnly && selected.length ? (
@@ -643,7 +653,7 @@ export function MemberManagerDialog({
                 type="button"
                 key={member.id}
                 disabled={saving}
-                onClick={() => { setSelected((current) => current.filter((item) => item.id !== member.id)); setError(null) }}
+                onClick={() => { setSelected((current) => current.filter((item) => item.id !== member.id)); setError(null); setSavedNote(null) }}
                 aria-label={`取消添加 ${member.name}`}
               >
                 {member.name}<span>待添加</span><AppIcon name="close" className="h-3 w-3" />
@@ -677,6 +687,7 @@ export function MemberManagerDialog({
                         ? current.filter((id) => id !== member.userId)
                         : [...current, member.userId])
                       setError(null)
+                      setSavedNote(null)
                     }}
                     aria-label={pendingRemoval ? `撤销移除 ${member.name}` : `移除 ${member.name}`}
                   >
