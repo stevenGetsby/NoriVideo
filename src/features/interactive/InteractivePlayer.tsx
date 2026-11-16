@@ -440,7 +440,7 @@ export function InteractivePlayer({ program, mode, aspectRatio, title, projectId
   return createPortal(
     <>
       <div className={`nori-player-turn${turn === 1 ? ' is-turned' : ''}`} ref={frameRef} style={turnStyle}>
-      <div className={`nori-player${compact ? ' is-compact' : ''}`} role="dialog" aria-modal="true" aria-label={`试玩：${title}`}
+      <div className={`nori-player nori-force-dark${compact ? ' is-compact' : ''}`} role="dialog" aria-modal="true" aria-label={`试玩：${title}`}
         onKeyDown={(event) => {
           event.stopPropagation()
           if (event.key !== 'Escape') return

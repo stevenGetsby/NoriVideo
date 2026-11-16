@@ -17,19 +17,21 @@ import type {
   StorySceneNode,
   StorySwipeDirection,
 } from '@/lib/interactive/types'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { ChoicePanel } from './ChoicePanel'
 import { InteractionCountdown } from './player/InteractionCountdown'
 import { InteractionOverlay } from './player/InteractionOverlay'
 import { applyBeatOutcome, createResolutionGate, type FiredBeats } from './player/beat-scheduler'
 import type { DirectionMapping } from './player/interaction-sessions'
 import { lockedOptionPress } from './player/locked-choice'
-import { pictureState } from './player/playback-plan'
+import { pictureState, seekToLastFrame, standaloneBackdrop } from './player/playback-plan'
 import { playerNow } from './player/player-clock'
 import type { StageTurn } from './player/stage-orientation'
 import './player/records.css'
 
 const display = (url: string | null | undefined) => (url ? toDisplayImageUrl(url) || url : null)
+/** 视频 src 走 playback=1 代理（gzip + 缓存）；海报与图片仍走 display。 */
+const playback = (url: string | null | undefined) => (url ? toPlayableVideoUrl(url) || url : null)
 
 export type PlayerStageProps = {
   program: StoryProgram
@@ -55,9 +57,11 @@ export type PlayerStageProps = {
   onLocate?: (projectId: string, nodeId: string) => void
 }
 
-function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1, freezeLastFrame = false }: {
+function StageMedia({ media, onEnded, onSkip, videoRef, paused = false, rate = 1, freezeLastFrame = false }: {
   media: StoryMedia | null
   onEnded?: () => void
+  /** 「跳过这段」：场景调 onContinue，互动调超时 handle。 */
+  onSkip?: () => void
   videoRef?: RefObject<HTMLVideoElement | null>
   paused?: boolean
   rate?: number
@@ -68,6 +72,8 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1, freeze
   const localRef = useRef<HTMLVideoElement | null>(null)
   const ref = videoRef ?? localRef
   const pausedByShop = useRef(false)
+  const [failed, setFailed] = useState(false)
+  const [loading, setLoading] = useState(false)
   const rateRef = useRef(rate)
   rateRef.current = rate
   // Browsers reset playbackRate to defaultPlaybackRate whenever a new source loads, so both the
@@ -79,13 +85,13 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1, freeze
     if (video.playbackRate !== rateRef.current) video.playbackRate = rateRef.current
   }
   const seekToEnd = () => {
-    const video = ref.current
-    if (!video || !freezeLastFrame) return
-    if (Number.isFinite(video.duration) && video.duration > 0) {
-      try { video.currentTime = Math.max(0, video.duration - 0.04) } catch { /* metadata not ready */ }
-    }
-    video.pause()
+    if (!freezeLastFrame) return
+    seekToLastFrame(ref.current)
   }
+  useEffect(() => {
+    setFailed(false)
+    setLoading(false)
+  }, [media?.url])
   useEffect(() => {
     applyRate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -107,23 +113,45 @@ function StageMedia({ media, onEnded, videoRef, paused = false, rate = 1, freeze
       if (!video.ended) void video.play().catch(() => {})
     }
   }, [media, paused, ref, freezeLastFrame])
-  if (!media) return <div className="nori-player-media is-empty" />
+  if (!media) {
+    return (
+      <div className="nori-player-media is-empty" data-testid="player-media-placeholder">
+        <span className="nori-player-media-note">这一幕还没有画面</span>
+      </div>
+    )
+  }
+  if (failed) {
+    return (
+      <div className="nori-player-media is-empty" data-testid="player-media-failed">
+        <div className="nori-player-media-failed">
+          <span className="nori-player-media-note">画面加载失败</span>
+          {onSkip ? <button type="button" className="nori-player-skip" onClick={onSkip}>跳过这段</button> : null}
+        </div>
+      </div>
+    )
+  }
   if (media.kind === 'video') {
     return (
-      <video
-        key={media.url}
-        ref={ref}
-        className="nori-player-media"
-        data-testid="scene-video"
-        src={display(media.url) ?? undefined}
-        poster={display(media.posterUrl) ?? undefined}
-        autoPlay={!freezeLastFrame}
-        playsInline
-        onLoadedMetadata={() => { applyRate(); seekToEnd() }}
-        onLoadedData={seekToEnd}
-        onPlay={(e) => { if (freezeLastFrame) { e.currentTarget.pause(); return } applyRate() }}
-        onEnded={onEnded}
-      />
+      <>
+        <video
+          key={media.url}
+          ref={ref}
+          className="nori-player-media"
+          data-testid="scene-video"
+          src={playback(media.url) ?? undefined}
+          poster={display(media.posterUrl) ?? undefined}
+          autoPlay={!freezeLastFrame}
+          preload="metadata"
+          playsInline
+          onLoadedMetadata={() => { applyRate(); seekToEnd() }}
+          onLoadedData={() => { setLoading(false); seekToEnd() }}
+          onWaiting={() => setLoading(true)}
+          onError={() => setFailed(true)}
+          onPlay={(e) => { if (freezeLastFrame) { e.currentTarget.pause(); return } applyRate() }}
+          onEnded={onEnded}
+        />
+        {loading ? <span className="nori-player-loading" aria-hidden="true" /> : null}
+      </>
     )
   }
   return <div className="nori-player-media"><MediaImage src={display(media.url) || ''} alt="" fill sizes="80vw" draggable={false} /></div>
@@ -286,7 +314,7 @@ function SceneStage({
 
   return (
     <>
-      {node.media ? <StageMedia media={node.media} onEnded={videoMedia ? handleEnded : undefined} videoRef={videoRef} paused={!picture.playing} rate={picture.rate} /> : <div className="nori-player-media is-empty" />}
+      {node.media ? <StageMedia media={node.media} onEnded={videoMedia ? handleEnded : undefined} onSkip={() => latest.current.onContinue()} videoRef={videoRef} paused={!picture.playing} rate={picture.rate} /> : <div className="nori-player-media is-empty" />}
       {active?.beat.spec.type === 'hotspot' && active.beat.spec.frameImageUrl && active.beat.during !== 'play' ? <div className="nori-player-media nori-hotspot-backdrop"><MediaImage src={display(active.beat.spec.frameImageUrl) || ''} alt="" fill sizes="80vw" draggable={false} /></div> : null}
       {!node.media ? <div className="nori-player-placeholder"><strong>{node.title}</strong><span>这段剧情还没有画面</span></div> : null}
       {node.lines ? <p className="nori-player-subtitle">{node.lines}</p> : null}
@@ -314,11 +342,22 @@ function SceneStage({
 
 /* ---------- 独立互动停靠点 ---------- */
 
-function InteractionBackdrop({ media, during, baseRate, paused = false }: { media: StoryMedia | null; during: StoryBeatDuring; baseRate: number; paused?: boolean }) {
+function InteractionBackdrop({ media, freeze, during, baseRate, paused = false, onSkip }: {
+  media: StoryMedia | null
+  /** 上一段最后一帧回退：定格在末帧，绝不从头重播。自己的画面则为 false。 */
+  freeze: boolean
+  during: StoryBeatDuring
+  baseRate: number
+  paused?: boolean
+  onSkip?: () => void
+}) {
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const pausedByShop = useRef(false)
+  const [failed, setFailed] = useState(false)
+  const [loading, setLoading] = useState(false)
   // A standalone interaction is one continuous window: real pace, fixed slow motion, or frozen.
   const picture = pictureState(baseRate, during, paused)
+  const playing = !freeze && picture.playing
   const rateRef = useRef(picture.rate)
   rateRef.current = picture.rate
   const applyRate = () => {
@@ -327,13 +366,22 @@ function InteractionBackdrop({ media, during, baseRate, paused = false }: { medi
     if (video.defaultPlaybackRate !== rateRef.current) video.defaultPlaybackRate = rateRef.current
     if (video.playbackRate !== rateRef.current) video.playbackRate = rateRef.current
   }
+  const freezeFrame = () => { if (freeze) seekToLastFrame(videoRef.current) }
+  useEffect(() => {
+    setFailed(false)
+    setLoading(false)
+  }, [media?.url])
   useEffect(() => {
     applyRate()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picture.rate])
   useEffect(() => {
     const video = videoRef.current
-    if (!video) return
+    if (!video || media?.kind !== 'video') return
+    if (freeze) {
+      seekToLastFrame(video)
+      return
+    }
     if (!picture.playing) {
       if (!video.paused) {
         video.pause()
@@ -343,25 +391,48 @@ function InteractionBackdrop({ media, during, baseRate, paused = false }: { medi
       pausedByShop.current = false
       if (!video.ended) void video.play().catch(() => {})
     }
-  }, [picture.playing])
-  if (!media) return <div className="nori-player-media is-empty" />
+  }, [media, freeze, picture.playing])
+  if (!media) {
+    return (
+      <div className="nori-player-media is-empty" data-testid="player-media-placeholder">
+        <span className="nori-player-media-note">这一幕还没有画面</span>
+      </div>
+    )
+  }
+  if (failed) {
+    return (
+      <div className="nori-player-media is-empty" data-testid="player-media-failed">
+        <div className="nori-player-media-failed">
+          <span className="nori-player-media-note">画面加载失败</span>
+          {onSkip ? <button type="button" className="nori-player-skip" onClick={onSkip}>跳过这段</button> : null}
+        </div>
+      </div>
+    )
+  }
   if (media.kind === 'image') {
     return <div className="nori-player-media"><MediaImage src={display(media.url) || ''} alt="" fill sizes="80vw" draggable={false} /></div>
   }
   return (
-    <video
-      key={media.url}
-      ref={videoRef}
-      className="nori-player-media"
-      data-testid="interaction-backdrop"
-      src={display(media.url) ?? undefined}
-      poster={display(media.posterUrl) ?? undefined}
-      autoPlay
-      loop
-      playsInline
-      onLoadedMetadata={applyRate}
-      onPlay={applyRate}
-    />
+    <>
+      <video
+        key={media.url}
+        ref={videoRef}
+        className="nori-player-media"
+        data-testid="interaction-backdrop"
+        src={playback(media.url) ?? undefined}
+        poster={display(media.posterUrl) ?? undefined}
+        autoPlay={playing}
+        preload="metadata"
+        playsInline
+        onLoadedMetadata={() => { applyRate(); freezeFrame() }}
+        onLoadedData={() => { setLoading(false); freezeFrame() }}
+        onWaiting={() => setLoading(true)}
+        onError={() => setFailed(true)}
+        onPlay={(e) => { if (freeze) { e.currentTarget.pause(); return } applyRate() }}
+        onEnded={(e) => e.currentTarget.pause()}
+      />
+      {loading ? <span className="nori-player-loading" aria-hidden="true" /> : null}
+    </>
   )
 }
 
@@ -505,9 +576,16 @@ export function PlayerStage({
     )
   }
   if (stop.kind === 'interaction') {
+    const node = stop.node
+    const plan = standaloneBackdrop(node, backdrop)
+    // 没接画面时，热区仍用背景帧当底图（热区坐标的基准）；一旦接了画面，画面优先（§A.2）。
+    const frameUrl = node.spec.type === 'hotspot' && node.during !== 'play' ? node.spec.frameImageUrl : null
+    const media = !node.picture && frameUrl ? { kind: 'image' as const, url: frameUrl, posterUrl: null } : plan.media
+    const freeze = !node.picture && frameUrl ? false : plan.freeze
+    const skip = () => { const handle = interactionTimeoutHandle(node.spec); if (handle) onChoose(handle) }
     return (
       <>
-        <InteractionBackdrop media={stop.node.spec.type === 'hotspot' && stop.node.spec.frameImageUrl && stop.node.during !== 'play' ? { kind: 'image', url: stop.node.spec.frameImageUrl, posterUrl: null } : backdrop} during={stop.node.during} baseRate={baseRate} paused={paused} />
+        <InteractionBackdrop media={media} freeze={freeze} during={node.during} baseRate={baseRate} paused={paused} onSkip={skip} />
         <StandaloneOverlay
           key={`${stop.node.id}:${attempt}`}
           program={program}
