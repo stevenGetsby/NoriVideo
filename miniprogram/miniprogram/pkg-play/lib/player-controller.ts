@@ -1,5 +1,6 @@
 import {
   ACHIEVEMENT_TOAST_MS,
+  achievementConditionText,
   achievementProgress,
   achievementRewardText,
   advanceRun,
@@ -58,6 +59,7 @@ import {
   speedLabel,
   startRun,
   storyMap,
+  storyPlaces,
   swipeMoveTo,
   swipeStart,
   tapHandle,
@@ -1461,14 +1463,16 @@ export class PlayerController {
 
   private buildAchievements(): Record<string, unknown> {
     const progress = achievementProgress(this.program, this.profile)
+    const context = { places: storyPlaces(this.program.chapters), variables: this.program.variables }
     return {
       progress,
       cosmetics: cosmeticsOf(this.program, this.profile),
       equipped: equippedLook(this.program, this.profile),
+      equippedIds: { title: this.profile.equipped.title, frame: this.profile.equipped.frame },
       items: (this.program.achievements ?? []).map((achievement: StoryAchievement) => ({
         id: achievement.id,
         name: achievement.name,
-        description: achievement.description,
+        description: achievement.description || achievementConditionText(achievement.condition, context),
         icon: achievement.icon,
         earned: this.profile.achievements.includes(achievement.id),
         rewardText: achievementRewardText(achievement.reward),

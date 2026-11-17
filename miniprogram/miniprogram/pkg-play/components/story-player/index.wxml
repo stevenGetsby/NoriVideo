@@ -44,6 +44,7 @@
     bind:speed="onSpeed"
     bind:saves="onOpenMap"
     bind:shop="onOpenShop"
+    bind:achievements="onOpenAchievements"
   />
   <shop-sheet
     wx:if="{{sheet === 'shop'}}"
@@ -74,20 +75,25 @@
     bind:delete="onDeleteSlot"
     bind:close="onCloseSheet"
   />
-  <view class="ending" wx:if="{{ending && !sheet}}">
-    <text class="ending-type is-{{ending.type}}">{{ending.typeLabel}}</text>
-    <text class="ending-title">{{ending.title}}</text>
-    <text class="ending-desc" wx:if="{{ending.description}}">{{ending.description}}</text>
-    <text class="ending-progress">已收集 {{ending.got}}/{{ending.total}} 个结局</text>
-    <view class="actions">
-      <button class="btn is-primary" bindtap="onRestart">再玩一次</button>
-      <button class="btn" wx:if="{{ending.hasSaves}}" bindtap="onOpenSaves">回到存档点</button>
-      <button class="btn" bindtap="onBack">返回详情</button>
-    </view>
-  </view>
+  <achievement-sheet
+    wx:if="{{sheet === 'achievements'}}"
+    achievements="{{achievementsSheet}}"
+    orientation="{{orientation}}"
+    bind:equip="onEquip"
+    bind:close="onCloseSheet"
+  />
+  <ending-card
+    wx:if="{{ending && !sheet}}"
+    ending="{{ending}}"
+    orientation="{{orientation}}"
+    bind:restart="onRestart"
+    bind:saves="onOpenSaves"
+    bind:back="onBack"
+  />
   <view class="card" wx:if="{{card && !sheet}}">
     <text class="card-kicker">{{card.kicker}}</text>
     <text class="card-title">{{card.title}}</text>
+    <text class="card-desc" wx:if="{{card.kind === 'exit'}}">全剧试玩时会从这里进入下一章。</text>
     <view class="actions">
       <button class="btn is-primary" bindtap="onRestart">再玩一次</button>
       <button class="btn" bindtap="onBack">返回详情</button>

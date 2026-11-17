@@ -49,5 +49,8 @@ Component({
     onShop() {
       this.triggerEvent('shop')
     },
+    onAchievements() {
+      this.triggerEvent('achievements')
+    },
   },
 })

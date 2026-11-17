@@ -84,6 +84,7 @@ Component({
     shop: null as Record<string, unknown> | null,
     savesSheet: null as Record<string, unknown> | null,
     mapSheet: null as Record<string, unknown> | null,
+    achievementsSheet: null as Record<string, unknown> | null,
   },
   lifetimes: {
     attached() {
@@ -337,11 +338,17 @@ Component({
     onOpenShop() {
       stateOf(this).controller?.openSheet('shop')
     },
+    onOpenAchievements() {
+      stateOf(this).controller?.openSheet('achievements')
+    },
     onCloseSheet() {
       stateOf(this).controller?.closeSheet()
     },
     onBuy(e: { detail: { itemId: string } }) {
       stateOf(this).controller?.buy(e.detail.itemId)
+    },
+    onEquip(e: { detail: { part: 'title' | 'frame'; cosmeticId: string | null } }) {
+      stateOf(this).controller?.equip(e.detail.part, e.detail.cosmeticId)
     },
     onSaveSlot(e: { detail: { index: number } }) {
       stateOf(this).controller?.saveSlot(e.detail.index)

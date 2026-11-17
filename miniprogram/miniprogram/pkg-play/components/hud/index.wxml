@@ -12,5 +12,6 @@
     <button class="action" bindtap="onSpeed">{{hud.speedLabel}}</button>
     <button wx:if="{{hud.showSaves}}" class="action" bindtap="onSaves">存档</button>
     <button wx:if="{{hud.showShop}}" class="action" bindtap="onShop">商店</button>
+    <button wx:if="{{hud.showAchievements}}" class="action" bindtap="onAchievements">成就</button>
   </view>
 </view>

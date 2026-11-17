@@ -1,0 +1,19 @@
+<view class="ending-card is-{{orientation}}" wx:if="{{ending}}">
+  <text class="type is-{{ending.type}}">{{ending.typeLabel}}</text>
+  <text class="title">{{ending.title}}</text>
+  <text class="desc" wx:if="{{ending.description}}">{{ending.description}}</text>
+  <view class="personality" wx:if="{{ending.personality}}">
+    <image wx:if="{{ending.personality.imageUrl}}" class="personality-image" src="{{ending.personality.imageUrl}}" mode="aspectFill" />
+    <view class="personality-info">
+      <text class="personality-type">{{ending.personality.type}}</text>
+      <text class="personality-name">{{ending.personality.name}}</text>
+      <text class="personality-desc">{{ending.personality.description}}</text>
+    </view>
+  </view>
+  <text class="progress">已收集 {{ending.got}}/{{ending.total}} 个结局</text>
+  <view class="actions">
+    <button class="btn is-primary" bindtap="onRestart">再玩一次</button>
+    <button class="btn" wx:if="{{ending.hasSaves}}" bindtap="onSaves">回到存档点</button>
+    <button class="btn" bindtap="onBack">返回详情</button>
+  </view>
+</view>

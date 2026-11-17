@@ -13,13 +13,14 @@ hud,
 shop-sheet,
 saves-sheet,
 map-sheet,
+achievement-sheet,
+ending-card,
 toast-layer,
 continue-prompt {
   position: absolute;
   inset: 0;
   pointer-events: none;
 }
-.ending,
 .card {
   position: absolute;
   inset: 0;
@@ -33,20 +34,9 @@ continue-prompt {
   background: rgba(14, 15, 26, 0.92);
   text-align: center;
 }
-.ending-type {
-  padding: 6rpx 20rpx;
-  border-radius: var(--radius-tag);
-  font-size: var(--font-aux);
-}
-.ending-type.is-good { color: var(--ending-good); border: 2rpx solid var(--ending-good); }
-.ending-type.is-normal { color: var(--ending-normal); border: 2rpx solid var(--ending-normal); }
-.ending-type.is-bad { color: var(--ending-bad); border: 2rpx solid var(--ending-bad); }
-.ending-type.is-hidden { color: var(--ending-hidden); border: 2rpx solid var(--ending-hidden); }
-.ending-title { color: var(--text); font-size: var(--font-title); font-weight: 600; }
-.ending-desc { color: var(--text-2); font-size: var(--font-body); line-height: 1.6; }
-.ending-progress { color: var(--text-3); font-size: var(--font-aux); }
 .card-kicker { color: var(--text-2); font-size: var(--font-aux); }
 .card-title { color: var(--text); font-size: var(--font-card-title); font-weight: 600; }
+.card-desc { color: var(--text-2); font-size: var(--font-body); line-height: 1.6; }
 .actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 20rpx; margin-top: 16rpx; }
 .btn {
   margin: 0; padding: 0 32rpx; height: 72rpx; line-height: 72rpx;

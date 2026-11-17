@@ -1,0 +1,80 @@
+<view class="sheet is-{{orientation}}" wx:if="{{achievements.progress}}">
+  <view class="backdrop" bindtap="onClose" />
+  <view class="panel">
+    <view class="head">
+      <text class="title">成就与装扮</text>
+      <text class="head-progress">{{headProgress}}</text>
+      <button class="close" bindtap="onClose">×</button>
+    </view>
+    <scroll-view scroll-y class="body">
+      <view class="hero">
+        <view class="avatar-wrap">
+          <image wx:if="{{avatar}}" class="avatar" src="{{avatar}}" mode="aspectFill" />
+          <image wx:if="{{frameUrl}}" class="avatar-frame" src="{{frameUrl}}" mode="aspectFit" />
+        </view>
+        <view class="hero-text">
+          <text class="hero-name">我的成就</text>
+          <text class="hero-title">{{titleText}}</text>
+          <text class="hero-progress">{{progressText}}</text>
+        </view>
+      </view>
+      <view class="section">
+        <text class="section-title">成就</text>
+        <text class="empty" wx:if="{{!items.length}}">这部影游还没有设置成就。</text>
+        <view wx:for="{{items}}" wx:key="id" class="item {{item.earned ? 'is-earned' : 'is-locked'}}">
+          <view class="item-icon">
+            <image wx:if="{{item.iconIsImage}}" class="icon-image" src="{{item.icon}}" mode="aspectFill" />
+            <text wx:else class="icon-text">{{item.iconText}}</text>
+          </view>
+          <view class="item-info">
+            <text class="item-name">{{item.name}}</text>
+            <text class="item-desc">{{item.description}}</text>
+            <text class="item-reward">{{item.rewardText}}</text>
+          </view>
+          <text class="item-state {{item.earned ? 'is-earned' : ''}}">{{item.state}}</text>
+        </view>
+      </view>
+      <view class="section">
+        <text class="section-title">我的装扮</text>
+        <text class="empty" wx:if="{{!hasCosmetics}}">还没有获得称号或头像框。</text>
+        <block wx:else>
+          <view class="group">
+            <view class="group-head">
+              <text class="group-title">头像框</text>
+              <button wx:if="{{hasFrameEquipped}}" class="unequip" data-part="frame" bindtap="onUnequipGroup">取下</button>
+            </view>
+            <text class="empty" wx:if="{{!frames.length}}">还没有头像框。</text>
+            <view wx:for="{{frames}}" wx:key="id" class="cosmetic">
+              <view class="swatch">
+                <image wx:if="{{avatar}}" class="swatch-avatar" src="{{avatar}}" mode="aspectFill" />
+                <image wx:if="{{item.frameUrl}}" class="swatch-frame" src="{{item.frameUrl}}" mode="aspectFit" />
+              </view>
+              <view class="cosmetic-info">
+                <text class="cosmetic-name">{{item.name}}</text>
+                <text class="cosmetic-label">{{item.label}}</text>
+              </view>
+              <button class="equip {{item.equipped ? 'is-on' : ''}}" data-part="{{item.part}}" data-id="{{item.id}}" data-equipped="{{item.equipped ? 1 : 0}}" bindtap="onEquip">{{item.equipped ? '取下' : '佩戴'}}</button>
+            </view>
+          </view>
+          <view class="group">
+            <view class="group-head">
+              <text class="group-title">称号</text>
+              <button wx:if="{{hasTitleEquipped}}" class="unequip" data-part="title" bindtap="onUnequipGroup">取下</button>
+            </view>
+            <text class="empty" wx:if="{{!titles.length}}">还没有称号。</text>
+            <view wx:for="{{titles}}" wx:key="id" class="cosmetic">
+              <view class="swatch is-title">
+                <text class="swatch-text">{{item.swatchText}}</text>
+              </view>
+              <view class="cosmetic-info">
+                <text class="cosmetic-name">{{item.name}}</text>
+                <text class="cosmetic-label">{{item.label}}</text>
+              </view>
+              <button class="equip {{item.equipped ? 'is-on' : ''}}" data-part="{{item.part}}" data-id="{{item.id}}" data-equipped="{{item.equipped ? 1 : 0}}" bindtap="onEquip">{{item.equipped ? '取下' : '佩戴'}}</button>
+            </view>
+          </view>
+        </block>
+      </view>
+    </scroll-view>
+  </view>
+</view>

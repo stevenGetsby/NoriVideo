@@ -1,0 +1,91 @@
+.sheet { position: absolute; inset: 0; z-index: 40; pointer-events: auto; }
+.backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); }
+.panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  max-height: 76%;
+  display: flex;
+  flex-direction: column;
+  padding: 32rpx;
+  border-radius: 24rpx 24rpx 0 0;
+  background: var(--surface);
+}
+.is-landscape .panel {
+  left: 50%; right: auto; bottom: 50%;
+  transform: translate(-50%, 50%);
+  width: 720rpx; max-height: 86%;
+  border-radius: 24rpx;
+}
+.head { display: flex; align-items: center; gap: 16rpx; }
+.title { flex: 1; color: var(--text); font-size: var(--font-card-title); font-weight: 600; }
+.head-progress { color: var(--text-3); font-size: var(--font-aux); }
+.close {
+  margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 52rpx;
+  border-radius: 50%; background: var(--surface-2); color: var(--text-2); font-size: 40rpx;
+}
+.body { flex: 1; margin-top: 24rpx; max-height: 60vh; }
+.hero {
+  display: flex; align-items: center; gap: 28rpx;
+  padding: 24rpx; border-radius: var(--radius-card);
+  background: var(--surface-2); margin-bottom: 32rpx;
+}
+.avatar-wrap { position: relative; width: 120rpx; height: 120rpx; flex-shrink: 0; }
+.avatar { width: 120rpx; height: 120rpx; border-radius: 50%; background: var(--surface); }
+.avatar-frame { position: absolute; top: -14rpx; left: -14rpx; width: 148rpx; height: 148rpx; }
+.hero-text { display: flex; flex-direction: column; gap: 6rpx; }
+.hero-name { color: var(--text); font-size: var(--font-body); font-weight: 600; }
+.hero-title { color: var(--brand); font-size: var(--font-aux); }
+.hero-progress { color: var(--text-3); font-size: 22rpx; }
+.section { margin-bottom: 32rpx; }
+.section-title { color: var(--text-2); font-size: var(--font-aux); display: block; margin-bottom: 16rpx; }
+.empty { color: var(--text-3); font-size: var(--font-aux); display: block; padding: 8rpx 0; }
+.item {
+  display: flex; align-items: center; gap: 20rpx;
+  padding: 20rpx; border-radius: var(--radius-card);
+  background: var(--surface-2); margin-bottom: 16rpx;
+}
+.item.is-locked { opacity: 0.7; }
+.item-icon {
+  width: 72rpx; height: 72rpx; border-radius: var(--radius-card);
+  background: var(--surface); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; overflow: hidden;
+}
+.icon-image { width: 72rpx; height: 72rpx; }
+.icon-text { color: var(--text-2); font-size: var(--font-card-title); font-weight: 600; }
+.item.is-earned .icon-text { color: var(--brand); }
+.item-info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.item-name { color: var(--text); font-size: var(--font-body); font-weight: 600; }
+.item-desc { color: var(--text-2); font-size: var(--font-aux); line-height: 1.5; }
+.item-reward { color: var(--text-3); font-size: 22rpx; }
+.item-state { color: var(--text-3); font-size: var(--font-aux); flex-shrink: 0; }
+.item-state.is-earned { color: var(--ending-good); }
+.group { margin-bottom: 24rpx; }
+.group-head { display: flex; align-items: center; gap: 16rpx; margin-bottom: 12rpx; }
+.group-title { color: var(--text-2); font-size: var(--font-aux); }
+.unequip {
+  margin: 0; padding: 0 16rpx; height: 44rpx; line-height: 40rpx;
+  border-radius: var(--radius-tag); background: transparent;
+  color: var(--text-3); font-size: 22rpx; border: 2rpx solid var(--border);
+}
+.cosmetic {
+  display: flex; align-items: center; gap: 20rpx;
+  padding: 16rpx 20rpx; border-radius: var(--radius-card);
+  background: var(--surface-2); margin-bottom: 12rpx;
+}
+.swatch { position: relative; width: 64rpx; height: 64rpx; flex-shrink: 0; display: flex; align-items: center; justify-content: center; }
+.swatch-avatar { width: 64rpx; height: 64rpx; border-radius: 50%; background: var(--surface); }
+.swatch-frame { position: absolute; top: -8rpx; left: -8rpx; width: 80rpx; height: 80rpx; }
+.swatch.is-title { border-radius: var(--radius-tag); background: var(--surface); overflow: hidden; }
+.swatch-text {
+  color: var(--brand); font-size: 22rpx; font-weight: 600;
+  max-width: 60rpx; overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.cosmetic-info { flex: 1; display: flex; flex-direction: column; gap: 4rpx; }
+.cosmetic-name { color: var(--text); font-size: var(--font-body); font-weight: 600; }
+.cosmetic-label { color: var(--text-3); font-size: 22rpx; }
+.equip {
+  margin: 0; padding: 0 24rpx; height: 60rpx; line-height: 60rpx;
+  border-radius: var(--radius-button); background: var(--surface);
+  color: var(--text); font-size: var(--font-aux); flex-shrink: 0;
+}
+.equip.is-on { background: var(--brand); color: #fff; }
