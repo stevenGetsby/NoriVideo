@@ -36,6 +36,13 @@ describe('mp rate limit contract', () => {
     expect(source).toContain("checkRateLimit('mp:rl:me', auth.consumer.id, MP_ME_PATCH_LIMIT)")
   })
 
+  it('limits search to 30 per minute per IP', () => {
+    const catalog = readFileSync(path.join(root, 'src/lib/mp/catalog.ts'), 'utf8')
+    expect(catalog).toContain('export const MP_SEARCH_LIMIT = { windowSeconds: 60, maxRequests: 30 }')
+    const source = readFileSync(path.join(root, 'src/app/api/mp/search/route.ts'), 'utf8')
+    expect(source).toContain("checkRateLimit('mp:rl:search', getClientIp(request), MP_SEARCH_LIMIT)")
+  })
+
   it('uses the mp:rl: key prefix for every mp rate limit', () => {
     const calls: string[] = []
     for (const file of mpRoutes()) {

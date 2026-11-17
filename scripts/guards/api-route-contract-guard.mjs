@@ -19,6 +19,10 @@ export const PUBLIC_ROUTE_ALLOWLIST = new Set([
   'src/app/api/cos/image/route.ts',
   'src/app/api/files/[...path]/route.ts',
   'src/app/api/mp/auth/login/route.ts',
+  'src/app/api/mp/rankings/[kind]/route.ts',
+  'src/app/api/mp/search/route.ts',
+  'src/app/api/mp/topics/[slug]/route.ts',
+  'src/app/api/mp/works/route.ts',
   'src/app/api/storage/sign/route.ts',
 ])
 
