@@ -138,7 +138,7 @@ async function cardsFor(works: WorkRow[]): Promise<CardSource[]> {
   })
 }
 
-async function workBySlug(slug: string): Promise<WorkRow> {
+export async function workBySlug(slug: string): Promise<WorkRow> {
   const id = await withCache(`mp:slug:${slug}`, 600, async () => {
     const row = await prisma.mpWork.findUnique({ where: { slug }, select: { id: true } })
     if (!row) throw new MpApiError('MP_WORK_NOT_FOUND')
@@ -320,13 +320,9 @@ async function buildHome(): Promise<HomeSource> {
   }
 }
 
-async function continuePlaying(consumerId: string): Promise<ContinueCard[]> {
-  const saves = await prisma.consumerSave.findMany({
-    where: { consumerId },
-    orderBy: { lastPlayedAt: 'desc' },
-    take: 10,
-    select: { mpWorkId: true, progress: true, endingsGot: true, lastPlayedAt: true },
-  })
+interface ProgressRow { mpWorkId: string; progress: number; endingsGot: number; lastPlayedAt: Date }
+
+async function buildContinueCards(saves: ProgressRow[]): Promise<ContinueCard[]> {
   if (!saves.length) return []
   const works = await prisma.mpWork.findMany({ where: { id: { in: saves.map((save) => save.mpWorkId) }, ...VISIBLE_WHERE }, select: WORK_SELECT })
   const metas = await metasFor(works)
@@ -345,6 +341,68 @@ async function continuePlaying(consumerId: string): Promise<ContinueCard[]> {
     })
   }
   return cards
+}
+
+async function continuePlaying(consumerId: string): Promise<ContinueCard[]> {
+  const saves = await prisma.consumerSave.findMany({
+    where: { consumerId },
+    orderBy: { lastPlayedAt: 'desc' },
+    take: 10,
+    select: { mpWorkId: true, progress: true, endingsGot: true, lastPlayedAt: true },
+  })
+  return buildContinueCards(saves)
+}
+
+function encodeOpaque(id: string): string {
+  return Buffer.from(id, 'utf8').toString('base64url')
+}
+
+function decodeOpaque(cursor: string): string {
+  const id = Buffer.from(cursor, 'base64url').toString('utf8')
+  if (!id || id.length > 64) throw new MpApiError('MP_VALIDATION', { message: '分页参数无效' })
+  return id
+}
+
+export async function historyCards(consumerId: string, cursor: string | null, limit: string | null): Promise<{ items: ContinueCard[]; nextCursor: string | null }> {
+  const take = clampLimit(limit)
+  const cursorId = cursor ? decodeOpaque(cursor) : null
+  const saves = await prisma.consumerSave.findMany({
+    where: { consumerId },
+    orderBy: [{ lastPlayedAt: 'desc' }, { id: 'asc' }],
+    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    take,
+    select: { id: true, mpWorkId: true, progress: true, endingsGot: true, lastPlayedAt: true },
+  })
+  const items = await buildContinueCards(saves)
+  const nextCursor = saves.length === take ? encodeOpaque(saves[saves.length - 1].id) : null
+  return { items, nextCursor }
+}
+
+export async function favoriteCards(consumerId: string, cursor: string | null, limit: string | null): Promise<{ items: Card[]; nextCursor: string | null }> {
+  const take = clampLimit(limit)
+  const cursorId = cursor ? decodeOpaque(cursor) : null
+  const favorites = await prisma.consumerFavorite.findMany({
+    where: { consumerId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+    take,
+    select: { id: true, mpWorkId: true },
+  })
+  const works = favorites.length
+    ? await prisma.mpWork.findMany({ where: { id: { in: favorites.map((favorite) => favorite.mpWorkId) }, ...VISIBLE_WHERE }, select: WORK_SELECT })
+    : []
+  const metas = await metasFor(works)
+  const workById = new Map(works.map((work) => [work.id, work]))
+  const sources: CardSource[] = []
+  for (const favorite of favorites) {
+    const work = workById.get(favorite.mpWorkId)
+    const releaseId = work ? displayReleaseId(work) : null
+    const meta = work && releaseId ? metas.get(releaseId) : undefined
+    if (work && meta) sources.push(cardSource(work, meta))
+  }
+  const items = await Promise.all(sources.map(toCard))
+  const nextCursor = favorites.length === take ? encodeOpaque(favorites[favorites.length - 1].id) : null
+  return { items, nextCursor }
 }
 
 export async function home(consumerId: string | null): Promise<{

@@ -2,15 +2,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildMockRequest } from '../../helpers/request'
 
 const prismaMock = vi.hoisted(() => ({
-  mpWork: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn() },
+  mpWork: { findUnique: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), update: vi.fn(), aggregate: vi.fn() },
   storyRelease: { findUnique: vi.fn(), findMany: vi.fn() },
   mpFeatureSlot: { findMany: vi.fn() },
   mpTopic: { findMany: vi.fn(), findFirst: vi.fn() },
-  consumerSave: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
-  consumerFavorite: { findUnique: vi.fn() },
-  consumerRating: { findUnique: vi.fn() },
+  consumerSave: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), create: vi.fn() },
+  consumerFavorite: { findUnique: vi.fn(), findMany: vi.fn(), create: vi.fn(), delete: vi.fn() },
+  consumerRating: { findUnique: vi.fn(), create: vi.fn(), update: vi.fn() },
   mpReservation: { findUnique: vi.fn() },
   consumerUser: { findUnique: vi.fn(), create: vi.fn() },
+  mpReport: { create: vi.fn() },
+  $transaction: vi.fn(),
 }))
 const redisMock = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), del: vi.fn(), incr: vi.fn(), eval: vi.fn() }))
 const storageMock = vi.hoisted(() => ({ getSignedObjectUrl: vi.fn() }))
@@ -41,6 +43,12 @@ import { GET as detailGET } from '@/app/api/mp/works/[slug]/route'
 import { GET as playGET } from '@/app/api/mp/works/[slug]/play/route'
 import { GET as meGET } from '@/app/api/mp/me/route'
 import { POST as loginPOST } from '@/app/api/mp/auth/login/route'
+import { GET as saveGET, PUT as savePUT } from '@/app/api/mp/saves/[slug]/route'
+import { PUT as favoritePUT, DELETE as favoriteDELETE } from '@/app/api/mp/works/[slug]/favorite/route'
+import { PUT as ratingPUT } from '@/app/api/mp/works/[slug]/rating/route'
+import { POST as reportPOST } from '@/app/api/mp/reports/route'
+import { GET as historyGET } from '@/app/api/mp/me/history/route'
+import { GET as favoritesGET } from '@/app/api/mp/me/favorites/route'
 import { GET as interactiveGET } from '@/app/api/interactive/route'
 import { signConsumerToken } from '@/lib/mp/token'
 
@@ -97,7 +105,7 @@ const WORK = {
 }
 const SCHEDULED_WORK = { ...WORK, id: 'mpw2', slug: 'soon5678', status: 'scheduled', liveReleaseId: null, pendingReleaseId: 'r1', scheduledAt: new Date('2026-12-01T00:00:00Z'), reserveCount: 7 }
 const TOPIC = { id: 't1', slug: 'topic001', title: '悬疑专题', subtitle: '烧脑', description: '专题描述', coverKey: 'mp/topics/t1/cover.jpg', mpWorkIds: ['mpw1'], status: 'live', startsAt: null, endsAt: null, sort: 0 }
-const SAVE = { mpWorkId: 'mpw1', progress: 0.5, endingsGot: 1, lastPlayedAt: new Date('2026-11-10T00:00:00Z'), profile: { endings: [], segments: [], achievements: ['a1'], bought: [], equipped: { title: null, frame: null } } }
+const SAVE = { id: 's1', mpWorkId: 'mpw1', progress: 0.5, endingsGot: 1, lastPlayedAt: new Date('2026-11-10T00:00:00Z'), profile: { endings: [], segments: [], achievements: ['a1'], bought: [], equipped: { title: null, frame: null } } }
 
 const FORBIDDEN_KEYS = new Set(['workId', 'workspaceOwnerId', 'createdById', 'storageKey', 'reviewNote', 'openid', 'unionid'])
 const BARE_KEY = /^(images|videos|mp\/releases)\//
@@ -171,8 +179,21 @@ beforeEach(() => {
   prismaMock.consumerSave.findUnique.mockResolvedValue({ id: 's1', profile: SAVE.profile, progress: 0.5 })
   prismaMock.consumerSave.update.mockResolvedValue({ id: 's1' })
   prismaMock.consumerFavorite.findUnique.mockResolvedValue({ id: 'f1' })
+  prismaMock.consumerFavorite.findMany.mockResolvedValue([{ id: 'f1', mpWorkId: 'mpw1' }])
+  prismaMock.consumerFavorite.create.mockResolvedValue({ id: 'f1' })
+  prismaMock.consumerFavorite.delete.mockResolvedValue({ id: 'f1' })
   prismaMock.consumerRating.findUnique.mockResolvedValue({ score: 5 })
+  prismaMock.consumerRating.create.mockResolvedValue({ id: 'r1' })
+  prismaMock.consumerRating.update.mockResolvedValue({ id: 'r1' })
+  prismaMock.consumerSave.create.mockResolvedValue({ id: 's1' })
+  prismaMock.mpWork.update.mockResolvedValue({ ...WORK })
+  prismaMock.mpWork.aggregate.mockResolvedValue({ _sum: { ratingCount: 100, ratingSum: 400 } })
+  prismaMock.mpReport.create.mockResolvedValue({ id: 'rep1' })
   prismaMock.mpReservation.findUnique.mockResolvedValue(null)
+  prismaMock.$transaction.mockImplementation(async (arg: unknown) => {
+    if (typeof arg === 'function') return (arg as (tx: unknown) => Promise<unknown>)(prismaMock)
+    return Promise.all(arg as Promise<unknown>[])
+  })
   sessionMock.getServerSession.mockResolvedValue(null)
 })
 
@@ -247,6 +268,54 @@ describe('C-side response leak guard (红线 2)', () => {
     expect(JSON.stringify(body).includes('unionid-secret')).toBe(false)
     expect((body.user as { id: string }).id).toBe('c1')
     expect(typeof body.token).toBe('string')
+  })
+})
+
+describe('viewer-state endpoints leak guard (红线 2)', () => {
+  const mutation = (path: string, method: 'PUT' | 'POST' | 'DELETE', body?: unknown) =>
+    buildMockRequest({ path, method, headers: { authorization: `Bearer ${token}` }, body })
+
+  it('saves GET returns engine state without internal ids', async () => {
+    prismaMock.consumerSave.findUnique.mockResolvedValue({ rev: 2, releaseId: 'r1', profile: SAVE.profile, saves: { auto: null, slots: [null, null, null], checkpoints: {} }, permanent: { n: 1 } })
+    const body = await leakCheck(await saveGET(authed('/api/mp/saves/abcd1234'), ctx({ slug: 'abcd1234' })))
+    expect(body.rev).toBe(2)
+  })
+
+  it('saves PUT creates rev 1 and never echoes internal ids', async () => {
+    prismaMock.consumerSave.findUnique.mockResolvedValue(null)
+    const body = await leakCheck(await savePUT(mutation('/api/mp/saves/abcd1234', 'PUT', { baseRev: 0, releaseId: 'r1', profile: {}, saves: {}, permanent: {}, progress: 0, endingsGot: 0 }), ctx({ slug: 'abcd1234' })))
+    expect(body.rev).toBe(1)
+    expect(body.merged).toBe(false)
+  })
+
+  it('saves PUT rejects a body over 256KB with 413', async () => {
+    const response = await savePUT(mutation('/api/mp/saves/abcd1234', 'PUT', { baseRev: 0, releaseId: 'r1', padding: 'x'.repeat(256 * 1024) }), ctx({ slug: 'abcd1234' }))
+    expect(response.status).toBe(413)
+    const body = await response.json() as { error: { code: string } }
+    expect(body.error.code).toBe('MP_PAYLOAD_TOO_LARGE')
+  })
+
+  it('favorite PUT and DELETE return only the favorited flag', async () => {
+    prismaMock.consumerFavorite.findUnique.mockResolvedValue(null)
+    expect(await leakCheck(await favoritePUT(mutation('/api/mp/works/abcd1234/favorite', 'PUT'), ctx({ slug: 'abcd1234' })))).toEqual({ favorited: true })
+    prismaMock.consumerFavorite.findUnique.mockResolvedValue({ id: 'f1' })
+    expect(await leakCheck(await favoriteDELETE(mutation('/api/mp/works/abcd1234/favorite', 'DELETE'), ctx({ slug: 'abcd1234' })))).toEqual({ favorited: false })
+  })
+
+  it('rating PUT returns only the score', async () => {
+    prismaMock.consumerRating.findUnique.mockResolvedValue(null)
+    expect(await leakCheck(await ratingPUT(mutation('/api/mp/works/abcd1234/rating', 'PUT', { score: 5 }), ctx({ slug: 'abcd1234' })))).toEqual({ score: 5 })
+  })
+
+  it('reports POST returns only ok', async () => {
+    expect(await leakCheck(await reportPOST(mutation('/api/mp/reports', 'POST', { slug: 'abcd1234', reason: 'vulgar', detail: '低俗' }), ctx({})))).toEqual({ ok: true })
+  })
+
+  it('history and favorites return signed cards without internal ids', async () => {
+    const history = await leakCheck(await historyGET(authed('/api/mp/me/history'), ctx({})))
+    expect((history.items as { card: { cover: string } }[])[0].card.cover.startsWith('https://media.example.com/')).toBe(true)
+    const favorites = await leakCheck(await favoritesGET(authed('/api/mp/me/favorites'), ctx({})))
+    expect((favorites.items as { cover: string }[])[0].cover.startsWith('https://media.example.com/')).toBe(true)
   })
 })
 
