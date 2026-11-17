@@ -1,0 +1,7 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="sk-list"><view class="sk-row" wx:for="{{[1,2,3,4,5,6]}}" wx:key="*this"></view></view>
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="load" />
+  <view wx:else class="body">
+    <rank-row wx:for="{{rows}}" wx:key="index" rank="{{item.rank}}" card="{{item.card}}" metric="{{item.metric}}" bind:tap="onCardTap" />
+  </view>
+</view>

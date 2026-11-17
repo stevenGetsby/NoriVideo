@@ -1,0 +1,74 @@
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  transition: transform 120ms;
+}
+.card-hover {
+  transform: scale(0.97);
+}
+.card.grid .cover {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  display: block;
+  background: var(--surface-2);
+}
+.card.grid .body {
+  padding: 16rpx;
+}
+.card.row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx;
+}
+.card.row .cover {
+  width: 96rpx;
+  height: 128rpx;
+  border-radius: var(--radius-tag);
+  flex-shrink: 0;
+  background: var(--surface-2);
+}
+.card.row .body {
+  flex: 1;
+  margin-left: 20rpx;
+  min-width: 0;
+}
+.title {
+  color: var(--text);
+  font-size: var(--font-card-title);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tagline {
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  margin-top: 6rpx;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.players {
+  color: var(--text-2);
+  font-size: var(--font-aux);
+  margin-top: 8rpx;
+}
+.progress-wrap {
+  margin-top: 12rpx;
+}
+.progress-bar {
+  height: 8rpx;
+  background: var(--surface-2);
+  border-radius: 4rpx;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--brand);
+}
+.progress-text {
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  margin-top: 8rpx;
+}

@@ -1,0 +1,1 @@
+{"navigationBarTitleText": "榜单", "enablePullDownRefresh": true, "backgroundColor": "#0E0F1A", "backgroundTextStyle": "light", "usingComponents": {"rank-row": "/components/rank-row/index", "empty-state": "/components/empty-state/index"}}

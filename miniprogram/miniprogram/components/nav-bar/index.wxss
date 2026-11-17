@@ -1,0 +1,32 @@
+.nav {
+  background: var(--bg);
+}
+.nav-transparent {
+  background: transparent;
+}
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24rpx;
+}
+.left {
+  display: flex;
+  align-items: center;
+}
+.title {
+  color: var(--text);
+  font-size: var(--font-title);
+  font-weight: 600;
+}
+.back {
+  width: 20rpx;
+  height: 20rpx;
+  border-left: 4rpx solid var(--text);
+  border-bottom: 4rpx solid var(--text);
+  transform: rotate(45deg);
+}
+.right {
+  display: flex;
+  align-items: center;
+}

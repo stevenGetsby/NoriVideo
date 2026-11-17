@@ -1,0 +1,47 @@
+.row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+}
+.row-hover {
+  opacity: 0.85;
+}
+.rank {
+  width: 56rpx;
+  text-align: center;
+  font-size: var(--font-title);
+  font-weight: 600;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+.rank-top {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.cover {
+  width: 96rpx;
+  height: 128rpx;
+  border-radius: var(--radius-tag);
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.info {
+  flex: 1;
+  margin-left: 20rpx;
+  min-width: 0;
+}
+.title {
+  color: var(--text);
+  font-size: var(--font-card-title);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.metric {
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  margin-top: 8rpx;
+}

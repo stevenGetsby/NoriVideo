@@ -1,0 +1,105 @@
+<view class="page">
+  <nav-bar title="{{brand}}" transparent="{{true}}">
+    <view class="search-capsule" bindtap="goSearch">搜索作品、题材</view>
+  </nav-bar>
+
+  <view wx:if="{{loading}}" class="skeleton">
+    <view class="sk-hero"></view>
+    <view class="sk-row"></view>
+    <view class="sk-grid"><view class="sk-card"></view><view class="sk-card"></view></view>
+  </view>
+
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="load" />
+
+  <block wx:else>
+    <swiper wx:if="{{hero.length}}" class="hero" autoplay interval="5000" circular indicator-dots indicator-active-color="#FFFFFF">
+      <swiper-item wx:for="{{hero}}" wx:key="index">
+        <view class="hero-slide" data-index="{{index}}" bindtap="onHeroTap">
+          <image class="hero-img" src="{{item.card.cover || item.image}}" mode="aspectFill" />
+          <view class="hero-grad" style="background:linear-gradient(0deg,{{item.card.accentColor || '#0E0F1A'}} 0%,transparent 60%)"></view>
+          <view class="hero-info">
+            <view class="hero-title">{{item.title}}</view>
+            <view class="hero-sub">{{item.subtitle}}</view>
+            <view class="hero-btn">{{item.card.status === 'scheduled' ? '预约上线提醒' : '立即游玩'}}</view>
+          </view>
+        </view>
+      </swiper-item>
+    </swiper>
+
+    <view class="section">
+      <view wx:if="{{continue.length}}">
+        <section-header title="继续游玩" />
+        <scroll-view class="hscroll" scroll-x enable-flex>
+          <view class="hscroll-inner">
+            <work-card
+              wx:for="{{continue}}"
+              wx:key="index"
+              class="hcard"
+              card="{{item.card}}"
+              progress="{{item.progress}}"
+              endingsGot="{{item.endingsGot}}"
+              bind:tap="onContinueTap"
+            />
+          </view>
+        </scroll-view>
+      </view>
+
+      <view wx:if="{{picks.length}}">
+        <section-header title="编辑精选" />
+        <view class="grid2">
+          <block wx:for="{{picks}}" wx:key="index">
+            <work-card wx:if="{{item.card}}" card="{{item.card}}" data-index="{{index}}" bind:tap="onPickTap" />
+            <view wx:else class="pick-tile" data-index="{{index}}" bindtap="onPickTap">
+              <image class="pick-img" src="{{item.image}}" mode="aspectFill" />
+              <view class="pick-title">{{item.title}}</view>
+            </view>
+          </block>
+        </view>
+      </view>
+
+      <view wx:if="{{hotRows.length}}">
+        <section-header title="热玩榜" more="完整榜单" bind:more="onHotMore" />
+        <rank-row
+          wx:for="{{hotRows}}"
+          wx:key="index"
+          rank="{{item.rank}}"
+          card="{{item.card}}"
+          metric="{{item.metric}}"
+          bind:tap="onCardTap"
+        />
+      </view>
+
+      <view wx:if="{{newest.length}}">
+        <section-header title="新作上线" />
+        <scroll-view class="hscroll" scroll-x enable-flex>
+          <view class="hscroll-inner">
+            <work-card wx:for="{{newest}}" wx:key="slug" class="hcard" card="{{item}}" bind:tap="onCardTap" />
+          </view>
+        </scroll-view>
+      </view>
+
+      <view wx:if="{{upcoming.length}}">
+        <section-header title="即将上线" />
+        <view class="upcoming" wx:for="{{upcoming}}" wx:key="slug">
+          <image class="up-cover" src="{{item.cover}}" mode="aspectFill" data-slug="{{item.slug}}" bindtap="onCardTap" />
+          <view class="up-info">
+            <view class="up-title">{{item.title}}</view>
+            <view class="up-date">{{item.dateText}} · {{item.reserveText}}</view>
+          </view>
+          <view class="up-btn {{item.reserved ? 'up-btn-on' : ''}}" data-slug="{{item.slug}}" catchtap="onReserve">{{item.reserved ? '已预约' : '预约'}}</view>
+        </view>
+      </view>
+
+      <view wx:if="{{topics.length}}">
+        <section-header title="专题" />
+        <view class="topic" wx:for="{{topics}}" wx:key="slug" data-slug="{{item.slug}}" bindtap="onTopicTap">
+          <image class="topic-img" src="{{item.cover}}" mode="aspectFill" />
+          <view class="topic-info">
+            <view class="topic-title">{{item.title}}</view>
+            <view class="topic-sub">{{item.subtitle}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,37 @@
+<view class="page">
+  <view class="searchbar">
+    <input
+      class="input"
+      type="text"
+      placeholder="搜索作品、题材"
+      placeholder-class="ph"
+      maxlength="30"
+      confirm-type="search"
+      value="{{keyword}}"
+      bindinput="onInput"
+      bindconfirm="onConfirm"
+      focus
+    />
+    <view wx:if="{{keyword}}" class="clear" bindtap="onClear">清除</view>
+  </view>
+
+  <view class="body">
+    <block wx:if="{{!searched}}">
+      <view wx:if="{{hotWords.length}}" class="hot">
+        <view class="hot-title">热门搜索</view>
+        <view class="hot-words">
+          <view wx:for="{{hotWords}}" wx:key="*this" class="hot-word" data-word="{{item}}" bindtap="onHotWord">{{item}}</view>
+        </view>
+      </view>
+    </block>
+
+    <block wx:else>
+      <view wx:if="{{searching}}" class="sk-grid"><view class="sk-card" wx:for="{{[1,2,3,4]}}" wx:key="*this"></view></view>
+      <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="onRetry" />
+      <empty-state wx:elif="{{!results.length}}" text="没有找到相关作品，换个关键词试试" />
+      <view wx:else class="grid2">
+        <work-card wx:for="{{results}}" wx:key="slug" card="{{item}}" bind:tap="onCardTap" />
+      </view>
+    </block>
+  </view>
+</view>

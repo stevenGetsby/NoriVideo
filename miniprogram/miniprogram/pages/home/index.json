@@ -1,0 +1,1 @@
+{"navigationStyle": "custom", "enablePullDownRefresh": true, "backgroundColor": "#0E0F1A", "backgroundTextStyle": "light", "usingComponents": {"nav-bar": "/components/nav-bar/index", "work-card": "/components/work-card/index", "rank-row": "/components/rank-row/index", "section-header": "/components/section-header/index", "empty-state": "/components/empty-state/index"}}

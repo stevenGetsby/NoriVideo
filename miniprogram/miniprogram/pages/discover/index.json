@@ -1,0 +1,1 @@
+{"navigationBarTitleText": "发现", "enablePullDownRefresh": true, "backgroundColor": "#0E0F1A", "backgroundTextStyle": "light", "usingComponents": {"work-card": "/components/work-card/index", "rank-row": "/components/rank-row/index", "empty-state": "/components/empty-state/index"}}

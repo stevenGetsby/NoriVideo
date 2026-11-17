@@ -1,0 +1,31 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="skeleton">
+    <view class="sk-cover"></view>
+    <view class="sk-line"></view>
+    <view class="sk-grid"><view class="sk-card"></view><view class="sk-card"></view></view>
+  </view>
+
+  <empty-state wx:elif="{{notFound}}" text="作品已下架或不存在" button="去首页看看" bind:action="goHome" />
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="load" />
+
+  <block wx:else>
+    <view class="header">
+      <image class="cover" src="{{topic.cover}}" mode="aspectFill" />
+      <view class="header-info">
+        <view class="title">{{topic.title}}</view>
+        <view class="subtitle">{{topic.subtitle}}</view>
+      </view>
+    </view>
+    <view class="body">
+      <view wx:if="{{topic.description}}" class="desc">{{topic.description}}</view>
+      <view class="bar">
+        <view class="count">共 {{items.length}} 部</view>
+        <button class="share" open-type="share">分享</button>
+      </view>
+      <empty-state wx:if="{{!items.length}}" text="这个专题还没有作品" />
+      <view wx:else class="grid2">
+        <work-card wx:for="{{items}}" wx:key="slug" card="{{item}}" bind:tap="onCardTap" />
+      </view>
+    </view>
+  </block>
+</view>

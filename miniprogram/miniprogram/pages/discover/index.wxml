@@ -1,0 +1,48 @@
+<view class="page">
+  <view class="tabs">
+    <view class="tab {{tab === 'rank' ? 'tab-on' : ''}}" data-tab="rank" bindtap="onTab">榜单</view>
+    <view class="tab {{tab === 'tag' ? 'tab-on' : ''}}" data-tab="tag" bindtap="onTab">分类</view>
+  </view>
+
+  <block wx:if="{{tab === 'rank'}}">
+    <view class="segmented">
+      <view
+        wx:for="{{rankKinds}}"
+        wx:key="k"
+        class="seg {{rankKind === item.k ? 'seg-on' : ''}}"
+        data-k="{{item.k}}"
+        bindtap="onRankKind"
+      >{{item.label}}</view>
+    </view>
+    <view class="body">
+      <view wx:if="{{rankLoading}}" class="sk-list"><view class="sk-row" wx:for="{{[1,2,3,4,5]}}" wx:key="*this"></view></view>
+      <empty-state wx:elif="{{rankError}}" text="网络开小差了，点击重试" button="重试" bind:action="loadRank" />
+      <block wx:else>
+        <rank-row wx:for="{{rankRows}}" wx:key="index" rank="{{item.rank}}" card="{{item.card}}" metric="{{item.metric}}" bind:tap="onCardTap" />
+      </block>
+    </view>
+  </block>
+
+  <block wx:else>
+    <scroll-view class="tagbar" scroll-x enable-flex>
+      <view class="tagbar-inner">
+        <view wx:for="{{tags}}" wx:key="*this" class="tag {{tag === item ? 'tag-on' : ''}}" data-tag="{{item}}" bindtap="onTag">{{item}}</view>
+      </view>
+    </scroll-view>
+    <view class="segmented">
+      <view wx:for="{{sorts}}" wx:key="k" class="seg {{sort === item.k ? 'seg-on' : ''}}" data-k="{{item.k}}" bindtap="onSort">{{item.label}}</view>
+    </view>
+    <view class="body">
+      <view wx:if="{{listLoading}}" class="sk-grid"><view class="sk-card" wx:for="{{[1,2,3,4]}}" wx:key="*this"></view></view>
+      <empty-state wx:elif="{{listError}}" text="网络开小差了，点击重试" button="重试" bind:action="onListRetry" />
+      <empty-state wx:elif="{{!items.length}}" text="这个分类还没有作品" />
+      <block wx:else>
+        <view class="grid2">
+          <work-card wx:for="{{items}}" wx:key="slug" card="{{item}}" bind:tap="onCardTap" />
+        </view>
+        <view wx:if="{{loadingMore}}" class="more">加载中…</view>
+        <view wx:elif="{{!cursor}}" class="more">没有更多了</view>
+      </block>
+    </view>
+  </block>
+</view>
