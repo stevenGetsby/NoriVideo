@@ -1,5 +1,5 @@
-export { startRun, advanceRun, resolveBeat, purchaseShopItem, isRunFinished, visibleOptions, permanentValues, isPermanentVariable } from '@/lib/interactive/engine'
-export type { StoryRun, StoryStop, StoryRunMode, BeatOutcome } from '@/lib/interactive/engine'
+export { startRun, advanceRun, resolveBeat, purchaseShopItem, isRunFinished, visibleOptions, permanentValues, isPermanentVariable, choiceTimeoutOption, beatTimeoutHandle, shopItemViews, isOptionOpen, initialVariables, carriedPermanent } from '@/lib/interactive/engine'
+export type { StoryRun, StoryStop, StoryRunMode, BeatOutcome, StoryOptionView, StoryShopItemView, PurchaseFailure, PurchaseResult, StoryTrailStep, StoryPending, StoryHaltReason } from '@/lib/interactive/engine'
 export * from '@/lib/interactive/interaction'
 export * from '@/lib/interactive/saves'
 export * from '@/lib/interactive/achievements'
