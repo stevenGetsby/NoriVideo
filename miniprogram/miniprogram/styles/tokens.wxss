@@ -1,0 +1,30 @@
+page {
+  --bg: #0E0F1A;
+  --surface: #181A2B;
+  --surface-2: #22253A;
+  --border: rgba(255, 255, 255, 0.08);
+
+  --text: #F5F6FF;
+  --text-2: #A3A8C3;
+  --text-3: #6B7090;
+
+  --brand: #4C7DFF;
+  --accent-gradient: linear-gradient(135deg, #7B5CFF 0%, #FF5CA8 100%);
+
+  --ending-good: #38D39F;
+  --ending-normal: #4C7DFF;
+  --ending-bad: #FF6B6B;
+  --ending-hidden: #FFB547;
+
+  --radius-card: 16rpx;
+  --radius-button: 12rpx;
+  --radius-tag: 8rpx;
+
+  --page-padding: 32rpx;
+  --grid-gap: 24rpx;
+
+  --font-title: 40rpx;
+  --font-card-title: 30rpx;
+  --font-body: 28rpx;
+  --font-aux: 24rpx;
+}

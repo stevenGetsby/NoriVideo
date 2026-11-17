@@ -1,0 +1,47 @@
+{
+  "pages": [
+    "pages/home/index",
+    "pages/discover/index",
+    "pages/me/index",
+    "pages/work/index",
+    "pages/search/index",
+    "pages/ranking/index",
+    "pages/topic/index",
+    "pages/collection/index",
+    "pages/history/index",
+    "pages/favorites/index",
+    "pages/reservations/index",
+    "pages/profile-edit/index",
+    "pages/settings/index",
+    "pages/doc/index"
+  ],
+  "subPackages": [
+    {
+      "root": "pkg-play",
+      "pages": ["play-portrait/index", "play-landscape/index"]
+    }
+  ],
+  "preloadRule": {
+    "pages/work/index": { "network": "all", "packages": ["pkg-play"] }
+  },
+  "window": {
+    "navigationBarBackgroundColor": "#0E0F1A",
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "蓝喵剧场",
+    "backgroundColor": "#0E0F1A",
+    "backgroundTextStyle": "light"
+  },
+  "tabBar": {
+    "color": "#6B7090",
+    "selectedColor": "#4C7DFF",
+    "backgroundColor": "#181A2B",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/home/index", "text": "首页", "iconPath": "assets/tab/home.png", "selectedIconPath": "assets/tab/home-active.png" },
+      { "pagePath": "pages/discover/index", "text": "发现", "iconPath": "assets/tab/discover.png", "selectedIconPath": "assets/tab/discover-active.png" },
+      { "pagePath": "pages/me/index", "text": "我的", "iconPath": "assets/tab/me.png", "selectedIconPath": "assets/tab/me-active.png" }
+    ]
+  },
+  "__usePrivacyCheck__": true,
+  "style": "v2"
+}

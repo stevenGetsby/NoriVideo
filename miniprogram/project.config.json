@@ -1,0 +1,15 @@
+{
+  "appid": "touristappid",
+  "miniprogramRoot": "miniprogram/",
+  "projectname": "lanmiao-miniprogram",
+  "compileType": "miniprogram",
+  "libVersion": "3.0.0",
+  "setting": {
+    "useCompilerPlugins": ["typescript"],
+    "es6": true,
+    "enhance": true,
+    "minified": true,
+    "postcss": true,
+    "urlCheck": true
+  }
+}
