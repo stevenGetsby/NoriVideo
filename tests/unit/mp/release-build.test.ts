@@ -248,6 +248,7 @@ describe('handleStoryReleaseBuildTask', () => {
 
     const result = await handleStoryReleaseBuildTask(job)
     expect(result).toEqual({ releaseId: 'r1', status: 'reviewing' })
+    expect(preflightMock).toHaveBeenCalledWith('w1', 'r1')
     expect(steps).toEqual([
       'load',
       'preflight',

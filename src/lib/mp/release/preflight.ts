@@ -32,7 +32,7 @@ const issue = (level: StoryIssue['level'], code: string, message: string, projec
 
 const LISTING_FIELDS = ['title', 'tagline', 'synopsis', 'tags', 'creatorName'] as const
 
-export async function preflightRelease(workId: string): Promise<PreflightResult> {
+export async function preflightRelease(workId: string, excludeReleaseId?: string): Promise<PreflightResult> {
   const data = await loadStoryForRelease(workId)
   const program = programForRelease(data)
   const issues: StoryIssue[] = validateStory(program)
@@ -85,7 +85,11 @@ export async function preflightRelease(workId: string): Promise<PreflightResult>
 
   if (!listing?.coverKey) issues.push(issue('warning', 'mp_no_cover', '未上传竖版封面，将使用开场画面'))
 
-  const inProgress = await prisma.storyRelease.findFirst({ where: { workId, status: { in: ['building', 'reviewing'] } }, select: { id: true } })
+  // 构建任务复跑 preflight 时排除自身，否则 building 中的版本会把自己判为「已有版本在生成」。
+  const inProgress = await prisma.storyRelease.findFirst({
+    where: { workId, status: { in: ['building', 'reviewing'] }, ...(excludeReleaseId ? { id: { not: excludeReleaseId } } : {}) },
+    select: { id: true },
+  })
   if (inProgress) issues.push(issue('error', 'mp_release_in_progress', '已有一个版本在生成或审核中'))
 
   const sorted = sortIssues(issues)

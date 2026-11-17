@@ -329,4 +329,16 @@ describe('preflightRelease', () => {
   it('accepts works without an in-progress release', async () => {
     expect(codes((await preflightRelease('w1')).issues)).not.toContain('mp_release_in_progress')
   })
+
+  it('excludes the building release itself via excludeReleaseId', async () => {
+    prismaMock.storyRelease.findFirst.mockImplementation(async ({ where }: { where: { id?: { not?: string } } }) =>
+      where.id?.not === 'r1' ? null : { id: 'r1' })
+    expect(codes((await preflightRelease('w1')).issues)).toContain('mp_release_in_progress')
+    const result = await preflightRelease('w1', 'r1')
+    expect(prismaMock.storyRelease.findFirst).toHaveBeenLastCalledWith({
+      where: { workId: 'w1', status: { in: ['building', 'reviewing'] }, id: { not: 'r1' } },
+      select: { id: true },
+    })
+    expect(codes(result.issues)).not.toContain('mp_release_in_progress')
+  })
 })

@@ -213,7 +213,7 @@ export async function handleStoryReleaseBuildTask(job: Job<TaskJobData>) {
     const data = await loadStoryForRelease(workId)
     const program = programForRelease(data)
 
-    const preflight = await preflightRelease(workId)
+    const preflight = await preflightRelease(workId, releaseId)
     if (preflight.errors > 0) throw new ReleaseBuildError('发布前检查未通过', preflight.issues)
     const issues: StoryIssue[] = preflight.issues.filter((item) => item.level === 'warning')
 
