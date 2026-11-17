@@ -16,6 +16,7 @@ const MP_ERROR_SPECS = {
   MP_NOT_PLAYABLE: { status: 409, base: 'CONFLICT', message: '作品尚未上线，暂不可游玩' },
   MP_RATE_LIMITED: { status: 429, base: 'RATE_LIMIT', message: '操作过于频繁，请稍后再试' },
   MP_WX_UNAVAILABLE: { status: 502, base: 'EXTERNAL_ERROR', message: '微信服务暂时不可用，请稍后重试' },
+  MP_DY_UNAVAILABLE: { status: 502, base: 'EXTERNAL_ERROR', message: '抖音服务暂时不可用，请稍后重试' },
   MP_CDN_NOT_CONFIGURED: { status: 503, base: 'MISSING_CONFIG', message: '媒体服务未配置' },
 } as const satisfies Record<string, { status: number; base: ApiErrorCode; message: string }>
 

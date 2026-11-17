@@ -345,6 +345,17 @@ export async function dailyMaintenance(): Promise<void> {
     if (deleted < EVENT_DELETE_BATCH) break
     await sleep(200)
   }
+  await pruneDyEvents()
+}
+
+/** 抖音事件清理（N14）：每天删 90 天前的 dy_events，分批 5000 行，走 createdAt 索引。 */
+export async function pruneDyEvents(): Promise<void> {
+  const cutoff = new Date(Date.now() - MP_EVENT_RETENTION_DAYS * DAY_MS)
+  for (;;) {
+    const deleted = await prisma.$executeRaw`DELETE FROM dy_events WHERE createdAt < ${cutoff} LIMIT ${EVENT_DELETE_BATCH}`
+    if (deleted < EVENT_DELETE_BATCH) break
+    await sleep(200)
+  }
 }
 
 export async function runMpJobs(): Promise<void> {

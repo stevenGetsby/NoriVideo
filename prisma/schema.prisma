@@ -2242,3 +2242,91 @@ model MpJobState {
 
   @@map("mp_job_states")
 }
+
+// 抖音小游戏：一个 appId 对应一部作品。mpWorkId/userId 不建 Prisma relation（避免改微信端模型），一致性在代码里校验。
+model DyApp {
+  id         String   @id @default(uuid())
+  appId      String   @unique @db.VarChar(32)
+  mpWorkId   String   @db.VarChar(191)
+  name       String   @db.VarChar(40)
+  secretEnc  String   @db.Text           // encryptApiKey(secret)，src/lib/crypto-utils.ts:50
+  // active | offline
+  status     String   @default("active") @db.VarChar(16)
+  releaseIds Json                          // string[]，白名单，最多 10 个
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  @@index([mpWorkId])
+  @@map("dy_apps")
+}
+
+model DyUser {
+  id           String   @id @default(uuid())
+  appId        String   @db.VarChar(32)
+  openid       String?  @db.VarChar(96)
+  anonOpenid   String?  @db.VarChar(96)
+  unionid      String?  @db.VarChar(96)    // 不加 unique：同一 unionid 在不同 appId 下各有一行
+  // active | banned | merged
+  status       String   @default("active") @db.VarChar(16)
+  tokenVersion Int      @default(0)
+  firstSource  String?  @db.VarChar(24)
+  firstShareId String?  @db.VarChar(16)
+  createdAt    DateTime @default(now())
+  lastSeenAt   DateTime @default(now())
+  @@unique([appId, openid])
+  @@unique([appId, anonOpenid])
+  @@index([appId, createdAt])
+  @@index([unionid])
+  @@map("dy_users")
+}
+
+model DySave {
+  id           String   @id @default(uuid())
+  userId       String   @unique @db.VarChar(191)   // 一个 DyUser 只属于一个 appId，也就只对应一部作品
+  appId        String   @db.VarChar(32)
+  releaseId    String   @db.VarChar(191)
+  profile      Json
+  saves        Json
+  permanent    Json
+  rev          Int      @default(0)
+  progress     Float    @default(0)
+  endingsGot   Int      @default(0)
+  lastPlayedAt DateTime @default(now())
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+  @@index([appId, lastPlayedAt])
+  @@map("dy_saves")
+}
+
+model DyEvent {
+  id        BigInt   @id @default(autoincrement())
+  appId     String   @db.VarChar(32)
+  name      String   @db.VarChar(32)
+  userId    String?  @db.VarChar(191)
+  anonId    String   @db.VarChar(32)
+  sessionId String   @db.VarChar(32)
+  releaseId String?  @db.VarChar(191)
+  nodeId    String?  @db.VarChar(64)
+  optionId  String?  @db.VarChar(64)
+  value     Int?
+  flag      Boolean?
+  source    String?  @db.VarChar(24)
+  shareId   String?  @db.VarChar(16)
+  clientTs  DateTime
+  createdAt DateTime @default(now())
+  @@index([appId, name, createdAt])
+  @@index([createdAt])
+  @@map("dy_events")
+}
+
+model DyShare {
+  id           String   @id @db.VarChar(16)    // 客户端用 newShareId 的同款格式生成（src/lib/mp/ids.ts:19, isShareId）
+  userId       String   @db.VarChar(191)
+  appId        String   @db.VarChar(32)
+  // work | ending | video
+  kind         String   @db.VarChar(16)
+  endingNodeId String?  @db.VarChar(64)
+  newUsers     Int      @default(0)
+  createdAt    DateTime @default(now())
+  @@index([appId, createdAt])
+  @@map("dy_shares")
+}

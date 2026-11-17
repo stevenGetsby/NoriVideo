@@ -368,8 +368,13 @@ describe('dailyMaintenance', () => {
     await done
     expect(redisMock.set).toHaveBeenCalledWith('mp:job:maint:2026-11-17', '1', 'EX', 86400, 'NX')
     expect(prismaMock.mpWork.update).toHaveBeenCalledWith({ where: { id: 'w1' }, data: { favoriteCount: 3, reserveCount: 0 } })
-    expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(2)
+    expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(3)
     const cutoff = prismaMock.$executeRaw.mock.calls[0][1] as Date
     expect(cutoff.toISOString()).toBe('2026-08-18T19:05:00.000Z')
+    // 第三刀是 N14 的 dy_events 清理，同一 cutoff、每批 5000。
+    const dyCall = prismaMock.$executeRaw.mock.calls[2] as [TemplateStringsArray, Date, number]
+    expect(dyCall[0].join('')).toContain('dy_events')
+    expect(Math.abs(dyCall[1].getTime() - cutoff.getTime())).toBeLessThan(1000)
+    expect(dyCall[2]).toBe(5000)
   })
 })

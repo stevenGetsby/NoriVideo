@@ -583,7 +583,7 @@ export async function workDetail(slug: string, consumerId: string | null): Promi
   }
 }
 
-async function signMediaEntry(entry: ReleaseMediaEntry, nowSec: number): Promise<PlayManifest['media'][string]> {
+export async function signMediaEntry(entry: ReleaseMediaEntry, nowSec: number): Promise<PlayManifest['media'][string]> {
   const { files } = entry
   const [v720, v480, poster, last, img] = await Promise.all([
     files.v720 ? mpMediaUrl(files.v720, nowSec) : Promise.resolve(undefined),
