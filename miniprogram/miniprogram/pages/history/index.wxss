@@ -1,0 +1,31 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.row-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24rpx;
+  padding: 24rpx var(--page-padding);
+}
+.time {
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  margin-top: 8rpx;
+  padding-left: 8rpx;
+}
+.loading-more {
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  padding: 24rpx;
+}
+.skeleton {
+  padding: 24rpx var(--page-padding);
+}
+.sk-row {
+  height: 160rpx;
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+  margin-bottom: 24rpx;
+}

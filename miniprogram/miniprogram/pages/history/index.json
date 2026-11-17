@@ -1,0 +1,1 @@
+{"navigationBarTitleText": "游玩记录", "enablePullDownRefresh": true, "usingComponents": {"work-card": "/components/work-card/index", "empty-state": "/components/empty-state/index"}}

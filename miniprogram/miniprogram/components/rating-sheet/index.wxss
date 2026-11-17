@@ -1,0 +1,57 @@
+.mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  z-index: 100;
+}
+.sheet {
+  width: 100%;
+  background: var(--surface);
+  border-radius: 24rpx 24rpx 0 0;
+  padding: 48rpx 32rpx calc(48rpx + env(safe-area-inset-bottom));
+  position: relative;
+}
+.close {
+  position: absolute;
+  top: 32rpx;
+  right: 32rpx;
+  color: var(--text-3);
+  font-size: var(--font-aux);
+}
+.title {
+  color: var(--text);
+  font-size: var(--font-title);
+  font-weight: 600;
+  text-align: center;
+}
+.stars {
+  display: flex;
+  justify-content: center;
+  gap: 24rpx;
+  margin: 48rpx 0;
+}
+.star {
+  width: 56rpx;
+  height: 56rpx;
+  background: var(--surface-2);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+}
+.star-on {
+  background: var(--ending-hidden);
+}
+.submit {
+  margin-top: 16rpx;
+  height: 88rpx;
+  line-height: 88rpx;
+  text-align: center;
+  border-radius: var(--radius-button);
+  background: var(--accent-gradient);
+  color: #fff;
+  font-size: var(--font-body);
+  font-weight: 600;
+}
+.submit-disabled {
+  opacity: 0.4;
+}

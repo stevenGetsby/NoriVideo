@@ -1,0 +1,13 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="skeleton"><view class="sk-card"></view><view class="sk-card"></view><view class="sk-card"></view><view class="sk-card"></view></view>
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="onRetry" />
+  <empty-state wx:elif="{{needLogin}}" text="登录后查看你的预约" button="登录" bind:action="onLogin" />
+  <empty-state wx:elif="{{items.length === 0}}" text="还没有预约的作品" button="去首页看看" bind:action="goHome" />
+
+  <view wx:else class="grid">
+    <view class="cell" wx:for="{{items}}" wx:key="slug">
+      <work-card card="{{item}}" variant="grid" bind:tap="onCardTap" />
+      <view class="date">{{item.dateText}}</view>
+    </view>
+  </view>
+</view>

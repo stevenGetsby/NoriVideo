@@ -1,0 +1,1 @@
+{"navigationBarTitleText": "结局图鉴", "enablePullDownRefresh": true, "usingComponents": {"ending-grid": "/components/ending-grid/index", "achievement-row": "/components/achievement-row/index", "empty-state": "/components/empty-state/index"}}

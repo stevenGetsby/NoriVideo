@@ -1,0 +1,61 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+  padding: 24rpx var(--page-padding) 48rpx;
+}
+.group {
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+  margin-bottom: 24rpx;
+}
+.group-title {
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  padding: 24rpx 32rpx 8rpx;
+}
+.opt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 32rpx;
+  border-bottom: 2rpx solid var(--border);
+}
+.opt:last-child {
+  border-bottom: none;
+}
+.opt-label {
+  color: var(--text);
+  font-size: var(--font-body);
+}
+.opt-on .opt-label {
+  color: var(--brand);
+}
+.check {
+  width: 20rpx;
+  height: 10rpx;
+  border-left: 4rpx solid var(--brand);
+  border-bottom: 4rpx solid var(--brand);
+  transform: rotate(-45deg);
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 28rpx 32rpx;
+  border-bottom: 2rpx solid var(--border);
+}
+.row:last-child {
+  border-bottom: none;
+}
+.row-label {
+  color: var(--text);
+  font-size: var(--font-body);
+}
+.arrow {
+  width: 16rpx;
+  height: 16rpx;
+  border-top: 4rpx solid var(--text-3);
+  border-right: 4rpx solid var(--text-3);
+  transform: rotate(45deg);
+}

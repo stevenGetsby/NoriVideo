@@ -1,0 +1,7 @@
+<scroll-view class="row" scroll-x enable-flex>
+  <view wx:for="{{items}}" wx:key="id" class="item {{item.achieved ? '' : 'item-locked'}}">
+    <image wx:if="{{item.icon}}" class="icon" src="{{item.icon}}" mode="aspectFit" />
+    <view wx:else class="icon icon-ph"></view>
+    <view class="name">{{item.name}}</view>
+  </view>
+</scroll-view>

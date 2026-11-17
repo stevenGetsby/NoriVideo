@@ -1,0 +1,16 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="skeleton"><view class="sk-row"></view><view class="sk-row"></view><view class="sk-row"></view></view>
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="onRetry" />
+  <empty-state wx:elif="{{needLogin}}" text="登录后查看你的游玩记录" button="登录" bind:action="onLogin" />
+  <empty-state wx:elif="{{items.length === 0}}" text="还没有玩过的作品，去首页看看吧" button="去首页看看" bind:action="goHome" />
+
+  <block wx:else>
+    <view class="row-list">
+      <view class="row" wx:for="{{items}}" wx:key="key">
+        <work-card card="{{item.card}}" progress="{{item.progress}}" endingsGot="{{item.endingsGot}}" variant="row" bind:tap="onCardTap" />
+        <view class="time">{{item.timeText}}</view>
+      </view>
+    </view>
+    <view wx:if="{{loadingMore}}" class="loading-more">加载中…</view>
+  </block>
+</view>

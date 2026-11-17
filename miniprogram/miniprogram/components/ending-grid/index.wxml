@@ -1,0 +1,6 @@
+<view class="grid" style="grid-template-columns:repeat({{columns}},1fr)">
+  <view wx:for="{{cells}}" wx:key="key" class="cell cell-{{item.type}} {{item.locked ? 'cell-locked' : ''}}">
+    <view wx:if="{{item.locked}}" class="lock"></view>
+    <view class="label">{{item.label}}</view>
+  </view>
+</view>

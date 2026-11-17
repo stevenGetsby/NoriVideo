@@ -1,0 +1,16 @@
+<view wx:if="{{show}}" class="mask" bindtap="onClose">
+  <view class="sheet" catchtap="noop">
+    <view class="close" bindtap="onClose">跳过</view>
+    <view class="title">{{title}}</view>
+    <view class="stars">
+      <view
+        wx:for="{{stars}}"
+        wx:key="*this"
+        class="star {{item <= selected ? 'star-on' : ''}}"
+        data-score="{{item}}"
+        bindtap="onStar"
+      ></view>
+    </view>
+    <view class="submit {{selected > 0 ? '' : 'submit-disabled'}}" bindtap="onSubmit">提交</view>
+  </view>
+</view>

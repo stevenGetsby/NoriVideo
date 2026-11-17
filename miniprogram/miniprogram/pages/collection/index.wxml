@@ -1,0 +1,16 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="skeleton"><view class="sk-block"></view><view class="sk-block"></view></view>
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="load" />
+  <empty-state wx:elif="{{notFound}}" text="作品已下架或不存在" button="去首页看看" bind:action="goHome" />
+
+  <block wx:else>
+    <view class="section">
+      <view class="section-title">结局图鉴 {{endingGotCount}}/{{detail.endings.length}}</view>
+      <ending-grid endings="{{detail.endings}}" got="{{endingsGot}}" columns="{{4}}" />
+    </view>
+    <view class="section" wx:if="{{detail.achievements.length}}">
+      <view class="section-title">成就 {{achievementGotCount}}/{{detail.achievements.length}}</view>
+      <achievement-row achievements="{{detail.achievements}}" got="{{achievementsGot}}" />
+    </view>
+  </block>
+</view>

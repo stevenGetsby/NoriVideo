@@ -1,0 +1,72 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="skeleton">
+    <view class="sk-header"></view>
+    <view class="sk-line"></view>
+    <view class="sk-line short"></view>
+    <view class="sk-block"></view>
+  </view>
+
+  <empty-state wx:elif="{{notFound}}" text="作品已下架或不存在" button="去首页看看" bind:action="goHome" />
+  <empty-state wx:elif="{{error}}" text="网络开小差了，点击重试" button="重试" bind:action="load" />
+
+  <block wx:else>
+    <view class="header" style="background:linear-gradient(180deg,{{detail.work.accentColor}} 0%,#0E0F1A 70%)">
+      <video
+        wx:if="{{showTrailer}}"
+        id="trailer"
+        class="trailer"
+        src="{{detail.work.trailer.url}}"
+        poster="{{detail.work.trailer.poster}}"
+        muted="{{muted}}"
+        loop
+        autoplay
+        controls="{{false}}"
+        object-fit="cover"
+      />
+      <image wx:else class="cover" src="{{detail.work.cover}}" mode="aspectFill" />
+      <view wx:if="{{showTrailer}}" class="mute" bindtap="toggleMute">{{muted ? '静音' : '有声'}}</view>
+      <view wx:if="{{!timeline}}" class="menu" bindtap="onMenu">…</view>
+    </view>
+
+    <view class="body">
+      <view class="title">{{detail.work.title}}</view>
+      <view class="creator">出品 · {{detail.work.creatorName}}</view>
+
+      <view class="tags">
+        <view wx:for="{{detail.work.tags}}" wx:key="*this" wx:if="{{index < 3}}" class="tag">{{item}}</view>
+        <view class="ai-badge">AI 生成内容</view>
+      </view>
+
+      <view class="stats">{{playersText}}人玩过 · {{detail.work.chapterCount}}章 · 约{{minutes}}分钟 · {{detail.work.endingCount}}个结局</view>
+      <view class="rating">{{ratingText}}</view>
+
+      <view class="synopsis {{synopsisExpanded ? '' : 'synopsis-clamp'}}">{{detail.work.synopsis}}</view>
+      <view class="synopsis-toggle" bindtap="toggleSynopsis">{{synopsisExpanded ? '收起' : '展开'}}</view>
+
+      <section-header title="结局图鉴 {{endingGotCount}}/{{detail.endings.length}}" more="查看全部" bind:more="goCollection" />
+      <ending-grid endings="{{detail.endings}}" got="{{endingsGot}}" columns="{{4}}" />
+
+      <section-header title="章节" />
+      <view class="chapter" wx:for="{{chapters}}" wx:key="order">
+        <view class="chapter-title">第{{item.order}}章 · {{item.title}}</view>
+        <view class="chapter-dur">{{item.duration}}</view>
+      </view>
+
+      <block wx:if="{{!timeline}}">
+        <section-header title="成就 {{achievementGotCount}}/{{detail.achievements.length}}" />
+        <achievement-row achievements="{{detail.achievements}}" got="{{achievementsGot}}" />
+      </block>
+    </view>
+
+    <view wx:if="{{!timeline}}" class="bottombar">
+      <view class="fav {{favorited ? 'fav-on' : ''}}" bindtap="onFavorite">{{favorited ? '已收藏' : '收藏'}}</view>
+      <button class="share" open-type="share">分享</button>
+      <view wx:if="{{showRestart}}" class="restart" bindtap="onRestart">重新开始</view>
+      <view class="main" bindtap="onMain">{{mainLabel}}</view>
+    </view>
+
+    <report-sheet show="{{reportShow}}" slug="{{slug}}" bind:close="onReportClose" />
+    <rating-sheet show="{{ratingShow}}" title="{{ratingTitle}}" bind:submit="onRatingSubmit" bind:close="onRatingClose" />
+    <privacy-popup />
+  </block>
+</view>

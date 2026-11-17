@@ -1,0 +1,27 @@
+.page {
+  min-height: 100vh;
+  background: var(--bg);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--grid-gap);
+  padding: 24rpx var(--page-padding);
+}
+.loading-more {
+  text-align: center;
+  color: var(--text-3);
+  font-size: var(--font-aux);
+  padding: 24rpx;
+}
+.skeleton {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--grid-gap);
+  padding: 24rpx var(--page-padding);
+}
+.sk-card {
+  aspect-ratio: 3 / 4;
+  border-radius: var(--radius-card);
+  background: var(--surface-2);
+}

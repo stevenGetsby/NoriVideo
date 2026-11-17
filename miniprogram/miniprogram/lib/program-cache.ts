@@ -20,6 +20,14 @@ function ensureDir(): void {
   }
 }
 
+export function clearProgramCache(): void {
+  try {
+    manager().rmdirSync(DIR, true)
+  } catch {
+    // 目录不存在或删除失败时静默，不影响存档
+  }
+}
+
 export function readCachedProgram(releaseId: string, programHash: string): string | null {
   try {
     const text = manager().readFileSync(`${DIR}/${releaseId}.json`, 'utf8') as string
