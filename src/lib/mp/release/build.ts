@@ -7,6 +7,7 @@ import { Prisma } from '@prisma/client'
 import sharp from 'sharp'
 import { loadStoryForRelease } from '@/lib/interactive/service'
 import type { StoryIssue, StoryProgram } from '@/lib/interactive/types'
+import { getMediaObjectByPublicId } from '@/lib/media/service'
 import { createScopedLogger } from '@/lib/logging/core'
 import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
@@ -67,6 +68,13 @@ function mediaKindAtPointer(program: StoryProgram, pointer: string): 'video' | '
 }
 
 async function downloadSource(raw: string, releaseId: string, mediaId: string): Promise<{ key: string; kind: 'video' | 'image' }> {
+  const publicId = /^\/m\/([\w-]+)$/.exec(raw)?.[1]
+  if (publicId) {
+    const media = await getMediaObjectByPublicId(publicId)
+    if (!media?.storageKey) throw new Error('媒体短链对应的素材不存在')
+    const kind = media.mimeType?.startsWith('video/') || /\.(mp4|mov|webm|m4v|avi|mkv)$/i.test(media.storageKey) ? 'video' : 'image'
+    return { key: media.storageKey, kind }
+  }
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
   try {

@@ -191,16 +191,46 @@ describe('media-refs', () => {
     expect(new Set(collectMediaRefs(program).map((ref) => ref.raw)).size).toBeLessThan(collectMediaRefs(program).length)
   })
 
-  it('safety net flags unrewritten keys, proxy URLs and garbage', () => {
+  it('safety net flags unrewritten keys and unknown proxy paths', () => {
     const program = fixtureProgram()
     expect(assertNoRawMedia(program).length).toBeGreaterThan(0)
     expect(assertNoRawMedia(program)).toContain('/chapters/0/nodes/1/media/url')
 
     const garbage = fixtureProgram()
     const scene = garbage.chapters[0].nodes[1] as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
-    scene.media = { kind: 'video', url: '/api/storage/sign?key=videos%2Fa.mp4', posterUrl: null }
+    scene.media = { kind: 'video', url: '/unknown/proxy?id=1', posterUrl: null }
     const rewritten = rewriteMediaRefs(garbage, idMapOf(garbage))
     expect(assertNoRawMedia(rewritten)).toContain('/chapters/0/nodes/1/media/url')
+  })
+
+  it('resolves sign and local-file proxy URLs to their storage keys', () => {
+    const program = fixtureProgram()
+    const scene = program.chapters[0].nodes[1] as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
+    scene.media = { kind: 'video', url: '/api/storage/sign?key=videos%2Fa.mp4&expires=3600', posterUrl: '/api/files/images%2Fa-poster.jpg' }
+    const refs = collectMediaRefs(program)
+    expect(refs.find((ref) => ref.raw === '/api/storage/sign?key=videos%2Fa.mp4&expires=3600')).toMatchObject({ key: 'videos/a.mp4' })
+    expect(refs.find((ref) => ref.raw === '/api/files/images%2Fa-poster.jpg')).toMatchObject({ key: 'images/a-poster.jpg' })
+    const rewritten = rewriteMediaRefs(program, idMapOf(program))
+    expect(assertNoRawMedia(rewritten)).toEqual([])
+  })
+
+  it('gives a sign URL and its raw key the same mp id', () => {
+    const program = fixtureProgram()
+    const scene2 = JSON.parse(JSON.stringify(program.chapters[0].nodes[1])) as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
+    scene2.id = 's2'
+    scene2.media = { kind: 'video', url: '/api/storage/sign?key=videos%2Fa.mp4&expires=3600', posterUrl: null }
+    program.chapters[0].nodes.push(scene2)
+    expect(idMapOf(program).get('/api/storage/sign?key=videos%2Fa.mp4&expires=3600')).toBe(sha1Id('videos/a.mp4'))
+  })
+
+  it('collects /m/ short links with an empty key for build-time resolution', () => {
+    const program = fixtureProgram()
+    const scene = program.chapters[0].nodes[1] as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
+    scene.media = { kind: 'video', url: '/m/m_cd498fd2551623e8', posterUrl: null }
+    const ref = collectMediaRefs(program).find((item) => item.raw === '/m/m_cd498fd2551623e8')
+    expect(ref).toMatchObject({ key: '' })
+    const rewritten = rewriteMediaRefs(program, idMapOf(program))
+    expect(assertNoRawMedia(rewritten)).toEqual([])
   })
 
   it('safety net accepts null, empty string, mp ids and emoji icons', () => {

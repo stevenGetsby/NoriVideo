@@ -11,11 +11,35 @@ function isEmojiIcon(fieldName: string, value: string): boolean {
   return fieldName === 'icon' && !/[/.:]/.test(value)
 }
 
+/** 画布实际存的三种相对地址：签名代理、本地文件代理、媒体短链；provider 的 extractStorageKey 不认相对路径。 */
+function classifyAppUrl(value: string): { key: string } | null {
+  if (!value.startsWith('/')) return null
+  let url: URL
+  try {
+    url = new URL(value, 'http://nori.local')
+  } catch {
+    return null
+  }
+  if (url.pathname === '/api/storage/sign') {
+    const key = url.searchParams.get('key')
+    return key ? { key } : null
+  }
+  if (url.pathname.startsWith('/api/files/')) {
+    const key = decodeURIComponent(url.pathname.slice('/api/files/'.length))
+    return key ? { key } : null
+  }
+  // /m/<publicId> 的 key 要查媒体表，留给 build 的 downloadSource 解析。
+  if (/^\/m\/[\w-]+$/.test(url.pathname)) return { key: '' }
+  return null
+}
+
 /** null = not a media reference; otherwise the storage key ('' for absolute URLs the build must download). */
 function classifyMedia(fieldName: string, value: string): { key: string } | null {
   if (!value) return null
   if (isEmojiIcon(fieldName, value)) return null
   if (/^https?:\/\//.test(value)) return { key: '' }
+  const appUrl = classifyAppUrl(value)
+  if (appUrl) return appUrl
   const key = extractStorageKey(value)
   if (key) return { key }
   return null

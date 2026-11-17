@@ -51,8 +51,11 @@ vi.mock('@/lib/storage', () => ({
     }
   },
 }))
+const mediaByPublicIdMock = vi.hoisted(() => vi.fn())
+
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/redis', () => ({ redis: redisMock }))
+vi.mock('@/lib/media/service', () => ({ getMediaObjectByPublicId: mediaByPublicIdMock }))
 vi.mock('@/lib/interactive/service', () => ({ loadStoryForRelease: loadStoryMock }))
 vi.mock('@/lib/mp/release/preflight', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/mp/release/preflight')>()),
@@ -222,6 +225,7 @@ beforeEach(() => {
   prismaMock.storyRelease.update.mockImplementation(async () => ({}))
   prismaMock.mpWork.findUnique.mockResolvedValue(listingRow())
   redisMock.set.mockResolvedValue('OK')
+  mediaByPublicIdMock.mockResolvedValue(null)
   processVideoMock.mockImplementation(async () => videoResult())
   processImageMock.mockImplementation(async () => imageResult())
   buildTrailerMock.mockResolvedValue(null)
@@ -468,6 +472,39 @@ describe('handleStoryReleaseBuildTask', () => {
       const oversized = { byteLength: 1024 * 1024 * 1024 + 1 } as unknown as Uint8Array
       stubFetch(streamResponse([oversized], 'video/mp4', null))
       await expect(handleStoryReleaseBuildTask(job)).rejects.toThrow('素材处理失败：第 1 章「雨夜」·「巷口」')
+    })
+  })
+
+  describe('/m/ short-link sources', () => {
+    const shortLink = '/m/m_cd498fd2551623e8'
+    const linkId = sha1Id(shortLink)
+
+    function shortLinkStory() {
+      const data = storyData()
+      sceneOf(data).media = { kind: 'video', url: shortLink, posterUrl: null, durationSec: 10 }
+      return data
+    }
+
+    it('resolves the storage key from the media table without fetching', async () => {
+      loadStoryMock.mockResolvedValue(shortLinkStory())
+      mediaByPublicIdMock.mockResolvedValue({ storageKey: 'videos/short-linked.mp4', mimeType: 'video/mp4' })
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const result = await handleStoryReleaseBuildTask(job)
+      expect(result).toEqual({ releaseId: 'r1', status: 'reviewing' })
+      expect(mediaByPublicIdMock).toHaveBeenCalledWith('m_cd498fd2551623e8')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(processVideoMock).toHaveBeenCalledWith('videos/short-linked.mp4', { releaseId: 'r1', mediaId: linkId, tmpDir: TMP_DIR })
+      const entry = finalUpdate().manifest.media[linkId]
+      expect(entry).toMatchObject({ kind: 'video', source: 'videos/short-linked.mp4', durationSec: 10 })
+      expect(finalUpdate().program.chapters[0].nodes[1].media.url).toBe(`mp:${linkId}`)
+    })
+
+    it('fails the media when the short link has no media object', async () => {
+      loadStoryMock.mockResolvedValue(shortLinkStory())
+      mediaByPublicIdMock.mockResolvedValue(null)
+      await expect(handleStoryReleaseBuildTask(job)).rejects.toThrow('素材处理失败：第 1 章「雨夜」·「巷口」')
+      expect(failedUpdate()).toMatchObject({ status: 'build_failed' })
     })
   })
 
