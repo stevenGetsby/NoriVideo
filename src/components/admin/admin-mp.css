@@ -82,3 +82,18 @@
 .nori-mp-ops-works li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nori-mp-ops-row-actions { display: flex; gap: 6px; }
 .nori-mp-ops-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: #e5484d; vertical-align: 1px; }
+
+/* 小程序数据: KPI tiles and self-drawn SVG chart on the admin panel system. */
+.nori-mp-stats-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+.nori-mp-stats-kpi { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--fos-border-mid); border-radius: 12px; padding: 12px 14px; background: var(--fos-bg-2); }
+.nori-mp-stats-kpi span { color: var(--fos-text-3); font-size: 12px; }
+.nori-mp-stats-kpi strong { color: var(--fos-text-1); font-size: 22px; font-weight: 700; }
+.nori-mp-stats-chart-body { display: flex; flex-direction: column; gap: 10px; }
+.nori-mp-stats-chart { width: 100%; height: auto; }
+.nori-mp-stats-chart rect.is-users { fill: var(--fos-primary); }
+.nori-mp-stats-chart rect.is-starts { fill: #34d399; }
+.nori-mp-stats-chart text { fill: var(--fos-text-3); font-size: 10px; }
+.nori-mp-stats-legend { display: flex; gap: 14px; color: var(--fos-text-3); font-size: 12px; }
+.nori-mp-stats-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; }
+.nori-mp-stats-legend i.is-users { background: var(--fos-primary); }
+.nori-mp-stats-legend i.is-starts { background: #34d399; }

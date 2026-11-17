@@ -24,6 +24,7 @@
 .type.is-hidden { color: var(--ending-hidden); border: 2rpx solid var(--ending-hidden); }
 .title { color: var(--text); font-size: var(--font-title); font-weight: 600; }
 .desc { color: var(--text-2); font-size: var(--font-body); line-height: 1.6; }
+.rarity { color: #FFB547; font-size: 26rpx; }
 .personality {
   display: flex;
   align-items: center;

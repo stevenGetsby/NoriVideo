@@ -16,6 +16,7 @@ interface EndingInfo {
   nodeId: string
   title: string
   type: string
+  rarityText?: string
 }
 
 Page({
@@ -95,6 +96,7 @@ Page({
       endingTitle: e.detail.title,
       endingType: e.detail.type,
       endingNodeId: e.detail.nodeId,
+      rarityText: e.detail.rarityText || '',
     })
   },
 })

@@ -4,7 +4,7 @@ import { loadProgram } from '../../../lib/program-cache'
 import { pullSave, pushSave } from '../../../lib/save-sync'
 import { wxStorage } from '../../../lib/storage'
 import { flushTrack, track } from '../../../lib/track'
-import type { PlayManifest } from '../../../lib/types'
+import type { PlayManifest, ReleaseStats } from '../../../lib/types'
 import { PausableClock } from '../../lib/clock'
 import { PlayerController, type SyncReason, type VideoPort } from '../../lib/player-controller'
 import type { StoryProgram } from '../../../runtime/story-runtime'
@@ -13,6 +13,11 @@ const VIEW_THROTTLE_MS = 33
 const MP_TOKEN = /^mp:([0-9a-f]{16})$/
 const EXIT_MESSAGE = '退出前会自动存档，确定退出吗？'
 const FROM_PATTERN = /^(new|resume|slot:\d+|checkpoint:.+)$/
+const CAPSULE_MS = 2500
+
+function formatPct(pct: number): string {
+  return pct < 0.1 ? '<0.1' : pct.toFixed(1)
+}
 
 /** 非序列化实例状态：controller、manifest、节流计时器等绝不进 data。 */
 interface PlayerState {
@@ -27,6 +32,9 @@ interface PlayerState {
   lastViewFlush: number
   disposed: boolean
   booting: boolean
+  stats: ReleaseStats | null
+  pendingCapsule: string | null
+  capsuleTimer: ReturnType<typeof setTimeout> | null
 }
 
 const states = new WeakMap<object, PlayerState>()
@@ -46,6 +54,9 @@ function stateOf(self: object): PlayerState {
       lastViewFlush: 0,
       disposed: false,
       booting: false,
+      stats: null,
+      pendingCapsule: null,
+      capsuleTimer: null,
     }
     states.set(self, state)
   }
@@ -78,6 +89,7 @@ Component({
     hud: null as Record<string, unknown> | null,
     scene: null as Record<string, unknown> | null,
     choice: null as Record<string, unknown> | null,
+    choiceCapsule: null as string | null,
     interaction: null as Record<string, unknown> | null,
     ending: null as Record<string, unknown> | null,
     card: null as Record<string, unknown> | null,
@@ -100,6 +112,10 @@ Component({
       if (state.viewTimer !== null) {
         clearTimeout(state.viewTimer)
         state.viewTimer = null
+      }
+      if (state.capsuleTimer !== null) {
+        clearTimeout(state.capsuleTimer)
+        state.capsuleTimer = null
       }
       state.controller?.dispose()
       state.controller = null
@@ -143,6 +159,11 @@ Component({
           request<PlayManifest>('GET', `/api/mp/works/${encodeURIComponent(slug)}/play`, undefined, { auth: 'required' }),
           pullSave(slug).catch(() => null),
         ])
+        if (manifest.stats) {
+          request<ReleaseStats>('GET', manifest.stats, undefined, { auth: 'none' })
+            .then((stats) => { if (!state.disposed) state.stats = stats })
+            .catch(() => {})
+        }
         const text = await loadProgram(manifest.releaseId, manifest.programHash, manifest.programUrl)
         const program = JSON.parse(text) as StoryProgram
         const quality = await resolveQuality()
@@ -185,7 +206,7 @@ Component({
         quality: () => state.quality,
         track: (event) => track(event.name, { w: state.slug, r: state.releaseId, n: event.n, o: event.o, v: event.v, f: event.f }),
         haptic: () => { wx.vibrateShort({ type: 'light', fail: () => {} }) },
-        branchStats: () => null,
+        branchStats: () => state.stats?.choices ?? null,
         sync: (reason) => this.pushCloudSave(reason),
       })
       this.measureStage()
@@ -222,6 +243,12 @@ Component({
       state.lastViewFlush = Date.now()
       if (!patch || state.disposed) return
       const resolved = this.resolveMediaTokens(patch)
+      if (resolved.ending && typeof resolved.ending === 'object') {
+        const ending = resolved.ending as Record<string, unknown>
+        const nodeId = typeof ending.nodeId === 'string' ? ending.nodeId : ''
+        const pct = state.stats?.endings?.[nodeId]
+        ending.rarityText = typeof pct === 'number' ? `仅 ${formatPct(pct)}% 的玩家达成` : '你是最早达成这个结局的玩家之一'
+      }
       const current = this.data as Record<string, unknown>
       const out: Record<string, unknown> = {}
       for (const key of Object.keys(resolved)) {
@@ -291,7 +318,17 @@ Component({
       stateOf(this).controller?.onWaiting(e.detail.slot)
     },
     onVideoPlaying(e: { detail: { slot: 'a' | 'b' } }) {
-      stateOf(this).controller?.onPlaying(e.detail.slot)
+      const state = stateOf(this)
+      state.controller?.onPlaying(e.detail.slot)
+      if (!state.pendingCapsule) return
+      const text = state.pendingCapsule
+      state.pendingCapsule = null
+      if (state.capsuleTimer !== null) clearTimeout(state.capsuleTimer)
+      this.setData({ choiceCapsule: text })
+      state.capsuleTimer = setTimeout(() => {
+        state.capsuleTimer = null
+        if (!state.disposed) this.setData({ choiceCapsule: null })
+      }, CAPSULE_MS)
     },
     onVideoError(e: { detail: { slot: 'a' | 'b' } }) {
       stateOf(this).controller?.onError(e.detail.slot)
@@ -318,7 +355,11 @@ Component({
       stateOf(this).controller?.pointerUp(e.detail.x, e.detail.y)
     },
     onChoose(e: { detail: { optionId: string } }) {
-      stateOf(this).controller?.choose(e.detail.optionId)
+      const state = stateOf(this)
+      const choice = this.data.choice as { nodeId?: string } | null
+      const pct = choice?.nodeId ? state.stats?.choices?.[choice.nodeId]?.[e.detail.optionId] : undefined
+      state.pendingCapsule = typeof pct === 'number' ? `${formatPct(pct)}% 的玩家和你选择一样` : null
+      state.controller?.choose(e.detail.optionId)
     },
     onPromptResume() {
       stateOf(this).controller?.resume()
@@ -374,11 +415,11 @@ Component({
 
     /* ---------- 分享与海报 ---------- */
 
-    sharePayload(): { ending: { nodeId: string; title: string; type: string } | null; background: string } {
+    sharePayload(): { ending: { nodeId: string; title: string; type: string; rarityText: string } | null; background: string } {
       const data = this.data as Record<string, unknown>
-      const ending = data.ending as { nodeId?: string; title?: string; type?: string } | null
+      const ending = data.ending as { nodeId?: string; title?: string; type?: string; rarityText?: string } | null
       return {
-        ending: ending?.nodeId ? { nodeId: ending.nodeId, title: ending.title || '', type: ending.type || 'normal' } : null,
+        ending: ending?.nodeId ? { nodeId: ending.nodeId, title: ending.title || '', type: ending.type || 'normal', rarityText: ending.rarityText || '' } : null,
         background: (data.lastFrameUrl as string) || '',
       }
     },

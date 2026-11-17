@@ -2,6 +2,7 @@
   <text class="type is-{{ending.type}}">{{ending.typeLabel}}</text>
   <text class="title">{{ending.title}}</text>
   <text class="desc" wx:if="{{ending.description}}">{{ending.description}}</text>
+  <text class="rarity" wx:if="{{ending.rarityText}}">{{ending.rarityText}}</text>
   <view class="personality" wx:if="{{ending.personality}}">
     <image wx:if="{{ending.personality.imageUrl}}" class="personality-image" src="{{ending.personality.imageUrl}}" mode="aspectFill" />
     <view class="personality-info">

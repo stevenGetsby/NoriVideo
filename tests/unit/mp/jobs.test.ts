@@ -1,12 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const prismaMock = vi.hoisted(() => ({
-  mpWork: { findMany: vi.fn(), findUnique: vi.fn() },
+  mpWork: { findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   mpSubscription: { findMany: vi.fn(), update: vi.fn() },
   consumerUser: { findUnique: vi.fn() },
   storyRelease: { findUnique: vi.fn() },
+  mpJobState: { findUnique: vi.fn() },
+  mpEvent: { findMany: vi.fn() },
+  mpWorkDailyStat: { upsert: vi.fn() },
+  consumerSave: { groupBy: vi.fn() },
+  consumerFavorite: { groupBy: vi.fn() },
+  mpReservation: { groupBy: vi.fn() },
+  $queryRaw: vi.fn(),
+  $executeRaw: vi.fn(),
+  $transaction: vi.fn(),
 }))
-const redisMock = vi.hoisted(() => ({ set: vi.fn(), del: vi.fn(), lindex: vi.fn(), lpop: vi.fn() }))
+const redisMock = vi.hoisted(() => ({ set: vi.fn(), del: vi.fn(), get: vi.fn(), incr: vi.fn(), lindex: vi.fn(), lpop: vi.fn() }))
+const txMock = vi.hoisted(() => ({ $executeRaw: vi.fn(), mpJobState: { upsert: vi.fn() } }))
 const goLive = vi.hoisted(() => vi.fn())
 const sendSubscribe = vi.hoisted(() => vi.fn())
 
@@ -18,7 +28,7 @@ vi.mock('@/lib/logging/core', () => ({
 vi.mock('@/lib/mp/release/lifecycle', () => ({ goLive }))
 vi.mock('@/lib/mp/wx', () => ({ sendSubscribe }))
 
-import { formatLiveTime, runMpJobs, runScheduledGoLive, sendNotifications } from '@/lib/mp/jobs'
+import { aggregateDaily, aggregateEvents, dailyMaintenance, formatLiveTime, refreshWorkCounters, runMpJobs, runScheduledGoLive, sendNotifications } from '@/lib/mp/jobs'
 
 const ENV_KEYS = ['MP_JOBS_ENABLED', 'MP_TPL_WORK_LIVE', 'MP_TPL_WORK_LIVE_FIELDS', 'MP_TPL_CHAPTER_UPDATE', 'MP_TPL_CHAPTER_UPDATE_FIELDS'] as const
 let savedEnv: Record<string, string | undefined> = {}
@@ -37,10 +47,24 @@ beforeEach(() => {
   process.env.MP_TPL_CHAPTER_UPDATE_FIELDS = JSON.stringify({ title: 'thing4', hint: 'thing5', time: 'time6' })
   redisMock.set.mockResolvedValue('OK')
   redisMock.del.mockResolvedValue(1)
+  redisMock.get.mockResolvedValue(null)
+  redisMock.incr.mockResolvedValue(1)
   redisMock.lindex.mockResolvedValue(null)
   redisMock.lpop.mockResolvedValue(QUEUE_ITEM)
   prismaMock.mpWork.findMany.mockResolvedValue([])
   prismaMock.mpWork.findUnique.mockResolvedValue({ id: 'mpw1', slug: 'abcd1234', title: '测试作品' })
+  prismaMock.mpWork.update.mockResolvedValue({ id: 'mpw1' })
+  prismaMock.mpJobState.findUnique.mockResolvedValue(null)
+  prismaMock.mpEvent.findMany.mockResolvedValue([])
+  prismaMock.mpWorkDailyStat.upsert.mockResolvedValue({})
+  prismaMock.consumerSave.groupBy.mockResolvedValue([])
+  prismaMock.consumerFavorite.groupBy.mockResolvedValue([])
+  prismaMock.mpReservation.groupBy.mockResolvedValue([])
+  prismaMock.$queryRaw.mockResolvedValue([])
+  prismaMock.$executeRaw.mockResolvedValue(0)
+  prismaMock.$transaction.mockImplementation(async (fn: (tx: typeof txMock) => Promise<unknown>) => fn(txMock))
+  txMock.$executeRaw.mockResolvedValue(1)
+  txMock.mpJobState.upsert.mockResolvedValue({})
   prismaMock.storyRelease.findUnique.mockResolvedValue({ liveAt: new Date(2026, 10, 17, 9, 5) })
   prismaMock.mpSubscription.findMany.mockResolvedValue([])
   prismaMock.mpSubscription.update.mockResolvedValue({ id: 'sub1' })
@@ -212,14 +236,140 @@ describe('runMpJobs', () => {
     process.env.MP_JOBS_ENABLED = '0'
     await runMpJobs()
     expect(redisMock.set).not.toHaveBeenCalled()
+    expect(redisMock.get).not.toHaveBeenCalled()
     process.env.MP_JOBS_ENABLED = ' 1 '
     await runMpJobs()
-    expect(redisMock.set).toHaveBeenCalledTimes(2)
+    expect(redisMock.set).toHaveBeenCalledWith('mp:job:golive', '1', 'EX', 60, 'NX')
+    expect(redisMock.set).toHaveBeenCalledWith('mp:job:notify', '1', 'EX', 300, 'NX')
   })
 
-  it('runs both jobs and swallows their failures', async () => {
+  it('runs the jobs and swallows their failures', async () => {
     redisMock.set.mockRejectedValue(new Error('redis down'))
+    redisMock.get.mockRejectedValue(new Error('redis down'))
     await expect(runMpJobs()).resolves.toBeUndefined()
-    expect(redisMock.set).toHaveBeenCalledTimes(2)
+    expect(redisMock.set).toHaveBeenCalledWith('mp:job:golive', '1', 'EX', 60, 'NX')
+    expect(redisMock.set).toHaveBeenCalledWith('mp:job:notify', '1', 'EX', 300, 'NX')
+  })
+
+  it('skips stats jobs whose next-run key is still in the future', async () => {
+    redisMock.get.mockImplementation(async (key: string) => (key.endsWith(':next') ? String(Date.now() + 600000) : null))
+    await runMpJobs()
+    expect(prismaMock.mpJobState.findUnique).not.toHaveBeenCalled()
+    expect(prismaMock.$queryRaw).not.toHaveBeenCalled()
+    expect(prismaMock.mpWork.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('aggregateEvents', () => {
+  it('skips when the lock is held elsewhere', async () => {
+    redisMock.set.mockResolvedValue(null)
+    await aggregateEvents()
+    expect(prismaMock.mpJobState.findUnique).not.toHaveBeenCalled()
+    expect(redisMock.del).not.toHaveBeenCalled()
+  })
+
+  it('reads the watermark and does nothing on an empty batch', async () => {
+    prismaMock.mpJobState.findUnique.mockResolvedValue({ key: 'agg.lastEventId', value: '42' })
+    await aggregateEvents()
+    expect(prismaMock.mpEvent.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: { gt: BigInt(42) } }, take: 50000 }))
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+    expect(redisMock.del).toHaveBeenCalledWith('mp:job:agg')
+  })
+
+  it('advances the watermark inside the same transaction as the counters', async () => {
+    prismaMock.mpEvent.findMany.mockResolvedValue([
+      { id: BigInt(7), name: 'play_start', mpWorkId: 'w1', nodeId: null, optionId: null, flag: null, shareId: null },
+    ])
+    await aggregateEvents()
+    expect(txMock.$executeRaw).not.toHaveBeenCalled()
+    expect(txMock.mpJobState.upsert).toHaveBeenCalledWith({
+      where: { key: 'agg.lastEventId' },
+      create: { key: 'agg.lastEventId', value: '7' },
+      update: { value: '7' },
+    })
+  })
+})
+
+describe('aggregateDaily', () => {
+  it('recomputes yesterday and today as Beijing days and upserts idempotently', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'))
+    prismaMock.$queryRaw
+      .mockResolvedValueOnce([{ mpWorkId: 'w1', views: 10, starts: 5, players: 4, completions: 2, shares: 1, watchSec: 600, favorites: 1, reserves: 0 }])
+      .mockResolvedValueOnce([{ mpWorkId: 'w1', n: 2 }])
+      .mockResolvedValueOnce([{ mpWorkId: 'w1', n: 3 }])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+    await aggregateDaily()
+    expect(prismaMock.$queryRaw).toHaveBeenCalledTimes(6)
+    const firstWindow = prismaMock.$queryRaw.mock.calls[0].slice(1)
+    expect(firstWindow[0]).toEqual(new Date('2026-11-15T16:00:00Z'))
+    expect(firstWindow[1]).toEqual(new Date('2026-11-16T16:00:00Z'))
+    const data = { views: 10, starts: 5, players: 4, completions: 2, shares: 1, shareOpens: 3, newUsers: 2, watchSec: 600, favorites: 1, reserves: 0 }
+    expect(prismaMock.mpWorkDailyStat.upsert).toHaveBeenCalledTimes(1)
+    expect(prismaMock.mpWorkDailyStat.upsert).toHaveBeenCalledWith({
+      where: { mpWorkId_date: { mpWorkId: 'w1', date: new Date('2026-11-16T00:00:00Z') } },
+      create: { mpWorkId: 'w1', date: new Date('2026-11-16T00:00:00Z'), ...data },
+      update: data,
+    })
+  })
+})
+
+describe('refreshWorkCounters', () => {
+  it('recomputes counters with the H.6 formulas and bumps the cache version', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'))
+    prismaMock.mpWork.findMany.mockResolvedValue([
+      { id: 'w1', firstLiveAt: new Date('2026-11-15T12:00:00Z'), ratingCount: 10, ratingSum: 45 },
+      { id: 'w2', firstLiveAt: null, ratingCount: 0, ratingSum: 0 },
+    ])
+    prismaMock.consumerSave.groupBy.mockResolvedValue([{ mpWorkId: 'w1', _count: { _all: 7 } }])
+    prismaMock.$queryRaw.mockResolvedValue([{ mpWorkId: 'w1', players: 5, completions: 2, shares: 1, favorites: 3 }])
+    await refreshWorkCounters()
+    expect(prismaMock.mpWork.update).toHaveBeenCalledTimes(2)
+    const w1 = prismaMock.mpWork.update.mock.calls[0][0] as { where: { id: string }; data: Record<string, number> }
+    expect(w1.where).toEqual({ id: 'w1' })
+    expect(w1.data.playerCount).toBe(7)
+    expect(w1.data.players7d).toBe(5)
+    expect(w1.data.hotScore).toBeCloseTo(18 * (1 + 0.5 * (1 - 2 / 14)), 6)
+    expect(w1.data.ratingScore).toBeCloseTo(4.5, 6)
+    const w2 = prismaMock.mpWork.update.mock.calls[1][0] as { data: Record<string, number> }
+    expect(w2.data).toEqual({ playerCount: 0, players7d: 0, hotScore: 0, ratingScore: 4.5 })
+    expect(redisMock.incr).toHaveBeenCalledWith('mp:cache:ver')
+  })
+})
+
+describe('dailyMaintenance', () => {
+  it('only runs inside the 03:00–03:10 Beijing window', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-17T12:00:00Z'))
+    await dailyMaintenance()
+    expect(redisMock.set).not.toHaveBeenCalled()
+  })
+
+  it('runs at most once per day', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-16T19:05:00Z'))
+    redisMock.set.mockResolvedValue(null)
+    await dailyMaintenance()
+    expect(prismaMock.mpWork.findMany).not.toHaveBeenCalled()
+  })
+
+  it('recounts favorites and reserves and deletes old events in batches', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-11-16T19:05:00Z'))
+    prismaMock.mpWork.findMany.mockResolvedValue([{ id: 'w1', favoriteCount: 5, reserveCount: 2 }])
+    prismaMock.consumerFavorite.groupBy.mockResolvedValue([{ mpWorkId: 'w1', _count: { _all: 3 } }])
+    prismaMock.mpReservation.groupBy.mockResolvedValue([])
+    prismaMock.$executeRaw.mockResolvedValueOnce(5000).mockResolvedValueOnce(12)
+    const done = dailyMaintenance()
+    await vi.advanceTimersByTimeAsync(400)
+    await done
+    expect(redisMock.set).toHaveBeenCalledWith('mp:job:maint:2026-11-17', '1', 'EX', 86400, 'NX')
+    expect(prismaMock.mpWork.update).toHaveBeenCalledWith({ where: { id: 'w1' }, data: { favoriteCount: 3, reserveCount: 0 } })
+    expect(prismaMock.$executeRaw).toHaveBeenCalledTimes(2)
+    const cutoff = prismaMock.$executeRaw.mock.calls[0][1] as Date
+    expect(cutoff.toISOString()).toBe('2026-08-18T19:05:00.000Z')
   })
 })

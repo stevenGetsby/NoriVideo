@@ -12,6 +12,7 @@ const SESSION_GAP_MS = 30 * 60 * 1000
 const FLUSH_SIZE = 20
 const FLUSH_INTERVAL_MS = 10000
 const QUEUE_MAX = 200
+const FLUSH_MAX = 50
 
 export interface LaunchOptions {
   scene?: number
@@ -128,13 +129,14 @@ export function flushTrack(): void {
   const events = queue
   queue = []
   flushing = true
-  const payload = {
+  // 服务端单批上限 50 条，补发队列可能攒到 200 条，分片发送。
+  const chunks: TrackEvent[][] = []
+  for (let i = 0; i < events.length; i += FLUSH_MAX) chunks.push(events.slice(i, i + FLUSH_MAX))
+  Promise.all(chunks.map((chunk) => request('POST', '/api/mp/track', {
     anonId: anon(),
     attr: attr ? { source: attr.source, c: attr.c, s: attr.s } : undefined,
-    events,
-  }
-  request('POST', '/api/mp/track', payload, { auth: 'none' })
-    .catch(() => persistFailed(events))
+    events: chunk,
+  }, { auth: 'none' }).catch(() => persistFailed(chunk))))
     .finally(() => { flushing = false })
 }
 

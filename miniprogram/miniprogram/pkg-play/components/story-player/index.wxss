@@ -57,6 +57,26 @@ continue-prompt {
   font-size: var(--font-aux);
   pointer-events: none;
 }
+.choice-capsule {
+  position: absolute;
+  top: 180rpx; left: 50%;
+  transform: translateX(-50%);
+  z-index: 56;
+  max-width: 80%;
+  padding: 12rpx 28rpx;
+  border-radius: 999rpx;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: var(--font-aux);
+  pointer-events: none;
+  animation: capsule-fade 2.5s ease forwards;
+}
+@keyframes capsule-fade {
+  0% { opacity: 0; }
+  12% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .aigc {
   position: absolute;
   left: 24rpx; bottom: 24rpx;

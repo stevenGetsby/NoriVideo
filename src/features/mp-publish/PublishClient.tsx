@@ -14,6 +14,7 @@ import { formatBeijing } from './format'
 import { ListingCard, ScheduleCard, formFromListing, type ListingForm } from './ListingCards'
 import { PreflightCard } from './PreflightCard'
 import { ReleasesCard } from './ReleasesCard'
+import { StatsCard } from './StatsCard'
 import '../interactive/interactive.css'
 import './mp-publish.css'
 
@@ -163,7 +164,7 @@ export function PublishClient({ workId, workName }: { workId: string; workName: 
           <ReleasesCard releases={data.releases} errors={data.preflight.errors} workId={workId} onChanged={() => void load(true)} />
           {form && listing?.firstLiveAt == null ? <ScheduleCard form={form} fieldErrors={fieldErrors} onChange={setForm} /> : null}
           <ChannelsCard workId={workId} />
-          <section className="nori-mp-card"><h2>数据</h2><p className="nori-mp-placeholder">作品上线后可用</p></section>
+          <StatsCard workId={workId} />
         </div>
       </div>
     </FosShell>

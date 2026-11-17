@@ -5,6 +5,12 @@ import type { PermanentValues } from '@/lib/mp/save-merge'
 
 export type { Card, Slot, ContinueCard, TopicCard, WorkDetail, PlayManifest, MpMe } from '@/lib/mp/dto'
 
+// 与 src/lib/mp/stats.ts 的 ReleaseStats 保持同构；本地定义避免把服务端依赖拉进小程序类型图。
+export interface ReleaseStats {
+  choices: Record<string, Record<string, number>>
+  endings: Record<string, number>
+}
+
 export interface ApiError {
   code: string
   message?: string

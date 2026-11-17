@@ -38,7 +38,7 @@ const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; tex
   },
   'mp-stats': {
     icon: 'infoCircle',
-    text: '用户、游玩与渠道数据将在后续版本开放。',
+    text: '数据每 10 分钟聚合一次，按北京时间统计。',
   },
 }
 
