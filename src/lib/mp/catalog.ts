@@ -1,7 +1,7 @@
 import { Prisma, type MpFeatureSlot, type MpTopic } from '@prisma/client'
 import { ApiError } from '@/lib/api-errors'
 import { emptyProfile, readProfile } from '@/lib/interactive/achievements'
-import { emptySaves } from '@/lib/interactive/saves'
+import { emptySaves, readSaves } from '@/lib/interactive/saves'
 import { createScopedLogger } from '@/lib/logging/core'
 import { prisma } from '@/lib/prisma'
 import { redis } from '@/lib/redis'
@@ -504,7 +504,7 @@ async function buildDetail(work: WorkRow): Promise<DetailSource> {
 async function detailViewer(consumerId: string, mpWorkId: string): Promise<NonNullable<WorkDetail['viewer']>> {
   const where = { consumerId_mpWorkId: { consumerId, mpWorkId } }
   const [save, favorite, rating, reservation] = await Promise.all([
-    prisma.consumerSave.findUnique({ where, select: { profile: true, progress: true } }),
+    prisma.consumerSave.findUnique({ where, select: { profile: true, progress: true, saves: true } }),
     prisma.consumerFavorite.findUnique({ where, select: { id: true } }),
     prisma.consumerRating.findUnique({ where, select: { score: true } }),
     prisma.mpReservation.findUnique({ where, select: { id: true } }),
@@ -514,7 +514,7 @@ async function detailViewer(consumerId: string, mpWorkId: string): Promise<NonNu
     favorited: Boolean(favorite),
     rating: rating?.score ?? null,
     reserved: Boolean(reservation),
-    hasSave: Boolean(save),
+    hasSave: Boolean(readSaves(save?.saves).auto),
     endingsGot: profile.endings,
     achievementsGot: profile.achievements,
     progress: save?.progress ?? 0,

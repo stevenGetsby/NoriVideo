@@ -262,7 +262,10 @@ Component({
       const controller = state.controller
       if (!controller) return
       pushSave(state.slug, { baseRev: state.baseRev, ...controller.savePayload() })
-        .then((res) => { state.baseRev = Math.max(state.baseRev, res.rev) })
+        .then((res) => {
+          state.baseRev = Math.max(state.baseRev, res.rev)
+          if (res.merged) state.controller?.adoptMerged({ profile: res.profile, saves: res.saves, permanent: res.permanent })
+        })
         .catch(() => {})
       if (reason === 'unload') flushTrack()
     },

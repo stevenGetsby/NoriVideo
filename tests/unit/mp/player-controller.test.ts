@@ -3,8 +3,10 @@ import path from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { endingKeys, reachKey } from '@/lib/interactive/achievements'
 import type { CanvasEdgeLike, CanvasNodeLike } from '@/lib/interactive/compile'
+import { snapshotRun } from '@/lib/interactive/saves'
 import type { StoryMedia, StoryPlaybackSpeed, StoryProgram } from '@/lib/interactive/types'
-import { writeStoredSaves } from '@/features/interactive/player/viewer-store'
+import { readPermanentValues } from '@/features/interactive/player/permanent-store'
+import { readStoredProfile, writeStoredSaves } from '@/features/interactive/player/viewer-store'
 import { PausableClock } from '../../../miniprogram/miniprogram/pkg-play/lib/clock'
 import { toWxRate } from '../../../miniprogram/miniprogram/pkg-play/lib/rates'
 import {
@@ -15,7 +17,7 @@ import {
 } from '../../../miniprogram/miniprogram/pkg-play/lib/player-controller'
 import { buildProgram } from '../interactive/fixture'
 import { beat, ending, entry, flow, mount, programOf, scene, shop, vaultStory } from '../interactive/economy-fixture'
-import { achievements, storyProgram } from '../interactive/p3-fixture'
+import { achievements, coin, storyProgram } from '../interactive/p3-fixture'
 
 if (!existsSync(path.resolve(process.cwd(), 'miniprogram/miniprogram/runtime/story-runtime.js'))) {
   throw new Error('先运行 npm --prefix miniprogram run build:runtime')
@@ -506,5 +508,40 @@ describe('cloud sync triggers', () => {
     expect(h.sync).toHaveBeenCalledWith('hide')
     c.dispose()
     expect(h.sync).toHaveBeenCalledWith('unload')
+  })
+})
+
+describe('cloud merge adoption (F.7)', () => {
+  it('adopts the server merge result without disturbing the run or regressing permanent values', () => {
+    const program = storyProgram({ variables: [{ ...coin, scope: 'permanent' }], achievements })
+    const h = harness(program)
+    const c = h.controller
+    c.start('new')
+    c.skipSegment()
+    c.choose('a')
+    expect(c.savePayload().permanent.coin).toBe(1)
+    const stopBefore = c.run.stop
+    const snapshot = snapshotRun(c.run)
+    expect(snapshot).not.toBeNull()
+    c.adoptMerged({
+      profile: {
+        endings: [reachKey('p', 'badend')],
+        segments: [reachKey('p', 's1'), reachKey('p', 's2')],
+        achievements: ['a_seg'],
+        bought: [],
+        equipped: { title: null, frame: null },
+      },
+      saves: { auto: { snapshot: snapshot!, savedAt: 9000 }, slots: [null, null, null], checkpoints: {} },
+      permanent: { coin: 5 },
+    })
+    expect(c.run.stop).toEqual(stopBefore)
+    const payload = c.savePayload()
+    expect(payload.profile.endings).toEqual([reachKey('p', 'badend')])
+    expect(payload.profile.achievements).toEqual(['a_seg'])
+    expect(payload.permanent.coin).toBe(5)
+    expect(payload.saves.auto?.savedAt).toBe(9000)
+    expect(readStoredProfile(h.storage, 'mp:test').endings).toEqual([reachKey('p', 'badend')])
+    expect(readPermanentValues(h.storage, 'mp:test', program.variables).coin).toBe(5)
+    c.dispose()
   })
 })

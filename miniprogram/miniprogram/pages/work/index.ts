@@ -5,7 +5,8 @@ import { getSettings } from '../../lib/settings'
 import { isWifi } from '../../lib/network'
 import { syncDown } from '../../lib/save-sync'
 import { generateShareId, registerShare, workSharePath, workShareTitle } from '../../lib/share'
-import { wxStorage } from '../../lib/storage'
+import { storageKey, wxStorage } from '../../lib/storage'
+import { readStoredSaves } from '../../runtime/story-runtime'
 import { currentAttr, track } from '../../lib/track'
 import type { WorkDetail } from '../../lib/types'
 
@@ -68,6 +69,7 @@ Page({
       if (!wxStorage.getItem(promptedKey) && viewer && viewer.rating == null) this.setData({ ratingShow: true })
     }
     if (this.data.showTrailer) wx.createVideoContext('trailer', this).play()
+    this.refreshSaveButton()
   },
 
   onHide() {
@@ -119,11 +121,19 @@ Page({
         chapters: detail.chapters.map((c) => ({ order: c.order, title: c.title, duration: formatDuration(c.durationSec) })),
       })
       wx.setNavigationBarTitle({ title: detail.work.title })
-      if (!this.data.timeline && getToken()) syncDown(this.data.slug).catch(() => {})
+      if (!this.data.timeline && getToken()) syncDown(this.data.slug).then(() => this.refreshSaveButton()).catch(() => {})
     } catch (err) {
       const status = (err as { status?: number }).status
       this.setData({ loading: false, error: status !== 404, notFound: status === 404 })
     }
+  },
+
+  // F.7：主按钮跟着合并后的本地自动存档走；播放器清掉失效自动存档后回到「开始游玩」。
+  refreshSaveButton() {
+    const detail = this.data.detail
+    if (!detail || this.data.timeline || detail.work.status === 'scheduled') return
+    const hasSave = Boolean(readStoredSaves(wxStorage, storageKey(this.data.slug)).auto)
+    this.setData({ hasSave, mainLabel: hasSave ? '继续游玩' : '开始游玩', showRestart: hasSave })
   },
 
   toggleSynopsis() {

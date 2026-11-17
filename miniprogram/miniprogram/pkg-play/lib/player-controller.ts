@@ -774,6 +774,18 @@ export class PlayerController {
     }
   }
 
+  /** PUT 返回 merged 时的收敛：采纳服务端合并结果写回本地；永久值同步进当前 run，其余 run 状态不受影响。 */
+  adoptMerged(state: { profile: StoryProfile; saves: StorySaves; permanent: PermanentValues }): void {
+    this.profile = state.profile
+    this.saves = state.saves
+    writeStoredProfile(this.storage, this.storageKey, this.profile)
+    writeStoredSaves(this.storage, this.storageKey, this.saves)
+    writePermanentValues(this.permanentStorage, this.storageKey, this.program.variables, { ...this.run.vars, ...state.permanent } as StoryVariables)
+    this.permanent = readPermanentValues(this.permanentStorage, this.storageKey, this.program.variables)
+    this.run = { ...this.run, vars: { ...this.run.vars, ...this.permanent } }
+    this.pushView()
+  }
+
   private sceneKeys(): string[] {
     return this.program.chapters.flatMap((chapter) =>
       chapter.nodes.filter((node) => node.kind === 'scene').map((node) => reachKey(chapter.projectId, node.id)),
