@@ -1,0 +1,50 @@
+.sheet { position: absolute; inset: 0; z-index: 40; pointer-events: auto; }
+.backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.6); }
+.panel {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  max-height: 76%;
+  display: flex;
+  flex-direction: column;
+  padding: 32rpx;
+  border-radius: 24rpx 24rpx 0 0;
+  background: var(--surface);
+}
+.is-landscape .panel {
+  left: 50%; right: auto; bottom: 50%;
+  transform: translate(-50%, 50%);
+  width: 720rpx; max-height: 86%;
+  border-radius: 24rpx;
+}
+.head { display: flex; align-items: center; }
+.title { flex: 1; color: var(--text); font-size: var(--font-card-title); font-weight: 600; }
+.close {
+  margin: 0; padding: 0; width: 56rpx; height: 56rpx; line-height: 52rpx;
+  border-radius: 50%; background: var(--surface-2); color: var(--text-2); font-size: 40rpx;
+}
+.notice { color: var(--ending-good); font-size: var(--font-aux); margin-top: 12rpx; }
+.body { flex: 1; margin-top: 24rpx; max-height: 60vh; }
+.section { margin-bottom: 32rpx; }
+.section-title { color: var(--text-2); font-size: var(--font-aux); display: block; margin-bottom: 16rpx; }
+.slot {
+  display: flex; align-items: center; gap: 20rpx;
+  padding: 20rpx; border-radius: var(--radius-card);
+  background: var(--surface-2); margin-bottom: 16rpx;
+}
+.slot-info { flex: 1; display: flex; flex-direction: column; gap: 6rpx; }
+.slot-name { color: var(--text); font-size: var(--font-body); font-weight: 600; }
+.slot-label { color: var(--text-2); font-size: var(--font-aux); }
+.slot-label.is-stale { color: var(--ending-bad); }
+.slot-time { color: var(--text-3); font-size: 22rpx; }
+.slot-actions { display: flex; gap: 12rpx; flex-shrink: 0; }
+.btn {
+  margin: 0; padding: 0 24rpx; height: 60rpx; line-height: 60rpx;
+  border-radius: var(--radius-button); background: var(--surface);
+  color: var(--text); font-size: var(--font-aux); flex-shrink: 0;
+}
+.btn.is-primary { background: var(--brand); color: #fff; }
+.btn.is-danger { background: transparent; color: var(--ending-bad); border: 2rpx solid var(--ending-bad); }
+.btn[disabled] { opacity: 0.4; }
+.sheet.is-embedded { position: static; inset: auto; z-index: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.embedded { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.embedded .body { max-height: none; min-height: 0; }

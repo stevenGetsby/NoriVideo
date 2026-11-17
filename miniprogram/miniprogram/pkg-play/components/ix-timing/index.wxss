@@ -1,0 +1,44 @@
+.ix-timing {
+  width: 560rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24rpx;
+}
+.bar {
+  position: relative;
+  width: 100%;
+  height: 40rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+.zone {
+  position: absolute;
+  top: 0;
+  height: 100%;
+}
+.zone.is-normal { background: rgba(76, 125, 255, 0.45); }
+.zone.is-perfect { background: var(--ending-good); }
+.pointer {
+  position: absolute;
+  top: -12rpx;
+  width: 12rpx;
+  height: 64rpx;
+  margin-left: -6rpx;
+  border-radius: 6rpx;
+  background: #fff;
+  box-shadow: 0 0 12rpx rgba(0, 0, 0, 0.6);
+}
+.prop {
+  position: absolute;
+  top: -56rpx;
+  left: -28rpx;
+  width: 68rpx;
+  height: 68rpx;
+  border-radius: 50%;
+}
+.tip {
+  color: var(--text-2);
+  font-size: var(--font-aux);
+}

@@ -1,0 +1,67 @@
+<view class="stage">
+  <video
+    id="a"
+    class="slot {{activeSlot === 'a' ? 'is-active' : ''}}"
+    data-slot="a"
+    src="{{aSrc}}"
+    poster="{{aPoster}}"
+    muted="{{activeSlot !== 'a'}}"
+    object-fit="contain"
+    autoplay="{{false}}"
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-fullscreen-btn="{{false}}"
+    show-play-btn="{{false}}"
+    show-progress="{{false}}"
+    show-bottom-progress="{{false}}"
+    enable-progress-gesture="{{false}}"
+    enable-play-gesture="{{false}}"
+    vslide-gesture="{{false}}"
+    show-casting-button="{{false}}"
+    bindtimeupdate="onTimeUpdate"
+    bindended="onEnded"
+    bindwaiting="onWaiting"
+    bindplay="onPlaying"
+    binderror="onError"
+    bindloadedmetadata="onLoadedMetadata"
+  />
+  <video
+    id="b"
+    class="slot {{activeSlot === 'b' ? 'is-active' : ''}}"
+    data-slot="b"
+    src="{{bSrc}}"
+    poster="{{bPoster}}"
+    muted="{{activeSlot !== 'b'}}"
+    object-fit="contain"
+    autoplay="{{false}}"
+    controls="{{false}}"
+    show-center-play-btn="{{false}}"
+    show-fullscreen-btn="{{false}}"
+    show-play-btn="{{false}}"
+    show-progress="{{false}}"
+    show-bottom-progress="{{false}}"
+    enable-progress-gesture="{{false}}"
+    enable-play-gesture="{{false}}"
+    vslide-gesture="{{false}}"
+    show-casting-button="{{false}}"
+    bindtimeupdate="onTimeUpdate"
+    bindended="onEnded"
+    bindwaiting="onWaiting"
+    bindplay="onPlaying"
+    binderror="onError"
+    bindloadedmetadata="onLoadedMetadata"
+  />
+  <image class="last-frame" wx:if="{{lastFrameUrl}}" src="{{lastFrameUrl}}" mode="aspectFit" />
+  <image class="image-overlay" src="{{imageOverlay}}" mode="aspectFit" style="opacity:{{imageOverlay ? 1 : 0}}" />
+  <view class="loading" wx:if="{{loading && !mediaError}}">
+    <view class="spinner" />
+    <text>加载中</text>
+  </view>
+  <view class="media-error" wx:if="{{mediaError}}">
+    <text class="media-error-title">视频加载失败</text>
+    <view class="media-error-actions">
+      <button class="btn" bindtap="onRetry">重试</button>
+      <button class="btn is-ghost" bindtap="onSkip">跳过这一段</button>
+    </view>
+  </view>
+</view>

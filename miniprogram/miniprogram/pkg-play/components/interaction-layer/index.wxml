@@ -1,0 +1,33 @@
+<view
+  class="ix-layer"
+  wx:if="{{interaction}}"
+  bindtouchstart="onTouchStart"
+  bindtouchmove="onTouchMove"
+  bindtouchend="onTouchEnd"
+  bindtouchcancel="onTouchEnd"
+>
+  <view class="countdown" wx:if="{{showCountdown}}">
+    <view class="countdown-fill" style="width:{{interaction.countdownPercent}}%" />
+    <text class="countdown-text">{{countdownLeft}}s</text>
+  </view>
+  <view class="body" wx:if="{{interaction.kind !== 'choice' && interaction.kind !== 'hotspot'}}">
+    <text class="hint">{{interaction.hint}}</text>
+    <ix-tap wx:if="{{interaction.kind === 'tap'}}" interaction="{{interaction}}" />
+    <ix-swipe wx:if="{{interaction.kind === 'swipe'}}" interaction="{{interaction}}" />
+    <ix-timing wx:if="{{interaction.kind === 'timing'}}" interaction="{{interaction}}" />
+    <ix-hold wx:if="{{interaction.kind === 'hold'}}" interaction="{{interaction}}" />
+  </view>
+  <ix-hotspot wx:if="{{interaction.kind === 'hotspot'}}" interaction="{{interaction}}" box="{{box}}" />
+  <choice-panel
+    wx:if="{{interaction.kind === 'choice'}}"
+    prompt="{{interaction.prompt}}"
+    options="{{interaction.options}}"
+    panelStyle="{{interaction.spec.panelStyle}}"
+    layout="{{interaction.spec.layout}}"
+    orientation="{{orientation}}"
+    countdownPercent="{{interaction.countdownPercent}}"
+    durationSec="{{interaction.durationSec}}"
+    lockedHint="{{lockedHint}}"
+    bind:choose="onChoose"
+  />
+</view>

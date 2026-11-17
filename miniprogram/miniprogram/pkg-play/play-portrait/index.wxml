@@ -1,1 +1,1 @@
-<view class="placeholder">播放器开发中</view>
+<story-player slug="{{slug}}" from="{{from}}" orientation="portrait" />

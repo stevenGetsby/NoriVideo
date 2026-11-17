@@ -1,0 +1,105 @@
+.choice-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  pointer-events: auto;
+  padding: 32rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+  background: linear-gradient(0deg, rgba(14, 15, 26, 0.92), rgba(14, 15, 26, 0));
+}
+.countdown {
+  position: relative;
+  width: 320rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.countdown-fill {
+  height: 100%;
+  background: var(--brand);
+}
+.countdown-text {
+  position: absolute;
+  right: -64rpx;
+  top: -10rpx;
+  color: var(--text-2);
+  font-size: var(--font-aux);
+}
+.lock-hint {
+  color: var(--ending-hidden);
+  font-size: var(--font-aux);
+}
+.prompt {
+  color: var(--text);
+  font-size: var(--font-card-title);
+  font-weight: 600;
+  text-align: center;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.8);
+}
+.options {
+  width: 100%;
+  display: flex;
+  gap: 20rpx;
+}
+.is-vertical .options {
+  flex-direction: column;
+}
+.is-horizontal .options {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.option {
+  position: relative;
+  flex: 1;
+  margin: 0;
+  padding: 24rpx;
+  min-height: 88rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-button);
+  background: var(--surface);
+  border: 2rpx solid var(--border);
+  color: var(--text);
+  font-size: var(--font-body);
+  overflow: hidden;
+}
+.is-horizontal .option {
+  flex: 1 1 40%;
+}
+.option.has-image {
+  padding: 0;
+  min-height: 200rpx;
+}
+.option.is-locked {
+  opacity: 0.6;
+}
+.option-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.option-text {
+  position: relative;
+  text-align: center;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.8);
+}
+.lock {
+  position: absolute;
+  top: 8rpx;
+  right: 12rpx;
+  z-index: 1;
+  padding: 2rpx 12rpx;
+  border-radius: var(--radius-tag);
+  background: rgba(0, 0, 0, 0.6);
+  color: var(--ending-hidden);
+  font-size: 20rpx;
+}

@@ -1,4 +1,1 @@
-{
-  "navigationBarTitleText": "播放器开发中",
-  "pageOrientation": "landscape"
-}
+{"navigationStyle": "custom", "pageOrientation": "landscape", "disableScroll": true, "usingComponents": {"story-player": "../components/story-player/index"}}

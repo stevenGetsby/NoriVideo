@@ -1,0 +1,39 @@
+<view class="sheet is-{{orientation}}" wx:if="{{shop}}">
+  <view class="backdrop" bindtap="onClose" />
+  <view class="panel">
+    <view class="head">
+      <text class="title">商城</text>
+      <view class="balance" wx:if="{{hasCurrency}}">
+        <image wx:if="{{currencyIconIsImage}}" class="balance-icon" src="{{currencyIcon}}" mode="aspectFill" />
+        <text wx:elif="{{currencyIcon}}" class="balance-emoji">{{currencyIcon}}</text>
+        <text class="balance-value">{{balance}}</text>
+        <text wx:if="{{!currencyIcon}}" class="balance-name">{{currencyName}}</text>
+      </view>
+      <button class="close" bindtap="onClose">×</button>
+    </view>
+    <text class="note" wx:if="{{!hasCurrency}}">未设置付款数值：购买只是模拟，不扣除数值</text>
+    <text class="error" wx:if="{{shop.error}}">{{shop.error}}</text>
+    <text class="notice" wx:if="{{shop.notice}}">{{shop.notice}}</text>
+    <text class="empty" wx:if="{{items.length === 0}}">商城还没有商品</text>
+    <scroll-view wx:else scroll-y class="list">
+      <view wx:for="{{items}}" wx:key="id" class="item {{item.focused ? 'is-focused' : ''}}">
+        <view class="item-icon">
+          <image wx:if="{{item.iconIsImage}}" class="icon-img" src="{{item.icon}}" mode="aspectFill" />
+          <text wx:else class="icon-text">{{item.iconText}}</text>
+        </view>
+        <view class="item-info">
+          <view class="item-name">
+            <text>{{item.name}}</text>
+            <text wx:if="{{item.owned > 0}}" class="item-owned">已拥有 ×{{item.owned}}</text>
+          </view>
+          <text wx:if="{{item.description}}" class="item-desc">{{item.description}}</text>
+          <view class="item-price">
+            <text>售价 {{item.price}}</text>
+            <text wx:if="{{hasCurrency}}" class="price-unit">{{currencyName}}</text>
+          </view>
+        </view>
+        <button class="buy {{item.buyDisabled ? 'is-disabled' : ''}}" data-id="{{item.id}}" disabled="{{item.buyDisabled}}" bindtap="onBuy">{{item.buyLabel}}</button>
+      </view>
+    </scroll-view>
+  </view>
+</view>

@@ -1,0 +1,16 @@
+<view class="hud is-{{orientation}}" wx:if="{{hud}}">
+  <button class="back" bindtap="onBack">‹</button>
+  <view class="vars">
+    <view wx:for="{{varViews}}" wx:key="id" class="chip">
+      <image wx:if="{{item.iconIsImage}}" class="chip-icon" src="{{item.icon}}" mode="aspectFill" />
+      <text wx:elif="{{item.icon}}" class="chip-emoji">{{item.icon}}</text>
+      <text wx:else class="chip-name">{{item.name}}</text>
+      <text class="chip-value">{{item.valueText}}</text>
+    </view>
+  </view>
+  <view class="actions">
+    <button class="action" bindtap="onSpeed">{{hud.speedLabel}}</button>
+    <button wx:if="{{hud.showSaves}}" class="action" bindtap="onSaves">存档</button>
+    <button wx:if="{{hud.showShop}}" class="action" bindtap="onShop">商店</button>
+  </view>
+</view>

@@ -1,0 +1,21 @@
+.prompt-layer {
+  position: absolute; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(0, 0, 0, 0.6);
+  pointer-events: auto;
+}
+.prompt {
+  width: 560rpx; box-sizing: border-box;
+  display: flex; flex-direction: column; align-items: center; gap: 16rpx;
+  padding: 40rpx; border-radius: 24rpx; background: var(--surface);
+}
+.kicker { color: var(--text-2); font-size: var(--font-aux); }
+.where { color: var(--text); font-size: var(--font-card-title); font-weight: 600; text-align: center; }
+.time { color: var(--text-3); font-size: 22rpx; }
+.actions { display: flex; gap: 20rpx; margin-top: 16rpx; }
+.btn {
+  margin: 0; padding: 0 40rpx; height: 72rpx; line-height: 72rpx;
+  border-radius: var(--radius-button); background: var(--surface-2);
+  color: var(--text); font-size: var(--font-body);
+}
+.btn.is-primary { background: var(--brand); color: #fff; }

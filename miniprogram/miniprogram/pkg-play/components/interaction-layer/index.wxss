@@ -1,0 +1,43 @@
+.ix-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: auto;
+}
+.countdown {
+  position: absolute;
+  top: 96rpx;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 320rpx;
+  height: 12rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+.countdown-fill {
+  height: 100%;
+  background: var(--brand);
+}
+.countdown-text {
+  position: absolute;
+  right: -64rpx;
+  top: -10rpx;
+  color: var(--text-2);
+  font-size: var(--font-aux);
+}
+.body {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 32rpx;
+}
+.hint {
+  color: var(--text);
+  font-size: var(--font-body);
+  text-align: center;
+  text-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.8);
+}

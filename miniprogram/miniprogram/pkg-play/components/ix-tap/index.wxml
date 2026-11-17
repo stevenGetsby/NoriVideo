@@ -1,0 +1,10 @@
+<view class="ix-tap" wx:if="{{interaction}}">
+  <view class="ring" style="background:conic-gradient(var(--brand) 0% {{interaction.tapPercent}}%, rgba(255,255,255,0.15) {{interaction.tapPercent}}% 100%)">
+    <view class="ring-hole" />
+  </view>
+  <view class="btn">
+    <image wx:if="{{interaction.spec.buttonImageUrl}}" class="btn-img" src="{{interaction.spec.buttonImageUrl}}" mode="aspectFill" />
+    <text wx:if="{{!interaction.spec.buttonImageUrl || interaction.spec.buttonText}}" class="btn-label">{{interaction.spec.buttonText || '点击'}}</text>
+  </view>
+  <text class="count">{{interaction.taps}} / {{interaction.spec.count}}</text>
+</view>

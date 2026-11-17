@@ -1,0 +1,11 @@
+<view class="prompt-layer" wx:if="{{promptMode === 'shown' && prompt}}">
+  <view class="prompt">
+    <text class="kicker">继续上次进度</text>
+    <text class="where">{{prompt.chapter}} · {{prompt.node}}</text>
+    <text class="time" wx:if="{{prompt.timeText}}">{{prompt.timeText}}</text>
+    <view class="actions">
+      <button class="btn is-primary" bindtap="onResume">继续</button>
+      <button class="btn" bindtap="onRestart">重新开始</button>
+    </view>
+  </view>
+</view>
