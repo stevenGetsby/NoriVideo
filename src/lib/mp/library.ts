@@ -108,6 +108,45 @@ export async function setFavorite(slug: string, consumerId: string, favorited: b
   return { favorited }
 }
 
+export async function setReservation(slug: string, consumerId: string, reserved: boolean): Promise<{ reserved: boolean; reserveCount: number }> {
+  const work = await workBySlug(slug)
+  if (work.status !== 'scheduled') throw new MpApiError('MP_INVALID_STATE')
+  const where = { consumerId_mpWorkId: { consumerId, mpWorkId: work.id } }
+  const existing = await prisma.mpReservation.findUnique({ where, select: { id: true } })
+  if (reserved && !existing) {
+    try {
+      await prisma.$transaction([
+        prisma.mpReservation.create({ data: { consumerId, mpWorkId: work.id } }),
+        prisma.mpWork.update({ where: { id: work.id }, data: { reserveCount: { increment: 1 } } }),
+      ])
+    } catch (error) {
+      if (!isP2002(error)) throw error
+    }
+  } else if (!reserved && existing) {
+    await prisma.$transaction([
+      prisma.mpReservation.delete({ where: { id: existing.id } }),
+      prisma.mpWork.update({ where: { id: work.id }, data: { reserveCount: { decrement: 1 } } }),
+    ])
+  }
+  const fresh = await prisma.mpWork.findUnique({ where: { id: work.id }, select: { reserveCount: true } })
+  return { reserved, reserveCount: fresh?.reserveCount ?? 0 }
+}
+
+export async function addSubscription(slug: string, consumerId: string, kind: unknown, accepted: unknown): Promise<{ credits: number }> {
+  if (kind !== 'work_live' && kind !== 'chapter_update') throw new MpApiError('MP_VALIDATION', { message: '订阅类型无效' })
+  const work = await workBySlug(slug)
+  const validKind = kind
+  const where = { consumerId_mpWorkId_kind: { consumerId, mpWorkId: work.id, kind: validKind } }
+  const existing = await prisma.mpSubscription.findUnique({ where, select: { id: true, credits: true } })
+  if (accepted !== true) return { credits: existing?.credits ?? 0 }
+  if (existing) {
+    const row = await prisma.mpSubscription.update({ where: { id: existing.id }, data: { credits: Math.min(20, existing.credits + 1) } })
+    return { credits: row.credits }
+  }
+  const row = await withCreateRetry(() => prisma.mpSubscription.create({ data: { consumerId, mpWorkId: work.id, kind: validKind, credits: 1 } }))
+  return { credits: row.credits }
+}
+
 export async function setRating(slug: string, consumerId: string, score: unknown): Promise<{ score: number }> {
   if (typeof score !== 'number' || !Number.isInteger(score) || score < 1 || score > 5) throw new MpApiError('MP_VALIDATION', { message: '评分需要 1–5 分' })
   const validScore = score

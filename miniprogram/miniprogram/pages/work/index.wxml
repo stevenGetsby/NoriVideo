@@ -46,7 +46,7 @@
       <section-header title="结局图鉴 {{endingGotCount}}/{{detail.endings.length}}" more="查看全部" bind:more="goCollection" />
       <ending-grid endings="{{detail.endings}}" got="{{endingsGot}}" columns="{{4}}" />
 
-      <section-header title="章节" />
+      <section-header title="章节" more="{{detail.work.status === 'live' ? '更新提醒' : ''}}" bind:more="onChapterUpdate" />
       <view class="chapter" wx:for="{{chapters}}" wx:key="order">
         <view class="chapter-title">第{{item.order}}章 · {{item.title}}</view>
         <view class="chapter-dur">{{item.duration}}</view>

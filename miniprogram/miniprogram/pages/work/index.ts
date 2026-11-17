@@ -1,3 +1,4 @@
+import { TPL_CHAPTER_UPDATE, TPL_WORK_LIVE } from '../../config'
 import { request } from '../../lib/api'
 import { ensureLogin, getToken } from '../../lib/auth'
 import { formatCount, formatDate, formatDuration } from '../../lib/format'
@@ -172,20 +173,59 @@ Page({
   },
 
   async toggleReserve() {
-    try {
-      await ensureLogin()
-      const method = this.data.reserved ? 'DELETE' : 'PUT'
-      const res = await request<{ reserved: boolean; reserveCount: number }>(
-        method, `/api/mp/works/${encodeURIComponent(this.data.slug)}/reservation`, undefined, { auth: 'required' },
-      )
-      this.setData({
-        reserved: res.reserved,
-        mainLabel: res.reserved ? `已预约 · ${this.data.reserveDateText}上线` : '预约上线提醒',
+    if (this.data.reserved) {
+      wx.showActionSheet({
+        itemList: ['取消预约'],
+        success: (res) => { if (res.tapIndex === 0) void this.cancelReserve() },
       })
-      track('reserve', { w: this.data.slug, v: res.reserved ? 1 : 0 })
+      return
+    }
+    // requestSubscribeMessage 必须直接在点击回调里调用，前面不能有别的 await。
+    const accepted = await new Promise<boolean>((resolve) => {
+      wx.requestSubscribeMessage({
+        tmplIds: [TPL_WORK_LIVE],
+        success: (res) => resolve(res[TPL_WORK_LIVE] === 'accept'),
+        fail: () => resolve(false),
+      })
+    })
+    try {
+      const res = await request<{ reserved: boolean; reserveCount: number }>(
+        'PUT', `/api/mp/works/${encodeURIComponent(this.data.slug)}/reservation`, undefined, { auth: 'required' },
+      )
+      if (accepted) {
+        await request('POST', '/api/mp/subscriptions', { slug: this.data.slug, kind: 'work_live', accepted: true }, { auth: 'required' }).catch(() => {})
+      }
+      this.setData({ reserved: res.reserved, mainLabel: `已预约 · ${this.data.reserveDateText}上线` })
+      track('reserve', { w: this.data.slug, v: 1 })
+      wx.showToast({ title: accepted ? '预约成功，上线时会通知你' : '预约成功，开启通知后可以在上线时收到提醒', icon: 'none' })
     } catch (err) {
       wx.showToast({ title: (err as { message?: string }).message || '操作失败', icon: 'none' })
     }
+  },
+
+  async cancelReserve() {
+    try {
+      const res = await request<{ reserved: boolean; reserveCount: number }>(
+        'DELETE', `/api/mp/works/${encodeURIComponent(this.data.slug)}/reservation`, undefined, { auth: 'required' },
+      )
+      this.setData({ reserved: res.reserved, mainLabel: '预约上线提醒' })
+      track('reserve', { w: this.data.slug, v: 0 })
+    } catch (err) {
+      wx.showToast({ title: (err as { message?: string }).message || '操作失败', icon: 'none' })
+    }
+  },
+
+  onChapterUpdate() {
+    wx.requestSubscribeMessage({
+      tmplIds: [TPL_CHAPTER_UPDATE],
+      success: (res) => {
+        if (res[TPL_CHAPTER_UPDATE] !== 'accept') return
+        request('POST', '/api/mp/subscriptions', { slug: this.data.slug, kind: 'chapter_update', accepted: true }, { auth: 'required' })
+          .then(() => { wx.showToast({ title: '已开启，新章节上线时会通知你一次', icon: 'none' }) })
+          .catch(() => { wx.showToast({ title: '操作失败', icon: 'none' }) })
+      },
+      fail: () => {},
+    })
   },
 
   async onFavorite() {

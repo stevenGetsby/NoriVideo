@@ -405,6 +405,28 @@ export async function favoriteCards(consumerId: string, cursor: string | null, l
   return { items, nextCursor }
 }
 
+export async function reservationCards(consumerId: string): Promise<{ items: Card[] }> {
+  const reservations = await prisma.mpReservation.findMany({
+    where: { consumerId },
+    orderBy: [{ createdAt: 'desc' }, { id: 'asc' }],
+    take: 100,
+    select: { mpWorkId: true },
+  })
+  const works = reservations.length
+    ? await prisma.mpWork.findMany({ where: { id: { in: reservations.map((row) => row.mpWorkId) }, ...VISIBLE_WHERE }, select: WORK_SELECT })
+    : []
+  const metas = await metasFor(works)
+  const workById = new Map(works.map((work) => [work.id, work]))
+  const sources: CardSource[] = []
+  for (const row of reservations) {
+    const work = workById.get(row.mpWorkId)
+    const releaseId = work ? displayReleaseId(work) : null
+    const meta = work && releaseId ? metas.get(releaseId) : undefined
+    if (work && meta) sources.push(cardSource(work, meta))
+  }
+  return { items: await Promise.all(sources.map(toCard)) }
+}
+
 export async function home(consumerId: string | null): Promise<{
   hero: Slot[]
   picks: Slot[]

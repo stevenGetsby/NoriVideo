@@ -6,6 +6,7 @@ import { markTaskFailed } from '@/lib/task/service'
 import { publishTaskEvent } from '@/lib/task/publisher'
 import { TASK_EVENT_TYPE, TASK_TYPE, type TaskType } from '@/lib/task/types'
 import { cleanupAllProjectLogs } from '@/lib/logging/file-writer'
+import { runMpJobs } from '@/lib/mp/jobs'
 
 const INTERVAL_MS = Number.parseInt(process.env.WATCHDOG_INTERVAL_MS || '30000', 10) || 30000
 const HEARTBEAT_TIMEOUT_MS = Number.parseInt(process.env.TASK_HEARTBEAT_TIMEOUT_MS || '90000', 10) || 90000
@@ -200,6 +201,7 @@ async function tick() {
   try {
     await recoverQueuedTasks()
     await cleanupZombieProcessingTasks()
+    await runMpJobs()
     // 每小时清理一次日志（过滤 24h 前内容）
     if (tickCount % LOG_CLEANUP_INTERVAL_TICKS === 0) {
       void cleanupAllProjectLogs()

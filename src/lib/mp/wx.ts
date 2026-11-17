@@ -79,6 +79,34 @@ export async function getAccessToken(force = false): Promise<string> {
   }
 }
 
+function wxState(): string {
+  const env = process.env.MP_ENV_VERSION?.trim()
+  return env === 'develop' ? 'developer' : env === 'trial' ? 'trial' : 'formal'
+}
+
+export interface SubscribeSendResult { errcode: number; errmsg: string }
+
+/** 发送订阅消息。errcode 0 成功；43101 用户拒收（按已发送扣额度）；其余错误不扣额度。 */
+export async function sendSubscribe(openid: string, templateId: string, page: string, data: Record<string, { value: string }>): Promise<SubscribeSendResult> {
+  const call = async (accessToken: string) => {
+    const response = await fetch(`${WX_BASE}/cgi-bin/message/subscribe/send?access_token=${encodeURIComponent(accessToken)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ touser: openid, template_id: templateId, page, data, miniprogram_state: wxState() }),
+      signal: AbortSignal.timeout(8000),
+    })
+    return response.json() as Promise<{ errcode?: number; errmsg?: string }>
+  }
+  let raw: Awaited<ReturnType<typeof call>>
+  try {
+    raw = await call(await getAccessToken())
+    if (raw.errcode === 40001 || raw.errcode === 42001) raw = await call(await getAccessToken(true))
+  } catch {
+    return { errcode: -1, errmsg: 'network' }
+  }
+  return { errcode: raw.errcode ?? 0, errmsg: raw.errmsg ?? '' }
+}
+
 /** true = 微信内容安全判定通过。40001/42001 时刷新 token 只重试一次。 */
 export async function msgSecCheck(openid: string, content: string): Promise<boolean> {
   const call = async (accessToken: string) => {
