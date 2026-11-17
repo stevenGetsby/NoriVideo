@@ -1,0 +1,8 @@
+<view wx:if="{{show}}" class="mask" bindtap="onClose">
+  <view class="sheet" catchtap="noop">
+    <view class="title">分享</view>
+    <button class="btn btn-primary" open-type="share">发给朋友</button>
+    <view class="btn" bindtap="onPoster">生成海报</view>
+    <view class="cancel" bindtap="onClose">取消</view>
+  </view>
+</view>

@@ -12,6 +12,7 @@
   </view>
   <text class="progress">已收集 {{ending.got}}/{{ending.total}} 个结局</text>
   <view class="actions">
+    <button class="btn" bindtap="onPoster">生成结局海报</button>
     <button class="btn is-primary" bindtap="onRestart">再玩一次</button>
     <button class="btn" wx:if="{{ending.hasSaves}}" bindtap="onSaves">回到存档点</button>
     <button class="btn" bindtap="onBack">返回详情</button>

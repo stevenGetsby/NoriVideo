@@ -60,11 +60,13 @@
 
     <view wx:if="{{!timeline}}" class="bottombar">
       <view class="fav {{favorited ? 'fav-on' : ''}}" bindtap="onFavorite">{{favorited ? '已收藏' : '收藏'}}</view>
-      <button class="share" open-type="share">分享</button>
+      <view class="share" bindtap="onShareTap">分享</view>
       <view wx:if="{{showRestart}}" class="restart" bindtap="onRestart">重新开始</view>
       <view class="main" bindtap="onMain">{{mainLabel}}</view>
     </view>
 
+    <share-sheet show="{{shareShow}}" bind:close="onShareClose" bind:poster="onSharePoster" />
+    <poster-maker id="poster" />
     <report-sheet show="{{reportShow}}" slug="{{slug}}" bind:close="onReportClose" />
     <rating-sheet show="{{ratingShow}}" title="{{ratingTitle}}" bind:submit="onRatingSubmit" bind:close="onRatingClose" />
     <privacy-popup />

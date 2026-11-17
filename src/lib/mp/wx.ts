@@ -107,6 +107,44 @@ export async function sendSubscribe(openid: string, templateId: string, page: st
   return { errcode: raw.errcode ?? 0, errmsg: raw.errmsg ?? '' }
 }
 
+/** 不限制数量的小程序码，成功返回 PNG buffer；微信返回 JSON 即为失败。 */
+export async function getUnlimitedWxacode(scene: string, page: string, width = 430): Promise<Buffer> {
+  const call = async (accessToken: string): Promise<{ errcode: number; buffer: Buffer | null }> => {
+    const response = await fetch(`${WX_BASE}/wxa/getwxacodeunlimit?access_token=${encodeURIComponent(accessToken)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        scene,
+        page,
+        check_path: false,
+        env_version: process.env.MP_ENV_VERSION?.trim() || 'release',
+        width,
+        is_hyaline: false,
+      }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const data = await response.json() as { errcode?: number }
+      return { errcode: data.errcode ?? 0, buffer: null }
+    }
+    return { errcode: 0, buffer: Buffer.from(await response.arrayBuffer()) }
+  }
+  let result: { errcode: number; buffer: Buffer | null }
+  try {
+    result = await call(await getAccessToken())
+    if (result.errcode === 40001 || result.errcode === 42001) result = await call(await getAccessToken(true))
+  } catch (error) {
+    if (error instanceof MpApiError) throw error
+    throw new MpApiError('MP_WX_UNAVAILABLE')
+  }
+  if (result.errcode || !result.buffer) {
+    logger.warn({ action: 'mp.wx.wxacode.failed', message: '小程序码生成失败', details: { errcode: result.errcode } })
+    throw new MpApiError('MP_WX_UNAVAILABLE')
+  }
+  return result.buffer
+}
+
 /** true = 微信内容安全判定通过。40001/42001 时刷新 token 只重试一次。 */
 export async function msgSecCheck(openid: string, content: string): Promise<boolean> {
   const call = async (accessToken: string) => {

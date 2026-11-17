@@ -372,6 +372,22 @@ Component({
       controller.start('resume')
     },
 
+    /* ---------- 分享与海报 ---------- */
+
+    sharePayload(): { ending: { nodeId: string; title: string; type: string } | null; background: string } {
+      const data = this.data as Record<string, unknown>
+      const ending = data.ending as { nodeId?: string; title?: string; type?: string } | null
+      return {
+        ending: ending?.nodeId ? { nodeId: ending.nodeId, title: ending.title || '', type: ending.type || 'normal' } : null,
+        background: (data.lastFrameUrl as string) || '',
+      }
+    },
+    onEndingPoster() {
+      const payload = this.sharePayload()
+      if (!payload.ending) return
+      this.triggerEvent('poster', { ...payload.ending, background: payload.background })
+    },
+
     /* ---------- 退出 ---------- */
 
     onBack() {

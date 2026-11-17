@@ -4,6 +4,9 @@ Component({
     orientation: { type: String, value: 'portrait' },
   },
   methods: {
+    onPoster() {
+      this.triggerEvent('poster')
+    },
     onRestart() {
       this.triggerEvent('restart')
     },

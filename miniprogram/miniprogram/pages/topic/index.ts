@@ -1,6 +1,6 @@
 import { BRAND_NAME } from '../../config'
 import { request } from '../../lib/api'
-import { generateShareId, registerShare, topicSharePath, topicShareTitle } from '../../lib/share'
+import { generateShareId, topicSharePath, topicShareTitle } from '../../lib/share'
 import { track } from '../../lib/track'
 import type { Card, TopicResponse } from '../../lib/types'
 
@@ -49,7 +49,6 @@ Page({
     const topic = this.data.topic
     if (!topic) return { title: BRAND_NAME, path: '/pages/home/index' }
     const id = generateShareId()
-    registerShare(id, topic.slug, 'topic')
     track('share_click', { w: topic.slug, o: 'topic' })
     return {
       title: topicShareTitle(topic.title, BRAND_NAME),

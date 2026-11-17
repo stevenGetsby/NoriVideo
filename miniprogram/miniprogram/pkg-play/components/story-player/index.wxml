@@ -89,6 +89,7 @@
     bind:restart="onRestart"
     bind:saves="onOpenSaves"
     bind:back="onBack"
+    bind:poster="onEndingPoster"
   />
   <view class="card" wx:if="{{card && !sheet}}">
     <text class="card-kicker">{{card.kicker}}</text>

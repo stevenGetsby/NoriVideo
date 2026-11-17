@@ -32,7 +32,9 @@ export function topicShareTitle(topicTitle: string, brand: string): string {
   return `${topicTitle}｜${brand}`
 }
 
+export type ShareKind = 'work' | 'ending' | 'timeline' | 'poster'
+
 // 分享路径同步返回，登记 fire-and-forget，失败不影响分享。
-export function registerShare(shareId: string, slug: string, kind: 'work' | 'ending' | 'topic' = 'work'): void {
-  request('POST', '/api/mp/shares', { shareId, slug, kind }, { auth: 'required' }).catch(() => {})
+export function registerShare(id: string, slug: string, kind: ShareKind = 'work', endingNodeId?: string): void {
+  request('POST', '/api/mp/shares', { id, slug, kind, ...(endingNodeId ? { endingNodeId } : {}) }, { auth: 'required' }).catch(() => {})
 }

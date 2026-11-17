@@ -1,1 +1,3 @@
-<story-player slug="{{slug}}" from="{{from}}" orientation="landscape" />
+<story-player id="player" slug="{{slug}}" from="{{from}}" orientation="landscape" bind:poster="onEndingPoster" />
+<poster-maker id="poster" />
+<privacy-popup />

@@ -1,11 +1,13 @@
-import { TPL_CHAPTER_UPDATE, TPL_WORK_LIVE } from '../../config'
+import { BRAND_NAME, TPL_CHAPTER_UPDATE, TPL_WORK_LIVE } from '../../config'
 import { request } from '../../lib/api'
+import { parseScene } from '../../lib/attribution'
 import { ensureLogin, getToken } from '../../lib/auth'
 import { formatCount, formatDate, formatDuration } from '../../lib/format'
 import { getSettings } from '../../lib/settings'
 import { isWifi } from '../../lib/network'
 import { syncDown } from '../../lib/save-sync'
-import { generateShareId, registerShare, workSharePath, workShareTitle } from '../../lib/share'
+import { generateShareId, registerShare, timelineQuery, workSharePath, workShareTitle } from '../../lib/share'
+import type { PosterPayload } from '../../components/poster-maker/index'
 import { storageKey, wxStorage } from '../../lib/storage'
 import { readStoredSaves } from '../../runtime/story-runtime'
 import { currentAttr, track } from '../../lib/track'
@@ -40,13 +42,15 @@ Page({
     showRestart: false,
     reserveDateText: '',
     reportShow: false,
+    shareShow: false,
     ratingShow: false,
     ratingTitle: '',
     chapters: [] as { order: number; title: string; duration: string }[],
   },
 
   onLoad(options: Record<string, string | undefined>) {
-    const slug = options.w || ''
+    const scene = parseScene(options.scene)
+    const slug = options.w || scene.w || ''
     let timeline = false
     try {
       timeline = wx.getLaunchOptionsSync().scene === 1154
@@ -54,6 +58,7 @@ Page({
       timeline = false
     }
     this.setData({ slug, timeline })
+    wx.showShareMenu({ menus: ['shareAppMessage', 'shareTimeline'], fail: () => {} })
     const attr = currentAttr()
     const o = (attr && SOURCE_POSITION[attr.source]) || 'direct'
     track('work_view', { w: slug, o })
@@ -274,9 +279,32 @@ Page({
     this.setData({ ratingShow: false })
   },
 
+  onShareTap() {
+    this.setData({ shareShow: true })
+  },
+
+  onShareClose() {
+    this.setData({ shareShow: false })
+  },
+
+  onSharePoster() {
+    this.setData({ shareShow: false })
+    const work = this.data.detail?.work
+    if (!work) return
+    const maker = this.selectComponent('#poster') as { make?: (payload: PosterPayload) => void } | null
+    maker?.make?.({
+      kind: 'work',
+      slug: this.data.slug,
+      workTitle: work.title,
+      tagline: work.tagline,
+      tags: work.tags,
+      background: work.cover,
+    })
+  },
+
   onShareAppMessage() {
     const work = this.data.detail?.work
-    if (!work) return { title: '蓝喵剧场', path: '/pages/home/index' }
+    if (!work) return { title: BRAND_NAME, path: '/pages/home/index' }
     const id = generateShareId()
     registerShare(id, this.data.slug, 'work')
     track('share_click', { w: this.data.slug, o: 'work' })
@@ -284,6 +312,19 @@ Page({
       title: workShareTitle(work.title, work.tagline),
       path: workSharePath(this.data.slug, id),
       imageUrl: work.shareCover,
+    }
+  },
+
+  onShareTimeline() {
+    const work = this.data.detail?.work
+    if (!work) return { title: BRAND_NAME }
+    const id = generateShareId()
+    registerShare(id, this.data.slug, 'timeline')
+    track('share_click', { w: this.data.slug, o: 'timeline' })
+    return {
+      title: workShareTitle(work.title, work.tagline),
+      query: timelineQuery(this.data.slug, id),
+      imageUrl: work.cover,
     }
   },
 

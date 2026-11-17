@@ -1,1 +1,1 @@
-{"navigationStyle": "custom", "pageOrientation": "landscape", "disableScroll": true, "usingComponents": {"story-player": "../components/story-player/index"}}
+{"navigationStyle": "custom", "pageOrientation": "landscape", "disableScroll": true, "usingComponents": {"story-player": "../components/story-player/index", "poster-maker": "../../../components/poster-maker/index", "privacy-popup": "../../../components/privacy-popup/index"}}
