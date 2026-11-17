@@ -34,7 +34,7 @@ const SIDEBAR_NOTES: Record<AdminNavKey, { icon: AppIconName; tone?: 'warn'; tex
   },
   'mp-ops': {
     icon: 'infoCircle',
-    text: '推荐位、专题、渠道与举报处理将在后续版本开放。',
+    text: '推荐位与专题只在生效时间内展示；封禁立即对观众生效。',
   },
   'mp-stats': {
     icon: 'infoCircle',

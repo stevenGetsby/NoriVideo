@@ -148,12 +148,7 @@ export async function listChannels(workId: string): Promise<ChannelsOverview> {
   return { available: true, slug: work.slug, urlLinkEnabled: urlLinkEnabled(), channels }
 }
 
-export async function renewChannelUrlLink(workId: string, channelId: string): Promise<{ urlLink: string; urlLinkExpiresAt: string }> {
-  if (!urlLinkEnabled()) throw new MpApiError('MP_INVALID_STATE', { message: '外链功能未开启' })
-  const work = await prisma.mpWork.findUnique({ where: { workId }, select: { id: true } })
-  const channel = work ? await prisma.mpChannel.findFirst({ where: { id: channelId, mpWorkId: work.id } }) : null
-  if (!channel) throw new MpApiError('MP_VALIDATION', { message: '渠道不存在' })
-  if (channel.archived) throw new MpApiError('MP_INVALID_STATE', { message: '渠道已归档' })
+async function freshOrRenewLink(channel: MpChannel): Promise<{ urlLink: string; urlLinkExpiresAt: string }> {
   if (channel.urlLink && channel.urlLinkExpiresAt && channel.urlLinkExpiresAt.getTime() - Date.now() >= URL_LINK_RENEW_MS) {
     return { urlLink: channel.urlLink, urlLinkExpiresAt: channel.urlLinkExpiresAt.toISOString() }
   }
@@ -162,6 +157,23 @@ export async function renewChannelUrlLink(workId: string, channelId: string): Pr
   const urlLinkExpiresAt = new Date(Date.now() + URL_LINK_TTL_DAYS * 24 * 3600 * 1000)
   await prisma.mpChannel.update({ where: { id: channel.id }, data: { urlLink, urlLinkExpiresAt } })
   return { urlLink, urlLinkExpiresAt: urlLinkExpiresAt.toISOString() }
+}
+
+export async function renewChannelUrlLink(workId: string, channelId: string): Promise<{ urlLink: string; urlLinkExpiresAt: string }> {
+  if (!urlLinkEnabled()) throw new MpApiError('MP_INVALID_STATE', { message: '外链功能未开启' })
+  const work = await prisma.mpWork.findUnique({ where: { workId }, select: { id: true } })
+  const channel = work ? await prisma.mpChannel.findFirst({ where: { id: channelId, mpWorkId: work.id } }) : null
+  if (!channel) throw new MpApiError('MP_VALIDATION', { message: '渠道不存在' })
+  if (channel.archived) throw new MpApiError('MP_INVALID_STATE', { message: '渠道已归档' })
+  return freshOrRenewLink(channel)
+}
+
+export async function renewOpsChannelUrlLink(channelId: string): Promise<{ urlLink: string; urlLinkExpiresAt: string }> {
+  if (!urlLinkEnabled()) throw new MpApiError('MP_INVALID_STATE', { message: '外链功能未开启' })
+  const channel = await prisma.mpChannel.findFirst({ where: { id: channelId, kind: 'ops' } })
+  if (!channel) throw new MpApiError('MP_VALIDATION', { message: '渠道不存在' })
+  if (channel.archived) throw new MpApiError('MP_INVALID_STATE', { message: '渠道已归档' })
+  return freshOrRenewLink(channel)
 }
 
 export async function archiveChannel(workId: string, channelId: string): Promise<{ ok: true }> {
