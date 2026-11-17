@@ -506,6 +506,20 @@ describe('handleStoryReleaseBuildTask', () => {
       await expect(handleStoryReleaseBuildTask(job)).rejects.toThrow('素材处理失败：第 1 章「雨夜」·「巷口」')
       expect(failedUpdate()).toMatchObject({ status: 'build_failed' })
     })
+
+    it('resolves a short link carrying ?proxy=1 without fetching', async () => {
+      const data = storyData()
+      sceneOf(data).media = { kind: 'video', url: `${shortLink}?proxy=1`, posterUrl: null, durationSec: 10 }
+      loadStoryMock.mockResolvedValue(data)
+      mediaByPublicIdMock.mockResolvedValue({ storageKey: 'videos/short-linked.mp4', mimeType: 'video/mp4' })
+      const fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+      const result = await handleStoryReleaseBuildTask(job)
+      expect(result).toEqual({ releaseId: 'r1', status: 'reviewing' })
+      expect(mediaByPublicIdMock).toHaveBeenCalledWith('m_cd498fd2551623e8')
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(processVideoMock).toHaveBeenCalledWith('videos/short-linked.mp4', { releaseId: 'r1', mediaId: sha1Id(`${shortLink}?proxy=1`), tmpDir: TMP_DIR })
+    })
   })
 
   describe('global build lock', () => {

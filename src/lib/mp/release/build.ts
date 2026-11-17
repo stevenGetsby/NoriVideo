@@ -17,7 +17,7 @@ import type { TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import { assertTaskActive, sleep } from '@/lib/workers/utils'
 import { readListing } from '../listing'
-import { assertNoRawMedia, collectMediaRefs, describePointer, rewriteMediaRefs } from './media-refs'
+import { assertNoRawMedia, collectMediaRefs, describePointer, mediaShortLinkId, rewriteMediaRefs } from './media-refs'
 import { preflightRelease, programForRelease } from './preflight'
 import { collectTexts } from './texts'
 import { processImage, processVideo, withAigcExif } from './transcode'
@@ -68,7 +68,7 @@ function mediaKindAtPointer(program: StoryProgram, pointer: string): 'video' | '
 }
 
 async function downloadSource(raw: string, releaseId: string, mediaId: string): Promise<{ key: string; kind: 'video' | 'image' }> {
-  const publicId = /^\/m\/([\w-]+)$/.exec(raw)?.[1]
+  const publicId = mediaShortLinkId(raw)
   if (publicId) {
     const media = await getMediaObjectByPublicId(publicId)
     if (!media?.storageKey) throw new Error('媒体短链对应的素材不存在')

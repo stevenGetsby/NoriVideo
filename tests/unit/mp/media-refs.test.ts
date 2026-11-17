@@ -233,6 +233,22 @@ describe('media-refs', () => {
     expect(assertNoRawMedia(rewritten)).toEqual([])
   })
 
+  it('collects /m/ short links carrying a query string', () => {
+    const program = fixtureProgram()
+    const scene = program.chapters[0].nodes[1] as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
+    scene.media = { kind: 'video', url: '/m/m_cd498fd2551623e8?proxy=1', posterUrl: null }
+    expect(collectMediaRefs(program).find((item) => item.raw === '/m/m_cd498fd2551623e8?proxy=1')).toMatchObject({ key: '' })
+    expect(assertNoRawMedia(rewriteMediaRefs(program, idMapOf(program)))).toEqual([])
+  })
+
+  it('does not throw on malformed percent encoding and leaves it to the safety net', () => {
+    const program = fixtureProgram()
+    const scene = program.chapters[0].nodes[1] as Extract<StoryProgram['chapters'][0]['nodes'][0], { kind: 'scene' }>
+    scene.media = { kind: 'video', url: '/api/files/images%2Fbad%zz.mp4', posterUrl: null }
+    expect(collectMediaRefs(program).map((ref) => ref.raw)).not.toContain('/api/files/images%2Fbad%zz.mp4')
+    expect(assertNoRawMedia(rewriteMediaRefs(program, idMapOf(program)))).toContain('/chapters/0/nodes/1/media/url')
+  })
+
   it('safety net accepts null, empty string, mp ids and emoji icons', () => {
     const program = fixtureProgram()
     const rewritten = rewriteMediaRefs(program, idMapOf(program))
