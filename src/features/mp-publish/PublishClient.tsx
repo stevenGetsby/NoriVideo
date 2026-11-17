@@ -9,6 +9,7 @@ import type { PublishOverview } from '@/lib/mp/publish'
 import { confirmAction, notify } from '@/lib/ui/feedback'
 import { StoryLayerNav } from '../interactive/StoryLayerNav'
 import { storyErrorMessage } from '../interactive/story-api-error'
+import { ChannelsCard } from './ChannelsCard'
 import { formatBeijing } from './format'
 import { ListingCard, ScheduleCard, formFromListing, type ListingForm } from './ListingCards'
 import { PreflightCard } from './PreflightCard'
@@ -161,7 +162,7 @@ export function PublishClient({ workId, workName }: { workId: string; workName: 
           <PreflightCard preflight={data.preflight} chapters={data.chapters} workId={workId} rechecking={rechecking} onRecheck={() => void load()} />
           <ReleasesCard releases={data.releases} errors={data.preflight.errors} workId={workId} onChanged={() => void load(true)} />
           {form && listing?.firstLiveAt == null ? <ScheduleCard form={form} fieldErrors={fieldErrors} onChange={setForm} /> : null}
-          <section className="nori-mp-card"><h2>推广</h2><p className="nori-mp-placeholder">作品上线后可用</p></section>
+          <ChannelsCard workId={workId} />
           <section className="nori-mp-card"><h2>数据</h2><p className="nori-mp-placeholder">作品上线后可用</p></section>
         </div>
       </div>

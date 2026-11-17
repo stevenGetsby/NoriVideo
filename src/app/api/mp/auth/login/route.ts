@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler } from '@/lib/api-errors'
+import { resolveFirstTouch, resolveLaunch } from '@/lib/mp/attribution'
 import { MP_LOGIN_LIMIT } from '@/lib/mp/auth'
 import { toMpMe } from '@/lib/mp/dto'
 import { MpApiError } from '@/lib/mp/errors'
@@ -15,20 +16,19 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const rate = await checkRateLimit('mp:rl:login', getClientIp(request), MP_LOGIN_LIMIT)
   if (rate.limited) throw new MpApiError('MP_RATE_LIMITED', { retryAfterSeconds: rate.retryAfterSeconds })
 
-  const body = await request.json().catch(() => ({})) as { code?: unknown; launch?: { scene?: unknown } | null }
+  const body = await request.json().catch(() => ({})) as { code?: unknown; launch?: unknown }
   const code = typeof body?.code === 'string' ? body.code.trim() : ''
   if (!code || code.length > 256) throw new MpApiError('MP_VALIDATION', { message: '登录凭证无效，请重试' })
 
   const { openid, unionid } = await code2Session(code)
-  const scene = body?.launch && typeof body.launch === 'object' && body.launch.scene != null
-    ? String(body.launch.scene).slice(0, 24)
-    : null
+  const attr = resolveLaunch(body?.launch)
 
   let user = await prisma.consumerUser.findUnique({ where: { openid } })
   let isNew = false
   if (!user) {
+    const first = await resolveFirstTouch(attr)
     try {
-      user = await prisma.consumerUser.create({ data: { openid, unionid, nickname: defaultNickname(openid), firstSource: scene } })
+      user = await prisma.consumerUser.create({ data: { openid, unionid, nickname: defaultNickname(openid), firstSource: attr.source, ...first } })
       isNew = true
     } catch {
       user = await prisma.consumerUser.findUnique({ where: { openid } })

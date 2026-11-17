@@ -1,5 +1,6 @@
 import { BRAND_NAME } from '../../config'
 import { request } from '../../lib/api'
+import { parseScene } from '../../lib/attribution'
 import { generateShareId, topicSharePath, topicShareTitle } from '../../lib/share'
 import { track } from '../../lib/track'
 import type { Card, TopicResponse } from '../../lib/types'
@@ -15,7 +16,8 @@ Page({
   },
 
   onLoad(options: Record<string, string | undefined>) {
-    const slug = options.t || ''
+    const scene = parseScene(options.scene)
+    const slug = options.t || scene.t || ''
     this.setData({ slug })
     this.load()
   },

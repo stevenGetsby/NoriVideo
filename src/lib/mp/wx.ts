@@ -145,6 +145,32 @@ export async function getUnlimitedWxacode(scene: string, page: string, width = 4
   return result.buffer
 }
 
+/** URL Link（H.4）：expire_type 1 = 按 expire_interval 天失效。只在 MP_URL_LINK_ENABLED=1 时调用。 */
+export async function generateUrlLink(path: string, query: string): Promise<string> {
+  const call = async (accessToken: string) => {
+    const response = await fetch(`${WX_BASE}/wxa/generate_urllink?access_token=${encodeURIComponent(accessToken)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, query, expire_type: 1, expire_interval: 30, env_version: process.env.MP_ENV_VERSION?.trim() || 'release' }),
+      signal: AbortSignal.timeout(8000),
+    })
+    return response.json() as Promise<{ errcode?: number; errmsg?: string; url_link?: string }>
+  }
+  let data: Awaited<ReturnType<typeof call>>
+  try {
+    data = await call(await getAccessToken())
+    if (data.errcode === 40001 || data.errcode === 42001) data = await call(await getAccessToken(true))
+  } catch (error) {
+    if (error instanceof MpApiError) throw error
+    throw new MpApiError('MP_WX_UNAVAILABLE')
+  }
+  if (data.errcode || !data.url_link) {
+    logger.warn({ action: 'mp.wx.urllink.failed', message: 'URL Link 生成失败', details: { errcode: data.errcode ?? null } })
+    throw new MpApiError('MP_WX_UNAVAILABLE')
+  }
+  return data.url_link
+}
+
 /** true = 微信内容安全判定通过。40001/42001 时刷新 token 只重试一次。 */
 export async function msgSecCheck(openid: string, content: string): Promise<boolean> {
   const call = async (accessToken: string) => {
