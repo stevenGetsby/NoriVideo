@@ -1,5 +1,15 @@
+import { setupPrivacy } from './lib/privacy'
+import { flushTrack, initTrack, noteShow } from './lib/track'
+
 App({
-  onLaunch() {},
-  onShow() {},
-  onHide() {},
+  onLaunch(options) {
+    setupPrivacy()
+    initTrack(options)
+  },
+  onShow(options) {
+    noteShow(options)
+  },
+  onHide() {
+    flushTrack()
+  },
 })
