@@ -2,7 +2,7 @@
   "name": "lanmiao-miniprogram",
   "version": "1.0.0",
   "private": true,
-  "description": "蓝喵剧场 WeChat miniprogram",
+  "description": "万一 WeChat miniprogram",
   "scripts": {
     "build:runtime": "node scripts/build-runtime.mjs",
     "preview": "node scripts/preview.mjs",

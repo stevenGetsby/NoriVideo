@@ -1,7 +1,7 @@
 <view wx:if="{{show}}" class="mask">
   <view class="card">
     <view class="title">隐私保护提示</view>
-    <view class="body">在使用前，请阅读<text class="link" bindtap="onContract">《蓝喵剧场隐私保护指引》</text>。我们仅在你设置昵称、保存或分享海报时使用相关信息。</view>
+    <view class="body">在使用前，请阅读<text class="link" bindtap="onContract">《万一隐私保护指引》</text>。我们仅在你设置昵称、保存或分享海报时使用相关信息。</view>
     <view class="actions">
       <view class="btn btn-ghost" bindtap="onDisagree">拒绝</view>
       <button id="agree-btn" class="btn btn-primary" open-type="agreePrivacyAuthorization" bindagreeprivacyauthorization="onAgree">同意并继续</button>

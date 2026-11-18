@@ -6,7 +6,7 @@ import { getObjectBuffer, getSignedObjectUrl, uploadObject } from '@/lib/storage
 import type { ReleaseMediaFiles } from './types'
 
 const PROCESS_TIMEOUT_MS = 10 * 60 * 1000
-export const AIGC_DESCRIPTION = 'AI 生成内容 · 蓝喵剧场'
+export const AIGC_DESCRIPTION = 'AI 生成内容 · 万一'
 const AIGC_EXIF = { IFD0: { ImageDescription: 'AIGC; lanmiaoai' } }
 
 const ffmpegBin = () => process.env.FFMPEG_PATH?.trim() || 'ffmpeg'

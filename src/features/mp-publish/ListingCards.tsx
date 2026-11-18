@@ -189,7 +189,7 @@ export function ListingCard({ workId, form, fieldErrors, saving, onChange, onSav
         <FieldError message={fieldErrors.shareCoverKey} />
         <label className="nori-ix-field">
           <span>出品署名</span>
-          <input className="fos-input" value={form.creatorName} maxLength={12} placeholder="例如：蓝喵工作室" disabled={saving} onChange={(event) => onChange({ ...form, creatorName: event.target.value })} />
+          <input className="fos-input" value={form.creatorName} maxLength={12} placeholder="例如：万一工作室" disabled={saving} onChange={(event) => onChange({ ...form, creatorName: event.target.value })} />
           <FieldError message={fieldErrors.creatorName} />
         </label>
         <label className="nori-mp-switch">
