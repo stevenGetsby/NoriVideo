@@ -1,1 +1,0 @@
-{"navigationBarTitleText": "专题", "enablePullDownRefresh": true, "backgroundColor": "#0E0F1A", "backgroundTextStyle": "light", "usingComponents": {"work-card": "/components/work-card/index", "empty-state": "/components/empty-state/index"}}

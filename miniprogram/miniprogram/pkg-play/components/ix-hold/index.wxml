@@ -1,9 +1,0 @@
-<view class="ix-hold" wx:if="{{interaction}}">
-  <view class="btn">
-    <view class="band" style="bottom:{{interaction.spec.rangeMin}}%;height:{{interaction.spec.rangeMax - interaction.spec.rangeMin}}%" />
-    <view class="fill" style="height:{{interaction.holdPercent}}%" />
-    <image wx:if="{{interaction.spec.buttonImageUrl}}" class="btn-img" src="{{interaction.spec.buttonImageUrl}}" mode="aspectFill" />
-    <text class="btn-label">{{interaction.spec.buttonText || '按住蓄力'}}</text>
-  </view>
-  <text class="hint">在绿色区间内松手</text>
-</view>

@@ -1,4 +1,0 @@
-<view class="header">
-  <view class="title">{{title}}</view>
-  <view wx:if="{{more}}" class="more" bindtap="onMore">{{more}}</view>
-</view>

@@ -1,8 +1,0 @@
-<view class="row" bindtap="onTap" hover-class="row-hover">
-  <view class="rank {{rank <= 3 ? 'rank-top' : ''}}">{{rank}}</view>
-  <image class="cover" src="{{card.cover}}" mode="aspectFill" />
-  <view class="info">
-    <view class="title">{{card.title}}</view>
-    <view class="metric">{{metric}}</view>
-  </view>
-</view>

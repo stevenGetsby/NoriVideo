@@ -1,1 +1,0 @@
-{"rules": [{"action": "allow", "page": "pages/work/index", "params": ["w"], "matching": "partial"}, {"action": "allow", "page": "pages/topic/index", "params": ["t"], "matching": "partial"}, {"action": "allow", "page": "pages/home/index"}, {"action": "disallow", "page": "*"}]}

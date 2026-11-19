@@ -1,4 +1,0 @@
-<view class="empty">
-  <view class="empty-text">{{text}}</view>
-  <view wx:if="{{button}}" class="empty-btn" hover-class="empty-btn-hover" bindtap="onAction">{{button}}</view>
-</view>

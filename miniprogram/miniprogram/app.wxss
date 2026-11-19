@@ -1,8 +1,0 @@
-@import "styles/tokens.wxss";
-
-page {
-  background: var(--bg);
-  color: var(--text);
-  font-size: var(--font-body);
-  font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
-}

@@ -1,8 +1,0 @@
-<view class="ix-swipe" wx:if="{{interaction}}">
-  <text class="guide is-{{interaction.spec.direction}}">➤</text>
-  <view class="btn">
-    <image wx:if="{{interaction.spec.buttonImageUrl}}" class="btn-img" src="{{interaction.spec.buttonImageUrl}}" mode="aspectFill" />
-    <text class="btn-label">{{btnText}}</text>
-  </view>
-  <text class="tip">{{tip}}</text>
-</view>

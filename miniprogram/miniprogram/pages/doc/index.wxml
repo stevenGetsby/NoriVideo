@@ -1,4 +1,0 @@
-<view class="page">
-  <view class="title">{{title}}</view>
-  <view class="para" wx:for="{{paragraphs}}" wx:key="*this">{{item}}</view>
-</view>

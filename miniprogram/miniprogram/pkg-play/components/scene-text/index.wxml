@@ -1,5 +1,0 @@
-<view class="scene-text" wx:if="{{scene}}">
-  <view class="pending" wx:if="{{scene.pendingLabel}}">待切换：{{scene.pendingLabel}}</view>
-  <text class="subtitle" wx:if="{{scene.lines}}">{{scene.lines}}</text>
-  <button class="continue" wx:if="{{scene.canContinue}}" bindtap="onContinue">继续</button>
-</view>

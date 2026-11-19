@@ -1,6 +1,0 @@
-<view class="toast-layer" wx:if="{{toast}}">
-  <view class="toast">
-    <text class="toast-title">成就达成 · {{toast.name}}</text>
-    <text class="toast-reward" wx:if="{{toast.rewardText}}">{{toast.rewardText}}</text>
-  </view>
-</view>
