@@ -192,6 +192,8 @@ export type CanvasGenerationConfig = {
   inputMode?: 'text' | 'image' | 'firstlastframe'
   referenceNodeIds?: string[]
   referenceSummary?: CanvasGenerationReferenceSummary[]
+  /** Reference node id → the @names the last submitted prompt used for it. */
+  referenceMentionNames?: Record<string, string[]>
   aspectRatio?: string
   resolution?: string
   quality?: 'low' | 'medium' | 'high'

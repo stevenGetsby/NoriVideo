@@ -38,6 +38,7 @@ import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
+import { scanPromptMentions } from '@/lib/prompt-mentions'
 import { fetchAllFrameosMaterials } from '@/components/frameos/materials/fetch-all-materials'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import {
@@ -160,6 +161,8 @@ export type CanvasGenerateRequest = {
   modelLabel: string
   referenceNodeIds: string[]
   referenceSummary?: CanvasReferenceMediaSummary[]
+  /** Reference node id → the @names the prompt uses for it. */
+  referenceMentionNames?: Record<string, string[]>
   inputMode: 'text' | 'image' | 'firstlastframe'
   aspectRatio: string
   resolution: string
@@ -992,6 +995,24 @@ export function CanvasGenerator({
     }
     setSubmitting(true)
     setError(null)
+    // The editor inserts @names such as 米娅·图片; the worker can only compile
+    // 图片N when it knows which name belongs to which submitted reference.
+    // Scan the exact submit text and travel the names with each reference node.
+    const mentionNamesByNodeId: Record<string, string[]> = {}
+    if (shouldBindCanvasMentionReference(type)) {
+      const mentionNameToNodeId = new Map<string, string>()
+      for (const asset of mentionAssets) {
+        const key = asset.name.trim().toLocaleLowerCase()
+        if (key && !mentionNameToNodeId.has(key)) mentionNameToNodeId.set(key, asset.id)
+      }
+      for (const match of scanPromptMentions(cleanPrompt, mentionAssets.map((asset) => asset.name))) {
+        if (match.name === null) continue
+        const nodeId = mentionNameToNodeId.get(match.name.toLocaleLowerCase())
+        if (!nodeId || !referenceNodeIds.includes(nodeId)) continue
+        const names = mentionNamesByNodeId[nodeId] || (mentionNamesByNodeId[nodeId] = [])
+        if (!names.includes(match.name)) names.push(match.name)
+      }
+    }
     // Commit the current draft before autosave builds the generation snapshot.
     // Otherwise the revision may be acknowledged before newly added references
     // or the current settings have reached nodesRef.
@@ -1009,6 +1030,7 @@ export function CanvasGenerator({
         modelLabel: currentModel?.label || modelKey,
         referenceNodeIds,
         referenceSummary: selectedReferenceSummaries,
+        ...(Object.keys(mentionNamesByNodeId).length > 0 ? { referenceMentionNames: mentionNamesByNodeId } : {}),
         inputMode,
         aspectRatio,
         resolution,
