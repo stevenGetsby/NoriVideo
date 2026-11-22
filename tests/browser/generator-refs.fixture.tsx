@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { CanvasGenerator } from '../../src/features/canvas/components/CanvasGenerator'
 import type { CanvasFlowNode } from '../../src/features/canvas/editor-types'
 import '@xyflow/react/dist/style.css'
@@ -19,6 +20,7 @@ function node(id: string, type: string, data: Record<string, unknown>): CanvasFl
 
 function Fixture() {
   const [added, setAdded] = useState<string>('none')
+  const [workspaceElement, setWorkspaceElement] = useState<HTMLDivElement | null>(null)
   const referenceImage = node('img-1', 'image', {
     title: '苏晚卿',
     mediaType: 'image',
@@ -46,24 +48,30 @@ function Fixture() {
   return (
     <>
       <main className="fos-app">
-        <div className="nori-canvas-workspace">
-          <CanvasGenerator
-            projectId="project-1"
-            node={generator}
-            incomingNodes={[]}
-            referenceNodes={withThumbs ? [referenceImage, ...(withVoice ? [missingVoiceImage] : []), generator] : [generator]}
-            onDraftChange={() => undefined}
-            onGenerate={async () => undefined}
-            onReplace={() => undefined}
-            onClose={() => undefined}
-            onFocus={() => undefined}
-            onAddReferences={(request) => setAdded(JSON.stringify(request))}
-            onSelectLibraryMaterial={() => null}
-            injectedReferenceNodeIds={[]}
-            anchor={null}
-            panelWidth={420}
-            onPanelWidthChange={() => undefined}
-          />
+        <div ref={setWorkspaceElement} className="nori-canvas-workspace" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+          <ReactFlowProvider>
+            <ReactFlow nodes={[{ ...generator, position: { x: 40, y: 24 }, width: 320, height: 120 }]} edges={[]} defaultViewport={{ x: 0, y: 0, zoom: 1 }} proOptions={{ hideAttribution: true }}>
+              {workspaceElement ? (
+              <CanvasGenerator
+                projectId="project-1"
+                node={generator}
+                incomingNodes={[]}
+                referenceNodes={withThumbs ? [referenceImage, ...(withVoice ? [missingVoiceImage] : []), generator] : [generator]}
+                onDraftChange={() => undefined}
+                onGenerate={async () => undefined}
+                onReplace={() => undefined}
+                onClose={() => undefined}
+                onFocus={() => undefined}
+                onAddReferences={(request) => setAdded(JSON.stringify(request))}
+                onSelectLibraryMaterial={() => null}
+                injectedReferenceNodeIds={[]}
+                panelWidth={420}
+                onPanelWidthChange={() => undefined}
+                viewportLayerTarget={workspaceElement}
+              />
+              ) : null}
+            </ReactFlow>
+          </ReactFlowProvider>
         </div>
       </main>
       <output data-testid="added-request" style={{ position: 'fixed', left: 8, bottom: 8, color: '#fff', zIndex: 9999 }}>{added}</output>

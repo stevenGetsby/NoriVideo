@@ -1821,9 +1821,9 @@
 }
 
 .nori-canvas-generator-prompt .mention-prompt-options {
-  border-color: rgba(255, 255, 255, .13);
-  background: rgba(19,19,25,.99);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
+  border-color: rgba(255, 255, 255, .1);
+  background: #232329;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
 }
 
 .nori-canvas-global-style {
@@ -1888,7 +1888,11 @@
 }
 
 .nori-canvas-generator-prompt .mention-prompt-option.is-active {
-  background: rgba(110, 123, 255, .14);
+  background: rgba(255, 255, 255, .09);
+}
+
+.mention-prompt-options.is-grouped .mention-prompt-option.is-active {
+  background: rgba(255, 255, 255, .09);
 }
 
 .nori-canvas-audio-generator-options { display: flex; min-width: 0; align-items: center; gap: 7px; border-top: 1px solid rgba(255, 255, 255, .06); padding: 8px 12px; }
@@ -6061,13 +6065,44 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 .nori-canvas-generator.is-node-anchored {
   overflow: visible;
-  /* Keep the hide/restore motion when anchored. Without these the anchored
-     transition list replaces the base one and the panel snaps back after a
-     drag instead of easing in. */
-  transition: left .14s cubic-bezier(.2, .8, .2, 1), top .14s cubic-bezier(.2, .8, .2, 1), transform .18s cubic-bezier(.2, .8, .2, 1), opacity .18s ease-out, translate .22s cubic-bezier(.2, .8, .2, 1), scale .22s cubic-bezier(.2, .8, .2, 1), visibility 0s, box-shadow .18s ease;
-  will-change: left, top, transform;
+  /* The panel rides the ReactFlow viewport transform; only the hide/restore
+     motion animates. left/top/transform must never transition here or the
+     panel lags behind the node while the canvas pans. */
+  transition: opacity .18s ease-out, translate .22s cubic-bezier(.2, .8, .2, 1), scale .22s cubic-bezier(.2, .8, .2, 1), visibility 0s, box-shadow .18s ease;
 }
 
+/* Flow-space anchor rendered through ViewportPortal. The wrapper sits at the
+   node's bottom-center in canvas coordinates; the panel counter-scales so its
+   on-screen size stays constant at every zoom level. */
+.nori-canvas-generator-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1100;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.nori-canvas-generator-anchor .nori-canvas-generator.is-node-anchored {
+  left: 0;
+  top: calc(16px * var(--nori-generator-inverse-zoom, 1));
+  bottom: auto;
+  /* The anchor wrapper has zero width, so percentage max-width cannot bound
+     the panel. Clamp against the physical viewport instead, converting back
+     through the interface zoom and the panel's counter-scale. */
+  max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));
+  pointer-events: auto;
+  transform: translateX(-50%) scale(var(--nori-generator-inverse-zoom, 1));
+  transform-origin: top center;
+}
+
+.nori-canvas-generator-anchor .nori-canvas-generator.is-node-anchored .nori-canvas-generator-scroll {
+  /* The workspace applies CSS zoom to every descendant while the flow surface
+     is laid out in unzoomed pixels; divide by the interface scale so the
+     counter-scaled panel still fits the visible canvas height. */
+  max-height: calc(72dvh / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));
+}
 .nori-canvas-generator-scroll {
   position: relative;
   min-width: 0;
@@ -6089,43 +6124,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   background: rgba(27,27,35,.985);
   backdrop-filter: blur(18px);
 }
-
-.nori-canvas-generator-tether {
-  position: absolute;
-  z-index: 0;
-  width: 1px;
-  min-height: 8px;
-  pointer-events: none;
-  background: var(--fos-gradient-cta);
-  box-shadow: 0 0 8px rgba(0,0,0,.35);
-  transform: translateX(-.5px);
-  transform-origin: center;
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether { bottom: 100%; }
-.nori-canvas-generator[data-anchor-placement='above'] .nori-canvas-generator-tether {
-  top: 100%;
-  background: var(--fos-gradient-cta);
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator-tether::after {
-  position: absolute;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  border: 1px solid rgba(110, 123, 255, .88);
-  border-radius: 50%;
-  background: var(--fos-gradient-cta);
-  box-shadow: 0 0 0 3px rgba(110, 123, 255, .15), 0 0 12px rgba(0,0,0,.35);
-  content: '';
-  transform: translateX(-50%);
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether::after { top: -3px; }
-.nori-canvas-generator[data-anchor-placement='above'] .nori-canvas-generator-tether::after { bottom: -3px; }
 
 .nori-canvas-generator-head {
   height: 46px;
@@ -7200,8 +7198,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   background: var(--dm-card);
   box-shadow: 0 0 10px rgba(0, 0, 0, .3);
 }
-.nori-canvas-generator-tether { background: rgba(110, 123, 255, .6); box-shadow: none; }
-
 .nori-canvas-generator-head,
 .nori-canvas-generator.is-node-anchored .nori-canvas-generator-head {
   height: auto;
@@ -7346,7 +7342,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select:focus { border-color: var(--dm-line-strong); outline: none; box-shadow: none; }
 .nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid option { color: #fff; background: #1b1b23; }
 .nori-canvas-image-quality button.is-active { border-color: rgba(110, 123, 255, .5); color: #fff; background: rgba(110, 123, 255, .14); }
-.nori-canvas-generator-tether::after { border: 1px solid rgba(110, 123, 255, .85); background: #24242e; box-shadow: none; }
 .nori-canvas-generator-head .nori-canvas-generator-mode-tabs > button { display: inline-flex; width: auto; height: 30px; flex: 0 1 auto; align-items: center; justify-content: center; border-radius: 7px; }
 .nori-canvas-generator-ref-add { margin-left: 0; }
 .nori-canvas-generator-refs-label {

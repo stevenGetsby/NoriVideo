@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react'
+import { useCallback, useLayoutEffect, useRef, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 type Rect = { left: number; top: number; right: number; bottom: number; width: number }
@@ -45,6 +45,12 @@ export function ViewportPopover({
   maxHeight = 360,
   className = '',
   children,
+  containsNode,
+  onReposition,
+  onKeyDown,
+  onDismissKey,
+  closeOnOutsideWheel = false,
+  repositionHeartbeat = false,
   ...attributes
 }: HTMLAttributes<HTMLDivElement> & {
   anchorRef: RefObject<HTMLElement | null>
@@ -52,10 +58,21 @@ export function ViewportPopover({
   preferredSide?: 'above' | 'below'
   width?: number
   maxHeight?: number
+  containsNode?: (node: Node) => boolean
+  onReposition?: () => void
+  onDismissKey?: (event: ReactKeyboardEvent<HTMLDivElement>) => boolean
+  closeOnOutsideWheel?: boolean
+  repositionHeartbeat?: boolean
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const containsNodeRef = useRef(containsNode)
+  containsNodeRef.current = containsNode
+  const onRepositionRef = useRef(onReposition)
+  onRepositionRef.current = onReposition
+  const onDismissKeyRef = useRef(onDismissKey)
+  onDismissKeyRef.current = onDismissKey
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current
@@ -88,6 +105,7 @@ export function ViewportPopover({
       zIndex: String(Math.max(2700, ownerLayer + 100)),
     })
     popup.dataset.placement = resolved.side
+    onRepositionRef.current?.()
   }, [anchorRef, maxHeight, preferredSide, width])
 
   useLayoutEffect(() => { reposition() })
@@ -97,8 +115,19 @@ export function ViewportPopover({
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(reposition)
     }
+    const heartbeat = repositionHeartbeat ? window.setInterval(schedule, 250) : null
+    const wheel = closeOnOutsideWheel ? (event: WheelEvent) => {
+      if (!(event.target instanceof Node)) return
+      if (popoverRef.current?.contains(event.target) || anchorRef.current?.contains(event.target) || containsNodeRef.current?.(event.target)) return
+      onCloseRef.current()
+    } : null
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !popoverRef.current?.contains(event.target) && !anchorRef.current?.contains(event.target)) {
+      if (
+        event.target instanceof Node
+        && !popoverRef.current?.contains(event.target)
+        && !anchorRef.current?.contains(event.target)
+        && !containsNodeRef.current?.(event.target)
+      ) {
         onCloseRef.current()
       }
     }
@@ -110,16 +139,19 @@ export function ViewportPopover({
     window.visualViewport?.addEventListener('resize', schedule)
     window.visualViewport?.addEventListener('scroll', schedule)
     document.addEventListener('pointerdown', outside, true)
+    if (wheel) document.addEventListener('wheel', wheel, true)
     return () => {
       cancelAnimationFrame(frame)
+      if (heartbeat !== null) window.clearInterval(heartbeat)
       observer.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule, true)
+      if (wheel) document.removeEventListener('wheel', wheel, true)
       window.visualViewport?.removeEventListener('resize', schedule)
       window.visualViewport?.removeEventListener('scroll', schedule)
       document.removeEventListener('pointerdown', outside, true)
     }
-  }, [anchorRef, reposition])
+  }, [anchorRef, closeOnOutsideWheel, reposition, repositionHeartbeat])
 
   if (typeof document === 'undefined') return null
   return createPortal(
@@ -131,7 +163,11 @@ export function ViewportPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => { event.preventDefault(); event.stopPropagation() }}
       onKeyDown={(event) => {
+        if (event.defaultPrevented) return
+        onKeyDown?.(event)
+        if (event.defaultPrevented) return
         if (event.key === 'Escape') {
+          if (onDismissKeyRef.current && !onDismissKeyRef.current(event)) return
           event.preventDefault()
           event.stopPropagation()
           onCloseRef.current()

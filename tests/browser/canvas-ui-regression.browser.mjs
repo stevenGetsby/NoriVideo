@@ -5,13 +5,14 @@ import { createRequire } from 'node:module'
 import { mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const root = process.cwd()
 const tools = createRequire(path.join(process.env.NORI_BROWSER_TOOLS_DIR || root, 'package.json'))
 const { chromium } = tools('playwright-core')
-const operations = await import(path.join(root, 'src/lib/canvas/operations.ts'))
+const operations = await import(pathToFileURL(path.join(root, 'src/lib/canvas/operations.ts')).href)
 const { validateCanvasOperationsSaveInput } = operations.default || operations
-const documentContract = await import(path.join(root, 'src/lib/canvas/document.ts'))
+const documentContract = await import(pathToFileURL(path.join(root, 'src/lib/canvas/document.ts')).href)
 const { validateCanvasDocumentSaveInput } = documentContract.default || documentContract
 const artifacts = path.join(root, 'test-results/canvas-ui-regression')
 await mkdir(artifacts, { recursive: true })
@@ -593,45 +594,29 @@ try {
   assert.ok(await comparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 'The original generated video must remain')
   assert.equal(await comparison.locator('.react-flow__node[data-id="ref-1"]').count(), 1, 'Reference nodes must not be duplicated')
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.classList.contains('is-node-anchored'))
-  const anchorBeforeDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.ok(anchorBeforeDrag.left && anchorBeforeDrag.top && anchorBeforeDrag.maxHeight, 'The visible generator must be anchored with settled geometry')
-  assert.equal(anchorBeforeDrag.placement, 'below')
+  const readAnchorTransform = () => comparison.evaluate(() => document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '')
+  const anchorBeforeDrag = await readAnchorTransform()
+  assert.ok(anchorBeforeDrag.startsWith('translate('), 'The visible generator must ride a flow-space anchor inside the viewport transform')
+  assert.ok(await comparison.locator('.react-flow__viewport-portal .nori-canvas-generator').count(), 'The generator must render through the ReactFlow viewport portal')
   const dragHandle = await comparison.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').boundingBox()
   await comparison.mouse.move(dragHandle.x + dragHandle.width / 2, dragHandle.y + dragHandle.height / 2)
   await comparison.mouse.down()
   await comparison.mouse.move(dragHandle.x + 100, dragHandle.y + 420, { steps: 8 })
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-workspace')?.classList.contains('is-node-dragging'))
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'hidden')
-  const anchorDuringDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.deepEqual(anchorDuringDrag, anchorBeforeDrag, 'The hidden generator must freeze its anchored geometry for the whole gesture, including before a vertical flip')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'hidden', 'The generator stays hidden for the whole node drag gesture')
   await comparison.mouse.up()
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'visible')
   await comparison.waitForFunction(
-    (frozen) => document.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight !== frozen,
-    anchorBeforeDrag.maxHeight,
+    (before) => (document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '') !== before,
+    anchorBeforeDrag,
     { timeout: 5000 },
   )
-  await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.getAttribute('data-anchor-placement') === 'above', undefined, { timeout: 5000 })
-  const anchorAfterDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.equal(anchorAfterDrag.placement, 'above', 'Dragging the node down must flip the settled anchor above the node')
-  assert.notEqual(anchorAfterDrag.maxHeight, anchorBeforeDrag.maxHeight, 'The anchored panel must re-measure once the drag settles instead of keeping the frozen height')
+  const anchorAfterDrag = await readAnchorTransform()
+  assert.notEqual(anchorAfterDrag, anchorBeforeDrag, 'The flow-space anchor must follow the node to its new position after the drag settles')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'visible', 'The generator restores after the drag without any frozen screen geometry')
   await comparison.screenshot({ path: path.join(artifacts, 'video-comparison-storyboard-restored.png') })
-  cases.push('video comparison preserves source and input wires; storyboard and anchored generator freeze while hidden and re-measure after drag')
+  cases.push('video comparison preserves source and input wires; generator rides the viewport transform, hides during node drag, and follows the node afterwards')
   await comparison.close()
 
   const failedComparison = await open({ width: 1440, height: 900 }, '?story=1&superresolve=720p')
@@ -813,12 +798,11 @@ try {
   await secondaryPrompt.pressSequentially('@')
   const secondaryMentions = secondary.getByRole('listbox', { name: '@ 素材', exact: true })
   await secondaryMentions.waitFor()
-  await secondary.waitForFunction(() => document.querySelectorAll('[role="option"]').length >= 2)
-  assert.equal(await secondaryMentions.getByRole('option').count(), 2, 'Only the direct input and one extra upstream hop may be offered')
-  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '已连接节点' }).count(), 1)
-  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '二级连接节点' }).count(), 1)
-  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材1' }).innerText()).includes('已连接节点'))
-  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材2' }).innerText()).includes('二级连接节点'))
+  await secondary.waitForFunction(() => document.querySelectorAll('.mention-prompt-option').length >= 2)
+  assert.equal(await secondaryMentions.locator('.mention-prompt-option').count(), 2, 'Only the direct input and one extra upstream hop may be offered')
+  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '已引用' }).count(), 1)
+  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材1' }).innerText()).includes('#1'))
+  await secondaryMentions.getByRole('option', { name: /参考素材2/ }).waitFor()
   await secondaryPrompt.pressSequentially('林')
   await secondaryMentions.getByRole('option', { name: /林夏/ }).first().waitFor()
   await secondary.keyboard.press('Escape')
@@ -941,15 +925,23 @@ try {
     const mentions = page.getByRole('listbox', { name: '@ 素材', exact: true })
     await mentions.waitFor()
     await bounded(mentions, '@ picker')
-    await mentions.getByRole('button', { name: '角色 1', exact: true }).waitFor()
-    assert.ok(await mentions.getByRole('button', { name: '收藏 1', exact: true }).count())
-    assert.equal(await mentions.getByRole('option').count(), 1, 'Only the actual wired canvas node is initially selectable')
-    assert.ok((await mentions.getByRole('option').textContent()).includes('参考素材1'))
+    await mentions.getByRole('option', { name: /^角色/ }).waitFor()
+    assert.ok(await mentions.getByRole('option', { name: /^收藏/ }).count())
+    assert.ok(await mentions.getByRole('option', { name: /^图片/ }).count())
+    assert.equal(await mentions.locator('.mention-prompt-option').count(), 1, 'Only the actual wired canvas node is initially listed in the root menu')
+    assert.ok((await mentions.locator('.mention-prompt-option').textContent()).includes('参考素材1'))
     await mentions.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-mentions.png`) })
-    await mentions.getByRole('button', { name: '角色 1', exact: true }).click()
+    const characterRow = mentions.getByRole('option', { name: /^角色/ })
+    await characterRow.hover()
+    const characterSubmenu = page.getByRole('listbox', { name: '角色', exact: true })
+    await characterSubmenu.waitFor()
+    assert.equal(await characterSubmenu.evaluate((element) => element.parentElement === document.body), true, 'The category submenu must portal beside the root menu')
+    const submenuBox = await characterSubmenu.boundingBox()
+    const menuBox = await mentions.boundingBox()
+    assert.ok(submenuBox && menuBox && submenuBox.x + submenuBox.width <= menuBox.x + 1, 'The submenu must sit beside the root menu without covering it')
     const nodeCountBeforeLibrary = await page.locator('.react-flow__node').count()
     const edgeCountBeforeLibrary = await page.locator('.react-flow__edge').count()
-    await mentions.getByRole('option', { name: /林夏/ }).click()
+    await characterSubmenu.getByRole('option', { name: /林夏/ }).click()
     assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 ')
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountBeforeLibrary)
     await page.waitForFunction(() => document.querySelectorAll('.react-flow__node[data-id="gen-1"]').length === 1)
@@ -965,7 +957,8 @@ try {
     assert.equal(await page.locator('.react-flow__edge').count(), edgeCountAfterLibrary, 'Selecting the same library material must reuse its existing edge')
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
     await prompt.pressSequentially('@雨')
-    await page.getByRole('option', { name: /雨夜街巷/ }).waitFor()
+    const locationMatch = page.getByRole('option', { name: /雨夜街巷/ })
+    await locationMatch.waitFor()
     await page.keyboard.press('Enter')
     assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 ')
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountAfterLibrary)
@@ -973,6 +966,19 @@ try {
     await generator.getByRole('button', { name: /雨夜街巷/ }).waitFor()
     const nodeCountAfterTwoMaterials = await page.locator('.react-flow__node').count()
     const edgeCountAfterTwoMaterials = await page.locator('.react-flow__edge').count()
+    await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
+    await prompt.pressSequentially('@')
+    const searchMentions = page.getByRole('listbox', { name: '@ 素材', exact: true })
+    await searchMentions.waitFor()
+    const mentionSearch = searchMentions.getByLabel('搜索素材')
+    await mentionSearch.click()
+    await mentionSearch.pressSequentially('雨')
+    await searchMentions.getByRole('option', { name: /雨夜街巷/ }).first().waitFor()
+    assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 @雨', 'Typing in the menu search box must drive the @query in the prompt')
+    await page.keyboard.press('Enter')
+    assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 @雨夜街巷 ')
+    assert.equal(await page.locator('.react-flow__node').count(), nodeCountAfterTwoMaterials, 'Search selection must reuse the existing canvas node')
+    assert.equal(await page.locator('.react-flow__edge').count(), edgeCountAfterTwoMaterials, 'Search selection must reuse the existing edge')
     await generator.getByRole('button', { name: '添加引用素材', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '选择引用素材', exact: true })
     await picker.waitFor()

@@ -123,7 +123,7 @@ describe('infinite canvas creative surface parity', () => {
     expect(generator).toContain('minHeight={fullscreen ? 280 : 96}')
   })
 
-  it('keeps the node editor stationary, bounded below chrome, and dismissible without moving its node', () => {
+  it('keeps the node editor riding the viewport transform, bounded in height, and dismissible without moving its node', () => {
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     const generator = readSource('src/features/canvas/components/CanvasGenerator.tsx')
     const styles = readSource('src/features/canvas/canvas.css')
@@ -133,9 +133,9 @@ describe('infinite canvas creative surface parity', () => {
     expect(graph).not.toContain('generatorNodeId')
     expect(graph).toContain('onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))}')
     expect(generator).toContain('className="nori-canvas-generator-scroll"')
-    expect(generator).toContain('maxHeight: `${anchor.maxHeight}px`')
+    expect(generator).toContain('<ViewportPortal>')
+    expect(styles).toContain('max-height: calc(72dvh / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));')
     expect(styles).toContain('.nori-canvas-generator.is-node-anchored .nori-canvas-generator-head')
-    expect(styles).toContain('top: var(--canvas-chrome-safe-top, 116px);')
   })
 
   it('persists previewable @ references on video nodes', () => {
