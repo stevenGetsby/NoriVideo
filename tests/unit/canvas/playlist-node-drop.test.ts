@@ -3,6 +3,7 @@ import { CANVAS_PLAYLIST_MAX_ITEMS } from '@/lib/canvas/playlist'
 import {
   appendCanvasVideoSourceToPlaylist,
   canvasVideoDurationMs,
+  canvasVideoSourceTitle,
   findCanvasPlaylistDropTargetId,
   isCanvasVideoSource,
 } from '@/features/canvas/playlist-node-drop'
@@ -75,6 +76,25 @@ describe('canvas playlist node drop', () => {
         durationMs: 6_400,
       }],
     })
+  })
+
+  it('labels comparison takes with their numbered suffix so equal-duration takes stay distinguishable', () => {
+    const first = flowNode({
+      id: 'take-1',
+      data: { title: '镜头一', comparisonIndex: 1, mediaType: 'video', videoUrl: 'https://media.example/take-1.mp4', sourceMetadata: { durationMs: 5_000 } },
+    })
+    const second = flowNode({
+      id: 'take-2',
+      data: { title: '镜头一', comparisonIndex: 2, mediaType: 'video', videoUrl: 'https://media.example/take-2.mp4', sourceMetadata: { durationMs: 5_000 } },
+    })
+    expect(canvasVideoSourceTitle(first)).toBe('镜头一 · 对照 1')
+    expect(canvasVideoSourceTitle(second)).toBe('镜头一 · 对照 2')
+    const result = appendCanvasVideoSourceToPlaylist(
+      appendCanvasVideoSourceToPlaylist([], first, () => 'clip-1').items,
+      second,
+      () => 'clip-2',
+    )
+    expect(result.items.map((item) => item.title)).toEqual(['镜头一 · 对照 1', '镜头一 · 对照 2'])
   })
 
   it('rejects unfinished, duplicate and over-capacity drops without changing clips', () => {

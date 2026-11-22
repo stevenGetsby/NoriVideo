@@ -1,4 +1,5 @@
 import { CANVAS_PLAYLIST_MAX_ITEMS, normalizeCanvasPlaylistItems } from '@/lib/canvas/playlist'
+import { formatComparisonTitle } from './comparison-title'
 import type { CanvasPlaylistItem } from './types'
 import type { CanvasFlowNode } from './editor-types'
 
@@ -32,6 +33,12 @@ export function canvasVideoDurationMs(node: CanvasFlowNode) {
     : null
 }
 
+export function canvasVideoSourceTitle(node: CanvasFlowNode) {
+  return node.data.comparisonIndex
+    ? formatComparisonTitle(node.data.title, node.data.comparisonIndex)
+    : (node.data.title || '视频节点')
+}
+
 export function isCanvasVideoSource(node: CanvasFlowNode) {
   const mediaType = node.data.mediaType || (node.type === 'note' ? 'text' : node.type === 'model_3d' ? 'model3d' : node.type) || 'image'
   return mediaType === 'video' || node.type === 'production_video' || Boolean(canvasVideoUrl(node))
@@ -48,7 +55,7 @@ export function playlistItemFromNode(
     id: createId(),
     sourceNodeId: node.id,
     materialId: node.data.materialId || null,
-    title: node.data.title || '视频节点',
+    title: canvasVideoSourceTitle(node),
     videoUrl: canvasVideoUrl(node),
     posterUrl: node.data.posterUrl || node.data.imageUrl || null,
     sourceInMs: 0,
