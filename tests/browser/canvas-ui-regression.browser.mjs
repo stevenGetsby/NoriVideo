@@ -5,13 +5,14 @@ import { createRequire } from 'node:module'
 import { mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const root = process.cwd()
 const tools = createRequire(path.join(process.env.NORI_BROWSER_TOOLS_DIR || root, 'package.json'))
 const { chromium } = tools('playwright-core')
-const operations = await import(path.join(root, 'src/lib/canvas/operations.ts'))
+const operations = await import(pathToFileURL(path.join(root, 'src/lib/canvas/operations.ts')).href)
 const { validateCanvasOperationsSaveInput } = operations.default || operations
-const documentContract = await import(path.join(root, 'src/lib/canvas/document.ts'))
+const documentContract = await import(pathToFileURL(path.join(root, 'src/lib/canvas/document.ts')).href)
 const { validateCanvasDocumentSaveInput } = documentContract.default || documentContract
 const artifacts = path.join(root, 'test-results/canvas-ui-regression')
 await mkdir(artifacts, { recursive: true })
@@ -593,45 +594,29 @@ try {
   assert.ok(await comparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 'The original generated video must remain')
   assert.equal(await comparison.locator('.react-flow__node[data-id="ref-1"]').count(), 1, 'Reference nodes must not be duplicated')
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.classList.contains('is-node-anchored'))
-  const anchorBeforeDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.ok(anchorBeforeDrag.left && anchorBeforeDrag.top && anchorBeforeDrag.maxHeight, 'The visible generator must be anchored with settled geometry')
-  assert.equal(anchorBeforeDrag.placement, 'below')
+  const readAnchorTransform = () => comparison.evaluate(() => document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '')
+  const anchorBeforeDrag = await readAnchorTransform()
+  assert.ok(anchorBeforeDrag.startsWith('translate('), 'The visible generator must ride a flow-space anchor inside the viewport transform')
+  assert.ok(await comparison.locator('.react-flow__viewport-portal .nori-canvas-generator').count(), 'The generator must render through the ReactFlow viewport portal')
   const dragHandle = await comparison.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').boundingBox()
   await comparison.mouse.move(dragHandle.x + dragHandle.width / 2, dragHandle.y + dragHandle.height / 2)
   await comparison.mouse.down()
   await comparison.mouse.move(dragHandle.x + 100, dragHandle.y + 420, { steps: 8 })
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-workspace')?.classList.contains('is-node-dragging'))
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'hidden')
-  const anchorDuringDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.deepEqual(anchorDuringDrag, anchorBeforeDrag, 'The hidden generator must freeze its anchored geometry for the whole gesture, including before a vertical flip')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'hidden', 'The generator stays hidden for the whole node drag gesture')
   await comparison.mouse.up()
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'visible')
   await comparison.waitForFunction(
-    (frozen) => document.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight !== frozen,
-    anchorBeforeDrag.maxHeight,
+    (before) => (document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '') !== before,
+    anchorBeforeDrag,
     { timeout: 5000 },
   )
-  await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.getAttribute('data-anchor-placement') === 'above', undefined, { timeout: 5000 })
-  const anchorAfterDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.equal(anchorAfterDrag.placement, 'above', 'Dragging the node down must flip the settled anchor above the node')
-  assert.notEqual(anchorAfterDrag.maxHeight, anchorBeforeDrag.maxHeight, 'The anchored panel must re-measure once the drag settles instead of keeping the frozen height')
+  const anchorAfterDrag = await readAnchorTransform()
+  assert.notEqual(anchorAfterDrag, anchorBeforeDrag, 'The flow-space anchor must follow the node to its new position after the drag settles')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'visible', 'The generator restores after the drag without any frozen screen geometry')
   await comparison.screenshot({ path: path.join(artifacts, 'video-comparison-storyboard-restored.png') })
-  cases.push('video comparison preserves source and input wires; storyboard and anchored generator freeze while hidden and re-measure after drag')
+  cases.push('video comparison preserves source and input wires; generator rides the viewport transform, hides during node drag, and follows the node afterwards')
   await comparison.close()
 
   const failedComparison = await open({ width: 1440, height: 900 }, '?story=1&superresolve=720p')
