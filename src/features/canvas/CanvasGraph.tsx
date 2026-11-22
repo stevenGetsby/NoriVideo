@@ -4165,7 +4165,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             proOptions={{ hideAttribution: true }}
             colorMode="dark"
           >
-            <Background id="minor-grid" color="rgba(163,172,255,.12)" gap={24} size={1} />
+            <Background id="minor-grid" color="rgba(255,255,255,.18)" gap={24} size={1.2} />
             {minimapVisible ? <MiniMap<CanvasFlowNode>
               position="bottom-left"
               pannable={false}

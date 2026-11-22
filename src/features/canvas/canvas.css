@@ -1821,9 +1821,9 @@
 }
 
 .nori-canvas-generator-prompt .mention-prompt-options {
-  border-color: rgba(255, 255, 255, .13);
-  background: rgba(19,19,25,.99);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, .55);
+  border-color: rgba(255, 255, 255, .1);
+  background: #232329;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
 }
 
 .nori-canvas-global-style {
@@ -1888,7 +1888,11 @@
 }
 
 .nori-canvas-generator-prompt .mention-prompt-option.is-active {
-  background: rgba(110, 123, 255, .14);
+  background: rgba(255, 255, 255, .09);
+}
+
+.mention-prompt-options.is-grouped .mention-prompt-option.is-active {
+  background: rgba(255, 255, 255, .09);
 }
 
 .nori-canvas-audio-generator-options { display: flex; min-width: 0; align-items: center; gap: 7px; border-top: 1px solid rgba(255, 255, 255, .06); padding: 8px 12px; }

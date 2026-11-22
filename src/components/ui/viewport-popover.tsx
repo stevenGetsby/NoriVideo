@@ -45,6 +45,7 @@ export function ViewportPopover({
   maxHeight = 360,
   className = '',
   children,
+  containsNode,
   ...attributes
 }: HTMLAttributes<HTMLDivElement> & {
   anchorRef: RefObject<HTMLElement | null>
@@ -52,10 +53,13 @@ export function ViewportPopover({
   preferredSide?: 'above' | 'below'
   width?: number
   maxHeight?: number
+  containsNode?: (node: Node) => boolean
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
+  const containsNodeRef = useRef(containsNode)
+  containsNodeRef.current = containsNode
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current
@@ -98,7 +102,12 @@ export function ViewportPopover({
       frame = requestAnimationFrame(reposition)
     }
     const outside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !popoverRef.current?.contains(event.target) && !anchorRef.current?.contains(event.target)) {
+      if (
+        event.target instanceof Node
+        && !popoverRef.current?.contains(event.target)
+        && !anchorRef.current?.contains(event.target)
+        && !containsNodeRef.current?.(event.target)
+      ) {
         onCloseRef.current()
       }
     }
