@@ -46,6 +46,8 @@ export function ViewportPopover({
   className = '',
   children,
   containsNode,
+  onReposition,
+  onKeyDown,
   ...attributes
 }: HTMLAttributes<HTMLDivElement> & {
   anchorRef: RefObject<HTMLElement | null>
@@ -54,12 +56,15 @@ export function ViewportPopover({
   width?: number
   maxHeight?: number
   containsNode?: (node: Node) => boolean
+  onReposition?: () => void
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const containsNodeRef = useRef(containsNode)
   containsNodeRef.current = containsNode
+  const onRepositionRef = useRef(onReposition)
+  onRepositionRef.current = onReposition
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current
@@ -92,6 +97,7 @@ export function ViewportPopover({
       zIndex: String(Math.max(2700, ownerLayer + 100)),
     })
     popup.dataset.placement = resolved.side
+    onRepositionRef.current?.()
   }, [anchorRef, maxHeight, preferredSide, width])
 
   useLayoutEffect(() => { reposition() })
@@ -140,6 +146,8 @@ export function ViewportPopover({
       onPointerDown={(event) => event.stopPropagation()}
       onContextMenu={(event) => { event.preventDefault(); event.stopPropagation() }}
       onKeyDown={(event) => {
+        onKeyDown?.(event)
+        if (event.defaultPrevented) return
         if (event.key === 'Escape') {
           event.preventDefault()
           event.stopPropagation()

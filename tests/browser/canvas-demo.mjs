@@ -77,8 +77,9 @@ function handleApi(url, method, body) {
   if (url.pathname.endsWith('/balance')) return { balancePoints: 100000, generationAllowed: true, dailyLimitPoints: null, dailyUsedPoints: 0, dailyLimitExceeded: false }
   if (url.pathname.endsWith('/toolbox/assets')) return { assets: [] }
   if (url.pathname.endsWith('/operations')) return { engines: [], latestTask: null, latestTaskLinks: null }
-  if (url.pathname.includes('/canvas/canvas-1')) {
+  if (/^\/api\/projects\/[^/]+\/canvas\/canvas-1(\/ops)?$/.test(url.pathname)) {
     if (method !== 'GET' && body) {
+      if (!body.ops && !body.nodes) return { status: 400, payload: { message: '演示模式：未知写入负载' } }
       if (body.ops) {
         const validated = validateCanvasOperationsSaveInput(body)
         if (!validated.success) return { status: 400, payload: { message: validated.error.message } }
@@ -109,7 +110,17 @@ const server = createServer((request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1')
   if (url.pathname.startsWith('/api/')) {
     const chunks = []
-    request.on('data', (chunk) => chunks.push(chunk))
+    let received = 0
+    request.on('data', (chunk) => {
+      received += chunk.length
+      if (received > 8 * 1024 * 1024) {
+        response.writeHead(413, { 'Content-Type': 'application/json' })
+        response.end(JSON.stringify({ message: '请求体过大' }))
+        request.destroy()
+        return
+      }
+      chunks.push(chunk)
+    })
     request.on('end', () => {
       let body = null
       try { body = JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null') } catch {}
