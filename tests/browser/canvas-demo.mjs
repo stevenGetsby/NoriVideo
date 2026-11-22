@@ -40,6 +40,7 @@ const common = { canvasId: 'canvas-1', runId: null, mediaObjectId: null, parentN
 const libraryMaterials = [
   { id: 'library-character', title: '林夏', type: 'image', isFavorited: true, url: swatch('#7d3651', '林夏'), metadata: { assetCategory: 'character' } },
   { id: 'library-character-2', title: '马俊', type: 'image', isFavorited: true, url: swatch('#51487d', '马俊'), metadata: { assetCategory: 'character' } },
+  { id: 'library-character-3', title: String.fromCharCode(0x5F20, 0x4E09, 0x4E30), type: 'image', isFavorited: false, url: swatch('#485d7d', String.fromCharCode(0x5F20, 0x4E09, 0x4E30)), metadata: { assetCategory: 'character' } },
   { id: 'library-location', title: '雨夜街巷', type: 'image', isFavorited: false, url: swatch('#2f5d50', '雨夜街巷'), metadata: { assetCategory: 'location' } },
   { id: 'library-location-2', title: '山顶日出', type: 'image', isFavorited: false, url: swatch('#8a5a2b', '山顶日出'), metadata: { assetCategory: 'location' } },
   { id: 'library-prop', title: '桂芳足力健', type: 'image', isFavorited: true, url: swatch('#8a2b2b', '足力健'), metadata: { assetCategory: 'prop' } },

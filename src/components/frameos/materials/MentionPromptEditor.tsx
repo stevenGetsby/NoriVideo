@@ -10,6 +10,7 @@ import {
   findActiveMention,
   isPromptCompositionKey,
   pastePromptAssets,
+  promptMentionTokenEnd,
   redoPromptInsertion,
   replacePromptMention,
   splitPromptMentionParts,
@@ -68,12 +69,10 @@ function assetKey(asset: MentionPromptAsset): string {
   return asset.id ? `id:${asset.id}` : `name:${asset.name}`
 }
 
-const MENTION_TOKEN_BREAK = /[@\s，。；：,\n]/u
-
 function sessionStillMatches(value: string, session: { query: string; start: number }): boolean {
-  if (value.slice(session.start, session.start + 1 + session.query.length) !== `@${session.query}`) return false
-  const after = value[session.start + 1 + session.query.length]
-  return after === undefined || MENTION_TOKEN_BREAK.test(after)
+  if (value[session.start] !== '@') return false
+  const tokenEnd = promptMentionTokenEnd(value, session.start)
+  return value.slice(session.start + 1, tokenEnd).startsWith(session.query)
 }
 
 function mediaIcon(mediaType: MentionPromptAsset['mediaType']): 'audioWave' | 'fileText' | 'image' | 'package' | 'video' {
@@ -429,6 +428,11 @@ export function MentionPromptEditor({
     applyMention(null)
   }
 
+  const closeMentionFromCanvas = () => {
+    dismissMention()
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
   const commitSearchQuery = (query: string, caret: number) => {
     const textarea = textareaRef.current
     const session = mentionSessionRef.current ?? mention
@@ -440,7 +444,8 @@ export function MentionPromptEditor({
       applyMention(null)
       return
     }
-    const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(session.start + 1 + session.query.length)}`
+    const tokenEnd = promptMentionTokenEnd(liveValue, session.start)
+    const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(tokenEnd)}`
     const nextMention = findActiveMention(nextValue, session.start + 1 + query.length)
     if (nextMention) mentionSessionRef.current = nextMention
     applyMention(nextMention)
@@ -529,7 +534,7 @@ export function MentionPromptEditor({
     const isOpen = drilldown?.kind === kind && drilldown.id === id
     const isActive = !subFocus && rowIndex === activeIndex
     return (
-      <button id={`${listboxId}-row-${kind}-${id}`} key={`${kind}:${id}`} type="button" role="menuitem" tabIndex={-1} aria-haspopup="listbox" aria-expanded={isOpen} className={`mention-prompt-drilldown${isOpen || isActive ? ' is-active' : ''}`} onMouseEnter={() => openDrilldown(kind, id, label, rowIndex, false)} onMouseDown={(event) => event.preventDefault()} onClick={() => openDrilldown(kind, id, label, rowIndex, true)}>
+      <button id={`${listboxId}-row-${kind}-${id}`} key={`${kind}:${id}`} type="button" role="option" aria-selected={isActive} tabIndex={-1} aria-haspopup="listbox" aria-expanded={isOpen} className={`mention-prompt-drilldown${isOpen || isActive ? ' is-active' : ''}`} onMouseEnter={() => openDrilldown(kind, id, label, rowIndex, false)} onMouseDown={(event) => event.preventDefault()} onClick={() => openDrilldown(kind, id, label, rowIndex, true)}>
         <AppIcon name={icon} className="mention-prompt-drilldown-icon" />
         <span>{label}</span>
         <small>{count}</small>
@@ -549,10 +554,13 @@ export function MentionPromptEditor({
     const editorFocused = document.activeElement === textarea
     const session = mentionSessionRef.current
     const sessionValid = session && sessionStillMatches(liveValue, session)
-    const selectionStart = editorFocused ? (textarea.selectionStart ?? liveValue.length) : sessionValid ? session.start + 1 + session.query.length : liveValue.length
+    if (!editorFocused && !sessionValid) return
+    const queryEnd = sessionValid ? session!.start + 1 + session!.query.length : null
+    const selectionStart = editorFocused ? (textarea.selectionStart ?? liveValue.length) : queryEnd!
     const selectionEnd = editorFocused ? (textarea.selectionEnd ?? selectionStart) : selectionStart
     const liveMention = findActiveMention(liveValue, selectionStart) ?? mention
-    const next = replacePromptMention(liveValue, liveMention, selectionStart, selectionEnd, asset.name, assets)
+    const caret = editorFocused ? selectionStart : queryEnd!
+    const next = replacePromptMention(liveValue, liveMention, caret, editorFocused ? selectionEnd : caret, asset.name, assets)
     if (!next) return
     if (onSelectAsset?.(asset, next.value) === false) return
     if (next.value !== liveValue) {
@@ -739,12 +747,19 @@ export function MentionPromptEditor({
           className={`mention-prompt-options${grouped ? ' is-grouped' : ''}`}
           containsNode={(node) => Boolean(submenuRef.current?.contains(node))}
           onReposition={() => placeSubmenuRef.current()}
+          closeOnOutsideWheel
+          repositionHeartbeat
           onKeyDown={(event) => {
             if (searchComposingRef.current || isPromptCompositionKey(event)) {
-              event.preventDefault()
+              if (event.key === 'Escape') event.stopPropagation()
               return
             }
             handleMenuKeyDown(event)
+          }}
+          onDismissKey={() => {
+            if (searchComposingRef.current) return false
+            closeMentionFromCanvas()
+            return true
           }}
         >
           {grouped ? (
@@ -769,9 +784,9 @@ export function MentionPromptEditor({
                 onCompositionEnd={(event) => {
                   searchComposingRef.current = false
                   setSearchDraft(null)
-                  const stale = composingVersionRef.current !== null && composingVersionRef.current !== menuEditVersionRef.current
+                  const version = composingVersionRef.current
                   composingVersionRef.current = null
-                  if (stale) return
+                  if (version === null || version !== menuEditVersionRef.current) return
                   commitSearchQuery(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)
                 }}
                 onChange={(event) => {

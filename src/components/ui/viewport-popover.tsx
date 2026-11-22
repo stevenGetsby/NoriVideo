@@ -48,6 +48,9 @@ export function ViewportPopover({
   containsNode,
   onReposition,
   onKeyDown,
+  onDismissKey,
+  closeOnOutsideWheel = false,
+  repositionHeartbeat = false,
   ...attributes
 }: HTMLAttributes<HTMLDivElement> & {
   anchorRef: RefObject<HTMLElement | null>
@@ -57,6 +60,9 @@ export function ViewportPopover({
   maxHeight?: number
   containsNode?: (node: Node) => boolean
   onReposition?: () => void
+  onDismissKey?: () => boolean
+  closeOnOutsideWheel?: boolean
+  repositionHeartbeat?: boolean
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
   const onCloseRef = useRef(onClose)
@@ -65,6 +71,8 @@ export function ViewportPopover({
   containsNodeRef.current = containsNode
   const onRepositionRef = useRef(onReposition)
   onRepositionRef.current = onReposition
+  const onDismissKeyRef = useRef(onDismissKey)
+  onDismissKeyRef.current = onDismissKey
 
   const reposition = useCallback(() => {
     const anchor = anchorRef.current
@@ -107,12 +115,12 @@ export function ViewportPopover({
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(reposition)
     }
-    const heartbeat = window.setInterval(schedule, 250)
-    const wheel = (event: WheelEvent) => {
+    const heartbeat = repositionHeartbeat ? window.setInterval(schedule, 250) : null
+    const wheel = closeOnOutsideWheel ? (event: WheelEvent) => {
       if (!(event.target instanceof Node)) return
       if (popoverRef.current?.contains(event.target) || anchorRef.current?.contains(event.target) || containsNodeRef.current?.(event.target)) return
       onCloseRef.current()
-    }
+    } : null
     const outside = (event: PointerEvent) => {
       if (
         event.target instanceof Node
@@ -131,19 +139,19 @@ export function ViewportPopover({
     window.visualViewport?.addEventListener('resize', schedule)
     window.visualViewport?.addEventListener('scroll', schedule)
     document.addEventListener('pointerdown', outside, true)
-    document.addEventListener('wheel', wheel, true)
+    if (wheel) document.addEventListener('wheel', wheel, true)
     return () => {
       cancelAnimationFrame(frame)
-      window.clearInterval(heartbeat)
+      if (heartbeat !== null) window.clearInterval(heartbeat)
       observer.disconnect()
       window.removeEventListener('resize', schedule)
       window.removeEventListener('scroll', schedule, true)
-      document.removeEventListener('wheel', wheel, true)
+      if (wheel) document.removeEventListener('wheel', wheel, true)
       window.visualViewport?.removeEventListener('resize', schedule)
       window.visualViewport?.removeEventListener('scroll', schedule)
       document.removeEventListener('pointerdown', outside, true)
     }
-  }, [anchorRef, reposition])
+  }, [anchorRef, closeOnOutsideWheel, reposition, repositionHeartbeat])
 
   if (typeof document === 'undefined') return null
   return createPortal(
@@ -159,6 +167,7 @@ export function ViewportPopover({
         onKeyDown?.(event)
         if (event.defaultPrevented) return
         if (event.key === 'Escape') {
+          if (onDismissKeyRef.current && !onDismissKeyRef.current()) return
           event.preventDefault()
           event.stopPropagation()
           onCloseRef.current()

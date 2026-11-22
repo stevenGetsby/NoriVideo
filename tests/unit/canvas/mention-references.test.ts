@@ -411,7 +411,7 @@ describe('editor wiring contracts', () => {
   it('resolves mention insertion against the live textarea value and selection', () => {
     expect(source).toContain('const liveValue = textarea.value')
     expect(source).toContain('findActiveMention(liveValue, selectionStart) ?? mention')
-    expect(source).toContain('replacePromptMention(liveValue, liveMention, selectionStart, selectionEnd')
+    expect(source).toContain('replacePromptMention(liveValue, liveMention, caret, editorFocused ? selectionEnd : caret')
   })
 
   it('routes paste through the live selection helper and records undoable inserts', () => {
