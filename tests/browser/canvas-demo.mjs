@@ -77,8 +77,21 @@ function handleApi(url, method, body) {
   if (url.pathname.endsWith('/balance')) return { balancePoints: 100000, generationAllowed: true, dailyLimitPoints: null, dailyUsedPoints: 0, dailyLimitExceeded: false }
   if (url.pathname.endsWith('/toolbox/assets')) return { assets: [] }
   if (url.pathname.endsWith('/operations')) return { engines: [], latestTask: null, latestTaskLinks: null }
-  if (/^\/api\/projects\/[^/]+\/canvas\/canvas-1(\/ops)?$/.test(url.pathname)) {
-    if (method !== 'GET' && body) {
+  const canvasMatch = /^\/api\/projects\/[^/]+\/canvas\/canvas-1(\/ops|\/document)?$/.exec(url.pathname)
+  if (canvasMatch) {
+    const route = canvasMatch[1] || ''
+    if (method !== 'GET') {
+      if (!body) return { status: 400, payload: { message: '演示模式：未知写入负载' } }
+      if (route === '/document') {
+        if (method !== 'PUT' || !body.nodes) return { status: 400, payload: { message: '演示模式：未知写入负载' } }
+        const validated = validateCanvasDocumentSaveInput(body)
+        if (!validated.success) return { status: 400, payload: { message: '画布文档格式无效' } }
+        graph = { ...graph, nodes: body.nodes }
+        if (body.edges) graph = { ...graph, edges: body.edges }
+        graph = { ...graph, canvas: { ...graph.canvas, revision: graph.canvas.revision + 1 } }
+        return graph
+      }
+      if (route === '/ops' && method !== 'POST') return { status: 400, payload: { message: '演示模式：未知写入负载' } }
       if (!body.ops && !body.nodes) return { status: 400, payload: { message: '演示模式：未知写入负载' } }
       if (body.ops) {
         const validated = validateCanvasOperationsSaveInput(body)

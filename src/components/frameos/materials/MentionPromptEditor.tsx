@@ -68,6 +68,14 @@ function assetKey(asset: MentionPromptAsset): string {
   return asset.id ? `id:${asset.id}` : `name:${asset.name}`
 }
 
+const MENTION_TOKEN_BREAK = /[@\s，。；：,\n]/u
+
+function sessionStillMatches(value: string, session: { query: string; start: number }): boolean {
+  if (value.slice(session.start, session.start + 1 + session.query.length) !== `@${session.query}`) return false
+  const after = value[session.start + 1 + session.query.length]
+  return after === undefined || MENTION_TOKEN_BREAK.test(after)
+}
+
 function mediaIcon(mediaType: MentionPromptAsset['mediaType']): 'audioWave' | 'fileText' | 'image' | 'package' | 'video' {
   if (mediaType === 'audio') return 'audioWave'
   if (mediaType === 'video') return 'video'
@@ -127,6 +135,8 @@ export function MentionPromptEditor({
   const mentionSessionRef = useRef<{ start: number; query: string } | null>(null)
   const pendingMenuEditRef = useRef<{ value: string; cursor: number } | null>(null)
   const searchComposingRef = useRef(false)
+  const menuEditVersionRef = useRef(0)
+  const composingVersionRef = useRef<number | null>(null)
   const dismissedMentionRef = useRef<{ query: string; start: number } | null>(null)
   const blurTimerRef = useRef<number | null>(null)
   const composingRef = useRef(false)
@@ -233,6 +243,7 @@ export function MentionPromptEditor({
       setSubmenu(null)
       mentionSessionRef.current = null
       searchComposingRef.current = false
+      composingVersionRef.current = null
       setSearchDraft(null)
     }
   }, [mention])
@@ -332,6 +343,7 @@ export function MentionPromptEditor({
       return
     }
     pendingMenuEditRef.current = null
+    menuEditVersionRef.current += 1
     {
       const current = mentionRef.current
       if (!current) return
@@ -343,7 +355,7 @@ export function MentionPromptEditor({
         return
       }
       const session = mentionSessionRef.current
-      if (session && value[session.start] === '@') {
+      if (session && sessionStillMatches(value, session)) {
         const next = findActiveMention(value, session.start + 1 + session.query.length)
         if (next && next.start === session.start) {
           mentionSessionRef.current = next
@@ -410,6 +422,10 @@ export function MentionPromptEditor({
 
   const dismissMention = () => {
     if (mention) dismissedMentionRef.current = mention
+    mentionSessionRef.current = null
+    pendingMenuEditRef.current = null
+    searchComposingRef.current = false
+    composingVersionRef.current = null
     applyMention(null)
   }
 
@@ -418,11 +434,17 @@ export function MentionPromptEditor({
     const session = mentionSessionRef.current ?? mention
     if (!textarea || !session) return
     const liveValue = textarea.value
-    if (liveValue[session.start] !== '@') return
+    if (!sessionStillMatches(liveValue, session)) {
+      mentionSessionRef.current = null
+      pendingMenuEditRef.current = null
+      applyMention(null)
+      return
+    }
     const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(session.start + 1 + session.query.length)}`
     const nextMention = findActiveMention(nextValue, session.start + 1 + query.length)
     if (nextMention) mentionSessionRef.current = nextMention
     applyMention(nextMention)
+    menuEditVersionRef.current += 1
     pendingMenuEditRef.current = { value: nextValue, cursor: session.start + 1 + query.length }
     onChange(nextValue)
     requestAnimationFrame(() => {
@@ -526,8 +548,7 @@ export function MentionPromptEditor({
     const liveValue = textarea.value
     const editorFocused = document.activeElement === textarea
     const session = mentionSessionRef.current
-    const sessionValid = session && liveValue[session.start] === '@'
-      && findActiveMention(liveValue, session.start + 1 + session.query.length)?.start === session.start
+    const sessionValid = session && sessionStillMatches(liveValue, session)
     const selectionStart = editorFocused ? (textarea.selectionStart ?? liveValue.length) : sessionValid ? session.start + 1 + session.query.length : liveValue.length
     const selectionEnd = editorFocused ? (textarea.selectionEnd ?? selectionStart) : selectionStart
     const liveMention = findActiveMention(liveValue, selectionStart) ?? mention
@@ -702,8 +723,8 @@ export function MentionPromptEditor({
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={Boolean(mention)}
-          aria-controls={mention ? listboxId : undefined}
-          aria-activedescendant={mention ? (subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow?.kind === 'asset' ? `${listboxId}-${activeIndex}` : undefined) : undefined}
+          aria-controls={mention ? (subFocus ? `${listboxId}-submenu` : listboxId) : undefined}
+          aria-activedescendant={mention ? (subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow ? (activeMainRow.kind === 'asset' ? `${listboxId}-${activeIndex}` : `${listboxId}-row-${activeMainRow.drillKind}-${activeMainRow.id}`) : undefined) : undefined}
         />
       </div>
       {!readOnly && mention ? (
@@ -719,6 +740,10 @@ export function MentionPromptEditor({
           containsNode={(node) => Boolean(submenuRef.current?.contains(node))}
           onReposition={() => placeSubmenuRef.current()}
           onKeyDown={(event) => {
+            if (searchComposingRef.current || isPromptCompositionKey(event)) {
+              event.preventDefault()
+              return
+            }
             handleMenuKeyDown(event)
           }}
         >
@@ -734,15 +759,19 @@ export function MentionPromptEditor({
                 aria-label="搜索素材"
                 role="combobox"
                 aria-expanded
-                aria-controls={listboxId}
+                aria-controls={subFocus ? `${listboxId}-submenu` : listboxId}
                 aria-autocomplete="list"
-                aria-activedescendant={subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow?.kind === 'asset' ? `${listboxId}-${activeIndex}` : undefined}
+                aria-activedescendant={subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow ? (activeMainRow.kind === 'asset' ? `${listboxId}-${activeIndex}` : `${listboxId}-row-${activeMainRow.drillKind}-${activeMainRow.id}`) : undefined}
                 onCompositionStart={() => {
                   searchComposingRef.current = true
+                  composingVersionRef.current = menuEditVersionRef.current
                 }}
                 onCompositionEnd={(event) => {
                   searchComposingRef.current = false
                   setSearchDraft(null)
+                  const stale = composingVersionRef.current !== null && composingVersionRef.current !== menuEditVersionRef.current
+                  composingVersionRef.current = null
+                  if (stale) return
                   commitSearchQuery(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)
                 }}
                 onChange={(event) => {
@@ -757,10 +786,6 @@ export function MentionPromptEditor({
                   cancelBlurDismissal()
                   const session = mentionSessionRef.current ?? mention
                   if (session) mentionSessionRef.current = session
-                }}
-                onKeyDown={(event) => {
-                  if (searchComposingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) return
-                  handleMenuKeyDown(event)
                 }}
               />
             </div>
