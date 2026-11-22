@@ -444,8 +444,8 @@ export function MentionPromptEditor({
       applyMention(null)
       return
     }
-    const tokenEnd = promptMentionTokenEnd(liveValue, session.start)
-    const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(tokenEnd)}`
+    const queryEnd = session.start + 1 + session.query.length
+    const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(queryEnd)}`
     const nextMention = findActiveMention(nextValue, session.start + 1 + query.length)
     if (nextMention) mentionSessionRef.current = nextMention
     applyMention(nextMention)
@@ -756,8 +756,8 @@ export function MentionPromptEditor({
             }
             handleMenuKeyDown(event)
           }}
-          onDismissKey={() => {
-            if (searchComposingRef.current) return false
+          onDismissKey={(event) => {
+            if (searchComposingRef.current || isPromptCompositionKey(event)) return false
             closeMentionFromCanvas()
             return true
           }}

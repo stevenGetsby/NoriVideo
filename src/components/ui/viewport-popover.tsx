@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useLayoutEffect, useRef, type HTMLAttributes, type RefObject } from 'react'
+import { useCallback, useLayoutEffect, useRef, type HTMLAttributes, type KeyboardEvent as ReactKeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 
 type Rect = { left: number; top: number; right: number; bottom: number; width: number }
@@ -60,7 +60,7 @@ export function ViewportPopover({
   maxHeight?: number
   containsNode?: (node: Node) => boolean
   onReposition?: () => void
-  onDismissKey?: () => boolean
+  onDismissKey?: (event: ReactKeyboardEvent<HTMLDivElement>) => boolean
   closeOnOutsideWheel?: boolean
   repositionHeartbeat?: boolean
 }) {
@@ -167,7 +167,7 @@ export function ViewportPopover({
         onKeyDown?.(event)
         if (event.defaultPrevented) return
         if (event.key === 'Escape') {
-          if (onDismissKeyRef.current && !onDismissKeyRef.current()) return
+          if (onDismissKeyRef.current && !onDismissKeyRef.current(event)) return
           event.preventDefault()
           event.stopPropagation()
           onCloseRef.current()
