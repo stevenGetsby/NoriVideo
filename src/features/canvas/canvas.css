@@ -7299,17 +7299,18 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   min-width: 0;
   height: 28px;
   min-height: 28px;
-  flex: 0 1 auto;
+  flex: 1 1 0;
   border: .5px solid var(--dm-line);
   border-radius: 999px;
   padding: 0 10px;
   background: transparent;
+  overflow: hidden;
 }
 .nori-canvas-generator-settings-row .nori-canvas-parameter-trigger:hover,
 .nori-canvas-generator-settings-row .nori-canvas-parameter-trigger.is-active { border-color: var(--dm-line-strong); background: rgba(255, 255, 255, .04); }
-.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger > span { min-width: 0; flex-direction: row; }
+.nori-canvas-generator-settings-row .nori-canvas-parameter-trigger > span { min-width: 0; flex: 1 1 auto; flex-direction: row; }
 .nori-canvas-parameter-trigger b { display: none; }
-.nori-canvas-parameter-trigger small { overflow: hidden; color: rgba(255, 255, 255, .9); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-parameter-trigger small { overflow: hidden; width: 100%; color: rgba(255, 255, 255, .9); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-canvas-generator-sound {
   height: 28px;
   border: .5px solid var(--dm-line);
@@ -7319,7 +7320,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   font-size: 11px;
 }
 .nori-canvas-generator-sound input { accent-color: #6e7bff; }
-.nori-canvas-generator-quote { color: rgba(255, 255, 255, .78); font-size: 11px; font-variant-numeric: tabular-nums; }
+.nori-canvas-generator-quote { min-width: 88px; color: rgba(255, 255, 255, .78); font-size: 11px; font-variant-numeric: tabular-nums; text-align: right; }
 .nori-canvas-generator-controls .nori-canvas-generate-button {
   min-height: 28px;
   height: 28px;
@@ -7694,3 +7695,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick:hover { color: #fff; }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-active { color: #fff; font-weight: 700; }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-muted { opacity: .45; }
+.nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled { width: 8px; height: 16px; }
+.nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled::after { content: ''; position: absolute; left: 50%; top: 6px; width: 1px; height: 4px; background: currentColor; transform: translateX(-50%); }
+.nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled:hover::after { height: 6px; top: 5px; }

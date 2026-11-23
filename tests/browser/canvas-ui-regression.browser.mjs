@@ -75,11 +75,18 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 const errors = []
 const cases = []
 let latestPage
+const capabilityCatalog = JSON.parse(await readFile(path.join(root, 'standards/capabilities/kuaizi.catalog.json'), 'utf8'))
+const capabilityEntries = Array.isArray(capabilityCatalog) ? capabilityCatalog : (capabilityCatalog.entries || capabilityCatalog.models || [])
+const capabilityVideo = capabilityEntries.find((entry) => entry.modelId === 'doubao-seedance-2-5-260628' && entry.modelType === 'video')?.capabilities?.video || {}
 const model = {
   modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
-  options: { duration: [4, 5, 6, 8, 10], resolution: ['480p', '720p'], aspectRatio: ['16:9', '9:16', '1:1'] },
-  inputSchema: { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
+  options: {
+    duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
+    resolution: capabilityVideo.resolutionOptions || ['480p', '720p'],
+    aspectRatio: ['16:9', '9:16', '1:1'],
+  },
+  inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
 }
 const canvas = { id: 'canvas-1', projectId: 'project-1', title: '交互回归', revision: 0, viewport: { x: 0, y: 0, zoom: 1 }, themeColor: null, visibility: 'workspace', forkedFromId: null, createdAt: '2026-10-08T00:00:00.000Z', updatedAt: '2026-10-08T00:00:00.000Z' }
 const common = { canvasId: 'canvas-1', runId: null, mediaObjectId: null, parentNodeId: null }
@@ -916,20 +923,24 @@ try {
     assert.equal(await parameters.evaluate((el) => el.parentElement === document.body), true)
     await page.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-parameters.png`) })
     const durationRange = parameters.getByLabel('视频时长滑杆')
+    assert.equal(await durationRange.getAttribute('min'), '4', 'The slider range must start at the model minimum')
+    assert.equal(await durationRange.getAttribute('max'), '30', 'The slider range must follow the model capability maximum')
     await durationRange.focus()
     await page.keyboard.press('ArrowRight')
     await page.keyboard.press('ArrowRight')
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Arrow keys on the duration slider must step through model-supported seconds')
-    assert.equal(await durationRange.inputValue(), '8', 'The slider thumb must stay in sync with keyboard steps')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '7', 'Arrow keys on the duration slider must step through model-supported seconds')
+    assert.equal(await durationRange.inputValue(), '7', 'The slider thumb must stay in sync with keyboard steps')
     await page.keyboard.press('ArrowRight')
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'Keyboard steps must clamp at the model maximum')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Keyboard steps must keep walking supported seconds')
     await page.keyboard.press('Home')
     assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '4', 'Home must jump to the model minimum')
     await page.keyboard.press('End')
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'End must jump to the model maximum')
-    await parameters.locator('.nori-canvas-duration-tick').filter({ hasText: /^6$/ }).click()
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'Clicking a slider tick must jump to that second')
-    assert.equal(await durationRange.inputValue(), '6', 'Clicking a tick must move the thumb')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'End must jump to the model maximum')
+    await parameters.locator('.nori-canvas-duration-tick').filter({ hasText: /^10$/ }).click()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'Clicking a labeled slider tick must jump to that second')
+    assert.equal(await durationRange.inputValue(), '10', 'Clicking a tick must move the thumb')
+    await parameters.locator('.nori-canvas-duration-tick[aria-label="12 秒"]').click()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '12', 'Unlabeled ticks must remain clickable for every second')
     const rangeBox = await durationRange.boundingBox()
     await page.mouse.move(rangeBox.x + rangeBox.width - 2, rangeBox.y + rangeBox.height / 2)
     await page.mouse.down()
@@ -939,12 +950,12 @@ try {
     assert.equal(await durationRange.inputValue(), '4', 'The thumb must settle on the committed value after a drag')
     await parameters.getByLabel('视频时长', { exact: true }).fill('8')
     assert.equal(await durationRange.inputValue(), '8', 'Typing a duration must move the slider thumb')
-    await parameters.getByLabel('视频时长', { exact: true }).fill('7')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('40')
     await parameters.getByLabel('视频时长', { exact: true }).blur()
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'Blurring an unsupported typed value must normalize it to the nearest supported second')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'Blurring an out-of-range typed value must clamp to the model maximum')
     await parameters.getByLabel('视频时长', { exact: true }).fill('')
     await parameters.getByLabel('视频时长', { exact: true }).blur()
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'Blurring an empty duration must keep the current setting')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'Blurring an empty duration must keep the current setting')
     await parameters.getByLabel('视频时长', { exact: true }).fill('8')
     await parameters.getByRole('button', { name: '关闭生成参数' }).click()
     assert.equal(await parameters.count(), 0)
@@ -973,15 +984,15 @@ try {
     assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '8', 'The restored duration must move the thumb')
     await parameters.getByLabel('视频时长滑杆').focus()
     await page.keyboard.press('ArrowRight')
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'Keyboard steps after a mode restore must start from the restored duration')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '9', 'Keyboard steps after a mode restore must start from the restored duration')
     await parameters.getByLabel('视频时长滑杆').blur()
-    assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '10', 'Blurring the slider after a mode restore must not rewind the thumb')
+    assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '9', 'Blurring the slider after a mode restore must not rewind the thumb')
     await modeGroup.getByRole('button', { name: '首尾帧' }).click()
     await page.waitForFunction(() => document.querySelector('.nori-canvas-parameter-trigger')?.textContent?.includes('adaptive'))
     assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'First/last frame mode must restore its own remembered duration')
     await modeGroup.getByRole('button', { name: '全能参考' }).click()
     await aspectGroup.getByRole('button', { name: '9:16' }).waitFor()
-    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'All-reference mode must keep its latest duration across round trips')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '9', 'All-reference mode must keep its latest duration across round trips')
     await modeGroup.getByRole('button', { name: '图生视频' }).click()
     assert.equal(await aspectGroup.getByRole('button', { name: '9:16' }).getAttribute('aria-pressed'), 'true', 'Image-to-video keeps the shared ratio list')
     await modeGroup.getByRole('button', { name: '全能参考' }).click()

@@ -773,6 +773,18 @@ export function CanvasGenerator({
     () => Array.from({ length: Math.max(1, durationMaximum - durationMinimum + 1) }, (_, index) => durationMinimum + index),
     [durationMinimum, durationMaximum],
   )
+  // Long ranges (e.g. 4–30s) cannot label every second legibly. Keep a tick for
+  // every second but only label endpoints, multiples of five and the current
+  // value; the rest stay as slim unlabeled marks.
+  const durationTickLabels = useMemo(() => {
+    const span = durationMaximum - durationMinimum
+    if (span <= 10) return new Set(durationSliderOptions)
+    const labeled = new Set<number>([durationMinimum, durationMaximum, duration])
+    for (const value of durationSliderOptions) {
+      if (value % 5 === 0) labeled.add(value)
+    }
+    return labeled
+  }, [duration, durationMaximum, durationMinimum, durationSliderOptions])
   const durationSliderPercent = durationMaximum > durationMinimum
     ? ((Math.min(durationMaximum, Math.max(durationMinimum, duration)) - durationMinimum) / (durationMaximum - durationMinimum)) * 100
     : 0
@@ -1620,7 +1632,7 @@ export function CanvasGenerator({
                   />
                   <div className="nori-canvas-duration-ticks" aria-hidden="true">
                     {durationSliderOptions.map((value) => (
-                      <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => settleDurationNumber(String(value))}>{value}</button>
+                      <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} aria-label={`${value} 秒`} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}${durationTickLabels.has(value) ? '' : ' is-unlabeled'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => settleDurationNumber(String(value))}>{durationTickLabels.has(value) ? value : ''}</button>
                     ))}
                   </div>
                 </div>
