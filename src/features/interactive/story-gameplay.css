@@ -5,9 +5,9 @@
   --gp-line: var(--ix-line, rgb(var(--nori-s-2f2f3a)));
   --gp-line-strong: var(--ix-line-strong, rgb(var(--nori-s-4a4a58)));
   --gp-text: var(--ix-text, rgb(var(--nori-text-1)));
-  --gp-muted: var(--ix-muted, rgba(245, 245, 250, .72));
+  --gp-muted: var(--ix-muted, rgb(var(--nori-text-1) / 0.72));
   --gp-dim: var(--ix-dim, rgb(var(--nori-text-3)));
-  --gp-field: var(--ix-field, rgba(8, 8, 12, .55));
+  --gp-field: var(--ix-field, rgb(var(--nori-bg-0) / 0.55));
   --gp-cta: var(--ix-cta, rgb(var(--nori-s-5b6cff)));
   --gp-cta-hover: var(--ix-cta-hover, rgb(var(--nori-primary-)));
 }
@@ -35,12 +35,12 @@
   cursor: pointer;
 }
 .nori-ix-gameplay-segments button:hover { color: var(--gp-text); background: rgb(var(--nori-ink) / calc(0.05 * var(--nori-a))); }
-.nori-ix-gameplay-segments button.is-on { border-color: var(--gp-line-strong); color: rgb(var(--nori-s-ffffff)); background: rgb(var(--nori-s-2b2b39)); }
+.nori-ix-gameplay-segments button.is-on { border-color: var(--gp-line-strong); color: rgb(var(--nori-text-1)); background: rgb(var(--nori-s-2b2b39)); }
 .nori-ix-gameplay-count {
   border-radius: 999px;
   padding: 0 5px;
-  color: rgb(var(--nori-s-c7ccff));
-  background: rgba(91, 108, 255, .2);
+  color: rgb(var(--nori-t-c7ccff));
+  background: rgb(var(--nori-s-5b6cff) / 0.2);
   font-size: 10px;
   font-weight: 700;
   line-height: 15px;
@@ -84,14 +84,14 @@
 .nori-story-vars li .nori-ix-var-toggle svg { width: 11px; height: 11px; transition: transform .15s ease; }
 .nori-story-vars li .nori-ix-var-toggle[aria-expanded="true"] svg { transform: rotate(180deg); }
 .nori-story-vars li .nori-ix-var-toggle:hover { border-color: var(--gp-line-strong); color: var(--gp-text); background: rgb(var(--nori-ink) / calc(0.05 * var(--nori-a))); }
-.nori-story-vars li .nori-ix-var-toggle.is-active { border-color: rgb(var(--nori-s-5b6cff)); color: rgb(var(--nori-s-c7ccff)); background: rgba(91, 108, 255, .16); }
+.nori-story-vars li .nori-ix-var-toggle.is-active { border-color: rgb(var(--nori-t-5b6cff)); color: rgb(var(--nori-t-c7ccff)); background: rgb(var(--nori-s-5b6cff) / 0.16); }
 .nori-ix-var-extra { display: flex; flex-direction: column; gap: 8px; margin-left: 34px; border-top: .5px dashed var(--gp-line); padding-top: 8px; }
 .nori-ix-var-field { display: flex; min-width: 0; align-items: center; gap: 6px; color: var(--gp-dim); font-size: 11px; }
 .nori-ix-var-field > span { flex: none; }
 .nori-ix-var-field > input,
 .nori-ix-var-field > select { min-width: 0; flex: 1; }
 .nori-ix-var-check { display: flex; align-items: center; gap: 7px; color: var(--gp-muted); font-size: 12px; cursor: pointer; }
-.nori-ix-var-warning { margin: 0; color: rgb(var(--nori-s-fcd34d)); font-size: 11px; line-height: 1.5; }
+.nori-ix-var-warning { margin: 0; color: rgb(var(--nori-t-fcd34d)); font-size: 11px; line-height: 1.5; }
 
 /* dense controls inside the gameplay panel (32px is the toolbar size, panels stay compact) */
 .nori-ix-gameplay .nori-story-vars li input:not([type="checkbox"]),
@@ -120,7 +120,7 @@
 .nori-ix-icon-preview svg { width: 14px; height: 14px; }
 .nori-ix-icon-emoji { min-width: 0; width: 118px; flex: 1 1 100px; }
 .nori-story-vars li .nori-ix-icon-clear { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border: 0; border-radius: 6px; color: var(--gp-dim); background: transparent; cursor: pointer; }
-.nori-story-vars li .nori-ix-icon-clear:not(:disabled):hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-story-vars li .nori-ix-icon-clear:not(:disabled):hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-ix-icon-clear svg { width: 12px; height: 12px; }
 
 /* StoryImageField is styled by story-canvas.css on the canvas; the overview panel still needs it. */
@@ -159,9 +159,9 @@
   background: transparent;
   cursor: pointer;
 }
-.nori-ix-gameplay .nori-story-image-remove:hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-ix-gameplay .nori-story-image-remove:hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-ix-gameplay .nori-story-image-remove svg { width: 11px; height: 11px; }
-.nori-ix-gameplay .nori-story-image-error { color: rgb(var(--nori-s-fda4af)); font-size: 11px; }
+.nori-ix-gameplay .nori-story-image-error { color: rgb(var(--nori-t-fda4af)); font-size: 11px; }
 
 /* --- shop -------------------------------------------------------------- */
 .nori-ix-shop-enable {
@@ -199,7 +199,7 @@
 }
 .nori-story-vars li .nori-ix-shop-moves button:not(:disabled):hover { border-color: var(--gp-line-strong); color: var(--gp-text); }
 .nori-story-vars li .nori-ix-shop-remove { display: grid; width: 24px; height: 24px; flex: none; place-items: center; border: 0; border-radius: 6px; color: var(--gp-dim); background: transparent; cursor: pointer; }
-.nori-story-vars li .nori-ix-shop-remove:not(:disabled):hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-story-vars li .nori-ix-shop-remove:not(:disabled):hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-ix-shop-numbers { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .nori-ix-shop-numbers label { display: flex; align-items: center; gap: 6px; color: var(--gp-dim); font-size: 11px; }
 .nori-ix-shop-numbers input { width: 96px; }
@@ -236,10 +236,10 @@
   align-self: flex-start;
   align-items: center;
   gap: 4px;
-  border: .5px dashed rgba(139, 123, 255, .45);
+  border: .5px dashed rgb(var(--nori-s-8b7bff) / 0.45);
   border-radius: 6px;
   padding: 0 8px;
-  color: rgb(var(--nori-s-c7ccff));
+  color: rgb(var(--nori-t-c7ccff));
   background: transparent;
   font-size: 11px;
   cursor: pointer;
@@ -247,7 +247,7 @@
 .nori-ix-gameplay .nori-story-add-rule:hover,
 .nori-ix-gameplay .nori-story-hint-button:not(:disabled):hover,
 .nori-ix-unlock .nori-story-add-rule:hover,
-.nori-ix-unlock .nori-story-hint-button:not(:disabled):hover { background: rgba(91, 108, 255, .14); }
+.nori-ix-unlock .nori-story-hint-button:not(:disabled):hover { background: rgb(var(--nori-s-5b6cff) / 0.14); }
 .nori-ix-gameplay .nori-story-hint-button:disabled,
 .nori-ix-unlock .nori-story-hint-button:disabled { opacity: .5; cursor: default; }
 .nori-ix-gameplay .nori-story-add-rule svg,
@@ -266,7 +266,7 @@
   cursor: pointer;
 }
 .nori-ix-gameplay .nori-story-icon-button:not(:disabled):hover,
-.nori-ix-unlock .nori-story-icon-button:not(:disabled):hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-ix-unlock .nori-story-icon-button:not(:disabled):hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-ix-gameplay .nori-story-icon-button svg,
 .nori-ix-unlock .nori-story-icon-button svg { width: 13px; height: 13px; }
 
@@ -350,7 +350,7 @@
   background: transparent;
   cursor: pointer;
 }
-.nori-story-vars li .nori-ix-ach-remove:not(:disabled):hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-story-vars li .nori-ix-ach-remove:not(:disabled):hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-ix-ach-condition { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .nori-ix-ach-condition > select { min-width: 0; flex: 1 1 92px; }
 .nori-ix-ach-condition > input { width: 84px; flex: none; }
@@ -375,7 +375,7 @@
   border: .5px solid var(--gp-line);
   border-radius: 6px;
   padding: 0 8px;
-  color: rgb(var(--nori-s-c7ccff));
+  color: rgb(var(--nori-t-c7ccff));
   background: transparent;
   font-size: 11px;
   cursor: pointer;
@@ -393,9 +393,9 @@
   padding: 6px;
   background: rgb(var(--nori-ink) / calc(0.02 * var(--nori-a)));
 }
-.nori-story-vars li.nori-ix-pt-card.is-custom { border-color: rgb(var(--nori-s-5b6cff)); background: rgba(91, 108, 255, .08); }
+.nori-story-vars li.nori-ix-pt-card.is-custom { border-color: rgb(var(--nori-t-5b6cff)); background: rgb(var(--nori-s-5b6cff) / 0.08); }
 .nori-ix-pt-card-head { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 2px; }
-.nori-ix-pt-code { color: rgb(var(--nori-s-c7ccff)); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.nori-ix-pt-code { color: rgb(var(--nori-t-c7ccff)); font-size: 11px; font-weight: 700; letter-spacing: .02em; }
 .nori-story-vars li .nori-ix-pt-restore {
   width: auto;
   height: 18px;
@@ -408,7 +408,7 @@
   font-size: 9px;
   cursor: pointer;
 }
-.nori-story-vars li .nori-ix-pt-restore:hover { color: rgb(var(--nori-s-fda4af)); background: rgba(244, 63, 94, .12); }
+.nori-story-vars li .nori-ix-pt-restore:hover { color: rgb(var(--nori-t-fda4af)); background: rgb(var(--nori-s-f43f5e) / 0.12); }
 .nori-story-vars li.nori-ix-pt-card input { width: 100%; height: 24px; font-size: 11px; padding: 0 5px; }
 .nori-story-vars li.nori-ix-pt-card textarea {
   min-width: 0;

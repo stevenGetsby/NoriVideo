@@ -18,6 +18,8 @@ export function HotspotOverlay({ node, orientation, startedAt, durationSec = nod
 }) {
   if (node.spec.type !== 'hotspot') return null
   const spec = node.spec
+  // The puzzle frame only replaces a frozen picture; over live playback it would hide the video.
+  const showFrame = !!spec.frameImageUrl && node.during === 'freeze'
   const layerRef = useRef<HTMLDivElement | null>(null)
   const doneRef = useRef(false)
   const [mediaSize, setMediaSize] = useState({ width: 0, height: 0 })
@@ -30,8 +32,8 @@ export function HotspotOverlay({ node, orientation, startedAt, durationSec = nod
     const rect = layer.getBoundingClientRect()
     const local = unrotateHotspotPoint(event.clientX - rect.left, event.clientY - rect.top, rect.width, rect.height, turn)
     const video = layer.parentElement?.querySelector('video')
-    const mediaWidth = spec.frameImageUrl ? mediaSize.width : (video?.videoWidth || rect.width)
-    const mediaHeight = spec.frameImageUrl ? mediaSize.height : (video?.videoHeight || rect.height)
+    const mediaWidth = showFrame ? mediaSize.width : (video?.videoWidth || rect.width)
+    const mediaHeight = showFrame ? mediaSize.height : (video?.videoHeight || rect.height)
     const stageWidth = turn === 1 ? rect.height : rect.width
     const stageHeight = turn === 1 ? rect.width : rect.height
     const handle = hotspotAt(spec.zones, mediaContainBox(stageWidth, stageHeight, mediaWidth, mediaHeight), local.x, local.y)
@@ -43,8 +45,8 @@ export function HotspotOverlay({ node, orientation, startedAt, durationSec = nod
     <div className={`nori-int-overlay is-hotspot is-${orientation} ${className}`} data-testid="interaction-overlay" data-kind="hotspot">
       <InteractionCountdown startedAt={startedAt} durationSec={durationSec} onTimeout={() => { if (!doneRef.current) { doneRef.current = true; onResult(interactionTimeoutHandle(spec)!) } }} />
       <div ref={layerRef} className={`nori-hotspot-layer${spec.showZones ? ' is-visible' : ''}`} data-testid="hotspot-layer" onPointerDown={onDown}>
-        {spec.frameImageUrl ? <img className="nori-hotspot-frame" src={spec.frameImageUrl} alt="" onLoad={onMediaLoad} draggable={false} /> : null}
-        <div className="nori-hotspot-zones" style={spec.frameImageUrl && mediaSize.width && mediaSize.height ? {
+        {showFrame ? <img className="nori-hotspot-frame" src={spec.frameImageUrl || undefined} alt="" onLoad={onMediaLoad} draggable={false} /> : null}
+        <div className="nori-hotspot-zones" style={showFrame && mediaSize.width && mediaSize.height ? {
           left: `${mediaContainBox(100, 100, mediaSize.width, mediaSize.height)!.left}%`,
           top: `${mediaContainBox(100, 100, mediaSize.width, mediaSize.height)!.top}%`,
           width: `${mediaContainBox(100, 100, mediaSize.width, mediaSize.height)!.width}%`,

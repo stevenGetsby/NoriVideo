@@ -302,8 +302,9 @@ export const hasRandomResults = (results: Record<string, StoryResultConfig>) =>
   Object.values(results).some((result) => typeof result.weight === 'number' && result.weight > 0)
 
 /** Draws from the weighted ports in their display order. No weights means the viewer's result is unchanged. */
-export function resolveRandomHandle(spec: StoryInteractionSpec, results: Record<string, StoryResultConfig>, roll: number): string | null {
+export function resolveRandomHandle(spec: StoryInteractionSpec, results: Record<string, StoryResultConfig>, roll: number, isOpen?: (handle: string) => boolean): string | null {
   const weighted = interactionHandles(spec).flatMap((handle) => {
+    if (isOpen && !isOpen(handle)) return []
     const weight = results[handle]?.weight ?? 0
     return weight > 0 ? [{ handle, weight }] : []
   })

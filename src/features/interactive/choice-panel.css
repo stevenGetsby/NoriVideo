@@ -25,7 +25,7 @@
   --choice-side-image: 40px;
   gap: 8px;
 }
-.nori-choice-prompt { margin: 0; font-size: var(--choice-prompt-font); font-weight: 650; text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.nori-choice-prompt { margin: 0; font-size: var(--choice-prompt-font); font-weight: 650; text-align: center; text-shadow: 0 1px 3px rgb(var(--nori-s-000000) / 0.6); }
 .nori-choice-options { display: grid; gap: var(--choice-gap); }
 
 /* Cards that put the picture on top sit side by side; cards that put it on the left stack up. */
@@ -50,7 +50,7 @@
   border: .5px solid rgb(var(--nori-ink) / calc(0.28 * var(--nori-a)));
   border-radius: var(--choice-radius);
   padding: 0;
-  color: rgb(var(--nori-s-ffffff));
+  color: rgb(var(--nori-text-1));
   background: rgb(var(--nori-s-1a1a24));
   font: inherit;
   font-size: var(--choice-font);
@@ -59,10 +59,10 @@
   transition: border-color .14s ease, background-color .14s ease, transform .14s ease;
 }
 .nori-choice-option:disabled { cursor: default; }
-.nori-choice-option:not(:disabled):hover { border-color: rgb(var(--nori-s-f472b6)); background: rgb(var(--nori-s-3a2030)); transform: translateY(-1px); }
+.nori-choice-option:not(:disabled):hover { border-color: rgb(var(--nori-t-f472b6)); background: rgb(var(--nori-s-3a2030)); transform: translateY(-1px); }
 /* Locked cards keep their hit area: dashed and muted, but still receiving the tap that opens the shop. */
 .nori-choice-option.is-locked { border-style: dashed; border-color: rgb(var(--nori-ink) / calc(0.22 * var(--nori-a))); color: rgb(var(--nori-ink) / calc(0.62 * var(--nori-a))); background: rgb(var(--nori-s-13131b)); }
-.nori-choice-option.is-locked:hover { border-color: rgba(252, 211, 77, .55); background: rgb(var(--nori-s-1c1a14)); transform: none; }
+.nori-choice-option.is-locked:hover { border-color: rgb(var(--nori-t-fcd34d) / 0.55); background: rgb(var(--nori-s-1c1a14)); transform: none; }
 .nori-choice-option.is-locked .nori-choice-option-image { opacity: .45; }
 .nori-choice-option.is-locked .nori-choice-option-text { font-weight: 550; }
 .nori-choice-option-lock {
@@ -74,15 +74,15 @@
   width: 22px;
   height: 22px;
   place-items: center;
-  border: .5px solid rgba(252, 211, 77, .4);
+  border: .5px solid rgb(var(--nori-s-fcd34d) / 0.4);
   border-radius: 7px;
-  color: rgb(var(--nori-s-fcd34d));
-  background: rgba(0, 0, 0, .55);
+  color: rgb(var(--nori-t-fcd34d));
+  background: rgb(var(--nori-s-000000) / 0.55);
 }
 .nori-choice-option-lock svg { width: 13px; height: 13px; }
 .nori-choice-panel.is-preview .nori-choice-option-lock { top: 4px; right: 4px; width: 16px; height: 16px; border-radius: 5px; }
 .nori-choice-panel.is-preview .nori-choice-option-lock svg { width: 10px; height: 10px; }
-.nori-choice-lock-hint { margin: -4px 0 0; color: rgb(var(--nori-s-fcd34d)); font-size: 12px; font-weight: 600; text-align: center; text-shadow: 0 1px 3px rgba(0, 0, 0, .6); }
+.nori-choice-lock-hint { margin: -4px 0 0; color: rgb(var(--nori-t-fcd34d)); font-size: 12px; font-weight: 600; text-align: center; text-shadow: 0 1px 3px rgb(var(--nori-s-000000) / 0.6); }
 .nori-choice-option-text { display: block; min-width: 0; padding: var(--choice-pad); overflow-wrap: anywhere; text-align: center; }
 .nori-choice-option-image { position: relative; display: block; flex: none; overflow: hidden; background: rgb(var(--nori-s-0b0b12)); }
 .nori-choice-option-image img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }

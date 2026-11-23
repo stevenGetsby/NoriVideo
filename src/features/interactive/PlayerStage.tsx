@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type RefObject } from 'react'
 import { MediaImage } from '@/components/media/MediaImage'
 import { AlertTriangle, ArrowRight, RotateCcw } from '@/components/ui/icons'
 import { STORY_ENDING_LABEL } from '@/lib/interactive/compile'
-import { beatTimeoutHandle, choiceTimeoutOption, resolveBeat, visibleOptions, type StoryRun, type StoryStop } from '@/lib/interactive/engine'
+import { beatTimeoutHandle, choiceTimeoutOption, isOptionOpen, resolveBeat, visibleOptions, type StoryRun, type StoryStop } from '@/lib/interactive/engine'
 import { dueBeat, interactionTimeoutHandle } from '@/lib/interactive/interaction'
 import { hasRandomResults, resolveRandomHandle } from '@/lib/interactive/interaction'
 import { personalityView } from '@/lib/interactive/personality'
@@ -221,7 +221,13 @@ function SceneStage({
 
   const finishBeat = (beat: StoryInteractionNode, handle: string, fromEnded: boolean) => {
     const state = latest.current
-    const settled = hasRandomResults(beat.results) ? resolveRandomHandle(beat.spec, beat.results, Math.random()) : handle
+    const settled = hasRandomResults(beat.results)
+      ? resolveRandomHandle(beat.spec, beat.results, Math.random(), (result) => (
+          beat.spec.type !== 'choice'
+          || !beat.spec.options.some((option) => option.id === result)
+          || isOptionOpen(beat.spec.options, result, state.run.vars, state.program.variables)
+        )) ?? handle
+      : handle
     if (!settled) return
     const outcome = resolveBeat(state.program, state.run, beat.id, settled)
     const plan = applyBeatOutcome(outcome, beat, state.beats, firedRef.current)

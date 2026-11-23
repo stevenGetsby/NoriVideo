@@ -8,6 +8,7 @@ import { STORY_KIND_LABEL } from '@/lib/interactive/compile'
 import {
   advanceRun,
   initialVariables,
+  isOptionOpen,
   isPermanentVariable,
   purchaseShopItem,
   startRun,
@@ -354,7 +355,13 @@ export function InteractivePlayer({ program, mode, aspectRatio, title, projectId
 
   const choose = (handle: string) => {
     const node = run.stop.kind === 'interaction' ? run.stop.node : null
-    const settled = node && hasRandomResults(node.results) ? resolveRandomHandle(node.spec, node.results, Math.random()) : handle
+    const settled = node && hasRandomResults(node.results)
+      ? resolveRandomHandle(node.spec, node.results, Math.random(), (result) => (
+          node.spec.type !== 'choice'
+          || !node.spec.options.some((option) => option.id === result)
+          || isOptionOpen(node.spec.options, result, run.vars, program.variables)
+        )) ?? handle
+      : handle
     if (!settled) return
     const next = advanceRun(program, run, settled)
     setAttempt(nextAttempt(attempt, run.stop, next))

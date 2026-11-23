@@ -1,8 +1,12 @@
 /* The scene card is a writing surface first; media lives in a compact status strip. */
+html[data-nori-theme="light"] {
+  --dm-muted: rgb(var(--nori-text-2));
+}
+
 .nori-scene-text { display: flex; min-width: 0; flex-direction: column; gap: 5px; }
 .nori-scene-text-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .nori-scene-text-head label {
-  color: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 82%, rgb(var(--nori-s-ffffff)));
+  color: color-mix(in srgb, var(--story-hue, rgb(var(--nori-t-a78bfa))) 82%, rgb(var(--nori-text-1)));
   font-size: 10px;
   font-weight: 700;
   letter-spacing: .06em;
@@ -23,7 +27,7 @@
   border-radius: 10px;
   padding: 9px 10px;
   color: var(--dm-text);
-  background: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 4%, rgba(8, 8, 12, .62));
+  background: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 4%, rgb(var(--nori-bg-0) / 0.62));
   font: inherit;
   font-size: 12.5px;
   line-height: 1.65;
@@ -31,11 +35,11 @@
   resize: none;
   transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
-.nori-scene-text-area::placeholder { color: rgba(245, 245, 250, .34); }
+.nori-scene-text-area::placeholder { color: rgb(var(--nori-text-1) / 0.34); }
 .nori-scene-text-area:hover:not(:read-only) { border-color: color-mix(in srgb, var(--story-hue, rgb(var(--nori-t-a78bfa))) 46%, var(--dm-line)); }
 .nori-scene-text-area:focus {
-  border-color: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 72%, transparent);
-  background: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 7%, rgba(8, 8, 12, .72));
+  border-color: color-mix(in srgb, var(--story-hue, rgb(var(--nori-t-a78bfa))) 72%, transparent);
+  background: color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 7%, rgb(var(--nori-bg-0) / 0.72));
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--story-hue, rgb(var(--nori-s-a78bfa))) 14%, transparent);
 }
 .nori-scene-text.is-readonly .nori-scene-text-area { opacity: .82; }
@@ -60,7 +64,7 @@
 .nori-story-scene-media-copy small { overflow: hidden; color: var(--dm-dim); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .nori-story-scene-media-strip.is-ready { border-color: color-mix(in srgb, var(--dm-hue-video, rgb(var(--nori-t-38bdf8))) 30%, var(--dm-line)); }
 .nori-story-scene-media-strip.is-pending { border-color: color-mix(in srgb, var(--dm-hue-video, rgb(var(--nori-t-38bdf8))) 36%, var(--dm-line)); }
-.nori-story-scene-media-strip.is-failed { border-color: rgba(244, 63, 94, .4); }
+.nori-story-scene-media-strip.is-failed { border-color: rgb(var(--nori-t-f43f5e) / 0.4); }
 .nori-story-scene-media-strip.is-failed > svg,
 .nori-story-scene-media-strip.is-failed .nori-story-scene-media-copy strong { color: rgb(var(--nori-t-fda4af)); }
 .nori-story-scene-media-strip > button {
