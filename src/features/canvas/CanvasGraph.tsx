@@ -537,6 +537,12 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const wireReleaseClickRef = useRef(false)
   const edgeSelectionGestureRef = useRef<{ pointerId: number; start: { x: number; y: number }; additive: boolean } | null>(null)
   const spacePanActiveRef = useRef(false)
+  const panCursorActiveRef = useRef(false)
+  const panPointerIdRef = useRef<number | null>(null)
+  const syncPanCursor = () => {
+    const active = spacePanActiveRef.current || panCursorActiveRef.current
+    wrapperRef.current?.querySelector('.nori-canvas-surface')?.classList.toggle('is-panning', active)
+  }
   const suppressContextMenuUntilRef = useRef(0)
   const groupDragRef = useRef<{ id: string; start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null)
   const playlistNodeDragRef = useRef<{ id: string; start: { x: number; y: number } } | null>(null)
@@ -3669,6 +3675,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       if (event.code === 'Space') {
         // React Flow pans on Space; the custom marquee must never compete with it.
         spacePanActiveRef.current = true
+        syncPanCursor()
         if (edgeSelectionGestureRef.current) {
           edgeSelectionGestureRef.current = null
           setMarqueeRect(null)
@@ -3717,15 +3724,35 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     window.addEventListener('keydown', keydown)
     const keyup = (event: KeyboardEvent) => {
-      if (event.code === 'Space') spacePanActiveRef.current = false
+      if (event.code === 'Space') {
+        spacePanActiveRef.current = false
+        syncPanCursor()
+      }
     }
-    const clearSpacePan = () => { spacePanActiveRef.current = false }
+    const clearSpacePan = () => {
+      spacePanActiveRef.current = false
+      panPointerIdRef.current = null
+      panCursorActiveRef.current = false
+      syncPanCursor()
+    }
     window.addEventListener('keyup', keyup)
     window.addEventListener('blur', clearSpacePan)
+    const releasePanPointer = (event: PointerEvent) => {
+      // pointercancel does not guarantee button===1, so track the armed pointer
+      // id and release on either button match or id match.
+      if (event.button !== 1 && event.pointerId !== panPointerIdRef.current) return
+      panPointerIdRef.current = null
+      panCursorActiveRef.current = false
+      syncPanCursor()
+    }
+    window.addEventListener('pointerup', releasePanPointer)
+    window.addEventListener('pointercancel', releasePanPointer)
     return () => {
       window.removeEventListener('keydown', keydown)
       window.removeEventListener('keyup', keyup)
       window.removeEventListener('blur', clearSpacePan)
+      window.removeEventListener('pointerup', releasePanPointer)
+      window.removeEventListener('pointercancel', releasePanPointer)
     }
   }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, nudgeSelection, offlineRecoveryBlocking, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, undo])
 
@@ -3873,6 +3900,11 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         onPointerDownCapture={(event) => {
           wireReleaseClickRef.current = false
           if (startMiniMapDrag(event)) return
+          if (event.button === 1 && !hasInputFocus()) {
+            panPointerIdRef.current = event.pointerId
+            panCursorActiveRef.current = true
+            syncPanCursor()
+          }
           if (event.button === 2) {
             // Suppression belongs to the previous drag, never to a fresh click.
             suppressContextMenuUntilRef.current = 0
@@ -4114,7 +4146,12 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
             onSelectionDragStart={onSelectionDragStart}
             onSelectionDrag={onSelectionDrag}
             onSelectionDragStop={onSelectionDragStop}
-            onMoveStart={() => { viewportMoveStartRef.current = { ...viewportRef.current } }}
+            onMoveStart={(event) => {
+              viewportMoveStartRef.current = { ...viewportRef.current }
+              const gesture = event as MouseEvent | TouchEvent | null
+              if (gesture && 'button' in gesture && gesture.button === 1) panCursorActiveRef.current = true
+              syncPanCursor()
+            }}
             onMove={(_event, next) => {
               viewportRef.current = next
               // ReactFlow moves its own surface every frame. The generator now
@@ -4132,6 +4169,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
                 || Math.abs(previous.zoom - next.zoom) > 0.0001
               setViewportState(next)
               viewportRef.current = next
+              panPointerIdRef.current = null
+              panCursorActiveRef.current = false
+              syncPanCursor()
               if (!writeLocked && changed) markChanged('调整画布视图')
             }}
             onPaneClick={() => {

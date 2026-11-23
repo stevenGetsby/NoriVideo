@@ -190,8 +190,8 @@ try {
       await page.locator('.nori-canvas-parameter-trigger').click()
       if (query === '?mode=firstlastframe') {
         // 已保存的首尾帧节点不能被错误降级成全能参考。
-        const mode = await page.locator('.nori-canvas-generator-parameter-grid select').first().inputValue()
-        assert.equal(mode, 'firstlastframe', 'saved first/last frame mode must survive configuration loading')
+        const modeButton = page.locator('.nori-canvas-parameter-segments [aria-pressed="true"]').first()
+        assert.equal(await modeButton.textContent(), '首尾帧', 'saved first/last frame mode must survive configuration loading')
       }
       await page.keyboard.press('Escape')
     }
