@@ -919,6 +919,15 @@ try {
     assert.equal(await parameters.count(), 0)
     assert.equal(await generator.count(), 1, 'Escape must close parameters without deselecting the node')
     const prompt = generator.locator('textarea[role="combobox"]')
+    const editorContextMenu = await prompt.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: box.left + 24, clientY: box.top + 12 })
+      element.dispatchEvent(event)
+      return { prevented: event.defaultPrevented, paneMenu: Boolean(document.querySelector('[role="menu"][aria-label="画布操作"]')), nodeMenu: Boolean(document.querySelector('[role="menu"][aria-label="节点操作"]')) }
+    })
+    assert.equal(editorContextMenu.prevented, false, 'Right-click inside the portaled editor must keep the native context menu')
+    assert.equal(editorContextMenu.paneMenu || editorContextMenu.nodeMenu, false, 'The canvas context menu must not open from the editor')
+    cases.push('portaled editor right-click keeps the native menu')
     await prompt.fill('让角色走入雨夜，')
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
     await prompt.pressSequentially('@')
