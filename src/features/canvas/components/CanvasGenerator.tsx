@@ -780,29 +780,25 @@ export function CanvasGenerator({
   const durationValueRef = useRef<HTMLInputElement>(null)
   const durationTickRefs = useRef(new Map<number, HTMLButtonElement>())
   const durationStateRef = useRef(duration)
-  const durationLastPropRef = useRef(duration)
   const durationDraggingRef = useRef(false)
   const durationInitialDefaultRef = useRef(duration)
   const durationBoundsRef = useRef({ minimum: durationMinimum, maximum: durationMaximum })
   durationBoundsRef.current = { minimum: durationMinimum, maximum: durationMaximum }
   const paintDurationDom = () => {
-    // Renders can lag a beat behind user input (draft persistence re-renders
-    // the whole graph), so a render may still carry the previous duration prop.
-    // The last committed value wins until the prop catches up or moves past it;
-    // painting a trailing prop would rewind the number box and fill mid-gesture.
-    // A prop that differs from both the commit and the previous render's prop is
-    // an external change (mode memory, model clamp, hydration).
-    const propChanged = duration !== durationLastPropRef.current
-    durationLastPropRef.current = duration
-    const external = propChanged && duration !== durationStateRef.current
-    const value = external ? duration : durationStateRef.current
+    // The prop is the source of truth for the number box, progress fill and
+    // ticks, so no-op renders never rewind them to an older commit. The thumb
+    // is only synced for external changes (mode memory, model clamp, hydration)
+    // while no gesture owns it: keyboard steps and drags write the DOM
+    // themselves, and rewriting the thumb here would swallow the next native
+    // step or fight the finger.
+    const external = duration !== durationStateRef.current
     const { minimum, maximum } = durationBoundsRef.current
-    const clamped = Math.min(maximum, Math.max(minimum, value))
+    const clamped = Math.min(maximum, Math.max(minimum, duration))
     const percent = maximum > minimum ? ((clamped - minimum) / (maximum - minimum)) * 100 : 0
     const slider = durationRangeRef.current
     if (slider) {
       slider.parentElement?.style.setProperty('--nori-duration-progress', `${percent}%`)
-      if (external && slider.value !== String(clamped) && document.activeElement !== slider) {
+      if (external && !durationDraggingRef.current && document.activeElement !== slider && slider.value !== String(clamped)) {
         slider.value = String(clamped)
         slider.defaultValue = String(clamped)
       }
