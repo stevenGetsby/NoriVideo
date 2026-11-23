@@ -779,26 +779,27 @@ export function CanvasGenerator({
   const durationRangeRef = useRef<HTMLInputElement>(null)
   const durationValueRef = useRef<HTMLInputElement>(null)
   const durationTickRefs = useRef(new Map<number, HTMLButtonElement>())
-  const durationStateRef = useRef(duration)
   const durationDraggingRef = useRef(false)
-  const durationInitialDefaultRef = useRef(duration)
+  const durationSyncTimerRef = useRef<number | null>(null)
   const durationBoundsRef = useRef({ minimum: durationMinimum, maximum: durationMaximum })
   durationBoundsRef.current = { minimum: durationMinimum, maximum: durationMaximum }
+  useEffect(() => () => {
+    if (durationSyncTimerRef.current !== null) window.clearTimeout(durationSyncTimerRef.current)
+  }, [])
   const paintDurationDom = () => {
-    // The prop is the source of truth for the number box, progress fill and
-    // ticks, so no-op renders never rewind them to an older commit. The thumb
-    // is only synced for external changes (mode memory, model clamp, hydration)
-    // while no gesture owns it: keyboard steps and drags write the DOM
-    // themselves, and rewriting the thumb here would swallow the next native
-    // step or fight the finger.
-    const external = duration !== durationStateRef.current
+    // The prop is the single source of truth for the number box, progress fill,
+    // ticks and the idle thumb, so external changes (mode memory, model clamp,
+    // hydration) and fresh mounts always land on the current duration. While a
+    // drag owns the thumb it keeps following the finger, and a focused slider
+    // keeps its native position between keyboard steps; commits write the DOM
+    // themselves and the post-change sync re-applies them after React's restore.
     const { minimum, maximum } = durationBoundsRef.current
     const clamped = Math.min(maximum, Math.max(minimum, duration))
     const percent = maximum > minimum ? ((clamped - minimum) / (maximum - minimum)) * 100 : 0
     const slider = durationRangeRef.current
     if (slider) {
       slider.parentElement?.style.setProperty('--nori-duration-progress', `${percent}%`)
-      if (external && !durationDraggingRef.current && document.activeElement !== slider && slider.value !== String(clamped)) {
+      if (!durationDraggingRef.current && document.activeElement !== slider && slider.value !== String(clamped)) {
         slider.value = String(clamped)
         slider.defaultValue = String(clamped)
       }
@@ -811,19 +812,31 @@ export function CanvasGenerator({
     for (const [tickValue, tick] of durationTickRefs.current) tick.classList.toggle('is-active', tickValue === clamped)
   }
   const commitDuration = (next: number) => {
-    durationStateRef.current = next
     setDuration(next)
-    paintDurationDom()
     // React restores uncontrolled inputs after the change event batch using the
-    // props captured at dispatch time, which can trail a lagging render. Re-apply
-    // the committed value once that restore has run. While the slider is being
-    // dragged the thumb keeps following the finger and the settle handlers snap
-    // it; a focused-but-idle slider (keyboard steps already wrote the DOM) is
-    // safe to sync here.
+    // props captured at dispatch time, which can trail a lagging render. Write
+    // the committed value straight to the DOM now (the render-time paint still
+    // closes over the old prop), then re-apply it once that restore has run.
+    // While the slider is being dragged the thumb keeps following the finger
+    // and the settle handlers snap it; a focused-but-idle slider (keyboard
+    // steps already wrote the DOM) is safe to sync here.
     const slider = durationRangeRef.current
     const numberInput = durationValueRef.current
-    window.setTimeout(() => {
-      if (durationStateRef.current !== next) return
+    const { minimum, maximum } = durationBoundsRef.current
+    const percent = maximum > minimum ? ((next - minimum) / (maximum - minimum)) * 100 : 0
+    slider?.parentElement?.style.setProperty('--nori-duration-progress', `${percent}%`)
+    if (slider && !durationDraggingRef.current && slider.value !== String(next)) {
+      slider.value = String(next)
+      slider.defaultValue = String(next)
+    }
+    if (numberInput && document.activeElement !== numberInput && numberInput.value !== String(next)) {
+      numberInput.value = String(next)
+      numberInput.defaultValue = String(next)
+    }
+    for (const [tickValue, tick] of durationTickRefs.current) tick.classList.toggle('is-active', tickValue === next)
+    if (durationSyncTimerRef.current !== null) window.clearTimeout(durationSyncTimerRef.current)
+    durationSyncTimerRef.current = window.setTimeout(() => {
+      durationSyncTimerRef.current = null
       if (numberInput && document.activeElement !== numberInput && numberInput.value !== String(next)) {
         numberInput.value = String(next)
         numberInput.defaultValue = String(next)
@@ -834,16 +847,31 @@ export function CanvasGenerator({
       }
     }, 0)
   }
-  const applyDurationInput = (raw: string) => {
-    const parsed = Number(raw)
-    if (!Number.isFinite(parsed)) return
-    const snapped = snapDurationValue(videoDurationOptions, Math.round(parsed))
+  const settleDurationNumber = (raw: string) => {
+    const trimmed = raw.trim()
+    const parsed = Number(trimmed)
+    // Empty or invalid edits keep the current setting instead of collapsing to
+    // the model minimum; valid edits snap to a supported second.
+    const snapped = trimmed !== '' && Number.isFinite(parsed)
+      ? snapDurationValue(videoDurationOptions, Math.round(parsed))
+      : duration
     const slider = durationRangeRef.current
     if (slider) {
       slider.value = String(snapped)
       slider.defaultValue = String(snapped)
     }
+    const numberInput = durationValueRef.current
+    if (numberInput) {
+      numberInput.value = String(snapped)
+      numberInput.defaultValue = String(snapped)
+    }
     commitDuration(snapped)
+  }
+  const handleDurationNumberKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    settleDurationNumber(event.currentTarget.value)
+    event.currentTarget.blur()
   }
   const applyDurationSliderChange = (raw: string) => {
     const parsed = Number(raw)
@@ -860,7 +888,7 @@ export function CanvasGenerator({
     durationDraggingRef.current = false
     const slider = durationRangeRef.current
     if (!slider) return
-    const snapped = durationStateRef.current
+    const snapped = duration
     if (slider.value !== String(snapped)) {
       slider.value = String(snapped)
       slider.defaultValue = String(snapped)
@@ -876,7 +904,7 @@ export function CanvasGenerator({
     // step when renders lag. Own the keyboard path: step through the supported
     // durations explicitly and keep the DOM in lockstep.
     event.preventDefault()
-    const currentIndex = videoDurationOptions.indexOf(durationStateRef.current)
+    const currentIndex = videoDurationOptions.indexOf(duration)
     const baseIndex = currentIndex < 0 ? 0 : currentIndex
     const nextIndex = home ? 0
       : end ? videoDurationOptions.length - 1
@@ -972,18 +1000,6 @@ export function CanvasGenerator({
         setDuration(remembered.duration)
         setFps(remembered.fps)
         setSuperresolveTarget(remembered.superresolveTarget)
-        // Mode restores bypass commitDuration, so sync the uncontrolled inputs
-        // here; otherwise React's post-change restore keeps the old thumb.
-        const slider = durationRangeRef.current
-        if (slider && !durationDraggingRef.current) {
-          slider.value = String(remembered.duration)
-          slider.defaultValue = String(remembered.duration)
-        }
-        const numberInput = durationValueRef.current
-        if (numberInput && document.activeElement !== numberInput) {
-          numberInput.value = String(remembered.duration)
-          numberInput.defaultValue = String(remembered.duration)
-        }
       }
     } else {
       videoModeMemoryRef.current[inputMode] = { aspectRatio, resolution, duration, fps, superresolveTarget }
@@ -1583,7 +1599,7 @@ export function CanvasGenerator({
               <div className="nori-canvas-parameter-field is-full nori-canvas-duration-field">
                 <div className="nori-canvas-duration-head">
                   <span className="nori-canvas-parameter-label" id="nori-canvas-duration-label">视频时长</span>
-                  <span className="nori-canvas-duration-value"><input ref={durationValueRef} type="number" aria-label="视频时长" min={durationMinimum} max={durationMaximum} step={1} defaultValue={durationInitialDefaultRef.current} onChange={(event) => applyDurationInput(event.target.value)} /><small>s</small></span>
+                  <span className="nori-canvas-duration-value"><input ref={durationValueRef} type="number" aria-label="视频时长" min={durationMinimum} max={durationMaximum} step={1} defaultValue={duration} onChange={(event) => settleDurationNumber(event.target.value)} onBlur={(event) => settleDurationNumber(event.target.value)} onKeyDown={handleDurationNumberKeyDown} /><small>s</small></span>
                 </div>
                 <div className="nori-canvas-duration-slider" style={{ '--nori-duration-progress': `${durationSliderPercent}%` } as CSSProperties}>
                   <input
@@ -1594,7 +1610,7 @@ export function CanvasGenerator({
                     min={durationMinimum}
                     max={durationMaximum}
                     step={1}
-                    defaultValue={durationInitialDefaultRef.current}
+                    defaultValue={duration}
                     onChange={(event) => applyDurationSliderChange(event.target.value)}
                     onKeyDown={stepDurationSliderByKey}
                     onPointerDown={() => { durationDraggingRef.current = true }}
@@ -1604,7 +1620,7 @@ export function CanvasGenerator({
                   />
                   <div className="nori-canvas-duration-ticks" aria-hidden="true">
                     {durationSliderOptions.map((value) => (
-                      <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => applyDurationInput(String(value))}>{value}</button>
+                      <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => settleDurationNumber(String(value))}>{value}</button>
                     ))}
                   </div>
                 </div>

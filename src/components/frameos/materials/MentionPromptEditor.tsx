@@ -523,7 +523,7 @@ export function MentionPromptEditor({
           {src ? <MediaImage src={src} alt="" fill sizes="32px" style={{ objectFit: 'cover' }} /> : <AppIcon name={assetIcon(asset)} className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white/35" />}
         </span>
         <span className="min-w-0 flex-1"><b className="block truncate text-[12px] font-bold text-white">{grouped ? asset.name : `@${asset.name}`}</b>{!grouped && asset.description ? <small className="mt-0.5 block truncate text-[10px] font-normal text-[var(--fos-text-4)]">{asset.description}</small> : null}</span>
-        {grouped && !searching && scope === 'main' && referencedShortcuts.has(assetKey(asset)) ? <kbd className="mention-prompt-shortcut">#{referencedShortcuts.get(assetKey(asset))}</kbd> : null}
+        {grouped && !searching && scope === 'main' && (referencedShortcuts.get(assetKey(asset)) ?? 10) <= 9 ? <kbd className="mention-prompt-shortcut">#{referencedShortcuts.get(assetKey(asset))}</kbd> : null}
       </button>
     )
   }

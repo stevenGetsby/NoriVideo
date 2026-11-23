@@ -538,6 +538,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   const edgeSelectionGestureRef = useRef<{ pointerId: number; start: { x: number; y: number }; additive: boolean } | null>(null)
   const spacePanActiveRef = useRef(false)
   const panCursorActiveRef = useRef(false)
+  const panPointerIdRef = useRef<number | null>(null)
   const syncPanCursor = () => {
     const active = spacePanActiveRef.current || panCursorActiveRef.current
     wrapperRef.current?.querySelector('.nori-canvas-surface')?.classList.toggle('is-panning', active)
@@ -3730,13 +3731,17 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }
     const clearSpacePan = () => {
       spacePanActiveRef.current = false
+      panPointerIdRef.current = null
       panCursorActiveRef.current = false
       syncPanCursor()
     }
     window.addEventListener('keyup', keyup)
     window.addEventListener('blur', clearSpacePan)
     const releasePanPointer = (event: PointerEvent) => {
-      if (event.button !== 1) return
+      // pointercancel does not guarantee button===1, so track the armed pointer
+      // id and release on either button match or id match.
+      if (event.button !== 1 && event.pointerId !== panPointerIdRef.current) return
+      panPointerIdRef.current = null
       panCursorActiveRef.current = false
       syncPanCursor()
     }
@@ -3896,6 +3901,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
           wireReleaseClickRef.current = false
           if (startMiniMapDrag(event)) return
           if (event.button === 1 && !hasInputFocus()) {
+            panPointerIdRef.current = event.pointerId
             panCursorActiveRef.current = true
             syncPanCursor()
           }
@@ -4163,6 +4169,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
                 || Math.abs(previous.zoom - next.zoom) > 0.0001
               setViewportState(next)
               viewportRef.current = next
+              panPointerIdRef.current = null
               panCursorActiveRef.current = false
               syncPanCursor()
               if (!writeLocked && changed) markChanged('调整画布视图')
