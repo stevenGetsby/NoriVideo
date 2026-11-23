@@ -1,0 +1,26 @@
+[
+  {
+    "apiType": "text",
+    "provider": "deepseek",
+    "modelId": "deepseek-flash",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 2 },
+        { "when": { "tokenType": "output" }, "amount": 8 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "deepseek",
+    "modelId": "deepseek-v4-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 9 },
+        { "when": { "tokenType": "output" }, "amount": 27 }
+      ]
+    }
+  }
+]

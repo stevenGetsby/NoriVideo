@@ -1,0 +1,80 @@
+.nori-canvas-workspace { --canvas-agent-width: min(380px, calc(100% - 96px)); }
+.nori-canvas-agent-launcher,
+.nori-canvas-agent-panel button,
+.nori-canvas-agent-panel select {
+  border: 1px solid var(--canvas-border); border-radius: 8px;
+  background: rgb(var(--nori-bg-4) / .95); color: rgb(var(--nori-text-1));
+}
+.nori-canvas-agent-launcher {
+  position: absolute; right: 18px; bottom: 18px; z-index: 56;
+  height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 7px;
+  border-radius: 999px; font-size: 12px;
+}
+.nori-canvas-agent-launcher svg { width: 15px; height: 15px; color: rgb(var(--nori-primary)); }
+.nori-canvas-agent-launcher kbd { opacity: .72; }
+.nori-canvas-agent-panel {
+  position: absolute; right: 18px; bottom: 18px; top: var(--canvas-chrome-safe-top, 66px);
+  width: var(--canvas-agent-width); min-width: 240px; z-index: 57; padding: 12px;
+  border: 1px solid var(--canvas-border); border-radius: 12px; overflow: hidden;
+  background: rgb(var(--nori-bg-3) / .98); color: rgb(var(--nori-text-1)); font-size: 12px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.nori-canvas-agent-panel[hidden] { display: none; }
+@media (max-width: 640px) {
+  /* Keep both the closed launcher and the open composer above the viewport controls. */
+  .nori-canvas-agent-launcher, .nori-canvas-agent-panel { bottom: 64px; }
+  .nori-canvas-agent-panel { min-width: 0; }
+  .nori-canvas-agent-panel header { flex-wrap: wrap; }
+}
+.nori-canvas-agent-panel header, .nori-canvas-agent-panel header > div, .nori-canvas-agent-model {
+  display: flex; align-items: center; gap: 5px; justify-content: space-between;
+}
+.nori-canvas-agent-panel header strong { font-size: 16px; }
+.nori-canvas-agent-panel button, .nori-canvas-agent-panel select { padding: 4px 7px; }
+.nori-canvas-agent-panel button:disabled { opacity: .5; }
+.nori-canvas-agent-panel [data-primary] { background: rgb(var(--nori-primary) / .22); }
+.nori-canvas-agent-panel [data-danger] { color: #ff6b74; }
+.nori-canvas-agent-conversation { display: flex; flex: 1; flex-direction: column; min-height: 0; gap: 8px; }
+.nori-canvas-agent-model select { flex: 1; min-width: 0; margin-left: 6px; }
+.nori-canvas-agent-messages, .nori-canvas-agent-thread-list { overflow: auto; }
+.nori-canvas-agent-messages { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; overscroll-behavior: contain; }
+.nori-canvas-agent-thread-list { max-height: 140px; flex: none; }
+.nori-canvas-agent-thread-list > div { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+.nori-canvas-agent-message, .nori-canvas-agent-card {
+  padding: 8px; border: 1px solid var(--canvas-border); border-radius: 8px;
+  background: rgb(var(--nori-bg-4) / .65);
+}
+.nori-canvas-agent-message p, .nori-canvas-agent-card p { margin: 3px 0 5px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.nori-canvas-agent-message[data-role="user"] { margin-left: 19px; }
+.nori-canvas-agent-card > button, .nori-canvas-agent-card > label { margin-right: 6px; }
+.nori-canvas-agent-notice { opacity: .8; }
+.nori-canvas-agent-steps { padding: 0; list-style: none; margin: 0; }
+.nori-canvas-agent-steps li { display: flex; justify-content: space-between; padding: 2px 6px; }
+.nori-canvas-agent-steps li[data-status="failed"] { color: #ff6b74; }
+.nori-canvas-agent-steps li[data-status="skipped"] { opacity: .75; }
+.nori-canvas-agent-composer { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 5px; }
+.nori-canvas-agent-composer textarea {
+  width: 100%; resize: vertical; padding: 7px; border-radius: 8px; border: 1px solid var(--canvas-border);
+  background: rgb(var(--nori-bg-1) / .86); color: inherit;
+}
+.nori-canvas-agent-selection { margin-right: auto; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nori-canvas-agent-mentions { width: 100%; display: flex; flex-direction: column; max-height: 130px; overflow: auto; }
+.nori-canvas-agent-mentions [aria-selected="true"] { background: rgb(var(--nori-primary) / .25); }
+.nori-canvas-workspace.has-agent-panel .nori-canvas-generator {
+  left: calc((100% - var(--canvas-agent-width) - 18px) / 2) !important;
+  max-width: calc(100% - var(--canvas-agent-width) - 100px) !important;
+}
+.nori-canvas-workspace.has-agent-panel .nori-canvas-toast,
+.nori-canvas-workspace.has-agent-panel .nori-canvas-selection-toolbar {
+  left: calc((100% - var(--canvas-agent-width) - 18px) / 2);
+}
+.nori-canvas-agent-ghost-layer {
+  position: absolute; top: 0; left: 0; overflow: visible; pointer-events: none;
+}
+.nori-canvas-agent-ghost-wire { position: absolute; border-top: 2px dashed rgb(var(--nori-primary) / .65); transform-origin: left center; }
+.nori-canvas-agent-ghost-node {
+  position: absolute; display: grid; place-content: center; border-radius: 10px; font-size: 20px; box-sizing: border-box;
+  border: 2px dashed rgb(var(--nori-primary) / .8); background: rgb(var(--nori-primary) / .07);
+  color: rgb(var(--nori-text-1)); pointer-events: none;
+}
+.react-flow__node.is-agent-touched { border-radius: 10px; outline: 3px solid rgb(var(--nori-primary) / .83); outline-offset: 4px; }
