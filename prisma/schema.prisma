@@ -602,10 +602,29 @@ model Canvas {
   nodes     CanvasNode[]
   edges     CanvasEdge[]
   snapshots CanvasSnapshot[]
+  agentThreads CanvasAgentThread[]
 
   @@index([projectId])
   @@index([userId])
   @@map("canvases")
+}
+
+model CanvasAgentThread {
+  id           String   @id @default(uuid())
+  projectId    String
+  canvasId     String
+  userId       String
+  title        String   @db.VarChar(80)
+  messages     Json
+  messageCount Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  canvas Canvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+
+  @@index([canvasId, userId, updatedAt])
+  @@index([userId])
+  @@map("canvas_agent_threads")
 }
 
 model CanvasNode {
@@ -2329,4 +2348,102 @@ model DyShare {
   createdAt    DateTime @default(now())
   @@index([appId, createdAt])
   @@map("dy_shares")
+}
+
+// ============================================================
+// 算力账本：平台侧快照 + 外部手填 + 项目元数据
+// 刻意不与 Work/Project/User 建外键：账目必须在它们被物理删除之后继续存在。
+// 日期一律存上海自然日字符串 'YYYY-MM-DD'（避免 Date 时区歧义，字符串可直接区间比较）。
+// ============================================================
+
+model LedgerProject {
+  id                 String    @id @default(uuid())
+  workspaceOwnerId   String    @db.VarChar(191)
+  workId             String?   @db.VarChar(191)
+  name               String    @db.VarChar(191)
+  nameKey            String    @db.VarChar(191)
+  category           String?   @db.VarChar(16)
+  status             String    @default("in_progress") @db.VarChar(16)
+  startDate          String?   @db.VarChar(10)
+  targetDeliveryDate String?   @db.VarChar(10)
+  completedDate      String?   @db.VarChar(10)
+  budgetCny          Decimal?  @db.Decimal(18, 2)
+  durationMinutes    Decimal?  @db.Decimal(8, 2)
+  totalEpisodes      Int?
+  doneEpisodes       Int?
+  note               String?   @db.VarChar(500)
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+
+  facts   LedgerDailyFact[]
+  entries LedgerEntry[]
+
+  @@unique([workspaceOwnerId, workId], map: "ledger_projects_owner_work_key")
+  @@index([workspaceOwnerId, nameKey], map: "ledger_projects_owner_name_idx")
+  @@index([workspaceOwnerId, archivedAt], map: "ledger_projects_owner_arch_idx")
+  @@map("ledger_projects")
+}
+
+model LedgerDailyFact {
+  id               String   @id @default(uuid())
+  workspaceOwnerId String   @db.VarChar(191)
+  ledgerProjectId  String
+  dateKey          String   @db.VarChar(10)
+  actorUserId      String   @db.VarChar(191)
+  actorLabel       String   @db.VarChar(64)
+  apiType          String   @db.VarChar(16)
+  costCny          Decimal  @db.Decimal(18, 6)
+  callCount        Int      @default(0)
+  syncedAt         DateTime @default(now())
+
+  ledgerProject LedgerProject @relation(fields: [ledgerProjectId], references: [id], onDelete: Restrict)
+
+  @@unique([ledgerProjectId, dateKey, actorUserId, apiType], map: "ledger_facts_uniq")
+  @@index([workspaceOwnerId, dateKey], map: "ledger_facts_owner_date_idx")
+  @@index([actorUserId, dateKey], map: "ledger_facts_actor_date_idx")
+  @@map("ledger_daily_facts")
+}
+
+model LedgerEntry {
+  id               String    @id @default(uuid())
+  workspaceOwnerId String    @db.VarChar(191)
+  ledgerProjectId  String
+  dateKey          String    @db.VarChar(10)
+  actorUserId      String?   @db.VarChar(191)
+  actorLabel       String    @db.VarChar(64)
+  kind             String    @db.VarChar(16)
+  quantity         Decimal   @db.Decimal(20, 4)
+  rate             Decimal   @db.Decimal(18, 6)
+  amountCny        Decimal   @db.Decimal(18, 6)
+  remark           String?   @db.VarChar(500)
+  source           String    @default("manual") @db.VarChar(16)
+  importKey        String?   @unique(map: "ledger_entries_import_key") @db.VarChar(191)
+  importBatchId    String?   @db.VarChar(64)
+  replacesEntryId  String?   @db.VarChar(191)
+  createdById      String    @db.VarChar(191)
+  createdAt        DateTime  @default(now())
+  voidedAt         DateTime?
+  voidedById       String?   @db.VarChar(191)
+
+  ledgerProject LedgerProject @relation(fields: [ledgerProjectId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceOwnerId, dateKey], map: "ledger_entries_owner_date_idx")
+  @@index([ledgerProjectId, dateKey], map: "ledger_entries_project_date_idx")
+  @@index([actorUserId, dateKey], map: "ledger_entries_actor_date_idx")
+  @@index([importBatchId], map: "ledger_entries_batch_idx")
+  @@map("ledger_entries")
+}
+
+model LedgerSetting {
+  workspaceOwnerId       String    @id @db.VarChar(191)
+  tokenRateCnyPerMillion Decimal   @default(46) @db.Decimal(18, 6)
+  jimengCnyPerPoint      Decimal   @default(0.1) @db.Decimal(18, 6)
+  syncedThroughDate      String?   @db.VarChar(10)
+  lastSyncAt             DateTime?
+  syncLockedUntil        DateTime?
+  updatedById            String?   @db.VarChar(191)
+  updatedAt              DateTime  @default(now()) @updatedAt
+
+  @@map("ledger_settings")
 }
