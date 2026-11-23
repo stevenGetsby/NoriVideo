@@ -12,6 +12,8 @@ const inputMode = (params.get('mode') || 'text') as 'text' | 'image' | 'firstlas
 const withThumbs = params.get('refs') === '1'
 const withVoice = params.get('voice') === '1'
 const withStale = params.get('stale') === '1'
+const initialZoom = Number(params.get('zoom') || '1') || 1
+const panelWidth = Number(params.get('panelWidth') || '420') || 420
 const superresolve = params.get('superresolve') as '720p' | '1080p' | '4k' | null
 
 function node(id: string, type: string, data: Record<string, unknown>): CanvasFlowNode {
@@ -48,9 +50,9 @@ function Fixture() {
   return (
     <>
       <main className="fos-app">
-        <div ref={setWorkspaceElement} className="nori-canvas-workspace" style={{ position: 'relative', width: '100vw', height: '100vh' }}>
+        <div ref={setWorkspaceElement} className="nori-canvas-workspace" style={{ position: 'relative', width: '100vw', height: '100vh', ...(params.get('zoom') ? { zoom: 'var(--nori-interface-scale, 1.2)' } : {}) }}>
           <ReactFlowProvider>
-            <ReactFlow nodes={[{ ...generator, position: { x: 40, y: 24 }, width: 320, height: 120 }]} edges={[]} defaultViewport={{ x: 0, y: 0, zoom: 1 }} proOptions={{ hideAttribution: true }}>
+            <ReactFlow nodes={[{ ...generator, position: { x: 40, y: 24 }, width: 320, height: 120 }]} edges={[]} defaultViewport={{ x: 0, y: 0, zoom: initialZoom }} minZoom={0.05} maxZoom={8} proOptions={{ hideAttribution: true }}>
               {workspaceElement ? (
               <CanvasGenerator
                 projectId="project-1"
@@ -65,7 +67,7 @@ function Fixture() {
                 onAddReferences={(request) => setAdded(JSON.stringify(request))}
                 onSelectLibraryMaterial={() => null}
                 injectedReferenceNodeIds={[]}
-                panelWidth={420}
+                panelWidth={panelWidth}
                 onPanelWidthChange={() => undefined}
                 viewportLayerTarget={workspaceElement}
               />

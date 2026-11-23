@@ -247,6 +247,31 @@ try {
     await warning.waitFor({ state: 'hidden' })
     results.push({ viewport: `${viewport.width}x${viewport.height}`, staleReferenceWarningAndRecovery: true })
   }
+  await page.setViewportSize({ width: 640, height: 800 })
+  await page.goto(`${base}/?zoom=3&panelWidth=560`)
+  const zoomPanel = page.locator('.nori-canvas-generator')
+  await zoomPanel.waitFor()
+  const zoomGeometry = await zoomPanel.evaluate((element) => {
+    const scale = Number.parseFloat(getComputedStyle(element.closest('.nori-canvas-workspace')).zoom) || 1
+    const rect = element.getBoundingClientRect()
+    const scroll = element.querySelector('.nori-canvas-generator-scroll')
+    return {
+      scale,
+      screenWidth: rect.width,
+      inlineWidth: element.style.width,
+      maxWidth: getComputedStyle(element).maxWidth,
+      transform: getComputedStyle(element).transform,
+      scrollScreenHeight: scroll ? scroll.getBoundingClientRect().height : 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+    }
+  })
+  const widthCap = zoomGeometry.viewportWidth - 48
+  assert.ok(Math.abs(zoomGeometry.screenWidth - widthCap) <= 4,
+    `At 300% zoom the bound panel must keep the viewport screen width ${widthCap}, got ${zoomGeometry.screenWidth}`)
+  assert.ok(zoomGeometry.scrollScreenHeight <= zoomGeometry.viewportHeight * 0.72 + 4,
+    `Zoomed scroll container must stay within 72% of the viewport height: ${JSON.stringify(zoomGeometry)}`)
+  results.push({ viewport: '640x800', zoom: 3, panelScreenWidth: zoomGeometry.screenWidth, widthCap })
   assert.deepEqual(errors, [], 'no browser errors')
   console.log(JSON.stringify({ results, browserErrors: errors, artifacts }, null, 2))
 } finally {
