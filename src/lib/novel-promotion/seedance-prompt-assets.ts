@@ -325,12 +325,19 @@ export function compileSeedanceMentionPrompt(
   const ordered = [...references].sort((left, right) => (
     MEDIA_TYPE_ORDER[left.type] - MEDIA_TYPE_ORDER[right.type] || left.index - right.index
   ))
+  // Image names own a shared name before any voice/motion title: a character
+  // called 沈娇 must bind to the character image even when the voice material
+  // is titled 沈娇. Within one media type, primary names still beat fallbacks.
   const register = (rawName: string, reference: SeedanceMentionReference) => {
     const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
     if (key && !byName.has(key)) byName.set(key, reference)
   }
-  for (const reference of ordered) reference.names.forEach((name) => register(name, reference))
-  for (const reference of ordered) (reference.fallbackNames || []).forEach((name) => register(name, reference))
+  const imageReferences = ordered.filter((reference) => reference.type === 'image')
+  const mediaReferences = ordered.filter((reference) => reference.type !== 'image')
+  for (const reference of imageReferences) reference.names.forEach((name) => register(name, reference))
+  for (const reference of imageReferences) (reference.fallbackNames || []).forEach((name) => register(name, reference))
+  for (const reference of mediaReferences) reference.names.forEach((name) => register(name, reference))
+  for (const reference of mediaReferences) (reference.fallbackNames || []).forEach((name) => register(name, reference))
 
   const dialogue = findQuotedDialogueRanges(prompt)
   const names = ordered.flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
@@ -368,8 +375,14 @@ export function compileSeedanceMentionPrompt(
   compiled += prompt.slice(cursor)
 
   // Second pass: bare asset names outside dialogue bind to the same 图N（名） form.
+  // Only image names participate: voices/motion clips are whole-file references,
+  // so a character name that happens to equal an audio title must stay bound to
+  // the character image. Audios/videos bind through explicit @mentions only.
   if (options.mediaReferences) {
-    const bareNames = Array.from(new Set(names.map((name) => normalizePromptMentionName(name)).filter(isBareBindableName)))
+    const imageNames = ordered
+      .filter((reference) => reference.type === 'image')
+      .flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
+    const bareNames = Array.from(new Set(imageNames.map((name) => normalizePromptMentionName(name)).filter(isBareBindableName)))
       .sort((left, right) => right.length - left.length)
     if (bareNames.length > 0) {
       const barePattern = new RegExp(bareNames.map(escapeRegExp).join('|'), 'giu')

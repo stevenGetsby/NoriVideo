@@ -1000,10 +1000,23 @@ export function CanvasGenerator({
     // Scan the exact submit text and travel the names with each reference node.
     const mentionNamesByNodeId: Record<string, string[]> = {}
     if (shouldBindCanvasMentionReference(type)) {
+      // When an image and an audio/video share a name, the image owns the bare
+      // name: character text must bind to 图N, while voice/motion references
+      // keep their explicit @mention or material-title fallback.
+      const mentionNameRank = (asset: (typeof mentionAssets)[number]) => {
+        if (asset.mediaType === 'image') return asset.section === 'library' ? 1 : 0
+        return asset.section === 'library' ? 3 : 2
+      }
       const mentionNameToNodeId = new Map<string, string>()
-      for (const asset of mentionAssets) {
+      const mentionNameRanks = new Map<string, number>()
+      for (const asset of [...mentionAssets].sort((left, right) => mentionNameRank(left) - mentionNameRank(right))) {
         const key = asset.name.trim().toLocaleLowerCase()
-        if (key && !mentionNameToNodeId.has(key)) mentionNameToNodeId.set(key, asset.id)
+        if (!key) continue
+        const rank = mentionNameRank(asset)
+        if (!mentionNameToNodeId.has(key) || rank < (mentionNameRanks.get(key) ?? Infinity)) {
+          mentionNameToNodeId.set(key, asset.id)
+          mentionNameRanks.set(key, rank)
+        }
       }
       for (const match of scanPromptMentions(cleanPrompt, mentionAssets.map((asset) => asset.name))) {
         if (match.name === null) continue

@@ -236,6 +236,68 @@ describe('Seedance @mention compilation (production regressions)', () => {
       .toBe('蒙面人 用蒙面人音色(1)说话')
   })
 
+  it('never lets a voice title claim a character name in bare text (沈娇 production case)', () => {
+    const references = [
+      reference('image', 1, ['沈娇'], ['沈娇-59集'], 'character'),
+      reference('image', 2, ['孟雨菲'], ['51-女主-吴欣琳'], 'character'),
+      reference('audio', 1, ['沈娇音频'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇@沈娇-59集，沈娇音频@沈娇，孟雨菲@51-女主-吴欣琳，\n沈娇站在一旁看着姐姐，沈娇音频低沉。',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）站在一旁看着姐姐')
+    expect(result.prompt).toContain('音频1是沈娇音频的声音')
+    expect(result.prompt).not.toContain('音频1站在')
+    expect(result.prompt).not.toContain('音频1音频')
+    expect(result.unresolved).toEqual([])
+  })
+
+  it('keeps character text bound to the image even when the voice owns the exact name', () => {
+    const references = [
+      reference('image', 1, [], ['沈娇'], 'character'),
+      reference('audio', 1, ['沈娇'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇@沈娇，沈娇音频@沈娇，\n沈娇掏出手机，沈娇说“我姐这么累”。',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）掏出手机')
+    expect(result.prompt).toContain('说“我姐这么累”')
+    expect(result.prompt).not.toContain('音频1掏出手机')
+    expect(result.prompt).not.toContain('音频1音频')
+  })
+
+  it('binds an explicit voice @mention but leaves the same bare name for the image', () => {
+    const references = [
+      reference('image', 1, ['沈娇'], ['沈娇-59集'], 'character'),
+      reference('audio', 1, ['沈娇音色'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇看着姐姐，用@沈娇音色说话',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）看着姐姐')
+    expect(result.prompt).toContain('用音频1说话')
+  })
+
+  it('leaves bare video titles literal; only explicit @ binds 视频N', () => {
+    const references = [
+      reference('image', 1, ['蒙面人'], [], 'character'),
+      reference('video', 1, ['打斗参考']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '蒙面人模仿打斗参考的动作，再@打斗参考一次',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（蒙面人）模仿打斗参考的动作')
+    expect(result.prompt).toContain('再视频1一次')
+  })
+
   it('prefers the exact editor name over another reference whose title is the same', () => {
     const result = compileSeedanceMentionPrompt(
       '@林夏 回头',
