@@ -6090,8 +6090,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   bottom: auto;
   /* The anchor wrapper has zero width, so percentage max-width cannot bound
      the panel. Clamp against the physical viewport instead, converting back
-     through the interface zoom and the panel's counter-scale. */
-  max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));
+     through the interface scale only: the counter-scale transform already
+     cancels the viewport zoom, so multiplying the cap by the inverse zoom
+     again would shrink the panel whenever zoom > 1 binds the cap. */
+  max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2));
   pointer-events: auto;
   transform: translateX(-50%) scale(var(--nori-generator-inverse-zoom, 1));
   transform-origin: top center;
@@ -6100,8 +6102,9 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-anchor .nori-canvas-generator.is-node-anchored .nori-canvas-generator-scroll {
   /* The workspace applies CSS zoom to every descendant while the flow surface
      is laid out in unzoomed pixels; divide by the interface scale so the
-     counter-scaled panel still fits the visible canvas height. */
-  max-height: calc(72dvh / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));
+     counter-scaled panel still fits the visible canvas height. The viewport
+     zoom is canceled by the counter-scale, never by this cap. */
+  max-height: calc(72dvh / var(--nori-interface-scale, 1.2));
 }
 .nori-canvas-generator-scroll {
   position: relative;
