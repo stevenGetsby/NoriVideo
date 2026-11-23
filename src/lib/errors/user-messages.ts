@@ -27,6 +27,9 @@ export const USER_ERROR_MESSAGES_ZH: Record<UnifiedErrorCode, string> = {
   WATCHDOG_TIMEOUT: '任务执行超时，系统已终止该任务。',
   WORKER_EXECUTION_ERROR: '任务执行失败，请稍后重试。',
   INTERNAL_ERROR: '系统内部错误，请稍后重试。',
+  TGG_SUBMIT_UNCONFIRMED: '视频生成服务响应超时，任务可能已提交也可能未提交；为避免重复扣费请不要立刻重试，稍后在作品里确认，仍无结果再重新生成。',
+  TGG_QUOTA_INSUFFICIENT: '视频生成服务额度不足，请联系管理员充值。',
+  TGG_RATE_LIMITED: '视频生成服务繁忙，请稍后再试。',
 }
 
 export function getUserMessageByCode(code: UnifiedErrorCode) {
@@ -34,9 +37,9 @@ export function getUserMessageByCode(code: UnifiedErrorCode) {
 }
 
 export const TGG_ERROR_MESSAGES_ZH: Record<string, string> = {
-  TGG_SUBMIT_UNCONFIRMED: '视频生成服务响应超时，任务可能已提交也可能未提交；为避免重复扣费请不要立刻重试，稍后在作品里确认，仍无结果再重新生成。',
-  TGG_QUOTA_INSUFFICIENT: '视频生成服务额度不足，请联系管理员充值。',
-  TGG_RATE_LIMITED: '视频生成服务繁忙，请稍后再试。',
+  TGG_SUBMIT_UNCONFIRMED: USER_ERROR_MESSAGES_ZH.TGG_SUBMIT_UNCONFIRMED,
+  TGG_QUOTA_INSUFFICIENT: USER_ERROR_MESSAGES_ZH.TGG_QUOTA_INSUFFICIENT,
+  TGG_RATE_LIMITED: USER_ERROR_MESSAGES_ZH.TGG_RATE_LIMITED,
   TGG_VIDEO_DURATION_UNSUPPORTED: '当前视频模型不支持所选时长。',
   TGG_VIDEO_RATIO_UNSUPPORTED: '当前视频模型不支持所选画幅。',
   TGG_VIDEO_RESOLUTION_UNSUPPORTED: '当前视频模型不支持所选分辨率。',

@@ -54,6 +54,7 @@ export interface ServiceConfigLlm {
   models?: ServiceConfigModel[]
   defaultModels?: ServiceConfigDefaultModels
   modelRouting?: Record<string, string>
+  agentModels?: Record<string, { canvasAgent?: boolean; supportsTemperature?: boolean }>
 }
 
 export interface ServiceConfigModel3DFrameos {

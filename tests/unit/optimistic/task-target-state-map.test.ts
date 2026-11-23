@@ -127,10 +127,14 @@ describe('task target state map behavior', () => {
 
     const firstCall = runtime.useQueryCalls[0]
     expect(typeof firstCall?.refetchInterval).toBe('function')
-    const interval = (firstCall?.refetchInterval as ((state: { state: { data?: TaskTargetState[] } }) => number | false))({
+    const interval = () => (firstCall?.refetchInterval as ((state: { state: { data?: TaskTargetState[] } }) => number | false))({
       state: { data: runtime.apiStates },
     })
-    expect(interval).toBe(2000)
+    expect(interval()).toBe(false) // SSR has no document and must not arm a timer.
+    vi.stubGlobal('document', { visibilityState: 'visible' })
+    try {
+      expect(interval()).toBe(2000)
+    } finally { vi.unstubAllGlobals() }
 
     const appearance = result.getState('CharacterAppearance', 'appearance-1')
     expect(appearance?.phase).toBe('processing')

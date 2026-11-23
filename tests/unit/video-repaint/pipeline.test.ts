@@ -31,6 +31,10 @@ vi.mock('@/lib/api-auth', () => authMock)
 vi.mock('@/lib/billing', () => billingMock)
 vi.mock('@/lib/billing/runtime-usage', () => usageMock)
 vi.mock('@/lib/platform-services/usage', () => serviceUsageMock)
+vi.mock('undici', async (importOriginal) => ({
+  ...await importOriginal<typeof import('undici')>(),
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => globalThis.fetch(input, init),
+}))
 
 import { verifyVideoRepaintFileHandle } from '@/lib/video-repaint/file-handle'
 import { formatTimecode } from '@/lib/video-repaint/storyboard-text'
@@ -182,7 +186,7 @@ function halves(text: string): string[] {
   return [text.slice(0, middle), text.slice(middle)]
 }
 
-/** Installs the stand-in as the global fetch; everything Ark would have been sent is kept for inspection. */
+/** Installs the stand-in as the global fetch; the Ark undici transport forwards here too. */
 function installArk(...replies: Array<() => Response>) {
   const state = {
     uploads: [] as FormData[],

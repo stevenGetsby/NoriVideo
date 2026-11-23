@@ -80,6 +80,7 @@ describe('api specific - project create default audio model', () => {
         workId: 'work-1',
         createdById: 'user-1',
         collaborationMode: 'solo',
+        creationMode: 'workflow',
       },
     })
     expect(prismaMock.novelPromotionProject.create).toHaveBeenCalledWith({

@@ -185,6 +185,27 @@ export const ERROR_CATALOG = {
     userMessageKey: 'errors.WORKER_EXECUTION_ERROR',
     defaultMessage: 'Worker execution failed',
   },
+  TGG_SUBMIT_UNCONFIRMED: {
+    httpStatus: 502,
+    retryable: false,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.TGG_SUBMIT_UNCONFIRMED',
+    defaultMessage: 'TGG submit unconfirmed',
+  },
+  TGG_QUOTA_INSUFFICIENT: {
+    httpStatus: 402,
+    retryable: false,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.TGG_QUOTA_INSUFFICIENT',
+    defaultMessage: 'TGG quota insufficient',
+  },
+  TGG_RATE_LIMITED: {
+    httpStatus: 429,
+    retryable: false,
+    category: ERROR_CATEGORY.PROVIDER,
+    userMessageKey: 'errors.TGG_RATE_LIMITED',
+    defaultMessage: 'TGG rate limited',
+  },
   INTERNAL_ERROR: {
     httpStatus: 500,
     retryable: false,

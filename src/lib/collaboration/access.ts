@@ -10,6 +10,7 @@ export interface WorkspaceActor extends Omit<ScopedActor, 'accountPermissions'> 
   accountPermissions?: readonly string[]
   workspaceOwnerId: string
   role: string
+  storyCanvasRestricted?: boolean
 }
 
 export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
@@ -22,6 +23,7 @@ export function getWorkspaceActor(session: AuthSession): WorkspaceActor {
     projectLeader: session.user.projectLeader === true,
     accountPermissions: effectiveAccountPermissions(session.user.role, session.user.permissions),
     role: session.user.role || 'reviewer',
+    ...(session.user.contentRestrictions?.includes('story-canvas') ? { storyCanvasRestricted: true } : {}),
   }
 }
 
@@ -53,6 +55,9 @@ export function canActorSeeProject(actor: WorkspaceActor, project: {
 
 export function visibleProjectsWhere(session: AuthSession): Prisma.ProjectWhereInput {
   const actor = getWorkspaceActor(session)
+  if (actor.storyCanvasRestricted) {
+    return { work: { productLine: { not: 'story' }, ...(actor.isManagement ? {} : workParticipantWhere(actor.actorId)) } }
+  }
   if (actor.isManagement) return {}
   return projectParticipantWhere(actor.actorId)
 }
@@ -68,11 +73,11 @@ export function projectReadScopeWhere(session: AuthSession): Prisma.ProjectWhere
 
 export function workReadScopeWhere(session: AuthSession): Prisma.WorkWhereInput {
   const actor = getWorkspaceActor(session)
-  if (actor.isManagement) return { workspaceOwnerId: actor.workspaceOwnerId, deletedAt: null }
   return {
     workspaceOwnerId: actor.workspaceOwnerId,
     deletedAt: null,
-    ...workParticipantWhere(actor.actorId),
+    ...(actor.storyCanvasRestricted ? { productLine: { not: 'story' } } : {}),
+    ...(actor.isManagement ? {} : workParticipantWhere(actor.actorId)),
   }
 }
 
@@ -128,12 +133,13 @@ export async function requireActiveWorkspaceUser(workspaceOwnerId: string, userI
  * non-作品 ids (global asset hub, account material scopes) pass through.
  */
 export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId: string): Promise<boolean> {
-  if (actor.isManagement) return false
+  if (actor.isManagement && !actor.storyCanvasRestricted) return false
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId: actor.workspaceOwnerId },
     select: {
       work: {
         select: {
+          ...(actor.storyCanvasRestricted ? { productLine: true } : {}),
           createdById: true,
           members: {
             where: { userId: actor.actorId },
@@ -145,6 +151,7 @@ export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId:
     },
   })
   if (!project) return false
+  if (actor.storyCanvasRestricted && 'productLine' in project.work && project.work.productLine === 'story') return true
   return !canActorSeeProject(actor, {
     isWorkMember: project.work.members.length > 0,
     isWorkCreator: project.work.createdById === actor.actorId,
@@ -155,12 +162,15 @@ export async function isProjectHiddenFromActor(actor: WorkspaceActor, projectId:
 export async function findHiddenProjectIds(session: AuthSession, projectIds: readonly string[]): Promise<Set<string>> {
   const actor = getWorkspaceActor(session)
   const ids = Array.from(new Set(projectIds.filter(Boolean)))
-  if (actor.isManagement || ids.length === 0) return new Set()
+  if ((actor.isManagement && !actor.storyCanvasRestricted) || ids.length === 0) return new Set()
+  const hiddenByMembership: Prisma.ProjectWhereInput[] = actor.isManagement ? [] : [{ NOT: projectParticipantWhere(actor.actorId) }]
   const hidden = await prisma.project.findMany({
     where: {
       id: { in: ids },
       userId: actor.workspaceOwnerId,
-      NOT: projectParticipantWhere(actor.actorId),
+      ...(actor.storyCanvasRestricted
+        ? { OR: [...hiddenByMembership, { work: { productLine: 'story' } }] }
+        : { NOT: projectParticipantWhere(actor.actorId) }),
     },
     select: { id: true },
   })

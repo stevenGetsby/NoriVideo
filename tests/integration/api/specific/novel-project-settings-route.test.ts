@@ -144,7 +144,7 @@ describe('作品设置 API', () => {
     await callPatch({ projectStyle: 'anime', artStylePrompt: '' })
 
     const data = prismaMock.novelPromotionProject.update.mock.calls[0][0].data as { artStylePrompt: string }
-    expect(data.artStylePrompt).toContain('【Nori1.0 项目基础画风】')
+    expect(data.artStylePrompt).toContain('【LanmiaoTV 1.0 项目基础画风】')
     expect(data.artStylePrompt).toContain('高质量现代动漫短剧画风')
     expect(data.artStylePrompt).not.toContain('【用户自定义画风（最高优先级）】')
   })

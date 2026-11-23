@@ -266,7 +266,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
 
                 {/* ===== Section 1: Core Foundation ===== */}
                 <h3 className="text-[17px] font-bold text-[var(--glass-text-primary)] mb-5 flex items-center gap-2">
-                    <AppIcon name="bolt" className="w-5 h-5 text-[rgb(var(--nori-primary-text-))]" />
+                    <AppIcon name="bolt" className="w-5 h-5 text-[rgb(var(--nori-primary-text))]" />
                     {t('defaultModelSection.coreFoundation')}
                 </h3>
                 <div className="flex flex-col md:flex-row gap-4 mb-8">
@@ -274,7 +274,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                     <div className="flex-1 glass-surface p-4 rounded-2xl border border-[var(--glass-stroke-base)] hover:border-white/25 transition-colors shadow-sm bg-[var(--glass-bg-surface)]">
                         <div className="flex items-start justify-between mb-2">
                             <div className="w-8 h-8 rounded-lg bg-white/8 flex items-center justify-center shrink-0">
-                                <AppIcon name="fileText" className="w-4 h-4 text-[rgb(var(--nori-primary-text-))]" />
+                                <AppIcon name="fileText" className="w-4 h-4 text-[rgb(var(--nori-primary-text))]" />
                             </div>
                             <div className="flex items-center gap-1.5">
                                 <span className="text-[10px] font-medium text-[var(--glass-text-secondary)] whitespace-nowrap">
@@ -335,7 +335,7 @@ export function DefaultModelCards(allProps: DefaultModelCardsProps) {
                 {/* ===== Section 2: Global Image Model Config ===== */}
                 <div className="mb-5 flex items-center justify-between gap-3">
                     <h3 className="text-[17px] font-bold text-[var(--glass-text-primary)] flex items-center gap-2">
-                        <AppIcon name="sparklesAlt" className="w-5 h-5 text-[rgb(var(--nori-primary-text-))]" />
+                        <AppIcon name="sparklesAlt" className="w-5 h-5 text-[rgb(var(--nori-primary-text))]" />
                         {t('defaultModelSection.creativePipeline')}
                     </h3>
                     <div className="flex items-center gap-1.5">

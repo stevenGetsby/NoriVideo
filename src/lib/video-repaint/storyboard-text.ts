@@ -81,6 +81,14 @@ const SCENE_HEADING = /^\s{0,3}#{1,3}\s*S\s*0*(\d+)(?![0-9A-Za-z])(.*)$/i
 const FIELD_LINE = new RegExp(`^[-*•]?\\s*\\**\\s*(${FIELD_LABELS.join('|')})\\s*\\**\\s*[:：]\\s*(.*)$`)
 const DIALOGUE_LINE = /^([^：:（()）{}｛｝]{1,24}?)\s*[（(]([^()（）]*)[)）]\s*[:：]\s*[{｛]/
 const DIVIDER_LINE = /^\s*(?:`{3}.*|-{3,}|\*{3,}|_{3,})\s*$/
+const NON_DIALOGUE_PREFIX = /^(?:场景|人物|镜头[^：:\n]{0,12}|画面|表情动作|光影|造型|复刻补充|任务名称|转绘需求|源剧本|目标设定总纲|视频总时长|字幕|音效)\s*[：:]/
+const SPOKEN_LINE = /^(?:\s*(?:画外音|（内心OS）|\(内心OS\))|[^：:\n]{1,40})(?:（[^）\n]*）|\([^)\n]*\))?\s*[：:]\s*\S+/
+
+/** A line carrying spoken dialogue (台词/画外音/内心独白), not a scene, camera or sound cue. */
+export function isSpokenDialogueLine(line: string): boolean {
+  const text = line.trim()
+  return !!text && !NON_DIALOGUE_PREFIX.test(text) && SPOKEN_LINE.test(text)
+}
 
 const round1 = (value: number): number => Math.round(value * 10) / 10
 const pad = (value: number, width: number): string => String(value).padStart(width, '0')
@@ -193,6 +201,10 @@ function presentFields(shot: StoryboardShot): Set<string> {
     if (match && match[2].trim()) found.add(match[1])
   }
   return found
+}
+
+export function countStoryboardDialogue(text: string): number {
+  return summarizeStoryboard(text).dialogueCount
 }
 
 function speakerOf(line: string): string | null {

@@ -4,6 +4,7 @@ import { buildMockRequest } from '../../../helpers/request'
 
 type AuthState = {
   authenticated: boolean
+  storyRestricted?: boolean
 }
 
 type RouteContext = {
@@ -48,6 +49,7 @@ const listTaskLifecycleEventsMock = vi.hoisted(() =>
   vi.fn<typeof import('@/lib/task/publisher').listTaskLifecycleEvents>(async () => []),
 )
 const prismaTaskFindManyMock = vi.hoisted(() => vi.fn(async (): Promise<unknown[]> => []))
+const prismaProjectFindFirstMock = vi.hoisted(() => vi.fn())
 const addChannelListenerMock = vi.hoisted(() =>
   vi.fn<(channel: string, listener: (message: string) => void) => Promise<() => Promise<void>>>(
     async () => async () => undefined,
@@ -67,7 +69,10 @@ vi.mock('@/lib/api-auth', () => {
     isErrorResponse: (value: unknown) => value instanceof Response,
     requireUserAuth: async () => {
       if (!authState.authenticated) return unauthorized()
-      return { session: { user: { id: 'user-1' } } }
+      return { session: { user: {
+        id: 'user-1',
+        ...(authState.storyRestricted ? { contentRestrictions: ['story-canvas'] } : {}),
+      } } }
     },
     requireProjectAuthLight: async (projectId: string) => {
       if (!authState.authenticated) return unauthorized()
@@ -113,6 +118,7 @@ vi.mock('@/lib/sse/shared-subscriber', () => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    project: { findFirst: prismaProjectFindFirstMock },
     task: {
       findMany: prismaTaskFindManyMock,
     },
@@ -139,6 +145,8 @@ describe('api contract - task infra routes (behavior)', () => {
     vi.stubEnv('NORI_INTERNAL_AGENT_TOOLS', 'false')
     vi.stubEnv('NEXT_PUBLIC_NORI_INTERNAL_AGENT_TOOLS', 'false')
     authState.authenticated = true
+    authState.storyRestricted = false
+    prismaProjectFindFirstMock.mockResolvedValue(null)
     subscriberState.listener = null
     prismaTaskFindManyMock.mockResolvedValue([])
 
@@ -434,6 +442,20 @@ describe('api contract - task infra routes (behavior)', () => {
 
     expect(res.status).toBe(404)
     expect(listTaskLifecycleEventsMock).not.toHaveBeenCalled()
+  })
+
+  it('blocks reading or cancelling story tasks by ID for a restricted account', async () => {
+    const route = await import('@/app/api/tasks/[taskId]/route')
+    authState.storyRestricted = true
+    prismaProjectFindFirstMock.mockResolvedValue({
+      work: { productLine: 'story', createdById: 'user-1', members: [] },
+    })
+    const context = { params: Promise.resolve({ taskId: 'task-1' }) }
+    for (const method of ['GET', 'DELETE'] as const) {
+      const req = buildMockRequest({ path: '/api/tasks/task-1', method })
+      expect((await route[method](req, context)).status).toBe(404)
+    }
+    expect(cancelTaskMock).not.toHaveBeenCalled()
   })
 
   it('GET /api/tasks/[taskId]?includeEvents=1: returns lifecycle events for refresh replay', async () => {

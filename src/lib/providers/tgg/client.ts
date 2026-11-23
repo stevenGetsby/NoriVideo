@@ -78,13 +78,24 @@ export async function requestTgg(input: {
     if (input.method === 'POST') throw new Error('TGG_SUBMIT_UNCONFIRMED')
     throw error
   }
-  const payload = await readJsonResponse(response)
+  let payload: unknown
+  try {
+    payload = await readJsonResponse(response)
+  } catch (error) {
+    // An unparseable submit response (e.g. a 5xx HTML page) leaves the task
+    // state unknown; treat it like a timeout so the queue never re-submits.
+    if (input.method === 'POST') throw new Error('TGG_SUBMIT_UNCONFIRMED')
+    throw error
+  }
   if (!response.ok) {
     const message = responseMessage(payload, response.statusText || 'request failed')
     if (response.status === 429) throw new Error(`TGG_RATE_LIMITED: ${message}`)
     if ((response.status === 402 || response.status === 403) && /额度|余额|quota/i.test(message)) {
       throw new Error(`TGG_QUOTA_INSUFFICIENT: ${message}`)
     }
+    // A 5xx after the POST may already have produced a billed task upstream.
+    // TGG_SUBMIT_UNCONFIRMED is non-retryable; never let the queue re-POST.
+    if (input.method === 'POST' && response.status >= 500) throw new Error(`TGG_SUBMIT_UNCONFIRMED: ${message}`)
     throw new Error(`TGG_HTTP_ERROR(${response.status}): ${message}`)
   }
   return payload

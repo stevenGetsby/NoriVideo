@@ -62,6 +62,53 @@ describe('project auth scope', () => {
     })
   })
 
+  it('blocks restricted accounts on story and asset library routes without blocking ordinary canvas routes', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1', role: 'writer', status: 'active',
+      permissions: ['read', 'deny:story-canvas', 'deny:asset-library'],
+    })
+    const { NextRequest } = await import('next/server')
+    const { apiHandler } = await import('@/lib/api-errors')
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const handle = apiHandler(async () => {
+      const auth = await requireUserAuth()
+      return isErrorResponse(auth) ? auth : Response.json({ success: true })
+    })
+    for (const path of ['/api/interactive', '/api/interactive/story-1/chapters', '/api/asset-hub/characters', '/api/assets', '/api/frameos/materials/asset-1/download']) {
+      expect((await handle(new NextRequest(`http://localhost${path}`), { params: Promise.resolve({}) })).status).toBe(403)
+    }
+    expect((await handle(new NextRequest('http://localhost/api/projects/project-1/canvas'), { params: Promise.resolve({ projectId: 'project-1' }) })).status).toBe(200)
+  })
+
+  it('cannot reach a story canvas through the ordinary project route', async () => {
+    prismaMock.user.findUnique.mockResolvedValue({
+      id: 'user-1', role: 'writer', status: 'active', workspaceOwnerId: 'owner-1',
+      permissions: ['read', 'deny:story-canvas'],
+    })
+    prismaMock.project.findFirst.mockResolvedValue({
+      work: { productLine: 'story', createdById: null, members: [{ id: 'membership-1' }] },
+    })
+    const { NextRequest } = await import('next/server')
+    const { apiHandler } = await import('@/lib/api-errors')
+    const { requireUserAuth, isErrorResponse } = await import('@/lib/api-auth')
+    const handle = apiHandler(async () => {
+      const auth = await requireUserAuth()
+      return isErrorResponse(auth) ? auth : Response.json({ success: true })
+    })
+    const response = await handle(new NextRequest('http://localhost/api/projects/project-1/canvas'), { params: Promise.resolve({ projectId: 'project-1' }) })
+    expect(response.status).toBe(404)
+  })
+
+  it('filters story works and projects only for the account with the restriction', async () => {
+    const { workReadScopeWhere, projectReadScopeWhere } = await import('@/lib/collaboration/access')
+    const member = { id: 'user-1', role: 'writer' as const, workspaceOwnerId: 'owner-1' }
+    const restricted = { user: { ...member, contentRestrictions: ['story-canvas' as const] } }
+    expect(workReadScopeWhere(restricted)).toMatchObject({ productLine: { not: 'story' } })
+    expect(projectReadScopeWhere(restricted)).toMatchObject({ work: { productLine: { not: 'story' } } })
+    expect(workReadScopeWhere({ user: member })).not.toHaveProperty('productLine')
+    expect(projectReadScopeWhere({ user: member })).not.toHaveProperty('work.productLine')
+  })
+
   it('scopes light project auth lookup by current user and returns not found on scoped miss', async () => {
     prismaMock.project.findFirst.mockResolvedValueOnce(null)
     const { requireProjectAuthLight } = await import('@/lib/api-auth')

@@ -43,6 +43,8 @@ export const PUT = apiHandler(async (request: NextRequest) => {
       operatorUserId: authResult.session.user.actorId || authResult.session.user.id,
       providerCount: config.providers.length,
       modelCount: config.models.length,
+      canvasAgentDefaultConfigured: config.canvasAgentModelCatalog.defaultModelKey !== null,
+      canvasAgentEnabledModelCount: config.canvasAgentModelCatalog.models.filter((model) => model.enabled).length,
       storageType: config.storage.type,
     })
     return NextResponse.json({ success: true, config })
@@ -54,4 +56,3 @@ export const PUT = apiHandler(async (request: NextRequest) => {
     })
   }
 })
-

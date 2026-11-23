@@ -95,4 +95,15 @@ describe('account role permission policy', () => {
     expect(requiredPermissionsForApiPath('/api/collaboration/assignments/submit', 'POST')).toEqual(['read'])
     expect(requiredPermissionsForApiPath('/api/creative/projects/collaboration/assignments/approve', 'POST')).toEqual(['read'])
   })
+
+  it('opens member compute-ledger mutations to read and keeps admin ledger mutations admin-only', () => {
+    expect(requiredPermissionsForApiPath('/api/compute-ledger/entries', 'POST')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/compute-ledger/entries/e1', 'PATCH')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/compute-ledger/entries/e1', 'DELETE')).toEqual(['read'])
+    expect(requiredPermissionsForApiPath('/api/admin/compute-ledger/projects', 'POST')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/admin/compute-ledger/projects/p1', 'PATCH')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/admin/compute-ledger/entries', 'POST')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/admin/compute-ledger/import', 'POST')).toEqual(['admin'])
+    expect(requiredPermissionsForApiPath('/api/admin/compute-ledger/settings', 'PATCH')).toEqual(['admin'])
+  })
 })

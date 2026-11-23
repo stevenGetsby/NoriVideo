@@ -178,7 +178,9 @@ export class TosStorageProvider implements StorageProvider {
     const url = this.objectUrl(normalizeKey(params.key), this.publicEndpoint || this.endpoint)
     if (params.responseContentType) url.searchParams.set('response-content-type', params.responseContentType)
     if (params.responseContentDisposition) url.searchParams.set('response-content-disposition', params.responseContentDisposition)
-    const now = new Date()
+    if (params.responseCacheControl) url.searchParams.set('response-cache-control', params.responseCacheControl)
+    const bucket = Math.max(0, Math.floor(params.signingBucketSeconds || 0))
+    const now = new Date(bucket ? Math.floor(Date.now() / (bucket * 1000)) * bucket * 1000 : Date.now())
     const amzDate = toAmzDate(now)
     const dateStamp = amzDate.slice(0, 8)
     const credentialScope = `${dateStamp}/${this.region}/tos/request`
@@ -186,7 +188,7 @@ export class TosStorageProvider implements StorageProvider {
     url.searchParams.set('X-Tos-Content-Sha256', 'UNSIGNED-PAYLOAD')
     url.searchParams.set('X-Tos-Credential', `${this.accessKeyId}/${credentialScope}`)
     url.searchParams.set('X-Tos-Date', amzDate)
-    url.searchParams.set('X-Tos-Expires', String(Math.max(1, Math.floor(params.expiresInSeconds))))
+    url.searchParams.set('X-Tos-Expires', String(Math.min(604800, Math.max(1, Math.floor(params.expiresInSeconds)) + bucket)))
     url.searchParams.set('X-Tos-SignedHeaders', 'host')
     const canonicalRequest = [
       'GET',

@@ -483,6 +483,7 @@ export function apiHandler<TParams extends RouteParams>(handler: ApiHandler<TPar
             accountPermissions,
             async () => await withInternalLLMStreamCallbacks(streamCallbacks, async () => await handler(req, ctx)),
             routeContext.projectId,
+            req.nextUrl.pathname,
           )
           await streamCallbacks?.flush?.()
           response.headers.set('x-request-id', requestId)

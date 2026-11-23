@@ -89,9 +89,6 @@ export async function generateTggVideo(params: TggVideoGenerateParams): Promise<
   const seconds = requireDuration(model, params.options.duration)
   const ratio = optionalRatio(model, readString(params.options.aspectRatio) || readString(params.options.ratio))
   const resolution = optionalResolution(model, readString(params.options.resolution))
-  const generateAudio = model.supportsGenerateAudio && typeof params.options.generateAudio === 'boolean'
-    ? params.options.generateAudio
-    : undefined
 
   // TGG's generic video API documents no last-frame field; fail loudly rather
   // than silently dropping the user's last frame.
@@ -122,7 +119,6 @@ export async function generateTggVideo(params: TggVideoGenerateParams): Promise<
     seconds,
     ...(ratio ? { ratio } : {}),
     ...(resolution ? { resolution } : {}),
-    ...(generateAudio !== undefined ? { generate_audio: generateAudio } : {}),
     ...(model.supportsAspectRatioField && ratio ? { aspect_ratio: ratio } : {}),
   }
   if (model.referenceFormat === 'categorized') {

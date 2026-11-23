@@ -70,6 +70,53 @@ export function scanPromptMentions(prompt: string, names: Iterable<string>): Pro
   return matches
 }
 
+const QUOTE_PAIRS: Record<string, string> = { '“': '”', '‘': '’', '「': '」', '"': '"', "'": "'" }
+
+export interface QuotedDialogueRange {
+  /** Index of the opening quote. */
+  start: number
+  /** Exclusive end: one past the closing quote, or the line/paragraph end when unclosed. */
+  end: number
+}
+
+/**
+ * Dialogue protection, mirroring the 字字动画 Seedance plugin rule
+ * "引号里的内容按台词处理，不参与裸词资产匹配": text inside quotes is spoken
+ * dialogue, so asset names there must never be rewritten into 图N（名） bindings.
+ * Covered quote pairs: “” ‘’ 「」 and straight "" '' — some authors write
+ * dialogue in 「」 or English double quotes instead of “”.
+ * An unclosed quote shields the rest of its line (CJK quotes “ ‘ 「: the rest
+ * of the paragraph) so a missing closing mark cannot leak bindings into dialogue.
+ */
+export function findQuotedDialogueRanges(prompt: string): QuotedDialogueRange[] {
+  if (!prompt) return []
+  const ranges: QuotedDialogueRange[] = []
+  let index = 0
+  while (index < prompt.length) {
+    const closer = QUOTE_PAIRS[prompt[index]]
+    if (!closer) { index += 1; continue }
+    const isCjkQuote = prompt[index] === '“' || prompt[index] === '‘' || prompt[index] === '「'
+    const stop = isCjkQuote ? /\n{2,}/u : /\n/u
+    const rest = prompt.slice(index + 1)
+    const stopIndex = rest.search(stop)
+    const limit = stopIndex >= 0 ? index + 1 + stopIndex : prompt.length
+    let end = index + 1
+    while (end < limit && prompt[end] !== closer) end += 1
+    if (end < limit && prompt[end] === closer) {
+      ranges.push({ start: index, end: end + 1 })
+      index = end + 1
+    } else {
+      ranges.push({ start: index, end: limit })
+      index = limit
+    }
+  }
+  return ranges
+}
+
+export function isInsideQuotedDialogue(ranges: readonly QuotedDialogueRange[], position: number): boolean {
+  return ranges.some((range) => position >= range.start && position < range.end)
+}
+
 /** Short, de-duplicated labels for unknown mentions, suitable for an error message. */
 export function describeUnknownPromptMentions(matches: readonly PromptMentionMatch[], limit = 5): string[] {
   const labels: string[] = []

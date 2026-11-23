@@ -297,10 +297,10 @@ export function useTaskTargetStateMap(
     enabled,
     staleTime: options.staleTime ?? 15000,
     refetchInterval: (state) => {
-      const data = state.state.data as TaskTargetState[] | undefined
-      if (!data) return false
-      return data.some((item) => item.phase === 'queued' || item.phase === 'processing') ? 2000 : false
+      const active = state.state.data?.some((item) => item.phase === 'queued' || item.phase === 'processing')
+      return typeof document !== 'undefined' && active ? 2000 : false
     },
+    refetchIntervalInBackground: false, // Keep the interval armed so a fresh query can resume on focus.
     refetchOnMount: false,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,

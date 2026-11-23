@@ -5,6 +5,7 @@ import { runModelGatewayTextCompletion } from '@/lib/model-gateway/llm'
 import { getPromptTemplate, PROMPT_IDS } from '@/lib/prompt-i18n'
 import { VIDEO_REPAINT_PROJECT_ID, type RepaintTargetScriptResult } from './contract'
 import { compactSourceUnderstanding, stripModelWrapper, VIDEO_REPAINT_OUTLINE_MODEL } from './outline'
+import { countStoryboardDialogue, isSpokenDialogueLine } from './storyboard-text'
 
 export const MAX_TARGET_SCRIPT_INPUT_TOKENS = 256_000
 export const MAX_TARGET_SCRIPT_OUTPUT_TOKENS = 48_000
@@ -15,6 +16,10 @@ function compact(value: unknown): string {
 
 function toInt(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
+}
+
+function sourceDialogueCount(sourceScript: string): number {
+  return sourceScript.split(/\r?\n/).filter(isSpokenDialogueLine).length
 }
 
 export function buildTargetScriptInput(options: {
@@ -28,6 +33,7 @@ export function buildTargetScriptInput(options: {
   return [
     `任务名称：${compact(options.title) || '未命名单集'}`,
     `视频总时长：${typeof options.durationSeconds === 'number' && options.durationSeconds > 0 ? `${options.durationSeconds.toFixed(1)} 秒（最后一镜结束于此）` : '以源剧本时长信息为准'}`,
+    `源剧本共有 ${sourceDialogueCount(options.sourceScript)} 行对白、画外音或内心独白。只要此数大于 0，目标剧本就必须逐条保留对应台词，按“目标名 (对口型·情绪)：{完整台词}”写入所属 SH 镜内，不能省略。`,
     '',
     '转绘需求：',
     compact(options.brief) || '（用户没有填写转绘需求）',
@@ -119,6 +125,11 @@ export async function generateTargetScript(options: GenerateTargetScriptOptions)
 
   const targetScript = stripModelWrapper(getCompletionContent(completion) || '')
   if (!targetScript) throw new Error('EMPTY_RESPONSE: 文本模型未返回目标剧本')
+  const sourceDialogues = sourceDialogueCount(sourceScript)
+  const targetDialogues = countStoryboardDialogue(targetScript)
+  if (sourceDialogues > 0 && targetDialogues < sourceDialogues) {
+    throw new Error(`DIALOGUE_MISSING: 目标剧本只保留了 ${targetDialogues}/${sourceDialogues} 行源台词，请重新生成`)
+  }
   return {
     targetScript,
     model: VIDEO_REPAINT_OUTLINE_MODEL,

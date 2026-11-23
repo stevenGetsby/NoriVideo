@@ -1,4 +1,4 @@
-import { convertToModelMessages, safeValidateUIMessages, stepCountIs, streamText, type LanguageModel, type UIMessage } from 'ai'
+import { safeValidateUIMessages, stepCountIs, streamText, type LanguageModel } from 'ai'
 import { createOpenAI } from '@ai-sdk/openai'
 import { getProviderConfig, getProviderKey } from '@/lib/api-config'
 import { getUserModelConfig } from '@/lib/config-service'
@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/service'
 import { recordServiceUsage } from '@/lib/platform-services/usage'
 import { AssistantPlatformError } from './errors'
+import { toModelMessages } from './messages'
 import { getAssistantSkill } from './registry'
 import type {
   AssistantContext,
@@ -27,15 +28,6 @@ function normalizeAssistantContext(raw: unknown): AssistantContext {
     ...(providerId ? { providerId } : {}),
     ...(locale ? { locale } : {}),
   }
-}
-
-async function toModelMessages(messages: UIMessage[]): Promise<Awaited<ReturnType<typeof convertToModelMessages>>> {
-  const withoutIds = messages.map((message) => {
-    const { id: _id, ...rest } = message
-    void _id
-    return rest
-  })
-  return await convertToModelMessages(withoutIds)
 }
 
 async function resolveAssistantLanguageModel(input: {

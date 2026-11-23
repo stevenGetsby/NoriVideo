@@ -1,9 +1,11 @@
 'use client'
 
 import type { Dispatch, SetStateAction } from 'react'
+import { useState } from 'react'
+import { CanvasAgentSettings } from './CanvasAgentSettings'
 import { AppIcon } from '@/components/ui/icons'
 import { PasswordInput } from '@/components/ui/PasswordInput'
-import { AdminAlert, AdminHealthBadge } from '@/components/admin/PlatformAdminShell'
+import { AdminHealthBadge } from '@/components/admin/PlatformAdminShell'
 import {
   MODEL_TIER_LABELS,
   MODEL_TIER_TONES,
@@ -12,15 +14,12 @@ import {
   formatNumber,
   modelKey,
   type HealthRow,
-  type ModelDraft,
   type ProviderDraft,
   type ServiceConfig,
   type UsageOverview,
-  type VideoProviderState,
-  type VideoProviderStatus,
-  type VideoSwitchPlan,
 } from '@/components/admin/platform-admin-services'
 import { formatUsageMoney, MODEL_USAGE_TYPE_LABELS, normalizeModelUsageType } from '@/lib/platform-services/model-type-usage'
+import { PROVIDER_DISPLAY_NAMES } from '@/lib/platform-services/model-selection'
 
 function StatusBadge({ health }: { health?: HealthRow }) {
   return <AdminHealthBadge status={health?.status} latencyMs={health?.latencyMs} />
@@ -44,125 +43,18 @@ type PanelsProps = {
   setDirty: (value: boolean) => void
   setRangeDays: (value: number) => void
   probe: (targetType: 'provider' | 'storage', targetId: string) => void
-  videoProvider: VideoProviderStatus | null
-  videoPlan: VideoSwitchPlan | null
-  videoSwitching: boolean
-  videoNotice: string
-  dirty: boolean
-  requestVideoPlan: (target: 'kuaizi' | 'tgg') => void
-  cancelVideoPlan: () => void
-  applyVideoPlan: () => void
-}
-
-const VIDEO_PROVIDER_LABELS: Record<VideoProviderState, string> = {
-  kuaizi: 'Kuaizi',
-  tgg: 'TGG',
-  mixed: '混合（部分 TGG）',
-}
-
-const ROUTE_PROVIDER_LABELS: Record<string, string> = {
-  deepseek: 'DeepSeek',
-  openlux: 'OpenLux',
-  kuaizi: 'Kuaizi',
-  huimengi: '绘梦工坊',
-  tgg: 'TGG',
-}
-
-function routeLabel(value: string, models: ModelDraft[]): string {
-  if (!value) return '未提供此能力'
-  const [provider = '', ...rest] = value.split('::')
-  const modelId = rest.join('::')
-  const model = models.find((candidate) => candidate.provider === provider && candidate.modelId === modelId)
-  return `${ROUTE_PROVIDER_LABELS[provider] || provider} · ${model?.name || modelId}`
-}
-
-type VideoSwitchCardProps = Pick<PanelsProps,
-  | 'config' | 'healthMap' | 'usageByProvider' | 'rangeDays'
-  | 'videoProvider' | 'videoPlan' | 'videoSwitching' | 'videoNotice' | 'dirty'
-  | 'requestVideoPlan' | 'cancelVideoPlan' | 'applyVideoPlan'>
-
-function VideoProviderSwitchCard(props: VideoSwitchCardProps) {
-  const { config, healthMap, usageByProvider, rangeDays, videoProvider, videoPlan, videoSwitching, videoNotice, dirty } = props
-  const current = videoProvider?.current || 'kuaizi'
-  const inFlight = videoProvider?.inFlight || { kuaizi: 0, tgg: 0 }
-  const shownProviders = current === 'mixed' ? ['kuaizi', 'tgg'] : [current]
-  const usageCalls = shownProviders.reduce((total, id) => total + (usageByProvider.get(id)?.calls || 0), 0)
-  const usageCost = shownProviders.reduce((total, id) => total + (usageByProvider.get(id)?.cost || 0), 0)
-  const hasSwitchRows = Boolean(videoPlan?.rows.some((row) => row.action === 'switch'))
-  const confirmDisabled = videoSwitching || !videoPlan || videoPlan.blockers.length > 0 || !hasSwitchRows
-  return (
-    <div className="nori-admin-card mx-3 my-3 grid gap-3 p-3">
-      {videoNotice ? <AdminAlert tone="success">{videoNotice}</AdminAlert> : null}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <strong className="text-[13px]">视频上游服务商</strong>
-        <span className="nori-admin-muted text-[12px]">当前：{videoProvider ? VIDEO_PROVIDER_LABELS[current] : '读取中…'}</span>
-        <span className="nori-admin-muted flex items-center gap-2 text-[12px]">健康：{shownProviders.map((id) => <StatusBadge key={id} health={healthMap.get(`provider:${id}`)} />)}</span>
-        <span className="nori-admin-muted text-[12px]">近{rangeDays}天 {usageCalls} 次 · {formatUsageMoney(usageCost)}</span>
-      </div>
-      <div role="radiogroup" aria-label="视频上游服务商" className="flex items-center gap-2">
-        {(['kuaizi', 'tgg'] as const).map((id) => {
-          const checked = current === id
-          return (
-            <button
-              key={id}
-              type="button"
-              role="radio"
-              aria-checked={checked}
-              className={`fos-btn fos-btn-sm ${checked ? 'fos-btn-primary' : 'fos-btn-ghost'}`}
-              disabled={!videoProvider || checked || videoSwitching}
-              onClick={() => props.requestVideoPlan(id)}
-            >
-              {VIDEO_PROVIDER_LABELS[id]}
-            </button>
-          )
-        })}
-      </div>
-      <p className="nori-admin-subtle">进行中的任务：Kuaizi {inFlight.kuaizi} 个 · TGG {inFlight.tgg} 个（不受切换影响）</p>
-      {videoPlan ? (
-        <div className="grid gap-3">
-          {dirty ? <AdminAlert tone="warning">页面有未保存的修改，切换只改视频路由，其它修改仍需点右上角保存</AdminAlert> : null}
-          <p className="nori-admin-muted text-[12px]">切换到 {VIDEO_PROVIDER_LABELS[videoPlan.target]} 后，新提交的视频任务改走 {VIDEO_PROVIDER_LABELS[videoPlan.target]}：</p>
-          <div className="nori-admin-table-wrap">
-            <table className="nori-admin-table">
-              <thead><tr><th>业务模型</th><th>现在</th><th>切换后</th></tr></thead>
-              <tbody>
-                {videoPlan.rows.map((row) => (
-                  <tr key={row.businessKey}>
-                    <td className="font-medium">{row.name}</td>
-                    <td className="nori-admin-muted">{routeLabel(row.from, config.models)}</td>
-                    <td>
-                      {row.action === 'switch'
-                        ? routeLabel(row.to, config.models)
-                        : row.action === 'keep'
-                          ? `保持 ${routeLabel(row.from, config.models)}${row.reason ? `（${row.reason}）` : ''}`
-                          : `不可用${row.reason ? `（${row.reason}）` : ''}`}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <AdminAlert tone="warning">进行中的任务继续在原服务商完成并按原服务商计成本；用户扣费不变。</AdminAlert>
-          <AdminAlert tone="warning">TGG 路径下 Seedance 真人素材合规由 TGG 侧决定，Kuaizi 的私有素材库流程不会参与。</AdminAlert>
-          {videoPlan.blockers.length ? <AdminAlert tone="error">阻断：{videoPlan.blockers.join('；')}</AdminAlert> : null}
-          {!hasSwitchRows && videoPlan.target === 'tgg' ? <p className="nori-admin-danger-text text-[12px]">TGG 暂无可用于视频的模型，请先完成模型与定价配置</p> : null}
-          <div className="flex items-center justify-end gap-2">
-            <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" disabled={videoSwitching} onClick={props.cancelVideoPlan}>取消</button>
-            <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" disabled={confirmDisabled} onClick={props.applyVideoPlan}>{videoSwitching ? '切换中…' : '确认切换并立即生效'}</button>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  )
 }
 
 export function PlatformAdminServicesPanels(props: PanelsProps) {
   const { config, usage, rangeDays, healthMap, usageByProvider, providerSecrets, probing } = props
+  const [usagePurpose, setUsagePurpose] = useState('all')
+  const usageRows = (usage?.rows ?? []).filter((row) =>
+    usagePurpose === 'all' || (usagePurpose === 'agent') === (row.operation === 'canvas_agent'))
   return (
     <div className="nori-admin-stack">
       <section className="nori-admin-panel" aria-labelledby="service-connections">
         <div className="nori-admin-panel-head">
-          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>只需维护五套平台密钥。DeepSeek 负责文本，Kuaizi 负责语音；图片可在 OpenLux / 绘梦工坊 之间切换，视频可在 Kuaizi / 绘梦工坊 / TGG 之间切换。</p></div>
+          <div><span className="nori-admin-step">01</span><h2 id="service-connections">API 连接</h2><p>文本模型按用途开放：Kimi 与 OpenAI 的连接仅用于喵导；其他文本、图片、视频和语音继续沿用各自的服务。</p></div>
         </div>
         <div className="grid gap-4 p-4 xl:grid-cols-2">
           {config.providers.map((provider, index) => {
@@ -180,7 +72,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                 : isHuimengi
                   ? { icon: 'sparklesAlt' as const, description: '图像与视频服务', capabilities: ['文生图', '参考图', '文生视频', '多模态参考'] }
                   : isTgg
-                    ? { icon: 'video' as const, description: '视频服务（可与 Kuaizi 切换）', capabilities: ['视频', '图生视频', '多模态参考'] }
+                    ? { icon: 'video' as const, description: '视频服务（可与 Kuaizi 同时启用）', capabilities: ['视频', '图生视频', '多模态参考'] }
                     : { icon: 'cpu' as const, description: '官方文本服务', capabilities: ['剧本', '提示词', '文本分析'] }
             return (
               <article key={provider.id} className={`nori-admin-card nori-admin-provider p-4 is-${provider.id}`}>
@@ -214,7 +106,6 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           {(['llm', 'image', 'video', 'audio'] as const).map((type) => (
             <section key={type} className={`nori-admin-purpose is-${type}`}>
               <div className="nori-admin-purpose-head"><AppIcon name={type === 'llm' ? 'fileText' : type === 'image' ? 'image' : type === 'video' ? 'video' : 'volume'} /><div><h3>{MODEL_TYPE_LABELS[type]}</h3><p>{type === 'llm' ? 'DeepSeek 官方' : type === 'image' ? 'OpenLux / 绘梦工坊 API' : type === 'video' ? 'Kuaizi / 绘梦工坊 / TGG API' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p></div></div>
-              {type === 'video' ? <VideoProviderSwitchCard {...props} /> : null}
               <div className="nori-admin-purpose-list">
                 {config.businessModels.filter((model) => model.type === type).map((model) => {
                   const options = config.models.filter((candidate) => candidate.type === type)
@@ -223,13 +114,14 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                     <span><strong>{model.name}</strong><em className={MODEL_TIER_TONES[model.tier]}>{MODEL_TIER_LABELS[model.tier]}</em><small>{model.description}</small></span>
                     <select className="fos-input nori-admin-input-dense" aria-label={`${model.name}运行模型`} value={value} onChange={(event) => props.markConfig((current) => ({ ...current, modelRouting: { ...current.modelRouting, [model.key]: event.target.value } }))}>
                       <option value="">{config.modelRouting[model.key] ? '不提供此能力' : '未提供此能力'}</option>
-                      {options.map((option) => <option key={modelKey(option)} value={modelKey(option)}>{option.name || option.modelId}</option>)}
+                      {options.map((option) => <option key={modelKey(option)} value={modelKey(option)}>{`${PROVIDER_DISPLAY_NAMES[option.provider] || option.provider} · ${option.name || option.modelId}`}</option>)}
                     </select>
                   </label>
                 })}
               </div>
             </section>
           ))}
+          <CanvasAgentSettings config={config} markConfig={props.markConfig} />
         </div>
       </section>
 
@@ -268,11 +160,12 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
             </tr>
           }) : <tr><td colSpan={6} className="nori-admin-empty">暂无已采集的服务用量</td></tr>}
         </tbody></table></div>
-        <div className="nori-admin-table-wrap"><table className="nori-admin-table min-w-[900px]"><thead><tr><th>服务</th><th>模型</th><th>类型</th><th>调用</th><th>失败</th><th>金额</th><th>平均耗时</th><th>最近使用</th></tr></thead><tbody>
-          {usage?.rows.length ? usage.rows.map((row) => {
+        <label className="nori-admin-field">用途<select aria-label="用途" className="fos-input nori-admin-input-dense" value={usagePurpose} onChange={(event) => setUsagePurpose(event.target.value)}><option value="all">全部</option><option value="agent">喵导</option><option value="other">其他</option></select></label>
+        <div className="nori-admin-table-wrap"><table className="nori-admin-table min-w-[900px]"><thead><tr><th>服务</th><th>模型</th><th>用途 / 类型</th><th>调用</th><th>失败</th><th>输入 Token</th><th>输出 Token</th><th>金额</th><th>平均耗时</th><th>最近使用</th></tr></thead><tbody>
+          {usageRows.length ? usageRows.map((row) => {
             const type = normalizeModelUsageType(row.serviceType)
-            return <tr key={`${row.provider}-${row.modelKey}-${row.serviceType}-${row.operation}`}><td className="font-medium">{row.provider}</td><td className="nori-admin-muted">{row.modelKey || row.serviceType}</td><td>{type ? MODEL_USAGE_TYPE_LABELS[type] : row.serviceType}</td><td>{row.calls}</td><td className={row.failed ? 'nori-admin-danger-text' : 'nori-admin-muted'}>{row.failed}</td><td><strong>{formatUsageMoney(row.cost)}</strong></td><td>{row.averageLatencyMs == null ? '—' : `${row.averageLatencyMs}ms`}</td><td className="nori-admin-muted">{formatDate(row.lastUsedAt)}</td></tr>
-          }) : <tr><td colSpan={8} className="nori-admin-empty">暂无已采集的服务用量</td></tr>}
+            return <tr key={`${row.provider}-${row.modelKey}-${row.serviceType}-${row.operation}`}><td className="font-medium">{row.provider}</td><td className="nori-admin-muted">{row.modelKey || row.serviceType}</td><td>{row.operation === 'canvas_agent' ? '喵导' : type ? MODEL_USAGE_TYPE_LABELS[type] : row.serviceType}</td><td>{row.calls}</td><td className={row.failed ? 'nori-admin-danger-text' : 'nori-admin-muted'}>{row.failed}</td><td>{row.inputTokens}</td><td>{row.outputTokens}</td><td><strong>{formatUsageMoney(row.cost)}</strong></td><td>{row.averageLatencyMs == null ? '—' : `${row.averageLatencyMs}ms`}</td><td className="nori-admin-muted">{formatDate(row.lastUsedAt)}</td></tr>
+          }) : <tr><td colSpan={10} className="nori-admin-empty">暂无已采集的服务用量</td></tr>}
         </tbody></table></div>
       </section>
     </div>

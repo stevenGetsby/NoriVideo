@@ -73,6 +73,33 @@ describe('api route contract guard', () => {
     expect(inspectRouteContract('src/app/api/collaboration/assignments/my/route.ts', content)).toEqual([])
   })
 
+  it('requires the Douyin consumer auth and app binding in every protected handler', () => {
+    const imports = `
+      import { requireDyUser, assertUserApp, dyAppIdOf } from '@/lib/mp/dy/auth'
+      import { apiHandler } from '@/lib/api-errors'
+    `
+    const guarded = (method: string) => `
+      export const ${method} = apiHandler(async (request) => {
+        const appId = dyAppIdOf(request)
+        const auth = await requireDyUser(request)
+        assertUserApp(auth.user, appId)
+        return Response.json({ ok: true })
+      })
+    `
+    const route = 'src/app/api/mp/dy/save/route.ts'
+    expect(inspectRouteContract(route, imports + guarded('GET') + guarded('PUT'))).toEqual([])
+    expect(inspectRouteContract(route, imports + guarded('GET') + `
+      export const PUT = apiHandler(async (request) => {
+        // await requireDyUser(request)
+        // assertUserApp(auth.user, appId)
+        return Response.json({ ok: true })
+      })
+    `)).toHaveLength(1)
+    expect(inspectRouteContract(
+      'src/app/api/admin/save/route.ts', imports + guarded('GET') + guarded('PUT'),
+    )).toHaveLength(1)
+  })
+
   it('allows initial password authentication only on the dedicated change-password route', () => {
     const content = `
       import { getAuthSession } from '@/lib/api-auth'

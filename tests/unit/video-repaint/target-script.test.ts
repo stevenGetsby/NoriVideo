@@ -36,7 +36,54 @@ describe('target script generation', () => {
     expect(messages[0].content).toContain('表情动作')
     expect(messages[1].content).toContain('158.0 秒（最后一镜结束于此）')
     expect(messages[1].content).toContain('<target_outline>')
+    expect(messages[1].content).toContain('源剧本共有 0 行对白')
     expect(messages[1].content).not.toContain('<storyboard>')
+  })
+
+  it('does not mistake production field labels for dialogue', async () => {
+    const result = await generateTargetScript({
+      userId: 'u', sourceScript: '第1集\n场景：堂屋\n人物：母亲\n画面：母亲看向门口。\n造型：母亲=灰色外套', outline: '总纲',
+    })
+    expect(result.targetScript).toBe(SCRIPT)
+    expect(gateway.runModelGatewayTextCompletion.mock.calls[0][0].messages[1].content).toContain('源剧本共有 0 行对白')
+  })
+
+  it('rejects a dialogue-free rewrite when the source has spoken lines', async () => {
+    gateway.runModelGatewayTextCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '《转绘》\n### SH001 [00:00.0-00:03.0]\n镜头：近景\n画面：人物张嘴说话。\n表情动作：焦急。\n光影：侧光。' } }],
+      usage: {},
+    })
+    await expect(generateTargetScript({
+      userId: 'u', sourceScript: '第1集\n1-1\n人物：母亲\n母亲：别走。', outline: '总纲',
+    })).rejects.toThrow('DIALOGUE_MISSING')
+  })
+
+  it('rejects a rewrite that keeps only part of the source dialogue', async () => {
+    gateway.runModelGatewayTextCompletion.mockResolvedValueOnce({
+      choices: [{ message: { content: '《转绘》\n### SH001 [00:00.0-00:03.0]\n镜头：近景\n画面：母亲挽留儿子。\n表情动作：焦急。\n光影：侧光。\n母亲 (对口型·焦急)：{别走。}' } }],
+      usage: {},
+    })
+    await expect(generateTargetScript({
+      userId: 'u', sourceScript: '第1集\n1-1\n人物：母亲、儿子\n母亲：别走。\n儿子：我必须回去。', outline: '总纲',
+    })).rejects.toThrow('DIALOGUE_MISSING')
+  })
+
+  it('accepts voiceover and inner monologue towards the required dialogue count', async () => {
+    const script = [
+      '### SH001 [00:00.0-00:03.0]',
+      '镜头：中景',
+      '画面：人物走过门口。',
+      '表情动作：迟疑。',
+      '光影：暗光。',
+      '母亲 (画外音·焦急)：{别走。}',
+      '儿子 (内心独白·犹豫)：{我不能留下。}',
+    ].join('\n')
+    gateway.runModelGatewayTextCompletion.mockResolvedValueOnce({ choices: [{ message: { content: script } }], usage: {} })
+    const result = await generateTargetScript({
+      userId: 'u', sourceScript: '第1集\n1-1\n画外音：别走。\n（内心OS）：我不能留下。', outline: '总纲',
+    })
+    expect(result.targetScript).toBe(script)
+    expect(gateway.runModelGatewayTextCompletion.mock.calls[0][0].messages[1].content).toContain('源剧本共有 2 行对白')
   })
 
   it('rejects missing source, outline or account before billing', async () => {

@@ -16,12 +16,12 @@ const db = vi.hoisted(() => ({
     count: vi.fn(),
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
     update: vi.fn(),
     deleteMany: vi.fn(),
   },
   project: { create: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() },
-  interactiveStory: { findUnique: vi.fn() },
   user: { findMany: vi.fn() },
   $transaction: vi.fn(),
 }))
@@ -44,7 +44,7 @@ describe('project -> work API contract, compatible with existing storage IDs', (
       members: [], deletedAt: null,
     })
     db.project.updateMany.mockResolvedValue({ count: 1 })
-    db.interactiveStory.findUnique.mockResolvedValue(null)
+    db.work.findUnique.mockResolvedValue({ productLine: 'production' })
     db.work.create.mockResolvedValue({ id: 'new-parent', name: '新项目', ...dates })
     db.work.update.mockResolvedValue({ id: 'stored-parent', name: '改名后的项目', ...dates })
     db.work.deleteMany.mockResolvedValue({ count: 0 })
@@ -133,9 +133,9 @@ describe('project -> work API contract, compatible with existing storage IDs', (
       data: { workId: 'stored-parent' },
     })
     expect(db.project.create).not.toHaveBeenCalled()
-    expect(db.interactiveStory.findUnique).toHaveBeenCalledWith({
-      where: { workId: 'stored-parent' },
-      select: { id: true },
+    expect(db.work.findUnique).toHaveBeenCalledWith({
+      where: { id: 'stored-parent' },
+      select: { productLine: true },
     })
   })
 
@@ -143,7 +143,7 @@ describe('project -> work API contract, compatible with existing storage IDs', (
     db.project.findMany.mockResolvedValue([{
       id: 'stored-child', workId: 'old-parent', work: { createdById: 'manager', interactiveStory: null, members: [] }, members: [],
     }])
-    db.interactiveStory.findUnique.mockResolvedValue({ id: 'story-target' })
+    db.work.findUnique.mockResolvedValue({ productLine: 'story' })
     const route = await import('@/app/api/works/projects/move/route')
     const response = await route.POST(buildMockRequest({
       path: '/api/works/projects/move', method: 'POST',

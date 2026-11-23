@@ -51,7 +51,6 @@ function capabilityEntry(overrides: Record<string, unknown> = {}) {
       video: {
         durationOptions: [5, 10],
         resolutionOptions: ['720p', '1080p'],
-        supportGenerateAudio: true,
         firstlastframe: false,
         inputSchema: { image: { max: 2 }, video: { max: 1 }, audio: { max: 1 } },
         ...overrides,
@@ -93,6 +92,11 @@ describe('tgg json-driven catalog', () => {
   it('keeps unprofiled models discoverable but never selectable', () => {
     setProfiles({})
     expect(listTggCatalogModels()).toHaveLength(1)
+    expect(listTggSelectableModels()).toHaveLength(0)
+  })
+
+  it('never selects a model without verified ratios', () => {
+    setProfiles({ [FIXTURE_MODEL_ID]: { referenceFormat: 'categorized', ratios: [] } })
     expect(listTggSelectableModels()).toHaveLength(0)
   })
 
@@ -145,7 +149,6 @@ describe('tgg json-driven catalog', () => {
       maxVideos: 1,
       maxAudios: 1,
       supportsResolution: true,
-      supportsGenerateAudio: true,
       supportsAspectRatioField: true,
       supportsFirstLastFrame: false,
       durationOptions: [5, 10],

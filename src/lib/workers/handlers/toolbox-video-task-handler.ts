@@ -19,11 +19,12 @@ import { extractVoiceAudioFromVideo } from '@/lib/media/video-audio'
 import { generateUniqueKey, getObjectBuffer, uploadObject } from '@/lib/storage'
 import { resolveMediaRefFromLegacyValue } from '@/lib/media/service'
 import { ensureSeedanceCharacterAsset } from '@/lib/novel-promotion/seedance-character-asset'
-import { normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { frameosAssetCategoryFromMetadata, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
 import { enhanceCanvasVideo, type CanvasVideoOperationHooks } from '@/lib/canvas/video-operations'
+import { warmVideoPoster } from '../video-poster-warmup'
 
 type AnyObj = Record<string, unknown>
 type GeneratedVideo = VideoResultMetadata & {
@@ -158,6 +159,18 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       imageNumbers = indexed.imageNumbers
     }
     const imageAt = (position: number) => (position >= 0 && imageNumbers[position] ? normalized[imageNumbers[position] - 1] || '' : '')
+    const kindMaterialIds = materialReferenceContract.references.map((item) => item.materialId)
+    const kindRows = kindMaterialIds.length > 0
+      ? await prisma.frameosMaterial.findMany({ where: { id: { in: kindMaterialIds } }, select: { id: true, type: true, metadata: true } })
+      : []
+    const kindRowById = new Map(kindRows.map((row) => [row.id, row]))
+    const imageKindByPosition = kindMaterialIds
+      .map((materialId) => kindRowById.get(materialId))
+      .filter((row) => row?.type === 'image')
+      .map((row) => {
+        const category = frameosAssetCategoryFromMetadata(row?.metadata)
+        return category === 'character' || category === 'location' || category === 'prop' ? category : undefined
+      })
     const isFirstLastFrame = inputMode === 'firstlastframe'
     const isImageToVideo = inputMode === 'image'
     const useReferenceMode = !isImageToVideo && !isFirstLastFrame
@@ -167,7 +180,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         index: imageNumber,
         names: referenceImageMentionNames[index] || [],
         fallbackNames: imageTitles[index] ? [imageTitles[index]] : [],
-        kind: 'prop' as const,
+        kind: imageKindByPosition[index],
       })),
       ...referenceVideos.map((_, index) => ({
         type: 'video' as const,
@@ -264,6 +277,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       }
       await assertTaskActive(job, 'persist_toolbox_video_superresolve')
     }
+    warmVideoPoster(storageKey)
     await assertTaskActive(job, 'persist_toolbox_video')
     let auditionAudioUrl = ''
     if (asset.bizType === 'character_audition') {

@@ -226,6 +226,7 @@ export function requiredPermissionsForApiPath(
     return READABLE_CONTENT_PREFIXES.some((prefix) => path.startsWith(prefix)) ? ['read'] : []
   }
 
+  if (path.startsWith('/api/compute-ledger')) return ['read']
   if (path.startsWith('/api/works')) return ['read']
   if (/\/api\/projects\/[^/]+\/(?:members|member-candidates)(?:\/|$)/.test(path)) return ['read']
 

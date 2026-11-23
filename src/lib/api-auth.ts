@@ -13,7 +13,8 @@ import { extractModelKey } from '@/lib/config-service'
 import { getErrorSpec, type UnifiedErrorCode } from '@/lib/errors/codes'
 import { getLogContext, setLogContext } from '@/lib/logging/context'
 import { getOrCreateTestModeSession, isTestModeEnabled } from '@/lib/test-mode'
-import { getAccountPermissionContext, getRouteProjectIdContext, setAccountActorContext } from '@/lib/account/request-context'
+import { getAccountPermissionContext, getRoutePathnameContext, getRouteProjectIdContext, setAccountActorContext } from '@/lib/account/request-context'
+import { accountApiContentRestriction, readAccountContentRestrictions, type AccountContentRestriction } from '@/lib/account/content-restrictions'
 import { normalizeAccountCredit } from '@/lib/account/credits'
 import { getGenerationWalletPoints } from '@/lib/account/generation-wallet'
 import { getWorkspaceActor, isProjectHiddenFromActor, projectReadWhere } from '@/lib/collaboration/access'
@@ -41,6 +42,7 @@ export interface AuthSession {
         roleLabel?: string | null
         status?: AccountStatus | 'revoked'
         permissions?: AccountPermission[]
+        contentRestrictions?: AccountContentRestriction[]
         projectLeader?: boolean
         sessionVersion?: number
         passwordChangeRequired?: boolean
@@ -100,6 +102,7 @@ async function validateSessionUser(
     const role = normalizeAccountRole(user.role)
     const status: AccountStatus = user.status === 'active' ? 'active' : 'disabled'
     const permissions = effectiveAccountPermissions(role, user.permissions)
+    const contentRestrictions = readAccountContentRestrictions(user.permissions)
     const sessionVersion = typeof session.user.sessionVersion === 'number'
         ? session.user.sessionVersion
         : user.sessionVersion
@@ -134,6 +137,10 @@ async function validateSessionUser(
     if (!hasAccountPermissions({ role, permissions }, allRequiredPermissions)) {
         return forbidden('当前账号没有执行此操作的权限。')
     }
+    const routeRestriction = accountApiContentRestriction(getRoutePathnameContext())
+    if (routeRestriction && contentRestrictions.includes(routeRestriction)) {
+        return forbidden('当前账号没有访问此功能的权限。')
+    }
 
     session.user.name = user.name
     session.user.email = user.email
@@ -141,6 +148,7 @@ async function validateSessionUser(
     session.user.roleLabel = user.roleLabel
     session.user.status = status
     session.user.permissions = permissions
+    session.user.contentRestrictions = contentRestrictions
     session.user.projectLeader = !isManagementRole(role) && user.projectLeader
     session.user.sessionVersion = user.sessionVersion
     session.user.actorId = user.id

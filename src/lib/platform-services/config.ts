@@ -13,7 +13,10 @@ import {
 } from '@/lib/service-config'
 import { resetStorageProvider } from '@/lib/storage'
 import { composeModelKey, parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
-import { getRawProviderKey, isSupportedModelProvider } from '@/lib/model-provider-contract'
+import { getRawProviderKey } from '@/lib/model-provider-contract'
+import { CANVAS_AGENT_SELECTION_KEY, type CanvasAgentModelCatalog, type CanvasAgentModelSettings } from '@/lib/canvas-agent/model-catalog'
+import { getCanvasAgentModelCatalog } from '@/lib/canvas-agent/model-runtime'
+import { CANVAS_AGENT_MODEL_CANDIDATES, CANVAS_AGENT_PROVIDER_PRESETS } from '@/lib/canvas-agent/provider-registry'
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
@@ -40,14 +43,19 @@ const PROVIDER_BASE_URLS = {
   kuaizi: 'https://aiopenapi.kuaizi.cn',
   huimengi: 'https://api.huimengi.com',
   tgg: 'https://tggtoken.org',
+  kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.baseURL,
+  openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.baseURL,
 } as const
-const PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'] as const
+const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'] as const
+const PLATFORM_PROVIDER_IDS = [...BASE_PLATFORM_PROVIDER_IDS, 'kimi', 'openai'] as const
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   deepseek: 'DeepSeek 官方',
   openlux: 'OpenLux API',
   kuaizi: 'Kuaizi API',
   huimengi: '绘梦工坊 API',
   tgg: 'TGG Token API',
+  kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.name,
+  openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.name,
 }
 
 type JsonRecord = Record<string, unknown>
@@ -80,7 +88,9 @@ export interface PlatformServiceConfigResponse {
     type: 'llm' | 'image' | 'video' | 'audio'
     tier: NoriModelTier
   }>
-  modelRouting: Record<NoriBusinessModelKey, string>
+  modelRouting: Record<NoriBusinessModelKey | typeof CANVAS_AGENT_SELECTION_KEY, string>
+  agentModels: Record<string, CanvasAgentModelSettings>
+  canvasAgentModelCatalog: CanvasAgentModelCatalog
   storage: PlatformStorageConfig
 }
 
@@ -132,13 +142,16 @@ function resolveWritablePath(): string {
     : path.join(process.cwd(), configured || 'config/services.json')
 }
 
-function environmentProviderKey(providerId: string): string {
+export function environmentProviderKey(providerId: string): string {
   const providerKey = getRawProviderKey(providerId).toLowerCase()
   if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
   if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
   if (providerKey === 'tgg') return string(process.env.TGG_API_KEY)
+  if (providerKey === 'kimi' || providerKey === 'openai') {
+    return string(process.env[CANVAS_AGENT_PROVIDER_PRESETS[providerKey].envKey])
+  }
   return ''
 }
 
@@ -185,6 +198,15 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
   ]
 }
 
+function isTggRoute(route: string): boolean {
+  return getRawProviderKey(route).toLowerCase() === 'tgg'
+}
+
+function defaultRouteFor(suggestedRoute: string, tggKeyUsable: boolean, modelByKey: Map<string, ServiceConfigModel>): string {
+  if (!isTggRoute(suggestedRoute)) return suggestedRoute
+  return tggKeyUsable && modelByKey.has(suggestedRoute) ? suggestedRoute : ''
+}
+
 function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
   const config = cloneConfig(raw)
   const currentProviders = new Map((config.llm?.providers || []).map((provider) => [provider.id, provider]))
@@ -201,18 +223,23 @@ function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
   })
   config.llm.models = fixedPlatformModels()
   const modelByKey = new Map(config.llm.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  const canvasAgentDefault = string(config.llm.modelRouting?.[CANVAS_AGENT_SELECTION_KEY])
+  const tggKeyUsable = isUsableServiceSecret(config.llm.providers.find((provider) => provider.id === 'tgg')?.apiKey)
   config.llm.modelRouting = Object.fromEntries(listNoriBusinessModels().map((businessModel) => {
     const currentRouting = config.llm!.modelRouting || {}
     const hasConfigured = Object.hasOwn(currentRouting, businessModel.key)
     const configured = hasConfigured ? string(currentRouting[businessModel.key]) : ''
-    const suggested = string(businessModel.suggestedRoute)
     // An explicit empty route is an administrator decision to disable this
     // capability. Never replace it with the suggested route.
     if (hasConfigured && !configured) return [businessModel.key, '']
-    const candidate = configured || suggested
-    const routed = Boolean(suggested) && modelByKey.get(candidate)?.type === businessModel.type
-    return [businessModel.key, routed ? candidate : suggested]
+    const suggested = string(businessModel.suggestedRoute)
+    const fallback = defaultRouteFor(suggested, tggKeyUsable, modelByKey)
+    const routed = Boolean(suggested)
+      && modelByKey.get(configured)?.type === businessModel.type
+      && (!isTggRoute(configured) || tggKeyUsable)
+    return [businessModel.key, routed ? configured : fallback]
   }))
+  config.llm.modelRouting[CANVAS_AGENT_SELECTION_KEY] = canvasAgentDefault
   const defaultModels = { ...(config.llm.defaultModels || {}) }
   for (const [field, expectedType] of Object.entries(DEFAULT_MODEL_TYPES) as Array<[keyof ServiceConfigDefaultModels, UnifiedModelType]>) {
     const current = parseModelKeyStrict(defaultModels[field])
@@ -230,7 +257,7 @@ export function readMaterializedPlatformServiceConfig(): ServiceConfig {
 function normalizeProvider(raw: unknown, index: number, currentById: Map<string, ServiceConfigProvider>): ServiceConfigProvider {
   if (!isRecord(raw)) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}]`)
   const id = requiredString(raw.id, `providers[${index}].id`, 128).toLowerCase()
-  if (!PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number]) || !isSupportedModelProvider(id)) {
+  if (!PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number])) {
     throw new Error(`SERVICE_CONFIG_INVALID: unsupported provider ${id}`)
   }
   const existing = currentById.get(id)
@@ -292,28 +319,49 @@ function normalizeRoutingInput(
   input: unknown,
   current: Record<string, string>,
   models: ServiceConfigModel[],
+  tggKeyUsableBefore: boolean,
 ): Record<string, string> {
-  if (!isRecord(input)) return current
   const next = { ...current }
-  const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  if (isRecord(input)) {
+    const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+    for (const model of listNoriBusinessModels()) {
+      if (!Object.hasOwn(input, model.key)) continue
+      const value = string(input[model.key])
+      if (!value) {
+        // Persist the explicit disable instead of deleting the key, otherwise a
+        // missing route would be treated as "unconfigured" and resurrect the
+        // suggested route on the next read.
+        next[model.key] = ''
+        continue
+      }
+      if (string(model.suggestedRoute) && modelByKey.get(value)?.type === model.type) {
+        next[model.key] = value
+        continue
+      }
+      if (string(model.suggestedRoute)) next[model.key] = model.suggestedRoute
+      else delete next[model.key]
+    }
+  }
+  // A TGG default that was only shown as empty because no key existed yet is not
+  // an administrator disable; leave it unset so it applies once the key is usable.
   for (const model of listNoriBusinessModels()) {
-    if (!Object.hasOwn(input, model.key)) continue
-    const value = string(input[model.key])
-    if (!value) {
-      // Persist the explicit disable instead of deleting the key, otherwise a
-      // missing route would be treated as "unconfigured" and resurrect the
-      // suggested route on the next read.
-      next[model.key] = ''
-      continue
-    }
-    if (string(model.suggestedRoute) && modelByKey.get(value)?.type === model.type) {
-      next[model.key] = value
-      continue
-    }
-    if (string(model.suggestedRoute)) next[model.key] = model.suggestedRoute
-    else delete next[model.key]
+    if (isTggRoute(model.suggestedRoute) && !tggKeyUsableBefore && !next[model.key]) delete next[model.key]
   }
   return next
+}
+
+function normalizeAgentModels(raw: unknown): Record<string, CanvasAgentModelSettings> {
+  if (!isRecord(raw)) throw new Error('SERVICE_CONFIG_INVALID: 喵导模型设置格式无效')
+  const known = new Set(CANVAS_AGENT_MODEL_CANDIDATES.map((model) => `${model.providerId}::${model.modelId}`))
+  return Object.fromEntries(Object.entries(raw).map(([key, flags]) => {
+    if (!known.has(key) || !isRecord(flags) || Object.entries(flags).some(([flag, value]) =>
+      !['canvasAgent', 'supportsTemperature'].includes(flag) || typeof value !== 'boolean'
+    )) throw new Error('SERVICE_CONFIG_INVALID: 喵导模型设置包含未登记模型或非法能力')
+    return [key, {
+      canvasAgent: flags.canvasAgent === true,
+      supportsTemperature: flags.supportsTemperature === true,
+    }]
+  }))
 }
 
 export async function savePlatformServiceConfig(input: unknown): Promise<PlatformServiceConfigResponse> {
@@ -326,21 +374,30 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
       throw new Error(`SERVICE_CONFIG_INVALID: unsupported provider ${id}`)
     }
   }
-  if (rawProviders.length !== PLATFORM_PROVIDER_IDS.length) {
-    throw new Error('SERVICE_CONFIG_INVALID: providers')
-  }
   const currentById = new Map((current.llm?.providers || []).map((provider) => [provider.id.toLowerCase(), provider]))
   const providers = rawProviders.map((provider, index) => normalizeProvider(provider, index, currentById))
   const providerIds = new Set(providers.map((provider) => provider.id))
   if (
     providerIds.size !== providers.length
-    || !PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
+    || !BASE_PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG are required')
+    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG exactly once')
+  }
+  // Older config clients can continue saving the original five providers.
+  for (const provider of ['kimi', 'openai'] as const) {
+    if (!providerIds.has(provider)) providers.push(normalizeProvider({ id: provider }, providers.length, currentById))
   }
 
   const models = fixedPlatformModels()
-  const modelRouting = normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models)
+  const tggKeyUsableBefore = isUsableServiceSecret(current.llm?.providers?.find((provider) => provider.id === 'tgg')?.apiKey)
+  const modelRouting = normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models, tggKeyUsableBefore)
+  const routing = isRecord(input.modelRouting) ? input.modelRouting : {}
+  const hasAgentDefault = Object.hasOwn(routing, CANVAS_AGENT_SELECTION_KEY)
+  if (hasAgentDefault) {
+    if (typeof routing[CANVAS_AGENT_SELECTION_KEY] !== 'string') throw new Error('SERVICE_CONFIG_INVALID: 喵导默认模型格式无效')
+    modelRouting[CANVAS_AGENT_SELECTION_KEY] = string(routing[CANVAS_AGENT_SELECTION_KEY])
+  }
+  const agentModels = input.agentModels === undefined ? current.llm?.agentModels ?? {} : normalizeAgentModels(input.agentModels)
   // Routing to TGG without a usable key would silently break every video task
   // on that route; reject the save instead of writing an unusable config.
   if (
@@ -357,7 +414,18 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
       models,
       defaultModels: isRecord(input.defaultModels) ? input.defaultModels : current.llm?.defaultModels || {},
       modelRouting,
+      agentModels,
     },
+  }
+  if (input.agentModels !== undefined || hasAgentDefault) {
+    const catalog = getCanvasAgentModelCatalog(next)
+    if (Object.entries(agentModels).some(([key, flags]) =>
+      flags.canvasAgent === true && !catalog.models.some((entry) => entry.modelKey === key && entry.enabled)
+    )) throw new Error('SERVICE_CONFIG_INVALID: 喵导只能开放已配置密钥和价格且通过工具流验证的模型')
+    const anyEnabled = catalog.models.some((entry) => entry.enabled)
+    if ((anyEnabled || modelRouting[CANVAS_AGENT_SELECTION_KEY]) && !catalog.defaultModelKey) {
+      throw new Error('SERVICE_CONFIG_INVALID: 喵导默认模型必须在已开放列表中')
+    }
   }
 
   await writeServiceConfigFile(next)
@@ -375,32 +443,11 @@ async function writeServiceConfigFile(next: ServiceConfig): Promise<void> {
   resetStorageProvider()
 }
 
-/** 只替换视频等用途的路由，不触碰 providers/key/storage；供管理页一键切换视频上游使用。 */
-export async function savePlatformModelRouting(patch: Record<string, string>): Promise<PlatformServiceConfigResponse> {
-  const current = readMaterializedPlatformServiceConfig()
-  const modelRouting = normalizeRoutingInput(patch, current.llm?.modelRouting || {}, fixedPlatformModels())
-  if (
-    Object.values(modelRouting).some((value) => getRawProviderKey(value).toLowerCase() === 'tgg')
-    && !isUsableServiceSecret(current.llm?.providers?.find((provider) => provider.id === 'tgg')?.apiKey)
-  ) {
-    throw new Error('SERVICE_CONFIG_INVALID: TGG 尚未配置 API Key，不能把视频路由到 TGG')
-  }
-  const next = cloneConfig(current)
-  next.llm = {
-    ...next.llm,
-    // 与 savePlatformServiceConfig 的落盘格式一致：空 key 不写 apiKey 字段
-    providers: (next.llm?.providers || []).map((provider) => {
-      const { apiKey, ...rest } = provider
-      return isUsableServiceSecret(apiKey) ? { ...rest, apiKey } : rest
-    }),
-    modelRouting,
-  }
-  await writeServiceConfigFile(next)
-  return getPlatformServiceConfigResponse()
-}
-
 export function getPlatformServiceConfigResponse(): PlatformServiceConfigResponse {
-  const config = readMaterializedPlatformServiceConfig()
+  // Direct call instead of readMaterializedPlatformServiceConfig() to avoid
+  // a webpack scope-hoisting bug that turns the intermediate export into a
+  // factory returning the inner function instead of invoking it.
+  const config = materializeEnvironmentConfig(readServiceConfig())
   const targetPath = resolveWritablePath()
   let updatedAt: string | null = null
   try {
@@ -412,6 +459,7 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
   const providers = config.llm?.providers || []
   const models = config.llm?.models || []
   const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  const canvasAgentModelCatalog = getCanvasAgentModelCatalog(config)
   const modelRouting = Object.fromEntries(listNoriBusinessModels().map((businessModel) => {
     const targetKey = string(config.llm?.modelRouting?.[businessModel.key])
     const targetModel = modelByKey.get(targetKey)
@@ -436,7 +484,9 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
       type: model.type,
       tier: model.tier,
     })),
-    modelRouting,
+    modelRouting: { ...modelRouting, [CANVAS_AGENT_SELECTION_KEY]: canvasAgentModelCatalog.defaultModelKey ?? '' },
+    agentModels: config.llm?.agentModels || {},
+    canvasAgentModelCatalog,
     storage: {
       type: 'tos',
       endpoint: string(tos.endpoint),

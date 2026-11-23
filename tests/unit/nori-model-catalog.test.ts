@@ -44,6 +44,8 @@ describe('Nori business model catalog', () => {
       ['nori::seedance2.0-mini', 'mini'],
       ['nori::seedance2.0-fast', 'fast'],
       ['nori::seedance2.0', 'pro'],
+      ['nori::tgg-seedance2.5', 'pro'],
+      ['nori::tgg-vig2.5', 'standard'],
     ])
     expect(NORI_DEFAULT_MODEL_KEYS.video).toBe('nori::norivideo2.5')
     expect(listNoriBusinessModels('audio').map((model) => model.key)).toEqual([

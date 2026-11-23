@@ -31,6 +31,9 @@ function rethrowScriptError(error: unknown): never {
   if (normalized.includes('EMPTY_RESPONSE')) {
     throw new ApiError('EMPTY_RESPONSE', { message: '文本模型未返回目标剧本，请重试' })
   }
+  if (normalized.includes('DIALOGUE_MISSING')) {
+    throw new ApiError('EMPTY_RESPONSE', { message: '目标剧本漏掉了源视频台词，请重新生成', retryable: true })
+  }
   if (normalized.includes('INSUFFICIENT_BALANCE') || normalized.includes('DAILY_LIMIT_EXCEEDED')) throw error
   if (normalized.includes('TEXT_PROVIDER_UNSUPPORTED')) {
     throw new ApiError('MODEL_NOT_CONFIGURED', { message: '当前平台未配置受支持的文本模型，请联系管理员' })

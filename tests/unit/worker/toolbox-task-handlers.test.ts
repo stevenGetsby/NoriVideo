@@ -9,6 +9,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   frameosMaterial: {
     findFirst: vi.fn(),
+    findMany: vi.fn(async (): Promise<Array<{ id: string; type: string; metadata: unknown }>> => []),
   },
   novelPromotionCharacter: {
     findFirst: vi.fn(async () => ({ id: 'character-1' })),
@@ -119,6 +120,7 @@ describe('toolbox task handlers', () => {
       type: where.type,
     }))
     prismaMock.frameosMaterial.findFirst.mockResolvedValue({ id: 'material-image-1' })
+    prismaMock.frameosMaterial.findMany.mockResolvedValue([])
   })
 
   it('generates an image, registers it as a named toolbox material, and persists the link', async () => {
@@ -347,6 +349,39 @@ describe('toolbox task handlers', () => {
     expect(result).not.toHaveProperty('outputResolution')
   })
 
+  it('declares material categories and protects quoted dialogue in video prompts', async () => {
+    prismaMock.frameosMaterial.findMany.mockResolvedValue([
+      { id: 'material-officer', type: 'image', metadata: { assetCategory: 'character' } },
+      { id: 'material-desert', type: 'image', metadata: { assetCategory: 'location' } },
+    ])
+    const job = buildJob(TASK_TYPE.TOOLBOX_VIDEO, {
+      title: '种棉花',
+      prompt: '@外军军官在@荒漠沙地种棉花，@外军军官说“@荒漠沙地很不错”',
+      videoModel: 'hfsy::doubao-seedance-2-0',
+      inputMode: 'text',
+      referenceImages: ['images/officer.png', 'images/desert.png'],
+      referenceMaterialIds: ['material-officer', 'material-desert'],
+      referenceMaterials: [
+        { materialId: 'material-officer', role: 'REF' },
+        { materialId: 'material-desert', role: 'REF' },
+      ],
+      referenceNames: ['外军军官', '荒漠沙地'],
+      referenceImageNames: ['外军军官', '荒漠沙地'],
+      referenceImageMentionNames: [['外军军官'], ['荒漠沙地']],
+      duration: 5,
+      resolution: '720p',
+      aspectRatio: '16:9',
+    })
+
+    await handleToolboxVideoTask(job)
+
+    expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(job, expect.objectContaining({
+      options: expect.objectContaining({
+        prompt: '图1（@图片1）是角色外军军官，后文出现 图1（外军军官） 时必须始终指代该资产，图2（@图片2）是场景荒漠沙地，后文出现 图2（荒漠沙地） 时必须始终指代该资产\n图1（外军军官）在图2（荒漠沙地）种棉花，图1（外军军官）说“@荒漠沙地很不错”',
+      }),
+    }))
+  })
+
   it('passes normalized image, video, and audio references to all-reference video generation', async () => {
     const job = buildJob(TASK_TYPE.TOOLBOX_VIDEO, {
       title: '全能参考镜头',
@@ -374,7 +409,7 @@ describe('toolbox task handlers', () => {
       modelId: 'hfsy::doubao-seedance-2-0',
       imageUrl: '',
       options: {
-        prompt: '图1（@图片1）是资产苏晚卿，后文出现 @图片1 时必须始终指代该资产，视频1是参考视频奔跑动作，音频1是雨声的声音\n@图片1（苏晚卿） 模仿 视频1 穿过雨夜，保留 音频1',
+        prompt: '图1（@图片1）是资产苏晚卿，后文出现 图1（苏晚卿） 时必须始终指代该资产，视频1是参考视频奔跑动作，音频1是雨声的声音\n图1（苏晚卿） 模仿 视频1 穿过雨夜，保留 音频1',
         referenceImages: ['https://public.example/reference-1.png'],
         videos: ['https://public.example/run.mp4'],
         audios: ['https://public.example/rain.wav'],

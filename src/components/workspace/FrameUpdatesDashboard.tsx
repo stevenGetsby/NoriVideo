@@ -171,7 +171,7 @@ export function FrameUpdatesDashboard() {
               </div>
               <div className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="text-xs text-white/42">{t('cards.status')}</div>
-                <div className="mt-1 inline-flex rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-2 py-0.5 text-sm font-semibold text-[rgb(var(--nori-t-8ff0b9))]">
+                <div className="mt-1 inline-flex rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-2 py-0.5 text-sm font-semibold text-[var(--fos-success)]">
                   {t('status.current')}
                 </div>
               </div>
@@ -205,7 +205,7 @@ export function FrameUpdatesDashboard() {
                   </div>
                   <p className="mt-1 text-xs leading-5 text-white/40">{t('moduleMatrix.subtitle')}</p>
                 </div>
-                <span className="w-fit rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-2 py-1 text-[11px] font-medium text-[rgb(var(--nori-t-8ff0b9))]">
+                <span className="w-fit rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-2 py-1 text-[11px] font-medium text-[var(--fos-success)]">
                   {t('moduleMatrix.localMode')}
                 </span>
               </div>
@@ -225,7 +225,7 @@ export function FrameUpdatesDashboard() {
                     <div>
                       <span className={`rounded border px-1.5 py-0.5 text-[11px] ${
                         row.health === 'synced'
-                          ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[rgb(var(--nori-t-8ff0b9))]'
+                          ? 'border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 text-[var(--fos-success)]'
                           : 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]'
                       }`}>
                         {t(`moduleMatrix.status.${row.health}`)}
@@ -257,7 +257,7 @@ export function FrameUpdatesDashboard() {
                 <div key={record.id} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-medium text-white/76">{record.version}</div>
-                    <span className="rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-1.5 py-0.5 text-[11px] text-[rgb(var(--nori-t-8ff0b9))]">
+                    <span className="rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-1.5 py-0.5 text-[11px] text-[var(--fos-success)]">
                       {t('status.current')}
                     </span>
                   </div>
@@ -279,7 +279,7 @@ export function FrameUpdatesDashboard() {
               <div key={key} className="rounded-md border border-white/10 bg-white/4 px-3 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm font-medium text-white/76">{t(`checklist.${key}.title`)}</div>
-                  <span className="rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-1.5 py-0.5 text-[11px] text-[rgb(var(--nori-t-8ff0b9))]">
+                  <span className="rounded border border-[rgb(var(--nori-s-45d483))]/30 bg-[rgb(var(--nori-s-45d483))]/10 px-1.5 py-0.5 text-[11px] text-[var(--fos-success)]">
                     {t('status.tracked')}
                   </span>
                 </div>

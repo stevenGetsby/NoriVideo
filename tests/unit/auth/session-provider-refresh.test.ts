@@ -1,17 +1,30 @@
-import fs from 'node:fs'
-import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import React from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
+import { Providers } from '@/app/[locale]/providers'
+
+const route = vi.hoisted(() => ({ pathname: '' }))
+vi.mock('next/navigation', () => ({ usePathname: () => route.pathname }))
+vi.mock('next-auth/react', () => ({
+  SessionProvider: ({ refetchInterval, refetchOnWindowFocus }: { refetchInterval: number; refetchOnWindowFocus: boolean }) =>
+    React.createElement('div', { 'data-interval': refetchInterval, 'data-refetch-on-focus': refetchOnWindowFocus }),
+}))
+vi.mock('@/contexts/ToastContext', () => ({ ToastProvider: () => null }))
+vi.mock('@/components/providers/QueryProvider', () => ({ QueryProvider: () => null }))
+vi.mock('@/components/OldBrowserNotice', () => ({ OldBrowserNotice: () => null }))
 
 describe('account session refresh', () => {
   it('refreshes changed staff roles without requiring a manual page reload', () => {
-    const source = fs.readFileSync(
-      path.join(process.cwd(), 'src/app/[locale]/providers.tsx'),
-      'utf8',
-    )
+    route.pathname = '/zh/works'
+    const html = renderToStaticMarkup(React.createElement(Providers, { children: null }))
+    expect(html).toContain('data-interval="300"')
+    expect(html).toContain('data-refetch-on-focus="true"')
+  })
 
-    expect(source).toContain('refetchOnWindowFocus')
-    expect(source).toContain('refetchInterval={30}')
-    expect(source).not.toContain('refetchOnWindowFocus={false}')
-    expect(source).not.toContain('refetchInterval={0}')
+  it('does not poll for sessions on the public login page', () => {
+    route.pathname = '/zh/auth/signin'
+    const html = renderToStaticMarkup(React.createElement(Providers, { children: null }))
+    expect(html).toContain('data-interval="0"')
+    expect(html).toContain('data-refetch-on-focus="false"')
   })
 })

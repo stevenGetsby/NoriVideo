@@ -36,6 +36,17 @@ vi.mock('@/lib/media/outbound-image', async () => {
   }
 })
 
+async function seedImageProject() {
+  const seeded = await seedMinimalDomainState()
+  // System workers use the actual billing route; the legacy provider model
+  // maps to more than one business tier and must not be picked implicitly.
+  await prisma.novelPromotionProject.update({
+    where: { projectId: seeded.project.id },
+    data: { characterModel: 'nori::nori-image' },
+  })
+  return seeded
+}
+
 describe('system - generate image', () => {
   let workers: SystemWorkers = {}
 
@@ -56,7 +67,7 @@ describe('system - generate image', () => {
   })
 
   it('route -> queue -> worker -> db writes imageUrl and lifecycle events', async () => {
-    const seeded = await seedMinimalDomainState()
+    const seeded = await seedImageProject()
     mockAuthenticated(seeded.user.id)
     workers = await startSystemWorkers(['image'])
 
@@ -99,7 +110,7 @@ describe('system - generate image', () => {
   })
 
   it('fatal provider path -> task fails and existing appearance images stay unchanged', async () => {
-    const seeded = await seedMinimalDomainState()
+    const seeded = await seedImageProject()
     mockAuthenticated(seeded.user.id)
     imageState.mode = 'fatal'
     imageState.errorMessage = 'IMAGE_GENERATION_FATAL'

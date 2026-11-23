@@ -88,8 +88,9 @@ describe.skipIf(!enabled)('shared project summary and billing scopes against dis
       { projectId: hiddenProjectId, userId: outsider, type: 'video_panel', targetType: 'NovelPromotionPanel', targetId: 'panel-2', status: 'queued' },
     ] })
     await prisma.balanceTransaction.createMany({ data: [
-      { userId: state.owner, type: 'consume', amount: -4, balanceAfter: 96, projectId: visibleProjectId, episodeId: visibleEpisodeId, taskType: 'video_panel', description: 'video_panel - model - ¥4' },
-      { userId: state.owner, type: 'consume', amount: -100, balanceAfter: 0, projectId: hiddenProjectId, episodeId: hiddenEpisodeId, taskType: 'video_panel', description: 'video_panel - model - ¥100' },
+      { userId: state.owner, type: 'consume', amount: -4, balanceAfter: 96, projectId: visibleProjectId, episodeId: visibleEpisodeId, taskType: 'video_panel', description: 'video_panel - model - ¥4', billingMeta: JSON.stringify({ quotaUserId: state.member }) },
+      { userId: state.owner, type: 'consume', amount: -100, balanceAfter: 0, projectId: hiddenProjectId, episodeId: hiddenEpisodeId, taskType: 'video_panel', description: 'video_panel - model - ¥100', billingMeta: JSON.stringify({ quotaUserId: state.member }) },
+      { userId: state.owner, type: 'consume', amount: -7, balanceAfter: 89, taskType: 'video_panel', description: 'unrelated-actor-charge', billingMeta: JSON.stringify({ quotaUserId: outsider }) },
     ] })
   })
 
@@ -123,6 +124,8 @@ describe.skipIf(!enabled)('shared project summary and billing scopes against dis
     const hidden = payload.transactions.find((item: { projectId: string }) => item.projectId === hiddenProjectId)
     expect(visible).toMatchObject({ projectName: '共享作品', episodeNumber: 3, episodeName: '共享第三集' })
     expect(hidden).toMatchObject({ projectName: null, episodeNumber: null, episodeName: null })
+    expect(payload.transactions).toHaveLength(2)
+    expect(JSON.stringify(payload.transactions)).not.toContain('unrelated-actor-charge')
   })
 
   it('revokes shared aggregation immediately after work membership is removed', async () => {

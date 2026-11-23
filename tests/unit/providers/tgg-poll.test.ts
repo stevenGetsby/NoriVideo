@@ -87,14 +87,18 @@ describe('tgg task polling', () => {
     expect(result.error).not.toContain('X-Tos-Signature=secret')
   })
 
-  it('fails closed on invalid payloads and network errors', async () => {
+  it('fails closed on invalid payloads and non-transient errors, keeps polling through network blips', async () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(['not', 'an', 'object']))
     expect((await queryTggTaskStatus({ taskId: 'task-1', apiKey: 'k' })).status).toBe('failed')
 
+    // A transient query failure must not kill a task that is still running upstream.
     fetchMock.mockRejectedValueOnce(new Error('socket hang up'))
-    const network = await queryTggTaskStatus({ taskId: 'task-1', apiKey: 'k' })
-    expect(network.status).toBe('failed')
-    expect(network.error).toBeTruthy()
+    expect((await queryTggTaskStatus({ taskId: 'task-1', apiKey: 'k' })).status).toBe('pending')
+
+    fetchMock.mockResolvedValueOnce(jsonResponse({ message: 'not found' }, 404))
+    const terminal = await queryTggTaskStatus({ taskId: 'task-1', apiKey: 'k' })
+    expect(terminal.status).toBe('failed')
+    expect(terminal.error).toBeTruthy()
   })
 
   it('resumes through the pinned provider token and scoped config', async () => {

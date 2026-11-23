@@ -79,7 +79,7 @@ export async function getObjectBuffer(key: string): Promise<Buffer> {
 export async function getSignedObjectUrl(
   key: string,
   expiresInSeconds: number = DEFAULT_SIGNED_URL_EXPIRES_SECONDS,
-  response?: Pick<SignedUrlParams, 'responseContentType' | 'responseContentDisposition'>,
+  response?: Pick<SignedUrlParams, 'responseContentType' | 'responseContentDisposition' | 'signingBucketSeconds' | 'responseCacheControl'>,
 ): Promise<string> {
   return await getStorageProvider().getSignedObjectUrl({
     key,

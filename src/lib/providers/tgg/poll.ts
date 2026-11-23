@@ -5,6 +5,15 @@ import { pickVideoResultMetadata } from '@/lib/video-result'
 import { asRecord, buildTggUrl, readFiniteNumber, readString, requestTgg, TGG_QUERY_TIMEOUT_MS } from './client'
 import { decodeTggExternalToken, type TggAsyncType } from './external-id'
 
+// sanitizePublicError 会把 TGG_ 码改写成 GENERATION_SERVICE_，而 publicTaskError
+// 靠落库的原始码匹配中文文案；保留码前缀，只脱敏其余内容。
+function sanitizeTggPollError(message: string): string {
+  const code = message.match(/\bTGG_[A-Z_]+\b/)?.[0]
+  if (!code) return sanitizePublicError(message)
+  const rest = sanitizePublicError(message.replace(code, '').replace(/^[\s:：-]+/, ''))
+  return rest ? `${code}: ${rest}` : code
+}
+
 export async function queryTggTaskStatus(input: {
   taskId: string
   apiKey: string
@@ -27,7 +36,7 @@ export async function queryTggTaskStatus(input: {
       const error = asRecord(record.error)
       return {
         status: 'failed',
-        error: sanitizePublicError(readString(error?.message) || readString(record.error) || 'TGG task failed'),
+        error: sanitizeTggPollError(readString(error?.message) || readString(record.error) || 'TGG task failed'),
       }
     }
     if (status !== 'completed') return { status: 'pending' }
@@ -53,10 +62,13 @@ export async function queryTggTaskStatus(input: {
       }),
     }
   } catch (error) {
-    return {
-      status: 'failed',
-      error: sanitizePublicError(error instanceof Error ? error.message : 'TGG task query failed'),
+    const message = error instanceof Error ? error.message : 'TGG task query failed'
+    // A transient query failure (5xx, bad JSON, network) must not kill a task
+    // that is still running upstream; keep polling until the TTL.
+    if (/TGG_HTTP_ERROR\(5\d\d\)|TGG_RESPONSE_INVALID_JSON|TGG_RATE_LIMITED|timeout|timed out|fetch failed|econnreset|enotfound|econnrefused|eai_again|socket hang up|terminated|aborted|network|unavailable|overloaded/i.test(message)) {
+      return { status: 'pending' }
     }
+    return { status: 'failed', error: sanitizeTggPollError(message) }
   }
 }
 

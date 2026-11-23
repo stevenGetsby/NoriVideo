@@ -102,7 +102,7 @@ describe('作品回收站 API', () => {
     authed('admin')
     prismaMock.project.findMany.mockResolvedValueOnce([])
     prismaMock.work.findMany.mockResolvedValueOnce([{
-      id: 'work-empty', name: '空项目', createdById: 'actor-1', deletedAt: new Date('2026-10-29T00:00:00.000Z'), members: [],
+      id: 'work-empty', name: '空项目', createdById: 'actor-1', deletedAt: new Date(Date.now() - 60 * 60 * 1000), members: [],
     }])
     const { GET } = await import('@/app/api/projects/recycle-bin/route')
 

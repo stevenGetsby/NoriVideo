@@ -19,6 +19,8 @@ function config(): PlatformServiceConfigResponse {
       { provider: 'openlux', modelId: 'gpt-image-2.5-sunburst', modelKey: 'openlux::gpt-image-2.5-sunburst', name: 'no credentials', type: 'image' },
     ],
     defaultModels: {},
+    agentModels: {},
+    canvasAgentModelCatalog: { defaultModelKey: null, models: [] },
     businessModels: [
       { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
       { key: 'nori::seedance2.0', name: 'seedance2.0-pro', description: '', type: 'video', tier: 'pro' },
@@ -70,5 +72,35 @@ describe('configured selectable model catalog', () => {
     next.modelRouting['nori::norivideo2.5'] = ''
     next.modelRouting['nori::seedance2.0'] = ''
     expect(listConfiguredSelectableModels(next, 'video')).toEqual([])
+  })
+
+  it('lists TGG relays beside Kuaizi only while TGG is routed and keyed', () => {
+    const next = config()
+    next.providers.push({ id: 'tgg', name: 'provider', hasApiKey: true })
+    next.models.push(
+      { provider: 'tgg', modelId: 'seedance_v2.5_full', modelKey: 'tgg::seedance_v2.5_full', name: 'Seedance 2.5', type: 'video' },
+      { provider: 'tgg', modelId: 'vig-S2.5-480-秒', modelKey: 'tgg::vig-S2.5-480-秒', name: 'vig', type: 'video' },
+    )
+    next.businessModels.push(
+      { key: 'nori::tgg-seedance2.5', name: 'TGG Seedance 2.5', description: '', type: 'video', tier: 'pro' },
+      { key: 'nori::tgg-vig2.5', name: 'TGG vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
+    )
+    next.modelRouting['nori::tgg-seedance2.5'] = 'tgg::seedance_v2.5_full'
+    next.modelRouting['nori::tgg-vig2.5'] = 'tgg::vig-S2.5-480-秒'
+
+    const videoModels = listConfiguredSelectableModels(next, 'video')
+    expect(videoModels.map((model) => model.modelKey)).toEqual([
+      'nori::norivideo2.5',
+      'nori::seedance2.0',
+      'nori::tgg-seedance2.5',
+      'nori::tgg-vig2.5',
+    ])
+    expect(videoModels.slice(2).map((model) => model.name)).toEqual(['seedance_v2.5_full', 'vig-S2.5-480-秒'])
+
+    next.providers.find((provider) => provider.id === 'tgg')!.hasApiKey = false
+    expect(listConfiguredSelectableModels(next, 'video').map((model) => model.modelKey)).toEqual([
+      'nori::norivideo2.5',
+      'nori::seedance2.0',
+    ])
   })
 })

@@ -15,6 +15,7 @@ const loggingMock = vi.hoisted(() => ({
 const storageMock = vi.hoisted(() => ({
   getSignedObjectUrl: vi.fn(async (key: string, ttl: number) => `https://signed.example/${key}?expires=${ttl}`),
   getObjectBuffer: vi.fn(async () => Buffer.from([0xff, 0xd8, 0xff, 0xd9])),
+  getStorageType: () => 'tos',
 }))
 
 vi.mock('@/lib/api-auth', () => {
@@ -132,7 +133,10 @@ describe('api contract - infra routes (behavior)', () => {
 
     const res = await mod.GET(req, { params: Promise.resolve({}) })
 
-    expect(storageMock.getSignedObjectUrl).toHaveBeenCalledWith('folder/a.png', 3600)
+    expect(storageMock.getSignedObjectUrl).toHaveBeenCalledWith('folder/a.png', 3600, {
+      signingBucketSeconds: 21600,
+      responseCacheControl: 'private, max-age=86400',
+    })
     expect(res.status).toBe(307)
     expect(res.headers.get('location')).toBe('https://signed.example/folder/a.png?expires=3600')
   })

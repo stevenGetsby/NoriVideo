@@ -47,6 +47,15 @@ describe('/api/video-repaint/script', () => {
     expect(usage.recordServiceUsage).toHaveBeenCalledWith(expect.objectContaining({ operation: 'target-script', userId: 'actor-1' }))
   })
 
+  it('reports omitted dialogue as a retryable generation failure', async () => {
+    const result = await post({ ...valid, sourceScript: '第1集\n人物：母亲\n母亲：别走。' })
+    expect(result.status).toBe(502)
+    expect(await result.json()).toMatchObject({
+      error: { code: 'EMPTY_RESPONSE', message: '目标剧本漏掉了源视频台词，请重新生成', retryable: true },
+    })
+    expect(usage.recordServiceUsage).not.toHaveBeenCalled()
+  })
+
   it('sanitizes provider failures', async () => {
     gateway.runModelGatewayTextCompletion.mockRejectedValueOnce(new Error('failed sk-secret-123456 at https://private.internal/v1'))
     const result = await post(valid)

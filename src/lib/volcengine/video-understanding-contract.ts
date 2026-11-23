@@ -1,3 +1,5 @@
+import { isSpokenDialogueLine } from '@/lib/video-repaint/storyboard-text'
+
 export const VIDEO_REPAINT_ANALYSIS_SCHEMA_VERSION = 'nori-video-repaint-analysis-v1'
 
 export interface VideoRepaintAnalysisValidation {
@@ -26,7 +28,24 @@ function asString(value: unknown): string {
 export function extractFormattedEpisodeScript(input: unknown): string {
   if (!isRecord(input)) return ''
   const episode = isRecord(input.source_episode) ? input.source_episode : null
-  return episode ? asString(episode.formatted_text) : ''
+  if (!episode) return ''
+  const formatted = asString(episode.formatted_text)
+  if (!formatted) return ''
+
+  // Models sometimes write only the actions into formatted_text while their dialogue beats are complete.
+  // Prefer those verbatim beats over silently sending a dialogue-free source script to the text model.
+  const dialogue = asArray(episode.scenes).filter(isRecord).flatMap((scene) =>
+    asArray(scene.beats).filter(isRecord).filter((beat) =>
+      ['dialogue', 'voiceover', 'inner_monologue'].includes(asString(beat.type)) && asString(beat.text),
+    ),
+  )
+  if (!dialogue.length) return formatted
+  // A completely dialogue-free formatted_text loses information even when the beats transcribed it correctly.
+  // Rebuild only that case; partially incomplete formatting keeps the model's actual wording rather than rewriting it.
+  const hasSpokenLine = formatted.split(/\r?\n/).some(isSpokenDialogueLine)
+  if (hasSpokenLine) return formatted
+  const rebuilt = buildEpisodeScriptFromScenes(input)
+  return dialogue.every((beat) => rebuilt.includes(asString(beat.text))) ? rebuilt : formatted
 }
 
 /** `HH:MM:SS.mmm` as seconds; null for anything else. */
@@ -162,7 +181,9 @@ export function validateVideoRepaintAnalysis(input: unknown): VideoRepaintAnalys
     checkRequiredArray(adaptation, field, errors)
   }
 
-  const formattedText = extractFormattedEpisodeScript(input)
+  const formattedText = isRecord(input.source_episode)
+    ? asString(input.source_episode.formatted_text) || extractFormattedEpisodeScript(input)
+    : ''
   if (!formattedText) {
     warnings.push('source_episode.formatted_text is empty')
   } else {

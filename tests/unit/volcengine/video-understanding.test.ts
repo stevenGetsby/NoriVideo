@@ -1165,6 +1165,25 @@ describe('source script contract', () => {
     },
   )
 
+  it('restores dialogue omitted from the formatted text using the structured beats', () => {
+    const analysis = validAnalysis('script')
+    analysis.source_episode.formatted_text = '第1集\n1-1\n场景：测试房间 - 夜 - 暗\n人物：测试人物\n△测试人物抬头。'
+
+    expect(extractFormattedEpisodeScript(analysis)).toBe([
+      '第1集',
+      '1-1',
+      '场景：测试房间 - 夜 - 暗',
+      '人物：测试人物',
+      '△测试人物抬头。',
+      '测试人物（低声）：第一场的台词。',
+      '1-2',
+      '场景：走廊 - 夜 - 暗',
+      '人物：测试人物',
+      '测试人物：第二场的台词。',
+    ].join('\n'))
+    expect(validateVideoRepaintAnalysis(analysis).warnings).toEqual([])
+  })
+
   it('extracts only the formatted single-episode screenplay for delivery', () => {
     expect(extractFormattedEpisodeScript(validAnalysis('script'))).toBe(validAnalysis('script').source_episode.formatted_text)
     expect(extractFormattedEpisodeScript({ source_episode: { formatted_text: '  第1集\n场景：房间  ' } })).toBe('第1集\n场景：房间')

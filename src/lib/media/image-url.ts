@@ -61,6 +61,8 @@ export function toDisplayImageUrl(input: string | null | undefined): string | nu
   return unwrapped
 }
 
+const STATIC_THUMBNAIL_KEY = /\.(png|jpe?g|webp)$/i
+
 export function toCanvasDisplayImageUrl(
   input: string | null | undefined,
   width: 480 | 960 | 1440,
@@ -68,7 +70,8 @@ export function toCanvasDisplayImageUrl(
   const displayUrl = toDisplayImageUrl(input)
   if (!displayUrl) return null
   const parsed = tryParseUrl(displayUrl)
-  if (!parsed || parsed.pathname !== COS_SIGN_PATH || !parsed.searchParams.get('key')) return displayUrl
+  const key = parsed?.searchParams.get('key')
+  if (!parsed || parsed.pathname !== COS_SIGN_PATH || !key || !STATIC_THUMBNAIL_KEY.test(key)) return displayUrl
   parsed.searchParams.set('thumbnail', String(width))
   parsed.searchParams.delete('expires')
   parsed.searchParams.delete('inline')
@@ -76,12 +79,40 @@ export function toCanvasDisplayImageUrl(
   return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
 }
 
-/** Signed playback URLs fix legacy videos stored with download-only headers. */
-export function toPlayableVideoUrl(input: string | null | undefined): string | null {
+export function toVideoPosterUrl(input: string | null | undefined, width: 480 | 960): string | null {
   const displayUrl = toDisplayImageUrl(input)
   if (!displayUrl) return null
   const parsed = tryParseUrl(displayUrl)
+  if (parsed?.pathname !== COS_SIGN_PATH || !parsed.searchParams.get('key')) return null
+  parsed.searchParams.set('poster', String(width))
+  for (const name of ['expires', 'inline', 'playback', 'thumbnail']) parsed.searchParams.delete(name)
+  return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
+}
+
+// /m/ redirects to object storage for plain playback, but canvas byte consumers
+// (frame sampler, waveform, WebGL) need same-origin readable bytes, so pin them
+// to the proxy variant.
+function toSameOriginMediaProxy(displayUrl: string, parsed: URL | null): string | null {
+  if (!parsed || !parsed.pathname.startsWith('/m/')) return null
+  parsed.searchParams.set('proxy', '1')
+  return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
+}
+
+/** Signed playback URLs fix legacy videos stored with download-only headers.
+ * `sameOrigin` pins /m/ to the proxy for consumers that read bytes back
+ * (frame sampler, waveform); plain playback leaves /m/ to redirect offload. */
+export function toPlayableVideoUrl(input: string | null | undefined, options?: { sameOrigin?: boolean }): string | null {
+  const displayUrl = toDisplayImageUrl(input)
+  if (!displayUrl) return null
+  const parsed = tryParseUrl(displayUrl)
+  if (options?.sameOrigin) {
+    const proxied = toSameOriginMediaProxy(displayUrl, parsed)
+    if (proxied) return proxied
+  }
   if (parsed?.pathname !== COS_SIGN_PATH) return displayUrl
+  parsed.searchParams.delete('expires')
+  parsed.searchParams.delete('thumbnail')
+  parsed.searchParams.delete('poster')
   parsed.searchParams.set('playback', '1')
   return /^https?:\/\//i.test(displayUrl) ? parsed.toString() : `${parsed.pathname}${parsed.search}`
 }
@@ -101,7 +132,7 @@ export function toPlayableAudioUrl(input: string | null | undefined): string | n
     const key = parsed.searchParams.get('key')
     if (key) return `${COS_SIGN_PATH}?key=${encodeURIComponent(key)}&inline=1`
   }
-  return unwrapped
+  return toSameOriginMediaProxy(unwrapped, parsed) || unwrapped
 }
 
 /** WebGL textures require readable same-origin bytes, not a redirect to a
@@ -110,6 +141,8 @@ export function toCanvasTextureUrl(input: string | null | undefined): string | n
   const displayUrl = toDisplayImageUrl(input)
   if (!displayUrl) return null
   const parsed = tryParseUrl(displayUrl)
+  const proxied = toSameOriginMediaProxy(displayUrl, parsed)
+  if (proxied) return proxied
   if (!parsed || parsed.pathname !== COS_SIGN_PATH) return displayUrl
 
   parsed.searchParams.set('inline', '1')

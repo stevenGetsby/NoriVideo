@@ -20,6 +20,8 @@ export interface SignedUrlParams {
   expiresInSeconds: number
   responseContentType?: string
   responseContentDisposition?: string
+  signingBucketSeconds?: number
+  responseCacheControl?: string
 }
 
 export interface StorageProvider {

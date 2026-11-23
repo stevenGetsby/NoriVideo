@@ -6,6 +6,7 @@ import { normalizeAccountPointCredit } from '@/lib/account/credits'
 import { apiFetch } from '@/lib/api-fetch'
 import { subscribeBalanceChanges } from '@/lib/billing/client'
 import type { PointMode } from '@/lib/billing/point-mode'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { resolveBillingPrincipals } from '@/lib/account/billing-identity'
 
 export type DailyBalanceUsage = {
@@ -108,23 +109,21 @@ export function useAccountBalance() {
     }
     void refreshBalance()
     // Different ports/devices cannot receive a browser BroadcastChannel.
-    // Re-read the authoritative gate within 3s while visible, plus on focus.
-    const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') void refreshBalance()
-    }, 3_000)
+    // Re-read the authoritative gate periodically while visible, plus on focus.
     const refresh = () => void refreshBalance()
     const unsubscribe = subscribeBalanceChanges(refresh)
     window.addEventListener('focus', refresh)
     const onVisible = () => { if (document.visibilityState === 'visible') refresh() }
     document.addEventListener('visibilitychange', onVisible)
     return () => {
-      window.clearInterval(timer)
       unsubscribe()
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', onVisible)
       requestEpochRef.current += 1
     }
   }, [identityKey, refreshBalance])
+
+  useVisiblePolling(identityKey ? refreshBalance : () => {}, identityKey ? 20_000 : null)
 
   const ready = snapshotIdentity === identityKey && Boolean(identityKey)
   const currentDailyUsage = ready ? dailyUsage : null

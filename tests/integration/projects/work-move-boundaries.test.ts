@@ -61,6 +61,13 @@ function beforeMoveTransaction(operation: () => Promise<unknown>) {
   hooks.beforeTransaction = operation
 }
 
+async function makeStoryProject(workId: string) {
+  await prisma.$transaction([
+    prisma.work.update({ where: { id: workId }, data: { productLine: 'story' } }),
+    prisma.interactiveStory.create({ data: { workId, createdById: ownerId } }),
+  ])
+}
+
 describe.skipIf(!enabled)('work moves against disposable real MySQL', () => {
   beforeEach(async () => {
     const database = new URL(process.env.DATABASE_URL || '')
@@ -114,7 +121,7 @@ describe.skipIf(!enabled)('work moves against disposable real MySQL', () => {
   })
 
   it('keeps ordinary works out of an explicit interactive project', async () => {
-    await prisma.interactiveStory.create({ data: { workId: target, createdById: ownerId } })
+    await makeStoryProject(target)
     await expect(moveProjects(session(), {
       workIds: [workA], targetProjectId: target,
     })).rejects.toMatchObject({ code: 'CONFLICT' })
@@ -123,12 +130,12 @@ describe.skipIf(!enabled)('work moves against disposable real MySQL', () => {
   })
 
   it('keeps interactive chapters in an interactive project when moved', async () => {
-    await prisma.interactiveStory.create({ data: { workId: sourceA, createdById: ownerId } })
+    await makeStoryProject(sourceA)
     await expect(moveProjects(session(), {
       workIds: [workA], targetProjectId: target,
     })).rejects.toMatchObject({ code: 'CONFLICT' })
     expect((await prisma.project.findUniqueOrThrow({ where: { id: workA } })).workId).toBe(sourceA)
-    await prisma.interactiveStory.create({ data: { workId: target, createdById: ownerId } })
+    await makeStoryProject(target)
     await expect(moveProjects(session(), {
       workIds: [workA], targetProjectId: target,
     })).resolves.toMatchObject({ moved: 1 })

@@ -1,8 +1,22 @@
 import type { NoriBusinessModelType } from '@/lib/nori-model-catalog'
 import { composeModelKey } from '@/lib/model-config-contract'
+import { getRawProviderKey } from '@/lib/model-provider-contract'
 import type { PlatformServiceConfigResponse } from './config'
 
 export type SelectableModelType = NoriBusinessModelType
+
+export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  deepseek: 'DeepSeek',
+  openlux: 'OpenLux',
+  kuaizi: 'Kuaizi',
+  huimengi: '绘梦工坊',
+  tgg: 'TGG',
+}
+
+export function providerModelDisplayName(runtimeModelKey: string, modelId: string): string {
+  const provider = getRawProviderKey(runtimeModelKey).toLowerCase()
+  return `${PROVIDER_DISPLAY_NAMES[provider] || provider} · ${modelId}`
+}
 
 export interface ConfiguredSelectableModel {
   modelKey: string

@@ -19,6 +19,7 @@ function platformConfig(overrides: Partial<PlatformServiceConfigResponse> = {}):
     defaultModels: {},
     businessModels: [],
     modelRouting: {
+      'nori::canvas-agent': '',
       'nori::nori-gpt': 'ghc::gpt-5.5',
       'nori::nori-gpt-max': '',
       'nori::nori-gemini': '',
@@ -33,10 +34,14 @@ function platformConfig(overrides: Partial<PlatformServiceConfigResponse> = {}):
       'nori::seedance2.0-fast': '',
       'nori::seedance2.0': '',
       'nori::norivideo2.5': '',
+      'nori::tgg-seedance2.5': '',
+      'nori::tgg-vig2.5': '',
       'nori::nori-audio': '',
       'nori::nori-music': '',
       'nori::nori-sfx': '',
     },
+    agentModels: {},
+    canvasAgentModelCatalog: { defaultModelKey: null, models: [] },
     storage: {
       type: 'tos',
       endpoint: '',

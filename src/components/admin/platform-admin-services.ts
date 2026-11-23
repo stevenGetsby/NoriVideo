@@ -1,3 +1,5 @@
+import type { CanvasAgentModelCatalog, CanvasAgentModelSettings } from '@/lib/canvas-agent/model-catalog'
+
 export type ModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync'
 export type DefaultField = 'analysisModel' | 'characterModel' | 'locationModel' | 'storyboardModel' | 'editModel' | 'videoModel' | 'audioModel' | 'lipSyncModel'
 
@@ -34,6 +36,8 @@ export interface ServiceConfig {
   defaultModels: Partial<Record<DefaultField, string>>
   businessModels: BusinessModelDraft[]
   modelRouting: Record<string, string>
+  agentModels?: Record<string, CanvasAgentModelSettings>
+  canvasAgentModelCatalog?: CanvasAgentModelCatalog
   storage: {
     type: 'tos'
     endpoint: string
@@ -110,30 +114,6 @@ export interface UsageOverview {
   rows: UsageRow[]
   byProvider: ProviderUsageAmount[]
   storage: { objectCount: number; knownBytes: number }
-}
-
-export type VideoProviderState = 'kuaizi' | 'tgg' | 'mixed'
-
-export interface VideoSwitchPlanRow {
-  businessKey: string
-  name: string
-  from: string
-  to: string
-  action: 'switch' | 'keep' | 'unavailable'
-  reason?: string
-}
-
-export interface VideoSwitchPlan {
-  current: VideoProviderState
-  target: 'kuaizi' | 'tgg'
-  rows: VideoSwitchPlanRow[]
-  blockers: string[]
-  applied: boolean
-}
-
-export interface VideoProviderStatus {
-  current: VideoProviderState
-  inFlight: { kuaizi: number; tgg: number }
 }
 
 export interface ServicesPayload {

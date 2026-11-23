@@ -6,6 +6,10 @@ export const PROMPT_CATALOG: Record<PromptId, PromptCatalogEntry> = {
     pathStem: 'skills/tutorial.system',
     variableKeys: [],
   },
+  [PROMPT_IDS.CANVAS_AGENT_SYSTEM]: {
+    pathStem: 'skills/canvas-agent.system',
+    variableKeys: [],
+  },
   [PROMPT_IDS.CHARACTER_IMAGE_TO_DESCRIPTION]: {
     pathStem: 'character-reference/character_image_to_description',
     variableKeys: [],

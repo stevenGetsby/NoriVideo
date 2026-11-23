@@ -130,3 +130,41 @@ NORI_BROWSER_TOOLS_DIR=/path/to/browser-tools node tests/browser/project-assets-
 旧目录请求隔离、错误角色记录不阻断场景目录、HTTP/IP 下无 `randomUUID` 的兼容。
 视口包含 1024×600、768×480 和 390×700。需先通过 TOS 守卫并启动本地工作台
 读取实际全局样式；测试自身不发起生产写入或上游生成。
+
+## 大画布性能基准
+
+`canvas-pan-performance.browser.mjs` 用真实 `CanvasGraph` 与应用 CSS 跑确定性合成画布
+（`canvas-scale-fixtures.mjs`：小图 40/80、老头 A 179/1,111、老头 B 176/724 远景、
+上限 1,000/4,000，另有稠密/稀疏/长边/分组变体与 P5 的 5,000/20,000）。所有接口本地
+模拟，不含真实提示词、素材 URL 或付费调用。
+
+```sh
+NORI_BROWSER_TOOLS_DIR=/path/to/browser-tools \
+NORI_BROWSER_GLOBAL_CSS_PATH=/tmp/global.css \
+PAN_GPU=metal PAN_RUNS=5 PAN_CPU=1 \
+PAN_SCENARIOS='["small-40","laotou-a","laotou-b","limit-1000"]' \
+node tests/browser/canvas-pan-performance.browser.mjs
+```
+
+- 阶段：冷/热打开 → 中键平移 → 静置 2 秒 → 滚轮缩放 → 视口控件（适应全图） → 单节点拖动 →
+  Shift 框选并拖动多节点 → 点击空白 → 拖动后静置 → `@` 菜单 → 打开生成历史 → 6 次画布切换（堆趋势）。
+  每段记录 p50/p95/max 帧时间、>50 ms 帧占比、主线程忙时、自动保存次数和字节，以及 DOM 节点/边数。
+- 驱动：真实 `mouse.wheel`、中键拖动、工具栏按钮和节点拖动，并断言 React Flow transform
+  或节点坐标确实变化；不依赖强制等待。
+- 打开：分别报告首个可操作视口、首个海报、`GET canvas` 的 gzip/解码字节，未点播放时断言无视频正文请求。
+- `PAN_GPU=metal` 使用真实 GPU；默认 SwiftShader 只做结构验证，帧时间不具代表性。
+- `PAN_CPU=4` 是 Chrome 4× CPU 参考档；普通档与参考档各跑一组，不拿两台设备的绝对值做前后对比。
+- `PAN_ASSERT=1` 断言结构（无页面错误、真实平移/缩放、播放前无视频元素）；
+  `PAN_BUDGET=1` 再断言帧预算：p95 ≤ 25 ms（4× 档 ≤ 33.4 ms），>50 ms 帧 ≤ 1%。
+- 其余开关见脚本头部注释：`PAN_SCENARIO_SET`、`PAN_DEV`、`PAN_TRACE`、`PAN_PROFILE`、`PAN_SWITCH`、
+  `PAN_SOAK_SECONDS`、`PAN_OUT`。
+
+2026-11-21 改前基线（Apple M4、Chrome 152、Metal、3 次中位数；文件保存在
+`test-results/canvas-pan-performance/baseline-before-cpu{1,4}.json`）：
+
+| 场景 | 阶段 | 4× CPU p95 | >50 ms 帧 |
+|---|---|---|---|
+| limit-1000 | 适应全图 | 283 ms | 23.0% |
+| laotou-a | 适应全图 | 217 ms | 19.0% |
+| laotou-b | 平移 / 滚轮缩放 | 50 / 67 ms | 1.2% / 6.3% |
+| limit-1000 | 平移 | 50 ms | 1.3% |

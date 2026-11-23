@@ -199,8 +199,8 @@ export function FrameFeedbackDashboard() {
                   onClick={() => setType(item)}
                   className={`rounded-md border px-3 py-2 text-sm transition-colors ${
                     type === item
-                      ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-on-brand'
-                      : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-on-brand'
+                      ? 'border-[var(--fos-primary-border)] bg-[var(--fos-primary-soft)] text-[var(--fos-primary-text)]'
+                      : 'border-white/10 bg-white/4 text-white/58 hover:bg-white/7 hover:text-white'
                   }`}
                 >
                   {t(`types.${item}`)}

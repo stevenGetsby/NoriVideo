@@ -60,7 +60,6 @@ function composeDefinition(entry: BuiltinCapabilityCatalogEntry): TggModelDefini
     maxVideos,
     maxAudios,
     supportsResolution: resolutions.length > 0,
-    supportsGenerateAudio: video?.supportGenerateAudio === true,
     supportsAspectRatioField: profile?.aspectRatioField === true,
     supportsFirstLastFrame: video?.firstlastframe === true,
     durationOptions: [...(video?.durationOptions ?? [])],
@@ -91,6 +90,7 @@ export function listTggSelectableModels(): TggModelDefinition[] {
   return listTggCatalogModels().filter((model) => (
     Boolean(readProfile(model.modelId))
     && model.durationOptions.length > 0
+    && model.ratios.length > 0
     && hasVerifiedPricing(model)
   ))
 }

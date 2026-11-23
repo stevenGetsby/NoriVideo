@@ -38,6 +38,7 @@ import {
 import { readPanelFrameOSMetadataFromActingNotes } from '@/lib/novel-promotion/panel-frameos-metadata'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
 import { handleToolboxVideoTask } from './handlers/toolbox-video-task-handler'
+import { warmVideoPoster } from './video-poster-warmup'
 import { appendProjectArtStyleConstraint } from '@/lib/projects/creation-config'
 
 import { pickVideoResultMetadata, type VideoResultMetadata } from '@/lib/video-result'
@@ -490,6 +491,7 @@ async function generateVideoForPanel(
   const videoSource = generatedVideo.url
 
   const cosKey = await uploadVideoSourceToCos(videoSource, 'panel-video', panel.id, downloadHeaders)
+  warmVideoPoster(cosKey)
   return {
     cosKey,
     generationMode,
@@ -610,6 +612,7 @@ async function handleLipSyncTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 93, { stage: 'persist_lip_sync' })
 
   const cosKey = await uploadVideoSourceToCos(source, 'lip-sync', panel.id)
+  warmVideoPoster(cosKey)
 
   await assertTaskActive(job, 'persist_lip_sync_video')
   await prisma.novelPromotionPanel.update({

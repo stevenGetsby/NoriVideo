@@ -1,1 +1,118 @@
-[]
+[
+  {
+    "modelType": "video",
+    "provider": "tgg",
+    "modelId": "seedance_v2.5_full",
+    "capabilities": {
+      "video": {
+        "durationOptions": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "firstlastframe": false,
+        "supportGenerateAudio": false,
+        "inputSchema": {
+          "image": {
+            "min": 0,
+            "max": 30
+          },
+          "video": {
+            "min": 0,
+            "max": 10,
+            "maxTotalDurationSeconds": 30
+          },
+          "audio": {
+            "min": 0,
+            "max": 10,
+            "maxTotalDurationSeconds": 30
+          },
+          "requiredFields": [
+            "prompt"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "modelType": "video",
+    "provider": "tgg",
+    "modelId": "vig-S2.5-480-秒",
+    "capabilities": {
+      "video": {
+        "durationOptions": [
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30
+        ],
+        "firstlastframe": false,
+        "supportGenerateAudio": false,
+        "inputSchema": {
+          "image": {
+            "min": 0,
+            "max": 30
+          },
+          "video": {
+            "min": 0,
+            "max": 10,
+            "maxTotalDurationSeconds": 30
+          },
+          "audio": {
+            "min": 0,
+            "max": 10,
+            "maxTotalDurationSeconds": 30
+          },
+          "requiredFields": [
+            "prompt"
+          ]
+        }
+      }
+    }
+  }
+]

@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs"
 import { logAuthAction } from './logging/semantic'
 import { prisma } from './prisma'
 import { effectiveAccountPermissions, isManagementRole, normalizeAccountRole } from './account/permissions'
+import { readAccountContentRestrictions } from './account/content-restrictions'
 import { normalizeAccountCredit, normalizeAccountPointCredit } from './account/credits'
 import { getGenerationWalletPoints } from './account/generation-wallet'
 import {
@@ -175,6 +176,7 @@ export const authOptions: any = {
       if (!account) {
         token.accountStatus = 'revoked'
         token.permissions = []
+        token.contentRestrictions = []
         token.projectLeader = false
         return token
       }
@@ -191,6 +193,7 @@ export const authOptions: any = {
         : 'revoked'
       token.projectLeader = !isManagementRole(role) && account.projectLeader
       token.permissions = effectiveAccountPermissions(account.role, account.permissions)
+      token.contentRestrictions = readAccountContentRestrictions(account.permissions)
       token.passwordChangeRequired = versionMatches && account.passwordChangeRequired
       token.sessionVersion = tokenVersion
       token.workspaceOwnerId = account.workspaceOwnerId
@@ -210,6 +213,7 @@ export const authOptions: any = {
         session.user.passwordChangeRequired = token.passwordChangeRequired === true
         session.user.projectLeader = token.projectLeader === true
         session.user.permissions = Array.isArray(token.permissions) ? token.permissions : []
+        session.user.contentRestrictions = Array.isArray(token.contentRestrictions) ? token.contentRestrictions : []
         session.user.sessionVersion = typeof token.sessionVersion === 'number' ? token.sessionVersion : 0
         session.user.workspaceOwnerId = typeof token.workspaceOwnerId === 'string' ? token.workspaceOwnerId : null
         session.user.parentAccountId = typeof token.parentAccountId === 'string' ? token.parentAccountId : null

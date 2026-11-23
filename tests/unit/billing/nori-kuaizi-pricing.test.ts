@@ -79,6 +79,8 @@ describe('nori and kuaizi price mapping', () => {
         continue
       }
       if (model.type === 'video') {
+        // TGG relays carry no Nori retail price; they bill at their routed relay tier (tgg-business-models.test.ts).
+        if (model.key.startsWith('nori::tgg-')) continue
         expect(calcVideo(model.key, '720p', 1, {
           resolution: '720p',
           duration: 5,

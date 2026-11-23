@@ -25,6 +25,7 @@ import {
   type ServiceConfigProvider,
 } from './service-config'
 import {
+  environmentProviderKey,
   fixedPlatformModels,
 } from './platform-services/config'
 import {
@@ -175,7 +176,9 @@ function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): Cu
   if (!isSupportedModelProvider(id)) {
     throw new Error(`SERVICE_PROVIDER_INVALID: providers[${index}].id is unsupported`)
   }
-  const apiKey = readTrimmedString(raw.apiKey)
+  // 管理台 hasApiKey 与路由校验都承认 env 注入的 key，运行时必须同样承认，
+  // 否则仅配置了 env key 的服务商会在生成时 PROVIDER_API_KEY_MISSING。
+  const apiKey = readTrimmedString(raw.apiKey) || environmentProviderKey(id)
   return {
     id,
     name,

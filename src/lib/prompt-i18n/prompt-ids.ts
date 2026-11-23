@@ -1,5 +1,6 @@
 export const PROMPT_IDS = {
   ASSISTANT_TUTORIAL_SYSTEM: 'assistant_tutorial_system',
+  CANVAS_AGENT_SYSTEM: 'canvas_agent_system',
   CHARACTER_IMAGE_TO_DESCRIPTION: 'character_image_to_description',
   CHARACTER_REFERENCE_TO_SHEET: 'character_reference_to_sheet',
   NP_AGENT_ACTING_DIRECTION: 'np_agent_acting_direction',

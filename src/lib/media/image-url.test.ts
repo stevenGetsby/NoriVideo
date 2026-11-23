@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { resolveOriginalImageUrl, toCanvasDisplayImageUrl, toCanvasTextureUrl, toDisplayImageUrl, toPlayableVideoUrl, unwrapNextImageUrl } from './image-url'
+import { resolveOriginalImageUrl, toCanvasDisplayImageUrl, toCanvasTextureUrl, toDisplayImageUrl, toPlayableAudioUrl, toPlayableVideoUrl, toVideoPosterUrl, unwrapNextImageUrl } from './image-url'
 
 describe('image-url helpers', () => {
   it('unwraps next/image nested url', () => {
@@ -17,6 +17,19 @@ describe('image-url helpers', () => {
     expect(toCanvasDisplayImageUrl('/api/storage/sign?key=images%2Fa.png&inline=1&playback=1&expires=60', 480))
       .toBe('/api/storage/sign?key=images%2Fa.png&thumbnail=480')
     expect(toCanvasDisplayImageUrl('https://cdn.example/a.png', 960)).toBe('https://cdn.example/a.png')
+  })
+
+  it('does not request canvas thumbnails for animated or non-raster storage keys', () => {
+    expect(toCanvasDisplayImageUrl('images/loop.gif', 480)).toBe('/api/storage/sign?key=images%2Floop.gif')
+    expect(toCanvasDisplayImageUrl('video/clip.mp4', 480)).toBe('/api/storage/sign?key=video%2Fclip.mp4')
+    expect(toCanvasDisplayImageUrl('images/b.JPEG', 480)).toBe('/api/storage/sign?key=images%2Fb.JPEG&thumbnail=480')
+  })
+
+  it('lets /m/ playback redirect by default but pins byte consumers to the same-origin proxy', () => {
+    expect(toPlayableVideoUrl('/m/abc')).toBe('/m/abc')
+    expect(toPlayableVideoUrl('/m/abc', { sameOrigin: true })).toBe('/m/abc?proxy=1')
+    expect(toCanvasTextureUrl('/m/abc')).toBe('/m/abc?proxy=1')
+    expect(toPlayableAudioUrl('/m/abc')).toBe('/m/abc?proxy=1')
   })
 
   it('keeps WebGL textures on the same origin instead of following a CORS-sensitive redirect', () => {
@@ -40,8 +53,15 @@ describe('image-url helpers', () => {
     expect(toPlayableVideoUrl('images/toolbox-video.mp4'))
       .toBe('/api/storage/sign?key=images%2Ftoolbox-video.mp4&playback=1')
     expect(toPlayableVideoUrl('/api/storage/sign?key=video%2Ffoo.webm&expires=900'))
-      .toBe('/api/storage/sign?key=video%2Ffoo.webm&expires=900&playback=1')
+      .toBe('/api/storage/sign?key=video%2Ffoo.webm&playback=1')
     expect(toPlayableVideoUrl('https://cdn.example/clip.mp4')).toBe('https://cdn.example/clip.mp4')
     expect(toPlayableVideoUrl(null)).toBeNull()
+  })
+
+  it('derives cacheable posters only from storage-backed video URLs', () => {
+    expect(toVideoPosterUrl('video/clip.mp4', 480)).toBe('/api/storage/sign?key=video%2Fclip.mp4&poster=480')
+    expect(toVideoPosterUrl('/api/storage/sign?key=video%2Fclip.mp4&playback=1&expires=10&thumbnail=960', 960))
+      .toBe('/api/storage/sign?key=video%2Fclip.mp4&poster=960')
+    expect(toVideoPosterUrl('https://cdn.example/clip.mp4', 480)).toBeNull()
   })
 })

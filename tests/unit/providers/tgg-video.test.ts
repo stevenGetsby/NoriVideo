@@ -38,7 +38,6 @@ function definition(overrides: Partial<TggModelDefinition> = {}): TggModelDefini
     maxVideos: 1,
     maxAudios: 1,
     supportsResolution: true,
-    supportsGenerateAudio: true,
     supportsAspectRatioField: false,
     supportsFirstLastFrame: false,
     durationOptions: [5, 10],
@@ -83,7 +82,6 @@ describe('tgg video adapter', () => {
         audios: ['https://cdn.example/ref.mp3'],
         aspectRatio: '16:9',
         resolution: '720p',
-        generateAudio: true,
       }),
     })
 
@@ -104,7 +102,6 @@ describe('tgg video adapter', () => {
       seconds: 5,
       ratio: '16:9',
       resolution: '720p',
-      generate_audio: true,
       images: ['https://cdn.example/first.png', 'https://cdn.example/ref.png'],
       videos: ['https://cdn.example/ref.mp4'],
       audios: ['https://cdn.example/ref.mp3'],
@@ -198,10 +195,13 @@ describe('tgg video adapter', () => {
     expect(submittedBody()).not.toHaveProperty('resolution')
   })
 
-  it('omits generate_audio for models without the capability', async () => {
-    definitionMock.mockReturnValue(definition({ supportsGenerateAudio: false }))
+  it('never sends generate_audio because the upstream rejects it and audio is always produced', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse({ id: 'task-1' }))
     await generateTggVideo({ userId: 'user-1', imageUrl: 'https://cdn.example/a.png', prompt: 'pan', options: baseOptions({ generateAudio: true }) })
-    expect(submittedBody()).not.toHaveProperty('generate_audio')
+    await generateTggVideo({ userId: 'user-1', imageUrl: 'https://cdn.example/a.png', prompt: 'pan', options: baseOptions({ generateAudio: false }) })
+    const bodies = fetchMock.mock.calls.map(([, init]) => JSON.parse(String((init as RequestInit).body)) as Record<string, unknown>)
+    expect(bodies).toHaveLength(2)
+    for (const body of bodies) expect(body).not.toHaveProperty('generate_audio')
   })
 
   it('fails loudly on last-frame requests instead of dropping them', async () => {

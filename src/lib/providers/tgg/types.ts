@@ -15,8 +15,6 @@ export interface TggModelDefinition {
   maxAudios: number
   /** false → never send `resolution`. */
   supportsResolution: boolean
-  /** false → never send `generate_audio`. */
-  supportsGenerateAudio: boolean
   /** false → only `ratio` is sent, never `aspect_ratio`. */
   supportsAspectRatioField: boolean
   supportsFirstLastFrame: boolean

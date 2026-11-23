@@ -61,7 +61,7 @@ export default function ProfilePage() {
 
             <div className="mb-5 rounded-md border border-white/10 bg-white/4 p-3">
               <div className="flex items-center gap-2 text-sm font-semibold text-white/78">
-                <AppIcon name="userRoundCog" className="h-4 w-4 text-[rgb(var(--nori-primary-text-))]" />
+                <AppIcon name="userRoundCog" className="h-4 w-4 text-[rgb(var(--nori-primary-text))]" />
                 {t('settingsTitle')}
               </div>
               <div className="mt-2 text-xs leading-5 text-white/42">{t('settingsSubtitle')}</div>
@@ -78,7 +78,7 @@ export default function ProfilePage() {
                   href={item.href}
                   className="flex items-start gap-3 rounded-md border border-white/10 bg-white/4 px-3 py-2.5 transition-colors hover:bg-white/8"
                 >
-                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--nori-primary-text-))]" />
+                  <AppIcon name={item.icon} className="mt-0.5 h-4 w-4 shrink-0 text-[rgb(var(--nori-primary-text))]" />
                   <span className="min-w-0">
                     <span className="block text-sm font-medium text-white/72">{item.label}</span>
                     <span className="mt-0.5 block text-xs leading-5 text-white/36">{item.detail}</span>
@@ -99,7 +99,7 @@ export default function ProfilePage() {
           <section className="min-w-0 rounded-lg border border-white/10 bg-[rgb(var(--nori-s-16161d))] shadow-[0_18px_50px_rgba(0,0,0,.22)]">
             <div className="border-b border-white/10 px-5 py-4">
               <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[rgb(var(--nori-primary-text-))]" />
+                <AppIcon name="settingsHexAlt" className="h-4 w-4 text-[rgb(var(--nori-primary-text))]" />
                 {t('apiConfig')}
               </div>
               <p className="mt-1 text-xs leading-5 text-white/45">{t('apiConfigHint')}</p>

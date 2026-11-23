@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
-import { getObjectBuffer, toFetchableUrl } from '@/lib/storage'
+import { getSignedObjectUrl, toFetchableUrl } from '@/lib/storage'
 
 type RouteParams = Record<string, string | string[] | undefined> & {
   taskId: string
@@ -36,35 +36,22 @@ function contentTypeForFileName(fileName: string): string {
   return CONTENT_TYPE_BY_EXTENSION[extension] || 'video/mp4'
 }
 
-async function readResultBuffer(record: {
-  resultStorageKey: string | null
-  resultVideoUrl: string | null
-  result: unknown
-}): Promise<{ buffer: Buffer; contentType: string }> {
-  if (record.resultStorageKey) {
-    return {
-      buffer: await getObjectBuffer(record.resultStorageKey),
-      contentType: contentTypeForFileName(record.resultStorageKey),
-    }
+async function streamExternalResult(resultVideoUrl: string, fileName: string, disposition: string): Promise<NextResponse> {
+  const upstream = await fetch(toFetchableUrl(resultVideoUrl))
+  if (!upstream.ok || !upstream.body) {
+    throw new ApiError('EXTERNAL_ERROR', { message: `读取增强结果失败：HTTP ${upstream.status}` })
   }
-
-  const resultVideoUrl = record.resultVideoUrl || readResultVideoUrl(record.result)
-  if (!resultVideoUrl) {
-    throw new ApiError('NOT_FOUND', { message: '增强结果文件不存在或尚未完成归档' })
-  }
-
-  const response = await fetch(toFetchableUrl(resultVideoUrl))
-  if (!response.ok) {
-    throw new ApiError('EXTERNAL_ERROR', { message: `读取增强结果失败：HTTP ${response.status}` })
-  }
-
-  return {
-    buffer: Buffer.from(await response.arrayBuffer()),
-    contentType: response.headers.get('content-type') || 'video/mp4',
-  }
+  const headers = new Headers({
+    'Content-Type': upstream.headers.get('content-type') || contentTypeForFileName(fileName),
+    'Content-Disposition': disposition,
+    'Cache-Control': 'private, no-store',
+  })
+  const length = upstream.headers.get('content-length')
+  if (length) headers.set('Content-Length', length)
+  return new NextResponse(upstream.body, { status: 200, headers })
 }
 
-export const GET = apiHandler(async (_request: NextRequest, context: { params: Promise<RouteParams> }) => {
+export const GET = apiHandler(async (request: NextRequest, context: { params: Promise<RouteParams> }) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
   const { session } = authResult
@@ -94,15 +81,18 @@ export const GET = apiHandler(async (_request: NextRequest, context: { params: P
   }
 
   const fileName = resultFileName(record.name)
-  const { buffer, contentType } = await readResultBuffer(record)
+  const disposition = `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`
 
-  return new NextResponse(new Uint8Array(buffer), {
-    status: 200,
-    headers: {
-      'Content-Type': contentType,
-      'Content-Length': String(buffer.length),
-      'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(fileName)}`,
-      'Cache-Control': 'private, no-store',
-    },
-  })
+  // The client opens this URL via an anchor, so redirect straight to a signed
+  // attachment link; archived results no longer buffer through the web process.
+  if (record.resultStorageKey) {
+    const url = await getSignedObjectUrl(record.resultStorageKey, 600, { responseContentDisposition: disposition })
+    return NextResponse.redirect(new URL(url, request.nextUrl.origin), 302)
+  }
+
+  const resultVideoUrl = record.resultVideoUrl || readResultVideoUrl(record.result)
+  if (!resultVideoUrl) {
+    throw new ApiError('NOT_FOUND', { message: '增强结果文件不存在或尚未完成归档' })
+  }
+  return streamExternalResult(resultVideoUrl, fileName, disposition)
 })

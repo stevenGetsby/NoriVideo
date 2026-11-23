@@ -1,5 +1,6 @@
 import type { DefaultSession } from 'next-auth'
 import type { DefaultJWT } from 'next-auth/jwt'
+import type { AccountContentRestriction } from '@/lib/account/content-restrictions'
 
 type NoriAccountRole = 'super_admin' | 'admin' | 'writer' | 'asset' | 'storyboard' | 'reviewer'
 type NoriAccountPermission = 'read' | 'workCreate' | 'projectCreate' | 'scriptWrite' | 'assetWrite' | 'storyboardWrite' | 'toolboxUse' | 'canvasWrite' | 'admin'
@@ -13,6 +14,7 @@ declare module 'next-auth' {
       status: 'active' | 'disabled' | 'revoked'
       passwordChangeRequired: boolean
       permissions: NoriAccountPermission[]
+      contentRestrictions?: AccountContentRestriction[]
       projectLeader: boolean
       sessionVersion: number
       workspaceOwnerId?: string | null
@@ -45,6 +47,7 @@ declare module 'next-auth/jwt' {
     accountStatus?: 'active' | 'disabled' | 'revoked'
     passwordChangeRequired?: boolean
     permissions?: NoriAccountPermission[]
+    contentRestrictions?: AccountContentRestriction[]
     projectLeader?: boolean
     sessionVersion?: number
     workspaceOwnerId?: string | null
