@@ -1,0 +1,147 @@
+{
+  "source": { "file": "synthetic-sample.xlsx", "sheet": "日报", "rowCount": 14 },
+  "statedProjectTotals": { "样例短片": 1000, "样例精品": 50 },
+  "rows": [
+    {
+      "rowNo": 1,
+      "dateKey": "2026-05-11",
+      "projectName": "样例短片",
+      "categoryRaw": "短片,短片",
+      "actorName": "测试甲",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "仅 token",
+      "projectMeta": { "startDate": "2026-05-01", "budgetCny": 2000, "totalEpisodes": 12, "doneEpisodes": 6 }
+    },
+    {
+      "rowNo": 2,
+      "dateKey": "2026-05-11",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 0,
+      "jimengPoints": 100,
+      "remark": "仅即梦"
+    },
+    {
+      "rowNo": 3,
+      "dateKey": "2026-05-12",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试乙",
+      "apiTokens": 2000000,
+      "jimengPoints": 50,
+      "remark": "token + 即梦"
+    },
+    {
+      "rowNo": 4,
+      "dateKey": "2026-05-12",
+      "projectName": " 样例短片 ",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 500000,
+      "jimengPoints": 0,
+      "remark": "首尾空格归一化"
+    },
+    {
+      "rowNo": 5,
+      "dateKey": "2026-05-13",
+      "projectName": "样例精品",
+      "categoryRaw": "精品",
+      "actorName": "测试甲",
+      "apiTokens": 0,
+      "jimengPoints": 0,
+      "remark": "全零空行"
+    },
+    {
+      "rowNo": 6,
+      "dateKey": "2026-05-13",
+      "projectName": "样例精品",
+      "categoryRaw": "精品",
+      "actorName": "外来人员",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "无法匹配账号"
+    },
+    {
+      "rowNo": 7,
+      "dateKey": "2026-05-14",
+      "projectName": "同名作品",
+      "categoryRaw": "短片",
+      "actorName": "测试乙",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "与某作品同名"
+    },
+    {
+      "rowNo": 8,
+      "dateKey": "2026-05-14",
+      "projectName": "另一个片",
+      "categoryRaw": "短片",
+      "actorName": "测试乙",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "同日同人不同项目"
+    },
+    {
+      "rowNo": 9,
+      "dateKey": "2026-02-30",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "非法日期"
+    },
+    {
+      "rowNo": 10,
+      "dateKey": "2019-12-31",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "2020 年前的合法旧日期"
+    },
+    {
+      "rowNo": 11,
+      "dateKey": "2026-05-11",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "与第 1 行导入键重复"
+    },
+    {
+      "rowNo": 12,
+      "dateKey": "2026-05-15",
+      "projectName": "样例短片",
+      "categoryRaw": "未知类型",
+      "actorName": "测试甲",
+      "apiTokens": 0,
+      "jimengPoints": 200,
+      "remark": "无法识别的类型"
+    },
+    {
+      "rowNo": 13,
+      "dateKey": "2026-05-16",
+      "projectName": "样例短片",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": -5,
+      "jimengPoints": 0,
+      "remark": "负数 token"
+    },
+    {
+      "rowNo": 14,
+      "dateKey": "2026-05-16",
+      "projectName": "",
+      "categoryRaw": "短片",
+      "actorName": "测试甲",
+      "apiTokens": 1000000,
+      "jimengPoints": 0,
+      "remark": "项目名为空"
+    }
+  ]
+}

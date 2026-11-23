@@ -430,8 +430,10 @@ export async function allocateAccountPointsBulk(input: {
         }
         const remaining = targetUserIds.filter((userId) => !replayed.has(userId))
         const manager = await readBalanceInTransaction(tx, input.operatorId)
-        if (toMoneyNumber(manager.balance) < remaining.length * amountCny) {
-          throw new CreditLedgerError('INSUFFICIENT_POINTS', `可用积分不足：需要 ${cnyToPoints(remaining.length * amountCny)} 积分，当前可用 ${cnyToPoints(toMoneyNumber(manager.balance))} 积分。`)
+        const requiredAmount = toAmountDecimal(amountCny).mul(remaining.length)
+        const balanceAmount = toAmountDecimal(toMoneyNumber(manager.balance))
+        if (balanceAmount.lt(requiredAmount)) {
+          throw new CreditLedgerError('INSUFFICIENT_POINTS', `可用积分不足：需要 ${cnyToPoints(requiredAmount.toNumber())} 积分，当前可用 ${cnyToPoints(balanceAmount.toNumber())} 积分。`)
         }
         for (const userId of remaining) {
           await transferPointsInTx(tx, {
@@ -447,7 +449,7 @@ export async function allocateAccountPointsBulk(input: {
         }
         return {
           allocated: targetUserIds.map((userId) => ({ userId, points, idempotent: replayed.has(userId) })),
-          operatorBalancePoints: cnyToPoints(toMoneyNumber(manager.balance) - remaining.length * amountCny),
+          operatorBalancePoints: cnyToPoints(balanceAmount.minus(requiredAmount).toNumber()),
         }
       }, { maxWait: 10_000, timeout: 30_000, isolationLevel: Prisma.TransactionIsolationLevel.Serializable })
     } catch (error) {
