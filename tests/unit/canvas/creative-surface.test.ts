@@ -134,7 +134,8 @@ describe('infinite canvas creative surface parity', () => {
     expect(graph).toContain('onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))}')
     expect(generator).toContain('className="nori-canvas-generator-scroll"')
     expect(generator).toContain('<ViewportPortal>')
-    expect(styles).toContain('max-height: calc(72dvh / var(--nori-interface-scale, 1.2) * var(--nori-generator-inverse-zoom, 1));')
+    expect(styles).toContain('max-height: calc(72dvh / var(--nori-interface-scale, 1.2));')
+    expect(styles).toContain('max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2));')
     expect(styles).toContain('.nori-canvas-generator.is-node-anchored .nori-canvas-generator-head')
   })
 
