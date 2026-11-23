@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { getObjectBuffer, getSignedObjectUrl } from '@/lib/storage'
+import { getObjectBuffer, getSignedObjectUrl, getStorageType } from '@/lib/storage'
 import { ensureCanvasThumbnail, normalizeCanvasThumbnailWidth } from '@/lib/media/thumbnail'
+import { ensureVideoPoster, normalizeVideoPosterWidth } from '@/lib/media/video-poster'
 
 const DEFAULT_EXPIRES_SECONDS = 3600
-const REDIRECT_MAX_CACHE_SECONDS = 600
+const MEDIA_SIGNING_BUCKET_SECONDS = 6 * 60 * 60
 const MAX_INLINE_IMAGE_BYTES = 40 * 1024 * 1024
 const MAX_INLINE_AUDIO_BYTES = 60 * 1024 * 1024
 const UPLOAD_DIR = process.env.UPLOAD_DIR || './data/uploads'
@@ -87,12 +88,23 @@ function inlineAudioResponse(buffer: Buffer, storageKey: string, rangeHeader: st
   })
 }
 
-// A fresh signature per request gives every remount a new URL the browser cannot reuse, so the same
-// signed URL is kept cacheable for a while (never longer than half its own lifetime).
-function signedRedirect(signedUrl: string, ttl: number): NextResponse {
-  const response = NextResponse.redirect(signedUrl)
-  response.headers.set('Cache-Control', `private, max-age=${Math.min(REDIRECT_MAX_CACHE_SECONDS, Math.floor(ttl / 2))}`)
+// Bucketed signatures let the browser reuse both the redirect and the object response,
+// but only TOS aligns signatures to bucket boundaries; MinIO/local URLs expire at ttl.
+// Local URLs are relative and NextResponse.redirect requires an absolute target.
+function signedRedirect(request: NextRequest, signedUrl: string, ttl: number, bucketSeconds?: number): NextResponse {
+  const response = NextResponse.redirect(new URL(signedUrl, request.nextUrl.origin))
+  const cacheSeconds = bucketSeconds && getStorageType() === 'tos'
+    ? Math.max(60, Math.ceil((bucketSeconds * 1000 - Date.now() % (bucketSeconds * 1000)) / 1000))
+    : Math.min(600, Math.floor(ttl / 2))
+  response.headers.set('Cache-Control', `private, max-age=${cacheSeconds}`)
   return response
+}
+
+function cacheableMediaResponse(key: string, ttl: number) {
+  return getSignedObjectUrl(key, ttl, {
+    signingBucketSeconds: MEDIA_SIGNING_BUCKET_SECONDS,
+    responseCacheControl: 'private, max-age=86400',
+  })
 }
 
 function resolveLocalFilePath(storageKey: string): string | null {
@@ -121,6 +133,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const inline = searchParams.get('inline') === '1'
   const playback = searchParams.get('playback') === '1'
   const thumbnail = searchParams.get('thumbnail')
+  const poster = searchParams.get('poster')
 
   if (!key) {
     throw new ApiError('INVALID_PARAMS')
@@ -133,12 +146,24 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const expires = expiresRaw ? Number.parseInt(expiresRaw, 10) : DEFAULT_EXPIRES_SECONDS
   const ttl = Number.isFinite(expires) && expires > 0 ? expires : DEFAULT_EXPIRES_SECONDS
 
+  if (poster) {
+    if (!videoType.startsWith('video/') || inline || playback || thumbnail) {
+      throw new ApiError('INVALID_PARAMS', { message: '视频封面仅支持 MP4、WebM 和 MOV 文件。' })
+    }
+    try {
+      const posterKey = await ensureVideoPoster(key, normalizeVideoPosterWidth(poster))
+      return signedRedirect(request, await cacheableMediaResponse(posterKey, ttl), ttl, MEDIA_SIGNING_BUCKET_SECONDS)
+    } catch {
+      return new NextResponse(null, { status: 404, headers: { 'Cache-Control': 'private, max-age=600' } })
+    }
+  }
+
   if (thumbnail) {
     if (!isSupportedInlineImage(key) || path.extname(key).toLowerCase() === '.gif' || inline || playback) {
       throw new ApiError('INVALID_PARAMS', { message: '画布缩略图仅支持静态 PNG、JPEG 和 WebP 图片。' })
     }
     const thumbnailKey = await ensureCanvasThumbnail(key, normalizeCanvasThumbnailWidth(thumbnail))
-    return signedRedirect(await getSignedObjectUrl(thumbnailKey, ttl), ttl)
+    return signedRedirect(request, await cacheableMediaResponse(thumbnailKey, ttl), ttl, MEDIA_SIGNING_BUCKET_SECONDS)
   }
 
   if (inline) {
@@ -171,11 +196,16 @@ export const GET = apiHandler(async (request: NextRequest) => {
       if (range && !/^bytes=(?:\d+-\d*|-\d+)$/i.test(range)) {
         throw new ApiError('INVALID_PARAMS', { message: '无效的视频字节范围。' })
       }
+      const conditionalHeaders: Record<string, string> = {}
+      for (const [header, name] of [['range', 'Range'], ['if-none-match', 'If-None-Match'], ['if-modified-since', 'If-Modified-Since'], ['if-range', 'If-Range']] as const) {
+        const value = request.headers.get(header)
+        if (value) conditionalHeaders[name] = value
+      }
       const upstream = await fetch(signedUrl, {
-        headers: range ? { Range: range } : undefined,
+        headers: conditionalHeaders,
         signal: request.signal,
       })
-      if (![200, 206, 416].includes(upstream.status)) {
+      if (![200, 206, 304, 416].includes(upstream.status)) {
         await upstream.body?.cancel()
         throw new ApiError('EXTERNAL_ERROR', { message: '视频暂时无法读取，请稍后重新加载。' })
       }
@@ -183,7 +213,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
         'Content-Type': videoType,
         'Content-Disposition': 'inline',
         'Accept-Ranges': 'bytes',
-        'Cache-Control': 'private, max-age=300',
+        'Cache-Control': 'private, max-age=86400',
         'X-Content-Type-Options': 'nosniff',
       })
       for (const name of ['content-length', 'content-range', 'etag', 'last-modified']) {
@@ -192,9 +222,9 @@ export const GET = apiHandler(async (request: NextRequest) => {
       }
       // Default TOS domains may force "attachment" even with a signed override.
       // Forward the stream and byte range, not a fully buffered video in RAM.
-      return new NextResponse(upstream.body, { status: upstream.status, headers })
+      return new NextResponse(upstream.status === 304 ? null : upstream.body, { status: upstream.status, headers })
     }
-    return signedRedirect(signedUrl, ttl)
+    return signedRedirect(request, await cacheableMediaResponse(key, ttl), ttl, MEDIA_SIGNING_BUCKET_SECONDS)
   } catch (error) {
     if (error instanceof ApiError) throw error
     const localFile = await readLocalFile(key)

@@ -49,7 +49,7 @@ function material(id: string, createdAt: string, assetCategory?: string): Frameo
 }
 
 describe('FrameOS material picker filters', () => {
-  it('defaults uploads to the personal pool and keeps project sharing explicit', () => {
+  it('defaults uploads to the current project pool and keeps personal sharing explicit', () => {
     const markup = renderToStaticMarkup(React.createElement(MaterialUploadDialog, {
       projects: [{ id: 'project-1', name: '短剧作品', workId: 'work-1' }],
       initialProjectId: 'project-1',
@@ -64,6 +64,21 @@ describe('FrameOS material picker filters', () => {
     expect(markup).toContain('accept="image/*"')
     expect(markup).toContain('请选择图片文件')
     expect(markup).toContain('disabled=""')
+    expect(markup).toContain('<option value="project-1" selected="">短剧作品（项目共享）</option>')
+    expect(markup).toContain('<option value="personal">个人素材（默认，仅自己可见）</option>')
+  })
+
+  it('falls back to the personal pool when uploads open without a project context', () => {
+    const markup = renderToStaticMarkup(React.createElement(MaterialUploadDialog, {
+      projects: [{ id: 'project-1', name: '短剧作品', workId: 'work-1' }],
+      initialProjectId: null,
+      initialAssetCategory: 'character',
+      lockAssetCategory: true,
+      imageOnly: true,
+      onCreated: vi.fn(),
+      onClose: vi.fn(),
+    }))
+
     expect(markup).toContain('<option value="personal" selected="">个人素材（默认，仅自己可见）</option>')
     expect(markup).toContain('<option value="project-1">短剧作品（项目共享）</option>')
   })

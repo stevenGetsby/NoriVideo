@@ -14,7 +14,9 @@ const bailianMock = vi.hoisted(() => ({
   cleanupUnreferencedBailianVoices: vi.fn(),
 }))
 const unreferenced = vi.hoisted(() => vi.fn(async (_projectId: string, keys: string[]) => keys))
+const ledgerSnapshot = vi.hoisted(() => vi.fn<(projectId: string) => Promise<void>>(async () => undefined))
 vi.mock('@/lib/projects/shared-media-retention', () => ({ unreferencedProjectStorageKeys: unreferenced }))
+vi.mock('@/lib/compute-ledger/sync', () => ({ snapshotProjectCostsBeforePurge: ledgerSnapshot }))
 
 vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/media/service', () => ({
@@ -61,6 +63,7 @@ describe('回收站过期清理', () => {
 
   it('先删除数据库，存储清理失败不影响清理结果', async () => {
     const calls: string[] = []
+    ledgerSnapshot.mockImplementationOnce(async () => { calls.push('ledger') })
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([{
       resultUrl: 'uploads/project.bin',
       storageKey: null,
@@ -78,7 +81,18 @@ describe('回收站过期清理', () => {
     const result = await purgeExpiredRecycleBinProjects()
 
     expect(result).toEqual({ purged: ['project-1'], failed: [] })
-    expect(calls).toEqual(['database', 'storage'])
+    expect(calls).toEqual(['ledger', 'database', 'storage'])
+  })
+
+  it('does not delete the project or its objects when the ledger snapshot fails', async () => {
+    ledgerSnapshot.mockRejectedValueOnce(new Error('synthetic ledger failure'))
+    const { purgeExpiredRecycleBinProjects } = await import('@/lib/projects/recycle-bin')
+    expect(await purgeExpiredRecycleBinProjects()).toEqual({
+      purged: [], failed: [{ id: 'project-1', message: 'synthetic ledger failure' }],
+    })
+    expect(ledgerSnapshot).toHaveBeenCalledWith('project-1')
+    expect(prismaMock.project.delete).not.toHaveBeenCalled()
+    expect(storageMock.deleteObjects).not.toHaveBeenCalled()
   })
 
   it('收集当前节点、历史版本和 3D 文档里的画布媒体 key', async () => {

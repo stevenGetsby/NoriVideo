@@ -63,7 +63,7 @@ describe('/api/frameos/generation-config real model names', () => {
     audioAvailabilityMock.mockResolvedValue({ modes: ['tts'], available: false, unavailableReason: 'not under test', runtimeModelKey: null })
   })
 
-  it('keeps historical saved keys while displaying their actual routed model ids', async () => {
+  it('keeps historical saved keys while displaying their actual routed model ids with provider names', async () => {
     const { GET } = await import('@/app/api/frameos/generation-config/route')
     const response = await GET(buildMockRequest({ path: '/api/frameos/generation-config', method: 'GET' }), { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
@@ -71,19 +71,55 @@ describe('/api/frameos/generation-config real model names', () => {
     expect(body.videoModels).toHaveLength(1)
     expect(body.videoModels[0]).toMatchObject({
       modelKey: 'nori::norivideo2.5',
-      name: 'doubao-seedance-2-5-260628',
+      name: 'Kuaizi · doubao-seedance-2-5-260628',
       runtimeModelKey: 'kuaizi::doubao-seedance-2-5-260628',
     })
     expect(body.imageModels).toHaveLength(1)
     expect(body.imageModels[0]).toMatchObject({
       modelKey: 'nori::nori-image-pro',
-      name: 'gpt-image-2.5-sunburst',
+      name: 'OpenLux · gpt-image-2.5-sunburst',
       runtimeModelKey: 'openlux::gpt-image-2.5-sunburst',
     })
     for (const model of [...body.videoModels, ...body.imageModels]) {
       expect(model).not.toHaveProperty('provider')
       expect(model).not.toHaveProperty('tier')
-      expect(model.name).not.toMatch(/LanMiaoTV|nori-image-pro|kuaizi|openlux| · (?:Mini|Fast|标准|Pro)/i)
+      expect(model.name).not.toMatch(/LanMiaoTV|nori-image-pro| · (?:Mini|Fast|标准|Pro)/i)
     }
+  })
+
+  it('lists Kuaizi and TGG video models side by side, each labelled with its own provider', async () => {
+    configMock.mockReturnValue({
+      sourceFile: 'fixture.json',
+      updatedAt: null,
+      providers: [
+        { id: 'kuaizi', name: 'provider', hasApiKey: true },
+        { id: 'tgg', name: 'provider', hasApiKey: true },
+      ],
+      models: [
+        { provider: 'kuaizi', modelId: 'doubao-seedance-2-5-260628', modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'Seedance 2.5', type: 'video' },
+        { provider: 'tgg', modelId: 'seedance_v2.5_full', modelKey: 'tgg::seedance_v2.5_full', name: 'Seedance 2.5 Full', type: 'video' },
+        { provider: 'tgg', modelId: 'vig-S2.5-480-秒', modelKey: 'tgg::vig-S2.5-480-秒', name: 'vig', type: 'video' },
+      ],
+      defaultModels: {},
+      businessModels: [
+        { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::tgg-seedance2.5', name: 'TGG Seedance 2.5', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::tgg-vig2.5', name: 'TGG vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
+      ],
+      modelRouting: {
+        'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
+        'nori::tgg-seedance2.5': 'tgg::seedance_v2.5_full',
+        'nori::tgg-vig2.5': 'tgg::vig-S2.5-480-秒',
+      },
+      storage,
+    })
+    const { GET } = await import('@/app/api/frameos/generation-config/route')
+    const response = await GET(buildMockRequest({ path: '/api/frameos/generation-config', method: 'GET' }), { params: Promise.resolve({}) })
+    const body = await response.json() as { videoModels: Array<Record<string, unknown>> }
+    expect(body.videoModels.map((model) => [model.modelKey, model.name])).toEqual([
+      ['nori::norivideo2.5', 'Kuaizi · doubao-seedance-2-5-260628'],
+      ['nori::tgg-seedance2.5', 'TGG · seedance_v2.5_full'],
+      ['nori::tgg-vig2.5', 'TGG · vig-S2.5-480-秒'],
+    ])
   })
 })

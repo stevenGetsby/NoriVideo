@@ -250,12 +250,13 @@ export const DELETE = apiHandler(async (
     }
     if (material.type === 'audio') await assertCharacterVoiceNotBound(tx, actor.workspaceOwnerId, [material.id])
 
-    const references = await findCanvasMaterialReferences(tx, actor.workspaceOwnerId, material)
+    const references = await findCanvasMaterialReferences(tx, actor.workspaceOwnerId, material, { includeHistory: false })
     if (references.referenced) {
+      const { currentCanvases, workflowTemplates } = references.counts
       throw new ApiError('CONFLICT', {
         message: canvasMaterialReferenceConflictMessage(references.counts),
         materialId: material.id,
-        referenceCounts: references.counts,
+        referenceCounts: { currentCanvases, workflowTemplates },
       })
     }
 

@@ -150,7 +150,7 @@ describe('FosShell collapsible sidebar', () => {
     expect(header?.[1]).not.toMatch(/display:\s*none/)
     expect(header?.[1]).toMatch(/position:\s*absolute/)
     expect(styles).toContain('.fos-app.is-canvas-shell .fos-collapse-btn {')
-    expect(canvasStyles).toMatch(/\.nori-canvas-breadcrumbs > \.nori-canvas-sidebar-toggle \{[^}]*color: #e8e9f3;/)
+    expect(canvasStyles).toMatch(/\.nori-canvas-breadcrumbs > \.nori-canvas-sidebar-toggle \{[^}]*color: rgb\(var\(--nori-t-e8e9f3\)\);/)
   })
 
   it('reserves a readable, collision-free safe area below canvas chrome', () => {
@@ -160,8 +160,8 @@ describe('FosShell collapsible sidebar', () => {
     expect(canvasStyles).toContain('.nori-canvas-project-assets,')
     expect(canvasStyles).toContain('top: var(--canvas-chrome-safe-top);')
     expect(canvasStyles).toContain('.nori-canvas-selection-toolbar { top: var(--canvas-chrome-safe-top); }')
-    expect(canvasStyles).toContain('.nori-canvas-dropdown-title { color: #b6b7c2; font-size: 11px; }')
-    expect(canvasStyles).toContain('.nori-canvas-project-assets-list > article small { color: #a5a6b3; font-size: 10px; }')
+    expect(canvasStyles).toContain('.nori-canvas-dropdown-title { color: rgb(var(--nori-t-b6b7c2)); font-size: 11px; }')
+    expect(canvasStyles).toContain('.nori-canvas-project-assets-list > article small { color: rgb(var(--nori-t-a5a6b3)); font-size: 10px; }')
   })
 
   it('shows an assignment attention badge and does not render a fake desktop download', () => {

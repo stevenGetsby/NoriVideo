@@ -57,21 +57,22 @@ describe('who may change an inherited copy', () => {
 describe('origin badges and duplicate collapsing in the pickers', () => {
   it('collapses duplicates in the canvas assets panel and the picker, but never in the trash or the management library', () => {
     const panel = source('src/features/canvas/components/CanvasProjectAssets.tsx')
-    expect(panel).toContain('collapseInheritedDuplicates(materials, projectId)')
-    expect(panel).toContain('${listedMaterials.length} 项可用素材')
+    expect(panel).toContain("deduplicate: '1'")
+    expect(panel).toContain('${total} 项可用素材')
     const picker = source('src/components/frameos/materials/MaterialPickerDialog.tsx')
     expect(picker).toContain("activeScope === 'trash'")
-    expect(picker).toContain('collapseInheritedDuplicates(categorized, projectId?.trim() || \'\', selectedIdSet)')
+    expect(picker).toMatch(/if \(activeScope !== 'trash'\) \{\s*params\.set\('deduplicate', '1'\)/)
+    expect(picker).toContain("['pinnedId', id]")
     expect(picker).toContain('nori-origin-inherited')
-    expect(source('src/components/frameos/views/FosMaterialLibrary.tsx')).not.toContain('collapseInheritedDuplicates')
-    expect(source('src/components/frameos/views/FosAssetLibrary.tsx')).not.toContain('collapseInheritedDuplicates')
+    expect(source('src/components/frameos/views/FosMaterialLibrary.tsx')).not.toMatch(/collapseInheritedDuplicates|deduplicate/)
+    expect(source('src/components/frameos/views/FosAssetLibrary.tsx')).not.toMatch(/collapseInheritedDuplicates|deduplicate/)
   })
 
   it('paints the inherited badge with a solid colour', () => {
     const css = source('src/styles/frameos-replica.css')
     const rule = css.match(/\.nori-origin-inherited\s*\{[^}]*\}/)?.[0] ?? ''
-    expect(rule).toContain('background: #123a36;')
-    expect(rule).toContain('color: #5eead4;')
+    expect(rule).toMatch(/background: (?:#123a36|rgb\(var\(--nori-t-123a36\)\));/)
+    expect(rule).toMatch(/color: (?:#5eead4|rgb\(var\(--nori-t-5eead4\)\));/)
     expect(rule).not.toMatch(/gradient/i)
   })
 })

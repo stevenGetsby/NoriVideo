@@ -27,6 +27,7 @@ export type FosNavKey =
   | 'interactive'
   | 'assetHub'
   | 'accounts'
+  | 'computeLedger'
   | 'records'
   | 'feedback'
   | 'updates'
@@ -275,6 +276,8 @@ function Sidebar({
   const visiblePrimaryNav = primaryNav.filter((item) => (
     (item.key !== 'toolbox' || canUseToolbox)
     && ((item.key !== 'canvas' && item.key !== 'interactive') || canUseCanvas)
+    && (item.key !== 'interactive' || !session?.user?.contentRestrictions?.includes('story-canvas'))
+    && (item.key !== 'assetHub' || !session?.user?.contentRestrictions?.includes('asset-library'))
     && (item.key !== 'screenwriter' || canUseWriterWorkbench)
   ))
   const params = useSearchParams()
@@ -371,6 +374,12 @@ function Sidebar({
             <Link href={{ pathname: '/account-management' }} className={`fos-nav-item${activeKey === 'accounts' ? ' active' : ''}`}>
               <AppIcon name="userRoundCog" className="h-4 w-4 shrink-0" />
               <span className="min-w-0 truncate">团队管理</span>
+            </Link>
+          ) : null}
+          {!isAdmin ? (
+            <Link href={{ pathname: '/compute-ledger' }} className={`fos-nav-item${activeKey === 'computeLedger' ? ' active' : ''}`}>
+              <AppIcon name="coins" className="h-4 w-4 shrink-0" />
+              <span className="min-w-0 truncate">我的算力</span>
             </Link>
           ) : null}
           {secondaryNav.map((item) => (

@@ -11,7 +11,7 @@ import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import type { AssetSummary, VisualAssetSummary } from '@/lib/assets/contracts'
 import { logError } from '@/lib/logging/core'
-import { toDisplayImageUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
+import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
 import { CharacterMaterialVoiceDialog } from '../materials/CharacterMaterialVoiceDialog'
 import {
   materialSourceLabel,
@@ -202,8 +202,8 @@ function mergeBoundCharacterMaterials(
   })
 }
 
-function AssetPreview({ kind, imageUrl }: { kind: AssetCategory; imageUrl?: string }) {
-  const src = toDisplayImageUrl(imageUrl)
+function AssetPreview({ kind, imageUrl, full = false }: { kind: AssetCategory; imageUrl?: string; full?: boolean }) {
+  const src = full ? toDisplayImageUrl(imageUrl) : toCanvasDisplayImageUrl(imageUrl, 960)
   return (
     <div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-[var(--fos-bg-3)]">
       {src ? (
@@ -826,7 +826,7 @@ function AssetLightbox({ asset, onClose, onVoice, onReplace, replacing, replaceD
         <div className="grid h-full max-h-[72vh] w-full max-w-[1100px] overflow-hidden rounded-[8px]" style={{ gridTemplateColumns: `repeat(${Math.min(previews.length, 4)}, minmax(0, 1fr))` }}>
           {previews.slice(0, 4).map((imageUrl, index) => (
             <div key={`${imageUrl || 'placeholder'}:${index}`} className="min-w-0 border-r border-white/5 last:border-r-0">
-              <AssetPreview kind={asset.category} imageUrl={imageUrl} />
+              <AssetPreview kind={asset.category} imageUrl={imageUrl} full />
             </div>
           ))}
         </div>

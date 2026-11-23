@@ -39,8 +39,8 @@ export function FosAssetHubClient() {
             aria-selected={view === item.key}
             className="h-8 rounded-lg px-3 text-[12px] font-bold"
             style={{
-              background: view === item.key ? 'rgba(255,255,255,.16)' : 'transparent',
-              color: view === item.key ? 'white' : 'var(--fos-text-2)',
+              background: view === item.key ? 'var(--nori-asset-tab-active-bg)' : 'transparent',
+              color: view === item.key ? 'var(--nori-asset-tab-active-text)' : 'var(--fos-text-2)',
             }}
             onClick={() => selectView(item.key)}
           >

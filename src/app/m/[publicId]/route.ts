@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSignedUrl, toFetchableUrl } from '@/lib/storage'
+import { getSignedObjectUrl, getSignedUrl, toFetchableUrl } from '@/lib/storage'
 import { getMediaObjectByPublicId } from '@/lib/media/service'
 
 export const runtime = 'nodejs'
@@ -36,6 +36,27 @@ export async function GET(
       headers: {
         ETag: etag,
         'Cache-Control': 'public, max-age=31536000, immutable',
+      },
+    })
+  }
+
+  // Plain playback (player, grids, style refs) follows the 302 straight to
+  // object storage so bytes skip the web process. Canvas byte consumers
+  // (frame sampler, waveform, WebGL textures) need same-origin readable bytes,
+  // so they request ?proxy=1 and keep the proxy. PUBLIC_MEDIA_REDIRECT=0 forces
+  // the proxy for everyone.
+  const forceProxy = process.env.PUBLIC_MEDIA_REDIRECT === '0'
+    || request.nextUrl.searchParams.get('proxy') === '1'
+  if (!forceProxy) {
+    const signedUrl = await getSignedObjectUrl(media.storageKey, 3600, {
+      signingBucketSeconds: 3600,
+      responseCacheControl: 'private, max-age=86400',
+    })
+    return new NextResponse(null, {
+      status: 302,
+      headers: {
+        Location: new URL(signedUrl, request.nextUrl.origin).toString(),
+        'Cache-Control': 'public, max-age=300',
       },
     })
   }

@@ -15,7 +15,11 @@ describe('FrameOS works pixel-parity contract', () => {
     expect(client).toContain('<h1 className="works-view-title">{selectedWork?.name || \'我的项目\'}</h1>')
     expect(styles).toContain('line-height: 26px;')
     expect(styles).toContain('grid-template-columns: repeat(auto-fill,minmax(220px,231px))')
-    expect(styles).toMatch(/\.works-project-card\s*\{[^}]*height:\s*342px;/)
+    const card = styles.match(/\.works-project-card\s*\{([^}]+)\}/)?.[1] ?? ''
+    expect(card).toContain('flex-direction: column;')
+    expect(card).not.toMatch(/(?:^|[; ])height:/)
+    expect(styles).toMatch(/\.work-cover\s*\{[^}]*height: 156px;/)
+    expect(styles).toMatch(/\.works-project-info\s*\{[^}]*min-height: 148px;/)
     expect(panels).toContain('className="works-project-date"')
     expect(styles).toContain('.works-project-date { white-space: nowrap; }')
     expect(styles).toContain('.works-panel-menu,.works-card-menu { width: 158px; min-width: 158px; padding: 4px; }')

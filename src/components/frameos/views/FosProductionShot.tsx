@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { useSession } from 'next-auth/react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
@@ -94,7 +95,7 @@ function ShotPreview({ shot }: { shot: Shot }) {
   const image = toDisplayImageUrl(shot.imageUrl)
   if (video) return <video key={video} src={video} controls playsInline className="h-full w-full object-contain" />
   if (image) return <MediaImage src={image} alt={shot.title} fill sizes="800px" style={{ objectFit: 'contain' }} />
-  return <div className="text-center text-[var(--fos-text-4)]"><AppIcon name="video" className="mx-auto mb-2 h-14 w-14" /><div className="text-[14px] font-bold">当前镜头暂无可用视频</div><div className="mt-1 text-[12px]">在右侧确认素材、提示词和输出参数后生成。</div></div>
+  return <div className="nori-force-dark text-center text-[var(--fos-text-4)]"><AppIcon name="video" className="mx-auto mb-2 h-14 w-14" /><div className="text-[14px] font-bold">当前镜头暂无可用视频</div><div className="mt-1 text-[12px]">在右侧确认素材、提示词和输出参数后生成。</div></div>
 }
 
 export function FosProductionShot({
@@ -247,13 +248,10 @@ export function FosProductionShot({
   const overallReviewNote = episodeReview.assignment?.status === 'rejected'
     ? episodeReview.assignment.lastReviewNote?.trim() || ''
     : ''
-  useEffect(() => {
-    if (!activeTask && !activeEpisodeTask) return
-    const timer = window.setInterval(async () => {
-      await Promise.all([loadTasks(), loadEpisodeActiveTasks(), loadShots(true, 'status')])
-    }, 2500)
-    return () => window.clearInterval(timer)
-  }, [activeEpisodeTask, activeTask, loadEpisodeActiveTasks, loadShots, loadTasks])
+  useVisiblePolling(
+    async () => { await Promise.all([loadTasks(), loadEpisodeActiveTasks(), loadShots(true, 'status')]) },
+    activeTask || activeEpisodeTask ? 3_000 : null,
+  )
 
   const currentModel = config?.videoModels.find((model) => model.modelKey === modelKey)
   const resolutions = useMemo(() => (currentModel?.options.resolution || []).map(String), [currentModel])
@@ -401,7 +399,7 @@ export function FosProductionShot({
                   type="button"
                   onClick={() => setActiveShotId(shot.id)}
                   className="w-full rounded-[10px] border p-3 text-left"
-                  style={{ borderColor: active ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: active ? 'var(--fos-primary-soft)' : 'var(--fos-bg-2)' }}
+                  style={{ borderColor: active ? 'var(--fos-primary-border)' : 'var(--fos-border-mid)', background: active ? 'var(--fos-primary-soft)' : 'var(--fos-bg-2)' }}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-[11px] font-bold text-[var(--fos-primary-text)]">{shot.scene} · Segment {String(shot.panelNumber ?? shot.panelIndex + 1).padStart(2, '0')}</span>
@@ -437,7 +435,7 @@ export function FosProductionShot({
                   ['history', '生成历史'],
                   ['review', `评审意见${segmentReviewAnnotations.length ? ` · ${segmentReviewAnnotations.length}` : ''}`],
                 ] as const).map(([key, label]) => (
-                  <button key={key} type="button" onClick={() => setCenterTab(key)} className="relative h-9 text-[13px] font-bold" style={{ color: centerTab === key ? '#fff' : 'var(--fos-text-2)' }}>
+                  <button key={key} type="button" onClick={() => setCenterTab(key)} className="relative h-9 text-[13px] font-bold" style={{ color: centerTab === key ? 'var(--fos-text-1)' : 'var(--fos-text-2)' }}>
                     {label}{centerTab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}
                   </button>
                 ))}

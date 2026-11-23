@@ -1,15 +1,15 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type UIEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toCanvasDisplayImageUrl } from '@/lib/media/image-url'
 import { hasAccountPermissions } from '@/lib/account/permissions'
-import { fetchAllFrameosMaterials } from './fetch-all-materials'
+import { fetchFrameosMaterialPage, MATERIAL_PAGE_SIZE, useWindowedList } from './material-page-client'
 import {
   MATERIAL_SOURCE_LABELS,
   materialSourceLabel,
@@ -21,10 +21,8 @@ import {
 } from './contracts'
 import {
   buildMaterialPickerQuery,
-  filterMaterialPickerItemsByCategory,
   normalizeMaterialProjectOptions,
   shouldResetMaterialProjectScope,
-  sortMaterialPickerItems,
   type MaterialPickerScope,
   type MaterialPickerSort,
 } from './material-picker-query'
@@ -33,8 +31,25 @@ import {
   FRAMEOS_ASSET_CATEGORIES,
   type FrameosAssetCategory,
 } from '@/lib/frameos/material-category'
-import { collapseInheritedDuplicates, isInheritedMaterial } from '@/lib/frameos/material-inherit'
+import { isInheritedMaterial } from '@/lib/frameos/material-inherit'
 import { characterVoiceBindingState, characterVoiceBindingStats } from './character-voice'
+
+const MATERIAL_CARD_MIN_WIDTH = 172
+const MATERIAL_CARD_ASPECT_RATIO = 4 / 3
+const MATERIAL_CARD_TEXT_HEIGHT = 75
+const MATERIAL_GRID_GAP = 12
+const MATERIAL_GRID_PADDING = 32
+const MATERIAL_GRID_MAX_COLUMNS = 12
+
+function estimateMaterialGrid(width: number) {
+  const availableWidth = Math.max(0, width - MATERIAL_GRID_PADDING)
+  const columns = Math.max(1, Math.min(MATERIAL_GRID_MAX_COLUMNS, Math.floor((availableWidth + MATERIAL_GRID_GAP) / (MATERIAL_CARD_MIN_WIDTH + MATERIAL_GRID_GAP))))
+  const cardWidth = (availableWidth - (columns - 1) * MATERIAL_GRID_GAP) / columns
+  return {
+    columns,
+    rowStride: cardWidth / MATERIAL_CARD_ASPECT_RATIO + MATERIAL_CARD_TEXT_HEIGHT + MATERIAL_GRID_GAP,
+  }
+}
 
 interface Props {
   projectId?: string | null
@@ -109,6 +124,13 @@ export function MaterialPickerDialog({
   const requestAbortRef = useRef<AbortController | null>(null)
   const initialSyncRef = useRef(false)
   const [materials, setMaterials] = useState<FrameosMaterialItem[]>([])
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const nextCursorRef = useRef<string | null>(null)
+  nextCursorRef.current = nextCursor
+  const [total, setTotal] = useState<number | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [columnCount, setColumnCount] = useState(1)
+  const [rowStride, setRowStride] = useState(252)
   const [projectOptions, setProjectOptions] = useState<FrameosMaterialProjectOption[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState(projectId?.trim() || '')
   const [browseAllProjects, setBrowseAllProjects] = useState(true)
@@ -132,9 +154,12 @@ export function MaterialPickerDialog({
   const [sort, setSort] = useState<MaterialPickerSort>('newest')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [pageError, setPageError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
   const [uploadName, setUploadName] = useState('')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  // Re-picking a file refreshes only the auto-filled name.
+  const autoUploadNameRef = useRef('')
   const [showUpload, setShowUpload] = useState(false)
   const [pendingSelected, setPendingSelected] = useState<FrameosMaterialItem[]>([])
   const [filtersExpanded, setFiltersExpanded] = useState(false)
@@ -146,20 +171,11 @@ export function MaterialPickerDialog({
       : [...selectedIds, ...pendingSelected.map((material) => material.id)]),
     [multiple, onSelect, pendingSelected, selectedIds],
   )
+  const pinnedIdsQuery = new URLSearchParams(selectedIds.slice(0, 100).map((id) => ['pinnedId', id])).toString()
   const selectedCount = selectedIdSet.size
-  const visibleMaterials = useMemo(() => {
-    const categorized = categoryFilter === 'voice'
-      ? materials.filter((material) => material.type === 'audio')
-      : filterMaterialPickerItemsByCategory(materials, categoryFilter === 'all' ? undefined : categoryFilter)
-    const listed = activeScope === 'trash'
-      ? categorized
-      : collapseInheritedDuplicates(categorized, projectId?.trim() || '', selectedIdSet)
-    return sortMaterialPickerItems(listed, sort)
-  }, [activeScope, categoryFilter, materials, projectId, selectedIdSet, sort])
-  const visibleVoiceStats = useMemo(
-    () => characterVoiceBindingStats(visibleMaterials),
-    [visibleMaterials],
-  )
+  const visibleMaterials = materials
+  const visibleVoiceStats = useMemo(() => characterVoiceBindingStats(materials), [materials])
+  const loadedCount = total === null ? materials.length : Math.min(materials.length, total)
   const browsingTrash = activeScope === 'trash'
   const hasFilters = activeScope !== 'all'
     || activeType !== (allowAllTypes ? 'all' : type)
@@ -201,6 +217,34 @@ export function MaterialPickerDialog({
     return () => { active = false }
   }, [projectId, workResolutionAttempt])
 
+  useEffect(() => {
+    let active = true
+    const controller = new AbortController()
+    // Keep the controls independent of any particular material page. This also
+    // avoids interpreting a page envelope for metadata the shared helper omits.
+    void apiFetch('/api/frameos/materials?available=1&limit=1&pageVersion=1&deduplicate=1', { cache: 'no-store', signal: controller.signal }).then(async (response) => {
+      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载素材筛选项失败'))
+      const metadata = await response.json() as {
+        projects?: FrameosMaterialProjectOption[]
+        creators?: FrameosMaterialCreatorOption[]
+        capabilities?: Partial<FrameosMaterialLibraryCapabilities>
+      }
+      if (!active) return
+      setProjectOptions(normalizeMaterialProjectOptions(Array.isArray(metadata.projects) ? metadata.projects : [], projectId))
+      if (Array.isArray(metadata.creators)) {
+        setCreatorOptions(metadata.creators.filter((item) => item?.id?.trim() && item?.name?.trim()).map((item) => ({ id: item.id.trim(), name: item.name.trim() })))
+      }
+      if (metadata.capabilities?.trash) setTrashCapability(metadata.capabilities.trash)
+    }).catch(() => {
+      // The material request reports actionable failures. Keep the preexisting
+      // project/creator fallbacks if this auxiliary controls request fails.
+    })
+    return () => {
+      active = false
+      controller.abort()
+    }
+  }, [projectId])
+
   useEffect(() => { setCategoryFilter(assetCategory || 'all') }, [assetCategory])
 
   const chooseMaterial = (material: FrameosMaterialItem) => {
@@ -216,13 +260,18 @@ export function MaterialPickerDialog({
     })
   }
 
-  const load = useCallback(async (sync = false) => {
-    const requestId = ++requestIdRef.current
-    requestAbortRef.current?.abort()
+  const load = useCallback(async (sync = false, cursor: string | null = null) => {
+    const paging = Boolean(cursor)
+    if (!paging && requestAbortRef.current) requestAbortRef.current.abort()
+    if (paging && requestAbortRef.current) return
+    if (paging && (!nextCursorRef.current || cursor !== nextCursorRef.current)) return
+    const requestId = paging ? requestIdRef.current : ++requestIdRef.current
     const controller = new AbortController()
     requestAbortRef.current = controller
-    setLoading(true)
+    if (paging) setLoadingMore(true)
+    else setLoading(true)
     setError(null)
+    setPageError(null)
     try {
       const params = buildMaterialPickerQuery({
         projectId: (browseAllProjects && activeScope === 'all') || activeScope === 'personal' ? undefined : selectedProjectId || projectId || undefined,
@@ -237,52 +286,44 @@ export function MaterialPickerDialog({
         createdTo,
         sync,
       })
-      const response = await apiFetch(`/api/frameos/materials?${params}`, { signal: controller.signal })
-      if (!response.ok) throw new Error(await readApiErrorMessage(response, '加载素材失败'))
-      const payload = await response.json() as {
-        materials?: FrameosMaterialItem[]
-        projects?: FrameosMaterialProjectOption[]
-        creators?: FrameosMaterialCreatorOption[]
-        capabilities?: Partial<FrameosMaterialLibraryCapabilities>
-        pagination?: { nextCursor?: string | null }
+      params.set('limit', String(MATERIAL_PAGE_SIZE))
+      params.set('pageVersion', '1')
+      params.set('sort', sort)
+      params.set('category', categoryFilter)
+      if (activeScope !== 'trash') {
+        params.set('deduplicate', '1')
+        new URLSearchParams(pinnedIdsQuery).forEach((id, key) => params.append(key, id))
       }
-      let items = Array.isArray(payload.materials) ? payload.materials : []
-      if (payload.pagination?.nextCursor) {
-        const remainingParams = new URLSearchParams(params)
-        remainingParams.set('cursor', payload.pagination.nextCursor)
-        remainingParams.delete('sync')
-        const remaining = await fetchAllFrameosMaterials(remainingParams, controller.signal)
-        items = [...new Map([...items, ...remaining].map((item) => [item.id, item])).values()]
+      if (cursor) {
+        params.set('cursor', cursor)
+        params.delete('sync')
       }
+      const page = await fetchFrameosMaterialPage(params, controller.signal)
       if (requestId !== requestIdRef.current || controller.signal.aborted) return
-      setMaterials(items)
-      const nextProjects = normalizeMaterialProjectOptions(
-        Array.isArray(payload.projects) ? payload.projects : [],
-        projectId,
-      )
-      setProjectOptions(nextProjects)
-      setSelectedProjectId((current) => current || projectId?.trim() || nextProjects[0]?.id || '')
-      if (Array.isArray(payload.creators)) {
-        setCreatorOptions((current) => {
-          const unique = new Map(current.map((item) => [item.id, item]))
-          for (const item of payload.creators || []) {
-            if (item?.id?.trim() && item?.name?.trim()) {
-              unique.set(item.id.trim(), { id: item.id.trim(), name: item.name.trim() })
-            }
-          }
-          return [...new Map([...unique.values()].map((item) => [item.name, item])).values()]
-            .sort((left, right) => left.name.localeCompare(right.name, 'zh-CN'))
-        })
-      }
-      if (payload.capabilities?.trash) setTrashCapability(payload.capabilities.trash)
+      setMaterials((current) => {
+        if (!paging) return page.materials
+        const unique = new Map(current.map((item) => [item.id, item]))
+        for (const item of page.materials) unique.set(item.id, item)
+        return [...unique.values()]
+      })
+      setNextCursor(page.nextCursor)
+      setTotal(page.total)
     } catch (loadError) {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return
-      setMaterials([])
-      setError(loadError instanceof Error ? loadError.message : '加载素材失败')
+      if (!paging) setMaterials([])
+      const message = loadError instanceof Error ? loadError.message : '加载素材失败'
+      if (paging) setPageError(message)
+      else setError(message)
     } finally {
-      if (requestId === requestIdRef.current) setLoading(false)
+      if (requestId === requestIdRef.current && requestAbortRef.current === controller) {
+        requestAbortRef.current = null
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
-  }, [activeScope, activeType, browseAllProjects, createdByMe, createdFrom, createdTo, creator, currentUserName, currentWorkId, projectId, query, selectedProjectId])
+  }, [activeScope, activeType, browseAllProjects, categoryFilter, createdByMe, createdFrom, createdTo, creator, currentUserName, currentWorkId, pinnedIdsQuery, projectId, query, selectedProjectId, sort])
+  const loadRef = useRef(load)
+  loadRef.current = load
 
   useEffect(() => {
     setActiveType(allowAllTypes ? 'all' : type)
@@ -298,6 +339,61 @@ export function MaterialPickerDialog({
     setBrowseAllProjects(true)
   }, [projectId])
 
+  const gridElementRef = useRef<HTMLDivElement | null>(null)
+  const {
+    scrollerRef,
+    onScroll: onWindowScroll,
+    resetWindow,
+    totalHeight,
+    window: materialWindow,
+    offsets,
+  } = useWindowedList(visibleMaterials, rowStride / columnCount)
+  const windowStart = Math.floor(materialWindow.start / columnCount) * columnCount
+  const windowEnd = Math.min(visibleMaterials.length, Math.ceil(materialWindow.end / columnCount) * columnCount)
+  const windowedMaterials = visibleMaterials.slice(windowStart, windowEnd)
+
+  useEffect(() => {
+    const scroller = scrollerRef.current
+    if (!scroller) return
+    const measure = () => {
+      const { columns, rowStride: nextRowStride } = estimateMaterialGrid(scroller.clientWidth)
+      setColumnCount(columns)
+      setRowStride(nextRowStride)
+    }
+    const observer = new ResizeObserver(measure)
+    observer.observe(scroller)
+    measure()
+    return () => observer.disconnect()
+  }, [scrollerRef])
+
+  useEffect(() => {
+    const grid = gridElementRef.current
+    if (!grid) return
+    const cards = grid.children
+    const firstRowCount = Math.min(columnCount, cards.length)
+    if (firstRowCount === 0) return
+    const firstRow = Array.from(cards).slice(0, firstRowCount)
+    const top = firstRow[0].getBoundingClientRect().top
+    if (firstRow.every((card) => Math.abs(card.getBoundingClientRect().top - top) < 1)) {
+      setRowStride(Math.max(...firstRow.map((card) => card.getBoundingClientRect().height)) + MATERIAL_GRID_GAP)
+    }
+  }, [columnCount, windowEnd, windowStart])
+
+  useEffect(() => {
+    resetWindow()
+  }, [activeScope, activeType, browseAllProjects, categoryFilter, createdByMe, createdFrom, createdTo, creator, currentWorkId, projectId, query, selectedProjectId, sort, resetWindow])
+
+  const handleResultsScroll = (event: UIEvent<HTMLDivElement>) => {
+    onWindowScroll(event)
+    if (event.currentTarget.scrollHeight - event.currentTarget.scrollTop - event.currentTarget.clientHeight < rowStride * 2 && nextCursor && !loading && !loadingMore) {
+      void load(false, nextCursor)
+    }
+  }
+
+  useEffect(() => {
+    if (!loading && !loadingMore && !pageError && nextCursor && totalHeight <= (scrollerRef.current?.clientHeight || 600) + MATERIAL_GRID_GAP) void loadRef.current(false, nextCursor)
+  }, [loading, loadingMore, nextCursor, pageError, totalHeight, scrollerRef])
+
   useEffect(() => {
     initialSyncRef.current = false
   }, [projectId])
@@ -305,6 +401,9 @@ export function MaterialPickerDialog({
   const cancelMaterialReads = useCallback(() => {
     requestIdRef.current++
     requestAbortRef.current?.abort()
+    requestAbortRef.current = null
+    setLoading(false)
+    setLoadingMore(false)
   }, [])
 
   useEffect(() => {
@@ -313,7 +412,7 @@ export function MaterialPickerDialog({
       if (!workResolved || workError || (projectId && !currentWorkId && !browseAllProjects && activeScope === 'all')) return
       const shouldSync = !initialSyncRef.current
       initialSyncRef.current = true
-      void load(shouldSync)
+      void loadRef.current(shouldSync)
     }, query.trim() ? 250 : 0)
     return () => {
       window.clearTimeout(timer)
@@ -354,6 +453,7 @@ export function MaterialPickerDialog({
       })
       if (!response.ok) throw new Error(await readApiErrorMessage(response, '恢复素材失败'))
       setMaterials((current) => current.filter((item) => item.id !== material.id))
+      setTotal((current) => Math.max(0, (current ?? materials.length) - 1))
       setTrashCapability((current) => ({ ...current, count: Math.max(0, current.count - 1) }))
     } catch (restoreError) {
       setError(restoreError instanceof Error ? restoreError.message : '恢复素材失败')
@@ -385,6 +485,7 @@ export function MaterialPickerDialog({
       setActiveScope('personal')
       setBrowseAllProjects(false)
       setMaterials((current) => [payload.material!, ...current.filter((item) => item.id !== payload.material!.id)])
+      setTotal((current) => (current ?? 0) + 1)
       setUploadFile(null)
       setUploadName('')
       setShowUpload(false)
@@ -521,30 +622,42 @@ export function MaterialPickerDialog({
               <span className="text-[11px] text-[var(--fos-text-4)]">至</span>
               <input type="date" className="fos-input" style={{ width: 145 }} aria-label="结束日期" min={createdFrom || undefined} value={createdTo} onChange={(event) => setCreatedTo(event.target.value)} />
               {hasFilters ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={clearFilters}>清除筛选</button> : null}
-              <span className="ml-auto text-[11px] text-[var(--fos-text-4)]">{loading ? '读取中…' : `${visibleMaterials.length} 个结果`}{!loading && visibleVoiceStats.total > 0 ? <span className={`ml-2 font-semibold${visibleVoiceStats.missing > 0 ? ' text-amber-300/85' : ' text-violet-200/85'}`}>角色音色 {visibleVoiceStats.bound}/{visibleVoiceStats.total}</span> : null}</span>
+              <span className="ml-auto text-[11px] text-[var(--fos-text-4)]">{loading && materials.length === 0 ? '读取中…' : `已加载 ${loadedCount}${total === null ? '' : `/${total}`} 个`}{loadingMore ? ' · 加载更多…' : ''}{!loading && visibleVoiceStats.total > 0 ? <span className="ml-2">角色音色 {visibleVoiceStats.bound}/{visibleVoiceStats.total}</span> : null}</span>
             </div>
 
             {showUpload && canUpload ? (
               <div className="grid shrink-0 gap-3 border-b border-[var(--fos-border-soft)] bg-[var(--fos-bg-3)] px-4 py-3 md:grid-cols-[1fr_1.3fr_auto]">
                 <input className="fos-input" value={uploadName} onChange={(event) => setUploadName(event.target.value)} placeholder="素材名称（必填）" />
                 <button type="button" className="fos-btn fos-btn-ghost justify-start" onClick={() => inputRef.current?.click()}><AppIcon name="folderOpen" className="h-4 w-4" /><span className="min-w-0 truncate">{uploadFile?.name || '选择本地文件'}</span></button>
-                <input ref={inputRef} type="file" accept={activeType === 'all' ? 'image/*,video/*,audio/*,.glb,model/gltf-binary' : activeType === 'image' ? 'image/*' : activeType === 'video' ? 'video/*' : activeType === 'audio' ? 'audio/*' : '.glb,model/gltf-binary'} title="3D 模型仅支持自包含 GLB 2.0" className="hidden" onChange={(event) => setUploadFile(event.target.files?.[0] || null)} />
+                <input ref={inputRef} type="file" accept={activeType === 'all' ? 'image/*,video/*,audio/*,.glb,model/gltf-binary' : activeType === 'image' ? 'image/*' : activeType === 'video' ? 'video/*' : activeType === 'audio' ? 'audio/*' : '.glb,model/gltf-binary'} title="3D 模型仅支持自包含 GLB 2.0" className="hidden" onChange={(event) => {
+                  const file = event.target.files?.[0] || null
+                  setUploadFile(file)
+                  if (!file) return
+                  const baseName = file.name.replace(/\.[^.]+$/, '').trim()
+                  if (!baseName) return
+                  if (uploadName.trim() === '' || uploadName === autoUploadNameRef.current) {
+                    setUploadName(baseName)
+                    autoUploadNameRef.current = baseName
+                  }
+                }} />
                 <button type="button" className="fos-btn fos-btn-primary" disabled={uploading} onClick={() => void upload()}>{uploading ? '上传中…' : '上传并选用'}</button>
               </div>
             ) : null}
 
-            {error || workError ? <div className="mx-4 mt-3 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200"><span>{workError || error}</span>{workError ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm shrink-0" onClick={() => setWorkResolutionAttempt((value) => value + 1)}>重新加载项目归属</button> : null}</div> : null}
-            <div className="material-picker-results min-h-0 flex-1 overflow-y-auto p-4">
+              {pageError ? <div className="mx-4 mt-3 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200"><span>{pageError}</span><button type="button" className="fos-btn fos-btn-ghost fos-btn-sm shrink-0" onClick={() => { if (nextCursor) void load(false, nextCursor) }}>重试</button></div> : null}
+              {error || workError ? <div className="mx-4 mt-3 flex shrink-0 items-center justify-between gap-3 rounded-lg border border-red-400/25 bg-red-500/10 px-3 py-2 text-[12px] text-red-200"><span>{workError || error}</span>{workError ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm shrink-0" onClick={() => setWorkResolutionAttempt((value) => value + 1)}>重新加载项目归属</button> : null}</div> : null}
+            <div ref={scrollerRef} onScroll={handleResultsScroll} className="material-picker-results min-h-0 flex-1 overflow-y-auto p-4">
               {loading ? <div className="py-16 text-center text-[13px] text-[var(--fos-text-4)]">正在加载素材…</div> : null}
               {!loading && visibleMaterials.length === 0 ? <div className="py-16 text-center text-[13px] text-[var(--fos-text-4)]">{browsingTrash ? '回收站为空。' : hasFilters ? '当前筛选条件下没有素材。' : canUpload ? '暂无可用素材，可点击“本地上传”。' : '暂无可用素材；请联系资产师上传后再选择。'}</div> : null}
-              <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(172px, 1fr))' }}>
-                {visibleMaterials.map((material) => {
+              <div ref={gridElementRef} className="relative" style={{ height: totalHeight }}>
+                {windowedMaterials.map((material, windowIndex) => {
+                  const index = windowStart + windowIndex
                   const selected = selectedIdSet.has(material.id)
                   const disabled = maxSelected <= 0 || (!selected && selectedCount >= maxSelected && (multiple || Boolean(onSelect)))
-                  const src = toDisplayImageUrl(material.url)
+                  const src = toCanvasDisplayImageUrl(material.url, 480)
                   const characterVoice = characterVoiceBindingState(material)
                   return (
-                    <article key={material.id} className="material-picker-card relative overflow-hidden rounded-[10px] border transition-colors" style={{ borderColor: selected ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+                    <article key={material.id} className="material-picker-card absolute overflow-hidden rounded-[10px] border transition-colors" style={{ top: (offsets[index] || 0) / columnCount, left: `calc(${(index % columnCount) * (100 / columnCount)}% + ${(index % columnCount) * MATERIAL_GRID_GAP / columnCount}px)`, width: `calc(${100 / columnCount}% - ${(columnCount - 1) * MATERIAL_GRID_GAP / columnCount}px)`, borderColor: selected ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
                       <button type="button" disabled={browsingTrash || uploading || disabled || material.status !== 'ready' || !material.url || (!multiple && selected && Boolean(onSelect))} title={material.status !== 'ready' || !material.url ? '素材尚未就绪，暂不可引用' : undefined} onClick={() => chooseMaterial(material)} className="block w-full text-left disabled:opacity-55">
                         <div className="material-picker-card-media relative aspect-[4/3] overflow-hidden bg-black/40">
                           {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || '素材'} fill sizes="220px" style={{ objectFit: 'cover' }} /> : <AppIcon name={material.type === 'video' ? 'video' : material.type === 'audio' ? 'audioWave' : material.type === 'model3d' ? 'cube' : 'image'} className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/15" />}

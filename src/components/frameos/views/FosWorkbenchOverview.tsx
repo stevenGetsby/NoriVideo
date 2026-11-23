@@ -175,10 +175,10 @@ function WorkflowProgress({
   const safeProgress = Math.max(0, Math.min(100, Math.floor(progress)))
   const running = tone === 'running'
   const accent = tone === 'failed'
-    ? '#ff7272'
+    ? 'var(--fos-danger-text)'
     : tone === 'done'
-      ? '#5bd39a'
-      : '#3265ff'
+      ? 'var(--fos-success)'
+      : 'var(--fos-primary)'
   const statusLabel = running
     ? '实时处理中'
     : tone === 'done'
@@ -192,7 +192,7 @@ function WorkflowProgress({
       className="relative overflow-hidden rounded-[12px] border px-3.5 py-3.5"
       style={{
         borderColor: tone === 'failed' ? 'rgba(255, 103, 103, .34)' : 'rgba(255,255,255,.14)',
-        background: tone === 'failed' ? 'rgba(92, 28, 42, .28)' : 'rgba(31, 31, 40, .94)',
+        background: tone === 'failed' ? 'rgba(92, 28, 42, .28)' : 'rgb(var(--nori-s-1f1f28) / .94)',
       }}
       data-testid="workflow-progress-card"
     >

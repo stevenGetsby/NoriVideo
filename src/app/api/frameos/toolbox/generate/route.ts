@@ -450,13 +450,20 @@ async function executeToolboxGeneration(
     'global-asset-hub',
     PERSONAL_MATERIAL_PROJECT_ID,
   ]))
-  // Anything already placed on a shared canvas must stay referenceable by every
-  // collaborator, whoever uploaded it, so the workspace is one material scope.
-  const materialAccessWhere = { userId: { in: workspaceUserIds } }
-
   const canvasId = cleanText(routeParams?.canvasId) || cleanText(body.canvasId)
   const nodeId = cleanText(body.nodeId)
   if (canvasId && !nodeId) throw new ApiError('INVALID_PARAMS', { message: '画布生成缺少目标节点。' })
+  // Existing shared canvas references remain readable by collaborators. The
+  // standalone toolbox is scoped to the same materials as its picker.
+  const materialAccessWhere = {
+    userId: { in: workspaceUserIds },
+    ...(!canvasId ? {
+      OR: [
+        { projectId: { in: readableProjectIds.filter((id) => id !== PERSONAL_MATERIAL_PROJECT_ID) }, personalOwnerId: null },
+        { projectId: PERSONAL_MATERIAL_PROJECT_ID, personalOwnerId: workspaceActor.actorId },
+      ],
+    } : {}),
+  }
 
   if (type === 'model3d') {
     if (modelKey !== FRAMEOS_3D_MODEL_KEY) {
@@ -707,7 +714,13 @@ async function executeToolboxGeneration(
   }
 
   const capabilityFields = getCapabilityOptionFields(type, capabilities)
-  const rawOptions = record(body.options)
+  const rawOptions = { ...record(body.options) }
+  // Older canvases always send a resolution, including when TGG chooses it.
+  // Remove the synthetic value before validation, pricing, and queueing.
+  if (type === 'video' && selection.provider?.split(':')[0] === 'tgg'
+    && capabilities?.video && !Object.hasOwn(capabilityFields, 'resolution')) {
+    delete rawOptions.resolution
+  }
   let superresolveTarget: CanvasVideoSuperresolveTarget | null = null
   if (type === 'video' && rawOptions.superresolveTarget !== undefined) {
     const target = cleanText(rawOptions.superresolveTarget).toLowerCase()

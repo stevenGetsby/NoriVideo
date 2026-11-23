@@ -267,7 +267,7 @@ export function FosScriptReview({ data }: { data: FosProjectData }) {
 
         <article className="overflow-y-auto">
           <div className="flex h-[40px] items-center justify-between border-b border-[rgba(255,255,255,.06)] px-5">
-            <h3 className="text-[15px] font-bold text-on-brand">
+            <h3 className="text-[15px] font-bold text-white">
               {active ? (
                 <>
                   <span className="mr-2 rounded-[4px] bg-[var(--fos-primary-soft)] px-2 py-0.5 text-[12px] text-[var(--fos-primary-text)]">E{active.episodeNumber}</span>

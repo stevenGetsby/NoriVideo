@@ -229,7 +229,7 @@ function ProjectCard({
         onClick={(event) => { if (selectable) event.preventDefault() }}
       >
         <WorkCover project={project} />
-        <span className={`works-project-edition${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
+        <span className={`works-project-edition nori-force-dark${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
         <div className="works-project-info">
           <h3><Highlight text={project.name} keyword={keyword} /></h3>
           <div className="works-project-meta">
@@ -266,7 +266,7 @@ function ProjectCard({
           <button
             ref={menuTrigger}
             type="button"
-            className="works-more-button"
+            className="works-more-button nori-force-dark"
             aria-label={`打开 ${project.name} 菜单`}
             aria-expanded={menuOpen}
             aria-haspopup="menu"

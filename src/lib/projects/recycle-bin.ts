@@ -4,6 +4,7 @@ import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { deleteObjects, extractStorageKey } from '@/lib/storage'
 import { unreferencedProjectStorageKeys } from './shared-media-retention'
 import { isProjectCoverStorageKey } from './project-cover-contract'
+import { snapshotProjectCostsBeforePurge } from '@/lib/compute-ledger/sync'
 
 export const PROJECT_RECYCLE_RETENTION_MS = 15 * 24 * 60 * 60 * 1000
 export const PROJECT_RECYCLE_RETENTION_DAYS = 15
@@ -165,6 +166,7 @@ async function purgeProject(project: {
 }) {
   const keys = await collectProjectStorageKeys(project.id)
   if (isProjectCoverStorageKey(project.coverImageKey)) keys.push(project.coverImageKey)
+  await snapshotProjectCostsBeforePurge(project.id)
   await prisma.project.delete({ where: { id: project.id } })
   const deletableKeys = await unreferencedProjectStorageKeys(project.id, keys)
 

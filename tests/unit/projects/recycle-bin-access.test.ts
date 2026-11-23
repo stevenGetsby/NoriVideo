@@ -21,14 +21,13 @@ const actor = {
   role: 'writer',
   projectLeader: true,
 }
-const deletedAt = new Date('2026-11-06T00:00:00.000Z')
 
 function recycledProject(createdById: string) {
   return {
     id: `project-${createdById}`,
     name: '已删除作品',
     createdById,
-    deletedAt,
+    deletedAt: new Date(Date.now() - 24 * 60 * 60 * 1000),
     deletedById: 'leader-1',
     deletedWithWork: false,
     workId: 'work-1',

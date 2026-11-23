@@ -2,6 +2,7 @@
 
 import { confirmAction } from '@/lib/ui/feedback'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import type { Dispatch, SetStateAction } from 'react'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
@@ -249,9 +250,9 @@ function HistoryPanel({
   useEffect(() => {
     setLoading(true)
     void loadHistory()
-    const timer = window.setInterval(() => void loadHistory(), 3_000)
-    return () => window.clearInterval(timer)
   }, [loadHistory, refreshKey])
+  const hasActive = rows.some((task) => task.status === 'queued' || task.status === 'processing')
+  useVisiblePolling(loadHistory, hasActive ? 3_000 : null)
 
   const targetByHistoryKey = new Map<string, AssetImageTarget>()
   for (const target of targets) {

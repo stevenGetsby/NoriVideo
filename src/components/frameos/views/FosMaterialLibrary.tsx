@@ -7,7 +7,7 @@ import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
-import { toDisplayImageUrl, toPlayableVideoUrl, toPlayableAudioUrl } from '@/lib/media/image-url'
+import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl, toPlayableAudioUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { ConfirmActionDialog } from '../works/FosWorksDialogs'
 import { renameFrameosMaterial, trashFrameosMaterials, updateFrameosMaterial } from '../materials/material-actions'
@@ -86,10 +86,15 @@ function MaterialPreview({ item, detail = false }: { item: FrameosMaterialItem; 
   const src = item.type === 'video' ? toPlayableVideoUrl(item.url)
     : item.type === 'audio' ? toPlayableAudioUrl(item.url) : toDisplayImageUrl(item.url)
   if (src && item.type === 'image') {
-    return <MediaImage src={src} alt={item.title || '素材'} fill sizes={detail ? '440px' : '360px'} style={{ objectFit: 'contain' }} />
+    const imageSrc = detail ? src : toCanvasDisplayImageUrl(item.url, 480) ?? src
+    return <MediaImage src={imageSrc} alt={item.title || '素材'} fill sizes={detail ? '440px' : '360px'} style={{ objectFit: 'contain' }} />
   }
   if (src && item.type === 'video') {
-    return <video src={src} controls={detail} muted={!detail} playsInline className="h-full w-full object-contain" />
+    if (!detail) {
+      const poster = toVideoPosterUrl(item.url, 480)
+      return poster ? <img src={poster} alt="" loading="lazy" decoding="async" className="h-full w-full object-contain" /> : <AppIcon name="video" className="h-10 w-10 text-white/15" />
+    }
+    return <video src={src} controls playsInline className="h-full w-full object-contain" />
   }
   if (src && item.type === 'audio') {
     return <audio src={src} controls className="w-[85%]" />
@@ -778,7 +783,7 @@ export function FosMaterialLibrary({
           </div>
         </div>
         <div className="fml-tabs flex items-center gap-1 border-b border-[var(--fos-border-soft)] px-5 py-2">
-          {FILTER_TABS.map((tab) => <button key={tab.key} type="button" onClick={() => setFilter(tab.key)} className="h-8 rounded-lg px-3 text-[12px] font-bold" style={{ background: filter === tab.key ? 'rgba(255,255,255,.16)' : 'transparent', color: filter === tab.key ? 'white' : 'var(--fos-text-2)' }}>{tab.label}</button>)}
+          {FILTER_TABS.map((tab) => <button key={tab.key} type="button" onClick={() => setFilter(tab.key)} className="h-8 rounded-lg px-3 text-[12px] font-bold" style={{ background: filter === tab.key ? 'var(--nori-asset-tab-active-bg)' : 'transparent', color: filter === tab.key ? 'var(--nori-asset-tab-active-text)' : 'var(--fos-text-2)' }}>{tab.label}</button>)}
         </div>
         <div className="fml-filters flex flex-wrap items-center gap-2 border-b border-[var(--fos-border-soft)] px-5 py-2.5">
           <select className="fos-input w-[150px]" aria-label="素材来源" value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value as SourceFilter)}>{SOURCE_FILTERS.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}</select>

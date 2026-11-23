@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { useSession } from 'next-auth/react'
 import { AppIcon, type AppIconName } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { apiFetch } from '@/lib/api-fetch'
 import { buildCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
-import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toPlayableVideoUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { FosFilterSelect } from '../FosFilterSelect'
 import { FosMaterialLibrary } from './FosMaterialLibrary'
 import { MaterialPickerDialog } from '../materials/MaterialPickerDialog'
@@ -177,11 +178,12 @@ function ReferenceStrip({ materials, onAdd, onRemove, label, limit, hint, hintAc
       <div className="flex flex-wrap gap-2">
         {materials.map((material, index) => {
           const src = material.type === 'video' ? toPlayableVideoUrl(material.url) : toDisplayImageUrl(material.url)
+          const poster = material.type === 'video' ? toVideoPosterUrl(material.url, 480) : null
           const voiceState = characterVoiceBindingState(material)
           const typeLabel = material.type === 'image' ? '图' : material.type === 'video' ? '视频' : material.type === 'audio' ? '音频' : '3D'
           return (
             <div key={material.id} className="relative flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-lg border border-[var(--fos-border-mid)] bg-black/30" title={`${index + 1}. ${material.title || '未命名素材'} · ${material.type}`}>
-              {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : src && material.type === 'video' ? <video src={src} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-violet-200/60" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-emerald-200/60" /> : <AppIcon name="image" className="h-7 w-7 text-sky-200/45" />}
+              {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || ''} fill sizes="72px" style={{ objectFit: 'cover' }} /> : poster ? <img src={poster} alt="" loading="lazy" decoding="async" className="pointer-events-none h-full w-full object-cover" /> : material.type === 'video' ? <AppIcon name="video" className="h-7 w-7 text-violet-200/60" /> : material.type === 'audio' ? <AppIcon name="audioWave" className="h-7 w-7 text-emerald-200/60" /> : <AppIcon name="image" className="h-7 w-7 text-sky-200/45" />}
               {voiceState ? (
                 <span
                   className={`toolbox-ref-voice-badge absolute left-1 top-1 z-[2] inline-flex max-w-[44px] items-center gap-px overflow-hidden rounded border px-0.5 py-0.5 text-[8px] font-bold leading-none${voiceState === 'bound' ? ' border-violet-300/40 bg-violet-950/90 text-violet-100' : ' border-amber-300/45 bg-amber-950/90 text-amber-200'}`}
@@ -249,9 +251,10 @@ function ResultPane({ type, history, selectedAsset, loading, refreshRevision, pa
       <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
         {preparedHistory.map(({ asset, trace }) => {
           const resultSrc = asset.type === 'video' ? toPlayableVideoUrl(asset.url) : toDisplayImageUrl(asset.url)
+          const resultPoster = asset.type === 'video' ? toVideoPosterUrl(asset.url, 480) : null
           const status = asset.task?.status || asset.status
           const summary = [trace.mode, trace.references.length > 0 ? `${trace.references.length} 个参考` : '', trace.costPoints !== null ? trace.costLabel : ''].filter(Boolean).join(' · ')
-          return <button type="button" key={asset.id} aria-label={`选择历史素材：${trace.title}`} aria-pressed={selected?.id === asset.id} onClick={() => onSelect(asset)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={trace.title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultSrc && asset.type === 'video' ? <video src={resultSrc} muted playsInline preload="metadata" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={trace.title}>{trace.title}</div><div className="truncate px-2 pt-0.5 text-[9px] text-[var(--fos-text-4)]" title={summary}>{summary}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={trace.errorMessage || '生成服务未返回错误详情。'}>{trace.errorMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
+          return <button type="button" key={asset.id} aria-label={`选择历史素材：${trace.title}`} aria-pressed={selected?.id === asset.id} onClick={() => onSelect(asset)} className={`overflow-hidden rounded-lg border bg-[var(--fos-bg-2)] text-left transition${selected?.id === asset.id ? ' border-[var(--fos-primary)] ring-1 ring-[var(--fos-primary-border)]' : ' border-[var(--fos-border-soft)] hover:border-[var(--fos-border-strong)]'}`}><div className="relative flex aspect-video items-center justify-center overflow-hidden bg-black/35">{resultSrc && asset.type === 'image' ? <MediaImage src={resultSrc} alt={trace.title} fill sizes="240px" style={{ objectFit: 'cover' }} /> : resultPoster ? <img src={resultPoster} alt="" loading="lazy" decoding="async" className="pointer-events-none h-full w-full object-cover" /> : <AppIcon name={asset.type === 'image' ? 'image' : 'video'} className="h-7 w-7 text-white/15" />}<span className="absolute right-1.5 top-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] text-white">{status === 'completed' || status === 'ready' ? '完成' : status === 'failed' ? '失败' : `${asset.task?.progress || 0}%`}</span></div><div className="truncate px-2 pt-2 text-[11px] font-bold text-white" title={trace.title}>{trace.title}</div><div className="truncate px-2 pt-0.5 text-[9px] text-[var(--fos-text-4)]" title={summary}>{summary}</div>{status === 'failed' ? <p className="line-clamp-3 px-2 pb-2 pt-1 text-[10px] leading-4 text-red-200/80" title={trace.errorMessage || '生成服务未返回错误详情。'}>{trace.errorMessage || '生成服务未返回错误详情。'}</p> : <div className="h-2" />}</button>
         })}
       </div>
       <nav className="mt-4 flex items-center justify-between gap-3" aria-label="生成历史分页">
@@ -616,13 +619,10 @@ export function FosToolbox({ initialTab }: { projectName?: string; initialTab?: 
   }, [activeType, historyPage, projectId, tab, workId])
 
   const hasActive = history.some((asset) => ['pending', 'processing', 'queued'].includes(asset.task?.status || asset.status))
-  useEffect(() => {
-    if (!hasActive) return
-    const timer = window.setInterval(() => {
-      if (!historyAbort.current) void loadHistory(false, historyPage)
-    }, 2500)
-    return () => window.clearInterval(timer)
-  }, [hasActive, historyPage, loadHistory])
+  useVisiblePolling(
+    () => historyAbort.current ? undefined : loadHistory(false, historyPage),
+    hasActive ? 3_000 : null,
+  )
 
   const historyScopeKey = `${workspaceId}:${projectId}:${workId}:${activeType}:${tab}`
   useEffect(() => {

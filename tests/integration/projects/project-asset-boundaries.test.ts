@@ -63,7 +63,7 @@ describe.skipIf(!enabled)('project asset boundaries against disposable real MySQ
       { id: state.outsider, name: state.outsider, role: 'writer', workspaceOwnerId: state.owner },
     ] })
     const works = await Promise.all(['共享项目', '其他项目'].map((name) => prisma.work.create({
-      data: { name, workspaceOwnerId: state.owner, createdById: state.leader },
+      data: { name, workspaceOwnerId: state.owner, createdById: state.owner },
     })))
     sharedWork = works[0].id
     otherWork = works[1].id
@@ -131,7 +131,7 @@ describe.skipIf(!enabled)('project asset boundaries against disposable real MySQ
     expect(payload.materials.some((item: { projectId: string }) => item.projectId === 'global' || item.projectId === 'unknown-legacy')).toBe(false)
   })
 
-  it('does not let a former work creator bypass current project membership', async () => {
+  it('does not let a former 作品 creator bypass membership of its parent 项目', async () => {
     expect((await readMaterials(`workId=${sharedWork}&projectId=${currentProject}`, state.leader)).status).toBe(404)
   })
 

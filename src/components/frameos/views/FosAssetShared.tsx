@@ -22,8 +22,8 @@ export function AssetTabs({ projectId, active }: { projectId: string; active: As
         <Link key={tab} href={{ pathname: `${base}/${tab}` }}
           className="h-8 rounded-lg px-3 text-[13px] font-bold leading-8"
           style={{
-            background: tab === active ? 'rgba(255,255,255,.16)' : 'var(--fos-bg-3)',
-            color: tab === active ? '#fff' : 'var(--fos-text-3)',
+            background: tab === active ? 'var(--nori-asset-tab-active-bg)' : 'var(--fos-bg-3)',
+            color: tab === active ? 'var(--nori-asset-tab-active-text)' : 'var(--fos-text-3)',
           }}>
           {label}
         </Link>

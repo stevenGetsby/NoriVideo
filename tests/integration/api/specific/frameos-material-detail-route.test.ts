@@ -360,8 +360,8 @@ describe('FrameOS material detail route', () => {
     expect(payload.referenceCounts).toEqual({
       currentCanvases: 1,
       workflowTemplates: 1,
-      historySnapshots: 1,
     })
+    expect(prismaMock.canvas.findMany.mock.calls[0]?.[0].select).not.toHaveProperty('snapshots')
     expect(prismaMock.frameosMaterial.updateMany).not.toHaveBeenCalled()
     expect(deleteObjectMock).not.toHaveBeenCalled()
   })

@@ -75,13 +75,15 @@ describe('FrameOS assignment page replica contract', () => {
     expect(controls).toContain('fa-select-inline-input')
     expect(controls).toContain('className="fa-select-clear"')
     expect(controls).not.toContain('<span>{placeholder}</span>')
-    expect(styles).toContain('border-radius: 12px;')
-    expect(styles).toContain('height: 40px;')
-    expect(styles).toContain('border: 1px solid rgba(255,255,255,.04);')
-    expect(styles).toContain('border-radius: 0;')
-    expect(styles).toContain('padding: 0 14px;')
-    expect(styles).toContain('font-weight: 500;')
-    expect(styles).toContain('top: calc(100% + 12px);')
+    const popover = styles.match(/\.fa-select-popover\s*\{([^}]+)\}/)?.[1] ?? ''
+    const option = styles.match(/\.fa-select-option\s*\{([^}]+)\}/)?.[1] ?? ''
+    expect(popover).toContain('border-radius: 12px;')
+    expect(popover).toContain('border: 1px solid rgb(var(--nori-ink) / calc(0.04 * var(--nori-a)));')
+    expect(popover).toContain('top: calc(100% + 12px);')
+    expect(option).toContain('height: 40px;')
+    expect(option).toContain('border-radius: 0;')
+    expect(option).toContain('padding: 0 14px;')
+    expect(option).toContain('font-weight: 500;')
     expect(styles).toContain('.fa-select-trigger:focus-visible')
   })
 

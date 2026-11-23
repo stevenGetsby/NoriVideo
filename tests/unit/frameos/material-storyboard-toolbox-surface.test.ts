@@ -155,8 +155,8 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(importRoute).toContain('resolveMediaRefFromLegacyValue')
     expect(importRoute).toContain('refreshProjectPanelReferenceAssets')
     expect(modifyWorker).toContain('const referenceImages = Array.from(new Set([requiredReference, ...normalizedExtras]))')
-    expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5fa; background: #1b1b23; }')
+    expect(styles).toContain('select.fos-input { color-scheme: var(--nori-color-scheme); }')
+    expect(styles).toContain('select.fos-input option { color: rgb(var(--nori-text-1)); background: rgb(var(--nori-bg-3)); }')
   })
 
   it('reflows asset and material controls instead of clipping them on narrow screens', () => {
@@ -184,17 +184,21 @@ describe('FrameOS material, storyboard, production, and toolbox surfaces', () =>
     expect(emptyStateStart).toBeGreaterThan(-1)
     expect(emptyStateEnd).toBeGreaterThan(emptyStateStart)
     const emptyState = assets.slice(Math.max(0, emptyStateStart - 240), emptyStateEnd + 6)
-    expect(emptyState).toContain('bg-[#08080c]')
+    expect(emptyState).toContain('bg-[rgb(var(--nori-bg-0))]')
+    expect(readSource('src/styles/theme.css')).toMatch(/:root,[^}]*--nori-bg-0: 8 8 12;/)
     expect(emptyState).toContain('{mediaName}还未生成')
     expect(emptyState).toContain('可生成图片，或从素材库与本地导入')
     expect(emptyState).not.toContain('<MediaImage')
   })
 
-  it('forces native model options to use readable dark colors, including disabled options', () => {
+  it('keeps native model options theme-aware, including disabled options', () => {
     const styles = readSource('src/styles/frameos-replica.css')
+    const theme = readSource('src/styles/theme.css')
 
-    expect(styles).toContain('select.fos-input { color-scheme: dark; }')
-    expect(styles).toContain('select.fos-input option { color: #f5f5fa; background: #1b1b23; }')
-    expect(styles).toContain('select.fos-input option:disabled { color: #797a8c; }')
+    expect(styles).toContain('select.fos-input { color-scheme: var(--nori-color-scheme); }')
+    expect(styles).toContain('select.fos-input option { color: rgb(var(--nori-text-1)); background: rgb(var(--nori-bg-3)); }')
+    expect(styles).toContain('select.fos-input option:disabled { color: rgb(var(--nori-t-797a8c)); }')
+    expect(theme).toMatch(/:root,[^}]*--nori-color-scheme: dark;/)
+    expect(theme).toMatch(/html\[data-nori-theme="light"\]\s*\{[^}]*--nori-color-scheme: light;/)
   })
 })

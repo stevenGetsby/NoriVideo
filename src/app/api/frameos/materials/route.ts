@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import type { Prisma } from '@prisma/client'
-import { apiHandler } from '@/lib/api-errors'
+import { Prisma } from '@prisma/client'
+import { ApiError, apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth, requireUserPermission } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
@@ -11,6 +11,8 @@ import { extractStorageKey, getSignedUrl } from '@/lib/storage'
 import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import { supersededByMaterialId } from '@/lib/frameos/material-supersede'
+import { collapseInheritedDuplicates } from '@/lib/frameos/material-inherit'
+import { resolveFrameosVoiceIds, frameosAssetCategoryWhere, frameosMissingVoiceWhere, readFrameosVisibleMaterialPage } from '@/lib/frameos/material-list-query'
 import {
   syncGeneratedImagesToMaterialLibrary,
   type FrameosMaterialType,
@@ -58,6 +60,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const requestedSource = cleanText(params.get('source'))
   const source = ALLOWED_SOURCES.has(requestedSource) ? requestedSource : ''
   const query = cleanText(params.get('query'))
+  const canvasId = cleanText(params.get('canvasId'))
+  const requestedCategory = cleanText(params.get('category'))
+  const category = ['character', 'location', 'prop', 'shot', 'other', 'voice', 'missingVoice'].includes(requestedCategory)
+    ? requestedCategory
+    : ''
+  const deduplicate = params.get('deduplicate') === '1'
+  const pageVersion = cleanText(params.get('pageVersion'))
+  const requestedSort = cleanText(params.get('sort'))
   const creator = cleanText(params.get('creator'))
   const creatorExact = params.get('creatorExact') === '1'
   const createdFrom = dateFilter(params.get('createdFrom'))
@@ -66,7 +76,19 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const deleted = params.get('state') === 'deleted'
   const limitRaw = Number(params.get('limit') || 200)
   const limit = Number.isFinite(limitRaw) ? Math.max(1, Math.min(500, Math.floor(limitRaw))) : 200
-  const cursor = cleanText(params.get('cursor'))
+  const rawCursor = cleanText(params.get('cursor'))
+  const cursorParts = pageVersion ? rawCursor.split(':') : []
+  const cursor = pageVersion ? cursorParts.slice(4).join(':') : rawCursor
+  const cursorCreatedAt = pageVersion && cursorParts.length >= 5 ? dateFilter(cursorParts.slice(1, 4).join(':')) : null
+  if (pageVersion && rawCursor && (!cursorCreatedAt || !cursor || !/^\d+$/.test(cursorParts[0]))) {
+    throw new ApiError('INVALID_PARAMS', { message: '素材分页游标无效，请刷新后重试。' })
+  }
+  const ascending = requestedSort === 'oldest'
+  const offset = pageVersion ? Number(cursorParts[0]) : 0
+  const categoryConditions = category && !['voice', 'missingVoice'].includes(category)
+    ? [frameosAssetCategoryWhere(category as Parameters<typeof frameosAssetCategoryWhere>[0])]
+    : []
+  const voiceWhere = category === 'voice' ? { type: 'audio' } : null
 
   const canSyncWorkspace = isManagementRole(session.user.role)
   const canSyncScopedProject = Boolean(scopedProjectId)
@@ -120,42 +142,73 @@ export const GET = apiHandler(async (request: NextRequest) => {
           ] }),
     deletedAt: deleted ? { not: null } : null,
   }
-  const [materials, trashCount] = await Promise.all([
-    prisma.frameosMaterial.findMany({
-      where: {
-        ...scopeWhere,
-      ...(type ? { type } : {}),
-      ...(source ? { source } : {}),
-      ...(favorite ? { isFavorited: true } : {}),
-      ...(query ? { title: { contains: query } } : {}),
-      ...(creator ? {
-        OR: [
-          { ownerName: creatorExact ? { equals: creator } : { contains: creator } },
-          ...(matchingCreatorUserIds.length > 0 ? [{
-            userId: { in: matchingCreatorUserIds },
-            // New subaccount uploads share the workspace userId but retain the
-            // real creator in ownerName. Never attribute every shared row to
-            // the manager; userId is only a fallback for unnamed legacy rows.
-            ...(creatorExact ? { OR: [{ ownerName: null }, { ownerName: '' }] } : {}),
-          }] : []),
-        ],
-      } : {}),
-      ...(createdFrom || createdTo ? {
-        createdAt: {
-          ...(createdFrom ? { gte: createdFrom } : {}),
-          ...(createdTo ? { lte: createdTo } : {}),
-        },
-      } : {}),
-    },
-    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: limit,
-    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    }),
-    prisma.frameosMaterial.count({ where: { ...scopeWhere, deletedAt: { not: null } } }),
-  ])
-  // Retired-but-still-referenced images stay alive for old canvases only; never list them.
-  const visibleMaterials = materials.filter((material) => !supersededByMaterialId(material.metadata))
-  const realProjectIds = Array.from(new Set(visibleMaterials
+  const baseWhere: Prisma.FrameosMaterialWhereInput = {
+    ...scopeWhere,
+    ...(type ? { type } : {}),
+    ...(source ? { source } : {}),
+    ...(favorite ? { isFavorited: true } : {}),
+    ...(canvasId ? { metadata: { path: '$.canvasId', equals: canvasId } } : {}),
+    ...(creator ? {
+      OR: [
+        { ownerName: creatorExact ? { equals: creator } : { contains: creator } },
+        ...(matchingCreatorUserIds.length > 0 ? [{
+          userId: { in: matchingCreatorUserIds },
+          // New subaccount uploads share the workspace userId but retain the
+          // real creator in ownerName. Never attribute every shared row to
+          // the manager; userId is only a fallback for unnamed legacy rows.
+          ...(creatorExact ? { OR: [{ ownerName: null }, { ownerName: '' }] } : {}),
+        }] : []),
+      ],
+    } : {}),
+    ...(createdFrom || createdTo ? {
+      createdAt: {
+        ...(createdFrom ? { gte: createdFrom } : {}),
+        ...(createdTo ? { lte: createdTo } : {}),
+      },
+    } : {}),
+    ...(query ? { AND: [{ OR: [
+      { title: { contains: query } },
+      ...(readableProjects.length > 0
+        ? [{ projectId: { in: readableProjects.filter((project) => project.name.toLocaleLowerCase().includes(query.toLocaleLowerCase())).map((project) => project.id) } }]
+        : []),
+    ] }] } : {}),
+  }
+  const missingVoiceWhere: Prisma.FrameosMaterialWhereInput = {
+    AND: [baseWhere, frameosAssetCategoryWhere('character'), { type: 'image' }],
+  }
+  const resolvedVoiceIds = deduplicate && category === 'missingVoice'
+    ? await resolveFrameosVoiceIds(missingVoiceWhere, (args) => prisma.frameosMaterial.findMany(args))
+    : new Set<string>()
+  const where: Prisma.FrameosMaterialWhereInput = {
+    AND: [
+      baseWhere,
+      ...categoryConditions,
+      ...(voiceWhere ? [voiceWhere] : []),
+      ...(category === 'missingVoice' ? [{ type: 'image' }, frameosMissingVoiceWhere(resolvedVoiceIds)] : []),
+    ],
+  }
+  const visiblePage = deduplicate ? null : await readFrameosVisibleMaterialPage({
+    where, ascending, limit, cursor: cursor ? { id: cursor, createdAt: cursorCreatedAt } : undefined,
+  }, (args) => prisma.frameosMaterial.findMany(args))
+  const filteredMaterials = visiblePage ?? (await prisma.frameosMaterial.findMany({
+    where,
+    orderBy: [{ createdAt: ascending ? 'asc' : 'desc' }, { id: ascending ? 'asc' : 'desc' }],
+    select: { id: true, projectId: true, createdAt: true, metadata: true },
+  })).filter((material) => !supersededByMaterialId(material.metadata))
+  const trashCount = await prisma.frameosMaterial.count({ where: { ...scopeWhere, deletedAt: { not: null } } })
+  const pinnedIds = new Set(params.getAll('pinnedId').slice(0, 100))
+  const allVisibleMaterials = deduplicate && !deleted
+    ? collapseInheritedDuplicates(filteredMaterials.map((material) => ({ ...material, createdAt: material.createdAt.toISOString() })), scopedProjectId, pinnedIds)
+    : filteredMaterials
+  const filteredIds = allVisibleMaterials.map((material) => material.id)
+  const pageMaterials = deduplicate ? allVisibleMaterials.slice(offset, offset + limit + 1) : allVisibleMaterials.slice(0, limit + 1)
+  const materials = pageMaterials.slice(0, limit)
+  const detailIds = materials.map((material) => material.id)
+  const materialRows = visiblePage?.slice(0, limit)
+    ?? await prisma.frameosMaterial.findMany({ where: { id: { in: detailIds } } })
+  const materialsById = new Map(materialRows.map((material) => [material.id, material]))
+  const orderedMaterials = detailIds.map((id) => materialsById.get(id)).filter((material): material is NonNullable<typeof material> => Boolean(material))
+  const realProjectIds = Array.from(new Set(orderedMaterials
     .map((material) => material.projectId)
     .filter((id) => id !== 'global' && id !== 'global-asset-hub' && id !== PERSONAL_MATERIAL_PROJECT_ID)))
   const readableProjectNames = new Map(readableProjects.map((project) => [project.id, project.name]))
@@ -167,15 +220,29 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
     : []
   for (const project of projects) readableProjectNames.set(project.id, project.name)
-  const voiceIds = [...new Set(visibleMaterials.map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
+  const voiceIds = [...new Set(orderedMaterials.map((material) => characterVoiceMaterialId(material.metadata)).filter((id): id is string => Boolean(id)))]
   const voices = voiceIds.length ? await prisma.frameosMaterial.findMany({
     where: { ...scopeWhere, id: { in: voiceIds }, type: 'audio', status: 'ready', deletedAt: null },
   }) : []
   const voicesById = new Map(voices.map((voice) => [voice.id, voice]))
 
+  const nextMaterial = materials.at(-1)
+  const nextCursor = materials.length === limit && pageMaterials.length > limit && nextMaterial
+    ? pageVersion
+      ? `${offset + limit}:${new Date(nextMaterial.createdAt).toISOString()}:${nextMaterial.id}`
+      : nextMaterial.id
+    : null
+  const allVoiceIds = deduplicate
+    ? await resolveFrameosVoiceIds(missingVoiceWhere, (args) => prisma.frameosMaterial.findMany(args))
+    : new Set<string>()
+  const missingVoiceCandidates = deduplicate ? await prisma.frameosMaterial.count({
+    where: { AND: [missingVoiceWhere, frameosMissingVoiceWhere(allVoiceIds)] },
+  }) : 0
+
   return NextResponse.json({
     pagination: {
-      nextCursor: materials.length === limit ? materials.at(-1)?.id || null : null,
+      nextCursor,
+      ...(deduplicate ? { total: filteredIds.length, missingVoiceCount: missingVoiceCandidates } : {}),
     },
     projects: readableProjects,
     creators: workspaceUsers
@@ -188,7 +255,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
         reason: null,
       },
     },
-    materials: visibleMaterials.map((material) => ({
+    materials: orderedMaterials.map((material) => ({
       ...material,
       voice: (() => {
         const voice = voicesById.get(characterVoiceMaterialId(material.metadata) || '')

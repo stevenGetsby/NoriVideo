@@ -1,5 +1,7 @@
 import { execFileSync } from 'node:child_process'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { resolveModelSelection } from '@/lib/api-config'
+import { resolveBuiltinCapabilitiesByModelKey, resolveGenerationOptionsForModel } from '@/lib/model-capabilities/lookup'
 import { TASK_TYPE } from '@/lib/task/types'
 import { buildMockRequest } from '../../../helpers/request'
 
@@ -10,7 +12,7 @@ const getObjectBufferMock = vi.hoisted(() => vi.fn<(key: string) => Promise<Buff
 const probeMediaDurationMock = vi.hoisted(() => vi.fn<() => Promise<number | null>>(async () => 6.25))
 const uploadObjectMock = vi.hoisted(() => vi.fn())
 const registerMaterialMock = vi.hoisted(() => vi.fn())
-const capabilityMock = vi.hoisted(() => vi.fn(async () => ({ resolution: '1080p' })))
+const capabilityMock = vi.hoisted(() => vi.fn<typeof import('@/lib/config-service').resolveProjectModelCapabilityGenerationOptions>(async () => ({ resolution: '1080p' })))
 const audioAvailabilityMock = vi.hoisted(() => vi.fn(async () => ({
   available: true,
   modes: ['tts'],
@@ -244,6 +246,29 @@ describe('FrameOS toolbox generation route', () => {
       canvasRevision: 12,
       created: true,
     })
+  })
+
+  it('queues TGG Full at the provider default when a cached canvas sends 480p', async () => {
+    const runtimeModel = 'tgg::seedance_v2.5_full'
+    vi.mocked(resolveModelSelection).mockResolvedValueOnce({ provider: 'tgg', modelId: 'seedance_v2.5_full', modelKey: runtimeModel, mediaType: 'video' })
+    capabilityMock.mockImplementationOnce(async ({ modelType, modelKey, runtimeSelections }) => {
+      const { options, issues } = resolveGenerationOptionsForModel({
+        modelType, modelKey, runtimeSelections,
+        capabilities: resolveBuiltinCapabilitiesByModelKey(modelType, runtimeModel),
+      })
+      if (issues.length) throw new Error(`${issues[0].code}: ${issues[0].field}`)
+      return options
+    })
+    const response = await POST(buildMockRequest({
+      path: '/api/frameos/toolbox/generate', method: 'POST',
+      body: { workId: 'work-1', projectId: 'project-1', type: 'video', title: 'TGG Full', prompt: '雨夜街头',
+        modelKey: 'nori::tgg-seedance2.5', inputMode: 'text', options: { aspectRatio: '9:16', resolution: '480p', duration: 30 } },
+    }), routeContext)
+    expect(response.status).toBe(200)
+    const payload = submitTaskMock.mock.calls[0][0].payload
+    expect(payload.generationOptions).toMatchObject({ aspectRatio: '9:16', duration: 30 })
+    expect(payload.generationOptions).not.toHaveProperty('resolution')
+    expect(payload).not.toHaveProperty('resolution')
   })
 
   it('rejects toolbox generation without a project scope before creating any records', async () => {
@@ -1114,7 +1139,10 @@ describe('FrameOS toolbox generation route', () => {
         type: { in: ['image', 'video', 'audio'] },
         status: 'ready',
         deletedAt: null,
-        projectId: { in: ['project-1', 'global', 'global-asset-hub'] },
+        OR: [
+          { projectId: { in: ['project-1', 'global', 'global-asset-hub'] }, personalOwnerId: null },
+          { projectId: 'personal', personalOwnerId: 'user-1' },
+        ],
       },
     })
     expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({

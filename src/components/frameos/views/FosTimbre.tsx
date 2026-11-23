@@ -370,10 +370,10 @@ export function FosTimbre({ data }: { data: FosProjectData }) {
 
       <article className="min-h-0 overflow-y-auto p-6">
         {active ? <>
-          <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-on-brand">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
+          <div className="flex items-start justify-between gap-5"><div><h2 className="text-[17px] font-bold text-white">{active.name} · 角色绑定音色</h2><p className="mt-2 text-[12px] leading-6 text-[var(--fos-text-3)]">每个角色只绑定一个当前音色。该音频会作为后续 Seedance 2.0 分镜视频的角色参考音频输入。</p></div><span className={`rounded-full px-3 py-1 text-[11px] font-bold ${audioUrl ? 'bg-emerald-500/10 text-emerald-300' : 'bg-white/5 text-[var(--fos-text-4)]'}`}>{statusText}</span></div>
 
           <div className="fos-timbre-tabs mt-5 flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-[var(--fos-border-soft)]">
-            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? '#fff' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-white" /> : null}</button>)}
+            {([['seedance', 'Seedance 2.0 试镜'], ['local', '本地 MP3 上传'], ['batch', '批量按角色名绑定']] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setTab(key)} className="relative h-10 text-[13px] font-bold" style={{ color: tab === key ? 'var(--fos-primary-text)' : 'var(--fos-text-2)' }}>{label}{tab === key ? <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[var(--fos-primary)]" /> : null}</button>)}
           </div>
 
           {tab === 'seedance' ? <section className="mt-5">

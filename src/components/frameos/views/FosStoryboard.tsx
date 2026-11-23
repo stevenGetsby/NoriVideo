@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { useSession } from 'next-auth/react'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
@@ -1149,22 +1150,23 @@ export function FosStoryboard({ data, initialEpisodeId }: { data: FosProjectData
   // task creation and reported idle; otherwise the page stays stale until F5.
   const refetchTaskState = storyboardTaskQuery.refetch
   const storyboardTaskPhase = storyboardTaskState?.phase
-  useEffect(() => {
-    if (!watchEpisodeId || watchEpisodeId !== activeEpisodeId) return
-    if (storyboardTaskPhase === 'completed' || storyboardTaskPhase === 'failed') {
+  const watchStoryboardTask = useCallback(async () => {
+    if (watchAttemptsRef.current >= 200) {
       setWatchEpisodeId('')
       return
     }
-    const timer = window.setInterval(() => {
-      if (watchAttemptsRef.current >= 200) {
-        setWatchEpisodeId('')
-        return
-      }
-      watchAttemptsRef.current += 1
-      void refetchTaskState()
-    }, 3_000)
-    return () => window.clearInterval(timer)
-  }, [activeEpisodeId, refetchTaskState, storyboardTaskPhase, watchEpisodeId])
+    watchAttemptsRef.current += 1
+    await refetchTaskState()
+  }, [refetchTaskState])
+  useVisiblePolling(
+    watchStoryboardTask,
+    watchEpisodeId && watchEpisodeId === activeEpisodeId ? 3_000 : null,
+  )
+  useEffect(() => {
+    if (watchEpisodeId === activeEpisodeId && (storyboardTaskPhase === 'completed' || storyboardTaskPhase === 'failed')) {
+      setWatchEpisodeId('')
+    }
+  }, [activeEpisodeId, storyboardTaskPhase, watchEpisodeId])
 
   const scheduleRefreshes = () => {
     refreshTimers.current.forEach((timer) => window.clearTimeout(timer))

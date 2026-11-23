@@ -77,12 +77,23 @@ describe.skipIf(!enabled)('material batch trash against isolated real MySQL', ()
     expect(rows.every((row) => Boolean(row.deletedAt) && row.deletedById === state.owner)).toBe(true)
     expect((await submit(ids)).status).toBe(200)
   })
-  it('rolls back the earlier successful database write after a later optimistic-lock conflict', async () => {
+  it('reports an optimistic-lock conflict per item without deleting that item', async () => {
     state.conflictId = ids[1]
-    expect((await submit(ids)).status).toBe(409)
+    const response = await submit(ids)
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      deletedCount: 1,
+      skippedCount: 1,
+      results: [
+        { materialId: ids[0], deleted: true },
+        { materialId: ids[1], deleted: false, reason: '素材已发生变化，请刷新后重试。' },
+      ],
+    })
     const rows = await prisma.frameosMaterial.findMany({ where: { id: { in: ids } } })
-    expect(rows).toHaveLength(2)
-    expect(rows.every((row) => row.deletedAt === null && row.deletedById === null)).toBe(true)
+    expect(rows).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: ids[0], deletedAt: expect.any(Date), deletedById: state.owner }),
+      expect.objectContaining({ id: ids[1], deletedAt: null, deletedById: null }),
+    ]))
   })
   it('does not remove any row when a batch includes an inaccessible id', async () => {
     expect((await submit([ids[0], 'unknown-material'])).status).toBe(404)

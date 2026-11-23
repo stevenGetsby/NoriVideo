@@ -51,6 +51,14 @@ vi.mock('@/lib/frameos/material-service', () => ({
   syncGeneratedImagesToMaterialLibrary: vi.fn(),
 }))
 
+function expectFirstPageScope(scope: Record<string, unknown>) {
+  // The cursor query reserves a top-level AND for the existing ACL and the
+  // cursor/search clauses. Matching OR at that level would weaken the ACL.
+  expect(prismaMock.frameosMaterial.findMany.mock.calls[0]?.[0]).toMatchObject({
+    where: { AND: [expect.objectContaining(scope)] },
+  })
+}
+
 describe('FrameOS material project scopes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -84,14 +92,12 @@ describe('FrameOS material project scopes', () => {
       select: { id: true, name: true, workId: true },
       orderBy: [{ updatedAt: 'desc' }, { id: 'asc' }],
     })
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({
-        userId: { in: ['workspace-1', 'member-1'] },
-        projectId: { in: ['project-a', 'project-b', 'global', 'global-asset-hub'] },
-        deletedAt: null,
-        type: 'image',
-      }),
-    }))
+    expectFirstPageScope({
+      userId: { in: ['workspace-1', 'member-1'] },
+      projectId: { in: ['project-a', 'project-b', 'global', 'global-asset-hub'] },
+      deletedAt: null,
+      type: 'image',
+    })
     await expect(response.json()).resolves.toMatchObject({
       projects: [
         { id: 'project-a', name: '甲作品' },
@@ -112,9 +118,7 @@ describe('FrameOS material project scopes', () => {
 
     expect(response.status).toBe(200)
     expect(authMock.requireProjectAuthLight).toHaveBeenCalledWith('project-b')
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ projectId: { in: ['project-b'] } }),
-    }))
+    expectFirstPageScope({ projectId: { in: ['project-b'] } })
   })
 
   it('returns only soft-deleted materials for the trash scope and reports its real count', async () => {
@@ -126,9 +130,7 @@ describe('FrameOS material project scopes', () => {
     }), { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ deletedAt: { not: null } }),
-    }))
+    expectFirstPageScope({ deletedAt: { not: null } })
     await expect(response.json()).resolves.toMatchObject({
       capabilities: { trash: { supported: true, count: 2, reason: null } },
     })
@@ -146,9 +148,7 @@ describe('FrameOS material project scopes', () => {
     }), { params: Promise.resolve({}) })
 
     expect(response.status).toBe(200)
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ projectId: { in: ['project-a', 'project-shared'] } }),
-    }))
+    expectFirstPageScope({ projectId: { in: ['project-a', 'project-shared'] } })
     expect(prismaMock.project.findMany.mock.calls[0][0].where).toEqual({
       AND: [readScope.where, { workId: 'work-1' }],
     })
@@ -204,20 +204,20 @@ describe('FrameOS material project scopes', () => {
     const response = await GET(buildMockRequest({ path: '/api/frameos/materials?projectId=personal&scope=personal', method: 'GET' }), { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
     expect(authMock.requireProjectAuthLight).not.toHaveBeenCalled()
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ projectId: 'personal', personalOwnerId: 'member-1' }) }))
+    expectFirstPageScope({ projectId: 'personal', personalOwnerId: 'member-1' })
   })
 
   it('combines only own personal materials and shared project materials in the accessible scope', async () => {
     const { GET } = await import('@/app/api/frameos/materials/route')
     const response = await GET(buildMockRequest({ path: '/api/frameos/materials?scope=all', method: 'GET' }), { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ OR: [{ personalOwnerId: null }, { personalOwnerId: 'member-1', projectId: 'personal' }] }) }))
+    expectFirstPageScope({ OR: [{ personalOwnerId: null }, { personalOwnerId: 'member-1', projectId: 'personal' }] })
   })
 
   it('excludes personal records from the shared-project scope', async () => {
     const { GET } = await import('@/app/api/frameos/materials/route')
     const response = await GET(buildMockRequest({ path: '/api/frameos/materials?scope=project', method: 'GET' }), { params: Promise.resolve({}) })
     expect(response.status).toBe(200)
-    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ personalOwnerId: null }) }))
+    expectFirstPageScope({ personalOwnerId: null })
   })
 })

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
-import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
+import { isErrorResponse, requireUserAuth, type AuthSession } from '@/lib/api-auth'
+import { getWorkspaceActor, isProjectHiddenFromActor } from '@/lib/collaboration/access'
 import { removeTaskJob } from '@/lib/task/queues'
 import { listTaskLifecycleEvents, publishTaskEvent } from '@/lib/task/publisher'
 import { cancelTask, getTaskById } from '@/lib/task/service'
@@ -13,6 +14,18 @@ function toObject(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
+async function getVisibleTask(taskId: string, session: AuthSession) {
+  const task = await getTaskById(taskId)
+  if (!task || task.userId !== session.user.id || !isPublicTaskApiVisible(task)) {
+    throw new ApiError('NOT_FOUND')
+  }
+  const actor = getWorkspaceActor(session)
+  if (actor.storyCanvasRestricted && await isProjectHiddenFromActor(actor, task.projectId)) {
+    throw new ApiError('NOT_FOUND')
+  }
+  return task
+}
+
 export const GET = apiHandler(async (
   request: NextRequest,
   context: { params: Promise<{ taskId: string }> },
@@ -22,10 +35,7 @@ export const GET = apiHandler(async (
   const { session } = authResult
   const { taskId } = await context.params
 
-  const task = await getTaskById(taskId)
-  if (!task || task.userId !== session.user.id || !isPublicTaskApiVisible(task)) {
-    throw new ApiError('NOT_FOUND')
-  }
+  const task = await getVisibleTask(taskId, session)
 
   const includeEvents = request.nextUrl.searchParams.get('includeEvents') === '1'
   const eventsLimitRaw = Number.parseInt(request.nextUrl.searchParams.get('eventsLimit') || '500', 10)
@@ -47,10 +57,7 @@ export const DELETE = apiHandler(async (
   const { session } = authResult
   const { taskId } = await context.params
 
-  const task = await getTaskById(taskId)
-  if (!task || task.userId !== session.user.id || !isPublicTaskApiVisible(task)) {
-    throw new ApiError('NOT_FOUND')
-  }
+  await getVisibleTask(taskId, session)
 
   const { task: updatedTask, cancelled } = await cancelTask(taskId)
   if (!updatedTask) {

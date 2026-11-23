@@ -3,7 +3,7 @@ import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth } from '@/lib/api-auth'
 import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
 import { resolveBuiltinCapabilitiesByModelKey, getCapabilityOptionFields } from '@/lib/model-capabilities/lookup'
-import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
+import { listConfiguredSelectableModels, providerModelDisplayName } from '@/lib/platform-services/model-selection'
 import { getFrameos3DModelAvailability } from '@/lib/model3d/frameos-3d-provider'
 import { resolveCanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
 import { audioDurationBounds } from '@/lib/audio/generation-contract'
@@ -44,7 +44,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
       })
       return {
         modelKey: model.modelKey,
-        name: model.modelId,
+        name: providerModelDisplayName(model.runtimeModelKey, model.modelId),
         description: null,
         ...availability,
         options: getCapabilityOptionFields(type, capabilities),
@@ -68,7 +68,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     const duration = audioDurationBounds(capabilities?.audio)
     return {
       modelKey: model.modelKey,
-      name: model.modelId,
+      name: providerModelDisplayName(model.runtimeModelKey, model.modelId),
       description: null,
       options: getCapabilityOptionFields('audio', capabilities),
       inputSchema: resolveCanvasGenerationInputSchema('audio', capabilities),
