@@ -1630,7 +1630,7 @@ export function CanvasGenerator({
                     onPointerCancel={settleDurationSlider}
                     onBlur={settleDurationSlider}
                   />
-                  <div className="nori-canvas-duration-ticks" aria-hidden="true">
+                  <div className="nori-canvas-duration-ticks">
                     {durationSliderOptions.map((value) => (
                       <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} aria-label={`${value} 秒`} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}${durationTickLabels.has(value) ? '' : ' is-unlabeled'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => settleDurationNumber(String(value))}>{durationTickLabels.has(value) ? value : ''}</button>
                     ))}

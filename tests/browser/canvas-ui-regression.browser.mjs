@@ -78,15 +78,16 @@ let latestPage
 const capabilityCatalog = JSON.parse(await readFile(path.join(root, 'standards/capabilities/kuaizi.catalog.json'), 'utf8'))
 const capabilityEntries = Array.isArray(capabilityCatalog) ? capabilityCatalog : (capabilityCatalog.entries || capabilityCatalog.models || [])
 const capabilityVideo = capabilityEntries.find((entry) => entry.modelId === 'doubao-seedance-2-5-260628' && entry.modelType === 'video')?.capabilities?.video || {}
+assert.ok(capabilityVideo.durationOptions?.length >= 2 && capabilityVideo.resolutionOptions?.length && capabilityVideo.inputSchema, 'The capability catalog must provide the seedance-2-5 video options used by the duration assertions')
 const model = {
   modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
   options: {
-    duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
-    resolution: capabilityVideo.resolutionOptions || ['480p', '720p'],
+    duration: capabilityVideo.durationOptions,
+    resolution: capabilityVideo.resolutionOptions,
     aspectRatio: ['16:9', '9:16', '1:1'],
   },
-  inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
+  inputSchema: capabilityVideo.inputSchema,
 }
 const canvas = { id: 'canvas-1', projectId: 'project-1', title: '交互回归', revision: 0, viewport: { x: 0, y: 0, zoom: 1 }, themeColor: null, visibility: 'workspace', forkedFromId: null, createdAt: '2026-10-08T00:00:00.000Z', updatedAt: '2026-10-08T00:00:00.000Z' }
 const common = { canvasId: 'canvas-1', runId: null, mediaObjectId: null, parentNodeId: null }
@@ -112,6 +113,8 @@ async function open(viewport, query = '') {
   page.releaseStaleAccountRead = () => releaseHeldRead?.()
   let failNextVideoGeneration = false
   page.failNextVideoGeneration = () => { failNextVideoGeneration = true }
+  let durationOverride = null
+  page.setDurationOptions = (values) => { durationOverride = values }
   let failNextRecoverySave = false
   page.failNextRecoverySave = () => { failNextRecoverySave = true }
   let failNextRecoveryConflict = false
@@ -147,7 +150,10 @@ async function open(viewport, query = '') {
     if (!url.pathname.startsWith('/api/')) return route.continue()
     if (url.pathname === '/api/storage/sign') return route.continue()
     let payload
-    if (url.pathname.endsWith('/generation-config')) payload = { textModels: [], imageModels: [], videoModels: [model], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+    if (url.pathname.endsWith('/generation-config')) {
+      const servedModel = durationOverride ? { ...model, options: { ...model.options, duration: durationOverride } } : model
+      payload = { textModels: [], imageModels: [], videoModels: [servedModel], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+    }
     else if (url.pathname === '/api/interactive') payload = query.includes('story') ? { story: { workId: 'work-story', name: '回归分镜', aspectRatio: '16:9', resolution: '1080p', canManage: true, config: { variables: [] }, chapters: [{ projectId: 'project-1', name: '第一章' }] } } : { story: null }
     else if (url.pathname.endsWith('/generate') && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
@@ -999,6 +1005,42 @@ try {
     await aspectGroup.getByRole('button', { name: '16:9' }).click()
     await parameters.getByRole('button', { name: '关闭生成参数' }).click()
     cases.push('parameter popover: duration slider + per-mode parameter memory')
+    if (viewport.width === 1280 && viewport.height === 720) {
+      const triggerBox = await generator.getByRole('button', { name: '生成参数', exact: true }).boundingBox()
+      assert.ok(triggerBox && triggerBox.width >= 96, 'The parameter trigger must keep a usable click width on narrow panels')
+      const anchorLeft = triggerBox.x
+      const dismissRecoveryAfterReload = async () => {
+        const recoveryDialog = page.locator('.nori-canvas-offline-recovery-dialog')
+        try {
+          await recoveryDialog.waitFor({ timeout: 3000 })
+          await recoveryDialog.getByRole('button', { name: '使用服务器', exact: true }).click()
+          await recoveryDialog.waitFor({ state: 'detached' })
+        } catch {}
+      }
+      page.setDurationOptions([4, 5, 6, 8, 10])
+      await page.reload()
+      await generator.waitFor()
+      await dismissRecoveryAfterReload()
+      await generator.getByRole('button', { name: '生成参数', exact: true }).click()
+      await parameters.waitFor()
+      const sparseRange = parameters.getByLabel('视频时长滑杆')
+      assert.equal(await sparseRange.getAttribute('max'), '10', 'A sparse capability list must shrink the slider maximum')
+      await sparseRange.focus()
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('ArrowRight')
+      assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Keyboard steps must skip seconds the model does not support')
+      await parameters.getByLabel('视频时长', { exact: true }).fill('7')
+      await parameters.getByLabel('视频时长', { exact: true }).blur()
+      assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'An unsupported typed second must snap to the nearest supported value')
+      const sparseTriggerBox = await generator.getByRole('button', { name: '生成参数', exact: true }).boundingBox()
+      assert.ok(sparseTriggerBox && Math.abs(sparseTriggerBox.x - anchorLeft) < 1, 'Capability changes must not shift the parameter anchor')
+      await parameters.getByRole('button', { name: '关闭生成参数' }).click()
+      page.setDurationOptions(null)
+      await page.reload()
+      await generator.waitFor()
+      await dismissRecoveryAfterReload()
+      cases.push('sparse duration capability: keyboard skips, typed snap, stable anchor')
+    }
     const prompt = generator.locator('textarea[role="combobox"]')
     const editorContextMenu = await prompt.evaluate((element) => {
       const box = element.getBoundingClientRect()
