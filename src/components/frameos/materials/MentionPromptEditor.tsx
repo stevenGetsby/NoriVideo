@@ -220,12 +220,10 @@ export function MentionPromptEditor({
   const assetRowIndexes = useMemo(() => new Map(mainRows.flatMap((row, index) => (
     row.kind === 'asset' ? [[assetKey(row.asset), index] as const] : []
   ))), [mainRows])
-  const connectedShortcuts = useMemo(() => {
-    let shortcut = 0
-    return new Map(mainRows.flatMap((row) => (
-      row.kind === 'asset' && row.asset.section === 'connected' ? [[assetKey(row.asset), ++shortcut] as const] : []
-    )))
-  }, [mainRows])
+  const referencedShortcutAssets = useMemo(() => mainRows.flatMap((row) => (
+    row.kind === 'asset' && (row.asset.section === 'connected' || row.asset.section === 'secondary') ? [row.asset] : []
+  )), [mainRows])
+  const referencedShortcuts = useMemo(() => new Map(referencedShortcutAssets.map((asset, index) => [assetKey(asset), index + 1] as const)), [referencedShortcutAssets])
   const activeMainRow = mainRows[activeIndex] ?? null
   const subFocus = Boolean(submenu?.keyboard)
   const subActiveIndex = submenu?.activeIndex ?? 0
@@ -525,7 +523,7 @@ export function MentionPromptEditor({
           {src ? <MediaImage src={src} alt="" fill sizes="32px" style={{ objectFit: 'cover' }} /> : <AppIcon name={assetIcon(asset)} className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white/35" />}
         </span>
         <span className="min-w-0 flex-1"><b className="block truncate text-[12px] font-bold text-white">{grouped ? asset.name : `@${asset.name}`}</b>{!grouped && asset.description ? <small className="mt-0.5 block truncate text-[10px] font-normal text-[var(--fos-text-4)]">{asset.description}</small> : null}</span>
-        {grouped && !searching && scope === 'main' && connectedShortcuts.has(assetKey(asset)) ? <kbd className="mention-prompt-shortcut">#{connectedShortcuts.get(assetKey(asset))}</kbd> : null}
+        {grouped && !searching && scope === 'main' && referencedShortcuts.has(assetKey(asset)) ? <kbd className="mention-prompt-shortcut">#{referencedShortcuts.get(assetKey(asset))}</kbd> : null}
       </button>
     )
   }
@@ -666,10 +664,9 @@ export function MentionPromptEditor({
             if (mainRows.length === 0) return
             if (/^[1-9]$/.test(event.key) && grouped && !mention.query && !subFocus) {
               const index = Number(event.key) - 1
-              const connected = mainRows.flatMap((row) => (row.kind === 'asset' && row.asset.section === 'connected' ? [row.asset] : []))
-              if (index < connected.length) {
+              if (index < referencedShortcutAssets.length) {
                 event.preventDefault()
-                choose(connected[index])
+                choose(referencedShortcutAssets[index])
                 return
               }
             }
