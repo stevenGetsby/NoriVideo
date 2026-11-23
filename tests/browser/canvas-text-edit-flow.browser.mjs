@@ -19,7 +19,7 @@ const bundle = await build({
     '@': path.join(root, 'src'), '@/i18n/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
     'next/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'), 'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
     'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'), 'next/image': path.join(root, 'tests/browser/stubs/next-image.tsx'),
-  }, define: { 'process.env.NODE_ENV': '"development"' },
+  }, define: { 'process.env': '{}', 'process.env.NODE_ENV': '"development"' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.contents
 const rawCss = bundle.outputFiles.find((file) => file.path.endsWith('.raw.css'))?.contents

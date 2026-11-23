@@ -1,11 +1,38 @@
-import { describe, expect, it } from 'vitest'
+import type { Prisma } from '@prisma/client'
+import { describe, expect, it, vi } from 'vitest'
 import {
   canvasMaterialReferenceConflictMessage,
+  findCanvasMaterialReferences,
+  findCanvasMaterialsReferences,
   jsonContainsExactString,
   summarizeCanvasMaterialReferences,
 } from '@/lib/canvas/material-reference-guard'
 
 describe('canvas material deletion guard', () => {
+  it('does not read historical snapshot documents for single or bulk trash checks', async () => {
+    const findCanvases = vi.fn(async () => [{
+      id: 'canvas-1',
+      nodes: [{ data: null, studioDocument: { document: { materialId: 'material-1' } } }],
+      snapshots: [],
+    }])
+    const findTemplates = vi.fn(async () => [{
+      id: 'template-1', nodes: [], edges: [{ asset: '/legacy/image.png' }], studioDocuments: [],
+    }])
+    const tx = { canvas: { findMany: findCanvases }, canvasWorkflowTemplate: { findMany: findTemplates } } as unknown as Prisma.TransactionClient
+    const first = { id: 'material-1', resultUrl: null, storageKey: null }
+    const second = { id: 'material-2', resultUrl: '/legacy/image.png', storageKey: null }
+
+    const single = await findCanvasMaterialReferences(tx, 'owner', first, { includeHistory: false })
+    expect(single.counts.currentCanvases).toBe(1)
+    const batch = await findCanvasMaterialsReferences(tx, 'owner', [first, second])
+    expect(batch.get('material-1')?.counts.currentCanvases).toBe(1)
+    expect(batch.get('material-2')?.counts.workflowTemplates).toBe(1)
+    expect(findCanvases).toHaveBeenCalledTimes(2)
+    for (const [query] of findCanvases.mock.calls as unknown as [Prisma.CanvasFindManyArgs][]) {
+      expect(query.where).toEqual({ userId: 'owner' })
+      expect(query.select).not.toHaveProperty('snapshots')
+    }
+  })
   it('finds exact ids at arbitrary JSON depth without matching substrings', () => {
     expect(jsonContainsExactString({
       history: [{ references: ['material-1'] }],

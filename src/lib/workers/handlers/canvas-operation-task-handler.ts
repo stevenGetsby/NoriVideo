@@ -458,7 +458,7 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
 
       await assertTaskActive(job, 'canvas_video_edit_download')
       await reportTaskProgress(job, 84, { stage: 'canvas_video_edit_download' })
-      const editedResponse = await fetch(editedUrl)
+      const editedResponse = await fetch(editedUrl, { headers: generated.downloadHeaders })
       if (!editedResponse.ok) throw new Error(`无法下载编辑结果：${editedResponse.status}`)
       const editedBody = Buffer.from(await editedResponse.arrayBuffer())
       const processed = {
@@ -546,7 +546,7 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
 
     await assertTaskActive(job, 'canvas_video_edit_download')
     await reportTaskProgress(job, 84, { stage: 'canvas_video_edit_download' })
-    const editedResponse = await fetch(editedUrl)
+    const editedResponse = await fetch(editedUrl, { headers: polled.downloadHeaders })
     if (!editedResponse.ok) throw new Error(`无法下载编辑结果：${editedResponse.status}`)
     const editedBody = Buffer.from(await editedResponse.arrayBuffer())
     const processed = {

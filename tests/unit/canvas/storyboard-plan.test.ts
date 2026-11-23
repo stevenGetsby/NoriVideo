@@ -10,12 +10,15 @@ function readSource(relativePath: string): string {
 describe('canvas storyboard planning contract', () => {
   it('offers 4–8 shots and submits the same bounded count to the planning route', () => {
     const generator = readSource('src/features/canvas/components/CanvasGenerator.tsx')
+    const requestCore = readSource('src/features/canvas/generation/generate-request-core.ts')
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     const route = readSource('src/app/api/projects/[projectId]/canvas/[canvasId]/generate-storyboard/route.ts')
 
-    expect(generator).toContain('const STORYBOARD_COUNTS = [4, 5, 6, 7, 8] as const')
-    expect(generator).toContain('count: storyboard ? normalizeStoryboardCount(count) : count')
+    expect(requestCore).toContain('const STORYBOARD_COUNTS = [4, 5, 6, 7, 8] as const')
+    expect(requestCore).toContain('count: input.storyboard ? normalizeStoryboardCount(input.count) : input.count')
+    expect(generator).toContain('onGenerate(buildCanvasGenerateRequest(')
     expect(generator).toContain("storyboard ? STORYBOARD_COUNTS : [1, 2, 4]")
+    expect(generator).toContain('setCount(changeDraftValue(Number(event.target.value)))')
     const submitStart = graph.indexOf("if (request.type === 'image' && request.storyboard)")
     const submitEnd = graph.indexOf("if (request.type !== 'image'", submitStart)
     expect(submitStart).toBeGreaterThan(-1)
@@ -65,7 +68,7 @@ describe('canvas storyboard planning contract', () => {
 
   it('persists generation option drafts continuously and once more before closing', () => {
     const generator = readSource('src/features/canvas/components/CanvasGenerator.tsx')
-    expect(generator).toContain('onDraftChangeRef.current(draftPatch)')
+    expect(generator).toContain('if (!draftUserEditRef.current || node.data.__canvasUnhydrated === true) return')
     expect(generator).toContain('modelKey,')
     expect(generator).toContain('aspectRatio,')
     expect(generator).toContain('duration,')

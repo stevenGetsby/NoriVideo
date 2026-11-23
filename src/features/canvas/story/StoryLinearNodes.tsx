@@ -9,7 +9,7 @@ import { requestStoryGameplaySegment } from '@/features/interactive/StoryGamepla
 import { achievementId } from '@/features/interactive/gameplay-edit'
 import { endingAchievementOf, toggleEndingAchievement } from '@/lib/interactive/achievements'
 import { readEndingData, readSceneData, resolveSceneMedia, STORY_ENDING_LABEL, STORY_SAVE_POINT_NAME_MAX } from '@/lib/interactive/compile'
-import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { toDisplayImageUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { STORY_ENDING_TYPES, STORY_FLOW_ROLE, type StoryEndingType } from '@/lib/interactive/types'
 import { STORY_MEDIA_SOURCE_TYPES } from './story-connection'
 import { StoryBeatTimeline } from './StoryBeatTimeline'
@@ -65,7 +65,9 @@ function SceneMediaStatus({ id, data }: { id: string; data: NodeProps['data'] })
       <div className="nori-story-scene-media-strip is-ready">
         <span className="nori-story-scene-media-thumb" aria-hidden="true">
           {first === 'video' && !displayPoster
-            ? <video src={stream} muted playsInline preload="metadata" />
+            ? toVideoPosterUrl(second, 480)
+              ? <img src={toVideoPosterUrl(second, 480)!} alt="" loading="lazy" decoding="async" />
+              : <video src={stream} muted playsInline preload="none" />
             : <MediaImage src={displayPoster || stream} alt="" draggable={false} fill sizes="42px" />}
         </span>
         <span className="nori-story-scene-media-copy">

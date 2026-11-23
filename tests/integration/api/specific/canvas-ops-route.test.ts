@@ -56,6 +56,7 @@ describe('canvas operation API', () => {
       delta: {
         nodes: [{ id: 'node-1', canvasId: 'canvas-1' }],
         edges: [],
+        geometry: [],
         deletedNodeIds: ['node-1'],
         deletedEdgeIds: ['edge-9'],
       },
@@ -93,6 +94,7 @@ describe('canvas operation API', () => {
     expect(body.nodes).toEqual([{ id: 'node-1', canvasId: 'canvas-1' }])
     expect(body.edges).toEqual([{ id: 'edge-1', canvasId: 'canvas-1' }])
     expect(body).not.toHaveProperty('deletedNodeIds')
+    expect(persistenceMock.applyCanvasOperationsInTransaction.mock.calls[0][1]).not.toHaveProperty('deltaOnly')
   })
 
   it('returns only the written and deleted entities when the delta header is sent', async () => {
@@ -107,6 +109,7 @@ describe('canvas operation API', () => {
     expect(body.edges).toEqual([])
     expect(body.deletedNodeIds).toEqual(['node-1'])
     expect(body.deletedEdgeIds).toEqual(['edge-9'])
+    expect(persistenceMock.applyCanvasOperationsInTransaction.mock.calls[0][1]).toMatchObject({ deltaOnly: true })
   })
 
   it('returns a 409 with actualRevision before opening a stale transaction', async () => {

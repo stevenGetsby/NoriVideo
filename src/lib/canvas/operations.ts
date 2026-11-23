@@ -2,6 +2,8 @@ import {
   MAX_CANVAS_DOCUMENT_BYTES,
   parseCanvasDocumentEdgeInput,
   parseCanvasDocumentNodeInput,
+  parseCanvasPosition,
+  parseCanvasSize,
   type CanvasDocumentEdgeInput,
   type CanvasDocumentNodeInput,
 } from './document'
@@ -16,9 +18,18 @@ export type CanvasUpdateMetaOperation = {
   viewport?: { x: number; y: number; zoom: number }
 }
 
+/** Moves or resizes one existing node and writes nothing else, so unloaded node data is never touched. */
+export type CanvasUpdateGeometryOperation = {
+  type: 'node.update_geometry'
+  id: string
+  position?: { x: number; y: number }
+  size?: { width: number; height: number }
+}
+
 export type CanvasOperation =
   | { type: 'node.upsert'; node: CanvasDocumentNodeInput }
   | { type: 'node.delete'; id: string }
+  | CanvasUpdateGeometryOperation
   | { type: 'edge.add'; edge: CanvasDocumentEdgeInput }
   | { type: 'edge.delete'; id: string }
   | CanvasUpdateMetaOperation
@@ -70,7 +81,26 @@ function parseViewport(value: unknown): { x: number; y: number; zoom: number } |
   return { x, y, zoom }
 }
 
+function parseGeometryOperation(source: Record<string, unknown>): CanvasUpdateGeometryOperation | null {
+  if (!hasOnlyKeys(source, ['type', 'id', 'position', 'size'])) return null
+  const id = cleanString(source.id, 191)
+  if (!id || (!('position' in source) && !('size' in source))) return null
+  const output: CanvasUpdateGeometryOperation = { type: 'node.update_geometry', id }
+  if ('position' in source) {
+    const position = parseCanvasPosition(source.position)
+    if (!position) return null
+    output.position = position
+  }
+  if ('size' in source) {
+    const size = source.size === null ? undefined : parseCanvasSize(source.size)
+    if (!size) return null
+    output.size = size
+  }
+  return output
+}
+
 function parseNodeOperation(source: Record<string, unknown>): CanvasOperation | null {
+  if (source.type === 'node.update_geometry') return parseGeometryOperation(source)
   if (source.type === 'node.delete') {
     if (!hasOnlyKeys(source, ['type', 'id'])) return null
     const id = cleanString(source.id, 191)
@@ -127,7 +157,9 @@ function parseMetaOperation(source: Record<string, unknown>): CanvasUpdateMetaOp
 function parseOperation(value: unknown): CanvasOperation | null {
   const source = record(value)
   if (!source || typeof source.type !== 'string') return null
-  if (source.type === 'node.upsert' || source.type === 'node.delete') return parseNodeOperation(source)
+  if (source.type === 'node.upsert' || source.type === 'node.delete' || source.type === 'node.update_geometry') {
+    return parseNodeOperation(source)
+  }
   if (source.type === 'edge.add' || source.type === 'edge.delete') return parseEdgeOperation(source)
   if (source.type === 'canvas.update_meta') return parseMetaOperation(source)
   return null
@@ -185,7 +217,7 @@ export function validateCanvasOperationsSaveInput(value: unknown): CanvasOperati
     if (!operation) {
       return { success: false, error: { code: 'CANVAS_OPERATIONS_INVALID', message: '画布操作批次包含无效操作。' } }
     }
-    if (operation.type === 'node.upsert' || operation.type === 'node.delete') {
+    if (operation.type === 'node.upsert' || operation.type === 'node.delete' || operation.type === 'node.update_geometry') {
       const id = operation.type === 'node.upsert' ? operation.node.id : operation.id
       if (nodeActions.has(id)) {
         return { success: false, error: { code: 'CANVAS_OPERATIONS_INVALID', message: `节点 ${id} 在同一批次中被重复修改。` } }

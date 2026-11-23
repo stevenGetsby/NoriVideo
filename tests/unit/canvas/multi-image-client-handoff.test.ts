@@ -1,6 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { buildToolboxGenerationRequestBody } from '@/components/frameos/views/toolbox-regeneration'
 
 describe('canvas multi-image client handoff', () => {
   it('flushes every generation before optimistic state and never autosaves an unbound task placeholder', () => {
@@ -38,6 +39,17 @@ describe('canvas multi-image client handoff', () => {
     // Toolbox output count was intentionally removed; canvas multi-output
     // generation keeps its own count/idempotency contract above.
     expect(submission).not.toContain('Number(count)')
-    expect(submission).toContain('idempotencyKey: crypto.randomUUID()')
+    expect(source.slice(0, endpoint)).toContain('const body = buildToolboxGenerationRequestBody({')
+    expect(submission).toContain('body: JSON.stringify(body)')
+    const input = {
+      workId: 'fixture-work', projectId: 'fixture-project', type: 'image' as const, title: '合成图',
+      prompt: '合成提示词', modelKey: 'fixture::image', assetCategory: 'location' as const,
+      referenceMaterialIds: [], referenceMaterials: [], inputMode: 'text' as const, textOnly: false, options: {},
+    }
+    const first = buildToolboxGenerationRequestBody(input)
+    const second = buildToolboxGenerationRequestBody(input)
+    expect(first.idempotencyKey.trim()).not.toBe('')
+    expect(second.idempotencyKey.trim()).not.toBe('')
+    expect(first.idempotencyKey).not.toBe(second.idempotencyKey)
   })
 })

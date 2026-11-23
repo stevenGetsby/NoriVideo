@@ -61,6 +61,7 @@ function ProductionNodeImpl(props: NodeProps) {
 
   return (
     <div
+      className="nori-force-dark"
       style={{
         width: isPanel || isVideo ? 260 : 300,
         borderRadius: 16,

@@ -1,7 +1,7 @@
 import { isStoryNodeType } from '@/lib/interactive/compile'
 import { readInteractionData } from '@/lib/interactive/interaction'
 import { STORY_FLOW_ROLE, STORY_MOUNT_ROLE, STORY_OUTPUT_HANDLE } from '@/lib/interactive/types'
-import { STORY_MEDIA_SOURCE_TYPES, storySourceHandles } from './story-connection'
+import { isStoryMediaTarget, STORY_MEDIA_SOURCE_TYPES, storySourceHandles } from './story-connection'
 import { nodeBox, STORY_PORT_Y, type StoryGeometryNode, type StoryWireRole } from './story-geometry'
 
 export type LayoutBox = { x: number; y: number; width: number; height: number }
@@ -136,7 +136,7 @@ export function layoutStoryChapter(nodes: readonly SizedNode[], edges: readonly 
     if (edge.data?.role === STORY_FLOW_ROLE) {
       outgoing.set(source.id, [...(outgoing.get(source.id) ?? []), edge])
       incoming.add(target.id)
-    } else if (target.type === 'story_scene' && STORY_MEDIA_SOURCE_TYPES.has(source.type || '') && !mediaOf.has(target.id) && !placedMedia.has(source.id)) {
+    } else if (isStoryMediaTarget(target.type) && STORY_MEDIA_SOURCE_TYPES.has(source.type || '') && !mediaOf.has(target.id) && !placedMedia.has(source.id)) {
       mediaOf.set(target.id, source)
       placedMedia.add(source.id)
     }

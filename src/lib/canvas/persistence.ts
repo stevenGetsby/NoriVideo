@@ -19,6 +19,7 @@ import {
 } from './studio-document-lifecycle'
 
 const SNAPSHOT_LIMIT = 40
+const SNAPSHOT_MIN_INTERVAL_MS = 5 * 60_000
 
 function jsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   return value === null ? Prisma.JsonNull : value as Prisma.InputJsonValue
@@ -204,6 +205,16 @@ export function mergeCanvasTerminalNodeState(
   }
 }
 
+export async function shouldRecordCanvasSnapshot(tx: Prisma.TransactionClient, canvasId: string, deletedNodeCount = 0): Promise<boolean> {
+  if (deletedNodeCount >= 5) return true
+  const latest = await tx.canvasSnapshot.findFirst({
+    where: { canvasId },
+    orderBy: { createdAt: 'desc' },
+    select: { createdAt: true },
+  })
+  return !latest || latest.createdAt.getTime() <= Date.now() - SNAPSHOT_MIN_INTERVAL_MS
+}
+
 export async function recordCanvasSnapshotInTransaction(
   tx: Prisma.TransactionClient,
   {
@@ -272,6 +283,7 @@ export async function replaceCanvasDocumentInTransaction(
     templateOwnerId = userId,
     input,
     studioDocumentRestore,
+    forceSnapshot = false,
   }: {
     projectId: string
     canvasId: string
@@ -279,6 +291,7 @@ export async function replaceCanvasDocumentInTransaction(
     templateOwnerId?: string
     input: CanvasDocumentSaveInput
     studioDocumentRestore?: StudioDocumentArchiveEntry[]
+    forceSnapshot?: boolean
   },
 ) {
   const nextRevision = input.expectedRevision + 1
@@ -475,18 +488,20 @@ export async function replaceCanvasDocumentInTransaction(
     })
   }
 
-  await recordCanvasSnapshotInTransaction(tx, {
-    canvasId,
-    revision: nextRevision,
-    userId,
-    clientId: input.clientId,
-    changeSummary: input.changeSummary,
-    document: {
-      viewport: input.viewport,
-      nodes,
-      edges,
-    } as Prisma.InputJsonValue,
-  })
+  if (forceSnapshot || await shouldRecordCanvasSnapshot(tx, canvasId, removedNodeIds.length)) {
+    await recordCanvasSnapshotInTransaction(tx, {
+      canvasId,
+      revision: nextRevision,
+      userId,
+      clientId: input.clientId,
+      changeSummary: input.changeSummary,
+      document: {
+        viewport: input.viewport,
+        nodes,
+        edges,
+      } as Prisma.InputJsonValue,
+    })
+  }
 
   const canvas = await tx.canvas.findUniqueOrThrow({
     where: { id: canvasId },
@@ -536,6 +551,59 @@ function operationMeta(ops: CanvasOperation[]) {
   ))
 }
 
+const CANVAS_RESULT_SELECT = {
+  id: true,
+  projectId: true,
+  title: true,
+  themeColor: true,
+  viewport: true,
+  revision: true,
+  visibility: true,
+  forkedFromId: true,
+  createdAt: true,
+  updatedAt: true,
+} as const satisfies Prisma.CanvasSelect
+
+type CanvasOperationsArgs = {
+  projectId: string
+  canvasId: string
+  userId: string
+  templateOwnerId?: string
+  input: CanvasOperationsSaveInput
+}
+
+type CanvasGeometryUpdate = Omit<Extract<CanvasOperation, { type: 'node.update_geometry' }>, 'type'>
+
+type CanvasOperationsDeltaResult = {
+  canvas: Prisma.CanvasGetPayload<{ select: typeof CANVAS_RESULT_SELECT }>
+  delta: {
+    nodes: PersistedCanvasNode[]
+    edges: PersistedCanvasEdge[]
+    deletedNodeIds: string[]
+    deletedEdgeIds: string[]
+    /** Moved or resized nodes; their data is intentionally not part of the delta. */
+    geometry: CanvasGeometryUpdate[]
+  }
+}
+
+type CanvasOperationsFullResult = CanvasOperationsDeltaResult & {
+  nodes: PersistedCanvasNode[]
+  edges: PersistedCanvasEdge[]
+}
+
+/**
+ * With `deltaOnly`, a batch that only carries canvas metadata (a pan or zoom) never
+ * loads the node and edge rows, because the caller only needs the revision and the
+ * entities that were written. The graph-wide snapshot still runs when one is due.
+ */
+export async function applyCanvasOperationsInTransaction(
+  tx: Prisma.TransactionClient,
+  args: CanvasOperationsArgs & { deltaOnly: true },
+): Promise<CanvasOperationsDeltaResult>
+export async function applyCanvasOperationsInTransaction(
+  tx: Prisma.TransactionClient,
+  args: CanvasOperationsArgs & { deltaOnly?: false },
+): Promise<CanvasOperationsFullResult>
 export async function applyCanvasOperationsInTransaction(
   tx: Prisma.TransactionClient,
   {
@@ -544,14 +612,9 @@ export async function applyCanvasOperationsInTransaction(
     userId,
     templateOwnerId = userId,
     input,
-  }: {
-    projectId: string
-    canvasId: string
-    userId: string
-    templateOwnerId?: string
-    input: CanvasOperationsSaveInput
-  },
-) {
+    deltaOnly = false,
+  }: CanvasOperationsArgs & { deltaOnly?: boolean },
+): Promise<CanvasOperationsFullResult | CanvasOperationsDeltaResult> {
   const nextRevision = input.expectedRevision + 1
   const meta = operationMeta(input.ops)
   const claimed = await tx.canvas.updateMany({
@@ -573,6 +636,17 @@ export async function applyCanvasOperationsInTransaction(
       expectedRevision: input.expectedRevision,
       actualRevision: actual?.revision,
     })
+  }
+
+  if (
+    deltaOnly
+    && input.ops.every((operation) => operation.type === 'canvas.update_meta')
+    && !await shouldRecordCanvasSnapshot(tx, canvasId)
+  ) {
+    return {
+      canvas: await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT }),
+      delta: { nodes: [], edges: [], deletedNodeIds: [], deletedEdgeIds: [], geometry: [] },
+    }
   }
 
   const [storedNodes, storedEdges] = await Promise.all([
@@ -622,6 +696,7 @@ export async function applyCanvasOperationsInTransaction(
   const deletedEdgeIds = new Set<string>()
   const deletedNodeIds = new Set<string>()
   const upsertedNodes: CanvasDocumentNodeInput[] = []
+  const geometryUpdates: CanvasGeometryUpdate[] = []
   const addedEdges: CanvasDocumentEdgeInput[] = []
 
   for (const operation of input.ops) {
@@ -650,6 +725,21 @@ export async function applyCanvasOperationsInTransaction(
     )
     nodes.set(node.id, { ...node, canvasId })
     upsertedNodes.push(node)
+  }
+  for (const operation of input.ops) {
+    if (operation.type !== 'node.update_geometry') continue
+    const existing = nodes.get(operation.id)
+    if (!existing) invalidOperation(`要移动的节点 ${operation.id} 不存在。`)
+    nodes.set(operation.id, {
+      ...existing,
+      ...(operation.position ? { position: operation.position } : {}),
+      ...(operation.size ? { size: operation.size } : {}),
+    })
+    geometryUpdates.push({
+      id: operation.id,
+      ...(operation.position ? { position: operation.position } : {}),
+      ...(operation.size ? { size: operation.size } : {}),
+    })
   }
   for (const operation of input.ops) {
     if (operation.type !== 'edge.add') continue
@@ -717,6 +807,16 @@ export async function applyCanvasOperationsInTransaction(
       await tx.canvasNode.create({ data: { id: node.id, canvasId, ...data } })
     }
   }
+  for (const update of geometryUpdates) {
+    const updated = await tx.canvasNode.updateMany({
+      where: { id: update.id, canvasId },
+      data: {
+        ...(update.position ? { position: update.position as Prisma.InputJsonValue } : {}),
+        ...(update.size ? { size: update.size as Prisma.InputJsonValue } : {}),
+      },
+    })
+    if (updated.count !== 1) invalidOperation(`节点 ${update.id} 已不属于当前画布。`)
+  }
   await createStudioDocumentCopiesInTransaction(tx, {
     projectId,
     canvasId,
@@ -729,35 +829,23 @@ export async function applyCanvasOperationsInTransaction(
     })
   }
 
-  const canvas = await tx.canvas.findUniqueOrThrow({
-    where: { id: canvasId },
-    select: {
-      id: true,
-      projectId: true,
-      title: true,
-      themeColor: true,
-      viewport: true,
-      revision: true,
-      visibility: true,
-      forkedFromId: true,
-      createdAt: true,
-      updatedAt: true,
-    },
-  })
+  const canvas = await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT })
   const finalNodes = Array.from(nodes.values())
   const finalEdges = Array.from(edges.values())
-  await recordCanvasSnapshotInTransaction(tx, {
-    canvasId,
-    revision: nextRevision,
-    userId,
-    clientId: input.clientId,
-    changeSummary: input.changeSummary,
-    document: {
-      viewport: canvas.viewport || { x: 0, y: 0, zoom: 1 },
-      nodes: finalNodes.map(withoutCanvasId),
-      edges: finalEdges.map(withoutCanvasId),
-    } as Prisma.InputJsonValue,
-  })
+  if (await shouldRecordCanvasSnapshot(tx, canvasId, deletedNodeIds.size)) {
+    await recordCanvasSnapshotInTransaction(tx, {
+      canvasId,
+      revision: nextRevision,
+      userId,
+      clientId: input.clientId,
+      changeSummary: input.changeSummary,
+      document: {
+        viewport: canvas.viewport || { x: 0, y: 0, zoom: 1 },
+        nodes: finalNodes.map(withoutCanvasId),
+        edges: finalEdges.map(withoutCanvasId),
+      } as Prisma.InputJsonValue,
+    })
+  }
 
   return {
     canvas,
@@ -768,6 +856,7 @@ export async function applyCanvasOperationsInTransaction(
       edges: addedEdges.map((edge) => ({ ...edge, canvasId })),
       deletedNodeIds: Array.from(deletedNodeIds),
       deletedEdgeIds: Array.from(deletedEdgeIds),
+      geometry: geometryUpdates,
     },
   }
 }

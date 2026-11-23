@@ -5,6 +5,7 @@ import { useSession } from 'next-auth/react'
 import { useRouter } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import CanvasGraph from './CanvasGraph'
+import { resolveCanvasPerformanceFlags } from './performance-rollout'
 import { canvasApi } from './api/client'
 import { EmptyCanvasChrome, EmptyCanvasSurfaceControls } from './components/EmptyCanvasChrome'
 import { CanvasManagementDialog, type CanvasManagementIntent } from './components/CanvasManagementDialog'
@@ -223,10 +224,20 @@ export function CanvasWorkspace({
     )
   }
 
+  const performanceFlags = resolveCanvasPerformanceFlags({
+    mode,
+    workId,
+    production: process.env.NODE_ENV === 'production',
+    workIds: process.env.NEXT_PUBLIC_NORI_CANVAS_PERFORMANCE_WORK_IDS,
+    summary: process.env.NEXT_PUBLIC_NORI_CANVAS_SUMMARY_V1,
+    projection: process.env.NEXT_PUBLIC_NORI_CANVAS_PROJECTION,
+  })
   return (
     <>
       <CanvasGraph
         mode={mode}
+        lightGraph={performanceFlags.summary}
+        projectionEnabled={performanceFlags.projection}
         projectId={projectId}
         projectName={projectName}
         canvasId={activeCanvas.id}

@@ -40,7 +40,7 @@ const cases = []
 const dates = { createdAt: '2026-10-13T00:00:00Z', updatedAt: '2026-10-13T00:00:00Z' }
 function parent(id, name, works = []) {
   return {
-    id, name, ...dates, kind: 'project', canManage: true, canCreateWorks: true,
+    id, name, ...dates, kind: 'project', canManage: true, canCreateWorks: true, canMoveProjects: true, canManageMembers: true,
     canDelete: works.length === 0, workCount: works.length,
     works: works.map((work) => ({ ...dates, ...work, kind: 'work', projectId: id, canManage: true, canMove: true })),
   }
@@ -210,7 +210,11 @@ try {
     assert.equal(await popup.getByRole('menuitem', { name: '设置成员', exact: true }).evaluate((element) => element === document.activeElement), true)
     await menu.page.keyboard.press('Escape')
     await popup.waitFor({ state: 'hidden' })
-    assert.equal(await trigger.evaluate((element) => element === document.activeElement), true)
+    await menu.page.waitForFunction(
+      (label) => document.activeElement?.getAttribute('aria-label') === label,
+      '打开 项目 6 菜单',
+      { timeout: 2000 },
+    )
     await trigger.click()
     await popup.waitFor()
     await menu.page.screenshot({ path: path.join(artifacts, `${viewport.width}-bottom-menu.png`) })

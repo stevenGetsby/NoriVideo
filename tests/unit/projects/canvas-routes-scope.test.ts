@@ -37,6 +37,7 @@ const prismaMock = vi.hoisted(() => ({
   },
   canvasSnapshot: {
     create: vi.fn(),
+    findFirst: vi.fn(),
     findMany: vi.fn(),
     deleteMany: vi.fn(),
   },
@@ -119,6 +120,7 @@ describe('project canvas route scope', () => {
       updatedAt: new Date('2026-06-14T00:00:00.000Z'),
     })
     prismaMock.canvas.updateMany.mockResolvedValue({ count: 1 })
+    prismaMock.canvasSnapshot.findFirst.mockResolvedValue(null)
     prismaMock.canvasSnapshot.findMany.mockResolvedValue([])
     prismaMock.canvasSnapshot.create.mockResolvedValue({ id: 'snapshot-5' })
     prismaMock.canvasStudio3DDocument.findMany.mockResolvedValue([])
@@ -152,6 +154,56 @@ describe('project canvas route scope', () => {
     }))
     expect(prismaMock.canvasNode.findMany).not.toHaveBeenCalled()
     expect(prismaMock.canvasEdge.findMany).not.toHaveBeenCalled()
+  })
+
+  it('returns a stable canvas ETag and a bodyless response for an unchanged revalidation', async () => {
+    const { GET } = await import('@/app/api/projects/[projectId]/canvas/[canvasId]/route')
+    const context = { params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }) }
+    const request = () => buildMockRequest({
+      path: '/api/projects/project-1/canvas/canvas-1',
+      method: 'GET',
+    })
+    const first = await GET(request(), context)
+    expect(first.status).toBe(200)
+    expect(first.headers.get('cache-control')).toBe('private, no-cache')
+    const etag = first.headers.get('etag')
+    expect(etag).toMatch(/^"[a-f0-9]{40}"$/)
+    const body = await first.json()
+    expect(body).toMatchObject({ canvas: { id: 'canvas-1' }, nodes: [], edges: [] })
+
+    const repeat = await GET(request(), context)
+    expect(repeat.headers.get('etag')).toBe(etag)
+
+    const revalidated = await GET(buildMockRequest({
+      path: '/api/projects/project-1/canvas/canvas-1',
+      method: 'GET',
+      headers: { 'If-None-Match': etag! },
+    }), context)
+    expect(revalidated.status).toBe(304)
+    expect(revalidated.headers.get('etag')).toBe(etag)
+    expect(revalidated.headers.get('cache-control')).toBe('private, no-cache')
+    await expect(revalidated.text()).resolves.toBe('')
+
+    prismaMock.canvas.findFirst.mockResolvedValue({
+      id: 'canvas-1',
+      projectId: 'project-1',
+      userId: 'user-1',
+      title: 'Canvas',
+      themeColor: null,
+      viewport: { x: 24, y: 16, zoom: 1.2 },
+      revision: 5,
+      visibility: 'PRIVATE',
+      forkedFromId: null,
+      createdAt: new Date('2026-06-14T00:00:00.000Z'),
+      updatedAt: new Date('2026-06-14T00:00:00.000Z'),
+    })
+    const changed = await GET(buildMockRequest({
+      path: '/api/projects/project-1/canvas/canvas-1',
+      method: 'GET',
+      headers: { 'If-None-Match': etag! },
+    }), context)
+    expect(changed.status).toBe(200)
+    expect(changed.headers.get('etag')).not.toBe(etag)
   })
 
   it('rejects legacy incremental node deletion with a complete-document migration error', async () => {

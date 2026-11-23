@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext } from 'react'
+import { createContext, useContext, useMemo, type ReactNode } from 'react'
 import type { CanvasSaveState } from './components/CanvasChrome'
 import type { CanvasFlowNodeData } from './editor-types'
 import type { CanvasPlaylistRenderSummary, CanvasPlaylistReviewSummary } from './types'
@@ -57,9 +57,34 @@ export type CanvasEditorContextValue = {
   submitPlaylistReview: (nodeId: string) => Promise<CanvasPlaylistReviewSummary>
 }
 
-const CanvasEditorContext = createContext<CanvasEditorContextValue | null>(null)
+type CanvasEditorPersistence = Pick<CanvasEditorContextValue, 'canUndo' | 'canRedo' | 'saveState'>
+export type CanvasEditorActions = Omit<CanvasEditorContextValue, keyof CanvasEditorPersistence>
+const CanvasEditorContext = createContext<CanvasEditorActions | null>(null)
+const PersistenceContext = createContext<CanvasEditorPersistence | null>(null)
 
-export const CanvasEditorProvider = CanvasEditorContext.Provider
+export function CanvasEditorProvider({ value, persistence, children }: {
+  value: CanvasEditorActions | CanvasEditorContextValue
+  persistence?: CanvasEditorPersistence
+  children: ReactNode
+}) {
+  // Keep the combined provider contract for fixtures and older embedders.
+  // The production graph provides stable actions separately from save status.
+  const legacy = 'saveState' in value ? value : null
+  const actions = useMemo<CanvasEditorActions>(() => {
+    if (!('saveState' in value)) return value
+    const { saveState: _state, canUndo: _undo, canRedo: _redo, ...actions } = value
+    return actions
+  }, [value])
+  return <CanvasEditorContext.Provider value={actions}>
+    <PersistenceContext.Provider value={persistence ?? legacy}>{children}</PersistenceContext.Provider>
+  </CanvasEditorContext.Provider>
+}
+
+export function useCanvasEditorPersistence() {
+  const value = useContext(PersistenceContext)
+  if (!value) throw new Error('Canvas editor persistence context is missing')
+  return value
+}
 
 export function useCanvasEditor() {
   const value = useContext(CanvasEditorContext)

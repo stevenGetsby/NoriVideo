@@ -43,7 +43,7 @@ const bundle = process.env.NORI_BROWSER_PREBUILT_DIR ? {
     '@': path.join(root, 'src'),
     'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
   },
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env': '{}', 'process.env.NODE_ENV': '"development"' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
 const css = bundle.outputFiles.find((file) => file.path.endsWith('.css')).contents

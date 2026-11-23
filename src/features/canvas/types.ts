@@ -42,6 +42,60 @@ export type Canvas = {
   updatedAt: string
 }
 
+/** Includes async worker write-backs, so detailVersion cannot just be canvas.revision. */
+export function createCanvasNodeDetailVersion(
+  node: Pick<CanvasNode, 'data' | 'status' | 'taskId' | 'runId' | 'mediaObjectId' | 'parentNodeId'>,
+): string {
+  const payload = JSON.stringify([node.data, node.status, node.taskId, node.runId, node.mediaObjectId, node.parentNodeId])
+  // A pure djb2/FNV-style digest keeps this helper usable in browser code without node:crypto.
+  let hash = 2166136261
+  for (let index = 0; index < payload.length; index += 1) {
+    hash ^= payload.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `v1-${(hash >>> 0).toString(16).padStart(8, '0')}-${payload.length}`
+}
+
+export type CanvasNodeSummaryV1 = Omit<CanvasNode, 'data'> & {
+  data: CanvasNodeData
+  detailVersion: string
+  historyCount: number
+}
+
+export type CanvasGraphSummaryV1 = {
+  kind: 'summary-v1'
+  canvas: Canvas
+  nodes: CanvasNodeSummaryV1[]
+  edges: CanvasEdge[]
+}
+
+export type CanvasNodeDetailV1 = {
+  kind: 'detail-v1'
+  detailVersion: string
+  node: CanvasNode
+}
+
+export type CanvasHistorySummaryItemV1 = Omit<CanvasGenerationHistoryItem, 'prompt' | 'text' | 'references' | 'parameters'> & {
+  prompt?: string | null
+  text?: string | null
+  referenceCount?: number
+  parameters?: Record<string, string | number | boolean | null>
+  references?: undefined
+}
+
+export type CanvasNodeHistoryV1 = {
+  kind: 'history-v1'
+  detailVersion: string
+  items: CanvasHistorySummaryItemV1[]
+  nextCursor: string | null
+}
+
+export type CanvasNodeHistoryItemV1 = {
+  kind: 'history-item-v1'
+  detailVersion: string
+  item: CanvasGenerationHistoryItem
+}
+
 export type CanvasNode = {
   id: string
   canvasId: string
@@ -117,6 +171,10 @@ export type CanvasNodeData = {
   }
   /** 视频预览时间线上的审阅标记（秒，帧对齐）。 */
   videoKeyframes?: CanvasVideoKeyframe[]
+  /** 首屏摘要中的历史条数；完整 history 仅通过 detail/history 按需加载。 */
+  historyCount?: number
+  /** 首屏摘要中的当前版本积分；完整历史不作为卡片渲染载荷。 */
+  currentCost?: { kind: 'actual' | 'quoted'; points: number } | null
   /** 后续节点类型保留字段，避免破坏向后兼容 */
   [key: string]: unknown
 }
@@ -179,9 +237,17 @@ export type CanvasGraphResponse = {
 /** Opts the operation save into a delta response; absent means the full graph. */
 export const CANVAS_DELTA_RESPONSE_HEADER = 'x-nori-canvas-response'
 
+export type CanvasGeometryUpdate = {
+  id: string
+  position?: { x: number; y: number }
+  size?: { width: number; height: number }
+}
+
 export type CanvasGraphDelta = CanvasGraphResponse & {
   deletedNodeIds: string[]
   deletedEdgeIds: string[]
+  /** Moved or resized nodes; absent when the batch carried no geometry operation. */
+  geometry?: CanvasGeometryUpdate[]
 }
 
 export type CanvasRevision = {
@@ -365,6 +431,10 @@ export function isCanvasHistoryItemCurrent(item: CanvasGenerationHistoryItem, da
   return Boolean(item.url && [data.contentUrl, data.imageUrl, data.videoUrl, data.audioUrl, data.modelUrl].includes(item.url))
 }
 
+export function getCanvasNodeCurrentCostLabel(data: CanvasNodeData, mediaType: string) {
+  return data.currentCost ?? getCanvasCurrentCostLabel(data.history, data, mediaType)
+}
+
 export function getCanvasCurrentCostLabel(
   history: CanvasGenerationHistoryItem[] | undefined,
   data: CanvasNodeData,
@@ -395,6 +465,7 @@ export type CanvasDocumentInput = {
 export type CanvasOperation =
   | { type: 'node.upsert'; node: Omit<CanvasNode, 'canvasId'> }
   | { type: 'node.delete'; id: string }
+  | ({ type: 'node.update_geometry' } & CanvasGeometryUpdate)
   | { type: 'edge.add'; edge: Omit<CanvasEdge, 'canvasId'> }
   | { type: 'edge.delete'; id: string }
   | {

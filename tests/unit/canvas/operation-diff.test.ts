@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { applyCanvasDocumentDelta, buildCanvasOperations } from '@/features/canvas/state/canvas-operations'
-import type { Canvas, CanvasDocumentInput, CanvasGraphDelta } from '@/features/canvas/types'
+import type { Canvas, CanvasDocumentInput, CanvasGraphDelta, CanvasNode } from '@/features/canvas/types'
 import { canvasNodeToFlow, mergeServerTerminalFlowNode } from '@/features/canvas/editor-types'
+import { buildCanvasNodeSummaryV1 } from '@/lib/canvas/graph-summary'
 
 function document(): CanvasDocumentInput {
   return {
@@ -148,6 +149,66 @@ describe('canvas operation compression', () => {
 
   it('emits no request operations when the final graph matches the confirmed graph', () => {
     expect(buildCanvasOperations(document(), structuredClone(document()))).toEqual([])
+  })
+
+  it('compares a full confirmed node with its current summary without writing omitted detail', () => {
+    const confirmed = document()
+    const summaryOf = (node: CanvasNode): CanvasNode => ({
+      ...buildCanvasNodeSummaryV1(node),
+      data: { ...buildCanvasNodeSummaryV1(node).data, __canvasUnhydrated: true },
+    })
+    const current = {
+      ...confirmed,
+      nodes: confirmed.nodes.map(summaryOf),
+    }
+    expect(buildCanvasOperations(confirmed, current, { geometryOps: true })).toEqual([])
+
+    expect(buildCanvasOperations(confirmed, { ...confirmed, nodes: current.nodes.map((node) => ({ ...node, position: node.id === 'node-1' ? { x: 100, y: 120 } : node.position })) }, { geometryOps: true })).toEqual([
+      { type: 'node.update_geometry', id: 'node-1', position: { x: 100, y: 120 } },
+    ])
+  })
+
+  it('does not treat an unchanged summary as a complete body edit', () => {
+    const confirmed = document()
+    const summaryOf = (node: CanvasNode): CanvasNode => ({
+      ...buildCanvasNodeSummaryV1(node),
+      data: { ...buildCanvasNodeSummaryV1(node).data, __canvasUnhydrated: true },
+    })
+    const current = {
+      ...confirmed,
+      nodes: confirmed.nodes.map(summaryOf),
+    }
+    expect(buildCanvasOperations(confirmed, current, { geometryOps: true })).toEqual([])
+
+    current.nodes[0] = {
+      ...current.nodes[0]!,
+      data: { ...current.nodes[0]!.data, title: '正文已修改' },
+    }
+    expect(buildCanvasOperations(confirmed, current, { geometryOps: true })).toEqual([
+      expect.objectContaining({ type: 'node.upsert' }),
+    ])
+  })
+
+  it('does not silently discard a generation-model edit on a summary node', () => {
+    const confirmed = document()
+    const original = confirmed.nodes[0]!
+    original.data = { generation: { modelKey: 'synthetic-original' } }
+    const summary = buildCanvasNodeSummaryV1(original)
+    const edited: CanvasNode = {
+      ...summary,
+      position: { x: 20, y: 30 },
+      data: { ...summary.data, __canvasUnhydrated: true, generation: { ...summary.data.generation, modelKey: 'synthetic-new' } },
+    }
+    expect(buildCanvasOperations(confirmed, { ...confirmed, nodes: [edited, confirmed.nodes[1]!] }, { geometryOps: true }))
+      .toEqual([expect.objectContaining({ type: 'node.upsert' })])
+  })
+
+  it('keeps clearing an explicit size on a full node a body write', () => {
+    const confirmed = document()
+    const current = structuredClone(confirmed)
+    current.nodes[0]!.size = null
+    expect(buildCanvasOperations(confirmed, current, { geometryOps: true }))
+      .toEqual([expect.objectContaining({ type: 'node.upsert', node: expect.objectContaining({ size: null }) })])
   })
 
   it('projects only matching server terminal truth into an actively edited RUNNING node', () => {

@@ -36,8 +36,11 @@ describe('infinite canvas entry visibility matrix', () => {
     expect(workflow).toContain('<div key={navigationSurfaceKey} className="contents">')
     expect(workflow).toContain("activeItem: view === 'canvas' ? 'canvas' : 'workbench'")
     expect(worksStyles).toContain('.works-project-date { white-space: nowrap; }')
-    expect(worksStyles).toMatch(/\.works-project-canvas-entry\s*\{[\s\S]*?top:\s*128px;/)
-    expect(worksStyles).toMatch(/\.works-project-canvas-entry\s*\{[\s\S]*?opacity:\s*1;[\s\S]*?pointer-events:\s*auto;/)
+    const canvasEntry = worksStyles.match(/\.works-project-canvas-entry\s*\{([^}]+)\}/)?.[1] ?? ''
+    expect(canvasEntry).toContain('bottom: 12px;')
+    expect(canvasEntry).toContain('opacity: 0;')
+    expect(canvasEntry).toContain('pointer-events: auto;')
+    expect(worksStyles).toMatch(/\.works-project-card:hover \.works-project-canvas-entry,\s*\.works-project-card:focus-within \.works-project-canvas-entry\s*\{\s*opacity: 1;/)
   })
 
   it('allows every work-front role to read and generate on the shared canvas', () => {

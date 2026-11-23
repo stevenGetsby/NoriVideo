@@ -35,25 +35,29 @@ export const POST = apiHandler(async (
     })
   }
 
-  const result = await prisma.$transaction((tx) => applyCanvasOperationsInTransaction(tx, {
+  const actorId = authResult.session.user.actorId || authResult.session.user.id
+  const transactionInput = {
     projectId,
     canvasId,
-    userId: authResult.session.user.actorId || authResult.session.user.id,
+    userId: actorId,
     templateOwnerId: authResult.session.user.id,
     input,
-  }))
+  }
   // A full graph is ~2 MB for a large canvas; callers that keep their own confirmed
   // document opt into the delta instead. Without the header (older tabs) keep sending
   // everything, since a client that treated a delta as the whole graph would delete
   // every node it did not see on its next diff.
   if (request.headers.get(CANVAS_DELTA_RESPONSE_HEADER) !== 'delta') {
+    const result = await prisma.$transaction((tx) => applyCanvasOperationsInTransaction(tx, transactionInput))
     return NextResponse.json({ canvas: result.canvas, nodes: result.nodes, edges: result.edges })
   }
+  const result = await prisma.$transaction((tx) => applyCanvasOperationsInTransaction(tx, { ...transactionInput, deltaOnly: true }))
   return NextResponse.json({
     canvas: result.canvas,
     nodes: result.delta.nodes,
     edges: result.delta.edges,
     deletedNodeIds: result.delta.deletedNodeIds,
     deletedEdgeIds: result.delta.deletedEdgeIds,
+    ...(result.delta.geometry.length > 0 ? { geometry: result.delta.geometry } : {}),
   })
 })

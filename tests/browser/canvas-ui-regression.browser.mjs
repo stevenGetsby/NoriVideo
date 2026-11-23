@@ -51,7 +51,7 @@ const bundle = process.env.NORI_BROWSER_PREBUILT_DIR ? {
     'next-auth/react': path.join(root, 'tests/browser/stubs/next-auth-react.ts'),
     'next/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
   },
-  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  define: { 'process.env.NODE_ENV': JSON.stringify(process.env.NORI_BROWSER_PRODUCTION ? 'production' : 'development'), 'process.env': '{}' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
 const css = bundle.outputFiles.find((file) => file.path.endsWith('.css')).contents
@@ -102,7 +102,7 @@ const reference = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http:/
 async function open(viewport, query = '') {
   const page = await browser.newPage({ viewport })
   latestPage = page
-  page.on('pageerror', (error) => errors.push(error.message))
+  page.on('pageerror', (error) => errors.push(error.stack || error.message))
   let savedLimit = query.includes('accounts') ? 100 : null
   page.setQuota = (value) => { savedLimit = value }
   let walletPoints = 1000
@@ -163,6 +163,13 @@ async function open(viewport, query = '') {
         { ...common, id: 'style-2', type: 'text', position: { x: 420, y: 470 }, size: { width: 300, height: 150 }, status: 'IDLE', taskId: null, data: { title: '备用风格', mediaType: 'text', text: '霓虹黑金质感', origin: 'upload' } },
       ] : []),
     ],
+  }
+  const generatorTestZoom = Number(new URLSearchParams(query).get('generatorHotfixZoom'))
+  if (generatorTestZoom > 0) {
+    graph.canvas = { ...graph.canvas, viewport: { x: 100 - 440 * generatorTestZoom, y: 130 - 140 * generatorTestZoom, zoom: generatorTestZoom } }
+    graph.nodes = graph.nodes.map((node) => node.id === 'gen-1'
+      ? { ...node, size: { width: 200 / generatorTestZoom, height: 90 / generatorTestZoom } }
+      : node)
   }
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
@@ -493,7 +500,40 @@ async function verifyCanvasImageThumbnails(page) {
   await page.screenshot({ path: path.join(artifacts, 'canvas-image-thumbnails.png') })
 }
 try {
-  if (process.env.NORI_CANVAS_THUMBNAILS_ONLY) {
+  if (process.env.NORI_CANVAS_939_ONLY === '1') {
+    const geometry = []
+    for (const zoom of [1, 3]) {
+      const page = await open({ width: 640, height: 1800 }, `?first=1&generatorHotfixZoom=${zoom}`)
+      await selectCanvasNode(page, 'gen-1')
+      const panel = page.locator('.nori-canvas-generator.is-node-anchored')
+      await panel.waitFor()
+      await page.waitForFunction((zoom) => {
+        const viewport = document.querySelector('.react-flow__viewport')
+        return viewport && Math.abs(new DOMMatrix(getComputedStyle(viewport).transform).a - zoom) < 0.01
+      }, zoom)
+      const bounds = await panel.evaluate((element) => {
+        const scroll = element.querySelector('.nori-canvas-generator-scroll')
+        return { width: element.getBoundingClientRect().width, screenMaxHeight: parseFloat(getComputedStyle(scroll).maxHeight) * scroll.currentCSSZoom, viewportWidth: innerWidth, viewportHeight: innerHeight }
+      })
+      assert.ok(bounds.width <= bounds.viewportWidth - 48 + 1)
+      assert.ok(bounds.screenMaxHeight <= bounds.viewportHeight * .72 + 1, `Generator scroll cap exceeds 72%: ${JSON.stringify(bounds)}`)
+      await openNodeContextMenu(page, 'gen-1')
+      const prompt = panel.locator('textarea[role="combobox"]')
+      await prompt.focus()
+      const nativeMenu = await prompt.evaluate((element) => {
+        const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })
+        element.dispatchEvent(event)
+        return { prevented: event.defaultPrevented, focused: document.activeElement === element }
+      })
+      assert.deepEqual(nativeMenu, { prevented: false, focused: true })
+      assert.equal(await page.getByRole('menu', { name: /^(画布|节点)操作$/ }).count(), 0)
+      geometry.push({ zoom, ...bounds })
+      await page.close()
+    }
+    assert.ok(Math.abs(geometry[0].width - geometry[1].width) <= 2, 'The panel width must not shrink at 300% canvas zoom')
+    assert.deepEqual(errors, [], 'No uncaught browser errors')
+    console.log(JSON.stringify({ ok: true, nativeEditorContextMenu: true, geometry }, null, 2))
+  } else if (process.env.NORI_CANVAS_THUMBNAILS_ONLY) {
     const page = await open({ width: 1440, height: 900 }, '?globalstyle=1')
     await verifyCanvasImageThumbnails(page)
     await page.close()
@@ -662,10 +702,10 @@ try {
   await firstVideoPoll
   await videoProgress.waitForFunction(() => {
     const node = document.querySelector('.react-flow__node[data-id="gen-1"]')
-    return Boolean(node?.querySelector('video') && !node.querySelector('.nori-canvas-node-progress'))
+    return Boolean(node?.querySelector('.nori-canvas-video-poster') && !node.querySelector('.nori-canvas-node-progress') && !node.querySelector('video'))
   }, undefined, { timeout: 8000 })
   assert.ok(videoProgress.assetPollRequests.some((params) => params.type === 'video' && params.assetIds === 'video-1'), 'The running video node must query its exact asset instead of stopping at 45%')
-  cases.push('video generation advances past 45%, removes its progress overlay and renders the ready video')
+  cases.push('video generation advances past 45%, removes its progress overlay and renders the poster-first video')
   await videoProgress.close()
 
   const missingVideoAsset = await open({ width: 1280, height: 720 }, '?missing-asset=1')
@@ -676,9 +716,9 @@ try {
   await missingAssetPoll
   await missingVideoAsset.waitForFunction(() => {
     const node = document.querySelector('.react-flow__node[data-id="gen-1"]')
-    return Boolean(node?.querySelector('video') && !node.querySelector('.nori-canvas-node-progress'))
+    return Boolean(node?.querySelector('.nori-canvas-video-poster') && !node.querySelector('.nori-canvas-node-progress') && !node.querySelector('video'))
   }, undefined, { timeout: 5000 })
-  cases.push('video generation with a task but no generation.assetId recovers polling and shows the completed video')
+  cases.push('video generation with a task but no generation.assetId recovers polling and shows the completed video poster')
   await missingVideoAsset.close()
 
   if (process.env.NORI_CANVAS_GENERATION_ONLY) {
@@ -749,7 +789,10 @@ try {
     undefined,
     { timeout: 10000 },
   )
-  assert.ok(await comparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 'The original generated video must remain')
+  assert.equal(await comparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 0, 'The original generated video must stay poster-first')
+  assert.equal(await comparison.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-video-poster').count(), 1, 'The original generated video must remain')
+  await comparison.locator('.react-flow__node[data-id="gen-1"] [data-testid="canvas-video-play"]').click()
+  await comparison.locator('.react-flow__node[data-id="gen-1"] video').waitFor()
   assert.equal(await comparison.locator('.react-flow__node[data-id="ref-1"]').count(), 1, 'Reference nodes must not be duplicated')
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.classList.contains('is-node-anchored'))
   const anchorBeforeDrag = await comparisonGenerator.evaluate((element) => ({
@@ -801,7 +844,8 @@ try {
   await failedGenerator.getByRole('button', { name: '生成', exact: true }).click()
   await failedComparison.getByText('模拟生成提交失败', { exact: true }).waitFor()
   await failedComparison.waitForFunction(() => document.querySelectorAll('.react-flow__node').length === 21)
-  assert.ok(await failedComparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 'A failed comparison must not change the original video')
+  assert.equal(await failedComparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 0, 'A failed comparison must keep the original video poster-first')
+  assert.equal(await failedComparison.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-video-poster').count(), 1, 'A failed comparison must not change the original video')
   await failedComparison.locator('.react-flow__edge[data-id="edge-wired"]').waitFor()
   assert.equal(await failedComparison.locator('.react-flow__edge').count(), 1, 'A failed comparison must remove only its inherited input')
   await failedGenerator.locator('textarea[role="combobox"]').fill('失败后重新提交对照镜头')
@@ -1037,7 +1081,7 @@ try {
   await twoStep.mouse.click(nearBox.x + nearBox.width / 2, nearBox.y + nearBox.height / 2)
   await twoStep.locator('.nori-canvas-generator').waitFor()
   assert.ok(await twoStep.locator('.nori-canvas-generator').isVisible(), 'The second click on the same node opens the generator')
-  await twoStep.locator('.react-flow__pane').click({ position: { x: 700, y: 780 } })
+  await twoStep.locator('.react-flow__pane').click({ position: { x: 1030, y: 720 } })
   await twoStep.waitForFunction(() => !document.querySelector('.nori-canvas-generator'))
   await twoStep.waitForTimeout(600)
   await twoStep.mouse.click(nearBox.x + nearBox.width / 2, nearBox.y + nearBox.height / 2)
@@ -1128,6 +1172,7 @@ try {
 
   if (process.env.NORI_CANVAS_FRAME_CAPTURE_ONLY) {
     const page = await open({ width: 1280, height: 720 })
+    await page.locator('.react-flow__node[data-id="gen-1"] [data-testid="canvas-video-play"]').click()
     await page.locator('.react-flow__node[data-id="gen-1"] video').waitFor()
     await page.waitForFunction(() => document.querySelector('.react-flow__node[data-id="gen-1"] video')?.readyState >= 2)
     await page.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-video').hover()
@@ -1339,6 +1384,7 @@ try {
     assert.equal(await generator.count(), 0, 'A second Escape must dismiss the generator')
     await selectCanvasNode(page, 'gen-1')
     await generator.waitFor()
+    await page.locator('.react-flow__node[data-id="gen-1"] [data-testid="canvas-video-play"]').click()
     const video = page.locator('.react-flow__node[data-id="gen-1"] video').first()
     await video.evaluate((element) => element.load())
     try {

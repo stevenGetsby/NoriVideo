@@ -25,7 +25,7 @@ const bundle = await build({
     'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'),
     'next/image': path.join(root, 'tests/browser/stubs/next-image.tsx'),
   },
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env': '{}', 'process.env.NODE_ENV': '"development"' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.contents
 const rawCss = bundle.outputFiles.find((file) => file.path.endsWith('.raw.css'))?.contents

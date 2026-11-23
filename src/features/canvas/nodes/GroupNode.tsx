@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Grid2X2, Group, ListTree, Rows3, Save, Ungroup } from '@/components/ui/icons'
 import { NodeResizer, NodeToolbar, Position, useReactFlow, type NodeProps, type ShouldResize } from '@xyflow/react'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
+import { useCanvasNodeSource } from '../canvas-node-source'
 import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
@@ -27,6 +28,7 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
   const flow = useReactFlow<CanvasFlowNode>()
+  const nodeSource = useCanvasNodeSource()
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(data.title || '组')
   const [openMenu, setOpenMenu] = useState<'color' | 'arrange' | null>(null)
@@ -58,8 +60,8 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
     editor.updateNodeData(id, { title: next }, '重命名组')
   }
   const shouldResize = useCallback<ShouldResize>((_event, nextRect) => (
-    canResizeCanvasGroupToMembers(flow.getNodes(), id, nextRect)
-  ), [flow, id])
+    canResizeCanvasGroupToMembers(nodeSource?.get() ?? flow.getNodes(), id, nextRect)
+  ), [flow, id, nodeSource])
 
   return (
     <section className={`nori-canvas-group${selected ? ' is-selected' : ''}`} style={{ '--group-color': data.groupColor || DEFAULT_GROUP_COLOR } as React.CSSProperties}>

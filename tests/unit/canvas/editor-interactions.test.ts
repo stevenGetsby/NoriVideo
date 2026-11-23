@@ -51,7 +51,7 @@ describe('canvas editor interaction contracts', () => {
     const pointerUpStart = graph.indexOf('onPointerUpCapture={(event) => {')
     const pointerUpEnd = graph.indexOf('onPointerCancelCapture=', pointerUpStart)
     const pointerUp = graph.slice(pointerUpStart, pointerUpEnd)
-    const paneClickStart = graph.indexOf('const handlePaneClick = useStableCallback(() => {')
+    const paneClickStart = graph.indexOf('const handlePaneClick = useStableCallback((event: React.MouseEvent) => {')
     const paneClickEnd = graph.indexOf('const handleNodeClick = ', paneClickStart)
     const paneClick = graph.slice(paneClickStart, paneClickEnd)
 
@@ -281,9 +281,11 @@ describe('canvas editor interaction contracts', () => {
 
   it('lets a text node drag from its preview while keeping the active editor interactive', () => {
     const creativeNode = readSource('src/features/canvas/nodes/CreativeNode.tsx')
-    expect(creativeNode).toContain('className="nori-canvas-text-preview"')
-    expect(creativeNode).not.toContain('className="nodrag nori-canvas-text-preview"')
-    expect(creativeNode).toContain('className="nodrag nowheel nori-canvas-text-editor"')
+    const textContent = readSource('src/features/canvas/nodes/CanvasTextContent.tsx')
+    expect(creativeNode).toContain('<CanvasTextContent id={id}')
+    expect(textContent).toContain('className="nori-canvas-text-preview"')
+    expect(textContent).not.toContain('className="nodrag nori-canvas-text-preview"')
+    expect(textContent).toContain('className={`nodrag nowheel nori-canvas-text-editor')
   })
 
   it('blocks only mutating canvas shortcuts during server reconciliation', () => {

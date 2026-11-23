@@ -1,4 +1,4 @@
-import type { CanvasDocumentInput } from '../types'
+import type { CanvasDocumentInput, CanvasNode } from '../types'
 
 function stable(value: unknown): string {
   if (value === null || typeof value !== 'object') {
@@ -32,6 +32,12 @@ function mergeValue(base: unknown, local: unknown, remote: unknown): unknown {
     if (value !== undefined) output[key] = value
   }
   return output
+}
+
+/** Only the changed keys of a lightweight projection may overwrite full detail. */
+export function mergeCanvasCardEdits(base: CanvasNode['data'], local: CanvasNode['data'], detail: CanvasNode['data']): CanvasNode['data'] {
+  if (equal(local, base)) return detail
+  return mergeValue(base, local, detail ?? {}) as CanvasNode['data']
 }
 
 function mergeEntities<T extends { id: string }>(base: T[], local: T[], remote: T[]) {

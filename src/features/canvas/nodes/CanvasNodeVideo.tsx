@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Maximize2, Pause, Play, Volume2, VolumeX } from '@/components/ui/icons'
-import { attachMediaPlayer, recallPlayback, rememberPlayback } from '../media-playback'
+import { attachMediaPlayer, pauseOtherMedia, recallPlayback, rememberPlayback } from '../media-playback'
 
 function formatTime(seconds: number) {
   if (!Number.isFinite(seconds) || seconds < 0) return '0:00'
@@ -17,6 +17,7 @@ export function CanvasNodeVideo({
   poster,
   fit = 'contain',
   onExpand,
+  autoPlay = false,
   onLoadedData,
   onError,
 }: {
@@ -24,6 +25,7 @@ export function CanvasNodeVideo({
   poster?: string
   fit?: 'contain' | 'cover'
   onExpand?: () => void
+  autoPlay?: boolean
   onLoadedData?: () => void
   onError?: () => void
 }) {
@@ -38,8 +40,15 @@ export function CanvasNodeVideo({
 
   useEffect(() => {
     const video = videoRef.current
+    // Regenerated videos swap src in place (stable node id), so re-recall the new file's watched spot.
+    resume.current = recallPlayback(src)
     return video ? attachMediaPlayer(src, video) : undefined
   }, [src])
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (autoPlay && video) void video.play().catch(() => setPlaying(false))
+  }, [autoPlay])
 
   useEffect(() => {
     if (!playing) return
@@ -75,7 +84,7 @@ export function CanvasNodeVideo({
         playsInline
         preload="metadata"
         draggable={false}
-        onPlay={(event) => { setPlaying(true); remember(event.currentTarget) }}
+        onPlay={(event) => { setPlaying(true); remember(event.currentTarget); pauseOtherMedia(src) }}
         onPause={(event) => { setPlaying(false); remember(event.currentTarget, false) }}
         onEnded={() => { setPlaying(false); rememberPlayback(src, 0, false); setTime(0) }}
         onTimeUpdate={(event) => { setTime(event.currentTarget.currentTime); remember(event.currentTarget) }}

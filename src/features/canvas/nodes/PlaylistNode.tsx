@@ -26,9 +26,10 @@ import {
 } from '@/lib/canvas/playlist'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { CANVAS_MATERIAL_DRAG_TYPE } from '../components/CanvasProjectAssets'
-import { useCanvasEditor, useCanvasMultiSelection, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasEditorPersistence, useCanvasMultiSelection, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasPlaylistItem, CanvasPlaylistRenderSummary, CanvasPlaylistReviewSummary } from '../types'
+import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
 
 const DEFAULT_REVIEW: CanvasPlaylistReviewSummary = {
   assignmentId: null,
@@ -98,6 +99,7 @@ function renderLabel(render: CanvasPlaylistRenderSummary) {
 
 function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
+  const persistence = useCanvasEditorPersistence()
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
   const acceptingNodeDrop = editor.playlistDropTargetId === id
@@ -168,11 +170,11 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
     && splitOffset >= 1
     && splitOffset < activeClip.durationInFrames,
   )
-  const timelineDirty = editor.saveState === 'pending'
-    || editor.saveState === 'offline'
-    || editor.saveState === 'error'
-    || editor.saveState === 'conflict'
-    || editor.saveState === 'recovery'
+  const timelineDirty = persistence.saveState === 'pending'
+    || persistence.saveState === 'offline'
+    || persistence.saveState === 'error'
+    || persistence.saveState === 'conflict'
+    || persistence.saveState === 'recovery'
   const canSubmit = resolvedItems.length > 0
     && resolvedItems.every((item) => Boolean(item.videoUrl))
     && render.status === 'completed'
@@ -220,11 +222,10 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
     }
     void refreshRender(true)
   }, [items.length, playlistFingerprint, refreshRender])
-  useEffect(() => {
-    if (render.status !== 'queued' && render.status !== 'processing') return
-    const timer = window.setInterval(() => void refreshRender(), 1_500)
-    return () => window.clearInterval(timer)
-  }, [refreshRender, render.status])
+  useVisiblePolling(
+    () => refreshRender(),
+    render.status === 'queued' || render.status === 'processing' ? 3_000 : null,
+  )
   useEffect(() => {
     if (!resolvedItems.length) {
       if (activeItemId !== null) setActiveItemId(null)
@@ -629,9 +630,9 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
           zoom={zoom}
           readOnly={editor.readOnly}
           isDirty={timelineDirty}
-          saving={editor.saveState === 'saving'}
-          canUndo={editor.canUndo}
-          canRedo={editor.canRedo}
+          saving={persistence.saveState === 'saving'}
+          canUndo={persistence.canUndo}
+          canRedo={persistence.canRedo}
           onReorder={reorderItems}
           onSelect={selectTimelineClip}
           onSeek={seekTimeline}

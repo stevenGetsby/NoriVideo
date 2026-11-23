@@ -29,7 +29,7 @@ const bundle = await build({
     'next-intl': path.join(root, 'tests/browser/stubs/next-intl.ts'),
     'next/image': path.join(root, 'tests/browser/stubs/next-image.tsx'),
   },
-  define: { 'process.env.NODE_ENV': '"development"' },
+  define: { 'process.env': '{}', 'process.env.NODE_ENV': '"development"' },
 })
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js'))?.contents
 const rawCss = bundle.outputFiles.find((file) => file.path.endsWith('.raw.css'))?.contents
@@ -76,7 +76,11 @@ async function assertPickerScroll(page, legacy) {
   const mediaRatio = await page.locator('.material-picker-card-media').first().evaluate((element) => element.getBoundingClientRect().width / element.getBoundingClientRect().height)
   assert.ok(Math.abs(mediaRatio - 4 / 3) < 0.02, `material card ratio: ${mediaRatio}`)
   await results.hover()
-  for (let index = 0; index < 12; index += 1) await page.mouse.wheel(0, 5000)
+  for (let index = 0; index < 60; index += 1) {
+    if (await results.evaluate((element) => element.scrollTop + element.clientHeight >= element.scrollHeight - 2)) break
+    await page.mouse.wheel(0, 5000)
+    await page.waitForTimeout(120)
+  }
   await page.waitForFunction(() => {
     const element = document.querySelector('.material-picker-results')
     return element && element.scrollTop + element.clientHeight >= element.scrollHeight - 2

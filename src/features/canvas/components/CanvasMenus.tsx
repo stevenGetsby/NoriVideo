@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
+import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Server, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, STORY_ADD_NODE_ITEMS, STORY_INTERACTION_ADD_ITEMS, storyAddItemKey, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState, type StoryAddNodeItem } from '../editor-types'
 import type { StoryInteractionKind } from '@/lib/interactive/types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
@@ -78,6 +78,10 @@ export function CanvasContextMenu({
         isVideoPrefixPrompt
           ? { key: 'clear-video-prefix', label: '取消视频统一前置提示词', icon: Film, hint: '不再约束视频提示词' }
           : { key: 'set-video-prefix', label: '设为视频统一前置提示词', icon: Film, hint: '置于所有视频提示词最前面' },
+      ] : []),
+      ...(nodeMediaType === 'video' ? [
+        { key: 'divider-task', divider: true as const },
+        { key: 'view-task-id', label: '查看生成任务 ID', icon: Server, hint: '用于查询提交给上游的生成任务与提示词内容' },
       ] : []),
       { key: 'divider', divider: true },
       { key: 'regenerate', label: '重新生成', icon: RefreshCw, disabled: !canRegenerate },

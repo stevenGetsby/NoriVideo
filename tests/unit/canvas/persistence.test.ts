@@ -3,6 +3,7 @@ import {
   applyCanvasOperationsInTransaction,
   mergeCanvasTerminalNodeState,
   replaceCanvasDocumentInTransaction,
+  shouldRecordCanvasSnapshot,
 } from '@/lib/canvas/persistence'
 import type { CanvasDocumentSaveInput } from '@/lib/canvas/document'
 import { DEFAULT_STUDIO_SCENE } from '@/features/canvas/studio-types'
@@ -52,6 +53,7 @@ function transaction(claimed = 1) {
       create: vi.fn(async () => ({ id: 'node-new' })),
     },
     canvasSnapshot: {
+      findFirst: vi.fn(async (): Promise<unknown> => null),
       create: vi.fn(async () => ({ id: 'snapshot-6' })),
       findMany: vi.fn(async (): Promise<unknown[]> => []),
       deleteMany: vi.fn(async () => ({ count: 0 })),
@@ -72,6 +74,51 @@ function transaction(claimed = 1) {
     },
   }
 }
+
+describe('canvas snapshot throttling', () => {
+  it('records the first snapshot and bypasses throttling for a history restore or large deletion', async () => {
+    const tx = transaction()
+    await expect(shouldRecordCanvasSnapshot(tx as never, 'canvas-1')).resolves.toBe(true)
+    expect(tx.canvasSnapshot.findFirst).toHaveBeenCalledWith(expect.objectContaining({
+      where: { canvasId: 'canvas-1' },
+      orderBy: { createdAt: 'desc' },
+    }))
+    await expect(shouldRecordCanvasSnapshot(tx as never, 'canvas-1', 5)).resolves.toBe(true)
+    expect(tx.canvasSnapshot.findFirst).toHaveBeenCalledOnce()
+  })
+
+  it('skips a recent snapshot without pruning existing history', async () => {
+    const tx = transaction()
+    tx.canvasSnapshot.findFirst.mockResolvedValue({ createdAt: new Date() })
+    await replaceCanvasDocumentInTransaction(tx as never, {
+      projectId: 'project-1',
+      canvasId: 'canvas-1',
+      userId: 'user-1',
+      input: input(),
+    })
+    expect(tx.canvasSnapshot.create).not.toHaveBeenCalled()
+    expect(tx.canvasSnapshot.findMany).not.toHaveBeenCalled()
+    expect(tx.canvasSnapshot.deleteMany).not.toHaveBeenCalled()
+  })
+
+  it('records again after five minutes and forces history restores immediately', async () => {
+    const tx = transaction()
+    tx.canvasSnapshot.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 5 * 60_000) })
+    await expect(shouldRecordCanvasSnapshot(tx as never, 'canvas-1')).resolves.toBe(true)
+
+    const restore = transaction()
+    await replaceCanvasDocumentInTransaction(restore as never, {
+      projectId: 'project-1',
+      canvasId: 'canvas-1',
+      userId: 'user-1',
+      input: input(),
+      forceSnapshot: true,
+    })
+    expect(restore.canvasSnapshot.findFirst).not.toHaveBeenCalled()
+    expect(restore.canvasSnapshot.create).toHaveBeenCalledOnce()
+  })
+})
+
 
 describe('canvas document persistence', () => {
   it('claims the expected revision before replacing graph rows', async () => {
@@ -648,5 +695,88 @@ describe('canvas document persistence', () => {
       where: { canvasId: 'canvas-1', id: { in: ['studio-1'] } },
     })
     expect(tx.canvasStudio3DDocument.deleteMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('metadata-only operation batches', () => {
+  const viewportOnly = {
+    expectedRevision: 5,
+    clientId: 'tab-1',
+    changeSummary: '调整画布视图',
+    ops: [{ type: 'canvas.update_meta' as const, viewport: { x: 40, y: -8, zoom: 0.5 } }],
+  }
+  const args = { projectId: 'project-1', canvasId: 'canvas-1', userId: 'user-1' }
+
+  it('skips every node and edge read for a delta client when no snapshot is due', async () => {
+    const tx = transaction()
+    tx.canvasSnapshot.findFirst.mockResolvedValueOnce({ createdAt: new Date() })
+
+    const result = await applyCanvasOperationsInTransaction(tx as never, { ...args, input: viewportOnly, deltaOnly: true })
+
+    expect(tx.canvas.updateMany).toHaveBeenCalledWith({
+      where: { id: 'canvas-1', projectId: 'project-1', revision: 5 },
+      data: { revision: { increment: 1 }, viewport: { x: 40, y: -8, zoom: 0.5 } },
+    })
+    expect(tx.canvasNode.findMany).not.toHaveBeenCalled()
+    expect(tx.canvasEdge.findMany).not.toHaveBeenCalled()
+    expect(tx.canvasNode.updateMany).not.toHaveBeenCalled()
+    expect(tx.canvasSnapshot.create).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      canvas: { revision: 6 },
+      delta: { nodes: [], edges: [], deletedNodeIds: [], deletedEdgeIds: [] },
+    })
+    expect('nodes' in result).toBe(false)
+  })
+
+  it('still records the graph snapshot when one is due', async () => {
+    const tx = transaction()
+    tx.canvasNode.findMany.mockResolvedValueOnce([{ ...input().nodes[0], canvasId: 'canvas-1' }])
+
+    const result = await applyCanvasOperationsInTransaction(tx as never, { ...args, input: viewportOnly, deltaOnly: true })
+
+    expect(tx.canvasNode.findMany).toHaveBeenCalledOnce()
+    expect(tx.canvasSnapshot.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        revision: 6,
+        document: expect.objectContaining({ nodes: [expect.objectContaining({ id: 'node-1' })] }),
+      }),
+    }))
+    expect(result.delta.nodes).toEqual([])
+  })
+
+  it('keeps the full graph read when the batch also writes entities', async () => {
+    const tx = transaction()
+    tx.canvasSnapshot.findFirst.mockResolvedValueOnce({ createdAt: new Date() })
+    tx.canvasNode.findMany.mockResolvedValueOnce([{ ...input().nodes[0], canvasId: 'canvas-1' }])
+
+    const result = await applyCanvasOperationsInTransaction(tx as never, {
+      ...args,
+      deltaOnly: true,
+      input: { ...viewportOnly, ops: [{ type: 'node.delete', id: 'node-1' }, ...viewportOnly.ops] },
+    })
+
+    expect(tx.canvasNode.findMany).toHaveBeenCalledOnce()
+    expect(tx.canvasEdge.findMany).toHaveBeenCalledOnce()
+    expect(result.delta.deletedNodeIds).toEqual(['node-1'])
+  })
+
+  it('returns the full graph to a client that did not opt into deltas', async () => {
+    const tx = transaction()
+    tx.canvasSnapshot.findFirst.mockResolvedValueOnce({ createdAt: new Date() })
+    tx.canvasNode.findMany.mockResolvedValueOnce([{ ...input().nodes[0], canvasId: 'canvas-1' }])
+
+    const result = await applyCanvasOperationsInTransaction(tx as never, { ...args, input: viewportOnly })
+
+    expect(tx.canvasNode.findMany).toHaveBeenCalledOnce()
+    expect(result.nodes).toHaveLength(1)
+  })
+
+  it('does not apply a metadata-only batch after losing the revision claim', async () => {
+    const tx = transaction(0)
+    tx.canvas.findFirst.mockResolvedValueOnce({ revision: 9 })
+
+    await expect(applyCanvasOperationsInTransaction(tx as never, { ...args, input: viewportOnly, deltaOnly: true }))
+      .rejects.toMatchObject({ code: 'CONFLICT', details: { expectedRevision: 5, actualRevision: 9 } })
+    expect(tx.canvasSnapshot.findFirst).not.toHaveBeenCalled()
   })
 })

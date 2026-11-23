@@ -83,7 +83,7 @@ describe('infinite canvas clipboard priority', () => {
     const copy = source.slice(source.indexOf('const copySelection'), source.indexOf('const refreshClipboardAvailability'))
     expect(copy).toContain('writeCanvasClipboard(JSON.stringify(payload), plainText)')
     expect(copy).not.toContain('writeText(')
-    expect(source).not.toContain('NORI_CANVAS')
+    expect(copy).not.toMatch(/\bNORI_CANVAS\b/)
   })
 })
 

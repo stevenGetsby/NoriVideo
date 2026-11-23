@@ -61,6 +61,38 @@ export function createCanvasAutosaveRetryController({
   }
 }
 
+/**
+ * A drag fires a change per pointer move, and persisting mid-gesture (an offline draft, a save)
+ * costs far more than a frame on a large canvas. While held, scheduling is deferred and replayed
+ * once on release; the expiry keeps a lost release event from suppressing saves forever.
+ */
+export function createCanvasPersistenceHold({
+  maxHoldMs = 15_000,
+  now = () => Date.now(),
+}: { maxHoldMs?: number; now?: () => number } = {}) {
+  let until = 0
+  let deferred = false
+  return {
+    hold() {
+      until = now() + maxHoldMs
+    },
+    isHeld: () => now() < until,
+    /** True when the caller must skip scheduling now; it is replayed by `release`. */
+    defer() {
+      if (now() >= until) return false
+      deferred = true
+      return true
+    },
+    /** Ends the hold; true when a schedule was deferred and has to run now. */
+    release() {
+      until = 0
+      const replay = deferred
+      deferred = false
+      return replay
+    },
+  }
+}
+
 export function createCanvasOfflineDraftBuffer({
   read,
   write,
@@ -69,7 +101,7 @@ export function createCanvasOfflineDraftBuffer({
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
   cancelTimer = (handle) => clearTimeout(handle),
 }: {
-  read: () => CanvasOfflineDraft | null
+  read: () => CanvasOfflineDraft | null | Promise<CanvasOfflineDraft | null>
   write: (draft: CanvasOfflineDraft) => Promise<void>
   remove: () => Promise<void>
   delayMs?: number
@@ -92,11 +124,11 @@ export function createCanvasOfflineDraftBuffer({
     return next
   }
 
-  const flush = () => {
+  const flush = () => enqueue(async () => {
     cancelPending()
-    const draft = read()
-    return draft ? enqueue(async () => await write(draft)) : queue
-  }
+    const draft = await read()
+    if (draft) await write(draft)
+  })
 
   return {
     schedule() {
@@ -108,6 +140,7 @@ export function createCanvasOfflineDraftBuffer({
       }, delayMs)
     },
     flush,
+    cancel: cancelPending,
     clear() {
       cancelPending()
       return enqueue(remove)

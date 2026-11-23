@@ -40,7 +40,7 @@ export function CanvasMediaPreviewDialog({ node, readOnly = false, onCaptureFram
       : type === 'audio'
         ? node.data.audioUrl || node.data.contentUrl
         : node.data.imageUrl || node.data.contentUrl
-    return (type === 'video' ? toPlayableVideoUrl(raw) : toDisplayImageUrl(raw)) || ''
+    return (type === 'video' ? toPlayableVideoUrl(raw, { sameOrigin: true }) : toDisplayImageUrl(raw)) || ''
   }, [node.data.audioUrl, node.data.contentUrl, node.data.imageUrl, node.data.videoUrl, type])
 
   useEffect(() => {

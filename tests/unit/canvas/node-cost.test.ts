@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { getCanvasCurrentCostLabel } from '@/features/canvas/types'
+import { getCanvasCurrentCostLabel, getCanvasNodeCurrentCostLabel } from '@/features/canvas/types'
 import type { CanvasGenerationHistoryItem, CanvasNodeData } from '@/features/canvas/types'
 
 const baseData: CanvasNodeData = {
@@ -42,10 +42,16 @@ describe('canvas node cost badge', () => {
 
     const node = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/nodes/CreativeNode.tsx'), 'utf8')
     const css = fs.readFileSync(path.join(process.cwd(), 'src/features/canvas/canvas.css'), 'utf8')
-    expect(node).toContain('getCanvasCurrentCostLabel')
+    expect(node).toContain('getCanvasNodeCurrentCostLabel')
     expect(node).toContain('nori-canvas-node-cost')
     expect(css).toContain('.nori-canvas-node-cost')
     expect(css).toContain('max-width: 86px;')
     expect(css).toContain('text-overflow: ellipsis;')
+  })
+
+  it('shows the same actual cost from a summary before full history is hydrated', () => {
+    expect(getCanvasNodeCurrentCostLabel({
+      ...baseData, __canvasUnhydrated: true, currentCost: { kind: 'actual', points: 8 },
+    }, 'image')).toEqual({ kind: 'actual', points: 8 })
   })
 })

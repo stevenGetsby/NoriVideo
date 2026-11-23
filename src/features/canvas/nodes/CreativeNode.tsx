@@ -2,7 +2,7 @@
 
 import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   AlertTriangle,
@@ -33,15 +33,18 @@ import {
   useStore,
   type NodeProps,
 } from '@xyflow/react'
-import { MediaImage } from '@/components/media/MediaImage'
-import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
+import { CanvasPosterImage, CanvasPreviewImage } from './CanvasPreviewImage'
+import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { useCanvasEditor, useCanvasMultiSelection, type CanvasNodeAction } from '../CanvasEditorContext'
+import { selectZoomBucket } from '../zoom-bucket'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
 import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog'
 import { CanvasNodeVideo } from './CanvasNodeVideo'
+import { CanvasNodeVideoPoster } from './CanvasNodeVideoPoster'
+import { recallPlayback } from '../media-playback'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
-import { getCanvasCurrentCostLabel, isCanvasPanoramaNodeData } from '../types'
+import { getCanvasNodeCurrentCostLabel, isCanvasPanoramaNodeData } from '../types'
 import type { CanvasGenerationReferenceSummary } from '../types'
 
 const ICONS = {
@@ -102,16 +105,19 @@ function EmptyMedia({ type }: { type: string }) {
 function ReferencePreview({ reference }: { reference: CanvasGenerationReferenceSummary }) {
   const src = toDisplayImageUrl(reference.previewUrl || null)
   if (src && reference.type === 'image') {
-    return <MediaImage src={src} alt="" fill sizes="34px" style={{ objectFit: 'cover' }} />
+    return <CanvasPreviewImage src={src} alt="" fill sizes="34px" style={{ objectFit: 'cover' }} />
   }
   if (src && reference.type === 'video') {
-    return <video src={toPlayableVideoUrl(reference.previewUrl) || src} muted playsInline preload="metadata" />
+    const poster = toVideoPosterUrl(reference.previewUrl, 480)
+    return poster
+      ? <CanvasPosterImage src={poster} alt="" loading="lazy" decoding="async" />
+      : <video src={toPlayableVideoUrl(reference.previewUrl) || src} muted playsInline preload="none" />
   }
   const Icon = reference.type === 'audio' ? Music2 : reference.type === 'video' ? Film : ImageIcon
   return <Icon />
 }
 
-export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
+export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const { id, data, selected } = props
   const editor = useCanvasEditor()
   const multiSelected = useCanvasMultiSelection()
@@ -123,7 +129,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     ? data.contentUrl || data.imageUrl || data.posterUrl || null
     : data.posterUrl || data.imageUrl || null
   const originalImageUrl = toDisplayImageUrl(imageSource)
-  const viewportZoom = useStore((state) => state.transform[2])
+  const zoomBucket = useStore(selectZoomBucket)
   const [imageUrl, setImageUrl] = useState(() => toCanvasDisplayImageUrl(imageSource, 480))
   const imageContainerRef = useRef<HTMLDivElement>(null)
   const videoUrl = toPlayableVideoUrl(data.videoUrl || data.contentUrl || null)
@@ -143,7 +149,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       ...PRIMARY_ACTIONS.filter((action) => {
         if (action.action === 'preview') return ['image', 'video', 'audio'].includes(mediaType)
         if (action.action === 'favorite') return Boolean(data.materialId)
-        if (action.action === 'history') return Boolean(data.history?.length)
+        if (action.action === 'history') return Boolean(data.historyCount ?? data.history?.length)
         return true
       }),
       ...(canPreviewPanorama ? [actionButton('panorama_preview', '全景预览', Globe2)] : []),
@@ -158,7 +164,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       || action === 'panorama_preview'
       || (action === 'studio_3d' && mediaType === 'model3d')
     ))
-  }, [canPreviewPanorama, data.history?.length, data.materialId, editor.readOnly, hasContent, mediaType])
+  }, [canPreviewPanorama, data.historyCount, data.history?.length, data.materialId, editor.readOnly, hasContent, mediaType])
   const [renaming, setRenaming] = useState(false)
   const [title, setTitle] = useState(data.title || '未命名节点')
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
@@ -168,6 +174,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const [toolbarTop, setToolbarTop] = useState(0)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
   const [videoFailed, setVideoFailed] = useState(false)
+  const [videoActive, setVideoActive] = useState(() => Boolean(videoUrl && recallPlayback(videoUrl)?.playing))
   const [videoAttempt, setVideoAttempt] = useState(0)
   useEffect(() => { setVideoFailed(false); setVideoAttempt(0) }, [videoUrl])
   const inlineActions = mediaType === 'image'
@@ -177,7 +184,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     ? []
     : actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
-  const currentCost = getCanvasCurrentCostLabel(data.history, data, mediaType)
+  const currentCost = getCanvasNodeCurrentCostLabel(data, mediaType)
   const previewReferenceNode = previewReference
     ? {
         id: `reference-preview:${previewReference.id}`,
@@ -215,7 +222,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     observer.observe(element)
     update()
     return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame) }
-  }, [originalImageUrl, viewportZoom])
+  }, [originalImageUrl, zoomBucket])
   useLayoutEffect(() => {
     if (!chromeVisible || mediaType !== 'image') return
     const toolbar = toolbarRef.current?.parentElement
@@ -273,8 +280,10 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     resizeObserver.observe(node)
     resizeObserver.observe(surface)
     const transformObserver = new MutationObserver(keepVisible)
+    const renderer = toolbar.parentElement
     transformObserver.observe(toolbar, { attributes: true, attributeFilter: ['style'] })
     transformObserver.observe(node, { attributes: true, attributeFilter: ['style'] })
+    if (renderer) transformObserver.observe(renderer, { attributes: true, attributeFilter: ['style'] })
     if (flowViewport) transformObserver.observe(flowViewport, { attributes: true, attributeFilter: ['style'] })
     window.addEventListener('resize', keepVisible)
     return () => {
@@ -302,7 +311,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         lineClassName="nori-canvas-resize-line"
         handleClassName="nori-canvas-resize-handle"
       />
-      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType}${mediaType === 'image' || mediaType === 'video' || mediaType === 'model_3d' ? ' nori-force-dark' : ''} nodrag nowheel`}>
+      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType}${mediaType === 'image' || mediaType === 'video' || mediaType === 'model_3d' ? ' nori-force-dark' : ''} nodrag nowheel`} onPointerDown={(event) => event.stopPropagation()}>
         <div ref={toolbarRef} className="nori-canvas-node-toolbar-anchor" aria-hidden="true" />
         {canReplaceContent ? (
           <button
@@ -388,7 +397,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       <div ref={imageContainerRef} className="nori-canvas-node-body">
         {mediaType !== 'text' ? <span className="nori-canvas-node-drag-frame" title="拖动节点" aria-hidden="true" /> : null}
         {mediaType === 'text' ? <CanvasTextContent id={id} value={data.text || ''} marks={data.textMarks} readOnly={editor.readOnly} /> : null}
-        {mediaType === 'image' && imageUrl ? <MediaImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} onError={() => { if (originalImageUrl) setImageUrl(originalImageUrl) }} /> : null}
+        {mediaType === 'image' && imageUrl ? <CanvasPreviewImage src={imageUrl} alt={title} fill sizes="480px" style={{ objectFit: 'contain' }} onError={() => { if (originalImageUrl) setImageUrl(originalImageUrl) }} /> : null}
         {canPreviewPanorama ? (
           <button
             type="button"
@@ -407,7 +416,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         ) : null}
         {mediaType === 'video' && videoUrl ? (
           <>
-            <CanvasNodeVideo key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} onExpand={() => editor.runNodeAction(id, 'preview')} onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} />
+            {videoActive ? <CanvasNodeVideo key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} autoPlay onExpand={() => editor.runNodeAction(id, 'preview')} onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} /> : <CanvasNodeVideoPoster posterUrl={imageUrl || toVideoPosterUrl(data.videoUrl || data.contentUrl, 480)} onPlay={() => setVideoActive(true)} />}
             {videoFailed ? <div className="nori-canvas-video-load-error nodrag nowheel" role="status"><Film /><span>视频已生成，播放加载失败</span><button type="button" onClick={(event) => { event.stopPropagation(); setVideoFailed(false); setVideoAttempt((value) => value + 1) }}><RefreshCw />重新加载</button><button type="button" onClick={() => editor.runNodeAction(id, 'preview')}>打开预览</button></div> : null}
           </>
         ) : null}
@@ -465,4 +474,4 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
         : null}
     </article>
   )
-}
+})

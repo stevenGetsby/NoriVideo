@@ -114,7 +114,7 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('const canRegenerateContextNode = Boolean(contextNode?.data.prompt && contextNode.data.generation?.modelKey)')
     expect(graph).toContain("if (action === 'copy') { setNodes")
     expect(graph).toContain('void copySelection(false, [menu.nodeId])')
-    expect(graph).toContain("if (action === 'duplicate') duplicateNodes([menu.nodeId])")
+    expect(graph).toContain("if (action === 'duplicate') void duplicateNodes([menu.nodeId])")
     expect(graph).toContain("if (action === 'regenerate') runNodeAction(menu.nodeId, 'regenerate')")
     expect(graph).toContain("if (action === 'delete') removeNodes([menu.nodeId])")
   })
@@ -199,7 +199,11 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(readSource('src/styles/frameos-replica.css')).toContain('zoom: var(--nori-interface-scale, 1.2)')
     expect(portal).toContain('document.body')
     expect(portal).toContain('menu.getBoundingClientRect()')
-    expect((menus.match(/<CanvasMenuPortal point={state}>/g) || [])).toHaveLength(2)
+    for (const component of ['CanvasWireMenu', 'CanvasContextMenu', 'CanvasNodeTypeMenu']) {
+      const start = menus.indexOf(`export function ${component}(`)
+      expect(start).toBeGreaterThanOrEqual(0)
+      expect(menus.slice(start).split(/\nexport /)[0]).toContain('<CanvasMenuPortal point={state}>')
+    }
     expect(projectAssets).toContain('<CanvasMenuPortal point={state}>')
 
     expect(resolveCanvasMenuPortalPoint(
@@ -222,8 +226,9 @@ describe('FrameOS canvas surface parity regressions', () => {
 
   it('keeps pane-menu node creation and upload anchored at the clicked point', () => {
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
-    expect(graph).toContain('pendingInsertPositionRef.current = menu.flowPosition || null')
-    expect(graph).toContain('setAddOpen(true)')
+    expect(graph).toContain('setNodeTypeMenu({ ...visibleMenuPoint(menu.x, menu.y, 420), flowPosition: menu.flowPosition')
+    expect(graph).toContain('addNode(type, nodeTypeMenu.flowPosition, interaction)')
+    expect(graph).toContain('openUploadPicker(nodeTypeMenu.flowPosition)')
     expect(graph).toContain('openUploadPicker(menu.flowPosition)')
     expect(graph).toContain('const position = pendingInsertPositionRef.current || undefined')
     expect(graph).toContain('addNode(type, position, interaction)')
@@ -256,7 +261,7 @@ describe('FrameOS canvas surface parity regressions', () => {
     expect(graph).toContain('dismissTransientUi()')
     expect(graph).toContain('setAssetsOpen(false)')
     expect(graph).toContain('setPickerOpen(false)')
-    expect(graph).toContain('const handlePaneClick = useStableCallback(() => {')
+    expect(graph).toContain('const handlePaneClick = useStableCallback((event: React.MouseEvent) => {')
     expect(graph).toContain('onPaneClick={handlePaneClick}')
     expect(graph).toContain('setAddOpen(false)')
     expect(graph).toContain('setOrganizeOpen(false)')

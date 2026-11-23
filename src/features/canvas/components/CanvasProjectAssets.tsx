@@ -20,7 +20,7 @@ import { MediaImage } from '@/components/media/MediaImage'
 import type { FrameosMaterialItem, MaterialType } from '@/components/frameos/materials/contracts'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { apiFetch } from '@/lib/api-fetch'
-import { fetchAllFrameosMaterials } from '@/components/frameos/materials/fetch-all-materials'
+import { fetchFrameosMaterialPage, MATERIAL_PAGE_SIZE, useWindowedList } from '@/components/frameos/materials/material-page-client'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import {
@@ -31,7 +31,6 @@ import {
 } from '@/lib/frameos/material-category'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import {
-  collapseInheritedDuplicates,
   inheritedMaterialSource,
   isUserManagedMaterial,
 } from '@/lib/frameos/material-inherit'
@@ -164,6 +163,11 @@ export function CanvasProjectAssets({
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [contextMenu, setContextMenu] = useState<CanvasProjectAssetMenuState | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [selectedById, setSelectedById] = useState(new Map<string, FrameosMaterialItem>())
+  const [total, setTotal] = useState(0)
+  const [missingVoiceCount, setMissingVoiceCount] = useState(0)
+  const [nextCursor, setNextCursor] = useState<string | null>(null)
+  const [loadingMore, setLoadingMore] = useState(false)
   const [currentWorkId, setCurrentWorkId] = useState<string | null>(null)
   const [workError, setWorkError] = useState<string | null>(null)
   const [workResolved, setWorkResolved] = useState(false)
@@ -171,6 +175,7 @@ export function CanvasProjectAssets({
   const materialRequestId = useRef(0)
   const materialAbort = useRef<AbortController | null>(null)
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([])
+  const materialWindow = useWindowedList(materials, 84)
 
   const cancelMaterialReads = useCallback(() => {
     materialRequestId.current++
@@ -211,9 +216,9 @@ export function CanvasProjectAssets({
     return () => { active = false }
   }, [projectId])
 
-  const load = useCallback(async (sync = false) => {
-    const requestId = ++materialRequestId.current
-    materialAbort.current?.abort()
+  const load = useCallback(async (sync = false, cursor: string | null = null) => {
+    const requestId = cursor ? materialRequestId.current : ++materialRequestId.current
+    if (!cursor) materialAbort.current?.abort()
     if (workError || !workResolved || (projectFilter !== 'all' && !currentWorkId)) {
       setMaterials([])
       setLoading(false)
@@ -221,26 +226,40 @@ export function CanvasProjectAssets({
     }
     const controller = new AbortController()
     materialAbort.current = controller
-    setLoading(true)
+    if (cursor) setLoadingMore(true)
+    else setLoading(true)
     setError(null)
     try {
       const sharedProject = projectFilter === 'project'
       const params = new URLSearchParams({
         ...(sharedProject ? { workId: currentWorkId! } : projectFilter === 'all' ? {} : { projectId: projectFilter }),
         available: sharedProject || projectFilter === 'all' ? '1' : '0',
-        limit: '500',
+        limit: String(MATERIAL_PAGE_SIZE),
+        pageVersion: '1',
+        deduplicate: '1',
       })
+      if (filter !== 'all') params.set('type', filter)
+      if (categoryFilter !== 'all') params.set('category', categoryFilter)
+      if (query.trim()) params.set('query', query.trim())
+      if (cursor) params.set('cursor', cursor)
       if (sync) params.set('sync', '1')
-      const nextMaterials = await fetchAllFrameosMaterials(params, controller.signal)
-      if (requestId === materialRequestId.current && !controller.signal.aborted) setMaterials(nextMaterials)
+      const page = await fetchFrameosMaterialPage(params, controller.signal)
+      if (requestId !== materialRequestId.current || controller.signal.aborted) return
+      setMaterials((current) => cursor ? [...current, ...page.materials.filter((item) => !current.some((existing) => existing.id === item.id))] : page.materials)
+      setNextCursor(page.nextCursor)
+      setTotal(page.total ?? page.materials.length)
+      setMissingVoiceCount(page.missingVoiceCount)
     } catch (loadError) {
       if (requestId !== materialRequestId.current || controller.signal.aborted) return
-      setMaterials([])
+      if (!cursor) setMaterials([])
       setError(loadError instanceof Error ? loadError.message : '加载作品资产失败')
     } finally {
-      if (requestId === materialRequestId.current) setLoading(false)
+      if (requestId === materialRequestId.current) {
+        setLoading(false)
+        setLoadingMore(false)
+      }
     }
-  }, [currentWorkId, projectFilter, workError, workResolved])
+  }, [categoryFilter, currentWorkId, filter, projectFilter, query, workError, workResolved])
 
   const loadTemplates = useCallback(async () => {
     setLoading(true)
@@ -258,13 +277,26 @@ export function CanvasProjectAssets({
   }, [projectId])
 
   useEffect(() => {
-    void load(true)
-    return cancelMaterialReads
+    const timer = window.setTimeout(() => void load(true), query.trim() ? 250 : 0)
+    return () => {
+      window.clearTimeout(timer)
+      cancelMaterialReads()
+    }
   }, [cancelMaterialReads, load, refreshKey])
   useEffect(() => {
     setProjectFilter('project')
-    setSelectedIds([])
   }, [projectId])
+  const resetWindow = materialWindow.resetWindow
+  useEffect(() => {
+    // Scope changes may change visibility. Ordinary search/category changes
+    // are still the same asset collection and should preserve selections.
+    setSelectedIds([])
+    setSelectedById(new Map())
+  }, [canEditAssets, currentWorkId, projectFilter, projectId, session?.user?.id, session?.user?.role])
+  useEffect(() => {
+    setNextCursor(null)
+    resetWindow()
+  }, [categoryFilter, currentWorkId, filter, projectFilter, query, resetWindow])
   useEffect(() => { if (section === 'workflows') void loadTemplates() }, [loadTemplates, refreshKey, section])
   useEffect(() => {
     const keydown = (event: KeyboardEvent) => {
@@ -319,42 +351,36 @@ export function CanvasProjectAssets({
     setRenameValue(material.title || '未命名素材')
   }
 
-  const listedMaterials = useMemo(() => collapseInheritedDuplicates(materials, projectId), [materials, projectId])
-  const missingVoiceCount = useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    return listedMaterials.filter((material) => (
-      isCharacterImage(material)
-      && !hasCharacterVoice(material)
-      && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
-    )).length
-  }, [listedMaterials, query])
-  const visible = useMemo(() => {
-    const keyword = query.trim().toLowerCase()
-    return listedMaterials.filter((material) => (
-      (filter === 'all' || material.type === filter)
-      && (categoryFilter === 'all'
-        || (categoryFilter === 'voice'
-          ? material.type === 'audio'
-          : categoryFilter === 'missingVoice'
-            ? isCharacterImage(material) && !hasCharacterVoice(material)
-            : frameosAssetCategoryFromMetadata(material.metadata) === categoryFilter))
-      && (!keyword || `${material.title || ''} ${material.projectName || ''}`.toLowerCase().includes(keyword))
-    ))
-  }, [categoryFilter, filter, listedMaterials, query])
+  const visible = materials
   const selectedVisibleIds = useMemo(() => visible.map((material) => material.id).filter((id) => selectedIds.includes(id)), [selectedIds, visible])
   const selectedVisibleIdSet = useMemo(() => new Set(selectedVisibleIds), [selectedVisibleIds])
-  const selectedMaterials = useMemo(() => visible.filter((item) => selectedVisibleIdSet.has(item.id)), [selectedVisibleIdSet, visible])
+  const selectedMaterials = useMemo(() => selectedIds.map((id) => selectedById.get(id)).filter((item): item is FrameosMaterialItem => Boolean(item)), [selectedById, selectedIds])
   const allVisibleSelected = visible.length > 0 && selectedVisibleIds.length === visible.length
-  const toggleSelected = (materialId: string) => {
-    setSelectedIds((current) => current.includes(materialId)
-      ? current.filter((id) => id !== materialId)
-      : [...current, materialId])
+  const renderedMaterials = section === 'assets' ? visible.slice(materialWindow.window.start, materialWindow.window.end) : []
+  const toggleSelected = (material: FrameosMaterialItem) => {
+    setSelectedIds((current) => current.includes(material.id)
+      ? current.filter((id) => id !== material.id)
+      : [...current, material.id])
+    setSelectedById((current) => {
+      const next = new Map(current)
+      if (next.has(material.id)) next.delete(material.id)
+      else next.set(material.id, material)
+      return next
+    })
   }
   const setAllVisibleSelected = (selected: boolean) => {
     const visibleIds = visible.map((material) => material.id)
     setSelectedIds((current) => selected
       ? Array.from(new Set([...current, ...visibleIds]))
       : current.filter((id) => !visibleIds.includes(id)))
+    setSelectedById((current) => {
+      const next = new Map(current)
+      for (const material of visible) {
+        if (selected) next.set(material.id, material)
+        else next.delete(material.id)
+      }
+      return next
+    })
   }
 
   const materialProjects = useMemo(() => Array.from(new Map([
@@ -393,6 +419,11 @@ export function CanvasProjectAssets({
     const response = await apiFetch(`/api/frameos/materials/${materialId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
     if (!response.ok) { setError(await readApiErrorMessage(response, '重命名素材失败')); return }
     setMaterials((current) => current.map((item) => item.id === materialId ? { ...item, title } : item))
+    setSelectedById((current) => {
+      const selected = current.get(materialId)
+      if (!selected) return current
+      return new Map(current).set(materialId, { ...selected, title })
+    })
     setRenamingId(null)
   }
 
@@ -420,6 +451,13 @@ export function CanvasProjectAssets({
     const response = await apiFetch(`/api/frameos/materials/${materialId}`, { method: 'DELETE' })
     if (!response.ok) { setError(await readApiErrorMessage(response, '删除素材失败')); return }
     setMaterials((current) => current.filter((item) => item.id !== materialId))
+    setSelectedIds((current) => current.filter((id) => id !== materialId))
+    setSelectedById((current) => {
+      if (!current.has(materialId)) return current
+      const next = new Map(current)
+      next.delete(materialId)
+      return next
+    })
     setDeleteConfirmId(null)
     setContextMenu(null)
     if (renamingId === materialId) setRenamingId(null)
@@ -435,7 +473,7 @@ export function CanvasProjectAssets({
 
   return (
     <aside className="nori-canvas-project-assets" onPointerDown={(event) => event.stopPropagation()}>
-      <header><span><strong>{section === 'assets' ? '作品资产' : '工作流模板'}</strong><small>{section === 'assets' ? `${listedMaterials.length} 项可用素材` : `${templates.length} 个可复用工作流`}</small></span><button type="button" title="关闭" onClick={onClose}><X /></button></header>
+      <header><span><strong>{section === 'assets' ? '作品资产' : '工作流模板'}</strong><small>{section === 'assets' ? `${total} 项可用素材${materials.length < total ? ` · 已加载 ${materials.length}` : ''}` : `${templates.length} 个可复用工作流`}</small></span><button type="button" title="关闭" onClick={onClose}><X /></button></header>
       <div className="nori-canvas-project-assets-sections"><button type="button" className={section === 'assets' ? 'is-active' : ''} onClick={() => { setContextMenu(null); setDeleteConfirmId(null); setSection('assets'); setQuery(''); void load() }}><Boxes />作品资产</button><button type="button" className={section === 'workflows' ? 'is-active' : ''} onClick={() => { setContextMenu(null); setDeleteConfirmId(null); setSection('workflows'); setQuery('') }}><GitBranch />工作流</button></div>
       <div className="nori-canvas-project-assets-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={section === 'assets' ? '搜索资产…' : '搜索工作流…'} /><button type="button" title="刷新" aria-label="刷新资产列表" disabled={loading} onClick={() => void (section === 'assets' ? load(true) : loadTemplates())}><RefreshCw className={loading ? 'animate-spin' : ''} /></button></div>
       {section === 'assets' ? <div className="nori-canvas-project-assets-tabs">{FILTERS.map((item) => <button type="button" key={item.value} className={filter === item.value ? 'is-active' : ''} onClick={() => setFilter(item.value)}>{item.label}</button>)}</div> : null}
@@ -443,8 +481,8 @@ export function CanvasProjectAssets({
       {section === 'assets' ? <div className="nori-canvas-project-assets-tabs" aria-label="资产归类"><button type="button" className={categoryFilter === 'all' ? 'is-active' : ''} onClick={() => setCategoryFilter('all')}>全部归类</button>{FRAMEOS_ASSET_CATEGORIES.map((category) => <button type="button" key={category} className={categoryFilter === category ? 'is-active' : ''} onClick={() => setCategoryFilter(category)}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</button>)}<button type="button" className={categoryFilter === 'voice' ? 'is-active' : ''} onClick={() => { setCategoryFilter('voice'); setFilter('all') }}>音色</button><button type="button" className={categoryFilter === 'missingVoice' ? 'is-active' : ''} onClick={() => { setCategoryFilter('missingVoice'); setFilter('all') }}>缺音色{missingVoiceCount > 0 ? ` (${missingVoiceCount})` : ''}</button></div> : null}
       {section === 'assets' ? (
         <div className="nori-canvas-project-assets-select">
-          <button type="button" onClick={() => setAllVisibleSelected(!allVisibleSelected)}><Check />{allVisibleSelected ? '取消全选' : '全选'}</button>
-          <span>{selectedVisibleIds.length > 0 ? `已选 ${selectedVisibleIds.length} 项，可批量拖入画布或生成节点` : '勾选后支持批量拖拽'}</span>
+          <button type="button" onClick={() => setAllVisibleSelected(!allVisibleSelected)}><Check />{allVisibleSelected ? '取消已加载' : '全选已加载'}</button>
+          <span>{selectedIds.length > 0 ? `已选 ${selectedIds.length} 项（跨页保留），可批量拖入画布或生成节点` : '勾选后支持批量拖拽；“全选”仅选当前已加载项'}</span>
           {selectedMaterials.length > 0 ? <button type="button" className="nori-canvas-material-batch-handle" draggable aria-label="拖拽全部已选素材" title="按住此处，将全部已选素材拖到生成节点，无需逐项连线" onDragStart={(event) => {
             event.dataTransfer.effectAllowed = 'copy'
             event.dataTransfer.setData(CANVAS_MATERIAL_COLLECTION_DRAG_TYPE, JSON.stringify(selectedMaterials))
@@ -452,12 +490,16 @@ export function CanvasProjectAssets({
           }}><Boxes />拖拽已选 ({selectedMaterials.length})</button> : null}
         </div>
       ) : null}
-      <div className="nori-canvas-project-assets-list">
+      <div className="nori-canvas-project-assets-list" ref={materialWindow.scrollerRef} onScroll={(event) => {
+        materialWindow.onScroll(event)
+        if (section === 'assets' && nextCursor && !loading && !loadingMore && event.currentTarget.scrollTop + event.currentTarget.clientHeight >= event.currentTarget.scrollHeight - 320) void load(false, nextCursor)
+      }}>
         {loading ? <div className="nori-canvas-project-assets-state"><LoaderCircle className="animate-spin" />{section === 'assets' ? '正在整理作品资产…' : '正在加载工作流…'}</div> : null}
         {!loading && error ? <div className="nori-canvas-project-assets-state is-error"><span>{error}</span><button type="button" onClick={() => void (section === 'assets' ? load() : loadTemplates())}>重试</button></div> : null}
         {!loading && !error && workError && section === 'assets' ? <div className="nori-canvas-project-assets-state is-error"><span>{workError}</span><button type="button" onClick={retryScope}>重新加载项目归属</button></div> : null}
         {!loading && !error && !workError && section === 'assets' && visible.length === 0 ? <div className="nori-canvas-project-assets-state"><ImageIcon />暂无匹配资产</div> : null}
-        {!loading && !error && !workError && section === 'assets' ? visible.map((material) => {
+        {!loading && !error && !workError && section === 'assets' && renderedMaterials.length > 0 ? <div className="nori-canvas-project-assets-window" style={{ height: materialWindow.totalHeight, paddingTop: materialWindow.offsets[materialWindow.window.start] || 0 }}>
+        {renderedMaterials.map((material) => {
           const src = toDisplayImageUrl(material.url)
           return (
             <article
@@ -489,13 +531,14 @@ export function CanvasProjectAssets({
                 className={`nori-canvas-project-assets-check${selectedIds.includes(material.id) ? ' is-selected' : ''}`}
                 aria-label={selectedIds.includes(material.id) ? `取消选择 ${material.title || '未命名素材'}` : `选择 ${material.title || '未命名素材'}`}
                 aria-pressed={selectedIds.includes(material.id)}
-                onClick={(event) => { event.stopPropagation(); toggleSelected(material.id) }}
+                onClick={(event) => { event.stopPropagation(); toggleSelected(material) }}
               ><Check /></button>
               <div>{canEditAssets && renamingId === material.id ? <input autoFocus value={renameValue} onChange={(event) => setRenameValue(event.target.value)} onBlur={() => void renameMaterial(material.id)} onKeyDown={(event) => { if (event.key === 'Enter') void renameMaterial(material.id); if (event.key === 'Escape') setRenamingId(null) }} onDoubleClick={(event) => event.stopPropagation()} /> : <strong>{material.title || '未命名素材'}</strong>}<small>{material.projectName} · {materialOriginText(material)}</small>{canEditAssets ? <select className="nori-canvas-project-assets-category" aria-label={`${material.title || '未命名素材'}资产归类`} value={frameosAssetCategoryFromMetadata(material.metadata)} onPointerDown={(event) => event.stopPropagation()} onDoubleClick={(event) => event.stopPropagation()} onChange={(event) => { event.stopPropagation(); void updateMaterialCategory(material, event.target.value as FrameosAssetCategory) }}>{FRAMEOS_ASSET_CATEGORIES.map((category) => <option key={category} value={category}>{FRAMEOS_ASSET_CATEGORY_LABELS[category]}</option>)}</select> : <small>{FRAMEOS_ASSET_CATEGORY_LABELS[frameosAssetCategoryFromMetadata(material.metadata)]}</small>}</div>
               {isUserManagedMaterial(material) && canEditAssets ? <div className="nori-canvas-workflow-actions"><button type="button" title="重命名" onClick={(event) => { event.stopPropagation(); startMaterialRename(material) }}><Pencil /></button><button type="button" className={deleteConfirmId === material.id ? 'is-confirm' : ''} title={deleteConfirmId === material.id ? '再次点击确认删除' : material.source === 'upload' ? '删除本地上传' : '删除继承资产'} onClick={(event) => { event.stopPropagation(); void deleteMaterial(material.id) }}>{deleteConfirmId === material.id ? <span>确认</span> : <Trash2 />}</button><button type="button" onClick={(event) => { event.stopPropagation(); onInsert(material) }}>添加</button></div> : <button type="button" onClick={() => onInsert(material)}>添加</button>}
             </article>
           )
-        }) : null}
+        })}</div> : null}
+        {section === 'assets' && loadingMore ? <div className="nori-canvas-project-assets-state"><LoaderCircle className="animate-spin" />正在加载下一页…</div> : null}
         {!loading && !error && section === 'workflows' && visibleTemplates.length === 0 ? <div className="nori-canvas-project-assets-state"><GitBranch />暂无工作流模板<br /><small>选中一个组，点击“保存工作流”创建</small></div> : null}
         {!loading && !error && section === 'workflows' ? visibleTemplates.map((template) => <article
           key={template.id}

@@ -8,6 +8,7 @@ import {
 const CANVAS_OFFLINE_DB_NAME = 'nori-canvas-offline-v1'
 const CANVAS_OFFLINE_STORE_NAME = 'pending_documents'
 const CANVAS_OFFLINE_SCHEMA_VERSION = 1 as const
+const CANVAS_GEOMETRY_DRAFT_VERSION = 2 as const
 
 export type CanvasOfflineNamespace = {
   accountId: string
@@ -17,7 +18,7 @@ export type CanvasOfflineNamespace = {
 
 export type CanvasOfflineDraft = {
   key: string
-  schema_version: typeof CANVAS_OFFLINE_SCHEMA_VERSION
+  schema_version: typeof CANVAS_OFFLINE_SCHEMA_VERSION | typeof CANVAS_GEOMETRY_DRAFT_VERSION
   namespace: CanvasOfflineNamespace
   document: CanvasDocumentInput
   pendingOps: CanvasOperation[]
@@ -94,6 +95,7 @@ export function createCanvasOfflineDraft({
   retryAttempt = 0,
   lastError = null,
   updatedAt = Date.now(),
+  copy = true,
 }: {
   namespace: CanvasOfflineNamespace
   document: CanvasDocumentInput
@@ -102,6 +104,8 @@ export function createCanvasOfflineDraft({
   retryAttempt?: number
   lastError?: string | null
   updatedAt?: number
+  /** False borrows the immutable editor state; IndexedDB structured-clones it on write anyway. */
+  copy?: boolean
 }): CanvasOfflineDraft {
   const clean = cleanNamespace(namespace)
   if (!clean.accountId || !clean.projectId || !clean.canvasId) {
@@ -114,8 +118,8 @@ export function createCanvasOfflineDraft({
     key: canvasOfflineDraftKey(clean),
     schema_version: CANVAS_OFFLINE_SCHEMA_VERSION,
     namespace: clean,
-    document: { ...clone(document), schema_version: CANVAS_DOCUMENT_SCHEMA_VERSION },
-    pendingOps: clone(pendingOps),
+    document: { ...(copy ? clone(document) : document), schema_version: CANVAS_DOCUMENT_SCHEMA_VERSION },
+    pendingOps: copy ? clone(pendingOps) : pendingOps,
     lastServerRevision: Number.isSafeInteger(lastServerRevision) && lastServerRevision >= 0
       ? lastServerRevision
       : document.expectedRevision,
@@ -127,15 +131,63 @@ export function createCanvasOfflineDraft({
   }
 }
 
+type GeometryDraftOperation = Extract<CanvasOperation, { type: 'node.update_geometry' | 'canvas.update_meta' }>
+
+function isGeometryDraft(operations: CanvasOperation[]): operations is GeometryDraftOperation[] {
+  let moved = false
+  for (const operation of operations) {
+    if (operation.type === 'node.update_geometry') {
+      const { position, size, id } = operation
+      if (!id || (!position && !size)) return false
+      if (position && (!Number.isFinite(position.x) || !Number.isFinite(position.y))) return false
+      if (size && (!Number.isFinite(size.width) || size.width <= 0 || !Number.isFinite(size.height) || size.height <= 0)) return false
+      moved = true
+    } else if (operation.type === 'canvas.update_meta' && operation.viewport && operation.title === undefined && operation.themeColor === undefined) {
+      const { x, y, zoom } = operation.viewport
+      if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(zoom) || zoom <= 0) return false
+    } else return false
+  }
+  return moved
+}
+
+function geometryDraftKey(namespace: CanvasOfflineNamespace) {
+  return `${canvasOfflineDraftKey(namespace)}:geometry-v2`
+}
+
+export function isCanvasGeometryOfflineDraft(draft: CanvasOfflineDraft) {
+  return draft.schema_version === CANVAS_GEOMETRY_DRAFT_VERSION
+}
+
+/** Geometry only: no history, media, node bodies, edge payloads, or detail requests. */
+export function createCanvasGeometryOfflineDraft({
+  namespace, base, operations, retryAttempt, lastError,
+}: {
+  namespace: CanvasOfflineNamespace
+  base: CanvasDocumentInput
+  operations: CanvasOperation[]
+  retryAttempt?: number
+  lastError?: string | null
+}): CanvasOfflineDraft | null {
+  if (!isGeometryDraft(operations)) return null
+  const metadata = createCanvasOfflineDraft({
+    namespace, document: { ...base, nodes: [], edges: [] }, pendingOps: operations, retryAttempt, lastError, copy: false,
+  })
+  // Old tabs do not recognize this key and must not interpret a sparse draft
+  // as an entire canvas awaiting a full-document write.
+  return { ...metadata, key: geometryDraftKey(namespace), schema_version: CANVAS_GEOMETRY_DRAFT_VERSION }
+}
+
 export function parseCanvasOfflineDraft(
   value: unknown,
   namespace: CanvasOfflineNamespace,
 ): CanvasOfflineDraft | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const source = value as Partial<CanvasOfflineDraft> & { schemaVersion?: unknown }
-  const expectedKey = canvasOfflineDraftKey(namespace)
   const storedSchemaVersion = source.schema_version ?? source.schemaVersion
-  if (source.key !== expectedKey || (storedSchemaVersion !== undefined && storedSchemaVersion !== CANVAS_OFFLINE_SCHEMA_VERSION) || source.dirty !== true) return null
+  const geometryOnly = storedSchemaVersion === CANVAS_GEOMETRY_DRAFT_VERSION
+  const expectedKey = canvasOfflineDraftKey(namespace)
+  if (source.key !== (geometryOnly ? geometryDraftKey(namespace) : expectedKey) || source.dirty !== true) return null
+  if (storedSchemaVersion !== undefined && storedSchemaVersion !== CANVAS_OFFLINE_SCHEMA_VERSION && !geometryOnly) return null
   if (!validNamespace(source.namespace) || canvasOfflineDraftKey(source.namespace) !== expectedKey) return null
   if (!validDocument(source.document)) return null
   if (!Number.isSafeInteger(source.baseRevision) || source.baseRevision !== source.document.expectedRevision) return null
@@ -144,9 +196,10 @@ export function parseCanvasOfflineDraft(
     ? source.document.expectedRevision
     : source.lastServerRevision
   if (!isCanvasOperationArray(pendingOps)) return null
+  if (geometryOnly && (!isGeometryDraft(pendingOps) || source.document.nodes.length || source.document.edges.length)) return null
   if (!Number.isSafeInteger(lastServerRevision) || (lastServerRevision as number) < 0) return null
   if (!Number.isFinite(source.updatedAt) || (source.updatedAt as number) <= 0) return null
-  return createCanvasOfflineDraft({
+  const draft = createCanvasOfflineDraft({
     namespace,
     document: source.document,
     pendingOps,
@@ -155,36 +208,30 @@ export function parseCanvasOfflineDraft(
     lastError: source.lastError,
     updatedAt: source.updatedAt,
   })
+  return geometryOnly ? { ...draft, key: geometryDraftKey(namespace), schema_version: CANVAS_GEOMETRY_DRAFT_VERSION } : draft
 }
 
 export async function loadCanvasOfflineDraft(
   namespace: CanvasOfflineNamespace,
   store: CanvasOfflineDraftStore = browserCanvasOfflineDraftStore,
 ): Promise<CanvasOfflineDraft | null> {
-  const value = await store.get(canvasOfflineDraftKey(namespace))
-  return parseCanvasOfflineDraft(value, namespace)
+  const values = await Promise.all([store.get(canvasOfflineDraftKey(namespace)), store.get(geometryDraftKey(namespace))])
+  const drafts = values.map((value) => parseCanvasOfflineDraft(value, namespace)).filter((draft) => draft !== null)
+  return drafts.sort((a, b) => b.updatedAt - a.updatedAt)[0] ?? null
 }
 
 export async function saveCanvasOfflineDraft(
   draft: CanvasOfflineDraft,
   store: CanvasOfflineDraftStore = browserCanvasOfflineDraftStore,
 ): Promise<void> {
-  await store.put(createCanvasOfflineDraft({
-    namespace: draft.namespace,
-    document: draft.document,
-    pendingOps: draft.pendingOps,
-    lastServerRevision: draft.lastServerRevision,
-    retryAttempt: draft.retryAttempt,
-    lastError: draft.lastError,
-    updatedAt: draft.updatedAt,
-  }))
+  await store.put(draft)
 }
 
 export async function deleteCanvasOfflineDraft(
   namespace: CanvasOfflineNamespace,
   store: CanvasOfflineDraftStore = browserCanvasOfflineDraftStore,
 ): Promise<void> {
-  await store.delete(canvasOfflineDraftKey(namespace))
+  await Promise.all([store.delete(canvasOfflineDraftKey(namespace)), store.delete(geometryDraftKey(namespace))])
 }
 
 export type CanvasOfflineRecoveryChoice = 'local' | 'server'
@@ -194,13 +241,34 @@ export function resolveCanvasOfflineRecoveryChoice({
   choice,
   serverRevision,
   clientId,
+  currentDocument,
 }: {
   draft: CanvasOfflineDraft
   choice: CanvasOfflineRecoveryChoice
   serverRevision: number
   clientId: string
+  currentDocument?: CanvasDocumentInput
 }): CanvasDocumentInput | null {
   if (choice === 'server') return null
+  if (isCanvasGeometryOfflineDraft(draft)) {
+    if (!currentDocument || !isGeometryDraft(draft.pendingOps)) throw new Error('缺少可供恢复的画布及几何草稿。')
+    const byId = new Map(currentDocument.nodes.map((node) => [node.id, node]))
+    let viewport = currentDocument.viewport
+    for (const operation of draft.pendingOps) {
+      if (operation.type === 'canvas.update_meta') {
+        if (operation.viewport) viewport = operation.viewport
+        continue
+      }
+      const node = byId.get(operation.id)
+      if (!node) throw new Error(`本地草稿所移动的节点已不存在，无法恢复该批移动。`)
+      byId.set(operation.id, {
+        ...node,
+        ...(operation.position ? { position: operation.position } : {}),
+        ...(operation.size ? { size: operation.size } : {}),
+      })
+    }
+    return { ...currentDocument, nodes: [...byId.values()], viewport, expectedRevision: serverRevision, clientId, changeSummary: '恢复本地未同步版本' }
+  }
   return {
     ...clone(draft.document),
     expectedRevision: serverRevision,
@@ -211,6 +279,7 @@ export function resolveCanvasOfflineRecoveryChoice({
 
 export function createMemoryCanvasOfflineDraftStore(
   initial: CanvasOfflineDraft[] = [],
+  { copyOnPut = true }: { copyOnPut?: boolean } = {},
 ): CanvasOfflineDraftStore & { size: () => number } {
   const rows = new Map(initial.map((draft) => [draft.key, clone(draft)]))
   return {
@@ -219,7 +288,7 @@ export function createMemoryCanvasOfflineDraftStore(
       return value ? clone(value) : undefined
     },
     async put(draft) {
-      rows.set(draft.key, clone(draft))
+      rows.set(draft.key, copyOnPut ? clone(draft) : draft)
     },
     async delete(key) {
       rows.delete(key)
@@ -301,7 +370,8 @@ const indexedDbCanvasOfflineDraftStore: CanvasOfflineDraftStore = {
   },
 }
 
-const volatileFallbackStore = createMemoryCanvasOfflineDraftStore()
+// Drafts are never mutated after creation, so the mirror can hold them without another copy.
+const volatileFallbackStore = createMemoryCanvasOfflineDraftStore([], { copyOnPut: false })
 
 /**
  * IndexedDB is the durable source. The in-memory mirror only protects the

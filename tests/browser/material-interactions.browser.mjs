@@ -46,7 +46,7 @@ async function open(view, viewport, child = false, initialState = {}) {
   const state = {
     materials: [material('own-a', 'project-1', '自己的角色一'), material('own-b', 'project-1', '自己的角色二'),
       material('shared', 'project-shared', '同项目共享素材'), material('foreign', 'project-2', '别的作品素材'), material('account', 'global', '账号角色')],
-    writes: [], reads: [], uploads: [], failUpload: false, denyDelete: false, denyRename: false, partialDelete: false,
+    writes: [], reads: [], abortedReads: [], uploads: [], failUpload: false, denyDelete: false, denyRename: false, partialDelete: false,
     holdNextRead: false, releaseRead: null, heldRead: null,
     toolboxReads: 0, toolboxHistory: [], failHistory: false,
     failVoiceBinding: false,
@@ -57,6 +57,9 @@ async function open(view, viewport, child = false, initialState = {}) {
     ...initialState,
   }
   page.state = state
+  page.on('requestfailed', (request) => {
+    if (request.url().includes('/api/frameos/materials') && request.failure()?.errorText.includes('ERR_ABORTED')) state.abortedReads.push(Object.fromEntries(new URL(request.url()).searchParams))
+  })
   await page.route('**/api/**', async (route) => {
     const req = route.request()
     const url = new URL(req.url())
@@ -85,7 +88,13 @@ async function open(view, viewport, child = false, initialState = {}) {
       const source = url.searchParams.get('source')
       let materials = state.materials.filter((item) => (scope === 'personal' ? item.projectId === 'personal' : scope === 'project' ? !item.personal && (all || workProjects.includes(item.projectId) || (!work && item.projectId === project)) : source ? item.projectId === project : (all || workProjects.includes(item.projectId) || (!work && item.projectId === project)))
         && (!creator || item.ownerName === creator) && (!source || item.source === source))
+        .map((item) => ({ ...item, metadata: url.searchParams.has('canvasId') ? { ...item.metadata, canvasNodeId: item.id.replace('material-', 'node-') } : item.metadata }))
       materials = materials.filter((item) => !item.metadata?.supersededByMaterialId)
+        .filter((item) => !url.searchParams.get('type') || item.type === url.searchParams.get('type'))
+        .filter((item) => !url.searchParams.get('query') || item.title.toLowerCase().includes(url.searchParams.get('query').toLowerCase()))
+        .filter((item) => !url.searchParams.get('category') || ['all', 'missingVoice'].includes(url.searchParams.get('category'))
+          || (url.searchParams.get('category') === 'voice' ? item.type === 'audio' : item.metadata?.assetCategory === url.searchParams.get('category')))
+      const missingVoiceCount = materials.filter((item) => item.type === 'image' && item.metadata?.assetCategory === 'character' && !item.metadata?.voiceMaterialId).length
       materials = materials.map((item) => {
         const voice = state.materials.find((candidate) => candidate.id === item.metadata?.voiceMaterialId)
         return { ...item, voice: voice ? { materialId: voice.id, title: voice.title, url: voice.url } : null }
@@ -96,12 +105,14 @@ async function open(view, viewport, child = false, initialState = {}) {
       const cursorIndex = cursor ? materials.findIndex((item) => item.id === cursor) : -1
       const remaining = cursorIndex >= 0 ? materials.slice(cursorIndex + 1) : materials
       const pageMaterials = remaining.slice(0, limit)
-      payload = { materials: pageMaterials, pagination: { nextCursor: pageMaterials.length === limit && remaining.length > limit ? pageMaterials.at(-1).id : null }, projects: [{ id: 'project-1', name: '当前作品' }, { id: 'project-2', name: '其他作品' }],
+      payload = { materials: pageMaterials, pagination: { nextCursor: pageMaterials.length === limit && remaining.length > limit ? pageMaterials.at(-1).id : null, total: materials.length, missingVoiceCount }, projects: [{ id: 'project-1', name: '当前作品' }, { id: 'project-2', name: '其他作品' }],
         creators: [{ id: 'creator-a', name: '测试资产师' }, { id: 'creator-b', name: '其他创建人' }],
         projects: [{ id: 'project-1', name: '当前作品', workId: 'work-1' }, { id: 'project-2', name: '其他作品', workId: 'work-2' }],
         capabilities: { trash: { supported: true, count: 0 } } }
       if (state.holdNextRead) {
         state.holdNextRead = false
+        state.heldRead = { url: Object.fromEntries(url.searchParams), aborted: false }
+        req.signal?.addEventListener('abort', () => { state.heldRead.aborted = true })
         await new Promise((resolve) => { state.releaseRead = resolve })
       }
     } else if (url.pathname === '/api/frameos/materials' && req.method() === 'POST') {
@@ -290,6 +301,83 @@ try {
     cases.push(`${viewport.width}:project-default-source-and-explicit-cross-project`)
   }
 
+  const abortPicker = await open('picker', { width: 1024, height: 700 }, false, {
+    materials: Array.from({ length: 96 }, (_, index) => material(`material-${index}`, 'project-1', `分页素材${index}`)),
+  })
+  await abortPicker.getByText('分页素材0', { exact: true }).waitFor()
+  abortPicker.state.holdNextRead = true
+  const staleSearch = abortPicker.waitForRequest((request) => new URL(request.url()).searchParams.get('query') === '旧条件')
+  await abortPicker.getByPlaceholder('搜索素材名称…').fill('旧条件')
+  await staleSearch
+  await abortPicker.waitForFunction(() => Boolean(window))
+  await abortPicker.getByRole('button', { name: /^个人素材/ }).click()
+  await abortPicker.waitForFunction(() => document.querySelector('.material-picker-date-filters')?.textContent?.includes('已加载 0/0'))
+  assert.ok(abortPicker.state.abortedReads.some((read) => read.query === '旧条件' && read.scope === 'all'), JSON.stringify(abortPicker.state.abortedReads))
+  abortPicker.state.releaseRead()
+  await abortPicker.waitForTimeout(100)
+  assert.equal(await abortPicker.getByText('分页素材0', { exact: true }).count(), 0)
+  cases.push('picker-filter-aborts-stale-request-and-ignores-late-page')
+  await abortPicker.close()
+
+  const p4Picker = await open('picker', { width: 1024, height: 900 }, false, {
+    materials: Array.from({ length: 144 }, (_, index) => material(`material-${index}`, 'project-1', `分页素材${index}`)),
+  })
+  const p4Dialog = p4Picker.getByRole('dialog', { name: '选择项目素材', exact: true })
+  await p4Dialog.getByText('分页素材0', { exact: true }).waitFor()
+  const p4PickerFirstReads = p4Picker.state.reads.filter((read) => read.limit === '48')
+  assert.equal(p4PickerFirstReads.length, 1, JSON.stringify(p4Picker.state.reads))
+  assert.equal(p4PickerFirstReads[0].cursor ?? null, null)
+  assert.equal(await p4Dialog.locator('.material-picker-card').count(), 48)
+  await p4Dialog.locator('.material-picker-card').first().getByRole('button').click()
+  const p4PickerScroll = p4Dialog.locator('.material-picker-results')
+  await p4PickerScroll.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await p4Dialog.getByText('分页素材95', { exact: true }).waitFor()
+  assert.equal(p4Picker.state.reads.filter((read) => read.limit === '48').length, 2, JSON.stringify(p4Picker.state.reads))
+  assert.equal(p4Picker.state.reads.filter((read) => read.limit === '48')[1].cursor, 'material-47')
+  await p4Dialog.getByText('分页素材95', { exact: true }).click()
+  const p4PickerDomAfterSecondPage = await p4Dialog.locator('.material-picker-card').count()
+  assert.ok(p4PickerDomAfterSecondPage <= 96, `Picker mounted ${p4PickerDomAfterSecondPage} tiles`)
+  await p4PickerScroll.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await p4Dialog.getByText('分页素材143', { exact: true }).waitFor()
+  const p4PickerPeak = await p4Picker.evaluate(() => window.__p4PickerPeak || 0)
+  const p4PickerMetrics = await p4Dialog.evaluate((dialog) => ({
+    mounted: dialog.querySelectorAll('.material-picker-card').length,
+    loaded: dialog.querySelector('.material-picker-date-filters')?.textContent,
+    selected: dialog.querySelector('.fos-dialog-head')?.textContent,
+  }))
+  assert.ok(p4PickerMetrics.mounted <= 96, JSON.stringify(p4PickerMetrics))
+  assert.ok(p4PickerMetrics.selected?.includes('已选 2 个'), JSON.stringify(p4PickerMetrics))
+  await p4Dialog.getByRole('button', { name: /^确定并关闭/ }).click()
+  assert.equal(await p4Picker.getByLabel('已确认素材').innerText(), '分页素材0,分页素材95')
+  cases.push(`picker-48-cursor-scroll-cross-page-selection-dom-${p4PickerDomAfterSecondPage}-${p4PickerMetrics.mounted}`)
+  console.log('P4 picker', JSON.stringify({ ...p4PickerMetrics, requests: p4Picker.state.reads.filter((read) => read.limit === '48').map((read) => read.cursor || 'first'), peak: p4PickerPeak }))
+  await p4Picker.close()
+
+  const p4Reference = await open('reference-picker', { width: 1024, height: 900 }, false, {
+    materials: Array.from({ length: 144 }, (_, index) => material(`material-${index}`, 'project-1', `分页素材${index}`)),
+  })
+  const p4ReferenceDialog = p4Reference.getByTestId('canvas-reference-picker')
+  await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').filter({ hasText: '分页素材0' }).waitFor()
+  assert.ok(await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').count() <= 96)
+  assert.equal(p4Reference.state.reads.filter((read) => read.limit === '48').length, 1)
+  await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').filter({ hasText: '分页素材0' }).click()
+  const p4ReferenceScroll = p4ReferenceDialog.locator('.nori-canvas-reference-picker-body')
+  await p4ReferenceScroll.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').filter({ hasText: '分页素材95' }).waitFor()
+  assert.equal(p4Reference.state.reads.filter((read) => read.limit === '48')[1].cursor, 'material-47')
+  await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').filter({ hasText: '分页素材95' }).click()
+  const p4ReferenceDom = await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').count()
+  assert.ok(p4ReferenceDom <= 96, `Reference picker mounted ${p4ReferenceDom} tiles`)
+  assert.ok((await p4ReferenceDialog.locator('.nori-canvas-reference-picker-summary').innerText()).includes('已选 2 个'))
+  await p4ReferenceScroll.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').filter({ hasText: '分页素材143' }).waitFor()
+  assert.equal(await p4ReferenceDialog.locator('.nori-canvas-reference-picker-tile').count() <= 96, true)
+  await p4ReferenceDialog.getByRole('button', { name: '添加引用', exact: true }).click()
+  assert.equal(await p4Reference.getByLabel('已确认引用').innerText(), 'node-0,node-95')
+  cases.push(`reference-48-cursor-scroll-cross-page-selection-dom-${p4ReferenceDom}`)
+  console.log('P4 reference', JSON.stringify({ mounted: p4ReferenceDom, requests: p4Reference.state.reads.filter((read) => read.limit === '48').map((read) => read.cursor || 'first') }))
+  await p4Reference.close()
+
   const single = await open('picker-single', { width: 390, height: 700 })
   const singleDialog = single.getByRole('dialog', { name: '选择项目素材', exact: true })
   await singleDialog.getByText('自己的角色一', { exact: true }).click()
@@ -305,11 +393,12 @@ try {
   const unavailableScope = await open('picker', { width: 390, height: 700 }, false, { projectDetailFailures: 1 })
   await unavailableScope.getByText('模拟项目归属读取失败', { exact: true }).waitFor()
   assert.equal(unavailableScope.state.projectDetailFailures, 0, JSON.stringify({ reads: unavailableScope.state.reads, text: await unavailableScope.locator('body').innerText() }))
-  assert.equal(unavailableScope.state.reads.length, 0, `Unresolved project ownership must never fall back to a global asset read: ${JSON.stringify(unavailableScope.state.reads)}`)
+  assert.equal(unavailableScope.state.reads.filter((read) => read.limit === '48').length, 0, `Unresolved project ownership must never fall back to a global asset read: ${JSON.stringify(unavailableScope.state.reads)}`)
   await unavailableScope.getByRole('button', { name: '重新加载项目归属', exact: true }).click()
   await unavailableScope.getByText('自己的角色一', { exact: true }).waitFor()
-  assert.equal(unavailableScope.state.reads[0].workId ?? null, null)
-  assert.equal(unavailableScope.state.reads[0].scope, 'all')
+  const recoveredScopeRead = unavailableScope.state.reads.find((read) => read.limit === '48')
+  assert.equal(recoveredScopeRead.workId ?? null, null)
+  assert.equal(recoveredScopeRead.scope, 'all')
   await unavailableScope.close()
   cases.push('project-scope-failure-blocks-global-read-and-recovers-with-retry')
 
@@ -571,6 +660,43 @@ try {
   await child.close()
   cases.push('active-subaccount-retains-shared-asset-editing-without-functional-role-templates')
 
+  {
+  const canvasAssets = await open('canvas-assets', { width: 1024, height: 900 }, false, {
+    materials: Array.from({ length: 10_000 }, (_, index) => material(`material-${index}`, 'project-1', `分页素材${index}`)),
+  })
+  await canvasAssets.getByText('分页素材0', { exact: true }).waitFor()
+  const canvasScroller = canvasAssets.locator('.nori-canvas-project-assets-list')
+  assert.equal(canvasAssets.state.reads.filter((read) => read.limit === '48').length, 1, JSON.stringify(canvasAssets.state.reads))
+  assert.equal(await canvasScroller.locator('article').count(), 48)
+  await canvasAssets.getByRole('button', { name: '选择 分页素材0', exact: true }).click()
+  await canvasScroller.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await canvasAssets.getByText('分页素材95', { exact: true }).waitFor()
+  await canvasAssets.getByRole('button', { name: '选择 分页素材48', exact: true }).waitFor()
+  assert.equal(canvasAssets.state.reads.filter((read) => read.limit === '48').length, 2, JSON.stringify(canvasAssets.state.reads))
+  assert.equal(canvasAssets.state.reads.filter((read) => read.limit === '48')[1].cursor, 'material-47')
+  // Select near the beginning of page 2. Playwright scrolling the last tile
+  // of page 2 into view is itself a valid trigger for page 3.
+  await canvasAssets.getByRole('button', { name: '选择 分页素材48', exact: true }).click()
+  assert.equal(await canvasAssets.getByRole('button', { name: '取消选择 分页素材48', exact: true }).getAttribute('aria-pressed'), 'true')
+  const canvasAssetsDom = await canvasScroller.locator('article').count()
+  assert.ok(canvasAssetsDom <= 96, `Canvas assets mounted ${canvasAssetsDom} tiles`)
+  assert.ok((await canvasAssets.locator('.nori-canvas-project-assets-select').innerText()).includes('已选 2 项'))
+  await canvasScroller.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  await canvasAssets.getByText('分页素材143', { exact: true }).waitFor()
+  assert.equal(canvasAssets.state.reads.filter((read) => read.limit === '48').length, 3)
+  assert.ok(await canvasScroller.locator('article').count() <= 96)
+  await canvasAssets.getByRole('button', { name: '拖拽全部已选素材', exact: true }).waitFor({ state: 'attached' })
+  assert.equal(await canvasAssets.getByRole('button', { name: '拖拽全部已选素材', exact: true }).innerText(), '拖拽已选 (2)')
+  await canvasAssets.getByPlaceholder('搜索资产…').fill('分页素材9999')
+  await canvasAssets.getByText('分页素材9999', { exact: true }).waitFor()
+  const search = canvasAssets.state.reads.find((read) => read.query === '分页素材9999')
+  assert.ok(search && !search.cursor && search.limit === '48', JSON.stringify(canvasAssets.state.reads))
+  assert.equal(await canvasAssets.getByRole('button', { name: '拖拽全部已选素材', exact: true }).innerText(), '拖拽已选 (2)')
+  cases.push(`canvas-assets-48-cursor-scroll-cross-page-selection-dom-${canvasAssetsDom}`)
+  console.log('P4 canvas assets', JSON.stringify({ mounted: canvasAssetsDom, finalMounted: await canvasScroller.locator('article').count(), requests: canvasAssets.state.reads.filter((read) => read.limit === '48').map((read) => read.cursor || 'first') }))
+  await canvasAssets.close()
+  }
+
   const canvasAssets = await open('canvas-assets', { width: 1024, height: 600 })
   await canvasAssets.getByText('自己的角色一', { exact: true }).waitFor()
   assert.equal(canvasAssets.state.reads[0].workId, 'work-1')
@@ -582,7 +708,7 @@ try {
   assert.equal(canvasAssets.state.reads.at(-1).projectId, 'project-1')
   assert.equal(canvasAssets.state.reads.at(-1).available, '0')
   assert.equal(canvasAssets.state.reads.at(-1).workId ?? null, null)
-  await canvasAssets.getByRole('button', { name: '全选', exact: true }).click()
+  await canvasAssets.getByRole('button', { name: '全选已加载', exact: true }).click()
   const dragHandle = canvasAssets.getByRole('button', { name: '拖拽全部已选素材', exact: true })
   await bounded(dragHandle)
   const dragged = await dragHandle.evaluate((element) => {
@@ -619,6 +745,7 @@ try {
   racing.state.releaseRead()
   await racing.waitForTimeout(100)
   assert.equal(racing.state.reads.at(-1).workId ?? null, null)
+  assert.ok(racing.state.abortedReads.some((read) => read.projectId === 'project-1'), JSON.stringify(racing.state.abortedReads))
   assert.equal(await racing.getByText('别的作品素材', { exact: true }).count(), 1)
   await racing.close()
   cases.push('late-single-project-response-cannot-replace-newer-accessible-scope')
@@ -893,7 +1020,10 @@ try {
   assert.deepEqual(errors, [], `Browser errors: ${JSON.stringify(errors)}`)
   console.log(JSON.stringify({ status: 'passed', cases }, null, 2))
 } catch (error) {
-  if (latestPage && !latestPage.isClosed()) await latestPage.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {})
+  if (latestPage && !latestPage.isClosed()) {
+    await latestPage.screenshot({ path: path.join(output, 'failure.png') }).catch(() => {})
+    console.error('P4 failure diagnostics', JSON.stringify({ errors, reads: latestPage.state?.reads?.slice(-8), text: (await latestPage.locator('body').innerText()).slice(-500), selectedText: await latestPage.locator('.nori-canvas-project-assets-select').innerText().catch(() => null), batchHandles: await latestPage.locator('.nori-canvas-material-batch-handle').allTextContents(), grid: await latestPage.locator('.material-picker-results, .nori-canvas-reference-picker-body, .nori-canvas-project-assets-list').evaluateAll((elements) => elements.map((element) => ({ className: element.className, scrollTop: element.scrollTop, scrollHeight: element.scrollHeight, clientHeight: element.clientHeight, text: element.textContent?.slice(0, 100) }))) }))
+  }
   throw error
 } finally {
   await browser.close()

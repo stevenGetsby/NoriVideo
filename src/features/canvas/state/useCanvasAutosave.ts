@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { canvasApi, CanvasRevisionConflictError } from '../api/client'
-import type { CanvasDocumentInput, CanvasGraphResponse, CanvasOperation } from '../types'
+import type { CanvasEdge, CanvasDocumentInput, CanvasGraphResponse, CanvasNode, CanvasOperation, Viewport } from '../types'
+import type { CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
 import type { CanvasSaveState } from '../components/CanvasChrome'
 import {
+  createCanvasGeometryOfflineDraft,
   createCanvasOfflineDraft,
   deleteCanvasOfflineDraft,
+  isCanvasGeometryOfflineDraft,
   loadCanvasOfflineDraft,
   resolveCanvasOfflineRecoveryChoice,
   saveCanvasOfflineDraft,
@@ -16,19 +19,34 @@ import {
 import {
   createCanvasAutosaveRetryController,
   createCanvasOfflineDraftBuffer,
+  createCanvasPersistenceHold,
 } from './canvas-autosave-runtime'
 import {
   applyCanvasDocumentDelta,
   buildCanvasOperations,
+  buildCanvasOperationsFromChanges,
   canvasGraphToDocument,
+  sameOperationTargets,
+  withoutCanvasId,
 } from './canvas-operations'
+import { createCanvasChangeTracker } from './canvas-change-tracker'
 import { mergeCanvasDocuments } from './canvas-three-way-merge'
 
 const SAVE_DELAY_MS = 800
 const RESTORE_SAVE_DELAY_MS = 120
 const MAX_AUTOMATIC_CONFLICT_MERGES = 8
+const TRACKER_VERIFY_EVERY = 40
 
 type OfflineRecoveryState = 'loading' | 'pending' | 'none'
+
+export type CanvasChangeSource = {
+  nodes(): readonly CanvasFlowNode[]
+  edges(): readonly CanvasFlowEdge[]
+  viewport(): Viewport
+  nodeToDocument(node: CanvasFlowNode): CanvasNode
+  nodeGeometryToDocument?(node: CanvasFlowNode): CanvasNode
+  edgeToDocument(edge: CanvasFlowEdge): CanvasEdge
+}
 
 export function canAcceptExternalRevision(currentRevision: number, expectedRevision: number, nextRevision: number) {
   return Number.isSafeInteger(currentRevision)
@@ -106,10 +124,14 @@ export function useCanvasAutosave({
   canvasId,
   initialRevision,
   buildDocument,
+  initialDocument,
+  changeSource,
+  geometryOps = false,
   onSaved,
   onLoadServer,
   onMergeDocument,
   onRestoreLocal,
+  hydrateForDocument,
 }: {
   accountId: string
   enabled?: boolean
@@ -117,10 +139,15 @@ export function useCanvasAutosave({
   canvasId: string
   initialRevision: number
   buildDocument: (expectedRevision: number, clientId: string, changeSummary: string) => CanvasDocumentInput
+  initialDocument?: CanvasDocumentInput
+  /** When given, saves only convert and compare the entities that changed since the last confirmed save. */
+  changeSource?: CanvasChangeSource
+  geometryOps?: boolean
   onSaved: (graph: CanvasGraphResponse) => void
   onLoadServer: (graph: CanvasGraphResponse) => void
   onMergeDocument: (document: CanvasDocumentInput, graph: CanvasGraphResponse) => void
-  onRestoreLocal: (document: CanvasDocumentInput) => void
+  onRestoreLocal: (document: CanvasDocumentInput, geometryOnly?: boolean) => void
+  hydrateForDocument?: (document: CanvasDocumentInput, confirmed?: CanvasDocumentInput | null) => Promise<CanvasDocumentInput>
 }) {
   const offlineEnabled = enabled && Boolean(accountId.trim())
   const [saveState, setSaveState] = useState<CanvasSaveState>('idle')
@@ -136,32 +163,52 @@ export function useCanvasAutosave({
   const externalSyncRef = useRef<Promise<void> | null>(null)
   const automaticConflictMergesRef = useRef(0)
   const buildRef = useRef(buildDocument)
+  const hydrateRef = useRef(hydrateForDocument)
+  const changeSourceRef = useRef(changeSource)
+  const trackerRef = useRef(createCanvasChangeTracker<CanvasFlowNode, CanvasFlowEdge>())
+  const contentDirtyRef = useRef(false)
+  const verifyCountRef = useRef(0)
   const onSavedRef = useRef(onSaved)
   const onLoadServerRef = useRef(onLoadServer)
   const onMergeDocumentRef = useRef(onMergeDocument)
   const onRestoreLocalRef = useRef(onRestoreLocal)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const savingRef = useRef<Promise<unknown> | null>(null)
+  const networkSavePendingRef = useRef(false)
   const dirtyRef = useRef(false)
   const pausedRef = useRef(false)
   const mountedRef = useRef(true)
   const summaryRef = useRef('编辑画布')
   const lastErrorRef = useRef<string | null>(null)
   const offlineDraftRef = useRef<CanvasOfflineDraft | null>(null)
-  const confirmedDocumentRef = useRef<CanvasDocumentInput | null>(null)
+  const confirmedDocumentRef = useRef<CanvasDocumentInput | null>(initialDocument)
   const forceFullSaveRef = useRef(false)
   const pendingFullDocumentRef = useRef<CanvasDocumentInput | null>(null)
+  const pendingNodeConfirmationsRef = useRef<CanvasFlowNode[]>([])
+  const pendingHydrationDocumentRef = useRef<Promise<CanvasDocumentInput> | null>(null)
   const restoreInProgressRef = useRef(false)
   const initialOfflineLoadPendingRef = useRef(false)
   const offlineBufferRef = useRef<ReturnType<typeof createCanvasOfflineDraftBuffer> | null>(null)
   const retryControllerRef = useRef<ReturnType<typeof createCanvasAutosaveRetryController> | null>(null)
   const flushRef = useRef<() => Promise<void>>(async () => undefined)
+  const persistenceHoldRef = useRef(createCanvasPersistenceHold())
 
+  const initialDocumentRef = useRef(initialDocument)
+  const initialRevisionRef = useRef(initialRevision)
+  const geometryOpsRef = useRef(geometryOps)
+  initialDocumentRef.current = initialDocument
+  initialRevisionRef.current = initialRevision
+  geometryOpsRef.current = geometryOps
   useEffect(() => { buildRef.current = buildDocument }, [buildDocument])
-  useEffect(() => { onSavedRef.current = onSaved }, [onSaved])
-  useEffect(() => { onLoadServerRef.current = onLoadServer }, [onLoadServer])
-  useEffect(() => { onMergeDocumentRef.current = onMergeDocument }, [onMergeDocument])
-  useEffect(() => { onRestoreLocalRef.current = onRestoreLocal }, [onRestoreLocal])
+  useEffect(() => { hydrateRef.current = hydrateForDocument }, [hydrateForDocument])
+  useEffect(() => { changeSourceRef.current = changeSource }, [changeSource])
+  if (!trackerRef.current.ready() && changeSource) {
+    trackerRef.current.reconcile(changeSource.nodes(), changeSource.edges())
+  }
+  onSavedRef.current = onSaved
+  onLoadServerRef.current = onLoadServer
+  onMergeDocumentRef.current = onMergeDocument
+  onRestoreLocalRef.current = onRestoreLocal
   useEffect(() => {
     mountedRef.current = true
     return () => { mountedRef.current = false }
@@ -173,16 +220,108 @@ export function useCanvasAutosave({
     timerRef.current = null
   }, [])
 
-  const mergeIncomingGraph = useCallback((graph: CanvasGraphResponse, summary: string) => {
-    const local = buildRef.current(revisionRef.current, clientIdRef.current, summary)
+  const planTrackedOperations = useCallback((confirmed: CanvasDocumentInput) => {
+    const source = changeSourceRef.current
+    if (!source || pendingFullDocumentRef.current || forceFullSaveRef.current) return null
+    const tracked = trackerRef.current.collect(source.nodes(), source.edges())
+    if (!tracked) return null
+    const nodes = new Map<string, CanvasNode | undefined>()
+    const edges = new Map<string, CanvasEdge | undefined>()
+    const operations = buildCanvasOperationsFromChanges(
+      confirmed,
+      {
+        viewport: source.viewport(),
+        node(id) {
+          if (!nodes.has(id)) {
+            const node = tracked.node(id)
+            nodes.set(id, node
+              ? node.data.__canvasUnhydrated === true && source.nodeGeometryToDocument
+                ? source.nodeGeometryToDocument(node)
+                : source.nodeToDocument(node)
+              : undefined)
+          }
+          return nodes.get(id)
+        },
+        edge(id) {
+          if (!edges.has(id)) {
+            const edge = tracked.edge(id)
+            edges.set(id, edge ? source.edgeToDocument(edge) : undefined)
+          }
+          return edges.get(id)
+        },
+      },
+      tracked.changes,
+      { geometryOps: geometryOpsRef.current },
+    )
+    return { tracked, operations }
+  }, [])
+
+  const confirmHydratedNodes = useCallback((nodes: readonly CanvasNode[]) => {
+    const confirmed = confirmedDocumentRef.current
+    if (!confirmed || nodes.length === 0) return
+    const byId = new Map(confirmed.nodes.map((node) => [node.id, node]))
+    const loaded = new Set<string>()
+    for (const node of nodes) {
+      const existing = byId.get(node.id)
+      if (!existing) continue
+      // Detail reads do not persist anything; never acknowledge a local drag
+      // just because the editor keeps that drag when it applies the detail.
+      byId.set(node.id, { ...node, position: existing.position, size: existing.size })
+      loaded.add(node.id)
+    }
+    if (!loaded.size) return
+    confirmedDocumentRef.current = { ...confirmed, nodes: Array.from(byId.values()) }
+    const source = changeSourceRef.current
+    if (!source || !trackerRef.current.ready()) return
+    const current = source.nodes().filter((node) => loaded.has(node.id) && node.data.__canvasUnhydrated !== true)
+    if (savingRef.current || networkSavePendingRef.current) {
+      pendingNodeConfirmationsRef.current.push(...current)
+      return
+    }
+    trackerRef.current.confirmNodes(current, true)
+  }, [])
+
+  const confirmMeasuredNodes = useCallback((nodes: readonly CanvasFlowNode[]) => {
+    if (nodes.length === 0) return
+    if (savingRef.current || networkSavePendingRef.current) {
+      pendingNodeConfirmationsRef.current.push(...nodes)
+      return
+    }
+    trackerRef.current.confirmNodes(nodes, true)
+  }, [])
+
+  const buildCompleteDocument = useCallback(async (expectedRevision: number, summary: string) => {
+    const snapshot = buildRef.current(expectedRevision, clientIdRef.current, summary)
+    const document = await (hydrateRef.current ? hydrateRef.current(snapshot, confirmedDocumentRef.current) : Promise.resolve(snapshot))
+    const summaryNode = document.nodes.find((node) => node.data?.__canvasUnhydrated === true)
+    if (summaryNode) throw new Error(`节点 ${summaryNode.id} 尚未加载完整内容，不能写入完整文档。`)
+    return document
+  }, [])
+
+  const prepareCompleteDocument = useCallback((expectedRevision: number, summary: string) => {
+    const pending = pendingHydrationDocumentRef.current
+    if (pending) return pending
+    const hydrating = buildCompleteDocument(expectedRevision, summary)
+    pendingHydrationDocumentRef.current = hydrating
+    void hydrating.then(() => {
+      if (pendingHydrationDocumentRef.current === hydrating) pendingHydrationDocumentRef.current = null
+    }, () => {
+      if (pendingHydrationDocumentRef.current === hydrating) pendingHydrationDocumentRef.current = null
+    })
+    return hydrating
+  }, [buildCompleteDocument])
+
+  const mergeIncomingGraph = useCallback(async (graph: CanvasGraphResponse, summary: string) => {
+    const local = await buildCompleteDocument(revisionRef.current, summary)
     const base = confirmedDocumentRef.current || local
     const remote = canvasGraphToDocument(graph, clientIdRef.current)
     const merged = mergeCanvasDocuments(base, local, remote, summary)
     pendingFullDocumentRef.current = null
     revisionRef.current = graph.canvas.revision
     confirmedDocumentRef.current = remote
+    trackerRef.current.invalidate()
     onMergeDocumentRef.current(merged, graph)
-  }, [])
+  }, [buildCompleteDocument])
 
   const mergeLatestServerVersion = useCallback(async () => {
     if (automaticConflictMergesRef.current >= MAX_AUTOMATIC_CONFLICT_MERGES) return false
@@ -190,7 +329,7 @@ export function useCanvasAutosave({
     try {
       const graph = await canvasApi.get(projectId, canvasId)
       const recoveryDocument = pendingFullDocumentRef.current
-      mergeIncomingGraph(graph, '自动合并多标签页更改')
+      await mergeIncomingGraph(graph, '自动合并多标签页更改')
       if (recoveryDocument) {
         pendingFullDocumentRef.current = {
           ...recoveryDocument,
@@ -202,6 +341,7 @@ export function useCanvasAutosave({
       pausedRef.current = false
       setConflictOpen(false)
       dirtyRef.current = true
+      contentDirtyRef.current = true
       summaryRef.current = recoveryDocument ? '恢复本地未同步版本' : '自动合并多标签页更改'
       offlineBufferRef.current?.schedule()
       if (mountedRef.current) setSaveState('pending')
@@ -215,6 +355,7 @@ export function useCanvasAutosave({
     if (pausedRef.current || !dirtyRef.current) return
     clearSaveTimer()
     if (savingRef.current) {
+      if (typeof performance !== 'undefined') performance.clearMarks('canvas:viewport-save-scheduled')
       await savingRef.current
       if (dirtyRef.current && !pausedRef.current && !retryControllerRef.current?.hasPending()) {
         timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
@@ -222,25 +363,74 @@ export function useCanvasAutosave({
       return
     }
 
+    const hasContentChanges = contentDirtyRef.current
     dirtyRef.current = false
+    contentDirtyRef.current = false
+    if (typeof performance !== 'undefined') performance.mark('canvas:viewport-save-scheduled')
     const expectedRevision = revisionRef.current
-    const document = pendingFullDocumentRef.current
-      ? {
-          ...pendingFullDocumentRef.current,
-          expectedRevision,
-          clientId: clientIdRef.current,
-          changeSummary: summaryRef.current,
-        }
-      : buildRef.current(expectedRevision, clientIdRef.current, summaryRef.current)
     const confirmed = confirmedDocumentRef.current
-    const operations = confirmed ? buildCanvasOperations(confirmed, document) : []
+    const source = changeSourceRef.current
+    const tracker = trackerRef.current
+    const recovery = pendingFullDocumentRef.current
+    const viewportOnly = !hasContentChanges && Boolean(confirmed && source && tracker.ready()
+      && !recovery && !forceFullSaveRef.current)
+    const nodesAtBuild = viewportOnly ? undefined : source?.nodes()
+    const edgesAtBuild = viewportOnly ? undefined : source?.edges()
+    let plan: ReturnType<typeof planTrackedOperations> = null
+    let document: CanvasDocumentInput | null = null
+    let operations: CanvasOperation[] = []
+    const epoch = tracker.epoch()
     if (mountedRef.current) setSaveState('saving')
     const task = (async () => {
       try {
-        const saved = forceFullSaveRef.current || !confirmed
-          ? { graph: await canvasApi.saveDocument(projectId, canvasId, document), delta: null }
+        if (viewportOnly && source && confirmed) {
+          const viewport = source.viewport()
+          const previous = confirmed.viewport
+          if (viewport.x !== previous.x || viewport.y !== previous.y || viewport.zoom !== previous.zoom) {
+            operations = [{ type: 'canvas.update_meta', viewport }]
+          }
+        } else {
+          plan = confirmed ? planTrackedOperations(confirmed) : null
+          operations = plan?.operations ?? []
+        }
+        if (plan && confirmed && operations.some((operation) => operation.type !== 'canvas.update_meta')) {
+          const summaryUpserts = operations.flatMap((operation) => operation.type === 'node.upsert'
+            && operation.node.data?.__canvasUnhydrated === true ? [{ ...operation.node, canvasId }] : [])
+          if (summaryUpserts.length > 0) {
+            const hydrate = hydrateRef.current
+            if (!hydrate) throw new Error('画布节点尚未加载完整内容。')
+            const snapshot = await hydrate({ ...confirmed, nodes: summaryUpserts, edges: [] }, confirmed)
+            const nodes = new Map(snapshot.nodes.map((node) => [node.id, node]))
+            operations = operations.map((operation) => {
+              if (operation.type !== 'node.upsert' || operation.node.data?.__canvasUnhydrated !== true) return operation
+              const node = nodes.get(operation.node.id)
+              if (!node || node.data?.__canvasUnhydrated === true) throw new Error(`节点 ${operation.node.id} 尚未加载完整内容，不能写入完整文档。`)
+              return { type: 'node.upsert', node: withoutCanvasId(node) }
+            })
+          }
+          verifyCountRef.current += 1
+          if (verifyCountRef.current % TRACKER_VERIFY_EVERY === 0) {
+            // An entity mutated in place would be invisible to the reference check, so compare everything now and then.
+            const fullDocument = await buildCompleteDocument(expectedRevision, summaryRef.current)
+            const fullOperations = buildCanvasOperations(confirmed, fullDocument, { geometryOps: geometryOpsRef.current })
+            if (!sameOperationTargets(operations, fullOperations)) {
+              document = fullDocument
+              operations = fullOperations
+              plan = null
+              tracker.invalidate()
+            }
+          }
+        }
+        if (!viewportOnly && !plan && !document) {
+          document = recovery
+            ? { ...recovery, expectedRevision, clientId: clientIdRef.current, changeSummary: summaryRef.current }
+            : await buildCompleteDocument(expectedRevision, summaryRef.current)
+          operations = confirmed ? buildCanvasOperations(confirmed, document, { geometryOps: geometryOpsRef.current }) : []
+        }
+        const request = document && (forceFullSaveRef.current || !confirmed)
+          ? () => canvasApi.saveDocument(projectId, canvasId, document!).then((graph) => ({ graph, delta: null }))
           : operations.length > 0
-            ? await saveOperationDelta({
+            ? () => saveOperationDelta({
                 projectId,
                 canvasId,
                 operations,
@@ -249,10 +439,39 @@ export function useCanvasAutosave({
                 changeSummary: summaryRef.current,
               })
             : null
+        networkSavePendingRef.current = request !== null
+        if (typeof performance !== 'undefined') {
+          if ((viewportOnly || plan) && operations.length === 1 && operations[0].type === 'canvas.update_meta') {
+            performance.mark('canvas:viewport-save-request')
+            performance.measure('canvas:viewport-save-sync', 'canvas:viewport-save-scheduled', 'canvas:viewport-save-request')
+          } else {
+            performance.clearMarks('canvas:viewport-save-scheduled')
+          }
+        }
+        const saved = request ? await request() : null
+        networkSavePendingRef.current = false
+        if (plan) {
+          tracker.commit(plan.tracked.changes)
+        } else if (source && nodesAtBuild && edgesAtBuild) {
+          if (recovery || document) tracker.invalidate()
+          else tracker.reconcile(nodesAtBuild, edgesAtBuild, epoch)
+        }
+        if (source && tracker.ready() && pendingNodeConfirmationsRef.current.length > 0) {
+          const current = new Map(source.nodes().map((node) => [node.id, node]))
+          const pending = pendingNodeConfirmationsRef.current
+          pendingNodeConfirmationsRef.current = []
+          for (const node of pending) {
+            if (current.get(node.id) === node) tracker.confirmNodes([node], true)
+          }
+        }
         if (saved) {
           revisionRef.current = saved.graph.canvas.revision
+          // A detail read can refine the confirmed body during the network
+          // request. Apply its delta to that baseline at the same revision.
+          const latest = confirmedDocumentRef.current
+          const base = latest?.expectedRevision === expectedRevision ? latest : confirmed
           confirmedDocumentRef.current = saved.delta && confirmed
-            ? applyCanvasDocumentDelta(confirmed, saved.delta, clientIdRef.current, summaryRef.current)
+            ? applyCanvasDocumentDelta(base ?? confirmed, saved.delta, clientIdRef.current, summaryRef.current)
             : canvasGraphToDocument(saved.graph, clientIdRef.current, summaryRef.current)
           forceFullSaveRef.current = false
           pendingFullDocumentRef.current = null
@@ -265,7 +484,7 @@ export function useCanvasAutosave({
         automaticConflictMergesRef.current = 0
         lastErrorRef.current = null
         retryControllerRef.current?.reset()
-        if (dirtyRef.current) {
+        if (contentDirtyRef.current) {
           await offlineBufferRef.current?.flush()
         } else {
           await offlineBufferRef.current?.clear()
@@ -280,6 +499,7 @@ export function useCanvasAutosave({
         }
       } catch (error) {
         dirtyRef.current = true
+        contentDirtyRef.current = true
         lastErrorRef.current = error instanceof Error ? error.message : '画布保存失败'
         await offlineBufferRef.current?.flush().catch(() => undefined)
         if (error instanceof CanvasRevisionConflictError) {
@@ -295,7 +515,9 @@ export function useCanvasAutosave({
           if (mountedRef.current) setSaveState('offline')
         }
       } finally {
+        networkSavePendingRef.current = false
         savingRef.current = null
+        if (typeof performance !== 'undefined') performance.clearMarks('canvas:viewport-save-scheduled')
       }
     })()
     savingRef.current = task
@@ -303,7 +525,7 @@ export function useCanvasAutosave({
     if (dirtyRef.current && !pausedRef.current && !retryControllerRef.current?.hasPending()) {
       timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
     }
-  }, [canvasId, clearSaveTimer, mergeLatestServerVersion, projectId])
+  }, [canvasId, clearSaveTimer, mergeLatestServerVersion, planTrackedOperations, projectId])
 
   useEffect(() => { flushRef.current = flush }, [flush])
 
@@ -313,22 +535,29 @@ export function useCanvasAutosave({
     clearSaveTimer()
     retryControllerRef.current?.dispose()
 
-    revisionRef.current = initialRevision
+    revisionRef.current = initialRevisionRef.current
     tabIdRef.current = createBrowserId()
     clientIdRef.current = `${getClientId()}:${tabIdRef.current}`.slice(0, 120)
     automaticConflictMergesRef.current = 0
     dirtyRef.current = false
+    contentDirtyRef.current = false
     pausedRef.current = offlineEnabled
     summaryRef.current = '编辑画布'
     lastErrorRef.current = null
     offlineDraftRef.current = null
-    confirmedDocumentRef.current = buildRef.current(
-      initialRevision,
+    confirmedDocumentRef.current = confirmedDocumentRef.current || initialDocumentRef.current || buildRef.current(
+      initialRevisionRef.current,
       clientIdRef.current,
       '编辑画布',
     )
+    const initialSource = changeSourceRef.current
+    const sourceInitialized = trackerRef.current.ready()
+    if (initialSource && !sourceInitialized) trackerRef.current.reconcile(initialSource.nodes(), initialSource.edges())
+    else if (!initialSource) trackerRef.current.invalidate()
+    verifyCountRef.current = 0
     forceFullSaveRef.current = false
     pendingFullDocumentRef.current = null
+    if (!sourceInitialized) pendingNodeConfirmationsRef.current = []
     restoreInProgressRef.current = false
     setOfflineDraft(null)
     setConflictOpen(false)
@@ -345,19 +574,32 @@ export function useCanvasAutosave({
     retryControllerRef.current = retryController
 
     const buffer = createCanvasOfflineDraftBuffer({
-      read: () => {
-        if (!namespace || !dirtyRef.current) return null
+      read: async () => {
+        if (!namespace || !dirtyRef.current || !contentDirtyRef.current) return null
+        const confirmed = confirmedDocumentRef.current
+        const tracked = confirmed && planTrackedOperations(confirmed)
+        if (tracked && confirmed) {
+          const journal = createCanvasGeometryOfflineDraft({
+            namespace,
+            base: confirmed,
+            operations: tracked.operations,
+            retryAttempt: retryController.failureCount(),
+            lastError: lastErrorRef.current,
+          })
+          if (journal) return journal
+        }
         const document = pendingFullDocumentRef.current
-          || buildRef.current(revisionRef.current, clientIdRef.current, summaryRef.current)
+          || await prepareCompleteDocument(revisionRef.current, summaryRef.current)
         return createCanvasOfflineDraft({
           namespace,
           document,
-          pendingOps: forceFullSaveRef.current || !confirmedDocumentRef.current
+          pendingOps: forceFullSaveRef.current || !confirmed
             ? []
-            : buildCanvasOperations(confirmedDocumentRef.current, document),
+            : planTrackedOperations(confirmed)?.operations ?? buildCanvasOperations(confirmed, document, { geometryOps: geometryOpsRef.current }),
           lastServerRevision: revisionRef.current,
           retryAttempt: retryController.failureCount(),
           lastError: lastErrorRef.current,
+          copy: false,
         })
       },
       write: async (draft) => await saveCanvasOfflineDraft(draft),
@@ -408,16 +650,38 @@ export function useCanvasAutosave({
       const shouldFlush = dirtyRef.current && !pausedRef.current
       void buffer.dispose({ flush: shouldFlush }).catch(() => undefined)
     }
-  }, [accountId, canvasId, clearSaveTimer, initialRevision, offlineEnabled, projectId])
+  }, [accountId, canvasId, clearSaveTimer, offlineEnabled, prepareCompleteDocument, projectId])
 
-  const scheduleSave = useCallback((summary = '编辑画布') => {
+  const scheduleSave = useCallback((summary = '编辑画布', options?: { viewportOnly?: boolean }) => {
     if (pausedRef.current) return
     dirtyRef.current = true
-    summaryRef.current = summary
-    offlineBufferRef.current?.schedule()
+    // A pan or zoom is not worth a full offline draft; only content edits are cached locally.
+    if (!options?.viewportOnly) contentDirtyRef.current = true
+    if (options?.viewportOnly) contentDirtyRef.current = contentDirtyRef.current || false
+    if (!options?.viewportOnly || !contentDirtyRef.current) summaryRef.current = summary
     if (mountedRef.current) {
       setSaveState((current) => current === 'saving' || current === 'offline' ? current : 'pending')
     }
+    if (persistenceHoldRef.current.defer()) return
+    if (contentDirtyRef.current) offlineBufferRef.current?.schedule()
+    if (retryControllerRef.current?.hasPending()) return
+    clearSaveTimer()
+    timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
+  }, [clearSaveTimer])
+
+  const holdPersistence = useCallback((held: boolean) => {
+    const hold = persistenceHoldRef.current
+    if (held) {
+      hold.hold()
+      if (dirtyRef.current) {
+        clearSaveTimer()
+        offlineBufferRef.current?.cancel()
+        hold.defer()
+      }
+      return
+    }
+    if (!hold.release() || pausedRef.current || !dirtyRef.current) return
+    if (contentDirtyRef.current) offlineBufferRef.current?.schedule()
     if (retryControllerRef.current?.hasPending()) return
     clearSaveTimer()
     timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(SAVE_DELAY_MS, tabIdRef.current))
@@ -440,7 +704,7 @@ export function useCanvasAutosave({
       forceFullSaveRef.current = pendingRecoveryDocument !== null
       automaticConflictMergesRef.current = 0
       if (preserveLocalChanges) {
-        mergeIncomingGraph(graph, '同步并合并其他标签页更改')
+        await mergeIncomingGraph(graph, '同步并合并其他标签页更改')
         forceFullSaveRef.current = pendingRecoveryDocument !== null
         if (pendingRecoveryDocument) {
           pendingFullDocumentRef.current = {
@@ -449,6 +713,7 @@ export function useCanvasAutosave({
           }
         }
         dirtyRef.current = true
+        contentDirtyRef.current = true
         summaryRef.current = '同步并合并其他标签页更改'
         offlineBufferRef.current?.schedule()
         clearSaveTimer()
@@ -459,6 +724,7 @@ export function useCanvasAutosave({
 
       revisionRef.current = graph.canvas.revision
       confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current)
+      trackerRef.current.invalidate()
       onLoadServerRef.current(graph)
       await offlineBufferRef.current?.clear()
       if (mountedRef.current) {
@@ -517,9 +783,11 @@ export function useCanvasAutosave({
     const graph = await canvasApi.get(projectId, canvasId)
     revisionRef.current = graph.canvas.revision
     confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current)
+    trackerRef.current.invalidate()
     forceFullSaveRef.current = false
     pendingFullDocumentRef.current = null
     dirtyRef.current = false
+    contentDirtyRef.current = false
     pausedRef.current = false
     summaryRef.current = '编辑画布'
     lastErrorRef.current = null
@@ -537,13 +805,14 @@ export function useCanvasAutosave({
 
   const mergeServerVersion = useCallback(async () => {
     const graph = await canvasApi.get(projectId, canvasId)
-    mergeIncomingGraph(graph, '重新合并多标签更改')
+    await mergeIncomingGraph(graph, '重新合并多标签更改')
     forceFullSaveRef.current = false
     pausedRef.current = false
     automaticConflictMergesRef.current = 0
     setConflictOpen(false)
     setSaveState('pending')
     dirtyRef.current = true
+    contentDirtyRef.current = true
     summaryRef.current = '重新合并多标签更改'
     offlineBufferRef.current?.schedule()
     clearSaveTimer()
@@ -553,15 +822,17 @@ export function useCanvasAutosave({
   const restoreLocalVersion = useCallback(async () => {
     const draft = offlineDraftRef.current
     if (!draft) return
+    const geometryOnly = isCanvasGeometryOfflineDraft(draft)
     const document = resolveCanvasOfflineRecoveryChoice({
       draft,
       choice: 'local',
       serverRevision: revisionRef.current,
       clientId: clientIdRef.current,
+      ...(geometryOnly ? { currentDocument: buildRef.current(revisionRef.current, clientIdRef.current, '恢复本地未同步版本') } : {}),
     })
     if (!document) return
     restoreInProgressRef.current = true
-    const restoredDocument = {
+    const restoredDocument = geometryOnly ? document : {
       ...document,
       edges: document.edges.map((edge) => ({
         ...edge,
@@ -569,12 +840,13 @@ export function useCanvasAutosave({
       })),
     }
     dirtyRef.current = true
-    forceFullSaveRef.current = true
-    pendingFullDocumentRef.current = restoredDocument
+    contentDirtyRef.current = true
+    forceFullSaveRef.current = !geometryOnly
+    pendingFullDocumentRef.current = geometryOnly ? null : restoredDocument
     summaryRef.current = '恢复本地未同步版本'
     offlineDraftRef.current = null
     void offlineBufferRef.current?.flush().catch(() => undefined)
-    onRestoreLocalRef.current(restoredDocument)
+    onRestoreLocalRef.current(restoredDocument, geometryOnly)
     pausedRef.current = false
     lastErrorRef.current = null
     retryControllerRef.current?.reset()
@@ -598,6 +870,7 @@ export function useCanvasAutosave({
       })
     }
     dirtyRef.current = false
+    contentDirtyRef.current = false
     pausedRef.current = false
     forceFullSaveRef.current = false
     pendingFullDocumentRef.current = null
@@ -679,6 +952,7 @@ export function useCanvasAutosave({
         })
         revisionRef.current = graph.canvas.revision
         confirmedDocumentRef.current = canvasGraphToDocument(graph, clientId, input.changeSummary)
+        trackerRef.current.invalidate()
         forceFullSaveRef.current = false
         pendingFullDocumentRef.current = null
         lastErrorRef.current = null
@@ -704,6 +978,7 @@ export function useCanvasAutosave({
         return graph
       } catch (error) {
         dirtyRef.current = true
+        contentDirtyRef.current = true
         lastErrorRef.current = error instanceof Error ? error.message : '画布保存失败'
         await offlineBufferRef.current?.flush().catch(() => undefined)
         if (error instanceof CanvasRevisionConflictError) {
@@ -735,6 +1010,7 @@ export function useCanvasAutosave({
 
     revisionRef.current = graph.canvas.revision
     confirmedDocumentRef.current = canvasGraphToDocument(graph, clientIdRef.current)
+    trackerRef.current.invalidate()
     revisionChannelRef.current?.postMessage({
       type: 'canvas-revision',
       source: tabIdRef.current,
@@ -784,8 +1060,11 @@ export function useCanvasAutosave({
     revision: revisionRef,
     clientId: clientIdRef,
     scheduleSave,
+    holdPersistence,
     flush,
     retry,
+    confirmHydratedNodes,
+    confirmMeasuredNodes,
     loadServerVersion,
     mergeServerVersion,
     restoreLocalVersion,

@@ -507,11 +507,14 @@ export function mergeServerTerminalFlowNode(
   return { ...localWithCanonicalStudioSource, data }
 }
 
-export function flowNodeToCanvas(node: CanvasFlowNode, canvasId: string): CanvasNode {
+function flowNodeToCanvasInternal(node: CanvasFlowNode, canvasId: string, allowUnhydrated: boolean): CanvasNode {
   const fallback = DEFAULT_NODE_SIZES[node.type || CANVAS_NODE_TYPE_IMAGE] || DEFAULT_NODE_SIZES[CANVAS_NODE_TYPE_IMAGE]
   const width = finite(node.width) ? node.width : finite(node.measured?.width) ? node.measured.width : fallback.width
   const height = finite(node.height) ? node.height : finite(node.measured?.height) ? node.measured.height : fallback.height
   const { __server, ...data } = node.data
+  if (!allowUnhydrated && data.__canvasUnhydrated === true) {
+    throw new Error(`节点 ${node.id} 尚未加载完整内容，请先加载后再保存。`)
+  }
   return {
     id: node.id,
     canvasId,
@@ -528,7 +531,20 @@ export function flowNodeToCanvas(node: CanvasFlowNode, canvasId: string): Canvas
     runId: __server?.runId || null,
     mediaObjectId: __server?.mediaObjectId || null,
     parentNodeId: __server?.parentNodeId || null,
+    ...(data.__canvasUnhydrated === true
+      && typeof (node as CanvasFlowNode & { detailVersion?: unknown }).detailVersion === 'string'
+      ? { detailVersion: (node as CanvasFlowNode & { detailVersion: string }).detailVersion }
+      : {}),
   }
+}
+
+export function flowNodeToCanvas(node: CanvasFlowNode, canvasId: string): CanvasNode {
+  return flowNodeToCanvasInternal(node, canvasId, false)
+}
+
+/** Internal offline/conflict snapshot only; callers must hydrate it before any full write. */
+export function flowNodeToCanvasSnapshot(node: CanvasFlowNode, canvasId: string): CanvasNode {
+  return flowNodeToCanvasInternal(node, canvasId, true)
 }
 
 export function canvasEdgeToFlow(edge: CanvasEdge): CanvasFlowEdge {

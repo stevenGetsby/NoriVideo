@@ -23,7 +23,7 @@ type CanvasReferenceRow = {
     data: unknown
     studioDocument: { document: unknown } | null
   }>
-  snapshots: Array<{
+  snapshots?: Array<{
     id: string
     document: unknown
     studioDocuments: Array<{ document: unknown }>
@@ -78,7 +78,7 @@ export function summarizeCanvasMaterialReferences(
     ))
     if (currentReferenced) currentCanvasIds.add(canvas.id)
 
-    for (const snapshot of canvas.snapshots) {
+    for (const snapshot of canvas.snapshots ?? []) {
       if (
         jsonContainsAnyExactString(snapshot.document, targets)
         || snapshot.studioDocuments.some((document) => jsonContainsAnyExactString(document.document, targets))
@@ -110,13 +110,14 @@ export function summarizeCanvasMaterialReferences(
 }
 
 /**
- * Read every durable canvas representation owned by this workspace. Account
+ * Read canvas references owned by this workspace. Account
  * uploads are usable in multiple projects, so limiting this lookup to the
  * material's original project could miss a valid cross-project reference.
  */
 async function readCanvasMaterialReferences(
   tx: Prisma.TransactionClient,
   workspaceOwnerId: string,
+  includeHistory: boolean,
 ) {
   const canvases = await tx.canvas.findMany({
     where: { userId: workspaceOwnerId },
@@ -128,13 +129,13 @@ async function readCanvasMaterialReferences(
           studioDocument: { select: { document: true } },
         },
       },
-      snapshots: {
+      ...(includeHistory ? { snapshots: {
         select: {
           id: true,
           document: true,
           studioDocuments: { select: { document: true } },
         },
-      },
+      } } : {}),
     },
   })
   const templates = await tx.canvasWorkflowTemplate.findMany({
@@ -146,16 +147,20 @@ async function readCanvasMaterialReferences(
       studioDocuments: { select: { document: true } },
     },
   })
-  return { canvases, templates }
+  return {
+    canvases: includeHistory ? canvases : canvases.map(({ id, nodes }) => ({ id, nodes })),
+    templates,
+  }
 }
 
-/** Batch deletion reads the durable documents once, not once per selected asset. */
+/** Trash checks read active references once, never the non-blocking snapshots. */
 export async function findCanvasMaterialsReferences(
   tx: Prisma.TransactionClient,
   workspaceOwnerId: string,
   materials: readonly DeletableCanvasMaterialIdentity[],
 ): Promise<Map<string, CanvasMaterialReferenceSummary>> {
-  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId)
+  if (materials.length === 0) return new Map()
+  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId, false)
   return new Map(materials.map((material) => [
     material.id,
     summarizeCanvasMaterialReferences(
@@ -170,8 +175,9 @@ export async function findCanvasMaterialReferences(
   tx: Prisma.TransactionClient,
   workspaceOwnerId: string,
   material: DeletableCanvasMaterialIdentity,
+  { includeHistory = true }: { includeHistory?: boolean } = {},
 ): Promise<CanvasMaterialReferenceSummary> {
-  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId)
+  const { canvases, templates } = await readCanvasMaterialReferences(tx, workspaceOwnerId, includeHistory)
   return summarizeCanvasMaterialReferences([material.id, material.resultUrl || '', material.storageKey || ''], canvases, templates)
 }
 

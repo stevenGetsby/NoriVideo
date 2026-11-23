@@ -1,59 +1,47 @@
 'use client'
 
 import { useCallback, useRef, useState } from 'react'
-import type { CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
-import type { Viewport } from '../types'
+import { createCanvasHistoryStack, type CanvasEditorSnapshot } from './canvas-history-stack'
 
-export type CanvasEditorSnapshot = {
-  nodes: CanvasFlowNode[]
-  edges: CanvasFlowEdge[]
-  viewport: Viewport
-}
-
-type HistoryEntry = { label: string; snapshot: CanvasEditorSnapshot }
-
-function cloneSnapshot(snapshot: CanvasEditorSnapshot): CanvasEditorSnapshot {
-  return structuredClone(snapshot)
-}
+export type { CanvasEditorSnapshot }
 
 export function useCanvasHistory(limit = 80) {
-  const pastRef = useRef<HistoryEntry[]>([])
-  const futureRef = useRef<HistoryEntry[]>([])
+  const stackRef = useRef<ReturnType<typeof createCanvasHistoryStack> | null>(null)
+  if (!stackRef.current) stackRef.current = createCanvasHistoryStack(limit)
+  const stack = stackRef.current
   const [version, setVersion] = useState(0)
 
   const record = useCallback((label: string, current: CanvasEditorSnapshot) => {
-    pastRef.current.push({ label, snapshot: cloneSnapshot(current) })
-    if (pastRef.current.length > limit) pastRef.current.splice(0, pastRef.current.length - limit)
-    futureRef.current = []
+    stack.record(label, current)
     setVersion((value) => value + 1)
-  }, [limit])
+  }, [stack])
 
   const undo = useCallback((current: CanvasEditorSnapshot) => {
-    const entry = pastRef.current.pop()
-    if (!entry) return null
-    futureRef.current.push({ label: entry.label, snapshot: cloneSnapshot(current) })
-    setVersion((value) => value + 1)
-    return cloneSnapshot(entry.snapshot)
-  }, [])
+    const next = stack.undo(current)
+    if (next) setVersion((value) => value + 1)
+    return next
+  }, [stack])
 
   const redo = useCallback((current: CanvasEditorSnapshot) => {
-    const entry = futureRef.current.pop()
-    if (!entry) return null
-    pastRef.current.push({ label: entry.label, snapshot: cloneSnapshot(current) })
-    setVersion((value) => value + 1)
-    return cloneSnapshot(entry.snapshot)
-  }, [])
+    const next = stack.redo(current)
+    if (next) setVersion((value) => value + 1)
+    return next
+  }, [stack])
 
   const reset = useCallback(() => {
-    pastRef.current = []
-    futureRef.current = []
+    stack.reset()
     setVersion((value) => value + 1)
-  }, [])
+  }, [stack])
 
   void version
   return {
-    canUndo: pastRef.current.length > 0,
-    canRedo: futureRef.current.length > 0,
+    canUndo: stack.canUndo(),
+    canRedo: stack.canRedo(),
+    depth: stack.getDepth(),
+    lastLabel: stack.getLastLabel(),
+    getDepth: stack.getDepth,
+    getLastLabel: stack.getLastLabel,
+    getHead: stack.getHead,
     record,
     undo,
     redo,

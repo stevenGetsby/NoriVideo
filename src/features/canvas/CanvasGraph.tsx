@@ -1,8 +1,17 @@
 'use client'
 
 import { Link } from '@/i18n/navigation'
+import { nodeSize, getMediaType, minimapNodeColor, getReplaceableMediaType, safeFileName, extensionForNode, extraReferenceMaterialIds, imageEditMaskMaterialId, createHistoryItem, readNodeGenerationTaskId } from './canvas-node-presentation-utils'
 import { confirmAction } from '@/lib/ui/feedback'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { AgentGraphChange } from './agent/bridge-types'
+import { createCanvasAgentTurnController } from './agent/turn-record'
+import { useCanvasAgentBridge } from './agent/useCanvasAgentBridge'
+import { CanvasAgentDock } from './agent/CanvasAgentDock'
+import { CanvasAgentGhostSlot } from './agent/CanvasAgentGhostSlot'
+import { createAgentFeedbackStore } from './agent/feedback-store'
+import { fitCanvasAgentBounds, followCanvasAgentNodes } from './agent/viewport'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { startVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { useSession } from 'next-auth/react'
 import {
   Background,
@@ -13,6 +22,7 @@ import {
   SelectionMode,
   applyEdgeChanges,
   applyNodeChanges,
+  getViewportForBounds,
   useStoreApi,
   type Connection,
   type EdgeChange,
@@ -60,7 +70,7 @@ import { CanvasGenerator, type CanvasGenerateRequest } from './components/Canvas
 import { CANVAS_UPLOAD_MAX_ATTEMPTS, canvasUploadRetryDelay } from './upload-retry'
 import { CanvasChrome } from './components/CanvasChrome'
 import { canvasOrganizeOption } from './components/CanvasOrganizeMenu'
-import { CanvasConflictDialog, CanvasHistoryDialog, CanvasOfflineRecoveryDialog, CanvasRevisionDialog } from './components/CanvasDialogs'
+import { CanvasConflictDialog, CanvasHistoryDialog, CanvasOfflineRecoveryDialog, CanvasRevisionDialog, CanvasTaskIdDialog } from './components/CanvasDialogs'
 import { CanvasHelpPanel } from './components/CanvasHelpPanel'
 import { CanvasImageOperationDialog, type CanvasImageOperationInput, type CanvasImageOperationMode } from './components/CanvasImageOperationDialog'
 import { CanvasImageEditDialog } from './components/CanvasImageEditDialog'
@@ -112,9 +122,11 @@ import {
   canvasNodeToFlow,
   canvasReplacementAccept,
   clampCanvasMenuPoint,
+  DEFAULT_NODE_SIZES,
   createFlowNode,
   flowEdgeToCanvas,
   flowNodeToCanvas,
+  flowNodeToCanvasSnapshot,
   isMatchingCanvasReplacementFile,
   mergeServerTerminalFlowNode,
   normalizeCanvasConnection,
@@ -124,7 +136,6 @@ import {
   type CanvasFlowEdge,
   type CanvasFlowNode,
   type CanvasNodeMenuType,
-  type CanvasReplaceableMediaType,
   type CanvasWireMenuState,
 } from './editor-types'
 import {
@@ -160,10 +171,19 @@ import { StoryChoiceNode, StoryConditionNode } from './story/StoryBranchNodes'
 import { StoryInteractionNode } from './story/StoryInteractionNodes'
 import { isStoryNodeType } from '@/lib/interactive/compile'
 import type { StoryInteractionKind } from '@/lib/interactive/types'
+import { createCanvasNodeSource, CanvasNodeSourceProvider } from './canvas-node-source'
+import { CanvasFoldedEdgesEntry } from './rendering/CanvasFoldedEdgesEntry'
+import { CanvasOverviewLayer } from './rendering/CanvasOverviewLayer'
+import { CanvasProjectedMinimap } from './rendering/CanvasProjectedMinimap'
+import { projectedNodeIdsInLayoutRect } from './rendering/projected-marquee'
+import { useCanvasRenderProjection, type ProjectedEdgeSummary } from './rendering/useCanvasRenderProjection'
 import { canvasApi, CanvasRevisionConflictError } from './api/client'
 import { useCanvasGraph } from './state/useCanvasSync'
+import { useCanvasNodeDetails } from './state/useCanvasNodeDetails'
+import { hydrateCanvasDocumentForWrite } from './state/canvas-node-detail-cache'
 import { useCanvasHistory, type CanvasEditorSnapshot } from './state/useCanvasHistory'
 import { useCanvasAutosave } from './state/useCanvasAutosave'
+import { canvasGraphToDocument } from './state/canvas-operations'
 import { useStableCallback } from './state/useStableCallback'
 import { canEditInfiniteCanvas } from './permissions'
 import {
@@ -221,6 +241,7 @@ import {
   type CanvasDocumentInput,
   type CanvasGenerationHistoryItem,
   type CanvasGraphResponse,
+  type CanvasNode,
   type CanvasNodeData,
   type CanvasPlaylistRenderSummary,
   type CanvasPlaylistReviewSummary,
@@ -314,6 +335,9 @@ type Props = {
   canvasHomeHref?: string
   createProjectHref?: string
   onCanvasUpdated?: (canvas: Canvas) => void
+  /** Opt-in summary graph; old story/editor callers keep the full document. */
+  lightGraph?: boolean
+  projectionEnabled?: boolean
 }
 
 type ClipboardDocument = { nodes: CanvasFlowNode[]; edges: CanvasFlowEdge[] }
@@ -344,11 +368,7 @@ function isToolboxAssetType(value: string): value is ToolboxAsset['type'] {
 }
 
 function snapshot(nodes: CanvasFlowNode[], edges: CanvasFlowEdge[], viewport: Viewport): CanvasEditorSnapshot {
-  return { nodes: structuredClone(nodes), edges: structuredClone(edges), viewport: { ...viewport } }
-}
-
-function nodeSize(node: CanvasFlowNode) {
-  return { width: node.width || node.measured?.width || 300, height: node.height || node.measured?.height || 200 }
+  return { nodes, edges, viewport }
 }
 
 function hasInputFocus() {
@@ -366,6 +386,8 @@ function isCanvasBlankPointerTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false
   if (target.closest([
     '.react-flow__node',
+    '.react-flow__node-toolbar',
+    '.nori-canvas-node-toolbar',
     '.react-flow__edge',
     '.react-flow__edgelabel-renderer',
     '.react-flow__handle',
@@ -376,6 +398,7 @@ function isCanvasBlankPointerTarget(target: EventTarget | null) {
   ].join(','))) return false
   return Boolean(
     target.closest('.react-flow__pane')
+    || target.closest('.react-flow__renderer')
     || target.closest('.react-flow__background'),
   )
 }
@@ -430,10 +453,6 @@ function normalizedMarqueeRect(
   }
 }
 
-function getMediaType(node: CanvasFlowNode) {
-  return node.data.mediaType || (node.type === 'note' ? 'text' : node.type === 'model_3d' ? 'model3d' : node.type) || 'image'
-}
-
 const DEFAULT_CANVAS_VIEWPORT: Viewport = { x: 0, y: 0, zoom: 1 }
 // React Flow re-renders every node when one of its props changes identity, so
 // object-valued props live at module scope instead of being rebuilt per render.
@@ -443,84 +462,67 @@ const FLOW_PAN_ON_DRAG = [1]
 const FLOW_VISIBLE_ONLY_NODE_THRESHOLD = 40
 const FLOW_MULTI_SELECTION_KEYS = ['Shift', 'Meta', 'Control']
 
-function minimapNodeColor(node: CanvasFlowNode) {
-  const type = getMediaType(node)
-  if (node.type === 'group') return 'rgba(121, 139, 184, .34)'
-  if (type === 'video') return '#c25591'
-  if (type === 'audio') return '#d99a38'
-  if (type === 'image') return '#4b84db'
-  if (type === 'model3d') return '#45a77e'
-  return '#8a76d8'
+function CanvasGeneratorViewportAnchor({ store, node, surface, panelWidth, frozenAnchor: frozenGeneratorAnchor, children }: {
+  store: ReturnType<typeof useStoreApi<CanvasFlowNode, CanvasFlowEdge>>
+  node: CanvasFlowNode
+  surface: { width: number; height: number }
+  panelWidth: number
+  frozenAnchor: CanvasGeneratorAnchor | null
+  children: (anchor: CanvasGeneratorAnchor | null) => ReactNode
+}) {
+  const getTransform = () => store.getState().transform
+  const [tx, ty, zoom] = useSyncExternalStore(store.subscribe, getTransform, getTransform)
+  const liveGeneratorAnchor = resolveCanvasGeneratorAnchor({
+    nodePosition: node.position,
+    nodeSize: nodeSize(node),
+    viewport: { x: tx, y: ty, zoom },
+    surface,
+    panelWidth,
+    safeBottom: 96,
+  })
+  const generatorAnchor = frozenGeneratorAnchor ?? liveGeneratorAnchor
+  return <>{children(generatorAnchor)}</>
 }
 
-function getReplaceableMediaType(node: CanvasFlowNode): CanvasReplaceableMediaType | null {
-  const type = getMediaType(node)
-  return type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? type : null
-}
-
-function safeFileName(value: string, fallback: string) {
-  return value.replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 100) || fallback
-}
-
-function extensionForNode(node: CanvasFlowNode) {
-  const type = getMediaType(node)
-  if (type === 'text') return 'txt'
-  if (type === 'video') return 'mp4'
-  if (type === 'audio') return 'mp3'
-  if (type === 'model3d') return 'glb'
-  return 'jpg'
-}
-
-function extraReferenceMaterialIds(node: CanvasFlowNode) {
-  const parameters = node.data.generation?.parameters
-  // maskMaterialId has dedicated inpaint semantics and must never be sent as
-  // an ordinary reference image.
-  const values = [parameters?.referenceMaterialId]
-  return values.filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
-}
-
-function imageEditMaskMaterialId(node: CanvasFlowNode) {
-  if (node.data.processType !== 'image_edit') return ''
-  const value = node.data.generation?.parameters?.maskMaterialId
-  return typeof value === 'string' ? value.trim() : ''
-}
-
-function createHistoryItem(request: CanvasGenerateRequest, assetId?: string, taskId?: string): CanvasGenerationHistoryItem {
-  return {
-    id: crypto.randomUUID(),
-    assetId,
-    taskId,
-    prompt: request.prompt,
-    modelKey: request.modelKey,
-    quotedCostPoints: request.quotedCostPoints ?? null,
-    parameters: {
-      inputMode: request.inputMode,
-      aspectRatio: request.aspectRatio,
-      resolution: request.resolution,
-      quality: request.quality,
-      duration: request.duration,
-      ...(request.fps ? { fps: request.fps } : {}),
-      generateAudio: request.generateAudio,
-      count: request.count,
-      ...(request.type === 'audio' ? { audioMode: request.audioMode, voice: request.audioVoice } : {}),
-    },
-    references: request.referenceSummary || [],
-    source: 'generation',
-    status: 'pending',
-    createdAt: new Date().toISOString(),
-  }
-}
-
-function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
+function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, lightGraph = false, projectionEnabled = true, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
   const { resolved: resolvedTheme } = useNoriTheme()
   const themeColors = canvasThemeColors(resolvedTheme)
   const flowStore = useStoreApi<CanvasFlowNode, CanvasFlowEdge>()
+  useEffect(() => {
+    if (process.env.NORI_CANVAS_PERF_FIXTURE !== '1') return
+    ;(window as unknown as { __noriSetViewport: (viewport: Viewport) => Promise<void> }).__noriSetViewport = async (viewport) => {
+      const instance = (window as unknown as { __noriFlowInstance?: ReactFlowInstance<CanvasFlowNode, CanvasFlowEdge> }).__noriFlowInstance
+      await instance?.setViewport(viewport)
+    }
+    ;(window as unknown as { __noriFlowNodes: () => unknown }).__noriFlowNodes = () => [...flowStore.getState().nodeLookup.values()].map((node) => ({ id: node.id, selected: node.selected, position: node.position }))
+    ;(window as unknown as { __noriFlowState: () => unknown }).__noriFlowState = () => {
+      const state = flowStore.getState()
+      return {
+        dragging: state.nodesDraggable,
+        paneDragging: state.paneDragging,
+        transform: state.transform,
+        selected: [...state.nodeLookup.values()].filter((node) => node.selected).map((node) => ({ id: node.id, position: node.internals.positionAbsolute, dragging: node.dragging })),
+      }
+    }
+  }, [flowStore])
   const readOnly = !canEditInfiniteCanvas(session?.user)
-  const [nodes, setNodes] = useState<CanvasFlowNode[]>(() => initialGraph.nodes.map(canvasNodeToFlow))
+  const summaryMode = lightGraph && mode === 'canvas'
+  const [nodes, setNodesState] = useState<CanvasFlowNode[]>(() => initialGraph.nodes.map((node) => {
+    const flowNode = canvasNodeToFlow(node)
+    return summaryMode ? {
+      ...flowNode,
+      data: { ...flowNode.data, __canvasUnhydrated: true },
+      ...('detailVersion' in node && typeof node.detailVersion === 'string' ? { detailVersion: node.detailVersion } : {}),
+    } : flowNode
+  }))
   const [edges, setEdges] = useState<CanvasFlowEdge[]>(() => initialGraph.edges.map(canvasEdgeToFlow))
   const [viewport, setViewportState] = useState<Viewport>(() => initialGraph.canvas.viewport || { x: 0, y: 0, zoom: 1 })
   const [flow, setFlow] = useState<ReactFlowInstance<CanvasFlowNode, CanvasFlowEdge> | null>(null)
+  useEffect(() => {
+    if (process.env.NORI_CANVAS_PERF_FIXTURE !== '1') return
+    ;(window as unknown as { __noriFlowInstance: ReactFlowInstance<CanvasFlowNode, CanvasFlowEdge> | null }).__noriFlowInstance = flow
+  }, [flow])
   const [addOpen, setAddOpen] = useState(false)
   const [assetsOpen, setAssetsOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
@@ -559,6 +561,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const [generatorPanelWidth, setGeneratorPanelWidth] = useState(CANVAS_GENERATOR_PANEL_WIDTH_DEFAULT)
   const [canvasSurfaceSize, setCanvasSurfaceSize] = useState({ width: 1280, height: 800 })
   const [historyNodeId, setHistoryNodeId] = useState<string | null>(null)
+  const [taskIdInfo, setTaskIdInfo] = useState<{ taskId: string; title: string } | null>(null)
   const persistentPollFailuresRef = useRef(new Map<string, number>())
   const assetPollFailuresRef = useRef(new Map<string, number>())
   const assetMissingPollsRef = useRef(new Map<string, number>())
@@ -590,16 +593,30 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const pendingInsertPositionRef = useRef<{ x: number; y: number } | null>(null)
   const pendingUploadPositionRef = useRef<{ x: number; y: number } | null>(null)
   const nodesRef = useRef(nodes)
+  const setNodes: typeof setNodesState = useCallback((next) => {
+    setNodesState((current) => {
+      const value = typeof next === 'function' ? next(current) : next
+      // React Flow can invoke the updater before the parent commits. Publish
+      // here so measurement confirmation reads this exact node generation.
+      nodesRef.current = value
+      return value
+    })
+  }, [])
   const edgesRef = useRef(edges)
   const viewportRef = useRef(viewport)
   const defaultViewportRef = useRef<Viewport>(initialGraph.canvas.viewport || DEFAULT_CANVAS_VIEWPORT)
   const viewportMoveStartRef = useRef(viewport)
-  const viewportRenderTimeRef = useRef(0)
   const canvasRef = useRef(initialGraph.canvas)
   const clipboardRef = useRef<ClipboardDocument | null>(null)
   const internalCopyTextRef = useRef<string | null>(null)
   const deletedNodeIdsRef = useRef(new Map<string, number>())
   const deletedEdgeIdsRef = useRef(new Map<string, number>())
+  const [agentTurn] = useState(createCanvasAgentTurnController)
+  const [agentFeedback] = useState(createAgentFeedbackStore)
+  const [agentOpen, setAgentOpen] = useState(false)
+  const lastManualViewportAt = useRef(0)
+  const agentTouched = useSyncExternalStore(agentFeedback.touch.subscribe, agentFeedback.touch.get, agentFeedback.touch.get)
+  useEffect(() => () => agentFeedback.dispose(), [agentFeedback])
   const confirmOpenRef = useRef(false)
   const requestTextEdit = useCallback((nodeId: string) => {
     wrapperRef.current?.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(nodeId)}"] .nori-canvas-text-preview`)
@@ -622,6 +639,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const spacePanActiveRef = useRef(false)
   const suppressContextMenuUntilRef = useRef(0)
   const groupDragRef = useRef<{ id: string; start: { x: number; y: number }; members: Map<string, { x: number; y: number }> } | null>(null)
+  // Selected nodes projection has unmounted never receive React Flow drag deltas; they follow at drop.
+  const unmountedDragRef = useRef<{ anchorId: string; anchorStart: { x: number; y: number }; rest: Map<string, { x: number; y: number }> } | null>(null)
   const playlistNodeDragRef = useRef<{ id: string; start: { x: number; y: number } } | null>(null)
   const batchNodeDragRef = useRef<Map<string, { x: number; y: number }> | null>(null)
   const batchWireSourcesRef = useRef<string[]>([])
@@ -648,11 +667,77 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     undo: undoHistory,
     redo: redoHistory,
     reset: resetHistory,
+    getDepth: getHistoryDepth,
+    getLastLabel: getLastHistoryLabel,
+    getHead: getHistoryHead,
   } = useCanvasHistory()
 
+  const projectionPinnedIds = useMemo(() => (textEditingNodeId ? [textEditingNodeId] : []), [textEditingNodeId])
+  const projectionFallbackSurface = useCallback(() => (
+    wrapperRef.current?.clientWidth
+      ? { width: wrapperRef.current.clientWidth, height: wrapperRef.current.clientHeight }
+      : { width: window.innerWidth, height: window.innerHeight }
+  ), [])
+  const projectionFallbackSize = useCallback((type: string) => DEFAULT_NODE_SIZES[type] ?? { width: 300, height: 200 }, [])
+  // Only the ordinary canvas is projected; story mode keeps mounting every node.
+  const projection = useCanvasRenderProjection<CanvasFlowNode, CanvasFlowEdge>({
+    enabled: mode === 'canvas' && projectionEnabled,
+    nodes,
+    edges,
+    flowStore,
+    pinnedIds: projectionPinnedIds,
+    initialViewport: initialGraph.canvas.viewport || DEFAULT_CANVAS_VIEWPORT,
+    fallbackSurface: projectionFallbackSurface,
+    fallbackSize: projectionFallbackSize,
+  })
+  const projectionActive = projection.active
+  const getProjectionEngine = projection.getEngine
+  useEffect(() => {
+    if (process.env.NORI_CANVAS_PERF_FIXTURE !== '1') return
+    ;(window as unknown as { __noriProjection: () => unknown }).__noriProjection = () => ({
+      nodes: nodesRef.current.map((node) => ({
+        id: node.id,
+        selected: Boolean(node.selected),
+        type: node.type,
+        position: node.position,
+        width: node.width || node.measured?.width || DEFAULT_NODE_SIZES[node.type || '']?.width || 300,
+        height: node.height || node.measured?.height || DEFAULT_NODE_SIZES[node.type || '']?.height || 200,
+        ...(node.type === 'group' ? { memberIds: node.data.memberIds ?? [] } : {}),
+      })),
+      mounted: [...projection.mountedNodeIds],
+    })
+  }, [projection.mountedNodeIds])
+  const nodeSourceRef = useRef<ReturnType<typeof createCanvasNodeSource> | null>(null)
+  if (!nodeSourceRef.current) nodeSourceRef.current = createCanvasNodeSource(nodes)
+  const nodeSource = nodeSourceRef.current
+
   useLayoutEffect(() => { nodesRef.current = nodes }, [nodes])
+  useLayoutEffect(() => { nodeSource.publish(nodes) }, [nodeSource, nodes])
   useLayoutEffect(() => { edgesRef.current = edges }, [edges])
   useLayoutEffect(() => { viewportRef.current = viewport }, [viewport])
+
+  // With projection RF only holds a subset, so framing must come from the full render index.
+  const fitCanvasView = useCallback((ids: readonly string[] | null, options: { padding: number; maxZoom?: number; duration: number }) => {
+    if (!flow) return
+    const engine = getProjectionEngine()
+    if (!engine) {
+      void flow.fitView({ ...(ids ? { nodes: ids.map((id) => ({ id })) } : {}), ...options })
+      return
+    }
+    const bounds = engine.index.boundsOf(ids ?? undefined)
+    if (!bounds) return
+    const { width, height } = flowStore.getState()
+    if (!width || !height) return
+    const next = getViewportForBounds(
+      { x: bounds.left, y: bounds.top, width: bounds.right - bounds.left, height: bounds.bottom - bounds.top },
+      width,
+      height,
+      0.15,
+      options.maxZoom ?? 5,
+      options.padding,
+    )
+    void flow.setViewport(next, { duration: options.duration })
+  }, [flow, flowStore, getProjectionEngine])
   useEffect(() => {
     if (!flow || !focusNodeId || focusAppliedRef.current) return
     const target = nodesRef.current.find((node) => node.id === focusNodeId)
@@ -666,7 +751,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         ? { width: wrapperRef.current.clientWidth, height: wrapperRef.current.clientHeight }
         : { width: window.innerWidth, height: window.innerHeight }
       if (!width || !height || !surface.width || !surface.height) {
-        void flow.fitView({ nodes: [target], padding: 0.58, duration: 320 })
+        fitCanvasView([target.id], { padding: 0.58, duration: 320 })
         return
       }
       // Leave room under the node so the anchored generator never has to cover it.
@@ -678,7 +763,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         zoom,
       }, { duration: 320 })
     })
-  }, [flow, focusNodeId])
+  }, [fitCanvasView, flow, focusNodeId])
   useEffect(() => () => {
     if (layoutAnimationFrameRef.current !== null) window.cancelAnimationFrame(layoutAnimationFrameRef.current)
     if (generatorAnchorReleaseTimerRef.current !== null) window.clearTimeout(generatorAnchorReleaseTimerRef.current)
@@ -735,6 +820,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const handleSaved = useCallback((graph: CanvasGraphResponse) => {
     canvasRef.current = graph.canvas
+    // Geometry/viewport delta acknowledgements have no server node bodies or
+    // edges to merge. The editor already holds the local positions.
+    if (!graph.nodes.length && !graph.edges.length) {
+      onCanvasUpdated?.(graph.canvas)
+      return
+    }
     const serverById = new Map(graph.nodes.map((node) => {
       const flowNode = canvasNodeToFlow(node)
       return [flowNode.id, flowNode]
@@ -830,9 +921,19 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     onCanvasUpdated?.(graph.canvas)
   }, [flow, onCanvasUpdated])
 
-  const restoreOfflineDocument = useCallback((document: CanvasDocumentInput) => {
-    const nextNodes = document.nodes.map(canvasNodeToFlow)
-    const nextEdges = document.edges.map((edge) => canvasEdgeToFlow({
+  const restoreOfflineDocument = useCallback((document: CanvasDocumentInput, geometryOnly = false) => {
+    const restoredById = geometryOnly ? new Map(document.nodes.map((node) => [node.id, node])) : null
+    const nextNodes = restoredById
+      ? nodesRef.current.map((node) => {
+          const restored = restoredById.get(node.id)
+          if (!restored) return node
+          const { size } = flowNodeToCanvasSnapshot(node, initialGraph.canvas.id)
+          const resized = restored.size && (restored.size.width !== size?.width || restored.size.height !== size?.height)
+          if (restored.position === node.position && !resized) return node
+          return { ...node, position: restored.position, ...(resized && restored.size ? { width: restored.size.width, height: restored.size.height } : {}) }
+        })
+      : document.nodes.map(canvasNodeToFlow)
+    const nextEdges = geometryOnly ? edgesRef.current : document.edges.map((edge) => canvasEdgeToFlow({
       ...edge,
       role: edge.role === 'VIDEO_FRAME' ? 'REF' : edge.role,
     }))
@@ -845,7 +946,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setViewportState(nextViewport)
     resetHistory()
     void flow?.setViewport(nextViewport, { duration: 180 })
-  }, [flow, resetHistory])
+  }, [flow, initialGraph.canvas.id, resetHistory])
 
   const buildDocument = useCallback((expectedRevision: number, clientId: string, changeSummary: string) => ({
     schema_version: CANVAS_DOCUMENT_SCHEMA_VERSION,
@@ -853,10 +954,59 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     clientId,
     changeSummary,
     viewport: viewportRef.current,
-    nodes: nodesRef.current.map((node) => flowNodeToCanvas(node, initialGraph.canvas.id)),
+    nodes: nodesRef.current.map((node) => flowNodeToCanvasSnapshot(node, initialGraph.canvas.id)),
     edges: edgesRef.current.map((edge) => flowEdgeToCanvas(edge, initialGraph.canvas.id)),
   }), [initialGraph.canvas.id])
 
+  const changeSource = useMemo(() => ({
+    nodes: () => nodesRef.current,
+    edges: () => edgesRef.current,
+    viewport: () => viewportRef.current,
+    nodeToDocument: (node: CanvasFlowNode) => flowNodeToCanvas(node, initialGraph.canvas.id),
+    nodeGeometryToDocument: (node: CanvasFlowNode) => flowNodeToCanvasSnapshot(node, initialGraph.canvas.id),
+    edgeToDocument: (edge: CanvasFlowEdge) => flowEdgeToCanvas(edge, initialGraph.canvas.id),
+  }), [initialGraph.canvas.id])
+
+  const loadNodeDetail = useCanvasNodeDetails(session?.user?.id || '', projectId, initialGraph.canvas.id)
+  const initialDocument = useMemo(() => canvasGraphToDocument(initialGraph, 'initial'), [initialGraph])
+  const confirmHydratedNodesRef = useRef<(nodes: CanvasNode[]) => void>(() => undefined)
+  const confirmMeasuredNodesRef = useRef<(nodes: readonly CanvasFlowNode[]) => void>(() => undefined)
+  const prepareNodeForWrite = useCallback(async (nodeId: string) => {
+    if (!summaryMode) return
+    const current = nodesRef.current.find((node) => node.id === nodeId)
+    if (!current || current.data.__canvasUnhydrated !== true) return
+    const detail = await loadNodeDetail(nodeId, current)
+    const { detailVersion, ...hydratedNode } = detail as typeof detail & { detailVersion?: string }
+    const latest = nodesRef.current.find((node) => node.id === nodeId) || current
+    const position = latest.position
+    const size = {
+      width: latest.width || latest.measured?.width || hydratedNode.size?.width || 300,
+      height: latest.height || latest.measured?.height || hydratedNode.size?.height || 200,
+    }
+    const confirmedNode = { ...hydratedNode, position, size }
+    const hydrated = {
+      ...canvasNodeToFlow(confirmedNode),
+      ...(detailVersion ? { detailVersion } : {}),
+    }
+    const nextNodes = nodesRef.current.map((node) => node.id === nodeId ? {
+      ...hydrated,
+      selected: node.selected,
+      dragging: node.dragging,
+      position: node.position,
+      width: node.width,
+      height: node.height,
+    } : node)
+    nodesRef.current = nextNodes
+    setNodes(nextNodes)
+    confirmHydratedNodesRef.current([confirmedNode])
+  }, [loadNodeDetail, summaryMode])
+  const hydrateForDocument = useCallback(async (document: CanvasDocumentInput, confirmed?: CanvasDocumentInput | null) => {
+    if (!summaryMode) return document
+    return hydrateCanvasDocumentForWrite(document, async (node) => {
+      const current = nodesRef.current.find((candidate) => candidate.id === node.id)
+      return loadNodeDetail(node.id, current || node)
+    }, confirmed)
+  }, [loadNodeDetail, summaryMode])
   const autosave = useCanvasAutosave({
     accountId: session?.user?.id || '',
     enabled: !readOnly,
@@ -864,14 +1014,22 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     canvasId: initialGraph.canvas.id,
     initialRevision: initialGraph.canvas.revision,
     buildDocument,
+    initialDocument,
+    changeSource: mode === 'canvas' ? changeSource : undefined,
+    geometryOps: summaryMode,
+    hydrateForDocument,
     onSaved: handleSaved,
     onLoadServer: loadGraph,
     onMergeDocument: mergeDocument,
     onRestoreLocal: restoreOfflineDocument,
   })
+  confirmHydratedNodesRef.current = autosave.confirmHydratedNodes
+  confirmMeasuredNodesRef.current = autosave.confirmMeasuredNodes
   const offlineRecoveryBlocking = autosave.offlineRecoveryState !== 'none'
   const writeLocked = readOnly || productionSyncing || offlineRecoveryBlocking
   const scheduleAutosave = autosave.scheduleSave
+  const holdAutosave = autosave.holdPersistence
+  useEffect(() => { holdAutosave(nodeDragging) }, [holdAutosave, nodeDragging])
   const flushAutosave = autosave.flush
   const autosaveRevision = autosave.revision
   const autosaveClientId = autosave.clientId
@@ -883,8 +1041,23 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const acceptProductionSyncRevision = autosave.acceptExternalRevision
   const loadServerAfterSyncConflict = autosave.loadServerVersion
 
-  const markChanged = useCallback((label: string) => scheduleAutosave(label), [scheduleAutosave])
-  const record = useCallback((label: string) => recordHistory(label, currentSnapshot()), [currentSnapshot, recordHistory])
+  const markChanged = useCallback((label: string, options?: { viewportOnly?: boolean }) => scheduleAutosave(agentTurn.labelFor(label), options), [agentTurn, scheduleAutosave])
+  const record = useCallback((label: string) => {
+    agentTurn.record(label, (next) => recordHistory(next, currentSnapshot()), getHistoryDepth, getHistoryHead)
+  }, [agentTurn, currentSnapshot, getHistoryDepth, getHistoryHead, recordHistory])
+  const commitAgentChange = useCallback((change: AgentGraphChange) => {
+    if (writeLocked) return
+    record(change.label)
+    const now = Date.now()
+    change.deletedNodeIds.forEach((id) => deletedNodeIdsRef.current.set(id, now))
+    change.deletedEdgeIds.forEach((id) => deletedEdgeIdsRef.current.set(id, now))
+    if (change.deletedNodeIds.length) setTextEditingNodeId(null)
+    nodesRef.current = change.nodes
+    edgesRef.current = change.edges
+    setNodes(change.nodes)
+    setEdges(change.edges)
+    markChanged(change.label)
+  }, [markChanged, record, setNodes, writeLocked])
 
   const listPlaylistVideoSources = useCallback((): CanvasPlaylistVideoSource[] => (
     nodesRef.current
@@ -1137,6 +1310,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
   const updateNodeData = useCallback((nodeId: string, patch: Partial<CanvasNodeData>, historyLabel?: string) => {
     if (readOnly) return
+    const currentNode = nodesRef.current.find((node) => node.id === nodeId)
+    if (currentNode?.data.__canvasUnhydrated === true) {
+      setToast('节点详情仍在加载，请稍候再编辑')
+      return
+    }
     if (historyLabel) record(historyLabel)
     setNodes((current) => current.map((node) => node.id === nodeId ? { ...node, data: { ...node.data, ...patch } } : node))
     const storyNode = STORY_HANDLE_PATCH_KEYS.some((key) => key in patch) ? nodesRef.current.find((node) => node.id === nodeId) : null
@@ -1208,29 +1386,40 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   ) => {
     const wrapper = wrapperRef.current
     if (!wrapper) return
-    const selectionRect = normalizeScreenRect(start, end, 3)
-    const selectedNodeIds = new Set(findCanvasNodeIdsIntersectingRect(wrapper, selectionRect))
-    const selectedEdgeIds = new Set(findSvgEdgeIdsIntersectingRect(wrapper, selectionRect))
-    setNodes((current) => current.map((node) => {
-      const selected = node.type === 'group'
-        ? Boolean(additive && node.selected)
-        : selectedNodeIds.has(node.id) || Boolean(additive && node.selected)
-      return node.selected === selected ? node : { ...node, selected }
-    }))
-    const next = edgesRef.current.map((edge) => {
-      const selected = selectedEdgeIds.has(edge.id) || Boolean(additive && edge.selected)
-      return edge.selected === selected ? edge : { ...edge, selected }
-    })
-    edgesRef.current = next
-    setEdges(next)
-    if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
-      const parts = [
-        selectedNodeIds.size > 0 ? `${selectedNodeIds.size} 个节点` : '',
-        selectedEdgeIds.size > 0 ? `${selectedEdgeIds.size} 条连线` : '',
-      ].filter(Boolean)
-      setToast(`已框选 ${parts.join('、')}`)
-    }
-  }, [])
+    window.setTimeout(() => {
+      const selectionRect = normalizeScreenRect(start, end, 3)
+      const engine = getProjectionEngine()
+      // Projection unmounts most nodes, so the DOM would only ever box-select what is currently drawn.
+      const selectedNodeIds = new Set(engine
+        ? projectedNodeIdsInLayoutRect(
+          engine.index,
+          normalizeScreenRect(wrapperLayoutPoint(wrapper, start.x, start.y), wrapperLayoutPoint(wrapper, end.x, end.y), 3),
+          viewportRef.current,
+        )
+        : findCanvasNodeIdsIntersectingRect(wrapper, selectionRect))
+      const selectedEdgeIds = new Set(findSvgEdgeIdsIntersectingRect(wrapper, selectionRect))
+      const selectedNodeIdSet = selectedNodeIds
+      setNodes((current) => current.map((node) => {
+        const selected = node.type === 'group'
+          ? Boolean(additive && node.selected)
+          : selectedNodeIdSet.has(node.id) || Boolean(additive && node.selected)
+        return node.selected === selected || (!node.selected && !selected) ? node : { ...node, selected }
+      }))
+      const next = edgesRef.current.map((edge) => {
+        const selected = selectedEdgeIds.has(edge.id) || Boolean(additive && edge.selected)
+        return edge.selected === selected ? edge : { ...edge, selected }
+      })
+      edgesRef.current = next
+      setEdges(next)
+      if (selectedNodeIds.size > 0 || selectedEdgeIds.size > 0) {
+        const parts = [
+          selectedNodeIds.size > 0 ? `${selectedNodeIds.size} 个节点` : '',
+          selectedEdgeIds.size > 0 ? `${selectedEdgeIds.size} 条连线` : '',
+        ].filter(Boolean)
+        setToast(`已框选 ${parts.join('、')}`)
+      }
+    }, 0)
+  }, [getProjectionEngine])
 
   const expandGroupNodeIds = useCallback((requestedIds: string[]) => {
     const expanded = new Set(requestedIds)
@@ -1315,15 +1504,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     currentProjectId: projectId,
   } : undefined), [mode, projectId, storyCanvas])
 
-  const duplicateNodes = useCallback((requestedIds: string[]) => {
+  const duplicateNodes = useCallback(async (requestedIds: string[]) => {
     if (readOnly) return
     const expanded = expandGroupNodeIds(requestedIds)
     const allOriginals = nodesRef.current.filter((node) => expanded.has(node.id))
     // A plain canvas must not spawn story nodes through copy / duplicate.
     const originalCopy = filterStoryClipboardDocument(allOriginals, [], mode === 'story')
     if (originalCopy.filtered) setToast('剧情节点只能用在影游画布')
-    const originals = originalCopy.nodes
-    if (originals.length === 0) return
+    if (originalCopy.nodes.length === 0) return
+    try {
+      for (const node of originalCopy.nodes) await prepareNodeForWrite(node.id)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '节点详情加载失败，请重试')
+      return
+    }
+    const originals = nodesRef.current.filter((node) => originalCopy.nodes.some((original) => original.id === node.id))
     if (!ensureNodeCapacity(originals.length)) return
     const includesGroup = requestedIds.some((id) => nodesRef.current.some((node) => node.id === id && node.type === 'group'))
     // A copy never takes over an outside card's story line: every exit keeps exactly one flow.
@@ -1339,7 +1534,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setEdges((current) => [...current, ...copiedEdges])
     markChanged('创建副本')
     setToast(`已复制 ${clones.length} 个节点`)
-  }, [ensureNodeCapacity, expandGroupNodeIds, markChanged, mode, readOnly, record, storyActions, storyCanvas])
+  }, [ensureNodeCapacity, expandGroupNodeIds, markChanged, mode, prepareNodeForWrite, readOnly, record, storyActions, storyCanvas])
 
   const addNode = useCallback((type: CanvasNodeMenuType, position = centerPosition(), interaction?: StoryInteractionKind) => {
     if (readOnly) return null
@@ -1392,13 +1587,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     record('整理画布')
     animateNodeLayout(
       (current) => arrangeCanvasNodes(current, edgesRef.current, mode),
-      () => window.requestAnimationFrame(() => void flow?.fitView({ padding: 0.18, duration: 260 })),
+      () => window.requestAnimationFrame(() => fitCanvasView(null, { padding: 0.18, duration: 260 })),
     )
     setOrganizeMode(mode)
     markChanged('整理画布')
     setOrganizeOpen(false)
     setToast(canvasOrganizeOption(mode).toast)
-  }, [animateNodeLayout, flow, markChanged, readOnly, record])
+  }, [animateNodeLayout, fitCanvasView, markChanged, readOnly, record])
 
   const organizeSelection = useCallback((mode: 'horizontal' | 'vertical') => {
     if (readOnly) return
@@ -1535,15 +1730,26 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     const copied = filterStoryClipboardDocument(selected, selectCopiedWires(edgesRef.current, ids, includesGroup), mode === 'story')
     if (copied.filtered) setToast('剧情节点只能用在影游画布')
     if (copied.nodes.length === 0) return
-    const payload = { nodes: structuredClone(copied.nodes), edges: structuredClone(copied.edges) }
+    try {
+      for (const node of copied.nodes) await prepareNodeForWrite(node.id)
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '节点详情加载失败，请重试')
+      return
+    }
+    const hydratedIds = new Set(copied.nodes.map((node) => node.id))
+    const hydratedCopied = {
+      nodes: nodesRef.current.filter((node) => hydratedIds.has(node.id)),
+      edges: copied.edges,
+    }
+    const payload = { nodes: structuredClone(hydratedCopied.nodes), edges: structuredClone(hydratedCopied.edges) }
     clipboardRef.current = payload
     setClipboardCanPaste(true)
-    const plainText = collectCanvasClipboardText(copied.nodes)
+    const plainText = collectCanvasClipboardText(hydratedCopied.nodes)
     const { canvasFormat } = await writeCanvasClipboard(JSON.stringify(payload), plainText)
     internalCopyTextRef.current = canvasFormat ? null : plainText
-    if (cut) removeNodes(copied.nodes.map((node) => node.id))
-    else setToast(`已复制 ${copied.nodes.length} 个节点`)
-  }, [expandGroupNodeIds, mode, removeNodes])
+    if (cut) removeNodes(hydratedCopied.nodes.map((node) => node.id))
+    else setToast(`已复制 ${hydratedCopied.nodes.length} 个节点`)
+  }, [expandGroupNodeIds, mode, prepareNodeForWrite, removeNodes])
 
   const refreshClipboardAvailability = useCallback(async () => {
     const text = await navigator.clipboard?.readText().catch(() => '') || ''
@@ -1640,12 +1846,17 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     return resolved
   }, [initialGraph.canvas.id, projectId])
 
-  const handleGenerate = useCallback(async (request: CanvasGenerateRequest) => {
+  const handleGenerate = useCallback(async (request: CanvasGenerateRequest, verifyApproval?: () => void) => {
     if (readOnly) return
     const target = nodesRef.current.find((node) => node.id === request.nodeId)
     if (!target) throw new Error('节点不存在或已被删除')
+    await prepareNodeForWrite(target.id)
+    for (const referenceNodeId of request.referenceNodeIds || []) await prepareNodeForWrite(referenceNodeId)
+    const hydratedTarget = nodesRef.current.find((node) => node.id === request.nodeId)
+    if (!hydratedTarget || hydratedTarget.data.__canvasUnhydrated === true) throw new Error('节点详情尚未加载完成，请重试')
     if ((target.data.generationTask && !target.data.generationTask.completed) || target.data.__server?.status === 'RUNNING') throw new Error('该节点正在生成，请等待完成后再提交')
     const referenceNodeIds = requireExistingReferenceNodeIds(request.referenceNodeIds, nodesRef.current)
+    verifyApproval?.()
     // Global style is a canvas-level text node. Compose it at request time so
     // the node's own prompt stays the user's original text and repeated
     // submissions never stack duplicate style blocks.
@@ -1675,6 +1886,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     const selectedReferenceMaterialIds = request.type === 'text'
       ? []
       : await ensureReferenceMaterialIds(referenceNodeIds)
+    verifyApproval?.()
     const multiImageRevision = request.type === 'image' && !request.storyboard && request.count > 1
       ? preparedRevision
       : null
@@ -1863,7 +2075,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       : isCanvasPanoramaNodeData(target.data)
         ? CANVAS_PANORAMA_PROCESS_TYPE
         : null
-    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, ...(hasReferenceMentionNames ? { referenceMentionNames } : {}), ...(voiceDetachedMaterialIds.length > 0 ? { voiceDetachedMaterialIds } : {}), count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
+    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, ...(hasReferenceMentionNames ? { referenceMentionNames } : {}), ...(voiceDetachedMaterialIds.length > 0 ? { voiceDetachedMaterialIds } : {}), count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, ...(request.resolution ? { resolution: request.resolution } : {}), ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
     const submitMediaRequest = () => apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submissionBody })
     let response: Response
     try {
@@ -2093,8 +2305,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     }
     if (action === 'cancel_generation') {
       const task = node.data.generationTask
-      if (!task?.taskId || node.data.__server?.status !== 'RUNNING') return
-      void cancelCanvasGenerationTask(projectId, initialGraph.canvas.id, task.taskId)
+      if (!task?.taskId || node.data.__server?.status !== 'RUNNING') return false
+      return cancelCanvasGenerationTask(projectId, initialGraph.canvas.id, task.taskId)
         .then((update) => {
           const message = update.task.error?.message || '任务已取消'
           setNodes((current) => current.map((item) => item.id === nodeId ? {
@@ -2109,9 +2321,9 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
           } : item))
           markChanged('取消画布生成任务')
           setToast('生成任务已取消，需要时可右键节点重新生成')
+          return true
         })
-        .catch((error) => setToast(error instanceof Error ? error.message : '取消任务失败'))
-      return
+        .catch((error) => { setToast(error instanceof Error ? error.message : '取消任务失败'); return false })
     }
     if (action === 'regenerate') {
       void regenerateNode(nodeId).catch(() => undefined)
@@ -2684,15 +2896,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     const target = nodesRef.current.find((node) => node.id === nodeId)
     if (!target) return
     setNodes((current) => current.map((node) => (node.selected === (node.id === nodeId) ? node : { ...node, selected: node.id === nodeId })))
-    void flow?.fitView({ nodes: [target], padding: 0.9, maxZoom: 1, duration: 320 })
-  }, [flow])
+    fitCanvasView([target.id], { padding: 0.9, maxZoom: 1, duration: 320 })
+  }, [fitCanvasView])
+
+  const overviewTitleOf = useCallback((id: string) => getProjectionEngine()?.titleOf(id) ?? '', [getProjectionEngine])
+  const locateFoldedEdge = useCallback((edge: ProjectedEdgeSummary) => {
+    // A selected edge is never folded, so selecting it also makes the wire and both ends appear.
+    const next = edgesRef.current.map((item) => (Boolean(item.selected) === (item.id === edge.id) ? item : { ...item, selected: item.id === edge.id }))
+    edgesRef.current = next
+    setEdges(next)
+    fitCanvasView([edge.source, edge.target], { padding: 0.4, maxZoom: 1, duration: 300 })
+  }, [fitCanvasView])
 
   const editorContext = useMemo(() => ({
     readOnly: writeLocked,
     playlistDropTargetId,
-    canUndo,
-    canRedo,
-    saveState: autosave.saveState,
     undo,
     redo,
     saveCanvas: flushAutosave,
@@ -2707,16 +2925,16 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     startPlaylistRender,
     loadPlaylistReview,
     submitPlaylistReview,
-  }), [autosave.saveState, canRedo, canUndo, duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, setTextEditing, startPlaylistRender, submitPlaylistReview, textEditingNodeId, undo, updateNodeData, writeLocked])
+  }), [duplicateNodes, flushAutosave, listPlaylistVideoSources, loadPlaylistRender, loadPlaylistReview, playlistDropTargetId, redo, removeNodes, runNodeAction, setTextEditing, startPlaylistRender, submitPlaylistReview, textEditingNodeId, undo, updateNodeData, writeLocked])
+  const editorPersistence = useMemo(() => ({ canUndo, canRedo, saveState: autosave.saveState }), [autosave.saveState, canRedo, canUndo])
 
   const freezeGeneratorAnchor = useCallback(() => {
     const live = generatorAnchorLiveRef.current
-    if (!live) return
+    if (!live || generatorAnchorFreezeRef.current?.nodeId === live.nodeId) return
     if (generatorAnchorReleaseTimerRef.current !== null) {
       window.clearTimeout(generatorAnchorReleaseTimerRef.current)
       generatorAnchorReleaseTimerRef.current = null
     }
-    if (generatorAnchorFreezeRef.current?.nodeId === live.nodeId) return
     generatorAnchorFreezeRef.current = live
     setGeneratorAnchorFrozen(true)
   }, [])
@@ -2750,17 +2968,25 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       ? pendingMentionGeneratorRef.current
       : null
     if (pendingReference) pendingMentionGeneratorRef.current = null
+    const measuredIds = new Set(changes.flatMap((change) =>
+      change.type === 'dimensions' && change.resizing !== true && !change.setAttributes ? [change.id] : []
+    ))
     setNodes((current) => {
       const next = applyNodeChanges(changes, current)
       const restored = pendingReference
         ? next.map((node) => ({ ...node, selected: node.id === pendingReference }))
         : next
-      return removed.size ? removeDeletedCanvasReferences(restored, removed) : restored
+      const result = removed.size ? removeDeletedCanvasReferences(restored, removed) : restored
+      if (measuredIds.size) {
+        nodesRef.current = result
+        confirmMeasuredNodesRef.current(result.filter((node) => measuredIds.has(node.id)))
+      }
+      return result
     })
     const hasPersistentChange = changes.some((change) => (
       change.type === 'position'
       || change.type === 'remove'
-      || (change.type === 'dimensions' && Boolean(change.setAttributes))
+      || (change.type === 'dimensions' && change.resizing !== undefined && Boolean(change.setAttributes))
     ))
     if (hasPersistentChange) markChanged('调整画布节点')
     if (removed.size) {
@@ -2840,10 +3066,40 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     return true
   }, [batchTargetAtPointer, connectBatch, markChanged, writeLocked])
 
+  const beginUnmountedSelectionDrag = useCallback((anchor: CanvasFlowNode) => {
+    unmountedDragRef.current = null
+    if (!getProjectionEngine() || !anchor.selected) return
+    const mounted = new Set(Array.from(wrapperRef.current?.querySelectorAll('.react-flow__node[data-id]') ?? [], (element) => element.getAttribute('data-id')))
+    const rest = nodesRef.current.filter((item) => item.selected && item.type !== 'group' && item.id !== anchor.id && !mounted.has(item.id))
+    if (rest.length === 0) return
+    unmountedDragRef.current = {
+      anchorId: anchor.id,
+      anchorStart: { ...anchor.position },
+      rest: new Map(rest.map((item) => [item.id, { ...item.position }])),
+    }
+  }, [flowStore, getProjectionEngine])
+  const finishUnmountedSelectionDrag = useCallback((
+    pending: typeof unmountedDragRef.current,
+    anchorFinal: CanvasFlowNode | undefined,
+    skipIds: ReadonlySet<string>,
+  ) => {
+    if (!pending) return
+    const anchor = anchorFinal ?? nodesRef.current.find((item) => item.id === pending.anchorId)
+    if (!anchor) return
+    const dx = anchor.position.x - pending.anchorStart.x
+    const dy = anchor.position.y - pending.anchorStart.y
+    if (dx === 0 && dy === 0) return
+    setNodes((current) => current.map((item) => {
+      const start = pending.rest.get(item.id)
+      return start && !skipIds.has(item.id) ? { ...item, position: { x: start.x + dx, y: start.y + dy } } : item
+    }))
+  }, [])
+
   const onNodeDragStart = useCallback((event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
     setNodeDragging(true)
     freezeGeneratorAnchor()
+    beginUnmountedSelectionDrag(node)
     const dragNodes = node.selected ? nodesRef.current.filter((current) => current.selected) : [node]
     beginBatchNodeDrag(event, dragNodes)
     const selectedNodeCount = node.selected
@@ -2871,7 +3127,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       const memberIds = new Set(node.data.memberIds || [])
       groupDragRef.current = { id: node.id, start: { ...node.position }, members: new Map(nodesRef.current.filter((item) => memberIds.has(item.id)).map((item) => [item.id, { ...item.position }])) }
     }
-  }, [beginBatchNodeDrag, expandGroupNodeIds, freezeGeneratorAnchor, record, writeLocked])
+  }, [beginBatchNodeDrag, beginUnmountedSelectionDrag, expandGroupNodeIds, freezeGeneratorAnchor, record, writeLocked])
 
   const onNodeDrag = useCallback((event: React.MouseEvent, node: CanvasFlowNode) => {
     if (writeLocked) return
@@ -2890,6 +3146,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const onNodeDragStop = useCallback((event: React.MouseEvent, draggedNode: CanvasFlowNode, draggedNodes: CanvasFlowNode[]) => {
     setNodeDragging(false)
     releaseGeneratorAnchor()
+    const unmountedDrag = unmountedDragRef.current
+    unmountedDragRef.current = null
     if (finishBatchNodeDrag(event, draggedNodes || [draggedNode])) return
     const playlistDrag = playlistNodeDragRef.current?.id === draggedNode.id ? playlistNodeDragRef.current : null
     const currentNodes = nodesRef.current.map((node) => node.id === draggedNode.id ? draggedNode : node)
@@ -2962,6 +3220,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       dragRecordedRef.current = false
       return
     }
+    finishUnmountedSelectionDrag(unmountedDrag, draggedNode, new Set(groupDragRef.current?.members.keys() ?? []))
     setNodes((current) => {
       const reconciled = reconcileDraggedNodeGroupMembership(current, [draggedNode.id])
       return draggedNode.type === 'group'
@@ -2971,29 +3230,33 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     groupDragRef.current = null
     dragRecordedRef.current = false
     markChanged('移动节点')
-  }, [ensureNodeCapacity, finishBatchNodeDrag, markChanged, releaseGeneratorAnchor, writeLocked])
+  }, [ensureNodeCapacity, finishBatchNodeDrag, finishUnmountedSelectionDrag, markChanged, releaseGeneratorAnchor, writeLocked])
 
   const onSelectionDragStart = useCallback((event: React.MouseEvent, draggedNodes: CanvasFlowNode[]) => {
     if (writeLocked) return
     setNodeDragging(true)
     freezeGeneratorAnchor()
+    if (draggedNodes[0]) beginUnmountedSelectionDrag(draggedNodes[0])
     beginBatchNodeDrag(event, draggedNodes)
     if (!dragRecordedRef.current) {
       record('移动多个节点')
       dragRecordedRef.current = true
     }
-  }, [beginBatchNodeDrag, freezeGeneratorAnchor, record, writeLocked])
+  }, [beginBatchNodeDrag, beginUnmountedSelectionDrag, freezeGeneratorAnchor, record, writeLocked])
   const onSelectionDrag = useCallback((event: React.MouseEvent) => {
     if (batchNodeDragRef.current) setBatchDropTargetId(batchTargetAtPointer(event))
   }, [batchTargetAtPointer])
   const onSelectionDragStop = useCallback((event: React.MouseEvent, draggedNodes: CanvasFlowNode[]) => {
     setNodeDragging(false)
     releaseGeneratorAnchor()
+    const unmountedDrag = unmountedDragRef.current
+    unmountedDragRef.current = null
     if (finishBatchNodeDrag(event, draggedNodes)) return
     if (writeLocked) {
       dragRecordedRef.current = false
       return
     }
+    finishUnmountedSelectionDrag(unmountedDrag, draggedNodes.find((node) => node.id === unmountedDrag?.anchorId), EMPTY_NODE_ID_SET)
     const draggedIds = draggedNodes.map((node) => node.id)
     const movedContent = draggedNodes.some((node) => node.type !== 'group')
     const draggedGroupIds = new Set(draggedNodes.filter((node) => node.type === 'group').map((node) => node.id))
@@ -3005,7 +3268,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     })
     dragRecordedRef.current = false
     markChanged('移动多个节点')
-  }, [finishBatchNodeDrag, markChanged, releaseGeneratorAnchor, writeLocked])
+  }, [finishBatchNodeDrag, finishUnmountedSelectionDrag, markChanged, releaseGeneratorAnchor, writeLocked])
 
   const insertMaterials = useCallback((entries: Array<{ material: FrameosMaterialItem; position: { x: number; y: number } }>) => {
     if (readOnly) return []
@@ -3544,6 +3807,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     ? selectedNodes[0]
     : null
   const selectedCreativeNode = directlySelectedCreativeNode && directlySelectedCreativeNode.id !== generatorSuppressedNodeId && directlySelectedCreativeNode.id !== textEditingNodeId
+    && directlySelectedCreativeNode.data.__canvasUnhydrated !== true
     ? directlySelectedCreativeNode
     : null
   soleSelectedNodeIdRef.current = selectedNodes.length === 1 ? selectedNodes[0].id : null
@@ -3554,11 +3818,15 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   // Positioning and rendering must use the same layout width. The workspace is
   // CSS-zoomed, so window.innerWidth would make the actual panel too wide.
   const renderedGeneratorPanelWidth = Math.min(generatorPanelWidth, Math.max(240, canvasSurfaceSize.width - 80))
+  const readViewport = useCallback(() => {
+    const [x, y, zoom] = flowStore.getState().transform
+    return { x, y, zoom }
+  }, [flowStore])
   const liveGeneratorAnchor = selectedCreativeNode && selectedCreativeNodePosition && selectedCreativeNodeSize
     ? resolveCanvasGeneratorAnchor({
         nodePosition: selectedCreativeNodePosition,
         nodeSize: selectedCreativeNodeSize,
-        viewport,
+        viewport: readViewport(),
         surface: canvasSurfaceSize,
         panelWidth: renderedGeneratorPanelWidth,
         safeBottom: 96,
@@ -3567,13 +3835,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   generatorAnchorLiveRef.current = selectedCreativeNode && liveGeneratorAnchor
     ? { nodeId: selectedCreativeNode.id, anchor: liveGeneratorAnchor }
     : null
-  const frozenAnchorEntry = generatorAnchorFreezeRef.current
-  const frozenGeneratorAnchor = generatorAnchorFrozen
-    && frozenAnchorEntry
-    && frozenAnchorEntry.nodeId === selectedCreativeNode?.id
-    ? frozenAnchorEntry.anchor
+  const generatorAnchor = selectedCreativeNode
+    ? <CanvasGeneratorViewportAnchor store={flowStore} node={selectedCreativeNode} surface={canvasSurfaceSize} panelWidth={renderedGeneratorPanelWidth} frozenAnchor={generatorAnchorFrozen ? generatorAnchorFreezeRef.current?.anchor ?? null : null}>{(liveAnchor) => {
+        return <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} anchor={liveAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} />
+      }}</CanvasGeneratorViewportAnchor>
     : null
-  const generatorAnchor = frozenGeneratorAnchor ?? liveGeneratorAnchor
   const incomingNodes = selectedCreativeNode ? edges.filter((edge) => edge.target === selectedCreativeNode.id).map((edge) => nodes.find((node) => node.id === edge.source)).filter((node): node is CanvasFlowNode => Boolean(node)) : []
   const secondaryIncomingNodeIds = selectedCreativeNode
     ? new Set(collectCanvasSecondaryNodeIds(edges, selectedCreativeNode.id, incomingNodes.map((node) => node.id)))
@@ -3585,6 +3851,28 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   const videoPrefixNodes = nodes.filter((node) => getMediaType(node) === 'text' && node.data.videoPrefixPrompt === true)
   const videoPrefixNode = videoPrefixNodes.length === 1 ? videoPrefixNodes[0] : null
   const historyNode = historyNodeId ? nodes.find((node) => node.id === historyNodeId) || null : null
+  const hydrationNodeIds = summaryMode
+    ? [...new Set([
+      ...(directlySelectedCreativeNode ? [directlySelectedCreativeNode.id] : []),
+      ...(textEditingNodeId ? [textEditingNodeId] : []),
+      ...nodes.filter((node) => node.data.__server?.status === 'RUNNING').map((node) => node.id),
+      ...(globalStyleNode ? [globalStyleNode.id] : []),
+      ...(videoPrefixNode ? [videoPrefixNode.id] : []),
+    ])]
+    : []
+  const hydrationKey = hydrationNodeIds.sort().join(' ')
+  useEffect(() => {
+    if (!hydrationKey) return
+    let active = true
+    for (const nodeId of hydrationKey.split(' ')) {
+      const current = nodesRef.current.find((node) => node.id === nodeId)
+      if (!current || current.data.__canvasUnhydrated !== true) continue
+      void prepareNodeForWrite(nodeId).catch((error: unknown) => {
+        if (active) setToast(error instanceof Error ? error.message : '节点详情加载失败')
+      })
+    }
+    return () => { active = false }
+  }, [hydrationKey, prepareNodeForWrite])
   const modelPreviewNode = modelPreviewNodeId ? nodes.find((node) => node.id === modelPreviewNodeId) || null : null
   const mediaPreviewNode = mediaPreviewNodeId ? nodes.find((node) => node.id === mediaPreviewNodeId) || null : null
   const panoramaPreviewNode = panoramaPreviewNodeId ? nodes.find((node) => node.id === panoramaPreviewNodeId) || null : null
@@ -3607,8 +3895,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     .join('|')
 
   useEffect(() => {
-    if (generatorSuppressedNodeId && soleSelectedNodeIdRef.current !== generatorSuppressedNodeId) setGeneratorSuppressedNodeId(null)
-  }, [generatorSuppressedNodeId, selectedNodes.length, selectedNodes[0]?.id])
+    if (generatorSuppressedNodeId && selectedNodes.length === 0) setGeneratorSuppressedNodeId(null)
+  }, [generatorSuppressedNodeId, selectedNodes.length])
 
   useEffect(() => {
     if (!persistentTaskSignature) return
@@ -3777,11 +4065,10 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         polling = false
       }
     }
-    void poll()
-    const timer = window.setInterval(() => void poll(), 1_500)
+    const stopPolling = startVisiblePolling(poll, 3_000)
     return () => {
+      stopPolling()
       active = false
-      window.clearInterval(timer)
       for (const controller of controllers) controller.abort()
     }
   }, [initialGraph.canvas.id, markChanged, materializeStoryboardPlan, persistentTaskSignature, projectId, readOnly])
@@ -3923,11 +4210,10 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         polling = false
       }
     }
-    void poll()
-    const timer = window.setInterval(() => void poll(), 2_500)
+    const stopPolling = startVisiblePolling(poll, 3_000)
     return () => {
+      stopPolling()
       active = false
-      window.clearInterval(timer)
       for (const controller of controllers) controller.abort()
     }
   }, [projectId, runningSignature])
@@ -3943,7 +4229,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         setPickerOpen(false)
         setOrganizeOpen(false)
         setHelpOpen(false)
-        setNodes((current) => current.map((node) => ({ ...node, selected: false })))
+        setNodes((current) => current.map((node) => node.selected ? { ...node, selected: false } : node))
       }
       // Escape always dismisses canvas chrome, including when a search field in
       // the project-assets surface owns focus. Other input shortcuts stay local.
@@ -3976,11 +4262,16 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         dismissTransientUi()
         return
       }
+      if ((event.metaKey || event.ctrlKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'j' && mode === 'canvas' && !readOnly) {
+        event.preventDefault()
+        if (!event.repeat) setAgentOpen((value) => !value)
+        return
+      }
       if (hasInputFocus()) return
       if (['Backspace', 'Delete', 'Enter'].includes(event.key)) {
         const target = event.target instanceof Element ? event.target : null
         const overlayOpen = Boolean(target?.closest('[role="dialog"], [role="menu"], [role="alertdialog"], .fos-overlay, .nori-canvas-generator, .nori-canvas-add-panel'))
-          || Boolean(mediaPreviewNodeId || modelPreviewNodeId || panoramaPreviewNodeId || historyNodeId || revisionsOpen || confirmOpenRef.current)
+          || Boolean(mediaPreviewNodeId || modelPreviewNodeId || panoramaPreviewNodeId || historyNodeId || taskIdInfo || revisionsOpen || confirmOpenRef.current)
         if (overlayOpen || event.repeat) return
         if ((event.key === 'Enter' || event.code === 'Space') && target?.closest('button, a, summary, [role="button"]')) return
       }
@@ -4003,7 +4294,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       if (mod && event.key.toLowerCase() === 'c') { event.preventDefault(); void copySelection(); return }
       if (mod && event.key.toLowerCase() === 'x') { if (readOnly) return; event.preventDefault(); void copySelection(true); return }
       if (mod && event.key.toLowerCase() === 'v') { if (readOnly) return; event.preventDefault(); event.stopPropagation(); void pasteFromSystem().catch((error: unknown) => setToast(error instanceof Error ? error.message : '粘贴失败')); return }
-      if (mod && event.key.toLowerCase() === 'd') { if (readOnly) return; event.preventDefault(); duplicateNodes(nodesRef.current.filter((node) => node.selected).map((node) => node.id)); return }
+      if (mod && event.key.toLowerCase() === 'd') { if (readOnly) return; event.preventDefault(); void duplicateNodes(nodesRef.current.filter((node) => node.selected).map((node) => node.id)); return }
       if (mod && event.key.toLowerCase() === 'a') { event.preventDefault(); setNodes((current) => current.map((node) => ({ ...node, selected: true }))); return }
       if (mod && event.key.toLowerCase() === 's') { if (readOnly) return; event.preventDefault(); void flushAutosave(); return }
       if (mod && (event.key === '+' || event.key === '=')) { event.preventDefault(); void flow?.zoomIn({ duration: 120 }); return }
@@ -4053,7 +4344,40 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       window.removeEventListener('keyup', keyup)
       window.removeEventListener('blur', clearSpacePan)
     }
-  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, historyNodeId, mediaPreviewNodeId, modelPreviewNodeId, nudgeSelection, offlineRecoveryBlocking, panoramaPreviewNodeId, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, requestTextEdit, revisionsOpen, undo])
+  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, historyNodeId, mediaPreviewNodeId, modelPreviewNodeId, nudgeSelection, offlineRecoveryBlocking, panoramaPreviewNodeId, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, requestTextEdit, revisionsOpen, taskIdInfo, undo])
+
+  const agentBridge = useCanvasAgentBridge({
+    projectId, canvasId: initialGraph.canvas.id, mode, readOnly, writeLocked,
+    nodesRef, edgesRef, viewportRef, wrapperRef, turn: agentTurn,
+    limits: { maxNodes: CANVAS_NODE_HARD_LIMIT, maxEdges: CANVAS_EDGE_HARD_LIMIT },
+    centerPosition, commit: commitAgentChange, generate: handleGenerate, runNodeAction, undo,
+    history: { getDepth: getHistoryDepth, getLastLabel: getLastHistoryLabel, getHead: getHistoryHead },
+    focus: (ids) => fitCanvasView(ids === 'all' ? null : ids, { padding: 0.24, maxZoom: 1, duration: 300 }),
+    focusBounds: (bounds) => fitCanvasAgentBounds(flow, wrapperRef.current, bounds),
+    flash: (ids, follow) => {
+      agentFeedback.flash(ids)
+      if (follow && Date.now() - lastManualViewportAt.current >= 3000) {
+        followCanvasAgentNodes(flow, wrapperRef.current, viewportRef.current, nodesRef.current, ids)
+      }
+    },
+    select: (ids) => {
+      if (readOnly || mode !== 'canvas') return
+      const selected = new Set(ids)
+      setGeneratorSuppressedNodeId(null)
+      const next = nodesRef.current.map((node) => Boolean(node.selected) === selected.has(node.id) ? node : { ...node, selected: selected.has(node.id) })
+      nodesRef.current = next
+      setNodes(next)
+    },
+    prepareNodesForWrite: async (ids) => {
+      // Each pass respects the existing detail loader and versioned cache.
+      for (const id of ids) await prepareNodeForWrite(id)
+    },
+    readNodeDetails: async (id) => {
+      const current = nodesRef.current.find((node) => node.id === id)
+      if (!current) throw new Error('NODE_NOT_FOUND')
+      return current.data.__canvasUnhydrated ? canvasNodeToFlow(await loadNodeDetail(id, current)) : current
+    },
+  })
 
   const handleContextAction = (action: string) => {
     const menu = contextMenu
@@ -4062,10 +4386,18 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     if (readOnly && action !== 'copy' && action !== 'reset-viewport') return
     if (menu.scope === 'node') {
       if (action === 'copy') { setNodes((current) => current.map((node) => ({ ...node, selected: node.id === menu.nodeId }))); void copySelection(false, [menu.nodeId]) }
-      if (action === 'duplicate') duplicateNodes([menu.nodeId])
+      if (action === 'duplicate') void duplicateNodes([menu.nodeId])
       if (action === 'delete') removeNodes([menu.nodeId])
       if (action === 'regenerate') runNodeAction(menu.nodeId, 'regenerate')
       if (action === 'upload-asset-library') setAssetLibraryNodeId(menu.nodeId)
+      if (action === 'view-task-id') {
+        const target = nodesRef.current.find((node) => node.id === menu.nodeId && getMediaType(node) === 'video')
+        if (!target) return
+        const generationTaskId = readNodeGenerationTaskId(target)
+        if (!generationTaskId) { setToast('该节点没有关联的生成任务记录'); return }
+        setTaskIdInfo({ taskId: generationTaskId, title: target.data.title || '未命名视频' })
+        return
+      }
       if (action === 'grid-split-2' || action === 'grid-split-3' || action === 'grid-split-4') {
         const target = nodesRef.current.find((node) => node.id === menu.nodeId && getMediaType(node) === 'image')
         if (!target) return
@@ -4111,7 +4443,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         setNodes((current) => current.map((node) => ({ ...node, selected: node.id === menu.groupId })))
         void copySelection(false, [menu.groupId])
       }
-      if (action === 'duplicate') duplicateNodes([menu.groupId])
+      if (action === 'duplicate') void duplicateNodes([menu.groupId])
       if (action === 'delete') {
         const group = nodesRef.current.find((node) => node.id === menu.groupId && node.type === 'group')
         const count = group?.data.memberIds?.length || 0
@@ -4211,10 +4543,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     return true
   }
 
-  const flowNodes = useMemo(() => batchDropTargetId
-    ? nodes.map((node) => node.id === batchDropTargetId
-      ? { ...node, className: `${node.className || ''} nori-canvas-batch-connect-target` } : node)
-    : nodes, [batchDropTargetId, nodes])
+  const projectedNodes = projection.renderNodes as CanvasFlowNode[]
+  const flowNodes = useMemo(() => batchDropTargetId || agentTouched.size
+    ? projectedNodes.map((node) => node.id === batchDropTargetId || agentTouched.has(node.id)
+      ? { ...node, className: `${node.className || ''}${node.id === batchDropTargetId ? ' nori-canvas-batch-connect-target' : ''}${agentTouched.has(node.id) ? ' is-agent-touched' : ''}` } : node)
+    : projectedNodes, [agentTouched, batchDropTargetId, projectedNodes])
 
   const handleConnectStart = useStableCallback<OnConnectStart>((_event, params) => {
     connectionActiveRef.current = true
@@ -4260,15 +4593,14 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     }
     setWireMenu({ ...visibleMenuPoint(point.x, point.y, 210), flowPosition: screenToCanvasPosition(point), sourceNodeId: state.fromNode.id, sourceHandle: state.fromHandle?.id || null })
   })
-  const handleMoveStart = useStableCallback<OnMove>(() => { setNodeTypeMenu(null); viewportMoveStartRef.current = { ...viewportRef.current } })
+  const handleMoveStart = useStableCallback<OnMove>((event) => {
+    if (event) lastManualViewportAt.current = Date.now()
+    setNodeTypeMenu(null)
+    viewportMoveStartRef.current = { ...viewportRef.current }
+  })
   const handleMove = useStableCallback<OnMove>((_event, next) => {
+    if (next.zoom !== viewportRef.current.zoom) projection.setViewportZooming(true)
     viewportRef.current = next
-    // ReactFlow moves its own surface every frame. Only the anchored
-    // editor/live zoom label need parent renders, at most 20fps.
-    if ((selectedCreativeNode || viewport.zoom !== next.zoom) && performance.now() - viewportRenderTimeRef.current >= 50) {
-      viewportRenderTimeRef.current = performance.now()
-      setViewportState(next)
-    }
   })
   const handleMoveEnd = useStableCallback<OnMove>((_event, next) => {
     const previous = viewportMoveStartRef.current
@@ -4277,9 +4609,19 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
       || Math.abs(previous.zoom - next.zoom) > 0.0001
     setViewportState(next)
     viewportRef.current = next
-    if (!writeLocked && changed) markChanged('调整画布视图')
+    projection.setViewportZooming(false)
+    if (!writeLocked && changed) markChanged('调整画布视图', { viewportOnly: true })
   })
-  const handlePaneClick = useStableCallback(() => {
+  // In overview mode nodes are painted on a canvas layer, so a click on one lands on the pane and is resolved from the index.
+  const overviewNodeAt = (event: { clientX: number; clientY: number }) => {
+    const engine = getProjectionEngine()
+    const wrapper = wrapperRef.current
+    if (!engine || engine.renderMode !== 'overview' || !wrapper) return null
+    const point = clientToFlowPoint(wrapper, event.clientX, event.clientY, viewportRef.current)
+    const id = engine.index.hitTestNode(point.x, point.y)
+    return id && engine.index.nodeBox(id)?.type !== 'group' ? id : null
+  }
+  const handlePaneClick = useStableCallback((event: React.MouseEvent) => {
     if (wireReleaseClickRef.current) {
       wireReleaseClickRef.current = false
       return
@@ -4289,7 +4631,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     setContextMenu(null)
     setWireMenu(null)
     setNodeTypeMenu(null)
-    clearCanvasSelection()
+    const hitId = overviewNodeAt(event)
+    if (!hitId) {
+      clearCanvasSelection()
+      return
+    }
+    const additive = event.shiftKey || event.metaKey || event.ctrlKey
+    setNodes((current) => current.map((node) => {
+      const selected = node.id === hitId ? (additive ? !node.selected : true) : additive && Boolean(node.selected)
+      return Boolean(node.selected) === selected ? node : { ...node, selected }
+    }))
+    if (!additive) {
+      const deselectedEdges = edgesRef.current.map((edge) => (edge.selected ? { ...edge, selected: false } : edge))
+      edgesRef.current = deselectedEdges
+      setEdges(deselectedEdges)
+    }
   })
   const handleNodeClick = useStableCallback<NodeMouseHandler<CanvasFlowNode>>((event, node) => {
     if (event.shiftKey || event.metaKey || event.ctrlKey) return
@@ -4298,6 +4654,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
     // A double-click on a title or a text body means rename/edit, not "open the generator".
     if (event.detail > 1 && (node.type === 'text' || node.type === 'note' || (event.target instanceof Element && event.target.closest('.nori-canvas-node-drag-handle')))) return
     if (node.type === 'text' || node.type === 'note') {
+      setGeneratorSuppressedNodeId(node.id)
       if (event.detail === 1 && document.activeElement instanceof HTMLElement && event.target instanceof Element && event.target.closest('.nori-canvas-text-preview')) document.activeElement.blur()
       const onBody = event.target instanceof Element && event.target.closest('.nori-canvas-text-preview')
       if (soleSelectedNodeIdRef.current === node.id && onBody && event.detail === 1 && !readOnly) requestTextEdit(node.id)
@@ -4321,17 +4678,19 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
   }
 
   return (
-    <CanvasEditorProvider value={editorContext}>
+    <CanvasEditorProvider value={editorContext} persistence={editorPersistence}>
       <CanvasMultiSelectionProvider value={selectedNodes.length > 1}>
       <StoryCanvasProvider value={storyContextValue}>
+      <CanvasNodeSourceProvider source={projectionActive ? nodeSource : null}>
       <div
-        className={`nori-canvas-workspace${readOnly ? ' is-readonly' : ''}${productionSyncing ? ' is-syncing' : ''}${layoutAnimating ? ' is-layout-animating' : ''}${nodeDragging ? ' is-node-dragging' : ''}`}
+        className={`nori-canvas-workspace${readOnly ? ' is-readonly' : ''}${productionSyncing ? ' is-syncing' : ''}${layoutAnimating ? ' is-layout-animating' : ''}${nodeDragging ? ' is-node-dragging' : ''}${agentOpen && !readOnly && mode === 'canvas' ? ' has-agent-panel' : ''}`}
         ref={wrapperRef}
         tabIndex={0}
         onPointerDownCapture={(event) => {
           wireReleaseClickRef.current = false
           // Close popover panels when the click lands outside them.
           const target = event.target instanceof Element ? event.target : null
+          if (target?.closest('.nori-canvas-agent-panel, .nori-canvas-agent-launcher')) return
           if (nodeTypeMenuRef.current && target && !target.closest('.nori-canvas-wire-menu')) setNodeTypeMenu(null)
           if (addOpenRef.current && target && !target.closest('.nori-canvas-add-panel, .nori-canvas-tool-rail')) setAddOpen(false)
           if (assetsOpenRef.current && target && !target.closest('.nori-canvas-project-assets, .nori-canvas-tool-rail, .nori-canvas-chrome')) setAssetsOpen(false)
@@ -4410,8 +4769,9 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
           if (edgeSelection?.pointerId === event.pointerId) {
             edgeSelectionGestureRef.current = null
             setMarqueeRect(null)
-            if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-              event.currentTarget.releasePointerCapture(event.pointerId)
+            const wrapper = wrapperRef.current
+            if (wrapper?.hasPointerCapture(event.pointerId)) {
+              wrapper.releasePointerCapture(event.pointerId)
             }
             if (spacePanActiveRef.current) return
             if (Math.hypot(event.clientX - edgeSelection.start.x, event.clientY - edgeSelection.start.y) > 5) {
@@ -4443,14 +4803,16 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         onPointerDown={(event) => { if (event.button === 0) { setContextMenu(null); setWireMenu(null) } }}
         onContextMenuCapture={(event) => {
           const target = event.target
-          if (!(target instanceof Element) || !target.closest('.react-flow')) return
-          if (isTextEntryTarget(target)) {
+          if (!(target instanceof Element)) return
+          const insideFlow = Boolean(target.closest('.react-flow'))
+          if (target.closest('.nori-canvas-generator') || (insideFlow && isTextEntryTarget(target))) {
             // Keep the caret and the native Cut/Copy/Paste menu; the custom menu would blur the editor and end edit mode.
             event.stopPropagation()
             setContextMenu(null)
             setWireMenu(null)
             return
           }
+          if (!insideFlow) return
           event.preventDefault()
           event.stopPropagation()
           if (shouldSuppressContextMenu()) return
@@ -4473,7 +4835,12 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
           void refreshClipboardAvailability()
           setContextMenu({ scope: 'pane', ...visibleMenuPoint(event.clientX, event.clientY, readOnly ? 50 : 270), flowPosition: screenToCanvasPosition({ x: event.clientX, y: event.clientY }) })
         }}
-        onDoubleClick={(event) => { if (!writeLocked && (event.target as HTMLElement).classList.contains('react-flow__pane')) addNode('text', screenToCanvasPosition({ x: event.clientX, y: event.clientY })) }}
+        onDoubleClick={(event) => {
+          if (!(event.target as HTMLElement).classList.contains('react-flow__pane')) return
+          const overviewId = overviewNodeAt(event)
+          if (overviewId) { fitCanvasView([overviewId], { padding: 0.6, maxZoom: 1, duration: 260 }); return }
+          if (!writeLocked) addNode('text', screenToCanvasPosition({ x: event.clientX, y: event.clientY }))
+        }}
         onDragOver={(event) => { if (!writeLocked && (event.dataTransfer.types.includes(CANVAS_MATERIAL_DRAG_TYPE) || event.dataTransfer.types.includes(CANVAS_MATERIAL_COLLECTION_DRAG_TYPE) || event.dataTransfer.types.includes(CANVAS_WORKFLOW_DRAG_TYPE) || event.dataTransfer.types.includes('Files'))) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy' } }}
         onDrop={(event) => {
           if (writeLocked) return
@@ -4520,7 +4887,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         <div className="nori-canvas-surface">
           <ReactFlow<CanvasFlowNode, CanvasFlowEdge>
             nodes={flowNodes}
-            edges={edges}
+            edges={projection.renderEdges as CanvasFlowEdge[]}
             nodeTypes={nodeTypes}
             edgeTypes={edgeTypes}
             onInit={setFlow}
@@ -4556,10 +4923,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
             nodesConnectable={!writeLocked}
             selectNodesOnDrag={false}
             selectionOnDrag={false}
+            selectionKeyCode="Shift"
             selectionMode={SelectionMode.Partial}
             paneClickDistance={8}
             panOnDrag={FLOW_PAN_ON_DRAG}
-            onlyRenderVisibleElements={nodes.length > FLOW_VISIBLE_ONLY_NODE_THRESHOLD}
+            onlyRenderVisibleElements={!projectionActive && nodes.length > FLOW_VISIBLE_ONLY_NODE_THRESHOLD}
             panActivationKeyCode="Space"
             zoomOnScroll
             zoomOnPinch
@@ -4569,7 +4937,31 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
             colorMode={resolvedTheme}
           >
             <Background id="minor-grid" color={themeColors.background} gap={24} size={1} />
-            {minimapVisible ? <MiniMap<CanvasFlowNode>
+            {mode === 'canvas' && !readOnly && <CanvasAgentGhostSlot feedback={agentFeedback} />}
+            {projectionActive ? (
+              <CanvasOverviewLayer
+                store={projection.overviewStore}
+                flowStore={flowStore}
+                getTitle={overviewTitleOf}
+                edgeColor={themeColors.edge}
+                selectedColor={resolvedTheme === 'light' ? '#5b67f5' : '#b8c8ff'}
+                labelColor={resolvedTheme === 'light' ? 'rgba(40, 46, 80, .72)' : 'rgba(220, 226, 255, .72)'}
+              />
+            ) : null}
+            {minimapVisible && projectionActive ? (
+              <CanvasProjectedMinimap
+                getEngine={getProjectionEngine}
+                store={projection.overviewStore}
+                flowStore={flowStore}
+                nodeStroke={themeColors.minimapStroke}
+                selectedStroke={resolvedTheme === 'light' ? '#5b67f5' : '#b8c8ff'}
+                maskColor={themeColors.minimapMask}
+                maskStroke={themeColors.minimapMaskStroke}
+                ariaLabel="画布小地图：拖动蓝色视口可快速定位节点"
+                onZoom={(factor) => void flow?.zoomTo(viewportRef.current.zoom * factor)}
+              />
+            ) : null}
+            {minimapVisible && !projectionActive ? <MiniMap<CanvasFlowNode>
               position="bottom-left"
               pannable={false}
               zoomable
@@ -4605,9 +4997,19 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         <CanvasToolRail editable={!readOnly} addOpen={addOpen} assetsOpen={assetsOpen} onToggleAdd={() => { pendingInsertPositionRef.current = null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen((value) => !value) }} onToggleAssets={() => { pendingInsertPositionRef.current = null; setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen((value) => !value) }} onOpenLibrary={() => setPickerOpen(true)} onUpload={() => openUploadPicker()} onHelp={() => { setAddOpen(false); setAssetsOpen(false); setOrganizeOpen(false); setHelpOpen((value) => !value) }} />
         {!readOnly && addOpen ? <CanvasAddPanel storyItems={mode === 'story' && storyCanvas ? STORY_ADD_NODE_ITEMS : undefined} interactionItems={mode === 'story' && storyCanvas ? STORY_INTERACTION_ADD_ITEMS : undefined} onAddNode={(type, interaction) => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; addNode(type, position, interaction) }} onUpload={() => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; openUploadPicker(position) }} /> : null}
         {!readOnly && assetsOpen ? <CanvasProjectAssets projectId={projectId} onInsert={insertMaterial} onInsertWorkflow={insertWorkflow} onClose={() => setAssetsOpen(false)} refreshKey={workflowRefreshKey} /> : null}
-        <CanvasViewportControls minimapVisible={minimapVisible} zoom={viewport.zoom} organizeMode={organizeMode} organizeOpen={organizeOpen} canOrganize={!readOnly} storyOrganize={mode === 'story' && storyCanvas ? storyActions.organize : undefined} onToggleMinimap={() => setMinimapVisible((value) => !value)} onZoomIn={() => void flow?.zoomIn({ duration: 120 })} onZoomOut={() => void flow?.zoomOut({ duration: 120 })} onFitView={() => void flow?.fitView({ padding: 0.18, duration: 250 })} onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })} onToggleOrganize={() => { setAddOpen(false); setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen((value) => !value) }} onOrganize={organize} />
+        <CanvasViewportControls minimapVisible={minimapVisible} zoom={viewport.zoom} organizeMode={organizeMode} organizeOpen={organizeOpen} canOrganize={!readOnly} storyOrganize={mode === 'story' && storyCanvas ? storyActions.organize : undefined} onToggleMinimap={() => setMinimapVisible((value) => !value)} onZoomIn={() => void flow?.zoomIn({ duration: 120 })} onZoomOut={() => void flow?.zoomOut({ duration: 120 })} onFitView={() => fitCanvasView(null, { padding: 0.18, duration: 250 })} onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })} onToggleOrganize={() => { setAddOpen(false); setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen((value) => !value) }} onOrganize={organize} />
+        {projectionActive ? (
+          <CanvasFoldedEdgesEntry
+            store={projection.overviewStore}
+            describe={projection.describeFoldedEdges}
+            onLocate={locateFoldedEdge}
+            onDisconnect={writeLocked ? undefined : (edge) => removeEdgesById([edge.id])}
+            aboveMinimap={minimapVisible}
+          />
+        ) : null}
         {nodes.length === 0 ? <CanvasEmptyState readOnly={readOnly} onAdd={(type) => addNode(type)} onUpload={() => openUploadPicker()} /> : null}
         {helpOpen ? <CanvasHelpPanel onClose={() => setHelpOpen(false)} /> : null}
+        {mode === 'canvas' && !readOnly && <CanvasAgentDock bridge={agentBridge} title={canvasRef.current.title} open={agentOpen} onOpenChange={setAgentOpen} feedback={agentFeedback} />}
         {(selectedNodes.length > 1 || selectedEdges.length > 0) && !readOnly ? <div className="nori-canvas-selection-toolbar">{selectedNodes.length > 1 ? <>
           <button type="button" className="nori-canvas-batch-connect-handle is-primary" disabled={writeLocked} aria-label="拖到目标节点批量连接" title="按住拖到目标节点；也可直接拖动已选节点。Esc 取消"
             onPointerDown={(event) => {
@@ -4623,7 +5025,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
             }}>拖拽批量连接</button>
           <button type="button" disabled={selectionDownloadNodes.length === 0} title={selectionDownloadNodes.length > 0 ? `打包下载选中的 ${selectionDownloadNodes.length} 个节点内容` : '选中的节点暂无可下载内容'} onClick={() => downloadCanvasNodes(selectionDownloadNodes, '画布批量下载')}>下载</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} anchor={generatorAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} /> : null}
+        {!readOnly ? generatorAnchor : null}
         {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} isVideoPrefixPrompt={contextNode?.data.videoPrefixPrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}
@@ -4631,8 +5033,15 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
           ? <StoryWireMenu state={wireMenu} onPick={handleWirePick} />
           : <CanvasWireMenu state={wireMenu} items={wireMenu.story === 'media' ? (mode === 'story' ? MEDIA_WIRE_MENU_ITEMS : CANVAS_ADD_NODE_ITEMS) : undefined} onPick={handleWirePick} />) : null}
         {nodeTypeMenu ? <CanvasNodeTypeMenu state={nodeTypeMenu} storyMode={mode === 'story' && Boolean(storyCanvas)} onDismiss={() => setNodeTypeMenu(null)} onPick={(type, interaction) => { addNode(type, nodeTypeMenu.flowPosition, interaction); setNodeTypeMenu(null) }} onUpload={() => { openUploadPicker(nodeTypeMenu.flowPosition); setNodeTypeMenu(null) }} /> : null}
-        {historyNode ? <CanvasHistoryDialog node={historyNode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => { const type = getMediaType(historyNode); updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, ...(type === 'text' ? { textMarks: undefined } : {}), contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本'); setHistoryNodeId(null) }} /> : null}
+        {historyNode ? <CanvasHistoryDialog node={historyNode} projectId={projectId} canvasId={initialGraph.canvas.id} onDemand={summaryMode} canUse={!readOnly} onClose={() => setHistoryNodeId(null)} onUse={(item) => {
+          void prepareNodeForWrite(historyNode.id).then(() => {
+            const type = getMediaType(historyNode)
+            updateNodeData(historyNode.id, { text: type === 'text' && typeof item.text === 'string' ? item.text : historyNode.data.text, ...(type === 'text' ? { textMarks: undefined } : {}), contentUrl: type === 'text' ? historyNode.data.contentUrl : item.url, imageUrl: type === 'image' ? item.url : historyNode.data.imageUrl, videoUrl: type === 'video' ? item.url : historyNode.data.videoUrl, audioUrl: type === 'audio' ? item.url : historyNode.data.audioUrl, materialId: type === 'text' ? historyNode.data.materialId : item.materialId || historyNode.data.materialId }, '选用历史版本')
+            setHistoryNodeId(null)
+          }).catch((error: unknown) => setToast(error instanceof Error ? error.message : '节点详情加载失败'))
+        }} /> : null}
         {revisionsOpen ? <CanvasRevisionDialog revisions={revisions} currentRevision={canvasRef.current.revision} loading={revisionsLoading} restoringId={restoringRevisionId} canRestore={!readOnly} error={revisionsError} onReload={() => void loadRevisions()} onRestore={(revision) => void restoreRevision(revision)} onClose={() => { if (!restoringRevisionId) setRevisionsOpen(false) }} /> : null}
+        {taskIdInfo ? <CanvasTaskIdDialog taskId={taskIdInfo.taskId} title={taskIdInfo.title} onClose={() => setTaskIdInfo(null)} /> : null}
         {!readOnly && imageOperation ? (() => { const node = nodes.find((item) => item.id === imageOperation.sourceNodeId); return node ? <CanvasImageOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={imageOperation.mode} node={node} initialGrid={imageOperation.initialGrid} onSubmit={handleImageOperation} onRecover={applyImageOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setImageOperation(null)} /> : null })() : null}
         {!readOnly && videoOperation ? (() => { const node = nodes.find((item) => item.id === videoOperation.sourceNodeId); return node ? <CanvasVideoOperationDialog projectId={projectId} canvasId={initialGraph.canvas.id} mode={videoOperation.mode} node={node} onSubmit={handleVideoOperation} onRecover={applyVideoOperationResults} isTaskMaterialized={isOperationTaskMaterialized} onClose={() => setVideoOperation(null)} /> : null })() : null}
         {mediaPreviewNode ? <CanvasMediaPreviewDialog node={mediaPreviewNode} readOnly={readOnly} onCaptureFrame={handleVideoFrameCapture} onKeyframesChange={(keyframes, source) => updateNodeData(source.id, { videoKeyframes: keyframes }, '更新视频关键帧')} onPromptSave={readOnly ? undefined : (prompt, source) => updateNodeData(source.id, { prompt }, '修改提示词')} onPromptRegenerate={readOnly ? undefined : async (prompt, source) => {
@@ -4701,13 +5110,14 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
           setVideoEditReferencePicker(null)
         }} onClose={() => setVideoEditReferencePicker(null)} /> : null}
         {!readOnly && autosave.conflictOpen ? <CanvasConflictDialog loading={conflictLoading} onLoadServer={() => { setConflictLoading(true); void autosave.loadServerVersion().finally(() => setConflictLoading(false)) }} onMerge={() => { setConflictLoading(true); void autosave.mergeServerVersion().finally(() => setConflictLoading(false)) }} /> : null}
-        {!readOnly && autosave.offlineRecoveryState === 'pending' && autosave.offlineDraft ? <CanvasOfflineRecoveryDialog draft={autosave.offlineDraft} serverRevision={autosave.revision.current} loading={offlineRecoveryLoading} onUseServer={() => { setOfflineRecoveryLoading(true); void autosave.useServerVersion().finally(() => setOfflineRecoveryLoading(false)) }} onRestoreLocal={() => { setOfflineRecoveryLoading(true); void autosave.restoreLocalVersion().finally(() => setOfflineRecoveryLoading(false)) }} /> : null}
+        {!readOnly && autosave.offlineRecoveryState === 'pending' && autosave.offlineDraft ? <CanvasOfflineRecoveryDialog draft={autosave.offlineDraft} serverRevision={autosave.revision.current} loading={offlineRecoveryLoading} onUseServer={() => { setOfflineRecoveryLoading(true); void autosave.useServerVersion().finally(() => setOfflineRecoveryLoading(false)) }} onRestoreLocal={() => { setOfflineRecoveryLoading(true); void autosave.restoreLocalVersion().catch((error: unknown) => setToast(error instanceof Error ? error.message : '恢复本地画布失败')).finally(() => setOfflineRecoveryLoading(false)) }} /> : null}
         </CanvasViewportLayer>
         {!readOnly ? <input ref={uploadRef} type="file" multiple accept="image/*,video/*,audio/*,.glb,model/gltf-binary" className="hidden" onChange={(event) => { const files = event.target.files ? Array.from(event.target.files) : []; const position = pendingUploadPositionRef.current || undefined; pendingUploadPositionRef.current = null; event.target.value = ''; if (files.length > 0) void handleUploads(files, position).catch((error: unknown) => setToast(error instanceof Error ? error.message : '上传失败')) }} /> : null}
         {!readOnly ? <input ref={replacementUploadRef} type="file" accept="image/*,video/*,audio/*,.glb,model/gltf-binary" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; const nodeId = replacementNodeIdRef.current; event.target.value = ''; replacementNodeIdRef.current = null; if (file && nodeId) void handleContentReplacement(nodeId, file).catch((error: unknown) => setToast(error instanceof Error ? error.message : '替换内容失败')) }} /> : null}
         {mode === 'story' ? <StoryCanvasOverlay onFocusNode={focusStoryNode} /> : null}
         {toast ? <div className="nori-canvas-toast">{toast}</div> : null}
       </div>
+      </CanvasNodeSourceProvider>
       </StoryCanvasProvider>
       </CanvasMultiSelectionProvider>
     </CanvasEditorProvider>
@@ -4716,7 +5126,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
 
 function CanvasGraphLoader(props: Props) {
   const { projectId, canvasId } = props
-  const query = useCanvasGraph(projectId, canvasId)
+  const query = useCanvasGraph(projectId, canvasId, props.lightGraph === true && props.mode === 'canvas')
   if (query.isLoading) return <div className="nori-canvas-loading">正在加载画布…</div>
   if (query.error || !query.data) return <div className="nori-canvas-loading is-error"><span>画布加载失败：{String(query.error || '未返回数据')}</span><button type="button" onClick={() => void query.refetch()}>重试加载</button></div>
   return <CanvasEditor key={canvasId} {...props} initialGraph={query.data} />

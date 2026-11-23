@@ -111,6 +111,11 @@ function screenPoint(path: SVGPathElement, point: DOMPoint): ScreenPoint | null 
   }
 }
 
+export function screenRectIntersectsRect(left: ScreenRect, right: ScreenRect) {
+  return left.left <= right.right && left.right >= right.left
+    && left.top <= right.bottom && left.bottom >= right.top
+}
+
 export function findSvgEdgeIdsIntersectingRect(container: Element, rect: ScreenRect): string[] {
   const ids: string[] = []
   const groups = container.querySelectorAll<SVGGElement>('.react-flow__edge[data-id]')
@@ -118,6 +123,30 @@ export function findSvgEdgeIdsIntersectingRect(container: Element, rect: ScreenR
     const id = group.dataset.id?.trim()
     const path = group.querySelector<SVGPathElement>('path.react-flow__edge-path')
     if (!id || !path) return
+    const matrix = path.getScreenCTM()
+    if (!matrix) return
+    let bounds: DOMRect
+    try {
+      bounds = path.getBBox()
+    } catch {
+      return
+    }
+    const corners = [
+      { x: bounds.x, y: bounds.y },
+      { x: bounds.x + bounds.width, y: bounds.y },
+      { x: bounds.x + bounds.width, y: bounds.y + bounds.height },
+      { x: bounds.x, y: bounds.y + bounds.height },
+    ].map((point) => ({
+      x: matrix.a * point.x + matrix.c * point.y + matrix.e,
+      y: matrix.b * point.x + matrix.d * point.y + matrix.f,
+    }))
+    const pathBounds = {
+      left: Math.min(...corners.map((point) => point.x)),
+      top: Math.min(...corners.map((point) => point.y)),
+      right: Math.max(...corners.map((point) => point.x)),
+      bottom: Math.max(...corners.map((point) => point.y)),
+    }
+    if (!screenRectIntersectsRect(rect, pathBounds)) return
     let length = 0
     try {
       length = path.getTotalLength()

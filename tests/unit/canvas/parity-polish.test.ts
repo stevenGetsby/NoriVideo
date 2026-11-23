@@ -19,6 +19,7 @@ function serviceConfig(overrides: Partial<PlatformServiceConfigResponse> = {}): 
     defaultModels: {},
     businessModels: [],
     modelRouting: {
+      'nori::canvas-agent': '',
       'nori::nori-gpt': '',
       'nori::nori-gpt-max': '',
       'nori::nori-gemini': '',
@@ -33,10 +34,14 @@ function serviceConfig(overrides: Partial<PlatformServiceConfigResponse> = {}): 
       'nori::seedance2.0-fast': '',
       'nori::seedance2.0': '',
       'nori::norivideo2.5': '',
+      'nori::tgg-seedance2.5': '',
+      'nori::tgg-vig2.5': '',
       'nori::nori-audio': '',
       'nori::nori-music': '',
       'nori::nori-sfx': '',
     },
+    agentModels: {},
+    canvasAgentModelCatalog: { defaultModelKey: null, models: [] },
     storage: {
       type: 'tos', endpoint: '', publicEndpoint: '', region: '', bucket: '', forcePathStyle: false,
       hasAccessKey: false, hasSecretKey: false,
@@ -115,8 +120,9 @@ describe('canvas parity polish contracts', () => {
     expect(library).toContain("params.set('source', sourceFilter)")
     expect(library).toContain("params.set('creator', creator.trim())")
     expect(library).toContain("params.set('createdFrom', createdFrom)")
-    expect(library).toContain("setProjectId('global')")
-    expect(library).toContain('canFavorite={canEditAssets}')
+    expect(library).toContain("setProjectId(null); setMaterialScope('all')")
+    expect(library).toContain('<option value="global">账号素材（共享）</option>')
+    expect(library).toContain('canEdit={canEditAssets && item.canEdit !== false}')
     expect(library).toContain('disabled={!canEditAssets}')
     expect(route).toContain('ownerName: creatorExact ? { equals: creator } : { contains: creator }')
     expect(route).toContain('createdAt: {')

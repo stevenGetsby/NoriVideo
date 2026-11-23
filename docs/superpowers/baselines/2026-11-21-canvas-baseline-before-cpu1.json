@@ -1,0 +1,6211 @@
+{
+  "env": {
+    "chrome": "152.0.7977.65",
+    "node": "v25.2.1",
+    "platform": "darwin 25.6.0 arm64",
+    "cpu": "Apple M4",
+    "cpuCores": 10,
+    "gpuMode": "metal",
+    "gpu": {
+      "features": {
+        "2d_canvas": "enabled",
+        "direct_rendering_display_compositor": "disabled_off_ok",
+        "gpu_compositing": "enabled",
+        "multiple_raster_threads": "enabled_on",
+        "opengl": "enabled_on",
+        "rasterization": "enabled_force",
+        "raw_draw": "disabled_off_ok",
+        "skia_graphite": "enabled_on",
+        "trees_in_viz": "disabled_off",
+        "video_decode": "enabled",
+        "video_encode": "enabled",
+        "webgl": "enabled",
+        "webgpu": "enabled",
+        "webnn": "disabled_off"
+      },
+      "renderer": "ANGLE (Apple, ANGLE Metal Renderer: Apple M4, Version 26.6.2 (Build 25G83))"
+    },
+    "viewport": "1440x900",
+    "deviceScaleFactor": 2,
+    "cpuThrottle": 1,
+    "reactBuild": "production",
+    "runsPerScenario": 3,
+    "frameBudgetMs": 25
+  },
+  "scenarios": [
+    {
+      "scenario": "small-40",
+      "stats": {
+        "nodes": 40,
+        "edges": 60,
+        "videos": 10,
+        "groups": 0,
+        "maxInbound": 8,
+        "maxOutbound": 3,
+        "dangling": 0,
+        "duplicateEdgeIds": 0,
+        "duplicatePairs": 0,
+        "selfLoops": 0,
+        "historyEntries": 0,
+        "historyMiB": 0,
+        "promptMiB": 0,
+        "referenceMiB": 0,
+        "documentMiB": 0.03
+      },
+      "runs": 3,
+      "openColdOperableMs": 190.7,
+      "openWarmOperableMs": 98.2,
+      "openColdPosterMs": 194.9,
+      "canvasGetGzipBytes": 2353,
+      "canvasGetDecodedBytes": 26826,
+      "domAtOpen": {
+        "nodes": 40,
+        "edges": 60,
+        "edgePaths": 120
+      },
+      "phases": {
+        "pan": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 374,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-2s": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 28,
+          "saves": 1,
+          "saveBytes": 240
+        },
+        "wheel-zoom": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 43,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "viewport-controls": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 156,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-single": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 117,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-multi": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 33.3,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 245,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-after-drag": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 25,
+          "saves": 1,
+          "saveBytes": 4558
+        },
+        "mention-at": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.7,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 86,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "open-history": {
+          "p95Median": 0,
+          "p95Runs": [
+            0,
+            0,
+            0
+          ],
+          "p50Median": 0,
+          "maxMedian": 0,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 0,
+          "saves": 0,
+          "saveBytes": 0
+        }
+      },
+      "runDetails": [
+        {
+          "scenario": "small-40",
+          "run": 1,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 10
+          },
+          "activation": {
+            "nodeId": "node-11"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 197.9,
+              "firstPosterMs": 225.8,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "warm": {
+              "firstOperableMs": 88.2,
+              "firstPosterMs": 99,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 2353,
+                "decodedBytes": 26826
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5012,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 374,
+              "scriptMs": 106,
+              "layoutMs": 0,
+              "styleMs": 5,
+              "styleRecalcs": 153,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 28,
+              "scriptMs": 12,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 623,
+              "frames": 36,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 43,
+              "scriptMs": 17,
+              "layoutMs": 1,
+              "styleMs": 1,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 1966,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 156,
+              "scriptMs": 45,
+              "layoutMs": 1,
+              "styleMs": 5,
+              "styleRecalcs": 57,
+              "layouts": 41,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "fitted": 0.341,
+                "zoomedIn": 0.491
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1018,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 122,
+              "scriptMs": 41,
+              "layoutMs": 4,
+              "styleMs": 10,
+              "styleRecalcs": 40,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "nodeId": "node-28"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1247,
+              "frames": 72,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 246,
+              "scriptMs": 121,
+              "layoutMs": 8,
+              "styleMs": 29,
+              "styleRecalcs": 75,
+              "layouts": 67,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 1,
+              "loafMs": 56,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 831
+              },
+              "detail": {
+                "selected": 9
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 25,
+              "scriptMs": 8,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 1,
+              "layouts": 1,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 4558,
+              "saveKinds": {
+                "node.upsert": 10,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 830
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 485,
+              "frames": 27,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 86,
+              "scriptMs": 32,
+              "layoutMs": 6,
+              "styleMs": 14,
+              "styleRecalcs": 34,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "nodeId": "node-27",
+                "listboxMs": 10
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 0,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              11.4,
+              11.7,
+              11.8,
+              12.3,
+              11.9,
+              12.5,
+              12
+            ],
+            "domCounters": [
+              {
+                "nodes": 1326,
+                "listeners": 810,
+                "documents": 2
+              },
+              {
+                "nodes": 2170,
+                "listeners": 995,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 0.3,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 2,
+            "saveBytes": 4798,
+            "saveKinds": {
+              "ops": 2
+            }
+          }
+        },
+        {
+          "scenario": "small-40",
+          "run": 2,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 10
+          },
+          "activation": {
+            "nodeId": "node-11"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 190.7,
+              "firstPosterMs": 194.9,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "warm": {
+              "firstOperableMs": 107.2,
+              "firstPosterMs": 111.7,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 2353,
+                "decodedBytes": 26826
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5024,
+              "frames": 300,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 392,
+              "scriptMs": 108,
+              "layoutMs": 0,
+              "styleMs": 5,
+              "styleRecalcs": 153,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2004,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 26,
+              "scriptMs": 11,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 624,
+              "frames": 36,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 45,
+              "scriptMs": 18,
+              "layoutMs": 1,
+              "styleMs": 1,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 1966,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 160,
+              "scriptMs": 45,
+              "layoutMs": 1,
+              "styleMs": 5,
+              "styleRecalcs": 57,
+              "layouts": 41,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "fitted": 0.341,
+                "zoomedIn": 0.491
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1014,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 117,
+              "scriptMs": 38,
+              "layoutMs": 3,
+              "styleMs": 10,
+              "styleRecalcs": 40,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "nodeId": "node-28"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1247,
+              "frames": 72,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 245,
+              "scriptMs": 121,
+              "layoutMs": 8,
+              "styleMs": 29,
+              "styleRecalcs": 75,
+              "layouts": 67,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 1,
+              "loafMs": 57,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 831
+              },
+              "detail": {
+                "selected": 9
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 26,
+              "scriptMs": 9,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 1,
+              "layouts": 1,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 4558,
+              "saveKinds": {
+                "node.upsert": 10,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 830
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 484,
+              "frames": 27,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 95,
+              "scriptMs": 37,
+              "layoutMs": 6,
+              "styleMs": 15,
+              "styleRecalcs": 33,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "nodeId": "node-27",
+                "listboxMs": 9
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 0,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              11.4,
+              11.7,
+              11.7,
+              12.3,
+              11.8,
+              12.5,
+              12
+            ],
+            "domCounters": [
+              {
+                "nodes": 1497,
+                "listeners": 875,
+                "documents": 2
+              },
+              {
+                "nodes": 2170,
+                "listeners": 995,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 0.3,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 2,
+            "saveBytes": 4798,
+            "saveKinds": {
+              "ops": 2
+            }
+          }
+        },
+        {
+          "scenario": "small-40",
+          "run": 3,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 10
+          },
+          "activation": {
+            "nodeId": "node-11"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 188.4,
+              "firstPosterMs": 193.1,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "warm": {
+              "firstOperableMs": 98.2,
+              "firstPosterMs": 104,
+              "requests": 41,
+              "requestKinds": {
+                "api": 1,
+                "image": 36,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 40,
+              "reactFlowEdges": 60,
+              "edgePaths": 120,
+              "images": 36,
+              "videos": 0,
+              "domElements": 821
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 2353,
+                "decodedBytes": 26826
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5020,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 345,
+              "scriptMs": 97,
+              "layoutMs": 0,
+              "styleMs": 5,
+              "styleRecalcs": 153,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 28,
+              "scriptMs": 11,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 622,
+              "frames": 36,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 41,
+              "scriptMs": 16,
+              "layoutMs": 1,
+              "styleMs": 1,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 1964,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 145,
+              "scriptMs": 40,
+              "layoutMs": 1,
+              "styleMs": 4,
+              "styleRecalcs": 56,
+              "layouts": 42,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "fitted": 0.341,
+                "zoomedIn": 0.491
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1016,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 112,
+              "scriptMs": 37,
+              "layoutMs": 3,
+              "styleMs": 9,
+              "styleRecalcs": 40,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 821
+              },
+              "detail": {
+                "nodeId": "node-28"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1248,
+              "frames": 72,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.2,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 229,
+              "scriptMs": 114,
+              "layoutMs": 8,
+              "styleMs": 27,
+              "styleRecalcs": 75,
+              "layouts": 67,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 1,
+              "loafMs": 55,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 831
+              },
+              "detail": {
+                "selected": 9
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 22,
+              "scriptMs": 7,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 1,
+              "layouts": 1,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 4558,
+              "saveKinds": {
+                "node.upsert": 10,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 36,
+                "videos": 0,
+                "domElements": 830
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 484,
+              "frames": 27,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 86,
+              "scriptMs": 34,
+              "layoutMs": 6,
+              "styleMs": 14,
+              "styleRecalcs": 33,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "nodeId": "node-27",
+                "listboxMs": 10
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 0,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 40,
+                "reactFlowEdges": 60,
+                "edgePaths": 120,
+                "images": 47,
+                "videos": 0,
+                "domElements": 979
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              11.4,
+              11.7,
+              11.7,
+              12.2,
+              11.9,
+              12.4,
+              11.9
+            ],
+            "domCounters": [
+              {
+                "nodes": 1326,
+                "listeners": 810,
+                "documents": 2
+              },
+              {
+                "nodes": 2170,
+                "listeners": 995,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              },
+              {
+                "nodes": 3046,
+                "listeners": 1199,
+                "documents": 2
+              },
+              {
+                "nodes": 3091,
+                "listeners": 1161,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 0.2,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 2,
+            "saveBytes": 4798,
+            "saveKinds": {
+              "ops": 2
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "laotou-a",
+      "stats": {
+        "nodes": 179,
+        "edges": 1111,
+        "videos": 108,
+        "groups": 0,
+        "maxInbound": 22,
+        "maxOutbound": 9,
+        "dangling": 0,
+        "duplicateEdgeIds": 0,
+        "duplicatePairs": 0,
+        "selfLoops": 0,
+        "historyEntries": 640,
+        "historyMiB": 7.45,
+        "promptMiB": 5.6,
+        "referenceMiB": 1.65,
+        "documentMiB": 7.71
+      },
+      "runs": 3,
+      "openColdOperableMs": 308.8,
+      "openWarmOperableMs": 214.4,
+      "openColdPosterMs": 313.2,
+      "canvasGetGzipBytes": 168346,
+      "canvasGetDecodedBytes": 8089368,
+      "domAtOpen": {
+        "nodes": 24,
+        "edges": 278,
+        "edgePaths": 556
+      },
+      "phases": {
+        "pan": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 503,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-2s": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 50,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 125,
+          "saves": 1,
+          "saveBytes": 240
+        },
+        "wheel-zoom": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.7,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 60,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "viewport-controls": {
+          "p95Median": 66.6,
+          "p95Runs": [
+            66.6,
+            66.6,
+            66.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 99.9,
+          "over50RatioMedian": 0.0946,
+          "mainBusyMsMedian": 845,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-single": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 239,
+          "saves": 1,
+          "saveBytes": 270
+        },
+        "drag-multi": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            33.3,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 50,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 637,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-after-drag": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 33.4,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 63,
+          "saves": 1,
+          "saveBytes": 593864
+        },
+        "mention-at": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 164,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "open-history": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 50,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 275,
+          "saves": 0,
+          "saveBytes": 0
+        }
+      },
+      "runDetails": [
+        {
+          "scenario": "laotou-a",
+          "run": 1,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 14
+          },
+          "activation": {
+            "nodeId": "node-20"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 308.8,
+              "firstPosterMs": 313.2,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "warm": {
+              "firstOperableMs": 214.4,
+              "firstPosterMs": 219.1,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 168346,
+                "decodedBytes": 8089368
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5027,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 494,
+              "scriptMs": 164,
+              "layoutMs": 6,
+              "styleMs": 12,
+              "styleRecalcs": 153,
+              "layouts": 28,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2004,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 49.9,
+              "over34": 1,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 125,
+              "scriptMs": 79,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 1,
+              "longTaskMs": 62,
+              "loafs": 1,
+              "loafMs": 63,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 618,
+              "frames": 35,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 61,
+              "scriptMs": 28,
+              "layoutMs": 3,
+              "styleMs": 6,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2187,
+              "frames": 79,
+              "p50": 16.7,
+              "p95": 66.6,
+              "max": 149.9,
+              "over34": 14,
+              "over50": 6,
+              "over50Ratio": 0.0759,
+              "mainBusyMs": 845,
+              "scriptMs": 301,
+              "layoutMs": 11,
+              "styleMs": 28,
+              "styleRecalcs": 44,
+              "layouts": 39,
+              "longTasks": 5,
+              "longTaskMs": 367,
+              "loafs": 6,
+              "loafMs": 518,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 179,
+                "reactFlowEdges": 1111,
+                "edgePaths": 2222,
+                "images": 162,
+                "videos": 0,
+                "domElements": 6946
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1034,
+              "frames": 60,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 208,
+              "scriptMs": 99,
+              "layoutMs": 14,
+              "styleMs": 14,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 44,
+                "videos": 0,
+                "domElements": 3592
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1447,
+              "frames": 79,
+              "p50": 16.7,
+              "p95": 33.3,
+              "max": 50.1,
+              "over34": 2,
+              "over50": 1,
+              "over50Ratio": 0.0127,
+              "mainBusyMs": 721,
+              "scriptMs": 279,
+              "layoutMs": 31,
+              "styleMs": 101,
+              "styleRecalcs": 77,
+              "layouts": 66,
+              "longTasks": 1,
+              "longTaskMs": 61,
+              "loafs": 2,
+              "loafMs": 138,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 117,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 63,
+              "scriptMs": 46,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 593864,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 516,
+              "frames": 29,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 164,
+              "scriptMs": 47,
+              "layoutMs": 10,
+              "styleMs": 27,
+              "styleRecalcs": 35,
+              "layouts": 24,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3792
+              },
+              "detail": {
+                "nodeId": "node-146",
+                "listboxMs": 21
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1232,
+              "frames": 68,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 49.9,
+              "over34": 2,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 289,
+              "scriptMs": 96,
+              "layoutMs": 7,
+              "styleMs": 12,
+              "styleRecalcs": 49,
+              "layouts": 13,
+              "longTasks": 2,
+              "longTaskMs": 126,
+              "loafs": 2,
+              "loafMs": 142,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3831
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 59,
+                "mediaInDialog": 6
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              47.7,
+              26.3,
+              36.2,
+              35,
+              36.6,
+              35.1,
+              36.7
+            ],
+            "domCounters": [
+              {
+                "nodes": 4322,
+                "listeners": 1502,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 10.4,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 4,
+            "saveBytes": 594644,
+            "saveKinds": {
+              "ops": 4
+            }
+          }
+        },
+        {
+          "scenario": "laotou-a",
+          "run": 2,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 14
+          },
+          "activation": {
+            "nodeId": "node-20"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 310.6,
+              "firstPosterMs": 314.5,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "warm": {
+              "firstOperableMs": 201.8,
+              "firstPosterMs": 205.4,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 168346,
+                "decodedBytes": 8089368
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5022,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 503,
+              "scriptMs": 159,
+              "layoutMs": 6,
+              "styleMs": 11,
+              "styleRecalcs": 153,
+              "layouts": 31,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 50,
+              "over34": 1,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 120,
+              "scriptMs": 75,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 1,
+              "longTaskMs": 59,
+              "loafs": 1,
+              "loafMs": 60,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 618,
+              "frames": 35,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 57,
+              "scriptMs": 26,
+              "layoutMs": 3,
+              "styleMs": 5,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2281,
+              "frames": 83,
+              "p50": 16.7,
+              "p95": 66.6,
+              "max": 83.3,
+              "over34": 17,
+              "over50": 8,
+              "over50Ratio": 0.0964,
+              "mainBusyMs": 854,
+              "scriptMs": 321,
+              "layoutMs": 11,
+              "styleMs": 29,
+              "styleRecalcs": 45,
+              "layouts": 39,
+              "longTasks": 6,
+              "longTaskMs": 390,
+              "loafs": 10,
+              "loafMs": 685,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 179,
+                "reactFlowEdges": 1111,
+                "edgePaths": 2222,
+                "images": 162,
+                "videos": 0,
+                "domElements": 6946
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1083,
+              "frames": 63,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 239,
+              "scriptMs": 134,
+              "layoutMs": 14,
+              "styleMs": 14,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 270,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 44,
+                "videos": 0,
+                "domElements": 3592
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1368,
+              "frames": 76,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 50,
+              "over34": 1,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 622,
+              "scriptMs": 272,
+              "layoutMs": 31,
+              "styleMs": 105,
+              "styleRecalcs": 75,
+              "layouts": 65,
+              "longTasks": 1,
+              "longTaskMs": 61,
+              "loafs": 1,
+              "loafMs": 76,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 117,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 62,
+              "scriptMs": 44,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 593864,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 520,
+              "frames": 29,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 166,
+              "scriptMs": 48,
+              "layoutMs": 10,
+              "styleMs": 27,
+              "styleRecalcs": 35,
+              "layouts": 26,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3792
+              },
+              "detail": {
+                "nodeId": "node-146",
+                "listboxMs": 28
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1246,
+              "frames": 69,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 50.1,
+              "over34": 2,
+              "over50": 1,
+              "over50Ratio": 0.0145,
+              "mainBusyMs": 275,
+              "scriptMs": 105,
+              "layoutMs": 7,
+              "styleMs": 13,
+              "styleRecalcs": 51,
+              "layouts": 15,
+              "longTasks": 2,
+              "longTaskMs": 128,
+              "loafs": 2,
+              "loafMs": 138,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3831
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 64,
+                "mediaInDialog": 6
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              47.8,
+              26.3,
+              36.2,
+              35,
+              36.6,
+              35.1,
+              36.7
+            ],
+            "domCounters": [
+              {
+                "nodes": 4322,
+                "listeners": 1502,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 10.4,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 4,
+            "saveBytes": 594645,
+            "saveKinds": {
+              "ops": 4
+            }
+          }
+        },
+        {
+          "scenario": "laotou-a",
+          "run": 3,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 14
+          },
+          "activation": {
+            "nodeId": "node-20"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 307.3,
+              "firstPosterMs": 311.5,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "warm": {
+              "firstOperableMs": 223.6,
+              "firstPosterMs": 234.7,
+              "requests": 27,
+              "requestKinds": {
+                "api": 1,
+                "image": 22,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 24,
+              "reactFlowEdges": 278,
+              "edgePaths": 556,
+              "images": 22,
+              "videos": 0,
+              "domElements": 1533
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 168346,
+                "decodedBytes": 8089368
+              }
+            ]
+          },
+          "initialZoom": 0.6,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5017,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 517,
+              "scriptMs": 177,
+              "layoutMs": 7,
+              "styleMs": 12,
+              "styleRecalcs": 153,
+              "layouts": 28,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2002,
+              "frames": 116,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 50.1,
+              "over34": 1,
+              "over50": 1,
+              "over50Ratio": 0.0086,
+              "mainBusyMs": 129,
+              "scriptMs": 81,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 1,
+              "longTaskMs": 62,
+              "loafs": 1,
+              "loafMs": 63,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 625,
+              "frames": 36,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 60,
+              "scriptMs": 27,
+              "layoutMs": 3,
+              "styleMs": 6,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 19,
+                "reactFlowEdges": 240,
+                "edgePaths": 480,
+                "images": 17,
+                "videos": 0,
+                "domElements": 1314
+              },
+              "detail": {
+                "zoomBefore": 0.6,
+                "zoomIn": 0.909,
+                "zoomAfter": 0.6
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2115,
+              "frames": 74,
+              "p50": 16.7,
+              "p95": 66.7,
+              "max": 99.9,
+              "over34": 18,
+              "over50": 7,
+              "over50Ratio": 0.0946,
+              "mainBusyMs": 836,
+              "scriptMs": 301,
+              "layoutMs": 11,
+              "styleMs": 28,
+              "styleRecalcs": 45,
+              "layouts": 39,
+              "longTasks": 5,
+              "longTaskMs": 323,
+              "loafs": 10,
+              "loafMs": 785,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 179,
+                "reactFlowEdges": 1111,
+                "edgePaths": 2222,
+                "images": 162,
+                "videos": 0,
+                "domElements": 6946
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1080,
+              "frames": 63,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 241,
+              "scriptMs": 132,
+              "layoutMs": 14,
+              "styleMs": 14,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 270,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 44,
+                "videos": 0,
+                "domElements": 3592
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1366,
+              "frames": 76,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 50,
+              "over34": 1,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 637,
+              "scriptMs": 283,
+              "layoutMs": 30,
+              "styleMs": 103,
+              "styleRecalcs": 76,
+              "layouts": 66,
+              "longTasks": 1,
+              "longTaskMs": 59,
+              "loafs": 1,
+              "loafMs": 62,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2002,
+              "frames": 117,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 65,
+              "scriptMs": 46,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 593864,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 48,
+                "videos": 0,
+                "domElements": 3619
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 525,
+              "frames": 28,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 150,
+              "scriptMs": 44,
+              "layoutMs": 9,
+              "styleMs": 24,
+              "styleRecalcs": 34,
+              "layouts": 26,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3792
+              },
+              "detail": {
+                "nodeId": "node-146",
+                "listboxMs": 19
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1256,
+              "frames": 69,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 50,
+              "over34": 2,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 272,
+              "scriptMs": 103,
+              "layoutMs": 7,
+              "styleMs": 14,
+              "styleRecalcs": 47,
+              "layouts": 14,
+              "longTasks": 2,
+              "longTaskMs": 125,
+              "loafs": 2,
+              "loafMs": 140,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 62,
+                "videos": 0,
+                "domElements": 3831
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 56,
+                "mediaInDialog": 6
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              47.7,
+              26.3,
+              36.2,
+              34.9,
+              36.5,
+              35.1,
+              36.7
+            ],
+            "domCounters": [
+              {
+                "nodes": 4322,
+                "listeners": 1502,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              },
+              {
+                "nodes": 2626,
+                "listeners": 981,
+                "documents": 2
+              },
+              {
+                "nodes": 2607,
+                "listeners": 941,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 10.4,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 4,
+            "saveBytes": 594645,
+            "saveKinds": {
+              "ops": 4
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "laotou-b",
+      "stats": {
+        "nodes": 176,
+        "edges": 724,
+        "videos": 126,
+        "groups": 0,
+        "maxInbound": 22,
+        "maxOutbound": 6,
+        "dangling": 0,
+        "duplicateEdgeIds": 0,
+        "duplicatePairs": 0,
+        "selfLoops": 0,
+        "historyEntries": 126,
+        "historyMiB": 0.24,
+        "promptMiB": 0.14,
+        "referenceMiB": 0.06,
+        "documentMiB": 0.44
+      },
+      "runs": 3,
+      "openColdOperableMs": 296,
+      "openWarmOperableMs": 239.5,
+      "openColdPosterMs": 313.4,
+      "canvasGetGzipBytes": 20642,
+      "canvasGetDecodedBytes": 462772,
+      "domAtOpen": {
+        "nodes": 166,
+        "edges": 724,
+        "edgePaths": 1448
+      },
+      "phases": {
+        "pan": {
+          "p95Median": 33.4,
+          "p95Runs": [
+            33.4,
+            33.4,
+            33.4
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 66.7,
+          "over50RatioMedian": 0.0066,
+          "mainBusyMsMedian": 1445,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-2s": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.7,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 72,
+          "saves": 1,
+          "saveBytes": 225
+        },
+        "wheel-zoom": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 33.3,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 198,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "viewport-controls": {
+          "p95Median": 50,
+          "p95Runs": [
+            50,
+            50,
+            50
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 66.7,
+          "over50RatioMedian": 0.033,
+          "mainBusyMsMedian": 410,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-single": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 169,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-multi": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 33.3,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 415,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-after-drag": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 38,
+          "saves": 1,
+          "saveBytes": 25499
+        },
+        "mention-at": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 135,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "open-history": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 142,
+          "saves": 0,
+          "saveBytes": 0
+        }
+      },
+      "runDetails": [
+        {
+          "scenario": "laotou-b",
+          "run": 1,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "posterCount": 118
+          },
+          "activation": {
+            "skipped": "no poster in viewport"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 296,
+              "firstPosterMs": 312.5,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "warm": {
+              "firstOperableMs": 239.5,
+              "firstPosterMs": 262.7,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 20642,
+                "decodedBytes": 462772
+              }
+            ]
+          },
+          "initialZoom": 0.2,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 6920,
+              "frames": 306,
+              "p50": 16.7,
+              "p95": 33.4,
+              "max": 66.7,
+              "over34": 13,
+              "over50": 1,
+              "over50Ratio": 0.0033,
+              "mainBusyMs": 1418,
+              "scriptMs": 451,
+              "layoutMs": 9,
+              "styleMs": 9,
+              "styleRecalcs": 152,
+              "layouts": 22,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 6,
+              "loafMs": 318,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2005,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 90,
+              "scriptMs": 33,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 225,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 716,
+              "frames": 40,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 198,
+              "scriptMs": 94,
+              "layoutMs": 8,
+              "styleMs": 11,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "zoomBefore": 0.2,
+                "zoomIn": 0.303,
+                "zoomAfter": 0.2
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2070,
+              "frames": 88,
+              "p50": 16.7,
+              "p95": 50,
+              "max": 66.7,
+              "over34": 12,
+              "over50": 3,
+              "over50Ratio": 0.0341,
+              "mainBusyMs": 410,
+              "scriptMs": 149,
+              "layoutMs": 4,
+              "styleMs": 6,
+              "styleRecalcs": 46,
+              "layouts": 32,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 4,
+              "loafMs": 208,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 176,
+                "reactFlowEdges": 724,
+                "edgePaths": 1448,
+                "images": 159,
+                "videos": 0,
+                "domElements": 5437
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1025,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 162,
+              "scriptMs": 73,
+              "layoutMs": 9,
+              "styleMs": 11,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 44,
+                "videos": 0,
+                "domElements": 2404
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1265,
+              "frames": 73,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.2,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 415,
+              "scriptMs": 181,
+              "layoutMs": 19,
+              "styleMs": 68,
+              "styleRecalcs": 73,
+              "layouts": 63,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 119,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 36,
+              "scriptMs": 15,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 25499,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 493,
+              "frames": 27,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 130,
+              "scriptMs": 39,
+              "layoutMs": 7,
+              "styleMs": 22,
+              "styleRecalcs": 34,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2564
+              },
+              "detail": {
+                "nodeId": "node-145",
+                "listboxMs": 16
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1233,
+              "frames": 72,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 142,
+              "scriptMs": 39,
+              "layoutMs": 5,
+              "styleMs": 12,
+              "styleRecalcs": 53,
+              "layouts": 14,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2498
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 41,
+                "mediaInDialog": 1
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              17.9,
+              12.7,
+              26.2,
+              16.1,
+              27.5,
+              16.3,
+              27.6
+            ],
+            "domCounters": [
+              {
+                "nodes": 2899,
+                "listeners": 1185,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 14.9,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 25994,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        },
+        {
+          "scenario": "laotou-b",
+          "run": 2,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "posterCount": 118
+          },
+          "activation": {
+            "skipped": "no poster in viewport"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 301.6,
+              "firstPosterMs": 320.1,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "warm": {
+              "firstOperableMs": 226.7,
+              "firstPosterMs": 249.3,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 20642,
+                "decodedBytes": 462772
+              }
+            ]
+          },
+          "initialZoom": 0.2,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 6885,
+              "frames": 306,
+              "p50": 16.7,
+              "p95": 33.4,
+              "max": 83.5,
+              "over34": 11,
+              "over50": 3,
+              "over50Ratio": 0.0098,
+              "mainBusyMs": 1479,
+              "scriptMs": 441,
+              "layoutMs": 10,
+              "styleMs": 10,
+              "styleRecalcs": 152,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 7,
+              "loafMs": 414,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 72,
+              "scriptMs": 34,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 225,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 637,
+              "frames": 37,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 159,
+              "scriptMs": 70,
+              "layoutMs": 8,
+              "styleMs": 11,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "zoomBefore": 0.2,
+                "zoomIn": 0.303,
+                "zoomAfter": 0.2
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2077,
+              "frames": 91,
+              "p50": 16.7,
+              "p95": 50,
+              "max": 66.7,
+              "over34": 11,
+              "over50": 3,
+              "over50Ratio": 0.033,
+              "mainBusyMs": 413,
+              "scriptMs": 147,
+              "layoutMs": 4,
+              "styleMs": 6,
+              "styleRecalcs": 46,
+              "layouts": 33,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 2,
+              "loafMs": 104,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 176,
+                "reactFlowEdges": 724,
+                "edgePaths": 1448,
+                "images": 159,
+                "videos": 0,
+                "domElements": 5437
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1027,
+              "frames": 60,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 169,
+              "scriptMs": 76,
+              "layoutMs": 10,
+              "styleMs": 11,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 44,
+                "videos": 0,
+                "domElements": 2404
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1248,
+              "frames": 72,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 406,
+              "scriptMs": 185,
+              "layoutMs": 18,
+              "styleMs": 67,
+              "styleRecalcs": 71,
+              "layouts": 62,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 119,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 38,
+              "scriptMs": 15,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 25499,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 506,
+              "frames": 28,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 147,
+              "scriptMs": 41,
+              "layoutMs": 7,
+              "styleMs": 23,
+              "styleRecalcs": 35,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2564
+              },
+              "detail": {
+                "nodeId": "node-145",
+                "listboxMs": 15
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1218,
+              "frames": 71,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 156,
+              "scriptMs": 39,
+              "layoutMs": 4,
+              "styleMs": 12,
+              "styleRecalcs": 52,
+              "layouts": 13,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2498
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 38,
+                "mediaInDialog": 1
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              17.9,
+              12.9,
+              26,
+              16.1,
+              27.5,
+              16.3,
+              27.6
+            ],
+            "domCounters": [
+              {
+                "nodes": 2899,
+                "listeners": 1185,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 14.7,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 25994,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        },
+        {
+          "scenario": "laotou-b",
+          "run": 3,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "posterCount": 118
+          },
+          "activation": {
+            "skipped": "no poster in viewport"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 296,
+              "firstPosterMs": 313.4,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "warm": {
+              "firstOperableMs": 244.8,
+              "firstPosterMs": 276.1,
+              "requests": 155,
+              "requestKinds": {
+                "api": 1,
+                "image": 150,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 166,
+              "reactFlowEdges": 724,
+              "edgePaths": 1448,
+              "images": 150,
+              "videos": 0,
+              "domElements": 5295
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 20642,
+                "decodedBytes": 462772
+              }
+            ]
+          },
+          "initialZoom": 0.2,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 6945,
+              "frames": 302,
+              "p50": 16.7,
+              "p95": 33.4,
+              "max": 50.1,
+              "over34": 15,
+              "over50": 2,
+              "over50Ratio": 0.0066,
+              "mainBusyMs": 1445,
+              "scriptMs": 468,
+              "layoutMs": 9,
+              "styleMs": 9,
+              "styleRecalcs": 152,
+              "layouts": 22,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 7,
+              "loafMs": 366,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2004,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 72,
+              "scriptMs": 33,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 225,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 685,
+              "frames": 38,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 247,
+              "scriptMs": 76,
+              "layoutMs": 10,
+              "styleMs": 11,
+              "styleRecalcs": 12,
+              "layouts": 20,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 154,
+                "reactFlowEdges": 717,
+                "edgePaths": 1434,
+                "images": 139,
+                "videos": 0,
+                "domElements": 5103
+              },
+              "detail": {
+                "zoomBefore": 0.2,
+                "zoomIn": 0.303,
+                "zoomAfter": 0.2
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2041,
+              "frames": 90,
+              "p50": 16.7,
+              "p95": 50,
+              "max": 50.1,
+              "over34": 9,
+              "over50": 2,
+              "over50Ratio": 0.0222,
+              "mainBusyMs": 397,
+              "scriptMs": 144,
+              "layoutMs": 4,
+              "styleMs": 6,
+              "styleRecalcs": 45,
+              "layouts": 31,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 2,
+              "loafMs": 117,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 176,
+                "reactFlowEdges": 724,
+                "edgePaths": 1448,
+                "images": 159,
+                "videos": 0,
+                "domElements": 5437
+              },
+              "detail": {
+                "fitted": 0.159,
+                "zoomedIn": 0.228
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1028,
+              "frames": 60,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 190,
+              "scriptMs": 85,
+              "layoutMs": 11,
+              "styleMs": 12,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 44,
+                "videos": 0,
+                "domElements": 2404
+              },
+              "detail": {
+                "nodeId": "node-111"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1263,
+              "frames": 73,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 427,
+              "scriptMs": 189,
+              "layoutMs": 21,
+              "styleMs": 70,
+              "styleRecalcs": 74,
+              "layouts": 64,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 45,
+              "scriptMs": 20,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 25499,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 48,
+                "videos": 0,
+                "domElements": 2431
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 497,
+              "frames": 27,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 135,
+              "scriptMs": 42,
+              "layoutMs": 7,
+              "styleMs": 22,
+              "styleRecalcs": 33,
+              "layouts": 22,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2564
+              },
+              "detail": {
+                "nodeId": "node-145",
+                "listboxMs": 16
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1219,
+              "frames": 71,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 128,
+              "scriptMs": 34,
+              "layoutMs": 4,
+              "styleMs": 10,
+              "styleRecalcs": 52,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 49,
+                "reactFlowEdges": 408,
+                "edgePaths": 816,
+                "images": 57,
+                "videos": 0,
+                "domElements": 2498
+              },
+              "detail": {
+                "nodeId": "node-94",
+                "dialogMs": 50,
+                "mediaInDialog": 1
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              17.9,
+              12.9,
+              26.2,
+              16.1,
+              27.5,
+              16.3,
+              27.6
+            ],
+            "domCounters": [
+              {
+                "nodes": 2899,
+                "listeners": 1185,
+                "documents": 2
+              },
+              {
+                "nodes": 1056,
+                "listeners": 599,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              },
+              {
+                "nodes": 6544,
+                "listeners": 1929,
+                "documents": 2
+              },
+              {
+                "nodes": 7093,
+                "listeners": 1903,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 14.7,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 25994,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        }
+      ]
+    },
+    {
+      "scenario": "limit-1000",
+      "stats": {
+        "nodes": 1000,
+        "edges": 4000,
+        "videos": 250,
+        "groups": 0,
+        "maxInbound": 17,
+        "maxOutbound": 5,
+        "dangling": 0,
+        "duplicateEdgeIds": 0,
+        "duplicatePairs": 0,
+        "selfLoops": 0,
+        "historyEntries": 0,
+        "historyMiB": 0,
+        "promptMiB": 0,
+        "referenceMiB": 0,
+        "documentMiB": 1.07
+      },
+      "runs": 3,
+      "openColdOperableMs": 460.7,
+      "openWarmOperableMs": 401.9,
+      "openColdPosterMs": 471.3,
+      "canvasGetGzipBytes": 53344,
+      "canvasGetDecodedBytes": 1118071,
+      "domAtOpen": {
+        "nodes": 88,
+        "edges": 684,
+        "edgePaths": 1368
+      },
+      "phases": {
+        "pan": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 33.3,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 1266,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-2s": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 76,
+          "saves": 1,
+          "saveBytes": 240
+        },
+        "wheel-zoom": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 126,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "viewport-controls": {
+          "p95Median": 100,
+          "p95Runs": [
+            100,
+            100,
+            100
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 216.6,
+          "over50RatioMedian": 0.254,
+          "mainBusyMsMedian": 1509,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-single": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.7,
+            16.8
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 232,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "drag-multi": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 573,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "idle-after-drag": {
+          "p95Median": 16.8,
+          "p95Runs": [
+            16.8,
+            16.8,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 50,
+          "saves": 1,
+          "saveBytes": 6177
+        },
+        "mention-at": {
+          "p95Median": 16.7,
+          "p95Runs": [
+            16.7,
+            16.7,
+            16.7
+          ],
+          "p50Median": 16.7,
+          "maxMedian": 16.8,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 201,
+          "saves": 0,
+          "saveBytes": 0
+        },
+        "open-history": {
+          "p95Median": 0,
+          "p95Runs": [
+            0,
+            0,
+            0
+          ],
+          "p50Median": 0,
+          "maxMedian": 0,
+          "over50RatioMedian": 0,
+          "mainBusyMsMedian": 0,
+          "saves": 0,
+          "saveBytes": 0
+        }
+      },
+      "runDetails": [
+        {
+          "scenario": "limit-1000",
+          "run": 1,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 24
+          },
+          "activation": {
+            "nodeId": "node-123"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 546.2,
+              "firstPosterMs": 564.3,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "warm": {
+              "firstOperableMs": 518,
+              "firstPosterMs": 560.3,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 53344,
+                "decodedBytes": 1118071
+              }
+            ]
+          },
+          "initialZoom": 0.3,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5046,
+              "frames": 299,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.4,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 1266,
+              "scriptMs": 466,
+              "layoutMs": 22,
+              "styleMs": 21,
+              "styleRecalcs": 153,
+              "layouts": 56,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 70,
+              "scriptMs": 45,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 689,
+              "frames": 40,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 117,
+              "scriptMs": 53,
+              "layoutMs": 5,
+              "styleMs": 11,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "zoomBefore": 0.3,
+                "zoomIn": 0.455,
+                "zoomAfter": 0.3
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2668,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 100,
+              "max": 333.3,
+              "over34": 22,
+              "over50": 16,
+              "over50Ratio": 0.2712,
+              "mainBusyMs": 1891,
+              "scriptMs": 494,
+              "layoutMs": 39,
+              "styleMs": 95,
+              "styleRecalcs": 37,
+              "layouts": 31,
+              "longTasks": 10,
+              "longTaskMs": 1099,
+              "loafs": 13,
+              "loafMs": 1411,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 306,
+                "reactFlowEdges": 2505,
+                "edgePaths": 5010,
+                "images": 289,
+                "videos": 0,
+                "domElements": 13827
+              },
+              "detail": {
+                "fitted": 0.15,
+                "zoomedIn": 0.216
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1026,
+              "frames": 59,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 203,
+              "scriptMs": 107,
+              "layoutMs": 13,
+              "styleMs": 8,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4037
+              },
+              "detail": {
+                "nodeId": "node-541"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1384,
+              "frames": 81,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 586,
+              "scriptMs": 316,
+              "layoutMs": 30,
+              "styleMs": 67,
+              "styleRecalcs": 77,
+              "layouts": 69,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 33,
+              "scriptMs": 20,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 6177,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 553,
+              "frames": 31,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 179,
+              "scriptMs": 65,
+              "layoutMs": 11,
+              "styleMs": 22,
+              "styleRecalcs": 34,
+              "layouts": 23,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "nodeId": "node-620",
+                "listboxMs": 21
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 1,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              34,
+              20.4,
+              32.8,
+              24.5,
+              33.8,
+              24.7,
+              33.8
+            ],
+            "domCounters": [
+              {
+                "nodes": 5084,
+                "listeners": 1804,
+                "documents": 2
+              },
+              {
+                "nodes": 5495,
+                "listeners": 1833,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 13.4,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 6688,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        },
+        {
+          "scenario": "limit-1000",
+          "run": 2,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 24
+          },
+          "activation": {
+            "nodeId": "node-123"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 449.1,
+              "firstPosterMs": 459.1,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "warm": {
+              "firstOperableMs": 401.9,
+              "firstPosterMs": 413,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 53344,
+                "decodedBytes": 1118071
+              }
+            ]
+          },
+          "initialZoom": 0.3,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5026,
+              "frames": 300,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 1139,
+              "scriptMs": 426,
+              "layoutMs": 20,
+              "styleMs": 19,
+              "styleRecalcs": 153,
+              "layouts": 53,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 76,
+              "scriptMs": 48,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 720,
+              "frames": 41,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 126,
+              "scriptMs": 58,
+              "layoutMs": 5,
+              "styleMs": 12,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "zoomBefore": 0.3,
+                "zoomIn": 0.455,
+                "zoomAfter": 0.3
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2486,
+              "frames": 64,
+              "p50": 16.7,
+              "p95": 100,
+              "max": 216.6,
+              "over34": 21,
+              "over50": 13,
+              "over50Ratio": 0.2031,
+              "mainBusyMs": 1509,
+              "scriptMs": 476,
+              "layoutMs": 34,
+              "styleMs": 85,
+              "styleRecalcs": 35,
+              "layouts": 28,
+              "longTasks": 7,
+              "longTaskMs": 700,
+              "loafs": 15,
+              "loafMs": 1143,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 306,
+                "reactFlowEdges": 2505,
+                "edgePaths": 5010,
+                "images": 289,
+                "videos": 0,
+                "domElements": 13827
+              },
+              "detail": {
+                "fitted": 0.15,
+                "zoomedIn": 0.216
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1066,
+              "frames": 62,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 232,
+              "scriptMs": 123,
+              "layoutMs": 15,
+              "styleMs": 8,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4037
+              },
+              "detail": {
+                "nodeId": "node-541"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1382,
+              "frames": 81,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 564,
+              "scriptMs": 309,
+              "layoutMs": 29,
+              "styleMs": 63,
+              "styleRecalcs": 78,
+              "layouts": 69,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2002,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 50,
+              "scriptMs": 28,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 6177,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 572,
+              "frames": 32,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.7,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 201,
+              "scriptMs": 77,
+              "layoutMs": 12,
+              "styleMs": 24,
+              "styleRecalcs": 35,
+              "layouts": 28,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "nodeId": "node-620",
+                "listboxMs": 27
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 0,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              26.8,
+              20.6,
+              32.8,
+              24.5,
+              33.8,
+              24.7,
+              33.8
+            ],
+            "domCounters": [
+              {
+                "nodes": 5084,
+                "listeners": 1763,
+                "documents": 2
+              },
+              {
+                "nodes": 5495,
+                "listeners": 1833,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 13.2,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 6688,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        },
+        {
+          "scenario": "limit-1000",
+          "run": 3,
+          "errors": [],
+          "failures": [],
+          "structural": {
+            "videoElementsBeforePlay": 0,
+            "videoElementsAfterPlay": 1,
+            "playbackStarted": true,
+            "posterCount": 24
+          },
+          "activation": {
+            "nodeId": "node-123"
+          },
+          "open": {
+            "cold": {
+              "firstOperableMs": 460.7,
+              "firstPosterMs": 471.3,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "warm": {
+              "firstOperableMs": 363.4,
+              "firstPosterMs": 374.2,
+              "requests": 85,
+              "requestKinds": {
+                "api": 1,
+                "image": 80,
+                "media": 0,
+                "other": 4
+              },
+              "reactFlowNodes": 88,
+              "reactFlowEdges": 684,
+              "edgePaths": 1368,
+              "images": 80,
+              "videos": 0,
+              "domElements": 3901
+            },
+            "canvasGets": [
+              {
+                "canvasId": "canvas-1",
+                "gzipBytes": 53344,
+                "decodedBytes": 1118071
+              }
+            ]
+          },
+          "initialZoom": 0.3,
+          "selected": false,
+          "minimap": false,
+          "phases": [
+            {
+              "name": "pan",
+              "elapsedMs": 5068,
+              "frames": 301,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 33.3,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 1278,
+              "scriptMs": 479,
+              "layoutMs": 22,
+              "styleMs": 20,
+              "styleRecalcs": 153,
+              "layouts": 54,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "steps": 150,
+                "crowdedStart": false
+              }
+            },
+            {
+              "name": "idle-2s",
+              "elapsedMs": 2002,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 85,
+              "scriptMs": 55,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 240,
+              "saveKinds": {
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {}
+            },
+            {
+              "name": "wheel-zoom",
+              "elapsedMs": 721,
+              "frames": 42,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 127,
+              "scriptMs": 58,
+              "layoutMs": 5,
+              "styleMs": 12,
+              "styleRecalcs": 12,
+              "layouts": 12,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 84,
+                "reactFlowEdges": 709,
+                "edgePaths": 1418,
+                "images": 77,
+                "videos": 0,
+                "domElements": 3945
+              },
+              "detail": {
+                "zoomBefore": 0.3,
+                "zoomIn": 0.455,
+                "zoomAfter": 0.3
+              }
+            },
+            {
+              "name": "viewport-controls",
+              "elapsedMs": 2541,
+              "frames": 63,
+              "p50": 16.7,
+              "p95": 100,
+              "max": 200,
+              "over34": 23,
+              "over50": 16,
+              "over50Ratio": 0.254,
+              "mainBusyMs": 1482,
+              "scriptMs": 478,
+              "layoutMs": 34,
+              "styleMs": 85,
+              "styleRecalcs": 38,
+              "layouts": 30,
+              "longTasks": 6,
+              "longTaskMs": 612,
+              "loafs": 16,
+              "loafMs": 1219,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 306,
+                "reactFlowEdges": 2505,
+                "edgePaths": 5010,
+                "images": 289,
+                "videos": 0,
+                "domElements": 13827
+              },
+              "detail": {
+                "fitted": 0.15,
+                "zoomedIn": 0.216
+              }
+            },
+            {
+              "name": "drag-single",
+              "elapsedMs": 1044,
+              "frames": 60,
+              "p50": 16.7,
+              "p95": 16.8,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 239,
+              "scriptMs": 124,
+              "layoutMs": 16,
+              "styleMs": 9,
+              "styleRecalcs": 34,
+              "layouts": 30,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4037
+              },
+              "detail": {
+                "nodeId": "node-541"
+              }
+            },
+            {
+              "name": "drag-multi",
+              "elapsedMs": 1365,
+              "frames": 80,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 573,
+              "scriptMs": 309,
+              "layoutMs": 29,
+              "styleMs": 65,
+              "styleRecalcs": 77,
+              "layouts": 68,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {
+                "selected": 12
+              }
+            },
+            {
+              "name": "idle-after-drag",
+              "elapsedMs": 2003,
+              "frames": 118,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 51,
+              "scriptMs": 29,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 1,
+              "saveBytes": 6177,
+              "saveKinds": {
+                "node.upsert": 12,
+                "canvas.update_meta": 1
+              },
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 49,
+                "videos": 0,
+                "domElements": 4046
+              },
+              "detail": {}
+            },
+            {
+              "name": "mention-at",
+              "elapsedMs": 562,
+              "frames": 31,
+              "p50": 16.7,
+              "p95": 16.7,
+              "max": 16.8,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 201,
+              "scriptMs": 74,
+              "layoutMs": 12,
+              "styleMs": 25,
+              "styleRecalcs": 35,
+              "layouts": 27,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "nodeId": "node-620",
+                "listboxMs": 31
+              }
+            },
+            {
+              "name": "open-history",
+              "elapsedMs": 0,
+              "frames": 0,
+              "p50": 0,
+              "p95": 0,
+              "max": 0,
+              "over34": 0,
+              "over50": 0,
+              "over50Ratio": 0,
+              "mainBusyMs": 0,
+              "scriptMs": 0,
+              "layoutMs": 0,
+              "styleMs": 0,
+              "styleRecalcs": 0,
+              "layouts": 0,
+              "longTasks": 0,
+              "longTaskMs": 0,
+              "loafs": 0,
+              "loafMs": 0,
+              "reactCommits": 0,
+              "reactCommitMs": 0,
+              "saves": 0,
+              "saveBytes": 0,
+              "saveKinds": {},
+              "dom": {
+                "reactFlowNodes": 56,
+                "reactFlowEdges": 816,
+                "edgePaths": 1632,
+                "images": 69,
+                "videos": 0,
+                "domElements": 4267
+              },
+              "detail": {
+                "skipped": "scenario has no generation history"
+              }
+            }
+          ],
+          "switching": {
+            "heapMiB": [
+              32.9,
+              20.6,
+              32.8,
+              24.6,
+              33.8,
+              24.8,
+              33.9
+            ],
+            "domCounters": [
+              {
+                "nodes": 4733,
+                "listeners": 1670,
+                "documents": 2
+              },
+              {
+                "nodes": 5495,
+                "listeners": 1833,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              },
+              {
+                "nodes": 9503,
+                "listeners": 2811,
+                "documents": 2
+              },
+              {
+                "nodes": 9740,
+                "listeners": 2777,
+                "documents": 2
+              }
+            ],
+            "heapGrowthMiB": 13.3,
+            "switches": 6
+          },
+          "soak": null,
+          "totals": {
+            "saves": 3,
+            "saveBytes": 6688,
+            "saveKinds": {
+              "ops": 3
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -170,8 +170,8 @@ describe('生成节点引用素材加号', () => {
   it('配置加载完成前不把已保存的图生视频/首尾帧模式降级为全能参考', () => {
     const generator = source('src/features/canvas/components/CanvasGenerator.tsx')
     expect(generator).toContain('if (currentModel) {')
-    expect(generator).toContain("if (!supportsImageToVideo && inputMode === 'image') setInputMode('text')")
-    expect(generator).toContain("if (currentModel.raw?.firstLastFrame !== true && inputMode === 'firstlastframe') setInputMode('text')")
+    expect(generator).toContain("if (!supportsImageToVideo && inputMode === 'image') setInputMode((current) => current === 'image' ? 'text' : current)")
+    expect(generator).toContain("if (currentModel.raw?.firstLastFrame !== true && inputMode === 'firstlastframe') setInputMode((current) => current === 'firstlastframe' ? 'text' : current)")
     // 旧写法在 currentModel 尚未解析时也会判定为“不支持”，会把保存的首尾帧模式冲掉。
     expect(generator).not.toContain("!currentModel?.raw?.firstLastFrame && inputMode === 'firstlastframe'")
   })

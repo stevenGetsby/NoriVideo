@@ -4,6 +4,10 @@ import type {
   Canvas,
   CanvasGraphDelta,
   CanvasGraphResponse,
+  CanvasGraphSummaryV1,
+  CanvasNodeDetailV1,
+  CanvasNodeHistoryItemV1,
+  CanvasNodeHistoryV1,
   CanvasListResponse,
   CanvasDocumentInput,
   CanvasOperationsInput,
@@ -109,6 +113,29 @@ export const canvasApi = {
     return asJson<CanvasGraphResponse>(res)
   },
 
+  getSummary: async (projectId: string, canvasId: string, signal?: AbortSignal): Promise<CanvasGraphSummaryV1> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}?view=summary-v1`, { signal })
+    return asJson<CanvasGraphSummaryV1>(res)
+  },
+
+  getNodeDetail: async (projectId: string, canvasId: string, nodeId: string, signal?: AbortSignal): Promise<CanvasNodeDetailV1> => {
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes/${encodeURIComponent(nodeId)}?view=detail-v1`, { signal })
+    return asJson<CanvasNodeDetailV1>(res)
+  },
+
+  getNodeHistory: async (projectId: string, canvasId: string, nodeId: string, options: { limit?: number; cursor?: string | null; signal?: AbortSignal } = {}): Promise<CanvasNodeHistoryV1> => {
+    const query = new URLSearchParams({ view: 'history-v1', limit: String(options.limit ?? 20) })
+    if (options.cursor) query.set('cursor', options.cursor)
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes/${encodeURIComponent(nodeId)}?${query}`, { signal: options.signal })
+    return asJson<CanvasNodeHistoryV1>(res)
+  },
+
+  getNodeHistoryItem: async (projectId: string, canvasId: string, nodeId: string, entryId: string, signal?: AbortSignal): Promise<CanvasNodeHistoryItemV1> => {
+    const query = new URLSearchParams({ view: 'history-item-v1', entryId })
+    const res = await apiFetch(`/api/projects/${projectId}/canvas/${canvasId}/nodes/${encodeURIComponent(nodeId)}?${query}`, { signal })
+    return asJson<CanvasNodeHistoryItemV1>(res)
+  },
+
   patch: async (
     projectId: string,
     canvasId: string,
@@ -150,6 +177,11 @@ export const canvasApi = {
     canvasId: string,
     input: CanvasOperationsInput,
   ): Promise<CanvasGraphResponse> => {
+    for (const operation of input.ops) {
+      if (operation.type === 'node.upsert' && operation.node.data?.__canvasUnhydrated === true) {
+        throw new Error(`节点 ${operation.node.id} 尚未加载完整内容，不能保存。`)
+      }
+    }
     const res = await postOperations(projectId, canvasId, input)
     return asJson<CanvasGraphResponse>(res)
   },
@@ -159,6 +191,11 @@ export const canvasApi = {
     canvasId: string,
     input: CanvasOperationsInput,
   ): Promise<CanvasGraphDelta> => {
+    for (const operation of input.ops) {
+      if (operation.type === 'node.upsert' && operation.node.data?.__canvasUnhydrated === true) {
+        throw new Error(`节点 ${operation.node.id} 尚未加载完整内容，不能保存。`)
+      }
+    }
     const res = await postOperations(projectId, canvasId, input, true)
     return asJson<CanvasGraphDelta>(res)
   },

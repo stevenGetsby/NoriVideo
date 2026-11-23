@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { sanitizePublicCanvasData } from '@/lib/task/public-presentation'
 
@@ -8,10 +9,28 @@ import { requireCanvasInProject } from '@/lib/canvas/access'
 import { parseUpdateCanvasInput } from '@/lib/canvas/validators'
 import { reconcileCanvasGenerationNodes } from '@/lib/canvas/generation-reconciliation'
 import { withCanonicalCanvasStudioDocumentSource } from '@/lib/canvas/studio-document-lifecycle'
+import { CANVAS_SUMMARY_VIEW } from '@/lib/canvas/graph-summary'
+import { canvasDetailSelect, readCanvasNodeSummaries } from '@/lib/canvas/summary-db-reader'
+
+async function readFullNodes(projectId: string, canvasId: string) {
+  const nodes = await prisma.canvasNode.findMany({
+    where: { canvasId },
+    orderBy: { createdAt: 'asc' },
+    select: canvasDetailSelect,
+  })
+  const reconciled = await reconcileCanvasGenerationNodes({ projectId, canvasId, nodes })
+  return reconciled.map(({ updatedAt, ...node }) => {
+    void updatedAt
+    return withCanonicalCanvasStudioDocumentSource({
+      ...node,
+      data: sanitizePublicCanvasData(node.data),
+    }, projectId, canvasId)
+  })
+}
 
 // GET - 获取画布元数据 + 节点 + 边（一次性返回，前端单次加载）
 export const GET = apiHandler(async (
-  _request: NextRequest,
+  request: NextRequest,
   context: { params: Promise<{ projectId: string; canvasId: string }> }
 ) => {
   const { projectId, canvasId } = await context.params
@@ -19,26 +38,9 @@ export const GET = apiHandler(async (
   if (isErrorResponse(authResult)) return authResult
 
   const canvas = await requireCanvasInProject(canvasId, projectId)
-
+  const summary = request.nextUrl.searchParams.get('view') === CANVAS_SUMMARY_VIEW
   const [nodes, edges] = await Promise.all([
-    prisma.canvasNode.findMany({
-      where: { canvasId },
-      orderBy: { createdAt: 'asc' },
-      select: {
-        id: true,
-        canvasId: true,
-        type: true,
-        position: true,
-        size: true,
-        data: true,
-        status: true,
-        taskId: true,
-        runId: true,
-        mediaObjectId: true,
-        parentNodeId: true,
-        updatedAt: true,
-      },
-    }),
+    summary ? readCanvasNodeSummaries(projectId, canvasId) : readFullNodes(projectId, canvasId),
     prisma.canvasEdge.findMany({
       where: { canvasId },
       orderBy: { createdAt: 'asc' },
@@ -53,20 +55,16 @@ export const GET = apiHandler(async (
       },
     }),
   ])
-  const reconciledRows = await reconcileCanvasGenerationNodes({
-    projectId,
-    canvasId,
-    nodes,
+  const body = JSON.stringify(summary ? { kind: CANVAS_SUMMARY_VIEW, canvas, nodes, edges } : { canvas, nodes, edges })
+  const etag = `"${createHash('sha1').update(body).digest('hex')}"`
+  const headers = { ETag: etag, 'Cache-Control': 'private, no-cache' }
+  if (request.headers.get('if-none-match') === etag) {
+    return new NextResponse(null, { status: 304, headers })
+  }
+  return new NextResponse(body, {
+    status: 200,
+    headers: { ...headers, 'Content-Type': 'application/json' },
   })
-  const reconciledNodes = reconciledRows.map(({ updatedAt, ...node }) => {
-    void updatedAt
-    return withCanonicalCanvasStudioDocumentSource({
-      ...node,
-      data: sanitizePublicCanvasData(node.data),
-    }, projectId, canvasId)
-  })
-
-  return NextResponse.json({ canvas, nodes: reconciledNodes, edges })
 })
 
 // PATCH - 更新画布元数据（标题/主题色/viewport）

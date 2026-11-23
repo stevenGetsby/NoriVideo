@@ -7,7 +7,10 @@ import { EmptyCanvasChrome } from '@/features/canvas/components/EmptyCanvasChrom
 import type { Canvas } from '@/features/canvas/types'
 
 vi.mock('@/i18n/navigation', () => ({
-  Link: ({ href, children, ...props }: { href: string | { pathname: string }; children: React.ReactNode }) => React.createElement('a', { ...props, href: typeof href === 'string' ? href : href.pathname }, children),
+  Link: ({ href, children, ...props }: { href: string | { pathname: string; query?: Record<string, string> }; children: React.ReactNode }) => {
+    const query = typeof href === 'string' ? '' : new URLSearchParams(href.query).toString()
+    return React.createElement('a', { ...props, href: typeof href === 'string' ? href : href.pathname + (query ? `?${query}` : '') }, children)
+  },
 }))
 vi.mock('@/components/ui/viewport-popover', () => ({ ViewportPopover: () => null }))
 vi.mock('@/components/ui/icons', () => ({ AppIcon: () => React.createElement('svg') }))
@@ -45,7 +48,7 @@ describe('canvas chrome project hierarchy', () => {
     expect(html).not.toContain('nori-canvas-active-picker')
     expect(html).toContain('data-testid="canvas-parent-back"')
     expect(html).toContain('href="/projects?work_id=project-1"')
-    expect(html).toContain('aria-label="返回项目：海后穿书"')
+    expect(html).toContain('aria-label="返回我的项目"')
     expect(html).toContain('aria-label="画布工具"')
   })
 

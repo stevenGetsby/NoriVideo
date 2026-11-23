@@ -64,16 +64,35 @@ describe('canvas edge marquee geometry', () => {
     )).toEqual(['inside'])
   })
 
+  it('skips path sampling when the transformed curve bounds miss the marquee', () => {
+    let sampled = false
+    const away = {
+      getTotalLength: () => { sampled = true; return 100 },
+      getPointAtLength: () => ({ x: 0, y: 0 }),
+      getScreenCTM: () => ({ a: 1, b: 0, c: 0, d: 1, e: 0, f: 0 }),
+      getBBox: () => ({ x: 0, y: 100, width: 400, height: 200 }),
+    }
+    const container = { querySelectorAll: () => [{ dataset: { id: 'away' }, querySelector: () => away }] }
+
+    expect(findSvgEdgeIdsIntersectingRect(
+      container as unknown as Element,
+      { left: 10, top: 10, right: 60, bottom: 50 },
+    )).toEqual([])
+    expect(sampled).toBe(false)
+  })
+
   it('samples rendered SVG paths in screen coordinates and returns every crossed edge id', () => {
     const path = {
       getTotalLength: () => 120,
       getPointAtLength: (distance: number) => ({ x: distance, y: 10 }),
       getScreenCTM: () => ({ a: 1, b: 0, c: 0, d: 1, e: 20, f: 40 }),
+      getBBox: () => ({ x: 0, y: 10, width: 120, height: 0 }),
     }
     const unrelatedPath = {
       getTotalLength: () => 120,
       getPointAtLength: (distance: number) => ({ x: distance, y: 100 }),
       getScreenCTM: () => ({ a: 1, b: 0, c: 0, d: 1, e: 20, f: 40 }),
+      getBBox: () => ({ x: 0, y: 100, width: 120, height: 0 }),
     }
     const groups = [
       { dataset: { id: 'edge-crossed' }, querySelector: () => path },

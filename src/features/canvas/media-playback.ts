@@ -28,6 +28,14 @@ export function attachMediaPlayer(src: string, media: HTMLMediaElement) {
   }
 }
 
+/** Pauses every mounted player of a different file so only one video plays at a time. */
+export function pauseOtherMedia(src: string) {
+  for (const [otherSrc, group] of players) {
+    if (otherSrc === src) continue
+    for (const media of group) if (!media.paused) media.pause()
+  }
+}
+
 /**
  * Pauses every other player on the same file and returns its exact position, so the
  * enlarged preview can continue from there rather than from the poster frame.

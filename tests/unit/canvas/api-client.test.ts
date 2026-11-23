@@ -56,6 +56,24 @@ describe('canvas API client errors', () => {
     } satisfies Partial<CanvasRevisionConflictError>)
   })
 
+  it('refuses to serialize an unhydrated summary node in both operation protocols', async () => {
+    const input = {
+      expectedRevision: 1,
+      clientId: 'tab-1',
+      changeSummary: '修改节点',
+      ops: [{
+        type: 'node.upsert' as const,
+        node: {
+          id: 'node-1', canvasId: 'canvas-1', type: 'text', position: { x: 0, y: 0 }, size: null,
+          data: { __canvasUnhydrated: true }, status: 'IDLE', taskId: null, runId: null, mediaObjectId: null, parentNodeId: null,
+        },
+      }],
+    }
+    await expect(canvasApi.saveOperations('project-1', 'canvas-1', input)).rejects.toThrow('尚未加载完整内容')
+    await expect(canvasApi.saveOperationsDelta('project-1', 'canvas-1', input)).rejects.toThrow('尚未加载完整内容')
+    expect(apiFetchMock).not.toHaveBeenCalled()
+  })
+
   it('posts compressed operations and exposes the conflicting server revision', async () => {
     apiFetchMock.mockResolvedValue(new Response(JSON.stringify({
       success: false,

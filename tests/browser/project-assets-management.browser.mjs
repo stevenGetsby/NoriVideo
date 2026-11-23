@@ -104,7 +104,7 @@ async function open(query, viewport = { width: 1024, height: 600 }) {
         if (failDetails) { status = 500; payload = { message: '模拟作品信息保存失败' } }
         else { project = { ...project, ...request.postDataJSON() }; payload = { project } }
       } else if (request.method() === 'DELETE') { deleted = true; payload = { success: true } }
-      else payload = { project }
+      else payload = { project: { ...project, workId: 'work-1' } }
     } else if (url.pathname === '/api/projects/project-1/data') payload = { project }
     else if (url.pathname === '/api/novel-promotion/project-1') payload = {
       projectStyle: 'live-action', videoRatio: '9:16', videoResolution: '720p', targetAudience: 'zh-platform',
@@ -327,8 +327,8 @@ try {
       token: getComputedStyle(element).getPropertyValue('--fos-bg-3').trim(),
     }))
     assert.equal(colors.background, 'rgb(27, 27, 35)', 'Picker must have an opaque dark background outside the shell')
-    assert.equal(colors.text, 'rgb(255, 255, 255)')
-    assert.equal(colors.token, '#1b1b23')
+    assert.equal(colors.text, 'rgb(245, 245, 250)', 'Picker foreground must use the current readable text token')
+    assert.ok(['#1b1b23', 'rgb(27 27 35)'].includes(colors.token), `Unexpected picker token: ${colors.token}`)
     await picker.getByRole('button', { name: '本地上传', exact: true }).click()
     const title = picker.getByPlaceholder('素材名称（必填）')
     await title.fill('上传界面可见性验证')

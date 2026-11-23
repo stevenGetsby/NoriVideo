@@ -1,12 +1,13 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Handle, NodeResizer, Position, useStore, type NodeProps, type ReactFlowState } from '@xyflow/react'
 import { Clapperboard, FolderOpen, GitBranch, ImageIcon, Music2, Sparkles, Upload } from '@/components/ui/icons'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
+import { useCanvasNodeSource, useCanvasNodeSourceSelector } from '../canvas-node-source'
 import type { CanvasFlowNode, CanvasFlowNodeData } from '../editor-types'
 import { CANVAS_REPLACE_CONTENT_EVENT } from './CreativeNode'
 
@@ -41,9 +42,9 @@ type MentionNode = {
 }
 
 // Plain descriptors compared by value: dragging any node swaps the node array but must not re-render this card.
-function selectMentionNodes(state: ReactFlowState): MentionNode[] {
+function mentionNodesOf(nodes: readonly CanvasFlowNode[]): MentionNode[] {
   const result: MentionNode[] = []
-  for (const node of state.nodes as CanvasFlowNode[]) {
+  for (const node of nodes) {
     if (node.type !== 'image' && node.type !== 'audio') continue
     result.push({
       id: node.id,
@@ -57,6 +58,11 @@ function selectMentionNodes(state: ReactFlowState): MentionNode[] {
   }
   return result
 }
+
+const EMPTY_MENTION_NODES: MentionNode[] = []
+const selectMentionNodes = (state: ReactFlowState) => mentionNodesOf(state.nodes as CanvasFlowNode[])
+const selectNoMentionNodes = () => EMPTY_MENTION_NODES
+const selectSourceMentionNodes = (nodes: CanvasFlowNode[]) => mentionNodesOf(nodes)
 
 function sameMentionNodes(left: MentionNode[], right: MentionNode[]) {
   if (left === right) return true
@@ -91,10 +97,20 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
   const editConfig = data.videoEdit || { sourceKind: 'none' as const, generateAudio: true }
   const incomingNodeId = editConfig.sourceKind === 'node' && editConfig.sourceNodeId ? editConfig.sourceNodeId : null
   // Subscribing to the whole node array re-rendered this card on every drag tick of any node.
-  const incoming = useStore((state) => (
-    incomingNodeId ? (state.nodeLookup.get(incomingNodeId)?.internals.userNode as CanvasFlowNode | undefined) ?? null : null
+  // With render projection RF only holds mounted nodes, so prefer the authoritative node source when present.
+  const nodeSource = useCanvasNodeSource()
+  const rfIncoming = useStore((state) => (
+    !nodeSource && incomingNodeId ? (state.nodeLookup.get(incomingNodeId)?.internals.userNode as CanvasFlowNode | undefined) ?? null : null
   ))
-  const mentionNodes = useStore(selectMentionNodes, sameMentionNodes)
+  const selectIncoming = useCallback(
+    (_nodes: CanvasFlowNode[], byId: (id: string) => CanvasFlowNode | undefined) => (incomingNodeId ? byId(incomingNodeId) ?? null : null),
+    [incomingNodeId],
+  )
+  const sourceIncoming = useCanvasNodeSourceSelector(nodeSource, selectIncoming, Object.is, null)
+  const incoming = nodeSource ? sourceIncoming : rfIncoming
+  const rfMentionNodes = useStore(nodeSource ? selectNoMentionNodes : selectMentionNodes, sameMentionNodes)
+  const sourceMentionNodes = useCanvasNodeSourceSelector(nodeSource, selectSourceMentionNodes, sameMentionNodes, EMPTY_MENTION_NODES)
+  const mentionNodes = nodeSource ? sourceMentionNodes : rfMentionNodes
   const sourceUrl = sourceUrlFor(data, incoming)
   const references = useMemo(
     () => Array.isArray(editConfig.references) ? editConfig.references : [],
@@ -331,7 +347,7 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
               src={sourceUrl}
               controls
               playsInline
-              preload="auto"
+              preload="metadata"
               poster={data.posterUrl ? toDisplayImageUrl(data.posterUrl) || undefined : undefined}
               className="nodrag nowheel"
               style={{ width: '100%', height: '100%', display: 'block', pointerEvents: 'auto', background: '#000' }}

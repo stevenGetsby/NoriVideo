@@ -41,7 +41,7 @@ createRoot(document.getElementById('root')!).render(
       ? <FosAccountManagementClient />
       : <main className="fos-app"><CanvasGraph
         mode={new URLSearchParams(location.search).has('story') ? 'story' : 'canvas'}
-        projectId="project-1" projectName="浏览器交互验证" canvasId="canvas-1" canvases={[canvas]} focusNodeId="gen-1"
+        projectId="project-1" projectName="浏览器交互验证" canvasId="canvas-1" canvases={[canvas]} focusNodeId={new URLSearchParams(location.search).has('generatorHotfixZoom') ? undefined : 'gen-1'}
         onSelectCanvas={() => {}} onCreateCanvas={() => {}} onRenameCanvas={() => {}} onDeleteCanvas={() => {}}
       /></main>}
     </NextIntlClientProvider>

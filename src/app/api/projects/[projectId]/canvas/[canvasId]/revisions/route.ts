@@ -78,6 +78,7 @@ export const POST = apiHandler(async (
     templateOwnerId: authResult.session.user.id,
     input,
     studioDocumentRestore: snapshot.studioDocuments,
+    forceSnapshot: true,
   }))
   return NextResponse.json(savedGraph)
 })
