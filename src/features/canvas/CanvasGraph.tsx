@@ -4443,14 +4443,16 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, fo
         onPointerDown={(event) => { if (event.button === 0) { setContextMenu(null); setWireMenu(null) } }}
         onContextMenuCapture={(event) => {
           const target = event.target
-          if (!(target instanceof Element) || !target.closest('.react-flow')) return
-          if (isTextEntryTarget(target)) {
+          if (!(target instanceof Element)) return
+          const insideFlow = Boolean(target.closest('.react-flow'))
+          if (target.closest('.nori-canvas-generator') || (insideFlow && isTextEntryTarget(target))) {
             // Keep the caret and the native Cut/Copy/Paste menu; the custom menu would blur the editor and end edit mode.
             event.stopPropagation()
             setContextMenu(null)
             setWireMenu(null)
             return
           }
+          if (!insideFlow) return
           event.preventDefault()
           event.stopPropagation()
           if (shouldSuppressContextMenu()) return

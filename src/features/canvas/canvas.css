@@ -5957,11 +5957,17 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 .nori-canvas-generator.is-node-anchored {
   overflow: visible;
+  /* This workspace-layer anchor is already outside the flow zoom. Keep the tool-rail clearance. */
+  max-width: min(calc(100% - 148px), calc((100vw - 48px) / var(--nori-interface-scale, 1.2)));
   /* Keep the hide/restore motion when anchored. Without these the anchored
      transition list replaces the base one and the panel snaps back after a
      drag instead of easing in. */
   transition: left .14s cubic-bezier(.2, .8, .2, 1), top .14s cubic-bezier(.2, .8, .2, 1), transform .18s cubic-bezier(.2, .8, .2, 1), opacity .18s ease-out, translate .22s cubic-bezier(.2, .8, .2, 1), scale .22s cubic-bezier(.2, .8, .2, 1), visibility 0s, box-shadow .18s ease;
   will-change: left, top, transform;
+}
+
+@supports (height: 1dvh) {
+  .nori-canvas-generator.is-node-anchored { --nori-generator-viewport-height: 72dvh; }
 }
 
 .nori-canvas-generator-scroll {

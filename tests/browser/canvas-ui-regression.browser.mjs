@@ -164,6 +164,13 @@ async function open(viewport, query = '') {
       ] : []),
     ],
   }
+  const generatorTestZoom = Number(new URLSearchParams(query).get('generatorHotfixZoom'))
+  if (generatorTestZoom > 0) {
+    graph.canvas = { ...graph.canvas, viewport: { x: 100 - 440 * generatorTestZoom, y: 130 - 140 * generatorTestZoom, zoom: generatorTestZoom } }
+    graph.nodes = graph.nodes.map((node) => node.id === 'gen-1'
+      ? { ...node, size: { width: 200 / generatorTestZoom, height: 90 / generatorTestZoom } }
+      : node)
+  }
   await page.route('**/*', async (route) => {
     const url = new URL(route.request().url())
     if (url.port === workspace.port) return route.continue()
@@ -493,7 +500,40 @@ async function verifyCanvasImageThumbnails(page) {
   await page.screenshot({ path: path.join(artifacts, 'canvas-image-thumbnails.png') })
 }
 try {
-  if (process.env.NORI_CANVAS_THUMBNAILS_ONLY) {
+  if (process.env.NORI_CANVAS_939_ONLY === '1') {
+    const geometry = []
+    for (const zoom of [1, 3]) {
+      const page = await open({ width: 640, height: 1800 }, `?first=1&generatorHotfixZoom=${zoom}`)
+      await selectCanvasNode(page, 'gen-1')
+      const panel = page.locator('.nori-canvas-generator.is-node-anchored')
+      await panel.waitFor()
+      await page.waitForFunction((zoom) => {
+        const viewport = document.querySelector('.react-flow__viewport')
+        return viewport && Math.abs(new DOMMatrix(getComputedStyle(viewport).transform).a - zoom) < 0.01
+      }, zoom)
+      const bounds = await panel.evaluate((element) => {
+        const scroll = element.querySelector('.nori-canvas-generator-scroll')
+        return { width: element.getBoundingClientRect().width, screenMaxHeight: parseFloat(getComputedStyle(scroll).maxHeight) * scroll.currentCSSZoom, viewportWidth: innerWidth, viewportHeight: innerHeight }
+      })
+      assert.ok(bounds.width <= bounds.viewportWidth - 48 + 1)
+      assert.ok(bounds.screenMaxHeight <= bounds.viewportHeight * .72 + 1, `Generator scroll cap exceeds 72%: ${JSON.stringify(bounds)}`)
+      await openNodeContextMenu(page, 'gen-1')
+      const prompt = panel.locator('textarea[role="combobox"]')
+      await prompt.focus()
+      const nativeMenu = await prompt.evaluate((element) => {
+        const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })
+        element.dispatchEvent(event)
+        return { prevented: event.defaultPrevented, focused: document.activeElement === element }
+      })
+      assert.deepEqual(nativeMenu, { prevented: false, focused: true })
+      assert.equal(await page.getByRole('menu', { name: /^(画布|节点)操作$/ }).count(), 0)
+      geometry.push({ zoom, ...bounds })
+      await page.close()
+    }
+    assert.ok(Math.abs(geometry[0].width - geometry[1].width) <= 2, 'The panel width must not shrink at 300% canvas zoom')
+    assert.deepEqual(errors, [], 'No uncaught browser errors')
+    console.log(JSON.stringify({ ok: true, nativeEditorContextMenu: true, geometry }, null, 2))
+  } else if (process.env.NORI_CANVAS_THUMBNAILS_ONLY) {
     const page = await open({ width: 1440, height: 900 }, '?globalstyle=1')
     await verifyCanvasImageThumbnails(page)
     await page.close()

@@ -1382,7 +1382,7 @@ export function CanvasGenerator({
   return (
     <aside className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : ''}${anchor && !fullscreen ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-anchor-placement={anchor?.placement} style={{ ...anchorStyle, ...(fullscreen ? {} : { width: `${panelWidth}px` }) }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
       {anchor && !fullscreen ? <span className="nori-canvas-generator-tether" aria-hidden="true" style={{ left: `${anchor.tetherX}px`, height: `${anchor.tetherLength}px` }} /> : null}
-      <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `${anchor.maxHeight}px` } : undefined}>
+      <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `min(${anchor.maxHeight}px, calc(var(--nori-generator-viewport-height, 72vh) / var(--nori-interface-scale, 1.2)))` } : undefined}>
       {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
       <div className="nori-canvas-generator-head">
         {type === 'video' ? (
