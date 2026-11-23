@@ -30,8 +30,8 @@ describe('public creator login homepage contracts', () => {
   })
   it('does not inherit the fixed/zoomed workspace shell', () => {
     const shell = source('src/components/frameos/FosAuthShell.tsx')
-    expect(shell).toContain('className="nori-auth"')
-    expect(shell).not.toContain('className="fos-app')
+    expect(shell).toMatch(/className="nori-auth(?:\s[^"]*)?"/)
+    expect(shell).not.toMatch(/className="[^"]*\bfos-app\b/)
     const css = source('src/styles/nori-auth.css')
     expect(css).toContain('min-height: 100dvh')
     expect(css).toContain('prefers-reduced-motion')
@@ -47,7 +47,7 @@ describe('public creator login homepage contracts', () => {
   it('keeps self-registration closed and help keyboard accessible', () => {
     const signup = source('src/app/[locale]/auth/signup/page.tsx')
     expect(signup).not.toContain('<form')
-    expect(signup).toContain('LanMiaoTV 不开放自行注册')
+    expect(signup).toMatch(/LanmiaoTV 不开放自行注册/i)
     const guide = source('src/components/frameos/auth/AuthHelpButton.tsx')
     expect(guide).toContain('element.showModal()')
     expect(guide).toContain('onCancel=')

@@ -93,7 +93,7 @@ function NavItem({
                     />
                 )}
                 {status === 'processing' && !disabled && (
-                    <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${active ? 'bg-white' : 'bg-[rgb(var(--nori-primary-text-))]'}`} />
+                    <span className={`h-1.5 w-1.5 animate-pulse rounded-full ${active ? 'bg-white' : 'bg-[rgb(var(--nori-primary-text))]'}`} />
                 )}
             </button>
             {disabled && disabledLabel && (

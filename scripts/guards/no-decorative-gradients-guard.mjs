@@ -25,6 +25,7 @@ function walk(dir, out = []) {
   if (!fs.existsSync(dir)) return out
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.name === '.git' || entry.name === '.next' || entry.name === 'node_modules') continue
+    if (/ [234]\.[a-z]+$/i.test(entry.name)) continue // Finder copies excluded by .gitignore.
     const fullPath = path.join(dir, entry.name)
     if (entry.isDirectory()) {
       walk(fullPath, out)

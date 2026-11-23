@@ -2,7 +2,8 @@
 // service, credentials storage, production database, or generation API is used.
 import path from 'node:path'
 import { createServer } from 'node:http'
-import { readFile, mkdir } from 'node:fs/promises'
+import { readFile, mkdir, writeFile } from 'node:fs/promises'
+import { pathToFileURL } from 'node:url'
 import { build } from 'esbuild'
 import postcss from 'postcss'
 import tailwindcss from '@tailwindcss/postcss'
@@ -23,16 +24,35 @@ export async function createAuthPreview({ port = 0 } = {}) {
     },
     define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
   })
+  const staticBundle = await build({
+    entryPoints: ['tests/browser/home-static.fixture.tsx'], bundle: true, write: false,
+    outdir: '/auth-preview', jsx: 'automatic', platform: 'node',
+    alias: {
+      '@': path.join(root, 'src'),
+      '@/i18n/navigation': path.join(root, 'tests/browser/stubs/navigation.tsx'),
+      'next/image': path.join(root, 'tests/browser/stubs/next-image.tsx'),
+    },
+    define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  })
+  const staticPath = path.join(output, 'home-static.cjs')
+  await writeFile(staticPath, staticBundle.outputFiles.find((file) => file.path.endsWith('.js')).text)
+  const { html: staticHtml } = await import(`${pathToFileURL(staticPath).href}?v=${Date.now()}`)
   const input = path.join(root, 'src/app/globals.css')
+  const homeCssPath = path.join(root, 'src/styles/lanmiao-home.css')
   const css = (await postcss([tailwindcss()]).process(await readFile(input, 'utf8'), { from: input, map: false })).css
   const image = await readFile(path.join(root, 'public/auth/cinematic-landscape.webp'))
   const brandImages = new Map(await Promise.all(['lanmiao-cat.png', 'lanmiao-cat-icon.png', 'lanmiao-cat-apple.png'].map(async (name) => [
     `/brand/${name}`, await readFile(path.join(root, 'public/brand', name)),
   ])))
   const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
-  const server = createServer((req, res) => {
+  const server = createServer(async (req, res) => {
     res.setHeader('Cache-Control', 'no-store')
     const pathname = new URL(req.url || '/', 'http://localhost').pathname
+    if (pathname === '/no-js') {
+      const html = staticHtml
+      res.setHeader('Content-Type', 'text/html; charset=utf-8')
+      return res.end(`<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>LanmiaoTV</title><link rel="stylesheet" href="/global.css"></head><body style="margin:0">${html}</body></html>`)
+    }
     if (brandImages.has(pathname)) {
       res.setHeader('Content-Type', 'image/png'); return res.end(brandImages.get(pathname))
     }
@@ -43,7 +63,7 @@ export async function createAuthPreview({ port = 0 } = {}) {
       res.setHeader('Content-Type', 'text/javascript'); return res.end(script)
     }
     if (req.url === '/global.css') {
-      res.setHeader('Content-Type', 'text/css'); return res.end(css)
+      res.setHeader('Content-Type', 'text/css'); return res.end(`${css}\n${await readFile(homeCssPath, 'utf8')}`)
     }
     if (req.url?.startsWith('/__fixture/auth/')) {
       res.setHeader('Content-Type', 'application/json')

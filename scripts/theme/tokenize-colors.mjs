@@ -60,31 +60,64 @@ export function transformCss(css, tokens = new Map()) {
   const rule = /([^{}]+)\{([^{}]*)\}/g
   for (let match; (match = rule.exec(css));) {
     const [, selector, body] = match
-    if (/@|nori-force-dark|nori-auth|nori-admin-login/.test(selector)) continue
+    if (/@|nori-force-dark|nori-auth|nori-admin-login|work-cover/.test(selector)) continue
     output.push(css.slice(cursor, match.index))
     let next = body
-    const declarations = []
-    const declaration = /(?:^|;)\s*([-a-z]+)\s*:/g
-    for (let item; (item = declaration.exec(body));) declarations.push({ index: item.index, name: item[1] })
-    const roleAt = (index) => {
-      const found = declarations.filter((item) => item.index <= index).at(-1)
-      return found && /(?:^|-)color$|text-fill-color|text-decoration-color/.test(found.name) ? 't' : 's'
+    const roles = []
+    const onBrand = /fos-brand-solid|fos-primary|fos-gradient|fos-danger|fos-success|--nav-hue|#ef4444|#6e7bff|linear-gradient/.test(body)
+    const foregroundToken = (alpha) => {
+      if (onBrand) return alpha === undefined ? 'var(--fos-on-cta)' : `rgba(255, 255, 255, ${alpha})`
+      return channel('text-1', alpha)
     }
-    next = next.replace(/rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([\d.]+)\s*\)|rgb\(\s*255\s+255\s+255\s*\/\s*([\d.]+)\s*\)/gi, (_, a, b) => {
-      const alpha = alphaNumber(a || b)
-      return roleAt(match.index + match[0].indexOf(_)) === 't' ? channel('ink', alpha) : channel('ink', `calc(${alpha} * var(--nori-a))`)
+    next = next.replace(/(?:^|;)\s*([-a-z]+)\s*:/g, (literal, name) => {
+      roles.push({ index: next.indexOf(literal), name })
+      return literal
     })
-    next = next.replace(/#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})\b/gi, (literal, raw) => {
+    const transformedRoleAt = (index) => {
+      const found = roles.filter((item) => item.index <= index).at(-1)
+      if (found && /(?:^|-)color$|text-fill-color|text-decoration-color/.test(found.name)) return 't'
+      if (/--on-(?:cta|accent)$/.test(found?.name || '')) return 'fixed'
+      if (/--[\w-]*(?:text|foreground|fg|on-cta)[\w-]*$/.test(found?.name || '')) return 't'
+      return 's'
+    }
+    next = next.replace(/rgba\(\s*255\s*,\s*255\s*,\s*255\s*,\s*([\d.]+)\s*\)|rgb\(\s*255\s+255\s+255\s*\/\s*([\d.]+)\s*\)/gi, (literal, a, b, offset) => {
+      const alpha = alphaNumber(a || b)
+      return transformedRoleAt(offset) === 't' ? channel('ink', alpha) : channel('ink', `calc(${alpha} * var(--nori-a))`)
+    })
+    next = next.replace(/rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*([\d.]+)\s*\)/g, (literal, r, g, b, alpha, offset) => {
+      if (`${r},${g},${b}` === '255,255,255' || /(?:box-shadow|drop-shadow)/.test(next.slice(0, offset).split(';').at(-1) || '')) return literal
+      const hex = [r, g, b].map((value) => Number(value).toString(16).padStart(2, '0')).join('')
+      const entry = ramp.get(hex)
+      if (entry) return channel(entry.filter(Boolean).join('-'), alphaNumber(alpha))
+      const role = transformedRoleAt(offset)
+      if (hex === 'ffffff' && role === 't') {
+        return foregroundToken(alpha)
+      }
+      const name = `${role}-${hex}`
+      tokens.set(name, { dark: hex, light: lightColor(hex, role) })
+      return channel(name, alphaNumber(alpha))
+    })
+    next = next.replace(/rgb\(var\(--nori-text-1\)\)/g, (literal, offset) => {
+      const role = transformedRoleAt(offset)
+      return role === 'fixed' ? 'var(--fos-on-cta)' : role === 't' ? foregroundToken() : literal
+    })
+    next = next.replace(/rgb\(var\(--nori-s-ffffff\)\)/g, (literal, offset) => transformedRoleAt(offset) === 't' ? foregroundToken() : literal)
+    next = next.replace(/rgb\(var\(--nori-(s)-([0-9a-f]{6})\)\)/g, (literal, role, hex, offset) => {
+      if (transformedRoleAt(offset) !== 't') return literal
+      const name = `t-${hex}`
+      tokens.set(name, { dark: hex, light: lightColor(hex, 't') })
+      return channel(name)
+    })
+    next = next.replace(/#([0-9a-f]{8}|[0-9a-f]{6}|[0-9a-f]{4}|[0-9a-f]{3})\b/gi, (literal, raw, offset) => {
       const expanded = raw.length <= 4 ? [...raw].map((char) => char + char).join('') : raw
       const hex = expanded.slice(0, 6).toLowerCase()
       const alpha = expanded.length === 8 ? alphaNumber(String(parseInt(expanded.slice(6), 16) / 255)) : undefined
       const entry = ramp.get(hex)
       if (entry) return channel(entry.join('-'), alpha)
       if (hex === '0d0d0d') return channel('page-bg', alpha)
-      const role = roleAt(match.index + match[0].indexOf(literal))
+      const role = transformedRoleAt(offset)
       if (hex === 'ffffff' && role === 't') {
-        const onBrand = /fos-primary|fos-danger|fos-success|#ef4444|#6e7bff|linear-gradient/.test(body)
-        return onBrand ? literal : channel('text-1', alpha)
+        return foregroundToken(alpha)
       }
       const name = `${role}-${hex}`
       tokens.set(name, { dark: hex, light: lightColor(hex, role) })
@@ -118,7 +151,7 @@ export function transformTsx(source) {
 export function generatedCss(tokens) {
   if (!tokens.size) return '/* Generated by scripts/theme/tokenize-colors.mjs. */\n'
   const block = (selector, key) => `${selector} {\n${[...tokens].map(([name, colors]) => `  --nori-${name}: ${colors[key].match(/../g).map((pair) => parseInt(pair, 16)).join(' ')};`).join('\n')}\n}\n`
-  return `/* Generated by scripts/theme/tokenize-colors.mjs. */\n${block(':root, .nori-force-dark, html[data-nori-theme="light"] .nori-force-dark', 'dark')}\n${block('html[data-nori-theme="light"]', 'light')}`
+  return `/* Generated by scripts/theme/tokenize-colors.mjs. */\n${block(':root, .nori-force-dark, html[data-nori-theme="light"] .nori-force-dark', 'dark')}\n${block('html[data-nori-theme="light"], html[data-nori-theme="light"] :not(.nori-force-dark):not(.nori-force-dark *)', 'light')}`
 }
 
 async function files(directory) {

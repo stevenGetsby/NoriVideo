@@ -1,31 +1,32 @@
 :root {
   /* Surface and text */
   --glass-bg-canvas: rgb(var(--nori-s-f3f4f6));
-  --glass-bg-surface: rgb(var(--nori-ink) / calc(0.88 * var(--nori-a)));
-  --glass-bg-surface-strong: rgb(var(--nori-ink) / calc(0.94 * var(--nori-a)));
-  --glass-bg-surface-modal: rgb(var(--nori-ink) / calc(0.97 * var(--nori-a)));
-  --glass-bg-muted: rgb(var(--nori-ink) / calc(0.86 * var(--nori-a)));
-  --glass-bg-nav: rgb(var(--nori-ink) / calc(0.96 * var(--nori-a)));
-  --glass-text-primary: rgb(var(--nori-s-0a0a0a));
-  --glass-text-secondary: rgb(var(--nori-s-111111));
-  --glass-text-tertiary: rgb(var(--nori-s-4b5563));
-  --glass-text-on-accent: rgb(var(--nori-s-ffffff));
+  --glass-bg-base: var(--glass-bg-canvas);
+  --glass-bg-surface: rgb(255 255 255 / 0.88);
+  --glass-bg-surface-strong: rgb(255 255 255 / 0.94);
+  --glass-bg-surface-modal: rgb(255 255 255 / 0.97);
+  --glass-bg-muted: rgb(255 255 255 / 0.86);
+  --glass-bg-nav: rgb(255 255 255 / 0.96);
+  --glass-text-primary: rgb(var(--nori-t-0a0a0a));
+  --glass-text-secondary: rgb(var(--nori-t-111111));
+  --glass-text-tertiary: rgb(var(--nori-text-3));
+  --glass-text-on-accent: rgb(var(--nori-text-1));
 
   /* Border strategy: default weak stroke, focus/error stronger */
   --glass-stroke-soft: rgb(var(--nori-ink) / calc(0.22 * var(--nori-a)));
-  --glass-stroke-base: rgba(111, 126, 153, 0.24);
-  --glass-stroke-strong: rgba(93, 109, 138, 0.36);
-  --glass-stroke-focus: rgba(47, 123, 255, 0.64);
-  --glass-stroke-danger: rgba(236, 72, 72, 0.64);
-  --glass-stroke-warning: rgba(234, 149, 0, 0.62);
-  --glass-stroke-success: rgba(18, 176, 109, 0.62);
+  --glass-stroke-base: rgb(var(--nori-s-6f7e99) / 0.24);
+  --glass-stroke-strong: rgb(var(--nori-s-5d6d8a) / 0.36);
+  --glass-stroke-focus: rgb(var(--nori-s-2f7bff) / 0.64);
+  --glass-stroke-danger: rgb(var(--nori-s-ec4848) / 0.64);
+  --glass-stroke-warning: rgb(var(--nori-s-ea9500) / 0.62);
+  --glass-stroke-success: rgb(var(--nori-s-12b06d) / 0.62);
 
   /* Elevation + blur */
-  --glass-shadow-sm: 0 2px 10px rgba(22, 35, 64, 0.05);
-  --glass-shadow-md: 0 6px 18px rgba(19, 35, 66, 0.08);
-  --glass-shadow-lg: 0 10px 24px rgba(20, 35, 69, 0.1);
-  --glass-shadow-modal: 0 14px 34px rgba(15, 32, 66, 0.14);
-  --glass-shadow-nav: 0 8px 18px rgba(15, 32, 66, 0.1);
+  --glass-shadow-sm: 0 2px 10px rgb(var(--nori-s-162340) / 0.05);
+  --glass-shadow-md: 0 6px 18px rgb(var(--nori-s-132342) / 0.08);
+  --glass-shadow-lg: 0 10px 24px rgb(var(--nori-s-142345) / 0.1);
+  --glass-shadow-modal: 0 14px 34px rgb(var(--nori-s-0f2042) / 0.14);
+  --glass-shadow-nav: 0 8px 18px rgb(var(--nori-s-0f2042) / 0.1);
   --glass-blur-sm: 4px;
   --glass-blur-md: 8px;
   --glass-blur-lg: 12px;
@@ -51,97 +52,102 @@
   --glass-density-default-scale: 1;
 
   /* Tone system */
-  --glass-tone-neutral-bg: rgba(100, 116, 139, 0.18);
-  --glass-tone-neutral-fg: rgb(var(--nori-s-374151));
-  --glass-tone-info-bg: rgba(47, 123, 255, 0.2);
-  --glass-tone-info-fg: rgb(var(--nori-s-1d63e8));
-  --glass-tone-success-bg: rgba(16, 185, 129, 0.2);
-  --glass-tone-success-fg: rgb(var(--nori-s-0f9f62));
-  --glass-tone-warning-bg: rgba(245, 158, 11, 0.24);
-  --glass-tone-warning-fg: rgb(var(--nori-s-b86400));
-  --glass-tone-danger-bg: rgba(239, 68, 68, 0.2);
-  --glass-tone-danger-fg: rgb(var(--nori-s-cb3a3a));
+  --glass-tone-neutral-bg: rgb(var(--nori-s-64748b) / 0.18);
+  --glass-tone-neutral-fg: rgb(var(--nori-t-374151));
+  --glass-tone-info-bg: rgb(var(--nori-s-2f7bff) / 0.2);
+  --glass-tone-info-fg: rgb(var(--nori-t-1d63e8));
+  --glass-tone-success-bg: rgb(var(--nori-s-10b981) / 0.2);
+  --glass-tone-success-fg: rgb(var(--nori-t-0f9f62));
+  --glass-tone-warning-bg: rgb(var(--nori-s-f59e0b) / 0.24);
+  --glass-tone-warning-fg: rgb(var(--nori-t-b86400));
+  --glass-tone-danger-bg: rgb(var(--nori-s-ef4444) / 0.2);
+  --glass-tone-danger-fg: rgb(var(--nori-t-cb3a3a));
 
-  --glass-overlay-soft: rgba(10, 16, 30, 0.34);
-  --glass-overlay: rgba(10, 16, 30, 0.46);
-  --glass-overlay-strong: rgba(10, 16, 30, 0.58);
+  --glass-overlay-soft: rgb(var(--nori-s-0a101e) / 0.34);
+  --glass-overlay: rgb(var(--nori-s-0a101e) / 0.46);
+  --glass-overlay-strong: rgb(var(--nori-s-0a101e) / 0.58);
 
   /* Accent + interactive rings */
   --glass-accent-from: rgb(var(--nori-s-2f7bff));
   --glass-accent-to: rgb(var(--nori-s-5ca8ff));
-  --glass-accent-shadow-soft: rgba(47, 123, 255, 0.24);
-  --glass-accent-shadow-strong: rgba(47, 123, 255, 0.32);
-  --glass-focus-ring: rgba(47, 123, 255, 0.16);
-  --glass-focus-ring-strong: rgba(47, 123, 255, 0.22);
-  --glass-danger-ring: rgba(239, 68, 68, 0.14);
+  --glass-accent-shadow-soft: rgb(var(--nori-s-2f7bff) / 0.24);
+  --glass-accent-shadow-strong: rgb(var(--nori-s-2f7bff) / 0.32);
+  --glass-focus-ring: rgb(var(--nori-s-2f7bff) / 0.16);
+  --glass-focus-ring-strong: rgb(var(--nori-s-2f7bff) / 0.22);
+  --glass-danger-ring: rgb(var(--nori-s-ef4444) / 0.14);
   --glass-ghost-hover-bg: rgb(var(--nori-ink) / calc(0.5 * var(--nori-a)));
 }
 
 /* ===== Dark mode overrides ===== */
-.dark {
+html[data-nori-theme="dark"], html[data-nori-theme="light"] .nori-force-dark {
   --glass-bg-canvas: rgb(var(--nori-bg-1));
-  --glass-bg-surface: rgba(27, 27, 35, 0.88);
-  --glass-bg-surface-strong: rgba(36, 36, 46, 0.94);
-  --glass-bg-surface-modal: rgba(19, 19, 25, 0.97);
-  --glass-bg-muted: rgba(36, 36, 46, 0.86);
-  --glass-bg-nav: rgba(12, 12, 17, 0.96);
-  --glass-text-primary: rgb(var(--nori-s-f0f0f6));
-  --glass-text-secondary: rgb(var(--nori-s-c2c3d0));
-  --glass-text-tertiary: rgb(var(--nori-s-8f90a2));
-  --glass-text-on-accent: rgb(var(--nori-s-ffffff));
+  --glass-bg-base: var(--glass-bg-canvas);
+  --glass-bg-surface: rgb(var(--nori-bg-3) / 0.88);
+  --glass-bg-surface-strong: rgb(var(--nori-bg-4) / 0.94);
+  --glass-bg-surface-modal: rgb(var(--nori-bg-2) / 0.97);
+  --glass-bg-muted: rgb(var(--nori-bg-4) / 0.86);
+  --glass-bg-nav: rgb(var(--nori-bg-1) / 0.96);
+  --glass-text-primary: rgb(var(--nori-t-f0f0f6));
+  --glass-text-secondary: rgb(var(--nori-t-c2c3d0));
+  --glass-text-tertiary: rgb(var(--nori-t-8f90a2));
+  --glass-text-on-accent: #ffffff;
 
   --glass-stroke-soft: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
   --glass-stroke-base: rgb(var(--nori-ink) / calc(0.12 * var(--nori-a)));
   --glass-stroke-strong: rgb(var(--nori-ink) / calc(0.2 * var(--nori-a)));
-  --glass-stroke-focus: rgba(124, 102, 255, 0.6);
-  --glass-stroke-danger: rgba(255, 100, 100, 0.64);
-  --glass-stroke-warning: rgba(255, 180, 50, 0.62);
-  --glass-stroke-success: rgba(50, 210, 140, 0.62);
+  --glass-stroke-focus: rgb(var(--nori-s-7c66ff) / 0.6);
+  --glass-stroke-danger: rgb(var(--nori-s-ff6464) / 0.64);
+  --glass-stroke-warning: rgb(var(--nori-s-ffb432) / 0.62);
+  --glass-stroke-success: rgb(var(--nori-s-32d28c) / 0.62);
 
-  --glass-shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.2);
-  --glass-shadow-md: 0 6px 18px rgba(0, 0, 0, 0.28);
-  --glass-shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.32);
-  --glass-shadow-modal: 0 14px 34px rgba(0, 0, 0, 0.42);
-  --glass-shadow-nav: 0 8px 18px rgba(0, 0, 0, 0.3);
+  --glass-shadow-sm: 0 2px 10px rgb(var(--nori-s-000000) / 0.2);
+  --glass-shadow-md: 0 6px 18px rgb(var(--nori-s-000000) / 0.28);
+  --glass-shadow-lg: 0 10px 24px rgb(var(--nori-s-000000) / 0.32);
+  --glass-shadow-modal: 0 14px 34px rgb(var(--nori-s-000000) / 0.42);
+  --glass-shadow-nav: 0 8px 18px rgb(var(--nori-s-000000) / 0.3);
 
   --glass-tone-neutral-bg: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
-  --glass-tone-neutral-fg: rgb(var(--nori-s-b4b5c4));
-  --glass-tone-info-bg: rgba(56, 189, 248, 0.14);
-  --glass-tone-info-fg: rgb(var(--nori-s-7dd3fc));
-  --glass-tone-success-bg: rgba(50, 210, 140, 0.16);
-  --glass-tone-success-fg: rgb(var(--nori-s-50d8a0));
-  --glass-tone-warning-bg: rgba(255, 180, 50, 0.18);
-  --glass-tone-warning-fg: rgb(var(--nori-s-f0b840));
-  --glass-tone-danger-bg: rgba(255, 100, 100, 0.16);
-  --glass-tone-danger-fg: rgb(var(--nori-s-ff7878));
+  --glass-tone-neutral-fg: rgb(var(--nori-t-b4b5c4));
+  --glass-tone-info-bg: rgb(var(--nori-s-38bdf8) / 0.14);
+  --glass-tone-info-fg: rgb(var(--nori-t-7dd3fc));
+  --glass-tone-success-bg: rgb(var(--nori-s-32d28c) / 0.16);
+  --glass-tone-success-fg: rgb(var(--nori-t-50d8a0));
+  --glass-tone-warning-bg: rgb(var(--nori-s-ffb432) / 0.18);
+  --glass-tone-warning-fg: rgb(var(--nori-t-f0b840));
+  --glass-tone-danger-bg: rgb(var(--nori-s-ff6464) / 0.16);
+  --glass-tone-danger-fg: rgb(var(--nori-t-ff7878));
 
-  --glass-overlay-soft: rgba(0, 0, 0, 0.5);
-  --glass-overlay: rgba(0, 0, 0, 0.62);
-  --glass-overlay-strong: rgba(0, 0, 0, 0.74);
+  --glass-overlay-soft: rgb(var(--nori-s-000000) / 0.5);
+  --glass-overlay: rgb(var(--nori-s-000000) / 0.62);
+  --glass-overlay-strong: rgb(var(--nori-s-000000) / 0.74);
 
   --glass-accent-from: rgb(var(--nori-s-5b6cff));
   --glass-accent-to: rgb(var(--nori-s-a855f7));
-  --glass-accent-shadow-soft: rgba(108, 92, 255, 0.3);
-  --glass-accent-shadow-strong: rgba(108, 92, 255, 0.42);
-  --glass-focus-ring: rgba(124, 102, 255, 0.22);
-  --glass-focus-ring-strong: rgba(124, 102, 255, 0.32);
-  --glass-danger-ring: rgba(255, 100, 100, 0.14);
+  --glass-accent-shadow-soft: rgb(var(--nori-s-6c5cff) / 0.3);
+  --glass-accent-shadow-strong: rgb(var(--nori-s-6c5cff) / 0.42);
+  --glass-focus-ring: rgb(var(--nori-s-7c66ff) / 0.22);
+  --glass-focus-ring-strong: rgb(var(--nori-s-7c66ff) / 0.32);
+  --glass-danger-ring: rgb(var(--nori-s-ff6464) / 0.14);
   --glass-ghost-hover-bg: rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
+}
+
+:root {
+  --glass-text-on-accent: rgb(var(--nori-text-1));
 }
 
 /* Low-cost preset for performance-sensitive environments */
 [data-glass-preset='subtle'] {
-  --glass-bg-surface: rgb(var(--nori-ink) / calc(0.92 * var(--nori-a)));
-  --glass-bg-surface-strong: rgb(var(--nori-ink) / calc(0.96 * var(--nori-a)));
-  --glass-bg-surface-modal: rgb(var(--nori-ink) / calc(0.98 * var(--nori-a)));
-  --glass-bg-nav: rgb(var(--nori-ink) / calc(0.98 * var(--nori-a)));
+  --glass-bg-surface: rgb(255 255 255 / 0.92);
+  --glass-bg-surface-strong: rgb(255 255 255 / 0.96);
+  --glass-bg-surface-modal: rgb(255 255 255 / 0.98);
+  --glass-bg-nav: rgb(255 255 255 / 0.98);
   --glass-blur-sm: 2px;
   --glass-blur-md: 4px;
   --glass-blur-lg: 8px;
-  --glass-shadow-sm: 0 1px 6px rgba(22, 35, 64, 0.04);
-  --glass-shadow-md: 0 4px 12px rgba(19, 35, 66, 0.06);
-  --glass-shadow-lg: 0 8px 18px rgba(20, 35, 69, 0.08);
-  --glass-shadow-modal: 0 10px 22px rgba(15, 32, 66, 0.1);
-  --glass-shadow-nav: 0 6px 14px rgba(15, 32, 66, 0.08);
+  --glass-shadow-sm: 0 1px 6px rgb(var(--nori-s-162340) / 0.04);
+  --glass-shadow-md: 0 4px 12px rgb(var(--nori-s-132342) / 0.06);
+  --glass-shadow-lg: 0 8px 18px rgb(var(--nori-s-142345) / 0.08);
+  --glass-shadow-modal: 0 10px 22px rgb(var(--nori-s-0f2042) / 0.1);
+  --glass-shadow-nav: 0 6px 14px rgb(var(--nori-s-0f2042) / 0.08);
   --glass-blur-nav: 12px;
 }

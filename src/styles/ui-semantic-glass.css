@@ -178,13 +178,13 @@
 }
 
 .glass-btn-danger {
-  background: rgba(246, 119, 119, 0.14);
+  background: rgb(var(--nori-s-f67777) / 0.14);
   color: var(--glass-tone-danger-fg);
   box-shadow: inset 0 0 0 1px rgba(246, 119, 119, 0.32);
 }
 
 .glass-btn-danger:hover:not(:disabled) {
-  background: rgba(246, 119, 119, 0.22);
+  background: rgb(var(--nori-s-f67777) / 0.22);
 }
 
 .glass-btn-tone-info {
