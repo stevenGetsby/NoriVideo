@@ -1000,28 +1000,44 @@ export function CanvasGenerator({
     // Scan the exact submit text and travel the names with each reference node.
     const mentionNamesByNodeId: Record<string, string[]> = {}
     if (shouldBindCanvasMentionReference(type)) {
-      // When an image and an audio/video share a name, the image owns the bare
-      // name: character text must bind to 图N, while voice/motion references
-      // keep their explicit @mention or material-title fallback.
-      const mentionNameRank = (asset: (typeof mentionAssets)[number]) => {
-        if (asset.mediaType === 'image') return asset.section === 'library' ? 1 : 0
-        return asset.section === 'library' ? 3 : 2
-      }
+      // Only submitted references can carry a name to the worker. Within them,
+      // an image owns a shared name before a voice/motion clip so character
+      // text binds to 图N; library aliases of one material count as one entry.
+      const submittedMaterialIds = new Set(
+        referenceNodes
+          .filter((item) => referenceNodeIds.includes(item.id))
+          .map((item) => (typeof item.data.materialId === 'string' ? item.data.materialId.trim() : ''))
+          .filter(Boolean),
+      )
+      const mentionNameRank = (asset: (typeof mentionAssets)[number]) => (
+        asset.mediaType === 'image' ? 0 : 1
+      )
       const mentionNameToNodeId = new Map<string, string>()
       const mentionNameRanks = new Map<string, number>()
-      for (const asset of [...mentionAssets].sort((left, right) => mentionNameRank(left) - mentionNameRank(right))) {
+      const nameCandidates = mentionAssets
+        .filter((asset) => (asset.section === 'library'
+          ? Boolean(asset.materialId && submittedMaterialIds.has(asset.materialId))
+          : referenceNodeIds.includes(asset.id)))
+        .sort((left, right) => mentionNameRank(left) - mentionNameRank(right))
+      for (const asset of nameCandidates) {
         const key = asset.name.trim().toLocaleLowerCase()
         if (!key) continue
         const rank = mentionNameRank(asset)
         if (!mentionNameToNodeId.has(key) || rank < (mentionNameRanks.get(key) ?? Infinity)) {
-          mentionNameToNodeId.set(key, asset.id)
+          mentionNameToNodeId.set(key, asset.section === 'library' && asset.materialId
+            ? `material:${asset.materialId}`
+            : asset.id)
           mentionNameRanks.set(key, rank)
         }
       }
       for (const match of scanPromptMentions(cleanPrompt, mentionAssets.map((asset) => asset.name))) {
         if (match.name === null) continue
-        const nodeId = mentionNameToNodeId.get(match.name.toLocaleLowerCase())
-        if (!nodeId || !referenceNodeIds.includes(nodeId)) continue
+        const owner = mentionNameToNodeId.get(match.name.toLocaleLowerCase())
+        if (!owner) continue
+        const nodeId = owner.startsWith('material:')
+          ? referenceNodeIds.find((id) => referenceNodes.find((item) => item.id === id)?.data.materialId === owner.slice('material:'.length))
+          : owner
+        if (!nodeId) continue
         const names = mentionNamesByNodeId[nodeId] || (mentionNamesByNodeId[nodeId] = [])
         if (!names.includes(match.name)) names.push(match.name)
       }

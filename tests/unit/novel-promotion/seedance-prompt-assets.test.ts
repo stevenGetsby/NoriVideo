@@ -284,6 +284,21 @@ describe('Seedance @mention compilation (production regressions)', () => {
     expect(result.prompt).toContain('用音频1说话')
   })
 
+  it('keeps @沈娇 on the voice when the image only carries 沈娇 as a title fallback', () => {
+    const references = [
+      reference('image', 1, ['沈娇-59集'], ['沈娇'], 'character'),
+      reference('audio', 1, ['沈娇'], []),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇看着姐姐，用@沈娇说话',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）看着姐姐')
+    expect(result.prompt).toContain('用音频1说话')
+    expect(result.prompt).not.toContain('用图1（沈娇）说话')
+  })
+
   it('leaves bare video titles literal; only explicit @ binds 视频N', () => {
     const references = [
       reference('image', 1, ['蒙面人'], [], 'character'),

@@ -325,19 +325,22 @@ export function compileSeedanceMentionPrompt(
   const ordered = [...references].sort((left, right) => (
     MEDIA_TYPE_ORDER[left.type] - MEDIA_TYPE_ORDER[right.type] || left.index - right.index
   ))
-  // Image names own a shared name before any voice/motion title: a character
-  // called 沈娇 must bind to the character image even when the voice material
-  // is titled 沈娇. Within one media type, primary names still beat fallbacks.
-  const register = (rawName: string, reference: SeedanceMentionReference) => {
+  // Explicit @mentions keep the editor-assigned ownership: primary names are
+  // registered before any fallback, so a voice whose exact name is 沈娇 keeps
+  // @沈娇 even when an image carries 沈娇 as a title fallback.
+  const register = (target: Map<string, SeedanceMentionReference>, rawName: string, reference: SeedanceMentionReference) => {
     const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
-    if (key && !byName.has(key)) byName.set(key, reference)
+    if (key && !target.has(key)) target.set(key, reference)
   }
+  for (const reference of ordered) reference.names.forEach((name) => register(byName, name, reference))
+  for (const reference of ordered) (reference.fallbackNames || []).forEach((name) => register(byName, name, reference))
+  // Bare prose is a separate index: only image names participate, and image
+  // titles own a shared name before any voice/motion title, so the character
+  // 沈娇 in body text binds to the character image, never to the voice.
+  const byBareName = new Map<string, SeedanceMentionReference>()
   const imageReferences = ordered.filter((reference) => reference.type === 'image')
-  const mediaReferences = ordered.filter((reference) => reference.type !== 'image')
-  for (const reference of imageReferences) reference.names.forEach((name) => register(name, reference))
-  for (const reference of imageReferences) (reference.fallbackNames || []).forEach((name) => register(name, reference))
-  for (const reference of mediaReferences) reference.names.forEach((name) => register(name, reference))
-  for (const reference of mediaReferences) (reference.fallbackNames || []).forEach((name) => register(name, reference))
+  for (const reference of imageReferences) reference.names.forEach((name) => register(byBareName, name, reference))
+  for (const reference of imageReferences) (reference.fallbackNames || []).forEach((name) => register(byBareName, name, reference))
 
   const dialogue = findQuotedDialogueRanges(prompt)
   const names = ordered.flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
@@ -406,7 +409,7 @@ export function compileSeedanceMentionPrompt(
         const trimmedBefore = before.replace(/\s+$/u, '')
         const trailingBinding = bindingRanges.find((range) => range.end === trimmedBefore.length)
         if (trailingBinding && compiled.slice(trailingBinding.start, trailingBinding.end).includes(match[0])) return null
-        const reference = byName.get(match[0].toLocaleLowerCase())
+        const reference = byBareName.get(match[0].toLocaleLowerCase())
         if (!reference) return null
         // "萧令仪@萧令仪" already carries the mention; binding both duplicates it.
         const following = source.slice(match.index + match[0].length).replace(/^\s+/u, '')
