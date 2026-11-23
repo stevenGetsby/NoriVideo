@@ -3980,6 +3980,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         onContextMenuCapture={(event) => {
           const target = event.target
           if (!(target instanceof Element) || !target.closest('.react-flow')) return
+          // The anchored generator rides a ViewportPortal inside .react-flow;
+          // right-clicks inside it must keep the native cut/copy/paste and
+          // spellcheck menu, like the blank-selection exclusion above.
+          if (target.closest('.nori-canvas-generator')) return
           event.preventDefault()
           event.stopPropagation()
           if (shouldSuppressContextMenu()) return
