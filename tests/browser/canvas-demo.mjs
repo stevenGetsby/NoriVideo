@@ -25,23 +25,28 @@ const bundle = await (await import('esbuild')).build({
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
 const css = bundle.outputFiles.find((file) => file.path.endsWith('.css')).contents
 
-// Mirror the production capability catalog so the demo exercises the same
-// model-driven option ranges (e.g. Seedance 2.5 supports 4–30 seconds).
 const capabilityCatalog = JSON.parse(await readFile(path.join(root, 'standards/capabilities/kuaizi.catalog.json'), 'utf8'))
 const capabilityEntries = Array.isArray(capabilityCatalog) ? capabilityCatalog : (capabilityCatalog.entries || capabilityCatalog.models || [])
-const capabilityEntry = capabilityEntries.find((entry) => entry.modelId === 'doubao-seedance-2-5-260628' && entry.modelType === 'video')
-const capabilityVideo = capabilityEntry?.capabilities?.video || {}
-
-const model = {
-  modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
-  supportGenerateAudio: true, firstLastFrame: true,
-  options: {
-    duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
-    resolution: capabilityVideo.resolutionOptions || ['480p', '720p', '1080p'],
-    aspectRatio: ['16:9', '9:16', '1:1', '4:3', '21:9'],
-  },
-  inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
-}
+const demoVideoModelIds = [
+  'doubao-seedance-2-5-260628',
+  'doubao-seedance-2-0-260128',
+  'doubao-seedance-2-0-fast-260128',
+  'doubao-seedance-2-0-mini-260615',
+]
+const videoModels = demoVideoModelIds.map((modelId) => {
+  const capabilityVideo = capabilityEntries.find((entry) => entry.modelId === modelId && entry.modelType === 'video')?.capabilities?.video || {}
+  return {
+    modelKey: `kuaizi::${modelId}`, name: modelId, provider: 'kuaizi', configured: true, available: true,
+    supportGenerateAudio: capabilityVideo.supportGenerateAudio !== false, firstLastFrame: capabilityVideo.firstlastframe === true,
+    options: {
+      duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
+      resolution: capabilityVideo.resolutionOptions || ['480p', '720p', '1080p'],
+      aspectRatio: ['16:9', '9:16', '1:1', '4:3', '21:9'],
+    },
+    inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
+  }
+})
+const model = videoModels[0]
 const swatch = (color, label) => 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="${color}"/><text x="160" y="98" text-anchor="middle" font-family="sans-serif" font-size="26" fill="rgba(255,255,255,.85)">${label}</text></svg>`,
 )
@@ -80,7 +85,7 @@ let graph = {
 }
 
 function handleApi(url, method, body) {
-  if (url.pathname.endsWith('/generation-config')) return { textModels: [], imageModels: [], videoModels: [model], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+  if (url.pathname.endsWith('/generation-config')) return { textModels: [], imageModels: [], videoModels, audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
   if (url.pathname === '/api/interactive') return { story: null }
   if (url.pathname.endsWith('/generate') && method === 'POST') return { status: 400, payload: { message: '演示模式：生成已停用，不会产生真实任务' } }
   if (url.pathname === '/api/projects/project-1') return { work: { id: 'project-1', name: '演示作品', workId: 'work-1', workName: '演示项目' } }
