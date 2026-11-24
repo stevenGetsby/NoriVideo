@@ -11,7 +11,8 @@ import {
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
 } from 'react'
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
+import { useStoreApi, ViewportPortal } from '@xyflow/react'
 import { requireExistingReferenceNodeIds } from '../reference-resolution'
 import {
   ArrowLeft,
@@ -106,7 +107,6 @@ import {
 } from '@/lib/canvas/generation-input-schema'
 import { buildCanvasGenerateRequest, buildQuoteParams, canvasProviderResolution, compatibleIncomingReferences, mediaTypeForReference, modelOptions, nodeKind, normalizeStoryboardCount, orderedReferenceSummaries, referenceSummary, STORYBOARD_COUNTS, usesCanvasProviderDefaultResolution, type CanvasGenerateRequest, type CanvasGenerationModelOption as ModelOption, type CanvasGenerationServiceConfig as GenerationConfig } from '../generation/generate-request-core'
 export { quoteInputVideoSeconds, estimateTtsSeconds, type CanvasGenerateRequest } from '../generation/generate-request-core'
-import type { CanvasGeneratorAnchor } from '../generator-anchor'
 import {
   CANVAS_GENERATOR_PANEL_WIDTH_MAX,
   CANVAS_GENERATOR_PANEL_WIDTH_MIN,
@@ -293,8 +293,7 @@ export function CanvasGenerator({
   onSelectLibraryMaterial,
   onMatchPromptMaterials,
   injectedReferenceNodeIds,
-  anchor,
-  showAnchorTether = true,
+  viewportLayerTarget,
   panelWidth,
   onPanelWidthChange,
   globalStyleNodeId,
@@ -322,8 +321,7 @@ export function CanvasGenerator({
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
   onMatchPromptMaterials?: (materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => { added: number; restored: number; matched: number; skippedForNodeCapacity: number } | null
-  anchor?: CanvasGeneratorAnchor | null
-  showAnchorTether?: boolean
+  viewportLayerTarget?: HTMLElement
   panelWidth: number
   onPanelWidthChange: (width: number) => void
   globalStyleNodeId?: string | null
@@ -484,6 +482,46 @@ export function CanvasGenerator({
     return value === 'a_pose' || value === 't_pose' ? value : 'none'
   })
   const [fullscreen, setFullscreen] = useState(false)
+  const panelRef = useRef<HTMLElement>(null)
+  const anchorRef = useRef<HTMLDivElement>(null)
+  const flowStore = useStoreApi()
+  const lastGeometryRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+  const lastInverseZoomRef = useRef<number | null>(null)
+  // The anchor lives in flow space inside the ReactFlow viewport transform, so
+  // panning/zooming moves it with the node on the compositor without React
+  // renders. The inverse zoom keeps the panel at a constant on-screen size.
+  // Both are written straight to the DOM from the store subscription: only
+  // node moves/resizes and zoom changes touch these styles, never canvas pans.
+  useLayoutEffect(() => {
+    if (fullscreen || !viewportLayerTarget) return
+    lastGeometryRef.current = null
+    lastInverseZoomRef.current = null
+    const apply = (state: { transform: [number, number, number]; nodeLookup: Map<string, { internals: { positionAbsolute: { x: number; y: number } }; measured?: { width?: number; height?: number }; width?: number; height?: number }> }) => {
+      const internal = state.nodeLookup.get(node.id)
+      const anchor = anchorRef.current
+      const panel = panelRef.current
+      if (!internal || !anchor || !panel) return
+      const geometry = {
+        x: internal.internals.positionAbsolute.x,
+        y: internal.internals.positionAbsolute.y,
+        width: internal.measured?.width ?? internal.width ?? 300,
+        height: internal.measured?.height ?? internal.height ?? 200,
+      }
+      const previous = lastGeometryRef.current
+      if (!previous || previous.x !== geometry.x || previous.y !== geometry.y || previous.width !== geometry.width || previous.height !== geometry.height) {
+        anchor.style.transform = `translate(${geometry.x + geometry.width / 2}px, ${geometry.y + geometry.height}px)`
+        lastGeometryRef.current = geometry
+      }
+      const zoom = state.transform[2]
+      const inverseZoom = 1 / (zoom > 0 ? zoom : 1)
+      if (lastInverseZoomRef.current !== inverseZoom) {
+        panel.style.setProperty('--nori-generator-inverse-zoom', String(inverseZoom))
+        lastInverseZoomRef.current = inverseZoom
+      }
+    }
+    apply(flowStore.getState())
+    return flowStore.subscribe(apply)
+  }, [flowStore, node.id, fullscreen, viewportLayerTarget])
   const [moreOpen, setMoreOpen] = useState(false)
   const parameterTriggerRef = useRef<HTMLButtonElement>(null)
   const [referenceMenuOpen, setReferenceMenuOpen] = useState(false)
@@ -1565,18 +1603,9 @@ export function CanvasGenerator({
     : type === 'video'
       ? `${aspectRatio === 'adaptive' ? '自适应' : aspectRatio} · ${superresolveTarget ? superresolveParameterSummary : resolutionLabel(selectedResolution || '默认')} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}`
       : ''
-  const anchorStyle = !fullscreen && anchor
-    ? {
-        left: `${anchor.x}px`,
-        top: `${anchor.y}px`,
-        bottom: 'auto',
-        transform: anchor.placement === 'above' ? 'translate(-50%, -100%)' : 'translateX(-50%)',
-      }
-    : undefined
-  return (
-    <aside className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : ''}${anchor && !fullscreen ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-anchor-placement={anchor?.placement} style={{ ...anchorStyle, ...(fullscreen ? {} : { width: `${panelWidth}px` }) }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
-      {anchor && !fullscreen && showAnchorTether ? <span className="nori-canvas-generator-tether" aria-hidden="true" style={{ left: `${anchor.tetherX}px`, height: `${anchor.tetherLength}px` }} /> : null}
-      <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `min(${anchor.maxHeight}px, calc(var(--nori-generator-viewport-height, 72vh) / var(--nori-interface-scale, 1.2)))` } : undefined}>
+  const editor = (
+    <aside ref={panelRef} className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : viewportLayerTarget ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} style={fullscreen ? undefined : { width: `${panelWidth}px` }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
+      <div className="nori-canvas-generator-scroll">
       {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
       <div className="nori-canvas-generator-head">
         {type === 'video' ? (
@@ -1884,5 +1913,14 @@ export function CanvasGenerator({
       ) : null}
       </div>
     </aside>
+  )
+  if (!viewportLayerTarget) return editor
+  if (fullscreen) return createPortal(editor, viewportLayerTarget)
+  return (
+    <ViewportPortal>
+      <div ref={anchorRef} className="nori-canvas-generator-anchor nodrag nowheel nopan">
+        {editor}
+      </div>
+    </ViewportPortal>
   )
 }

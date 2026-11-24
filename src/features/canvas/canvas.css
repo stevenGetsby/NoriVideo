@@ -6066,17 +6066,46 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 
 .nori-canvas-generator.is-node-anchored {
   overflow: visible;
-  /* This workspace-layer anchor is already outside the flow zoom. Keep the tool-rail clearance. */
-  max-width: min(calc(100% - 148px), calc((100vw - 48px) / var(--nori-interface-scale, 1.2)));
-  /* Keep the hide/restore motion when anchored. Without these the anchored
-     transition list replaces the base one and the panel snaps back after a
-     drag instead of easing in. */
-  transition: left .14s cubic-bezier(.2, .8, .2, 1), top .14s cubic-bezier(.2, .8, .2, 1), transform .18s cubic-bezier(.2, .8, .2, 1), opacity .18s ease-out, translate .22s cubic-bezier(.2, .8, .2, 1), scale .22s cubic-bezier(.2, .8, .2, 1), visibility 0s, box-shadow .18s ease;
-  will-change: left, top, transform;
+  /* The panel rides the ReactFlow viewport transform; only the hide/restore
+     motion animates. left/top/transform must never transition here or the
+     panel lags behind the node while the canvas pans. */
+  transition: opacity .18s ease-out, translate .22s cubic-bezier(.2, .8, .2, 1), scale .22s cubic-bezier(.2, .8, .2, 1), visibility 0s, box-shadow .18s ease;
 }
 
-@supports (height: 1dvh) {
-  .nori-canvas-generator.is-node-anchored { --nori-generator-viewport-height: 72dvh; }
+/* Flow-space anchor rendered through ViewportPortal. The wrapper sits at the
+   node's bottom-center in canvas coordinates; the panel counter-scales so its
+   on-screen size stays constant at every zoom level. */
+.nori-canvas-generator-anchor {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 1100;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.nori-canvas-generator-anchor .nori-canvas-generator.is-node-anchored {
+  left: 0;
+  top: calc(16px * var(--nori-generator-inverse-zoom, 1));
+  bottom: auto;
+  /* The anchor wrapper has zero width, so percentage max-width cannot bound
+     the panel. Clamp against the physical viewport instead, converting back
+     through the interface scale only: the counter-scale transform already
+     cancels the viewport zoom, so multiplying the cap by the inverse zoom
+     again would shrink the panel whenever zoom > 1 binds the cap. */
+  max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2));
+  pointer-events: auto;
+  transform: translateX(-50%) scale(var(--nori-generator-inverse-zoom, 1));
+  transform-origin: top center;
+}
+
+.nori-canvas-generator-anchor .nori-canvas-generator.is-node-anchored .nori-canvas-generator-scroll {
+  /* The workspace applies CSS zoom to every descendant while the flow surface
+     is laid out in unzoomed pixels; divide by the interface scale so the
+     counter-scaled panel still fits the visible canvas height. The viewport
+     zoom is canceled by the counter-scale, never by this cap. */
+  max-height: calc(72dvh / var(--nori-interface-scale, 1.2));
 }
 
 .nori-canvas-generator-scroll {
@@ -6101,42 +6130,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   backdrop-filter: blur(18px);
 }
 
-.nori-canvas-generator-tether {
-  position: absolute;
-  z-index: 0;
-  width: 1px;
-  min-height: 8px;
-  pointer-events: none;
-  background: var(--fos-gradient-cta);
-  box-shadow: 0 0 8px rgba(0,0,0,.35);
-  transform: translateX(-.5px);
-  transform-origin: center;
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether { bottom: 100%; }
-.nori-canvas-generator[data-anchor-placement='above'] .nori-canvas-generator-tether {
-  top: 100%;
-  background: var(--fos-gradient-cta);
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator-tether::after {
-  position: absolute;
-  left: 50%;
-  width: 7px;
-  height: 7px;
-  border: 1px solid rgb(var(--nori-primary) / 0.88);
-  border-radius: 50%;
-  background: var(--fos-gradient-cta);
-  box-shadow: 0 0 0 3px rgba(110, 123, 255, .15), 0 0 12px rgba(0,0,0,.35);
-  content: '';
-  transform: translateX(-50%);
-  color: var(--fos-on-cta);
-}
-
-.nori-canvas-generator[data-anchor-placement='below'] .nori-canvas-generator-tether::after { top: -3px; }
-.nori-canvas-generator[data-anchor-placement='above'] .nori-canvas-generator-tether::after { bottom: -3px; }
 
 .nori-canvas-generator-head {
   height: 46px;
@@ -7131,7 +7124,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 /* The scroll wrapper no longer scrolls (the content area does), so a stable
    gutter would only leave an empty strip on the right with classic scrollbars. */
 .nori-canvas-generator.is-node-anchored .nori-canvas-generator-scroll { scrollbar-gutter: auto; }
-.nori-canvas-generator-tether { background: rgb(var(--nori-primary) / 0.6); box-shadow: none; }
 
 .nori-canvas-generator-head,
 .nori-canvas-generator.is-node-anchored .nori-canvas-generator-head {
@@ -7586,7 +7578,6 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid select:focus { border-color: var(--dm-line-strong); outline: none; box-shadow: none; }
 .nori-canvas-parameter-popover .nori-canvas-generator-parameter-grid option { color: rgb(var(--nori-text-1)); background: rgb(var(--nori-bg-3)); }
 .nori-canvas-image-quality button.is-active { border-color: rgb(var(--nori-primary) / 0.5); color: rgb(var(--nori-text-1)); background: rgb(var(--nori-primary) / 0.14); }
-.nori-canvas-generator-tether::after { border: 1px solid rgb(var(--nori-primary) / 0.85); background: rgb(var(--nori-bg-4)); box-shadow: none; }
 .nori-canvas-generator-scroll,
 .nori-canvas-generator-content { scrollbar-width: thin; scrollbar-color: rgb(var(--nori-ink) / 0.16) transparent; }
 
@@ -8166,8 +8157,3 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled { width: 8px; height: 16px; }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled::after { content: ''; position: absolute; left: 50%; top: 6px; width: 1px; height: 4px; background: currentColor; transform: translateX(-50%); }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled:hover::after { height: 6px; top: 5px; }
-
-/* Keep the pinned panel from pointing at a node while the viewport moves. */
-.nori-canvas-workspace:has(.nori-canvas-surface.is-panning) .nori-canvas-generator-tether {
-  visibility: hidden;
-}

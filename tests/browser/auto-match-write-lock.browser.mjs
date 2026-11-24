@@ -202,7 +202,12 @@ try {
 
   const panel = limited.locator('.nori-canvas-generator').first()
   const viewport = limited.locator('.react-flow__viewport').first()
+  const generatorNode = limited.locator('.react-flow__node[data-id="gen-1"]')
+  const nodeBeforePan = await generatorNode.boundingBox()
   const panelBeforePan = await panel.boundingBox()
+  assert.ok(panelBeforePan && nodeBeforePan && panelBeforePan.y > nodeBeforePan.y + nodeBeforePan.height,
+    'The prompt editor must start below the node, without covering it')
+  assert.equal(await panel.evaluate((element) => Boolean(element.closest('.react-flow__viewport'))), true)
   const transformBeforePan = await viewport.evaluate((element) => element.style.transform)
   const panPoint = await limited.evaluate(() => {
     for (let y = 125; y < innerHeight - 100; y += 40) {
@@ -220,12 +225,23 @@ try {
   await limited.mouse.move(panPoint.x - 65, panPoint.y + 30, { steps: 6 })
   assert.notEqual(await viewport.evaluate((element) => element.style.transform), transformBeforePan)
   const panelDuringPan = await panel.boundingBox()
+  const nodeDuringPan = await generatorNode.boundingBox()
   await limited.mouse.up({ button: 'middle' })
   const panelAfterPan = await panel.boundingBox()
-  for (const box of [panelDuringPan, panelAfterPan]) {
-    assert.ok(box && panelBeforePan && Math.abs(box.x - panelBeforePan.x) < 2 && Math.abs(box.y - panelBeforePan.y) < 2)
+  const nodeAfterPan = await generatorNode.boundingBox()
+  for (const [panelBox, nodeBox] of [[panelDuringPan, nodeDuringPan], [panelAfterPan, nodeAfterPan]]) {
+    assert.ok(panelBox && nodeBox && panelBeforePan && nodeBeforePan)
+    assert.ok(Math.abs((panelBox.x - panelBeforePan.x) - (nodeBox.x - nodeBeforePan.x)) < 2)
+    assert.ok(Math.abs((panelBox.y - panelBeforePan.y) - (nodeBox.y - nodeBeforePan.y)) < 2)
+    assert.ok(Math.abs(panelBox.width - panelBeforePan.width) < 2)
+    assert.ok(panelBox.y > nodeBox.y + nodeBox.height, 'Panel must stay below the node while panning')
   }
-  console.log('PASS: one-click match sits beside reference add, and the editor stays put during canvas pan')
+  assert.ok(nodeAfterPan && nodeBeforePan && Math.abs(nodeAfterPan.x - nodeBeforePan.x) > 20)
+  await limited.getByRole('button', { name: '展开大编辑器', exact: true }).click()
+  assert.equal(await panel.evaluate((element) => Boolean(element.closest('.react-flow__viewport'))), false)
+  await panel.getByRole('button', { name: '返回画布', exact: true }).first().click()
+  assert.equal(await panel.evaluate((element) => Boolean(element.closest('.react-flow__viewport'))), true)
+  console.log('PASS: one-click match sits beside reference add and the editor follows the node, not pointer motion')
 } finally {
   await browser?.close()
   lines.close()

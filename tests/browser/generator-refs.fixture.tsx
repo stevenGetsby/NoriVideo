@@ -103,7 +103,6 @@ function Fixture() {
             onSelectLibraryMaterial={() => null}
             onToggleReferenceVoice={withVoiceToggle ? (nodeId) => { setToggleCalls((current) => [...current, nodeId]); setVoiceDetached((current) => !current) } : undefined}
             injectedReferenceNodeIds={[]}
-            anchor={null}
             panelWidth={420}
             onPanelWidthChange={() => undefined}
           />
@@ -116,4 +115,4 @@ function Fixture() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<Fixture />)
+createRoot(document.getElementById('root')!).render(<ReactFlowProvider><Fixture /></ReactFlowProvider>)
