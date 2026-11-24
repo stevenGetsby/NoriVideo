@@ -12,7 +12,7 @@ import { CanvasAgentDock } from './agent/CanvasAgentDock'
 import { CanvasAgentGhostSlot } from './agent/CanvasAgentGhostSlot'
 import { createAgentFeedbackStore } from './agent/feedback-store'
 import { fitCanvasAgentBounds, followCanvasAgentNodes } from './agent/viewport'
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { startVisiblePolling } from '@/hooks/common/useVisiblePolling'
 import { useSession } from 'next-auth/react'
 import {
@@ -465,28 +465,6 @@ const FLOW_PAN_ON_DRAG = [1]
 const FLOW_VISIBLE_ONLY_NODE_THRESHOLD = 40
 const FLOW_MULTI_SELECTION_KEYS = ['Shift', 'Meta', 'Control']
 
-function CanvasGeneratorViewportAnchor({ store, node, surface, panelWidth, frozenAnchor: frozenGeneratorAnchor, children }: {
-  store: ReturnType<typeof useStoreApi<CanvasFlowNode, CanvasFlowEdge>>
-  node: CanvasFlowNode
-  surface: { width: number; height: number }
-  panelWidth: number
-  frozenAnchor: CanvasGeneratorAnchor | null
-  children: (anchor: CanvasGeneratorAnchor | null) => ReactNode
-}) {
-  const getTransform = () => store.getState().transform
-  const [tx, ty, zoom] = useSyncExternalStore(store.subscribe, getTransform, getTransform)
-  const liveGeneratorAnchor = resolveCanvasGeneratorAnchor({
-    nodePosition: node.position,
-    nodeSize: nodeSize(node),
-    viewport: { x: tx, y: ty, zoom },
-    surface,
-    panelWidth,
-    safeBottom: 96,
-  })
-  const generatorAnchor = frozenGeneratorAnchor ?? liveGeneratorAnchor
-  return <>{children(generatorAnchor)}</>
-}
-
 function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, lightGraph = false, projectionEnabled = true, focusNodeId, onSelectCanvas, onCreateCanvas, onRenameCanvas, onDeleteCanvas, projectOptions, parentProjectId, parentProjectName, onSelectProject, canvasHomeHref, createProjectHref, onCanvasUpdated }: Omit<Props, 'canvasId'> & { initialGraph: CanvasGraphResponse }) {
   const { data: session } = useSession()
   const { resolved: resolvedTheme } = useNoriTheme()
@@ -654,6 +632,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   const materializingStoryboardTasksRef = useRef(new Set<string>())
   const layoutAnimationFrameRef = useRef<number | null>(null)
   const [generatorAnchorFrozen, setGeneratorAnchorFrozen] = useState(false)
+  const generatorOpeningViewportRef = useRef<{ nodeId: string; viewport: Viewport } | null>(null)
   const generatorAnchorLiveRef = useRef<{ nodeId: string; anchor: CanvasGeneratorAnchor } | null>(null)
   const generatorAnchorFreezeRef = useRef<{ nodeId: string; anchor: CanvasGeneratorAnchor } | null>(null)
   // A first click only selects a node so its edge lights up and wiring stays
@@ -3959,15 +3938,24 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   // Positioning and rendering must use the same layout width. The workspace is
   // CSS-zoomed, so window.innerWidth would make the actual panel too wide.
   const renderedGeneratorPanelWidth = Math.min(generatorPanelWidth, Math.max(240, canvasSurfaceSize.width - 80))
-  const readViewport = useCallback(() => {
+  // Anchor the editor where its node was selected. Panning and zooming move
+  // the graph underneath the editor while the workspace panel stays usable.
+  if (!selectedCreativeNode) {
+    generatorOpeningViewportRef.current = null
+  } else if (generatorOpeningViewportRef.current?.nodeId !== selectedCreativeNode.id) {
     const [x, y, zoom] = flowStore.getState().transform
-    return { x, y, zoom }
-  }, [flowStore])
-  const liveGeneratorAnchor = selectedCreativeNode && selectedCreativeNodePosition && selectedCreativeNodeSize
+    generatorOpeningViewportRef.current = { nodeId: selectedCreativeNode.id, viewport: { x, y, zoom } }
+  }
+  const openingViewport = generatorOpeningViewportRef.current?.viewport
+  const showAnchorTether = Boolean(openingViewport
+    && viewport.x === openingViewport.x
+    && viewport.y === openingViewport.y
+    && viewport.zoom === openingViewport.zoom)
+  const liveGeneratorAnchor = selectedCreativeNode && selectedCreativeNodePosition && selectedCreativeNodeSize && openingViewport
     ? resolveCanvasGeneratorAnchor({
         nodePosition: selectedCreativeNodePosition,
         nodeSize: selectedCreativeNodeSize,
-        viewport: readViewport(),
+        viewport: openingViewport,
         surface: canvasSurfaceSize,
         panelWidth: renderedGeneratorPanelWidth,
         safeBottom: 96,
@@ -3976,10 +3964,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   generatorAnchorLiveRef.current = selectedCreativeNode && liveGeneratorAnchor
     ? { nodeId: selectedCreativeNode.id, anchor: liveGeneratorAnchor }
     : null
-  const generatorAnchor = selectedCreativeNode
-    ? <CanvasGeneratorViewportAnchor store={flowStore} node={selectedCreativeNode} surface={canvasSurfaceSize} panelWidth={renderedGeneratorPanelWidth} frozenAnchor={generatorAnchorFrozen ? generatorAnchorFreezeRef.current?.anchor ?? null : null}>{(liveAnchor) => {
-        return <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} anchor={liveAnchor} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={writeLocked ? undefined : (materials, validateReferences) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials, validateReferences)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} />
-      }}</CanvasGeneratorViewportAnchor>
+  const renderGenerator = () => selectedCreativeNode
+    ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} anchor={generatorAnchorFrozen ? generatorAnchorFreezeRef.current?.anchor ?? liveGeneratorAnchor : liveGeneratorAnchor} showAnchorTether={showAnchorTether} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={writeLocked ? undefined : (materials, validateReferences) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials, validateReferences)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} />
     : null
   const incomingNodes = selectedCreativeNode ? edges.filter((edge) => edge.target === selectedCreativeNode.id).map((edge) => nodes.find((node) => node.id === edge.source)).filter((node): node is CanvasFlowNode => Boolean(node)) : []
   const secondaryIncomingNodeIds = selectedCreativeNode
@@ -5192,7 +5178,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
             }}>拖拽批量连接</button>
           <button type="button" disabled={selectionDownloadNodes.length === 0} title={selectionDownloadNodes.length > 0 ? `打包下载选中的 ${selectionDownloadNodes.length} 个节点内容` : '选中的节点暂无可下载内容'} onClick={() => downloadCanvasNodes(selectionDownloadNodes, '画布批量下载')}>下载</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly ? generatorAnchor : null}
+        {!readOnly ? renderGenerator() : null}
         {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} isVideoPrefixPrompt={contextNode?.data.videoPrefixPrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}

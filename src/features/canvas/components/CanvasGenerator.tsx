@@ -294,6 +294,7 @@ export function CanvasGenerator({
   onMatchPromptMaterials,
   injectedReferenceNodeIds,
   anchor,
+  showAnchorTether = true,
   panelWidth,
   onPanelWidthChange,
   globalStyleNodeId,
@@ -322,6 +323,7 @@ export function CanvasGenerator({
   injectedReferenceNodeIds?: string[]
   onMatchPromptMaterials?: (materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => { added: number; restored: number; matched: number; skippedForNodeCapacity: number } | null
   anchor?: CanvasGeneratorAnchor | null
+  showAnchorTether?: boolean
   panelWidth: number
   onPanelWidthChange: (width: number) => void
   globalStyleNodeId?: string | null
@@ -1573,7 +1575,7 @@ export function CanvasGenerator({
     : undefined
   return (
     <aside className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : ''}${anchor && !fullscreen ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-anchor-placement={anchor?.placement} style={{ ...anchorStyle, ...(fullscreen ? {} : { width: `${panelWidth}px` }) }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
-      {anchor && !fullscreen ? <span className="nori-canvas-generator-tether" aria-hidden="true" style={{ left: `${anchor.tetherX}px`, height: `${anchor.tetherLength}px` }} /> : null}
+      {anchor && !fullscreen && showAnchorTether ? <span className="nori-canvas-generator-tether" aria-hidden="true" style={{ left: `${anchor.tetherX}px`, height: `${anchor.tetherLength}px` }} /> : null}
       <div className="nori-canvas-generator-scroll" style={!fullscreen && anchor ? { maxHeight: `min(${anchor.maxHeight}px, calc(var(--nori-generator-viewport-height, 72vh) / var(--nori-interface-scale, 1.2)))` } : undefined}>
       {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
       <div className="nori-canvas-generator-head">
@@ -1600,6 +1602,7 @@ export function CanvasGenerator({
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
           {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
           {referencePickerType ? <button ref={referenceAddRef} type="button" className={`nori-canvas-generator-ref-add${referenceMenuOpen ? ' is-active' : ''}`} title="添加引用素材（无需连线）" aria-label="添加引用素材" aria-haspopup="menu" aria-expanded={referenceMenuOpen} onClick={() => setReferenceMenuOpen((open) => !open)}><Plus /><span aria-hidden="true">参考</span></button> : null}
+          {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
           {referenceMenuOpen && referencePickerType ? (
             <ViewportPopover anchorRef={referenceAddRef} onClose={() => setReferenceMenuOpen(false)} preferredSide="below" width={208} maxHeight={160} role="menu" aria-label="添加引用素材" className="nori-canvas-reference-add-menu">
               <button ref={canvasPickItemRef} type="button" role="menuitem" disabled={canvasPickerItems.length === 0} title={canvasPickerItems.length === 0 ? '画布上暂无当前模型可引用的素材' : undefined} onClick={() => { setReferenceMenuOpen(false); setCanvasPickerOpen(true) }}><LayoutGrid /><span>从画布选择</span><small>{canvasPickerItems.length}</small></button>
@@ -1617,7 +1620,6 @@ export function CanvasGenerator({
           ) : null}
         </div>
       ) : null}
-      {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
       {autoMatchNotice ? <p className="nori-canvas-generator-automatch-notice" role="status">{autoMatchNotice}</p> : null}
       {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
 

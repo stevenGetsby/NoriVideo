@@ -8166,3 +8166,8 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled { width: 8px; height: 16px; }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled::after { content: ''; position: absolute; left: 50%; top: 6px; width: 1px; height: 4px; background: currentColor; transform: translateX(-50%); }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled:hover::after { height: 6px; top: 5px; }
+
+/* Keep the pinned panel from pointing at a node while the viewport moves. */
+.nori-canvas-workspace:has(.nori-canvas-surface.is-panning) .nori-canvas-generator-tether {
+  visibility: hidden;
+}

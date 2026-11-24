@@ -192,6 +192,40 @@ try {
   assert.ok(Number(await slider.inputValue()) >= Number(previousDuration))
   assert.deepEqual(errors, [])
   console.log('PASS: grouped asset search and the generation parameter duration slider work in the production viewport')
+
+  await parameters.getByRole('button', { name: '关闭生成参数' }).click()
+  const referenceAdd = limited.getByRole('button', { name: '添加引用素材', exact: true })
+  assert.equal(await limitedMatch.evaluate((button) => Boolean(button.closest('.nori-canvas-generator-refs'))), true)
+  const matchBox = await limitedMatch.boundingBox()
+  const addBox = await referenceAdd.boundingBox()
+  assert.ok(matchBox && addBox && Math.abs(matchBox.y - addBox.y) < 2 && matchBox.x > addBox.x)
+
+  const panel = limited.locator('.nori-canvas-generator').first()
+  const viewport = limited.locator('.react-flow__viewport').first()
+  const panelBeforePan = await panel.boundingBox()
+  const transformBeforePan = await viewport.evaluate((element) => element.style.transform)
+  const panPoint = await limited.evaluate(() => {
+    for (let y = 125; y < innerHeight - 100; y += 40) {
+      for (let x = innerWidth - 160; x > innerWidth / 2; x -= 30) {
+        if (document.elementFromPoint(x, y)?.classList.contains('react-flow__pane')) return { x, y }
+      }
+    }
+    throw new Error('Empty canvas point unavailable')
+  })
+  await prompt.focus()
+  await limited.mouse.move(panPoint.x, panPoint.y)
+  assert.equal(await prompt.evaluate((element) => document.activeElement === element), true)
+  assert.deepEqual(await panel.boundingBox(), panelBeforePan)
+  await limited.mouse.down({ button: 'middle' })
+  await limited.mouse.move(panPoint.x - 65, panPoint.y + 30, { steps: 6 })
+  assert.notEqual(await viewport.evaluate((element) => element.style.transform), transformBeforePan)
+  const panelDuringPan = await panel.boundingBox()
+  await limited.mouse.up({ button: 'middle' })
+  const panelAfterPan = await panel.boundingBox()
+  for (const box of [panelDuringPan, panelAfterPan]) {
+    assert.ok(box && panelBeforePan && Math.abs(box.x - panelBeforePan.x) < 2 && Math.abs(box.y - panelBeforePan.y) < 2)
+  }
+  console.log('PASS: one-click match sits beside reference add, and the editor stays put during canvas pan')
 } finally {
   await browser?.close()
   lines.close()
