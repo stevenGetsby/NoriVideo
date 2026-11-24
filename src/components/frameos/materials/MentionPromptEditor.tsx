@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useId, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { AppIcon } from '@/components/ui/icons'
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
@@ -9,6 +10,7 @@ import {
   findActiveMention,
   isPromptCompositionKey,
   pastePromptAssets,
+  promptMentionTokenEnd,
   redoPromptInsertion,
   replacePromptMention,
   splitPromptMentionParts,
@@ -37,6 +39,7 @@ export interface MentionPromptAsset {
   description?: string
   section?: string
   category?: string
+  materialId?: string | null
 }
 
 export interface MentionPromptGroup {
@@ -66,13 +69,36 @@ function assetKey(asset: MentionPromptAsset): string {
   return asset.id ? `id:${asset.id}` : `name:${asset.name}`
 }
 
-function assetIcon(asset: MentionPromptAsset): 'audioWave' | 'fileText' | 'image' | 'package' | 'video' {
-  if (asset.mediaType === 'audio') return 'audioWave'
-  if (asset.mediaType === 'video') return 'video'
-  if (asset.mediaType === 'text') return 'fileText'
-  if (asset.mediaType === 'model3d') return 'package'
+function sessionStillMatches(value: string, session: { query: string; start: number }): boolean {
+  if (value[session.start] !== '@') return false
+  const tokenEnd = promptMentionTokenEnd(value, session.start)
+  return value.slice(session.start + 1, tokenEnd).startsWith(session.query)
+}
+
+function mediaIcon(mediaType: MentionPromptAsset['mediaType']): 'audioWave' | 'fileText' | 'image' | 'package' | 'video' {
+  if (mediaType === 'audio') return 'audioWave'
+  if (mediaType === 'video') return 'video'
+  if (mediaType === 'text') return 'fileText'
+  if (mediaType === 'model3d') return 'package'
   return 'image'
 }
+
+function assetIcon(asset: MentionPromptAsset): 'audioWave' | 'fileText' | 'image' | 'package' | 'video' {
+  return mediaIcon(asset.mediaType)
+}
+
+const MEDIA_DRILLDOWN_ORDER: readonly NonNullable<MentionPromptAsset['mediaType']>[] = ['image', 'video', 'audio', 'text', 'model3d']
+const MEDIA_DRILLDOWN_LABELS: Record<NonNullable<MentionPromptAsset['mediaType']>, string> = {
+  image: '图片',
+  video: '视频',
+  audio: '音频',
+  text: '文本',
+  model3d: '3D 模型',
+}
+
+type MentionMenuRow =
+  | { kind: 'asset'; asset: MentionPromptAsset }
+  | { kind: 'drilldown'; drillKind: 'media' | 'category'; id: string; label: string }
 
 export function MentionPromptEditor({
   value,
@@ -95,8 +121,21 @@ export function MentionPromptEditor({
   const highlightRef = useRef<HTMLPreElement>(null)
   const listboxId = useId()
   const [mention, setMention] = useState<{ query: string; start: number } | null>(null)
+  const mentionRef = useRef<{ query: string; start: number } | null>(null)
+  const applyMention = (next: { query: string; start: number } | null) => {
+    mentionRef.current = next
+    setMention(next)
+  }
   const [activeIndex, setActiveIndex] = useState(0)
-  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(() => new Set())
+  const [submenu, setSubmenu] = useState<{ kind: 'media' | 'category'; id: string; label: string; keyboard: boolean; activeIndex: number } | null>(null)
+  const [searchDraft, setSearchDraft] = useState<string | null>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  const submenuRef = useRef<HTMLDivElement>(null)
+  const mentionSessionRef = useRef<{ start: number; query: string } | null>(null)
+  const pendingMenuEditRef = useRef<{ value: string; cursor: number } | null>(null)
+  const searchComposingRef = useRef(false)
+  const menuEditVersionRef = useRef(0)
+  const composingVersionRef = useRef<number | null>(null)
   const dismissedMentionRef = useRef<{ query: string; start: number } | null>(null)
   const blurTimerRef = useRef<number | null>(null)
   const composingRef = useRef(false)
@@ -106,51 +145,175 @@ export function MentionPromptEditor({
   const options = useMemo(() => {
     if (!mention) return []
     const query = mention.query.toLowerCase()
+    const seen = new Set<string>()
+    const seenLibraryEntities = new Set<string>()
     return assets
-      .filter((asset, index, list) => list.findIndex((item) => assetKey(item) === assetKey(asset)) === index)
+      .filter((asset) => {
+        const key = assetKey(asset)
+        if (seen.has(key)) return false
+        seen.add(key)
+        if (asset.section === 'library' && asset.materialId) {
+          if (seenLibraryEntities.has(asset.materialId)) return false
+          seenLibraryEntities.add(asset.materialId)
+        }
+        return true
+      })
       .filter((asset) => !query || asset.name.toLowerCase().includes(query))
   }, [assets, mention])
   const grouped = groups.length > 0
   const searching = Boolean(mention?.query)
-  const visibleOptions = useMemo(() => options.filter((asset) => (
-    !grouped || searching || !asset.category || expandedGroups.has(asset.category)
-  )), [expandedGroups, grouped, options, searching])
-  const categories = useMemo(() => {
-    const labels = new Map<string, string>()
-    for (const asset of options) {
-      if (!asset.category || labels.has(asset.category)) continue
-      labels.set(asset.category, asset.description?.split(' · ')[0] || asset.category)
+  const drilldown = submenu
+  const libraryOptions = useMemo(() => options.filter((asset) => asset.section === 'library'), [options])
+  const libraryAliasCategories = useMemo(() => {
+    const categories = new Map<string, Set<string>>()
+    for (const asset of assets) {
+      if (asset.section !== 'library' || !asset.materialId || !asset.category) continue
+      const set = categories.get(asset.materialId) || new Set<string>()
+      set.add(asset.category)
+      categories.set(asset.materialId, set)
     }
-    return [...labels.entries()].map(([id, label]) => ({ id, label }))
-  }, [options])
-  const categoryCounts = useMemo(() => {
+    return categories
+  }, [assets])
+  const assetInDrilldown = (asset: MentionPromptAsset, kind: 'media' | 'category', id: string) => {
+    if (kind === 'media') return (asset.mediaType || 'image') === id
+    if (asset.category === id) return true
+    return Boolean(asset.materialId && libraryAliasCategories.get(asset.materialId)?.has(id))
+  }
+  const referencedAssets = useMemo(() => (
+    grouped && !searching ? options.filter((asset) => asset.section === 'connected' || asset.section === 'secondary') : []
+  ), [grouped, options, searching])
+  const libraryAssets = useMemo(() => (
+    grouped ? libraryOptions : options.filter((asset) => asset.section === 'library')
+  ), [grouped, libraryOptions, options])
+  const mediaDrilldowns = useMemo(() => {
+    if (!grouped || searching) return []
     const counts = new Map<string, number>()
-    for (const asset of options) {
-      if (asset.category) counts.set(asset.category, (counts.get(asset.category) || 0) + 1)
+    for (const asset of libraryAssets) {
+      const type = asset.mediaType || 'image'
+      counts.set(type, (counts.get(type) || 0) + 1)
     }
-    return counts
-  }, [options])
-  const optionIndexes = useMemo(() => new Map(visibleOptions.map((asset, index) => [assetKey(asset), index])), [visibleOptions])
-  const connectedShortcuts = useMemo(() => new Map(visibleOptions.flatMap((asset, index) => (
-    asset.section === 'connected' ? [[assetKey(asset), index + 1] as const] : []
-  ))), [visibleOptions])
-  const groupLabel = (id: string) => groups.find((group) => group.id === id)?.label || id
-  const expanded = (id: string) => expandedGroups.has(id)
+    return MEDIA_DRILLDOWN_ORDER.filter((type) => counts.has(type)).map((type) => ({ id: type, label: MEDIA_DRILLDOWN_LABELS[type], count: counts.get(type) || 0 }))
+  }, [grouped, libraryAssets, searching])
+  const categoryDrilldowns = useMemo(() => {
+    if (!grouped || searching) return []
+    const counts = new Map<string, number>()
+    for (const asset of libraryAssets) {
+      const categories = asset.materialId ? libraryAliasCategories.get(asset.materialId) : null
+      for (const category of categories || (asset.category ? [asset.category] : [])) {
+        counts.set(category, (counts.get(category) || 0) + 1)
+      }
+    }
+    return groups.filter((group) => counts.has(group.id)).map((group) => ({ id: group.id, label: group.label, count: counts.get(group.id) || 0 }))
+  }, [grouped, groups, libraryAliasCategories, libraryAssets, searching])
+  const submenuAssets = useMemo(() => {
+    if (!drilldown) return []
+    return libraryAssets.filter((asset) => assetInDrilldown(asset, drilldown.kind, drilldown.id))
+  }, [drilldown, libraryAssets, libraryAliasCategories])
+  const mainRows = useMemo<MentionMenuRow[]>(() => {
+    if (!grouped || searching) return options.map((asset) => ({ kind: 'asset', asset }) as MentionMenuRow)
+    return [
+      ...referencedAssets.map((asset) => ({ kind: 'asset', asset }) as MentionMenuRow),
+      ...mediaDrilldowns.map((entry) => ({ kind: 'drilldown', drillKind: 'media', id: entry.id, label: entry.label }) as MentionMenuRow),
+      ...categoryDrilldowns.map((entry) => ({ kind: 'drilldown', drillKind: 'category', id: entry.id, label: entry.label }) as MentionMenuRow),
+    ]
+  }, [categoryDrilldowns, grouped, mediaDrilldowns, options, referencedAssets, searching])
+  const assetRowIndexes = useMemo(() => new Map(mainRows.flatMap((row, index) => (
+    row.kind === 'asset' ? [[assetKey(row.asset), index] as const] : []
+  ))), [mainRows])
+  const referencedShortcutAssets = useMemo(() => mainRows.flatMap((row) => (
+    row.kind === 'asset' && (row.asset.section === 'connected' || row.asset.section === 'secondary') ? [row.asset] : []
+  )), [mainRows])
+  const referencedShortcuts = useMemo(() => new Map(referencedShortcutAssets.map((asset, index) => [assetKey(asset), index + 1] as const)), [referencedShortcutAssets])
+  const activeMainRow = mainRows[activeIndex] ?? null
+  const subFocus = Boolean(submenu?.keyboard)
+  const subActiveIndex = submenu?.activeIndex ?? 0
 
   useEffect(() => {
-    if (activeIndex < visibleOptions.length) return
+    if (activeIndex < mainRows.length) return
     setActiveIndex(0)
-  }, [activeIndex, visibleOptions.length])
-  useEffect(() => setActiveIndex(0), [mention?.query, mention?.start])
+  }, [activeIndex, mainRows.length])
   useEffect(() => {
-    const popup = document.getElementById(listboxId)
-    const option = document.getElementById(`${listboxId}-${activeIndex}`)
-    if (!popup || !option) return
+    setActiveIndex(0)
+  }, [mention?.query, mention?.start])
+  useEffect(() => {
+    if (!mention) {
+      setSubmenu(null)
+      mentionSessionRef.current = null
+      searchComposingRef.current = false
+      composingVersionRef.current = null
+      setSearchDraft(null)
+    }
+  }, [mention])
+  useEffect(() => {
+    if (searching) setSubmenu(null)
+  }, [searching])
+  useEffect(() => {
+    setSubmenu((current) => {
+      if (!current) return current
+      const available = current.kind === 'media'
+        ? mediaDrilldowns.some((entry) => entry.id === current.id)
+        : categoryDrilldowns.some((entry) => entry.id === current.id)
+      if (!available) return null
+      if (current.activeIndex < submenuAssets.length) return current
+      return { ...current, activeIndex: Math.max(0, submenuAssets.length - 1) }
+    })
+  }, [categoryDrilldowns, mediaDrilldowns, submenuAssets.length])
+  useEffect(() => {
+    const popup = subFocus ? submenuRef.current : document.getElementById(listboxId)
+    const item = popup?.querySelector<HTMLElement>('.is-active')
+    if (!popup || !item) return
     const bounds = popup.getBoundingClientRect()
-    const item = option.getBoundingClientRect()
-    if (item.bottom > bounds.bottom) popup.scrollTop += item.bottom - bounds.bottom
-    if (item.top < bounds.top + 36) popup.scrollTop -= bounds.top + 36 - item.top
-  }, [activeIndex, listboxId, mention])
+    const itemBounds = item.getBoundingClientRect()
+    if (itemBounds.bottom > bounds.bottom) popup.scrollTop += itemBounds.bottom - bounds.bottom
+    const headerOffset = subFocus ? 8 : 44
+    if (itemBounds.top < bounds.top + headerOffset) popup.scrollTop -= bounds.top + headerOffset - itemBounds.top
+  }, [activeIndex, listboxId, mention, subActiveIndex, subFocus])
+  const placeSubmenu = () => {
+    const submenuEl = submenuRef.current
+    if (!submenuEl || !submenu) return
+    const row = document.getElementById(`${listboxId}-row-${submenu.kind}-${submenu.id}`)
+    const popup = document.getElementById(listboxId)
+    if (!row || !popup) return
+    const rowRect = row.getBoundingClientRect()
+    const popupRect = popup.getBoundingClientRect()
+    const viewport = window.visualViewport
+    const viewLeft = viewport?.offsetLeft || 0
+    const viewTop = viewport?.offsetTop || 0
+    const viewWidth = viewport?.width || window.innerWidth
+    const viewHeight = viewport?.height || window.innerHeight
+    const margin = 12
+    const gap = 4
+    let left = popupRect.left - gap - submenuEl.offsetWidth
+    if (left < viewLeft + margin) left = Math.min(popupRect.right + gap, viewLeft + viewWidth - margin - submenuEl.offsetWidth)
+    const maxTop = viewTop + viewHeight - margin - submenuEl.offsetHeight
+    submenuEl.style.left = `${Math.max(viewLeft + margin, left)}px`
+    submenuEl.style.top = `${Math.max(viewTop + margin, Math.min(rowRect.top, maxTop))}px`
+    submenuEl.style.zIndex = String((Number.parseInt(popup.style.zIndex, 10) || 2700) + 1)
+    submenuEl.style.visibility = 'visible'
+  }
+  const placeSubmenuRef = useRef(placeSubmenu)
+  placeSubmenuRef.current = placeSubmenu
+  useLayoutEffect(() => {
+    const submenuEl = submenuRef.current
+    if (!submenuEl || !submenu) return
+    const place = () => placeSubmenuRef.current()
+    place()
+    const popup = document.getElementById(listboxId)
+    const observer = new ResizeObserver(place)
+    observer.observe(submenuEl)
+    if (popup) observer.observe(popup)
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    window.visualViewport?.addEventListener('resize', place)
+    window.visualViewport?.addEventListener('scroll', place)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      window.visualViewport?.removeEventListener('resize', place)
+      window.visualViewport?.removeEventListener('scroll', place)
+    }
+  }, [listboxId, submenu])
 
   useEffect(() => () => {
     if (blurTimerRef.current !== null) window.clearTimeout(blurTimerRef.current)
@@ -160,13 +323,46 @@ export function MentionPromptEditor({
   // clearing a draft). Re-derive an already-open picker so a later Enter/Tab
   // cannot apply a stale @query to the new text.
   useEffect(() => {
-    setMention((current) => {
-      if (!current) return current
+    const pending = pendingMenuEditRef.current
+    if (pending && pending.value === value) {
+      pendingMenuEditRef.current = null
+      const next = findActiveMention(value, pending.cursor)
+      if (next) mentionSessionRef.current = next
+      applyMention(next)
       const textarea = textareaRef.current
-      const focused = textarea !== null && document.activeElement === textarea
-      const cursor = focused ? textarea.selectionStart : value.length
-      return findActiveMention(value, cursor ?? value.length)
-    })
+      if (textarea && document.activeElement !== searchInputRef.current) {
+        requestAnimationFrame(() => {
+          const current = textareaRef.current
+          if (!current || current.value !== pending.value || document.activeElement === searchInputRef.current) return
+          current.setSelectionRange(pending.cursor, pending.cursor)
+        })
+      }
+      return
+    }
+    pendingMenuEditRef.current = null
+    menuEditVersionRef.current += 1
+    {
+      const current = mentionRef.current
+      if (!current) return
+      const textarea = textareaRef.current
+      if (textarea !== null && document.activeElement === textarea) {
+        const next = findActiveMention(value, textarea.selectionStart ?? value.length)
+        if (next) mentionSessionRef.current = next
+        applyMention(next)
+        return
+      }
+      const session = mentionSessionRef.current
+      if (session && sessionStillMatches(value, session)) {
+        const next = findActiveMention(value, session.start + 1 + session.query.length)
+        if (next && next.start === session.start) {
+          mentionSessionRef.current = next
+          applyMention(next)
+          return
+        }
+      }
+      mentionSessionRef.current = null
+      applyMention(null)
+    }
   }, [value])
 
   const cancelBlurDismissal = () => {
@@ -186,7 +382,9 @@ export function MentionPromptEditor({
 
   const applyHistoryValue = (next: { value: string; cursor: number }) => {
     onChange(next.value)
-    setMention(findActiveMention(next.value, next.cursor))
+    const restored = findActiveMention(next.value, next.cursor)
+    if (restored) mentionSessionRef.current = restored
+    applyMention(restored)
     requestAnimationFrame(() => {
       const current = textareaRef.current
       if (!current || current.value !== next.value) return
@@ -198,49 +396,148 @@ export function MentionPromptEditor({
   const refreshMention = (nextValue: string, cursor: number | null) => {
     cancelBlurDismissal()
     if (readOnly) {
-      setMention(null)
+      applyMention(null)
       return
     }
     const next = findActiveMention(nextValue, cursor ?? nextValue.length)
+    if (next) mentionSessionRef.current = next
     const dismissed = dismissedMentionRef.current
-    setMention(next && dismissed?.query === next.query && dismissed.start === next.start ? null : next)
+    applyMention(next && dismissed?.query === next.query && dismissed.start === next.start ? null : next)
   }
 
-  const toggleGroup = (id: string) => {
-    setExpandedGroups((current) => {
-      const next = new Set(current)
-      if (next.has(id)) {
-        next.delete(id)
-        setActiveIndex(0)
-      } else next.add(id)
-      return next
+  const openDrilldown = (kind: 'media' | 'category', id: string, label: string, rowIndex: number, keyboard: boolean) => {
+    setActiveIndex(rowIndex)
+    setSubmenu((current) => {
+      if (current?.kind === kind && current.id === id) return { ...current, keyboard: current.keyboard || keyboard }
+      return { kind, id, label, keyboard, activeIndex: 0 }
     })
   }
 
-  const renderOption = (asset: MentionPromptAsset) => {
-    const index = optionIndexes.get(assetKey(asset)) ?? 0
+  const closeDrilldown = () => {
+    setSubmenu(null)
+  }
+
+  const dismissMention = () => {
+    if (mention) dismissedMentionRef.current = mention
+    mentionSessionRef.current = null
+    pendingMenuEditRef.current = null
+    searchComposingRef.current = false
+    composingVersionRef.current = null
+    applyMention(null)
+  }
+
+  const closeMentionFromCanvas = () => {
+    dismissMention()
+    requestAnimationFrame(() => textareaRef.current?.focus())
+  }
+
+  const commitSearchQuery = (query: string, caret: number) => {
+    const textarea = textareaRef.current
+    const session = mentionSessionRef.current ?? mention
+    if (!textarea || !session) return
+    const liveValue = textarea.value
+    if (!sessionStillMatches(liveValue, session)) {
+      mentionSessionRef.current = null
+      pendingMenuEditRef.current = null
+      applyMention(null)
+      return
+    }
+    const queryEnd = session.start + 1 + session.query.length
+    const nextValue = `${liveValue.slice(0, session.start + 1)}${query}${liveValue.slice(queryEnd)}`
+    const nextMention = findActiveMention(nextValue, session.start + 1 + query.length)
+    if (nextMention) mentionSessionRef.current = nextMention
+    applyMention(nextMention)
+    menuEditVersionRef.current += 1
+    pendingMenuEditRef.current = { value: nextValue, cursor: session.start + 1 + query.length }
+    onChange(nextValue)
+    requestAnimationFrame(() => {
+      searchInputRef.current?.setSelectionRange(caret, caret)
+    })
+  }
+
+  const activateRow = (row: MentionMenuRow, index: number) => {
+    if (row.kind === 'asset') {
+      choose(row.asset)
+      return
+    }
+    openDrilldown(row.drillKind, row.id, row.label, index, true)
+  }
+
+  const moveMainHighlight = (delta: number) => {
+    if (mainRows.length === 0) return
+    const next = (activeIndex + delta + mainRows.length) % mainRows.length
+    setActiveIndex(next)
+    setSubmenu(null)
+  }
+
+  const handleMenuKeyDown = (event: ReactKeyboardEvent) => {
+    if (isPromptCompositionKey(event)) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissMention()
+      requestAnimationFrame(() => textareaRef.current?.focus())
+      return
+    }
+    if (subFocus) {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault()
+        closeDrilldown()
+        return
+      }
+      if (submenuAssets.length === 0) return
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setSubmenu((current) => current && { ...current, activeIndex: (current.activeIndex + 1) % submenuAssets.length })
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setSubmenu((current) => current && { ...current, activeIndex: (current.activeIndex - 1 + submenuAssets.length) % submenuAssets.length })
+      } else if (event.key === 'Enter' || event.key === 'Tab' || event.key === 'ArrowRight') {
+        event.preventDefault()
+        choose(submenuAssets[Math.min(subActiveIndex, submenuAssets.length - 1)])
+      }
+      return
+    }
+    if (mainRows.length === 0) return
+    if (event.key === 'ArrowDown') {
+      event.preventDefault()
+      moveMainHighlight(1)
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault()
+      moveMainHighlight(-1)
+    } else if (event.key === 'ArrowRight' || event.key === 'Enter' || event.key === 'Tab') {
+      const index = Math.min(activeIndex, mainRows.length - 1)
+      const row = mainRows[index]
+      event.preventDefault()
+      if (event.key === 'ArrowRight' && row.kind === 'asset') return
+      activateRow(row, index)
+    }
+  }
+
+  const renderOption = (asset: MentionPromptAsset, index: number, scope: 'main' | 'sub') => {
+    const isActive = scope === 'sub' ? subFocus && index === subActiveIndex : !subFocus && index === activeIndex
     const src = toDisplayImageUrl(asset.imageUrl)
     return (
-      <button id={`${listboxId}-${index}`} role="option" aria-selected={index === activeIndex} key={`${asset.section || ''}:${assetKey(asset)}`} type="button" className={`mention-prompt-option flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[var(--fos-fill-mid)]${index === activeIndex ? ' is-active' : ''}`} onMouseEnter={() => setActiveIndex(index)} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(asset)}>
+      <button id={scope === 'main' ? `${listboxId}-${index}` : `${listboxId}-sub-${index}`} role="option" aria-selected={isActive} tabIndex={-1} key={`${scope}:${asset.section || ''}:${assetKey(asset)}`} type="button" className={`mention-prompt-option flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[var(--fos-fill-mid)]${isActive ? ' is-active' : ''}`} onMouseEnter={() => { if (scope === 'sub') { setSubmenu((current) => current && { ...current, keyboard: true, activeIndex: index }) } else { setActiveIndex(index); setSubmenu(null) } }} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(asset)}>
         <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md bg-black/35">
           {src ? <MediaImage src={src} alt="" fill sizes="32px" style={{ objectFit: 'cover' }} /> : <AppIcon name={assetIcon(asset)} className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white/35" />}
         </span>
-        <span className="min-w-0 flex-1"><b className="block truncate text-[12px] font-bold text-white">@{asset.name}</b>{asset.description ? <small className="mt-0.5 block truncate text-[10px] font-normal text-[var(--fos-text-4)]">{asset.description}</small> : null}</span>
-        {grouped && connectedShortcuts.has(assetKey(asset)) ? <kbd className="mention-prompt-shortcut">#{connectedShortcuts.get(assetKey(asset))}</kbd> : null}
+        <span className="min-w-0 flex-1"><b className="block truncate text-[12px] font-bold text-white">{grouped ? asset.name : `@${asset.name}`}</b>{!grouped && asset.description ? <small className="mt-0.5 block truncate text-[10px] font-normal text-[var(--fos-text-4)]">{asset.description}</small> : null}</span>
+        {grouped && !searching && scope === 'main' && (referencedShortcuts.get(assetKey(asset)) ?? 10) <= 9 ? <kbd className="mention-prompt-shortcut">#{referencedShortcuts.get(assetKey(asset))}</kbd> : null}
       </button>
     )
   }
 
-  const renderCategory = (id: string, label: string) => {
-    const categoryAssets = options.filter((asset) => asset.category === id)
+  const renderDrilldownRow = (kind: 'media' | 'category', id: string, label: string, count: number, icon: Parameters<typeof AppIcon>[0]['name'], rowIndex: number) => {
+    const isOpen = drilldown?.kind === kind && drilldown.id === id
+    const isActive = !subFocus && rowIndex === activeIndex
     return (
-      <div key={id} className="mention-prompt-category">
-        <button type="button" className="mention-prompt-group-button" aria-expanded={searching || expanded(id)} onMouseDown={(event) => event.preventDefault()} onClick={() => toggleGroup(id)}>
-          <AppIcon name="chevronRight" className={`mention-prompt-chevron${searching || expanded(id) ? ' is-expanded' : ''}`} />
-          <span>{label}</span><small>{categoryCounts.get(id) || 0}</small>
-        </button>
-        {searching || expanded(id) ? <div className="mention-prompt-category-options">{categoryAssets.map(renderOption)}</div> : null}
-      </div>
+      <button id={`${listboxId}-row-${kind}-${id}`} key={`${kind}:${id}`} type="button" role="option" aria-selected={isActive} tabIndex={-1} aria-haspopup="listbox" aria-expanded={isOpen} className={`mention-prompt-drilldown${isOpen || isActive ? ' is-active' : ''}`} onMouseEnter={() => openDrilldown(kind, id, label, rowIndex, false)} onMouseDown={(event) => event.preventDefault()} onClick={() => openDrilldown(kind, id, label, rowIndex, true)}>
+        <AppIcon name={icon} className="mention-prompt-drilldown-icon" />
+        <span>{label}</span>
+        <small>{count}</small>
+        <AppIcon name="chevronRight" className="mention-prompt-drilldown-chevron" />
+      </button>
     )
   }
 
@@ -252,10 +549,16 @@ export function MentionPromptEditor({
     // trail behind during deletion, undo/redo and IME composition, which is how
     // the picker used to insert at the wrong index.
     const liveValue = textarea.value
-    const selectionStart = textarea.selectionStart ?? liveValue.length
-    const selectionEnd = textarea.selectionEnd ?? selectionStart
+    const editorFocused = document.activeElement === textarea
+    const session = mentionSessionRef.current
+    const sessionValid = session && sessionStillMatches(liveValue, session)
+    if (!editorFocused && !sessionValid) return
+    const queryEnd = sessionValid ? session!.start + 1 + session!.query.length : null
+    const selectionStart = editorFocused ? (textarea.selectionStart ?? liveValue.length) : queryEnd!
+    const selectionEnd = editorFocused ? (textarea.selectionEnd ?? selectionStart) : selectionStart
     const liveMention = findActiveMention(liveValue, selectionStart) ?? mention
-    const next = replacePromptMention(liveValue, liveMention, selectionStart, selectionEnd, asset.name, assets)
+    const caret = editorFocused ? selectionStart : queryEnd!
+    const next = replacePromptMention(liveValue, liveMention, caret, editorFocused ? selectionEnd : caret, asset.name, assets)
     if (!next) return
     if (onSelectAsset?.(asset, next.value) === false) return
     if (next.value !== liveValue) {
@@ -267,7 +570,8 @@ export function MentionPromptEditor({
       })
     }
     onChange(next.value)
-    setMention(null)
+    applyMention(null)
+    mentionSessionRef.current = null
     requestAnimationFrame(() => {
       const current = textareaRef.current
       if (!current || current.value !== next.value) return
@@ -313,6 +617,7 @@ export function MentionPromptEditor({
             refreshMention(event.target.value, event.target.selectionStart)
           }}
           onSelect={(event) => {
+            if (document.activeElement !== event.currentTarget) return
             if (!composingRef.current && !mention && findActiveMention(event.currentTarget.value, event.currentTarget.selectionStart)) onMentionOpen?.()
             refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
           }}
@@ -353,30 +658,19 @@ export function MentionPromptEditor({
               event.preventDefault()
               event.nativeEvent.preventDefault()
               event.stopPropagation()
-              dismissedMentionRef.current = mention
-              setMention(null)
+              dismissMention()
               return
             }
-            if (visibleOptions.length === 0) return
-            if (/^[1-9]$/.test(event.key) && grouped && !mention.query) {
+            if (mainRows.length === 0) return
+            if (/^[1-9]$/.test(event.key) && grouped && !mention.query && !subFocus) {
               const index = Number(event.key) - 1
-              const connected = visibleOptions.filter((asset) => asset.section === 'connected')
-              if (index < connected.length) {
+              if (index < referencedShortcutAssets.length) {
                 event.preventDefault()
-                choose(connected[index])
+                choose(referencedShortcutAssets[index])
                 return
               }
             }
-            if (event.key === 'ArrowDown') {
-              event.preventDefault()
-              setActiveIndex((current) => (current + 1) % visibleOptions.length)
-            } else if (event.key === 'ArrowUp') {
-              event.preventDefault()
-              setActiveIndex((current) => (current - 1 + visibleOptions.length) % visibleOptions.length)
-            } else if (event.key === 'Enter' || event.key === 'Tab') {
-              event.preventDefault()
-              choose(visibleOptions[Math.min(activeIndex, visibleOptions.length - 1)])
-            }
+            handleMenuKeyDown(event)
           }}
           onPaste={(event) => {
             if (readOnly) return
@@ -408,7 +702,8 @@ export function MentionPromptEditor({
               })
             }
             onChange(result.value)
-            setMention(null)
+            applyMention(null)
+            mentionSessionRef.current = null
             requestAnimationFrame(() => {
               const textarea = textareaRef.current
               if (!textarea || textarea.value !== result.value) return
@@ -433,22 +728,112 @@ export function MentionPromptEditor({
           role="combobox"
           aria-autocomplete="list"
           aria-expanded={Boolean(mention)}
-          aria-controls={mention ? listboxId : undefined}
-          aria-activedescendant={mention && visibleOptions.length > 0 ? `${listboxId}-${activeIndex}` : undefined}
+          aria-controls={mention ? (subFocus ? `${listboxId}-submenu` : listboxId) : undefined}
+          aria-activedescendant={mention ? (subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow ? (activeMainRow.kind === 'asset' ? `${listboxId}-${activeIndex}` : `${listboxId}-row-${activeMainRow.drillKind}-${activeMainRow.id}`) : undefined) : undefined}
         />
       </div>
       {!readOnly && mention ? (
-        <ViewportPopover anchorRef={textareaRef} onClose={() => setMention(null)} maxHeight={380} id={listboxId} role="listbox" aria-label={menuLabel} className={`mention-prompt-options${grouped ? ' is-grouped' : ''}`}>
-          <div className="mention-prompt-options-heading">{menuLabel}<small>{options.length} 项</small></div>
-          {grouped && !searching ? <div className="mention-prompt-search-hint">继续输入可搜索全部素材</div> : null}
-          {options.length === 0 ? <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">{loading ? '正在加载个人素材库…' : assets.length === 0 ? '暂无可引用素材' : '没有匹配的素材'}</div> : grouped ? (
+        <ViewportPopover
+          anchorRef={textareaRef}
+          onClose={dismissMention}
+          maxHeight={380}
+          width={grouped ? 300 : undefined}
+          id={listboxId}
+          role="listbox"
+          aria-label={menuLabel}
+          className={`mention-prompt-options${grouped ? ' is-grouped' : ''}`}
+          containsNode={(node) => Boolean(submenuRef.current?.contains(node))}
+          onReposition={() => placeSubmenuRef.current()}
+          closeOnOutsideWheel
+          repositionHeartbeat
+          onKeyDown={(event) => {
+            if (searchComposingRef.current || isPromptCompositionKey(event)) {
+              if (event.key === 'Escape') event.stopPropagation()
+              return
+            }
+            handleMenuKeyDown(event)
+          }}
+          onDismissKey={(event) => {
+            if (searchComposingRef.current || isPromptCompositionKey(event)) return false
+            closeMentionFromCanvas()
+            return true
+          }}
+        >
+          {grouped ? (
+            <div className="mention-prompt-search">
+              <AppIcon name="search" className="mention-prompt-search-icon" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="mention-prompt-search-input"
+                placeholder="搜索"
+                value={searchDraft ?? mention.query}
+                aria-label="搜索素材"
+                role="combobox"
+                aria-expanded
+                aria-controls={subFocus ? `${listboxId}-submenu` : listboxId}
+                aria-autocomplete="list"
+                aria-activedescendant={subFocus && submenuAssets.length > 0 ? `${listboxId}-sub-${subActiveIndex}` : activeMainRow ? (activeMainRow.kind === 'asset' ? `${listboxId}-${activeIndex}` : `${listboxId}-row-${activeMainRow.drillKind}-${activeMainRow.id}`) : undefined}
+                onCompositionStart={() => {
+                  searchComposingRef.current = true
+                  composingVersionRef.current = menuEditVersionRef.current
+                }}
+                onCompositionEnd={(event) => {
+                  searchComposingRef.current = false
+                  setSearchDraft(null)
+                  const version = composingVersionRef.current
+                  composingVersionRef.current = null
+                  if (version === null || version !== menuEditVersionRef.current) return
+                  commitSearchQuery(event.currentTarget.value, event.currentTarget.selectionStart ?? event.currentTarget.value.length)
+                }}
+                onChange={(event) => {
+                  if (searchComposingRef.current) {
+                    setSearchDraft(event.target.value)
+                    return
+                  }
+                  setSearchDraft(null)
+                  commitSearchQuery(event.target.value, event.target.selectionStart ?? event.target.value.length)
+                }}
+                onFocus={() => {
+                  cancelBlurDismissal()
+                  const session = mentionSessionRef.current ?? mention
+                  if (session) mentionSessionRef.current = session
+                }}
+              />
+            </div>
+          ) : <div className="mention-prompt-options-heading">{menuLabel}<small>{options.length} 项</small></div>}
+          {options.length === 0 ? <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">{loading ? '正在加载个人素材库…' : assets.length === 0 ? '暂无可引用素材' : '没有匹配的素材'}</div> : grouped && !searching ? (
             <>
-              {visibleOptions.some((asset) => asset.section === 'connected') ? <section className="mention-prompt-section"><h3>已连接节点<small>{visibleOptions.filter((asset) => asset.section === 'connected').length}</small></h3>{visibleOptions.filter((asset) => asset.section === 'connected').map(renderOption)}</section> : null}
-              {visibleOptions.some((asset) => asset.section === 'secondary') ? <section className="mention-prompt-section"><h3>二级连接节点<small>{visibleOptions.filter((asset) => asset.section === 'secondary').length}</small></h3>{visibleOptions.filter((asset) => asset.section === 'secondary').map(renderOption)}</section> : null}
-              {options.some((asset) => asset.section === 'library') ? <section className="mention-prompt-section"><h3>个人素材库<small>{options.filter((asset) => asset.section === 'library').length}</small></h3>{categories.map(({ id }) => renderCategory(id, groupLabel(id)))}</section> : null}
+              {referencedAssets.length > 0 ? (
+                <section className="mention-prompt-section" aria-label="已引用">
+                  <h3>已引用</h3>
+                  {referencedAssets.map((asset) => renderOption(asset, assetRowIndexes.get(assetKey(asset)) ?? 0, 'main'))}
+                </section>
+              ) : null}
+              {mediaDrilldowns.length > 0 || categoryDrilldowns.length > 0 ? (
+                <section className="mention-prompt-section" aria-label="素材引用">
+                  <h3>素材引用</h3>
+                  {mediaDrilldowns.map(({ id, label, count }, mediaIndex) => renderDrilldownRow('media', id, label, count, mediaIcon(id), referencedAssets.length + mediaIndex))}
+                  {mediaDrilldowns.length > 0 && categoryDrilldowns.length > 0 ? <div className="mention-prompt-drilldown-divider" role="separator" /> : null}
+                  {categoryDrilldowns.map(({ id, label, count }, categoryIndex) => renderDrilldownRow('category', id, label, count, id === 'favorites' ? 'folderHeart' : 'folder', referencedAssets.length + mediaDrilldowns.length + categoryIndex))}
+                </section>
+              ) : null}
+              {referencedAssets.length === 0 && mediaDrilldowns.length === 0 && categoryDrilldowns.length === 0 ? <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">{loading ? '正在加载个人素材库…' : '暂无可引用素材'}</div> : null}
             </>
-          ) : options.map(renderOption)}
+          ) : grouped ? (
+            <section className="mention-prompt-section" aria-label="搜索结果">
+              {options.map((asset, index) => renderOption(asset, index, 'main'))}
+            </section>
+          ) : options.map((asset, index) => renderOption(asset, index, 'main'))}
         </ViewportPopover>
+      ) : null}
+      {!readOnly && mention && grouped && !searching && drilldown ? createPortal(
+        <div ref={submenuRef} id={`${listboxId}-submenu`} className="nori-viewport-popover mention-prompt-options is-grouped mention-prompt-submenu nodrag nowheel" role="listbox" aria-label={drilldown.label} style={{ position: 'fixed', visibility: 'hidden', zIndex: 2701, width: 300, maxHeight: 380, overflowY: 'auto', overscrollBehavior: 'contain', boxSizing: 'border-box' }} onPointerDown={(event) => event.stopPropagation()}>
+          {submenuAssets.length > 0
+            ? submenuAssets.map((asset, index) => renderOption(asset, index, 'sub'))
+            : <div className="mention-prompt-empty px-2 py-3 text-center text-[11px] text-[var(--fos-text-4)]">该分类暂无素材</div>}
+        </div>,
+        document.body,
       ) : null}
       {hint ? <div className="mention-prompt-hint mt-1 text-[11px] text-[var(--fos-text-4)]">{hint}</div> : null}
     </div>

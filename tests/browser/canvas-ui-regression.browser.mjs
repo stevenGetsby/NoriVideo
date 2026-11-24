@@ -5,13 +5,14 @@ import { createRequire } from 'node:module'
 import { mkdir, readFile } from 'node:fs/promises'
 import { createServer } from 'node:http'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 
 const root = process.cwd()
 const tools = createRequire(path.join(process.env.NORI_BROWSER_TOOLS_DIR || root, 'package.json'))
 const { chromium } = tools('playwright-core')
-const operations = await import(path.join(root, 'src/lib/canvas/operations.ts'))
+const operations = await import(pathToFileURL(path.join(root, 'src/lib/canvas/operations.ts')).href)
 const { validateCanvasOperationsSaveInput } = operations.default || operations
-const documentContract = await import(path.join(root, 'src/lib/canvas/document.ts'))
+const documentContract = await import(pathToFileURL(path.join(root, 'src/lib/canvas/document.ts')).href)
 const { validateCanvasDocumentSaveInput } = documentContract.default || documentContract
 const artifacts = path.join(root, 'test-results/canvas-ui-regression')
 await mkdir(artifacts, { recursive: true })
@@ -74,11 +75,19 @@ const browser = await chromium.launch({ headless: true, executablePath: process.
 const errors = []
 const cases = []
 let latestPage
+const capabilityCatalog = JSON.parse(await readFile(path.join(root, 'standards/capabilities/kuaizi.catalog.json'), 'utf8'))
+const capabilityEntries = Array.isArray(capabilityCatalog) ? capabilityCatalog : (capabilityCatalog.entries || capabilityCatalog.models || [])
+const capabilityVideo = capabilityEntries.find((entry) => entry.modelId === 'doubao-seedance-2-5-260628' && entry.modelType === 'video')?.capabilities?.video || {}
+assert.ok(capabilityVideo.durationOptions?.length >= 2 && capabilityVideo.resolutionOptions?.length && capabilityVideo.inputSchema, 'The capability catalog must provide the seedance-2-5 video options used by the duration assertions')
 const model = {
   modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
   supportGenerateAudio: true, firstLastFrame: true,
-  options: { duration: [4, 5, 6, 8, 10], resolution: ['480p', '720p'], aspectRatio: ['16:9', '9:16', '1:1'] },
-  inputSchema: { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
+  options: {
+    duration: capabilityVideo.durationOptions,
+    resolution: capabilityVideo.resolutionOptions,
+    aspectRatio: ['16:9', '9:16', '1:1'],
+  },
+  inputSchema: capabilityVideo.inputSchema,
 }
 const canvas = { id: 'canvas-1', projectId: 'project-1', title: '交互回归', revision: 0, viewport: { x: 0, y: 0, zoom: 1 }, themeColor: null, visibility: 'workspace', forkedFromId: null, createdAt: '2026-10-08T00:00:00.000Z', updatedAt: '2026-10-08T00:00:00.000Z' }
 const common = { canvasId: 'canvas-1', runId: null, mediaObjectId: null, parentNodeId: null }
@@ -104,6 +113,8 @@ async function open(viewport, query = '') {
   page.releaseStaleAccountRead = () => releaseHeldRead?.()
   let failNextVideoGeneration = false
   page.failNextVideoGeneration = () => { failNextVideoGeneration = true }
+  let durationOverride = null
+  page.setDurationOptions = (values) => { durationOverride = values }
   let failNextRecoverySave = false
   page.failNextRecoverySave = () => { failNextRecoverySave = true }
   let failNextRecoveryConflict = false
@@ -139,7 +150,10 @@ async function open(viewport, query = '') {
     if (!url.pathname.startsWith('/api/')) return route.continue()
     if (url.pathname === '/api/storage/sign') return route.continue()
     let payload
-    if (url.pathname.endsWith('/generation-config')) payload = { textModels: [], imageModels: [], videoModels: [model], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+    if (url.pathname.endsWith('/generation-config')) {
+      const servedModel = durationOverride ? { ...model, options: { ...model.options, duration: durationOverride } } : model
+      payload = { textModels: [], imageModels: [], videoModels: [servedModel], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+    }
     else if (url.pathname === '/api/interactive') payload = query.includes('story') ? { story: { workId: 'work-story', name: '回归分镜', aspectRatio: '16:9', resolution: '1080p', canManage: true, config: { variables: [] }, chapters: [{ projectId: 'project-1', name: '第一章' }] } } : { story: null }
     else if (url.pathname.endsWith('/generate') && route.request().method() === 'POST') {
       const body = route.request().postDataJSON()
@@ -593,45 +607,29 @@ try {
   assert.ok(await comparison.locator('.react-flow__node[data-id="gen-1"] video').count(), 'The original generated video must remain')
   assert.equal(await comparison.locator('.react-flow__node[data-id="ref-1"]').count(), 1, 'Reference nodes must not be duplicated')
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.classList.contains('is-node-anchored'))
-  const anchorBeforeDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.ok(anchorBeforeDrag.left && anchorBeforeDrag.top && anchorBeforeDrag.maxHeight, 'The visible generator must be anchored with settled geometry')
-  assert.equal(anchorBeforeDrag.placement, 'below')
+  const readAnchorTransform = () => comparison.evaluate(() => document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '')
+  const anchorBeforeDrag = await readAnchorTransform()
+  assert.ok(anchorBeforeDrag.startsWith('translate('), 'The visible generator must ride a flow-space anchor inside the viewport transform')
+  assert.ok(await comparison.locator('.react-flow__viewport-portal .nori-canvas-generator').count(), 'The generator must render through the ReactFlow viewport portal')
   const dragHandle = await comparison.locator('.react-flow__node[data-id="gen-1"] .nori-canvas-node-drag-handle').boundingBox()
   await comparison.mouse.move(dragHandle.x + dragHandle.width / 2, dragHandle.y + dragHandle.height / 2)
   await comparison.mouse.down()
   await comparison.mouse.move(dragHandle.x + 100, dragHandle.y + 420, { steps: 8 })
   await comparison.waitForFunction(() => document.querySelector('.nori-canvas-workspace')?.classList.contains('is-node-dragging'))
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'hidden')
-  const anchorDuringDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.deepEqual(anchorDuringDrag, anchorBeforeDrag, 'The hidden generator must freeze its anchored geometry for the whole gesture, including before a vertical flip')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'hidden', 'The generator stays hidden for the whole node drag gesture')
   await comparison.mouse.up()
   await comparison.waitForFunction(() => getComputedStyle(document.querySelector('.nori-story-bar')).visibility === 'visible')
   await comparison.waitForFunction(
-    (frozen) => document.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight !== frozen,
-    anchorBeforeDrag.maxHeight,
+    (before) => (document.querySelector('.nori-canvas-generator-anchor')?.style.transform || '') !== before,
+    anchorBeforeDrag,
     { timeout: 5000 },
   )
-  await comparison.waitForFunction(() => document.querySelector('.nori-canvas-generator')?.getAttribute('data-anchor-placement') === 'above', undefined, { timeout: 5000 })
-  const anchorAfterDrag = await comparisonGenerator.evaluate((element) => ({
-    left: element.style.left,
-    top: element.style.top,
-    placement: element.getAttribute('data-anchor-placement'),
-    maxHeight: element.querySelector('.nori-canvas-generator-scroll')?.style.maxHeight || '',
-  }))
-  assert.equal(anchorAfterDrag.placement, 'above', 'Dragging the node down must flip the settled anchor above the node')
-  assert.notEqual(anchorAfterDrag.maxHeight, anchorBeforeDrag.maxHeight, 'The anchored panel must re-measure once the drag settles instead of keeping the frozen height')
+  const anchorAfterDrag = await readAnchorTransform()
+  assert.notEqual(anchorAfterDrag, anchorBeforeDrag, 'The flow-space anchor must follow the node to its new position after the drag settles')
+  assert.equal(await comparisonGenerator.evaluate((element) => getComputedStyle(element).visibility), 'visible', 'The generator restores after the drag without any frozen screen geometry')
   await comparison.screenshot({ path: path.join(artifacts, 'video-comparison-storyboard-restored.png') })
-  cases.push('video comparison preserves source and input wires; storyboard and anchored generator freeze while hidden and re-measure after drag')
+  cases.push('video comparison preserves source and input wires; generator rides the viewport transform, hides during node drag, and follows the node afterwards')
   await comparison.close()
 
   const failedComparison = await open({ width: 1440, height: 900 }, '?story=1&superresolve=720p')
@@ -813,12 +811,17 @@ try {
   await secondaryPrompt.pressSequentially('@')
   const secondaryMentions = secondary.getByRole('listbox', { name: '@ 素材', exact: true })
   await secondaryMentions.waitFor()
-  await secondary.waitForFunction(() => document.querySelectorAll('[role="option"]').length >= 2)
-  assert.equal(await secondaryMentions.getByRole('option').count(), 2, 'Only the direct input and one extra upstream hop may be offered')
-  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '已连接节点' }).count(), 1)
-  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '二级连接节点' }).count(), 1)
-  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材1' }).innerText()).includes('已连接节点'))
-  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材2' }).innerText()).includes('二级连接节点'))
+  await secondary.waitForFunction(() => document.querySelectorAll('.mention-prompt-option').length >= 2)
+  assert.equal(await secondaryMentions.locator('.mention-prompt-option').count(), 2, 'Only the direct input and one extra upstream hop may be offered')
+  assert.equal(await secondaryMentions.locator('h3').filter({ hasText: '已引用' }).count(), 1)
+  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材1' }).innerText()).includes('#1'))
+  await secondaryMentions.getByRole('option', { name: /参考素材2/ }).waitFor()
+  assert.ok((await secondaryMentions.getByRole('option').filter({ hasText: '参考素材2' }).innerText()).includes('#2'), 'Second-hop references must continue the shortcut numbering')
+  await secondaryPrompt.press('2')
+  assert.equal(await secondaryPrompt.inputValue(), '@参考素材2 ', 'Digit shortcuts must select second-hop references too')
+  await secondaryPrompt.fill('')
+  await secondaryPrompt.pressSequentially('@')
+  await secondaryMentions.waitFor()
   await secondaryPrompt.pressSequentially('林')
   await secondaryMentions.getByRole('option', { name: /林夏/ }).first().waitFor()
   await secondary.keyboard.press('Escape')
@@ -925,31 +928,152 @@ try {
     await bounded(parameters, 'Parameter popover')
     assert.equal(await parameters.evaluate((el) => el.parentElement === document.body), true)
     await page.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-parameters.png`) })
-    await parameters.getByLabel('视频时长').selectOption('8')
+    const durationRange = parameters.getByLabel('视频时长滑杆')
+    assert.equal(await durationRange.getAttribute('min'), '4', 'The slider range must start at the model minimum')
+    assert.equal(await durationRange.getAttribute('max'), '30', 'The slider range must follow the model capability maximum')
+    await durationRange.focus()
+    await page.keyboard.press('ArrowRight')
+    await page.keyboard.press('ArrowRight')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '7', 'Arrow keys on the duration slider must step through model-supported seconds')
+    assert.equal(await durationRange.inputValue(), '7', 'The slider thumb must stay in sync with keyboard steps')
+    await page.keyboard.press('ArrowRight')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Keyboard steps must keep walking supported seconds')
+    await page.keyboard.press('Home')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '4', 'Home must jump to the model minimum')
+    await page.keyboard.press('End')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'End must jump to the model maximum')
+    await parameters.locator('.nori-canvas-duration-tick').filter({ hasText: /^10$/ }).click()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '10', 'Clicking a labeled slider tick must jump to that second')
+    assert.equal(await durationRange.inputValue(), '10', 'Clicking a tick must move the thumb')
+    await parameters.locator('.nori-canvas-duration-tick[aria-label="12 秒"]').click()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '12', 'Unlabeled ticks must remain clickable for every second')
+    const rangeBox = await durationRange.boundingBox()
+    await page.mouse.move(rangeBox.x + rangeBox.width - 2, rangeBox.y + rangeBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(rangeBox.x + 2, rangeBox.y + rangeBox.height / 2, { steps: 6 })
+    await page.mouse.up()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '4', 'Dragging the slider to the left end must clamp to the model minimum')
+    assert.equal(await durationRange.inputValue(), '4', 'The thumb must settle on the committed value after a drag')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('8')
+    assert.equal(await durationRange.inputValue(), '8', 'Typing a duration must move the slider thumb')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('40')
+    await parameters.getByLabel('视频时长', { exact: true }).blur()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'Blurring an out-of-range typed value must clamp to the model maximum')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('')
+    await parameters.getByLabel('视频时长', { exact: true }).blur()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '30', 'Blurring an empty duration must keep the current setting')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('8')
     await parameters.getByRole('button', { name: '关闭生成参数' }).click()
     assert.equal(await parameters.count(), 0)
     assert.ok((await generator.locator('.nori-canvas-parameter-trigger').textContent()).includes('8s'))
     await generator.getByRole('button', { name: '生成参数', exact: true }).click()
-    await parameters.getByLabel('视频时长').focus()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Reopening the popover must show the committed duration in the number box')
+    assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '8', 'Reopening the popover must mount the thumb at the committed duration')
+    await parameters.getByLabel('视频时长', { exact: true }).focus()
     await page.keyboard.press('Escape')
     assert.equal(await parameters.count(), 0)
     assert.equal(await generator.count(), 1, 'Escape must close parameters without deselecting the node')
+    await generator.getByRole('button', { name: '生成参数', exact: true }).click()
+    const aspectGroup = parameters.getByRole('group', { name: '画面比例' })
+    await aspectGroup.getByRole('button', { name: '9:16' }).click()
+    assert.equal(await aspectGroup.getByRole('button', { name: '9:16' }).getAttribute('aria-pressed'), 'true')
+    const modeGroup = parameters.getByRole('group', { name: '生成模式' })
+    await modeGroup.getByRole('button', { name: '首尾帧' }).click()
+    await page.waitForFunction(() => document.querySelector('.nori-canvas-parameter-trigger')?.textContent?.includes('adaptive'))
+    assert.equal(await aspectGroup.getByRole('button', { name: '自适应' }).getAttribute('aria-pressed'), 'true', 'First/last frame mode must clamp the ratio to adaptive')
+    await parameters.getByLabel('视频时长', { exact: true }).fill('6')
+    await parameters.getByLabel('视频时长', { exact: true }).blur()
+    await modeGroup.getByRole('button', { name: '全能参考' }).click()
+    await aspectGroup.getByRole('button', { name: '9:16' }).waitFor()
+    assert.equal(await aspectGroup.getByRole('button', { name: '9:16' }).getAttribute('aria-pressed'), 'true', 'Returning to all-reference mode must restore the remembered ratio')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Returning to all-reference mode must restore the remembered duration')
+    assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '8', 'The restored duration must move the thumb')
+    await parameters.getByLabel('视频时长滑杆').focus()
+    await page.keyboard.press('ArrowRight')
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '9', 'Keyboard steps after a mode restore must start from the restored duration')
+    await parameters.getByLabel('视频时长滑杆').blur()
+    assert.equal(await parameters.getByLabel('视频时长滑杆').inputValue(), '9', 'Blurring the slider after a mode restore must not rewind the thumb')
+    await modeGroup.getByRole('button', { name: '首尾帧' }).click()
+    await page.waitForFunction(() => document.querySelector('.nori-canvas-parameter-trigger')?.textContent?.includes('adaptive'))
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'First/last frame mode must restore its own remembered duration')
+    await modeGroup.getByRole('button', { name: '全能参考' }).click()
+    await aspectGroup.getByRole('button', { name: '9:16' }).waitFor()
+    assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '9', 'All-reference mode must keep its latest duration across round trips')
+    await modeGroup.getByRole('button', { name: '图生视频' }).click()
+    assert.equal(await aspectGroup.getByRole('button', { name: '9:16' }).getAttribute('aria-pressed'), 'true', 'Image-to-video keeps the shared ratio list')
+    await modeGroup.getByRole('button', { name: '全能参考' }).click()
+    await aspectGroup.getByRole('button', { name: '16:9' }).click()
+    await parameters.getByRole('button', { name: '关闭生成参数' }).click()
+    cases.push('parameter popover: duration slider + per-mode parameter memory')
+    if (viewport.width === 1280 && viewport.height === 720) {
+      const triggerBox = await generator.getByRole('button', { name: '生成参数', exact: true }).boundingBox()
+      assert.ok(triggerBox && triggerBox.width >= 96, 'The parameter trigger must keep a usable click width on narrow panels')
+      const anchorLeft = triggerBox.x
+      const dismissRecoveryAfterReload = async () => {
+        const recoveryDialog = page.locator('.nori-canvas-offline-recovery-dialog')
+        try {
+          await recoveryDialog.waitFor({ timeout: 3000 })
+          await recoveryDialog.getByRole('button', { name: '使用服务器', exact: true }).click()
+          await recoveryDialog.waitFor({ state: 'detached' })
+        } catch {}
+      }
+      page.setDurationOptions([4, 5, 6, 8, 10])
+      await page.reload()
+      await generator.waitFor()
+      await dismissRecoveryAfterReload()
+      await generator.getByRole('button', { name: '生成参数', exact: true }).click()
+      await parameters.waitFor()
+      const sparseRange = parameters.getByLabel('视频时长滑杆')
+      assert.equal(await sparseRange.getAttribute('max'), '10', 'A sparse capability list must shrink the slider maximum')
+      await sparseRange.focus()
+      await page.keyboard.press('ArrowRight')
+      await page.keyboard.press('ArrowRight')
+      assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '8', 'Keyboard steps must skip seconds the model does not support')
+      await parameters.getByLabel('视频时长', { exact: true }).fill('7')
+      await parameters.getByLabel('视频时长', { exact: true }).blur()
+      assert.equal(await parameters.getByLabel('视频时长', { exact: true }).inputValue(), '6', 'An unsupported typed second must snap to the nearest supported value')
+      const sparseTriggerBox = await generator.getByRole('button', { name: '生成参数', exact: true }).boundingBox()
+      assert.ok(sparseTriggerBox && Math.abs(sparseTriggerBox.x - anchorLeft) < 1, 'Capability changes must not shift the parameter anchor')
+      await parameters.getByRole('button', { name: '关闭生成参数' }).click()
+      page.setDurationOptions(null)
+      await page.reload()
+      await generator.waitFor()
+      await dismissRecoveryAfterReload()
+      cases.push('sparse duration capability: keyboard skips, typed snap, stable anchor')
+    }
     const prompt = generator.locator('textarea[role="combobox"]')
+    const editorContextMenu = await prompt.evaluate((element) => {
+      const box = element.getBoundingClientRect()
+      const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: box.left + 24, clientY: box.top + 12 })
+      element.dispatchEvent(event)
+      return { prevented: event.defaultPrevented, paneMenu: Boolean(document.querySelector('[role="menu"][aria-label="画布操作"]')), nodeMenu: Boolean(document.querySelector('[role="menu"][aria-label="节点操作"]')) }
+    })
+    assert.equal(editorContextMenu.prevented, false, 'Right-click inside the portaled editor must keep the native context menu')
+    assert.equal(editorContextMenu.paneMenu || editorContextMenu.nodeMenu, false, 'The canvas context menu must not open from the editor')
+    cases.push('portaled editor right-click keeps the native menu')
     await prompt.fill('让角色走入雨夜，')
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
     await prompt.pressSequentially('@')
     const mentions = page.getByRole('listbox', { name: '@ 素材', exact: true })
     await mentions.waitFor()
     await bounded(mentions, '@ picker')
-    await mentions.getByRole('button', { name: '角色 1', exact: true }).waitFor()
-    assert.ok(await mentions.getByRole('button', { name: '收藏 1', exact: true }).count())
-    assert.equal(await mentions.getByRole('option').count(), 1, 'Only the actual wired canvas node is initially selectable')
-    assert.ok((await mentions.getByRole('option').textContent()).includes('参考素材1'))
+    await mentions.getByRole('option', { name: /^角色/ }).waitFor()
+    assert.ok(await mentions.getByRole('option', { name: /^收藏/ }).count())
+    assert.ok(await mentions.getByRole('option', { name: /^图片/ }).count())
+    assert.equal(await mentions.locator('.mention-prompt-option').count(), 1, 'Only the actual wired canvas node is initially listed in the root menu')
+    assert.ok((await mentions.locator('.mention-prompt-option').textContent()).includes('参考素材1'))
     await mentions.screenshot({ path: path.join(artifacts, `${viewport.width}x${viewport.height}-mentions.png`) })
-    await mentions.getByRole('button', { name: '角色 1', exact: true }).click()
+    const characterRow = mentions.getByRole('option', { name: /^角色/ })
+    await characterRow.hover()
+    const characterSubmenu = page.getByRole('listbox', { name: '角色', exact: true })
+    await characterSubmenu.waitFor()
+    assert.equal(await characterSubmenu.evaluate((element) => element.parentElement === document.body), true, 'The category submenu must portal beside the root menu')
+    const submenuBox = await characterSubmenu.boundingBox()
+    const menuBox = await mentions.boundingBox()
+    assert.ok(submenuBox && menuBox && submenuBox.x + submenuBox.width <= menuBox.x + 1, 'The submenu must sit beside the root menu without covering it')
     const nodeCountBeforeLibrary = await page.locator('.react-flow__node').count()
     const edgeCountBeforeLibrary = await page.locator('.react-flow__edge').count()
-    await mentions.getByRole('option', { name: /林夏/ }).click()
+    await characterSubmenu.getByRole('option', { name: /林夏/ }).click()
     assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 ')
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountBeforeLibrary)
     await page.waitForFunction(() => document.querySelectorAll('.react-flow__node[data-id="gen-1"]').length === 1)
@@ -965,7 +1089,8 @@ try {
     assert.equal(await page.locator('.react-flow__edge').count(), edgeCountAfterLibrary, 'Selecting the same library material must reuse its existing edge')
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
     await prompt.pressSequentially('@雨')
-    await page.getByRole('option', { name: /雨夜街巷/ }).waitFor()
+    const locationMatch = page.getByRole('option', { name: /雨夜街巷/ })
+    await locationMatch.waitFor()
     await page.keyboard.press('Enter')
     assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 ')
     await page.waitForFunction((before) => document.querySelectorAll('.react-flow__node').length === before + 1, nodeCountAfterLibrary)
@@ -973,6 +1098,19 @@ try {
     await generator.getByRole('button', { name: /雨夜街巷/ }).waitFor()
     const nodeCountAfterTwoMaterials = await page.locator('.react-flow__node').count()
     const edgeCountAfterTwoMaterials = await page.locator('.react-flow__edge').count()
+    await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
+    await prompt.pressSequentially('@')
+    const searchMentions = page.getByRole('listbox', { name: '@ 素材', exact: true })
+    await searchMentions.waitFor()
+    const mentionSearch = searchMentions.getByLabel('搜索素材')
+    await mentionSearch.click()
+    await mentionSearch.pressSequentially('雨')
+    await searchMentions.getByRole('option', { name: /雨夜街巷/ }).first().waitFor()
+    assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 @雨', 'Typing in the menu search box must drive the @query in the prompt')
+    await page.keyboard.press('Enter')
+    assert.equal(await prompt.inputValue(), '让角色走入雨夜，@林夏 @林夏 @雨夜街巷 @雨夜街巷 ')
+    assert.equal(await page.locator('.react-flow__node').count(), nodeCountAfterTwoMaterials, 'Search selection must reuse the existing canvas node')
+    assert.equal(await page.locator('.react-flow__edge').count(), edgeCountAfterTwoMaterials, 'Search selection must reuse the existing edge')
     await generator.getByRole('button', { name: '添加引用素材', exact: true }).click()
     const picker = page.getByRole('dialog', { name: '选择引用素材', exact: true })
     await picker.waitFor()
@@ -1030,14 +1168,36 @@ try {
     await page.mouse.click(panStart.x, panStart.y)
     await page.keyboard.down('Space')
     await page.locator('.react-flow__pane.draggable').waitFor()
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), true, 'Holding Space must arm the grabbing cursor')
     await page.mouse.down()
     await page.mouse.move(panStart.x - 90, panStart.y + 45, { steps: 8 })
     assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Space panning must never draw the custom marquee')
+    assert.equal(await page.locator('.react-flow__pane').evaluate((element) => getComputedStyle(element).cursor), 'grabbing', 'Panning must show the grabbing cursor')
     await page.waitForFunction((before) => document.querySelector('.react-flow__viewport')?.style.transform !== before, viewportBeforePan)
     assert.notEqual(await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform), viewportBeforePan, 'Space+left drag must actually pan')
     await page.mouse.up()
     await page.keyboard.up('Space')
     assert.equal(await page.locator('.nori-canvas-marquee').count(), 0, 'Releasing a Space pan must not leave a marquee')
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), false, 'Releasing Space must restore the default cursor')
+
+    const middlePanStart = { x: pane.x + pane.width - 140, y: pane.y + 400 }
+    const viewportBeforeMiddlePan = await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform)
+    await page.mouse.move(middlePanStart.x, middlePanStart.y)
+    await page.mouse.down({ button: 'middle' })
+    await page.mouse.move(middlePanStart.x + 70, middlePanStart.y - 40, { steps: 6 })
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), true, 'Middle-button drag must arm the grabbing cursor')
+    assert.equal(await page.locator('.react-flow__pane').evaluate((element) => getComputedStyle(element).cursor), 'grabbing', 'Middle-button panning must show the grabbing cursor')
+    await page.mouse.up({ button: 'middle' })
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), false, 'Releasing the middle button must restore the default cursor')
+    assert.notEqual(await page.locator('.react-flow__viewport').first().evaluate((element) => element.style.transform), viewportBeforeMiddlePan, 'Middle-button drag must pan the canvas')
+    await page.mouse.move(middlePanStart.x, middlePanStart.y)
+    await page.mouse.down({ button: 'middle' })
+    await page.mouse.move(middlePanStart.x + 30, middlePanStart.y - 20, { steps: 3 })
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), true, 'A second middle drag must arm the grabbing cursor again')
+    await page.evaluate(() => document.querySelector('.nori-canvas-workspace')?.dispatchEvent(new PointerEvent('pointercancel', { pointerId: 1, bubbles: true })))
+    await page.mouse.up({ button: 'middle' })
+    assert.equal(await page.locator('.nori-canvas-surface').evaluate((element) => element.classList.contains('is-panning')), false, 'A cancelled middle drag must restore the default cursor')
+    cases.push('grabbing cursor for Space and middle-button panning')
 
     const selectionBefore = await page.locator('.react-flow__node.selected').count()
     await page.mouse.move(pane.x + pane.width - 160, pane.y + 120)
