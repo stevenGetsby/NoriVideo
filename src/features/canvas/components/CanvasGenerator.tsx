@@ -38,7 +38,6 @@ import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { MediaImage } from '@/components/media/MediaImage'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
-import { scanPromptMentions } from '@/lib/prompt-mentions'
 import { fetchAllFrameosMaterials } from '@/components/frameos/materials/fetch-all-materials'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import {
@@ -85,9 +84,11 @@ import {
   buildCanvasMentionAssets,
   canvasMentionCategoryLabel,
   mergeCanvasReferenceNodeIds,
+  resolveCanvasMentionNameOwners,
   shouldBindCanvasMentionReference,
   type CanvasMentionAsset,
   type CanvasMentionMediaType,
+  type CanvasMentionNameSelection,
 } from './canvas-mention-references'
 
 type ModelOption = {
@@ -472,6 +473,7 @@ export function CanvasGenerator({
   const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
   const lastDraftSignatureRef = useRef('')
+  const mentionSelectionsRef = useRef<Map<string, CanvasMentionNameSelection>>(new Map())
   const panelResizeCleanupRef = useRef<(() => void) | null>(null)
   const closeEditorRef = useRef<() => void>(() => undefined)
 
@@ -558,6 +560,7 @@ export function CanvasGenerator({
     hydratedInputRef.current = node.id
     skipDraftPersistenceRef.current = true
     lastDraftSignatureRef.current = ''
+    mentionSelectionsRef.current.clear()
     setPrompt(node.data.prompt || '')
     setModelKey(node.data.generation?.modelKey || '')
     setAspectRatio(isPanorama
@@ -874,6 +877,14 @@ export function CanvasGenerator({
     ]
   }
 
+  // The editor's pick is the user's explicit choice of which reference owns a
+  // name; keep it so submit never re-guesses ownership by media type.
+  const rememberMentionSelection = (nodeId: string | undefined, name: string) => {
+    if (!nodeId) return
+    const key = name.trim().toLocaleLowerCase()
+    if (key) mentionSelectionsRef.current.set(key, { nodeId, name })
+  }
+
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
     const mentionAsset = asset as CanvasMentionAsset
     let nodeId = asset.id
@@ -892,6 +903,7 @@ export function CanvasGenerator({
     const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, nodeId)
     const errors = referenceErrors(nextReferenceNodeIds, false)
     if (errors.length > 0) { setError(errors[0]); return false }
+    rememberMentionSelection(nodeId, asset.name)
     setError(null)
     setPrompt(nextPrompt)
     setReferenceNodeIds(nextReferenceNodeIds)
@@ -900,6 +912,7 @@ export function CanvasGenerator({
   const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
     if (!shouldBindCanvasMentionReference(type)) return true
     let nextIds = referenceNodeIds
+    const pastedSelections: CanvasMentionNameSelection[] = []
     for (const asset of matched) {
       const mentionAsset = asset as CanvasMentionAsset
       let nodeId = asset.id
@@ -910,6 +923,7 @@ export function CanvasGenerator({
           return false
         }
       }
+      if (nodeId) pastedSelections.push({ nodeId, name: asset.name })
       nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
     }
     const errors = referenceErrors(nextIds, false)
@@ -917,6 +931,7 @@ export function CanvasGenerator({
       setError(errors[0])
       return false
     }
+    for (const selection of pastedSelections) rememberMentionSelection(selection.nodeId, selection.name)
     setError(null)
     setReferenceNodeIds(nextIds)
     return true
@@ -1000,47 +1015,13 @@ export function CanvasGenerator({
     // Scan the exact submit text and travel the names with each reference node.
     const mentionNamesByNodeId: Record<string, string[]> = {}
     if (shouldBindCanvasMentionReference(type)) {
-      // Only submitted references can carry a name to the worker. Within them,
-      // an image owns a shared name before a voice/motion clip so character
-      // text binds to 图N; library aliases of one material count as one entry.
-      const submittedMaterialIds = new Set(
-        referenceNodes
-          .filter((item) => referenceNodeIds.includes(item.id))
-          .map((item) => (typeof item.data.materialId === 'string' ? item.data.materialId.trim() : ''))
-          .filter(Boolean),
-      )
-      const mentionNameRank = (asset: (typeof mentionAssets)[number]) => (
-        asset.mediaType === 'image' ? 0 : 1
-      )
-      const mentionNameToNodeId = new Map<string, string>()
-      const mentionNameRanks = new Map<string, number>()
-      const nameCandidates = mentionAssets
-        .filter((asset) => (asset.section === 'library'
-          ? Boolean(asset.materialId && submittedMaterialIds.has(asset.materialId))
-          : referenceNodeIds.includes(asset.id)))
-        .sort((left, right) => mentionNameRank(left) - mentionNameRank(right))
-      for (const asset of nameCandidates) {
-        const key = asset.name.trim().toLocaleLowerCase()
-        if (!key) continue
-        const rank = mentionNameRank(asset)
-        if (!mentionNameToNodeId.has(key) || rank < (mentionNameRanks.get(key) ?? Infinity)) {
-          mentionNameToNodeId.set(key, asset.section === 'library' && asset.materialId
-            ? `material:${asset.materialId}`
-            : asset.id)
-          mentionNameRanks.set(key, rank)
-        }
-      }
-      for (const match of scanPromptMentions(cleanPrompt, mentionAssets.map((asset) => asset.name))) {
-        if (match.name === null) continue
-        const owner = mentionNameToNodeId.get(match.name.toLocaleLowerCase())
-        if (!owner) continue
-        const nodeId = owner.startsWith('material:')
-          ? referenceNodeIds.find((id) => referenceNodes.find((item) => item.id === id)?.data.materialId === owner.slice('material:'.length))
-          : owner
-        if (!nodeId) continue
-        const names = mentionNamesByNodeId[nodeId] || (mentionNamesByNodeId[nodeId] = [])
-        if (!names.includes(match.name)) names.push(match.name)
-      }
+      Object.assign(mentionNamesByNodeId, resolveCanvasMentionNameOwners(
+        cleanPrompt,
+        mentionAssets,
+        referenceNodeIds,
+        referenceNodes,
+        [...mentionSelectionsRef.current.values()],
+      ))
     }
     // Commit the current draft before autosave builds the generation snapshot.
     // Otherwise the revision may be acknowledged before newly added references

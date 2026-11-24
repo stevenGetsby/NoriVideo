@@ -1,6 +1,7 @@
 import type { MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { FRAMEOS_ASSET_CATEGORY_LABELS, frameosAssetCategoryFromMetadata, type FrameosAssetCategory } from '@/lib/frameos/material-category'
+import { normalizePromptMentionName, scanPromptMentions } from '@/lib/prompt-mentions'
 import type { CanvasFlowNode } from '../editor-types'
 
 export type CanvasMentionMediaType = 'image' | 'video' | 'audio'
@@ -199,4 +200,72 @@ export function buildCanvasLibraryMentionAssets(
 export function mergeCanvasReferenceNodeIds(current: string[], nodeId: string | undefined): string[] {
   if (!nodeId || current.includes(nodeId)) return current
   return [...current, nodeId]
+}
+
+export interface CanvasMentionNameSelection {
+  nodeId: string
+  name: string
+}
+
+/**
+ * Resolves which submitted reference owns each explicit @name in the submit
+ * text. Ownership priority:
+ * 1. the node the editor actually bound when the name was picked (recorded
+ *    selections) — a voice explicitly picked as @沈娇 keeps it even when an
+ *    image material carries 沈娇 as a library alias;
+ * 2. submitted canvas-node editor names, images before voice/motion clips;
+ * 3. library aliases of submitted materials, images first, one entry per
+ *    material (favorites and category rows share the same material).
+ * Material ids are normalized once so admission and the material→node
+ * reverse lookup can never disagree on whitespace.
+ */
+export function resolveCanvasMentionNameOwners(
+  prompt: string,
+  assets: readonly CanvasMentionAsset[],
+  referenceNodeIds: readonly string[],
+  referenceNodes: readonly CanvasFlowNode[],
+  selections: readonly CanvasMentionNameSelection[] = [],
+): Record<string, string[]> {
+  const submittedNodeIds = new Set(referenceNodeIds)
+  const nodeIdByMaterialId = new Map<string, string>()
+  for (const id of referenceNodeIds) {
+    const node = referenceNodes.find((item) => item.id === id)
+    const materialId = typeof node?.data.materialId === 'string' ? node.data.materialId.trim() : ''
+    if (materialId && !nodeIdByMaterialId.has(materialId)) nodeIdByMaterialId.set(materialId, id)
+  }
+  const ownerByName = new Map<string, string>()
+  const rankByName = new Map<string, number>()
+  const claim = (rawName: string, nodeId: string, rank: number) => {
+    const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
+    if (!key) return
+    if (!ownerByName.has(key) || rank < (rankByName.get(key) ?? Infinity)) {
+      ownerByName.set(key, nodeId)
+      rankByName.set(key, rank)
+    }
+  }
+  for (const selection of selections) {
+    if (submittedNodeIds.has(selection.nodeId)) claim(selection.name, selection.nodeId, 0)
+  }
+  const mediaRank = (asset: CanvasMentionAsset) => (asset.mediaType === 'image' ? 0 : 1)
+  const nodeCandidates = assets
+    .filter((asset) => asset.section !== 'library' && submittedNodeIds.has(asset.id))
+    .sort((left, right) => mediaRank(left) - mediaRank(right))
+  for (const asset of nodeCandidates) claim(asset.name, asset.id, 1 + mediaRank(asset))
+  const libraryCandidates = assets
+    .filter((asset) => (asset.section === 'library'
+      && Boolean(asset.materialId && nodeIdByMaterialId.has(asset.materialId.trim()))))
+    .sort((left, right) => mediaRank(left) - mediaRank(right))
+  for (const asset of libraryCandidates) {
+    const nodeId = nodeIdByMaterialId.get((asset.materialId || '').trim())
+    if (nodeId) claim(asset.name, nodeId, 3 + mediaRank(asset))
+  }
+  const namesByNodeId: Record<string, string[]> = {}
+  for (const match of scanPromptMentions(prompt, assets.map((asset) => asset.name))) {
+    if (match.name === null) continue
+    const nodeId = ownerByName.get(match.name.toLocaleLowerCase())
+    if (!nodeId || !submittedNodeIds.has(nodeId)) continue
+    const names = namesByNodeId[nodeId] || (namesByNodeId[nodeId] = [])
+    if (!names.includes(match.name)) names.push(match.name)
+  }
+  return namesByNodeId
 }
