@@ -1,3 +1,5 @@
+import { createBarePromptNameMatcher, scanPromptMentions } from '@/lib/prompt-mentions'
+
 import { scanPromptMentions } from '@/lib/prompt-mentions'
 
 export interface MentionPromptName {
@@ -47,6 +49,15 @@ function mentionTokenEnd(value: string, start: number): number {
   let index = start
   while (index < value.length && !MENTION_TOKEN_BREAK.test(value[index])) index += 1
   return index
+}
+
+/**
+ * Full extent of the @token starting at `start`, independent of the caret.
+ * Session validation uses this so a caret parked mid-token never invalidates
+ * an otherwise intact query.
+ */
+export function promptMentionTokenEnd(value: string, start: number): number {
+  return mentionTokenEnd(value, start + 1)
 }
 
 /** True when every character of `value` appears in `target` in order. */
@@ -235,4 +246,51 @@ export function splitPromptMentionParts(
   if (cursor < value.length) parts.push({ text: value.slice(cursor), mention: false })
 
   return parts.length > 0 ? parts : [{ text: value, mention: false }]
+}
+
+/**
+ * Applies the paste path against the live value/selection. Returns null when
+ * the pasted text has no known asset name, so the browser can paste normally.
+ */
+export function pastePromptAssets(
+  value: string,
+  selectionStart: number,
+  selectionEnd: number,
+  pastedText: string,
+  assets: readonly MentionPromptName[],
+): { value: string; cursor: number; matched: string[] } | null {
+  if (!pastedText) return null
+  const start = clampIndex(selectionStart, value.length)
+  const end = Math.max(start, clampIndex(selectionEnd, value.length))
+  const result = matchPromptAssetNames(pastedText, assets)
+  if (result.matched.length === 0) return null
+  let inserted = result.value
+  // Typing @ and then pasting a known name must not produce @@name.
+  if (start > 0 && value[start - 1] === '@' && inserted.startsWith('@')) inserted = inserted.slice(1)
+  return {
+    value: `${value.slice(0, start)}${inserted}${value.slice(end)}`,
+    cursor: start + inserted.length,
+    matched: result.matched,
+  }
+}
+
+export function matchPromptAssetNames(
+  value: string,
+  assets: readonly MentionPromptName[],
+): { value: string; matched: string[] } {
+  const names = [...new Set(assets.map((asset) => asset.name.trim().replace(/^@+/, '')).filter(Boolean))]
+  const mentions = scanPromptMentions(value, names)
+  const findMatches = createBarePromptNameMatcher(value)
+  const candidates = names.flatMap((name) => Array.from(findMatches(name), (span) => ({ ...span, name })))
+    .sort((left, right) => left.start - right.start || right.end - left.end)
+  const matched = new Set<string>()
+  let result = ''
+  let cursor = 0
+  for (const { start, end, name } of candidates) {
+    if (start < cursor || mentions.some((mention) => start < mention.end && end > mention.start)) continue
+    result += value.slice(cursor, start) + '@' + value.slice(start, end)
+    cursor = end
+    matched.add(name)
+  }
+  return { value: result + value.slice(cursor), matched: [...matched] }
 }

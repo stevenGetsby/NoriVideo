@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { CanvasGenerator } from '../../src/features/canvas/components/CanvasGenerator'
 import { CanvasNodeVideo } from '../../src/features/canvas/nodes/CanvasNodeVideo'
 import type { CanvasFlowNode } from '../../src/features/canvas/editor-types'

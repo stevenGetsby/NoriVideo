@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   type WheelEvent as ReactWheelEvent,
@@ -64,6 +65,35 @@ import {
   type CanvasVideoEditorMode,
   type CanvasVideoSuperresolveTarget,
 } from '@/lib/canvas/generator-options'
+
+type VideoModeParameters = {
+  aspectRatio: string
+  resolution: string
+  duration: number
+  fps: number | null
+  superresolveTarget: CanvasVideoSuperresolveTarget | null
+}
+
+const ASPECT_RATIO_THUMBNAILS: Record<string, { width: number; height: number }> = {
+  '16:9': { width: 26, height: 15 },
+  '4:3': { width: 22, height: 16 },
+  '1:1': { width: 18, height: 18 },
+  '3:4': { width: 16, height: 21 },
+  '9:16': { width: 13, height: 23 },
+  '21:9': { width: 28, height: 12 },
+  adaptive: { width: 20, height: 20 },
+}
+
+function aspectRatioThumbnail(value: string) {
+  return ASPECT_RATIO_THUMBNAILS[value] || ASPECT_RATIO_THUMBNAILS['16:9']
+}
+
+function snapDurationValue(options: readonly number[], value: number): number {
+  if (options.length === 0) return value
+  return options.reduce((nearest, option) => (
+    Math.abs(option - value) < Math.abs(nearest - value) ? option : nearest
+  ), options[0])
+}
 import {
   firstLastFrameInputSchema,
   imageToVideoInputSchema,
@@ -102,8 +132,10 @@ import {
   shouldBindCanvasMentionReference,
   type CanvasMentionAsset,
   type CanvasMentionMediaType,
+  type CanvasMentionNameSelection,
 } from './canvas-mention-references'
 import { describeUnknownPromptMentions, unknownPromptMentionMessage } from '@/lib/prompt-mentions'
+import { matchCanvasPromptAssets } from './canvas-auto-match'
 
 const ArrowUp = createIcon('ArrowUp', 'M205.66,117.66a8,8,0,0,1-11.32,0L136,59.31V216a8,8,0,0,1-16,0V59.31L61.66,117.66a8,8,0,0,1-11.32-11.32l72-72a8,8,0,0,1,11.32,0l72,72A8,8,0,0,1,205.66,117.66Z')
 
@@ -167,6 +199,24 @@ function materialReferenceSummary(id: string, material: FrameosMaterialItem): Ca
     previewUrl: material.url,
     ...(durationSeconds !== null ? { durationSeconds } : {}),
   }
+}
+
+/** Drafts persisted before this field existed simply carry no selections. */
+function readPersistedMentionSelections(generation: CanvasFlowNode['data']['generation']): CanvasMentionNameSelection[] {
+  const raw = generation?.referenceMentionSelections
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const selections: CanvasMentionNameSelection[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const nodeId = typeof item.nodeId === 'string' ? item.nodeId.trim() : ''
+    const name = typeof item.name === 'string' ? item.name.trim() : ''
+    const key = name.toLocaleLowerCase()
+    if (!nodeId || !name || seen.has(key)) continue
+    seen.add(key)
+    selections.push({ nodeId, name })
+  }
+  return selections
 }
 
 function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void }) {
@@ -241,6 +291,7 @@ export function CanvasGenerator({
   onRemoveReference,
   onToggleReferenceVoice,
   onSelectLibraryMaterial,
+  onMatchPromptMaterials,
   injectedReferenceNodeIds,
   anchor,
   panelWidth,
@@ -269,6 +320,7 @@ export function CanvasGenerator({
   onToggleReferenceVoice?: (nodeId: string) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
+  onMatchPromptMaterials?: (materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => { added: number; restored: number; matched: number; skippedForNodeCapacity: number } | null
   anchor?: CanvasGeneratorAnchor | null
   panelWidth: number
   onPanelWidthChange: (width: number) => void
@@ -344,6 +396,16 @@ export function CanvasGenerator({
     // Reload a material list only when the active generator's accepted media changes.
   }, [node.id, projectId, mentionSignature])
   useEffect(() => () => libraryRequestRef.current?.abort(), [])
+  const autoMatchEnabled = Boolean(onMatchPromptMaterials)
+  // An in-flight one-click match belongs to the node/mode that started it;
+  // switching either cancels the request so it can never write a stale graph.
+  useEffect(() => {
+    autoMatchRequestRef.current?.abort()
+    autoMatchRequestRef.current = null
+    setAutoMatching(false)
+    setAutoMatchNotice(null)
+  }, [node.id, projectId, inputMode, mentionSignature, autoMatchEnabled])
+  useEffect(() => () => autoMatchRequestRef.current?.abort(), [])
   const [config, setConfig] = useState<GenerationConfig | null>(null)
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([])
   const [loadingConfig, setLoadingConfig] = useState(true)
@@ -432,9 +494,22 @@ export function CanvasGenerator({
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [mentionSelections, setMentionSelections] = useState(() => readPersistedMentionSelections(node.data.generation))
+  const [autoMatching, setAutoMatching] = useState(false)
+  const [autoMatchNotice, setAutoMatchNotice] = useState<string | null>(null)
+  const autoMatchRequestRef = useRef<AbortController | null>(null)
+  const promptRef = useRef(prompt)
+  promptRef.current = prompt
+  const autoMatchContext = JSON.stringify([node.id, projectId, inputMode, modelKey, generateAudio, mentionSignature, autoMatchEnabled])
+  const autoMatchContextRef = useRef(autoMatchContext)
+  autoMatchContextRef.current = autoMatchContext
   const onDraftChangeRef = useRef(onDraftChange)
+  const referenceNodeIdsRef = useRef(referenceNodeIds)
+  referenceNodeIdsRef.current = referenceNodeIds
   const hydratedInputRef = useRef(node.id)
   const draftUserEditRef = useRef(false)
+  const videoModeMemoryRef = useRef<Partial<Record<CanvasVideoEditorMode, VideoModeParameters>>>({})
+  const previousInputModeRef = useRef(inputMode)
   const panelResizeCleanupRef = useRef<(() => void) | null>(null)
   const closeEditorRef = useRef<() => void>(() => undefined)
 
@@ -500,6 +575,9 @@ export function CanvasGenerator({
     if (hydratedInputRef.current === node.id) return
     hydratedInputRef.current = node.id
     draftUserEditRef.current = false
+    setMentionSelections(readPersistedMentionSelections(node.data.generation))
+    videoModeMemoryRef.current = {}
+    previousInputModeRef.current = canvasVideoEditorMode(node.data.generation?.inputMode)
     setPrompt(node.data.prompt || '')
     setModelKey(node.data.generation?.modelKey || '')
     setAspectRatio(isPanorama
@@ -533,8 +611,9 @@ export function CanvasGenerator({
   useEffect(() => {
     // Bulk drops and undo/redo may change references without changing the
     // active node or wires. Sync only ids, not the user's in-progress prompt.
+    if (referenceNodeIdsRef.current.join('|') === nodeReferenceSignature) return
     const next = nodeReferenceSignature ? nodeReferenceSignature.split('|') : []
-    setReferenceNodeIds((current) => current.join('|') === nodeReferenceSignature ? current : next)
+    setReferenceNodeIds(next)
   }, [node.id, nodeReferenceSignature])
 
   useEffect(() => {
@@ -634,6 +713,173 @@ export function CanvasGenerator({
       ? Array.from(new Set(supported)).sort((left, right) => left - right)
       : Array.from({ length: CANVAS_VIDEO_DURATION_MAX - CANVAS_VIDEO_DURATION_MIN + 1 }, (_, index) => CANVAS_VIDEO_DURATION_MIN + index)
   }, [durations])
+  const durationSliderBounds = useMemo(() => {
+    const minimum = videoDurationOptions[0] ?? CANVAS_VIDEO_DURATION_MIN
+    const maximum = videoDurationOptions[videoDurationOptions.length - 1] ?? CANVAS_VIDEO_DURATION_MAX
+    return { minimum, maximum }
+  }, [videoDurationOptions])
+  const durationMinimum = durationSliderBounds.minimum
+  const durationMaximum = durationSliderBounds.maximum
+  const durationSliderOptions = useMemo(
+    () => Array.from({ length: Math.max(1, durationMaximum - durationMinimum + 1) }, (_, index) => durationMinimum + index),
+    [durationMinimum, durationMaximum],
+  )
+  // Long ranges (e.g. 4–30s) cannot label every second legibly. Keep a tick for
+  // every second but only label endpoints, multiples of five and the current
+  // value; the rest stay as slim unlabeled marks.
+  const durationTickLabels = useMemo(() => {
+    const span = durationMaximum - durationMinimum
+    if (span <= 10) return new Set(durationSliderOptions)
+    const labeled = new Set<number>([durationMinimum, durationMaximum, duration])
+    for (const value of durationSliderOptions) {
+      if (value % 5 === 0) labeled.add(value)
+    }
+    return labeled
+  }, [duration, durationMaximum, durationMinimum, durationSliderOptions])
+  const durationSliderPercent = durationMaximum > durationMinimum
+    ? ((Math.min(durationMaximum, Math.max(durationMinimum, duration)) - durationMinimum) / (durationMaximum - durationMinimum)) * 100
+    : 0
+  const durationRangeRef = useRef<HTMLInputElement>(null)
+  const durationValueRef = useRef<HTMLInputElement>(null)
+  const durationTickRefs = useRef(new Map<number, HTMLButtonElement>())
+  const durationDraggingRef = useRef(false)
+  const durationSyncTimerRef = useRef<number | null>(null)
+  const durationBoundsRef = useRef({ minimum: durationMinimum, maximum: durationMaximum })
+  durationBoundsRef.current = { minimum: durationMinimum, maximum: durationMaximum }
+  useEffect(() => () => {
+    if (durationSyncTimerRef.current !== null) window.clearTimeout(durationSyncTimerRef.current)
+  }, [])
+  const paintDurationDom = () => {
+    // The prop is the single source of truth for the number box, progress fill,
+    // ticks and the idle thumb, so external changes (mode memory, model clamp,
+    // hydration) and fresh mounts always land on the current duration. While a
+    // drag owns the thumb it keeps following the finger, and a focused slider
+    // keeps its native position between keyboard steps; commits write the DOM
+    // themselves and the post-change sync re-applies them after React's restore.
+    const { minimum, maximum } = durationBoundsRef.current
+    const clamped = Math.min(maximum, Math.max(minimum, duration))
+    const percent = maximum > minimum ? ((clamped - minimum) / (maximum - minimum)) * 100 : 0
+    const slider = durationRangeRef.current
+    if (slider) {
+      slider.parentElement?.style.setProperty('--nori-duration-progress', `${percent}%`)
+      if (!durationDraggingRef.current && document.activeElement !== slider && slider.value !== String(clamped)) {
+        slider.value = String(clamped)
+        slider.defaultValue = String(clamped)
+      }
+    }
+    const numberInput = durationValueRef.current
+    if (numberInput && document.activeElement !== numberInput && numberInput.value !== String(clamped)) {
+      numberInput.value = String(clamped)
+      numberInput.defaultValue = String(clamped)
+    }
+    for (const [tickValue, tick] of durationTickRefs.current) tick.classList.toggle('is-active', tickValue === clamped)
+  }
+  const commitDuration = (next: number) => {
+    setDuration(changeDraftValue(next))
+    // React restores uncontrolled inputs after the change event batch using the
+    // props captured at dispatch time, which can trail a lagging render. Write
+    // the committed value straight to the DOM now (the render-time paint still
+    // closes over the old prop), then re-apply it once that restore has run.
+    // While the slider is being dragged the thumb keeps following the finger
+    // and the settle handlers snap it; a focused-but-idle slider (keyboard
+    // steps already wrote the DOM) is safe to sync here.
+    const slider = durationRangeRef.current
+    const numberInput = durationValueRef.current
+    const { minimum, maximum } = durationBoundsRef.current
+    const percent = maximum > minimum ? ((next - minimum) / (maximum - minimum)) * 100 : 0
+    slider?.parentElement?.style.setProperty('--nori-duration-progress', `${percent}%`)
+    if (slider && !durationDraggingRef.current && slider.value !== String(next)) {
+      slider.value = String(next)
+      slider.defaultValue = String(next)
+    }
+    if (numberInput && document.activeElement !== numberInput && numberInput.value !== String(next)) {
+      numberInput.value = String(next)
+      numberInput.defaultValue = String(next)
+    }
+    for (const [tickValue, tick] of durationTickRefs.current) tick.classList.toggle('is-active', tickValue === next)
+    if (durationSyncTimerRef.current !== null) window.clearTimeout(durationSyncTimerRef.current)
+    durationSyncTimerRef.current = window.setTimeout(() => {
+      durationSyncTimerRef.current = null
+      if (numberInput && document.activeElement !== numberInput && numberInput.value !== String(next)) {
+        numberInput.value = String(next)
+        numberInput.defaultValue = String(next)
+      }
+      if (slider && !durationDraggingRef.current && slider.value !== String(next)) {
+        slider.value = String(next)
+        slider.defaultValue = String(next)
+      }
+    }, 0)
+  }
+  const settleDurationNumber = (raw: string) => {
+    const trimmed = raw.trim()
+    const parsed = Number(trimmed)
+    // Empty or invalid edits keep the current setting instead of collapsing to
+    // the model minimum; valid edits snap to a supported second.
+    const snapped = trimmed !== '' && Number.isFinite(parsed)
+      ? snapDurationValue(videoDurationOptions, Math.round(parsed))
+      : duration
+    const slider = durationRangeRef.current
+    if (slider) {
+      slider.value = String(snapped)
+      slider.defaultValue = String(snapped)
+    }
+    const numberInput = durationValueRef.current
+    if (numberInput) {
+      numberInput.value = String(snapped)
+      numberInput.defaultValue = String(snapped)
+    }
+    commitDuration(snapped)
+  }
+  const handleDurationNumberKeyDown = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    settleDurationNumber(event.currentTarget.value)
+    event.currentTarget.blur()
+  }
+  const applyDurationSliderChange = (raw: string) => {
+    const parsed = Number(raw)
+    if (!Number.isFinite(parsed)) return
+    // The thumb follows the finger continuously while the committed duration
+    // snaps to a model-supported second. Aligning defaultValue with the raw DOM
+    // position makes React's post-change restore a no-op; settle handlers snap
+    // the thumb onto the committed value when the gesture ends.
+    const slider = durationRangeRef.current
+    if (slider) slider.defaultValue = String(Math.round(parsed))
+    commitDuration(snapDurationValue(videoDurationOptions, Math.round(parsed)))
+  }
+  const settleDurationSlider = () => {
+    durationDraggingRef.current = false
+    const slider = durationRangeRef.current
+    if (!slider) return
+    const snapped = duration
+    if (slider.value !== String(snapped)) {
+      slider.value = String(snapped)
+      slider.defaultValue = String(snapped)
+    }
+  }
+  const stepDurationSliderByKey = (event: ReactKeyboardEvent<HTMLInputElement>) => {
+    const forward = event.key === 'ArrowRight' || event.key === 'ArrowUp'
+    const backward = event.key === 'ArrowLeft' || event.key === 'ArrowDown'
+    const home = event.key === 'Home'
+    const end = event.key === 'End'
+    if (!forward && !backward && !home && !end) return
+    // Native range stepping races React's post-change restore and can drop a
+    // step when renders lag. Own the keyboard path: step through the supported
+    // durations explicitly and keep the DOM in lockstep.
+    event.preventDefault()
+    const currentIndex = videoDurationOptions.indexOf(duration)
+    const baseIndex = currentIndex < 0 ? 0 : currentIndex
+    const nextIndex = home ? 0
+      : end ? videoDurationOptions.length - 1
+      : Math.min(videoDurationOptions.length - 1, Math.max(0, baseIndex + (forward ? 1 : -1)))
+    const next = videoDurationOptions[nextIndex]
+    const slider = durationRangeRef.current
+    if (slider) {
+      slider.value = String(next)
+      slider.defaultValue = String(next)
+    }
+    commitDuration(next)
+  }
   const referenceImages = useMemo(
     () => referenceNodes.filter((item) => item.type === 'image' || item.data.mediaType === 'image'),
     [referenceNodes],
@@ -699,6 +945,29 @@ export function CanvasGenerator({
     ? characterVoiceSummary.missing > 0 ? ' is-warning' : ''
     : ' is-muted'
 
+  useLayoutEffect(() => {
+    if (type !== 'video') return
+    paintDurationDom()
+    const previousMode = previousInputModeRef.current
+    if (previousMode !== inputMode) {
+      // Remember what the user configured for the mode being left, then restore
+      // the remembered values of the mode being entered. The clamp effect below
+      // still validates everything against the current model's capabilities.
+      videoModeMemoryRef.current[previousMode] = { aspectRatio, resolution, duration, fps, superresolveTarget }
+      previousInputModeRef.current = inputMode
+      const remembered = videoModeMemoryRef.current[inputMode]
+      if (remembered) {
+        setAspectRatio(remembered.aspectRatio)
+        setResolution(remembered.resolution)
+        setDuration(remembered.duration)
+        setFps(remembered.fps)
+        setSuperresolveTarget(remembered.superresolveTarget)
+      }
+    } else {
+      videoModeMemoryRef.current[inputMode] = { aspectRatio, resolution, duration, fps, superresolveTarget }
+    }
+  }, [aspectRatio, duration, durationMaximum, durationMinimum, fps, inputMode, moreOpen, resolution, superresolveTarget, type])
+
   useEffect(() => {
     if (!currentModel) return
     if (supportedResolutions.length > 0) {
@@ -761,6 +1030,7 @@ export function CanvasGenerator({
       inputSchema: currentModel?.raw?.inputSchema || null,
       referenceNodeIds,
       referenceSummary: selectedReferenceSummaries,
+      referenceMentionSelections: mentionSelections,
       aspectRatio,
       resolution: selectedResolution,
       ...(type === 'image' ? { quality } : {}),
@@ -776,7 +1046,7 @@ export function CanvasGenerator({
             ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
             : undefined,
     },
-  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
 
   const draftPatchRef = useRef(draftPatch)
   draftPatchRef.current = draftPatch
@@ -837,6 +1107,84 @@ export function CanvasGenerator({
     ]
   }
 
+  // One-click matching selects project assets named in the prompt (official
+  // names and aliases) and wires them as references. Additive: existing wires
+  // and manual references are never removed.
+  const autoMatchReferences = async () => {
+    if (!onMatchPromptMaterials || autoMatching) return
+    const text = prompt.trim()
+    if (!text) { setAutoMatchNotice('请先输入提示词，再一键匹配引用。'); return }
+    const startPrompt = text
+    setAutoMatching(true)
+    setAutoMatchNotice(null)
+    const controller = new AbortController()
+    autoMatchRequestRef.current?.abort()
+    autoMatchRequestRef.current = controller
+    const stale = () => controller.signal.aborted
+      || autoMatchContextRef.current !== autoMatchContext
+    try {
+      const query = new URLSearchParams({ projectId, scope: 'current-project', limit: '500' })
+      const materials = await fetchAllFrameosMaterials(query, controller.signal)
+      if (stale()) return
+      if (promptRef.current.trim() !== startPrompt) {
+        setAutoMatchNotice('提示词已变化，请重新点击一键匹配。')
+        return
+      }
+      const hits = matchCanvasPromptAssets(text, materials, mentionAllowedTypes)
+      if (hits.length === 0) {
+        setAutoMatchNotice('提示词中没有匹配到项目资产（正式名或别名）。')
+        return
+      }
+      const result = onMatchPromptMaterials(hits.map((hit) => hit.material), (references) => {
+        if (!effectiveInputSchema) return false
+        const summaries = references.flatMap((reference) => {
+          const summary = referenceSummary(reference)
+          return summary ? [summary] : []
+        })
+        return validateCanvasReferenceMedia(effectiveInputSchema, summaries, {
+          enforceMinimums: false,
+          requireKnownAudioDuration: false,
+        }).length === 0
+      })
+      if (stale()) return
+      if (!result) {
+        setAutoMatchNotice('匹配到的素材未能建立引用，请检查模型引用上限。')
+        return
+      }
+      const names = hits.slice(0, 4).map((hit) => hit.matchedTerm).join('、')
+      const skippedForOtherLimits = hits.length - result.matched - result.skippedForNodeCapacity
+      const skipped = [
+        result.skippedForNodeCapacity ? `${result.skippedForNodeCapacity} 个因画布节点已满跳过` : '',
+        skippedForOtherLimits ? `${skippedForOtherLimits} 个因引用或连线限制跳过` : '',
+      ].filter(Boolean).join('，')
+      const detail = skipped ? `（${skipped}）` : `：${names}${hits.length > 4 ? ' 等' : ''}`
+      setAutoMatchNotice(result.added > 0 || result.restored > 0
+        ? `已匹配 ${result.matched} 个资产，新连线 ${result.added} 条${result.restored ? `，恢复引用 ${result.restored} 个` : ''}${detail}`
+        : skipped
+          ? `已有 ${result.matched} 个匹配资产在引用中${detail}`
+          : `匹配到 ${result.matched} 个资产，均已在引用中${detail}`)
+    } catch (matchError) {
+      if (stale()) return
+      setAutoMatchNotice(matchError instanceof Error ? matchError.message : '一键匹配失败，请重试。')
+    } finally {
+      if (autoMatchRequestRef.current === controller) autoMatchRequestRef.current = null
+      if (!controller.signal.aborted) setAutoMatching(false)
+    }
+  }
+
+  // The editor's pick is the user's explicit choice of which reference owns a
+  // name; keep it so submit never re-guesses ownership by media type.
+  const rememberMentionSelection = (nodeId: string | undefined, name: string) => {
+    if (!nodeId) return
+    const key = name.trim().toLocaleLowerCase()
+    if (!key) return
+    setMentionSelections((current) => {
+      const next = current.filter((selection) => selection.name.trim().toLocaleLowerCase() !== key)
+      next.push({ nodeId, name })
+      return next
+    })
+  }
+
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
     const mentionAsset = asset as CanvasMentionAsset
     let nodeId = asset.id
@@ -856,10 +1204,40 @@ export function CanvasGenerator({
     const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, nodeId)
     const errors = referenceErrors(nextReferenceNodeIds, false)
     if (errors.length > 0) { setError(errors[0]); return false }
+    rememberMentionSelection(nodeId, asset.name)
     setError(null)
     setPrompt(nextPrompt)
     draftUserEditRef.current = true
     setReferenceNodeIds(nextReferenceNodeIds)
+  }
+
+  const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
+    if (!shouldBindCanvasMentionReference(type)) return true
+    let nextIds = referenceNodeIds
+    const pastedSelections: CanvasMentionNameSelection[] = []
+    for (const asset of matched) {
+      const mentionAsset = asset as CanvasMentionAsset
+      let nodeId = asset.id
+      if (mentionAsset.section === 'library' && mentionAsset.material) {
+        nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
+        if (!nodeId) {
+          setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
+          return false
+        }
+      }
+      if (nodeId) pastedSelections.push({ nodeId, name: asset.name })
+      nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
+    }
+    const errors = referenceErrors(nextIds, false)
+    if (errors.length > 0) {
+      setError(errors[0])
+      return false
+    }
+    for (const selection of pastedSelections) rememberMentionSelection(selection.nodeId, selection.name)
+    setError(null)
+    draftUserEditRef.current = true
+    setReferenceNodeIds(nextIds)
+    return true
   }
 
   const toggleReferenceNode = (reference: CanvasFlowNode) => {
@@ -919,7 +1297,7 @@ export function CanvasGenerator({
     | { ok: true; ids: string[]; created: CanvasReferenceMediaSummary[]; names: Record<string, string[]> }
     | { ok: false; error: string }
   > => {
-    let plan = planCanvasPromptMentions(texts, mentionAssets, mentionBinding)
+    let plan = planCanvasPromptMentions(texts, mentionAssets, mentionBinding, mentionSelections)
     if (plan.unknown.length > 0 && !libraryReady) {
       let library: CanvasMentionAsset[]
       try { library = await ensureMentionLibrary() }
@@ -927,7 +1305,7 @@ export function CanvasGenerator({
         const message = loadError instanceof Error ? loadError.message : '素材库加载失败'
         return { ok: false, error: `无法核对提示词中的 @ 素材（${message}），请稍后重试。` }
       }
-      plan = planCanvasPromptMentions(texts, [...canvasMentionAssets, ...library], mentionBinding)
+      plan = planCanvasPromptMentions(texts, [...canvasMentionAssets, ...library], mentionBinding, mentionSelections)
     }
     if (plan.unknown.length > 0) {
       return { ok: false, error: unknownPromptMentionMessage(describeUnknownPromptMentions(plan.unknown)) }
@@ -1266,6 +1644,8 @@ export function CanvasGenerator({
           ) : null}
         </div>
       ) : null}
+      {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
+      {autoMatchNotice ? <p className="nori-canvas-generator-automatch-notice" role="status">{autoMatchNotice}</p> : null}
       {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
 
       {missingReferenceCount > 0 ? <div role="alert" className="nori-canvas-generator-reference-warning">
@@ -1319,7 +1699,8 @@ export function CanvasGenerator({
             assets={mentionAssets}
             highlight={mentionHighlight}
             onChange={(value) => setPrompt(changeDraftValue(value))}
-            onSelectAsset={selectMentionAsset}
+            onPasteMatch={(_nextValue, matched) => bindPastedMentionAssets(matched)}
+          onSelectAsset={selectMentionAsset}
             onMentionOpen={loadMentionLibrary}
             groups={mentionGroups}
             loading={libraryLoading}
@@ -1425,17 +1806,104 @@ export function CanvasGenerator({
         <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={400} maxHeight={420} role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover">
           <header><div><strong>生成参数</strong><small>修改后自动保存到当前节点</small></div><button type="button" aria-label="关闭生成参数" onClick={() => { persistDraft(); setMoreOpen(false); parameterTriggerRef.current?.focus() }}><X /></button></header>
           <div className="nori-canvas-generator-parameter-grid">
-            {type === 'video' ? <label><span>生成模式</span><select value={inputMode} onChange={(event) => { setInputMode(changeDraftValue(event.target.value as CanvasVideoEditorMode)) }}><option value="text">全能参考</option><option value="image" disabled={!supportsImageToVideo}>图生视频</option><option value="firstlastframe" disabled={!currentModel?.raw?.firstLastFrame}>首尾帧</option></select></label> : null}
-            <label><span>画面比例</span><select value={aspectRatio} disabled={isPanorama || (type === 'video' && videoAspectRatios.length === 1)} onChange={(event) => { setAspectRatio(changeDraftValue(event.target.value)) }}>{(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios).map((value) => <option key={value}>{value === 'adaptive' ? '自适应' : value}</option>)}</select></label>
-            {!usesProviderDefaultResolution || superresolveTarget ? <label><span>{type === 'image' ? '图片分辨率' : superresolveTarget ? '输出分辨率' : '视频分辨率'}</span><select aria-label={type === 'video' ? '视频分辨率' : '图片分辨率'} value={superresolveTarget || resolution} onChange={(event) => {
-              if (superresolveTarget) setSuperresolveTarget(changeDraftValue(event.target.value as CanvasVideoSuperresolveTarget))
-              else setResolution(changeDraftValue(event.target.value))
-            }}>{(superresolveTarget ? CANVAS_VIDEO_SUPERRESOLVE_TARGETS : supportedResolutions).map((value) => <option key={value} value={value}>{type === 'video' ? resolutionLabel(value) : value}</option>)}</select></label> : null}
+            {type === 'video' ? (
+              <div className="nori-canvas-parameter-field is-full">
+                <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-mode-label">生成模式</span>
+                <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-mode-label">
+                  {([['text', '全能参考', true], ['image', '图生视频', supportsImageToVideo], ['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]] as const).map(([value, label, enabled]) => (
+                    <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => setInputMode(changeDraftValue(value))}>{label}</button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            <div className="nori-canvas-parameter-field is-full">
+              <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-aspect-label">画面比例</span>
+              <div className="nori-canvas-parameter-aspects" role="group" aria-labelledby="nori-canvas-parameter-aspect-label">
+                {(isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO] : type === 'image' ? CANVAS_IMAGE_ASPECT_RATIOS : videoAspectRatios).map((value) => {
+                  const thumbnail = aspectRatioThumbnail(value)
+                  const locked = isPanorama || (type === 'video' && videoAspectRatios.length === 1)
+                  return (
+                    <button type="button" key={value} className={`nori-canvas-parameter-aspect${aspectRatio === value ? ' is-active' : ''}`} aria-pressed={aspectRatio === value} disabled={locked && aspectRatio !== value} onClick={() => setAspectRatio(changeDraftValue(value))}>
+                      <span className="nori-canvas-parameter-aspect-frame" aria-hidden="true"><i style={{ width: thumbnail.width, height: thumbnail.height }} /></span>
+                      <small>{value === 'adaptive' ? '自适应' : value}</small>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+            {!usesProviderDefaultResolution || superresolveTarget ? <div className={`nori-canvas-parameter-field${type === 'image' ? '' : ' is-full'}`}>
+              <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-resolution-label">{type === 'image' ? '图片分辨率' : superresolveTarget ? '输出分辨率' : '视频分辨率'}</span>
+              <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-resolution-label">
+                {(superresolveTarget ? CANVAS_VIDEO_SUPERRESOLVE_TARGETS : supportedResolutions).map((value) => (
+                  <button type="button" key={value} className={(superresolveTarget || resolution) === value ? 'is-active' : ''} aria-pressed={(superresolveTarget || resolution) === value} onClick={() => {
+                    if (superresolveTarget) setSuperresolveTarget(changeDraftValue(value as CanvasVideoSuperresolveTarget))
+                    else setResolution(changeDraftValue(value))
+                  }}>{type === 'video' ? resolutionLabel(value) : value}</button>
+                ))}
+              </div>
+            </div> : null}
             {superresolveTarget ? <p className="text-[12px] leading-5 text-white/55">{superresolveResolutionError || <>模型按 {resolutionLabel(superresolveGenerationResolution!)} 生成并计费，完成后自动超分到 {resolutionLabel(superresolveTarget)}；本地超分不另收积分。</>}</p> : null}
-            {type === 'image' ? <label><span>{storyboard ? '分镜数量' : '生成数量'}</span><select value={storyboard ? normalizeStoryboardCount(count) : count} onChange={(event) => { setCount(changeDraftValue(Number(event.target.value))) }}>{(storyboard ? STORYBOARD_COUNTS : [1, 2, 4]).map((value) => <option key={value} value={value}>{value} {storyboard ? '镜' : '张'}</option>)}</select></label> : null}
-            {type === 'image' ? <div className="nori-canvas-image-quality"><span>图片质量</span><div>{CANVAS_IMAGE_QUALITIES.map((value) => <button type="button" key={value} className={quality === value ? 'is-active' : ''} onClick={() => { setQuality(changeDraftValue(value)) }}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>)}</div></div> : null}
-            {type === 'video' ? <label><span>视频时长</span><select value={duration} onChange={(event) => { setDuration(changeDraftValue(Number(event.target.value))) }}>{videoDurationOptions.map((value) => <option key={value} value={value}>{value} 秒</option>)}</select></label> : null}
-            {type === 'video' && fpsOptions.length > 0 ? <label><span>视频帧率</span><select value={fps || fpsOptions[0]} onChange={(event) => { setFps(changeDraftValue(Number(event.target.value))) }}>{fpsOptions.map((value) => <option key={value} value={value}>{value} FPS</option>)}</select></label> : null}
+            {type === 'image' ? (
+              <div className="nori-canvas-parameter-field">
+                <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-count-label">{storyboard ? '分镜数量' : '生成数量'}</span>
+                <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-count-label">
+                  {(storyboard ? STORYBOARD_COUNTS : [1, 2, 4]).map((value) => (
+                    <button type="button" key={value} className={(storyboard ? normalizeStoryboardCount(count) : count) === value ? 'is-active' : ''} aria-pressed={(storyboard ? normalizeStoryboardCount(count) : count) === value} onClick={() => setCount(changeDraftValue(value))}>{value} {storyboard ? '镜' : '张'}</button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {type === 'image' ? (
+              <div className="nori-canvas-parameter-field is-full">
+                <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-quality-label">图片质量</span>
+                <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-quality-label">
+                  {CANVAS_IMAGE_QUALITIES.map((value) => (
+                    <button type="button" key={value} className={quality === value ? 'is-active' : ''} aria-pressed={quality === value} onClick={() => setQuality(changeDraftValue(value))}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+            {type === 'video' ? (
+              <div className="nori-canvas-parameter-field is-full nori-canvas-duration-field">
+                <div className="nori-canvas-duration-head">
+                  <span className="nori-canvas-parameter-label" id="nori-canvas-duration-label">视频时长</span>
+                  <span className="nori-canvas-duration-value"><input ref={durationValueRef} type="number" aria-label="视频时长" min={durationMinimum} max={durationMaximum} step={1} defaultValue={duration} onChange={(event) => settleDurationNumber(event.target.value)} onBlur={(event) => settleDurationNumber(event.target.value)} onKeyDown={handleDurationNumberKeyDown} /><small>s</small></span>
+                </div>
+                <div className="nori-canvas-duration-slider" style={{ '--nori-duration-progress': `${durationSliderPercent}%` } as CSSProperties}>
+                  <input
+                    ref={durationRangeRef}
+                    type="range"
+                    className="nori-canvas-duration-range"
+                    aria-label="视频时长滑杆"
+                    min={durationMinimum}
+                    max={durationMaximum}
+                    step={1}
+                    defaultValue={duration}
+                    onChange={(event) => applyDurationSliderChange(event.target.value)}
+                    onKeyDown={stepDurationSliderByKey}
+                    onPointerDown={() => { durationDraggingRef.current = true }}
+                    onPointerUp={settleDurationSlider}
+                    onPointerCancel={settleDurationSlider}
+                    onBlur={settleDurationSlider}
+                  />
+                  <div className="nori-canvas-duration-ticks">
+                    {durationSliderOptions.map((value) => (
+                      <button type="button" key={value} ref={(element) => { if (element) durationTickRefs.current.set(value, element); else durationTickRefs.current.delete(value) }} tabIndex={-1} aria-label={`${value} 秒`} className={`nori-canvas-duration-tick${duration === value ? ' is-active' : ''}${videoDurationOptions.includes(value) ? '' : ' is-muted'}${durationTickLabels.has(value) ? '' : ' is-unlabeled'}`} style={{ left: `${durationMaximum > durationMinimum ? ((value - durationMinimum) / (durationMaximum - durationMinimum)) * 100 : 0}%` }} onClick={() => settleDurationNumber(String(value))}>{durationTickLabels.has(value) ? value : ''}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            {type === 'video' && fpsOptions.length > 0 ? (
+              <div className="nori-canvas-parameter-field is-full">
+                <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-fps-label">视频帧率</span>
+                <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-fps-label">
+                  {fpsOptions.map((value) => (
+                    <button type="button" key={value} className={(fps || fpsOptions[0]) === value ? 'is-active' : ''} aria-pressed={(fps || fpsOptions[0]) === value} onClick={() => setFps(changeDraftValue(value))}>{value} FPS</button>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
           <p>{type === 'video' && inputMode === 'firstlastframe' ? '首尾帧模式固定接收按顺序选择的两张图片。' : type === 'video' && inputMode === 'image' ? '图生视频至少需要一张参考图片，不接收视频或音频参考。' : `当前模型允许图片 ${effectiveInputSchema?.image.min || 0}–${effectiveInputSchema?.image.max || 0}、视频 ${effectiveInputSchema?.video.min || 0}–${effectiveInputSchema?.video.max || 0}、音频 ${effectiveInputSchema?.audio.min || 0}–${effectiveInputSchema?.audio.max || 0}${effectiveInputSchema?.audio.maxTotalDurationSeconds ? `（总计不超过 ${effectiveInputSchema.audio.maxTotalDurationSeconds}s）` : ''}。`}</p>
         </ViewportPopover>

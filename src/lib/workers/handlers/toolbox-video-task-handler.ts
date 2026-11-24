@@ -113,6 +113,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   const referenceVideoNames = readStringArray(payload.referenceVideoNames)
   const referenceAudioNames = readStringArray(payload.referenceAudioNames)
   const referenceImageMentionNames = readNestedStringArray(payload.referenceImageMentionNames)
+  const referenceImageAliases = readNestedStringArray(payload.referenceImageAliases)
   const referenceVideoMentionNames = readNestedStringArray(payload.referenceVideoMentionNames)
   const referenceAudioMentionNames = readNestedStringArray(payload.referenceAudioMentionNames)
   const inputMode = readString(payload.inputMode) || 'text'
@@ -160,6 +161,10 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       imageNumbers = indexed.imageNumbers
     }
     const imageAt = (position: number) => (position >= 0 && imageNumbers[position] ? normalized[imageNumbers[position] - 1] || '' : '')
+    // Declarations name the asset kind (角色/场景) when the material library knows
+    // it; unknown categories fall back to 资产 inside the compiler. Reference
+    // materials keep submission order, so filtering type=image aligns with
+    // referenceImages position by position.
     const kindMaterialIds = materialReferenceContract.references.map((item) => item.materialId)
     const kindRows = kindMaterialIds.length > 0
       ? await prisma.frameosMaterial.findMany({ where: { id: { in: kindMaterialIds } }, select: { id: true, type: true, metadata: true } })
@@ -180,6 +185,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         type: 'image' as const,
         index: imageNumber,
         names: referenceImageMentionNames[index] || [],
+        aliases: referenceImageAliases[index],
         fallbackNames: imageTitles[index] ? [imageTitles[index]] : [],
         kind: imageKindByPosition[index],
       })),

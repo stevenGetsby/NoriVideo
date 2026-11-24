@@ -46,7 +46,7 @@ vi.mock('@/lib/prisma', () => ({ prisma: prismaMock }))
 vi.mock('@/lib/api-auth', () => ({
   requireProjectAuthLight: vi.fn(async (projectId: string) => ({
     session: { user: { id: 'user-1', name: '资产师甲' } },
-    project: { id: projectId, userId: 'user-1' },
+    project: { id: projectId, userId: 'user-1', workId: 'work-1' },
   })),
   isErrorResponse: (value: unknown) => value instanceof Response,
 }))
@@ -92,14 +92,14 @@ vi.mock('@/lib/model3d/frameos-3d-provider', () => ({
   normalizeFrameos3DPose: vi.fn((value: unknown) => value === 'a_pose' || value === 't_pose' ? value : 'none'),
 }))
 
-import { POST } from '@/app/api/frameos/toolbox/generate/route'
+import { generateToolboxAsset, POST } from '@/app/api/frameos/toolbox/generate/route'
 
 const routeContext = { params: Promise.resolve({}) }
 
 describe('FrameOS toolbox generation route', () => {
   it('automatically reuses saved character-card audio for multimodal video without duplicating it', async () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
-      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1', aliases: ['云长'] } },
     ]).mockResolvedValueOnce([
       { id: 'voice-1', title: '关羽音色', type: 'audio', storageKey: 'voice/guanyu.wav', metadata: { durationSeconds: 6 } },
     ])
@@ -107,7 +107,7 @@ describe('FrameOS toolbox generation route', () => {
       inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
     } }), routeContext)
     expect(response.status).toBe(200)
-    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceAudios: ['voice/guanyu.wav'], referenceMaterialIds: ['material-1', 'voice-1'] }) }))
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceImageAliases: [['云长']], referenceAudios: ['voice/guanyu.wav'], referenceMaterialIds: ['material-1', 'voice-1'] }) }))
   })
 
   it('never attaches a role voice to an explicitly silent video', async () => {
@@ -282,6 +282,32 @@ describe('FrameOS toolbox generation route', () => {
     expect(prismaMock.frameosToolboxAsset.create).not.toHaveBeenCalled()
     expect(prismaMock.frameosToolboxAsset.upsert).not.toHaveBeenCalled()
     expect(submitTaskMock).not.toHaveBeenCalled()
+  })
+
+  it('accepts a matched sibling-work reference from an authorized canvas without a client workId', async () => {
+    prismaMock.project.findMany.mockResolvedValueOnce([
+      { id: 'project-1', name: '当前作品', workId: 'work-1' },
+      { id: 'project-sibling', name: '同项目作品', workId: 'work-1' },
+    ])
+    prismaMock.frameosMaterial.findMany.mockImplementationOnce(async ({ where }) => (
+      where.projectId.in.includes('project-sibling')
+        ? [{ id: 'matched-asset', title: '参考图', type: 'image', storageKey: 'images/matched.png' }]
+        : []
+    ))
+    const response = await generateToolboxAsset(buildMockRequest({
+      path: '/api/projects/project-1/canvas/canvas-1/generate', method: 'POST',
+      body: {
+        projectId: 'project-1', nodeId: 'node-source', type: 'image', title: '匹配后生成',
+        prompt: '参考图', modelKey: 'image-provider::model-1', referenceMaterialIds: ['matched-asset'],
+      },
+    }), { params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }) })
+    expect(response.status).toBe(200)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: expect.objectContaining({ projectId: { in: ['project-1', 'project-sibling', 'global', 'global-asset-hub'] } }),
+    }))
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
+      payload: expect.objectContaining({ referenceImages: ['images/matched.png'] }),
+    }))
   })
 
   it.each([

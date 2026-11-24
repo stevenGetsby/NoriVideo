@@ -284,6 +284,8 @@ export type CanvasGenerationConfig = {
   referenceSummary?: CanvasGenerationReferenceSummary[]
   /** Reference node id → the @names the last submitted prompt used for it. */
   referenceMentionNames?: Record<string, string[]>
+  /** Explicit @name → reference node picks made in the editor, persisted with the draft. */
+  referenceMentionSelections?: CanvasGenerationMentionSelection[]
   aspectRatio?: string
   resolution?: string
   quality?: 'low' | 'medium' | 'high'
@@ -291,6 +293,11 @@ export type CanvasGenerationConfig = {
   generateAudio?: boolean
   count?: number
   parameters?: Record<string, string | number | boolean>
+}
+
+export type CanvasGenerationMentionSelection = {
+  nodeId: string
+  name: string
 }
 
 export type CanvasGenerationReferenceSummary = {

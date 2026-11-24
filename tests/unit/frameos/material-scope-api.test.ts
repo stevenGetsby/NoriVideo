@@ -50,6 +50,10 @@ vi.mock('@/lib/frameos/material-upload', () => ({
 vi.mock('@/lib/frameos/material-service', () => ({
   syncGeneratedImagesToMaterialLibrary: vi.fn(),
 }))
+vi.mock('@/lib/storage', () => ({
+  extractStorageKey: (value: string | null) => value,
+  getSignedUrl: (key: string) => `/fixture/${key}`,
+}))
 
 function expectFirstPageScope(scope: Record<string, unknown>) {
   // The cursor query reserves a top-level AND for the existing ACL and the
@@ -152,6 +156,50 @@ describe('FrameOS material project scopes', () => {
     expect(prismaMock.project.findMany.mock.calls[0][0].where).toEqual({
       AND: [readScope.where, { workId: 'work-1' }],
     })
+  })
+
+  it('derives the matching scope from the authorized work and excludes other projects and personal assets', async () => {
+    const current = { id: 'project-b', name: '当前作品', workId: 'work-2' }
+    const sibling = { id: 'project-sibling', name: '同项目作品', workId: 'work-2' }
+    prismaMock.project.findMany.mockResolvedValueOnce([
+      { id: 'project-a', name: '其他项目作品', workId: 'work-1' }, current, sibling,
+    ]).mockResolvedValueOnce([current, sibling])
+    const { GET } = await import('@/app/api/frameos/materials/route')
+    const response = await GET(buildMockRequest({
+      path: '/api/frameos/materials?scope=current-project&projectId=project-b&available=1',
+      method: 'GET',
+    }), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(200)
+    expect(authMock.requireProjectAuthLight).toHaveBeenCalledWith('project-b')
+    expect(prismaMock.project.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
+      where: { AND: [readScope.where, { workId: 'work-2' }] },
+    }))
+    expect(prismaMock.frameosMaterial.findMany.mock.calls[0][0].where).toMatchObject({
+      projectId: { in: ['project-b', 'project-sibling'] }, personalOwnerId: null, deletedAt: null,
+    })
+  })
+
+  it('rejects a matching scope without a concrete work before reading materials', async () => {
+    const { GET } = await import('@/app/api/frameos/materials/route')
+    const response = await GET(buildMockRequest({
+      path: '/api/frameos/materials?scope=current-project&projectId=global',
+      method: 'GET',
+    }), { params: Promise.resolve({}) })
+    expect(response.status).toBe(400)
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
+  })
+
+  it('rejects a matching scope when the work is missing from the readable project list', async () => {
+    prismaMock.project.findMany.mockResolvedValueOnce([])
+    const { GET } = await import('@/app/api/frameos/materials/route')
+    const response = await GET(buildMockRequest({
+      path: '/api/frameos/materials?scope=current-project&projectId=project-b',
+      method: 'GET',
+    }), { params: Promise.resolve({}) })
+
+    expect(response.status).toBe(404)
+    expect(prismaMock.frameosMaterial.findMany).not.toHaveBeenCalled()
   })
 
   it('resolves a sibling-work voice only inside the same authorized asset scope', async () => {

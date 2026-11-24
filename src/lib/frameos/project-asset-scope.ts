@@ -3,6 +3,13 @@ import { ApiError } from '@/lib/api-errors'
 import { projectReadScopeWhere } from '@/lib/collaboration/access'
 import { prisma } from '@/lib/prisma'
 
+export async function resolveCanvasAssetProjectIds(session: AuthSession, project: { id: string; workId?: unknown }) {
+  const workId = typeof project.workId === 'string' ? project.workId.trim() : ''
+  return workId
+    ? (await resolveProjectAssetScope(session, { workId, projectId: project.id })).projectIds
+    : [project.id]
+}
+
 export async function resolveProjectAssetScope(session: AuthSession, input: { workId?: string; projectId?: string }) {
   const workId = input.workId?.trim() || ''
   const projectId = input.projectId?.trim() || ''
