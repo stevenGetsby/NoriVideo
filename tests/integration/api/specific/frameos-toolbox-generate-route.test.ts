@@ -290,7 +290,7 @@ describe('FrameOS toolbox generation route', () => {
       { id: 'project-sibling', name: '同项目作品', workId: 'work-1' },
     ])
     prismaMock.frameosMaterial.findMany.mockImplementationOnce(async ({ where }) => (
-      JSON.stringify(where).includes('project-sibling')
+      where.userId.in.includes('user-1') && where.id.in.includes('matched-asset')
         ? [{ id: 'matched-asset', title: '参考图', type: 'image', storageKey: 'images/matched.png' }]
         : []
     ))
@@ -302,8 +302,9 @@ describe('FrameOS toolbox generation route', () => {
       },
     }), { params: Promise.resolve({ projectId: 'project-1', canvasId: 'canvas-1' }) })
     expect(response.status).toBe(200)
+    expect(prismaMock.project.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { AND: [expect.any(Object), { workId: 'work-1' }] } }))
     expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ AND: expect.arrayContaining([expect.objectContaining({ projectId: { in: expect.arrayContaining(['project-1', 'project-sibling', 'global', 'global-asset-hub']) } })]) }),
+      where: expect.objectContaining({ userId: { in: expect.arrayContaining(['user-1']) }, id: { in: ['matched-asset'] } }),
     }))
     expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({
       payload: expect.objectContaining({ referenceImages: ['images/matched.png'] }),
