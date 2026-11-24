@@ -96,7 +96,7 @@ describe('infinite canvas permission-aware UI', () => {
     expect(graph).toContain("if (!writeLocked && changed) markChanged('调整画布视图')")
     expect(graph).toContain('Math.abs(previous.zoom - next.zoom) > 0.0001')
     expect(graph).toContain("change.type === 'dimensions' && Boolean(change.setAttributes)")
-    expect(graph).toContain('{!readOnly && selectedCreativeNode ? <CanvasGenerator')
+    expect(graph).toContain('{!readOnly && selectedCreativeNode && wrapperRef.current ? <CanvasGenerator')
     expect(graph).toContain('<CanvasToolRail editable={!readOnly}')
     expect(graph).toContain('canOrganize={!readOnly && !storyCanvas}')
     expect(chrome).toContain('当前账号仅可查看画布')

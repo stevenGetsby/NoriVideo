@@ -51,6 +51,7 @@ import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-c
 import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
 import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { getWorkspaceActor, workspaceUserWhere } from '@/lib/collaboration/access'
+import { normalizePromptMentionName } from '@/lib/prompt-mentions'
 
 type GenerateType = 'image' | 'video' | 'audio' | 'model3d'
 
@@ -116,6 +117,7 @@ const TRUSTED_GENERATION_FIELDS = new Set([
   'referenceImageNames',
   'referenceVideoNames',
   'referenceAudioNames',
+  'referenceMentionNames',
   'referenceMaterialIds',
   'referenceMaterials',
   'referenceSummary',
@@ -142,6 +144,22 @@ function cleanMaterialIds(value: unknown, limit = 9): string[] {
     .map(cleanText)
     .filter(Boolean)))
     .slice(0, limit)
+}
+
+/** Editor-inserted @names per material id; the material title stays the fallback alias. */
+function cleanReferenceMentionNames(value: unknown, materialIds: readonly string[]): Map<string, string[]> {
+  const source = record(value)
+  const result = new Map<string, string[]>()
+  for (const id of materialIds) {
+    const raw = source[id]
+    if (!Array.isArray(raw)) continue
+    const names = Array.from(new Set(raw
+      .map((item) => (typeof item === 'string' ? normalizePromptMentionName(item).slice(0, 80) : ''))
+      .filter(Boolean)))
+      .slice(0, 8)
+    if (names.length > 0) result.set(id, names)
+  }
+  return result
 }
 
 function cleanOptions(
@@ -1047,6 +1065,11 @@ async function executeToolboxGeneration(
   const referenceImageNames = referenceImages.map((material) => material.title?.trim() || '未命名素材')
   const referenceVideoNames = referenceVideos.map((material) => material.title?.trim() || '未命名素材')
   const referenceAudioNames = referenceAudios.map((material) => material.title?.trim() || '未命名素材')
+  const mentionNamesByMaterialId = cleanReferenceMentionNames(body.referenceMentionNames, materialIds)
+  const mentionNamesFor = (material: typeof orderedMaterials[number]) => mentionNamesByMaterialId.get(material.id) || []
+  const referenceImageMentionNames = referenceImages.map(mentionNamesFor)
+  const referenceVideoMentionNames = referenceVideos.map(mentionNamesFor)
+  const referenceAudioMentionNames = referenceAudios.map(mentionNamesFor)
   const referenceImageRoles = referenceImages.map((material) => referenceRoleByMaterialId.get(material.id) || 'REF')
   const maskImage = maskMaterial ? maskMaterial.storageKey || maskMaterial.resultUrl || '' : ''
   if (imageEdit && !maskImage) {
@@ -1164,6 +1187,9 @@ async function executeToolboxGeneration(
         referenceImageNames,
         referenceVideoNames,
         referenceAudioNames,
+        referenceImageMentionNames,
+        referenceVideoMentionNames,
+        referenceAudioMentionNames,
         referenceMaterialIds: materialIds,
         referenceMaterials,
         referenceImageRoles,
