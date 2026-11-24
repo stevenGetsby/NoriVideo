@@ -8157,3 +8157,27 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled { width: 8px; height: 16px; }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled::after { content: ''; position: absolute; left: 50%; top: 6px; width: 1px; height: 4px; background: currentColor; transform: translateX(-50%); }
 .nori-canvas-generator-parameter-grid .nori-canvas-duration-tick.is-unlabeled:hover::after { height: 6px; top: 5px; }
+
+.nori-canvas-reference-preview-toggle { margin-inline-start: auto; white-space: nowrap; }
+.nori-canvas-reference-preview {
+  padding: 8px;
+  color: rgb(var(--nori-text-1));
+  background: rgb(var(--nori-bg-3));
+  border: 1px solid var(--dm-line);
+  border-radius: 10px;
+}
+.nori-canvas-reference-preview img {
+  display: block;
+  width: 100%;
+  max-height: min(300px, 45dvh);
+  object-fit: contain;
+}
+.nori-canvas-reference-preview audio { display: block; width: 100%; }
+.nori-canvas-reference-preview > span {
+  display: block;
+  margin-top: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}

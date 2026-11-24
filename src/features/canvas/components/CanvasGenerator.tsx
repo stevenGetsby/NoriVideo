@@ -219,13 +219,37 @@ function readPersistedMentionSelections(generation: CanvasFlowNode['data']['gene
   return selections
 }
 
-function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void }) {
+function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice, previewEnabled }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void; previewEnabled: boolean }) {
   const mediaType = mediaTypeForReference(node)
   const image = toDisplayImageUrl(mediaType === 'video'
     ? node.data.posterUrl || node.data.imageUrl || null
     : mediaType === 'image' ? node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null : null)
   const video = mediaType === 'video' ? toPlayableVideoUrl(node.data.videoUrl || node.data.contentUrl) : null
   const videoPoster = mediaType === 'video' ? toVideoPosterUrl(node.data.videoUrl || node.data.contentUrl, 480) : null
+  const audio = mediaType === 'audio' ? toPlayableVideoUrl(node.data.audioUrl || node.data.contentUrl) : null
+  const previewAnchorRef = useRef<HTMLButtonElement>(null)
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const previewCloseTimer = useRef<number | undefined>(undefined)
+  const [previewOpen, setPreviewOpen] = useState(false)
+  const cancelPreviewClose = () => window.clearTimeout(previewCloseTimer.current)
+  const closePreview = () => {
+    cancelPreviewClose()
+    setPreviewOpen(false)
+  }
+  const schedulePreviewClose = () => {
+    if (!previewOpen) return
+    cancelPreviewClose()
+    previewCloseTimer.current = window.setTimeout(() => setPreviewOpen(false), 240)
+  }
+  const openPreview = () => {
+    if (!previewEnabled || (!image && !audio) || mediaType === 'video') return
+    cancelPreviewClose()
+    setPreviewOpen(true)
+  }
+  useEffect(() => () => window.clearTimeout(previewCloseTimer.current), [])
+  useEffect(() => {
+    if (!previewEnabled) setPreviewOpen(false)
+  }, [previewEnabled])
   const Icon = node.type === 'text' ? Type : node.type === 'video' ? Film : node.type === 'audio' ? Music2 : ImageIcon
   const isCharacter = mediaType === 'image' && frameosAssetCategoryFromMetadata(node.data.sourceMetadata) === 'character'
   const characterVoiceBound = isCharacter && Boolean(characterVoiceMaterialId(node.data.sourceMetadata))
@@ -242,8 +266,17 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
     ? ' · 点击加入本次引用'
     : wired ? ' · 点击本次不引用（连线保留）' : ' · 点击移出引用'
   return (
-    <span className="nori-canvas-generator-ref-item">
+    <span className="nori-canvas-generator-ref-item" onPointerEnter={openPreview} onPointerLeave={schedulePreviewClose}>
       <button
+        ref={previewAnchorRef}
+        onFocus={openPreview}
+        onBlur={schedulePreviewClose}
+        onKeyDown={(event) => {
+          if (event.key === 'ArrowDown' && previewOpen && audioRef.current) {
+            event.preventDefault()
+            audioRef.current.focus()
+          }
+        }}
         type="button"
         className={`nori-canvas-generator-ref${selected ? ' is-selected' : ''}${image || video ? '' : ' is-icon'}`}
         title={`${title}${voiceHint}${toggleHint}`}
@@ -272,6 +305,23 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
       >
         <X />
       </button>
+      {previewEnabled && previewOpen ? (
+        <ViewportPopover anchorRef={previewAnchorRef} onClose={closePreview} preferredSide="above" width={320}
+          className="nori-canvas-reference-preview" aria-label={`预览 ${title}`} role="region"
+          closeOnOutsideWheel repositionHeartbeat
+          onPointerEnter={cancelPreviewClose} onPointerLeave={schedulePreviewClose}
+          onFocus={cancelPreviewClose} onBlur={schedulePreviewClose}
+          onDismissKey={() => {
+            requestAnimationFrame(closePreview)
+            return true
+          }}
+        >
+          {audio
+            ? <audio ref={audioRef} aria-label={`播放 ${title}`} src={audio} controls preload="metadata" />
+            : image ? <MediaImage src={image} alt={title} /> : null}
+          <span>{title}</span>
+        </ViewportPopover>
+      ) : null}
     </span>
   )
 }
@@ -482,6 +532,7 @@ export function CanvasGenerator({
     return value === 'a_pose' || value === 't_pose' ? value : 'none'
   })
   const [fullscreen, setFullscreen] = useState(false)
+  const [referencePreviewEnabled, setReferencePreviewEnabled] = useState(false)
   const panelRef = useRef<HTMLElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const flowStore = useStoreApi()
@@ -1629,9 +1680,13 @@ export function CanvasGenerator({
           <span className="nori-canvas-generator-refs-label">引用素材</span>
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
-          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
+          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} previewEnabled={referencePreviewEnabled} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
           {referencePickerType ? <button ref={referenceAddRef} type="button" className={`nori-canvas-generator-ref-add${referenceMenuOpen ? ' is-active' : ''}`} title="添加引用素材（无需连线）" aria-label="添加引用素材" aria-haspopup="menu" aria-expanded={referenceMenuOpen} onClick={() => setReferenceMenuOpen((open) => !open)}><Plus /><span aria-hidden="true">参考</span></button> : null}
           {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
+          {displayedReferenceNodes.length > 0 ? <label className="nori-canvas-generator-sound nori-canvas-reference-preview-toggle">
+            <input type="checkbox" role="switch" checked={referencePreviewEnabled} onChange={(event) => setReferencePreviewEnabled(event.target.checked)} />
+            <span>放大模式</span>
+          </label> : null}
           {referenceMenuOpen && referencePickerType ? (
             <ViewportPopover anchorRef={referenceAddRef} onClose={() => setReferenceMenuOpen(false)} preferredSide="below" width={208} maxHeight={160} role="menu" aria-label="添加引用素材" className="nori-canvas-reference-add-menu">
               <button ref={canvasPickItemRef} type="button" role="menuitem" disabled={canvasPickerItems.length === 0} title={canvasPickerItems.length === 0 ? '画布上暂无当前模型可引用的素材' : undefined} onClick={() => { setReferenceMenuOpen(false); setCanvasPickerOpen(true) }}><LayoutGrid /><span>从画布选择</span><small>{canvasPickerItems.length}</small></button>
