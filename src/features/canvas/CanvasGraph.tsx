@@ -3206,7 +3206,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   // One-click prompt matching wires a whole batch in one undo step: reuse
   // canvas nodes already carrying the material, create the rest beside the
   // generator, then connect everything that is not referenced yet.
-  const matchGeneratorPromptMaterials = useCallback((nodeId: string, materials: FrameosMaterialItem[]): { added: number; matched: number } | null => {
+  const matchGeneratorPromptMaterials = useCallback((nodeId: string, materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => {
     // Read the live lock: an async caller may have started before a production
     // sync / offline recovery began, and must not write once the canvas locks.
     if (writeLockedRef.current || materials.length === 0) return null
@@ -3226,7 +3226,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     }))]
     const existingByMaterialId = new Map<string, CanvasFlowNode>()
     const wiredSourceIds = new Set(edgesRef.current.filter((edge) => edge.target === nodeId).map((edge) => edge.source))
-    const referencedIds = new Set(target.data.generation?.referenceNodeIds || [])
+    const referencedIds = new Set(target.data.generation?.referenceNodeIds ?? wiredSourceIds)
     // Prefer the node the generator already references, then any wired input,
     // then the first canvas copy — a duplicate elsewhere must not win.
     for (const node of nodesRef.current) {
@@ -3249,8 +3249,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const node = existingByMaterialId.get(material.id) || created.find((item) => item.data.materialId === material.id)
       return node ? [node.id] : []
     })
-    const alreadyWiredSources = sourceNodeIds.filter((id) => referencedIds.has(id) || wiredSourceIds.has(id))
-    const toConnect = sourceNodeIds.filter((id) => !referencedIds.has(id) && !wiredSourceIds.has(id))
+    if (sourceNodeIds.length === 0) return null
+    const toConnect = sourceNodeIds.filter((id) => !referencedIds.has(id))
     // Bound voices ride along only when their character image is accepted.
     // Reuse an existing voice node; a voice with no canvas node is left to the
     // server-side auto-include at submission (it needs the stored audio file).
@@ -3262,10 +3262,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const voiceNode = existingByMaterialId.get(voiceId)
       return voiceNode ? [voiceNode.id] : []
     })
-    const voiceToConnect = voiceNodeIds.filter((id) => !referencedIds.has(id) && !wiredSourceIds.has(id) && !toConnect.includes(id))
+    const voiceToConnect = voiceNodeIds.filter((id) => !referencedIds.has(id) && !toConnect.includes(id))
     if (toConnect.length === 0 && voiceToConnect.length === 0) {
-      setGeneratorReferenceInjection({ nodeId, ids: alreadyWiredSources })
-      return { added: 0, matched: unique.length }
+      return { added: 0, restored: 0, matched: sourceNodeIds.length }
     }
     // Capacity is checked against the nodes that will actually be written, not
     // the candidate count: a tight canvas may still accept a partial result.
@@ -3277,6 +3276,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         nodes: [...nodesRef.current, ...created],
         edges: edgesRef.current,
         sourceNodeIds: toConnect,
+        validateReferences,
         targetNodeId: nodeId,
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
@@ -3284,12 +3284,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const baseNodes = primaryResult ? primaryResult.nodes : [...nodesRef.current, ...created]
     const baseEdges = primaryResult ? primaryResult.edges : edgesRef.current
     const baseTarget = baseNodes.find((node) => node.id === nodeId)
-    // One acceptance rule for both passes: an explicit reference OR an existing
-    // input edge counts, so legacy drafts without referenceNodeIds still work.
-    const baseAcceptedIds = new Set([
-      ...(baseTarget?.data.generation?.referenceNodeIds || []),
-      ...baseEdges.filter((edge) => edge.target === nodeId).map((edge) => edge.source),
-    ])
+    const baseAcceptedIds = new Set(baseTarget?.data.generation?.referenceNodeIds ?? referencedIds)
     const eligibleVoiceIds = voiceToConnect.filter((voiceId) => {
       const voiceNode = nodesRef.current.find((node) => node.id === voiceId)
       const voiceMaterialId = typeof voiceNode?.data.materialId === 'string' ? voiceNode.data.materialId : ''
@@ -3304,28 +3299,21 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         nodes: baseNodes,
         edges: baseEdges,
         sourceNodeIds: eligibleVoiceIds,
+        validateReferences,
         targetNodeId: nodeId,
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
       : null
     const result = voiceResult || { nodes: baseNodes, edges: baseEdges, added: 0, skipped: 0 }
     const totalAdded = (primaryResult?.added || 0) + (voiceResult?.added || 0)
-    if (totalAdded === 0) {
-      // Nothing new was wired (e.g. only voices were tried and all rejected):
-      // refresh the panel's references but write no history or autosave.
+    const restored = (primaryResult?.restored || 0) + (voiceResult?.restored || 0)
+    if (totalAdded === 0 && restored === 0) {
       if (toConnect.length > 0) return null
-      setGeneratorReferenceInjection({ nodeId, ids: alreadyWiredSources })
-      return { added: 0, matched: unique.length }
+      return { added: 0, restored: 0, matched: sourceNodeIds.length }
     }
     const plannedTarget = result.nodes.find((node) => node.id === nodeId)
-    const acceptedIds = new Set([
-      ...(plannedTarget?.data.generation?.referenceNodeIds || []),
-      ...result.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source),
-    ])
+    const acceptedIds = new Set(plannedTarget?.data.generation?.referenceNodeIds ?? referencedIds)
     if (!ensureNodeCapacity(capacityFor(acceptedIds))) return null
-    // A voice only follows when its owner image actually became a reference.
-    const acceptedVoiceIds = voiceNodeIds.filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
-    const acceptedSources = [...sourceNodeIds, ...acceptedVoiceIds].filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
     // Drop created nodes whose connection was rejected (model reference caps):
     // they would sit on the canvas unreferenced and undo would still remove them.
     const rejectedCreatedIds = new Set(created.filter((node) => !acceptedIds.has(node.id)).map((node) => node.id))
@@ -3339,9 +3327,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     edgesRef.current = committedEdges
     setNodes(committedNodes)
     setEdges(committedEdges)
-    setGeneratorReferenceInjection({ nodeId, ids: acceptedSources })
     markChanged('一键匹配引用')
-    return { added: totalAdded, matched: unique.length }
+    return { added: totalAdded, restored, matched: sourceNodeIds.filter((id) => acceptedIds.has(id)).length }
   }, [ensureNodeCapacity, markChanged, record])
 
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {
@@ -4420,7 +4407,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               event.stopPropagation()
             }}>拖拽批量连接</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode && wrapperRef.current ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} viewportLayerTarget={wrapperRef.current} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={(materials) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} /> : null}
+        {!readOnly && selectedCreativeNode && wrapperRef.current ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} viewportLayerTarget={wrapperRef.current} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={writeLocked ? undefined : (materials, validateReferences) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials, validateReferences)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} /> : null}
         {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}

@@ -79,6 +79,7 @@ describe('one-click prompt asset matching', () => {
     expect(matchCanvasPromptAssets('“娇娇”走进门', [asset], ['image'])).toEqual([])
     // The same name outside the quotes still matches.
     expect(matchCanvasPromptAssets('“娇娇”之外，娇娇走进门', [asset], ['image']).map((hit) => hit.material.id)).toEqual(['cross'])
+    expect(matchCanvasPromptAssets('门“娇娇”开', [material('spanning', '门“娇娇”开')], ['image'])).toEqual([])
   })
 
   it('requires ASCII identifier boundaries', () => {

@@ -1,7 +1,6 @@
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import {
   findQuotedDialogueRanges,
-  isInsideQuotedDialogue,
   normalizePromptMentionName,
 } from '@/lib/prompt-mentions'
 import {

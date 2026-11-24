@@ -185,4 +185,4 @@ const server = createServer((request, response) => {
 })
 const port = Number(process.env.NORI_DEMO_PORT || 4173)
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
-console.log(`Canvas demo ready: http://127.0.0.1:${port}`)
+console.log(`Canvas demo ready: http://127.0.0.1:${server.address().port}`)
