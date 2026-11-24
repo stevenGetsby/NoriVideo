@@ -260,7 +260,13 @@ export function resolveCanvasMentionNameOwners(
     if (nodeId) claim(asset.name, nodeId, 3 + mediaRank(asset))
   }
   const namesByNodeId: Record<string, string[]> = {}
-  for (const match of scanPromptMentions(prompt, assets.map((asset) => asset.name))) {
+  // A recorded selection keeps its original @text scannable even when the
+  // material was renamed and the menu no longer offers that alias.
+  const scanNames = [
+    ...assets.map((asset) => asset.name),
+    ...selections.filter((selection) => submittedNodeIds.has(selection.nodeId)).map((selection) => selection.name),
+  ]
+  for (const match of scanPromptMentions(prompt, scanNames)) {
     if (match.name === null) continue
     const nodeId = ownerByName.get(match.name.toLocaleLowerCase())
     if (!nodeId || !submittedNodeIds.has(nodeId)) continue

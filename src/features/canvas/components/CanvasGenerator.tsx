@@ -267,6 +267,24 @@ function referenceSummary(
   }
 }
 
+/** Drafts persisted before this field existed simply carry no selections. */
+function readPersistedMentionSelections(generation: CanvasFlowNode['data']['generation']): CanvasMentionNameSelection[] {
+  const raw = generation?.referenceMentionSelections
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const selections: CanvasMentionNameSelection[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const nodeId = typeof item.nodeId === 'string' ? item.nodeId.trim() : ''
+    const name = typeof item.name === 'string' ? item.name.trim() : ''
+    const key = name.toLocaleLowerCase()
+    if (!nodeId || !name || seen.has(key)) continue
+    seen.add(key)
+    selections.push({ nodeId, name })
+  }
+  return selections
+}
+
 export function quoteInputVideoSeconds(referenceNodeIds: string[], referenceNodes: CanvasFlowNode[]): number {
   const seconds = referenceNodeIds.flatMap((id) => {
     const node = referenceNodes.find((item) => item.id === id)
@@ -450,6 +468,7 @@ export function CanvasGenerator({
   const [generateAudio, setGenerateAudio] = useState(node.data.generation?.generateAudio ?? true)
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
+  const [mentionSelections, setMentionSelections] = useState<CanvasMentionNameSelection[]>(() => readPersistedMentionSelections(node.data.generation))
   const [storyboard, setStoryboard] = useState(node.data.processType === 'storyboard')
   const [audioMode, setAudioMode] = useState<AudioMode>('tts')
   const [audioVoice, setAudioVoice] = useState(() => String(node.data.generation?.parameters?.voice || ''))
@@ -473,7 +492,6 @@ export function CanvasGenerator({
   const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
   const lastDraftSignatureRef = useRef('')
-  const mentionSelectionsRef = useRef<Map<string, CanvasMentionNameSelection>>(new Map())
   const panelResizeCleanupRef = useRef<(() => void) | null>(null)
   const closeEditorRef = useRef<() => void>(() => undefined)
 
@@ -560,7 +578,7 @@ export function CanvasGenerator({
     hydratedInputRef.current = node.id
     skipDraftPersistenceRef.current = true
     lastDraftSignatureRef.current = ''
-    mentionSelectionsRef.current.clear()
+    setMentionSelections(readPersistedMentionSelections(node.data.generation))
     setPrompt(node.data.prompt || '')
     setModelKey(node.data.generation?.modelKey || '')
     setAspectRatio(isPanorama
@@ -820,6 +838,9 @@ export function CanvasGenerator({
         inputSchema: currentModel?.raw?.inputSchema || null,
         referenceNodeIds,
         referenceSummary: selectedReferenceSummaries,
+        ...(shouldBindCanvasMentionReference(type) && mentionSelections.length > 0
+          ? { referenceMentionSelections: mentionSelections }
+          : {}),
         aspectRatio,
         resolution,
         ...(type === 'image' ? { quality } : {}),
@@ -835,7 +856,7 @@ export function CanvasGenerator({
               ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
               : undefined,
       },
-    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -882,7 +903,12 @@ export function CanvasGenerator({
   const rememberMentionSelection = (nodeId: string | undefined, name: string) => {
     if (!nodeId) return
     const key = name.trim().toLocaleLowerCase()
-    if (key) mentionSelectionsRef.current.set(key, { nodeId, name })
+    if (!key) return
+    setMentionSelections((current) => {
+      const next = current.filter((selection) => selection.name.trim().toLocaleLowerCase() !== key)
+      next.push({ nodeId, name })
+      return next
+    })
   }
 
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
@@ -1020,7 +1046,7 @@ export function CanvasGenerator({
         mentionAssets,
         referenceNodeIds,
         referenceNodes,
-        [...mentionSelectionsRef.current.values()],
+        mentionSelections,
       ))
     }
     // Commit the current draft before autosave builds the generation snapshot.
