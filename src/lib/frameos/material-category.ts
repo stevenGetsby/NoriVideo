@@ -39,6 +39,30 @@ export function frameosAssetCategoryFromMetadata(metadata: unknown): FrameosAsse
   return 'other'
 }
 
+/**
+ * Alternative names an asset answers to in one-click prompt matching.
+ * Accepts a string array or a comma/、/，/whitespace separated string, the
+ * same shapes character cards use for their alias field. Aliases only drive
+ * entity selection; they never enter @ candidates or bare-text substitution.
+ */
+export function frameosAssetAliasesFromMetadata(metadata: unknown): string[] {
+  const source = record(metadata)
+  const raw = source.aliases
+  const parts = Array.isArray(raw)
+    ? raw.filter((item): item is string => typeof item === 'string')
+    : typeof raw === 'string' ? raw.split(/[,，、;；\s]+/u) : []
+  const seen = new Set<string>()
+  const aliases: string[] = []
+  for (const part of parts) {
+    const alias = part.replace(/\s+/g, ' ').trim()
+    const key = alias.toLocaleLowerCase()
+    if (!alias || seen.has(key)) continue
+    seen.add(key)
+    aliases.push(alias)
+  }
+  return aliases
+}
+
 export function withFrameosAssetCategory(
   metadata: unknown,
   category: unknown,

@@ -3198,6 +3198,63 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     return source.id
   }, [insertMaterials, markChanged, record, writeLocked])
 
+  // One-click prompt matching wires a whole batch in one undo step: reuse
+  // canvas nodes already carrying the material, create the rest beside the
+  // generator, then connect everything that is not referenced yet.
+  const matchGeneratorPromptMaterials = useCallback((nodeId: string, materials: FrameosMaterialItem[]): { added: number; matched: number } | null => {
+    if (writeLocked || materials.length === 0) return null
+    const target = nodesRef.current.find((node) => node.id === nodeId)
+    if (!target) return null
+    const unique = [...new Map(materials.map((material) => [material.id, material])).values()]
+    const existingByMaterialId = new Map<string, CanvasFlowNode>()
+    for (const node of nodesRef.current) {
+      if (node.id === nodeId || typeof node.data.materialId !== 'string') continue
+      if (!existingByMaterialId.has(node.data.materialId)) existingByMaterialId.set(node.data.materialId, node)
+    }
+    const missing = unique.filter((material) => !existingByMaterialId.has(material.id))
+    let created: CanvasFlowNode[] = []
+    if (missing.length > 0) {
+      pendingMentionGeneratorRef.current = nodeId
+      created = insertMaterials(missing.map((material, index) => ({
+        material,
+        position: { x: target.position.x - 420, y: target.position.y + 40 + index * 180 },
+      })))
+      if (created.length === 0) {
+        pendingMentionGeneratorRef.current = null
+        return null
+      }
+      nodesRef.current = [...nodesRef.current, ...created]
+    }
+    const sourceNodeIds = unique.flatMap((material) => {
+      const node = existingByMaterialId.get(material.id) || created.find((item) => item.data.materialId === material.id)
+      return node ? [node.id] : []
+    })
+    const referencedIds = new Set(target.data.generation?.referenceNodeIds || [])
+    const toConnect = sourceNodeIds.filter((id) => !referencedIds.has(id))
+    if (toConnect.length > 0) {
+      const result = planCanvasBatchConnections({
+        nodes: nodesRef.current,
+        edges: edgesRef.current,
+        sourceNodeIds: toConnect,
+        targetNodeId: nodeId,
+        maxEdges: CANVAS_EDGE_HARD_LIMIT,
+      })
+      if (result.added === 0) {
+        pendingMentionGeneratorRef.current = null
+        return null
+      }
+      nodesRef.current = result.nodes.map((node) => ({ ...node, selected: node.id === nodeId }))
+      edgesRef.current = result.edges
+      setNodes(nodesRef.current)
+      setEdges(result.edges)
+    }
+    pendingMentionGeneratorRef.current = null
+    record('一键匹配引用')
+    setGeneratorReferenceInjection({ nodeId, ids: sourceNodeIds })
+    markChanged('一键匹配引用')
+    return { added: toConnect.length, matched: unique.length }
+  }, [insertMaterials, markChanged, record, writeLocked])
+
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {
     const dropped = materials.filter((material) => ['image', 'video', 'audio', 'model3d'].includes(material.type))
     if (dropped.length === 0) {
@@ -4274,7 +4331,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
               event.stopPropagation()
             }}>拖拽批量连接</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
-        {!readOnly && selectedCreativeNode && wrapperRef.current ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} viewportLayerTarget={wrapperRef.current} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} /> : null}
+        {!readOnly && selectedCreativeNode && wrapperRef.current ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} viewportLayerTarget={wrapperRef.current} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={(materials) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} /> : null}
         {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}

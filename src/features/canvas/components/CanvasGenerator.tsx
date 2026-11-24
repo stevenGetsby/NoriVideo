@@ -121,6 +121,7 @@ import {
   type CanvasMentionMediaType,
   type CanvasMentionNameSelection,
 } from './canvas-mention-references'
+import { matchCanvasPromptAssets } from './canvas-auto-match'
 
 type ModelOption = {
   modelKey: string
@@ -380,6 +381,7 @@ export function CanvasGenerator({
   onFocus,
   onAddReferences,
   onSelectLibraryMaterial,
+  onMatchPromptMaterials,
   injectedReferenceNodeIds,
   panelWidth,
   onPanelWidthChange,
@@ -402,6 +404,7 @@ export function CanvasGenerator({
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
+  onMatchPromptMaterials?: (materials: FrameosMaterialItem[]) => { added: number; matched: number } | null
   panelWidth: number
   onPanelWidthChange: (width: number) => void
   viewportLayerTarget: HTMLElement
@@ -559,6 +562,8 @@ export function CanvasGenerator({
   const [quoteLoading, setQuoteLoading] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [autoMatching, setAutoMatching] = useState(false)
+  const [autoMatchNotice, setAutoMatchNotice] = useState<string | null>(null)
   const onDraftChangeRef = useRef(onDraftChange)
   const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
@@ -1163,6 +1168,40 @@ export function CanvasGenerator({
     ]
   }
 
+  // One-click matching selects project assets named in the prompt (official
+  // names and aliases) and wires them as references. Additive: existing wires
+  // and manual references are never removed.
+  const autoMatchReferences = async () => {
+    if (!onMatchPromptMaterials || autoMatching) return
+    const text = prompt.trim()
+    if (!text) { setAutoMatchNotice('请先输入提示词，再一键匹配引用。'); return }
+    setAutoMatching(true)
+    setAutoMatchNotice(null)
+    try {
+      const controller = new AbortController()
+      const query = new URLSearchParams({ projectId, available: '1', limit: '500' })
+      const materials = await fetchAllFrameosMaterials(query, controller.signal)
+      const hits = matchCanvasPromptAssets(text, materials, mentionAllowedTypes)
+      if (hits.length === 0) {
+        setAutoMatchNotice('提示词中没有匹配到项目资产（正式名或别名）。')
+        return
+      }
+      const result = onMatchPromptMaterials(hits.map((hit) => hit.material))
+      if (!result) {
+        setAutoMatchNotice('匹配到的素材未能建立引用，请检查模型引用上限。')
+        return
+      }
+      const names = hits.slice(0, 4).map((hit) => hit.matchedTerm).join('、')
+      setAutoMatchNotice(result.added > 0
+        ? `已匹配 ${result.matched} 个资产，新连线 ${result.added} 条：${names}${hits.length > 4 ? ' 等' : ''}`
+        : `匹配到 ${result.matched} 个资产，均已在引用中：${names}${hits.length > 4 ? ' 等' : ''}`)
+    } catch (matchError) {
+      setAutoMatchNotice(matchError instanceof Error ? matchError.message : '一键匹配失败，请重试。')
+    } finally {
+      setAutoMatching(false)
+    }
+  }
+
   // The editor's pick is the user's explicit choice of which reference owns a
   // name; keep it so submit never re-guesses ownership by media type.
   const rememberMentionSelection = (nodeId: string | undefined, name: string) => {
@@ -1470,8 +1509,10 @@ export function CanvasGenerator({
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
           {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} selected={referenceNodeIds.includes(incoming.id)} onToggle={() => toggleReferenceNode(incoming)} onHover={setHoveredReferenceId} />)}
           {onAddReferences && referencePickerType ? <button type="button" className="nori-canvas-generator-ref-add" title="从素材库添加引用素材（无需连线）" aria-label="添加引用素材" onClick={() => onAddReferences({ type: referencePickerType, maxSelected: referencePickerMax })}><Plus /><span aria-hidden="true">参考</span></button> : null}
+          {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
         </div>
       ) : null}
+      {autoMatchNotice ? <p className="nori-canvas-generator-automatch-notice" role="status">{autoMatchNotice}</p> : null}
       {characterVoiceHint ? <p className={`nori-canvas-generator-voice-hint${characterVoiceHintTone}`}>{characterVoiceHint}</p> : null}
 
       {missingReferenceCount > 0 ? <div role="alert" className="nori-canvas-generator-reference-warning">
