@@ -101,6 +101,30 @@ try {
   assert.deepEqual(errors, [])
   console.log('PASS: production sync blocks a late match; retry after unlocking writes nodes and edges')
 
+  const waitForSavedReferences = (matched) => page.waitForFunction(async ({ graphPath, matched }) => {
+    const response = await fetch(graphPath, { cache: 'no-store' })
+    if (!response.ok) return false
+    const graph = await response.json()
+    const ids = graph.nodes.find((node) => node.id === 'gen-1')?.data.generation?.referenceNodeIds
+    return matched
+      ? Array.isArray(ids) && ids.length > 1
+      : Array.isArray(ids) && ids.length === 1 && ids[0] === 'ref-1'
+  }, { graphPath, matched }, { polling: 150 })
+  await waitForSavedReferences(true)
+  await undo.click()
+  await waitForSavedReferences(false)
+  const reloadGraph = page.waitForResponse((response) => new URL(response.url()).pathname === graphPath)
+  await page.reload()
+  const restoredGraph = await (await reloadGraph).json()
+  assert.deepEqual(restoredGraph.nodes.find((node) => node.id === 'gen-1').data.generation.referenceNodeIds, ['ref-1'])
+  await nodes.nth(before.nodes.length - 1).waitFor({ state: 'attached' })
+  await edges.nth(before.edges.length - 1).waitFor({ state: 'attached' })
+  assert.deepEqual((await graphState()).nodes, before.nodes)
+  assert.deepEqual((await graphState()).edges, before.edges)
+  assert.deepEqual(errors, [])
+  await page.close()
+  console.log('PASS: undo saves the original reference ids and they survive reload')
+
   const limited = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   limited.on('pageerror', (error) => errors.push(error.message))
   await limited.route('**/*', (route) => {

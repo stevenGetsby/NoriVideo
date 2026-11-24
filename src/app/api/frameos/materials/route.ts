@@ -6,7 +6,7 @@ import { prisma } from '@/lib/prisma'
 import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
 import { hasAccountPermissions, isManagementRole } from '@/lib/account/permissions'
 import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
-import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
+import { resolveCanvasAssetProjectIds, resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { extractStorageKey, getSignedUrl } from '@/lib/storage'
 import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
@@ -107,9 +107,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   // rows so automatic matching cannot widen to unrelated projects or libraries.
   const currentWork = currentProject ? readableProjects.find((project) => project.id === scopedProjectId) : undefined
   if (currentProject && !currentWork) throw new ApiError('NOT_FOUND', { message: '作品不存在或当前账号无权访问。' })
-  const matchingProjectIds = currentWork?.workId
-    ? (await resolveProjectAssetScope(session, { workId: currentWork.workId, projectId: currentWork.id })).projectIds
-    : currentWork ? [currentWork.id] : null
+  const matchingProjectIds = currentWork ? await resolveCanvasAssetProjectIds(session, currentWork) : null
   const projectIds = matchingProjectIds ?? (personal
     ? [PERSONAL_MATERIAL_PROJECT_ID]
     : assetScope?.projectIds

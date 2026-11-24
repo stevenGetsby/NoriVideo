@@ -49,7 +49,7 @@ import { isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/fra
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
 import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
-import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
+import { resolveCanvasAssetProjectIds, resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { getWorkspaceActor, workspaceUserWhere } from '@/lib/collaboration/access'
 import { normalizePromptMentionName } from '@/lib/prompt-mentions'
 
@@ -421,10 +421,10 @@ async function executeToolboxGeneration(
   if (!workId && !routeParams?.projectId && !routeParams?.canvasId) {
     throw new ApiError('INVALID_PARAMS', { message: '工具箱生成必须选择有权限的项目和归属作品。' })
   }
-  const assetScope = workId
-    ? await resolveProjectAssetScope(session, { workId, projectId })
-    : { projects: [{ id: projectId, name: '', workId }], projectIds: [projectId] }
-  const availableMaterialProjectIds = [...assetScope.projectIds, 'global', 'global-asset-hub']
+  const assetProjectIds = routeParams?.projectId && routeParams.canvasId
+    ? await resolveCanvasAssetProjectIds(session, authResult.project)
+    : (await resolveProjectAssetScope(session, { workId, projectId })).projectIds
+  const availableMaterialProjectIds = [...assetProjectIds, 'global', 'global-asset-hub']
   const workspaceUsers = await prisma.user.findMany({
     where: workspaceUserWhere(getWorkspaceActor(session).workspaceOwnerId),
     select: { id: true },
@@ -703,7 +703,7 @@ async function executeToolboxGeneration(
   if (type === 'video' && inputMode === 'text' && body.textOnly !== true && options.generateAudio !== false
     && resolveCanvasGenerationInputSchema(type, capabilities).audio.max > 0) {
     const structuredVoices = await materializeStructuredCharacterVoices({
-      userId: session.user.id, projectId, projectIds: assetScope.projectIds, workspaceUserIds,
+      userId: session.user.id, projectId, projectIds: assetProjectIds, workspaceUserIds,
       images: orderedMaterials.filter((material) => material.type === 'image'),
     })
     for (const voice of structuredVoices) {

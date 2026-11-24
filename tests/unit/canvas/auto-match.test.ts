@@ -17,6 +17,12 @@ const location = material('loc-1', '雨夜街巷', { metadata: { assetCategory: 
 const prop = material('prop-1', '油纸伞', { metadata: { assetCategory: 'prop' } })
 
 describe('one-click prompt asset matching', () => {
+  it('preserves lowercase equivalences without broadening ASCII words', () => {
+    const asset = material('name', 'İpek')
+    expect(matchCanvasPromptAssets('i\u0307pek walks', [asset], ['image']).map((hit) => hit.material.id)).toEqual(['name'])
+    expect(matchCanvasPromptAssets('“i\u0307pek”', [asset], ['image'])).toEqual([])
+    expect(matchCanvasPromptAssets('xSam', [material('long-s', 'ſam')], ['image'])).toEqual([])
+  })
   it('measures quoted dialogue and matches against the same original text', () => {
     const asset = material('character', '林夏')
     expect(matchCanvasPromptAssets('İİİ“林夏”', [asset], ['image'])).toEqual([])

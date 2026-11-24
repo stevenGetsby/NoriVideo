@@ -64,6 +64,17 @@ export function matchCanvasPromptAssets(
   if (!text) return []
   const allowed = new Set(allowedTypes)
   const dialogue = findQuotedDialogueRanges(text)
+  const lowered = text.toLowerCase()
+  // Lowercasing can expand a code point (İ → i + combining dot). Record
+  // original boundaries so matches never use folded coordinates as offsets.
+  const originalOffsets: Array<number | undefined> = [0]
+  let originalOffset = 0
+  let foldedOffset = 0
+  for (const character of text) {
+    originalOffset += character.length
+    foldedOffset += character.toLowerCase().length
+    originalOffsets[foldedOffset] = originalOffset
+  }
 
   interface Candidate {
     material: FrameosMaterialItem
@@ -87,15 +98,14 @@ export function matchCanvasPromptAssets(
     for (const { term: rawTerm, isOfficial } of terms) {
       const term = normalizePromptMentionName(rawTerm)
       if (!term || !isAutoMatchableTerm(term)) continue
-      const literal = term.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&')
-      const pattern = new RegExp(literal, 'giu')
-      let match: RegExpExecArray | null
-      while ((match = pattern.exec(text)) !== null) {
-        const index = match.index
-        const end = index + match[0].length
+      const needle = term.toLowerCase()
+      for (let offset = lowered.indexOf(needle); offset >= 0; offset = lowered.indexOf(needle, offset + 1)) {
+        const index = originalOffsets[offset]
+        const end = originalOffsets[offset + needle.length]
+        if (index === undefined || end === undefined) continue
         const asciiBounded = !(
-          (isAsciiIdentifierChar(term[0]) && isAsciiIdentifierChar(text[index - 1]))
-          || (isAsciiIdentifierChar(term[term.length - 1]) && isAsciiIdentifierChar(text[end]))
+          ((isAsciiIdentifierChar(term[0]) || isAsciiIdentifierChar(text[index])) && isAsciiIdentifierChar(text[index - 1]))
+          || ((isAsciiIdentifierChar(term[term.length - 1]) || isAsciiIdentifierChar(text[end - 1])) && isAsciiIdentifierChar(text[end]))
         )
         // Every qualifying occurrence is kept: a short name absorbed inside a
         // longer one at its first occurrence may still appear independently
@@ -105,8 +115,6 @@ export function matchCanvasPromptAssets(
         if (asciiBounded && !intersectsDialogue) {
           candidates.push({ material, term, isOfficial, start: index, end })
         }
-        // Preserve overlapping occurrences without restarting inside a surrogate pair.
-        pattern.lastIndex = index + (match[0].codePointAt(0)! > 0xffff ? 2 : 1)
       }
     }
   }

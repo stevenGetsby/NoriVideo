@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
+import { resolveCanvasAssetProjectIds } from '@/lib/frameos/project-asset-scope'
 import {
   bindCanvasGenerationTaskToNode,
   buildCanvasGenerationDedupeKey,
@@ -34,6 +35,9 @@ export const POST = apiHandler(async (
 
   const requestBody = await request.json().catch(() => null)
   const payload = { ...originalPayload, retryOf: original.id }
+  if (payload.kind === 'storyboard_plan' && payload.imageRequest.referenceMaterialIds.length > 0) {
+    payload.referenceProjectIds = await resolveCanvasAssetProjectIds(authResult.session, authResult.project)
+  }
   const type = taskTypeForCanvasGeneration(payload.kind)
   const submitResult = await submitTask({
     userId: authResult.session.user.id,
