@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { parseCanvasGenerationTaskPayload, type CanvasStoryboardPlanTaskPayload } from '@/lib/canvas/generation-task'
+import { buildCanvasGenerationDedupeKey, parseCanvasGenerationTaskPayload, type CanvasStoryboardPlanTaskPayload } from '@/lib/canvas/generation-task'
 import type { CanvasStoryboardShot } from '@/lib/canvas/storyboard-plan'
 import { TaskTerminatedError } from '@/lib/task/errors'
 
@@ -296,6 +296,12 @@ describe('server storyboard fan-out', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetSource()
+  })
+
+  it('dedupes the same authorized project set even when works are returned in another order', () => {
+    const key = (referenceProjectIds: string[]) => buildCanvasGenerationDedupeKey('canvas_storyboard_plan', { ...payload, referenceProjectIds })
+    expect(key(['project-1', 'project-sibling'])).toBe(key(['project-sibling', 'project-1']))
+    expect(key(['project-1', 'project-sibling'])).not.toBe(key(['project-1']))
   })
 
   it('loads references from the authorized sibling scope and workspace members', async () => {

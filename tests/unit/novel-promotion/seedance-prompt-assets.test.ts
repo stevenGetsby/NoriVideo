@@ -160,6 +160,33 @@ describe('Seedance asset prompt conventions', () => {
 })
 
 describe('Seedance @mention compilation (production regressions)', () => {
+  it('binds submitted image aliases and Unicode names with original-text boundaries', () => {
+    const references = [
+      { type: 'image', index: 1, names: [], fallbackNames: ['Lin Xia'], aliases: ['Xiaxia'], kind: 'character' },
+      { type: 'image', index: 2, names: [], fallbackNames: ['İpek'], kind: 'character' },
+    ] satisfies SeedanceMentionReference[]
+    const { prompt } = compileSeedanceMentionPrompt('İİİ“Xiaxia，i\u0307pek”之后，Xiaxia 和 i\u0307pek 走进门。', references, { mediaReferences: true })
+    expect(prompt).toContain('图1（@图片1）是角色Lin Xia')
+    expect(prompt).toContain('图2（@图片2）是角色İpek')
+    expect(prompt).toContain('İİİ“Xiaxia，i\u0307pek”之后，图1（Xiaxia） 和 图2（i\u0307pek） 走进门。')
+  })
+
+  it('prefers exact titles to aliases and leaves equally ranked aliases unbound', () => {
+    const references = [
+      { type: 'image', index: 1, names: [], fallbackNames: ['Lin Xia'], aliases: ['Xiaxia', 'Lin'] },
+      { type: 'image', index: 2, names: [], fallbackNames: ['Xiaxia'], aliases: ['Lin'] },
+    ] satisfies SeedanceMentionReference[]
+    const { prompt } = compileSeedanceMentionPrompt('Xiaxia 和 Lin', references, { mediaReferences: true })
+    expect(prompt).toContain('图2（Xiaxia） 和 Lin')
+    expect(prompt).not.toContain('图1（')
+  })
+
+  it('does not bind single-character or numeric aliases after Unicode folding', () => {
+    const { prompt } = compileSeedanceMentionPrompt('İ １２', [
+      { type: 'image', index: 1, names: [], fallbackNames: ['角色'], aliases: ['İ', '１２'] },
+    ], { mediaReferences: true })
+    expect(prompt).toBe('İ １２')
+  })
   const reference = (
     type: SeedanceMentionReference['type'],
     index: number,

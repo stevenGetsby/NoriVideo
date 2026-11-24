@@ -45,7 +45,7 @@ import {
   isCanvasPanoramaProcessType,
 } from '@/lib/canvas/panorama-contract'
 import { prepareCanvasToolboxImageOutputs } from '@/lib/canvas/toolbox-output-nodes'
-import { isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { frameosAssetAliasesFromMetadata, isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
 import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
@@ -1068,6 +1068,7 @@ async function executeToolboxGeneration(
   const mentionNamesByMaterialId = cleanReferenceMentionNames(body.referenceMentionNames, materialIds)
   const mentionNamesFor = (material: typeof orderedMaterials[number]) => mentionNamesByMaterialId.get(material.id) || []
   const referenceImageMentionNames = referenceImages.map(mentionNamesFor)
+  const referenceImageAliases = referenceImages.map((material) => frameosAssetAliasesFromMetadata(material.metadata))
   const referenceVideoMentionNames = referenceVideos.map(mentionNamesFor)
   const referenceAudioMentionNames = referenceAudios.map(mentionNamesFor)
   const referenceImageRoles = referenceImages.map((material) => referenceRoleByMaterialId.get(material.id) || 'REF')
@@ -1188,6 +1189,7 @@ async function executeToolboxGeneration(
         referenceVideoNames,
         referenceAudioNames,
         referenceImageMentionNames,
+        ...(referenceImageAliases.some((aliases) => aliases.length > 0) ? { referenceImageAliases } : {}),
         referenceVideoMentionNames,
         referenceAudioMentionNames,
         referenceMaterialIds: materialIds,

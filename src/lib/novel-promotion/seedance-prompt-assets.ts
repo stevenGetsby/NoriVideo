@@ -1,4 +1,4 @@
-import { findQuotedDialogueRanges, isInsideQuotedDialogue, normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
+import { createBarePromptNameMatcher, findQuotedDialogueRanges, isBarePromptName, isInsideQuotedDialogue, normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
 
 export type SeedancePromptAssetKind = 'character' | 'location' | 'prop'
 
@@ -30,43 +30,6 @@ function stripMediaTypeSuffix(value: string): string {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-/**
- * Bare-name binding follows the 字字动画 plugin safety rules: pure-digit and
- * single-character asset names never participate in bare-text replacement
- * (they would corrupt 时长：2秒 / 9:16 / 镜头1); they stay reachable via an
- * explicit @名称 mention.
- */
-function isBareBindableName(name: string): boolean {
-  return Array.from(name).length >= 2 && !/^\d+$/u.test(name)
-}
-
-/**
- * One-pass, non-recursive replacement: the pattern only scans the original
- * text, so freshly written 图N（名） bindings are never rescanned and cannot
- * pollute each other (plugin rule: 一次性非递归替换).
- */
-function replaceOutsideQuotes(
-  prompt: string,
-  pattern: RegExp,
-  replacer: (match: RegExpExecArray, source: string) => string | null,
-): string {
-  if (!prompt) return prompt
-  const dialogue = findQuotedDialogueRanges(prompt)
-  let result = ''
-  let cursor = 0
-  pattern.lastIndex = 0
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(prompt)) !== null) {
-    if (match[0].length === 0) { pattern.lastIndex += 1; continue }
-    if (isInsideQuotedDialogue(dialogue, match.index)) continue
-    const replacement = replacer(match, prompt)
-    if (replacement === null) continue
-    result += prompt.slice(cursor, match.index) + replacement
-    cursor = match.index + match[0].length
-  }
-  return result + prompt.slice(cursor)
 }
 
 /**
@@ -181,7 +144,7 @@ function replaceNamedAssets(
 
     if (!match.startsWith('@')) {
       // Pure-digit / single-character names only bind via explicit @名称.
-      if (!isBareBindableName(rawName)) return match
+      if (!isBarePromptName(rawName)) return match
       // "@女主_萧令仪" is an unknown mention; never rewrite the 萧令仪 inside it.
       if (unknownMentions.some((mention) => offset > mention.start && offset < mention.end)) return match
       // "萧令仪@萧令仪" already carries the mention; compiling both duplicates it.
@@ -294,6 +257,8 @@ export interface SeedanceMentionReference {
   names: string[]
   /** Material titles and other aliases, used only when no primary name claims them. */
   fallbackNames?: string[]
+  /** Library aliases are bare-text fallbacks below selected names and titles. */
+  aliases?: string[]
   kind?: SeedancePromptAssetKind
 }
 
@@ -329,7 +294,7 @@ export function compileSeedanceMentionPrompt(
   // registered before any fallback, so a voice whose exact name is 沈娇 keeps
   // @沈娇 even when an image carries 沈娇 as a title fallback.
   const register = (target: Map<string, SeedanceMentionReference>, rawName: string, reference: SeedanceMentionReference) => {
-    const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
+    const key = normalizePromptMentionName(rawName).toLowerCase()
     if (key && !target.has(key)) target.set(key, reference)
   }
   for (const reference of ordered) reference.names.forEach((name) => register(byName, name, reference))
@@ -339,13 +304,32 @@ export function compileSeedanceMentionPrompt(
   // 沈娇 in body text binds to the character image, never to the voice.
   const byBareName = new Map<string, SeedanceMentionReference>()
   const imageReferences = ordered.filter((reference) => reference.type === 'image')
-  for (const reference of imageReferences) reference.names.forEach((name) => register(byBareName, name, reference))
-  for (const reference of imageReferences) (reference.fallbackNames || []).forEach((name) => register(byBareName, name, reference))
+  const registerBare = (rawName: string, reference: SeedanceMentionReference) => {
+    const name = normalizePromptMentionName(rawName)
+    const key = name.toLowerCase()
+    if (isBarePromptName(name) && !byBareName.has(key)) byBareName.set(key, reference)
+  }
+  for (const reference of imageReferences) reference.names.forEach((name) => registerBare(name, reference))
+  for (const reference of imageReferences) (reference.fallbackNames || []).forEach((name) => registerBare(name, reference))
+  const aliases = new Map<string, SeedanceMentionReference | null>()
+  for (const reference of imageReferences) {
+    for (const rawName of reference.aliases ?? []) {
+      const name = normalizePromptMentionName(rawName)
+      const key = name.toLowerCase()
+      if (!isBarePromptName(name) || byBareName.has(key)) continue
+      const previous = aliases.get(key)
+      aliases.set(key, previous === undefined || previous === reference ? reference : null)
+    }
+  }
+  for (const [name, reference] of aliases) {
+    if (reference) byBareName.set(name, reference)
+  }
 
   const dialogue = findQuotedDialogueRanges(prompt)
   const names = ordered.flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
   const mentions = scanPromptMentions(prompt, names)
   const unresolved: PromptMentionMatch[] = []
+  const unknownRanges: Array<{ start: number; end: number }> = []
   const boundReferences = new Set<SeedanceMentionReference>()
   const referenceName = (reference: SeedanceMentionReference): string => (
     stripMediaTypeSuffix(reference.names[0] || reference.fallbackNames?.[0] || '')
@@ -364,9 +348,13 @@ export function compileSeedanceMentionPrompt(
   for (const mention of mentions) {
     // Dialogue quotes shield everything inside them, @markers included.
     if (isInsideQuotedDialogue(dialogue, mention.start)) continue
-    const reference = mention.name === null ? null : byName.get(mention.name.toLocaleLowerCase())
+    const reference = mention.name === null ? null : byName.get(mention.name.toLowerCase())
     if (!reference) {
       unresolved.push(mention)
+      // The second pass reads the compiled string, where preceding explicit
+      // mentions may already have changed the original offsets.
+      const shift = compiled.length - cursor
+      unknownRanges.push({ start: mention.start + shift, end: mention.end + shift })
       continue
     }
     compiled += prompt.slice(cursor, mention.start)
@@ -381,50 +369,41 @@ export function compileSeedanceMentionPrompt(
   // Only image names participate: voices/motion clips are whole-file references,
   // so a character name that happens to equal an audio title must stay bound to
   // the character image. Audios/videos bind through explicit @mentions only.
-  if (options.mediaReferences) {
-    const imageNames = ordered
-      .filter((reference) => reference.type === 'image')
-      .flatMap((reference) => [...reference.names, ...(reference.fallbackNames || [])])
-    const bareNames = Array.from(new Set(imageNames.map((name) => normalizePromptMentionName(name)).filter(isBareBindableName)))
-      .sort((left, right) => right.length - left.length)
-    if (bareNames.length > 0) {
-      const barePattern = new RegExp(bareNames.map(escapeRegExp).join('|'), 'giu')
-      const boundNameRanges = findBoundNameRanges(compiled)
-      // "@女主_萧令仪" is unknown; its 萧令仪 tail must stay literal too.
-      const unknownRanges = unresolved.map((mention) => ({ start: mention.start, end: mention.end }))
-      // Whole bindings written by the mention pass, to spot redundant echoes.
-      const bindingRanges: Array<{ start: number; end: number }> = []
-      const bindingPattern = /(?:图|视频|音频)\d+（[^（）]*）|(?:视频|音频)\d+/gu
-      let bindingMatch: RegExpExecArray | null
-      while ((bindingMatch = bindingPattern.exec(compiled)) !== null) {
-        bindingRanges.push({ start: bindingMatch.index, end: bindingMatch.index + bindingMatch[0].length })
-      }
-      compiled = replaceOutsideQuotes(compiled, barePattern, (match, source) => {
-        // The name inside an existing binding is already bound; never nest.
-        if (boundNameRanges.some((range) => match.index >= range.start && match.index < range.end)) return null
-        if (unknownRanges.some((range) => match.index > range.start && match.index < range.end)) return null
-        // "@米娅·图片 米娅 米娅：…" — a bare name directly echoing the binding
-        // before it is redundant; the parenthetical already names the asset.
-        const before = source.slice(0, match.index)
-        const trimmedBefore = before.replace(/\s+$/u, '')
-        const trailingBinding = bindingRanges.find((range) => range.end === trimmedBefore.length)
-        if (trailingBinding && compiled.slice(trailingBinding.start, trailingBinding.end).includes(match[0])) return null
-        const reference = byBareName.get(match[0].toLocaleLowerCase())
-        if (!reference) return null
-        // "萧令仪@萧令仪" already carries the mention; binding both duplicates it.
-        const following = source.slice(match.index + match[0].length).replace(/^\s+/u, '')
-        if (following.toLocaleLowerCase().startsWith(`@${match[0].toLocaleLowerCase()}`)) return null
-        // Avoid turning the asset name "Ava" into a binding inside "Avarice".
-        const startsAscii = isAsciiIdentifierChar(match[0][0])
-        const endsAscii = isAsciiIdentifierChar(match[0][match[0].length - 1])
-        if (
-          (startsAscii && isAsciiIdentifierChar(source[match.index - 1]))
-          || (endsAscii && isAsciiIdentifierChar(source[match.index + match[0].length]))
-        ) return null
-        boundReferences.add(reference)
-        return bindingFor(reference, match[0])
-      })
+  if (options.mediaReferences && byBareName.size > 0) {
+    const findMatches = createBarePromptNameMatcher(compiled)
+    const bareMatches = [...byBareName].flatMap(([name, reference]) =>
+      Array.from(findMatches(name), (span) => ({ ...span, reference })))
+      .sort((left, right) => left.start - right.start || right.end - left.end)
+    const boundNameRanges = findBoundNameRanges(compiled)
+    // Whole bindings written by the mention pass, to spot redundant echoes.
+    const bindingRanges: Array<{ start: number; end: number }> = []
+    const bindingPattern = /(?:图|视频|音频)\d+（[^（）]*）|(?:视频|音频)\d+/gu
+    let bindingMatch: RegExpExecArray | null
+    while ((bindingMatch = bindingPattern.exec(compiled)) !== null) {
+      bindingRanges.push({ start: bindingMatch.index, end: bindingMatch.index + bindingMatch[0].length })
     }
+    let result = ''
+    let position = 0
+    for (const { start, end, reference } of bareMatches) {
+      if (start < position) continue
+      // The name inside an existing binding is already bound; never nest.
+      if (boundNameRanges.some((range) => start >= range.start && start < range.end)) continue
+      if (unknownRanges.some((range) => start >= range.start && start < range.end)) continue
+      // "@米娅·图片 米娅 米娅：…" — a bare name directly echoing the binding
+      // before it is redundant; the parenthetical already names the asset.
+      const writtenName = compiled.slice(start, end)
+      const before = compiled.slice(0, start)
+      const trimmedBefore = before.replace(/\s+$/u, '')
+      const trailingBinding = bindingRanges.find((range) => range.end === trimmedBefore.length)
+      if (trailingBinding && compiled.slice(trailingBinding.start, trailingBinding.end).includes(writtenName)) continue
+      // "萧令仪@萧令仪" already carries the mention; binding both duplicates it.
+      const following = compiled.slice(end).replace(/^\s+/u, '')
+      if (following.toLowerCase().startsWith(`@${writtenName.toLowerCase()}`)) continue
+      boundReferences.add(reference)
+      result += compiled.slice(position, start) + bindingFor(reference, writtenName)
+      position = end
+    }
+    compiled = result + compiled.slice(position)
   }
 
   // Audios/videos are attached as whole-file voice/motion references: the model

@@ -356,7 +356,7 @@ describe('toolbox task handlers', () => {
     ])
     const job = buildJob(TASK_TYPE.TOOLBOX_VIDEO, {
       title: '种棉花',
-      prompt: '@外军军官在@荒漠沙地种棉花，@外军军官说“@荒漠沙地很不错”',
+      prompt: '@外军军官在@荒漠沙地种棉花，@外军军官说“@荒漠沙地很不错”。指挥官走开。',
       videoModel: 'hfsy::doubao-seedance-2-0',
       inputMode: 'text',
       referenceImages: ['images/officer.png', 'images/desert.png'],
@@ -368,6 +368,7 @@ describe('toolbox task handlers', () => {
       referenceNames: ['外军军官', '荒漠沙地'],
       referenceImageNames: ['外军军官', '荒漠沙地'],
       referenceImageMentionNames: [['外军军官'], ['荒漠沙地']],
+      referenceImageAliases: [['指挥官'], []],
       duration: 5,
       resolution: '720p',
       aspectRatio: '16:9',
@@ -377,7 +378,7 @@ describe('toolbox task handlers', () => {
 
     expect(utilsMock.resolveVideoSourceFromGeneration).toHaveBeenCalledWith(job, expect.objectContaining({
       options: expect.objectContaining({
-        prompt: '图1（@图片1）是角色外军军官，后文出现 图1（外军军官） 时必须始终指代该资产，图2（@图片2）是场景荒漠沙地，后文出现 图2（荒漠沙地） 时必须始终指代该资产\n图1（外军军官）在图2（荒漠沙地）种棉花，图1（外军军官）说“@荒漠沙地很不错”',
+        prompt: '图1（@图片1）是角色外军军官，后文出现 图1（外军军官） 时必须始终指代该资产，图2（@图片2）是场景荒漠沙地，后文出现 图2（荒漠沙地） 时必须始终指代该资产\n图1（外军军官）在图2（荒漠沙地）种棉花，图1（外军军官）说“@荒漠沙地很不错”。图1（指挥官）走开。',
       }),
     }))
   })

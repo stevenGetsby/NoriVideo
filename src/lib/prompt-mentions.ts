@@ -19,6 +19,40 @@ export function normalizePromptMentionName(value: string | null | undefined): st
   return (value || '').replace(/\s+/g, ' ').trim().replace(/^@+/, '')
 }
 
+export function isBarePromptName(name: string): boolean {
+  return Array.from(name).length >= 2 && !/^\p{Nd}+$/u.test(name)
+}
+
+export function createBarePromptNameMatcher(prompt: string) {
+  const dialogue = findQuotedDialogueRanges(prompt)
+  const lowered = prompt.toLowerCase()
+  // Lowercasing can expand a code point. Map only complete code point
+  // boundaries back to the original prompt for quote and boundary checks.
+  const originalOffsets: Array<number | undefined> = [0]
+  let originalOffset = 0
+  let foldedOffset = 0
+  for (const character of prompt) {
+    originalOffset += character.length
+    foldedOffset += character.toLowerCase().length
+    originalOffsets[foldedOffset] = originalOffset
+  }
+  const isIdentifier = (character: string | undefined) => Boolean(character && ASCII_IDENTIFIER.test(character))
+
+  return function* findMatches(name: string): Generator<{ start: number; end: number }> {
+    if (!isBarePromptName(name)) return
+    const needle = name.toLowerCase()
+    for (let offset = lowered.indexOf(needle); offset >= 0; offset = lowered.indexOf(needle, offset + 1)) {
+      const start = originalOffsets[offset]
+      const end = originalOffsets[offset + needle.length]
+      if (start === undefined || end === undefined) continue
+      if ((isIdentifier(needle[0]) || isIdentifier(prompt[start])) && isIdentifier(prompt[start - 1])) continue
+      if ((isIdentifier(needle.at(-1)) || isIdentifier(prompt[end - 1])) && isIdentifier(prompt[end])) continue
+      if (dialogue.some((range) => start < range.end && end > range.start)) continue
+      yield { start, end }
+    }
+  }
+}
+
 /**
  * Finds every `@mention` in a prompt. Known names win longest-first; an `@`
  * that matches no known name becomes an unknown mention spanning the whole

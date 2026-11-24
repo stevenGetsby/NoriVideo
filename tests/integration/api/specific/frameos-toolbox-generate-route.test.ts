@@ -97,7 +97,7 @@ const routeContext = { params: Promise.resolve({}) }
 describe('FrameOS toolbox generation route', () => {
   it('automatically reuses saved character-card audio for multimodal video without duplicating it', async () => {
     prismaMock.frameosMaterial.findMany.mockResolvedValueOnce([
-      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1' } },
+      { id: 'material-1', title: '关羽', type: 'image', storageKey: 'images/guanyu.png', metadata: { voiceMaterialId: 'voice-1', aliases: ['云长'] } },
     ]).mockResolvedValueOnce([
       { id: 'voice-1', title: '关羽音色', type: 'audio', storageKey: 'voice/guanyu.wav', metadata: { durationSeconds: 6 } },
     ])
@@ -105,7 +105,7 @@ describe('FrameOS toolbox generation route', () => {
       inputMode: 'text', referenceMaterialIds: ['material-1'], options: { duration: 5, generateAudio: true },
     } }), routeContext)
     expect(response.status).toBe(200)
-    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceAudios: ['voice/guanyu.wav'], referenceMaterialIds: ['material-1', 'voice-1'] }) }))
+    expect(submitTaskMock).toHaveBeenCalledWith(expect.objectContaining({ payload: expect.objectContaining({ referenceImages: ['images/guanyu.png'], referenceImageAliases: [['云长']], referenceAudios: ['voice/guanyu.wav'], referenceMaterialIds: ['material-1', 'voice-1'] }) }))
   })
 
   it('never attaches a role voice to an explicitly silent video', async () => {

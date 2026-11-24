@@ -1,6 +1,6 @@
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import {
-  findQuotedDialogueRanges,
+  createBarePromptNameMatcher,
   normalizePromptMentionName,
 } from '@/lib/prompt-mentions'
 import {
@@ -26,19 +26,6 @@ const CATEGORY_ORDER: Record<FrameosAssetCategory, number> = {
 
 const MEDIA_ORDER: Record<CanvasMentionMediaType, number> = { image: 0, video: 1, audio: 2 }
 
-function isAsciiIdentifierChar(value: string | undefined): boolean {
-  return Boolean(value && /[A-Za-z0-9_]/.test(value))
-}
-
-/**
- * Safe bare-text policy: single-character and pure-digit names would corrupt
- * ordinary prose (时长：2秒 / 9:16 / 镜头1), so they never auto-match. Explicit
- * @mentions remain the only way to reference them.
- */
-function isAutoMatchableTerm(term: string): boolean {
-  return Array.from(term).length >= 2 && !/^[\p{Nd}]+$/u.test(term)
-}
-
 /**
  * One-click reference matching: select project assets whose official name or
  * alias appears in the prompt. Selection only — the caller wires nodes and
@@ -63,18 +50,7 @@ export function matchCanvasPromptAssets(
   const text = (prompt || '').trim()
   if (!text) return []
   const allowed = new Set(allowedTypes)
-  const dialogue = findQuotedDialogueRanges(text)
-  const lowered = text.toLowerCase()
-  // Lowercasing can expand a code point (İ → i + combining dot). Record
-  // original boundaries so matches never use folded coordinates as offsets.
-  const originalOffsets: Array<number | undefined> = [0]
-  let originalOffset = 0
-  let foldedOffset = 0
-  for (const character of text) {
-    originalOffset += character.length
-    foldedOffset += character.toLowerCase().length
-    originalOffsets[foldedOffset] = originalOffset
-  }
+  const findMatches = createBarePromptNameMatcher(text)
 
   interface Candidate {
     material: FrameosMaterialItem
@@ -97,24 +73,8 @@ export function matchCanvasPromptAssets(
     ]
     for (const { term: rawTerm, isOfficial } of terms) {
       const term = normalizePromptMentionName(rawTerm)
-      if (!term || !isAutoMatchableTerm(term)) continue
-      const needle = term.toLowerCase()
-      for (let offset = lowered.indexOf(needle); offset >= 0; offset = lowered.indexOf(needle, offset + 1)) {
-        const index = originalOffsets[offset]
-        const end = originalOffsets[offset + needle.length]
-        if (index === undefined || end === undefined) continue
-        const asciiBounded = !(
-          ((isAsciiIdentifierChar(term[0]) || isAsciiIdentifierChar(text[index])) && isAsciiIdentifierChar(text[index - 1]))
-          || ((isAsciiIdentifierChar(term[term.length - 1]) || isAsciiIdentifierChar(text[end - 1])) && isAsciiIdentifierChar(text[end]))
-        )
-        // Every qualifying occurrence is kept: a short name absorbed inside a
-        // longer one at its first occurrence may still appear independently
-        // later, and that later occurrence must survive. A span that intersects
-        // any dialogue range is spoken text, even when it starts outside it.
-        const intersectsDialogue = dialogue.some((range) => index < range.end && end > range.start)
-        if (asciiBounded && !intersectsDialogue) {
-          candidates.push({ material, term, isOfficial, start: index, end })
-        }
+      for (const span of findMatches(term)) {
+        candidates.push({ material, term, isOfficial, ...span })
       }
     }
   }

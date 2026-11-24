@@ -111,6 +111,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   const referenceVideoNames = readStringArray(payload.referenceVideoNames)
   const referenceAudioNames = readStringArray(payload.referenceAudioNames)
   const referenceImageMentionNames = readNestedStringArray(payload.referenceImageMentionNames)
+  const referenceImageAliases = readNestedStringArray(payload.referenceImageAliases)
   const referenceVideoMentionNames = readNestedStringArray(payload.referenceVideoMentionNames)
   const referenceAudioMentionNames = readNestedStringArray(payload.referenceAudioMentionNames)
   const inputMode = readString(payload.inputMode) || 'text'
@@ -182,6 +183,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         type: 'image' as const,
         index: imageNumber,
         names: referenceImageMentionNames[index] || [],
+        aliases: referenceImageAliases[index],
         fallbackNames: imageTitles[index] ? [imageTitles[index]] : [],
         kind: imageKindByPosition[index],
       })),

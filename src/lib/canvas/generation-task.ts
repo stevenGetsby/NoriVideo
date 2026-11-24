@@ -190,8 +190,11 @@ export function buildCanvasGenerationDedupeKey(
   taskType: CanvasGenerationTaskType,
   payload: CanvasGenerationTaskPayload,
 ): string {
+  const stablePayload = payload.kind === 'storyboard_plan' && payload.referenceProjectIds
+    ? { ...payload, referenceProjectIds: [...new Set(payload.referenceProjectIds)].sort() }
+    : payload
   const digest = createHash('sha256')
-    .update(JSON.stringify({ taskType, ...payload }))
+    .update(JSON.stringify({ taskType, ...stablePayload }))
     .digest('hex')
     .slice(0, 32)
   return `canvas-gen:${payload.canvasId.slice(0, 64)}:${payload.nodeId.slice(0, 64)}:${digest}`
