@@ -549,6 +549,14 @@ export function CanvasGenerator({
     const value = node.data.generation?.parameters?.pose
     return value === 'a_pose' || value === 't_pose' ? value : 'none'
   })
+  const [compactEditor, setCompactEditor] = useState(false)
+  useEffect(() => {
+    const query = window.matchMedia("(max-width: 600px)")
+    const update = () => setCompactEditor(query.matches)
+    update()
+    query.addEventListener("change", update)
+    return () => query.removeEventListener("change", update)
+  }, [])
   const [fullscreen, setFullscreen] = useState(false)
   const previewPreferenceKey = `nori:reference-preview:${projectId}:${node.id}`
   const [referencePreviewPreference, setReferencePreviewPreference] = useState<{ key: string; enabled: boolean } | null>(null)
@@ -573,7 +581,7 @@ export function CanvasGenerator({
   // Both are written straight to the DOM from the store subscription: only
   // node moves/resizes and zoom changes touch these styles, never canvas pans.
   useLayoutEffect(() => {
-    if (fullscreen || !viewportLayerTarget) return
+    if (fullscreen || compactEditor || !viewportLayerTarget) return
     lastGeometryRef.current = null
     lastInverseZoomRef.current = null
     const apply = (state: { transform: [number, number, number]; nodeLookup: Map<string, { internals: { positionAbsolute: { x: number; y: number } }; measured?: { width?: number; height?: number }; width?: number; height?: number }> }) => {
@@ -621,7 +629,7 @@ export function CanvasGenerator({
       window.removeEventListener('resize', fitEditor)
       panelRef.current?.style.removeProperty('--canvas-editor-available-height')
     }
-  }, [flowStore, node.id, fullscreen, viewportLayerTarget])
+  }, [flowStore, node.id, fullscreen, compactEditor, viewportLayerTarget])
   const [moreOpen, setMoreOpen] = useState(false)
 
   const parameterTriggerRef = useRef<HTMLButtonElement>(null)
@@ -2198,7 +2206,7 @@ export function CanvasGenerator({
     </aside>
   )
   if (!viewportLayerTarget) return editor
-  if (fullscreen) return createPortal(editor, viewportLayerTarget)
+  if (fullscreen || compactEditor) return createPortal(editor, viewportLayerTarget)
   return (
     <ViewportPortal>
       <div ref={anchorRef} className="nori-canvas-generator-anchor nodrag nowheel nopan">

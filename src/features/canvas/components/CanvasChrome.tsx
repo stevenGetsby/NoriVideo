@@ -172,7 +172,7 @@ export function CanvasChrome({
           <AppIcon name="chevronRight" />
         </button>
       ) : null}
-      <div className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`}>
+      <div data-canvas-menu-open={menu === "project" || menu === "work" ? "true" : undefined} className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`}>
         <Link
           href={story ? storyWorkHref! : { pathname: '/projects' }}
           className="nori-canvas-parent-back"

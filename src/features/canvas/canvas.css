@@ -8247,3 +8247,34 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator[data-canvas-editor-resized] .mention-prompt-editor-layer textarea,.nori-canvas-generator[data-canvas-editor-resized] .mention-prompt-editor-layer .mention-prompt-highlight{position:absolute;inset:0;width:100%;height:100%;min-height:0!important;max-height:none;field-sizing:fixed}
 .nori-canvas-generator[data-canvas-editor-resized] .nori-canvas-generator-prompt>textarea{height:100%;min-height:0;max-height:none;flex:1;resize:none}
 @media(max-width:600px){.canvas-editor-reference-row{gap:5px}.canvas-editor-manager button{padding-inline:5px}}
+
+/* Canvas navigation and compact touch layout. */
+.nori-canvas-workspace :is(.nori-canvas-tool-rail,.nori-canvas-breadcrumbs){opacity:.5;backdrop-filter:none;transition:opacity 140ms ease}
+.nori-canvas-workspace :is(.nori-canvas-tool-rail,.nori-canvas-breadcrumbs):is(:hover,:focus-within,[data-canvas-menu-open]){opacity:1}
+@media(prefers-reduced-motion:reduce){.nori-canvas-workspace :is(.nori-canvas-tool-rail,.nori-canvas-breadcrumbs){transition:none}}
+.canvas-canvas-key-tools{position:absolute;bottom:13px;left:322px;z-index:90;display:flex;gap:5px}
+.canvas-canvas-key-tools button{padding:5px 9px;border:1px solid var(--dm-line,#434457);border-radius:7px;background:var(--dm-card,#20212c);color:var(--canvas-text);font-size:12px;cursor:pointer}
+.canvas-canvas-key-tools button[aria-pressed=true]{color:#acaaff}
+.nori-canvas-help-panel{--canvas-help-bottom:54px;left:66px!important;top:auto!important;bottom:var(--canvas-help-bottom)!important;max-height:calc(100% - var(--canvas-chrome-safe-top,116px) - var(--canvas-help-bottom));max-width:calc(100% - 80px);overflow:auto}
+[data-canvas-hand] .react-flow__pane,[data-canvas-hand] .react-flow__node{cursor:grab}
+[data-canvas-grabbing] .react-flow__pane,[data-canvas-grabbing] .react-flow__node{cursor:grabbing}
+@media(max-width:520px){.canvas-canvas-key-tools{left:13px;bottom:51px}.nori-canvas-help-panel{--canvas-help-bottom:90px}}
+@media(max-width:600px){
+  html:has(.nori-canvas-workspace){--nori-interface-scale:1;--nori-interface-viewport-width:100vw;--nori-interface-viewport-height:100dvh}
+  .nori-canvas-workspace .nori-canvas-chrome{inset:38px 8px auto;max-width:none;display:flex;flex-wrap:nowrap;align-items:center;gap:6px}
+  .nori-canvas-workspace .nori-canvas-breadcrumbs{min-width:0;max-width:none;flex:1;flex-wrap:nowrap;overflow:hidden}
+  .nori-canvas-breadcrumbs>.nori-canvas-project-picker{min-width:0;flex:1}
+  .nori-canvas-workspace .nori-canvas-breadcrumbs>.nori-canvas-project-picker span{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .nori-canvas-breadcrumbs>.nori-canvas-work-link,.nori-canvas-breadcrumbs>i{display:none}
+  .nori-canvas-workspace .nori-canvas-chrome-actions{position:relative;inset:auto;flex:none}
+  .nori-canvas-workspace>.nori-canvas-tool-rail{left:8px}
+  .nori-canvas-workspace .nori-canvas-viewport-controls{left:8px;bottom:max(8px,env(safe-area-inset-bottom));max-width:calc(100% - 16px)}
+  .nori-canvas-workspace>.nori-canvas-generator{position:absolute;z-index:100;inset:auto 8px max(87px,calc(env(safe-area-inset-bottom) + 79px));width:auto!important;max-width:none;max-height:55dvh;min-width:0;transform:none}
+  .nori-canvas-workspace>.nori-canvas-generator.is-fullscreen{top:100px;max-height:none}
+  .nori-canvas-workspace>.nori-canvas-generator .nori-canvas-generator-scroll{max-height:inherit}
+  .nori-canvas-workspace .nori-canvas-generator-controls{flex-wrap:wrap;gap:6px}
+  .nori-canvas-workspace .nori-canvas-generator-prompt textarea{font-size:16px}
+  .nori-canvas-workspace .nori-canvas-generator-prompt .mention-prompt-highlight{font-size:16px}
+  .nori-canvas-workspace .canvas-editor-resize-corner{display:none}
+  .fos-app.is-canvas-shell .fos-cr-label{display:none}
+}

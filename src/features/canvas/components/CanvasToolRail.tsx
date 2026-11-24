@@ -73,7 +73,7 @@ export function CanvasAddPanel({ storyItems, interactionItems, onAddNode, onUplo
   )
 }
 
-export function CanvasToolRail({ editable, disabled = false, addOpen, assetsOpen, onToggleAdd, onToggleAssets, onOpenLibrary, onUpload, onHelp }: { editable: boolean; disabled?: boolean; addOpen: boolean; assetsOpen: boolean; onToggleAdd: () => void; onToggleAssets: () => void; onOpenLibrary: () => void; onUpload: () => void; onHelp: () => void }) {
+export function CanvasToolRail({ editable, disabled = false, addOpen, assetsOpen, onToggleAdd, onToggleAssets, onOpenLibrary, onUpload, onHelp }: { editable: boolean; disabled?: boolean; addOpen: boolean; assetsOpen: boolean; onToggleAdd: () => void; onToggleAssets: () => void; onOpenLibrary: () => void; onUpload: () => void; onHelp?: () => void }) {
   return (
     <div className={`nori-canvas-tool-rail${disabled ? ' is-disabled' : ''}`} aria-label="画布工具栏">
       {editable || disabled ? <>
@@ -84,7 +84,7 @@ export function CanvasToolRail({ editable, disabled = false, addOpen, assetsOpen
         <button type="button" title={canvasControlTitle('本地上传', disabled)} disabled={disabled} onClick={onUpload}><Upload /></button>
         <i />
       </> : null}
-      <button type="button" title={canvasControlTitle('帮助', disabled)} disabled={disabled} onClick={onHelp}><CircleHelp /></button>
+      {onHelp ? <button type="button" title={canvasControlTitle('帮助', disabled)} disabled={disabled} onClick={onHelp}><CircleHelp /></button> : null}
     </div>
   )
 }

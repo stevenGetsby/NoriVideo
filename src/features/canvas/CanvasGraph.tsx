@@ -612,7 +612,49 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   // A wire released on empty canvas makes the browser fire a click on the pane; it must not close the menu the release just opened.
   const wireReleaseClickRef = useRef(false)
   const edgeSelectionGestureRef = useRef<{ pointerId: number; start: { x: number; y: number }; additive: boolean } | null>(null)
+  const [handTool, setHandTool] = useState(false)
+
   const spacePanActiveRef = useRef(false)
+  useEffect(() => {
+    const workspace = wrapperRef.current
+    if (!workspace) return
+    let panButton = 0
+    let suppressWheelUntil = 0
+    const start = (event: MouseEvent) => {
+      const target = event.target
+      if (!(target instanceof Element) || !target.closest('.react-flow') ||
+          target.closest('.nori-canvas-generator, .nopan, input, textarea, [contenteditable=true]')) return
+      if (event.button === 1) panButton = 4
+      else if (event.button === 0 && (handTool || spacePanActiveRef.current)) panButton = 1
+      if (panButton && handTool) workspace.setAttribute('data-canvas-grabbing', 'true')
+    }
+    const clear = () => { panButton = 0; suppressWheelUntil = 0; workspace.removeAttribute('data-canvas-grabbing') }
+    const release = (event: MouseEvent) => {
+      if (!panButton || (event.buttons & panButton)) return
+      // A mechanical middle click can roll one more tick as it is released.
+      if (panButton === 4) suppressWheelUntil = performance.now() + 200
+      panButton = 0
+      workspace.removeAttribute('data-canvas-grabbing')
+    }
+    const wheel = (event: WheelEvent) => {
+      if (!panButton && performance.now() >= suppressWheelUntil) return
+      event.preventDefault()
+      event.stopPropagation()
+    }
+    workspace.addEventListener('mousedown', start, true)
+    workspace.addEventListener('wheel', wheel, { capture: true, passive: false })
+    window.addEventListener('mouseup', release, true)
+    window.addEventListener('pointercancel', clear, true)
+    window.addEventListener('blur', clear)
+    return () => {
+      clear()
+      workspace.removeEventListener('mousedown', start, true)
+      workspace.removeEventListener('wheel', wheel, true)
+      window.removeEventListener('mouseup', release, true)
+      window.removeEventListener('pointercancel', clear, true)
+      window.removeEventListener('blur', clear)
+    }
+  }, [handTool])
   const panCursorActiveRef = useRef(false)
   const panPointerIdRef = useRef<number | null>(null)
   const syncPanCursor = () => {
@@ -4378,6 +4420,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
         return
       }
       if (hasInputFocus()) return
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey && /^[hv]$/i.test(event.key)) {
+        event.preventDefault()
+        setHandTool(event.key.toLowerCase() === 'h')
+        return
+      }
       if (['Backspace', 'Delete', 'Enter'].includes(event.key)) {
         const target = event.target instanceof Element ? event.target : null
         const overlayOpen = Boolean(target?.closest('[role="dialog"], [role="menu"], [role="alertdialog"], .fos-overlay, .nori-canvas-generator, .nori-canvas-add-panel'))
@@ -4410,7 +4457,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
       if (mod && event.key.toLowerCase() === 's') { if (readOnly) return; event.preventDefault(); void flushAutosave(); return }
       if (mod && (event.key === '+' || event.key === '=')) { event.preventDefault(); void flow?.zoomIn({ duration: 120 }); return }
       if (mod && event.key === '-') { event.preventDefault(); void flow?.zoomOut({ duration: 120 }); return }
-      if (mod && event.key === '0') { event.preventDefault(); void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 }); return }
+      if (mod && event.key === '0') { event.preventDefault(); fitCanvasView(null, { padding: 0.18, duration: 250 }); return }
       if (!mod && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
         if (readOnly || !nodesRef.current.some((node) => node.selected)) return
         event.preventDefault()
@@ -4475,7 +4522,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
       window.removeEventListener('pointerup', releasePanPointer)
       window.removeEventListener('pointercancel', releasePanPointer)
     }
-  }, [copySelection, duplicateNodes, flow, flowStore, flushAutosave, historyNodeId, mediaPreviewNodeId, modelPreviewNodeId, nudgeSelection, offlineRecoveryBlocking, panoramaPreviewNodeId, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, requestTextEdit, revisionsOpen, taskIdInfo, undo])
+  }, [copySelection, duplicateNodes, fitCanvasView, flow, flowStore, flushAutosave, historyNodeId, mediaPreviewNodeId, modelPreviewNodeId, nudgeSelection, offlineRecoveryBlocking, panoramaPreviewNodeId, pasteFromSystem, productionSyncing, readOnly, redo, removeCurrentSelection, requestTextEdit, revisionsOpen, taskIdInfo, undo])
 
   const agentBridge = useCanvasAgentBridge({
     projectId, canvasId: initialGraph.canvas.id, mode, readOnly, writeLocked,
@@ -4814,6 +4861,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
       <StoryCanvasProvider value={storyContextValue}>
       <CanvasNodeSourceProvider source={projectionActive ? nodeSource : null}>
       <div
+        data-canvas-hand={handTool ? "true" : undefined}
         className={`nori-canvas-workspace${readOnly ? ' is-readonly' : ''}${productionSyncing ? ' is-syncing' : ''}${layoutAnimating ? ' is-layout-animating' : ''}${nodeDragging ? ' is-node-dragging' : ''}${agentOpen && !readOnly && mode === 'canvas' ? ' has-agent-panel' : ''}`}
         ref={wrapperRef}
         tabIndex={0}
@@ -4841,6 +4889,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
           if (
             event.button === 0
             && !writeLocked
+            && !handTool
             && !spacePanActiveRef.current
             && !connectionActiveRef.current
             && isCanvasBlankPointerTarget(event.target)
@@ -5055,17 +5104,18 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
             connectionMode={ConnectionMode.Loose}
             connectionRadius={64}
             reconnectRadius={64}
-            nodesDraggable={!writeLocked}
+            nodesDraggable={!handTool && (!writeLocked)}
             nodesConnectable={!writeLocked}
             selectNodesOnDrag={false}
             selectionOnDrag={false}
             selectionKeyCode="Shift"
             selectionMode={SelectionMode.Partial}
             paneClickDistance={8}
-            panOnDrag={FLOW_PAN_ON_DRAG}
+            panOnDrag={handTool ? [0, 1] : FLOW_PAN_ON_DRAG}
             onlyRenderVisibleElements={!projectionActive && nodes.length > FLOW_VISIBLE_ONLY_NODE_THRESHOLD}
             panActivationKeyCode="Space"
-            zoomOnScroll
+            zoomOnScroll={false}
+            zoomActivationKeyCode={["Control", "Meta"]}
             zoomOnPinch
             multiSelectionKeyCode={FLOW_MULTI_SELECTION_KEYS}
             deleteKeyCode={null}
@@ -5130,7 +5180,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
 
         <CanvasChrome projectId={projectId} projectName={projectName} canvases={canvases} activeCanvas={{ ...(canvases.find((canvas) => canvas.id === canvasRef.current.id) || canvasRef.current), nodeCount: nodes.length }} saveState={autosave.saveState} canUndo={canUndo} canRedo={canRedo} onSelectCanvas={onSelectCanvas} onCreateCanvas={onCreateCanvas} onRenameCanvas={onRenameCanvas} onDeleteCanvas={onDeleteCanvas} projectOptions={projectOptions} storyNavigation={storyNavigation} parentProjectId={parentProjectId} parentProjectName={parentProjectName} onSelectProject={onSelectProject} canvasHomeHref={canvasHomeHref} createProjectHref={createProjectHref} onUndo={undo} onRedo={redo} onRetrySave={autosave.retry} onOpenRevisions={openRevisions} syncingProduction={productionSyncing} canSyncProduction={!readOnly} readOnly={readOnly} onOpenProjectAssets={() => { setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen(true) }} onSyncProduction={() => void syncProduction()} />
 
-        <CanvasToolRail editable={!readOnly} addOpen={addOpen} assetsOpen={assetsOpen} onToggleAdd={() => { pendingInsertPositionRef.current = null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen((value) => !value) }} onToggleAssets={() => { pendingInsertPositionRef.current = null; setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen((value) => !value) }} onOpenLibrary={() => setPickerOpen(true)} onUpload={() => openUploadPicker()} onHelp={() => { setAddOpen(false); setAssetsOpen(false); setOrganizeOpen(false); setHelpOpen((value) => !value) }} />
+        <CanvasToolRail editable={!readOnly} addOpen={addOpen} assetsOpen={assetsOpen} onToggleAdd={() => { pendingInsertPositionRef.current = null; setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAddOpen((value) => !value) }} onToggleAssets={() => { pendingInsertPositionRef.current = null; setAddOpen(false); setHelpOpen(false); setOrganizeOpen(false); setAssetsOpen((value) => !value) }} onOpenLibrary={() => setPickerOpen(true)} onUpload={() => openUploadPicker()} />
         {!readOnly && addOpen ? <CanvasAddPanel storyItems={mode === 'story' && storyCanvas ? STORY_ADD_NODE_ITEMS : undefined} interactionItems={mode === 'story' && storyCanvas ? STORY_INTERACTION_ADD_ITEMS : undefined} onAddNode={(type, interaction) => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; addNode(type, position, interaction) }} onUpload={() => { const position = pendingInsertPositionRef.current || undefined; pendingInsertPositionRef.current = null; openUploadPicker(position) }} /> : null}
         {!readOnly && assetsOpen ? <CanvasProjectAssets projectId={projectId} onInsert={insertMaterial} onInsertWorkflow={insertWorkflow} onClose={() => setAssetsOpen(false)} refreshKey={workflowRefreshKey} /> : null}
         <CanvasViewportControls minimapVisible={minimapVisible} zoom={viewport.zoom} organizeMode={organizeMode} organizeOpen={organizeOpen} canOrganize={!readOnly} storyOrganize={mode === 'story' && storyCanvas ? storyActions.organize : undefined} onToggleMinimap={() => setMinimapVisible((value) => !value)} onZoomIn={() => void flow?.zoomIn({ duration: 120 })} onZoomOut={() => void flow?.zoomOut({ duration: 120 })} onFitView={() => fitCanvasView(null, { padding: 0.18, duration: 250 })} onResetViewport={() => void flow?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 180 })} onToggleOrganize={() => { setAddOpen(false); setAssetsOpen(false); setHelpOpen(false); setOrganizeOpen((value) => !value) }} onOrganize={organize} />
@@ -5144,6 +5194,10 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
           />
         ) : null}
         {nodes.length === 0 ? <CanvasEmptyState readOnly={readOnly} onAdd={(type) => addNode(type)} onUpload={() => openUploadPicker()} /> : null}
+        <div className="canvas-canvas-key-tools">
+          <button type="button" aria-pressed={handTool} title="抓手工具 (H) / 选择 (V)" onClick={() => setHandTool(!handTool)}>{handTool ? '抓手' : '选择'}</button>
+          <button type="button" aria-expanded={helpOpen} onClick={() => setHelpOpen((open) => !open)}>快捷键</button>
+        </div>
         {helpOpen ? <CanvasHelpPanel onClose={() => setHelpOpen(false)} /> : null}
         {mode === 'canvas' && !readOnly && <CanvasAgentDock bridge={agentBridge} title={canvasRef.current.title} open={agentOpen} onOpenChange={setAgentOpen} feedback={agentFeedback} />}
         {(selectedNodes.length > 1 || selectedEdges.length > 0) && !readOnly ? <div className="nori-canvas-selection-toolbar">{selectedNodes.length > 1 ? <>
