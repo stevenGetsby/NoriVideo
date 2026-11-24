@@ -483,6 +483,15 @@ export function CanvasGenerator({
     // Reload a material list only when the active generator's accepted media changes.
   }, [node.id, projectId, mentionSignature])
   useEffect(() => () => libraryRequestRef.current?.abort(), [])
+  // An in-flight one-click match belongs to the node/mode that started it;
+  // switching either cancels the request so it can never write a stale graph.
+  useEffect(() => {
+    autoMatchRequestRef.current?.abort()
+    autoMatchRequestRef.current = null
+    setAutoMatching(false)
+    setAutoMatchNotice(null)
+  }, [node.id, mentionSignature])
+  useEffect(() => () => autoMatchRequestRef.current?.abort(), [])
   const [config, setConfig] = useState<GenerationConfig | null>(null)
   const [voiceOptions, setVoiceOptions] = useState<VoiceOption[]>([])
   const [loadingConfig, setLoadingConfig] = useState(true)
@@ -564,6 +573,11 @@ export function CanvasGenerator({
   const [error, setError] = useState<string | null>(null)
   const [autoMatching, setAutoMatching] = useState(false)
   const [autoMatchNotice, setAutoMatchNotice] = useState<string | null>(null)
+  const autoMatchRequestRef = useRef<AbortController | null>(null)
+  const promptRef = useRef(prompt)
+  promptRef.current = prompt
+  const autoMatchContextRef = useRef({ nodeId: node.id, signature: mentionSignature })
+  autoMatchContextRef.current = { nodeId: node.id, signature: mentionSignature }
   const onDraftChangeRef = useRef(onDraftChange)
   const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
@@ -1175,18 +1189,34 @@ export function CanvasGenerator({
     if (!onMatchPromptMaterials || autoMatching) return
     const text = prompt.trim()
     if (!text) { setAutoMatchNotice('请先输入提示词，再一键匹配引用。'); return }
+    const startNodeId = node.id
+    const startSignature = mentionSignature
+    const startPrompt = text
     setAutoMatching(true)
     setAutoMatchNotice(null)
+    const controller = new AbortController()
+    autoMatchRequestRef.current?.abort()
+    autoMatchRequestRef.current = controller
+    const stale = () => controller.signal.aborted
+      || autoMatchContextRef.current.nodeId !== startNodeId
+      || autoMatchContextRef.current.signature !== startSignature
     try {
-      const controller = new AbortController()
       const query = new URLSearchParams({ projectId, available: '1', limit: '500' })
       const materials = await fetchAllFrameosMaterials(query, controller.signal)
+      if (stale()) return
       const hits = matchCanvasPromptAssets(text, materials, mentionAllowedTypes)
       if (hits.length === 0) {
         setAutoMatchNotice('提示词中没有匹配到项目资产（正式名或别名）。')
         return
       }
+      // The prompt may have been edited while the library loaded; match the
+      // text the user actually sees now, not the snapshot that started us.
+      if (promptRef.current.trim() !== startPrompt) {
+        setAutoMatchNotice('提示词已变化，请重新点击一键匹配。')
+        return
+      }
       const result = onMatchPromptMaterials(hits.map((hit) => hit.material))
+      if (stale()) return
       if (!result) {
         setAutoMatchNotice('匹配到的素材未能建立引用，请检查模型引用上限。')
         return
@@ -1196,9 +1226,11 @@ export function CanvasGenerator({
         ? `已匹配 ${result.matched} 个资产，新连线 ${result.added} 条：${names}${hits.length > 4 ? ' 等' : ''}`
         : `匹配到 ${result.matched} 个资产，均已在引用中：${names}${hits.length > 4 ? ' 等' : ''}`)
     } catch (matchError) {
+      if (stale()) return
       setAutoMatchNotice(matchError instanceof Error ? matchError.message : '一键匹配失败，请重试。')
     } finally {
-      setAutoMatching(false)
+      if (autoMatchRequestRef.current === controller) autoMatchRequestRef.current = null
+      if (!controller.signal.aborted) setAutoMatching(false)
     }
   }
 

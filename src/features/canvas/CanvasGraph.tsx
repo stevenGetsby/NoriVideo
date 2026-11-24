@@ -67,6 +67,7 @@ import { CanvasAssetLibraryDialog } from './components/CanvasAssetLibraryDialog'
 import { CanvasViewportLayer } from './components/CanvasViewportLayer'
 import { CanvasPanoramaDialog } from './components/CanvasPanoramaDialog'
 import type { FrameosAssetCategory } from '@/lib/frameos/material-category'
+import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import {
   panoramaCaptureResultMessage,
   settlePanoramaCaptureUploads,
@@ -3206,54 +3207,118 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const target = nodesRef.current.find((node) => node.id === nodeId)
     if (!target) return null
     const unique = [...new Map(materials.map((material) => [material.id, material])).values()]
+    const targetMediaType = getMediaType(target)
+    const inputMode = target.data.generation?.inputMode || 'text'
+    const allowsAudio = targetMediaType === 'video' && inputMode === 'text'
+      && target.data.generation?.generateAudio !== false
+    // Character images drag their bound voice along, the same contract the
+    // submission route applies server-side; other modes never receive audio.
+    const voiceIds = [...new Set(unique.flatMap((material) => {
+      if (!allowsAudio || material.type !== 'image') return []
+      const voiceId = characterVoiceMaterialId(material.metadata)
+      return voiceId && !unique.some((item) => item.id === voiceId) ? [voiceId] : []
+    }))]
     const existingByMaterialId = new Map<string, CanvasFlowNode>()
+    const wiredSourceIds = new Set(edgesRef.current.filter((edge) => edge.target === nodeId).map((edge) => edge.source))
+    const referencedIds = new Set(target.data.generation?.referenceNodeIds || [])
+    // Prefer the node the generator already references, then any wired input,
+    // then the first canvas copy — a duplicate elsewhere must not win.
     for (const node of nodesRef.current) {
       if (node.id === nodeId || typeof node.data.materialId !== 'string') continue
-      if (!existingByMaterialId.has(node.data.materialId)) existingByMaterialId.set(node.data.materialId, node)
+      const previous = existingByMaterialId.get(node.data.materialId)
+      if (!previous
+        || (referencedIds.has(node.id) && !referencedIds.has(previous.id))
+        || (wiredSourceIds.has(node.id) && !wiredSourceIds.has(previous.id) && !referencedIds.has(previous.id))) {
+        existingByMaterialId.set(node.data.materialId, node)
+      }
     }
     const missing = unique.filter((material) => !existingByMaterialId.has(material.id))
-    let created: CanvasFlowNode[] = []
-    if (missing.length > 0) {
-      pendingMentionGeneratorRef.current = nodeId
-      created = insertMaterials(missing.map((material, index) => ({
-        material,
-        position: { x: target.position.x - 420, y: target.position.y + 40 + index * 180 },
-      })))
-      if (created.length === 0) {
-        pendingMentionGeneratorRef.current = null
-        return null
-      }
-      nodesRef.current = [...nodesRef.current, ...created]
-    }
+    // Plan on a snapshot: nothing is written until the connection planner has
+    // accepted at least one source, so a full rejection leaves no orphan nodes.
+    const created = missing.flatMap((material, index) => {
+      const node = createMaterialFlowNode(material, { x: target.position.x - 420, y: target.position.y + 40 + index * 180 })
+      return node ? [node] : []
+    })
+    if (missing.length > 0 && created.length === 0) return null
     const sourceNodeIds = unique.flatMap((material) => {
       const node = existingByMaterialId.get(material.id) || created.find((item) => item.data.materialId === material.id)
       return node ? [node.id] : []
     })
-    const referencedIds = new Set(target.data.generation?.referenceNodeIds || [])
-    const toConnect = sourceNodeIds.filter((id) => !referencedIds.has(id))
-    if (toConnect.length > 0) {
-      const result = planCanvasBatchConnections({
-        nodes: nodesRef.current,
+    const alreadyWiredSources = sourceNodeIds.filter((id) => referencedIds.has(id) || wiredSourceIds.has(id))
+    const toConnect = sourceNodeIds.filter((id) => !referencedIds.has(id) && !wiredSourceIds.has(id))
+    // Bound voices ride along only when their character image is accepted.
+    // Reuse an existing voice node; a voice with no canvas node is left to the
+    // server-side auto-include at submission (it needs the stored audio file).
+    const voiceNodeIds = voiceIds.flatMap((voiceId) => {
+      const owner = unique.find((material) => material.type === 'image' && characterVoiceMaterialId(material.metadata) === voiceId)
+      if (!owner) return []
+      const ownerNode = existingByMaterialId.get(owner.id) || created.find((item) => item.data.materialId === owner.id)
+      if (!ownerNode) return []
+      const voiceNode = existingByMaterialId.get(voiceId)
+      return voiceNode ? [voiceNode.id] : []
+    })
+    const voiceToConnect = voiceNodeIds.filter((id) => !referencedIds.has(id) && !wiredSourceIds.has(id) && !toConnect.includes(id))
+    if (toConnect.length === 0 && voiceToConnect.length === 0) {
+      setGeneratorReferenceInjection({ nodeId, ids: alreadyWiredSources })
+      return { added: 0, matched: unique.length }
+    }
+    if (!ensureNodeCapacity(created.length)) return null
+    // Images/videos first so a voice cannot consume the last audio slot before
+    // its owner image is planned; voices follow in a second pass.
+    const primaryResult = toConnect.length > 0
+      ? planCanvasBatchConnections({
+        nodes: [...nodesRef.current, ...created],
         edges: edgesRef.current,
         sourceNodeIds: toConnect,
         targetNodeId: nodeId,
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
-      if (result.added === 0) {
-        pendingMentionGeneratorRef.current = null
-        return null
-      }
-      nodesRef.current = result.nodes.map((node) => ({ ...node, selected: node.id === nodeId }))
-      edgesRef.current = result.edges
-      setNodes(nodesRef.current)
-      setEdges(result.edges)
-    }
-    pendingMentionGeneratorRef.current = null
+      : null
+    if (toConnect.length > 0 && primaryResult!.added === 0) return null
+    const baseNodes = primaryResult ? primaryResult.nodes : [...nodesRef.current, ...created]
+    const baseEdges = primaryResult ? primaryResult.edges : edgesRef.current
+    const baseTarget = baseNodes.find((node) => node.id === nodeId)
+    const baseAcceptedIds = new Set(baseTarget?.data.generation?.referenceNodeIds || [])
+    const eligibleVoiceIds = voiceToConnect.filter((voiceId) => {
+      const voiceNode = nodesRef.current.find((node) => node.id === voiceId)
+      const voiceMaterialId = typeof voiceNode?.data.materialId === 'string' ? voiceNode.data.materialId : ''
+      return unique.some((material) => {
+        if (material.type !== 'image' || characterVoiceMaterialId(material.metadata) !== voiceMaterialId) return false
+        const ownerNode = existingByMaterialId.get(material.id) || created.find((item) => item.data.materialId === material.id)
+        return Boolean(ownerNode && baseAcceptedIds.has(ownerNode.id))
+      })
+    })
+    const result = eligibleVoiceIds.length > 0
+      ? planCanvasBatchConnections({
+        nodes: baseNodes,
+        edges: baseEdges,
+        sourceNodeIds: eligibleVoiceIds,
+        targetNodeId: nodeId,
+        maxEdges: CANVAS_EDGE_HARD_LIMIT,
+      })
+      : { nodes: baseNodes, edges: baseEdges, added: primaryResult?.added || 0, skipped: 0 }
+    const plannedTarget = result.nodes.find((node) => node.id === nodeId)
+    const acceptedIds = new Set(plannedTarget?.data.generation?.referenceNodeIds || [])
+    // A voice only follows when its owner image actually became a reference.
+    const acceptedVoiceIds = voiceNodeIds.filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
+    const acceptedSources = [...sourceNodeIds, ...acceptedVoiceIds].filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
+    // Drop created nodes whose connection was rejected (model reference caps):
+    // they would sit on the canvas unreferenced and undo would still remove them.
+    const rejectedCreatedIds = new Set(created.filter((node) => !acceptedIds.has(node.id)).map((node) => node.id))
+    const committedNodes = result.nodes
+      .filter((node) => !rejectedCreatedIds.has(node.id))
+      .map((node) => ({ ...node, selected: node.id === nodeId }))
+    const committedEdges = result.edges.filter((edge) => !rejectedCreatedIds.has(edge.source) && !rejectedCreatedIds.has(edge.target))
+    // One history entry for the whole batch, recorded before the write.
     record('一键匹配引用')
-    setGeneratorReferenceInjection({ nodeId, ids: sourceNodeIds })
+    nodesRef.current = committedNodes
+    edgesRef.current = committedEdges
+    setNodes(committedNodes)
+    setEdges(committedEdges)
+    setGeneratorReferenceInjection({ nodeId, ids: acceptedSources })
     markChanged('一键匹配引用')
-    return { added: toConnect.length, matched: unique.length }
-  }, [insertMaterials, markChanged, record, writeLocked])
+    return { added: result.added, matched: unique.length }
+  }, [ensureNodeCapacity, markChanged, record, writeLocked])
 
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {
     const dropped = materials.filter((material) => ['image', 'video', 'audio', 'model3d'].includes(material.type))

@@ -40,10 +40,41 @@ describe('one-click prompt asset matching', () => {
     expect(hits.map((hit) => hit.material.id)).toEqual(['long'])
   })
 
+  it('keeps a short name that also appears independently outside the longer name', () => {
+    const short = material('short', '沈娇', { metadata: { assetCategory: 'character' } })
+    const long = material('long', '沈娇姐姐', { metadata: { assetCategory: 'character' } })
+    const hits = matchCanvasPromptAssets('沈娇姐姐回头，沈娇走进门', [short, long], ['image'])
+    expect(hits.map((hit) => hit.material.id).sort()).toEqual(['long', 'short'])
+    expect(hits.find((hit) => hit.material.id === 'short')?.matchedTerm).toBe('沈娇')
+  })
+
+  it('prefers the official name over an alias of another asset at the same span', () => {
+    const official = material('official', '沈娇', { metadata: { assetCategory: 'character' } })
+    const aliased = material('aliased', '沈家大小姐', { metadata: { assetCategory: 'character', aliases: ['沈娇'] } })
+    expect(matchCanvasPromptAssets('沈娇走进门', [aliased, official], ['image']).map((hit) => hit.material.id)).toEqual(['official'])
+    expect(matchCanvasPromptAssets('沈娇走进门', [official, aliased], ['image']).map((hit) => hit.material.id)).toEqual(['official'])
+  })
+
+  it('skips a span when two different official names tie, instead of letting order decide', () => {
+    const first = material('first', '沈娇', { metadata: { assetCategory: 'character' } })
+    const second = material('second', '沈娇', { metadata: { assetCategory: 'location' } })
+    expect(matchCanvasPromptAssets('沈娇走进门', [first, second], ['image'])).toEqual([])
+  })
+
   it('excludes single-character and pure-digit names from bare matching', () => {
     const single = material('single', '甲', { metadata: { assetCategory: 'character' } })
     const digits = material('digits', '59', { metadata: { assetCategory: 'character' } })
     expect(matchCanvasPromptAssets('审计场景甲里出现 59 号标记', [single, digits], ['image'])).toEqual([])
+  })
+
+  it('excludes full-width digit names from bare matching', () => {
+    const fullWidth = material('full-width', '１２', { metadata: { assetCategory: 'character' } })
+    expect(matchCanvasPromptAssets('编号１２的角色', [fullWidth], ['image'])).toEqual([])
+  })
+
+  it('does not match a name that crosses a dialogue quote boundary', () => {
+    const asset = material('cross', '娇油纸', { metadata: { assetCategory: 'prop' } })
+    expect(matchCanvasPromptAssets('“娇”油纸伞', [asset], ['image'])).toEqual([])
   })
 
   it('requires ASCII identifier boundaries', () => {

@@ -37,7 +37,7 @@ function isAsciiIdentifierChar(value: string | undefined): boolean {
  * @mentions remain the only way to reference them.
  */
 function isAutoMatchableTerm(term: string): boolean {
-  return Array.from(term).length >= 2 && !/^\d+$/u.test(term)
+  return Array.from(term).length >= 2 && !/^[\p{Nd}]+$/u.test(term)
 }
 
 /**
@@ -70,11 +70,11 @@ export function matchCanvasPromptAssets(
   interface Candidate {
     material: FrameosMaterialItem
     term: string
+    isOfficial: boolean
     start: number
     end: number
   }
   const candidates: Candidate[] = []
-  const firstHitByMaterialId = new Map<string, Candidate>()
   const usable = materials.filter((material) => (
     material.status === 'ready'
     && Boolean(material.url)
@@ -82,8 +82,11 @@ export function matchCanvasPromptAssets(
   ))
   for (const material of usable) {
     const title = normalizePromptMentionName(material.title)
-    const terms = [title, ...frameosAssetAliasesFromMetadata(material.metadata)]
-    for (const rawTerm of terms) {
+    const terms: Array<{ term: string; isOfficial: boolean }> = [
+      { term: title, isOfficial: true },
+      ...frameosAssetAliasesFromMetadata(material.metadata).map((alias) => ({ term: alias, isOfficial: false })),
+    ]
+    for (const { term: rawTerm, isOfficial } of terms) {
       const term = normalizePromptMentionName(rawTerm)
       if (!term || !isAutoMatchableTerm(term)) continue
       const needle = term.toLocaleLowerCase()
@@ -94,31 +97,50 @@ export function matchCanvasPromptAssets(
           (isAsciiIdentifierChar(term[0]) && isAsciiIdentifierChar(text[index - 1]))
           || (isAsciiIdentifierChar(term[term.length - 1]) && isAsciiIdentifierChar(text[end]))
         )
-        if (asciiBounded && !isInsideQuotedDialogue(dialogue, index)) {
-          const candidate = { material, term, start: index, end }
-          candidates.push(candidate)
-          const previous = firstHitByMaterialId.get(material.id)
-          if (!previous || index < previous.start) firstHitByMaterialId.set(material.id, candidate)
-          break
+        // Every qualifying occurrence is kept: a short name absorbed inside a
+        // longer one at its first occurrence may still appear independently
+        // later, and that later occurrence must survive.
+        if (asciiBounded && !isInsideQuotedDialogue(dialogue, index) && !isInsideQuotedDialogue(dialogue, end - 1)) {
+          candidates.push({ material, term, isOfficial, start: index, end })
         }
         index = lowered.indexOf(needle, index + 1)
       }
     }
   }
 
-  // Longest spans win; a shorter span fully inside a kept span is absorbed.
-  candidates.sort((left, right) => (right.end - right.start) - (left.end - left.start) || left.start - right.start)
+  // Longest spans win; equal spans prefer the official name over an alias.
+  // A shorter span fully inside a kept span is absorbed.
+  candidates.sort((left, right) => (
+    (right.end - right.start) - (left.end - left.start)
+    || Number(right.isOfficial) - Number(left.isOfficial)
+    || left.start - right.start
+  ))
   const kept: Candidate[] = []
+  const ambiguous = new Set<Candidate>()
   for (const candidate of candidates) {
-    if (kept.some((span) => candidate.start >= span.start && candidate.end <= span.end)) continue
+    const covering = kept.find((span) => candidate.start >= span.start && candidate.end <= span.end)
+    if (covering) {
+      // Same span, different asset, same name authority (both official or both
+      // alias): ownership is ambiguous — drop both rather than let library
+      // return order decide. An official name always beats an alias (the sort
+      // already placed it first, so a later alias never displaces it).
+      if (covering.start === candidate.start && covering.end === candidate.end
+        && covering.material.id !== candidate.material.id
+        && covering.isOfficial === candidate.isOfficial) {
+        ambiguous.add(covering)
+        ambiguous.add(candidate)
+      }
+      continue
+    }
+    if ([...ambiguous].some((span) => candidate.start >= span.start && candidate.end <= span.end)) continue
     kept.push(candidate)
   }
 
   const hitByMaterialId = new Map<string, CanvasAutoMatchHit>()
-  for (const candidate of kept) {
-    if (hitByMaterialId.has(candidate.material.id)) continue
-    const first = firstHitByMaterialId.get(candidate.material.id) || candidate
-    hitByMaterialId.set(candidate.material.id, { material: candidate.material, matchedTerm: first.term })
+  for (const candidate of kept.filter((span) => !ambiguous.has(span)).sort((left, right) => left.start - right.start)) {
+    if (!hitByMaterialId.has(candidate.material.id)) {
+      hitByMaterialId.set(candidate.material.id, { material: candidate.material, matchedTerm: candidate.term })
+    }
   }
 
   return [...hitByMaterialId.values()].sort((left, right) => {
