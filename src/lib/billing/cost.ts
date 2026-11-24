@@ -405,6 +405,9 @@ function resolveSeedance2AspectRatio(value: CapabilityValue | undefined): Seedan
     return value
   }
   if (value === undefined) return SEEDANCE_2_DEFAULT_ASPECT_RATIO
+  // 首尾帧 / 视频编辑·续写由上游按参考素材推导画幅，报价无法预知确切比例。
+  // 取各比例中输出像素最大的一档估算 token，结算仍按上游返回的实际 token。
+  if (value === 'adaptive') return '16:9'
   throw new BillingOperationError(
     'BILLING_UNKNOWN_VIDEO_CAPABILITY_COMBINATION',
     `Unsupported video capability pricing: aspectRatio=${String(value)}`,

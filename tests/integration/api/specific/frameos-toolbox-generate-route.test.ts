@@ -1083,6 +1083,7 @@ describe('FrameOS toolbox generation route', () => {
       payload: {
         title: '侦探角色',
         ownerName: '资产师甲',
+        personalOwnerId: 'user-1',
         prompt: '年轻侦探，深色长风衣',
         model3dModel: 'frameos3d::frameos-3d-v1',
         topology: 'low_poly',

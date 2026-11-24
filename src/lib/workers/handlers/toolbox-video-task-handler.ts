@@ -9,6 +9,7 @@ import {
 } from '../utils'
 import { normalizeSeedanceImageReference, normalizeSeedanceMediaReference } from '@/lib/media/seedance-reference'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
+import { ownedMaterialScope } from '@/lib/frameos/material-ownership'
 import { compileSeedanceMentionPrompt, type SeedanceMentionReference } from '@/lib/novel-promotion/seedance-prompt-assets'
 import { projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
 import { workerTaskWillRetry } from '../retry-state'
@@ -300,7 +301,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
     }
     const material = await registerFrameosMaterial({
       userId: job.data.userId,
-      projectId: job.data.projectId,
+      ...ownedMaterialScope({ projectId: job.data.projectId, personalOwnerId: readString(payload.personalOwnerId) }),
       ownerName: readString(payload.ownerName) || undefined,
       title,
       type: 'video',

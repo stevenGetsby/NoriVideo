@@ -52,6 +52,20 @@ describe('named video downloads', () => {
     expect(sign).toHaveBeenCalledWith('video/test.mp4', 600, expect.objectContaining({ responseContentDisposition: expect.stringContaining("filename*=UTF-8''") }))
     expect(fetchMock).not.toHaveBeenCalled()
   })
+  it('downloads the generating actor\'s personal material without a project row', async () => {
+    mock.frameosMaterial.findFirst.mockResolvedValueOnce({ id: 'video-material', projectId: 'personal', personalOwnerId: 'downloader', title: '首尾帧成片', ownerName: '下载者', type: 'video', createdAt: new Date(), storageKey: 'video/test.mp4', metadata: {} })
+    const response = await GET(buildMockRequest({ path: '/api/frameos/materials/video-material/download', method: 'GET' }), context)
+    expect(response.status).toBe(200)
+    expect(mock.project.findFirst).not.toHaveBeenCalled()
+    expect(await response.text()).toBe('test-video')
+  })
+  it('keeps another member\'s personal material inaccessible', async () => {
+    mock.frameosMaterial.findFirst.mockResolvedValueOnce({ id: 'video-material', projectId: 'personal', personalOwnerId: 'other-member', title: '别人的成片', type: 'video', createdAt: new Date(), storageKey: 'video/test.mp4', metadata: {} })
+    expect((await GET(buildMockRequest({ path: '/api/frameos/materials/video-material/download', method: 'GET' }), context)).status).toBe(404)
+    expect(mock.project.findFirst).not.toHaveBeenCalled()
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(sign).not.toHaveBeenCalled()
+  })
   it('never fetches storage when project access is denied', async () => {
     mock.project.findFirst.mockResolvedValueOnce(null)
     expect((await GET(buildMockRequest({ path: '/api/frameos/materials/video-material/download', method: 'GET' }), context)).status).toBe(404)

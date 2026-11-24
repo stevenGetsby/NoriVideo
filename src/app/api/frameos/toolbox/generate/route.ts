@@ -577,6 +577,7 @@ async function executeToolboxGeneration(
         payload: {
           title,
           ownerName: session.user.name || null,
+          personalOwnerId: workspaceActor.actorId,
           prompt,
           model3dModel: modelKey,
           topology,
@@ -954,6 +955,7 @@ async function executeToolboxGeneration(
         payload: {
           title,
           ownerName: session.user.name || null,
+          personalOwnerId: workspaceActor.actorId,
           prompt: audioRequest.prompt,
           audioModel: modelKey,
           mode: audioRequest.mode,
@@ -1226,6 +1228,7 @@ async function executeToolboxGeneration(
         generationOptions,
         title: assetTitle,
         ownerName: session.user.name || null,
+        personalOwnerId: workspaceActor.actorId,
         prompt,
         inputMode,
         ...(canvasProcessType ? { processType: canvasProcessType } : {}),

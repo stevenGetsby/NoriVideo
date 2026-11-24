@@ -60,4 +60,18 @@ describe('seedance 2.5 token pricing', () => {
     const cost = calcVideoByTokens(MODEL, 1_000_000, { containsVideoInput: false, resolution: '1080p' })
     expect(cost).toBeCloseTo(77, 5)
   })
+
+  it('adaptive aspect ratio (首尾帧/视频编辑) quotes the 16:9 estimate instead of throwing', () => {
+    const adaptive = calcVideo(MODEL, '720p', 1, {
+      duration: 5,
+      aspectRatio: 'adaptive',
+      containsVideoInput: false,
+    })
+    const landscape = calcVideo(MODEL, '720p', 1, {
+      duration: 5,
+      aspectRatio: '16:9',
+      containsVideoInput: false,
+    })
+    expect(adaptive).toBeCloseTo(landscape, 5)
+  })
 })

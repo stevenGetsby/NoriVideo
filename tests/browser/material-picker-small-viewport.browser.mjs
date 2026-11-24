@@ -108,7 +108,17 @@ try {
   } catch (error) {
     throw new Error(`${error.message}\n\nDialog text:\n${await dialog.innerText()}\n\nBrowser errors:\n${browserErrors.join('\n')}`)
   }
-  const voiceBadges = await page.locator('.material-picker-voice-badge').evaluateAll(async (items) => {
+  const gridCards = await page.locator('.material-picker-card').evaluateAll((items) => items.slice(0, 24).map((el) => {
+    const rect = el.getBoundingClientRect()
+    return { top: Math.round(rect.top), left: Math.round(rect.left) }
+  }))
+  const columns = gridCards.findIndex((card) => card.top !== gridCards[0].top)
+  assert.ok(columns >= 2, `material cards must lay out as a grid: ${JSON.stringify(gridCards.slice(0, 6))}`)
+  gridCards.forEach((card, index) => {
+    assert.equal(card.top, gridCards[Math.floor(index / columns) * columns].top, `card ${index} must sit in its grid row`)
+    assert.equal(card.left, gridCards[index % columns].left, `card ${index} must align with its grid column`)
+  })
+  const voiceBadges =await page.locator('.material-picker-voice-badge').evaluateAll(async (items) => {
     await new Promise((resolve) => setTimeout(resolve, 250))
     return items.map((item) => {
     const card = item.closest('article')

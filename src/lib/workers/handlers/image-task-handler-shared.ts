@@ -11,6 +11,7 @@ import {
 import { mediaUrlFromRef, resolveMediaRef } from '@/lib/media/service'
 import { parseCharacterDescriptionValues } from '@/lib/novel-promotion/character-appearance-frameos-metadata'
 import { registerFrameosMaterial, type FrameosMaterialSource } from '@/lib/frameos/material-service'
+import { ownedMaterialScope } from '@/lib/frameos/material-ownership'
 import {
   databaseAppearanceOptions,
   selectStoryboardCharacterAppearance,
@@ -127,6 +128,7 @@ async function generateImageToStorage(params: {
   label?: string
   materialTitle?: string
   materialOwnerName?: string
+  materialPersonalOwnerId?: string | null
   materialSource?: FrameosMaterialSource
   materialMetadata?: Record<string, unknown>
 }) {
@@ -143,7 +145,7 @@ async function generateImageToStorage(params: {
   const cosKey = await uploadImageSourceToCos(uploadSource, params.keyPrefix, params.targetId)
   await registerFrameosMaterial({
     userId: params.job.data.userId,
-    projectId: params.job.data.projectId,
+    ...ownedMaterialScope({ projectId: params.job.data.projectId, personalOwnerId: params.materialPersonalOwnerId }),
     ownerName: params.materialOwnerName,
     title: params.materialTitle || params.label || `生成图片 · ${params.targetId}`,
     type: 'image',
@@ -178,6 +180,7 @@ export async function generateCleanImageToStorage(params: {
   }
   materialTitle?: string
   materialOwnerName?: string
+  materialPersonalOwnerId?: string | null
   materialSource?: FrameosMaterialSource
   materialMetadata?: Record<string, unknown>
 }) {

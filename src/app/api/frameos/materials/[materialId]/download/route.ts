@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError } from '@/lib/api-errors'
 import { isErrorResponse, requireUserAuth } from '@/lib/api-auth'
 import { projectReadWhere, workspaceUserWhere, getWorkspaceActor } from '@/lib/collaboration/access'
+import { canActorAccessMaterial, PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { prisma } from '@/lib/prisma'
 import { getSignedObjectUrl, toFetchableUrl, extractStorageKey } from '@/lib/storage'
 import { materialDownloadFileName } from '@/lib/frameos/material-download'
@@ -13,8 +14,8 @@ export const GET = apiHandler(async (request: NextRequest, context: { params: Pr
   const actor = getWorkspaceActor(auth.session)
   const users = await prisma.user.findMany({ where: workspaceUserWhere(actor.workspaceOwnerId), select: { id: true } })
   const material = await prisma.frameosMaterial.findFirst({ where: { id: materialId, userId: { in: users.map((user) => user.id) }, status: 'ready', deletedAt: null } })
-  if (!material) throw new ApiError('NOT_FOUND')
-  if (!['global', 'global-asset-hub'].includes(material.projectId)) {
+  if (!material || !canActorAccessMaterial(auth.session, material)) throw new ApiError('NOT_FOUND')
+  if (material.projectId !== PERSONAL_MATERIAL_PROJECT_ID && !['global', 'global-asset-hub'].includes(material.projectId)) {
     const project = await prisma.project.findFirst({ where: projectReadWhere(auth.session, material.projectId), select: { id: true } })
     if (!project) throw new ApiError('NOT_FOUND')
   }
