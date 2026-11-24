@@ -65,11 +65,13 @@ export function planCanvasBatchConnections(input: {
   targetNodeId: string
   maxEdges?: number
   createId?: () => string
+  validateReferences?: (references: CanvasFlowNode[]) => boolean
 }) {
   let nodes = [...input.nodes]
   const edges = [...input.edges]
   let added = 0
   let skipped = 0
+  let restored = 0
   const createId = input.createId || (() => typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`)
@@ -96,10 +98,26 @@ export function planCanvasBatchConnections(input: {
     const source = nodes.find((node) => node.id === id)
     const currentTarget = nodes.find((node) => node.id === input.targetNodeId)
     const connection = { source: id, target: input.targetNodeId, sourceHandle: 'output', targetHandle: 'input' }
-    if (!source || !currentTarget || !isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges)) {
+    if (!source || !currentTarget) {
       skipped++
       continue
     }
+    if (schema && input.validateReferences && !referencedIds.has(id)) {
+      const selected = nodes.filter((node) => referencedIds.has(node.id))
+      if (!input.validateReferences([...selected, source])) { skipped++; continue }
+      if (edges.some((edge) => edge.source === id && edge.target === currentTarget.id)) {
+        referencedIds.add(id)
+        nodes = nodes.map((node) => node.id === currentTarget.id ? {
+          ...node,
+          data: { ...node.data, generation: { ...node.data.generation, referenceNodeIds: [...referencedIds] } },
+        } : node)
+        const mediaType = canvasConnectionMediaType(source)
+        if (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') counts[mediaType]++
+        restored++
+        continue
+      }
+    }
+    if (!isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges)) { skipped++; continue }
     const story = resolveStoryConnection(connection, nodes)
     if (story.kind === 'flow' || story.kind === 'media') {
       const next = applyStoryConnection(edges, story, createId)
@@ -157,5 +175,5 @@ export function planCanvasBatchConnections(input: {
     referencedIds.add(id)
     added++
   }
-  return { nodes, edges, added, skipped }
+  return { nodes, edges, added, skipped, restored }
 }

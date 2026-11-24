@@ -25,23 +25,28 @@ const bundle = await (await import('esbuild')).build({
 const script = bundle.outputFiles.find((file) => file.path.endsWith('.js')).contents
 const css = bundle.outputFiles.find((file) => file.path.endsWith('.css')).contents
 
-// Mirror the production capability catalog so the demo exercises the same
-// model-driven option ranges (e.g. Seedance 2.5 supports 4–30 seconds).
 const capabilityCatalog = JSON.parse(await readFile(path.join(root, 'standards/capabilities/kuaizi.catalog.json'), 'utf8'))
 const capabilityEntries = Array.isArray(capabilityCatalog) ? capabilityCatalog : (capabilityCatalog.entries || capabilityCatalog.models || [])
-const capabilityEntry = capabilityEntries.find((entry) => entry.modelId === 'doubao-seedance-2-5-260628' && entry.modelType === 'video')
-const capabilityVideo = capabilityEntry?.capabilities?.video || {}
-
-const model = {
-  modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'doubao-seedance-2-5-260628', provider: 'kuaizi', configured: true, available: true,
-  supportGenerateAudio: true, firstLastFrame: true,
-  options: {
-    duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
-    resolution: capabilityVideo.resolutionOptions || ['480p', '720p', '1080p'],
-    aspectRatio: ['16:9', '9:16', '1:1', '4:3', '21:9'],
-  },
-  inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
-}
+const demoVideoModelIds = [
+  'doubao-seedance-2-5-260628',
+  'doubao-seedance-2-0-260128',
+  'doubao-seedance-2-0-fast-260128',
+  'doubao-seedance-2-0-mini-260615',
+]
+const videoModels = demoVideoModelIds.map((modelId) => {
+  const capabilityVideo = capabilityEntries.find((entry) => entry.modelId === modelId && entry.modelType === 'video')?.capabilities?.video || {}
+  return {
+    modelKey: `kuaizi::${modelId}`, name: modelId, provider: 'kuaizi', configured: true, available: true,
+    supportGenerateAudio: capabilityVideo.supportGenerateAudio !== false, firstLastFrame: capabilityVideo.firstlastframe === true,
+    options: {
+      duration: capabilityVideo.durationOptions || [4, 5, 6, 8, 10],
+      resolution: capabilityVideo.resolutionOptions || ['480p', '720p', '1080p'],
+      aspectRatio: ['16:9', '9:16', '1:1', '4:3', '21:9'],
+    },
+    inputSchema: capabilityVideo.inputSchema || { image: { min: 0, max: 30 }, video: { min: 0, max: 10 }, audio: { min: 0, max: 10 }, requiredFields: ['prompt'] },
+  }
+})
+const model = videoModels[0]
 const swatch = (color, label) => 'data:image/svg+xml,' + encodeURIComponent(
   `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="${color}"/><text x="160" y="98" text-anchor="middle" font-family="sans-serif" font-size="26" fill="rgba(255,255,255,.85)">${label}</text></svg>`,
 )
@@ -51,16 +56,18 @@ const common = { canvasId: 'canvas-1', runId: null, mediaObjectId: null, parentN
 const libraryMaterials = [
   { id: 'library-character', title: '林夏', type: 'image', isFavorited: true, url: swatch('#7d3651', '林夏'), metadata: { assetCategory: 'character' } },
   { id: 'library-character-2', title: '马俊', type: 'image', isFavorited: true, url: swatch('#51487d', '马俊'), metadata: { assetCategory: 'character' } },
+  { id: 'library-character-shenjiao', title: '沈娇', type: 'image', isFavorited: true, url: swatch('#a04a6e', '沈娇'), metadata: { assetCategory: 'character', aliases: ['娇娇', '沈小姐'] } },
   { id: 'library-character-3', title: String.fromCharCode(0x5F20, 0x4E09, 0x4E30), type: 'image', isFavorited: false, url: swatch('#485d7d', String.fromCharCode(0x5F20, 0x4E09, 0x4E30)), metadata: { assetCategory: 'character' } },
   { id: 'library-location', title: '雨夜街巷', type: 'image', isFavorited: false, url: swatch('#2f5d50', '雨夜街巷'), metadata: { assetCategory: 'location' } },
   { id: 'library-location-2', title: '山顶日出', type: 'image', isFavorited: false, url: swatch('#8a5a2b', '山顶日出'), metadata: { assetCategory: 'location' } },
   { id: 'library-prop', title: '桂芳足力健', type: 'image', isFavorited: true, url: swatch('#8a2b2b', '足力健'), metadata: { assetCategory: 'prop' } },
   { id: 'library-prop-2', title: '油纸伞', type: 'image', isFavorited: false, url: swatch('#5d6b2f', '油纸伞'), metadata: { assetCategory: 'prop' } },
   { id: 'library-shot', title: '开场分镜', type: 'image', isFavorited: false, url: swatch('#31566e', '开场分镜'), metadata: { assetCategory: 'shot' } },
-  { id: 'library-audio', title: '环境雨声', type: 'audio', isFavorited: false, url: null, metadata: { assetCategory: 'other' } },
-  { id: 'library-audio-2', title: '紧张配乐', type: 'audio', isFavorited: false, url: null, metadata: { assetCategory: 'other' } },
+  { id: 'library-audio', title: '环境雨声', type: 'audio', isFavorited: false, url: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=', metadata: { assetCategory: 'other' } },
+  { id: 'library-audio-2', title: '紧张配乐', type: 'audio', isFavorited: false, url: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=', metadata: { assetCategory: 'other' } },
+  { id: 'library-audio-shenjiao', title: '沈娇音色', type: 'audio', isFavorited: false, url: 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=', metadata: { assetCategory: 'character', durationSeconds: 3 } },
   { id: 'library-text', title: '世界观设定', type: 'text', isFavorited: false, url: null, metadata: { assetCategory: 'other' } },
-  { id: 'library-video', title: '预告片素材', type: 'video', isFavorited: false, url: null, metadata: { assetCategory: 'shot' } },
+  { id: 'library-video', title: '预告片素材', type: 'video', isFavorited: false, url: swatch('#3d3156', '预告片'), metadata: { assetCategory: 'shot' } },
 ].map((material) => ({
   projectId: 'project-1', projectName: '演示项目', ownerName: null, source: 'upload', status: 'ready',
   resultUrl: material.url, storageKey: null, createdAt: '2026-10-08', updatedAt: '2026-10-08', ...material,
@@ -73,14 +80,14 @@ let graph = {
     { id: 'edge-secondary', canvasId: 'canvas-1', sourceNodeId: 'ref-2', targetNodeId: 'ref-1', sourceHandle: 'output', targetHandle: 'input', role: 'INPUT_DEFAULT' },
   ],
   nodes: [
-    { ...common, id: 'gen-1', type: 'video', position: { x: 560, y: 170 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: '视频生成节点', mediaType: 'video', prompt: '', origin: 'empty', generation: { modelKey: model.modelKey }, history: [] } },
+    { ...common, id: 'gen-1', type: 'video', position: { x: 560, y: 170 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: '视频生成节点', mediaType: 'video', prompt: '雨夜街巷，娇娇撑着油纸伞走过巷口，沈小姐回头望向山顶日出的方向，环境雨声渐弱。', origin: 'empty', generation: { modelKey: model.modelKey }, history: [] } },
     { ...common, id: 'ref-1', type: 'image', position: { x: 60, y: 60 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: '参考素材1', mediaType: 'image', origin: 'upload', contentUrl: reference, imageUrl: reference, materialId: 'material-1' } },
     { ...common, id: 'ref-2', type: 'image', position: { x: 60, y: 330 }, size: { width: 320, height: 180 }, status: 'IDLE', taskId: null, data: { title: '参考素材2', mediaType: 'image', origin: 'upload', contentUrl: swatch('#6e5136', '参考2'), imageUrl: swatch('#6e5136', '参考2'), materialId: 'material-2' } },
   ],
 }
 
 function handleApi(url, method, body) {
-  if (url.pathname.endsWith('/generation-config')) return { textModels: [], imageModels: [], videoModels: [model], audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
+  if (url.pathname.endsWith('/generation-config')) return { textModels: [], imageModels: [], videoModels, audioModels: [], model3dModels: [], defaults: { videoModel: model.modelKey, aspectRatio: '16:9', resolution: '720p' } }
   if (url.pathname === '/api/interactive') return { story: null }
   if (url.pathname.endsWith('/generate') && method === 'POST') return { status: 400, payload: { message: '演示模式：生成已停用，不会产生真实任务' } }
   if (url.pathname === '/api/projects/project-1') return { work: { id: 'project-1', name: '演示作品', workId: 'work-1', workName: '演示项目' } }
@@ -178,4 +185,4 @@ const server = createServer((request, response) => {
 })
 const port = Number(process.env.NORI_DEMO_PORT || 4173)
 await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve) })
-console.log(`Canvas demo ready: http://127.0.0.1:${port}`)
+console.log(`Canvas demo ready: http://127.0.0.1:${server.address().port}`)
