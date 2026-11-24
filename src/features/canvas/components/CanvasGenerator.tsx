@@ -233,6 +233,7 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
   }
   const schedulePreviewClose = () => {
     if (!previewOpen) return
+    if (!audio) { closePreview(); return }
     cancelPreviewClose()
     previewCloseTimer.current = window.setTimeout(() => setPreviewOpen(false), 240)
   }
@@ -531,7 +532,18 @@ export function CanvasGenerator({
     return value === 'a_pose' || value === 't_pose' ? value : 'none'
   })
   const [fullscreen, setFullscreen] = useState(false)
-  const [referencePreviewEnabled, setReferencePreviewEnabled] = useState(false)
+  const previewPreferenceKey = `nori:reference-preview:${projectId}:${node.id}`
+  const [referencePreviewPreference, setReferencePreviewPreference] = useState<{ key: string; enabled: boolean } | null>(null)
+  const referencePreviewEnabled = referencePreviewPreference?.key === previewPreferenceKey && referencePreviewPreference.enabled
+  useEffect(() => {
+    let enabled = false
+    try { enabled = window.sessionStorage.getItem(previewPreferenceKey) === '1' } catch { /* Storage may be unavailable. */ }
+    setReferencePreviewPreference({ key: previewPreferenceKey, enabled })
+  }, [previewPreferenceKey])
+  const setReferencePreviewEnabled = (enabled: boolean) => {
+    setReferencePreviewPreference({ key: previewPreferenceKey, enabled })
+    try { window.sessionStorage.setItem(previewPreferenceKey, enabled ? '1' : '0') } catch { /* Keep the current editor usable. */ }
+  }
   const panelRef = useRef<HTMLElement>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const flowStore = useStoreApi()

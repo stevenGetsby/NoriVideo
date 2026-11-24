@@ -65,6 +65,40 @@ try {
   await referenceImage.hover()
   await imagePreview.getByRole('img', { name: '参考素材1' }).waitFor()
   assert.ok((await imagePreview.boundingBox()).width > (await referenceImage.boundingBox()).width)
+  await page.mouse.move(5, 5)
+  assert.equal(await imagePreview.count(), 0)
+  const reopenEditor = async () => {
+    await page.getByRole('button', { name: '关闭节点编辑器' }).click()
+    await previewToggle.waitFor({ state: 'hidden' })
+    const generator = page.locator('.react-flow__node[data-id="gen-1"]')
+    await generator.click()
+    if (!(await previewToggle.isVisible())) await generator.click()
+    await previewToggle.waitFor({ timeout: 5000 })
+  }
+  await reopenEditor()
+  await page.waitForFunction(() => document.querySelector('.nori-canvas-reference-preview-toggle input')?.checked === true, null, { timeout: 3000 })
+  await page.setViewportSize({ width: 1440, height: 1440 })
+  const prompt = page.locator('.nori-canvas-generator-prompt textarea')
+  await prompt.fill('合成测试正文。'.repeat(1000))
+  await page.locator('.nori-canvas-generator').evaluate((panel) => {
+    // Reproduce a panel sized above the default prompt height while typing.
+    panel.setAttribute('data-canvas-editor-resized', 'true')
+    panel.style.height = '650px'
+  })
+  await page.waitForFunction(() => {
+    const textarea = document.querySelector('.nori-canvas-generator-prompt textarea')
+    const layer = textarea?.parentElement
+    const highlight = layer?.querySelector('.mention-prompt-highlight')
+    return textarea && layer && highlight && textarea.clientHeight > 260
+      && Math.abs(layer.clientHeight - textarea.clientHeight) <= 1
+      && Math.abs(highlight.clientHeight - textarea.clientHeight) <= 1
+  }, null, { timeout: 3000 })
+  await page.locator('.nori-canvas-generator').evaluate((panel) => {
+    panel.removeAttribute('data-canvas-editor-resized')
+    panel.style.removeProperty('height')
+  })
+  await prompt.fill('合成测试正文。')
+  await page.setViewportSize({ width: 1440, height: 900 })
   const referenceAudio = page.locator('.nori-canvas-generator-ref[title^="环境雨声"]')
   await referenceAudio.hover()
   const player = page.getByRole('region', { name: '预览 环境雨声' }).locator('audio[controls]')
@@ -78,6 +112,8 @@ try {
   })
   await previewToggle.uncheck()
   assert.equal(await player.count(), 0)
+  await reopenEditor()
+  assert.equal(await previewToggle.isChecked(), false)
   console.log('PASS: reference preview enlarges images and exposes audio controls only when enabled')
 
   const modelTrigger = page.getByRole('button', { name: '选择生成模型' })
