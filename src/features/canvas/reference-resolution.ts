@@ -22,8 +22,9 @@ export function removeDeletedCanvasReferences<T extends { data: CanvasNodeData }
     const generation = node.data.generation
     if (!generation) return node
     const ids = generation.referenceNodeIds
+    const paused = generation.pausedReferenceNodeIds
     const summaries = generation.referenceSummary
-    if (!ids?.some((id) => deletedIds.has(id)) && !summaries?.some((item) => deletedIds.has(item.id))) return node
+    if (!ids?.some((id) => deletedIds.has(id)) && !paused?.some((id) => deletedIds.has(id)) && !summaries?.some((item) => deletedIds.has(item.id))) return node
     return {
       ...node,
       data: {
@@ -31,6 +32,7 @@ export function removeDeletedCanvasReferences<T extends { data: CanvasNodeData }
         generation: {
           ...generation,
           ...(ids ? { referenceNodeIds: ids.filter((id) => !deletedIds.has(id)) } : {}),
+          ...(paused ? { pausedReferenceNodeIds: paused.filter((id) => !deletedIds.has(id)) } : {}),
           ...(summaries ? { referenceSummary: summaries.filter((item) => !deletedIds.has(item.id)) } : {}),
         },
       },

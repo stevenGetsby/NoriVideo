@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -107,12 +108,6 @@ import {
 } from '@/lib/canvas/generation-input-schema'
 import { buildCanvasGenerateRequest, buildQuoteParams, canvasProviderResolution, compatibleIncomingReferences, mediaTypeForReference, modelOptions, nodeKind, normalizeStoryboardCount, orderedReferenceSummaries, referenceSummary, STORYBOARD_COUNTS, usesCanvasProviderDefaultResolution, type CanvasGenerateRequest, type CanvasGenerationModelOption as ModelOption, type CanvasGenerationServiceConfig as GenerationConfig } from '../generation/generate-request-core'
 export { quoteInputVideoSeconds, estimateTtsSeconds, type CanvasGenerateRequest } from '../generation/generate-request-core'
-import {
-  CANVAS_GENERATOR_PANEL_WIDTH_MAX,
-  CANVAS_GENERATOR_PANEL_WIDTH_MIN,
-  clampCanvasGeneratorPanelWidth,
-  resizeCanvasGeneratorPanelWidth,
-} from '../generator-panel-width'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasGenerationConfig, CanvasGenerationReferenceSummary, CanvasNodeData } from '../types'
 import {
@@ -219,7 +214,7 @@ function readPersistedMentionSelections(generation: CanvasFlowNode['data']['gene
   return selections
 }
 
-function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice, previewEnabled }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void; previewEnabled: boolean }) {
+function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onToggleVoice, previewEnabled, pauseOnly }: { node: CanvasFlowNode; selected: boolean; wired: boolean; order: string | null; onToggle: () => void; onRemove: () => void; onToggleVoice?: () => void; previewEnabled: boolean; pauseOnly: boolean }) {
   const mediaType = mediaTypeForReference(node)
   const image = toDisplayImageUrl(mediaType === 'video'
     ? node.data.posterUrl || node.data.imageUrl || null
@@ -299,8 +294,8 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
       <button
         type="button"
         className="nori-canvas-generator-ref-remove"
-        aria-label={`移除引用素材 ${title}`}
-        title={wired ? '移除引用并删除这条连线' : '移除引用（素材仍保留在画布上）'}
+        aria-label={`${pauseOnly ? '暂停使用' : '移除引用素材'} ${title}`}
+        title={pauseOnly ? '暂停用于本次生成' : wired ? '移除引用并删除这条连线' : '移除引用（素材仍保留在画布上）'}
         onClick={onRemove}
       >
         <X />
@@ -339,6 +334,7 @@ export function CanvasGenerator({
   onFocus,
   onAddReferences,
   onRemoveReference,
+  onChangeReferenceWire,
   onToggleReferenceVoice,
   onSelectLibraryMaterial,
   onMatchPromptMaterials,
@@ -367,6 +363,7 @@ export function CanvasGenerator({
   onFocus: () => void
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
   onRemoveReference?: (sourceNodeId: string) => void
+  onChangeReferenceWire?: (sourceNodeId: string, selectedReferenceIds: string[]) => void
   onToggleReferenceVoice?: (nodeId: string) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
@@ -477,9 +474,11 @@ export function CanvasGenerator({
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
   // Unwired references picked from the library count as direct inputs, so a
   // prompt that names them resolves to the node that is actually submitted.
+
+  const [pausedReferenceIds, setPausedReferenceIds] = useState<string[]>(node.data.generation?.pausedReferenceNodeIds || [])
   const directMentionNodeIds = useMemo(
-    () => new Set([...incomingNodes.map((item) => item.id), ...referenceNodeIds]),
-    [incomingNodes, referenceNodeIds],
+    () => new Set([...incomingNodes.map((item) => item.id), ...referenceNodeIds, ...pausedReferenceIds]),
+    [incomingNodes, pausedReferenceIds, referenceNodeIds],
   )
   const canvasMentionAssets = useMemo(() => buildCanvasMentionAssets(
     referenceNodes,
@@ -494,12 +493,12 @@ export function CanvasGenerator({
   )
   const bindsMentionReferences = shouldBindCanvasMentionReference(type)
   const mentionBinding = useMemo(() => ({
-    nodeIds: new Set(referenceNodeIds),
+    nodeIds: new Set([...referenceNodeIds, ...pausedReferenceIds]),
     materialIds: new Set(referenceNodeIds.flatMap((id) => {
       const materialId = referenceNodes.find((item) => item.id === id)?.data.materialId
       return typeof materialId === 'string' && materialId.trim() ? [materialId.trim()] : []
     })),
-  }), [referenceNodeIds, referenceNodes])
+  }), [pausedReferenceIds, referenceNodeIds, referenceNodes])
   const promptMentionPlan = useMemo(
     () => planCanvasPromptMentions([prompt], mentionAssets, mentionBinding),
     [mentionAssets, mentionBinding, prompt],
@@ -570,11 +569,46 @@ export function CanvasGenerator({
         lastInverseZoomRef.current = inverseZoom
       }
     }
-    apply(flowStore.getState())
-    return flowStore.subscribe(apply)
+
+    let frame = 0
+    const fitEditor = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const panel = panelRef.current
+        if (!panel) return
+        const bounds = panel.getBoundingClientRect()
+        const scale = bounds.width / Math.max(panel.offsetWidth, 1)
+        if (scale > 0) panel.style.setProperty('--canvas-editor-available-height', Math.max(245, (window.innerHeight - bounds.top - 14) / scale) + 'px')
+      })
+    }
+    const update = (state: ReturnType<typeof flowStore.getState>) => { apply(state); fitEditor() }
+    update(flowStore.getState())
+    const unsubscribe = flowStore.subscribe(update)
+    window.addEventListener('resize', fitEditor)
+    return () => {
+      unsubscribe()
+      cancelAnimationFrame(frame)
+      window.removeEventListener('resize', fitEditor)
+      panelRef.current?.style.removeProperty('--canvas-editor-available-height')
+    }
   }, [flowStore, node.id, fullscreen, viewportLayerTarget])
   const [moreOpen, setMoreOpen] = useState(false)
+
   const parameterTriggerRef = useRef<HTMLButtonElement>(null)
+  const [editorModelOpen, setEditorModelOpen] = useState(false)
+  const editorModelTrigger = useRef<HTMLButtonElement>(null)
+  const editorModelOptions = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!editorModelOpen) return
+    let frame = requestAnimationFrame(() => {
+      frame = requestAnimationFrame(() => {
+        const options = editorModelOptions.current
+        const current = options?.querySelector<HTMLButtonElement>('button[aria-checked=true]:not(:disabled)')
+        ;(current ?? options?.querySelector<HTMLButtonElement>('button:not(:disabled)'))?.focus()
+      })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [editorModelOpen])
   const [referenceMenuOpen, setReferenceMenuOpen] = useState(false)
   const [canvasPickerOpen, setCanvasPickerOpen] = useState(false)
   const referenceAddRef = useRef<HTMLButtonElement>(null)
@@ -698,6 +732,11 @@ export function CanvasGenerator({
     // sync effect so adding or removing wires cannot overwrite an in-progress draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [node.id])
+
+  const pausedReferenceSignature = (node.data.generation?.pausedReferenceNodeIds || []).join('|')
+  useEffect(() => {
+    setPausedReferenceIds(pausedReferenceSignature ? pausedReferenceSignature.split('|') : [])
+  }, [node.id, pausedReferenceSignature])
 
   useEffect(() => {
     // Bulk drops and undo/redo may change references without changing the
@@ -1122,6 +1161,7 @@ export function CanvasGenerator({
       referenceNodeIds,
       referenceSummary: selectedReferenceSummaries,
       referenceMentionSelections: mentionSelections,
+      pausedReferenceNodeIds: pausedReferenceIds,
       aspectRatio,
       resolution: selectedResolution,
       ...(type === 'image' ? { quality } : {}),
@@ -1137,7 +1177,7 @@ export function CanvasGenerator({
             ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
             : undefined,
     },
-  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, pausedReferenceIds, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
 
   const draftPatchRef = useRef(draftPatch)
   draftPatchRef.current = draftPatch
@@ -1322,13 +1362,53 @@ export function CanvasGenerator({
   }
 
   const wiredReferenceIds = useMemo(() => new Set(incomingNodes.map((item) => item.id)), [incomingNodes])
+
+  const referenceDialogTitleId = useId()
+  const editorDialogRef = useRef<HTMLDialogElement>(null)
+  const editorBackdropDown = useRef(false)
+  const [editorView, setEditorView] = useState<'manage' | 'payload'>('manage')
+  const [editorTab, setEditorTab] = useState('all')
+  const [editorQuery, setEditorQuery] = useState('')
+  const [editorMedia, setEditorMedia] = useState('all')
+  const [editorChecked, setEditorChecked] = useState<string[]>([])
+  const [editorNotice, setEditorNotice] = useState('')
+  const editorActiveIds = new Set(referenceNodeIds)
+  const managesReferences = type === 'image' || type === 'video'
+  const editorRows = [...displayedReferenceNodes, ...referenceNodes.filter((reference) =>
+    (pausedReferenceIds.includes(reference.id) || referenceNodeIds.includes(reference.id)) &&
+    !displayedReferenceNodes.some((current) => current.id === reference.id))]
+    .sort((a, b) => (editorActiveIds.has(a.id) ? referenceNodeIds.indexOf(a.id) : Infinity) -
+      (editorActiveIds.has(b.id) ? referenceNodeIds.indexOf(b.id) : Infinity))
+  const editorVisible = editorRows.filter((reference) => {
+    const active = editorActiveIds.has(reference.id)
+    return (editorTab === 'all' || active === (editorTab === 'active')) &&
+      (editorMedia === 'all' || (reference.data.mediaType || reference.type) === editorMedia) &&
+      (reference.data.title || '').toLowerCase().includes(editorQuery.trim().toLowerCase())
+  })
+  const openReferenceDialog = (view: 'manage' | 'payload') => {
+    setEditorView(view); setEditorTab('all'); setEditorQuery(''); setEditorMedia('all'); setEditorChecked([]); setEditorNotice('')
+    editorDialogRef.current?.showModal()
+  }
+  const editorReferenceRole = (reference: CanvasFlowNode, index: number) => {
+    const mediaType = reference.data.mediaType || reference.type
+    if (inputMode === 'firstlastframe' && index >= 0 && index < 2) return index === 0 ? '首帧' : '尾帧'
+    return mediaType === 'audio' ? '音频参考' : mediaType === 'video' ? '视频参考' : '图片参考'
+  }
+  const applyEditorReferences = (ids: string[], enabled: boolean) => {
+    const selected = new Set(ids)
+    const next = enabled ? [...new Set([...referenceNodeIds, ...ids])] : referenceNodeIds.filter((id) => !selected.has(id))
+    const errors = enabled ? referenceErrors(next, false) : []
+    if (errors.length) { setEditorNotice(errors[0]); return }
+    setPausedReferenceIds((current) => enabled ? current.filter((id) => !selected.has(id)) : [...new Set([...current, ...ids])])
+    draftUserEditRef.current = true
+    setReferenceNodeIds(next)
+    setEditorChecked([])
+    setEditorNotice((enabled ? '已恢复 ' : '已暂停 ') + ids.length + ' 项')
+  }
   const removeReference = (reference: CanvasFlowNode) => {
-    setError(null)
-    if (onRemoveReference && wiredReferenceIds.has(reference.id)) {
-      onRemoveReference(reference.id)
-      return
-    }
-    setReferenceNodeIds(changeDraftField((current) => current.filter((id) => id !== reference.id)))
+    if (managesReferences) applyEditorReferences([reference.id], false)
+    else if (onRemoveReference && wiredReferenceIds.has(reference.id)) onRemoveReference(reference.id)
+    else setReferenceNodeIds(changeDraftField((current) => current.filter((id) => id !== reference.id)))
   }
 
   // 从素材库挑选的引用素材会先落到画布成为节点，再通过这个注入合并进来，
@@ -1382,7 +1462,11 @@ export function CanvasGenerator({
     const pending: Array<{ placeholder: string; material: FrameosMaterialItem }> = []
     const created: CanvasReferenceMediaSummary[] = []
     const names = new Map<string, string[]>()
+    const paused = new Set(pausedReferenceIds.filter((id) => !referenceNodeIds.includes(id)))
+    const activeMaterials = new Set(referenceNodes.filter((item) => referenceNodeIds.includes(item.id)).map((item) => item.data.materialId))
+    const pausedMaterials = new Set(referenceNodes.filter((item) => paused.has(item.id) && !activeMaterials.has(item.data.materialId)).map((item) => item.data.materialId))
     for (const { asset, names: mentionNames } of plan.mentioned) {
+      if (asset.section === 'library' ? asset.materialId && pausedMaterials.has(asset.materialId) : paused.has(asset.id)) continue
       let nodeId: string | undefined = asset.section === 'library' ? undefined : asset.id
       if (!nodeId && asset.materialId) nodeId = referencedNodeFor(asset.materialId)
       if (!nodeId && asset.material) {
@@ -1534,43 +1618,59 @@ export function CanvasGenerator({
   }
   closeEditorRef.current = closeEditor
 
+
+  const [editorNormalSize, setEditorNormalSize] = useState<{ width: number; height: number } | null>(null)
+  const [editorExpandedSize, setEditorExpandedSize] = useState<{ width: number; height: number } | null>(null)
+  const editorSize = fullscreen ? editorExpandedSize : editorNormalSize
+  const resizeEditorPanel = (width: number, height: number, scale: number) => {
+    const maxWidth = Math.max(1, (window.innerWidth - (fullscreen ? 56 : 48)) / scale)
+    const viewportHeight = (fullscreen ? window.innerHeight - 48 : window.innerHeight * .72) / scale
+    const availableHeight = parseFloat(panelRef.current?.style.getPropertyValue('--canvas-editor-available-height') || '')
+    const maxHeight = fullscreen || !Number.isFinite(availableHeight) ? viewportHeight : Math.min(viewportHeight, availableHeight)
+    const minWidth = Math.min(maxWidth, fullscreen ? 470 : 390)
+    const minHeight = Math.min(maxHeight, fullscreen ? 350 : 265)
+    const next = { width: Math.max(minWidth, Math.min(maxWidth, width)), height: Math.max(minHeight, Math.min(maxHeight, height)) }
+    if (fullscreen) setEditorExpandedSize(next)
+    else {
+      setEditorNormalSize(next)
+      if (Math.abs(next.width - panelWidth) > 1) onPanelWidthChange(next.width)
+    }
+  }
   const startPanelResize = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (fullscreen) return
+    const panel = panelRef.current
+    if (!panel || event.button !== 0) return
     event.preventDefault()
     event.stopPropagation()
+    event.currentTarget.focus({ preventScroll: true })
     panelResizeCleanupRef.current?.()
-    const startWidth = panelWidth
-    const startClientX = event.clientX
-    const panel = event.currentTarget.closest<HTMLElement>('.nori-canvas-generator')
-    const interfaceScale = panel ? panel.getBoundingClientRect().width / panelWidth : 1
-    const viewportWidth = panel?.closest<HTMLElement>('.nori-canvas-workspace')?.clientWidth || window.innerWidth
-    const move = (moveEvent: PointerEvent) => {
-      onPanelWidthChange(resizeCanvasGeneratorPanelWidth({
-        startWidth,
-        startClientX,
-        clientX: moveEvent.clientX,
-        viewportWidth,
-        interfaceScale,
-      }))
+    const { clientX, clientY, pointerId } = event
+    const { offsetWidth: width, offsetHeight: height } = panel
+    const scale = panel.getBoundingClientRect().width / Math.max(width, 1)
+    const move = (next: PointerEvent) => {
+      if (next.pointerId === pointerId) resizeEditorPanel(width + 2 * (next.clientX - clientX) / scale, height + (next.clientY - clientY) / scale, scale)
     }
     const cleanup = () => {
       window.removeEventListener('pointermove', move)
-      window.removeEventListener('pointerup', cleanup)
-      window.removeEventListener('pointercancel', cleanup)
+      window.removeEventListener('pointerup', finish)
+      window.removeEventListener('pointercancel', finish)
+      window.removeEventListener('blur', cleanup)
       panelResizeCleanupRef.current = null
     }
+    const finish = (next: PointerEvent) => { if (next.pointerId === pointerId) cleanup() }
     panelResizeCleanupRef.current = cleanup
     window.addEventListener('pointermove', move)
-    window.addEventListener('pointerup', cleanup)
-    window.addEventListener('pointercancel', cleanup)
+    window.addEventListener('pointerup', finish)
+    window.addEventListener('pointercancel', finish)
+    window.addEventListener('blur', cleanup)
   }
-
   const resizePanelByKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+    const panel = panelRef.current
+    if (!panel || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return
     event.preventDefault()
     event.stopPropagation()
-    const delta = event.key === 'ArrowRight' ? 40 : -40
-    onPanelWidthChange(clampCanvasGeneratorPanelWidth(panelWidth + delta, window.innerWidth))
+    const { offsetWidth: width, offsetHeight: height } = panel
+    const scale = panel.getBoundingClientRect().width / Math.max(width, 1)
+    resizeEditorPanel(width + (event.key === 'ArrowRight' ? 32 : event.key === 'ArrowLeft' ? -32 : 0), height + (event.key === 'ArrowDown' ? 24 : event.key === 'ArrowUp' ? -24 : 0), scale)
   }
 
   const keepWheelInEditor = (event: ReactWheelEvent<HTMLElement>) => {
@@ -1655,9 +1755,8 @@ export function CanvasGenerator({
       ? `${aspectRatio === 'adaptive' ? '自适应' : aspectRatio} · ${superresolveTarget ? superresolveParameterSummary : resolutionLabel(selectedResolution || '默认')} · ${duration}s${fps !== null ? ` · ${fps}FPS` : ''}`
       : ''
   const editor = (
-    <aside ref={panelRef} className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : viewportLayerTarget ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} style={fullscreen ? undefined : { width: `${panelWidth}px` }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
+    <aside ref={panelRef} className={`nori-canvas-generator${fullscreen ? ' is-fullscreen' : viewportLayerTarget ? ' is-node-anchored' : ''}`} data-editor-mode={fullscreen ? 'expanded' : 'anchored'} data-canvas-editor-resized={editorSize ? 'true' : undefined} style={editorSize ? { width: fullscreen ? editorSize.width : panelWidth, height: editorSize.height } : fullscreen ? undefined : { width: panelWidth }} onPointerDown={(event) => event.stopPropagation()} onWheel={keepWheelInEditor}>
       <div className="nori-canvas-generator-scroll">
-      {!fullscreen ? <div className="nori-canvas-generator-width-handle" role="separator" aria-orientation="vertical" aria-label="调整提示词面板宽度" aria-valuemin={CANVAS_GENERATOR_PANEL_WIDTH_MIN} aria-valuemax={CANVAS_GENERATOR_PANEL_WIDTH_MAX} aria-valuenow={panelWidth} tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard}><span /></div> : null}
       <div className="nori-canvas-generator-head">
         {type === 'video' ? (
           <div className="nori-canvas-generator-mode-tabs" role="group" aria-label="视频生成方式">
@@ -1680,7 +1779,7 @@ export function CanvasGenerator({
           <span className="nori-canvas-generator-refs-label">引用素材</span>
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
-          {displayedReferenceNodes.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} previewEnabled={referencePreviewEnabled} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
+          {(managesReferences ? displayedReferenceNodes.filter((reference) => editorActiveIds.has(reference.id)).sort((a, b) => referenceNodeIds.indexOf(a.id) - referenceNodeIds.indexOf(b.id)).slice(0, 4) : displayedReferenceNodes).map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} pauseOnly={managesReferences} previewEnabled={referencePreviewEnabled} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => managesReferences ? applyEditorReferences([incoming.id], false) : toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
           {referencePickerType ? <button ref={referenceAddRef} type="button" className={`nori-canvas-generator-ref-add${referenceMenuOpen ? ' is-active' : ''}`} title="添加引用素材（无需连线）" aria-label="添加引用素材" aria-haspopup="menu" aria-expanded={referenceMenuOpen} onClick={() => setReferenceMenuOpen((open) => !open)}><Plus /><span aria-hidden="true">参考</span></button> : null}
           {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
           {displayedReferenceNodes.length > 0 ? <label className="nori-canvas-generator-sound nori-canvas-reference-preview-toggle">
@@ -1750,6 +1849,72 @@ export function CanvasGenerator({
         </div>
       ) : null}
 
+
+      {(type === 'video' || type === 'image') && <div className="canvas-editor-reference-panel nodrag nowheel">
+        <div className="canvas-editor-reference-header">
+          <span>本次发送 {referenceNodeIds.length} 项 · 已暂停 {editorRows.filter((reference) => !editorActiveIds.has(reference.id)).length} 项</span>
+          <button type="button" onClick={() => openReferenceDialog('manage')}>管理引用 <small>{editorRows.length}</small></button>
+          <button type="button" onClick={() => openReferenceDialog('payload')}>查看传参</button>
+        </div>
+        {createPortal(<dialog ref={editorDialogRef} className="canvas-editor-manager" aria-labelledby={referenceDialogTitleId}
+          onPointerDown={(event) => {
+            const bounds = event.currentTarget.getBoundingClientRect()
+            editorBackdropDown.current = event.button === 0 && event.target === event.currentTarget &&
+              (event.clientX < bounds.left || event.clientX >= bounds.right || event.clientY < bounds.top || event.clientY >= bounds.bottom)
+          }}
+          onClick={(event) => {
+            const startedOutside = editorBackdropDown.current
+            editorBackdropDown.current = false
+            if (!startedOutside || event.target !== event.currentTarget) return
+            const bounds = event.currentTarget.getBoundingClientRect()
+            if (event.clientX < bounds.left || event.clientX >= bounds.right || event.clientY < bounds.top || event.clientY >= bounds.bottom) event.currentTarget.close()
+          }}>
+          <header><div><h2 id={referenceDialogTitleId}>{editorView === 'payload' ? '传参预览' : '管理引用'}</h2><small>{editorView === 'payload' ? '当前已选引用与生成参数' : '调整本次使用的素材'}</small></div><button type="button" onClick={() => editorDialogRef.current?.close()}>{editorView === 'payload' ? '关闭' : '完成'}</button></header>
+          {editorView === 'payload' ? <div className="canvas-editor-payload">
+            <dl className="canvas-editor-payload-model"><div><dt>模型</dt><dd>{currentModel?.label || modelKey || '未选择'}</dd></div><div><dt>画面参数</dt><dd>{[aspectRatio, selectedResolution, type === 'video' ? duration + ' 秒' : null].filter(Boolean).join(' · ')}</dd></div></dl>
+            <h3>参考素材 · {referenceNodeIds.length} 项</h3>
+            {referenceNodeIds.length ? <ol className="canvas-editor-scroll canvas-editor-payload-list" tabIndex={0} aria-label="发送顺序">
+              {referenceNodeIds.map((id, index) => {
+                const reference = referenceNodes.find((item) => item.id === id)
+                return <li key={id}><span className="canvas-editor-order">{index + 1}</span><strong>{reference?.data.title || '素材不可用'}</strong><small>{reference ? editorReferenceRole(reference, index) : ''}</small></li>
+              })}
+            </ol> : <p>本次没有参考素材</p>}
+          </div> : <>
+          <div className="canvas-editor-filters">
+            <div className="canvas-editor-tabs" aria-label="按发送状态筛选">
+              {[['active', '本次发送', referenceNodeIds.length], ['paused', '已暂停', editorRows.filter((reference) => !editorActiveIds.has(reference.id)).length], ['all', '全部', editorRows.length]].map(([key, label, count]) => <button key={key} type="button" aria-pressed={editorTab === key} onClick={() => { setEditorTab(String(key)); setEditorChecked([]); setEditorNotice('') }}>{label} {count}</button>)}
+            </div>
+            <input autoFocus type="search" aria-label="搜索引用" placeholder="搜索素材名" value={editorQuery} onChange={(event) => { setEditorQuery(event.target.value); setEditorChecked([]) }} />
+            <select aria-label="素材类型" value={editorMedia} onChange={(event) => { setEditorMedia(event.target.value); setEditorChecked([]) }}>
+              <option value="all">全部类型</option><option value="image">图片</option><option value="video">视频</option><option value="audio">音频</option>
+            </select>
+          </div>
+          <div className="canvas-editor-bulk">
+            <label><input type="checkbox" checked={editorVisible.length > 0 && editorVisible.every((item) => editorChecked.includes(item.id))} disabled={!editorVisible.length} onChange={(event) => setEditorChecked(event.target.checked ? editorVisible.map((item) => item.id) : [])} /> 选择筛选结果</label>
+            <button type="button" disabled={!editorChecked.some((id) => editorActiveIds.has(id))} onClick={() => applyEditorReferences(editorChecked.filter((id) => editorActiveIds.has(id)), false)}>批量暂停</button>
+            <button type="button" disabled={!editorChecked.some((id) => !editorActiveIds.has(id))} onClick={() => applyEditorReferences(editorChecked.filter((id) => !editorActiveIds.has(id)), true)}>批量恢复</button>
+            <span>{editorChecked.length ? '已选 ' + editorChecked.length + ' 项' : editorVisible.length + ' 项'}</span>
+          </div>
+          <div className="canvas-editor-scroll" tabIndex={0} aria-label="引用列表">
+          {editorVisible.length === 0 && <p className="canvas-editor-empty">没有符合条件的素材</p>}
+          {editorVisible.map((reference) => {
+          const index = referenceNodeIds.indexOf(reference.id)
+          const active = index >= 0
+          const wired = wiredReferenceIds.has(reference.id)
+          const role = editorReferenceRole(reference, index)
+          return <div className="canvas-editor-reference-row" key={reference.id}>
+            <input type="checkbox" aria-label={'选择' + reference.data.title} checked={editorChecked.includes(reference.id)} onChange={(event) => { const checked = event.target.checked; setEditorChecked((current) => checked ? [...current, reference.id] : current.filter((id) => id !== reference.id)) }} />
+            <span className="canvas-editor-order">{active ? index + 1 : '—'}</span>
+            <div className="canvas-editor-row-title"><strong>{reference.data.title}</strong><small>{role} · {wired ? '已连线' : '未连线'}</small></div>
+            <button type="button" onClick={() => applyEditorReferences([reference.id], !active)}>{active ? '暂停使用' : '恢复使用'}</button>
+            {onChangeReferenceWire && <button type="button" onClick={() => onChangeReferenceWire(reference.id, referenceNodeIds)}>{wired ? '断开连线' : '在画布连线'}</button>}
+          </div>
+        })}
+          </div>
+          <footer role="status">{editorNotice || (editorTab === 'active' ? '按发送顺序排列' : '暂停素材会保留在列表中')}</footer>
+          </>}
+        </dialog>, document.body)}
+      </div>}
       <div className="nori-canvas-generator-prompt">
         {mentionAllowedTypes.length > 0 ? (
           <MentionPromptEditor
@@ -1830,20 +1995,45 @@ export function CanvasGenerator({
       </div>
       <div className="nori-canvas-generator-controls">
         <div className="nori-canvas-generator-settings-row">
-        <label className="nori-canvas-generator-select">
-          <select value={modelKey} onChange={(event) => { setModelKey(changeDraftValue(event.target.value)) }} disabled={loadingConfig || availableModels.length === 0}>
-            {availableModels.length === 0 ? <option value="">{loadingConfig ? '正在加载模型…' : type === 'audio' ? '音频模型未配置' : type === 'model3d' ? '3D 模型未配置' : '暂无模型'}</option> : availableModels.map((model) => {
+
+        <button ref={editorModelTrigger} type="button" className={`nori-canvas-parameter-trigger canvas-editor-model-trigger${editorModelOpen ? ' is-active' : ''}`}
+          aria-label="选择生成模型" aria-haspopup="menu" aria-expanded={editorModelOpen} disabled={loadingConfig || availableModels.length === 0}
+          onClick={() => { setMoreOpen(false); setEditorModelOpen(!editorModelOpen) }}
+          onKeyDown={(event) => {
+            if (editorModelOpen && event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); setEditorModelOpen(false) }
+            else if (!editorModelOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) { event.preventDefault(); event.stopPropagation(); setMoreOpen(false); setEditorModelOpen(true) }
+          }}>
+          <span><small>{currentModel?.label || (loadingConfig ? '正在加载模型…' : '暂无可用模型')}</small></span><ChevronDown />
+        </button>
+        {editorModelOpen && <ViewportPopover anchorRef={editorModelTrigger} onClose={() => setEditorModelOpen(false)} preferredSide="above" width={282} maxHeight={340} role="menu" aria-label="生成模型" className="nori-canvas-parameter-popover canvas-editor-generation-popover canvas-editor-model-popover">
+          <div className="canvas-editor-popover-title">生成模型</div>
+          <div className="canvas-editor-model-options" ref={editorModelOptions} onKeyDown={(event) => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+            const options = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)')]
+            if (!options.length) return
+            event.preventDefault(); event.stopPropagation()
+            const active = options.indexOf(document.activeElement as HTMLButtonElement)
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? options.length - 1
+              : active < 0 ? 0 : (active + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length
+            options[next].focus()
+          }}>
+            {availableModels.map((model) => {
               const inpaintUnsupported = isImageEdit && model.raw?.supportsInpaint !== true
-              const disabled = model.raw?.available === false || inpaintUnsupported
-              const availabilityLabel = model.raw?.available === false
-                ? model.raw.healthStatus === 'unhealthy' ? ' · 服务异常' : ' · 未配置'
-                : ''
-              return <option key={model.key} value={model.key} disabled={disabled}>{model.label}{availabilityLabel}{inpaintUnsupported ? ' · 不支持蒙版重绘' : ''}</option>
+              const unavailable = model.raw?.available === false
+              const status = inpaintUnsupported ? '不支持蒙版重绘' : unavailable ? (model.raw?.healthStatus === 'unhealthy' ? '服务异常' : '未配置') : ''
+              return <button key={model.key} type="button" role="menuitemradio" aria-checked={modelKey === model.key}
+                disabled={inpaintUnsupported || unavailable} onClick={() => {
+                  setModelKey(changeDraftValue(model.key))
+                  setEditorModelOpen(false)
+                  editorModelTrigger.current?.focus()
+                }}>
+                <span>{model.label}{status && <small>{status}</small>}</span>
+                {modelKey === model.key && <span className="canvas-editor-model-check" aria-hidden="true">✓</span>}
+              </button>
             })}
-          </select>
-          <ChevronDown />
-        </label>
-        {(type === 'image' || type === 'video') ? <button ref={parameterTriggerRef} type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-label="生成参数" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => setMoreOpen((value) => !value)}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span><ChevronDown /></button> : null}
+          </div>
+        </ViewportPopover>}
+        {(type === 'image' || type === 'video') ? <button ref={parameterTriggerRef} type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-label="生成参数" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => { setEditorModelOpen(false); setMoreOpen((value) => !value) }}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span><ChevronDown /></button> : null}
         </div>
         <div className="nori-canvas-generator-submit-row">
         {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => { setGenerateAudio(changeDraftValue(event.target.checked)) }} /><span>生成声音</span></label> : null}
@@ -1861,7 +2051,7 @@ export function CanvasGenerator({
       </div>
 
       {moreOpen && (type === 'image' || type === 'video') ? (
-        <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={400} maxHeight={420} role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover">
+        <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={400} maxHeight={420} role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover canvas-editor-generation-popover">
           <header><div><strong>生成参数</strong><small>修改后自动保存到当前节点</small></div><button type="button" aria-label="关闭生成参数" onClick={() => { persistDraft(); setMoreOpen(false); parameterTriggerRef.current?.focus() }}><X /></button></header>
           <div className="nori-canvas-generator-parameter-grid">
             {type === 'video' ? (
@@ -1967,6 +2157,7 @@ export function CanvasGenerator({
         </ViewportPopover>
       ) : null}
       </div>
+      <div className="canvas-editor-resize-corner nodrag nopan" role="group" aria-label="调整提示词框大小" tabIndex={0} onPointerDown={startPanelResize} onKeyDown={resizePanelByKeyboard} title="拖动或使用方向键调整宽高" />
     </aside>
   )
   if (!viewportLayerTarget) return editor

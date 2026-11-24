@@ -1337,13 +1337,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
     setEdges(deselectedEdges)
   }, [])
 
-  const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[], label?: string) => {
+  const commitEdgeRemoval = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[], label?: string, preserveReferences = false) => {
     if (readOnly || removedEdges.length === 0) return
     record(label ?? '删除连线')
     removedEdges.forEach((edge) => deletedEdgeIdsRef.current.set(edge.id, Date.now()))
     edgesRef.current = remainingEdges
     setEdges(remainingEdges)
-    cleanupDisconnectedReferences(removedEdges, remainingEdges)
+    if (!preserveReferences) cleanupDisconnectedReferences(removedEdges, remainingEdges)
     markChanged(label ?? '删除连线')
   }, [cleanupDisconnectedReferences, markChanged, readOnly, record])
 
@@ -1360,6 +1360,35 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
       .filter((edge) => edge.target === targetNodeId && edge.source === sourceNodeId)
       .map((edge) => edge.id))
   }, [removeEdgesById])
+
+  const changeReferenceWire = useCallback((targetNodeId: string, sourceNodeId: string, selectedReferenceIds: string[]) => {
+    if (writeLocked) return
+    const edges = edgesRef.current
+    const connected = (edge: CanvasFlowEdge) => edge.target === targetNodeId && edge.source === sourceNodeId
+    const removed = edges.filter(connected)
+    if (removed.length) {
+      commitEdgeRemoval(removed, edges.filter((edge) => !connected(edge)), '断开引用连线', true)
+      // Older nodes derive references from incoming edges until the first edit.
+      // Materialize the current selection before the edge can change that fallback.
+      const target = nodesRef.current.find((node) => node.id === targetNodeId)
+      if (target && !target.data.generation?.referenceNodeIds) {
+        nodesRef.current = nodesRef.current.map((node) => node.id === targetNodeId ? {
+          ...node,
+          data: { ...node.data, generation: { ...node.data.generation, referenceNodeIds: selectedReferenceIds } },
+        } : node)
+        setNodes(nodesRef.current)
+      }
+      return
+    }
+    const plan = planCanvasBatchConnections({
+      nodes: nodesRef.current, edges, sourceNodeIds: [sourceNodeId], targetNodeId, maxEdges: CANVAS_EDGE_HARD_LIMIT,
+    })
+    if (!plan.added) { setToast('当前画布或模型不允许此连线'); return }
+    record('添加引用连线')
+    edgesRef.current = plan.edges
+    setEdges(plan.edges)
+    markChanged('添加引用连线')
+  }, [commitEdgeRemoval, markChanged, record, writeLocked])
 
   const selectElementsCoveredByRect = useCallback((
     start: { x: number; y: number },
@@ -3904,7 +3933,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   // Keep the panel width in workspace pixels; only the flow zoom is canceled.
   const renderedGeneratorPanelWidth = Math.min(generatorPanelWidth, Math.max(240, canvasSurfaceSize.width - 80))
   const renderGenerator = () => selectedCreativeNode && wrapperRef.current
-    ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} viewportLayerTarget={wrapperRef.current} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={writeLocked ? undefined : (materials, validateReferences) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials, validateReferences)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} />
+    ? <CanvasGenerator projectId={projectId} node={selectedCreativeNode} incomingNodes={incomingNodes} secondaryNodeIds={secondaryIncomingNodeIds} referenceNodes={nodes} viewportLayerTarget={wrapperRef.current} panelWidth={renderedGeneratorPanelWidth} onPanelWidthChange={updateGeneratorPanelWidth} onDraftChange={(patch) => updateNodeData(selectedCreativeNode.id, patch as Partial<CanvasNodeData>)} onGenerate={handleGenerate} onReplace={() => requestContentReplacement(selectedCreativeNode.id)} onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))} onAddReferences={(request) => setGeneratorReferencePicker({ nodeId: selectedCreativeNode.id, ...request })} onRemoveReference={(sourceNodeId) => removeReferenceWire(selectedCreativeNode.id, sourceNodeId)} onChangeReferenceWire={writeLocked ? undefined : (sourceNodeId, referenceIds) => changeReferenceWire(selectedCreativeNode.id, sourceNodeId, referenceIds)} onToggleReferenceVoice={(nodeId) => updateNodeData(nodeId, { voiceDetached: nodesRef.current.find((item) => item.id === nodeId)?.data.voiceDetached !== true }, '切换角色音色携带')} onSelectLibraryMaterial={(material) => selectGeneratorMentionMaterial(selectedCreativeNode.id, material)} onMatchPromptMaterials={writeLocked ? undefined : (materials, validateReferences) => matchGeneratorPromptMaterials(selectedCreativeNode.id, materials, validateReferences)} injectedReferenceNodeIds={generatorReferenceInjection.nodeId === selectedCreativeNode.id ? generatorReferenceInjection.ids : EMPTY_REFERENCE_NODE_IDS} onFocus={() => { const source = incomingNodes.find((node) => getMediaType(node) === 'image'); if (source) setImageOperation({ mode: 'lens_focus', sourceNodeId: source.id, targetNodeId: selectedCreativeNode.id }); else setToast('请先连接一张可用图片') }} globalStyleNodeId={globalStyleNode?.id} globalStyleSourceTitle={globalStyleNode?.data.title || '未命名文本'} globalStylePrompt={typeof globalStyleNode?.data.text === 'string' ? globalStyleNode.data.text : ''} onGlobalStylePromptChange={(value) => { if (globalStyleNode) updateNodeData(globalStyleNode.id, { text: value }) }} videoPrefixNodeId={videoPrefixNode?.id} videoPrefixSourceTitle={videoPrefixNode?.data.title || '未命名文本'} videoPrefixPrompt={typeof videoPrefixNode?.data.text === 'string' ? videoPrefixNode.data.text : ''} onVideoPrefixPromptChange={(value) => { if (videoPrefixNode) updateNodeData(videoPrefixNode.id, { text: value }) }} />
     : null
   const incomingNodes = selectedCreativeNode ? edges.filter((edge) => edge.target === selectedCreativeNode.id).map((edge) => nodes.find((node) => node.id === edge.source)).filter((node): node is CanvasFlowNode => Boolean(node)) : []
   const secondaryIncomingNodeIds = selectedCreativeNode

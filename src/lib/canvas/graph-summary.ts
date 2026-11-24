@@ -72,6 +72,7 @@ function summarizeGeneration(value: unknown): SummaryRecord | undefined {
   for (const key of ['duration', 'count'] as const) copyDefined(output, key, finiteNumber(generation[key]))
   copyDefined(output, 'generateAudio', typeof generation.generateAudio === 'boolean' ? generation.generateAudio : undefined)
   copyDefined(output, 'referenceNodeIds', boundedStringArray(generation.referenceNodeIds))
+  copyDefined(output, 'pausedReferenceNodeIds', boundedStringArray(generation.pausedReferenceNodeIds))
   const references = Array.isArray(generation.referenceSummary)
     ? generation.referenceSummary.slice(0, SUMMARY_MAX_REFERENCES).map((entry) => {
       const reference = record(entry)

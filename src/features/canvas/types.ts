@@ -286,6 +286,7 @@ export type CanvasGenerationConfig = {
   referenceMentionNames?: Record<string, string[]>
   /** Explicit @name → reference node picks made in the editor, persisted with the draft. */
   referenceMentionSelections?: CanvasGenerationMentionSelection[]
+  pausedReferenceNodeIds?: string[]
   aspectRatio?: string
   resolution?: string
   quality?: 'low' | 'medium' | 'high'
