@@ -99,8 +99,10 @@ export function matchCanvasPromptAssets(
         )
         // Every qualifying occurrence is kept: a short name absorbed inside a
         // longer one at its first occurrence may still appear independently
-        // later, and that later occurrence must survive.
-        if (asciiBounded && !isInsideQuotedDialogue(dialogue, index) && !isInsideQuotedDialogue(dialogue, end - 1)) {
+        // later, and that later occurrence must survive. A span that intersects
+        // any dialogue range is spoken text, even when it starts outside it.
+        const intersectsDialogue = dialogue.some((range) => index < range.end && end > range.start)
+        if (asciiBounded && !intersectsDialogue) {
           candidates.push({ material, term, isOfficial, start: index, end })
         }
         index = lowered.indexOf(needle, index + 1)

@@ -72,9 +72,13 @@ describe('one-click prompt asset matching', () => {
     expect(matchCanvasPromptAssets('编号１２的角色', [fullWidth], ['image'])).toEqual([])
   })
 
-  it('does not match a name that crosses a dialogue quote boundary', () => {
-    const asset = material('cross', '娇油纸', { metadata: { assetCategory: 'prop' } })
-    expect(matchCanvasPromptAssets('“娇”油纸伞', [asset], ['image'])).toEqual([])
+  it('does not match a name whose span intersects a dialogue quote range', () => {
+    // “娇娇” is a contiguous span starting at the opening quote; the whole
+    // span lies inside the dialogue range and must stay literal.
+    const asset = material('cross', '娇娇', { metadata: { assetCategory: 'character' } })
+    expect(matchCanvasPromptAssets('“娇娇”走进门', [asset], ['image'])).toEqual([])
+    // The same name outside the quotes still matches.
+    expect(matchCanvasPromptAssets('“娇娇”之外，娇娇走进门', [asset], ['image']).map((hit) => hit.material.id)).toEqual(['cross'])
   })
 
   it('requires ASCII identifier boundaries', () => {

@@ -756,6 +756,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   })
   const offlineRecoveryBlocking = autosave.offlineRecoveryState !== 'none'
   const writeLocked = readOnly || productionSyncing || offlineRecoveryBlocking
+  // Async callbacks captured before a lock change must read the live value at
+  // write time, not the stale closure from when the request started.
+  const writeLockedRef = useRef(writeLocked)
+  writeLockedRef.current = writeLocked
   const scheduleAutosave = autosave.scheduleSave
   const flushAutosave = autosave.flush
   const autosaveRevision = autosave.revision
@@ -3203,7 +3207,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
   // canvas nodes already carrying the material, create the rest beside the
   // generator, then connect everything that is not referenced yet.
   const matchGeneratorPromptMaterials = useCallback((nodeId: string, materials: FrameosMaterialItem[]): { added: number; matched: number } | null => {
-    if (writeLocked || materials.length === 0) return null
+    // Read the live lock: an async caller may have started before a production
+    // sync / offline recovery began, and must not write once the canvas locks.
+    if (writeLockedRef.current || materials.length === 0) return null
     const target = nodesRef.current.find((node) => node.id === nodeId)
     if (!target) return null
     const unique = [...new Map(materials.map((material) => [material.id, material])).values()]
@@ -3239,7 +3245,6 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       const node = createMaterialFlowNode(material, { x: target.position.x - 420, y: target.position.y + 40 + index * 180 })
       return node ? [node] : []
     })
-    if (missing.length > 0 && created.length === 0) return null
     const sourceNodeIds = unique.flatMap((material) => {
       const node = existingByMaterialId.get(material.id) || created.find((item) => item.data.materialId === material.id)
       return node ? [node.id] : []
@@ -3262,7 +3267,9 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       setGeneratorReferenceInjection({ nodeId, ids: alreadyWiredSources })
       return { added: 0, matched: unique.length }
     }
-    if (!ensureNodeCapacity(created.length)) return null
+    // Capacity is checked against the nodes that will actually be written, not
+    // the candidate count: a tight canvas may still accept a partial result.
+    const capacityFor = (acceptedIds: Set<string>) => created.filter((node) => acceptedIds.has(node.id)).length
     // Images/videos first so a voice cannot consume the last audio slot before
     // its owner image is planned; voices follow in a second pass.
     const primaryResult = toConnect.length > 0
@@ -3274,11 +3281,15 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
       : null
-    if (toConnect.length > 0 && primaryResult!.added === 0) return null
     const baseNodes = primaryResult ? primaryResult.nodes : [...nodesRef.current, ...created]
     const baseEdges = primaryResult ? primaryResult.edges : edgesRef.current
     const baseTarget = baseNodes.find((node) => node.id === nodeId)
-    const baseAcceptedIds = new Set(baseTarget?.data.generation?.referenceNodeIds || [])
+    // One acceptance rule for both passes: an explicit reference OR an existing
+    // input edge counts, so legacy drafts without referenceNodeIds still work.
+    const baseAcceptedIds = new Set([
+      ...(baseTarget?.data.generation?.referenceNodeIds || []),
+      ...baseEdges.filter((edge) => edge.target === nodeId).map((edge) => edge.source),
+    ])
     const eligibleVoiceIds = voiceToConnect.filter((voiceId) => {
       const voiceNode = nodesRef.current.find((node) => node.id === voiceId)
       const voiceMaterialId = typeof voiceNode?.data.materialId === 'string' ? voiceNode.data.materialId : ''
@@ -3288,7 +3299,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         return Boolean(ownerNode && baseAcceptedIds.has(ownerNode.id))
       })
     })
-    const result = eligibleVoiceIds.length > 0
+    const voiceResult = eligibleVoiceIds.length > 0
       ? planCanvasBatchConnections({
         nodes: baseNodes,
         edges: baseEdges,
@@ -3296,9 +3307,22 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         targetNodeId: nodeId,
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
-      : { nodes: baseNodes, edges: baseEdges, added: primaryResult?.added || 0, skipped: 0 }
+      : null
+    const result = voiceResult || { nodes: baseNodes, edges: baseEdges, added: 0, skipped: 0 }
+    const totalAdded = (primaryResult?.added || 0) + (voiceResult?.added || 0)
+    if (totalAdded === 0) {
+      // Nothing new was wired (e.g. only voices were tried and all rejected):
+      // refresh the panel's references but write no history or autosave.
+      if (toConnect.length > 0) return null
+      setGeneratorReferenceInjection({ nodeId, ids: alreadyWiredSources })
+      return { added: 0, matched: unique.length }
+    }
     const plannedTarget = result.nodes.find((node) => node.id === nodeId)
-    const acceptedIds = new Set(plannedTarget?.data.generation?.referenceNodeIds || [])
+    const acceptedIds = new Set([
+      ...(plannedTarget?.data.generation?.referenceNodeIds || []),
+      ...result.edges.filter((edge) => edge.target === nodeId).map((edge) => edge.source),
+    ])
+    if (!ensureNodeCapacity(capacityFor(acceptedIds))) return null
     // A voice only follows when its owner image actually became a reference.
     const acceptedVoiceIds = voiceNodeIds.filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
     const acceptedSources = [...sourceNodeIds, ...acceptedVoiceIds].filter((id) => acceptedIds.has(id) || wiredSourceIds.has(id))
@@ -3317,8 +3341,8 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setEdges(committedEdges)
     setGeneratorReferenceInjection({ nodeId, ids: acceptedSources })
     markChanged('一键匹配引用')
-    return { added: result.added, matched: unique.length }
-  }, [ensureNodeCapacity, markChanged, record, writeLocked])
+    return { added: totalAdded, matched: unique.length }
+  }, [ensureNodeCapacity, markChanged, record])
 
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {
     const dropped = materials.filter((material) => ['image', 'video', 'audio', 'model3d'].includes(material.type))
