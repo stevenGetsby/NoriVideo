@@ -20,8 +20,10 @@ import {
   buildCanvasMentionAssets,
   collectCanvasSecondaryNodeIds,
   mergeCanvasReferenceNodeIds,
+  resolveCanvasMentionNameOwners,
   shouldBindCanvasMentionReference,
 } from '@/features/canvas/components/canvas-mention-references'
+import { compileSeedanceMentionPrompt } from '@/lib/novel-promotion/seedance-prompt-assets'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import type { CanvasFlowNode } from '@/features/canvas/editor-types'
 
@@ -110,6 +112,138 @@ describe('canvas @mention references', () => {
     ], 'target', ['image', 'audio'], new Set(['wired-audio', 'wired-image']))
 
     expect(assets.map((asset) => asset.id)).toEqual(['wired-image', 'wired-audio'])
+  })
+
+  it('keeps an explicitly picked voice @name even when a submitted image material carries the same library alias', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇-59集', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = [
+      ...buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1'])),
+      ...buildCanvasLibraryMentionAssets([
+        material('material-image', '沈娇', { metadata: { assetCategory: 'character' } }),
+        material('material-audio', '沈娇', { type: 'audio', url: '/shen.wav' }),
+      ], ['image', 'audio']),
+    ]
+    const prompt = '沈娇看着姐姐工作，用@沈娇的音色说话。'
+    const referenceNodeIds = ['image-1', 'audio-1']
+    const names = resolveCanvasMentionNameOwners(prompt, assets, referenceNodeIds, referenceNodes, [
+      { nodeId: 'audio-1', name: '沈娇' },
+    ])
+    expect(names).toEqual({ 'audio-1': ['沈娇'] })
+
+    const compiled = compileSeedanceMentionPrompt(prompt, [
+      { type: 'image', index: 1, names: names['image-1'] || [], fallbackNames: ['沈娇-59集', '沈娇'], kind: 'character' },
+      { type: 'audio', index: 1, names: names['audio-1'] || [], fallbackNames: ['沈娇'] },
+    ], { mediaReferences: true })
+    expect(compiled.prompt).toContain('图1（沈娇）看着姐姐工作')
+    expect(compiled.prompt).toContain('用音频1的音色说话')
+    expect(compiled.prompt).not.toContain('用图1（沈娇）的音色')
+  })
+
+  it('lets submitted editor names outrank library aliases even without a recorded selection', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇-59集', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = [
+      ...buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1'])),
+      ...buildCanvasLibraryMentionAssets([
+        material('material-image', '沈娇', { metadata: { assetCategory: 'character' } }),
+      ], ['image']),
+    ]
+    const names = resolveCanvasMentionNameOwners('用@沈娇说话', assets, ['image-1', 'audio-1'], referenceNodes)
+    expect(names).toEqual({ 'audio-1': ['沈娇'] })
+  })
+
+  it('falls back to image-first ownership for shared library aliases with no editor name or selection', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇-59集', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇音色', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = [
+      ...buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1'])),
+      ...buildCanvasLibraryMentionAssets([
+        material('material-image', '沈娇', { metadata: { assetCategory: 'character' } }),
+        material('material-audio', '沈娇', { type: 'audio', url: '/shen.wav' }),
+      ], ['image', 'audio']),
+    ]
+    const names = resolveCanvasMentionNameOwners('@沈娇 出场', assets, ['image-1', 'audio-1'], referenceNodes)
+    expect(names).toEqual({ 'image-1': ['沈娇'] })
+  })
+
+  it('normalizes material ids consistently between admission and the node reverse lookup', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '雨夜参考', { contentUrl: '/rain.webp', materialId: ' material-image ' }),
+    ]
+    const assets = [
+      ...buildCanvasMentionAssets(referenceNodes, 'target', ['image'], new Set(['image-1'])),
+      ...buildCanvasLibraryMentionAssets([
+        material('material-image', '雨夜街巷', { metadata: { assetCategory: 'location' } }),
+      ], ['image']),
+    ]
+    const names = resolveCanvasMentionNameOwners('@雨夜街巷 的场景', assets, ['image-1'], referenceNodes)
+    expect(names).toEqual({ 'image-1': ['雨夜街巷'] })
+  })
+
+  it('drops recorded selections and library aliases whose reference was never submitted', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇-59集', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = [
+      ...buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1'])),
+      ...buildCanvasLibraryMentionAssets([
+        material('material-audio', '沈娇', { type: 'audio', url: '/shen.wav' }),
+      ], ['audio']),
+    ]
+    const names = resolveCanvasMentionNameOwners('@沈娇 说话', assets, ['image-1'], referenceNodes, [
+      { nodeId: 'audio-1', name: '沈娇' },
+    ])
+    expect(names).toEqual({})
+  })
+
+  it('keeps a recorded @name scannable after the material alias disappears from the menu', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇音色·新版', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1']))
+    const prompt = '沈娇看着姐姐，用@沈娇的音色说话。'
+    const names = resolveCanvasMentionNameOwners(prompt, assets, ['image-1', 'audio-1'], referenceNodes, [
+      { nodeId: 'audio-1', name: '沈娇' },
+    ])
+    expect(names).toEqual({ 'audio-1': ['沈娇'] })
+
+    const compiled = compileSeedanceMentionPrompt(prompt, [
+      { type: 'image', index: 1, names: names['image-1'] || [], fallbackNames: ['沈娇'], kind: 'character' },
+      { type: 'audio', index: 1, names: names['audio-1'] || [], fallbackNames: ['沈娇音色·新版'] },
+    ], { mediaReferences: true })
+    expect(compiled.prompt).toContain('图1（沈娇）看着姐姐')
+    expect(compiled.prompt).toContain('用音频1的音色说话')
+  })
+
+  it('restores draft selections and still validates them against the current prompt and submitted references', () => {
+    const referenceNodes = [
+      node('target', 'video', '生成结果'),
+      node('image-1', 'image', '沈娇', { contentUrl: '/shen.webp', materialId: 'material-image' }),
+      node('audio-1', 'audio', '沈娇音色', { audioUrl: '/shen.wav', materialId: 'material-audio' }),
+    ]
+    const assets = buildCanvasMentionAssets(referenceNodes, 'target', ['image', 'audio'], new Set(['image-1', 'audio-1']))
+    const persisted = [{ nodeId: 'audio-1', name: '沈娇' }]
+    expect(resolveCanvasMentionNameOwners('用@沈娇说话', assets, ['image-1', 'audio-1'], referenceNodes, persisted))
+      .toEqual({ 'audio-1': ['沈娇'] })
+    expect(resolveCanvasMentionNameOwners('用沈娇音色说话', assets, ['image-1', 'audio-1'], referenceNodes, persisted))
+      .toEqual({})
+    expect(resolveCanvasMentionNameOwners('用@沈娇说话', assets, ['image-1'], referenceNodes, persisted))
+      .toEqual({ 'image-1': ['沈娇'] })
   })
 
   it('replaces only the active query and preserves ordinary prompt text', () => {
@@ -418,5 +552,25 @@ describe('editor wiring contracts', () => {
     expect(source).toContain('pastePromptAssets(liveValue, selectionStart, selectionEnd, pastedText, assets)')
     expect(source).toContain('undoPromptInsertion(event.currentTarget.value, record)')
     expect(source).toContain('redoPromptInsertion(event.currentTarget.value, record)')
+  })
+})
+
+describe('generator mention selection persistence wiring', () => {
+  const generator = readFileSync(
+    path.join(process.cwd(), 'src/features/canvas/components/CanvasGenerator.tsx'),
+    'utf8',
+  )
+
+  it('hydrates selections from the persisted draft instead of dropping them on node switch', () => {
+    expect(generator).toContain('useState<CanvasMentionNameSelection[]>(() => readPersistedMentionSelections(node.data.generation))')
+    expect(generator).toContain('setMentionSelections(readPersistedMentionSelections(node.data.generation))')
+    expect(generator).not.toContain('mentionSelectionsRef')
+  })
+
+  it('persists selections with the generation draft and feeds them into submit ownership', () => {
+    expect(generator).toContain('? { referenceMentionSelections: mentionSelections }')
+    expect(generator).toContain('resolveCanvasMentionNameOwners(')
+    const submitCall = generator.slice(generator.indexOf('Object.assign(mentionNamesByNodeId, resolveCanvasMentionNameOwners('))
+    expect(submitCall.slice(0, submitCall.indexOf('))'))).toContain('mentionSelections,')
   })
 })

@@ -115,9 +115,11 @@ import {
   buildCanvasMentionAssets,
   canvasMentionCategoryLabel,
   mergeCanvasReferenceNodeIds,
+  resolveCanvasMentionNameOwners,
   shouldBindCanvasMentionReference,
   type CanvasMentionAsset,
   type CanvasMentionMediaType,
+  type CanvasMentionNameSelection,
 } from './canvas-mention-references'
 
 type ModelOption = {
@@ -191,6 +193,8 @@ export type CanvasGenerateRequest = {
   modelLabel: string
   referenceNodeIds: string[]
   referenceSummary?: CanvasReferenceMediaSummary[]
+  /** Reference node id → the @names the prompt uses for it. */
+  referenceMentionNames?: Record<string, string[]>
   inputMode: 'text' | 'image' | 'firstlastframe'
   aspectRatio: string
   resolution: string
@@ -292,6 +296,24 @@ function referenceSummary(
     ...(role ? { role } : {}),
     ...(durationSeconds !== null ? { durationSeconds } : {}),
   }
+}
+
+/** Drafts persisted before this field existed simply carry no selections. */
+function readPersistedMentionSelections(generation: CanvasFlowNode['data']['generation']): CanvasMentionNameSelection[] {
+  const raw = generation?.referenceMentionSelections
+  if (!Array.isArray(raw)) return []
+  const seen = new Set<string>()
+  const selections: CanvasMentionNameSelection[] = []
+  for (const item of raw) {
+    if (!item || typeof item !== 'object') continue
+    const nodeId = typeof item.nodeId === 'string' ? item.nodeId.trim() : ''
+    const name = typeof item.name === 'string' ? item.name.trim() : ''
+    const key = name.toLocaleLowerCase()
+    if (!nodeId || !name || seen.has(key)) continue
+    seen.add(key)
+    selections.push({ nodeId, name })
+  }
+  return selections
 }
 
 export function quoteInputVideoSeconds(referenceNodeIds: string[], referenceNodes: CanvasFlowNode[]): number {
@@ -477,6 +499,7 @@ export function CanvasGenerator({
   const [generateAudio, setGenerateAudio] = useState(node.data.generation?.generateAudio ?? true)
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
+  const [mentionSelections, setMentionSelections] = useState<CanvasMentionNameSelection[]>(() => readPersistedMentionSelections(node.data.generation))
   const [storyboard, setStoryboard] = useState(node.data.processType === 'storyboard')
   const [audioMode, setAudioMode] = useState<AudioMode>('tts')
   const [audioVoice, setAudioVoice] = useState(() => String(node.data.generation?.parameters?.voice || ''))
@@ -628,6 +651,7 @@ export function CanvasGenerator({
     hydratedInputRef.current = node.id
     skipDraftPersistenceRef.current = true
     lastDraftSignatureRef.current = ''
+    setMentionSelections(readPersistedMentionSelections(node.data.generation))
     videoModeMemoryRef.current = {}
     previousInputModeRef.current = canvasVideoEditorMode(node.data.generation?.inputMode)
     setPrompt(node.data.prompt || '')
@@ -1079,6 +1103,9 @@ export function CanvasGenerator({
         inputSchema: currentModel?.raw?.inputSchema || null,
         referenceNodeIds,
         referenceSummary: selectedReferenceSummaries,
+        ...(shouldBindCanvasMentionReference(type) && mentionSelections.length > 0
+          ? { referenceMentionSelections: mentionSelections }
+          : {}),
         aspectRatio,
         resolution,
         ...(type === 'image' ? { quality } : {}),
@@ -1094,7 +1121,7 @@ export function CanvasGenerator({
               ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
               : undefined,
       },
-    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+    }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, prompt, quality, referenceNodeIds, resolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
   const draftSignature = useMemo(() => JSON.stringify(draftPatch), [draftPatch])
 
   const persistDraft = (patch: Record<string, unknown> = draftPatch) => {
@@ -1136,6 +1163,19 @@ export function CanvasGenerator({
     ]
   }
 
+  // The editor's pick is the user's explicit choice of which reference owns a
+  // name; keep it so submit never re-guesses ownership by media type.
+  const rememberMentionSelection = (nodeId: string | undefined, name: string) => {
+    if (!nodeId) return
+    const key = name.trim().toLocaleLowerCase()
+    if (!key) return
+    setMentionSelections((current) => {
+      const next = current.filter((selection) => selection.name.trim().toLocaleLowerCase() !== key)
+      next.push({ nodeId, name })
+      return next
+    })
+  }
+
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
     const mentionAsset = asset as CanvasMentionAsset
     let nodeId = asset.id
@@ -1154,6 +1194,7 @@ export function CanvasGenerator({
     const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, nodeId)
     const errors = referenceErrors(nextReferenceNodeIds, false)
     if (errors.length > 0) { setError(errors[0]); return false }
+    rememberMentionSelection(nodeId, asset.name)
     setError(null)
     setPrompt(nextPrompt)
     setReferenceNodeIds(nextReferenceNodeIds)
@@ -1162,6 +1203,7 @@ export function CanvasGenerator({
   const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
     if (!shouldBindCanvasMentionReference(type)) return true
     let nextIds = referenceNodeIds
+    const pastedSelections: CanvasMentionNameSelection[] = []
     for (const asset of matched) {
       const mentionAsset = asset as CanvasMentionAsset
       let nodeId = asset.id
@@ -1172,6 +1214,7 @@ export function CanvasGenerator({
           return false
         }
       }
+      if (nodeId) pastedSelections.push({ nodeId, name: asset.name })
       nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
     }
     const errors = referenceErrors(nextIds, false)
@@ -1179,6 +1222,7 @@ export function CanvasGenerator({
       setError(errors[0])
       return false
     }
+    for (const selection of pastedSelections) rememberMentionSelection(selection.nodeId, selection.name)
     setError(null)
     setReferenceNodeIds(nextIds)
     return true
@@ -1257,6 +1301,19 @@ export function CanvasGenerator({
     }
     setSubmitting(true)
     setError(null)
+    // The editor inserts @names such as 米娅·图片; the worker can only compile
+    // 图片N when it knows which name belongs to which submitted reference.
+    // Scan the exact submit text and travel the names with each reference node.
+    const mentionNamesByNodeId: Record<string, string[]> = {}
+    if (shouldBindCanvasMentionReference(type)) {
+      Object.assign(mentionNamesByNodeId, resolveCanvasMentionNameOwners(
+        cleanPrompt,
+        mentionAssets,
+        referenceNodeIds,
+        referenceNodes,
+        mentionSelections,
+      ))
+    }
     // Commit the current draft before autosave builds the generation snapshot.
     // Otherwise the revision may be acknowledged before newly added references
     // or the current settings have reached nodesRef.
@@ -1274,6 +1331,7 @@ export function CanvasGenerator({
         modelLabel: currentModel?.label || modelKey,
         referenceNodeIds,
         referenceSummary: selectedReferenceSummaries,
+        ...(Object.keys(mentionNamesByNodeId).length > 0 ? { referenceMentionNames: mentionNamesByNodeId } : {}),
         inputMode,
         aspectRatio,
         resolution,

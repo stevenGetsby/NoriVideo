@@ -1500,6 +1500,16 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const multiImageRevision = request.type === 'image' && !request.storyboard && request.count > 1
       ? preparedRevision
       : null
+    // Map node-level @names onto material ids; one material may back several
+    // nodes, so merge their names instead of overwriting.
+    const referenceMentionNames: Record<string, string[]> = {}
+    referenceNodeIds.forEach((nodeId, index) => {
+      const names = request.referenceMentionNames?.[nodeId]
+      const materialId = selectedReferenceMaterialIds[index]
+      if (!names?.length || !materialId) return
+      referenceMentionNames[materialId] = [...new Set([...(referenceMentionNames[materialId] || []), ...names])]
+    })
+    const hasReferenceMentionNames = Object.keys(referenceMentionNames).length > 0
     record('提交生成')
     const generationParameters = { ...(target.data.generation?.parameters || {}) }
     if (request.type === 'video') {
@@ -1514,6 +1524,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       modelLabel: request.modelLabel,
       referenceNodeIds,
       referenceSummary: request.referenceSummary || [],
+      referenceMentionNames: request.referenceMentionNames,
       inputMode: request.inputMode,
       aspectRatio: request.aspectRatio,
       resolution: request.resolution,
@@ -1694,7 +1705,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       : isCanvasPanoramaNodeData(target.data)
         ? CANVAS_PANORAMA_PROCESS_TYPE
         : null
-    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
+    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, ...(hasReferenceMentionNames ? { referenceMentionNames } : {}), count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
     const submitMediaRequest = () => apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submissionBody })
     let response: Response
     try {
@@ -1963,7 +1974,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     if (action === 'regenerate') {
       const config = node.data.generation
       const regeneration = resolveCanvasRegenerationMode(node.data)
-      if (node.data.prompt && config?.modelKey) void handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt: node.data.prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), ...(config.parameters?.superresolveTarget === '720p' || config.parameters?.superresolveTarget === '1080p' || config.parameters?.superresolveTarget === '4k' ? { superresolveTarget: config.parameters.superresolveTarget } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
+      if (node.data.prompt && config?.modelKey) void handleGenerate({ nodeId, type: getMediaType(node) as CanvasGenerateRequest['type'], prompt: node.data.prompt, modelKey: config.modelKey, modelLabel: config.modelLabel || config.modelKey, referenceNodeIds: config.referenceNodeIds || [], referenceSummary: config.referenceSummary || [], ...(config.referenceMentionNames ? { referenceMentionNames: config.referenceMentionNames } : {}), inputMode: config.inputMode || 'text', aspectRatio: config.aspectRatio || '16:9', resolution: config.resolution || '', quality: config.quality || 'high', duration: config.duration || 5, ...(typeof config.parameters?.fps === 'number' ? { fps: config.parameters.fps } : {}), ...(config.parameters?.superresolveTarget === '720p' || config.parameters?.superresolveTarget === '1080p' || config.parameters?.superresolveTarget === '4k' ? { superresolveTarget: config.parameters.superresolveTarget } : {}), generateAudio: config.generateAudio ?? true, count: regeneration.count, storyboard: regeneration.storyboard, audioMode: 'tts', audioVoice: String(config.parameters?.voice || ''), audioGenre: '', audioSfxKind: '', ...resolveCanvasModel3DRegenerationOptions(node.data) })
         .catch((error) => {
           setNodes((current) => current.map((item) => ({ ...item, selected: item.id === nodeId })))
           setToast(error instanceof Error ? error.message : '生成提交失败，请检查引用素材。')
