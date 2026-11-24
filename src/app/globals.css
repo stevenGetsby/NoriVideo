@@ -121,6 +121,17 @@ input[type="text"]::-ms-clear { display: none; }
   }
 }
 
+/* Touch-sized layouts use physical viewport dimensions, including on WebKit
+   versions where desktop CSS zoom and fixed positioning interact differently. */
+@media (max-width: 767px) {
+  :root, html[data-zoom-mode="legacy"] {
+    --nori-interface-scale: 1;
+    --nori-interface-viewport-width: 100vw;
+    --nori-interface-viewport-height: 100vh;
+    --nori-interface-viewport-height: 100dvh;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

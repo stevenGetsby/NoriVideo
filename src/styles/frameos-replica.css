@@ -230,6 +230,25 @@ html[data-nori-theme="light"] .fos-app :is(.text-white, [class*="text-white/"]):
 .fos-cr-label { font-family: var(--fos-font); }
 .fos-cr-label { color: var(--fos-text-2); font-size: 12px; font-weight: 600; }
 
+@media (max-width: 767px) {
+  .fos-header {
+    gap: 8px;
+    padding-inline: max(12px, env(safe-area-inset-left)) max(12px, env(safe-area-inset-right));
+  }
+  .fos-header .fos-logo { min-width: 0; gap: 6px; }
+  .fos-header .fos-logo-mark { width: 28px; height: 28px; }
+  .fos-header .fos-logo-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 16px; }
+  .fos-header-actions { min-width: 0; max-width: 55%; }
+  .fos-header-actions > .relative { min-width: 0; max-width: 100%; }
+  .fos-header .fos-credits { min-height: 36px; max-width: 100%; gap: 5px; white-space: nowrap; }
+  .fos-header .fos-cr-label { display: none; }
+  .fos-header .fos-cr-badge { flex: none; }
+  .fos-header .fos-credits > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .fos-header .fos-balance-pop { width: min(300px, calc(100vw - 24px)); }
+  .fos-app .fos-main { min-height: 0; }
+  .fos-app .fos-scroll { padding-bottom: env(safe-area-inset-bottom); }
+}
+
 /* balance popover */
 .fos-balance-pop {
   position: absolute;

@@ -112,7 +112,7 @@ function BalancePill({ points, dailyUsage, isMember, pointMode, creditAvailable 
 
   return (
     <div ref={rootRef} className="relative">
-      <button type="button" className="fos-credits" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+      <button type="button" className="fos-credits" aria-label={`${unlimitedMember ? '我的积分（无限）' : '我的积分'} ${display(points)}`} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         <span className="fos-cr-badge blue">◆</span>
         <span className="fos-cr-label">{unlimitedMember ? '我的积分（无限）' : '我的积分'}</span>
         <span className={short ? 'text-red-300' : ''}>{display(points)}</span>
