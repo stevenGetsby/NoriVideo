@@ -9,6 +9,7 @@ import {
 } from './document'
 import { CANVAS_DOCUMENT_SCHEMA_VERSION } from './document-version'
 import type { CanvasOperation, CanvasOperationsSaveInput } from './operations'
+import { canvasBulkRemovalReason, isCanvasRecoverySummary } from './save-guard'
 import {
   createStudioDocumentCopiesInTransaction,
   prepareStudioDocumentCopiesInTransaction,
@@ -295,6 +296,7 @@ export async function replaceCanvasDocumentInTransaction(
   },
 ) {
   const nextRevision = input.expectedRevision + 1
+  const previousViewport = (await tx.canvas.findUnique({ where: { id: canvasId }, select: { viewport: true } }))?.viewport
   const claimed = await tx.canvas.updateMany({
     where: { id: canvasId, projectId, revision: input.expectedRevision },
     data: {
@@ -336,6 +338,54 @@ export async function replaceCanvasDocumentInTransaction(
     !incomingNodeIds.has(node.id)
     && incomingPlanningTaskIds.has(text(record(node.data)?.storyboardPlanningTaskId))
   ))
+  const existingEdges = await tx.canvasEdge.findMany({
+    where: { canvasId },
+    select: {
+      id: true,
+      sourceNodeId: true,
+      targetNodeId: true,
+      sourceHandle: true,
+      targetHandle: true,
+      role: true,
+    },
+  })
+  const incomingEdgeIdSet = new Set(input.edges.map((edge) => edge.id))
+  if (!forceSnapshot && input.expectedRevision > 0) {
+    // A full-document save replaces everything, so it must not be able to quietly drop a large part of the
+    // canvas. That is the shape of a stale local copy being replayed as a whole; real bulk deletes go through ops.
+    const preservedIds = new Set(preservedFanoutNodes.map((node) => node.id))
+    const reason = canvasBulkRemovalReason({
+      existingNodes: existingNodes.length,
+      removedNodes: existingNodes.filter((node) => !incomingNodeIds.has(node.id) && !preservedIds.has(node.id)).length,
+      existingEdges: existingEdges.length,
+      removedEdges: existingEdges.filter((edge) => !incomingEdgeIdSet.has(edge.id)).length,
+    })
+    if (reason) {
+      throw new ApiError('CONFLICT', { message: reason, reason: 'CANVAS_BULK_REMOVAL_BLOCKED', expectedRevision: input.expectedRevision })
+    }
+  }
+  const removedAnything = existingNodes.some((node) => !incomingNodeIds.has(node.id))
+    || existingEdges.some((edge) => !incomingEdgeIdSet.has(edge.id))
+  if (removedAnything && !forceSnapshot) {
+    const hasPrevious = await tx.canvasSnapshot.findUnique({
+      where: { canvasId_revision: { canvasId, revision: input.expectedRevision } },
+      select: { id: true },
+    })
+    if (!hasPrevious) {
+      await recordCanvasSnapshotInTransaction(tx, {
+        canvasId,
+        revision: input.expectedRevision,
+        userId,
+        clientId: input.clientId,
+        changeSummary: '整文档覆盖前自动备份',
+        document: {
+          viewport: previousViewport ?? input.viewport,
+          nodes: existingNodes.map((node) => ({ ...node, canvasId })),
+          edges: existingEdges.map((edge) => ({ ...edge, canvasId })),
+        } as Prisma.InputJsonValue,
+      })
+    }
+  }
   const mergedNodes = [
     ...input.nodes.map((node) => mergeCanvasTerminalNodeState(existingById.get(node.id), node)),
     ...preservedFanoutNodes.map((node) => ({
@@ -362,19 +412,6 @@ export async function replaceCanvasDocumentInTransaction(
     withCanonicalCanvasStudioDocumentSource(node, projectId, canvasId)
   ))
 
-  const existingEdges = preservedFanoutNodes.length > 0
-    ? await tx.canvasEdge.findMany({
-        where: { canvasId },
-        select: {
-          id: true,
-          sourceNodeId: true,
-          targetNodeId: true,
-          sourceHandle: true,
-          targetHandle: true,
-          role: true,
-        },
-      })
-    : []
   const finalNodeIds = new Set(nodes.map((node) => node.id))
   const preservedNodeIds = new Set(preservedFanoutNodes.map((node) => node.id))
   const edges = [...input.edges]
@@ -763,6 +800,18 @@ export async function applyCanvasOperationsInTransaction(
     const key = edgeKey(edge)
     if (uniqueEdges.has(key)) invalidOperation(`连线 ${edge.id} 与现有连线重复。`)
     uniqueEdges.add(key)
+  }
+
+  if (isCanvasRecoverySummary(input.changeSummary)) {
+    const reason = canvasBulkRemovalReason({
+      existingNodes: storedNodes.length,
+      removedNodes: deletedNodeIds.size,
+      existingEdges: storedEdges.length,
+      removedEdges: deletedEdgeIds.size,
+    })
+    if (reason) {
+      throw new ApiError('CONFLICT', { message: reason, reason: 'CANVAS_BULK_REMOVAL_BLOCKED', expectedRevision: input.expectedRevision })
+    }
   }
 
   if (deletedEdgeIds.size > 0) {
