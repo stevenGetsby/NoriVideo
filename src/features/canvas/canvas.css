@@ -1707,6 +1707,16 @@
   line-height: 1.5;
 }
 
+.nori-canvas-generator-automatch-notice {
+  margin: 4px 12px 0;
+  border-radius: 6px;
+  padding: 5px 8px;
+  color: #b9c4ff;
+  background: rgba(110, 123, 255, .1);
+  font-size: 9px;
+  line-height: 1.5;
+}
+
 .nori-canvas-generator-voice-hint.is-warning {
   color: #fde68a;
   background: rgba(120, 53, 15, .2);
