@@ -34,6 +34,7 @@ import {
 import { MediaImage } from '@/components/media/MediaImage'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
 import { useCanvasEditor, type CanvasNodeAction } from '../CanvasEditorContext'
+import { formatComparisonTitle } from '../comparison-title'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
 import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog'
@@ -190,7 +191,10 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     ))
   }, [canPreviewPanorama, data.history?.length, data.materialId, editor.readOnly, hasContent, mediaType])
   const [renaming, setRenaming] = useState(false)
-  const [title, setTitle] = useState(data.title || '未命名节点')
+  const displayTitle = data.comparisonIndex
+    ? formatComparisonTitle(data.title, data.comparisonIndex)
+    : (data.title || '未命名节点')
+  const [title, setTitle] = useState(displayTitle)
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const moreActionsRef = useRef<HTMLButtonElement>(null)
   const toolbarRef = useRef<HTMLDivElement | null>(null)
@@ -222,7 +226,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
       } satisfies CanvasFlowNode
     : null
 
-  useEffect(() => setTitle(data.title || '未命名节点'), [data.title])
+  useEffect(() => setTitle(displayTitle), [displayTitle])
   useEffect(() => {
     if (!selected) setMoreActionsOpen(false)
   }, [selected])
@@ -299,7 +303,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
     setRenaming(false)
     const next = title.trim() || '未命名节点'
     setTitle(next)
-    if (next !== data.title) editor.updateNodeData(id, { title: next }, '重命名节点')
+    if (next !== displayTitle) editor.updateNodeData(id, { title: next, ...(data.comparisonIndex ? { comparisonIndex: 0 } : {}) }, '重命名节点')
   }
 
   return (
@@ -381,7 +385,7 @@ export function CreativeNode(props: NodeProps<CanvasFlowNode>) {
             onBlur={saveTitle}
             onKeyDown={(event) => {
               if (event.key === 'Enter') saveTitle()
-              if (event.key === 'Escape') { setTitle(data.title || '未命名节点'); setRenaming(false) }
+              if (event.key === 'Escape') { setTitle(displayTitle); setRenaming(false) }
             }}
             autoFocus
           />

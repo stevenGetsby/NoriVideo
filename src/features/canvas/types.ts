@@ -52,6 +52,8 @@ export type CanvasNodeData = {
   /** Note 节点的纯文本内容（M0） */
   text?: string
   title?: string
+  /** 对照生成的结构化序号；标题只存基础名，显示层拼接"· 对照 N"。 */
+  comparisonIndex?: number
   mediaType?: CanvasMediaType
   origin?: 'empty' | 'upload' | 'generate' | 'project' | 'derivative'
   processType?: CanvasProcessType

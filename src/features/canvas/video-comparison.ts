@@ -1,4 +1,5 @@
 import { cloneCanvasNodeDataForNewNode } from './clone-node-data'
+import { nextComparisonIndex, restoreComparisonTitle } from './comparison-title'
 import { CanvasRevisionConflictError } from './api/client'
 import { withoutCanvasId } from './state/canvas-operations'
 import {
@@ -31,6 +32,10 @@ export function createVideoComparisonDraft(input: {
     height: input.source.height || input.source.measured?.height || 200,
   }
   const data = cloneCanvasNodeDataForNewNode(input.source.data, (id) => id)
+  const comparisonSource = {
+    title: input.source.data.title,
+    comparisonIndex: input.source.data.comparisonIndex ?? (input.source.data.origin === 'upload' ? 0 : undefined),
+  }
   const node: CanvasFlowNode = {
     ...input.source,
     id: createId(),
@@ -39,7 +44,8 @@ export function createVideoComparisonDraft(input: {
     dragging: false,
     data: {
       ...data,
-      title: `${input.source.data.title || '视频节点'} · 对照`,
+      title: restoreComparisonTitle(comparisonSource).title || '视频节点',
+      comparisonIndex: nextComparisonIndex(comparisonSource),
       origin: 'empty',
       materialId: null,
       contentUrl: null,

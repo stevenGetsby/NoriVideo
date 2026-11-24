@@ -85,6 +85,24 @@ describe('canvas playlist', () => {
     expect(result.target).toMatchObject({ kind: 'canvas_playlist', canvasId: 'canvas-1', nodeId: 'playlist-1' })
   })
 
+  it('keeps numbered comparison suffixes in review labels for equal-duration takes', () => {
+    const result = resolveCanvasPlaylistTimeline({
+      projectName: 'P',
+      canvasId: 'canvas-1',
+      nodeId: 'playlist-1',
+      title: '终剪',
+      items: [
+        { id: 'clip-1', sourceNodeId: 'take-1', title: '镜头一', sourceInMs: 0, sourceOutMs: 5_000, durationMs: 5_000 },
+        { id: 'clip-2', sourceNodeId: 'take-2', title: '镜头一', sourceInMs: 0, sourceOutMs: 5_000, durationMs: 5_000 },
+      ],
+      sourceNodes: [
+        { id: 'take-1', type: 'video', data: { title: '镜头一', comparisonIndex: 1, videoUrl: 'https://media.example/1.mp4' } },
+        { id: 'take-2', type: 'video', data: { title: '镜头一', comparisonIndex: 2, videoUrl: 'https://media.example/2.mp4' } },
+      ],
+    })
+    expect(result.snapshot.segments.map((segment) => segment.label)).toEqual(['Clip 01 · 镜头一 · 对照 1', 'Clip 02 · 镜头一 · 对照 2'])
+  })
+
   it('rejects empty or unresolved submissions and exposes a stable task scope', () => {
     expect(() => resolveCanvasPlaylistTimeline({
       projectName: 'P', canvasId: 'c', nodeId: 'n', title: 'T', items: [], sourceNodes: [], requireReady: true,

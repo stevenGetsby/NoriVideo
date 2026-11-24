@@ -1,4 +1,5 @@
 import type { CanvasNodeData, CanvasPlaylistItem } from '@/features/canvas/types'
+import { formatComparisonTitle } from '@/features/canvas/comparison-title'
 import type { VideoEditorProject } from '@/features/video-editor/types/editor.types'
 
 export const CANVAS_PLAYLIST_SCOPE_PREFIX = 'canvas-playlist:'
@@ -226,7 +227,10 @@ export function resolveCanvasPlaylistTimeline(input: {
     const durationMs = trimEndMs - trimStartMs
     const startMs = cursorMs
     cursorMs += durationMs
-    const title = cleanText(sourceData?.title, item.title, 120)
+    const sourceTitle = sourceData
+      ? (sourceData.comparisonIndex ? formatComparisonTitle(sourceData.title, sourceData.comparisonIndex) : sourceData.title)
+      : null
+    const title = cleanText(sourceTitle, item.title, 120)
     return {
       clipId: item.id,
       panelId: item.id,

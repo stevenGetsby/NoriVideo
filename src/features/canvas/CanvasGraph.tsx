@@ -86,6 +86,7 @@ import {
 } from './clipboard'
 import { cloneCanvasNodeDataForNewNode } from './clone-node-data'
 import { createVideoComparisonDraft, persistVideoComparisonDraft, shouldCreateVideoComparison } from './video-comparison'
+import { formatComparisonTitle } from './comparison-title'
 import {
   CANVAS_ADD_NODE_ITEMS,
   STORY_ADD_NODE_ITEMS,
@@ -178,6 +179,7 @@ import {
 import {
   appendCanvasVideoSourceToPlaylist,
   canvasVideoDurationMs,
+  canvasVideoSourceTitle,
   canvasVideoUrl,
   findCanvasPlaylistDropTargetId,
   isCanvasVideoSource,
@@ -780,7 +782,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       .filter(isCanvasVideoSource)
       .map((node) => ({
         id: node.id,
-        title: node.data.title || '视频节点',
+        title: canvasVideoSourceTitle(node),
         videoUrl: canvasVideoUrl(node),
         posterUrl: node.data.posterUrl || node.data.imageUrl || null,
         materialId: node.data.materialId || null,
@@ -1710,7 +1712,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
       : isCanvasPanoramaNodeData(target.data)
         ? CANVAS_PANORAMA_PROCESS_TYPE
         : null
-    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: videoComparison?.node.data.title || target.data.title || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, ...(hasReferenceMentionNames ? { referenceMentionNames } : {}), count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
+    const submissionTitle = videoComparison
+      ? formatComparisonTitle(videoComparison.node.data.title, videoComparison.node.data.comparisonIndex)
+      : (target.data.comparisonIndex ? formatComparisonTitle(target.data.title, target.data.comparisonIndex) : target.data.title)
+    const submissionBody = JSON.stringify({ projectId, canvasId: initialGraph.canvas.id, nodeId: generationTargetId, type: request.type, title: submissionTitle || (request.type === 'image' ? '画布图片' : request.type === 'video' ? '画布视频' : request.type === 'model3d' ? '画布 3D 模型' : '画布音频'), prompt: generationPrompt, modelKey: request.modelKey, ...(processType ? { processType, ...(processType === 'image_edit' ? { maskMaterialId } : {}) } : {}), referenceMaterialIds, referenceMaterials, ...(hasReferenceMentionNames ? { referenceMentionNames } : {}), count: request.type === 'image' ? request.count : 1, inputMode: request.inputMode, idempotencyKey: crypto.randomUUID(), ...(multiImageRevision ? { expectedRevision: multiImageRevision.expectedRevision, clientId: multiImageRevision.clientId } : {}), options: { aspectRatio: request.aspectRatio, resolution: request.resolution, ...(request.superresolveTarget ? { superresolveTarget: request.superresolveTarget } : {}), quality: request.quality, duration: request.duration, ...(request.fps ? { fps: request.fps } : {}), generateAudio: request.generateAudio, mode: request.audioMode, voice: request.audioVoice, genre: request.audioGenre, sfxKind: request.audioSfxKind, topology: request.model3dTopology || 'standard', generateTexture: request.model3dGenerateTexture !== false, pose: request.model3dPose || 'none' } })
     const submitMediaRequest = () => apiFetch(`/api/projects/${projectId}/canvas/${initialGraph.canvas.id}/generate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submissionBody })
     let response: Response
     try {
