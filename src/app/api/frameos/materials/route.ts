@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { Prisma } from '@prisma/client'
-import { apiHandler } from '@/lib/api-errors'
+import { ApiError, apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth, requireUserPermission } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { uploadFrameosMaterial } from '@/lib/frameos/material-upload'
@@ -41,6 +41,11 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const scopedProjectId = projectId && projectId !== PERSONAL_MATERIAL_PROJECT_ID && !ACCOUNT_MATERIAL_PROJECT_IDS.includes(projectId as typeof ACCOUNT_MATERIAL_PROJECT_IDS[number])
     ? projectId
     : ''
+  const requestedScope = cleanText(params.get('scope'))
+  const currentProject = requestedScope === 'current-project'
+  if (currentProject && !scopedProjectId) {
+    throw new ApiError('INVALID_PARAMS', { message: '请选择画布所属作品。' })
+  }
   const authResult = scopedProjectId
     ? await requireProjectAuthLight(scopedProjectId)
     : await requireUserAuth()
@@ -48,11 +53,11 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const { session } = authResult
   const actor = getWorkspaceActor(session)
   const workId = cleanText(params.get('workId'))
-  const assetScope = workId ? await resolveProjectAssetScope(session, { workId, projectId: scopedProjectId }) : null
+  const assetScope = workId && !currentProject ? await resolveProjectAssetScope(session, { workId, projectId: scopedProjectId }) : null
   const available = params.get('available') === '1'
   const scope = ['personal', 'project', 'all'].includes(cleanText(params.get('scope'))) ? cleanText(params.get('scope')) : 'all'
   const personal = scope === 'personal' || projectId === PERSONAL_MATERIAL_PROJECT_ID
-  const shared = scope === 'project'
+  const shared = currentProject || scope === 'project'
   const type = normalizeType(params.get('type'))
   const requestedSource = cleanText(params.get('source'))
   const source = ALLOWED_SOURCES.has(requestedSource) ? requestedSource : ''
@@ -98,14 +103,21 @@ export const GET = apiHandler(async (request: NextRequest) => {
         : user.name.toLocaleLowerCase().includes(creator.toLocaleLowerCase()))
       .map((user) => user.id)
     : []
-  const projectIds = personal
+  // The canvas projectId identifies a work. Derive its parent from ACL-readable
+  // rows so automatic matching cannot widen to unrelated projects or libraries.
+  const currentWork = currentProject ? readableProjects.find((project) => project.id === scopedProjectId) : undefined
+  if (currentProject && !currentWork) throw new ApiError('NOT_FOUND', { message: '作品不存在或当前账号无权访问。' })
+  const matchingProjectIds = currentWork?.workId
+    ? (await resolveProjectAssetScope(session, { workId: currentWork.workId, projectId: currentWork.id })).projectIds
+    : currentWork ? [currentWork.id] : null
+  const projectIds = matchingProjectIds ?? (personal
     ? [PERSONAL_MATERIAL_PROJECT_ID]
     : assetScope?.projectIds
     || (projectId
     ? (available
       ? Array.from(new Set([...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS]))
       : [projectId])
-    : [...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS])
+    : [...readableProjects.map((project) => project.id), ...ACCOUNT_MATERIAL_PROJECT_IDS]))
   const scopeWhere: Prisma.FrameosMaterialWhereInput = {
     userId: { in: workspaceUserIds },
     projectId: personal ? PERSONAL_MATERIAL_PROJECT_ID : { in: projectIds },

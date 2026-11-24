@@ -404,7 +404,7 @@ export function CanvasGenerator({
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
-  onMatchPromptMaterials?: (materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => { added: number; restored: number; matched: number } | null
+  onMatchPromptMaterials?: (materials: FrameosMaterialItem[], validateReferences: (references: CanvasFlowNode[]) => boolean) => { added: number; restored: number; matched: number; skippedForNodeCapacity: number } | null
   panelWidth: number
   onPanelWidthChange: (width: number) => void
   viewportLayerTarget: HTMLElement
@@ -581,6 +581,9 @@ export function CanvasGenerator({
   const autoMatchContextRef = useRef(autoMatchContext)
   autoMatchContextRef.current = autoMatchContext
   const onDraftChangeRef = useRef(onDraftChange)
+  const referenceNodeIdsRef = useRef(referenceNodeIds)
+  referenceNodeIdsRef.current = referenceNodeIds
+  const pendingReferenceSyncRef = useRef<string | null>(null)
   const hydratedInputRef = useRef(node.id)
   const skipDraftPersistenceRef = useRef(false)
   const lastDraftSignatureRef = useRef('')
@@ -706,8 +709,13 @@ export function CanvasGenerator({
   useEffect(() => {
     // Bulk drops and undo/redo may change references without changing the
     // active node or wires. Sync only ids, not the user's in-progress prompt.
+    if (referenceNodeIdsRef.current.join('|') === nodeReferenceSignature) {
+      pendingReferenceSyncRef.current = null
+      return
+    }
+    pendingReferenceSyncRef.current = nodeReferenceSignature
     const next = nodeReferenceSignature ? nodeReferenceSignature.split('|') : []
-    setReferenceNodeIds((current) => current.join('|') === nodeReferenceSignature ? current : next)
+    setReferenceNodeIds(next)
   }, [node.id, nodeReferenceSignature])
 
   useEffect(() => {
@@ -1157,10 +1165,17 @@ export function CanvasGenerator({
       skipDraftPersistenceRef.current = false
       return
     }
+    // A graph update can change the summaries before local reference ids catch
+    // up. Persisting that intermediate draft can restore references just undone.
+    const pendingReferenceSync = pendingReferenceSyncRef.current
+    if (pendingReferenceSync !== null) {
+      if (referenceNodeIds.join('|') !== pendingReferenceSync) return
+      pendingReferenceSyncRef.current = null
+    }
     if (draftSignature === lastDraftSignatureRef.current) return
     lastDraftSignatureRef.current = draftSignature
     onDraftChangeRef.current(draftPatch)
-  }, [draftPatch, draftSignature])
+  }, [draftPatch, draftSignature, referenceNodeIds])
 
   const referenceErrors = (ids: string[], strict: boolean) => {
     if (!effectiveInputSchema) return []
@@ -1200,7 +1215,7 @@ export function CanvasGenerator({
     const stale = () => controller.signal.aborted
       || autoMatchContextRef.current !== autoMatchContext
     try {
-      const query = new URLSearchParams({ projectId, scope: 'project', available: '1', limit: '500' })
+      const query = new URLSearchParams({ projectId, scope: 'current-project', limit: '500' })
       const materials = await fetchAllFrameosMaterials(query, controller.signal)
       if (stale()) return
       if (promptRef.current.trim() !== startPrompt) {
@@ -1229,12 +1244,17 @@ export function CanvasGenerator({
         return
       }
       const names = hits.slice(0, 4).map((hit) => hit.matchedTerm).join('、')
-      const detail = result.matched < hits.length
-        ? `（${hits.length - result.matched} 个未纳入引用）`
-        : `：${names}${hits.length > 4 ? ' 等' : ''}`
+      const skippedForOtherLimits = hits.length - result.matched - result.skippedForNodeCapacity
+      const skipped = [
+        result.skippedForNodeCapacity ? `${result.skippedForNodeCapacity} 个因画布节点已满跳过` : '',
+        skippedForOtherLimits ? `${skippedForOtherLimits} 个因引用或连线限制跳过` : '',
+      ].filter(Boolean).join('，')
+      const detail = skipped ? `（${skipped}）` : `：${names}${hits.length > 4 ? ' 等' : ''}`
       setAutoMatchNotice(result.added > 0 || result.restored > 0
         ? `已匹配 ${result.matched} 个资产，新连线 ${result.added} 条${result.restored ? `，恢复引用 ${result.restored} 个` : ''}${detail}`
-        : `匹配到 ${result.matched} 个资产，均已在引用中${detail}`)
+        : skipped
+          ? `已有 ${result.matched} 个匹配资产在引用中${detail}`
+          : `匹配到 ${result.matched} 个资产，均已在引用中${detail}`)
     } catch (matchError) {
       if (stale()) return
       setAutoMatchNotice(matchError instanceof Error ? matchError.message : '一键匹配失败，请重试。')

@@ -3264,7 +3264,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     })
     const voiceToConnect = voiceNodeIds.filter((id) => !referencedIds.has(id) && !toConnect.includes(id))
     if (toConnect.length === 0 && voiceToConnect.length === 0) {
-      return { added: 0, restored: 0, matched: sourceNodeIds.length }
+      return { added: 0, restored: 0, matched: sourceNodeIds.length, skippedForNodeCapacity: 0 }
     }
     // Capacity is checked against the nodes that will actually be written, not
     // the candidate count: a tight canvas may still accept a partial result.
@@ -3277,6 +3277,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
         edges: edgesRef.current,
         sourceNodeIds: toConnect,
         validateReferences,
+        newSourceCapacity: {
+          ids: new Set(created.map((node) => node.id)),
+          remaining: Math.max(0, CANVAS_NODE_HARD_LIMIT - nodesRef.current.length),
+        },
         targetNodeId: nodeId,
         maxEdges: CANVAS_EDGE_HARD_LIMIT,
       })
@@ -3307,9 +3311,10 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     const result = voiceResult || { nodes: baseNodes, edges: baseEdges, added: 0, skipped: 0 }
     const totalAdded = (primaryResult?.added || 0) + (voiceResult?.added || 0)
     const restored = (primaryResult?.restored || 0) + (voiceResult?.restored || 0)
+    const skippedForNodeCapacity = primaryResult?.skippedForNodeCapacity ?? 0
     if (totalAdded === 0 && restored === 0) {
-      if (toConnect.length > 0) return null
-      return { added: 0, restored: 0, matched: sourceNodeIds.length }
+      if (toConnect.length > 0 && skippedForNodeCapacity === 0) return null
+      return { added: 0, restored: 0, matched: sourceNodeIds.length - toConnect.length, skippedForNodeCapacity }
     }
     const plannedTarget = result.nodes.find((node) => node.id === nodeId)
     const acceptedIds = new Set(plannedTarget?.data.generation?.referenceNodeIds ?? referencedIds)
@@ -3328,7 +3333,7 @@ function CanvasEditor({ projectId, projectName, canvases, initialGraph, focusNod
     setNodes(committedNodes)
     setEdges(committedEdges)
     markChanged('一键匹配引用')
-    return { added: totalAdded, restored, matched: sourceNodeIds.filter((id) => acceptedIds.has(id)).length }
+    return { added: totalAdded, restored, matched: sourceNodeIds.filter((id) => acceptedIds.has(id)).length, skippedForNodeCapacity }
   }, [ensureNodeCapacity, markChanged, record])
 
   const handleMaterialCollectionDrop = useCallback((materials: FrameosMaterialItem[], position: { x: number; y: number }) => {

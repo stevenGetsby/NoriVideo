@@ -66,12 +66,15 @@ export function planCanvasBatchConnections(input: {
   maxEdges?: number
   createId?: () => string
   validateReferences?: (references: CanvasFlowNode[]) => boolean
+  newSourceCapacity?: { ids: ReadonlySet<string>; remaining: number }
 }) {
   let nodes = [...input.nodes]
   const edges = [...input.edges]
   let added = 0
   let skipped = 0
   let restored = 0
+  let skippedForNodeCapacity = 0
+  let remainingNewSources = input.newSourceCapacity?.remaining ?? Infinity
   const createId = input.createId || (() => typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`)
@@ -131,6 +134,12 @@ export function planCanvasBatchConnections(input: {
       if (mediaType !== 'image' && mediaType !== 'video' && mediaType !== 'audio') { skipped++; continue }
       if (!referencedIds.has(id) && counts[mediaType] >= schema[mediaType].max) { skipped++; continue }
     }
+    const needsNewNode = input.newSourceCapacity?.ids.has(id) ?? false
+    if (needsNewNode && remainingNewSources <= 0) {
+      skipped++
+      skippedForNodeCapacity++
+      continue
+    }
     if (currentTarget.type === 'playlist') {
       const result = appendCanvasVideoSourceToPlaylist(currentTarget.data.playlistItems, source, createId)
       if (result.outcome !== 'added' && result.outcome !== 'duplicate') { skipped++; continue }
@@ -173,7 +182,8 @@ export function planCanvasBatchConnections(input: {
     }
     if (schema && !referencedIds.has(id) && (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio')) counts[mediaType]++
     referencedIds.add(id)
+    if (needsNewNode) remainingNewSources--
     added++
   }
-  return { nodes, edges, added, skipped, restored }
+  return { nodes, edges, added, skipped, restored, skippedForNodeCapacity }
 }

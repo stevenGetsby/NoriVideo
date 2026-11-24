@@ -17,6 +17,15 @@ const location = material('loc-1', '雨夜街巷', { metadata: { assetCategory: 
 const prop = material('prop-1', '油纸伞', { metadata: { assetCategory: 'prop' } })
 
 describe('one-click prompt asset matching', () => {
+  it('measures quoted dialogue and matches against the same original text', () => {
+    const asset = material('character', '林夏')
+    expect(matchCanvasPromptAssets('İİİ“林夏”', [asset], ['image'])).toEqual([])
+    expect(matchCanvasPromptAssets('İİİ“林夏”之后，林夏走进门', [asset], ['image']).map((hit) => hit.material.id)).toEqual(['character'])
+    expect(matchCanvasPromptAssets('İ“测试”林夏', [asset], ['image']).map((hit) => hit.material.id)).toEqual(['character'])
+    const prop = material('prop', 'A+B')
+    expect(matchCanvasPromptAssets('İ xA+B，a+b', [prop], ['image']).map((hit) => hit.material.id)).toEqual(['prop'])
+    expect(matchCanvasPromptAssets('İ xA+B', [prop], ['image'])).toEqual([])
+  })
   it('selects assets by official name and alias, once per asset, in stable category order', () => {
     const hits = matchCanvasPromptAssets(
       '油纸伞斜靠在雨夜街巷的墙边，娇娇撑着伞走来，沈小姐回头看了一眼。',

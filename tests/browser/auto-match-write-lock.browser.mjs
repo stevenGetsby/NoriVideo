@@ -22,6 +22,8 @@ try {
     demo.once('error', reject)
     demo.once('exit', (code) => reject(new Error(`Canvas demo exited: ${code}`)))
   })
+  const graphPath = '/api/projects/project-1/canvas/canvas-1'
+  const initialGraph = await (await fetch(new URL(graphPath, base))).json()
   browser = await chromium.launch({ executablePath: process.env.NORI_BROWSER_EXECUTABLE_PATH })
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } })
   await page.clock.install()
@@ -36,7 +38,7 @@ try {
     const fetchOriginal = window.fetch.bind(window)
     window.fetch = (input, init) => {
       const url = new URL(input instanceof Request ? input.url : input, location.href)
-      if (url.pathname === '/api/frameos/materials' && url.searchParams.get('scope') === 'project') {
+      if (url.pathname === '/api/frameos/materials' && url.searchParams.get('scope') === 'current-project') {
         return fetchOriginal(input, { ...init, signal: undefined })
       }
       return fetchOriginal(input, init)
@@ -48,7 +50,7 @@ try {
       writes.push(request.url())
     }
   })
-  const materials = (url) => url.pathname === '/api/frameos/materials' && url.searchParams.get('scope') === 'project'
+  const materials = (url) => url.pathname === '/api/frameos/materials' && url.searchParams.get('scope') === 'current-project'
   const sync = '**/api/projects/project-1/canvas/canvas-1/production-sync'
   const pendingMaterials = Promise.withResolvers()
   const pendingSync = Promise.withResolvers()
@@ -98,6 +100,48 @@ try {
   assert.ok(await edges.count() > before.edges.length)
   assert.deepEqual(errors, [])
   console.log('PASS: production sync blocks a late match; retry after unlocking writes nodes and edges')
+
+  const limited = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+  limited.on('pageerror', (error) => errors.push(error.message))
+  await limited.route('**/*', (route) => {
+    if (new URL(route.request().url()).origin === base) return route.fallback()
+    return route.abort()
+  })
+  await limited.route(`**${graphPath}`, async (route) => {
+    const graph = structuredClone(initialGraph)
+    graph.nodes.find((node) => node.id === 'gen-1').data.prompt = 'İİİ“林夏”之后，雨夜街巷、山顶日出、油纸伞。'
+    graph.nodes.find((node) => node.id === 'ref-2').data.materialId = 'library-prop-2'
+    graph.nodes.push(...Array.from({ length: 999 - graph.nodes.length }, (_, index) => ({
+      id: `filler-${index}`, canvasId: 'canvas-1', type: 'text', status: 'IDLE',
+      position: { x: 3000 + 300 * (index % 30), y: 3000 + 200 * Math.floor(index / 30) },
+      size: { width: 200, height: 100 }, data: { title: 'Synthetic note' },
+    })))
+    await route.fulfill({ json: graph })
+  }, { times: 1 })
+  await limited.goto(base)
+  await limited.getByRole('button', { name: '收起', exact: true }).click()
+  const limitedNodes = limited.locator('.react-flow__node')
+  const limitedEdges = limited.locator('.react-flow__edge')
+  const limitedMatch = limited.getByRole('button', { name: '一键匹配引用' })
+  const ids = (locator) => locator.evaluateAll((items) => items.map((item) => item.dataset.id))
+  await limited.locator('.react-flow__node[data-id="ref-2"]').waitFor()
+  const priorNodes = await ids(limitedNodes)
+  const priorEdges = await ids(limitedEdges)
+  assert.equal(priorNodes.length, 999)
+  await limitedMatch.click()
+  await limited.getByText('已匹配 2 个资产，新连线 2 条（1 个因画布节点已满跳过）').waitFor()
+  assert.equal(await limitedNodes.count(), 1000)
+  assert.equal(await limitedEdges.count(), priorEdges.length + 2)
+  await limitedMatch.click()
+  await limited.getByText('已有 2 个匹配资产在引用中（1 个因画布节点已满跳过）').waitFor()
+  await limited.getByRole('button', { name: '撤销', exact: true }).click()
+  await limitedEdges.nth(priorEdges.length).waitFor({ state: 'detached' })
+  assert.deepEqual(errors, [])
+  await limitedNodes.nth(priorNodes.length - 1).waitFor({ state: 'attached' })
+  await limitedEdges.nth(priorEdges.length - 1).waitFor({ state: 'attached' })
+  assert.deepEqual(await ids(limitedNodes), priorNodes)
+  assert.deepEqual(await ids(limitedEdges), priorEdges)
+  console.log('PASS: the last slot is used, an existing source is reused, quoted text is ignored, and one undo restores the graph')
 } finally {
   await browser?.close()
   lines.close()

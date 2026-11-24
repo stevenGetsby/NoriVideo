@@ -64,7 +64,6 @@ export function matchCanvasPromptAssets(
   if (!text) return []
   const allowed = new Set(allowedTypes)
   const dialogue = findQuotedDialogueRanges(text)
-  const lowered = text.toLocaleLowerCase()
 
   interface Candidate {
     material: FrameosMaterialItem
@@ -88,10 +87,12 @@ export function matchCanvasPromptAssets(
     for (const { term: rawTerm, isOfficial } of terms) {
       const term = normalizePromptMentionName(rawTerm)
       if (!term || !isAutoMatchableTerm(term)) continue
-      const needle = term.toLocaleLowerCase()
-      let index = lowered.indexOf(needle)
-      while (index >= 0) {
-        const end = index + needle.length
+      const literal = term.replace(/[.*+?^{}$()|[\]\\]/g, '\\$&')
+      const pattern = new RegExp(literal, 'giu')
+      let match: RegExpExecArray | null
+      while ((match = pattern.exec(text)) !== null) {
+        const index = match.index
+        const end = index + match[0].length
         const asciiBounded = !(
           (isAsciiIdentifierChar(term[0]) && isAsciiIdentifierChar(text[index - 1]))
           || (isAsciiIdentifierChar(term[term.length - 1]) && isAsciiIdentifierChar(text[end]))
@@ -104,7 +105,8 @@ export function matchCanvasPromptAssets(
         if (asciiBounded && !intersectsDialogue) {
           candidates.push({ material, term, isOfficial, start: index, end })
         }
-        index = lowered.indexOf(needle, index + 1)
+        // Preserve overlapping occurrences without restarting inside a surrogate pair.
+        pattern.lastIndex = index + (match[0].codePointAt(0)! > 0xffff ? 2 : 1)
       }
     }
   }
