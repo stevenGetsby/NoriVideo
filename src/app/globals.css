@@ -130,6 +130,7 @@ input[type="text"]::-ms-clear { display: none; }
     --nori-interface-viewport-height: 100vh;
     --nori-interface-viewport-height: 100dvh;
   }
+  html:has(.fos-app) { overscroll-behavior-x: none; }
 }
 
 @theme inline {

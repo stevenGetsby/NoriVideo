@@ -215,6 +215,13 @@ try {
       const credits = await page.locator('.fos-header .fos-credits').boundingBox()
       assert.ok(Math.abs(shell.width - viewport.width) <= 1 && Math.abs(shell.height - viewport.height) <= 1)
       assert.ok(brand.x + brand.width <= credits.x && credits.x + credits.width <= viewport.width)
+      const sidebar = page.locator('.fos-sidebar')
+      const toggle = sidebar.locator('.fos-collapse-btn')
+      await toggle.click()
+      assert.equal(await sidebar.getAttribute('data-collapsed'), 'false')
+      const scroll = await page.locator('.works-scroll').evaluate((element) => [element.clientWidth, element.scrollWidth])
+      assert.ok(scroll[0] >= viewport.width - 1 && scroll[1] <= scroll[0] + 1, 'An open mobile sidebar must not squeeze or horizontally scroll the projects list')
+      await toggle.click()
     }
     const parentA = page.locator('[data-work-id="parent-a"]')
     await parentA.getByRole('heading', { name: '项目甲', exact: true }).waitFor()

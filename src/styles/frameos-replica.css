@@ -246,7 +246,11 @@ html[data-nori-theme="light"] .fos-app :is(.text-white, [class*="text-white/"]):
   .fos-header .fos-credits > span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .fos-header .fos-balance-pop { width: min(300px, calc(100vw - 24px)); }
   .fos-app .fos-main { min-height: 0; }
-  .fos-app .fos-scroll { padding-bottom: env(safe-area-inset-bottom); }
+  .fos-app .fos-scroll {
+    overflow-x: hidden;
+    overscroll-behavior-x: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 /* balance popover */
@@ -574,6 +578,18 @@ html[data-nori-theme="light"] .fos-app :is(.text-white, [class*="text-white/"]):
 .fos-app.is-canvas-shell.is-sidebar-collapsed .fos-sidebar {
   visibility: hidden;
   pointer-events: none;
+}
+
+@media (max-width: 767px) {
+  .fos-app > .fos-content > .fos-sidebar { transition: none; }
+  .fos-app > .fos-content > .fos-sidebar:not(.is-collapsed) {
+    position: absolute;
+    inset: 0 auto 0 0;
+    z-index: 45;
+    max-width: calc(100% - 44px);
+    background: var(--fos-bg-2);
+    box-shadow: var(--fos-shadow-pop);
+  }
 }
 
 .fos-app.is-canvas-shell .fos-nav-item {
