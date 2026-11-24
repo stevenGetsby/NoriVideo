@@ -346,7 +346,6 @@ export function MaterialPickerDialog({
     resetWindow,
     totalHeight,
     window: materialWindow,
-    offsets,
   } = useWindowedList(visibleMaterials, rowStride / columnCount)
   const windowStart = Math.floor(materialWindow.start / columnCount) * columnCount
   const windowEnd = Math.min(visibleMaterials.length, Math.ceil(materialWindow.end / columnCount) * columnCount)
@@ -657,7 +656,7 @@ export function MaterialPickerDialog({
                   const src = toCanvasDisplayImageUrl(material.url, 480)
                   const characterVoice = characterVoiceBindingState(material)
                   return (
-                    <article key={material.id} className="material-picker-card absolute overflow-hidden rounded-[10px] border transition-colors" style={{ top: (offsets[index] || 0) / columnCount, left: `calc(${(index % columnCount) * (100 / columnCount)}% + ${(index % columnCount) * MATERIAL_GRID_GAP / columnCount}px)`, width: `calc(${100 / columnCount}% - ${(columnCount - 1) * MATERIAL_GRID_GAP / columnCount}px)`, borderColor: selected ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
+                    <article key={material.id} className="material-picker-card absolute overflow-hidden rounded-[10px] border transition-colors" style={{ position: 'absolute', top: Math.floor(index / columnCount) * rowStride, left: `calc(${(index % columnCount) * (100 / columnCount)}% + ${(index % columnCount) * MATERIAL_GRID_GAP / columnCount}px)`, width: `calc(${100 / columnCount}% - ${(columnCount - 1) * MATERIAL_GRID_GAP / columnCount}px)`, borderColor: selected ? 'rgba(255,255,255,.4)' : 'var(--fos-border-mid)', background: 'var(--fos-bg-2)' }}>
                       <button type="button" disabled={browsingTrash || uploading || disabled || material.status !== 'ready' || !material.url || (!multiple && selected && Boolean(onSelect))} title={material.status !== 'ready' || !material.url ? '素材尚未就绪，暂不可引用' : undefined} onClick={() => chooseMaterial(material)} className="block w-full text-left disabled:opacity-55">
                         <div className="material-picker-card-media relative aspect-[4/3] overflow-hidden bg-black/40">
                           {src && material.type === 'image' ? <MediaImage src={src} alt={material.title || '素材'} fill sizes="220px" style={{ objectFit: 'cover' }} /> : <AppIcon name={material.type === 'video' ? 'video' : material.type === 'audio' ? 'audioWave' : material.type === 'model3d' ? 'cube' : 'image'} className="absolute left-1/2 top-1/2 h-9 w-9 -translate-x-1/2 -translate-y-1/2 text-white/15" />}

@@ -58,6 +58,7 @@ export async function handleToolboxImageTask(job: Job<TaskJobData>) {
       },
       materialTitle: title,
       materialOwnerName: readString(payload.ownerName) || undefined,
+      materialPersonalOwnerId: readString(payload.personalOwnerId) || null,
       materialSource: 'toolbox',
       materialMetadata: {
         originType: 'toolbox-image',

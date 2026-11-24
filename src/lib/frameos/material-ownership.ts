@@ -10,6 +10,13 @@ export function isPersonalMaterial(material: { personalOwnerId?: string | null; 
   return Boolean(material.personalOwnerId && (actorId === undefined || material.personalOwnerId === actorId))
 }
 
+export function ownedMaterialScope(input: { projectId: string; personalOwnerId?: string | null }): { projectId: string; personalOwnerId: string | null } {
+  const personalOwnerId = input.personalOwnerId?.trim() || null
+  return personalOwnerId
+    ? { projectId: PERSONAL_MATERIAL_PROJECT_ID, personalOwnerId }
+    : { projectId: input.projectId, personalOwnerId: null }
+}
+
 export function canActorAccessMaterial(session: AuthSession, material: { personalOwnerId?: string | null; projectId: string }): boolean {
   return !isPersonalMaterial(material) || isPersonalMaterial(material, getWorkspaceActor(session).actorId)
 }

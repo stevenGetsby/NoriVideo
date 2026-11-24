@@ -2,6 +2,7 @@ import type { Job } from 'bullmq'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
+import { ownedMaterialScope } from '@/lib/frameos/material-ownership'
 import {
   normalizeFrameos3DPose,
   normalizeFrameos3DTopology,
@@ -178,7 +179,7 @@ export async function handleToolboxModel3DTask(job: Job<TaskJobData>) {
     await reportTaskProgress(job, 95, { stage: 'model3d_persist' })
     const material = await registerFrameosMaterial({
       userId: job.data.userId,
-      projectId: job.data.projectId,
+      ...ownedMaterialScope({ projectId: job.data.projectId, personalOwnerId: readString(payload.personalOwnerId) }),
       ownerName: readString(payload.ownerName) || undefined,
       title,
       type: 'model3d',

@@ -8,6 +8,7 @@ import {
 import { generateProviderAudio } from '@/lib/audio/provider'
 import { persistGeneratedAudio } from '@/lib/audio/persist'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
+import { ownedMaterialScope } from '@/lib/frameos/material-ownership'
 import { projectCanvasToolboxTaskTerminal } from '@/lib/canvas/toolbox-node-binding'
 import { reportTaskProgress } from '../shared'
 import {
@@ -112,7 +113,7 @@ export async function handleToolboxAudioTask(job: Job<TaskJobData>) {
     await assertTaskActive(job, 'persist_toolbox_audio_result')
     const material = await registerFrameosMaterial({
       userId: job.data.userId,
-      projectId: job.data.projectId,
+      ...ownedMaterialScope({ projectId: job.data.projectId, personalOwnerId: compact(payload.personalOwnerId) }),
       ownerName: compact(payload.ownerName) || undefined,
       title,
       type: 'audio',
