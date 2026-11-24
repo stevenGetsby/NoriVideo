@@ -1556,6 +1556,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
     if (!ensureNodeCapacity(1)) return null
     record('添加节点')
     const node = createFlowNode(type, position, interaction)
+    if (['image', 'video', 'audio', 'text', 'model_3d'].includes(type)) {
+      const previous = nodesRef.current.reduce<CanvasNodeData['generation']>((latest, candidate) => {
+        const settings = candidate.data.generation
+        if (candidate.type !== node.type || candidate.data.processType !== node.data.processType || !settings?.modelKey) return latest
+        return !latest || (settings.settingsEditedAt ?? 0) >= (latest.settingsEditedAt ?? 0) ? settings : latest
+      }, undefined)
+      if (previous) {
+        const { modelKey, modelLabel, inputMode, aspectRatio, resolution, quality, duration, generateAudio, count, parameters } = previous
+        const parameterKeys = ['fps', 'mode', 'voice', 'genre', 'sfxKind', 'topology', 'generateTexture', 'pose']
+        node.data.generation = {
+          modelKey, modelLabel, inputMode, aspectRatio, resolution, quality, duration, generateAudio, count,
+          ...(parameters ? { parameters: Object.fromEntries(Object.entries(parameters).filter(([key]) => parameterKeys.includes(key))) } : {}),
+        }
+      }
+    }
     node.position = storyCanvas ? storyActions.placeNew(type, position) : {
       x: position.x - (node.width || 300) / 2,
       y: position.y - (node.height || 200) / 2,

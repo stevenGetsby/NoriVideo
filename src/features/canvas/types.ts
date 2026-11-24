@@ -274,6 +274,7 @@ export type CanvasProcessType =
   | 'audio_extract'
 
 export type CanvasGenerationConfig = {
+  settingsEditedAt?: number
   modelKey?: string
   modelLabel?: string
   inputSchema?: CanvasGenerationInputSchema | null

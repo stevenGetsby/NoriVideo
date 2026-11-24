@@ -69,7 +69,7 @@ function summarizeGeneration(value: unknown): SummaryRecord | undefined {
   for (const key of ['modelKey', 'modelLabel', 'assetId', 'taskId', 'inputMode', 'aspectRatio', 'resolution', 'quality'] as const) {
     copyDefined(output, key, boundedId(generation[key]))
   }
-  for (const key of ['duration', 'count'] as const) copyDefined(output, key, finiteNumber(generation[key]))
+  for (const key of ['duration', 'count', 'settingsEditedAt'] as const) copyDefined(output, key, finiteNumber(generation[key]))
   copyDefined(output, 'generateAudio', typeof generation.generateAudio === 'boolean' ? generation.generateAudio : undefined)
   copyDefined(output, 'referenceNodeIds', boundedStringArray(generation.referenceNodeIds))
   copyDefined(output, 'pausedReferenceNodeIds', boundedStringArray(generation.pausedReferenceNodeIds))

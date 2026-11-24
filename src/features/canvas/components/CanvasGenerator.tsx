@@ -224,11 +224,13 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
   const audio = mediaType === 'audio' ? toPlayableVideoUrl(node.data.audioUrl || node.data.contentUrl) : null
   const previewAnchorRef = useRef<HTMLButtonElement>(null)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const pointerPreview = useRef(false)
   const previewCloseTimer = useRef<number | undefined>(undefined)
   const [previewOpen, setPreviewOpen] = useState(false)
   const cancelPreviewClose = () => window.clearTimeout(previewCloseTimer.current)
   const closePreview = () => {
     cancelPreviewClose()
+    audioRef.current?.pause()
     setPreviewOpen(false)
   }
   const schedulePreviewClose = () => {
@@ -242,6 +244,14 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
     cancelPreviewClose()
     setPreviewOpen(true)
   }
+  useEffect(() => {
+    if (!previewEnabled || !previewOpen || !pointerPreview.current) return
+    const player = audioRef.current
+    if (!player) return
+    // Browsers can block audible playback until the page has been interacted with.
+    void player.play().catch(() => {})
+    return () => player.pause()
+  }, [audio, previewEnabled, previewOpen])
   useEffect(() => () => window.clearTimeout(previewCloseTimer.current), [])
   useEffect(() => {
     if (!previewEnabled) setPreviewOpen(false)
@@ -262,7 +272,14 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
     ? ' · 点击加入本次引用'
     : wired ? ' · 点击本次不引用（连线保留）' : ' · 点击移出引用'
   return (
-    <span className="nori-canvas-generator-ref-item" onPointerEnter={openPreview} onPointerLeave={schedulePreviewClose}>
+    <span className="nori-canvas-generator-ref-item" onPointerEnter={() => {
+      pointerPreview.current = true
+      openPreview()
+      if (audioRef.current) void audioRef.current.play().catch(() => {})
+    }} onPointerLeave={() => {
+      pointerPreview.current = false
+      closePreview()
+    }}>
       <button
         ref={previewAnchorRef}
         onFocus={openPreview}
@@ -473,6 +490,7 @@ export function CanvasGenerator({
   const [generateAudio, setGenerateAudio] = useState(node.data.generation?.generateAudio ?? true)
   const [count, setCount] = useState(node.data.generation?.count || (node.data.processType === 'storyboard' ? STORYBOARD_COUNTS[0] : 1))
   const [referenceNodeIds, setReferenceNodeIds] = useState<string[]>(node.data.generation?.referenceNodeIds || compatibleIncomingNodes.map((item) => item.id))
+  const [settingsEditedAt, setSettingsEditedAt] = useState(node.data.generation?.settingsEditedAt)
   // Unwired references picked from the library count as direct inputs, so a
   // prompt that names them resolves to the node that is actually submitted.
 
@@ -740,6 +758,7 @@ export function CanvasGenerator({
     setReferenceMenuOpen(false)
     setCanvasPickerOpen(false)
     setError(null)
+    setSettingsEditedAt(node.data.generation?.settingsEditedAt)
     // Rehydrate fields only when switching nodes. Reference ids have a separate
     // sync effect so adding or removing wires cannot overwrite an in-progress draft.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -917,7 +936,7 @@ export function CanvasGenerator({
     for (const [tickValue, tick] of durationTickRefs.current) tick.classList.toggle('is-active', tickValue === clamped)
   }
   const commitDuration = (next: number) => {
-    setDuration(changeDraftValue(next))
+    setDuration(changeGenerationSetting(next))
     // React restores uncontrolled inputs after the change event batch using the
     // props captured at dispatch time, which can trail a lagging render. Write
     // the committed value straight to the DOM now (the render-time paint still
@@ -1168,6 +1187,7 @@ export function CanvasGenerator({
     processType: storyboard ? 'storyboard' as const : node.data.processType === 'storyboard' ? undefined : node.data.processType,
     generation: {
       modelKey,
+      settingsEditedAt,
       modelLabel: currentModel?.label || '',
       inputSchema: currentModel?.raw?.inputSchema || null,
       referenceNodeIds,
@@ -1189,7 +1209,7 @@ export function CanvasGenerator({
             ? videoGenerationParameters(node.data.generation?.parameters, fps, superresolveTarget)
             : undefined,
     },
-  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, pausedReferenceIds, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, storyboard, superresolveTarget, type])
+  }), [aspectRatio, audioMode, audioVoice, count, currentModel?.label, currentModel?.raw?.inputSchema, duration, fps, generateAudio, inputMode, mentionSelections, model3dGenerateTexture, model3dPose, model3dTopology, modelKey, node.data.generation?.parameters, node.data.processType, pausedReferenceIds, prompt, quality, referenceNodeIds, selectedResolution, selectedReferenceSummaries, settingsEditedAt, storyboard, superresolveTarget, type])
 
   const draftPatchRef = useRef(draftPatch)
   draftPatchRef.current = draftPatch
@@ -1219,6 +1239,11 @@ export function CanvasGenerator({
   const changeDraftValue = <T,>(value: T) => {
     draftUserEditRef.current = true
     return value
+  }
+
+  function changeGenerationSetting<T>(value: T): T {
+    setSettingsEditedAt(Date.now())
+    return changeDraftValue(value)
   }
 
   useLayoutEffect(() => {
@@ -1773,7 +1798,7 @@ export function CanvasGenerator({
         {type === 'video' ? (
           <div className="nori-canvas-generator-mode-tabs" role="group" aria-label="视频生成方式">
             {([['text', '全能参考', true], ['image', '图生视频', supportsImageToVideo], ['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]] as const).map(([value, label, enabled]) => (
-              <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => { setInputMode(changeDraftValue(value)) }}>{label}</button>
+              <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => { setInputMode(changeGenerationSetting(value)) }}>{label}</button>
             ))}
           </div>
         ) : <span><TypeIcon />{type === 'text' ? '文本生成' : type === 'audio' ? '音频生成' : type === 'model3d' ? '3D 模型生成' : isPanorama ? '720 全景生成' : '图像生成'}</span>}
@@ -1991,15 +2016,15 @@ export function CanvasGenerator({
         <div>{AUDIO_MODES.map((item) => {
           const modeModel = audioModeModels[item.value]
           const supported = Boolean(modeModel)
-          return <button type="button" key={item.value} disabled={!supported} title={supported ? `使用 ${modeModel?.label}` : '尚未配置支持该模式的真实音频模型'} className={audioMode === item.value ? 'is-active' : ''} onClick={() => { if (modeModel) { setModelKey(changeDraftValue(modeModel.key)); setAudioMode(changeDraftValue(item.value)) } }}>{item.label}</button>
+          return <button type="button" key={item.value} disabled={!supported} title={supported ? `使用 ${modeModel?.label}` : '尚未配置支持该模式的真实音频模型'} className={audioMode === item.value ? 'is-active' : ''} onClick={() => { if (modeModel) { setModelKey(changeGenerationSetting(modeModel.key)); setAudioMode(changeGenerationSetting(item.value)) } }}>{item.label}</button>
         })}</div>
-        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => { setAudioVoice(changeDraftValue(event.target.value)) }} disabled={compatibleVoiceOptions.length === 0}>{compatibleVoiceOptions.length === 0 ? <option value="">{usesReferenceAudio ? '请先在资产库上传参考音频' : '请先在资产库绑定参考音色 ID'}</option> : compatibleVoiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
+        {audioMode === 'tts' ? <label><Music2 /><span>嗓音</span><select value={audioVoice} onChange={(event) => { setAudioVoice(changeGenerationSetting(event.target.value)) }} disabled={compatibleVoiceOptions.length === 0}>{compatibleVoiceOptions.length === 0 ? <option value="">{usesReferenceAudio ? '请先在资产库上传参考音频' : '请先在资产库绑定参考音色 ID'}</option> : compatibleVoiceOptions.map((voice) => <option key={voice.value} value={voice.value}>{voice.label}</option>)}</select></label> : null}
       </div> : null}
 
       {type === 'model3d' ? <div className="nori-canvas-model3d-options">
-        <div className="nori-canvas-model3d-option"><span>模型精度</span><div><button type="button" className={model3dTopology === 'standard' ? 'is-active' : ''} onClick={() => setModel3dTopology(changeDraftValue('standard'))}>标准</button><button type="button" className={model3dTopology === 'low_poly' ? 'is-active' : ''} onClick={() => setModel3dTopology(changeDraftValue('low_poly'))}>低模</button></div></div>
-        <label className="nori-canvas-model3d-texture"><input type="checkbox" checked={model3dGenerateTexture} onChange={(event) => setModel3dGenerateTexture(changeDraftValue(event.target.checked))} /><span>生成贴图</span></label>
-        <div className="nori-canvas-model3d-option"><span>角色姿势</span><div><button type="button" className={model3dPose === 'none' ? 'is-active' : ''} onClick={() => setModel3dPose(changeDraftValue('none'))}>无</button><button type="button" className={model3dPose === 'a_pose' ? 'is-active' : ''} onClick={() => setModel3dPose(changeDraftValue('a_pose'))}>A 姿势</button><button type="button" className={model3dPose === 't_pose' ? 'is-active' : ''} onClick={() => setModel3dPose(changeDraftValue('t_pose'))}>T 姿势</button></div></div>
+        <div className="nori-canvas-model3d-option"><span>模型精度</span><div><button type="button" className={model3dTopology === 'standard' ? 'is-active' : ''} onClick={() => setModel3dTopology(changeGenerationSetting('standard'))}>标准</button><button type="button" className={model3dTopology === 'low_poly' ? 'is-active' : ''} onClick={() => setModel3dTopology(changeGenerationSetting('low_poly'))}>低模</button></div></div>
+        <label className="nori-canvas-model3d-texture"><input type="checkbox" checked={model3dGenerateTexture} onChange={(event) => setModel3dGenerateTexture(changeGenerationSetting(event.target.checked))} /><span>生成贴图</span></label>
+        <div className="nori-canvas-model3d-option"><span>角色姿势</span><div><button type="button" className={model3dPose === 'none' ? 'is-active' : ''} onClick={() => setModel3dPose(changeGenerationSetting('none'))}>无</button><button type="button" className={model3dPose === 'a_pose' ? 'is-active' : ''} onClick={() => setModel3dPose(changeGenerationSetting('a_pose'))}>A 姿势</button><button type="button" className={model3dPose === 't_pose' ? 'is-active' : ''} onClick={() => setModel3dPose(changeGenerationSetting('t_pose'))}>T 姿势</button></div></div>
       </div> : null}
 
       {currentModel?.raw?.available === false ? <div className="nori-canvas-generator-error">{currentModel.raw.unavailableReason || '当前模型服务尚未配置。'}</div> : null}
@@ -2035,7 +2060,7 @@ export function CanvasGenerator({
               const status = inpaintUnsupported ? '不支持蒙版重绘' : unavailable ? (model.raw?.healthStatus === 'unhealthy' ? '服务异常' : '未配置') : ''
               return <button key={model.key} type="button" role="menuitemradio" aria-checked={modelKey === model.key}
                 disabled={inpaintUnsupported || unavailable} onClick={() => {
-                  setModelKey(changeDraftValue(model.key))
+                  setModelKey(changeGenerationSetting(model.key))
                   setEditorModelOpen(false)
                   editorModelTrigger.current?.focus()
                 }}>
@@ -2048,7 +2073,7 @@ export function CanvasGenerator({
         {(type === 'image' || type === 'video') ? <button ref={parameterTriggerRef} type="button" className={`nori-canvas-parameter-trigger${moreOpen ? ' is-active' : ''}`} aria-label="生成参数" aria-haspopup="dialog" aria-expanded={moreOpen} onClick={() => { setEditorModelOpen(false); setMoreOpen((value) => !value) }}><SlidersHorizontal /><span><b>生成参数</b><small>{parameterSummary}</small></span><ChevronDown /></button> : null}
         </div>
         <div className="nori-canvas-generator-submit-row">
-        {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => { setGenerateAudio(changeDraftValue(event.target.checked)) }} /><span>生成声音</span></label> : null}
+        {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => { setGenerateAudio(changeGenerationSetting(event.target.checked)) }} /><span>生成声音</span></label> : null}
         {quotable ? (
           <span
             className={`nori-canvas-generator-quote${quoteError ? ' is-error' : ''}`}
@@ -2071,7 +2096,7 @@ export function CanvasGenerator({
                 <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-mode-label">生成模式</span>
                 <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-mode-label">
                   {([['text', '全能参考', true], ['image', '图生视频', supportsImageToVideo], ['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]] as const).map(([value, label, enabled]) => (
-                    <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => setInputMode(changeDraftValue(value))}>{label}</button>
+                    <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => setInputMode(changeGenerationSetting(value))}>{label}</button>
                   ))}
                 </div>
               </div>
@@ -2083,7 +2108,7 @@ export function CanvasGenerator({
                   const thumbnail = aspectRatioThumbnail(value)
                   const locked = isPanorama || (type === 'video' && videoAspectRatios.length === 1)
                   return (
-                    <button type="button" key={value} className={`nori-canvas-parameter-aspect${aspectRatio === value ? ' is-active' : ''}`} aria-pressed={aspectRatio === value} disabled={locked && aspectRatio !== value} onClick={() => setAspectRatio(changeDraftValue(value))}>
+                    <button type="button" key={value} className={`nori-canvas-parameter-aspect${aspectRatio === value ? ' is-active' : ''}`} aria-pressed={aspectRatio === value} disabled={locked && aspectRatio !== value} onClick={() => setAspectRatio(changeGenerationSetting(value))}>
                       <span className="nori-canvas-parameter-aspect-frame" aria-hidden="true"><i style={{ width: thumbnail.width, height: thumbnail.height }} /></span>
                       <small>{value === 'adaptive' ? '自适应' : value}</small>
                     </button>
@@ -2096,8 +2121,8 @@ export function CanvasGenerator({
               <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-resolution-label">
                 {(superresolveTarget ? CANVAS_VIDEO_SUPERRESOLVE_TARGETS : supportedResolutions).map((value) => (
                   <button type="button" key={value} className={(superresolveTarget || resolution) === value ? 'is-active' : ''} aria-pressed={(superresolveTarget || resolution) === value} onClick={() => {
-                    if (superresolveTarget) setSuperresolveTarget(changeDraftValue(value as CanvasVideoSuperresolveTarget))
-                    else setResolution(changeDraftValue(value))
+                    if (superresolveTarget) setSuperresolveTarget(changeGenerationSetting(value as CanvasVideoSuperresolveTarget))
+                    else setResolution(changeGenerationSetting(value))
                   }}>{type === 'video' ? resolutionLabel(value) : value}</button>
                 ))}
               </div>
@@ -2108,7 +2133,7 @@ export function CanvasGenerator({
                 <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-count-label">{storyboard ? '分镜数量' : '生成数量'}</span>
                 <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-count-label">
                   {(storyboard ? STORYBOARD_COUNTS : [1, 2, 4]).map((value) => (
-                    <button type="button" key={value} className={(storyboard ? normalizeStoryboardCount(count) : count) === value ? 'is-active' : ''} aria-pressed={(storyboard ? normalizeStoryboardCount(count) : count) === value} onClick={() => setCount(changeDraftValue(value))}>{value} {storyboard ? '镜' : '张'}</button>
+                    <button type="button" key={value} className={(storyboard ? normalizeStoryboardCount(count) : count) === value ? 'is-active' : ''} aria-pressed={(storyboard ? normalizeStoryboardCount(count) : count) === value} onClick={() => setCount(changeGenerationSetting(value))}>{value} {storyboard ? '镜' : '张'}</button>
                   ))}
                 </div>
               </div>
@@ -2118,7 +2143,7 @@ export function CanvasGenerator({
                 <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-quality-label">图片质量</span>
                 <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-quality-label">
                   {CANVAS_IMAGE_QUALITIES.map((value) => (
-                    <button type="button" key={value} className={quality === value ? 'is-active' : ''} aria-pressed={quality === value} onClick={() => setQuality(changeDraftValue(value))}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>
+                    <button type="button" key={value} className={quality === value ? 'is-active' : ''} aria-pressed={quality === value} onClick={() => setQuality(changeGenerationSetting(value))}>{value === 'low' ? '低' : value === 'medium' ? '中' : '高'}</button>
                   ))}
                 </div>
               </div>
@@ -2159,7 +2184,7 @@ export function CanvasGenerator({
                 <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-fps-label">视频帧率</span>
                 <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-fps-label">
                   {fpsOptions.map((value) => (
-                    <button type="button" key={value} className={(fps || fpsOptions[0]) === value ? 'is-active' : ''} aria-pressed={(fps || fpsOptions[0]) === value} onClick={() => setFps(changeDraftValue(value))}>{value} FPS</button>
+                    <button type="button" key={value} className={(fps || fpsOptions[0]) === value ? 'is-active' : ''} aria-pressed={(fps || fpsOptions[0]) === value} onClick={() => setFps(changeGenerationSetting(value))}>{value} FPS</button>
                   ))}
                 </div>
               </div>
