@@ -175,9 +175,9 @@ describe('FrameOS material project scopes', () => {
     expect(prismaMock.project.findMany).toHaveBeenLastCalledWith(expect.objectContaining({
       where: { AND: [readScope.where, { workId: 'work-2' }] },
     }))
-    expect(prismaMock.frameosMaterial.findMany.mock.calls[0][0].where).toMatchObject({
+    expect(prismaMock.frameosMaterial.findMany.mock.calls[0][0].where.AND).toContainEqual(expect.objectContaining({
       projectId: { in: ['project-b', 'project-sibling'] }, personalOwnerId: null, deletedAt: null,
-    })
+    }))
   })
 
   it('rejects a matching scope without a concrete work before reading materials', async () => {

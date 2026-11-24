@@ -9,7 +9,6 @@ import { ViewportPopover } from '@/components/ui/viewport-popover'
 import {
   findActiveMention,
   isPromptCompositionKey,
-  pastePromptAssets,
   promptMentionTokenEnd,
   redoPromptInsertion,
   replacePromptMention,
@@ -59,7 +58,6 @@ interface Props {
   onMentionOpen?: () => void
   hint?: string | null
   readOnly?: boolean
-  onPasteMatch?: (nextValue: string, matchedAssets: MentionPromptAsset[]) => boolean | void
   onSelectAsset?: (asset: MentionPromptAsset, nextValue: string) => boolean | void
   onBlur?: () => void
   highlight?: MentionPromptHighlightOptions
@@ -114,7 +112,6 @@ export function MentionPromptEditor({
   hint = '输入 @ 可选择当前分镜已添加的素材，提交生成时会按素材顺序转换为“图片1、图片2…”引用。',
   readOnly = false,
   onSelectAsset,
-  onPasteMatch,
   onBlur,
   highlight,
 }: Props) {
@@ -688,45 +685,7 @@ export function MentionPromptEditor({
             }
             handleMenuKeyDown(event)
           }}
-          onPaste={(event) => {
-            if (readOnly) return
-            const pastedText = event.clipboardData?.getData('text/plain')
-            if (!pastedText) return
-            const liveValue = event.currentTarget.value
-            const selectionStart = event.currentTarget.selectionStart ?? liveValue.length
-            const selectionEnd = event.currentTarget.selectionEnd ?? selectionStart
-            const result = pastePromptAssets(liveValue, selectionStart, selectionEnd, pastedText, assets)
-            if (!result) return
-            const byName = new Map<string, MentionPromptAsset>()
-            for (const asset of assets) {
-              const key = asset.name.trim().replace(/^@+/, '').toLocaleLowerCase()
-              if (key && !byName.has(key)) byName.set(key, asset)
-            }
-            const matchedAssets = result.matched.flatMap((name) => {
-              const asset = byName.get(name.toLocaleLowerCase())
-              return asset ? [asset] : []
-            })
-            if (matchedAssets.length === 0) return
-            if (onPasteMatch?.(result.value, matchedAssets) === false) return
-            event.preventDefault()
-            if (result.value !== liveValue) {
-              rememberInsertion({
-                before: liveValue,
-                after: result.value,
-                cursorBefore: selectionStart,
-                cursorAfter: result.cursor,
-              })
-            }
-            onChange(result.value)
-            applyMention(null)
-            mentionSessionRef.current = null
-            requestAnimationFrame(() => {
-              const textarea = textareaRef.current
-              if (!textarea || textarea.value !== result.value) return
-              textarea.focus()
-              textarea.setSelectionRange(result.cursor, result.cursor)
-            })
-          }}
+
           onScroll={(event) => {
             const highlight = highlightRef.current
             if (!highlight) return

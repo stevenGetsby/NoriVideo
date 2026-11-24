@@ -89,6 +89,8 @@
   height: 100%;
   pointer-events: none;
   z-index: 3;
+}
+
 .nori-canvas-surface.is-panning .react-flow__node,
 .nori-canvas-surface.is-panning .react-flow__edge,
 .nori-canvas-surface.is-panning .nori-canvas-node-drag-frame,

@@ -1211,34 +1211,7 @@ export function CanvasGenerator({
     setReferenceNodeIds(nextReferenceNodeIds)
   }
 
-  const bindPastedMentionAssets = (matched: MentionPromptAsset[]) => {
-    if (!shouldBindCanvasMentionReference(type)) return true
-    let nextIds = referenceNodeIds
-    const pastedSelections: CanvasMentionNameSelection[] = []
-    for (const asset of matched) {
-      const mentionAsset = asset as CanvasMentionAsset
-      let nodeId = asset.id
-      if (mentionAsset.section === 'library' && mentionAsset.material) {
-        nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
-        if (!nodeId) {
-          setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
-          return false
-        }
-      }
-      if (nodeId) pastedSelections.push({ nodeId, name: asset.name })
-      nextIds = mergeCanvasReferenceNodeIds(nextIds, nodeId)
-    }
-    const errors = referenceErrors(nextIds, false)
-    if (errors.length > 0) {
-      setError(errors[0])
-      return false
-    }
-    for (const selection of pastedSelections) rememberMentionSelection(selection.nodeId, selection.name)
-    setError(null)
-    draftUserEditRef.current = true
-    setReferenceNodeIds(nextIds)
-    return true
-  }
+
 
   const toggleReferenceNode = (reference: CanvasFlowNode) => {
     setReferenceNodeIds(changeDraftField((current) => {
@@ -1699,7 +1672,6 @@ export function CanvasGenerator({
             assets={mentionAssets}
             highlight={mentionHighlight}
             onChange={(value) => setPrompt(changeDraftValue(value))}
-            onPasteMatch={(_nextValue, matched) => bindPastedMentionAssets(matched)}
           onSelectAsset={selectMentionAsset}
             onMentionOpen={loadMentionLibrary}
             groups={mentionGroups}
