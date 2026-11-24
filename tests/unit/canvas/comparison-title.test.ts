@@ -13,7 +13,7 @@ describe('comparison title helpers', () => {
   it('strips every stacked legacy suffix but keeps unrelated suffixes', () => {
     expect(stripComparisonTitleSuffix('视频节点 · 对照 · 对照 · 对照 · 对照')).toBe('视频节点')
     expect(stripComparisonTitleSuffix('视频节点 · 对照')).toBe('视频节点')
-    expect(stripComparisonTitleSuffix('镜头一 · 对照 2')).toBe('镜头一 · 对照 2')
+    expect(stripComparisonTitleSuffix('镜头一 · 对照 2')).toBe('镜头一')
     expect(stripComparisonTitleSuffix('图片 · 改图')).toBe('图片 · 改图')
     expect(stripComparisonTitleSuffix('节点 · 720全景')).toBe('节点 · 720全景')
     expect(stripComparisonTitleSuffix('对照')).toBe('对照')
@@ -38,24 +38,24 @@ describe('comparison title helpers', () => {
 
   it('continues numbering from a material title that already carries a numbered suffix', () => {
     expect(nextComparisonIndex({ title: '镜头一 · 对照 3' })).toBe(4)
-    expect(nextComparisonIndex({ title: '镜头一 · 对照 3 · 对照 2' })).toBe(3)
+    expect(nextComparisonIndex({ title: '镜头一 · 对照 3 · 对照 2' })).toBe(4)
     expect(nextComparisonIndex({ title: '镜头一 · 对照 12', comparisonIndex: 2 })).toBe(3)
   })
 
   it('restores structured metadata from re-imported material titles', () => {
     expect(restoreComparisonTitle({ title: '镜头一 · 对照 3' })).toEqual({ title: '镜头一', comparisonIndex: 3 })
-    expect(restoreComparisonTitle({ title: '镜头一 · 对照 3 · 对照 2' })).toEqual({ title: '镜头一 · 对照 3', comparisonIndex: 2 })
+    expect(restoreComparisonTitle({ title: '镜头一 · 对照 3 · 对照 2' })).toEqual({ title: '镜头一', comparisonIndex: 3 })
     expect(restoreComparisonTitle({ title: '视频节点 · 对照 · 对照' })).toEqual({ title: '视频节点', comparisonIndex: 2 })
     expect(restoreComparisonTitle({ title: '镜头一', comparisonIndex: 5 })).toEqual({ title: '镜头一', comparisonIndex: 5 })
     expect(restoreComparisonTitle({ title: '镜头一 · 对照 3', comparisonIndex: 5 })).toEqual({ title: '镜头一 · 对照 3', comparisonIndex: 5 })
     expect(restoreComparisonTitle({ title: '镜头一' })).toEqual({ title: '镜头一', comparisonIndex: 0 })
-    expect(restoreComparisonTitle({ title: '镜头一 · 对照 0' })).toEqual({ title: '镜头一 · 对照 0', comparisonIndex: 1 })
+    expect(restoreComparisonTitle({ title: '镜头一 · 对照 0' })).toEqual({ title: '镜头一 · 对照 0', comparisonIndex: 0 })
+    expect(restoreComparisonTitle({ title: '镜头一 · 对照 · 终版' })).toEqual({ title: '镜头一 · 对照 · 终版', comparisonIndex: 0 })
     expect(restoreComparisonTitle({ title: '' })).toEqual({ title: '', comparisonIndex: 0 })
   })
 
   it('formats a single numbered suffix from the base title', () => {
     expect(formatComparisonTitle('视频节点', 1)).toBe('视频节点 · 对照 1')
-    expect(formatComparisonTitle('视频节点 · 对照 · 对照', 3)).toBe('视频节点 · 对照 3')
     expect(formatComparisonTitle(undefined, 2)).toBe('视频节点 · 对照 2')
     expect(formatComparisonTitle('镜头一', 0)).toBe('镜头一')
     expect(formatComparisonTitle('镜头一', undefined)).toBe('镜头一')
@@ -108,6 +108,11 @@ describe('video comparison draft title', () => {
     expect(draft.node.data.title).toBe('镜头一 · 终版')
     expect(draft.node.data.comparisonIndex).toBe(1)
     expect(formatComparisonTitle(draft.node.data.title, draft.node.data.comparisonIndex)).toBe('镜头一 · 终版 · 对照 1')
+  })
+
+  it('starts a new sequence from a literal title after renaming', () => {
+    const draft = buildDraft({ title: '镜头一 · 对照 9', comparisonIndex: 0 })
+    expect(draft.node.data).toMatchObject({ title: '镜头一 · 对照 9', comparisonIndex: 1 })
   })
 
   it('continues numbering from a re-imported take instead of stacking a second suffix', () => {

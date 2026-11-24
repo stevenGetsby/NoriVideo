@@ -66,6 +66,15 @@ describe('canvas material references', () => {
     const material = { id: 'take-meta', url: '/take.mp4', type: 'video', source: 'toolbox', title: '镜头一 · 对照 3', metadata: { comparisonIndex: 5 } } as unknown as FrameosMaterialItem
     const node = createMaterialFlowNode(material, { x: 0, y: 0 })
     expect(node?.data.comparisonIndex).toBe(5)
+    expect(node?.data.title).toBe('镜头一')
+  })
+  it('preserves literal asset names for uploads and non-video materials', () => {
+    for (const [type, source] of [['video', 'upload'], ['image', 'creative']] as const) {
+      const material = { id: 'literal', url: '/asset', type, source, title: '镜头一 · 对照 3' } as FrameosMaterialItem
+      const node = createMaterialFlowNode(material, { x: 0, y: 0 })
+      expect(node?.data.title).toBe(material.title)
+      expect(node?.data.comparisonIndex).toBeUndefined()
+    }
   })
   it('leaves plain material titles untouched', () => {
     const node = createMaterialFlowNode({ id: 'plain', url: '/plain.mp4', type: 'video', source: 'upload', title: '镜头一' } as FrameosMaterialItem, { x: 0, y: 0 })
