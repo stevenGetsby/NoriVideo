@@ -4994,11 +4994,11 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
         onLostPointerCapture={(event) => { batchConnectPointerRef.current = null; setBatchDropTargetId(null); setNodeDragging(false); finishMiniMapDrag(event.pointerId) }}
         onPointerDown={(event) => { if (event.button === 0) { setContextMenu(null); setWireMenu(null) } }}
         onContextMenuCapture={(event) => {
+          event.preventDefault()
           const target = event.target
           if (!(target instanceof Element)) return
           const referenceId = target.closest('[data-canvas-reference-node-id]')?.getAttribute('data-canvas-reference-node-id')
           if (referenceId) {
-            event.preventDefault()
             event.stopPropagation()
             if (shouldSuppressContextMenu()) return
             setWireMenu(null)
@@ -5007,14 +5007,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
           }
           const insideFlow = Boolean(target.closest('.react-flow'))
           if (target.closest('.nori-canvas-generator') || (insideFlow && isTextEntryTarget(target))) {
-            // Keep the caret and the native Cut/Copy/Paste menu; the custom menu would blur the editor and end edit mode.
+            // Keep the caret in text editors without opening a canvas action menu.
             event.stopPropagation()
             setContextMenu(null)
             setWireMenu(null)
             return
           }
           if (!insideFlow) return
-          event.preventDefault()
           event.stopPropagation()
           if (shouldSuppressContextMenu()) return
           setWireMenu(null)

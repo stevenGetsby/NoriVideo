@@ -66,6 +66,16 @@ try {
   })
   await page.goto(base)
   await page.getByRole('button', { name: '收起', exact: true }).click()
+  const promptContextMenu = await page.locator('.nori-canvas-generator-prompt textarea').evaluate((element) => {
+    const event = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })
+    return !element.dispatchEvent(event)
+  })
+  assert.equal(promptContextMenu, true, 'Right-click in the prompt must suppress the browser menu')
+  assert.equal(await page.getByRole('menu').count(), 0, 'Right-click in the prompt must not open a canvas action menu')
+  const toolbarContextMenu = await page.locator('.nori-canvas-tool-rail button').first().evaluate((element) => {
+    return !element.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }))
+  })
+  assert.equal(toolbarContextMenu, true, 'Right-click on the canvas toolbar must suppress the browser menu')
   const viewport = page.locator('.react-flow__viewport')
   const target = page.locator('.react-flow__node[data-id="ref-1"]')
   const menu = page.getByRole('menu', { name: '引用素材操作' })

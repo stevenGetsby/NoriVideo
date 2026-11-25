@@ -1436,9 +1436,9 @@ try {
       element.dispatchEvent(event)
       return { prevented: event.defaultPrevented, paneMenu: Boolean(document.querySelector('[role="menu"][aria-label="画布操作"]')), nodeMenu: Boolean(document.querySelector('[role="menu"][aria-label="节点操作"]')) }
     })
-    assert.equal(editorContextMenu.prevented, false, 'Right-click inside the portaled editor must keep the native context menu')
+    assert.equal(editorContextMenu.prevented, true, 'Right-click inside the portaled editor must suppress the native context menu')
     assert.equal(editorContextMenu.paneMenu || editorContextMenu.nodeMenu, false, 'The canvas context menu must not open from the editor')
-    cases.push('portaled editor right-click keeps the native menu')
+    cases.push('portaled editor right-click suppresses the native menu')
     await prompt.fill('让角色走入雨夜，')
     await prompt.evaluate((element) => element.setSelectionRange(element.value.length, element.value.length))
     await prompt.pressSequentially('@')
