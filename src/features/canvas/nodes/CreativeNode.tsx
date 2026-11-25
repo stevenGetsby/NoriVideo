@@ -421,8 +421,8 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
           </>
         ) : null}
         {mediaType === 'video' && references.length > 0 ? (
-          <div className="nori-canvas-reference-strip" aria-label="视频引用素材">
-            {references.slice(0, 4).map((reference) => (
+          <div className="nori-canvas-reference-strip nowheel" aria-label={`视频引用素材，共 ${references.length} 项`}>
+            {references.map((reference) => (
               <button
                 type="button"
                 className="nodrag nowheel"
@@ -438,7 +438,6 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
                 <b>@{reference.title}</b>
               </button>
             ))}
-            {references.length > 4 ? <em>+{references.length - 4}</em> : null}
           </div>
         ) : null}
         {mediaType === 'audio' && audioUrl ? <div className="nori-canvas-audio"><Music2 /><audio src={audioUrl} controls className="nodrag nowheel" /></div> : null}

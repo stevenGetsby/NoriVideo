@@ -52,10 +52,29 @@ try {
     source.type = 'audio'
     source.data = { title: '环境雨声', mediaType: 'audio', audioUrl: '/preview-audio.wav', contentUrl: '/preview-audio.wav' }
     graph.edges.push({ ...graph.edges[0], id: 'audio-reference', sourceNodeId: 'ref-2', targetNodeId: 'gen-1' })
+    const image = graph.nodes.find((node) => node.id === 'ref-1')
+    const target = graph.nodes.find((node) => node.id === 'gen-1')
+    for (let index = 3; index <= 8; index++) {
+      const id = `ref-${index}`
+      graph.nodes.push({ ...image, id, position: { x: 90, y: index * 250 }, data: { ...image.data, title: `参考素材${index}` } })
+      graph.edges.push({ ...graph.edges[0], id: `edge-${id}`, sourceNodeId: id, targetNodeId: target.id })
+    }
+    target.data.generation.referenceSummary = graph.nodes.filter((node) => node.id.startsWith('ref-')).map((node) => ({
+      id: node.id, title: node.data.title, type: node.type, previewUrl: node.data.contentUrl,
+    }))
     await route.fulfill({ json: graph })
   })
   await page.goto(base)
   await page.getByRole('button', { name: '收起', exact: true }).click()
+  const thumbnails = page.locator('.nori-canvas-generator-ref-item')
+  const expandReferences = page.getByRole('button', { name: '展开其余 2 项引用缩略图' })
+  await expandReferences.waitFor()
+  assert.equal(await thumbnails.count(), 6)
+  await expandReferences.click()
+  assert.equal(await thumbnails.count(), 8)
+  await page.getByRole('button', { name: '收起引用缩略图' }).click()
+  assert.equal(await thumbnails.count(), 6)
+  assert.equal(await page.locator('.nori-canvas-reference-strip > button').count(), 8)
   const previewToggle = page.getByRole('switch', { name: '放大模式' })
   const referenceImage = page.locator('.nori-canvas-generator-ref[title^="参考素材1"]')
   const imagePreview = page.getByRole('region', { name: '预览 参考素材1' })

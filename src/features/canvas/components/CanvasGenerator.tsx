@@ -1419,6 +1419,15 @@ export function CanvasGenerator({
   const [editorNotice, setEditorNotice] = useState('')
   const editorActiveIds = new Set(referenceNodeIds)
   const managesReferences = type === 'image' || type === 'video'
+  const [expandedReferenceNodeId, setExpandedReferenceNodeId] = useState<string | null>(null)
+  const referencesExpanded = expandedReferenceNodeId === node.id
+  const activeReferenceThumbnails = managesReferences
+    ? displayedReferenceNodes.filter((reference) => editorActiveIds.has(reference.id))
+      .sort((a, b) => referenceNodeIds.indexOf(a.id) - referenceNodeIds.indexOf(b.id))
+    : displayedReferenceNodes
+  const visibleReferenceThumbnails = managesReferences && !referencesExpanded
+    ? activeReferenceThumbnails.slice(0, 6)
+    : activeReferenceThumbnails
   const editorRows = [...displayedReferenceNodes, ...referenceNodes.filter((reference) =>
     (pausedReferenceIds.includes(reference.id) || referenceNodeIds.includes(reference.id)) &&
     !displayedReferenceNodes.some((current) => current.id === reference.id))]
@@ -1824,7 +1833,14 @@ export function CanvasGenerator({
           <span className="nori-canvas-generator-refs-label">引用素材</span>
           {type === 'image' && !isPanorama ? <button type="button" className="nori-canvas-generator-entry" title={storyboard ? '故事版模式下不可使用聚焦' : displayedReferenceNodes.length > 0 ? '框选画面局部作为聚焦参考' : '请先添加或连接一张图片'} disabled={storyboard || displayedReferenceNodes.length === 0} onClick={onFocus}><Focus /><span>聚焦</span></button> : null}
           {type === 'image' && !isPanorama ? <button type="button" className={`nori-canvas-generator-entry${storyboard ? ' is-active' : ''}`} onClick={toggleStoryboard}><LayoutGrid /><span>故事版</span></button> : null}
-          {(managesReferences ? displayedReferenceNodes.filter((reference) => editorActiveIds.has(reference.id)).sort((a, b) => referenceNodeIds.indexOf(a.id) - referenceNodeIds.indexOf(b.id)).slice(0, 4) : displayedReferenceNodes).map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} pauseOnly={managesReferences} previewEnabled={referencePreviewEnabled} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => managesReferences ? applyEditorReferences([incoming.id], false) : toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
+          {visibleReferenceThumbnails.map((incoming) => <ReferenceThumb key={incoming.id} node={incoming} pauseOnly={managesReferences} previewEnabled={referencePreviewEnabled} selected={referenceNodeIds.includes(incoming.id)} wired={wiredReferenceIds.has(incoming.id)} order={referenceOrderLabels.get(incoming.id) || null} onToggle={() => managesReferences ? applyEditorReferences([incoming.id], false) : toggleReferenceNode(incoming)} onRemove={() => removeReference(incoming)} onToggleVoice={onToggleReferenceVoice ? () => onToggleReferenceVoice(incoming.id) : undefined} />)}
+          {managesReferences && activeReferenceThumbnails.length > 6 ? (
+            <button type="button" className="nori-canvas-generator-entry" aria-expanded={referencesExpanded}
+              aria-label={referencesExpanded ? '收起引用缩略图' : `展开其余 ${activeReferenceThumbnails.length - 6} 项引用缩略图`}
+              onClick={() => setExpandedReferenceNodeId(referencesExpanded ? null : node.id)}>
+              <span>{referencesExpanded ? '收起' : `+${activeReferenceThumbnails.length - 6}`}</span>
+            </button>
+          ) : null}
           {referencePickerType ? <button ref={referenceAddRef} type="button" className={`nori-canvas-generator-ref-add${referenceMenuOpen ? ' is-active' : ''}`} title="添加引用素材（无需连线）" aria-label="添加引用素材" aria-haspopup="menu" aria-expanded={referenceMenuOpen} onClick={() => setReferenceMenuOpen((open) => !open)}><Plus /><span aria-hidden="true">参考</span></button> : null}
           {onMatchPromptMaterials && shouldBindCanvasMentionReference(type) ? <button type="button" className="nori-canvas-generator-entry" title="按提示词中出现的资产名/别名，一键引用项目资产并自动连线（不影响已有引用）" aria-label="一键匹配引用" disabled={autoMatching} onClick={() => { void autoMatchReferences() }}><Sparkles /><span>{autoMatching ? '匹配中…' : '一键匹配'}</span></button> : null}
           {displayedReferenceNodes.length > 0 ? <label className="nori-canvas-generator-sound nori-canvas-reference-preview-toggle">
