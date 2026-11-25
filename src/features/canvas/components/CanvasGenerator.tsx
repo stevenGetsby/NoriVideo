@@ -342,6 +342,7 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
 
 export function CanvasGenerator({
   projectId,
+  canvasId,
   node,
   incomingNodes,
   secondaryNodeIds,
@@ -371,6 +372,7 @@ export function CanvasGenerator({
   onVideoPrefixPromptChange,
 }: {
   projectId: string
+  canvasId: string
   node: CanvasFlowNode
   incomingNodes: CanvasFlowNode[]
   secondaryNodeIds?: ReadonlySet<string>
@@ -559,14 +561,23 @@ export function CanvasGenerator({
     return () => query.removeEventListener("change", update)
   }, [])
   const [fullscreen, setFullscreen] = useState(false)
-  const previewPreferenceKey = `nori:reference-preview:${projectId}:${node.id}`
+  const previewPreferenceKey = `nori:canvas-reference-preview:${projectId}:${canvasId}`
+  const legacyPreviewPreferenceKey = `nori:reference-preview:${projectId}:${node.id}`
   const [referencePreviewPreference, setReferencePreviewPreference] = useState<{ key: string; enabled: boolean } | null>(null)
   const referencePreviewEnabled = referencePreviewPreference?.key === previewPreferenceKey && referencePreviewPreference.enabled
   useEffect(() => {
     let enabled = false
-    try { enabled = window.sessionStorage.getItem(previewPreferenceKey) === '1' } catch { /* Storage may be unavailable. */ }
+    try {
+      const storage = window.sessionStorage
+      const saved = storage.getItem(previewPreferenceKey)
+      const preference = saved ?? storage.getItem(legacyPreviewPreferenceKey)
+      enabled = preference === '1'
+      if (saved === null && (preference === '1' || preference === '0')) {
+        storage.setItem(previewPreferenceKey, preference)
+      }
+    } catch { /* Storage may be unavailable. */ }
     setReferencePreviewPreference({ key: previewPreferenceKey, enabled })
-  }, [previewPreferenceKey])
+  }, [previewPreferenceKey, legacyPreviewPreferenceKey])
   const setReferencePreviewEnabled = (enabled: boolean) => {
     setReferencePreviewPreference({ key: previewPreferenceKey, enabled })
     try { window.sessionStorage.setItem(previewPreferenceKey, enabled ? '1' : '0') } catch { /* Keep the current editor usable. */ }

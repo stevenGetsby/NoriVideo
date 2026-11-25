@@ -174,7 +174,6 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const [toolbarShift, setToolbarShift] = useState(0)
   const [toolbarTop, setToolbarTop] = useState(0)
-  const [referencesExpanded, setReferencesExpanded] = useState(false)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
   const [videoFailed, setVideoFailed] = useState(false)
   const [videoActive, setVideoActive] = useState(() => Boolean(videoUrl && recallPlayback(videoUrl)?.playing))
@@ -188,7 +187,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     : actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
   const hiddenReferenceCount = references.length - COLLAPSED_REFERENCE_COUNT
-  const visibleReferences = referencesExpanded ? references : references.slice(0, COLLAPSED_REFERENCE_COUNT)
+  const visibleReferences = references.slice(0, COLLAPSED_REFERENCE_COUNT)
   const currentCost = getCanvasNodeCurrentCostLabel(data, mediaType)
   const previewReferenceNode = previewReference
     ? {
@@ -446,18 +445,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
               ))}
             </div>
             {hiddenReferenceCount > 0 ? (
-              <button
-                type="button"
-                className="nodrag nowheel nori-canvas-reference-expand"
-                aria-expanded={referencesExpanded}
-                aria-label={referencesExpanded ? '收起节点引用缩略图' : `展开节点其余 ${hiddenReferenceCount} 项引用缩略图`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setReferencesExpanded(!referencesExpanded)
-                }}
-              >
-                {referencesExpanded ? '收起' : `+${hiddenReferenceCount}`}
-              </button>
+              <span className="nori-canvas-reference-count" title="在提示词框中查看全部引用">+{hiddenReferenceCount}</span>
             ) : null}
           </div>
         ) : null}

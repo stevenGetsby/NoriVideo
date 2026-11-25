@@ -5996,13 +5996,12 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-reference-thumbnails {
   display: flex;
   min-width: 0;
+  flex-wrap: wrap;
   gap: 3px;
-  overflow: auto hidden;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
 }
 
-.nori-canvas-reference-strip button {
+.nori-canvas-reference-strip button,
+.nori-canvas-reference-count {
   display: grid;
   width: 30px;
   height: 30px;
@@ -6013,8 +6012,9 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   padding: 0;
   color: rgb(var(--nori-primary-text));
   background: rgb(var(--nori-bg-3) / 0.88);
-  cursor: zoom-in;
 }
+
+.nori-canvas-reference-strip button { cursor: zoom-in; }
 
 .nori-canvas-reference-strip button:hover,
 .nori-canvas-reference-strip button:focus-visible {
@@ -6023,10 +6023,10 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   outline: none;
 }
 
-.nori-canvas-reference-strip .nori-canvas-reference-expand {
+.nori-canvas-reference-count {
+  box-sizing: border-box;
   font-size: 10px;
   font-weight: 650;
-  cursor: pointer;
 }
 
 .nori-canvas-reference-strip i {

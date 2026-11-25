@@ -91,6 +91,7 @@ function Fixture() {
         <div className="nori-canvas-workspace">
           <CanvasGenerator
             projectId="project-1"
+            canvasId="canvas-1"
             node={generator}
             incomingNodes={withWired ? [pickerImage2] : []}
             referenceNodes={[...pickerNodes, ...(withThumbs ? [referenceImage, ...(withVoice ? [missingVoiceImage] : [])] : []), generator]}

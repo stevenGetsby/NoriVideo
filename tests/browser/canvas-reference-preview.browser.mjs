@@ -60,7 +60,7 @@ try {
       graph.edges.push({ ...graph.edges[0], id: `edge-${id}`, sourceNodeId: id, targetNodeId: target.id })
     }
     target.data.generation.referenceSummary = graph.nodes.filter((node) => node.id.startsWith('ref-')).map((node) => ({
-      id: node.id, title: node.id === 'ref-8' ? '合成素材LongReferenceName'.repeat(8) : node.data.title, type: node.type, previewUrl: node.data.contentUrl,
+      id: node.id, title: node.data.title, type: node.type, previewUrl: node.data.contentUrl,
     }))
     await route.fulfill({ json: graph })
   })
@@ -79,6 +79,16 @@ try {
   const viewport = page.locator('.react-flow__viewport')
   const target = page.locator('.react-flow__node[data-id="ref-1"]')
   const menu = page.getByRole('menu', { name: '引用素材操作' })
+  const reloadFixture = async () => {
+    await page.reload()
+    await page.getByRole('button', { name: '收起', exact: true }).click()
+    const recovery = page.getByRole('dialog', { name: '恢复本地未同步画布' })
+    const hasRecovery = await recovery.waitFor({ timeout: 2000 }).then(() => true, () => false)
+    if (hasRecovery) {
+      await recovery.getByRole('button', { name: '使用服务器' }).click()
+      await recovery.waitFor({ state: 'hidden' })
+    }
+  }
   for (const selector of ['.nori-canvas-generator-ref', '.nori-canvas-reference-strip button']) {
     const thumbnail = page.locator(`${selector}[data-canvas-reference-node-id="ref-1"]`)
     await thumbnail.waitFor()
@@ -119,14 +129,7 @@ try {
       return Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2
         && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2
     }, await target.elementHandle(), { timeout: 5000 })
-    await page.reload()
-    await page.getByRole('button', { name: '收起', exact: true }).click()
-    const recovery = page.getByRole('dialog', { name: '恢复本地未同步画布' })
-    const hasRecovery = await recovery.waitFor({ timeout: 2000 }).then(() => true, () => false)
-    if (hasRecovery) {
-      await recovery.getByRole('button', { name: '使用服务器' }).click()
-      await recovery.waitFor({ state: 'hidden' })
-    }
+    await reloadFixture()
   }
   console.log('PASS: both thumbnail menus locate the source only after clicking Locate')
   const editorThumbnail = page.locator('.nori-canvas-generator-ref[data-canvas-reference-node-id="ref-1"]')
@@ -152,20 +155,10 @@ try {
   assert.equal(await thumbnails.count(), 6)
   const strip = page.locator('.nori-canvas-reference-strip')
   const cardThumbnails = strip.locator('button[data-canvas-reference-node-id]')
-  const expandCard = strip.getByRole('button', { name: '展开节点其余 4 项引用缩略图' })
   assert.equal(await cardThumbnails.count(), 4)
   assert.equal(await strip.innerText(), '+4')
-  assert.equal(await expandCard.getAttribute('aria-expanded'), 'false')
-  await expandCard.click()
-  assert.equal(await cardThumbnails.count(), 8)
-  const lastCardThumbnail = cardThumbnails.last()
-  await lastCardThumbnail.scrollIntoViewIfNeeded()
-  assert.equal(await lastCardThumbnail.innerText(), '')
-  assert.match(await lastCardThumbnail.getAttribute('title'), /LongReferenceName/)
-  const collapseCard = strip.getByRole('button', { name: '收起节点引用缩略图' })
-  assert.equal(await collapseCard.getAttribute('aria-expanded'), 'true')
-  await collapseCard.click()
-  assert.equal(await cardThumbnails.count(), 4)
+  assert.equal(await strip.getByRole('button').count(), 4)
+  assert.equal(await strip.locator('.nori-canvas-reference-thumbnails').evaluate((element) => getComputedStyle(element).overflowX), 'visible')
   const previewToggle = page.getByRole('switch', { name: '放大模式' })
   const referenceImage = page.locator('.nori-canvas-generator-ref[title^="参考素材1"]')
   const imagePreview = page.getByRole('region', { name: '预览 参考素材1' })
@@ -265,11 +258,19 @@ try {
   const settings = page.getByRole('dialog', { name: '生成参数设置' })
   await settings.getByRole('button', { name: '9:16', exact: true }).click()
   await settings.getByRole('button', { name: '关闭生成参数' }).click()
+  await previewToggle.check()
   const modelLabel = await modelTrigger.innerText()
   await page.locator('.nori-canvas-tool-rail button').first().click()
   await page.locator('.nori-canvas-add-panel').getByRole('button', { name: /视频.*生成或引用视频/ }).click()
   await modelTrigger.waitFor()
   assert.equal(await modelTrigger.innerText(), modelLabel)
+  await page.getByRole('button', { name: '添加引用素材' }).click()
+  await page.getByRole('menuitem', { name: /从画布选择/ }).click()
+  const picker = page.getByTestId('canvas-reference-picker')
+  await picker.locator('.nori-canvas-reference-picker-tile', { hasText: '参考素材1' }).click()
+  await picker.getByRole('button', { name: '添加引用', exact: true }).click()
+  await page.waitForFunction(() => document.querySelector('.nori-canvas-reference-preview-toggle input')?.checked === true, null, { timeout: 3000 })
+  await previewToggle.uncheck()
   await page.getByRole('button', { name: '生成参数', exact: true }).click()
   assert.equal(await settings.getByRole('button', { name: '9:16', exact: true }).getAttribute('aria-pressed'), 'true')
   await settings.getByRole('button', { name: '16:9', exact: true }).click()
@@ -278,7 +279,11 @@ try {
   await page.locator('.nori-canvas-add-panel').getByRole('button', { name: /视频.*生成或引用视频/ }).click()
   await page.getByRole('button', { name: '生成参数', exact: true }).click()
   assert.equal(await settings.getByRole('button', { name: '16:9', exact: true }).getAttribute('aria-pressed'), 'true')
-  console.log('PASS: a new video node inherits the model and aspect ratio from the last edit')
+  await settings.getByRole('button', { name: '关闭生成参数' }).click()
+  await reloadFixture()
+  await previewToggle.waitFor()
+  assert.equal(await previewToggle.isChecked(), false)
+  console.log('PASS: canvas video nodes share saved preview mode and inherit generation parameters')
   assert.deepEqual(errors, [])
 } finally {
   await browser?.close()

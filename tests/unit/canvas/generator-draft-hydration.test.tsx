@@ -97,6 +97,7 @@ describe('canvas generator draft hydration', () => {
   function render() {
     root.render(<CanvasGenerator
       projectId="project-1"
+      canvasId="canvas-1"
       node={currentNode}
       incomingNodes={[]}
       referenceNodes={[]}
