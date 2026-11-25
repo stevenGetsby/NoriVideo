@@ -21,6 +21,7 @@ import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
 import { listTggSelectableModels } from '@/lib/providers/tgg/catalog'
+import { listAilinkSelectableModels } from '@/lib/providers/ailink/catalog'
 import {
   listNoriBusinessModels,
   type NoriBusinessModelKey,
@@ -43,10 +44,11 @@ const PROVIDER_BASE_URLS = {
   kuaizi: 'https://aiopenapi.kuaizi.cn',
   huimengi: 'https://api.huimengi.com',
   tgg: 'https://tggtoken.org',
+  ailink: 'https://ailink.jinghua.security',
   kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.baseURL,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.baseURL,
 } as const
-const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'] as const
+const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'ailink'] as const
 const PLATFORM_PROVIDER_IDS = [...BASE_PLATFORM_PROVIDER_IDS, 'kimi', 'openai'] as const
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   deepseek: 'DeepSeek 官方',
@@ -54,6 +56,7 @@ const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   kuaizi: 'Kuaizi API',
   huimengi: '绘梦工坊 API',
   tgg: 'TGG Token API',
+  ailink: 'AILink API',
   kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.name,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.name,
 }
@@ -149,6 +152,7 @@ export function environmentProviderKey(providerId: string): string {
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
   if (providerKey === 'tgg') return string(process.env.TGG_API_KEY)
+  if (providerKey === 'ailink') return string(process.env.AILINK_API_KEY)
   if (providerKey === 'kimi' || providerKey === 'openai') {
     return string(process.env[CANVAS_AGENT_PROVIDER_PRESETS[providerKey].envKey])
   }
@@ -194,6 +198,13 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
       type: 'video',
       provider: 'tgg',
       modelKey: `tgg::${model.modelId}`,
+    })),
+    ...listAilinkSelectableModels().map((model): ServiceConfigModel => ({
+      modelId: model.modelId,
+      name: model.name,
+      type: 'video',
+      provider: 'ailink',
+      modelKey: `ailink::${model.modelId}`,
     })),
   ]
 }
@@ -381,7 +392,7 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     providerIds.size !== providers.length
     || !BASE_PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG exactly once')
+    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng, TGG and AILink exactly once')
   }
   // Older config clients can continue saving the original five providers.
   for (const provider of ['kimi', 'openai'] as const) {

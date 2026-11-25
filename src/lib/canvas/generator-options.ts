@@ -51,6 +51,8 @@ export function isSeedance25VideoModelKey(value: unknown): boolean {
   const modelKey = value.trim().toLowerCase()
   return modelKey === 'nori::norivideo2.5'
     || modelKey === 'kuaizi::doubao-seedance-2-5-260628'
+    || modelKey === 'ailink::doubao-seedance-2-5'
+    || modelKey === 'ailink::doubao-seedance-2-5-flash'
     || modelKey === 'doubao-seedance-2-5-260628'
 }
 

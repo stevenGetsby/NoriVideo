@@ -4,6 +4,7 @@ import { pollKuaiziTask } from './providers/kuaizi/poll'
 import type { KuaiziAsyncType } from './providers/kuaizi/external-id'
 import { pollTggTask } from './providers/tgg/poll'
 import type { TggAsyncType } from './providers/tgg/external-id'
+import { pollAilinkTask } from './providers/ailink/poll'
 import type { VideoResultMetadata } from './video-result'
 
 export interface PollResult extends VideoResultMetadata {
@@ -29,8 +30,9 @@ export type ParsedExternalId =
   | (BaseParsedExternalId & { provider: 'KUAIZI'; type: KuaiziAsyncType })
   | (BaseParsedExternalId & { provider: 'HUIMENGI'; type: HuimengiAsyncType })
   | (BaseParsedExternalId & { provider: 'TGG'; type: TggAsyncType })
+  | (BaseParsedExternalId & { provider: 'AILINK'; type: 'VIDEO' })
 
-const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi、绘梦工坊和 TGG 的图片、视频任务'
+const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi、绘梦工坊、TGG 和 AILink 的图片、视频任务'
 
 export function parseExternalId(externalId: string): ParsedExternalId {
   const parts = externalId.split(':')
@@ -57,6 +59,12 @@ export function parseExternalId(externalId: string): ParsedExternalId {
     }
     return { provider: 'TGG', type, providerToken, modelKeyToken, requestId }
   }
+  if (namespace === 'AILINK') {
+    if (type !== 'VIDEO' || !providerToken || !modelKeyToken || !requestId) {
+      throw new Error(RETIRED_MESSAGE)
+    }
+    return { provider: 'AILINK', type, providerToken, modelKeyToken, requestId }
+  }
   throw new Error(RETIRED_MESSAGE)
 }
 
@@ -66,6 +74,15 @@ export async function pollAsyncTask(externalId: string, userId: string, signal?:
   if (parsed.provider === 'HUIMENGI') {
     return pollHuimengiTask({
       type: parsed.type,
+      taskId: parsed.requestId,
+      userId,
+      providerToken: parsed.providerToken,
+      modelToken: parsed.modelKeyToken,
+      signal,
+    })
+  }
+  if (parsed.provider === 'AILINK') {
+    return pollAilinkTask({
       taskId: parsed.requestId,
       userId,
       providerToken: parsed.providerToken,

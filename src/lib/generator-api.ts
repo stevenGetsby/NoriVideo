@@ -14,13 +14,14 @@ import { generateKuaiziAudio, generateKuaiziVideo } from './providers/kuaizi'
 import { generateHuimengiImage, generateHuimengiVideo } from './providers/huimengi'
 import { generateOpenLuxImage } from './providers/openlux'
 import { generateTggVideo } from './providers/tgg'
+import { generateAilinkVideo } from './providers/ailink'
 import { resolveRuntimeModelKey } from './nori-model-catalog'
 import { parseModelKeyStrict } from './model-config-contract'
 import { recordServiceUsageInBackground } from './platform-services/usage'
 import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
 const IMAGE_PROVIDER_IDS = ['openlux', 'huimengi'] as const
-const VIDEO_PROVIDER_IDS = ['kuaizi', 'huimengi', 'tgg'] as const
+const VIDEO_PROVIDER_IDS = ['kuaizi', 'huimengi', 'tgg', 'ailink'] as const
 const AUDIO_PROVIDER_IDS = ['kuaizi'] as const
 
 /**
@@ -210,6 +211,14 @@ async function generateVideoInternal(
     }
     if (getProviderKey(selection.provider).toLowerCase() === 'tgg') {
         return await generateTggVideo({
+            userId,
+            imageUrl,
+            prompt: options?.prompt,
+            options: providerOptions,
+        })
+    }
+    if (getProviderKey(selection.provider).toLowerCase() === 'ailink') {
+        return await generateAilinkVideo({
             userId,
             imageUrl,
             prompt: options?.prompt,

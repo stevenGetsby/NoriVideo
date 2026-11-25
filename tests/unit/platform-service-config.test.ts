@@ -64,7 +64,7 @@ describe('platform service config', () => {
     resetServiceConfigCache()
 
     const config = getPlatformServiceConfigResponse()
-    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'kimi', 'openai'])
+    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'ailink', 'kimi', 'openai'])
     expect(config.canvasAgentModelCatalog.defaultModelKey).toBeNull()
     expect(config.providers.every((provider) => !('apiKey' in provider))).toBe(true)
     expect(config.providers[0].hasApiKey).toBe(true)
@@ -156,7 +156,7 @@ describe('platform service config', () => {
     })
 
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'kimi', 'openai'])
+    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'ailink', 'kimi', 'openai'])
     expect(raw.llm.providers[0].apiKey).toBe('deepseek-key-old')
     expect(raw.llm.providers[1].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].apiKey).toBe('kuaizi-key-for-test')

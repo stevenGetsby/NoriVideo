@@ -305,6 +305,8 @@ type Seedance2AspectRatio = '16:9' | '4:3' | '1:1' | '3:4' | '9:16' | '21:9'
 const SEEDANCE_2_TOKEN_PRICED_MODEL_IDS = new Set([
   'doubao-seedance-2-0-260128',
   'doubao-seedance-2-0-fast-260128',
+  'doubao-seedance-2-5',
+  'doubao-seedance-2-5-flash',
   'doubao-seedance-2-5-260628',
   'norivideo2.5',
   'seedance-2.0',

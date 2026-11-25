@@ -251,7 +251,7 @@ export function resolveNoriModelRoute(modelKey: string | null | undefined): stri
     : businessModel.type === 'image'
       ? ['openlux', 'huimengi']
       : businessModel.type === 'video'
-        ? ['kuaizi', 'huimengi', 'tgg']
+        ? ['kuaizi', 'huimengi', 'tgg', 'ailink']
         : ['kuaizi']
   if (!allowedProviders.includes(provider)) return null
   const pricingType: PricingApiType = businessModel.type === 'llm'

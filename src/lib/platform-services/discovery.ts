@@ -4,6 +4,7 @@ import { isUsableServiceSecret, readMaterializedPlatformServiceConfig } from './
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listTggCatalogModels } from '@/lib/providers/tgg/catalog'
+import { listAilinkCatalogModels } from '@/lib/providers/ailink/catalog'
 
 const MAX_DISCOVERED_MODELS = 500
 const NON_TEXT_MODEL_PATTERN = /(?:embedding|rerank|image|video|audio|speech|whisper|tts|dall[._-]?e)/i
@@ -78,7 +79,9 @@ export async function discoverProviderTextModels(providerId: string): Promise<Di
       ? listHuimengiCatalogModels()
       : getRawProviderKey(provider.id).toLowerCase() === 'tgg'
         ? listTggCatalogModels()
-        : null
+        : getRawProviderKey(provider.id).toLowerCase() === 'ailink'
+          ? listAilinkCatalogModels()
+          : null
   if (catalog) {
     const models = catalog.map((model): ServiceConfigModel => ({
       provider: provider.id,

@@ -11,6 +11,7 @@ export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   kuaizi: 'Kuaizi',
   huimengi: '绘梦工坊',
   tgg: 'TGG',
+  ailink: 'AILink',
 }
 
 export function providerModelDisplayName(runtimeModelKey: string, modelId: string): string {
