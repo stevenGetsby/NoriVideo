@@ -8199,18 +8199,23 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .canvas-editor-manager{position:fixed;inset:0;margin:auto;width:min(540px,calc(100vw - 30px));max-height:calc(100dvh - 30px);overflow:hidden;border:1px solid #434457;border-radius:10px;background:#1b1c26;color:#eee;padding:14px;font:13px/1.4 system-ui,sans-serif;color-scheme:dark}
 .canvas-editor-manager::backdrop{background:#0006}
 .canvas-editor-manager h2{font-size:16px;font-weight:650;margin:0}
-.canvas-editor-manager small,.canvas-editor-manager footer,.canvas-editor-bulk span{color:#bec0d2}
+.canvas-editor-manager small,.canvas-editor-manager footer,.canvas-editor-bulk>span{color:#bec0d2}
 .canvas-editor-manager header,.canvas-editor-filters{margin-bottom:10px}
 .canvas-editor-filters,.canvas-editor-bulk{flex-wrap:wrap}
 .canvas-editor-tabs{display:flex;gap:4px}
 .canvas-editor-tabs button[aria-pressed=true]{background:#393861;border-color:#7774d4}
 .canvas-editor-filters input[type=search]{min-width:100px;flex:1}
-.canvas-editor-bulk{border-top:1px solid #393b4d;padding-block:6px}
-.canvas-editor-bulk span{margin-left:auto}
+.canvas-editor-bulk{border-top:1px solid #393b4d;padding:2px 8px}
+.canvas-editor-bulk>span{margin-left:auto}
 .canvas-editor-scroll{height:min(340px,max(120px,calc(100dvh - 250px)));overflow:auto;overscroll-behavior:contain;border-block:1px solid #393b4d}
-.canvas-editor-reference-row{min-height:49px;padding:5px 0}
+.canvas-editor-reference-row{min-height:50px;padding:2px 8px}
+.canvas-editor-reference-row:has(input:checked){background:#2c2941}
+.canvas-editor-select-visible{display:flex;align-items:center;cursor:pointer}
+.canvas-editor-checkbox{display:grid;place-items:center;flex:none;width:44px;height:44px;cursor:pointer}
+.canvas-editor-manager .canvas-editor-checkbox input{appearance:auto;flex:none;width:16px;height:16px;margin:0;accent-color:#b6adff;cursor:inherit}
+.canvas-editor-checkbox input:focus-visible{outline:2px solid #b6adff;outline-offset:2px}
 .canvas-editor-reference-row+.canvas-editor-reference-row{border-top:1px solid #333547}
-.canvas-editor-order{width:20px;text-align:center}
+.canvas-editor-order{flex:0 0 20px;text-align:center}
 .canvas-editor-row-title{flex:1;min-width:0}
 .canvas-editor-row-title strong,.canvas-editor-row-title small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .canvas-editor-manager footer,.canvas-editor-empty{padding-top:8px}
@@ -8250,7 +8255,7 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator[data-canvas-editor-resized] .nori-canvas-generator-prompt .mention-prompt-editor-layer:focus-within{position:relative;display:block;min-height:0;max-height:none;flex:1}
 .nori-canvas-generator[data-canvas-editor-resized] .mention-prompt-editor-layer textarea,.nori-canvas-generator[data-canvas-editor-resized] .mention-prompt-editor-layer .mention-prompt-highlight{position:absolute;inset:0;width:100%;height:100%;min-height:0!important;max-height:none;field-sizing:fixed}
 .nori-canvas-generator[data-canvas-editor-resized] .nori-canvas-generator-prompt>textarea{height:100%;min-height:0;max-height:none;flex:1;resize:none}
-@media(max-width:600px){.canvas-editor-reference-row{gap:5px}.canvas-editor-manager button{padding-inline:5px}}
+@media(max-width:600px){.canvas-editor-reference-row{gap:5px}.canvas-editor-reference-row,.canvas-editor-bulk{padding-inline:4px}.canvas-editor-manager button{padding-inline:5px}}
 
 /* Canvas navigation and compact touch layout. */
 .nori-canvas-workspace :is(.nori-canvas-tool-rail,.nori-canvas-breadcrumbs){opacity:.5;backdrop-filter:none;transition:opacity 140ms ease}

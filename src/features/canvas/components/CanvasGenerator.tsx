@@ -1451,6 +1451,7 @@ export function CanvasGenerator({
       (editorMedia === 'all' || (reference.data.mediaType || reference.type) === editorMedia) &&
       (reference.data.title || '').toLowerCase().includes(editorQuery.trim().toLowerCase())
   })
+  const editorSelectedCount = editorVisible.filter((item) => editorChecked.includes(item.id)).length
   const openReferenceDialog = (view: 'manage' | 'payload') => {
     setEditorView(view); setEditorTab('all'); setEditorQuery(''); setEditorMedia('all'); setEditorChecked([]); setEditorNotice('')
     editorDialogRef.current?.showModal()
@@ -1963,7 +1964,16 @@ export function CanvasGenerator({
             </select>
           </div>
           <div className="canvas-editor-bulk">
-            <label><input type="checkbox" checked={editorVisible.length > 0 && editorVisible.every((item) => editorChecked.includes(item.id))} disabled={!editorVisible.length} onChange={(event) => setEditorChecked(event.target.checked ? editorVisible.map((item) => item.id) : [])} /> 选择筛选结果</label>
+            <label className="canvas-editor-select-visible">
+              <span className="canvas-editor-checkbox">
+                <input type="checkbox"
+                  ref={(input) => { if (input) input.indeterminate = editorSelectedCount > 0 && editorSelectedCount < editorVisible.length }}
+                  checked={editorVisible.length > 0 && editorSelectedCount === editorVisible.length}
+                  disabled={!editorVisible.length}
+                  onChange={(event) => setEditorChecked(event.target.checked ? editorVisible.map((item) => item.id) : [])} />
+              </span>
+              选择筛选结果
+            </label>
             <button type="button" disabled={!editorChecked.some((id) => editorActiveIds.has(id))} onClick={() => applyEditorReferences(editorChecked.filter((id) => editorActiveIds.has(id)), false)}>批量暂停</button>
             <button type="button" disabled={!editorChecked.some((id) => !editorActiveIds.has(id))} onClick={() => applyEditorReferences(editorChecked.filter((id) => !editorActiveIds.has(id)), true)}>批量恢复</button>
             <span>{editorChecked.length ? '已选 ' + editorChecked.length + ' 项' : editorVisible.length + ' 项'}</span>
@@ -1976,7 +1986,9 @@ export function CanvasGenerator({
           const wired = wiredReferenceIds.has(reference.id)
           const role = editorReferenceRole(reference, index)
           return <div className="canvas-editor-reference-row" key={reference.id}>
-            <input type="checkbox" aria-label={'选择' + reference.data.title} checked={editorChecked.includes(reference.id)} onChange={(event) => { const checked = event.target.checked; setEditorChecked((current) => checked ? [...current, reference.id] : current.filter((id) => id !== reference.id)) }} />
+            <label className="canvas-editor-checkbox">
+              <input type="checkbox" aria-label={'选择' + reference.data.title} checked={editorChecked.includes(reference.id)} onChange={(event) => { const checked = event.target.checked; setEditorChecked((current) => checked ? [...current, reference.id] : current.filter((id) => id !== reference.id)) }} />
+            </label>
             <span className="canvas-editor-order">{active ? index + 1 : '—'}</span>
             <div className="canvas-editor-row-title"><strong>{reference.data.title}</strong><small>{role} · {wired ? '已连线' : '未连线'}</small></div>
             <button type="button" onClick={() => applyEditorReferences([reference.id], !active)}>{active ? '暂停使用' : '恢复使用'}</button>

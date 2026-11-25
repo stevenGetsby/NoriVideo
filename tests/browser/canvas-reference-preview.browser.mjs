@@ -243,6 +243,20 @@ try {
   await page.getByRole('button', { name: /^管理引用/ }).click()
   const manager = page.getByRole('dialog', { name: '管理引用' })
   const imageRow = manager.locator('.canvas-editor-reference-row').filter({ hasText: '参考素材1' })
+  const selectVisible = manager.getByRole('checkbox', { name: '选择筛选结果' })
+  const selectImage = imageRow.getByRole('checkbox')
+  await selectImage.check()
+  assert.equal(await selectVisible.evaluate((input) => input.indeterminate), true)
+  const checkboxBounds = await manager.getByRole('checkbox').evaluateAll((inputs) => inputs.map((input) => ({
+    left: input.getBoundingClientRect().left,
+    width: input.offsetWidth,
+    hitWidth: input.parentElement.offsetWidth,
+  })))
+  assert.ok(checkboxBounds.every(({ left, width, hitWidth }) => Math.abs(left - checkboxBounds[0].left) < 1 && width === 16 && hitWidth === 44))
+  await selectVisible.check()
+  assert.equal(await selectImage.isChecked(), true)
+  await selectVisible.uncheck()
+  assert.equal(await selectImage.isChecked(), false)
   await imageRow.getByRole('button', { name: '暂停使用' }).click()
   await imageRow.getByText('图片参考 · 已连线').waitFor()
   await manager.getByRole('button', { name: '完成' }).click()
