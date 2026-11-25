@@ -4557,6 +4557,8 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
     },
   })
 
+  const dismissContextMenu = useCallback(() => setContextMenu(null), [])
+
   const handleContextAction = (action: string) => {
     const menu = contextMenu
     setContextMenu(null)
@@ -4992,7 +4994,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
           }
         }}
         onLostPointerCapture={(event) => { batchConnectPointerRef.current = null; setBatchDropTargetId(null); setNodeDragging(false); finishMiniMapDrag(event.pointerId) }}
-        onPointerDown={(event) => { if (event.button === 0) { setContextMenu(null); setWireMenu(null) } }}
+        onPointerDown={(event) => { if (event.button === 0) setWireMenu(null) }}
         onContextMenuCapture={(event) => {
           event.preventDefault()
           const target = event.target
@@ -5231,7 +5233,7 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
           <button type="button" disabled={selectionDownloadNodes.length === 0} title={selectionDownloadNodes.length > 0 ? `打包下载选中的 ${selectionDownloadNodes.length} 个节点内容` : '选中的节点暂无可下载内容'} onClick={() => downloadCanvasNodes(selectionDownloadNodes, '画布批量下载')}>下载</button>
           <button type="button" onClick={createGroup}>成组</button><button type="button" className="is-primary" onClick={() => organizeSelection('vertical')}>纵向整理</button><button type="button" onClick={() => organizeSelection('horizontal')}>横向排列</button></> : null}<button type="button" className="is-danger" onClick={removeCurrentSelection}>删除选中{selectedEdges.length ? `连线 ${selectedEdges.length}` : ''}</button></div> : null}
         {!readOnly ? renderGenerator() : null}
-        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} isVideoPrefixPrompt={contextNode?.data.videoPrefixPrompt === true} readOnly={readOnly} onAction={handleContextAction} /> : null}
+        {contextMenu ? <CanvasContextMenu state={contextMenu} canPaste={!readOnly && clipboardCanPaste} canRegenerate={!readOnly && canRegenerateContextNode} canUploadToAssetLibrary={canUploadToAssetLibrary} nodeMediaType={contextNode ? getMediaType(contextNode) : null} isGlobalStylePrompt={contextNode?.data.globalStylePrompt === true} isVideoPrefixPrompt={contextNode?.data.videoPrefixPrompt === true} readOnly={readOnly} onAction={handleContextAction} onDismiss={dismissContextMenu} /> : null}
         <CanvasViewportLayer>
         {!readOnly && assetLibraryNode ? <CanvasAssetLibraryDialog initialTitle={assetLibraryNode.data.title || '画布素材'} imageUrl={toDisplayImageUrl(assetLibraryNode.data.contentUrl || assetLibraryNode.data.imageUrl || assetLibraryNode.data.posterUrl || null)} onConfirm={(input) => uploadNodeToAssetLibrary(assetLibraryNode.id, input)} onClose={() => setAssetLibraryNodeId(null)} /> : null}
         {!readOnly && wireMenu ? (wireMenu.story && wireMenu.story !== 'media'

@@ -60,7 +60,7 @@ try {
       graph.edges.push({ ...graph.edges[0], id: `edge-${id}`, sourceNodeId: id, targetNodeId: target.id })
     }
     target.data.generation.referenceSummary = graph.nodes.filter((node) => node.id.startsWith('ref-')).map((node) => ({
-      id: node.id, title: node.data.title, type: node.type, previewUrl: node.data.contentUrl,
+      id: node.id, title: node.id === 'ref-8' ? '合成素材LongReferenceName'.repeat(8) : node.data.title, type: node.type, previewUrl: node.data.contentUrl,
     }))
     await route.fulfill({ json: graph })
   })
@@ -79,7 +79,7 @@ try {
   const viewport = page.locator('.react-flow__viewport')
   const target = page.locator('.react-flow__node[data-id="ref-1"]')
   const menu = page.getByRole('menu', { name: '引用素材操作' })
-  for (const selector of ['.nori-canvas-generator-ref', '.nori-canvas-reference-strip > button']) {
+  for (const selector of ['.nori-canvas-generator-ref', '.nori-canvas-reference-strip button']) {
     const thumbnail = page.locator(`${selector}[data-canvas-reference-node-id="ref-1"]`)
     await thumbnail.waitFor()
     const beforeMenu = await viewport.evaluate(async (element) => {
@@ -98,6 +98,20 @@ try {
     const locate = menu.getByRole('menuitem', { name: '定位到节点' })
     await locate.waitFor()
     assert.equal(await viewport.evaluate((element) => element.style.transform), beforeMenu)
+
+    if (selector === '.nori-canvas-reference-strip button') {
+      await page.mouse.click(1390, 780)
+      await menu.waitFor({ state: 'hidden', timeout: 2000 })
+      assert.equal(await viewport.evaluate((element) => element.style.transform), beforeMenu)
+
+      await thumbnail.click({ button: 'right' })
+      await locate.waitFor()
+      await page.getByRole('button', { name: '放大预览 @参考素材4' }).click()
+      await menu.waitFor({ state: 'hidden', timeout: 2000 })
+      const preview = page.getByRole('dialog', { name: '@参考素材4预览' })
+      await preview.getByTitle('关闭 (Esc)').click()
+      await thumbnail.click({ button: 'right' })
+    }
     await locate.click()
     await menu.waitFor({ state: 'hidden' })
     await page.waitForFunction((node) => {
@@ -107,17 +121,51 @@ try {
     }, await target.elementHandle(), { timeout: 5000 })
     await page.reload()
     await page.getByRole('button', { name: '收起', exact: true }).click()
+    const recovery = page.getByRole('dialog', { name: '恢复本地未同步画布' })
+    const hasRecovery = await recovery.waitFor({ timeout: 2000 }).then(() => true, () => false)
+    if (hasRecovery) {
+      await recovery.getByRole('button', { name: '使用服务器' }).click()
+      await recovery.waitFor({ state: 'hidden' })
+    }
   }
   console.log('PASS: both thumbnail menus locate the source only after clicking Locate')
+  const editorThumbnail = page.locator('.nori-canvas-generator-ref[data-canvas-reference-node-id="ref-1"]')
+  const editorPrompt = page.locator('.nori-canvas-generator-prompt textarea')
+  await editorThumbnail.click({ button: 'right' })
+  await menu.waitFor()
+  const beforeDismiss = await viewport.evaluate((element) => element.style.transform)
+  await editorPrompt.click()
+  await menu.waitFor({ state: 'hidden', timeout: 2000 })
+  assert.equal(await editorPrompt.evaluate((element) => element === document.activeElement), true)
+  assert.equal(await viewport.evaluate((element) => element.style.transform), beforeDismiss)
+
+  await editorThumbnail.click({ button: 'right' })
+  await menu.waitFor()
   const thumbnails = page.locator('.nori-canvas-generator-ref-item')
   const expandReferences = page.getByRole('button', { name: '展开其余 2 项引用缩略图' })
   await expandReferences.waitFor()
   assert.equal(await thumbnails.count(), 6)
   await expandReferences.click()
+  await menu.waitFor({ state: 'hidden', timeout: 2000 })
   assert.equal(await thumbnails.count(), 8)
   await page.getByRole('button', { name: '收起引用缩略图' }).click()
   assert.equal(await thumbnails.count(), 6)
-  assert.equal(await page.locator('.nori-canvas-reference-strip > button').count(), 8)
+  const strip = page.locator('.nori-canvas-reference-strip')
+  const cardThumbnails = strip.locator('button[data-canvas-reference-node-id]')
+  const expandCard = strip.getByRole('button', { name: '展开节点其余 4 项引用缩略图' })
+  assert.equal(await cardThumbnails.count(), 4)
+  assert.equal(await strip.innerText(), '+4')
+  assert.equal(await expandCard.getAttribute('aria-expanded'), 'false')
+  await expandCard.click()
+  assert.equal(await cardThumbnails.count(), 8)
+  const lastCardThumbnail = cardThumbnails.last()
+  await lastCardThumbnail.scrollIntoViewIfNeeded()
+  assert.equal(await lastCardThumbnail.innerText(), '')
+  assert.match(await lastCardThumbnail.getAttribute('title'), /LongReferenceName/)
+  const collapseCard = strip.getByRole('button', { name: '收起节点引用缩略图' })
+  assert.equal(await collapseCard.getAttribute('aria-expanded'), 'true')
+  await collapseCard.click()
+  assert.equal(await cardThumbnails.count(), 4)
   const previewToggle = page.getByRole('switch', { name: '放大模式' })
   const referenceImage = page.locator('.nori-canvas-generator-ref[title^="参考素材1"]')
   const imagePreview = page.getByRole('region', { name: '预览 参考素材1' })

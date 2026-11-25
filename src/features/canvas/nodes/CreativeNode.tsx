@@ -117,6 +117,8 @@ function ReferencePreview({ reference }: { reference: CanvasGenerationReferenceS
   return <Icon />
 }
 
+const COLLAPSED_REFERENCE_COUNT = 4
+
 export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const { id, data, selected } = props
   const editor = useCanvasEditor()
@@ -172,6 +174,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
   const toolbarRef = useRef<HTMLDivElement | null>(null)
   const [toolbarShift, setToolbarShift] = useState(0)
   const [toolbarTop, setToolbarTop] = useState(0)
+  const [referencesExpanded, setReferencesExpanded] = useState(false)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
   const [videoFailed, setVideoFailed] = useState(false)
   const [videoActive, setVideoActive] = useState(() => Boolean(videoUrl && recallPlayback(videoUrl)?.playing))
@@ -184,6 +187,8 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     ? []
     : actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
+  const hiddenReferenceCount = references.length - COLLAPSED_REFERENCE_COUNT
+  const visibleReferences = referencesExpanded ? references : references.slice(0, COLLAPSED_REFERENCE_COUNT)
   const currentCost = getCanvasNodeCurrentCostLabel(data, mediaType)
   const previewReferenceNode = previewReference
     ? {
@@ -422,23 +427,38 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         ) : null}
         {mediaType === 'video' && references.length > 0 ? (
           <div className="nori-canvas-reference-strip nowheel" aria-label={`视频引用素材，共 ${references.length} 项`}>
-            {references.map((reference) => (
+            <div className="nori-canvas-reference-thumbnails">
+              {visibleReferences.map((reference) => (
+                <button
+                  type="button"
+                  className="nodrag nowheel"
+                  key={`${reference.role || 'REF'}:${reference.id}`}
+                  data-canvas-reference-node-id={reference.id}
+                  title={`放大预览 @${reference.title}`}
+                  aria-label={`放大预览 @${reference.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setPreviewReference(reference)
+                  }}
+                >
+                  <i><ReferencePreview reference={reference} /></i>
+                </button>
+              ))}
+            </div>
+            {hiddenReferenceCount > 0 ? (
               <button
                 type="button"
-                className="nodrag nowheel"
-                key={`${reference.role || 'REF'}:${reference.id}`}
-                data-canvas-reference-node-id={reference.id}
-                title={`放大预览 @${reference.title}`}
-                aria-label={`放大预览 @${reference.title}`}
+                className="nodrag nowheel nori-canvas-reference-expand"
+                aria-expanded={referencesExpanded}
+                aria-label={referencesExpanded ? '收起节点引用缩略图' : `展开节点其余 ${hiddenReferenceCount} 项引用缩略图`}
                 onClick={(event) => {
                   event.stopPropagation()
-                  setPreviewReference(reference)
+                  setReferencesExpanded(!referencesExpanded)
                 }}
               >
-                <i><ReferencePreview reference={reference} /></i>
-                <b>@{reference.title}</b>
+                {referencesExpanded ? '收起' : `+${hiddenReferenceCount}`}
               </button>
-            ))}
+            ) : null}
           </div>
         ) : null}
         {mediaType === 'audio' && audioUrl ? <div className="nori-canvas-audio"><Music2 /><audio src={audioUrl} controls className="nodrag nowheel" /></div> : null}
