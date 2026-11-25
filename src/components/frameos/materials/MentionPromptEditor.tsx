@@ -533,7 +533,8 @@ export function MentionPromptEditor({
     return (
       <button id={scope === 'main' ? `${listboxId}-${index}` : `${listboxId}-sub-${index}`} role="option" aria-selected={isActive} tabIndex={-1} key={`${scope}:${asset.section || ''}:${assetKey(asset)}`} type="button" className={`mention-prompt-option flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left hover:bg-[var(--fos-fill-mid)]${isActive ? ' is-active' : ''}`} onMouseEnter={() => { if (scope === 'sub') { setSubmenu((current) => current && { ...current, keyboard: true, activeIndex: index }) } else { setActiveIndex(index); setSubmenu(null) } }} onMouseDown={(event) => event.preventDefault()} onClick={() => choose(asset)}>
         <span className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md bg-black/35">
-          {src ? <MediaImage src={src} alt="" fill sizes="32px" style={{ objectFit: 'cover' }} /> : <AppIcon name={assetIcon(asset)} className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white/35" />}
+          <AppIcon name={assetIcon(asset)} className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 text-white/35" />
+          {src && <MediaImage key={src} src={src} alt="" fill sizes="32px" onError={(event) => { event.currentTarget.hidden = true }} />}
         </span>
         <span className="min-w-0 flex-1"><b className="block truncate text-[12px] font-bold text-white">{grouped ? asset.name : `@${asset.name}`}</b>{!grouped && asset.description ? <small className="mt-0.5 block truncate text-[10px] font-normal text-[var(--fos-text-4)]">{asset.description}</small> : null}</span>
         {grouped && !searching && scope === 'main' && (referencedShortcuts.get(assetKey(asset)) ?? 10) <= 9 ? <kbd className="mention-prompt-shortcut">#{referencedShortcuts.get(assetKey(asset))}</kbd> : null}

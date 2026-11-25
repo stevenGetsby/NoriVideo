@@ -1,6 +1,7 @@
 import type { MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { FRAMEOS_ASSET_CATEGORY_LABELS, frameosAssetCategoryFromMetadata, type FrameosAssetCategory } from '@/lib/frameos/material-category'
+import { toVideoPosterUrl } from '@/lib/media/image-url'
 import { normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
 import type { CanvasFlowNode } from '../editor-types'
 
@@ -74,7 +75,7 @@ function mediaLabel(mediaType: CanvasMentionMediaType): string {
 
 function referencePreview(node: CanvasFlowNode, mediaType: CanvasMentionMediaType): string | null {
   if (mediaType === 'audio') return null
-  if (mediaType === 'video') return node.data.posterUrl || node.data.imageUrl || null
+  if (mediaType === 'video') return node.data.posterUrl || node.data.imageUrl || toVideoPosterUrl(node.data.videoUrl || node.data.contentUrl, 480)
   return node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null
 }
 
@@ -187,7 +188,9 @@ export function buildCanvasLibraryMentionAssets(
         mediaType,
         materialId: material.id,
         material,
-        imageUrl: mediaType === 'audio' ? null : material.url,
+        imageUrl: mediaType === 'video'
+          ? toVideoPosterUrl(material.url, 480) ?? toVideoPosterUrl(material.storageKey, 480)
+          : mediaType === 'image' ? material.url : null,
         section: 'library',
         category,
         description: `${canvasMentionCategoryLabel(category)} · ${mediaLabel(mediaType)} · ${material.projectName}`,

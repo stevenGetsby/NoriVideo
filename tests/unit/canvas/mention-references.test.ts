@@ -73,10 +73,14 @@ describe('canvas @mention references', () => {
     const assets = buildCanvasLibraryMentionAssets([
       material('character-1', '林夏', { isFavorited: true, metadata: { assetCategory: 'character' } }),
       material('location-1', '雨夜街巷', { metadata: { assetCategory: 'location' } }),
-      material('video-1', '环境视频', { type: 'video' }),
+      material('video-1', '环境视频', { type: 'video', url: 'video/synthetic-preview.mp4' }),
       material('unready', '生成中', { status: 'processing' }),
       material('audio-1', '不可选音频', { type: 'audio' }),
     ], ['image', 'video'])
+
+    const poster = new URL(assets[0].imageUrl!, 'https://fixture.invalid')
+    expect(poster.searchParams.get('key')).toBe('video/synthetic-preview.mp4')
+    expect(poster.searchParams.get('poster')).toBe('480')
 
     expect(assets.map(({ id, category, section }) => ({ id, category, section }))).toEqual([
       { id: 'library:other:video-1', category: 'other', section: 'library' },
