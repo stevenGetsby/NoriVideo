@@ -427,6 +427,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
                 type="button"
                 className="nodrag nowheel"
                 key={`${reference.role || 'REF'}:${reference.id}`}
+                data-canvas-reference-node-id={reference.id}
                 title={`放大预览 @${reference.title}`}
                 aria-label={`放大预览 @${reference.title}`}
                 onClick={(event) => {

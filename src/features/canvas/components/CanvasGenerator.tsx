@@ -282,6 +282,7 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
     }}>
       <button
         ref={previewAnchorRef}
+        data-canvas-reference-node-id={node.id}
         onFocus={openPreview}
         onBlur={schedulePreviewClose}
         onKeyDown={(event) => {

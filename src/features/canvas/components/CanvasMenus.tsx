@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Server, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
+import { Clipboard, Copy, Film, Focus, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Server, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, STORY_ADD_NODE_ITEMS, STORY_INTERACTION_ADD_ITEMS, storyAddItemKey, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState, type StoryAddNodeItem } from '../editor-types'
 import type { StoryInteractionKind } from '@/lib/interactive/types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
@@ -49,7 +49,9 @@ export function CanvasContextMenu({
   readOnly: boolean
   onAction: (action: string) => void
 }) {
-  const items: ContextMenuItem[] = state.scope === 'group'
+  const items: ContextMenuItem[] = state.scope === 'reference'
+    ? [{ key: 'locate-reference', label: '定位到节点', icon: Focus }]
+    : state.scope === 'group'
     ? readOnly ? [
       { key: 'copy', label: '复制', icon: Copy, shortcut: '⌘ C' },
     ] : [
@@ -108,7 +110,7 @@ export function CanvasContextMenu({
       <div
         className="nori-canvas-context-menu"
         role="menu"
-        aria-label={state.scope === 'node' ? '节点操作' : state.scope === 'group' ? '分组操作' : state.scope === 'edge' ? '连线操作' : '画布操作'}
+        aria-label={state.scope === 'reference' ? '引用素材操作' : state.scope === 'node' ? '节点操作' : state.scope === 'group' ? '分组操作' : state.scope === 'edge' ? '连线操作' : '画布操作'}
         style={{ left: state.x, top: state.y }}
         onPointerDown={(event) => event.stopPropagation()}
       >

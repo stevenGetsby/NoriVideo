@@ -66,6 +66,39 @@ try {
   })
   await page.goto(base)
   await page.getByRole('button', { name: '收起', exact: true }).click()
+  const viewport = page.locator('.react-flow__viewport')
+  const target = page.locator('.react-flow__node[data-id="ref-1"]')
+  const menu = page.getByRole('menu', { name: '引用素材操作' })
+  for (const selector of ['.nori-canvas-generator-ref', '.nori-canvas-reference-strip > button']) {
+    const thumbnail = page.locator(`${selector}[data-canvas-reference-node-id="ref-1"]`)
+    await thumbnail.waitFor()
+    const beforeMenu = await viewport.evaluate(async (element) => {
+      let previous = element.style.transform
+      let stableSince = performance.now()
+      while (performance.now() - stableSince < 150) {
+        await new Promise(requestAnimationFrame)
+        if (element.style.transform !== previous) {
+          previous = element.style.transform
+          stableSince = performance.now()
+        }
+      }
+      return previous
+    })
+    await thumbnail.click({ button: 'right' })
+    const locate = menu.getByRole('menuitem', { name: '定位到节点' })
+    await locate.waitFor()
+    assert.equal(await viewport.evaluate((element) => element.style.transform), beforeMenu)
+    await locate.click()
+    await menu.waitFor({ state: 'hidden' })
+    await page.waitForFunction((node) => {
+      const bounds = node.getBoundingClientRect()
+      return Math.abs(bounds.x + bounds.width / 2 - innerWidth / 2) < 2
+        && Math.abs(bounds.y + bounds.height / 2 - innerHeight / 2) < 2
+    }, await target.elementHandle(), { timeout: 5000 })
+    await page.reload()
+    await page.getByRole('button', { name: '收起', exact: true }).click()
+  }
+  console.log('PASS: both thumbnail menus locate the source only after clicking Locate')
   const thumbnails = page.locator('.nori-canvas-generator-ref-item')
   const expandReferences = page.getByRole('button', { name: '展开其余 2 项引用缩略图' })
   await expandReferences.waitFor()

@@ -4561,6 +4561,13 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
     const menu = contextMenu
     setContextMenu(null)
     if (!menu) return
+    if (menu.scope === 'reference') {
+      if (action === 'locate-reference') {
+        if (nodesRef.current.some((node) => node.id === menu.nodeId)) fitCanvasView([menu.nodeId], { padding: 0.45, maxZoom: 1, duration: 300 })
+        else setToast('该引用的原节点已不在画布中')
+      }
+      return
+    }
     if (readOnly && action !== 'copy' && action !== 'reset-viewport') return
     if (menu.scope === 'node') {
       if (action === 'copy') { setNodes((current) => current.map((node) => ({ ...node, selected: node.id === menu.nodeId }))); void copySelection(false, [menu.nodeId]) }
@@ -4989,6 +4996,15 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
         onContextMenuCapture={(event) => {
           const target = event.target
           if (!(target instanceof Element)) return
+          const referenceId = target.closest('[data-canvas-reference-node-id]')?.getAttribute('data-canvas-reference-node-id')
+          if (referenceId) {
+            event.preventDefault()
+            event.stopPropagation()
+            if (shouldSuppressContextMenu()) return
+            setWireMenu(null)
+            setContextMenu({ scope: 'reference', nodeId: referenceId, ...visibleMenuPoint(event.clientX, event.clientY, 50) })
+            return
+          }
           const insideFlow = Boolean(target.closest('.react-flow'))
           if (target.closest('.nori-canvas-generator') || (insideFlow && isTextEntryTarget(target))) {
             // Keep the caret and the native Cut/Copy/Paste menu; the custom menu would blur the editor and end edit mode.
