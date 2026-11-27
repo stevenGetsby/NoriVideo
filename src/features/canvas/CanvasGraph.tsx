@@ -1355,14 +1355,21 @@ function CanvasEditor({ mode, projectId, projectName, canvases, initialGraph, li
   const cleanupDisconnectedReferences = useCallback((removedEdges: CanvasFlowEdge[], remainingEdges: CanvasFlowEdge[]) => {
     if (removedEdges.length === 0) return
     setNodes((current) => current.map((node) => {
-      const referenceNodeIds = node.data.generation?.referenceNodeIds
+      const generation = node.data.generation
+      const referenceNodeIds = generation?.referenceNodeIds
+      const pausedReferenceNodeIds = generation?.pausedReferenceNodeIds
       const nextReferenceNodeIds = removeDisconnectedCanvasReferences(referenceNodeIds, node.id, removedEdges, remainingEdges)
-      if (nextReferenceNodeIds === referenceNodeIds) return node
+      const nextPausedReferenceNodeIds = removeDisconnectedCanvasReferences(pausedReferenceNodeIds, node.id, removedEdges, remainingEdges)
+      if (nextReferenceNodeIds === referenceNodeIds && nextPausedReferenceNodeIds === pausedReferenceNodeIds) return node
       return {
         ...node,
         data: {
           ...node.data,
-          generation: { ...(node.data.generation || {}), referenceNodeIds: nextReferenceNodeIds },
+          generation: {
+            ...(generation || {}),
+            ...(nextReferenceNodeIds ? { referenceNodeIds: nextReferenceNodeIds } : {}),
+            ...(nextPausedReferenceNodeIds ? { pausedReferenceNodeIds: nextPausedReferenceNodeIds } : {}),
+          },
         },
       }
     }))

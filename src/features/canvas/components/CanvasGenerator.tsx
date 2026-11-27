@@ -1438,9 +1438,12 @@ export function CanvasGenerator({
   const visibleReferenceThumbnails = managesReferences && !referencesExpanded
     ? activeReferenceThumbnails.slice(0, 6)
     : activeReferenceThumbnails
-  const editorRows = [...displayedReferenceNodes, ...referenceNodes.filter((reference) =>
+  const editorRows = [...displayedReferenceNodes.filter((reference) => (
+    editorActiveIds.has(reference.id) || pausedReferenceIds.includes(reference.id) || wiredReferenceIds.has(reference.id)
+  )), ...referenceNodes.filter((reference) =>
     (pausedReferenceIds.includes(reference.id) || referenceNodeIds.includes(reference.id)) &&
-    !displayedReferenceNodes.some((current) => current.id === reference.id))]
+    !displayedReferenceNodes.some((current) => current.id === reference.id)
+  )]
     .sort((a, b) => (editorActiveIds.has(a.id) ? referenceNodeIds.indexOf(a.id) : Infinity) -
       (editorActiveIds.has(b.id) ? referenceNodeIds.indexOf(b.id) : Infinity))
   const editorVisible = editorRows.filter((reference) => {
