@@ -273,7 +273,10 @@ export type CanvasProcessType =
   | 'subtitle_erase'
   | 'audio_extract'
 
+export type CanvasOmniReferenceTaskType = 'auto' | 'reference' | 'edit' | 'extend'
+
 export type CanvasGenerationConfig = {
+  settingsEditedAt?: number
   modelKey?: string
   modelLabel?: string
   inputSchema?: CanvasGenerationInputSchema | null
@@ -284,13 +287,22 @@ export type CanvasGenerationConfig = {
   referenceSummary?: CanvasGenerationReferenceSummary[]
   /** Reference node id → the @names the last submitted prompt used for it. */
   referenceMentionNames?: Record<string, string[]>
+  /** Explicit @name → reference node picks made in the editor, persisted with the draft. */
+  referenceMentionSelections?: CanvasGenerationMentionSelection[]
+  pausedReferenceNodeIds?: string[]
   aspectRatio?: string
   resolution?: string
   quality?: 'low' | 'medium' | 'high'
   duration?: number
   generateAudio?: boolean
+  omniReferenceTaskType?: CanvasOmniReferenceTaskType
   count?: number
   parameters?: Record<string, string | number | boolean>
+}
+
+export type CanvasGenerationMentionSelection = {
+  nodeId: string
+  name: string
 }
 
 export type CanvasGenerationReferenceSummary = {

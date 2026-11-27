@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { canvasRevisionChannelName } from '@/lib/canvas/revision-broadcast'
 import { canvasApi, CanvasRevisionConflictError } from '../api/client'
 import type { CanvasEdge, CanvasDocumentInput, CanvasGraphResponse, CanvasNode, CanvasOperation, Viewport } from '../types'
 import type { CanvasFlowEdge, CanvasFlowNode } from '../editor-types'
@@ -328,21 +329,18 @@ export function useCanvasAutosave({
     automaticConflictMergesRef.current += 1
     try {
       const graph = await canvasApi.get(projectId, canvasId)
-      const recoveryDocument = pendingFullDocumentRef.current
+      // mergeIncomingGraph already does a three-way merge of the local editor
+      // state (including any pending recovery ops) with the server document.
+      // We must NOT re-apply pendingFullDocumentRef afterwards, because that
+      // would overwrite the merged result with a stale local snapshot.
       await mergeIncomingGraph(graph, '自动合并多标签页更改')
-      if (recoveryDocument) {
-        pendingFullDocumentRef.current = {
-          ...recoveryDocument,
-          expectedRevision: graph.canvas.revision,
-        }
-        summaryRef.current = '恢复本地未同步版本'
-      }
-      forceFullSaveRef.current = recoveryDocument !== null
+      pendingFullDocumentRef.current = null
+      forceFullSaveRef.current = false
       pausedRef.current = false
       setConflictOpen(false)
       dirtyRef.current = true
       contentDirtyRef.current = true
-      summaryRef.current = recoveryDocument ? '恢复本地未同步版本' : '自动合并多标签页更改'
+      summaryRef.current = '自动合并多标签页更改'
       offlineBufferRef.current?.schedule()
       if (mountedRef.current) setSaveState('pending')
       return true
@@ -743,7 +741,7 @@ export function useCanvasAutosave({
     if (!enabled) return
     const channel = typeof BroadcastChannel === 'undefined'
       ? null
-      : new BroadcastChannel(`nori-canvas:${accountId.trim()}:${projectId}:${canvasId}`)
+      : new BroadcastChannel(canvasRevisionChannelName(accountId, projectId, canvasId))
     if (channel) {
       revisionChannelRef.current = channel
       channel.onmessage = (event: MessageEvent<unknown>) => {
@@ -823,12 +821,17 @@ export function useCanvasAutosave({
     const draft = offlineDraftRef.current
     if (!draft) return
     const geometryOnly = isCanvasGeometryOfflineDraft(draft)
+    // Always fetch the latest server document so the recovery can replay local
+    // pending ops on top of it. Passing the whole local snapshot would overwrite
+    // anything the server learned while this tab was offline.
+    const graph = await canvasApi.get(projectId, canvasId)
+    const serverDocument = canvasGraphToDocument(graph, clientIdRef.current)
     const document = resolveCanvasOfflineRecoveryChoice({
       draft,
       choice: 'local',
-      serverRevision: revisionRef.current,
+      serverRevision: graph.canvas.revision,
       clientId: clientIdRef.current,
-      ...(geometryOnly ? { currentDocument: buildRef.current(revisionRef.current, clientIdRef.current, '恢复本地未同步版本') } : {}),
+      currentDocument: serverDocument,
     })
     if (!document) return
     restoreInProgressRef.current = true
@@ -839,10 +842,15 @@ export function useCanvasAutosave({
         role: edge.role === 'VIDEO_FRAME' ? 'REF' : edge.role,
       })),
     }
+    revisionRef.current = graph.canvas.revision
+    confirmedDocumentRef.current = serverDocument
     dirtyRef.current = true
     contentDirtyRef.current = true
-    forceFullSaveRef.current = !geometryOnly
-    pendingFullDocumentRef.current = geometryOnly ? null : restoredDocument
+    // Save via the operations API after recovery. The server document is already
+    // confirmed, so the flush will diff `restoredDocument` against it and emit
+    // only the ops the local draft actually performed.
+    forceFullSaveRef.current = false
+    pendingFullDocumentRef.current = restoredDocument
     summaryRef.current = '恢复本地未同步版本'
     offlineDraftRef.current = null
     void offlineBufferRef.current?.flush().catch(() => undefined)
@@ -856,7 +864,7 @@ export function useCanvasAutosave({
     setSaveState('pending')
     clearSaveTimer()
     timerRef.current = setTimeout(() => void flushRef.current(), canvasTabSaveDelay(RESTORE_SAVE_DELAY_MS, tabIdRef.current))
-  }, [clearSaveTimer])
+  }, [canvasId, clearSaveTimer, projectId])
 
   const useServerVersion = useCallback(async () => {
     restoreInProgressRef.current = true

@@ -26,7 +26,7 @@ import {
 } from '@/lib/canvas/playlist'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { CANVAS_MATERIAL_DRAG_TYPE } from '../components/CanvasProjectAssets'
-import { useCanvasEditor, useCanvasEditorPersistence, useCanvasMultiSelection, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasEditorPersistence, useCanvasMultiSelection, useCanvasPlaylistDropTarget, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasPlaylistItem, CanvasPlaylistRenderSummary, CanvasPlaylistReviewSummary } from '../types'
 import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
@@ -102,7 +102,8 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const persistence = useCanvasEditorPersistence()
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
-  const acceptingNodeDrop = editor.playlistDropTargetId === id
+  const playlistDropTargetId = useCanvasPlaylistDropTarget()
+  const acceptingNodeDrop = playlistDropTargetId === id
   const videoRef = useRef<HTMLVideoElement>(null)
   const continuePlaybackRef = useRef(false)
   const pendingSeekMsRef = useRef<number | null>(null)

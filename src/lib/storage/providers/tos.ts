@@ -217,6 +217,20 @@ export class TosStorageProvider implements StorageProvider {
     return await streamToBuffer(res.body)
   }
 
+  async objectExists(key: string): Promise<boolean> {
+    const url = this.objectUrl(normalizeKey(key))
+    const headers = this.signRequest({
+      method: 'HEAD',
+      url,
+      unsignedPayload: true,
+    })
+    const res = await fetch(url, { method: 'HEAD', headers })
+    if (res.ok) return true
+    if (res.status === 404) return false
+    const text = await res.text().catch(() => '')
+    throw new Error(`TOS_HEAD_FAILED: ${res.status} ${res.statusText}${text ? ` ${text.slice(0, 500)}` : ''}`)
+  }
+
   extractStorageKey(input: string | null | undefined): string | null {
     if (!input) return null
     if (!input.startsWith('http') && !input.startsWith('/')) {

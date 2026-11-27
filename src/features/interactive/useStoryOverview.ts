@@ -85,6 +85,35 @@ export function useStoryOverview(workId: string) {
       })
   }, [reload, url])
 
+  const updateChapter = useCallback(async (projectId: string, input: { name: string; description: string | null }) => {
+    setSaveError(null)
+    try {
+      const response = await apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      })
+      if (!response.ok) throw new Error(await storyErrorMessage(response, '保存章节失败'))
+      await reload()
+    } catch (error) {
+      setSaveError(errorText(error, '保存章节失败'))
+      throw error
+    }
+  }, [reload])
+
+  const deleteChapter = useCallback(async (projectId: string) => {
+    setSaveError(null)
+    try {
+      const response = await apiFetch(`${url}/chapters/${encodeURIComponent(projectId)}`, { method: 'DELETE' })
+      if (!response.ok) throw new Error(await storyErrorMessage(response, '删除章节失败'))
+      await reload()
+      return true
+    } catch (error) {
+      setSaveError(errorText(error, '删除章节失败'))
+      return false
+    }
+  }, [reload, url])
+
   const createChapter = useCallback(async () => {
     setCreatingChapter(true)
     setSaveError(null)
@@ -106,5 +135,5 @@ export function useStoryOverview(workId: string) {
     }
   }, [reload, url])
 
-  return { data, loadError, saveError, saving: saving > 0, creatingChapter, reload, patch, createChapter, dismissError: () => setSaveError(null) }
+  return { data, loadError, saveError, saving: saving > 0, creatingChapter, reload, patch, createChapter, updateChapter, deleteChapter, dismissError: () => setSaveError(null) }
 }

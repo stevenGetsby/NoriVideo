@@ -26,6 +26,7 @@ export interface ServiceConfigProvider {
   baseUrl?: string
   apiKey?: string
   assetGroupId?: string
+  seedance25IntlKzep?: string
 }
 
 export interface ServiceConfigModel {
@@ -54,6 +55,11 @@ export interface ServiceConfigLlm {
   models?: ServiceConfigModel[]
   defaultModels?: ServiceConfigDefaultModels
   modelRouting?: Record<string, string>
+  modelEnabled?: Record<string, boolean>
+  internalModelViewUserIds?: string[]
+  customerVisibleModels?: Record<string, boolean>
+  customerModelOverrides?: Record<string, Record<string, boolean>>
+  customerModelRoutingOverrides?: Record<string, Record<string, string>>
   agentModels?: Record<string, { canvasAgent?: boolean; supportsTemperature?: boolean }>
 }
 
@@ -302,6 +308,20 @@ export function getServiceLlmConfig(): ServiceConfigLlm | undefined {
       // (hfsy, ark, …) stay rejected.
       return isSupportedModelProvider(provider)
     })),
+    customerModelRoutingOverrides: isRecord(config.customerModelRoutingOverrides)
+      ? Object.fromEntries(Object.entries(config.customerModelRoutingOverrides)
+        .map(([userId, rawMap]) => {
+          if (!isRecord(rawMap)) return [userId, {}] as const
+          const filtered = Object.fromEntries(Object.entries(rawMap).filter(([, value]) => {
+            const normalized = compact(value)
+            if (!normalized) return false
+            const provider = normalized.split('::')[0]
+            return isSupportedModelProvider(provider)
+          }))
+          return [userId, filtered] as const
+        })
+        .filter(([userId, map]) => Boolean(compact(userId)) && Object.keys(map).length > 0))
+      : undefined,
   }
 }
 

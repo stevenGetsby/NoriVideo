@@ -5,7 +5,7 @@ import {
   normalizeToOriginalMediaUrl,
   normalizeToPublicImageUrlForGeneration,
 } from '@/lib/media/outbound-image'
-import { getKuaiziModelDefinition } from './catalog'
+import { getKuaiziModelDefinition, KUAIZI_SEEDANCE_25_INTL_MODEL_ID } from './catalog'
 import { asRecord, postKuaiziApiKey, readString, requestKuaiziBearer } from './client'
 import { formatKuaiziExternalId } from './external-id'
 import type { KuaiziGenerateRequestOptions } from './types'
@@ -59,6 +59,13 @@ const SEEDANCE_MODEL_LIMITS: Record<string, {
     maxAudios: 3,
   },
   'doubao-seedance-2-5-260628': {
+    resolutions: ['480p', '720p', '1080p'],
+    maxDuration: 30,
+    maxImages: 30,
+    maxVideos: 10,
+    maxAudios: 10,
+  },
+  [KUAIZI_SEEDANCE_25_INTL_MODEL_ID]: {
     resolutions: ['480p', '720p', '1080p'],
     maxDuration: 30,
     maxImages: 30,
@@ -160,12 +167,22 @@ async function buildHappyHorseRequest(params: KuaiziVideoGenerateParams): Promis
   }
 }
 
-async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<Record<string, unknown>> {
+export async function buildSeedanceRequest(
+  params: KuaiziVideoGenerateParams,
+  upstreamModelOverride?: string,
+): Promise<Record<string, unknown>> {
   const modelId = params.options.modelId
   const modelKey = `${params.options.provider}::${modelId}`
   const limits = SEEDANCE_MODEL_LIMITS[modelId]
   if (!limits) throw new Error(`KUAIZI_SEEDANCE_MODEL_UNSUPPORTED: ${modelId}`)
-  const isSeedance25 = modelId === 'doubao-seedance-2-5-260628'
+  const isIntlModel = modelId === KUAIZI_SEEDANCE_25_INTL_MODEL_ID
+  const upstreamModelId = isIntlModel
+    ? (readString(upstreamModelOverride) || readString(params.options.kzep))
+    : modelId
+  if (isIntlModel && (!upstreamModelId || !/^kzep_[A-Za-z0-9_-]+$/.test(upstreamModelId))) {
+    throw new Error('KUAIZI_SEEDANCE_INTL_KZEP_MISSING')
+  }
+  const isSeedance25 = modelId === 'doubao-seedance-2-5-260628' || isIntlModel
   const content: SeedanceContent[] = []
   const prompt = readString(params.prompt) || readString(params.options.prompt)
   if (prompt) content.push({ type: 'text', text: prompt })
@@ -222,9 +239,6 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   if (resolution && !limits.resolutions.includes(resolution)) {
     throw new Error(`KUAIZI_SEEDANCE_RESOLUTION_UNSUPPORTED: ${resolution}`)
   }
-  if (duration !== undefined && (duration < 4 || duration > limits.maxDuration)) {
-    throw new Error(`KUAIZI_SEEDANCE_DURATION_UNSUPPORTED: ${duration}`)
-  }
   if (executionExpiresAfter !== undefined && (executionExpiresAfter < 3600 || executionExpiresAfter > 259200)) {
     throw new Error(`KUAIZI_SEEDANCE_EXECUTION_EXPIRES_AFTER_UNSUPPORTED: ${executionExpiresAfter}`)
   }
@@ -239,25 +253,38 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   const hasFirstLastFrame = content.some(
     (item) => item.type === 'image_url' && (item.role === 'first_frame' || item.role === 'last_frame'),
   )
-  const promptText = prompt || ''
   const hasReferenceVideo = content.some((item) => item.type === 'video_url')
-  const hasEditIntent = /(?:编辑|增加|删除|修改|替换)/.test(promptText)
-  const hasExtendIntent = /(?:延长|延续|续写)/.test(promptText)
-  const requestedTaskType = readString(
+  const rawRequestedTaskType = readString(
     params.options.omniReferenceTaskType ?? params.options.omni_reference_task_type,
-  ) as SeedanceOmniReferenceTaskType | ''
-  if (requestedTaskType && (!isSeedance25 || !SEEDANCE_25_TASK_TYPES.has(requestedTaskType))) {
+  ).toLowerCase()
+  if (rawRequestedTaskType && !SEEDANCE_25_TASK_TYPES.has(rawRequestedTaskType as SeedanceOmniReferenceTaskType)) {
+    throw new Error(`KUAIZI_SEEDANCE_OMNI_REFERENCE_TASK_TYPE_UNSUPPORTED: ${rawRequestedTaskType}`)
+  }
+  const requestedTaskType = rawRequestedTaskType as SeedanceOmniReferenceTaskType | ''
+  if (requestedTaskType && requestedTaskType !== 'auto' && !isSeedance25) {
     throw new Error(`KUAIZI_SEEDANCE_OMNI_REFERENCE_TASK_TYPE_UNSUPPORTED: ${requestedTaskType}`)
   }
-  const inferredTaskType: SeedanceOmniReferenceTaskType | '' = isSeedance25 && hasReferenceVideo
-    ? hasExtendIntent ? 'extend' : hasEditIntent ? 'edit' : ''
-    : ''
-  const omniReferenceTaskType = requestedTaskType || inferredTaskType
-  const constraintTaskType = omniReferenceTaskType === 'auto'
-    ? inferredTaskType
-    : omniReferenceTaskType
+  // When omitted or 'auto', omit omni_reference_task_type so Seedance 2.5
+  // classifies the task without fragile prompt regexes that cause
+  // inner_generation_options.pe_classification 400 mismatches.
+  const omniReferenceTaskType: Exclude<SeedanceOmniReferenceTaskType, 'auto'> | '' =
+    isSeedance25 && requestedTaskType && requestedTaskType !== 'auto'
+      ? requestedTaskType
+      : ''
   if ((omniReferenceTaskType === 'edit' || omniReferenceTaskType === 'extend') && !hasReferenceVideo) {
     throw new Error(`KUAIZI_SEEDANCE_${omniReferenceTaskType.toUpperCase()}_VIDEO_REQUIRED`)
+  }
+
+  const allowAdaptiveDuration = isSeedance25 && (
+    omniReferenceTaskType === 'edit'
+    || (hasReferenceVideo && omniReferenceTaskType === '')
+  )
+  if (
+    duration !== undefined
+    && !(allowAdaptiveDuration && duration === -1)
+    && (duration < 4 || duration > limits.maxDuration)
+  ) {
+    throw new Error(`KUAIZI_SEEDANCE_DURATION_UNSUPPORTED: ${duration}`)
   }
 
   const requestedRatio = readString(params.options.aspectRatio ?? params.options.ratio)
@@ -266,12 +293,11 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   }
   const forcedAdaptive = isSeedance25 && (
     hasFirstLastFrame
-    || constraintTaskType === 'edit'
-    || constraintTaskType === 'extend'
-    || (hasReferenceVideo && (hasEditIntent || hasExtendIntent))
+    || omniReferenceTaskType === 'edit'
+    || omniReferenceTaskType === 'extend'
   )
   const effectiveRatio = forcedAdaptive ? 'adaptive' : requestedRatio
-  const effectiveDuration = constraintTaskType === 'edit' ? -1 : duration
+  const effectiveDuration = omniReferenceTaskType === 'edit' ? -1 : duration
 
   const returnLastFrame = params.options.returnLastFrame ?? params.options.return_last_frame
   const moderationIps = optionalStringArray(
@@ -293,7 +319,7 @@ async function buildSeedanceRequest(params: KuaiziVideoGenerateParams): Promise<
   }
 
   return {
-    model: modelId,
+    model: upstreamModelId,
     content,
     ...(resolution ? { resolution } : {}),
     ...(effectiveRatio ? { ratio: effectiveRatio } : {}),
@@ -335,7 +361,10 @@ export async function generateKuaiziVideo(params: KuaiziVideoGenerateParams): Pr
       baseUrl: config.baseUrl,
       path: '/ai-open-platform-api/api/v3/contents/generations/tasks',
       method: 'POST',
-      body: await buildSeedanceRequest(params),
+      body: await buildSeedanceRequest(
+        params,
+        model.modelId === KUAIZI_SEEDANCE_25_INTL_MODEL_ID ? config.seedance25IntlKzep : undefined,
+      ),
     })
   } else {
     throw new Error(`KUAIZI_VIDEO_MODEL_UNSUPPORTED: ${model.modelId}`)

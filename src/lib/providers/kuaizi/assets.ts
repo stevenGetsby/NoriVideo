@@ -12,13 +12,16 @@ function requireId(value: unknown): string {
 }
 
 export class KuaiziAssetsClient implements SeedanceAssetsApi {
-  constructor(private readonly config: { apiKey: string; baseUrl?: string }) {}
+  constructor(private readonly config: { apiKey: string; baseUrl?: string; kzep?: string }) {}
 
-  private async call<T>(action: string, body: Record<string, unknown>): Promise<T> {
+  private async call<T>(action: string, body: Record<string, unknown>, includeKzep = false): Promise<T> {
+    const kzep = readString(this.config.kzep)
     const payload = asRecord(await postKuaiziApiKey({
-      ...this.config,
+      apiKey: this.config.apiKey,
+      baseUrl: this.config.baseUrl,
       path: `${ASSET_PATH}?Action=${action}&Version=2024-01-01`,
       body,
+      ...(includeKzep && kzep ? { extraHeaders: { Kzep: kzep } } : {}),
     }))
     const error = asRecord(asRecord(payload?.ResponseMetadata)?.Error)
     if (error) throw new Error(`KUAIZI_ASSET_ERROR: ${readString(error.Code) || 'UnknownError'}`)
@@ -30,7 +33,7 @@ export class KuaiziAssetsClient implements SeedanceAssetsApi {
   async createAssetGroup(input: Parameters<SeedanceAssetsApi['createAssetGroup']>[0]): Promise<SeedanceAssetGroupResult> {
     const result = await this.call<SeedanceAssetGroupResult>('CreateAssetGroup', {
       Name: input.name.slice(0, 64), Description: (input.description || '').slice(0, 300), GroupType: 'AIGC',
-    })
+    }, true)
     requireId(result.Id)
     return result
   }
@@ -46,7 +49,7 @@ export class KuaiziAssetsClient implements SeedanceAssetsApi {
   async createImageAsset(input: Parameters<SeedanceAssetsApi['createImageAsset']>[0]): Promise<SeedanceAssetResult> {
     const result = await this.call<SeedanceAssetResult>('CreateAsset', {
       GroupId: requireId(input.groupId), URL: input.url, Name: input.name.slice(0, 64), AssetType: 'Image',
-    })
+    }, true)
     requireId(result.Id)
     return result
   }

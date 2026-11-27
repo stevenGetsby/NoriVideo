@@ -87,29 +87,29 @@ describe('/api/frameos/generation-config real model names', () => {
     }
   })
 
-  it('lists Kuaizi and TGG video models side by side, each labelled with its own provider', async () => {
+  it('lists Kuaizi and AILink video models side by side, each labelled with its own provider', async () => {
     configMock.mockReturnValue({
       sourceFile: 'fixture.json',
       updatedAt: null,
       providers: [
         { id: 'kuaizi', name: 'provider', hasApiKey: true },
-        { id: 'tgg', name: 'provider', hasApiKey: true },
+        { id: 'ailink', name: 'provider', hasApiKey: true },
       ],
       models: [
         { provider: 'kuaizi', modelId: 'doubao-seedance-2-5-260628', modelKey: 'kuaizi::doubao-seedance-2-5-260628', name: 'Seedance 2.5', type: 'video' },
-        { provider: 'tgg', modelId: 'seedance_v2.5_full', modelKey: 'tgg::seedance_v2.5_full', name: 'Seedance 2.5 Full', type: 'video' },
-        { provider: 'tgg', modelId: 'vig-S2.5-480-秒', modelKey: 'tgg::vig-S2.5-480-秒', name: 'vig', type: 'video' },
+        { provider: 'ailink', modelId: 'seedance_v2.5_full', modelKey: 'ailink::seedance_v2.5_full', name: 'Seedance 2.5 Full', type: 'video' },
+        { provider: 'ailink', modelId: 'vig-S2.5-480-秒', modelKey: 'ailink::vig-S2.5-480-秒', name: 'vig', type: 'video' },
       ],
       defaultModels: {},
       businessModels: [
         { key: 'nori::norivideo2.5', name: 'LanMiaoTV 2.5', description: '', type: 'video', tier: 'pro' },
-        { key: 'nori::tgg-seedance2.5', name: 'TGG Seedance 2.5', description: '', type: 'video', tier: 'pro' },
-        { key: 'nori::tgg-vig2.5', name: 'TGG vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
+        { key: 'nori::seedance2.0', name: 'Seedance 2.5 Full', description: '', type: 'video', tier: 'pro' },
+        { key: 'nori::seedance2.0-fast', name: 'vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
       ],
       modelRouting: {
         'nori::norivideo2.5': 'kuaizi::doubao-seedance-2-5-260628',
-        'nori::tgg-seedance2.5': 'tgg::seedance_v2.5_full',
-        'nori::tgg-vig2.5': 'tgg::vig-S2.5-480-秒',
+        'nori::seedance2.0': 'ailink::seedance_v2.5_full',
+        'nori::seedance2.0-fast': 'ailink::vig-S2.5-480-秒',
       },
       storage,
     })
@@ -118,8 +118,8 @@ describe('/api/frameos/generation-config real model names', () => {
     const body = await response.json() as { videoModels: Array<Record<string, unknown>> }
     expect(body.videoModels.map((model) => [model.modelKey, model.name])).toEqual([
       ['nori::norivideo2.5', 'Kuaizi · doubao-seedance-2-5-260628'],
-      ['nori::tgg-seedance2.5', 'TGG · seedance_v2.5_full'],
-      ['nori::tgg-vig2.5', 'TGG · vig-S2.5-480-秒'],
+      ['nori::seedance2.0', 'AILink · seedance_v2.5_full'],
+      ['nori::seedance2.0-fast', 'AILink · vig-S2.5-480-秒'],
     ])
   })
 })

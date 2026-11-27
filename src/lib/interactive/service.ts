@@ -10,6 +10,8 @@ import {
   workReadScopeWhere,
 } from '@/lib/collaboration/access'
 import { prisma } from '@/lib/prisma'
+import { logProjectAction } from '@/lib/logging/semantic'
+import { PROJECT_RECYCLE_RETENTION_MS } from '@/lib/projects/recycle-bin'
 import { compileChapter, type CanvasEdgeLike, type CanvasNodeLike } from './compile'
 import {
   findStoryLinkCycle,
@@ -291,6 +293,7 @@ export async function findInteractiveStoryByProject(session: AuthSession, projec
 type StoryChapterRow = {
   projectId: string
   name: string
+  description: string | null
   canvasId: string | null
   nodeCount: number
   runningCount: number
@@ -304,6 +307,7 @@ async function loadStoryChapters(workId: string, projectWhere: Prisma.ProjectWhe
     select: {
       id: true,
       name: true,
+      description: true,
       updatedAt: true,
       canvases: {
         orderBy: { createdAt: 'asc' },
@@ -326,6 +330,7 @@ async function loadStoryChapters(workId: string, projectWhere: Prisma.ProjectWhe
     return {
       projectId: project.id,
       name: project.name,
+      description: project.description,
       canvasId: canvas?.id ?? null,
       nodeCount: nodes.length,
       runningCount: nodes.filter((node) => node.status === 'RUNNING' || node.status === 'QUEUED').length,
@@ -414,6 +419,61 @@ export async function updateInteractiveStory(
     }
   })
   return getInteractiveStory(session, workId)
+}
+
+export async function deleteInteractiveChapter(session: AuthSession, workId: string, projectId: string) {
+  const { access, story, config } = await requireStory(session, workId)
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, workId, userId: access.actor.workspaceOwnerId, deletedAt: null },
+    select: { id: true, name: true, createdById: true },
+  })
+  if (!project || !config.chapters.some((chapter) => chapter.projectId === projectId)) {
+    throw new ApiError('NOT_FOUND', { message: '章节不存在。' })
+  }
+  if (!access.actor.isManagement && project.createdById !== access.actor.actorId) {
+    throw new ApiError('FORBIDDEN', { message: '只有章节创建者可以删除该章节。' })
+  }
+  const chapters = config.chapters.filter((chapter) => chapter.projectId !== projectId)
+  if (!chapters.length) throw new ApiError('INVALID_PARAMS', { message: '影游至少需要保留一个章节，不能删除最后一章。' })
+  const deletedAt = new Date()
+  const restoreDeadline = new Date(deletedAt.getTime() + PROJECT_RECYCLE_RETENTION_MS)
+  await prisma.$transaction(async (tx) => {
+    const deleted = await tx.project.updateMany({
+      where: {
+        id: projectId,
+        workId,
+        userId: access.actor.workspaceOwnerId,
+        deletedAt: null,
+        ...(access.actor.isManagement ? {} : { createdById: access.actor.actorId }),
+      },
+      data: { deletedAt, deletedById: access.actor.actorId, deletedWithWork: false },
+    })
+    if (deleted.count !== 1) throw new ApiError('CONFLICT', { message: '章节已被删除，请刷新后重试。' })
+    const fallbackEntry = config.start?.projectId === projectId ? await tx.canvasNode.findFirst({
+      where: { canvas: { projectId: chapters[0].projectId }, type: 'story_entry' },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true },
+    }) : null
+    const next = reconcileStoryChapters({
+      ...config,
+      chapters: chapters.map((chapter, order) => ({ ...chapter, order })),
+      links: config.links.filter((link) => link.fromProjectId !== projectId && link.toProjectId !== projectId),
+      start: config.start?.projectId === projectId
+        ? (fallbackEntry ? { projectId: chapters[0].projectId, entryNodeId: fallbackEntry.id } : null)
+        : config.start,
+      ...(config.sequence ? {
+        sequence: { ...config.sequence, segments: config.sequence.segments.filter((segment) => segment.projectId !== projectId) },
+      } : {}),
+    }, chapters.map((chapter) => chapter.projectId))
+    await tx.interactiveStory.update({ where: { id: story.id }, data: { config: toJson(next) } })
+    await tx.work.update({ where: { id: workId }, data: { updatedAt: new Date() } })
+  })
+  logProjectAction('DELETE', session.user.id, session.user.name, projectId, project.name, {
+    projectName: project.name,
+    workId,
+    recycleBin: { deletedAt: deletedAt.toISOString(), restoreDeadline: restoreDeadline.toISOString() },
+  })
+  return { success: true, deletedAt: deletedAt.toISOString(), restoreDeadline: restoreDeadline.toISOString() }
 }
 
 export async function createInteractiveChapter(session: AuthSession, workId: string, input: { name?: unknown }) {

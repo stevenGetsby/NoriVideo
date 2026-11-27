@@ -40,15 +40,13 @@ await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
 const browser = await chromium.launch({ headless: true, executablePath: process.env.NORI_CHROME_EXECUTABLE || '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome' })
 const usage = {
   rangeDays: 30, collectedSince: '2026-11-01T00:00:00.000Z',
-  summary: { calls: 7, success: 5, failed: 2, cost: 6.6, averageLatencyMs: 1000, byType: [] },
+  summary: { calls: 5, success: 4, failed: 1, cost: 5.1, averageLatencyMs: 1000, byType: [] },
   rows: [
     { provider: 'kuaizi', modelKey: 'kuaizi::doubao-seedance-2-0-260128', serviceType: 'video', operation: 'generate', calls: 3, success: 2, failed: 1, inputTokens: 0, outputTokens: 0, units: 15, averageLatencyMs: 1200, lastUsedAt: '2026-11-10T00:00:00.000Z', cost: 4.5 },
     { provider: 'kuaizi', modelKey: 'kuaizi::speech-2.8-hd', serviceType: 'audio', operation: 'generate', calls: 2, success: 2, failed: 0, inputTokens: 0, outputTokens: 0, units: 20, averageLatencyMs: 800, lastUsedAt: '2026-11-10T00:00:00.000Z', cost: 0.6 },
-    { provider: 'tgg', modelKey: 'tgg::tgg-fixture-video', serviceType: 'video', operation: 'generate', calls: 2, success: 1, failed: 1, inputTokens: 0, outputTokens: 0, units: 5, averageLatencyMs: null, lastUsedAt: '2026-11-11T00:00:00.000Z', cost: 1.5 },
   ],
   byProvider: [
     { provider: 'kuaizi', calls: 5, success: 4, failed: 1, cost: 5.1, byType: [{ serviceType: 'video', calls: 3, cost: 4.5, units: 15 }, { serviceType: 'audio', calls: 2, cost: 0.6, units: 20 }] },
-    { provider: 'tgg', calls: 2, success: 1, failed: 1, cost: 1.5, byType: [{ serviceType: 'video', calls: 2, cost: 1.5, units: 5 }] },
   ],
   storage: { objectCount: 0, knownBytes: 0 },
 }
@@ -57,7 +55,6 @@ const providers = [
   ['openlux', 'OpenLux API', 'https://api.openlux.ai/v1', true],
   ['kuaizi', 'Kuaizi API', 'https://aiopenapi.kuaizi.cn', true],
   ['huimengi', '绘梦工坊 API', 'https://api.huimengi.com', true],
-  ['tgg', 'TGG Token API', 'https://tggtoken.org', true],
   ['kimi', 'Kimi 官方', 'https://api.moonshot.ai/v1', false],
   ['openai', 'OpenAI 官方', 'https://api.openai.com/v1', false],
 ].map(([id, name, baseUrl, hasApiKey]) => ({ id, name, baseUrl, hasApiKey }))
@@ -66,12 +63,11 @@ const models = [
   ['openlux', 'gpt-image-2.5-flare', 'image'], ['openlux', 'gpt-image-2.5-sunburst', 'image'],
   ['huimengi', 'seedream-5.0-pro', 'image'], ['huimengi', 'qwen-image-3.0-pro', 'image'],
   ['kuaizi', 'doubao-seedance-2-0-260128', 'video'], ['huimengi', 'wan3.0-video', 'video'], ['huimengi', 'seedance-1.5-pro', 'video'],
-  ['tgg', 'tgg-fixture-video', 'video'],
   ['kuaizi', 'speech-2.8-hd', 'audio'],
 ].map(([provider, modelId, type]) => ({ provider, modelId, type, name: modelId }))
 const businessModels = [
   ['nori::nori-gpt', 'nori-gpt', 'llm'], ['nori::nori-image', 'nori-image', 'image'],
-  ['nori::seedance2.0', 'seedance2.0-pro', 'video'], ['nori::tgg-seedance2.5', 'tgg-seedance2.5', 'video'],
+  ['nori::seedance2.0', 'seedance2.0-pro', 'video'],
   ['nori::nori-audio', 'nori-audio', 'audio'], ['nori::nori-music', 'nori-music', 'audio'], ['nori::nori-sfx', 'nori-sfx', 'audio'],
 ].map(([key, name, type]) => ({ key, name, type, tier: 'standard', description: `${type} 测试业务模型` }))
 let config = {
@@ -87,7 +83,7 @@ let config = {
   },
   modelRouting: {
     'nori::nori-gpt': 'deepseek::deepseek-chat', 'nori::nori-image': 'openlux::gpt-image-2.5-sunburst',
-    'nori::seedance2.0': 'kuaizi::doubao-seedance-2-0-260128', 'nori::tgg-seedance2.5': '',
+    'nori::seedance2.0': 'kuaizi::doubao-seedance-2-0-260128',
     'nori::nori-audio': 'kuaizi::speech-2.8-hd', 'nori::nori-music': '', 'nori::nori-sfx': '',
     'nori::canvas-agent': '',
   },
@@ -117,10 +113,8 @@ try {
     console.log(JSON.stringify({ body: await page.locator('body').innerText(), errors, requests: await page.evaluate(() => performance.getEntriesByType('resource').map((entry) => entry.name)) }))
     throw error
   })
-  assert.equal(await page.locator('.nori-admin-provider').count(), 7)
+  assert.equal(await page.locator('.nori-admin-provider').count(), 6)
   assert.equal(await page.locator('.nori-admin-provider.is-huimengi h3').innerText(), '绘梦工坊 API')
-  assert.equal(await page.locator('.nori-admin-provider.is-tgg h3').innerText(), 'TGG Token API')
-  assert.equal(await page.locator('.nori-admin-provider.is-tgg .nori-admin-connection-head p').innerText(), '视频服务（可与 Kuaizi 同时启用）')
   assert.equal(await page.getByRole('heading', { name: 'Kimi 官方', exact: true }).count(), 1)
   assert.equal(await page.getByRole('heading', { name: 'OpenAI 官方', exact: true }).count(), 1)
   assert.equal(await page.getByRole('checkbox', { name: '开放 待验证测试模型' }).isDisabled(), true)
@@ -132,7 +126,6 @@ try {
   assert.equal(imageOptions.includes('OpenLux · gpt-image-2.5-sunburst'), true)
   const videoOptions = await page.getByLabel('seedance2.0-pro运行模型').locator('option').allTextContents()
   assert.equal(videoOptions.includes('Kuaizi · doubao-seedance-2-0-260128'), true)
-  assert.equal(videoOptions.includes('TGG · tgg-fixture-video'), true)
   const audioOptions = await page.getByLabel('nori-audio运行模型').locator('option').allTextContents()
   assert.equal(audioOptions.some((text) => text.includes('绘梦工坊')), false)
   assert.equal(await page.getByRole('radiogroup', { name: '视频上游服务商' }).count(), 0)
@@ -140,21 +133,17 @@ try {
 
   const byProviderTable = page.getByRole('table', { name: '按服务商对账' })
   assert.deepEqual(await byProviderTable.locator('tbody tr').nth(0).locator('td').allTextContents(), ['kuaizi', '5', '1', '3 次 / 15 秒 / ¥4.50', '¥0.60', '¥5.10'])
-  assert.deepEqual(await byProviderTable.locator('tbody tr').nth(1).locator('td').allTextContents(), ['tgg', '2', '1', '2 次 / 5 秒 / ¥1.50', '¥0.00', '¥1.50'])
   assert.equal(await page.locator('body').innerText().then((text) => text.includes('金额为按上游定价估算的成本，不等于向用户收取的积分')), true)
 
   await page.getByLabel('seedance2.0-pro运行模型').selectOption('huimengi::wan3.0-video')
-  await page.getByLabel('tgg-seedance2.5运行模型').selectOption('tgg::tgg-fixture-video')
   await page.getByLabel('nori-image运行模型').selectOption('huimengi::seedream-5.0-pro')
   assert.equal(await page.getByLabel('seedance2.0-pro运行模型').inputValue(), 'huimengi::wan3.0-video')
-  assert.equal(await page.getByLabel('tgg-seedance2.5运行模型').inputValue(), 'tgg::tgg-fixture-video')
   await page.waitForFunction(() => document.body.innerText.includes('有未保存修改'))
   await page.screenshot({ path: path.join(artifacts, 'per-model-routing.png'), fullPage: true })
 
   await page.getByRole('button', { name: '保存并热加载', exact: true }).click()
   await page.waitForFunction(() => document.body.innerText.includes('配置已保存并热加载，不需要重启服务'))
   assert.equal(savedPayload.modelRouting['nori::seedance2.0'], 'huimengi::wan3.0-video')
-  assert.equal(savedPayload.modelRouting['nori::tgg-seedance2.5'], 'tgg::tgg-fixture-video')
   assert.equal(savedPayload.modelRouting['nori::nori-image'], 'huimengi::seedream-5.0-pro')
   assert.equal(savedPayload.modelRouting['nori::nori-audio'], 'kuaizi::speech-2.8-hd')
   assert.equal(savedPayload.modelRouting['nori::canvas-agent'], 'deepseek::fixture-agent')
@@ -165,9 +154,9 @@ try {
   await page.getByLabel('用途', { exact: true }).selectOption('agent')
   assert.equal(await page.getByText('暂无已采集的服务用量', { exact: true }).count(), 1)
   const result = {
-    ok: true, providerCount: 7, tggCard: true, byProviderTable: true, agentModelGates: true,
+    ok: true, providerCount: 6, byProviderTable: true, agentModelGates: true,
     providerLabelsInOptions: true, videoSwitchCardRemoved: true, removedEndpointNotRequested: true,
-    kuaiziAndTggRoutedConcurrently: true, imageProviderSwitched: true, audioUnchanged: true, noSecretsReturned: true,
+    kuaiziAndHuimengiRoutedConcurrently: true, imageProviderSwitched: true, audioUnchanged: true, noSecretsReturned: true,
     browserErrors: errors, paidRequests: 0, productionRequests: 0, artifacts,
   }
   await writeFile(path.join(artifacts, 'results.json'), `${JSON.stringify(result, null, 2)}\n`)

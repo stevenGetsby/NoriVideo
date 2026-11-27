@@ -44,8 +44,6 @@ describe('Nori business model catalog', () => {
       ['nori::seedance2.0-mini', 'mini'],
       ['nori::seedance2.0-fast', 'fast'],
       ['nori::seedance2.0', 'pro'],
-      ['nori::tgg-seedance2.5', 'pro'],
-      ['nori::tgg-vig2.5', 'standard'],
     ])
     expect(NORI_DEFAULT_MODEL_KEYS.video).toBe('nori::norivideo2.5')
     expect(listNoriBusinessModels('audio').map((model) => model.key)).toEqual([
@@ -107,15 +105,15 @@ describe('Nori business model catalog', () => {
     expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()
   })
 
-  it('accepts TGG for video while keeping text, image and audio off TGG', () => {
+  it('accepts AILink for video while keeping text, image and audio off AILink', () => {
     configure({
-      'nori::norivideo2.5': 'tgg::tgg-fixture-video',
-      'nori::nori-image': 'tgg::tgg-fixture-video',
-      'nori::nori-gpt': 'tgg::tgg-fixture-video',
-      'nori::nori-audio': 'tgg::tgg-fixture-video',
+      'nori::norivideo2.5': 'ailink::ailink-fixture-video',
+      'nori::nori-image': 'ailink::ailink-fixture-video',
+      'nori::nori-gpt': 'ailink::ailink-fixture-video',
+      'nori::nori-audio': 'ailink::ailink-fixture-video',
     })
 
-    expect(resolveNoriModelRoute('nori::norivideo2.5')).toBe('tgg::tgg-fixture-video')
+    expect(resolveNoriModelRoute('nori::norivideo2.5')).toBe('ailink::ailink-fixture-video')
     expect(resolveNoriModelRoute('nori::nori-image')).toBeNull()
     expect(resolveNoriModelRoute('nori::nori-gpt')).toBeNull()
     expect(resolveNoriModelRoute('nori::nori-audio')).toBeNull()

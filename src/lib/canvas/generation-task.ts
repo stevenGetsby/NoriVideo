@@ -48,6 +48,8 @@ export type CanvasStoryboardPlanTaskPayload = {
   count: number
   analysisModel: string
   imageRequest: CanvasStoryboardImageRequest
+  /** Server-authorized project scope for the asynchronous reference lookup. */
+  referenceProjectIds?: string[]
   maxInputTokens: number
   maxOutputTokens: number
   retryOf: string | null
@@ -158,6 +160,7 @@ export function parseCanvasGenerationTaskPayload(
     return null
   }
   const globalStylePrompt = normalizeCanvasGlobalStylePrompt(payload.globalStylePrompt)
+  const referenceProjectIds = stringArray(payload.referenceProjectIds, Number.POSITIVE_INFINITY)
   return {
     kind: 'storyboard_plan',
     canvasId,
@@ -166,6 +169,7 @@ export function parseCanvasGenerationTaskPayload(
     ...(globalStylePrompt ? { globalStylePrompt } : {}),
     count: integer(payload.count, 4, 4, 8),
     analysisModel,
+    ...(referenceProjectIds.length ? { referenceProjectIds } : {}),
     imageRequest: {
       modelKey,
       modelLabel: text(imageRequest?.modelLabel, 240) || null,
@@ -186,8 +190,11 @@ export function buildCanvasGenerationDedupeKey(
   taskType: CanvasGenerationTaskType,
   payload: CanvasGenerationTaskPayload,
 ): string {
+  const stablePayload = payload.kind === 'storyboard_plan' && payload.referenceProjectIds
+    ? { ...payload, referenceProjectIds: [...new Set(payload.referenceProjectIds)].sort() }
+    : payload
   const digest = createHash('sha256')
-    .update(JSON.stringify({ taskType, ...payload }))
+    .update(JSON.stringify({ taskType, ...stablePayload }))
     .digest('hex')
     .slice(0, 32)
   return `canvas-gen:${payload.canvasId.slice(0, 64)}:${payload.nodeId.slice(0, 64)}:${digest}`

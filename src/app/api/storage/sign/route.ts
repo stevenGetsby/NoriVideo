@@ -49,7 +49,7 @@ function inlineImageResponse(buffer: Buffer, storageKey: string): NextResponse {
       'Content-Type': getMimeType(storageKey),
       'Content-Length': buffer.length.toString(),
       'Content-Disposition': 'inline',
-      'Cache-Control': 'private, max-age=300',
+      'Cache-Control': 'private, max-age=86400',
       'X-Content-Type-Options': 'nosniff',
     },
   })
@@ -63,7 +63,7 @@ function inlineAudioResponse(buffer: Buffer, storageKey: string, rangeHeader: st
     'Accept-Ranges': 'bytes',
     'Content-Type': getMimeType(storageKey),
     'Content-Disposition': 'inline',
-    'Cache-Control': 'private, max-age=300',
+    'Cache-Control': 'private, max-age=86400',
     'X-Content-Type-Options': 'nosniff',
   }
   const match = rangeHeader?.match(/^bytes=(\d*)-(\d*)$/i)
@@ -188,10 +188,8 @@ export const GET = apiHandler(async (request: NextRequest) => {
   }
 
   try {
-    const signedUrl = playback
-      ? await getSignedObjectUrl(key, ttl, { responseContentType: videoType, responseContentDisposition: 'inline' })
-      : await getSignedObjectUrl(key, ttl)
     if (playback) {
+      const signedUrl = await getSignedObjectUrl(key, ttl, { responseContentType: videoType, responseContentDisposition: 'inline' })
       const range = request.headers.get('range')
       if (range && !/^bytes=(?:\d+-\d*|-\d+)$/i.test(range)) {
         throw new ApiError('INVALID_PARAMS', { message: '无效的视频字节范围。' })

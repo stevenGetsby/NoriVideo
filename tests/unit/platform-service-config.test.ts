@@ -3,17 +3,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-const tggSelectableMock = vi.hoisted(() => vi.fn(() => [] as Array<{ modelId: string; name: string; modality: string }>))
-vi.mock('@/lib/providers/tgg/catalog', () => ({ listTggSelectableModels: tggSelectableMock }))
-
 import { resetServiceConfigCache } from '@/lib/service-config'
 import { getPlatformServiceConfigResponse, savePlatformServiceConfig } from '@/lib/platform-services/config'
-import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
-
-const TGG_VERIFIED_MODELS = [
-  { modelId: 'seedance_v2.5_full', name: 'Seedance 2.5 Full', modality: 'video' },
-  { modelId: 'vig-S2.5-480-秒', name: 'vig-S2.5-480', modality: 'video' },
-]
 
 function fixturePath() {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'nori-platform-services-'))
@@ -43,7 +34,6 @@ function stubPlatformEnv() {
   vi.stubEnv('OPENLUX_API_KEY', '')
   vi.stubEnv('KUAIZI_API_KEY', '')
   vi.stubEnv('HUIMENGI_API_KEY', '')
-  vi.stubEnv('TGG_API_KEY', '')
   vi.stubEnv('KIMI_API_KEY', '')
   vi.stubEnv('OPENAI_API_KEY', '')
   vi.stubEnv('ARK_API_KEY', 'must-not-return')
@@ -53,7 +43,6 @@ function stubPlatformEnv() {
 describe('platform service config', () => {
   afterEach(() => {
     vi.unstubAllEnvs()
-    tggSelectableMock.mockReturnValue([])
     resetServiceConfigCache()
   })
 
@@ -64,15 +53,14 @@ describe('platform service config', () => {
     resetServiceConfigCache()
 
     const config = getPlatformServiceConfigResponse()
-    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'kimi', 'openai'])
+    expect(config.providers.map((provider) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'ailink', 'topenrouter', 'kimi', 'openai'])
     expect(config.canvasAgentModelCatalog.defaultModelKey).toBeNull()
     expect(config.providers.every((provider) => !('apiKey' in provider))).toBe(true)
     expect(config.providers[0].hasApiKey).toBe(true)
     expect(config.providers[1].hasApiKey).toBe(false)
     expect(config.providers[2].hasApiKey).toBe(false)
     expect(config.providers[3].hasApiKey).toBe(false)
-    // Old config files without a tgg entry gain an empty-key provider on read.
-    expect(config.providers[4]).toMatchObject({ id: 'tgg', name: 'TGG Token API', baseUrl: 'https://tggtoken.org', hasApiKey: false })
+    expect(config.providers[4]).toMatchObject({ id: 'ailink', hasApiKey: false })
     expect(config.models.some((model) => model.provider === 'tgg')).toBe(false)
     expect(config.models.some((model) => ['ark', 'hfsy', 'ghc'].includes(model.provider))).toBe(false)
     expect(config.models[0]).toMatchObject({ modelId: 'deepseek-chat', name: 'DeepSeek Chat', modelKey: 'deepseek::deepseek-chat', provider: 'deepseek', type: 'llm', llmProtocol: 'chat-completions' })
@@ -156,7 +144,7 @@ describe('platform service config', () => {
     })
 
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg', 'kimi', 'openai'])
+    expect(raw.llm.providers.map((provider: { id: string }) => provider.id)).toEqual(['deepseek', 'openlux', 'kuaizi', 'huimengi', 'ailink', 'topenrouter', 'kimi', 'openai'])
     expect(raw.llm.providers[0].apiKey).toBe('deepseek-key-old')
     expect(raw.llm.providers[1].apiKey).toBeUndefined()
     expect(raw.llm.providers[2].apiKey).toBe('kuaizi-key-for-test')
@@ -210,151 +198,20 @@ describe('platform service config', () => {
     expect(getPlatformServiceConfigResponse().modelRouting['nori::nori-image-pro']).toBe('')
   })
 
-  it('uses TGG_API_KEY as the TGG environment fallback without echoing it', () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
-    resetServiceConfigCache()
-
-    const config = getPlatformServiceConfigResponse()
-    const tgg = config.providers.find((provider) => provider.id === 'tgg')
-    expect(tgg?.hasApiKey).toBe(true)
-    expect(JSON.stringify(config)).not.toContain('tgg-env-key-for-test')
-  })
-
-  it('only exposes verified TGG models and refuses TGG routes without a key', async () => {
+  it('silently drops a retired tgg provider entry from the save payload', async () => {
     const filePath = fixturePath()
     vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
     stubPlatformEnv()
     resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue([{ modelId: 'tgg-fixture-video', name: 'TGG Fixture Video', modality: 'video' }])
 
     const before = getPlatformServiceConfigResponse()
-    expect(before.models.some((model) => model.modelKey === 'tgg::tgg-fixture-video' && model.type === 'video')).toBe(true)
-
-    const routeToTgg = { ...before.modelRouting, 'nori::norivideo2.5': 'tgg::tgg-fixture-video' }
-    await expect(savePlatformServiceConfig({
-      providers: before.providers,
-      modelRouting: routeToTgg,
-      storage: before.storage,
-    })).rejects.toThrow('TGG 尚未配置 API Key')
-    expect(JSON.parse(fs.readFileSync(filePath, 'utf8')).llm.modelRouting['nori::norivideo2.5']).not.toBe('tgg::tgg-fixture-video')
-
     const saved = await savePlatformServiceConfig({
-      providers: before.providers.map((provider) => provider.id === 'tgg' ? { ...provider, apiKey: 'tgg-test-secret-value' } : provider),
-      modelRouting: routeToTgg,
+      ...before,
+      providers: [...before.providers, { id: 'tgg', name: 'TGG Token API', apiKey: 'tgg-test-secret-value' }],
       storage: before.storage,
     })
-    expect(saved.modelRouting['nori::norivideo2.5']).toBe('tgg::tgg-fixture-video')
+    expect(saved.providers.some((provider) => provider.id === 'tgg')).toBe(false)
     const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.providers[4].apiKey).toBe('tgg-test-secret-value')
-    expect(JSON.stringify(saved)).not.toContain('tgg-test-secret-value')
-  })
-
-  it('accepts a TGG route backed only by the environment key', async () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue([{ modelId: 'tgg-fixture-video', name: 'TGG Fixture Video', modality: 'video' }])
-
-    const before = getPlatformServiceConfigResponse()
-    const saved = await savePlatformServiceConfig({
-      providers: before.providers,
-      modelRouting: { ...before.modelRouting, 'nori::norivideo2.5': 'tgg::tgg-fixture-video' },
-      storage: before.storage,
-    })
-    expect(saved.modelRouting['nori::norivideo2.5']).toBe('tgg::tgg-fixture-video')
-    expect(JSON.stringify(saved)).not.toContain('tgg-env-key-for-test')
-  })
-
-  it('routes both TGG relays to their defaults once a TGG key exists, without an admin route', () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue(TGG_VERIFIED_MODELS)
-
-    const config = getPlatformServiceConfigResponse()
-    expect(config.modelRouting['nori::tgg-seedance2.5']).toBe('tgg::seedance_v2.5_full')
-    expect(config.modelRouting['nori::tgg-vig2.5']).toBe('tgg::vig-S2.5-480-秒')
-    const listed = listConfiguredSelectableModels(config, 'video').map((model) => model.modelKey)
-    expect(listed).toEqual(expect.arrayContaining(['nori::tgg-seedance2.5', 'nori::tgg-vig2.5']))
-  })
-
-  it('keeps TGG relays unrouted without a key and saving the unchanged form does not persist a disable', async () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue(TGG_VERIFIED_MODELS)
-
-    const before = getPlatformServiceConfigResponse()
-    expect(before.modelRouting['nori::tgg-seedance2.5']).toBe('')
-    await savePlatformServiceConfig({ providers: before.providers, modelRouting: before.modelRouting, storage: before.storage })
-
-    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'))
-    expect(raw.llm.modelRouting).not.toHaveProperty('nori::tgg-seedance2.5')
-    expect(raw.llm.modelRouting).not.toHaveProperty('nori::tgg-vig2.5')
-    resetServiceConfigCache()
-    expect(getPlatformServiceConfigResponse().modelRouting['nori::tgg-seedance2.5']).toBe('')
-  })
-
-  it('applies TGG defaults when the key is entered in the same save as a form that showed them unrouted', async () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue(TGG_VERIFIED_MODELS)
-
-    const before = getPlatformServiceConfigResponse()
-    const saved = await savePlatformServiceConfig({
-      providers: before.providers.map((provider) => provider.id === 'tgg' ? { ...provider, apiKey: 'tgg-test-secret-value' } : provider),
-      modelRouting: before.modelRouting,
-      storage: before.storage,
-    })
-    expect(saved.modelRouting['nori::tgg-seedance2.5']).toBe('tgg::seedance_v2.5_full')
-    expect(saved.modelRouting['nori::tgg-vig2.5']).toBe('tgg::vig-S2.5-480-秒')
-    expect(JSON.stringify(saved)).not.toContain('tgg-test-secret-value')
-  })
-
-  it('keeps an administrator disable of a TGG relay across saves while the key is configured', async () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue(TGG_VERIFIED_MODELS)
-
-    const before = getPlatformServiceConfigResponse()
-    const disabled = await savePlatformServiceConfig({
-      providers: before.providers,
-      modelRouting: { ...before.modelRouting, 'nori::tgg-vig2.5': '' },
-      storage: before.storage,
-    })
-    expect(disabled.modelRouting['nori::tgg-vig2.5']).toBe('')
-    const resaved = await savePlatformServiceConfig({ providers: before.providers, modelRouting: disabled.modelRouting, storage: before.storage })
-    expect(resaved.modelRouting['nori::tgg-vig2.5']).toBe('')
-    expect(resaved.modelRouting['nori::tgg-seedance2.5']).toBe('tgg::seedance_v2.5_full')
-  })
-
-  it('lets an administrator route a TGG business model to another relay', async () => {
-    const filePath = fixturePath()
-    vi.stubEnv('NORI_SERVICE_CONFIG', filePath)
-    stubPlatformEnv()
-    vi.stubEnv('TGG_API_KEY', 'tgg-env-key-for-test')
-    resetServiceConfigCache()
-    tggSelectableMock.mockReturnValue(TGG_VERIFIED_MODELS)
-
-    const before = getPlatformServiceConfigResponse()
-    const saved = await savePlatformServiceConfig({
-      providers: before.providers,
-      modelRouting: { ...before.modelRouting, 'nori::tgg-seedance2.5': 'kuaizi::doubao-seedance-2-5-260628' },
-      storage: before.storage,
-    })
-    expect(saved.modelRouting['nori::tgg-seedance2.5']).toBe('kuaizi::doubao-seedance-2-5-260628')
+    expect(raw.llm.providers.some((provider: { id: string }) => provider.id === 'tgg')).toBe(false)
   })
 })

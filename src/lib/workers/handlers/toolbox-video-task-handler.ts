@@ -4,6 +4,7 @@ import { type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '../shared'
 import {
   assertTaskActive,
+  getTaskExistingExternalId,
   resolveVideoSourceFromGeneration,
   uploadVideoSourceToCos,
 } from '../utils'
@@ -63,6 +64,105 @@ function readNestedStringArray(value: unknown): string[][] {
   return Array.isArray(value) ? value.map(readStringArray) : []
 }
 
+type OmniReferenceTaskType = 'auto' | 'reference' | 'edit' | 'extend'
+
+function readOmniReferenceTaskType(value: unknown): OmniReferenceTaskType | undefined {
+  const normalized = readString(value).toLowerCase()
+  if (normalized === 'auto' || normalized === 'reference' || normalized === 'edit' || normalized === 'extend') {
+    return normalized
+  }
+  return undefined
+}
+
+export type SeedanceReferenceRetryPatch = {
+  reason: 'task_type_constraint' | 'pe_classification_mismatch'
+  omniReferenceTaskType?: 'reference' | 'edit' | 'extend'
+  omitOmniReferenceTaskType?: boolean
+  aspectRatio?: 'adaptive'
+  duration?: -1
+}
+
+/**
+ * Classifies synchronous Seedance 2.5 400 task-type errors for a single safe
+ * fallback retry before any upstream externalId is created.
+ */
+export function classifySeedanceReferenceRetry(
+  error: unknown,
+  current: {
+    omniReferenceTaskType?: OmniReferenceTaskType
+    aspectRatio?: string
+  } = {},
+): SeedanceReferenceRetryPatch | null {
+  const message = error instanceof Error ? error.message : String(error || '')
+  if (!message) return null
+  if (/HTTP_ERROR\((?!400\b)\d+\)/i.test(message)) return null
+  if (/External task (?:failed|polling timeout)/i.test(message)) return null
+
+  const currentTaskType = current.omniReferenceTaskType && current.omniReferenceTaskType !== 'auto'
+    ? current.omniReferenceTaskType
+    : undefined
+
+  const isPeMismatch = /pe_classification/i.test(message)
+    || /You requested the .+ task type.*classified your task as/i.test(message)
+  if (isPeMismatch) {
+    const classifiedMatch = message.match(/classified your task as\s+([^.,;\n]+)/i)
+    const classifiedText = (classifiedMatch?.[1] || '').toLowerCase()
+    if (/video\s*edit|编辑/.test(classifiedText)) {
+      if (currentTaskType === 'edit' && current.aspectRatio === 'adaptive') return null
+      return {
+        reason: 'pe_classification_mismatch',
+        omniReferenceTaskType: 'edit',
+        aspectRatio: 'adaptive',
+        duration: -1,
+      }
+    }
+    if (/video\s*exten|延长/.test(classifiedText)) {
+      if (!currentTaskType && current.aspectRatio === 'adaptive') return null
+      return {
+        reason: 'pe_classification_mismatch',
+        omitOmniReferenceTaskType: true,
+        aspectRatio: 'adaptive',
+      }
+    }
+    if (!currentTaskType) return null
+    return {
+      reason: 'pe_classification_mismatch',
+      omitOmniReferenceTaskType: true,
+    }
+  }
+
+  if (/TaskTypeConstraint/i.test(message)) {
+    const mentionsEdit = /video\s*edit|视频编辑/i.test(message)
+      || (/adaptive/i.test(message) && /duration[^.\n]*-1/i.test(message))
+    if (mentionsEdit) {
+      if (currentTaskType === 'edit' && current.aspectRatio === 'adaptive') return null
+      return {
+        reason: 'task_type_constraint',
+        omniReferenceTaskType: 'edit',
+        aspectRatio: 'adaptive',
+        duration: -1,
+      }
+    }
+    const mentionsExtend = /video\s*exten|视频延长/i.test(message)
+    if (mentionsExtend) {
+      if (currentTaskType === 'extend' && current.aspectRatio === 'adaptive') return null
+      return {
+        reason: 'task_type_constraint',
+        omniReferenceTaskType: 'extend',
+        aspectRatio: 'adaptive',
+      }
+    }
+    if (/adaptive/i.test(message) && current.aspectRatio !== 'adaptive') {
+      return {
+        reason: 'task_type_constraint',
+        aspectRatio: 'adaptive',
+      }
+    }
+  }
+
+  return null
+}
+
 async function normalizeReferenceMedia(values: string[], modelKey: string): Promise<string[]> {
   return await Promise.all(values.map(async (value) => await normalizeSeedanceMediaReference(value, modelKey)))
 }
@@ -113,6 +213,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
   const referenceVideoNames = readStringArray(payload.referenceVideoNames)
   const referenceAudioNames = readStringArray(payload.referenceAudioNames)
   const referenceImageMentionNames = readNestedStringArray(payload.referenceImageMentionNames)
+  const referenceImageAliases = readNestedStringArray(payload.referenceImageAliases)
   const referenceVideoMentionNames = readNestedStringArray(payload.referenceVideoMentionNames)
   const referenceAudioMentionNames = readNestedStringArray(payload.referenceAudioMentionNames)
   const inputMode = readString(payload.inputMode) || 'text'
@@ -160,6 +261,10 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
       imageNumbers = indexed.imageNumbers
     }
     const imageAt = (position: number) => (position >= 0 && imageNumbers[position] ? normalized[imageNumbers[position] - 1] || '' : '')
+    // Declarations name the asset kind (角色/场景) when the material library knows
+    // it; unknown categories fall back to 资产 inside the compiler. Reference
+    // materials keep submission order, so filtering type=image aligns with
+    // referenceImages position by position.
     const kindMaterialIds = materialReferenceContract.references.map((item) => item.materialId)
     const kindRows = kindMaterialIds.length > 0
       ? await prisma.frameosMaterial.findMany({ where: { id: { in: kindMaterialIds } }, select: { id: true, type: true, metadata: true } })
@@ -180,6 +285,7 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
         type: 'image' as const,
         index: imageNumber,
         names: referenceImageMentionNames[index] || [],
+        aliases: referenceImageAliases[index],
         fallbackNames: imageTitles[index] ? [imageTitles[index]] : [],
         kind: imageKindByPosition[index],
       })),
@@ -219,31 +325,75 @@ export async function handleToolboxVideoTask(job: Job<TaskJobData>) {
     }
     const normalizedVideos = useReferenceMode ? await normalizeReferenceMedia(referenceVideos, modelId) : []
     const normalizedAudios = useReferenceMode ? await normalizeReferenceMedia(referenceAudios, modelId) : []
-    const hasEditIntent = /(?:编辑视频|编辑|增加|删除|替换|修改)/.test(prompt)
-    const hasExtendIntent = /(?:向前延长|向后延长|延长|延续|续写)/.test(prompt)
-    const inferredOmniTaskType = useReferenceMode && normalizedVideos.length > 0
-      ? (hasExtendIntent ? 'extend' as const : hasEditIntent ? 'edit' as const : null)
-      : null
-    const buildGenerationOptions = (images: string[]) => ({
-      prompt,
-      ...(useReferenceMode && images.length > 0 ? { referenceImages: images } : {}),
-      ...(useReferenceMode && normalizedVideos.length > 0 ? { videos: normalizedVideos } : {}),
-      ...(useReferenceMode && normalizedAudios.length > 0 ? { audios: normalizedAudios } : {}),
-      ...(isFirstLastFrame ? { lastFrameImageUrl: lastFrameImage } : {}),
-      ...(readNumber(payload.duration) !== undefined ? { duration: readNumber(payload.duration) } : {}),
-      ...(readNumber(payload.fps) !== undefined ? { fps: readNumber(payload.fps) } : {}),
-      ...(readString(payload.resolution) ? { resolution: readString(payload.resolution) } : {}),
-      ...(readString(payload.aspectRatio) ? { aspectRatio: readString(payload.aspectRatio) } : {}),
-      ...(typeof payload.generateAudio === 'boolean' ? { generateAudio: payload.generateAudio } : {}),
-      ...(inferredOmniTaskType ? { omniReferenceTaskType: inferredOmniTaskType } : {}),
-      generationMode: isFirstLastFrame ? 'firstlastframe' as const : 'normal' as const,
-    })
-    const generated: GeneratedVideo = await resolveVideoSourceFromGeneration(job, {
-      userId: job.data.userId,
-      modelId,
-      imageUrl: sourceImage,
-      options: buildGenerationOptions(normalized),
-    })
+    const requestedOmniTaskType = readOmniReferenceTaskType(
+      payload.omniReferenceTaskType ?? readJsonObject(payload.generationOptions).omniReferenceTaskType,
+    )
+    const explicitOmniTaskType = useReferenceMode
+      && normalizedVideos.length > 0
+      && requestedOmniTaskType
+      && requestedOmniTaskType !== 'auto'
+      ? requestedOmniTaskType
+      : undefined
+    const payloadAspectRatio = readString(payload.aspectRatio)
+    const payloadDuration = readNumber(payload.duration)
+    const buildGenerationOptions = (images: string[], retryOverride?: SeedanceReferenceRetryPatch) => {
+      const effectiveOmniTaskType = retryOverride?.omitOmniReferenceTaskType
+        ? undefined
+        : retryOverride?.omniReferenceTaskType ?? explicitOmniTaskType
+      const effectiveAspectRatio = retryOverride?.aspectRatio
+        ?? (effectiveOmniTaskType === 'edit' || effectiveOmniTaskType === 'extend'
+          ? 'adaptive'
+          : payloadAspectRatio)
+      // Keep capability duration positive (4..30) when calling
+      // resolveVideoSourceFromGeneration; kuaizi/video.ts and huimengi/video.ts
+      // force upstream ratio='adaptive' and duration=-1 for omniReferenceTaskType='edit'.
+      return {
+        prompt,
+        ...(useReferenceMode && images.length > 0 ? { referenceImages: images } : {}),
+        ...(useReferenceMode && normalizedVideos.length > 0 ? { videos: normalizedVideos } : {}),
+        ...(useReferenceMode && normalizedAudios.length > 0 ? { audios: normalizedAudios } : {}),
+        ...(isFirstLastFrame ? { lastFrameImageUrl: lastFrameImage } : {}),
+        ...(payloadDuration !== undefined && payloadDuration > 0 ? { duration: payloadDuration } : {}),
+        ...(readNumber(payload.fps) !== undefined ? { fps: readNumber(payload.fps) } : {}),
+        ...(readString(payload.resolution) ? { resolution: readString(payload.resolution) } : {}),
+        ...(effectiveAspectRatio ? { aspectRatio: effectiveAspectRatio } : {}),
+        ...(typeof payload.generateAudio === 'boolean' ? { generateAudio: payload.generateAudio } : {}),
+        ...(effectiveOmniTaskType ? { omniReferenceTaskType: effectiveOmniTaskType } : {}),
+        generationMode: isFirstLastFrame ? 'firstlastframe' as const : 'normal' as const,
+      }
+    }
+    const initialOptions = buildGenerationOptions(normalized)
+    let generated: GeneratedVideo
+    try {
+      generated = await resolveVideoSourceFromGeneration(job, {
+        userId: job.data.userId,
+        modelId,
+        imageUrl: sourceImage,
+        options: initialOptions,
+      })
+    } catch (firstError) {
+      const retryPatch = useReferenceMode && normalizedVideos.length > 0
+        ? classifySeedanceReferenceRetry(firstError, {
+            omniReferenceTaskType: initialOptions.omniReferenceTaskType,
+            aspectRatio: initialOptions.aspectRatio,
+          })
+        : null
+      if (!retryPatch || await getTaskExistingExternalId(job.data.taskId)) {
+        throw firstError
+      }
+      await assertTaskActive(job, 'retry_toolbox_video_seedance_task_type')
+      await reportTaskProgress(job, 22, {
+        stage: 'retry_toolbox_video_seedance_task_type',
+        retryReason: retryPatch.reason,
+        omniReferenceTaskType: retryPatch.omitOmniReferenceTaskType ? 'auto' : (retryPatch.omniReferenceTaskType || 'auto'),
+      })
+      generated = await resolveVideoSourceFromGeneration(job, {
+        userId: job.data.userId,
+        modelId,
+        imageUrl: sourceImage,
+        options: buildGenerationOptions(normalized, retryPatch),
+      })
+    }
     let storageKey = await uploadVideoSourceToCos(generated.url, 'toolbox-video', asset.id, generated.downloadHeaders)
     const superresolveTarget = readString(payload.superresolveTarget)
     const actualResolution = readString(payload.resolution) || readString(generated.resolution)

@@ -1,5 +1,5 @@
 import type { CanvasDocumentInput, CanvasOperation } from '../types'
-import { isCanvasOperationArray } from './canvas-operations'
+import { applyCanvasOperationsToDocument, isCanvasOperationArray } from './canvas-operations'
 import {
   CANVAS_DOCUMENT_SCHEMA_VERSION,
   isCompatibleCanvasDocumentSchemaVersion,
@@ -269,12 +269,12 @@ export function resolveCanvasOfflineRecoveryChoice({
     }
     return { ...currentDocument, nodes: [...byId.values()], viewport, expectedRevision: serverRevision, clientId, changeSummary: '恢复本地未同步版本' }
   }
-  return {
-    ...clone(draft.document),
-    expectedRevision: serverRevision,
-    clientId,
-    changeSummary: '恢复本地未同步版本',
-  }
+  // Non-geometry drafts: replay the pending operations on the latest server
+  // document instead of overwriting with the whole local snapshot. This prevents
+  // a stale draft from deleting server-side nodes/edges it does not know about.
+  if (!currentDocument) throw new Error('缺少可供恢复的服务器画布文档。')
+  const replayed = applyCanvasOperationsToDocument(currentDocument, draft.pendingOps, clientId, '恢复本地未同步版本')
+  return { ...replayed, expectedRevision: serverRevision }
 }
 
 export function createMemoryCanvasOfflineDraftStore(

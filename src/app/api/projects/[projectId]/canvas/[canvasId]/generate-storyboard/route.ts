@@ -13,6 +13,7 @@ import {
 import { normalizeCanvasImageGenerationOptions } from '@/lib/canvas/generator-options'
 import { getProjectModelConfig, resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
 import { prisma } from '@/lib/prisma'
+import { resolveCanvasAssetProjectIds } from '@/lib/frameos/project-asset-scope'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { submitTask } from '@/lib/task/submitter'
 import { TASK_TYPE } from '@/lib/task/types'
@@ -69,6 +70,7 @@ export const POST = apiHandler(async (
       message: error instanceof Error ? error.message : '当前图片模型不支持这组故事版参数。',
     })
   }
+  const referenceMaterialIds = cleanStringArray(body?.referenceMaterialIds)
   const payload: CanvasStoryboardPlanTaskPayload = {
     kind: 'storyboard_plan',
     canvasId,
@@ -81,12 +83,13 @@ export const POST = apiHandler(async (
       modelKey: imageModelKey,
       modelLabel: cleanText(body?.modelLabel, 240) || null,
       referenceNodeIds: cleanStringArray(body?.referenceNodeIds),
-      referenceMaterialIds: cleanStringArray(body?.referenceMaterialIds),
+      referenceMaterialIds,
       inputMode: body?.inputMode === 'image' ? 'image' : 'text',
       aspectRatio: imageOptions.aspectRatio,
       resolution: imageOptions.resolution,
       quality: imageOptions.quality,
     },
+    ...(referenceMaterialIds.length ? { referenceProjectIds: await resolveCanvasAssetProjectIds(authResult.session, authResult.project) } : {}),
     maxInputTokens: 8_000,
     maxOutputTokens: 5_000,
     retryOf: null,

@@ -1,0 +1,60 @@
+[
+  {
+    "apiType": "video",
+    "provider": "ailink",
+    "modelId": "doubao-seedance-2-5",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false,
+            "resolution": "1080p"
+          },
+          "amount": 77
+        },
+        {
+          "when": {
+            "containsVideoInput": true,
+            "resolution": "1080p"
+          },
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 70
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 42
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "ailink",
+    "modelId": "doubao-seedance-2-5-flash",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 28
+        }
+      ]
+    }
+  }
+]

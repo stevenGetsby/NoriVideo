@@ -22,6 +22,16 @@ const STATUS_LABELS: Record<string, string> = {
   retired: '历史版本',
 }
 
+const STATUS_TONES: Record<string, string> = {
+  building: 'is-info',
+  build_failed: 'is-bad',
+  reviewing: 'is-warn',
+  rejected: 'is-bad',
+  approved: 'is-ok',
+  live: 'is-ok',
+  retired: '',
+}
+
 export function PlatformAdminMpReviewDetailClient({ releaseId }: { releaseId: string }) {
   const [data, setData] = useState<ReviewDetailPayload | null>(null)
   const [loadError, setLoadError] = useState('')
@@ -115,11 +125,15 @@ export function PlatformAdminMpReviewDetailClient({ releaseId }: { releaseId: st
         <AdminEmpty>加载中…</AdminEmpty>
       ) : (
         <div className="nori-mp-review-detail">
-          <p className="nori-mp-review-status">
-            状态：{STATUS_LABELS[release.status] ?? release.status}
-            {release.status === 'rejected' && release.reviewNote ? ` · 驳回原因：${release.reviewNote}` : ''}
-          </p>
-          {release.note ? <p className="nori-mp-review-note">版本说明：{release.note}</p> : null}
+          <div className="nori-mp-review-status-bar">
+            <span className={`nori-admin-pill ${STATUS_TONES[release.status] ?? ''}`}>
+              <i />{STATUS_LABELS[release.status] ?? release.status}
+            </span>
+            {release.status === 'rejected' && release.reviewNote ? (
+              <p className="nori-mp-review-status">驳回原因：{release.reviewNote}</p>
+            ) : null}
+            {release.note ? <p className="nori-mp-review-note">版本说明：{release.note}</p> : null}
+          </div>
           {!meta ? (
             <AdminEmpty>版本尚未生成完成</AdminEmpty>
           ) : (

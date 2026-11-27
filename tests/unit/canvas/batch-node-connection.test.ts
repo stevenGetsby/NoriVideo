@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isCanvasConnectionAllowed, planCanvasBatchConnections } from '@/features/canvas/batch-node-connection'
 import type { CanvasFlowEdge, CanvasFlowNode } from '@/features/canvas/editor-types'
 import type { CanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
+import { validateCanvasReferenceMedia } from '@/lib/canvas/generation-input-schema'
 import { CANVAS_PLAYLIST_MAX_ITEMS } from '@/lib/canvas/playlist'
 
 function node(id: string, type = 'image', patch: Partial<CanvasFlowNode['data']> = {}): CanvasFlowNode {
@@ -16,6 +17,42 @@ function plan(nodes: CanvasFlowNode[], sources: string[], target = 'target', edg
 }
 
 describe('canvas batch node connections', () => {
+  it('uses remaining node capacity only for valid new sources and still reuses existing sources', () => {
+    const target = node('target', 'video', { generation: { referenceNodeIds: [] } })
+    const restoredEdge = edge('wired', target.id)
+    const result = planCanvasBatchConnections({
+      nodes: [node('rejected'), node('new-1'), node('new-2'), node('existing'), node('wired'), target],
+      edges: [restoredEdge],
+      sourceNodeIds: ['rejected', 'new-1', 'new-2', 'existing', 'wired'],
+      targetNodeId: target.id,
+      validateReferences: (references) => references.every((reference) => reference.id !== 'rejected'),
+      newSourceCapacity: { ids: new Set(['rejected', 'new-1', 'new-2']), remaining: 1 },
+    })
+    expect(result).toMatchObject({ added: 2, restored: 1, skipped: 2, skippedForNodeCapacity: 1 })
+    expect(result.edges.map((item) => item.source)).toEqual(['wired', 'new-1', 'existing'])
+    expect(result.nodes.find((item) => item.id === target.id)?.data.generation?.referenceNodeIds).toEqual(['new-1', 'existing', 'wired'])
+  })
+  it('restores a deselected wire atomically and skips the next audio when their total exceeds the model limit', () => {
+    const schema = {
+      image: { min: 0, max: 3 }, video: { min: 0, max: 0 },
+      audio: { min: 0, max: 3, maxTotalDurationSeconds: 15 }, requiredFields: [],
+    } satisfies CanvasGenerationInputSchema
+    const target = node('target', 'video', { generation: { inputSchema: schema, referenceNodeIds: [] } })
+    const oldWire = edge('existing-audio', target.id)
+    const result = planCanvasBatchConnections({
+      nodes: [node('existing-audio', 'audio'), node('next-audio', 'audio'), target],
+      edges: [oldWire],
+      sourceNodeIds: ['existing-audio', 'next-audio'],
+      targetNodeId: target.id,
+      validateReferences: (references) => validateCanvasReferenceMedia(
+        schema,
+        references.map((reference) => ({ id: reference.id, title: reference.id, type: 'audio', durationSeconds: 8 })),
+      ).length === 0,
+    })
+    expect(result).toMatchObject({ added: 0, restored: 1, skipped: 1, edges: [oldWire] })
+    expect(result.nodes.find((item) => item.id === target.id)?.data.generation?.referenceNodeIds).toEqual(['existing-audio'])
+    expect(target.data.generation?.referenceNodeIds).toEqual([])
+  })
   it('connects all selected images to one video without moving or mutating the source nodes', () => {
     const nodes = [node('a'), node('b'), node('c'), node('target', 'video')]
     const initial = structuredClone(nodes)

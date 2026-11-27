@@ -57,6 +57,16 @@ export class LocalStorageProvider implements StorageProvider {
     return await fs.readFile(resolveUploadPath(key))
   }
 
+  async objectExists(key: string): Promise<boolean> {
+    try {
+      await fs.access(resolveUploadPath(key))
+      return true
+    } catch (error: unknown) {
+      if ((error as { code?: string })?.code === 'ENOENT') return false
+      throw error
+    }
+  }
+
   extractStorageKey(input: string | null | undefined): string | null {
     if (!input) return null
     if (input.startsWith('/api/files/')) {

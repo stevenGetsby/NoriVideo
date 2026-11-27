@@ -1,0 +1,1606 @@
+/* LanMiaoTV Platform Admin Studio UI Layer
+ * Scoped strictly to .nori-admin and .nori-admin-login so shared FrameOS / canvas styles remain untouched.
+ */
+
+.nori-admin,
+.nori-admin-login {
+  --adm-surface-0: color-mix(in srgb, var(--fos-bg-1) 96%, #05070d);
+  --adm-surface-1: color-mix(in srgb, var(--fos-bg-2) 94%, transparent);
+  --adm-surface-2: color-mix(in srgb, var(--fos-bg-3) 86%, transparent);
+  --adm-surface-3: color-mix(in srgb, var(--fos-bg-4) 70%, transparent);
+  --adm-hairline: color-mix(in srgb, var(--fos-border-soft) 90%, rgb(var(--nori-ink) / 0.06));
+  --adm-border: color-mix(in srgb, var(--fos-border-mid) 92%, rgb(var(--nori-ink) / 0.09));
+  --adm-border-strong: color-mix(in srgb, var(--fos-border-strong) 92%, rgb(var(--nori-ink) / 0.16));
+  --adm-spec: inset 0 1px 0 rgb(var(--nori-ink) / calc(0.055 * var(--nori-a)));
+  --adm-card-shadow: 0 12px 32px -18px rgb(0 0 0 / 0.55), var(--adm-spec);
+  --adm-radius-lg: 16px;
+  --adm-radius-md: 12px;
+  --adm-radius-sm: 9px;
+  background-image:
+    radial-gradient(920px 360px at 14% -8%, color-mix(in srgb, var(--fos-primary) 12%, transparent), transparent 68%),
+    radial-gradient(760px 320px at 88% -6%, color-mix(in srgb, var(--fos-hue-video) 10%, transparent), transparent 64%),
+    var(--fos-grain),
+    var(--fos-ambient);
+  background-color: var(--fos-bg-1);
+}
+
+/* ===== Top Header ===== */
+.nori-admin .nori-admin-header,
+.nori-admin-login .nori-admin-header {
+  height: 60px;
+  padding: 0 24px;
+  background: color-mix(in srgb, var(--fos-bg-1) 82%, transparent);
+  border-bottom: 1px solid var(--adm-hairline);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.nori-admin-header-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.nori-admin-breadcrumb {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  padding-left: 14px;
+  border-left: 1px solid var(--adm-hairline);
+  color: var(--fos-text-3);
+  font-size: 12px;
+  min-width: 0;
+}
+
+.nori-admin-breadcrumb > span {
+  white-space: nowrap;
+}
+
+.nori-admin-breadcrumb > strong {
+  color: var(--fos-text-1);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-admin-breadcrumb svg {
+  width: 12px;
+  height: 12px;
+  color: var(--fos-text-4);
+  flex: none;
+}
+
+.nori-admin .nori-admin-brand-badge {
+  height: 21px;
+  padding: 0 8px;
+  border-radius: 6px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 9.5px;
+}
+
+.nori-admin .nori-admin-role-pill {
+  height: 27px;
+  padding: 0 11px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-1);
+  box-shadow: var(--adm-spec);
+  gap: 6px;
+}
+
+.nori-admin .nori-admin-role-pill svg {
+  width: 13px;
+  height: 13px;
+  color: var(--fos-primary-text);
+}
+
+.nori-admin .nori-admin-logout {
+  height: 31px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-1);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.nori-admin .nori-admin-logout:hover {
+  border-color: var(--adm-border-strong);
+  background: var(--fos-fill-mid);
+}
+
+/* ===== Sidebar ===== */
+.nori-admin .nori-admin-sidebar {
+  --nori-admin-sidebar-w: 248px;
+  width: 248px;
+  flex: 0 0 248px;
+  background: color-mix(in srgb, var(--fos-bg-1) 52%, transparent);
+  border-right: 1px solid var(--adm-hairline);
+}
+
+.nori-admin .nori-admin-sidebar-inner {
+  position: sticky;
+  top: 60px;
+  height: calc(var(--nori-interface-viewport-height, 83.333333vh) - 60px);
+  padding: 18px 14px 16px;
+  gap: 16px;
+  overflow-y: auto;
+}
+
+.nori-admin-nav-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nori-admin-nav-group + .nori-admin-nav-group {
+  padding-top: 12px;
+  border-top: 1px solid var(--adm-hairline);
+}
+
+.nori-admin .nori-admin-nav-label {
+  padding: 0 10px 6px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--fos-text-4);
+}
+
+.nori-admin .nori-admin-nav {
+  gap: 4px;
+}
+
+.nori-admin .nori-admin-nav-item {
+  position: relative;
+  min-height: 48px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  gap: 10px;
+}
+
+.nori-admin .nori-admin-nav-item[data-nav="services"] { --nav-hue: var(--fos-hue-video); }
+.nori-admin .nori-admin-nav-item[data-nav="models"] { --nav-hue: var(--fos-primary); }
+.nori-admin .nori-admin-nav-item[data-nav="customer-models"] { --nav-hue: var(--fos-success); }
+.nori-admin .nori-admin-nav-item[data-nav="accounts"] { --nav-hue: var(--fos-hue-project, var(--fos-primary)); }
+.nori-admin .nori-admin-nav-item[data-nav="usage"] { --nav-hue: var(--fos-info); }
+.nori-admin .nori-admin-nav-item[data-nav="mp-review"] { --nav-hue: var(--fos-info); }
+.nori-admin .nori-admin-nav-item[data-nav="mp-ops"] { --nav-hue: var(--fos-warning); }
+.nori-admin .nori-admin-nav-item[data-nav="mp-stats"] { --nav-hue: var(--fos-success); }
+
+.nori-admin .nori-admin-nav-item.is-active {
+  background: color-mix(in srgb, var(--nav-hue) 13%, var(--adm-surface-1));
+  border-color: color-mix(in srgb, var(--nav-hue) 28%, transparent);
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin .nori-admin-nav-item.is-active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--nav-hue);
+}
+
+.nori-admin .nori-admin-nav-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.nori-admin .nori-admin-nav-item:hover .nori-admin-nav-icon {
+  transform: translateY(-0.5px);
+}
+
+.nori-admin .nori-admin-sidebar-note {
+  padding: 11px 12px;
+  border-radius: 11px;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.nori-admin .nori-admin-user-card {
+  padding: 10px;
+  border-radius: 11px;
+  border-color: var(--adm-hairline);
+  background: var(--adm-surface-1);
+  box-shadow: var(--adm-spec);
+}
+
+/* ===== Main Content & Page Head ===== */
+.nori-admin .nori-admin-content {
+  padding: 22px 28px 84px;
+}
+
+.nori-admin-content-inner {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.nori-admin .nori-admin-pagehead {
+  padding: 20px 24px;
+  margin-bottom: 18px;
+  border-radius: var(--adm-radius-lg);
+  border-color: color-mix(in srgb, var(--fos-primary) 18%, var(--adm-border));
+  background:
+    radial-gradient(520px 180px at 0% 0%, color-mix(in srgb, var(--fos-primary) 10%, transparent), transparent 68%),
+    var(--adm-surface-1);
+  box-shadow: var(--adm-card-shadow);
+}
+
+.nori-admin .nori-admin-title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.nori-admin .nori-admin-lead {
+  font-size: 12.5px;
+  color: var(--fos-text-3);
+  margin-top: 4px;
+}
+
+/* ===== KPI Metrics ===== */
+.nori-admin .nori-admin-metrics {
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.nori-admin .nori-admin-metric {
+  border-radius: 13px;
+  border-color: color-mix(in srgb, var(--hue, var(--fos-primary)) 20%, var(--adm-hairline));
+  background:
+    linear-gradient(155deg, color-mix(in srgb, var(--hue, var(--fos-primary)) 8%, transparent) 0%, transparent 65%),
+    var(--adm-surface-1);
+  box-shadow: var(--adm-card-shadow);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.nori-admin .nori-admin-metric:hover {
+  border-color: color-mix(in srgb, var(--hue, var(--fos-primary)) 34%, var(--adm-border));
+  transform: translateY(-1px);
+}
+
+.nori-admin .nori-admin-metric strong {
+  font-size: 22px;
+  letter-spacing: -0.03em;
+}
+
+/* ===== Panels & Cards ===== */
+.nori-admin .nori-admin-panel {
+  border-radius: var(--adm-radius-lg);
+  border-color: var(--adm-border);
+  background: var(--adm-surface-1);
+  box-shadow: var(--adm-card-shadow);
+  scroll-margin-top: 126px;
+}
+
+.nori-admin .nori-admin-panel-head {
+  padding: 16px 20px;
+  background: color-mix(in srgb, var(--fos-bg-3) 34%, transparent);
+  border-bottom: 1px solid var(--adm-hairline);
+}
+
+.nori-admin .nori-admin-panel-head h2 {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+}
+
+.nori-admin .nori-admin-panel-body {
+  padding: 18px 20px;
+}
+
+.nori-admin .nori-admin-stack {
+  gap: 16px;
+}
+
+.nori-admin .nori-admin-step {
+  display: inline-flex;
+  align-items: center;
+  height: 19px;
+  padding: 0 7px;
+  margin-bottom: 6px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--fos-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--fos-primary) 11%, transparent);
+  color: var(--fos-primary-text);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+}
+
+/* ===== Alerts & Empty & Loading ===== */
+.nori-admin .nori-admin-alert {
+  border-radius: 12px;
+  padding: 11px 14px;
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin-alert-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+
+.nori-admin-alert-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  opacity: 0.72;
+  text-decoration: none !important;
+  transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+
+.nori-admin-alert-dismiss:hover {
+  opacity: 1;
+  background: rgb(var(--nori-ink) / 0.08);
+}
+
+.nori-admin .nori-admin-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 48px 24px;
+  color: var(--fos-text-3);
+}
+
+.nori-admin-empty-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-border);
+  background: var(--adm-surface-2);
+  color: var(--fos-text-3);
+}
+
+.nori-admin-empty-desc {
+  margin: 0;
+  color: var(--fos-text-4);
+  font-size: 12px;
+}
+
+.nori-admin-loading {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+}
+
+.nori-admin-skeleton-row {
+  height: 16px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--adm-surface-2) 25%, var(--adm-surface-3) 50%, var(--adm-surface-2) 75%);
+  background-size: 200% 100%;
+  animation: adm-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes adm-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ===== Search with Clear Button ===== */
+.nori-admin .nori-admin-search .fos-input {
+  padding-right: 30px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.nori-admin-search-clear {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fos-text-4);
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.nori-admin-search-clear:hover {
+  color: var(--fos-text-1);
+  background: var(--fos-fill-mid);
+}
+
+.nori-admin-search-clear svg {
+  position: static !important;
+  transform: none !important;
+  width: 12px !important;
+  height: 12px !important;
+  pointer-events: auto !important;
+}
+
+/* ===== Modern Animated Toggle Switches ===== */
+.nori-admin input[type="checkbox"][role="switch"],
+.nori-admin input[type="checkbox"].nori-admin-toggle-check {
+  appearance: none;
+  -webkit-appearance: none;
+  position: relative;
+  flex: none;
+  width: 38px;
+  height: 22px;
+  margin: 0;
+  justify-self: end;
+  border-radius: 9999px;
+  border: 1px solid var(--adm-border-strong);
+  background: color-mix(in srgb, var(--fos-bg-1) 75%, var(--fos-bg-4));
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nori-admin input[type="checkbox"][role="switch"]::after,
+.nori-admin input[type="checkbox"].nori-admin-toggle-check::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--fos-text-1) 88%, #fff);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.35);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.2s ease;
+}
+
+.nori-admin input[type="checkbox"][role="switch"]:checked,
+.nori-admin input[type="checkbox"].nori-admin-toggle-check:checked {
+  border-color: color-mix(in srgb, var(--fos-success) 60%, transparent);
+  background: color-mix(in srgb, var(--fos-success) 82%, #059669);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--fos-success) 18%, transparent);
+}
+
+.nori-admin input[type="checkbox"][role="switch"]:checked::after,
+.nori-admin input[type="checkbox"].nori-admin-toggle-check:checked::after {
+  transform: translateX(16px);
+  background: #ffffff;
+}
+
+.nori-admin input[type="checkbox"][role="switch"]:disabled,
+.nori-admin input[type="checkbox"].nori-admin-toggle-check:disabled {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.nori-admin input[type="checkbox"][role="switch"]:focus-visible,
+.nori-admin input[type="checkbox"].nori-admin-toggle-check:focus-visible {
+  box-shadow: 0 0 0 3px var(--fos-primary-soft);
+}
+
+/* ===== Sticky Section Jump Bar (Services Console) ===== */
+.nori-admin-jumpbar {
+  position: sticky;
+  top: 66px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 6px;
+  overflow-x: auto;
+  border: 1px solid var(--adm-border);
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--fos-bg-2) 88%, transparent);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 26px -16px rgb(0 0 0 / 0.55), var(--adm-spec);
+}
+
+.nori-admin-jump-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--fos-text-3);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
+
+.nori-admin-jump-btn:hover {
+  background: var(--fos-fill-soft);
+  color: var(--fos-text-1);
+}
+
+.nori-admin-jump-btn.is-active {
+  border-color: color-mix(in srgb, var(--fos-primary) 34%, transparent);
+  background: color-mix(in srgb, var(--fos-primary) 14%, transparent);
+  color: var(--fos-text-1);
+  font-weight: 600;
+}
+
+.nori-admin-jump-num {
+  font-family: var(--fos-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fos-primary-text);
+  opacity: 0.85;
+}
+
+.nori-admin-jump-meta {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--fos-fill-soft);
+  color: var(--fos-text-3);
+  font-family: var(--fos-font-mono);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.nori-admin-jump-btn.is-active .nori-admin-jump-meta {
+  background: color-mix(in srgb, var(--fos-primary) 22%, transparent);
+  color: var(--fos-text-1);
+}
+
+/* ===== Filter Pill Strip & Toolbar ===== */
+.nori-admin-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nori-admin-seg {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  border: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 70%, transparent);
+}
+
+.nori-admin-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, color 0.16s ease, border-color 0.16s ease;
+}
+
+.nori-admin-seg-btn:hover {
+  color: var(--fos-text-1);
+}
+
+.nori-admin-seg-btn.is-active {
+  border-color: var(--adm-border);
+  background: var(--adm-surface-2);
+  color: var(--fos-text-1);
+  font-weight: 600;
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin-seg-btn em {
+  font-style: normal;
+  font-family: var(--fos-font-mono);
+  font-size: 10px;
+  color: var(--fos-text-4);
+}
+
+/* ===== Provider Cards ===== */
+.nori-admin .nori-admin-provider {
+  border-radius: 13px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-2);
+  box-shadow: var(--adm-spec);
+  transition: border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nori-admin .nori-admin-provider:hover {
+  border-color: var(--adm-border-strong);
+}
+
+.nori-admin .nori-admin-provider::before {
+  left: 18px;
+  width: 42px;
+  height: 2.5px;
+}
+
+.nori-admin .nori-admin-provider.is-openlux::before { background: var(--fos-hue-image); }
+.nori-admin .nori-admin-provider.is-openlux .nori-admin-provider-icon { color: var(--fos-hue-image); background: color-mix(in srgb, var(--fos-hue-image) 14%, transparent); }
+.nori-admin .nori-admin-provider.is-huimengi::before { background: var(--fos-warning); }
+.nori-admin .nori-admin-provider.is-huimengi .nori-admin-provider-icon { color: var(--fos-warning); background: color-mix(in srgb, var(--fos-warning) 14%, transparent); }
+.nori-admin .nori-admin-provider.is-ailink::before,
+.nori-admin .nori-admin-provider.is-topenrouter::before { background: var(--fos-hue-video); }
+.nori-admin .nori-admin-provider.is-kimi::before,
+.nori-admin .nori-admin-provider.is-openai::before { background: var(--fos-success); }
+.nori-admin .nori-admin-provider.is-kimi .nori-admin-provider-icon,
+.nori-admin .nori-admin-provider.is-openai .nori-admin-provider-icon { color: var(--fos-success); background: color-mix(in srgb, var(--fos-success) 14%, transparent); }
+
+.nori-admin .nori-admin-secret-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.nori-admin .nori-admin-secret-status.is-ok {
+  background: var(--fos-success-soft);
+  border-color: color-mix(in srgb, var(--fos-success) 26%, transparent);
+  color: var(--fos-success);
+}
+
+.nori-admin .nori-admin-secret-status.is-pending {
+  background: var(--fos-warning-soft);
+  border-color: color-mix(in srgb, var(--fos-warning) 28%, transparent);
+  color: var(--fos-warning);
+}
+
+.nori-admin .nori-admin-secret-status.is-missing {
+  background: var(--fos-danger-soft);
+  border-color: color-mix(in srgb, var(--fos-danger) 24%, transparent);
+  color: var(--fos-danger-text);
+}
+
+.nori-admin-url-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 60%, transparent);
+  font-family: var(--fos-font-mono);
+  font-size: 11px;
+  color: var(--fos-text-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ===== Purpose / Model Cards ===== */
+.nori-admin .nori-admin-purpose-grid {
+  padding: 18px 20px;
+  gap: 16px;
+}
+
+.nori-admin .nori-admin-purpose {
+  border-radius: 13px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-2);
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin .nori-admin-purpose-head {
+  padding: 13px 15px;
+  justify-content: space-between;
+  background: color-mix(in srgb, var(--fos-bg-2) 55%, transparent);
+}
+
+.nori-admin-purpose-head-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nori-admin-purpose-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--purpose-hue, var(--fos-primary)) 24%, transparent);
+  background: color-mix(in srgb, var(--purpose-hue, var(--fos-primary)) 12%, transparent);
+  color: var(--purpose-hue, var(--fos-primary));
+}
+
+.nori-admin-purpose.is-image .nori-admin-purpose-icon { --purpose-hue: var(--fos-hue-image); }
+.nori-admin-purpose.is-video .nori-admin-purpose-icon { --purpose-hue: var(--fos-hue-video); }
+.nori-admin-purpose.is-audio .nori-admin-purpose-icon { --purpose-hue: var(--fos-success); }
+.nori-admin-purpose.is-agent .nori-admin-purpose-icon { --purpose-hue: var(--fos-warning); }
+
+.nori-admin-purpose-count {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  border: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 60%, transparent);
+  color: var(--fos-text-3);
+  font-family: var(--fos-font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nori-admin .nori-admin-purpose-row {
+  padding: 12px 15px;
+  background: var(--adm-surface-2);
+  transition: background-color 0.15s ease;
+}
+
+.nori-admin .nori-admin-purpose-row:hover {
+  background: color-mix(in srgb, var(--fos-fill-soft) 70%, var(--adm-surface-2));
+}
+
+.nori-admin-inline-warn {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: var(--fos-warning-soft);
+  color: var(--fos-warning);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.nori-admin-route-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--fos-bg-1) 65%, transparent);
+  border: 1px solid var(--adm-hairline);
+  color: var(--fos-text-3);
+  font-size: 10.5px;
+}
+
+.nori-admin-route-tag.is-missing {
+  border-color: color-mix(in srgb, var(--fos-warning) 30%, transparent);
+  background: var(--fos-warning-soft);
+  color: var(--fos-warning);
+}
+
+/* ===== Section 03: Dual-View Banner (Customer vs Internal) ===== */
+.nori-admin-view-banner {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 20px 0;
+}
+
+@media (max-width: 820px) {
+  .nori-admin-view-banner {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 12px 12px 0;
+  }
+}
+
+.nori-admin-view-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 15px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-hairline);
+  background: var(--adm-surface-2);
+}
+
+.nori-admin-view-card.is-customer {
+  border-color: color-mix(in srgb, var(--fos-success) 26%, var(--adm-hairline));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--fos-success) 9%, transparent) 0%, transparent 70%),
+    var(--adm-surface-2);
+}
+
+.nori-admin-view-card.is-internal {
+  border-color: color-mix(in srgb, var(--fos-hue-video) 28%, var(--adm-hairline));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--fos-hue-video) 10%, transparent) 0%, transparent 70%),
+    var(--adm-surface-2);
+}
+
+.nori-admin-view-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+}
+
+.nori-admin-view-card.is-customer .nori-admin-view-icon {
+  background: color-mix(in srgb, var(--fos-success) 14%, transparent);
+  color: var(--fos-success);
+}
+
+.nori-admin-view-card.is-internal .nori-admin-view-icon {
+  background: color-mix(in srgb, var(--fos-hue-video) 15%, transparent);
+  color: var(--fos-hue-video);
+}
+
+.nori-admin-view-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.nori-admin-view-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nori-admin-view-title strong {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--fos-text-1);
+}
+
+.nori-admin-view-copy p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fos-text-3);
+}
+
+/* Status Pills Extension */
+.nori-admin .nori-admin-pill.is-bad {
+  background: var(--fos-danger-soft);
+  color: var(--fos-danger-text);
+}
+
+.nori-admin .nori-admin-pill.is-info {
+  background: color-mix(in srgb, var(--fos-info) 15%, transparent);
+  color: var(--fos-info);
+}
+
+.nori-admin .nori-admin-pill.is-internal {
+  background: color-mix(in srgb, var(--fos-hue-video) 16%, transparent);
+  color: rgb(var(--nori-t-c4b5fd));
+}
+
+.nori-admin .nori-admin-pill.is-customer {
+  background: var(--fos-success-soft);
+  color: var(--fos-success);
+}
+
+/* Whitelist User Chips */
+.nori-admin-viewer-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px 5px 6px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--fos-hue-video) 26%, var(--adm-border));
+  background: color-mix(in srgb, var(--fos-hue-video) 8%, var(--adm-surface-2));
+  color: var(--fos-text-1);
+  font-size: 12px;
+}
+
+.nori-admin-viewer-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--fos-hue-video) 24%, transparent);
+  color: rgb(var(--nori-t-c4b5fd));
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.nori-admin-viewer-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fos-text-4);
+  font-size: 14px;
+  line-height: 1;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nori-admin-viewer-remove:hover {
+  background: var(--fos-danger-soft);
+  color: var(--fos-danger-text);
+}
+
+/* Override Select Tone Hints */
+.nori-admin-override-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 9px;
+  border: 1px solid var(--adm-hairline);
+  background: var(--adm-surface-2);
+  font-size: 11.5px;
+  transition: border-color 0.15s ease;
+}
+
+.nori-admin-override-item.is-show {
+  border-color: color-mix(in srgb, var(--fos-success) 32%, transparent);
+  background: color-mix(in srgb, var(--fos-success) 7%, var(--adm-surface-2));
+}
+
+.nori-admin-override-item.is-hide {
+  border-color: color-mix(in srgb, var(--fos-danger) 30%, transparent);
+  background: color-mix(in srgb, var(--fos-danger) 7%, var(--adm-surface-2));
+}
+
+/* Storage Read-only Overview Strip */
+.nori-admin-storage-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 10px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 32%, transparent);
+}
+
+.nori-admin-storage-kv {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.nori-admin-storage-kv span {
+  font-size: 10.5px;
+  color: var(--fos-text-4);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.nori-admin-storage-kv strong {
+  font-family: var(--fos-font-mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fos-text-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Usage Sub-Toolbar */
+.nori-admin-subbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--adm-hairline);
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-3) 26%, transparent);
+}
+
+.nori-admin-subbar-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fos-text-3);
+  font-size: 12px;
+}
+
+/* ===== Sticky Floating Unsaved-Changes Save Bar ===== */
+.nori-admin-savebar {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  z-index: 40;
+  transform: translateX(-50%);
+  width: min(760px, calc(100vw - 40px));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--fos-warning) 36%, var(--adm-border));
+  background: color-mix(in srgb, var(--fos-bg-2) 94%, #090b12);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  box-shadow: 0 20px 44px -12px rgb(0 0 0 / 0.72), var(--adm-spec);
+  animation: adm-savebar-in 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes adm-savebar-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 12px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0);
+  }
+}
+
+.nori-admin-savebar-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nori-admin-savebar-dot {
+  width: 9px;
+  height: 9px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--fos-warning);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--fos-warning) 65%, transparent);
+}
+
+.nori-admin-savebar-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nori-admin-savebar-text strong {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--fos-text-1);
+}
+
+.nori-admin-savebar-text span {
+  font-size: 11px;
+  color: var(--fos-text-3);
+}
+
+.nori-admin-savebar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+/* ===== Accounts Workspace Cards (Fix 5-Column Grid + Visual Polish) ===== */
+.nori-admin .nori-admin-workspace-card {
+  border-radius: 13px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-2);
+  box-shadow: var(--adm-spec);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nori-admin .nori-admin-workspace-card:hover {
+  border-color: var(--adm-border-strong);
+  box-shadow: 0 10px 26px -18px rgb(0 0 0 / 0.55), var(--adm-spec);
+}
+
+.nori-admin .nori-admin-workspace-head {
+  padding: 14px 18px;
+  background: color-mix(in srgb, var(--fos-bg-2) 55%, transparent);
+}
+
+.nori-admin .nori-admin-stat {
+  padding: 13px 16px;
+  background: var(--adm-surface-1);
+}
+
+.nori-admin .nori-admin-balance > strong {
+  font-family: var(--fos-font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.nori-admin .nori-admin-type-cost strong {
+  font-family: var(--fos-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+}
+
+.nori-admin-toolbar-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 28%, transparent);
+}
+
+/* ===== Tables ===== */
+.nori-admin .nori-admin-table th {
+  padding: 10px 14px;
+  background: color-mix(in srgb, var(--fos-bg-1) 42%, transparent);
+  letter-spacing: 0.03em;
+  font-size: 11px;
+  color: var(--fos-text-3);
+}
+
+.nori-admin .nori-admin-table td {
+  padding: 11px 14px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== Details / Accordion ===== */
+.nori-admin .nori-admin-advanced summary {
+  padding: 13px 20px;
+  font-weight: 600;
+  list-style: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.nori-admin .nori-admin-advanced summary::-webkit-details-marker {
+  display: none;
+}
+
+.nori-admin .nori-admin-advanced summary:hover {
+  background: var(--fos-fill-soft);
+  color: var(--fos-text-1);
+}
+
+/* ===== Admin Sign-in Polish ===== */
+.nori-admin-login .nori-admin-login-card {
+  border-radius: 18px;
+  border-color: var(--adm-border);
+  background: var(--adm-surface-1);
+  box-shadow: 0 28px 64px -20px rgb(0 0 0 / 0.72), var(--adm-spec);
+}
+
+.nori-admin-login .nori-admin-login-card::before {
+  width: 72px;
+  height: 3px;
+  border-radius: 0 0 4px 4px;
+}
+
+.nori-admin-login .nori-admin-login-copy h1 {
+  letter-spacing: -0.035em;
+}
+
+/* ===== Responsive ===== */
+@media (min-width: 768px) {
+  .nori-admin-breadcrumb {
+    display: inline-flex;
+  }
+}
+
+@media (min-width: 1280px) {
+  .nori-admin .nori-admin-statgrid {
+    grid-template-columns: 1.05fr 0.85fr 1.35fr 1.05fr 0.95fr;
+  }
+}
+
+@media (max-width: 1023px) {
+  .nori-admin-savebar {
+    bottom: 12px;
+    width: calc(100vw - 24px);
+  }
+}
+
+/* ===== Section 03: Per-Customer Visibility & Provider Routing Workbench ===== */
+.nori-admin-workbench {
+  border: 1px solid var(--adm-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fos-bg-1) 36%, var(--adm-surface-1));
+  overflow: hidden;
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin-workbench-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-3) 36%, transparent);
+}
+
+.nori-admin-workbench-head h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--fos-text-1);
+}
+
+.nori-admin-workbench-head p {
+  margin: 4px 0 0;
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--fos-text-3);
+}
+
+.nori-admin-workbench-add {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.nori-admin-workbench-body {
+  display: grid;
+  grid-template-columns: 276px minmax(0, 1fr);
+  min-height: 360px;
+}
+
+@media (max-width: 1080px) {
+  .nori-admin-workbench-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.nori-admin-customer-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-right: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 46%, transparent);
+}
+
+@media (max-width: 1080px) {
+  .nori-admin-customer-rail {
+    border-right: 0;
+    border-bottom: 1px solid var(--adm-hairline);
+  }
+}
+
+.nori-admin-customer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+@media (max-width: 1080px) {
+  .nori-admin-customer-list {
+    flex-direction: row;
+    overflow-x: auto;
+    overflow-y: hidden;
+    max-height: none;
+    padding-bottom: 4px;
+  }
+}
+
+.nori-admin-customer-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  padding: 10px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--adm-hairline);
+  background: var(--adm-surface-2);
+  color: var(--fos-text-2);
+  text-align: left;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+@media (max-width: 1080px) {
+  .nori-admin-customer-item {
+    min-width: 224px;
+    flex: none;
+  }
+}
+
+.nori-admin-customer-item:hover {
+  border-color: var(--adm-border-strong);
+  color: var(--fos-text-1);
+}
+
+.nori-admin-customer-item.is-active {
+  border-color: color-mix(in srgb, var(--fos-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--fos-primary) 12%, var(--adm-surface-2));
+  color: var(--fos-text-1);
+  box-shadow: var(--adm-spec);
+}
+
+.nori-admin-customer-item-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nori-admin-customer-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--fos-primary) 20%, transparent);
+  color: var(--fos-primary-text);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.nori-admin-customer-item.is-active .nori-admin-customer-avatar {
+  background: var(--fos-primary);
+  color: var(--fos-on-cta);
+}
+
+.nori-admin-customer-name {
+  min-width: 0;
+  flex: 1;
+}
+
+.nori-admin-customer-name strong {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 650;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-admin-customer-name code {
+  display: block;
+  font-size: 10px;
+  color: var(--fos-text-4);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-admin-customer-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.nori-admin-mini-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 19px;
+  padding: 0 7px;
+  border-radius: 6px;
+  border: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 60%, transparent);
+  color: var(--fos-text-3);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.nori-admin-mini-badge.is-route {
+  border-color: color-mix(in srgb, var(--fos-hue-video) 34%, transparent);
+  background: color-mix(in srgb, var(--fos-hue-video) 14%, transparent);
+  color: rgb(var(--nori-t-c4b5fd));
+}
+
+.nori-admin-mini-badge.is-vis {
+  border-color: color-mix(in srgb, var(--fos-success) 30%, transparent);
+  background: var(--fos-success-soft);
+  color: var(--fos-success);
+}
+
+.nori-admin-mini-badge.is-warn {
+  border-color: color-mix(in srgb, var(--fos-warning) 30%, transparent);
+  background: var(--fos-warning-soft);
+  color: var(--fos-warning);
+}
+
+.nori-admin-mini-badge.is-owner {
+  border-color: color-mix(in srgb, var(--fos-info) 26%, transparent);
+  background: color-mix(in srgb, var(--fos-info) 12%, transparent);
+  color: var(--fos-info);
+}
+
+.nori-admin-mini-badge.is-sub {
+  border-color: color-mix(in srgb, var(--fos-primary) 28%, transparent);
+  background: color-mix(in srgb, var(--fos-primary) 13%, transparent);
+  color: var(--fos-primary-text);
+}
+
+.nori-admin-view-banner.is-standalone {
+  padding: 0;
+}
+
+.nori-admin-quick-pick-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.nori-admin-policy-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 10px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--fos-info) 22%, var(--adm-hairline));
+  background: color-mix(in srgb, var(--fos-info) 8%, transparent);
+  color: var(--fos-text-2);
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+
+.nori-admin-policy-hint svg {
+  width: 13px;
+  height: 13px;
+  color: var(--fos-info);
+  flex: none;
+}
+
+.nori-admin-customer-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nori-admin-customer-pane-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-2) 56%, transparent);
+}
+
+.nori-admin-customer-pane-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 30%, transparent);
+}
+
+.nori-admin-route-table tr.is-customized td {
+  background: color-mix(in srgb, var(--fos-hue-video) 5%, transparent);
+}
+
+.nori-admin-route-table tr.is-customized td:first-child {
+  box-shadow: inset 3px 0 0 var(--fos-hue-video);
+}
+
+.nori-admin-vis-seg {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 8px;
+  border: 1px solid var(--adm-hairline);
+  background: color-mix(in srgb, var(--fos-bg-1) 74%, transparent);
+}
+
+.nori-admin-vis-btn {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--fos-text-3);
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.nori-admin-vis-btn:hover {
+  color: var(--fos-text-1);
+}
+
+.nori-admin-vis-btn.is-active.is-inherit {
+  border-color: var(--adm-border);
+  background: var(--adm-surface-2);
+  color: var(--fos-text-1);
+  font-weight: 600;
+}
+
+.nori-admin-vis-btn.is-active.is-show {
+  border-color: color-mix(in srgb, var(--fos-success) 38%, transparent);
+  background: var(--fos-success-soft);
+  color: var(--fos-success);
+  font-weight: 650;
+}
+
+.nori-admin-vis-btn.is-active.is-hide {
+  border-color: color-mix(in srgb, var(--fos-danger) 36%, transparent);
+  background: var(--fos-danger-soft);
+  color: var(--fos-danger-text);
+  font-weight: 650;
+}
+
+.nori-admin-effective-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 10.5px;
+  color: var(--fos-text-4);
+}
+
+.nori-admin-effective-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fos-text-5);
+}
+
+.nori-admin-effective-pill.is-visible {
+  color: var(--fos-success);
+}
+
+.nori-admin-effective-pill.is-visible i {
+  background: var(--fos-success);
+}
+
+.nori-admin-route-select {
+  width: 100%;
+  min-width: 240px;
+}
+
+.nori-admin-route-select.is-overridden {
+  border-color: color-mix(in srgb, var(--fos-hue-video) 44%, transparent) !important;
+  background-color: color-mix(in srgb, var(--fos-hue-video) 8%, var(--fos-bg-1)) !important;
+}
+
+.nori-admin-workbench-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 40px 24px;
+  text-align: center;
+}
+
+.nori-admin-workbench-empty p {
+  margin: 0;
+  max-width: 34rem;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--fos-text-3);
+}
+
+.nori-admin-quick-picks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}

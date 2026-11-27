@@ -161,7 +161,9 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     throw new Error('HUIMENGI_VIDEO_CONTENT_REQUIRED')
   }
 
-  const generateAudio = params.options.generateAudio
+  const generateAudio = typeof params.options.generateAudio === 'boolean'
+    ? params.options.generateAudio
+    : model.supportsGenerateAudio && model.audioParam ? true : undefined
   if (generateAudio === true && (!model.supportsGenerateAudio || !model.audioParam)) {
     throw new Error(`HUIMENGI_VIDEO_GENERATE_AUDIO_UNSUPPORTED: ${model.modelId}`)
   }
@@ -178,22 +180,39 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
   )
 
   const ratioInput = readString(params.options.aspectRatio) || readString(params.options.ratio)
-  const promptText = prompt || ''
-  const hasEditIntent = /(?:编辑视频|编辑|增加|删除|替换|修改)/.test(promptText)
-  const hasExtendIntent = /(?:向前延长|向后延长|延长|延续|续写)/.test(promptText)
   const isSeedance25 = model.modelId === 'seedance-2.5'
   const requestedTaskType = readString(
     params.options.omniReferenceTaskType ?? params.options.omni_reference_task_type,
   ).toLowerCase()
-  const omniTaskType: 'reference' | 'edit' | 'extend' | '' = isSeedance25 && resolvedReferenceVideos.length > 0
-    ? (requestedTaskType === 'edit' || requestedTaskType === 'extend' || requestedTaskType === 'reference'
-        ? requestedTaskType
-        : hasExtendIntent ? 'extend' : hasEditIntent ? 'edit' : '')
-    : ''
+  if (
+    requestedTaskType
+    && requestedTaskType !== 'auto'
+    && requestedTaskType !== 'reference'
+    && requestedTaskType !== 'edit'
+    && requestedTaskType !== 'extend'
+  ) {
+    throw new Error(`HUIMENGI_SEEDANCE_OMNI_REFERENCE_TASK_TYPE_UNSUPPORTED: ${requestedTaskType}`)
+  }
+  if (requestedTaskType && requestedTaskType !== 'auto' && !isSeedance25) {
+    throw new Error(`HUIMENGI_SEEDANCE_OMNI_REFERENCE_TASK_TYPE_UNSUPPORTED: ${requestedTaskType}`)
+  }
+  // When omitted or 'auto', omit omni_reference_task_type instead of guessing from
+  // stray prompt words so Seedance 2.5 classifies the task without pe_classification conflicts.
+  const omniTaskType: 'reference' | 'edit' | 'extend' | '' =
+    isSeedance25 && (requestedTaskType === 'edit' || requestedTaskType === 'extend' || requestedTaskType === 'reference')
+      ? requestedTaskType
+      : ''
+  if ((omniTaskType === 'edit' || omniTaskType === 'extend') && resolvedReferenceVideos.length === 0) {
+    throw new Error(`HUIMENGI_SEEDANCE_${omniTaskType.toUpperCase()}_VIDEO_REQUIRED`)
+  }
 
   let ratio: string | undefined
   let duration: number | undefined
   if (omniTaskType === 'edit') {
+    const rawDuration = params.options.duration
+    if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '' && readFiniteNumber(rawDuration) !== -1) {
+      normalizeDuration(rawDuration, constraints.duration)
+    }
     ratio = 'adaptive'
     duration = -1
   } else if (omniTaskType === 'extend') {
@@ -203,7 +222,10 @@ export async function generateHuimengiVideo(params: HuimengiVideoGenerateParams)
     ratio = model.modelId === 'minimax-h3' && firstFrame
       ? 'adaptive'
       : normalizeRatio(ratioInput, constraints.ratios)
-    duration = normalizeDuration(params.options.duration, constraints.duration)
+    const rawDuration = params.options.duration
+    duration = isSeedance25 && resolvedReferenceVideos.length > 0 && omniTaskType === '' && readFiniteNumber(rawDuration) === -1
+      ? -1
+      : normalizeDuration(rawDuration, constraints.duration)
   }
 
   const requestParams: Record<string, unknown> = {

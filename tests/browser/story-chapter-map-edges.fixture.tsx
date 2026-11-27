@@ -41,8 +41,8 @@ const data: StoryOverviewData = {
     },
   },
   chapters: [
-    { projectId: 'p1', name: '第一章', canvasId: 'c1', nodeCount: 5, runningCount: 0, updatedAt: '2026-11-16T00:00:00.000Z', graph: graph('p1', '第一章') },
-    { projectId: 'p2', name: '第二章', canvasId: 'c2', nodeCount: 5, runningCount: 0, updatedAt: '2026-11-16T00:00:00.000Z', graph: graph('p2', '第二章') },
+    { projectId: 'p1', name: '第一章', description: null, canvasId: 'c1', nodeCount: 5, runningCount: 0, updatedAt: '2026-11-16T00:00:00.000Z', graph: graph('p1', '第一章') },
+    { projectId: 'p2', name: '第二章', description: null, canvasId: 'c2', nodeCount: 5, runningCount: 0, updatedAt: '2026-11-16T00:00:00.000Z', graph: graph('p2', '第二章') },
   ],
 }
 
@@ -61,9 +61,12 @@ createRoot(document.getElementById('root')!).render(
           start: data.story.config.start,
           onStatus: () => {},
           onSetStart: () => {},
+          onEdit: async () => {},
+          onDelete: () => {},
         }}
         onConnect={(connection) => { log.push(`connect:${connection.source}:${connection.sourceHandle}->${connection.target}:${connection.targetHandle}`) }}
         onDeleteLinks={(ids) => { log.push(`delete:${ids.join(',')}`) }}
+        onDeleteChapters={() => {}}
         onMove={() => {}}
         onFocus={() => {}}
       />

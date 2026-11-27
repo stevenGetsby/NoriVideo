@@ -1,11 +1,20 @@
 [
   {
     "modelType": "video",
-    "provider": "tgg",
-    "modelId": "seedance_v2.5_full",
+    "provider": "topenrouter",
+    "modelId": "doubao-seedance-2-5-260628",
     "capabilities": {
       "video": {
+        "generationModeOptions": [
+          "normal",
+          "firstlastframe"
+        ],
+        "generateAudioOptions": [
+          true,
+          false
+        ],
         "durationOptions": [
+          4,
           5,
           6,
           7,
@@ -33,8 +42,13 @@
           29,
           30
         ],
-        "firstlastframe": false,
-        "supportGenerateAudio": false,
+        "resolutionOptions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "firstlastframe": true,
+        "supportGenerateAudio": true,
         "inputSchema": {
           "image": {
             "min": 0,
@@ -59,11 +73,20 @@
   },
   {
     "modelType": "video",
-    "provider": "tgg",
-    "modelId": "vig-S2.5-480-秒",
+    "provider": "topenrouter",
+    "modelId": "doubao-seedance-2-5-260628-exp",
     "capabilities": {
       "video": {
+        "generationModeOptions": [
+          "normal",
+          "firstlastframe"
+        ],
+        "generateAudioOptions": [
+          true,
+          false
+        ],
         "durationOptions": [
+          4,
           5,
           6,
           7,
@@ -91,8 +114,13 @@
           29,
           30
         ],
-        "firstlastframe": false,
-        "supportGenerateAudio": false,
+        "resolutionOptions": [
+          "480p",
+          "720p",
+          "1080p"
+        ],
+        "firstlastframe": true,
+        "supportGenerateAudio": true,
         "inputSchema": {
           "image": {
             "min": 0,

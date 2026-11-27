@@ -31,7 +31,7 @@ function SaveStatus({ state, onRetry }: { state: CanvasSaveState; onRetry: () =>
   return <button type="button" className={`nori-canvas-save-state is-${state}`} title={state === 'offline' ? '修改已保存在当前浏览器，点击立即重试同步' : undefined} onClick={state === 'error' || state === 'offline' ? onRetry : undefined}><AppIcon name={info.icon} className={info.spin ? 'animate-spin' : ''} /><span>{info.label}</span></button>
 }
 
-export function CanvasChrome({
+export const CanvasChrome = React.memo(function CanvasChrome({
   projectId,
   projectName,
   canvases,
@@ -172,7 +172,7 @@ export function CanvasChrome({
           <AppIcon name="chevronRight" />
         </button>
       ) : null}
-      <div className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`}>
+      <div data-canvas-menu-open={menu === "project" || menu === "work" ? "true" : undefined} className={`nori-canvas-breadcrumbs${hasGlobalHierarchy ? ' is-global-hierarchy' : ''}`}>
         <Link
           href={story ? storyWorkHref! : { pathname: '/projects' }}
           className="nori-canvas-parent-back"
@@ -334,4 +334,4 @@ export function CanvasChrome({
       </div>
     </div>
   )
-}
+})

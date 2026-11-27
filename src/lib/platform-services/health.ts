@@ -3,7 +3,8 @@ import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { deleteObject, getObjectBuffer, getSignedObjectUrl, resetStorageProvider, uploadObject } from '@/lib/storage'
 import { getRawProviderKey } from '@/lib/model-provider-contract'
-import { TGG_DEFAULT_BASE_URL } from '@/lib/providers/tgg/client'
+import { AILINK_DEFAULT_BASE_URL } from '@/lib/providers/ailink/client'
+import { TOPENROUTER_DEFAULT_BASE_URL } from '@/lib/providers/topenrouter/client'
 import { isUsableServiceSecret, readMaterializedPlatformServiceConfig } from './config'
 import { recordServiceUsage } from './usage'
 
@@ -51,8 +52,13 @@ function huimengiHealthUrl(baseUrl?: string): string {
   return `${normalized}/api/v1/user/balance`
 }
 
-function tggHealthUrl(baseUrl?: string): string {
-  const normalized = (compact(baseUrl) || TGG_DEFAULT_BASE_URL).replace(/\/+$/, '')
+function ailinkHealthUrl(baseUrl?: string): string {
+  const normalized = (compact(baseUrl) || AILINK_DEFAULT_BASE_URL).replace(/\/+$/, '')
+  return `${normalized}/v1/models`
+}
+
+function topenrouterHealthUrl(baseUrl?: string): string {
+  const normalized = (compact(baseUrl) || TOPENROUTER_DEFAULT_BASE_URL).replace(/\/+$/, '')
   return `${normalized}/v1/models`
 }
 
@@ -86,7 +92,8 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
   if (!provider) throw new Error('服务不存在')
   const startedAt = Date.now()
   const providerKey = getRawProviderKey(provider.id).toLowerCase()
-  const isTgg = providerKey === 'tgg'
+  const isAilink = providerKey === 'ailink'
+  const isTopenrouter = providerKey === 'topenrouter'
   const isOpenLux = providerKey === 'openlux'
   const isHuimengi = providerKey === 'huimengi'
   const isImageProvider = isOpenLux || isHuimengi
@@ -102,7 +109,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isTgg ? 'video' : isImageProvider ? 'image' : 'llm',
+      serviceType: isAilink || isTopenrouter ? 'video' : isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,
@@ -122,9 +129,11 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
         ? kuaiziHealthUrl(provider.baseUrl)
         : isHuimengi
           ? huimengiHealthUrl(provider.baseUrl)
-          : isTgg
-            ? tggHealthUrl(provider.baseUrl)
-            : providerModelsUrl(provider.id, provider.baseUrl),
+          : isAilink
+            ? ailinkHealthUrl(provider.baseUrl)
+            : isTopenrouter
+              ? topenrouterHealthUrl(provider.baseUrl)
+              : providerModelsUrl(provider.id, provider.baseUrl),
       isKuaizi
         ? {
           method: 'POST',
@@ -184,12 +193,12 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
         httpStatus: response.status,
         modelCount,
         ...(isKuaizi ? { validationCode: kuaiziCode || null } : {}),
-        ...(isOpenLux || isTgg ? { probe: 'models' } : isHuimengi ? { probe: 'balance' } : {}),
+        ...(isOpenLux || isAilink || isTopenrouter ? { probe: 'models' } : isHuimengi ? { probe: 'balance' } : {}),
       },
     })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isTgg ? 'video' : isImageProvider ? 'image' : 'llm',
+      serviceType: isAilink || isTopenrouter ? 'video' : isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: healthy ? 'success' : 'failed',
       userId: checkedBy,
@@ -204,7 +213,7 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
     await persistHealth({ targetType: 'provider', targetId: provider.id, status: 'unhealthy', latencyMs, message, checkedBy })
     await recordServiceUsage({
       provider: provider.id,
-      serviceType: isTgg ? 'video' : isImageProvider ? 'image' : 'llm',
+      serviceType: isAilink || isTopenrouter ? 'video' : isImageProvider ? 'image' : 'llm',
       operation: 'health-check',
       status: 'failed',
       userId: checkedBy,

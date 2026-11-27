@@ -324,12 +324,6 @@ export function validateChapter(chapter: StoryChapterGraph, variables: StoryVari
 
   for (const node of nodes) {
     const handles = new Set(out(node.id).map((flow) => flow.handle))
-    for (const handle of handles) {
-      const targets = new Set(out(node.id).filter((flow) => flow.handle === handle).map((flow) => flow.to))
-      if (targets.size > 1) {
-        issues.push(issue('error', 'flow_fanout', `「${node.title}」的一个出口连了 ${targets.size} 条剧情线，试玩只会走其中一条，其余片段会被跳过。请只保留一条。`, projectId, node.id))
-      }
-    }
     if (node.kind === 'entry' && !handles.size) {
       issues.push(issue('error', 'dead_end', `「${node.title}」之后没有连接后续剧情。`, projectId, node.id))
     }

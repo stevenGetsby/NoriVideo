@@ -9,6 +9,7 @@ import { MAX_CANVAS_EDGES, MAX_CANVAS_NODES } from '@/lib/canvas/document'
 import { recordCanvasSnapshotInTransaction } from '@/lib/canvas/persistence'
 import type { CanvasStoryboardShot } from '@/lib/canvas/storyboard-plan'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
+import { workspaceUserWhere } from '@/lib/collaboration/access'
 import { prisma } from '@/lib/prisma'
 import { TaskTerminatedError } from '@/lib/task/errors'
 import { cancelTask } from '@/lib/task/service'
@@ -509,16 +510,21 @@ async function loadImageReferences(input: {
   userId: string
   projectId: string
   materialIds: string[]
+  referenceProjectIds?: string[]
 }) {
   if (input.materialIds.length === 0) return { images: [] as string[], summary: [] as Array<{ id: string; title: string; type: 'image' }> }
+  const referenceProjectIds = input.referenceProjectIds?.includes(input.projectId) ? input.referenceProjectIds : null
+  const workspaceUsers = referenceProjectIds
+    ? await prisma.user.findMany({ where: workspaceUserWhere(input.userId), select: { id: true } })
+    : null
   const materials = await prisma.frameosMaterial.findMany({
     where: {
       id: { in: input.materialIds },
-      userId: input.userId,
+      userId: workspaceUsers ? { in: workspaceUsers.map((user) => user.id) } : input.userId,
       type: 'image',
       status: 'ready',
       deletedAt: null,
-      projectId: { in: [input.projectId, 'global', 'global-asset-hub'] },
+      projectId: { in: [...(referenceProjectIds ?? [input.projectId]), 'global', 'global-asset-hub'] },
     },
   })
   const byId = new Map(materials.map((material) => [material.id, material]))
@@ -898,6 +904,7 @@ export async function materializeCanvasStoryboardFanout(input: {
       userId: input.userId,
       projectId: input.projectId,
       materialIds: input.payload.imageRequest.referenceMaterialIds,
+      referenceProjectIds: input.payload.referenceProjectIds,
     })
     if (input.payload.imageRequest.inputMode === 'image' && references.images.length === 0) {
       throw new Error('图生故事版至少需要 1 张可用参考图片。')

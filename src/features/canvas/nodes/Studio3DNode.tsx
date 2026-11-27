@@ -1,6 +1,6 @@
 'use client'
 
-import type { KeyboardEvent } from 'react'
+import { memo, type KeyboardEvent } from 'react'
 import Box from '@/components/ui/icons/ph/cube'
 import Camera from '@/components/ui/icons/ph/camera'
 import Cuboid from '@/components/ui/icons/ph/cube-transparent'
@@ -11,7 +11,7 @@ import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext
 import type { CanvasFlowNode } from '../editor-types'
 import { normalizeCanvasStudioSummary, STUDIO_NODE_MIN_SIZE } from '../studio-types'
 
-export function Studio3DNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
+export const Studio3DNode = memo(function Studio3DNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
@@ -54,4 +54,4 @@ export function Studio3DNode({ id, data, selected }: NodeProps<CanvasFlowNode>) 
       <Handle type="source" position={Position.Right} id="output" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
     </article>
   )
-}
+})

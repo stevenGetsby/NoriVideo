@@ -13,6 +13,7 @@ import type { StoryLink } from '@/lib/interactive/types'
 const chapter = (projectId: string) => ({
   projectId,
   name: projectId,
+  description: null,
   canvasId: `c-${projectId}`,
   nodeCount: 0,
   runningCount: 0,

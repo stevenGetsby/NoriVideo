@@ -107,7 +107,9 @@ function parseNodeOperation(source: Record<string, unknown>): CanvasOperation | 
     return id ? { type: 'node.delete', id } : null
   }
   if (!hasOnlyKeys(source, ['type', 'node'])) return null
-  const rawNode = record(source.node)
+  const sourceNode = record(source.node)
+  // detailVersion 是客户端摘要缓存字段，旧客户端可能把它带进 upsert；丢弃而不是拒绝整批。
+  const rawNode = sourceNode ? Object.fromEntries(Object.entries(sourceNode).filter(([key]) => key !== 'detailVersion')) : null
   if (!rawNode || !hasOnlyKeys(rawNode, [
     'id', 'type', 'position', 'size', 'data', 'status', 'taskId', 'runId', 'mediaObjectId', 'parentNodeId',
   ])) return null

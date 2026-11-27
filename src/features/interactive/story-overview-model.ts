@@ -12,6 +12,7 @@ import type {
 export type OverviewChapter = {
   projectId: string
   name: string
+  description: string | null
   canvasId: string | null
   nodeCount: number
   runningCount: number

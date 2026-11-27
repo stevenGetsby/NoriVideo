@@ -3,6 +3,7 @@ import { generateAudio } from '@/lib/generator-api'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getKuaiziModelDefinition } from '@/lib/providers/kuaizi/catalog'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import type { ModelViewerContext } from '@/lib/platform-services/model-selection'
 import {
   audioCapabilitiesForModel,
   declaredAudioModes,
@@ -28,6 +29,7 @@ export function implementedAudioModes(provider: string, _modelId: string): Audio
 export async function resolveAudioGenerationAvailability(params: {
   userId: string
   modelKey: string
+  viewer?: ModelViewerContext | null
 }): Promise<{
   available: boolean
   modes: AudioGenerationMode[]
@@ -35,8 +37,8 @@ export async function resolveAudioGenerationAvailability(params: {
   unavailableReason: string | null
 }> {
   try {
-    const selection = await resolveModelSelection(params.userId, params.modelKey, 'audio')
-    const capabilities = audioCapabilitiesForModel(params.modelKey)
+    const selection = await resolveModelSelection(params.userId, params.modelKey, 'audio', params.viewer)
+    const capabilities = audioCapabilitiesForModel(selection.modelKey)
     const declared = declaredAudioModes(capabilities)
     const implemented = implementedAudioModes(selection.provider, selection.modelId)
     const modes = declared.filter((mode) => implemented.includes(mode))
@@ -59,7 +61,7 @@ export async function resolveAudioGenerationAvailability(params: {
     return {
       available: false,
       modes: [],
-      runtimeModelKey: parseModelKeyStrict(resolveRuntimeModelKey(params.modelKey) || '')?.modelKey || null,
+      runtimeModelKey: parseModelKeyStrict(resolveRuntimeModelKey(params.modelKey, params.viewer) || '')?.modelKey || null,
       unavailableReason: error instanceof Error ? error.message : '音频服务不可用。',
     }
   }
@@ -70,8 +72,9 @@ export async function generateProviderAudio(params: {
   userId: string
   modelKey: string
   request: AudioGenerationRequest
+  viewer?: ModelViewerContext | null
 }): Promise<ProviderAudioGenerationResult> {
-  const selection = await resolveModelSelection(params.userId, params.modelKey, 'audio')
+  const selection = await resolveModelSelection(params.userId, params.modelKey, 'audio', params.viewer)
   const implementedModes = implementedAudioModes(selection.provider, selection.modelId)
   if (!implementedModes.includes(params.request.mode)) {
     throw new Error(`AUDIO_PROVIDER_MODE_NOT_IMPLEMENTED: ${selection.modelKey} ${params.request.mode}`)

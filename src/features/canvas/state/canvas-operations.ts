@@ -193,12 +193,18 @@ function compareNodes(before: CanvasNode, next: CanvasNode, geometryOps: boolean
   }
 }
 
+function upsertPayload(node: CanvasNode) {
+  const { detailVersion, ...rest } = withoutCanvasId(node) as Omit<CanvasNode, 'canvasId'> & { detailVersion?: unknown }
+  void detailVersion
+  return rest as Omit<CanvasNode, 'canvasId'>
+}
+
 function nodeOperationFor(before: CanvasNode | undefined, next: CanvasNode, geometryOps: boolean): CanvasOperation | null {
-  if (!before) return { type: 'node.upsert', node: withoutCanvasId(next) }
+  if (!before) return { type: 'node.upsert', node: upsertPayload(next) }
   if (next.data?.__canvasUnhydrated === true && !geometryOps) throw new Error(`节点 ${next.id} 尚未加载完整内容，请先加载后再保存。`)
   const comparison = compareNodes(before, next, geometryOps)
   if (comparison === 'same') return null
-  if (comparison === 'changed') return { type: 'node.upsert', node: withoutCanvasId(next) }
+  if (comparison === 'changed') return { type: 'node.upsert', node: upsertPayload(next) }
   return { type: 'node.update_geometry', ...comparison.geometry }
 }
 
@@ -350,5 +356,64 @@ export function canvasDocumentWithRevision(
     ...document,
     expectedRevision: revision,
     clientId,
+  }
+}
+
+/**
+ * Applies a list of operations to a document. Used by offline recovery: the
+ * server document is the base, and the local pending ops are replayed on top.
+ * Operations whose target no longer exists are skipped, so a stale draft
+ * cannot delete server-side nodes it does not know about.
+ */
+export function applyCanvasOperationsToDocument(
+  document: CanvasDocumentInput,
+  operations: readonly CanvasOperation[],
+  clientId: string,
+  changeSummary: string,
+): CanvasDocumentInput {
+  const nodes = new Map(document.nodes.map((node) => [node.id, node]))
+  const edges = new Map(document.edges.map((edge) => [edge.id, edge]))
+  let viewport = document.viewport
+  for (const operation of operations) {
+    switch (operation.type) {
+      case 'canvas.update_meta':
+        if (operation.viewport) viewport = operation.viewport
+        break
+      case 'node.upsert':
+        nodes.set(operation.node.id, { ...operation.node, canvasId: document.nodes[0]?.canvasId ?? '' })
+        break
+      case 'node.delete':
+        nodes.delete(operation.id)
+        // Drop any edges that reference the deleted node.
+        for (const [edgeId, edge] of edges) {
+          if (edge.sourceNodeId === operation.id || edge.targetNodeId === operation.id) edges.delete(edgeId)
+        }
+        break
+      case 'node.update_geometry': {
+        const existing = nodes.get(operation.id)
+        if (!existing) break
+        nodes.set(operation.id, {
+          ...existing,
+          ...(operation.position ? { position: operation.position } : {}),
+          ...(operation.size ? { size: operation.size } : {}),
+        })
+        break
+      }
+      case 'edge.add':
+        edges.set(operation.edge.id, { ...operation.edge, canvasId: document.edges[0]?.canvasId ?? '' })
+        break
+      case 'edge.delete':
+        edges.delete(operation.id)
+        break
+    }
+  }
+  return {
+    ...document,
+    expectedRevision: document.expectedRevision,
+    clientId,
+    changeSummary,
+    viewport,
+    nodes: Array.from(nodes.values()),
+    edges: Array.from(edges.values()),
   }
 }

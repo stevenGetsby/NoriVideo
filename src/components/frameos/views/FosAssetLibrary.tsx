@@ -28,7 +28,9 @@ import { MaterialUploadDialog } from './FosMaterialLibrary'
 import { fetchAllFrameosMaterials } from '../materials/fetch-all-materials'
 import { fetchAllProjectOptions } from '../works/fetch-all-projects'
 import { ConfirmActionDialog, RenameDialog } from '../works/FosWorksDialogs'
+import { notifyCanvasRevisions } from '@/lib/canvas/revision-broadcast'
 import {
+  describeCanvasSync,
   describeMaterialImageReplacement,
   renameFrameosMaterial,
   replaceFrameosMaterialImage,
@@ -545,6 +547,9 @@ export function FosAssetLibrary() {
       setAssets((current) => current.map((asset) => asset.materialId === updated.id ? { ...asset, name: updated.title! } : asset))
       setLightbox((current) => current?.materialId === updated.id ? { ...current, name: updated.title! } : current)
       setRenameTarget(null)
+      const syncNotice = describeCanvasSync(updated.canvasSync)
+      if (syncNotice) setReplaceNotice({ tone: 'success', text: syncNotice })
+      notifyCanvasRevisions(session?.user?.id || '', updated.canvasSync?.canvases)
     } finally {
       mutationBusy.current = false
       setRenaming(false)

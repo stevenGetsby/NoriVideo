@@ -3,7 +3,16 @@ import { apiHandler } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight, requireUserAuth } from '@/lib/api-auth'
 import { getProjectModelConfig, getUserModelConfig } from '@/lib/config-service'
 import { resolveBuiltinCapabilitiesByModelKey, getCapabilityOptionFields } from '@/lib/model-capabilities/lookup'
-import { listConfiguredSelectableModels, providerModelDisplayName } from '@/lib/platform-services/model-selection'
+import {
+  customerModelDisplayName,
+  isInternalModelViewer,
+  listSelectableModelAliasesForViewer,
+  listSelectableModelsForViewer,
+  providerModelDisplayName,
+  resolveSelectableModelKeyForViewer,
+  viewerContextFromSession,
+} from '@/lib/platform-services/model-selection'
+import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { getFrameos3DModelAvailability } from '@/lib/model3d/frameos-3d-provider'
 import { resolveCanvasGenerationInputSchema } from '@/lib/canvas/generation-input-schema'
 import { audioDurationBounds } from '@/lib/audio/generation-contract'
@@ -11,6 +20,7 @@ import { resolveAudioGenerationAvailability } from '@/lib/audio/provider'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
 import { getLatestServiceHealth } from '@/lib/platform-services/health'
 import { resolveConfiguredModelAvailability } from '@/lib/platform-services/model-availability'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 
 export const GET = apiHandler(async (request: NextRequest) => {
   const projectId = request.nextUrl.searchParams.get('projectId')?.trim() || ''
@@ -29,24 +39,32 @@ export const GET = apiHandler(async (request: NextRequest) => {
     getLatestServiceHealth().catch(() => []),
   ])
   const platformConfig = getPlatformServiceConfigResponse()
-  const textModels = listConfiguredSelectableModels(platformConfig, 'llm')
-  const imageModels = listConfiguredSelectableModels(platformConfig, 'image')
-  const videoModels = listConfiguredSelectableModels(platformConfig, 'video')
+  const viewer = viewerContextFromSession(session)
+  const internalViewer = isInternalModelViewer(platformConfig, viewer)
+  const textModels = listSelectableModelsForViewer(platformConfig, 'llm', viewer)
+  const imageModels = listSelectableModelsForViewer(platformConfig, 'image', viewer)
+  const videoModels = listSelectableModelsForViewer(platformConfig, 'video', viewer)
 
-  function mapModels(type: 'llm' | 'image' | 'video', models: ReturnType<typeof listConfiguredSelectableModels>) {
+  function mapModels(type: 'llm' | 'image' | 'video', models: ReturnType<typeof listSelectableModelsForViewer>) {
     return models.map((model) => {
-      const capabilities = resolveBuiltinCapabilitiesByModelKey(type, model.modelKey)
+      const capabilities = resolveBuiltinCapabilitiesByModelKey(type, model.runtimeModelKey || model.modelKey)
       const availability = resolveConfiguredModelAvailability({
         modelKey: model.modelKey,
         type,
         config: platformConfig,
         health: cachedHealth,
+        redactProviderNames: !internalViewer,
+        viewer,
       })
+      const { runtimeModelKey, ...publicAvailability } = availability
       return {
         modelKey: model.modelKey,
-        name: providerModelDisplayName(model.runtimeModelKey, model.modelId),
+        name: internalViewer
+          ? providerModelDisplayName(model.runtimeModelKey, model.modelId)
+          : customerModelDisplayName(model.modelKey, model.modelId),
         description: null,
-        ...availability,
+        ...publicAvailability,
+        ...(internalViewer ? { runtimeModelKey } : {}),
         options: getCapabilityOptionFields(type, capabilities),
         inputSchema: type === 'llm' ? null : resolveCanvasGenerationInputSchema(type, capabilities),
         supportsInpaint: type === 'image' ? capabilities?.image?.supportsInpaint === true : false,
@@ -56,27 +74,38 @@ export const GET = apiHandler(async (request: NextRequest) => {
     })
   }
 
-  const audioModels = await Promise.all(listConfiguredSelectableModels(platformConfig, 'audio').filter((model) => model.modelKey === 'nori::nori-audio').map(async (model) => {
-    const capabilities = resolveBuiltinCapabilitiesByModelKey('audio', model.modelKey)
-    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey: model.modelKey })
+  const audioModels = await Promise.all(listSelectableModelsForViewer(platformConfig, 'audio', viewer).filter((model) => model.modelKey === 'nori::nori-audio').map(async (model) => {
+    const capabilities = resolveBuiltinCapabilitiesByModelKey('audio', model.runtimeModelKey || model.modelKey)
+    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey: model.modelKey, viewer })
     const configuredAvailability = resolveConfiguredModelAvailability({
       modelKey: model.modelKey,
       type: 'audio',
       config: platformConfig,
       health: cachedHealth,
+      redactProviderNames: !internalViewer,
+      viewer,
     })
     const duration = audioDurationBounds(capabilities?.audio)
+    const resolvedRuntimeKey = availability.runtimeModelKey || configuredAvailability.runtimeModelKey || model.runtimeModelKey
+    const usesReferenceAudio = parseModelKeyStrict(resolvedRuntimeKey || '')?.modelId === 'seed-audio'
+    const rawAudioUnavailableReason = availability.unavailableReason || configuredAvailability.unavailableReason
+    const audioUnavailableReason = rawAudioUnavailableReason && !internalViewer
+      ? sanitizePublicError(rawAudioUnavailableReason)
+      : rawAudioUnavailableReason
     return {
       modelKey: model.modelKey,
-      name: providerModelDisplayName(model.runtimeModelKey, model.modelId),
+      name: internalViewer
+        ? providerModelDisplayName(model.runtimeModelKey, model.modelId)
+        : customerModelDisplayName(model.modelKey, model.modelId),
       description: null,
       options: getCapabilityOptionFields('audio', capabilities),
       inputSchema: resolveCanvasGenerationInputSchema('audio', capabilities),
       audioModes: availability.modes,
+      usesReferenceAudio,
       configured: configuredAvailability.configured,
       available: availability.available && configuredAvailability.available,
-      unavailableReason: availability.unavailableReason || configuredAvailability.unavailableReason,
-      runtimeModelKey: availability.runtimeModelKey || configuredAvailability.runtimeModelKey,
+      unavailableReason: audioUnavailableReason,
+      ...(internalViewer ? { runtimeModelKey: resolvedRuntimeKey } : {}),
       healthStatus: configuredAvailability.healthStatus,
       healthMessage: configuredAvailability.healthMessage,
       healthCheckedAt: configuredAvailability.healthCheckedAt,
@@ -87,11 +116,14 @@ export const GET = apiHandler(async (request: NextRequest) => {
   }))
 
   const model3dAvailability = getFrameos3DModelAvailability()
+  const rawImageDefault = defaults.characterModel || defaults.locationModel || defaults.editModel || ''
   return NextResponse.json({
+    modelViewMode: internalViewer ? 'internal' : 'customer',
     textModels: mapModels('llm', textModels),
     imageModels: mapModels('image', imageModels),
     videoModels: mapModels('video', videoModels),
     audioModels,
+    modelAliases: listSelectableModelAliasesForViewer(platformConfig, viewer),
     model3dModels: [{
       ...model3dAvailability,
       description: '3D 模型生成',
@@ -102,12 +134,12 @@ export const GET = apiHandler(async (request: NextRequest) => {
       healthCheckedAt: null,
     }],
     defaults: {
-      textModel: defaults.analysisModel,
-      imageModel: defaults.characterModel || defaults.locationModel || defaults.editModel,
-      editModel: defaults.editModel,
-      storyboardModel: defaults.storyboardModel,
-      videoModel: defaults.videoModel,
-      audioModel: defaults.audioModel,
+      textModel: resolveSelectableModelKeyForViewer(platformConfig, defaults.analysisModel || '', 'llm', viewer) || defaults.analysisModel,
+      imageModel: resolveSelectableModelKeyForViewer(platformConfig, rawImageDefault, 'image', viewer) || rawImageDefault,
+      editModel: resolveSelectableModelKeyForViewer(platformConfig, defaults.editModel || '', 'image', viewer) || defaults.editModel,
+      storyboardModel: resolveSelectableModelKeyForViewer(platformConfig, defaults.storyboardModel || '', 'image', viewer) || defaults.storyboardModel,
+      videoModel: resolveSelectableModelKeyForViewer(platformConfig, defaults.videoModel || '', 'video', viewer),
+      audioModel: resolveSelectableModelKeyForViewer(platformConfig, defaults.audioModel || '', 'audio', viewer) || defaults.audioModel,
       model3dModel: model3dAvailability.modelKey,
       aspectRatio: 'videoRatio' in defaults ? defaults.videoRatio : '16:9',
       resolution: 'videoResolution' in defaults ? defaults.videoResolution : null,

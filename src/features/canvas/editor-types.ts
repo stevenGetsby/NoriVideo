@@ -127,6 +127,7 @@ export function clampCanvasMenuPoint(
 export type CanvasContextMenuState = CanvasMenuPoint & (
   | { scope: 'pane' }
   | { scope: 'node'; nodeId: string }
+  | { scope: 'reference'; nodeId: string }
   | { scope: 'group'; groupId: string }
   | { scope: 'edge'; edgeId: string }
 )

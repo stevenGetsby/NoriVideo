@@ -1,7 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { apiFetch } from '@/lib/api-fetch'
+import { notifyCanvasRevisions } from '@/lib/canvas/revision-broadcast'
+import { readCanvasSync } from './material-actions'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toPlayableAudioUrl } from '@/lib/media/image-url'
 import { validateCharacterAudioFile } from '@/lib/frameos/character-voice-reference'
@@ -14,6 +17,7 @@ export function CharacterMaterialVoiceDialog({ material, onSaved, onClose }: {
   onSaved: (voice: FrameosMaterialItem | null) => void
   onClose: () => void
 }) {
+  const { data: session } = useSession()
   const [picker, setPicker] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -31,6 +35,8 @@ export function CharacterMaterialVoiceDialog({ material, onSaved, onClose }: {
       body: JSON.stringify({ voiceMaterialId: voice?.id || null }),
     })
     if (!response.ok) throw new Error(await readApiErrorMessage(response, '绑定音色失败'))
+    const payload = await response.json().catch(() => null) as { canvasSync?: unknown } | null
+    notifyCanvasRevisions(session?.user?.id || '', readCanvasSync(payload?.canvasSync)?.canvases)
     setVoiceUrl(voice?.url || null)
     onSaved(voice)
   }

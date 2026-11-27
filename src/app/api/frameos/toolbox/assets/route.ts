@@ -142,14 +142,16 @@ export const GET = apiHandler(async (request: NextRequest) => {
   for (const task of tasks) {
     if (!latestTask.has(task.targetId)) latestTask.set(task.targetId, task)
   }
-  const recoveredTaskAssets = await prisma.frameosToolboxAsset.findMany({
-    where: {
-      userId: { in: workspaceUserIds },
-      ...projectScope,
-      id: { in: tasks.map((task) => task.targetId) },
-      ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
-    },
-  })
+  const recoveredTaskAssets = taskIdsParam !== null && tasks.length > 0
+    ? await prisma.frameosToolboxAsset.findMany({
+      where: {
+        userId: { in: workspaceUserIds },
+        ...projectScope,
+        id: { in: tasks.map((task) => task.targetId) },
+        ...(type === 'image' || type === 'video' || type === 'audio' || type === 'model3d' ? { type } : {}),
+      },
+    })
+    : []
   const recoveredAssetById = new Map(recoveredTaskAssets.map((asset) => [asset.id, asset]))
   const orderedAssets = taskIdsParam !== null
     ? tasks.map((task) => recoveredAssetById.get(task.targetId))

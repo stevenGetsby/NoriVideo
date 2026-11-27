@@ -23,6 +23,10 @@ export const CANVAS_VIDEO_SUPERRESOLVE_TARGETS = ['720p', '1080p', '4k'] as cons
 
 export type CanvasVideoSuperresolveTarget = (typeof CANVAS_VIDEO_SUPERRESOLVE_TARGETS)[number]
 
+export const CANVAS_VIDEO_OMNI_REFERENCE_TASK_TYPES = ['auto', 'reference', 'edit', 'extend'] as const
+
+export type CanvasVideoOmniReferenceTaskType = (typeof CANVAS_VIDEO_OMNI_REFERENCE_TASK_TYPES)[number]
+
 const VIDEO_RESOLUTION_HEIGHTS: Record<string, number> = { '480p': 480, '720p': 720, '1080p': 1080, '4k': 2160 }
 
 export function resolveCanvasSuperresolveGenerationResolution(
@@ -50,8 +54,16 @@ export function isSeedance25VideoModelKey(value: unknown): boolean {
   if (typeof value !== 'string') return false
   const modelKey = value.trim().toLowerCase()
   return modelKey === 'nori::norivideo2.5'
+    || modelKey === 'nori::norivideo2.5-intl'
     || modelKey === 'kuaizi::doubao-seedance-2-5-260628'
+    || modelKey === 'kuaizi::doubao-seedance-2-5-260628-intl'
+    || modelKey === 'huimengi::seedance-2.5'
+    || modelKey === 'ailink::doubao-seedance-2-5'
+    || modelKey === 'ailink::doubao-seedance-2-5-flash'
+    || modelKey === 'topenrouter::doubao-seedance-2-5-260628'
+    || modelKey === 'topenrouter::doubao-seedance-2-5-260628-exp'
     || modelKey === 'doubao-seedance-2-5-260628'
+    || modelKey === 'doubao-seedance-2-5-260628-intl'
 }
 
 export function canvasVideoAspectRatioOptions(
@@ -78,6 +90,7 @@ export type CanvasVideoGenerationOptions = {
   inputMode: CanvasVideoInputMode
   fps?: number
   superresolveTarget?: CanvasVideoSuperresolveTarget
+  omniReferenceTaskType?: CanvasVideoOmniReferenceTaskType
 }
 
 export function resolveSupportedResolution(
@@ -222,6 +235,17 @@ export function normalizeCanvasVideoGenerationOptions(
         label: '超分目标',
         caseInsensitive: true,
       })
+  const omniReferenceTaskType = options.omniReferenceTaskType === undefined
+    || options.omniReferenceTaskType === null
+    || options.omniReferenceTaskType === ''
+    ? null
+    : choice({
+        value: options.omniReferenceTaskType,
+        values: CANVAS_VIDEO_OMNI_REFERENCE_TASK_TYPES,
+        fallback: 'auto',
+        label: '参考视频任务模式',
+        caseInsensitive: true,
+      })
   return {
     aspectRatio: choice({
       value: options.aspectRatio,
@@ -237,9 +261,10 @@ export function normalizeCanvasVideoGenerationOptions(
       caseInsensitive: true,
     }),
     duration,
-    generateAudio: options.generateAudio === true,
+    generateAudio: options.generateAudio !== false,
     inputMode: normalizeCanvasVideoInputMode(inputMode),
     ...(fps !== null ? { fps } : {}),
     ...(superresolveTarget ? { superresolveTarget } : {}),
+    ...(omniReferenceTaskType ? { omniReferenceTaskType } : {}),
   }
 }

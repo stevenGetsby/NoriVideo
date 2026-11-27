@@ -7,6 +7,8 @@ import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { TASK_TYPE } from '@/lib/task/types'
 import { parseModelKeyStrict } from '@/lib/model-config-contract'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
+import { resolveModelKeyForViewer, viewerContextFromSession } from '@/lib/platform-services/model-selection'
 
 function cleanText(value: unknown, maximum: number) {
   return typeof value === 'string' ? value.trim().slice(0, maximum) : ''
@@ -18,6 +20,7 @@ function isSeedance2Model(modelKey: string) {
     && (
       /^doubao-seedance-2-0(?:-|$)/.test(parsed.modelId)
       || parsed.modelId === 'doubao-seedance-2-5-260628'
+      || parsed.modelId === 'doubao-seedance-2-5-260628-intl'
     )
 }
 
@@ -81,8 +84,21 @@ export const POST = apiHandler(async (
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const characterId = cleanText(body.characterId, 191)
   const prompt = cleanText(body.prompt, 20_000)
-  const videoModel = cleanText(body.videoModel, 500)
-  if (!characterId || !prompt || !videoModel || !isSeedance2Model(videoModel)) {
+  const rawVideoModel = cleanText(body.videoModel, 500)
+  if (!characterId || !prompt || !rawVideoModel) {
+    throw new ApiError('INVALID_PARAMS', { message: '请选择 Seedance 2.0/2.5 模型并填写试镜提示词。' })
+  }
+  const viewerAccess = resolveModelKeyForViewer(
+    getPlatformServiceConfigResponse(),
+    rawVideoModel,
+    'video',
+    viewerContextFromSession(session),
+  )
+  if (!viewerAccess.allowed) {
+    throw new ApiError('FORBIDDEN', { message: viewerAccess.reason })
+  }
+  const videoModel = viewerAccess.modelKey
+  if (!isSeedance2Model(videoModel)) {
     throw new ApiError('INVALID_PARAMS', { message: '请选择 Seedance 2.0/2.5 模型并填写试镜提示词。' })
   }
 

@@ -17,8 +17,12 @@ import {
 } from '@/lib/canvas/video-operations'
 import { canvasPlaylistFingerprint } from '@/lib/canvas/playlist'
 import { parseCanvasPlaylistRenderTaskPayload } from '@/lib/canvas/playlist-render-task'
+import { isManagementRole } from '@/lib/account/permissions'
+import { projectParticipantWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { registerFrameosMaterial } from '@/lib/frameos/material-service'
-import { getObjectBuffer, getSignedObjectUrl, getSignedUrl, uploadObject } from '@/lib/storage'
+import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
+import { extractStorageKey, getObjectBuffer, getSignedObjectUrl, getSignedUrl, uploadObject } from '@/lib/storage'
 import { TASK_TYPE, type TaskJobData } from '@/lib/task/types'
 import { reportTaskProgress } from '@/lib/workers/shared'
 import {
@@ -37,9 +41,99 @@ function deterministicOutputKey(job: Job<TaskJobData>, extension: 'jpg' | 'mp4' 
   return `canvas-operations/${safeSegment(job.data.userId)}/${safeSegment(job.data.taskId)}.${extension}`
 }
 
+async function resolveReferenceStorageKey(value: string | null | undefined): Promise<string | null> {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) return null
+  if (trimmed.startsWith('/api/storage/sign')) {
+    try {
+      const key = new URL(trimmed, 'http://localhost').searchParams.get('key')?.trim()
+      if (key) return key.replace(/^\/+/, '')
+    } catch {
+      // Fall through to generic storage key resolution.
+    }
+  }
+  const fromMedia = await resolveStorageKeyFromMediaValue(trimmed)
+  if (fromMedia) return fromMedia
+  return extractStorageKey(trimmed)
+}
+
+function resolveTaskActorId(job: Job<TaskJobData>, payload: CanvasOperationTaskPayload): string {
+  if (typeof payload.actorId === 'string' && payload.actorId.trim()) {
+    return payload.actorId.trim()
+  }
+  const rawPayload = job.data.payload && typeof job.data.payload === 'object' && !Array.isArray(job.data.payload)
+    ? job.data.payload as Record<string, unknown>
+    : null
+  const meta = rawPayload?.meta && typeof rawPayload.meta === 'object' && !Array.isArray(rawPayload.meta)
+    ? rawPayload.meta as Record<string, unknown>
+    : null
+  if (typeof meta?.quotaUserId === 'string' && meta.quotaUserId.trim()) {
+    return meta.quotaUserId.trim()
+  }
+  return job.data.userId
+}
+
+async function resolveVideoEditReferenceAccessScope(params: {
+  userId: string
+  actorId: string
+  projectId: string
+}): Promise<{
+  workspaceOwnerId: string
+  actorId: string
+  workspaceUserIds: string[]
+  allowAllWorkspaceProjects: boolean
+  readableProjectIds: string[]
+}> {
+  const [taskUser, actorUser] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: params.userId },
+      select: { id: true, role: true, workspaceOwnerId: true },
+    }),
+    params.actorId === params.userId
+      ? Promise.resolve(null)
+      : prisma.user.findUnique({
+        where: { id: params.actorId },
+        select: { id: true, role: true, workspaceOwnerId: true },
+      }),
+  ])
+  const workspaceOwnerId = (taskUser && !isManagementRole(taskUser.role) && taskUser.workspaceOwnerId)
+    ? taskUser.workspaceOwnerId
+    : params.userId
+  const effectiveActor = actorUser || taskUser
+  const allowAllWorkspaceProjects = params.actorId === workspaceOwnerId
+    || isManagementRole(effectiveActor?.role)
+  const [workspaceUsers, readableProjects] = await Promise.all([
+    prisma.user.findMany({
+      where: workspaceUserWhere(workspaceOwnerId),
+      select: { id: true },
+    }),
+    allowAllWorkspaceProjects
+      ? Promise.resolve([])
+      : prisma.project.findMany({
+        where: {
+          userId: workspaceOwnerId,
+          deletedAt: null,
+          ...projectParticipantWhere(params.actorId),
+        },
+        select: { id: true },
+      }),
+  ])
+  return {
+    workspaceOwnerId,
+    actorId: params.actorId,
+    workspaceUserIds: Array.from(new Set([workspaceOwnerId, ...workspaceUsers.map((user) => user.id)])),
+    allowAllWorkspaceProjects,
+    readableProjectIds: Array.from(new Set([
+      params.projectId,
+      'global',
+      'global-asset-hub',
+      ...readableProjects.map((project) => project.id),
+    ])),
+  }
+}
+
 async function resolveVideoEditReferenceUrl(
-  userId: string,
-  projectId: string,
+  scope: Awaited<ReturnType<typeof resolveVideoEditReferenceAccessScope>>,
   reference: unknown,
 ): Promise<{ type: 'image' | 'audio'; url: string } | null> {
   if (!reference || typeof reference !== 'object' || Array.isArray(reference)) return null
@@ -47,26 +141,42 @@ async function resolveVideoEditReferenceUrl(
   const type = record.type === 'audio' ? 'audio' : 'image'
   const materialId = typeof record.materialId === 'string' ? record.materialId.trim() : ''
   if (materialId) {
+    const sharedScope = scope.allowAllWorkspaceProjects
+      ? { projectId: { not: PERSONAL_MATERIAL_PROJECT_ID }, personalOwnerId: null }
+      : { projectId: { in: scope.readableProjectIds }, personalOwnerId: null }
+    const personalScope = scope.allowAllWorkspaceProjects
+      ? { personalOwnerId: scope.actorId }
+      : { projectId: { in: [PERSONAL_MATERIAL_PROJECT_ID, ...scope.readableProjectIds] }, personalOwnerId: scope.actorId }
     const material = await prisma.frameosMaterial.findFirst({
       where: {
         id: materialId,
-        userId,
+        userId: { in: scope.workspaceUserIds },
         type,
         status: 'ready',
         deletedAt: null,
-        projectId: { in: [projectId, 'global', 'global-asset-hub'] },
+        OR: [sharedScope, personalScope],
       },
       select: { storageKey: true, resultUrl: true },
     })
     if (material?.storageKey) {
       return { type, url: await getSignedObjectUrl(material.storageKey, 60 * 60) }
     }
-    if (material?.resultUrl && /^https?:\/\//i.test(material.resultUrl)) {
-      return { type, url: material.resultUrl }
+    if (material?.resultUrl) {
+      if (/^https?:\/\//i.test(material.resultUrl)) {
+        return { type, url: material.resultUrl }
+      }
+      const resultStorageKey = await resolveReferenceStorageKey(material.resultUrl)
+      if (resultStorageKey) {
+        return { type, url: await getSignedObjectUrl(resultStorageKey, 60 * 60) }
+      }
     }
   }
   const url = typeof record.url === 'string' ? record.url.trim() : ''
   if (/^https?:\/\//i.test(url)) return { type, url }
+  const storageKey = await resolveReferenceStorageKey(url)
+  if (storageKey) {
+    return { type, url: await getSignedObjectUrl(storageKey, 60 * 60) }
+  }
   return null
 }
 
@@ -113,7 +223,7 @@ async function persistImageResult(
   const material = await registerFrameosMaterial({
     userId: job.data.userId,
     projectId: job.data.projectId,
-    ownerName: await ownerName(job.data.userId),
+    ownerName: await ownerName(resolveTaskActorId(job, payload)),
     title: `${payload.sourceTitle} · 超清`,
     type: 'image',
     source: 'creative',
@@ -162,7 +272,7 @@ async function persistVideoResult(
   const material = await registerFrameosMaterial({
     userId: job.data.userId,
     projectId: job.data.projectId,
-    ownerName: await ownerName(job.data.userId),
+    ownerName: await ownerName(resolveTaskActorId(job, payload)),
     title: `${payload.sourceTitle} · ${suffix}`,
     type: 'video',
     source: 'creative',
@@ -211,7 +321,7 @@ async function persistAudioResult(
   const material = await registerFrameosMaterial({
     userId: job.data.userId,
     projectId: job.data.projectId,
-    ownerName: await ownerName(job.data.userId),
+    ownerName: await ownerName(resolveTaskActorId(job, payload)),
     title,
     type: 'audio',
     source: 'creative',
@@ -389,7 +499,7 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
     const startMs = Number(payload.parameters.startMs)
     const endMs = Number(payload.parameters.endMs)
     const prompt = String(payload.parameters.prompt || '').trim()
-    const generateAudio = payload.parameters.generateAudio === true
+    const generateAudio = payload.parameters.generateAudio !== false
     if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || startMs < 0 || endMs <= startMs || !prompt) {
       throw new Error('INVALID_PARAMS: video edit parameters are invalid')
     }
@@ -423,13 +533,27 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
       ? payload.parameters.references
       : []
     const references: Array<{ type: 'image' | 'audio'; url: string }> = []
-    for (const reference of referenceInputs) {
-      const resolved = await resolveVideoEditReferenceUrl(job.data.userId, job.data.projectId, reference)
-      if (resolved) references.push(resolved)
+    if (referenceInputs.length > 0) {
+      const referenceScope = await resolveVideoEditReferenceAccessScope({
+        userId: job.data.userId,
+        actorId: resolveTaskActorId(job, payload),
+        projectId: job.data.projectId,
+      })
+      for (const reference of referenceInputs) {
+        const resolved = await resolveVideoEditReferenceUrl(referenceScope, reference)
+        if (resolved) references.push(resolved)
+      }
     }
     await assertTaskActive(job, 'canvas_video_edit_submit')
-    let externalId = await getTaskExistingExternalId(job.data.taskId)
+    const externalId = await getTaskExistingExternalId(job.data.taskId)
+    let editedUrl: string
+    let downloadHeaders: Record<string, string> | undefined
+    let videoMetadata: ReturnType<typeof pickVideoResultMetadata>
     if (!externalId) {
+      const capabilityDurationSeconds = Math.min(
+        30,
+        Math.max(4, Math.round(trimmed.duration || (endMs - startMs) / 1_000)),
+      )
       const generated = await resolveVideoSourceFromGeneration(job, {
         userId: job.data.userId,
         modelId: payload.modelKey,
@@ -439,8 +563,9 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
           videos: [await getSignedObjectUrl(segmentKey, 60 * 60)],
           referenceImages: references.filter((item) => item.type === 'image').map((item) => item.url),
           audios: references.filter((item) => item.type === 'audio').map((item) => item.url),
+          aspectRatio: 'adaptive',
           ratio: 'adaptive',
-          duration: -1,
+          duration: capabilityDurationSeconds,
           omniReferenceTaskType: 'edit',
           generateAudio,
           watermark: false,
@@ -453,100 +578,24 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
       if (!generated.url) {
         throw new Error('视频编辑任务未返回可用结果')
       }
-      const editedUrl = generated.url
-      const videoMetadata = pickVideoResultMetadata(generated)
-
-      await assertTaskActive(job, 'canvas_video_edit_download')
-      await reportTaskProgress(job, 84, { stage: 'canvas_video_edit_download' })
-      const editedResponse = await fetch(editedUrl, { headers: generated.downloadHeaders })
-      if (!editedResponse.ok) throw new Error(`无法下载编辑结果：${editedResponse.status}`)
-      const editedBody = Buffer.from(await editedResponse.arrayBuffer())
-      const processed = {
-        width: trimmed.width,
-        height: trimmed.height,
-        duration: videoMetadata.durationSeconds || trimmed.duration,
-        fps: videoMetadata.fps || trimmed.fps,
-        body: editedBody,
-      }
-      const result = await persistVideoResult(job, payload, processed)
-      const now = new Date().toISOString()
-      const sourceNode = await prisma.canvasNode.findFirst({
-        where: { id: payload.sourceNodeId, canvasId: payload.canvasId, canvas: { projectId: job.data.projectId } },
-        select: { data: true },
+      editedUrl = generated.url
+      downloadHeaders = generated.downloadHeaders
+      videoMetadata = pickVideoResultMetadata(generated)
+    } else {
+      await reportTaskProgress(job, 55, { stage: 'canvas_video_edit_poll' })
+      // Shared polling persists the external ID, resumes after restart and releases
+      // the freeze on failed/expired tasks through the normal worker lifecycle.
+      const polled = await waitExternalResult(job, externalId, job.data.userId, {
+        progressStart: 55, progressEnd: 80, intervalMs: 5_000,
       })
-      if (sourceNode) {
-        const currentData = sourceNode.data && typeof sourceNode.data === 'object' && !Array.isArray(sourceNode.data)
-          ? sourceNode.data as Record<string, unknown>
-          : {}
-        await prisma.canvasNode.update({
-          where: { id: payload.sourceNodeId },
-          data: {
-            data: JSON.parse(JSON.stringify({
-              ...currentData,
-              processType: 'video_edit',
-              mediaType: 'video',
-              title: result.title,
-              contentUrl: result.url,
-              videoUrl: result.url,
-              materialId: result.materialId,
-              videoEdit: {
-                ...(currentData.videoEdit && typeof currentData.videoEdit === 'object' && !Array.isArray(currentData.videoEdit)
-                  ? currentData.videoEdit as Record<string, unknown>
-                  : {}),
-                sourceKind: 'none',
-                sourceNodeId: null,
-              },
-              duration: processed.duration,
-              fps: processed.fps,
-              progress: 100,
-              errorMessage: null,
-              pollErrorMessage: null,
-              history: [{
-                id: `task:${job.data.taskId}`,
-                taskId: job.data.taskId,
-                url: result.url,
-                materialId: result.materialId,
-                prompt,
-                modelKey: payload.modelKey,
-                source: 'generation',
-                status: 'ready',
-                createdAt: now,
-              }],
-            })),
-            status: 'SUCCEEDED',
-            taskId: job.data.taskId,
-            mediaObjectId: result.materialId,
-          },
-        })
-      }
-      return {
-        operation: payload.operation,
-        engineKey: payload.engineKey,
-        modelKey: payload.modelKey,
-        results: [result],
-        durationSeconds: processed.duration,
-        resolution: '720p',
-        ...videoMetadata,
-        materialization: {
-          materialized: true,
-          outputNodeId: payload.sourceNodeId,
-          canvasRevision: null,
-          reason: 'created' as const,
-        },
-      }
+      editedUrl = polled.url
+      downloadHeaders = polled.downloadHeaders
+      videoMetadata = pickVideoResultMetadata(polled)
     }
-    await reportTaskProgress(job, 55, { stage: 'canvas_video_edit_poll' })
-    // Shared polling persists the external ID, resumes after restart and releases
-    // the freeze on failed/expired tasks through the normal worker lifecycle.
-    const polled = await waitExternalResult(job, externalId, job.data.userId, {
-      progressStart: 55, progressEnd: 80, intervalMs: 5_000,
-    })
-    const editedUrl = polled.url
-    const videoMetadata = pickVideoResultMetadata(polled)
 
     await assertTaskActive(job, 'canvas_video_edit_download')
     await reportTaskProgress(job, 84, { stage: 'canvas_video_edit_download' })
-    const editedResponse = await fetch(editedUrl, { headers: polled.downloadHeaders })
+    const editedResponse = await fetch(editedUrl, { headers: downloadHeaders })
     if (!editedResponse.ok) throw new Error(`无法下载编辑结果：${editedResponse.status}`)
     const editedBody = Buffer.from(await editedResponse.arrayBuffer())
     const processed = {
@@ -558,15 +607,27 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
     }
     const result = await persistVideoResult(job, payload, processed)
     const now = new Date().toISOString()
-    const sourceNode = await prisma.canvasNode.findFirst({
-      where: { id: payload.sourceNodeId, canvasId: payload.canvasId, canvas: { projectId: job.data.projectId } },
-      select: { data: true },
-    })
-    if (sourceNode) {
+    const materialization = await prisma.$transaction(async (tx) => {
+      const sourceNode = await tx.canvasNode.findFirst({
+        where: { id: payload.sourceNodeId, canvasId: payload.canvasId, canvas: { projectId: job.data.projectId } },
+        select: { data: true },
+      })
+      if (!sourceNode) {
+        const canvas = await tx.canvas.findFirst({
+          where: { id: payload.canvasId, projectId: job.data.projectId },
+          select: { revision: true },
+        })
+        return {
+          materialized: false,
+          outputNodeId: null,
+          canvasRevision: canvas?.revision ?? null,
+          reason: 'source-missing' as const,
+        }
+      }
       const currentData = sourceNode.data && typeof sourceNode.data === 'object' && !Array.isArray(sourceNode.data)
         ? sourceNode.data as Record<string, unknown>
         : {}
-      await prisma.canvasNode.update({
+      await tx.canvasNode.update({
         where: { id: payload.sourceNodeId },
         data: {
           data: JSON.parse(JSON.stringify({
@@ -606,7 +667,18 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
           mediaObjectId: result.materialId,
         },
       })
-    }
+      const updatedCanvas = await tx.canvas.update({
+        where: { id: payload.canvasId },
+        data: { revision: { increment: 1 } },
+        select: { revision: true },
+      })
+      return {
+        materialized: true,
+        outputNodeId: payload.sourceNodeId,
+        canvasRevision: updatedCanvas.revision,
+        reason: 'created' as const,
+      }
+    })
     return {
       operation: payload.operation,
       engineKey: payload.engineKey,
@@ -615,12 +687,7 @@ export async function handleCanvasVideoOperationTask(job: Job<TaskJobData>) {
       durationSeconds: processed.duration,
       resolution: '720p',
       ...videoMetadata,
-      materialization: {
-        materialized: true,
-        outputNodeId: payload.sourceNodeId,
-        canvasRevision: null,
-        reason: 'created' as const,
-      },
+      materialization,
     }
   }
   if (payload.operation === 'audio_extract') {

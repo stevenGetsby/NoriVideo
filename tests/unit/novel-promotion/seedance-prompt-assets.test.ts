@@ -154,6 +154,33 @@ describe('Seedance asset prompt conventions', () => {
 })
 
 describe('Seedance @mention compilation (production regressions)', () => {
+  it('binds submitted image aliases and Unicode names with original-text boundaries', () => {
+    const references = [
+      { type: 'image', index: 1, names: [], fallbackNames: ['Lin Xia'], aliases: ['Xiaxia'], kind: 'character' },
+      { type: 'image', index: 2, names: [], fallbackNames: ['İpek'], kind: 'character' },
+    ] satisfies SeedanceMentionReference[]
+    const { prompt } = compileSeedanceMentionPrompt('İİİ“Xiaxia，i\u0307pek”之后，Xiaxia 和 i\u0307pek 走进门。', references, { mediaReferences: true })
+    expect(prompt).toContain('图1（@图片1）是角色Lin Xia')
+    expect(prompt).toContain('图2（@图片2）是角色İpek')
+    expect(prompt).toContain('İİİ“Xiaxia，i\u0307pek”之后，图1（Xiaxia） 和 图2（i\u0307pek） 走进门。')
+  })
+
+  it('prefers exact titles to aliases and leaves equally ranked aliases unbound', () => {
+    const references = [
+      { type: 'image', index: 1, names: [], fallbackNames: ['Lin Xia'], aliases: ['Xiaxia', 'Lin'] },
+      { type: 'image', index: 2, names: [], fallbackNames: ['Xiaxia'], aliases: ['Lin'] },
+    ] satisfies SeedanceMentionReference[]
+    const { prompt } = compileSeedanceMentionPrompt('Xiaxia 和 Lin', references, { mediaReferences: true })
+    expect(prompt).toContain('图2（Xiaxia） 和 Lin')
+    expect(prompt).not.toContain('图1（')
+  })
+
+  it('does not bind single-character or numeric aliases after Unicode folding', () => {
+    const { prompt } = compileSeedanceMentionPrompt('İ １２', [
+      { type: 'image', index: 1, names: [], fallbackNames: ['角色'], aliases: ['İ', '１２'] },
+    ], { mediaReferences: true })
+    expect(prompt).toBe('İ １２')
+  })
   const reference = (
     type: SeedanceMentionReference['type'],
     index: number,
@@ -205,7 +232,7 @@ describe('Seedance @mention compilation (production regressions)', () => {
     expect(result.unresolved.map((item) => item.text)).toEqual(['女主_萧令仪'])
   })
 
-  it('keeps same-title image materials distinct by their editor mention names', () => {
+  it('compiles editor-generated duplicate names to the submitted image position', () => {
     const result = compileSeedanceMentionPrompt(
       '@剪贴板素材-1·图片2 站在@剪贴板素材-1·图片1 身后',
       [
@@ -218,7 +245,7 @@ describe('Seedance @mention compilation (production regressions)', () => {
     expect(result.unresolved).toEqual([])
   })
 
-  it('keeps video/audio ordered references and strips image markers without references', () => {
+  it('compiles audio and video mentions only when those media are actually submitted', () => {
     const references = [
       reference('image', 1, ['蒙面人']),
       reference('audio', 1, ['蒙面人音色(1)']),
@@ -230,7 +257,84 @@ describe('Seedance @mention compilation (production regressions)', () => {
       .toBe('蒙面人 用蒙面人音色(1)说话')
   })
 
-  it('prefers the exact editor mention when materials share a title', () => {
+  it('never lets a voice title claim a character name in bare text (沈娇 production case)', () => {
+    const references = [
+      reference('image', 1, ['沈娇'], ['沈娇-59集'], 'character'),
+      reference('image', 2, ['孟雨菲'], ['51-女主-吴欣琳'], 'character'),
+      reference('audio', 1, ['沈娇音频'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇@沈娇-59集，沈娇音频@沈娇，孟雨菲@51-女主-吴欣琳，\n沈娇站在一旁看着姐姐，沈娇音频低沉。',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）站在一旁看着姐姐')
+    expect(result.prompt).toContain('音频1是沈娇音频的声音')
+    expect(result.prompt).not.toContain('音频1站在')
+    expect(result.prompt).not.toContain('音频1音频')
+    expect(result.unresolved).toEqual([])
+  })
+
+  it('keeps character text bound to the image even when the voice owns the exact name', () => {
+    const references = [
+      reference('image', 1, [], ['沈娇'], 'character'),
+      reference('audio', 1, ['沈娇'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇@沈娇，沈娇音频@沈娇，\n沈娇掏出手机，沈娇说“我姐这么累”。',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）掏出手机')
+    expect(result.prompt).toContain('说“我姐这么累”')
+    expect(result.prompt).not.toContain('音频1掏出手机')
+    expect(result.prompt).not.toContain('音频1音频')
+  })
+
+  it('binds an explicit voice @mention but leaves the same bare name for the image', () => {
+    const references = [
+      reference('image', 1, ['沈娇'], ['沈娇-59集'], 'character'),
+      reference('audio', 1, ['沈娇音色'], ['沈娇']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇看着姐姐，用@沈娇音色说话',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）看着姐姐')
+    expect(result.prompt).toContain('用音频1说话')
+  })
+
+  it('keeps @沈娇 on the voice when the image only carries 沈娇 as a title fallback', () => {
+    const references = [
+      reference('image', 1, ['沈娇-59集'], ['沈娇'], 'character'),
+      reference('audio', 1, ['沈娇'], []),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '沈娇看着姐姐，用@沈娇说话',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（沈娇）看着姐姐')
+    expect(result.prompt).toContain('用音频1说话')
+    expect(result.prompt).not.toContain('用图1（沈娇）说话')
+  })
+
+  it('leaves bare video titles literal; only explicit @ binds 视频N', () => {
+    const references = [
+      reference('image', 1, ['蒙面人'], [], 'character'),
+      reference('video', 1, ['打斗参考']),
+    ]
+    const result = compileSeedanceMentionPrompt(
+      '蒙面人模仿打斗参考的动作，再@打斗参考一次',
+      references,
+      { mediaReferences: true },
+    )
+    expect(result.prompt).toContain('图1（蒙面人）模仿打斗参考的动作')
+    expect(result.prompt).toContain('再视频1一次')
+  })
+
+  it('prefers the exact editor name over another reference whose title is the same', () => {
     const result = compileSeedanceMentionPrompt(
       '@林夏 回头',
       [reference('image', 1, [], ['林夏']), reference('image', 2, ['林夏'], ['林夏 定妆照'])],

@@ -97,7 +97,7 @@ export function createCanvasOfflineDraftBuffer({
   read,
   write,
   remove,
-  delayMs = 80,
+  delayMs = 350,
   scheduleTimer = (callback, delay) => setTimeout(callback, delay),
   cancelTimer = (handle) => clearTimeout(handle),
 }: {

@@ -37,7 +37,6 @@ function transaction(claimed = 1) {
     canvas: {
       updateMany: vi.fn(async () => ({ count: claimed })),
       findFirst: vi.fn(async () => ({ revision: 6 })),
-      findUnique: vi.fn(async (): Promise<unknown> => ({ viewport: { x: 0, y: 0, zoom: 1 } })),
       findUniqueOrThrow: vi.fn(async () => ({ id: 'canvas-1', revision: 6, viewport: { x: 0, y: 0, zoom: 1 } })),
     },
     canvasEdge: {
@@ -55,7 +54,6 @@ function transaction(claimed = 1) {
     },
     canvasSnapshot: {
       findFirst: vi.fn(async (): Promise<unknown> => null),
-      findUnique: vi.fn(async (): Promise<unknown> => null),
       create: vi.fn(async () => ({ id: 'snapshot-6' })),
       findMany: vi.fn(async (): Promise<unknown[]> => []),
       deleteMany: vi.fn(async () => ({ count: 0 })),
@@ -103,9 +101,9 @@ describe('canvas snapshot throttling', () => {
     expect(tx.canvasSnapshot.deleteMany).not.toHaveBeenCalled()
   })
 
-  it('records again after five minutes and forces history restores immediately', async () => {
+  it('records again after fifteen minutes and forces history restores immediately', async () => {
     const tx = transaction()
-    tx.canvasSnapshot.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 5 * 60_000) })
+    tx.canvasSnapshot.findFirst.mockResolvedValue({ createdAt: new Date(Date.now() - 15 * 60_000) })
     await expect(shouldRecordCanvasSnapshot(tx as never, 'canvas-1')).resolves.toBe(true)
 
     const restore = transaction()
@@ -228,72 +226,6 @@ describe('canvas document persistence', () => {
     expect(tx.canvasNode.deleteMany).not.toHaveBeenCalled()
     expect(tx.canvasNode.createMany).not.toHaveBeenCalled()
     expect(tx.canvasStudio3DDocument.deleteMany).not.toHaveBeenCalled()
-  })
-
-  describe('stale whole-document replays', () => {
-    const storedNode = (id: string) => ({ ...input().nodes[0], id })
-    const storedEdge = (id: string, source: string, target: string) => ({ id, sourceNodeId: source, targetNodeId: target, sourceHandle: 'output', targetHandle: 'input', role: 'STORY_FLOW' })
-
-    it('refuses a full-document save that drops far more than a person deletes, and writes nothing', async () => {
-      const tx = transaction()
-      const existing = Array.from({ length: 100 }, (_, index) => storedNode(`n${index}`))
-      tx.canvasNode.findMany.mockResolvedValueOnce(existing)
-      await expect(replaceCanvasDocumentInTransaction(tx as never, {
-        projectId: 'project-1',
-        canvasId: 'canvas-1',
-        userId: 'user-1',
-        input: { ...input(), changeSummary: '恢复本地未同步版本', nodes: existing.slice(0, 55) },
-      })).rejects.toMatchObject({ code: 'CONFLICT', details: expect.objectContaining({ reason: 'CANVAS_BULK_REMOVAL_BLOCKED' }) })
-      expect(tx.canvasEdge.deleteMany).not.toHaveBeenCalled()
-      expect(tx.canvasNode.deleteMany).not.toHaveBeenCalled()
-      expect(tx.canvasSnapshot.create).not.toHaveBeenCalled()
-    })
-
-    it('refuses a replay that keeps every node but rewrites away most edges', async () => {
-      const tx = transaction()
-      const nodes = Array.from({ length: 60 }, (_, index) => storedNode(`n${index}`))
-      const edges = Array.from({ length: 59 }, (_, index) => storedEdge(`e${index}`, `n${index}`, `n${index + 1}`))
-      tx.canvasNode.findMany.mockResolvedValueOnce(nodes)
-      tx.canvasEdge.findMany.mockResolvedValueOnce(edges)
-      await expect(replaceCanvasDocumentInTransaction(tx as never, {
-        projectId: 'project-1',
-        canvasId: 'canvas-1',
-        userId: 'user-1',
-        input: { ...input(), nodes, edges: edges.slice(0, 20).map((edge) => ({ ...edge })) },
-      })).rejects.toMatchObject({ code: 'CONFLICT' })
-      expect(tx.canvasEdge.deleteMany).not.toHaveBeenCalled()
-    })
-
-    it('snapshots the previous graph before a small full-document removal overwrites it', async () => {
-      const tx = transaction()
-      const existing = Array.from({ length: 100 }, (_, index) => storedNode(`n${index}`))
-      tx.canvasNode.findMany.mockResolvedValueOnce(existing)
-      await replaceCanvasDocumentInTransaction(tx as never, {
-        projectId: 'project-1',
-        canvasId: 'canvas-1',
-        userId: 'user-1',
-        input: { ...input(), nodes: existing.slice(0, 98) },
-      })
-      const calls = tx.canvasSnapshot.create.mock.calls as unknown as Array<[{ data: { revision: number; changeSummary: string; document: { nodes: unknown[] } } }]>
-      const previous = calls.find(([call]) => call.data.revision === 5)
-      expect(previous?.[0].data.changeSummary).toBe('整文档覆盖前自动备份')
-      expect(previous?.[0].data.document.nodes).toHaveLength(100)
-    })
-
-    it('does not duplicate a snapshot the previous revision already has', async () => {
-      const tx = transaction()
-      const existing = Array.from({ length: 20 }, (_, index) => storedNode(`n${index}`))
-      tx.canvasNode.findMany.mockResolvedValueOnce(existing)
-      tx.canvasSnapshot.findUnique.mockResolvedValueOnce({ id: 'snapshot-5' })
-      await replaceCanvasDocumentInTransaction(tx as never, {
-        projectId: 'project-1',
-        canvasId: 'canvas-1',
-        userId: 'user-1',
-        input: { ...input(), nodes: existing.slice(0, 19) },
-      })
-      const calls = tx.canvasSnapshot.create.mock.calls as unknown as Array<[{ data: { revision: number } }]>
-      expect(calls.some(([call]) => call.data.revision === 5)).toBe(false)
-    })
   })
 
   it('stops without deleting nodes when another tab owns the revision', async () => {
@@ -557,31 +489,6 @@ describe('canvas document persistence', () => {
       data: expect.objectContaining({ revision: 6, changeSummary: '移动并新增节点' }),
     }))
     expect(graph).toMatchObject({ canvas: { revision: 6 }, nodes: [{ id: 'node-1' }, { id: 'node-2' }] })
-  })
-
-  it('refuses a recovery or merge save that deletes a large part of the canvas, but not a deliberate edit', async () => {
-    const stored = Array.from({ length: 100 }, (_, index) => ({ ...input().nodes[0], id: `n${index}`, canvasId: 'canvas-1' }))
-    const deletions = stored.slice(0, 40).map((node) => ({ type: 'node.delete' as const, id: node.id }))
-    const run = (changeSummary: string) => {
-      const tx = transaction()
-      tx.canvasNode.findMany.mockResolvedValueOnce(stored)
-      tx.canvasEdge.findMany.mockResolvedValueOnce([])
-      const result = applyCanvasOperationsInTransaction(tx as never, {
-        projectId: 'project-1',
-        canvasId: 'canvas-1',
-        userId: 'user-1',
-        input: { expectedRevision: 5, clientId: 'tab-1', changeSummary, ops: deletions },
-      })
-      return { tx, result }
-    }
-
-    const blocked = run('恢复本地未同步版本')
-    await expect(blocked.result).rejects.toMatchObject({ code: 'CONFLICT', details: expect.objectContaining({ reason: 'CANVAS_BULK_REMOVAL_BLOCKED' }) })
-    expect(blocked.tx.canvasNode.deleteMany).not.toHaveBeenCalled()
-
-    const deliberate = run('编辑画布')
-    await expect(deliberate.result).resolves.toBeDefined()
-    expect(deliberate.tx.canvasNode.deleteMany).toHaveBeenCalled()
   })
 
   it('reports the actual revision when an operation batch loses the atomic claim', async () => {

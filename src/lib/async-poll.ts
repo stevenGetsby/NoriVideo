@@ -2,8 +2,8 @@ import { pollHuimengiTask } from './providers/huimengi/poll'
 import type { HuimengiAsyncType } from './providers/huimengi/external-id'
 import { pollKuaiziTask } from './providers/kuaizi/poll'
 import type { KuaiziAsyncType } from './providers/kuaizi/external-id'
-import { pollTggTask } from './providers/tgg/poll'
-import type { TggAsyncType } from './providers/tgg/external-id'
+import { pollAilinkTask } from './providers/ailink/poll'
+import { pollTopenrouterTask } from './providers/topenrouter/poll'
 import type { VideoResultMetadata } from './video-result'
 
 export interface PollResult extends VideoResultMetadata {
@@ -28,9 +28,10 @@ interface BaseParsedExternalId {
 export type ParsedExternalId =
   | (BaseParsedExternalId & { provider: 'KUAIZI'; type: KuaiziAsyncType })
   | (BaseParsedExternalId & { provider: 'HUIMENGI'; type: HuimengiAsyncType })
-  | (BaseParsedExternalId & { provider: 'TGG'; type: TggAsyncType })
+  | (BaseParsedExternalId & { provider: 'AILINK'; type: 'VIDEO' })
+  | (BaseParsedExternalId & { provider: 'TOPENROUTER'; type: 'VIDEO' })
 
-const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi、绘梦工坊和 TGG 的图片、视频任务'
+const RETIRED_MESSAGE = 'ASYNC_TASK_PROVIDER_RETIRED: 仅支持恢复 Kuaizi、绘梦工坊、AILink 和 TopenRouter 的图片、视频任务'
 
 export function parseExternalId(externalId: string): ParsedExternalId {
   const parts = externalId.split(':')
@@ -51,11 +52,17 @@ export function parseExternalId(externalId: string): ParsedExternalId {
     }
     return { provider: 'HUIMENGI', type, providerToken, modelKeyToken, requestId }
   }
-  if (namespace === 'TGG') {
+  if (namespace === 'AILINK') {
     if (type !== 'VIDEO' || !providerToken || !modelKeyToken || !requestId) {
       throw new Error(RETIRED_MESSAGE)
     }
-    return { provider: 'TGG', type, providerToken, modelKeyToken, requestId }
+    return { provider: 'AILINK', type, providerToken, modelKeyToken, requestId }
+  }
+  if (namespace === 'TOPENROUTER') {
+    if (type !== 'VIDEO' || !providerToken || !modelKeyToken || !requestId) {
+      throw new Error(RETIRED_MESSAGE)
+    }
+    return { provider: 'TOPENROUTER', type, providerToken, modelKeyToken, requestId }
   }
   throw new Error(RETIRED_MESSAGE)
 }
@@ -73,9 +80,17 @@ export async function pollAsyncTask(externalId: string, userId: string, signal?:
       signal,
     })
   }
-  if (parsed.provider === 'TGG') {
-    return pollTggTask({
-      type: parsed.type,
+  if (parsed.provider === 'TOPENROUTER') {
+    return pollTopenrouterTask({
+      taskId: parsed.requestId,
+      userId,
+      providerToken: parsed.providerToken,
+      modelToken: parsed.modelKeyToken,
+      signal,
+    })
+  }
+  if (parsed.provider === 'AILINK') {
+    return pollAilinkTask({
       taskId: parsed.requestId,
       userId,
       providerToken: parsed.providerToken,

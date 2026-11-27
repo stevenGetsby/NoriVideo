@@ -74,30 +74,30 @@ describe('configured selectable model catalog', () => {
     expect(listConfiguredSelectableModels(next, 'video')).toEqual([])
   })
 
-  it('lists TGG relays beside Kuaizi only while TGG is routed and keyed', () => {
+  it('lists AILink relays beside Kuaizi only while AILink is routed and keyed', () => {
     const next = config()
-    next.providers.push({ id: 'tgg', name: 'provider', hasApiKey: true })
+    next.providers.push({ id: 'ailink', name: 'provider', hasApiKey: true })
     next.models.push(
-      { provider: 'tgg', modelId: 'seedance_v2.5_full', modelKey: 'tgg::seedance_v2.5_full', name: 'Seedance 2.5', type: 'video' },
-      { provider: 'tgg', modelId: 'vig-S2.5-480-秒', modelKey: 'tgg::vig-S2.5-480-秒', name: 'vig', type: 'video' },
+      { provider: 'ailink', modelId: 'seedance_v2.5_full', modelKey: 'ailink::seedance_v2.5_full', name: 'Seedance 2.5', type: 'video' },
+      { provider: 'ailink', modelId: 'vig-S2.5-480-秒', modelKey: 'ailink::vig-S2.5-480-秒', name: 'vig', type: 'video' },
     )
     next.businessModels.push(
-      { key: 'nori::tgg-seedance2.5', name: 'TGG Seedance 2.5', description: '', type: 'video', tier: 'pro' },
-      { key: 'nori::tgg-vig2.5', name: 'TGG vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
+      { key: 'nori::seedance2.0-mini', name: 'AILink Seedance 2.5', description: '', type: 'video', tier: 'pro' },
+      { key: 'nori::seedance2.0-fast', name: 'AILink vig-S2.5-480', description: '', type: 'video', tier: 'standard' },
     )
-    next.modelRouting['nori::tgg-seedance2.5'] = 'tgg::seedance_v2.5_full'
-    next.modelRouting['nori::tgg-vig2.5'] = 'tgg::vig-S2.5-480-秒'
+    next.modelRouting['nori::seedance2.0-mini'] = 'ailink::seedance_v2.5_full'
+    next.modelRouting['nori::seedance2.0-fast'] = 'ailink::vig-S2.5-480-秒'
 
     const videoModels = listConfiguredSelectableModels(next, 'video')
     expect(videoModels.map((model) => model.modelKey)).toEqual([
       'nori::norivideo2.5',
       'nori::seedance2.0',
-      'nori::tgg-seedance2.5',
-      'nori::tgg-vig2.5',
+      'nori::seedance2.0-mini',
+      'nori::seedance2.0-fast',
     ])
     expect(videoModels.slice(2).map((model) => model.name)).toEqual(['seedance_v2.5_full', 'vig-S2.5-480-秒'])
 
-    next.providers.find((provider) => provider.id === 'tgg')!.hasApiKey = false
+    next.providers.find((provider) => provider.id === 'ailink')!.hasApiKey = false
     expect(listConfiguredSelectableModels(next, 'video').map((model) => model.modelKey)).toEqual([
       'nori::norivideo2.5',
       'nori::seedance2.0',

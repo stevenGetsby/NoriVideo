@@ -9,7 +9,6 @@ import {
 } from './document'
 import { CANVAS_DOCUMENT_SCHEMA_VERSION } from './document-version'
 import type { CanvasOperation, CanvasOperationsSaveInput } from './operations'
-import { canvasBulkRemovalReason, isCanvasRecoverySummary } from './save-guard'
 import {
   createStudioDocumentCopiesInTransaction,
   prepareStudioDocumentCopiesInTransaction,
@@ -19,8 +18,101 @@ import {
   type StudioDocumentArchiveEntry,
 } from './studio-document-lifecycle'
 
-const SNAPSHOT_LIMIT = 40
-const SNAPSHOT_MIN_INTERVAL_MS = 5 * 60_000
+export const SNAPSHOT_LIMIT = 20
+export const SNAPSHOT_PROTECTED_LIMIT = 10
+export const SNAPSHOT_MIN_INTERVAL_MS = 15 * 60_000
+const SNAPSHOT_NODE_HISTORY_LIMIT = 3
+const SNAPSHOT_INLINE_DATA_URL_MAX_BYTES = 8 * 1024
+
+function isProtectedSnapshotSummary(changeSummary: string | null | undefined): boolean {
+  const normalized = text(changeSummary)
+  return normalized.startsWith('恢复到历史版本') || normalized.startsWith('手动保存')
+}
+
+function isViewportOnlyOperations(ops: CanvasOperation[]): boolean {
+  return ops.length > 0 && ops.every((operation) => (
+    operation.type === 'canvas.update_meta'
+    && operation.title === undefined
+    && operation.themeColor === undefined
+  ))
+}
+
+function stripOversizedDataUrl(value: unknown): unknown {
+  if (typeof value === 'string' && value.startsWith('data:') && value.length > SNAPSHOT_INLINE_DATA_URL_MAX_BYTES) {
+    return undefined
+  }
+  return value
+}
+
+function compactSnapshotHistoryEntry(entry: unknown, hasNodePrompt: boolean): unknown {
+  const item = record(entry)
+  if (!item) return entry
+  const compacted: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(item)) {
+    // Reference summaries and multi-KB prompts duplicated across every past attempt
+    // accounted for ~75% of canvas_snapshots size. When the node carries its own
+    // active prompt, omit redundant history prompts/references from the archived copy.
+    if (key === 'references') continue
+    if (key === 'prompt' && hasNodePrompt) continue
+    if (key === 'previewUrl' && stripOversizedDataUrl(value) === undefined) continue
+    compacted[key] = value
+  }
+  return compacted
+}
+
+function compactSnapshotNodeData(rawData: unknown): unknown {
+  const data = record(rawData)
+  if (!data) return rawData
+  const hasNodePrompt = typeof data.prompt === 'string' && data.prompt.trim().length > 0
+  const output: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(data)) {
+    if (key === 'history' && Array.isArray(value)) {
+      output.history = value
+        .slice(0, SNAPSHOT_NODE_HISTORY_LIMIT)
+        .map((entry) => compactSnapshotHistoryEntry(entry, hasNodePrompt))
+      continue
+    }
+    if (key === 'sourceMetadata') {
+      const meta = record(value)
+      if (meta && hasNodePrompt && Object.prototype.hasOwnProperty.call(meta, 'prompt')) {
+        const rest = { ...meta }
+        delete rest.prompt
+        output.sourceMetadata = rest
+        continue
+      }
+    }
+    if ((key === 'previewUrl' || key === 'thumbnailDataUrl') && stripOversizedDataUrl(value) === undefined) {
+      continue
+    }
+    output[key] = value
+  }
+  return output
+}
+
+/**
+ * Compacts redundant per-node history and duplicated metadata when archiving a
+ * snapshot to `canvas_snapshots` while preserving full restore fidelity (node
+ * geometry, edges, active media, prompt, generation config, recent history).
+ * Never mutates live `canvas_nodes` rows.
+ */
+export function compactCanvasSnapshotDocument(document: Prisma.InputJsonValue): Prisma.InputJsonValue {
+  const documentRecord = record(document)
+  if (!documentRecord) return document
+  const nodes = Array.isArray(documentRecord.nodes)
+    ? documentRecord.nodes.map((value) => {
+        const node = record(value)
+        if (!node || !Object.prototype.hasOwnProperty.call(node, 'data')) return value
+        return {
+          ...node,
+          data: compactSnapshotNodeData(node.data),
+        }
+      })
+    : documentRecord.nodes
+  return {
+    ...documentRecord,
+    ...(nodes !== undefined ? { nodes } : {}),
+  } as Prisma.InputJsonValue
+}
 
 function jsonValue(value: unknown): Prisma.InputJsonValue | typeof Prisma.JsonNull {
   return value === null ? Prisma.JsonNull : value as Prisma.InputJsonValue
@@ -206,14 +298,23 @@ export function mergeCanvasTerminalNodeState(
   }
 }
 
-export async function shouldRecordCanvasSnapshot(tx: Prisma.TransactionClient, canvasId: string, deletedNodeCount = 0): Promise<boolean> {
+export async function shouldRecordCanvasSnapshot(
+  tx: Prisma.TransactionClient,
+  canvasId: string,
+  deletedNodeCount = 0,
+  options: { viewportOnly?: boolean } = {},
+): Promise<boolean> {
   if (deletedNodeCount >= 5) return true
   const latest = await tx.canvasSnapshot.findFirst({
     where: { canvasId },
     orderBy: { createdAt: 'desc' },
     select: { createdAt: true },
   })
-  return !latest || latest.createdAt.getTime() <= Date.now() - SNAPSHOT_MIN_INTERVAL_MS
+  if (!latest) return true
+  // Pure viewport pan/zoom changes never alter nodes or edges; once a canvas
+  // has a baseline snapshot, skip creating duplicate multi-MB viewport snapshots.
+  if (options.viewportOnly) return false
+  return latest.createdAt.getTime() <= Date.now() - SNAPSHOT_MIN_INTERVAL_MS
 }
 
 export async function recordCanvasSnapshotInTransaction(
@@ -234,7 +335,8 @@ export async function recordCanvasSnapshotInTransaction(
     document: Prisma.InputJsonValue
   },
 ) {
-  const documentRecord = record(document)
+  const compactedDocument = compactCanvasSnapshotDocument(document)
+  const documentRecord = record(compactedDocument)
   const versionedDocument = {
     ...(documentRecord || {}),
     schema_version: CANVAS_DOCUMENT_SCHEMA_VERSION,
@@ -264,14 +366,29 @@ export async function recordCanvasSnapshotInTransaction(
     canvasId,
     nodes: snapshotNodes,
   })
-  const stale = await tx.canvasSnapshot.findMany({
+  const existing = await tx.canvasSnapshot.findMany({
     where: { canvasId },
     orderBy: { revision: 'desc' },
-    skip: SNAPSHOT_LIMIT,
-    select: { id: true },
+    select: { id: true, changeSummary: true },
   })
-  if (stale.length > 0) {
-    await tx.canvasSnapshot.deleteMany({ where: { id: { in: stale.map((item) => item.id) } } })
+  const staleIds: string[] = []
+  let keptAuto = 0
+  let keptProtected = 0
+  for (const item of existing) {
+    if (isProtectedSnapshotSummary(item.changeSummary)) {
+      if (keptProtected < SNAPSHOT_PROTECTED_LIMIT) {
+        keptProtected += 1
+      } else {
+        staleIds.push(item.id)
+      }
+    } else if (keptAuto < SNAPSHOT_LIMIT) {
+      keptAuto += 1
+    } else {
+      staleIds.push(item.id)
+    }
+  }
+  if (staleIds.length > 0) {
+    await tx.canvasSnapshot.deleteMany({ where: { id: { in: staleIds } } })
   }
 }
 
@@ -296,7 +413,6 @@ export async function replaceCanvasDocumentInTransaction(
   },
 ) {
   const nextRevision = input.expectedRevision + 1
-  const previousViewport = (await tx.canvas.findUnique({ where: { id: canvasId }, select: { viewport: true } }))?.viewport
   const claimed = await tx.canvas.updateMany({
     where: { id: canvasId, projectId, revision: input.expectedRevision },
     data: {
@@ -338,54 +454,6 @@ export async function replaceCanvasDocumentInTransaction(
     !incomingNodeIds.has(node.id)
     && incomingPlanningTaskIds.has(text(record(node.data)?.storyboardPlanningTaskId))
   ))
-  const existingEdges = await tx.canvasEdge.findMany({
-    where: { canvasId },
-    select: {
-      id: true,
-      sourceNodeId: true,
-      targetNodeId: true,
-      sourceHandle: true,
-      targetHandle: true,
-      role: true,
-    },
-  })
-  const incomingEdgeIdSet = new Set(input.edges.map((edge) => edge.id))
-  if (!forceSnapshot && input.expectedRevision > 0) {
-    // A full-document save replaces everything, so it must not be able to quietly drop a large part of the
-    // canvas. That is the shape of a stale local copy being replayed as a whole; real bulk deletes go through ops.
-    const preservedIds = new Set(preservedFanoutNodes.map((node) => node.id))
-    const reason = canvasBulkRemovalReason({
-      existingNodes: existingNodes.length,
-      removedNodes: existingNodes.filter((node) => !incomingNodeIds.has(node.id) && !preservedIds.has(node.id)).length,
-      existingEdges: existingEdges.length,
-      removedEdges: existingEdges.filter((edge) => !incomingEdgeIdSet.has(edge.id)).length,
-    })
-    if (reason) {
-      throw new ApiError('CONFLICT', { message: reason, reason: 'CANVAS_BULK_REMOVAL_BLOCKED', expectedRevision: input.expectedRevision })
-    }
-  }
-  const removedAnything = existingNodes.some((node) => !incomingNodeIds.has(node.id))
-    || existingEdges.some((edge) => !incomingEdgeIdSet.has(edge.id))
-  if (removedAnything && !forceSnapshot) {
-    const hasPrevious = await tx.canvasSnapshot.findUnique({
-      where: { canvasId_revision: { canvasId, revision: input.expectedRevision } },
-      select: { id: true },
-    })
-    if (!hasPrevious) {
-      await recordCanvasSnapshotInTransaction(tx, {
-        canvasId,
-        revision: input.expectedRevision,
-        userId,
-        clientId: input.clientId,
-        changeSummary: '整文档覆盖前自动备份',
-        document: {
-          viewport: previousViewport ?? input.viewport,
-          nodes: existingNodes.map((node) => ({ ...node, canvasId })),
-          edges: existingEdges.map((edge) => ({ ...edge, canvasId })),
-        } as Prisma.InputJsonValue,
-      })
-    }
-  }
   const mergedNodes = [
     ...input.nodes.map((node) => mergeCanvasTerminalNodeState(existingById.get(node.id), node)),
     ...preservedFanoutNodes.map((node) => ({
@@ -412,6 +480,19 @@ export async function replaceCanvasDocumentInTransaction(
     withCanonicalCanvasStudioDocumentSource(node, projectId, canvasId)
   ))
 
+  const existingEdges = preservedFanoutNodes.length > 0
+    ? await tx.canvasEdge.findMany({
+        where: { canvasId },
+        select: {
+          id: true,
+          sourceNodeId: true,
+          targetNodeId: true,
+          sourceHandle: true,
+          targetHandle: true,
+          role: true,
+        },
+      })
+    : []
   const finalNodeIds = new Set(nodes.map((node) => node.id))
   const preservedNodeIds = new Set(preservedFanoutNodes.map((node) => node.id))
   const edges = [...input.edges]
@@ -675,14 +756,176 @@ export async function applyCanvasOperationsInTransaction(
     })
   }
 
+  const viewportOnly = isViewportOnlyOperations(input.ops)
+  const hasStructuralDeletesOrEdges = input.ops.some((operation) => (
+    operation.type === 'node.delete' || operation.type === 'edge.add' || operation.type === 'edge.delete'
+  ))
   if (
     deltaOnly
-    && input.ops.every((operation) => operation.type === 'canvas.update_meta')
-    && !await shouldRecordCanvasSnapshot(tx, canvasId)
+    && !hasStructuralDeletesOrEdges
+    && !await shouldRecordCanvasSnapshot(tx, canvasId, 0, { viewportOnly })
   ) {
+    const upsertOps = input.ops.filter((operation): operation is Extract<CanvasOperation, { type: 'node.upsert' }> => (
+      operation.type === 'node.upsert'
+    ))
+    const geometryOps = input.ops.filter((operation): operation is Extract<CanvasOperation, { type: 'node.update_geometry' }> => (
+      operation.type === 'node.update_geometry'
+    ))
+    // Pure metadata and geometry batches (pan/zoom/drag/resize) never need to read
+    // any node data or edges from the database.
+    if (upsertOps.length === 0) {
+      const geometryUpdates: CanvasGeometryUpdate[] = []
+      for (const operation of geometryOps) {
+        const updated = await tx.canvasNode.updateMany({
+          where: { id: operation.id, canvasId },
+          data: {
+            ...(operation.position ? { position: operation.position as Prisma.InputJsonValue } : {}),
+            ...(operation.size ? { size: operation.size as Prisma.InputJsonValue } : {}),
+          },
+        })
+        if (updated.count !== 1) invalidOperation(`要移动的节点 ${operation.id} 不存在。`)
+        geometryUpdates.push({
+          id: operation.id,
+          ...(operation.position ? { position: operation.position } : {}),
+          ...(operation.size ? { size: operation.size } : {}),
+        })
+      }
+      return {
+        canvas: await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT }),
+        delta: { nodes: [], edges: [], deletedNodeIds: [], deletedEdgeIds: [], geometry: geometryUpdates },
+      }
+    }
+
+    // Narrow node.upsert (+ optional meta/geometry) batches to only the touched node IDs
+    // instead of loading every node's JSON body and every edge in the canvas.
+    const touchedNodeIds = Array.from(new Set([
+      ...upsertOps.map((operation) => operation.node.id),
+      ...geometryOps.map((operation) => operation.id),
+    ]))
+    const storedNodes = await tx.canvasNode.findMany({
+      where: { canvasId, id: { in: touchedNodeIds } },
+      select: {
+        id: true,
+        canvasId: true,
+        type: true,
+        position: true,
+        size: true,
+        data: true,
+        status: true,
+        taskId: true,
+        runId: true,
+        mediaObjectId: true,
+        parentNodeId: true,
+      },
+    })
+    const nodes = new Map(storedNodes.map((node) => [node.id, node as PersistedCanvasNode]))
+    const initialNodeIds = new Set(nodes.keys())
+    const newNodeIds = new Set(
+      upsertOps.map((operation) => operation.node.id).filter((id) => !initialNodeIds.has(id)),
+    )
+    if (newNodeIds.size > 0 && typeof tx.canvasNode.count === 'function') {
+      const existingCount = await tx.canvasNode.count({ where: { canvasId } })
+      if (existingCount + newNodeIds.size > MAX_CANVAS_NODES) {
+        invalidOperation('画布操作后的节点或连线数量超过安全限制。')
+      }
+    }
+    const studioDocumentCopies = await prepareStudioDocumentCopiesInTransaction(tx, {
+      projectId,
+      templateOwnerId,
+      nodes: upsertOps
+        .filter((operation) => !initialNodeIds.has(operation.node.id))
+        .map((operation) => operation.node),
+    })
+    const upsertedNodes: CanvasDocumentNodeInput[] = []
+    const geometryUpdates: CanvasGeometryUpdate[] = []
+    for (const operation of upsertOps) {
+      const existing = nodes.get(operation.node.id)
+      const node = withCanonicalCanvasStudioDocumentSource(
+        mergeCanvasTerminalNodeState(existing, operation.node),
+        projectId,
+        canvasId,
+      )
+      nodes.set(node.id, { ...node, canvasId })
+      upsertedNodes.push(node)
+    }
+    for (const operation of geometryOps) {
+      const existing = nodes.get(operation.id)
+      if (!existing) invalidOperation(`要移动的节点 ${operation.id} 不存在。`)
+      nodes.set(operation.id, {
+        ...existing,
+        ...(operation.position ? { position: operation.position } : {}),
+        ...(operation.size ? { size: operation.size } : {}),
+      })
+      geometryUpdates.push({
+        id: operation.id,
+        ...(operation.position ? { position: operation.position } : {}),
+        ...(operation.size ? { size: operation.size } : {}),
+      })
+    }
+    const persistedIds = new Set(initialNodeIds)
+    for (const node of upsertedNodes) {
+      const data = canvasNodeWriteData(node)
+      if (persistedIds.has(node.id)) {
+        const existing = storedNodes.find((item) => item.id === node.id)
+        const protectTerminalRace = node.status === 'RUNNING'
+          && existing?.status !== 'SUCCEEDED'
+          && existing?.status !== 'FAILED'
+        const updated = await tx.canvasNode.updateMany({
+          where: {
+            id: node.id,
+            canvasId,
+            ...(protectTerminalRace ? { status: { notIn: ['SUCCEEDED', 'FAILED'] } } : {}),
+          },
+          data,
+        })
+        if (updated.count !== 1 && protectTerminalRace) {
+          const current = await lockCurrentCanvasNode(tx, canvasId, node.id)
+          if (!current) invalidOperation(`节点 ${node.id} 已不属于当前画布。`)
+          const recovered = mergeCanvasTerminalNodeState(current, node)
+          const retried = await tx.canvasNode.updateMany({
+            where: { id: node.id, canvasId, status: current.status },
+            data: canvasNodeWriteData(recovered),
+          })
+          if (retried.count !== 1) {
+            throw new ApiError('CONFLICT', { message: `节点 ${node.id} 状态再次变化，请重新加载画布。` })
+          }
+          nodes.set(node.id, { ...recovered, canvasId })
+          const pendingIndex = upsertedNodes.findIndex((item) => item.id === node.id)
+          if (pendingIndex >= 0) upsertedNodes[pendingIndex] = recovered
+        } else if (updated.count !== 1) {
+          invalidOperation(`节点 ${node.id} 已不属于当前画布。`)
+        }
+      } else {
+        await tx.canvasNode.create({ data: { id: node.id, canvasId, ...data } })
+        persistedIds.add(node.id)
+      }
+    }
+    for (const update of geometryUpdates) {
+      const updated = await tx.canvasNode.updateMany({
+        where: { id: update.id, canvasId },
+        data: {
+          ...(update.position ? { position: update.position as Prisma.InputJsonValue } : {}),
+          ...(update.size ? { size: update.size as Prisma.InputJsonValue } : {}),
+        },
+      })
+      if (updated.count !== 1) invalidOperation(`节点 ${update.id} 已不属于当前画布。`)
+    }
+    await createStudioDocumentCopiesInTransaction(tx, {
+      projectId,
+      canvasId,
+      updatedBy: userId,
+      copies: studioDocumentCopies,
+    })
+    const canvas = await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT })
     return {
-      canvas: await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT }),
-      delta: { nodes: [], edges: [], deletedNodeIds: [], deletedEdgeIds: [], geometry: [] },
+      canvas,
+      delta: {
+        nodes: upsertedNodes.map((node) => ({ ...node, canvasId })),
+        edges: [],
+        deletedNodeIds: [],
+        deletedEdgeIds: [],
+        geometry: geometryUpdates,
+      },
     }
   }
 
@@ -793,25 +1036,20 @@ export async function applyCanvasOperationsInTransaction(
     invalidOperation('画布操作后的节点或连线数量超过安全限制。')
   }
   const uniqueEdges = new Set<string>()
-  for (const edge of edges.values()) {
+  const addedEdgeIds = new Set(addedEdges.map((edge) => edge.id))
+  for (const edge of Array.from(edges.values())) {
     if (!nodes.has(edge.sourceNodeId) || !nodes.has(edge.targetNodeId)) {
       invalidOperation(`连线 ${edge.id} 引用了不存在的节点。`)
     }
     const key = edgeKey(edge)
-    if (uniqueEdges.has(key)) invalidOperation(`连线 ${edge.id} 与现有连线重复。`)
-    uniqueEdges.add(key)
-  }
-
-  if (isCanvasRecoverySummary(input.changeSummary)) {
-    const reason = canvasBulkRemovalReason({
-      existingNodes: storedNodes.length,
-      removedNodes: deletedNodeIds.size,
-      existingEdges: storedEdges.length,
-      removedEdges: deletedEdgeIds.size,
-    })
-    if (reason) {
-      throw new ApiError('CONFLICT', { message: reason, reason: 'CANVAS_BULK_REMOVAL_BLOCKED', expectedRevision: input.expectedRevision })
+    if (uniqueEdges.has(key)) {
+      if (addedEdgeIds.has(edge.id)) invalidOperation(`连线 ${edge.id} 与现有连线重复。`)
+      // 历史遗留的重复连线不应让整批保存（含删除）永远失败：随本次保存清理掉。
+      edges.delete(edge.id)
+      deletedEdgeIds.add(edge.id)
+      continue
     }
+    uniqueEdges.add(key)
   }
 
   if (deletedEdgeIds.size > 0) {
@@ -881,7 +1119,7 @@ export async function applyCanvasOperationsInTransaction(
   const canvas = await tx.canvas.findUniqueOrThrow({ where: { id: canvasId }, select: CANVAS_RESULT_SELECT })
   const finalNodes = Array.from(nodes.values())
   const finalEdges = Array.from(edges.values())
-  if (await shouldRecordCanvasSnapshot(tx, canvasId, deletedNodeIds.size)) {
+  if (await shouldRecordCanvasSnapshot(tx, canvasId, deletedNodeIds.size, { viewportOnly })) {
     await recordCanvasSnapshotInTransaction(tx, {
       canvasId,
       revision: nextRevision,

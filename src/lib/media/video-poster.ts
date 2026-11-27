@@ -2,16 +2,43 @@ import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import path from 'node:path'
 import sharp from 'sharp'
-import { getObjectBuffer, getSignedObjectUrl, getStorageProvider, uploadObject } from '@/lib/storage'
+import * as storage from '@/lib/storage'
 
 export const VIDEO_POSTER_WIDTHS = [480, 960] as const
 export type VideoPosterWidth = typeof VIDEO_POSTER_WIDTHS[number]
 
+const MAX_RESOLVED_CACHE = 20_000
 const inFlight = new Map<string, Promise<string>>()
+const resolvedCache = new Map<string, string>()
 const failed = new Map<string, number>()
 const FAILED_TTL_MS = 10 * 60_000
 let activeFrames = 0
 const queue: Array<() => void> = []
+
+function readResolvedCache(cacheKey: string): string | undefined {
+  const cached = resolvedCache.get(cacheKey)
+  if (cached === undefined) return undefined
+  resolvedCache.delete(cacheKey)
+  resolvedCache.set(cacheKey, cached)
+  return cached
+}
+
+function writeResolvedCache(cacheKey: string, value: string): void {
+  resolvedCache.delete(cacheKey)
+  resolvedCache.set(cacheKey, value)
+  if (resolvedCache.size > MAX_RESOLVED_CACHE) {
+    const oldest = resolvedCache.keys().next().value
+    if (oldest !== undefined) resolvedCache.delete(oldest)
+  }
+}
+
+async function posterExists(posterKey: string): Promise<boolean> {
+  if (typeof storage.objectExists === 'function') {
+    return await storage.objectExists(posterKey)
+  }
+  await storage.getObjectBuffer(posterKey)
+  return true
+}
 
 export function normalizeVideoPosterWidth(value: string | null): VideoPosterWidth {
   return Number(value) === 960 ? 960 : 480
@@ -73,14 +100,13 @@ function localSourcePath(key: string): string {
 async function createVideoPoster(key: string, width: VideoPosterWidth): Promise<string> {
   const posterKey = videoPosterKey(key, width)
   try {
-    await getObjectBuffer(posterKey)
-    return posterKey
+    if (await posterExists(posterKey)) return posterKey
   } catch {
     // A missing derivative is expected; generate it below.
   }
-  const sourceUrl = getStorageProvider().kind === 'local'
+  const sourceUrl = storage.getStorageProvider().kind === 'local'
     ? localSourcePath(key)
-    : await getSignedObjectUrl(key, 600)
+    : await storage.getSignedObjectUrl(key, 600)
   const png = await withFrameSlot(async () => {
     try {
       return await extractFrame(sourceUrl, width, 0.5)
@@ -90,15 +116,20 @@ async function createVideoPoster(key: string, width: VideoPosterWidth): Promise<
     }
   })
   const body = await sharp(png).webp({ quality: 80 }).toBuffer()
-  return await uploadObject(body, posterKey, 1, 'image/webp')
+  return await storage.uploadObject(body, posterKey, 1, 'image/webp')
 }
 
 export function ensureVideoPoster(key: string, width: VideoPosterWidth): Promise<string> {
   const cacheKey = `${key}\0${width}`
+  const cached = readResolvedCache(cacheKey)
+  if (cached) return Promise.resolve(cached)
   if ((failed.get(cacheKey) || 0) > Date.now()) return Promise.reject(new Error('视频封面暂时无法生成。'))
   const existing = inFlight.get(cacheKey)
   if (existing) return existing
-  const pending = createVideoPoster(key, width).catch((error: unknown) => {
+  const pending = createVideoPoster(key, width).then((resolvedKey) => {
+    writeResolvedCache(cacheKey, resolvedKey)
+    return resolvedKey
+  }).catch((error: unknown) => {
     const now = Date.now()
     for (const [entry, expiry] of failed) if (expiry <= now) failed.delete(entry)
     failed.set(cacheKey, now + FAILED_TTL_MS)

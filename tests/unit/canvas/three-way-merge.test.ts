@@ -69,27 +69,4 @@ describe('canvas sibling-tab three-way merge', () => {
     const remote = document(6, [node('a', { prompt: 'remote' })])
     expect(mergeCanvasDocuments(base, local, remote).nodes[0].data?.prompt).toBe('local')
   })
-  it('keeps one flow per story exit when two tabs wire the same exit to different cards', () => {
-    const flow = (id: string, source: string, target: string, handle = 'output'): CanvasEdge => ({
-      id, canvasId: 'canvas-1', sourceNodeId: source, targetNodeId: target, sourceHandle: handle, targetHandle: 'input', role: 'STORY_FLOW',
-    })
-    const scene = (id: string): CanvasNode => ({ ...node(id, { title: id }), type: 'story_scene' })
-    const nodes = [scene('a'), scene('b'), scene('c')]
-    const base = document(3, nodes)
-    const local = document(3, nodes, [flow('local-edge', 'a', 'b')])
-    const remote = document(4, nodes, [flow('server-edge', 'a', 'c')])
-    const merged = mergeCanvasDocuments(base, local, remote)
-
-    expect(merged.edges.map((item) => item.id)).toEqual(['server-edge'])
-  })
-
-  it('keeps wires that do not compete for the same exit or picture port', () => {
-    const scene = (id: string): CanvasNode => ({ ...node(id, {}), type: 'story_scene' })
-    const nodes = [scene('a'), scene('b'), scene('c')]
-    const flow = (id: string, source: string, target: string): CanvasEdge => ({
-      id, canvasId: 'canvas-1', sourceNodeId: source, targetNodeId: target, sourceHandle: 'output', targetHandle: 'input', role: 'STORY_FLOW',
-    })
-    const merged = mergeCanvasDocuments(document(1, nodes), document(1, nodes, [flow('x', 'a', 'b')]), document(2, nodes, [flow('y', 'b', 'c')]))
-    expect(merged.edges.map((item) => item.id).sort()).toEqual(['x', 'y'])
-  })
 })

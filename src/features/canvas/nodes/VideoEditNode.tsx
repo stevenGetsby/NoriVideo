@@ -1,6 +1,7 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { flushSync } from 'react-dom'
 import { Handle, NodeResizer, Position, useStore, type NodeProps, type ReactFlowState } from '@xyflow/react'
 import { Clapperboard, FolderOpen, GitBranch, ImageIcon, Music2, Sparkles, Upload } from '@/components/ui/icons'
 import { toDisplayImageUrl, toPlayableVideoUrl } from '@/lib/media/image-url'
@@ -86,7 +87,7 @@ function sourceLabel(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null) 
   return '尚未选择源视频'
 }
 
-export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
+export const VideoEditNode = memo(function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
@@ -125,14 +126,30 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
   const running = data.__server?.status === 'RUNNING'
   const startMs = editConfig.startMs ?? null
   const endMs = editConfig.endMs ?? null
+  const segmentDurationMs = typeof startMs === 'number' && typeof endMs === 'number'
+    ? endMs - startMs
+    : null
+  const rangeValidationError = segmentDurationMs === null
+    ? null
+    : segmentDurationMs <= 0
+      ? '结束时间必须晚于起始时间。'
+      : segmentDurationMs < 4_000
+        ? `编辑区间至少需要 4 秒（当前 ${(segmentDurationMs / 1_000).toFixed(1)}s）。`
+        : segmentDurationMs > 30_000
+          ? `视频编辑区间最多支持 30 秒（当前 ${(segmentDurationMs / 1_000).toFixed(1)}s）。`
+          : null
   const canSubmit = generationAllowed
     && !editor.readOnly
     && !running
     && Boolean(sourceUrl)
     && Boolean(prompt.trim())
-    && typeof startMs === 'number'
-    && typeof endMs === 'number'
-    && endMs - startMs >= 4_000
+    && segmentDurationMs !== null
+    && segmentDurationMs >= 4_000
+    && segmentDurationMs <= 30_000
+  const submitDisabledTitle = !generationAllowed
+    ? generationDisabledReason || undefined
+    : rangeValidationError
+      || (!sourceUrl ? '请先选择源视频' : startMs === null || endMs === null ? '请先在时间线上设置起始与结束时间（4–30 秒）' : !prompt.trim() ? '请输入视频编辑提示词' : undefined)
 
   useEffect(() => {
     setPrompt(data.prompt || '')
@@ -211,12 +228,14 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
   const submit = () => {
     if (!canSubmit || startMs === null || endMs === null) return
     const nextPrompt = prompt.trim()
-    editor.updateNodeData(id, {
-      prompt: nextPrompt,
-      videoEdit: { ...editConfig, startMs, endMs, generateAudio },
+    flushSync(() => {
+      editor.updateNodeData(id, {
+        prompt: nextPrompt,
+        videoEdit: { ...editConfig, startMs, endMs, generateAudio, references },
+      })
     })
     window.dispatchEvent(new CustomEvent(CANVAS_VIDEO_EDIT_SUBMIT_EVENT, {
-      detail: { nodeId: id, prompt: nextPrompt, startMs, endMs, generateAudio },
+      detail: { nodeId: id, prompt: nextPrompt, startMs, endMs, generateAudio, references },
     }))
   }
 
@@ -378,6 +397,7 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
           <button type="button" disabled={!sourceUrl || running} onClick={() => setFrame('endMs')}>设为结束</button>
           <span>结束 {formatMilliseconds(endMs)}</span>
         </div>
+        {rangeValidationError ? <div className="nori-canvas-video-edit-error" role="alert">{rangeValidationError}</div> : null}
       </div>
 
       <div className="nori-canvas-video-edit-mention-wrap nodrag nowheel">
@@ -397,7 +417,7 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
 
       <div className="nori-canvas-video-edit-footer nodrag">
         <label><input type="checkbox" checked={generateAudio} disabled={running || editor.readOnly} onChange={(event) => setGenerateAudio(event.target.checked)} /><span>同步生成声音</span></label>
-        <button type="button" className="is-primary" disabled={!canSubmit} title={!generationAllowed ? generationDisabledReason || undefined : undefined} onClick={submit}><Sparkles />{running ? '编辑中…' : !generationAllowed ? generationDisabledLabel : '开始编辑'}</button>
+        <button type="button" className="is-primary" disabled={!canSubmit} title={submitDisabledTitle} onClick={submit}><Sparkles />{running ? '编辑中…' : !generationAllowed ? generationDisabledLabel : '开始编辑'}</button>
       </div>
 
       {data.progress && running ? (
@@ -412,4 +432,4 @@ export function VideoEditNode({ id, data, selected }: NodeProps<CanvasFlowNode>)
       <Handle type="source" position={Position.Right} id="output" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
     </article>
   )
-}
+})

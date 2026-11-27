@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useRef, useState } from 'react'
 import { Download, Grid2X2, Group, ListTree, Rows3, Save, Ungroup } from '@/components/ui/icons'
 import { NodeResizer, NodeToolbar, Position, useReactFlow, type NodeProps, type ShouldResize } from '@xyflow/react'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
@@ -23,7 +23,7 @@ const GROUP_COLORS: Array<string | null> = [
   '#94a3b8',
 ]
 
-export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
+export const GroupNode = memo(function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   const editor = useCanvasEditor()
   const multiSelected = useCanvasMultiSelection()
   const chromeVisible = selected && !multiSelected
@@ -95,4 +95,4 @@ export function GroupNode({ id, data, selected }: NodeProps<CanvasFlowNode>) {
       </header>
     </section>
   )
-}
+})

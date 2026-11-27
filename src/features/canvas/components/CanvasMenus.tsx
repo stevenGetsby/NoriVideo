@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Clipboard, Copy, Film, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Server, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
+import { useEffect, useRef } from 'react'
+import { Clipboard, Copy, Film, Focus, FolderHeart, GitBranch, LayoutGrid, ListVideo, Plus, RefreshCw, RotateCcw, Server, Sparkles, Trash2, Upload, type IconComponent } from '@/components/ui/icons'
 import { CANVAS_ADD_NODE_ITEMS, STORY_ADD_NODE_ITEMS, STORY_INTERACTION_ADD_ITEMS, storyAddItemKey, type CanvasContextMenuState, type CanvasNodeMenuType, type CanvasWireMenuState, type StoryAddNodeItem } from '../editor-types'
 import type { StoryInteractionKind } from '@/lib/interactive/types'
 import { CanvasMenuPortal } from './CanvasMenuPortal'
@@ -38,6 +38,7 @@ export function CanvasContextMenu({
   isVideoPrefixPrompt,
   readOnly,
   onAction,
+  onDismiss,
 }: {
   state: CanvasContextMenuState
   canPaste: boolean
@@ -48,8 +49,24 @@ export function CanvasContextMenu({
   isVideoPrefixPrompt?: boolean
   readOnly: boolean
   onAction: (action: string) => void
+  onDismiss?: () => void
 }) {
-  const items: ContextMenuItem[] = state.scope === 'group'
+  const menuRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!onDismiss) return
+    const dismissOutside = (event: PointerEvent) => {
+      const menu = menuRef.current
+      if (menu && !event.composedPath().includes(menu)) onDismiss()
+    }
+
+    // Capture clicks before nested editors can stop them from bubbling.
+    document.addEventListener('pointerdown', dismissOutside, true)
+    return () => document.removeEventListener('pointerdown', dismissOutside, true)
+  }, [onDismiss])
+
+  const items: ContextMenuItem[] = state.scope === 'reference'
+    ? [{ key: 'locate-reference', label: '定位到节点', icon: Focus }]
+    : state.scope === 'group'
     ? readOnly ? [
       { key: 'copy', label: '复制', icon: Copy, shortcut: '⌘ C' },
     ] : [
@@ -106,9 +123,10 @@ export function CanvasContextMenu({
   return (
     <CanvasMenuPortal point={state}>
       <div
+        ref={menuRef}
         className="nori-canvas-context-menu"
         role="menu"
-        aria-label={state.scope === 'node' ? '节点操作' : state.scope === 'group' ? '分组操作' : state.scope === 'edge' ? '连线操作' : '画布操作'}
+        aria-label={state.scope === 'reference' ? '引用素材操作' : state.scope === 'node' ? '节点操作' : state.scope === 'group' ? '分组操作' : state.scope === 'edge' ? '连线操作' : '画布操作'}
         style={{ left: state.x, top: state.y }}
         onPointerDown={(event) => event.stopPropagation()}
       >

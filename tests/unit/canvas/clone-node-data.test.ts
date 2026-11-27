@@ -58,6 +58,30 @@ describe('canvas node duplication execution state', () => {
     expect(cloned.generation).not.toHaveProperty('taskId')
     expect(cloned).toMatchObject({ progress: 100, __server: { status: 'SUCCEEDED', taskId: null } })
   })
+  it('drops uncopied graph references on cross-canvas paste without touching story globals', () => {
+    const cloned = cloneCanvasNodeDataForNewNode({
+      title: '跨章片段',
+      generation: {
+        referenceNodeIds: ['copied', 'source-only'],
+        pausedReferenceNodeIds: ['source-only'],
+        referenceSummary: [{ id: 'source-only', title: '旧画面', type: 'image' }],
+        referenceMentionNames: { 'source-only': ['旧画面'] },
+        referenceMentionSelections: [{ nodeId: 'source-only', name: '旧画面' }],
+      },
+      effects: [{ variableId: 'story-global-variable', op: 'add', value: 1 }],
+      videoEdit: {
+        sourceKind: 'node', sourceNodeId: 'source-only',
+        references: [{ id: 'source-only', title: '旧视频', type: 'video' }],
+      },
+      playlistItems: [{ id: 'item', sourceNodeId: 'source-only', title: '旧片段', sourceInMs: 0 }],
+    }, (id) => id === 'copied' ? 'copied-new' : undefined, false)
+
+    expect(cloned.generation).toMatchObject({ referenceNodeIds: ['copied-new'], pausedReferenceNodeIds: [], referenceSummary: [], referenceMentionNames: {}, referenceMentionSelections: [] })
+    expect(cloned.videoEdit).toMatchObject({ sourceKind: 'none', sourceNodeId: null, references: [] })
+    expect(cloned.playlistItems?.[0].sourceNodeId).toBeNull()
+    expect(cloned.effects).toEqual([{ variableId: 'story-global-variable', op: 'add', value: 1 }])
+  })
+
   it('preserves text annotations when copying a node', () => {
     const cloned = cloneCanvasNodeDataForNewNode({ text: '重点', textMarks: [{ start: 0, end: 2, bold: true, highlight: 'yellow' }] }, () => undefined)
     expect(cloned.textMarks).toEqual([{ start: 0, end: 2, bold: true, highlight: 'yellow' }])

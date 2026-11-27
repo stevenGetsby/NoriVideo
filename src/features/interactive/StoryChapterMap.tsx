@@ -35,11 +35,12 @@ type MapProps = {
   actions: ChapterMapActions
   onConnect: (connection: Connection) => void
   onDeleteLinks: (linkIds: string[]) => void
+  onDeleteChapters: (projectIds: string[]) => void
   onMove: (projectId: string, position: { x: number; y: number }) => void
   onFocus: (projectId: string | null) => void
 }
 
-function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, onMove, onFocus }: MapProps) {
+function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, onDeleteChapters, onMove, onFocus }: MapProps) {
   const flow = useReactFlow()
   const derived = useMemo<ChapterFlowNode[]>(() => {
     const sequence = ensuredWorkSequence(data)
@@ -50,7 +51,7 @@ function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, 
         id: chapter.projectId,
         type: 'chapter',
         position: meta.position,
-        deletable: false,
+        deletable: !actions.readOnly && data.story.config.chapters.length > 1,
         data: {
           chapter,
           meta,
@@ -115,6 +116,7 @@ function MapInner({ data, issues, focusedId, actions, onConnect, onDeleteLinks, 
         onConnect={onConnect}
         isValidConnection={(connection) => readChapterConnection(connection) !== null}
         onEdgesDelete={(deleted) => onDeleteLinks(deleted.map((edge) => edge.id))}
+        onNodesDelete={(deleted) => onDeleteChapters(deleted.map((node) => node.id))}
         connectionMode={ConnectionMode.Strict}
         nodesDraggable={!actions.readOnly}
         nodesConnectable={!actions.readOnly}
@@ -138,7 +140,7 @@ export function StoryChapterMap(props: MapProps) {
         <MapInner {...props} />
       </ReactFlowProvider>
       {props.data.chapters.length > 1 && !props.actions.readOnly ? (
-        <p className="nori-ix-map-hint">从章节右侧的出口拖到另一章左侧的入口；选中连线后按 Delete 删除。</p>
+        <p className="nori-ix-map-hint">从章节右侧的出口拖到另一章左侧的入口；选中连线或章节后按 Delete 删除。</p>
       ) : null}
     </div>
   )

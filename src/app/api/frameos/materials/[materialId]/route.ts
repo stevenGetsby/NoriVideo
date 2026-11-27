@@ -22,6 +22,8 @@ import { MAX_MATERIAL_TITLE_LENGTH } from '@/lib/frameos/upload-file-policy'
 import { characterVoiceMaterialId, withCharacterVoiceMaterial } from '@/lib/frameos/character-voice-reference'
 import { assertCharacterVoiceNotBound } from '@/lib/frameos/character-voice-service'
 import { isUserManagedMaterial } from '@/lib/frameos/material-inherit'
+import { materialNodeSyncPatch } from '@/lib/canvas/material-node-sync'
+import { syncMaterialToCanvasNodes } from '@/lib/canvas/sync-material-to-canvas-nodes'
 
 export const PATCH = apiHandler(async (
   request: NextRequest,
@@ -67,8 +69,13 @@ export const PATCH = apiHandler(async (
       throw new ApiError('FORBIDDEN', { message: '共享素材不能移入个人素材池，请重新上传为自己的个人素材。' })
     }
     if (projectId !== material.projectId) {
-      if (material.personalOwnerId !== actor.actorId) {
-        throw new ApiError('FORBIDDEN', { message: '只有个人素材的创建者可以更改项目归属。' })
+      const personalCreator = material.personalOwnerId === actor.actorId
+      if (!personalCreator && (material.personalOwnerId || !isUserManagedMaterial(material))) {
+        throw new ApiError('FORBIDDEN', {
+          message: material.personalOwnerId
+            ? '只有个人素材的创建者可以更改项目归属。'
+            : '项目生成的素材归属由对应工作流管理，只有上传或继承的素材可以手动变更位置。',
+        })
       }
       await requireMaterialProjectAccess(tx, session, projectId)
       if (projectId !== PERSONAL_MATERIAL_PROJECT_ID && material.type === 'audio') {
@@ -85,6 +92,16 @@ export const PATCH = apiHandler(async (
       if (frameosCharacterBindingFromMetadata(material.metadata)) {
         throw new ApiError('CONFLICT', { message: '请先解除作品角色绑定，再调整素材归属。' })
       }
+      const movedVoiceId = !personalCreator && material.type === 'image' ? characterVoiceMaterialId(material.metadata) : null
+      if (movedVoiceId) {
+        const voice = await tx.frameosMaterial.findFirst({
+          where: { id: movedVoiceId, userId: actor.workspaceOwnerId, type: 'audio', deletedAt: null },
+          select: { projectId: true, title: true },
+        })
+        if (voice && voice.projectId !== PERSONAL_MATERIAL_PROJECT_ID && !ACCOUNT_MATERIAL_PROJECT_IDS.has(voice.projectId) && voice.projectId !== targetProjectId) {
+          throw new ApiError('CONFLICT', { message: `该角色图片绑定的音色「${voice.title || '未命名音色'}」不在目标位置，请先解除音色绑定，或把音色一并移到目标位置。` })
+        }
+      }
     }
     const sharingPersonalMaterial = material.projectId === PERSONAL_MATERIAL_PROJECT_ID && targetProjectId !== PERSONAL_MATERIAL_PROJECT_ID
     const previousVoiceId = characterVoiceMaterialId(material.metadata)
@@ -99,7 +116,7 @@ export const PATCH = apiHandler(async (
       : null
     const shareClearedVoice = Boolean(previousVoiceId && sharingPersonalMaterial && material.type === 'image' && !sharedVoice)
 
-    if (body.restore === true && !material.deletedAt) return { material, projectName: null, shareClearedVoice: false }
+    if (body.restore === true && !material.deletedAt) return { material, projectName: null, shareClearedVoice: false, metadataChanged: false }
     if (body.restore !== true && material.deletedAt) throw new ApiError('NOT_FOUND')
 
     const requestedCharacterId = typeof body.characterId === 'string' ? body.characterId.trim() : ''
@@ -210,10 +227,22 @@ export const PATCH = apiHandler(async (
         },
       })
     }
-    return { material: nextMaterial, projectName: project?.name || null, shareClearedVoice }
+    return { material: nextMaterial, projectName: project?.name || null, shareClearedVoice, metadataChanged: Boolean(nextMetadata) }
   })
+  const syncPatch = body.restore === true ? null : materialNodeSyncPatch(updated.material, {
+    title: Boolean(title),
+    metadata: updated.metadataChanged,
+  })
+  const canvasSync = syncPatch
+    ? await syncMaterialToCanvasNodes({
+      workspaceOwnerId: getWorkspaceActor(session).workspaceOwnerId,
+      material: updated.material,
+      patch: syncPatch,
+    })
+    : null
   return NextResponse.json({
     success: true,
+    canvasSync,
     voiceCleared: updated.shareClearedVoice,
     message: updated.shareClearedVoice ? '素材已共享到项目。原私人音色不可被其他成员访问，已解除角色卡音色绑定；音频文件仍保留在个人素材中。' : null,
     material: {

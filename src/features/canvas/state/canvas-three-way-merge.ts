@@ -1,4 +1,3 @@
-import { dedupeStoryWires } from '@/lib/canvas/story-wire-rules'
 import type { CanvasDocumentInput, CanvasNode } from '../types'
 
 function stable(value: unknown): string {
@@ -83,10 +82,8 @@ export function mergeCanvasDocuments(
 ): CanvasDocumentInput {
   const nodes = mergeEntities(base.nodes, local.nodes, remote.nodes)
   const nodeIds = new Set(nodes.map((node) => node.id))
-  const merged = mergeEntities(base.edges, local.edges, remote.edges)
+  const edges = mergeEntities(base.edges, local.edges, remote.edges)
     .filter((edge) => nodeIds.has(edge.sourceNodeId) && nodeIds.has(edge.targetNodeId))
-  // Two tabs can each wire the same exit to a different card under different edge ids; the server's copy stays.
-  const edges = dedupeStoryWires(merged, nodes, new Set(remote.edges.map((edge) => edge.id)))
 
   return {
     schema_version: remote.schema_version || local.schema_version || base.schema_version,

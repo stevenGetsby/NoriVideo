@@ -49,6 +49,15 @@ function mentionTokenEnd(value: string, start: number): number {
   return index
 }
 
+/**
+ * Full extent of the @token starting at `start`, independent of the caret.
+ * Session validation uses this so a caret parked mid-token never invalidates
+ * an otherwise intact query.
+ */
+export function promptMentionTokenEnd(value: string, start: number): number {
+  return mentionTokenEnd(value, start + 1)
+}
+
 /** True when every character of `value` appears in `target` in order. */
 function isSubsequence(value: string, target: string): boolean {
   const chars = Array.from(value)

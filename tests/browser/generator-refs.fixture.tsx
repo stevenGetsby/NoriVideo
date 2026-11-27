@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import { ReactFlow, ReactFlowProvider } from '@xyflow/react'
 import { CanvasGenerator } from '../../src/features/canvas/components/CanvasGenerator'
 import { CanvasNodeVideo } from '../../src/features/canvas/nodes/CanvasNodeVideo'
 import type { CanvasFlowNode } from '../../src/features/canvas/editor-types'
@@ -90,6 +91,7 @@ function Fixture() {
         <div className="nori-canvas-workspace">
           <CanvasGenerator
             projectId="project-1"
+            canvasId="canvas-1"
             node={generator}
             incomingNodes={withWired ? [pickerImage2] : []}
             referenceNodes={[...pickerNodes, ...(withThumbs ? [referenceImage, ...(withVoice ? [missingVoiceImage] : [])] : []), generator]}
@@ -102,7 +104,6 @@ function Fixture() {
             onSelectLibraryMaterial={() => null}
             onToggleReferenceVoice={withVoiceToggle ? (nodeId) => { setToggleCalls((current) => [...current, nodeId]); setVoiceDetached((current) => !current) } : undefined}
             injectedReferenceNodeIds={[]}
-            anchor={null}
             panelWidth={420}
             onPanelWidthChange={() => undefined}
           />
@@ -115,4 +116,4 @@ function Fixture() {
   )
 }
 
-createRoot(document.getElementById('root')!).render(<Fixture />)
+createRoot(document.getElementById('root')!).render(<ReactFlowProvider><Fixture /></ReactFlowProvider>)

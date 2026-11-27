@@ -34,8 +34,6 @@ function platformConfig(overrides: Partial<PlatformServiceConfigResponse> = {}):
       'nori::seedance2.0-fast': '',
       'nori::seedance2.0': '',
       'nori::norivideo2.5': '',
-      'nori::tgg-seedance2.5': '',
-      'nori::tgg-vig2.5': '',
       'nori::nori-audio': '',
       'nori::nori-music': '',
       'nori::nori-sfx': '',

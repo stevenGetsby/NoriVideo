@@ -23,8 +23,9 @@ const sqlNodeFields = Prisma.sql`
   cn.id, cn.canvasId, cn.type, cn.position, cn.size, cn.status, cn.taskId, cn.runId,
   cn.mediaObjectId, cn.parentNodeId, cn.updatedAt
 `
-const sqlVersion = Prisma.sql`CONCAT('db1-', SHA2(JSON_ARRAY(
-  cn.data, cn.status, cn.taskId, cn.runId, cn.mediaObjectId, cn.parentNodeId
+const sqlVersion = Prisma.sql`CONCAT('db2-', SHA2(JSON_ARRAY(
+  DATE_FORMAT(cn.updatedAt, '%Y-%m-%dT%H:%i:%s.%fZ'),
+  cn.status, cn.taskId, cn.runId, cn.mediaObjectId, cn.parentNodeId
 ), 256))`
 
 const historyRows = Prisma.sql`JSON_TABLE(
@@ -80,12 +81,20 @@ function summarizeCost(value: Prisma.JsonValue): CanvasNodeData['currentCost'] {
   return null
 }
 
-/** Only the SQL projection crosses the DB connection; full bodies are limited to active reconciliation. */
-export async function readCanvasNodeSummaries(projectId: string, canvasId: string): Promise<CanvasNodeSummaryV1[]> {
+export async function readCanvasNodeSummariesWithMeta(projectId: string, canvasId: string): Promise<{
+  nodes: CanvasNodeSummaryV1[]
+  maxUpdatedAtMs: number
+  hasRunning: boolean
+}> {
   const rows = await prisma.$queryRaw<ProjectionRow[]>(Prisma.sql`
     SELECT ${sqlNodeFields}, JSON_ARRAY(${cardEntriesQuery}) AS cardEntries, ${sqlVersion} AS detailVersion,
-      (SELECT COUNT(*) FROM ${historyRows} WHERE JSON_TYPE(history_rows.item) = 'OBJECT') AS historyCount,
-      (${currentCostQuery}) AS currentCostEntry
+      IF(JSON_TYPE(JSON_EXTRACT(cn.data, '$.history')) = 'ARRAY', JSON_LENGTH(cn.data, '$.history'), 0) AS historyCount,
+      IF(
+        JSON_TYPE(JSON_EXTRACT(cn.data, '$.history')) = 'ARRAY'
+        AND JSON_LENGTH(cn.data, '$.history') > 0,
+        (${currentCostQuery}),
+        NULL
+      ) AS currentCostEntry
     FROM canvas_nodes AS cn WHERE cn.canvasId = ${canvasId} ORDER BY cn.createdAt ASC
   `)
   const runningIds = rows.filter((row) => row.status === 'RUNNING').map((row) => row.id)
@@ -99,16 +108,23 @@ export async function readCanvasNodeSummaries(projectId: string, canvasId: strin
       running.set(node.id, node)
     }
   }
-  return rows.flatMap((row) => {
+  let maxUpdatedAtMs = 0
+  let hasRunning = false
+  const nodes = rows.flatMap((row) => {
     const { cardEntries, historyCount, currentCostEntry, detailVersion, ...fields } = row
     if (row.status === 'RUNNING') {
       const detail = running.get(row.id)
       // Node may have been removed after the projection query.
       if (!detail) return []
+      const updatedMs = detail.updatedAt instanceof Date ? detail.updatedAt.getTime() : 0
+      if (updatedMs > maxUpdatedAtMs) maxUpdatedAtMs = updatedMs
+      if (detail.status === 'RUNNING') hasRunning = true
       const summary = buildCanvasNodeSummaryV1(publicNode(detail, projectId, canvasId))
       if (detail.status === row.status && detail.updatedAt.getTime() === row.updatedAt.getTime()) summary.detailVersion = detailVersion
       return [summary]
     }
+    const updatedMs = row.updatedAt instanceof Date ? row.updatedAt.getTime() : 0
+    if (updatedMs > maxUpdatedAtMs) maxUpdatedAtMs = updatedMs
     const entries = Array.isArray(cardEntries) ? cardEntries : []
     const data = Object.fromEntries(entries.flatMap((pair) =>
       Array.isArray(pair) && typeof pair[0] === 'string' && pair.length === 2 ? [[pair[0], pair[1]]] : []))
@@ -116,6 +132,12 @@ export async function readCanvasNodeSummaries(projectId: string, canvasId: strin
       historyCount: Number(historyCount), currentCost: summarizeCost(currentCostEntry), detailVersion,
     })]
   })
+  return { nodes, maxUpdatedAtMs, hasRunning }
+}
+
+/** Only the SQL projection crosses the DB connection; full bodies are limited to active reconciliation. */
+export async function readCanvasNodeSummaries(projectId: string, canvasId: string): Promise<CanvasNodeSummaryV1[]> {
+  return (await readCanvasNodeSummariesWithMeta(projectId, canvasId)).nodes
 }
 
 export async function readCanvasNodeDetailRow(canvasId: string, nodeId: string) {

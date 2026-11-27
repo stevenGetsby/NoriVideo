@@ -268,7 +268,7 @@ function pickDefaultCapabilityOption(
   }
 
   if (field === 'generateAudio') {
-    return options.includes(false) ? false : options[0]
+    return options.includes(true) ? true : options[0]
   }
 
   if (field === 'duration') {
@@ -346,7 +346,7 @@ export function resolveGenerationOptionsForModel(input: {
   }
 
   // Agent / 自动工作流没有手动参数面板，视频模型的必填能力字段需要由后端按能力表补齐。
-  // 默认优先选择普通图生视频、5 秒、720p、不开音频，避免 first-last-frame 等模式要求额外素材。
+  // 默认优先选择普通图生视频、5 秒、720p、有声，避免 first-last-frame 等模式要求额外素材。
   if (input.modelType === 'video') {
     const optionFields = getCapabilityOptionFields(input.modelType, input.capabilities)
     for (const [field, options] of Object.entries(optionFields)) {

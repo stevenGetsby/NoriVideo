@@ -23,6 +23,27 @@ type MediaModel = {
 }
 
 const mediaModel = (prisma as unknown as { mediaObject: MediaModel }).mediaObject
+const MAX_MEDIA_PUBLIC_ID_CACHE = 20_000
+const mediaByPublicIdCache = new Map<string, MediaRef>()
+
+function readCachedMediaByPublicId(publicId: string): MediaRef | undefined {
+  const cached = mediaByPublicIdCache.get(publicId)
+  if (!cached) return undefined
+  mediaByPublicIdCache.delete(publicId)
+  mediaByPublicIdCache.set(publicId, cached)
+  return cached
+}
+
+function writeCachedMediaByPublicId(ref: MediaRef): MediaRef {
+  if (!ref.publicId) return ref
+  mediaByPublicIdCache.delete(ref.publicId)
+  mediaByPublicIdCache.set(ref.publicId, ref)
+  if (mediaByPublicIdCache.size > MAX_MEDIA_PUBLIC_ID_CACHE) {
+    const oldest = mediaByPublicIdCache.keys().next().value
+    if (oldest !== undefined) mediaByPublicIdCache.delete(oldest)
+  }
+  return ref
+}
 
 const MIME_BY_EXT: Record<string, string> = {
   '.png': 'image/png',
@@ -93,7 +114,7 @@ export async function ensureMediaObjectFromStorageKey(
 
   const existing = (await mediaModel.findUnique({ where: { storageKey } })) as MediaObjectRow | null
   if (existing != null) {
-    return mapMediaObjectToRef(existing)
+    return writeCachedMediaByPublicId(mapMediaObjectToRef(existing))
   }
 
   const publicId = stablePublicIdFromStorageKey(storageKey)
@@ -119,7 +140,7 @@ export async function ensureMediaObjectFromStorageKey(
       },
     })) as MediaObjectRow
 
-    return mapMediaObjectToRef(created)
+    return writeCachedMediaByPublicId(mapMediaObjectToRef(created))
   } catch (error: unknown) {
     // P2002 = unique constraint violation. Another concurrent request already
     // created/updated the row.  Re-fetch instead of crashing.
@@ -127,16 +148,18 @@ export async function ensureMediaObjectFromStorageKey(
     if (code === 'P2002') {
       const fallback = (await mediaModel.findUnique({ where: { publicId } })) as MediaObjectRow | null
         ?? (await mediaModel.findUnique({ where: { storageKey } })) as MediaObjectRow | null
-      if (fallback) return mapMediaObjectToRef(fallback)
+      if (fallback) return writeCachedMediaByPublicId(mapMediaObjectToRef(fallback))
     }
     throw error
   }
 }
 
 export async function getMediaObjectByPublicId(publicId: string) {
+  const cached = readCachedMediaByPublicId(publicId)
+  if (cached) return cached
   const row = (await mediaModel.findUnique({ where: { publicId } })) as MediaObjectRow | null
   if (!row) return null
-  return mapMediaObjectToRef(row)
+  return writeCachedMediaByPublicId(mapMediaObjectToRef(row))
 }
 
 export async function getMediaObjectById(id: string) {

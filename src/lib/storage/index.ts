@@ -76,6 +76,19 @@ export async function getObjectBuffer(key: string): Promise<Buffer> {
   return await getStorageProvider().getObjectBuffer(key)
 }
 
+export async function objectExists(key: string): Promise<boolean> {
+  const provider = getStorageProvider()
+  if (typeof provider.objectExists === 'function') {
+    return await provider.objectExists(key)
+  }
+  try {
+    await provider.getObjectBuffer(key)
+    return true
+  } catch {
+    return false
+  }
+}
+
 export async function getSignedObjectUrl(
   key: string,
   expiresInSeconds: number = DEFAULT_SIGNED_URL_EXPIRES_SECONDS,

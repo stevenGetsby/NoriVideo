@@ -76,11 +76,16 @@ export function planCanvasBatchConnections(input: {
   maxEdges?: number
   createId?: () => string
   allowStory?: boolean
+  validateReferences?: (references: CanvasFlowNode[]) => boolean
+  newSourceCapacity?: { ids: ReadonlySet<string>; remaining: number }
 }) {
   let nodes = [...input.nodes]
   const edges = [...input.edges]
   let added = 0
   let skipped = 0
+  let restored = 0
+  let skippedForNodeCapacity = 0
+  let remainingNewSources = input.newSourceCapacity?.remaining ?? Infinity
   const createId = input.createId || (() => typeof globalThis.crypto?.randomUUID === 'function'
     ? globalThis.crypto.randomUUID()
     : `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`)
@@ -107,10 +112,26 @@ export function planCanvasBatchConnections(input: {
     const source = nodes.find((node) => node.id === id)
     const currentTarget = nodes.find((node) => node.id === input.targetNodeId)
     const connection = { source: id, target: input.targetNodeId, sourceHandle: 'output', targetHandle: 'input' }
-    if (!source || !currentTarget || !isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges, input.allowStory !== false)) {
+    if (!source || !currentTarget) {
       skipped++
       continue
     }
+    if (schema && input.validateReferences && !referencedIds.has(id)) {
+      const selected = nodes.filter((node) => referencedIds.has(node.id))
+      if (!input.validateReferences([...selected, source])) { skipped++; continue }
+      if (edges.some((edge) => edge.source === id && edge.target === currentTarget.id)) {
+        referencedIds.add(id)
+        nodes = nodes.map((node) => node.id === currentTarget.id ? {
+          ...node,
+          data: { ...node.data, generation: { ...node.data.generation, referenceNodeIds: [...referencedIds] } },
+        } : node)
+        const mediaType = canvasConnectionMediaType(source)
+        if (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio') counts[mediaType]++
+        restored++
+        continue
+      }
+    }
+    if (!isCanvasConnectionAllowed(connection, nodes, edges, input.maxEdges, input.allowStory !== false)) { skipped++; continue }
     const story = input.allowStory === false ? { kind: 'not_story' as const } : resolveStoryConnection(connection, nodes)
     if (story.kind === 'flow' || story.kind === 'media') {
       const next = applyStoryConnection(edges, story, createId)
@@ -123,6 +144,12 @@ export function planCanvasBatchConnections(input: {
     if (schema && mediaType !== 'text') {
       if (mediaType !== 'image' && mediaType !== 'video' && mediaType !== 'audio') { skipped++; continue }
       if (!referencedIds.has(id) && counts[mediaType] >= schema[mediaType].max) { skipped++; continue }
+    }
+    const needsNewNode = input.newSourceCapacity?.ids.has(id) ?? false
+    if (needsNewNode && remainingNewSources <= 0) {
+      skipped++
+      skippedForNodeCapacity++
+      continue
     }
     if (currentTarget.type === 'playlist') {
       const result = appendCanvasVideoSourceToPlaylist(currentTarget.data.playlistItems, source, createId)
@@ -166,7 +193,8 @@ export function planCanvasBatchConnections(input: {
     }
     if (schema && !referencedIds.has(id) && (mediaType === 'image' || mediaType === 'video' || mediaType === 'audio')) counts[mediaType]++
     referencedIds.add(id)
+    if (needsNewNode) remainingNewSources--
     added++
   }
-  return { nodes, edges, added, skipped }
+  return { nodes, edges, added, skipped, restored, skippedForNodeCapacity }
 }

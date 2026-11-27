@@ -1,14 +1,34 @@
 import type { CanvasAgentModelCatalog, CanvasAgentModelSettings } from '@/lib/canvas-agent/model-catalog'
 
 export type ModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync'
+
+export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
+  deepseek: 'DeepSeek',
+  openlux: 'OpenLux',
+  kuaizi: 'Kuaizi',
+  huimengi: '绘梦工坊',
+  ailink: 'AILink',
+  topenrouter: 'TopenRouter',
+}
 export type DefaultField = 'analysisModel' | 'characterModel' | 'locationModel' | 'storyboardModel' | 'editModel' | 'videoModel' | 'audioModel' | 'lipSyncModel'
 
 export interface BusinessModelDraft {
   key: string
   name: string
+  customerName?: string
   description: string
   type: 'llm' | 'image' | 'video' | 'audio'
   tier: 'mini' | 'fast' | 'standard' | 'pro'
+}
+
+export type AdminServicesSection = 'providers' | 'models' | 'customers' | 'usage' | 'all'
+
+export interface ModelViewUser {
+  id: string
+  name: string
+  role: string
+  workspaceOwnerId?: string | null
+  subAccountCount?: number
 }
 
 export interface ProviderDraft {
@@ -16,6 +36,7 @@ export interface ProviderDraft {
   name: string
   baseUrl?: string
   assetGroupId?: string
+  seedance25IntlKzep?: string
   hasApiKey: boolean
 }
 
@@ -36,6 +57,11 @@ export interface ServiceConfig {
   defaultModels: Partial<Record<DefaultField, string>>
   businessModels: BusinessModelDraft[]
   modelRouting: Record<string, string>
+  modelEnabled?: Record<string, boolean>
+  customerVisibleModels?: Record<string, boolean>
+  internalModelViewUserIds?: string[]
+  customerModelOverrides?: Record<string, Record<string, boolean>>
+  customerModelRoutingOverrides?: Record<string, Record<string, string>>
   agentModels?: Record<string, CanvasAgentModelSettings>
   canvasAgentModelCatalog?: CanvasAgentModelCatalog
   storage: {
@@ -120,6 +146,7 @@ export interface ServicesPayload {
   config: ServiceConfig
   health: HealthRow[]
   usage: UsageOverview
+  modelViewUsers?: ModelViewUser[]
 }
 
 export interface ModelDiscoveryPayload {

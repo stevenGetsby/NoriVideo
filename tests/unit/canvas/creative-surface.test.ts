@@ -123,7 +123,7 @@ describe('infinite canvas creative surface parity', () => {
     expect(generator).toContain('minHeight={fullscreen ? 280 : 96}')
   })
 
-  it('keeps the node editor stationary, bounded below chrome, and dismissible without moving its node', () => {
+  it('keeps the node editor riding the viewport transform, bounded in height, and dismissible without moving its node', () => {
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
     const generator = readSource('src/features/canvas/components/CanvasGenerator.tsx')
     const styles = readSource('src/features/canvas/canvas.css')
@@ -133,10 +133,10 @@ describe('infinite canvas creative surface parity', () => {
     expect(graph).not.toContain('generatorNodeId')
     expect(graph).toContain('onClose={() => setNodes((current) => current.map((node) => node.id === selectedCreativeNode.id ? { ...node, selected: false } : node))}')
     expect(generator).toContain('className="nori-canvas-generator-scroll"')
-    expect(generator).toContain('maxHeight: `min(${anchor.maxHeight}px, calc(var(--nori-generator-viewport-height, 72vh) / var(--nori-interface-scale, 1.2)))`')
-    expect(styles).toContain('max-width: min(calc(100% - 148px), calc((100vw - 48px) / var(--nori-interface-scale, 1.2)));')
+    expect(generator).toContain('<ViewportPortal>')
+    expect(styles).toContain('max-height: calc(72dvh / var(--nori-interface-scale, 1.2));')
+    expect(styles).toContain('max-width: calc((100vw - 48px) / var(--nori-interface-scale, 1.2));')
     expect(styles).toContain('.nori-canvas-generator.is-node-anchored .nori-canvas-generator-head')
-    expect(styles).toContain('top: var(--canvas-chrome-safe-top, 116px);')
   })
 
   it('persists previewable @ references on video nodes', () => {
@@ -183,14 +183,16 @@ describe('infinite canvas creative surface parity', () => {
     expect(generator).toContain('CANVAS_IMAGE_QUALITIES')
     expect(generator).toContain('canvasVideoAspectRatioOptions')
     expect(generator).toContain('CANVAS_VIDEO_RESOLUTIONS')
-    expect(generator).toContain('>全能参考</option>')
-    expect(generator).toContain('>图生视频</option>')
-    expect(generator).toContain('>首尾帧</option>')
+    expect(generator).toContain("['text', '全能参考', true]")
+    expect(generator).toContain("['image', '图生视频', supportsImageToVideo]")
+    expect(generator).toContain("['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]")
     expect(generator).toContain('<span>生成声音</span>')
     expect(generator).toContain('nori-canvas-generator-sound')
     expect(generator).toContain('node.data.generation?.generateAudio ?? true')
-    expect(generator).toContain('<span>视频帧率</span>')
+    expect(generator).toContain('id="nori-canvas-parameter-fps-label">视频帧率</span>')
     expect(generator).toContain('nori-canvas-generator-parameter-grid')
+    expect(generator).toContain('aria-label="视频时长滑杆"')
+    expect(generator).toContain('videoModeMemoryRef')
     expect(generator).toContain('isPanorama ? [CANVAS_PANORAMA_ASPECT_RATIO]')
     expect(generator).toContain('21:9 超宽幅全景图')
     expect(generator).not.toContain('2:1 等距柱状投影全景图')

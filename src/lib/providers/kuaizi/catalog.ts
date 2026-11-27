@@ -4,6 +4,9 @@ import {
 } from '@/lib/providers/official/model-registry'
 import type { KuaiziModelDefinition, KuaiziModelModality } from './types'
 
+export const KUAIZI_SEEDANCE_25_INTL_MODEL_ID = 'doubao-seedance-2-5-260628-intl'
+export const KUAIZI_SEEDANCE_25_INTL_MODEL_KEY = `kuaizi::${KUAIZI_SEEDANCE_25_INTL_MODEL_ID}`
+
 const KUAIZI_CATALOG: readonly KuaiziModelDefinition[] = [
   { modelId: 'deepseek-v4-flash', name: 'DeepSeek V4 Flash', modality: 'llm', family: 'chat' },
   { modelId: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', modality: 'llm', family: 'chat' },
@@ -22,6 +25,7 @@ const KUAIZI_CATALOG: readonly KuaiziModelDefinition[] = [
   { modelId: 'doubao-seedance-2-0-fast-260128', name: 'Seedance 2.0 Fast (Kuaizi)', modality: 'video', family: 'seedance' },
   { modelId: 'doubao-seedance-2-0-mini-260615', name: 'Seedance 2.0 Mini (Kuaizi)', modality: 'video', family: 'seedance' },
   { modelId: 'doubao-seedance-2-5-260628', name: 'Seedance 2.5 (Kuaizi)', modality: 'video', family: 'seedance' },
+  { modelId: KUAIZI_SEEDANCE_25_INTL_MODEL_ID, name: 'Seedance 2.5 国际版 (Kuaizi)', modality: 'video', family: 'seedance' },
 
   { modelId: 'seed-audio', name: 'Seed Audio', modality: 'audio', family: 'seed-audio' },
   { modelId: 'speech-2.8-hd', name: 'MiniMax Speech 2.8 HD', modality: 'audio', family: 'minimax-tts' },

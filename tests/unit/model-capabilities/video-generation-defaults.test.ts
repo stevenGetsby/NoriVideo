@@ -30,7 +30,7 @@ describe('model-capabilities/lookup - video generation defaults', () => {
       generationMode: 'normal',
       duration: 5,
       resolution: '720p',
-      generateAudio: false,
+      generateAudio: true,
     })
   })
 
@@ -51,7 +51,7 @@ describe('model-capabilities/lookup - video generation defaults', () => {
       generationMode: 'normal',
       duration: 8,
       resolution: '1080p',
-      generateAudio: false,
+      generateAudio: true,
     })
   })
 })

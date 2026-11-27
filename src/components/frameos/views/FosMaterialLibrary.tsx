@@ -10,7 +10,8 @@ import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl, toPlayableAudioUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { ConfirmActionDialog } from '../works/FosWorksDialogs'
-import { renameFrameosMaterial, trashFrameosMaterials, updateFrameosMaterial } from '../materials/material-actions'
+import { describeCanvasSync, readCanvasSync, renameFrameosMaterial, trashFrameosMaterials, updateFrameosMaterial } from '../materials/material-actions'
+import { notifyCanvasRevisions } from '@/lib/canvas/revision-broadcast'
 import { fetchAllProjectOptions } from '../works/fetch-all-projects'
 import { ViewportDialogLayer } from '../ViewportDialogLayer'
 import { ProjectDownloadDirectory } from '../ProjectDownloadDirectory'
@@ -332,12 +333,14 @@ export function MaterialUploadDialog({
   )
 }
 
-function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onVoiceChange, onRename, onClose, onDownload }: {
+function MaterialPreviewDialog({ item, canEdit, canMove, onCharacterBind, onVoiceChange, onRename, onMove, onClose, onDownload }: {
   item: FrameosMaterialItem
   canEdit: boolean
+  canMove: boolean
   onCharacterBind: (characterId: string | null) => void
   onVoiceChange: (voice: FrameosMaterialItem | null) => void
   onRename: () => void
+  onMove: () => void
   onClose: () => void
   onDownload: () => Promise<void>
 }) {
@@ -409,7 +412,7 @@ function MaterialPreviewDialog({ item, canEdit, onCharacterBind, onVoiceChange, 
           </div>
           <aside className="overflow-y-auto border-t border-[var(--fos-border-soft)] p-5 md:border-l md:border-t-0">
             <div className="mb-3 text-[12px] font-bold text-[var(--fos-text-3)]">素材信息</div>
-            <div className="divide-y divide-[var(--fos-border-soft)] rounded-[10px] border border-[var(--fos-border-soft)]">{rows.map(([key, value]) => <div key={key} className="px-3.5 py-3 text-[12px]"><span className="block text-[var(--fos-text-4)]">{key}</span><span className="mt-1 block break-words font-bold text-white">{value}</span>{key === '素材名称' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" onClick={onRename}><AppIcon name="edit" className="h-3.5 w-3.5" />修改名称</button> : null}</div>)}</div>
+            <div className="divide-y divide-[var(--fos-border-soft)] rounded-[10px] border border-[var(--fos-border-soft)]">{rows.map(([key, value]) => <div key={key} className="px-3.5 py-3 text-[12px]"><span className="block text-[var(--fos-text-4)]">{key}</span><span className="mt-1 block break-words font-bold text-white">{value}</span>{key === '素材名称' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" onClick={onRename}><AppIcon name="edit" className="h-3.5 w-3.5" />修改名称</button> : null}{key === '归属作品' && canEdit ? <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm mt-2" disabled={!canMove} title={canMove ? undefined : '项目生成的素材归属由对应工作流管理，只有上传或继承的素材可以手动变更位置。'} onClick={onMove}><AppIcon name="folder" className="h-3.5 w-3.5" />变更位置</button> : null}</div>)}</div>
             {canBindProjectCharacter ? <label className="mt-4 block"><span className="mb-2 block text-[12px] font-bold text-[var(--fos-text-3)]">绑定作品角色</span><select className="fos-input" value={characterBinding?.characterId || ''} disabled={!canEdit || charactersLoading} onChange={(event) => onCharacterBind(event.target.value || null)}><option value="">不绑定具体角色</option>{characters.map((character) => <option key={character.id} value={character.id}>@{character.name}</option>)}</select><span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">同一角色的图片与音频会在资产库聚合显示；绑定音频后同步设为该角色音色。</span></label> : null}
             {canSetVoice ? <div className="mt-4" data-testid="material-character-voice"><span className="mb-2 block text-[12px] font-bold text-[var(--fos-text-3)]">角色音色</span>{item.voice ? <>{item.voice.url ? <audio controls preload="metadata" aria-label={`${item.title || '角色'}音色试听`} src={toPlayableAudioUrl(item.voice.url) || item.voice.url} className="w-full" /> : null}<span className="mt-1.5 block truncate text-[11px] text-[var(--fos-text-3)]" title={item.voice.title || ''}>已绑定：{item.voice.title || '角色音色'}</span></> : <span className="block text-[11px] leading-4 text-[var(--fos-text-4)]">尚未绑定音色，视频全能参考引用这张角色图时不会带入声音。</span>}{canEdit ? <button type="button" className="fos-btn fos-btn-soft fos-btn-sm mt-2" onClick={() => setVoiceOpen(true)}>{item.voice ? '更换音色' : '设置音色'}</button> : null}<span className="mt-1.5 block text-[10px] leading-4 text-[var(--fos-text-4)]">新角色没有初始音频：可先在画布生成声音并截取音色，再上传或从音色素材库选择后回绑到这张角色卡复用。</span></div> : null}
             <div className="mt-4 space-y-3"><ProjectDownloadDirectory projectId={item.projectId} /><button type="button" className="fos-btn fos-btn-primary" disabled={downloading} onClick={() => { setDownloading(true); setDownloadError(null); void onDownload().catch((cause) => setDownloadError(cause instanceof Error ? cause.message : '下载失败')).finally(() => setDownloading(false)) }}>{downloading ? '下载中…' : '按项目规则下载素材'}</button>{downloadError ? <p role="alert" className="break-words text-[12px] text-red-200">{downloadError}</p> : null}</div>
@@ -435,7 +438,22 @@ function MaterialEditDialog({ item, projects, busy, error, onClose, onSave }: {
   const [projectId, setProjectId] = useState(item.personal ? 'personal' : item.projectId)
   const [validationError, setValidationError] = useState<string | null>(null)
   const canChangeProject = Boolean(item.personal && item.canEdit !== false)
-  return <ViewportDialogLayer><div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-label="编辑素材" className="fos-dialog" style={{ maxWidth: 460 }}><header className="fos-dialog-head"><h2 className="fos-dialog-title">编辑素材</h2><button type="button" className="fos-dialog-x" aria-label="关闭编辑素材" disabled={busy} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></header><form onSubmit={(event) => { event.preventDefault(); if (!title.trim()) { setValidationError('请输入素材名称。'); return }; setValidationError(null); void onSave(title, projectId) }}><div className="fos-dialog-body space-y-4"><label className="block"><span className="mb-2 block text-[12px] font-bold text-on-brand">素材名称</span><input autoFocus aria-label="编辑素材名称" className="fos-input" maxLength={MAX_MATERIAL_TITLE_LENGTH} disabled={busy} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="block"><span className="mb-2 block text-[12px] font-bold text-on-brand">素材归属</span><select aria-label="编辑素材归属" className="fos-input" disabled={busy || !canChangeProject} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（仅自己）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">{canChangeProject ? '可共享到有权限的项目，原素材 ID 保持不变。' : '只能修改名称；项目归属只能由个人素材创建者调整。'}</p></label>{validationError || error ? <p role="alert" className="break-words text-[12px] text-red-200">{validationError || error}</p> : null}</div><footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={busy} onClick={onClose}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={busy || !title.trim()}>{busy ? '保存中…' : '保存修改'}</button></footer></form></section></div></ViewportDialogLayer>
+  return <ViewportDialogLayer><div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-label="编辑素材" className="fos-dialog" style={{ maxWidth: 460 }}><header className="fos-dialog-head"><h2 className="fos-dialog-title">编辑素材</h2><button type="button" className="fos-dialog-x" aria-label="关闭编辑素材" disabled={busy} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></header><form onSubmit={(event) => { event.preventDefault(); if (!title.trim()) { setValidationError('请输入素材名称。'); return }; setValidationError(null); void onSave(title, projectId) }}><div className="fos-dialog-body space-y-4"><label className="block"><span className="mb-2 block text-[12px] font-bold text-on-brand">素材名称</span><input autoFocus aria-label="编辑素材名称" className="fos-input" maxLength={MAX_MATERIAL_TITLE_LENGTH} disabled={busy} value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="block"><span className="mb-2 block text-[12px] font-bold text-on-brand">素材归属</span><select aria-label="编辑素材归属" className="fos-input" disabled={busy || !canChangeProject} value={projectId} onChange={(event) => setProjectId(event.target.value)}><option value="personal">个人素材（仅自己）</option><option value="global">账号素材（共享）</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.name}（项目共享）</option>)}</select><p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">{canChangeProject ? '可共享到有权限的项目，原素材 ID 保持不变。' : '这里只修改名称；位置请在素材详情的「归属作品」处变更。'}</p></label>{validationError || error ? <p role="alert" className="break-words text-[12px] text-red-200">{validationError || error}</p> : null}</div><footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={busy} onClick={onClose}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={busy || !title.trim()}>{busy ? '保存中…' : '保存修改'}</button></footer></form></section></div></ViewportDialogLayer>
+}
+
+function MaterialMoveDialog({ item, projects, busy, error, onClose, onSave }: {
+  item: FrameosMaterialItem
+  projects: ProjectItem[]
+  busy: boolean
+  error: string | null
+  onClose: () => void
+  onSave: (projectId: string) => Promise<void>
+}) {
+  const currentId = item.personal ? 'personal' : item.projectId === 'global-asset-hub' ? 'global' : item.projectId
+  const [projectId, setProjectId] = useState(currentId)
+  const known = currentId === 'personal' || currentId === 'global' || projects.some((project) => project.id === currentId)
+  const groups = Array.from(new Map(projects.map((project) => [project.workId, projects.filter((entry) => entry.workId === project.workId)])).entries())
+  return <ViewportDialogLayer><div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) onClose() }}><section role="dialog" aria-modal="true" aria-label="变更素材位置" className="fos-dialog" style={{ maxWidth: 460 }}><header className="fos-dialog-head"><h2 className="fos-dialog-title">变更素材位置</h2><button type="button" className="fos-dialog-x" aria-label="关闭变更素材位置" disabled={busy} onClick={onClose}><AppIcon name="close" className="h-4 w-4" /></button></header><form onSubmit={(event) => { event.preventDefault(); if (projectId !== currentId) void onSave(projectId) }}><div className="fos-dialog-body space-y-4"><div><span className="mb-1 block text-[12px] font-bold text-on-brand">素材</span><span className="block break-words text-[13px] text-white">{item.title || '未命名素材'}</span><span className="mt-1 block text-[11px] text-[var(--fos-text-4)]">当前位置：{item.projectName}</span></div><label className="block"><span className="mb-2 block text-[12px] font-bold text-on-brand">移动到</span><select aria-label="素材新位置" className="fos-input" disabled={busy} value={projectId} onChange={(event) => setProjectId(event.target.value)}>{known ? null : <option value={currentId}>{item.projectName}（当前位置）</option>}{item.personalOwnerId ? <option value="personal">{currentId === 'personal' ? '个人素材（当前位置）' : '个人素材（仅自己）'}</option> : null}<option value="global">{currentId === 'global' ? '账号素材（当前位置）' : '账号素材（共享）'}</option>{groups.map(([workId, group]) => <optgroup key={workId} label={group[0]?.workName || '项目资产'}>{group.map((project) => <option key={project.id} value={project.id}>{project.name}{project.id === currentId ? '（当前位置）' : '（项目共享）'}</option>)}</optgroup>)}</select><p className="mt-2 text-[11px] leading-5 text-[var(--fos-text-4)]">素材 ID 保持不变，已在画布中使用的引用不受影响。{item.personalOwnerId ? '移到账号或项目后，其他成员即可使用。' : ''}</p></label>{error ? <p role="alert" className="break-words text-[12px] text-red-200">{error}</p> : null}</div><footer className="fos-dialog-foot"><button type="button" className="fos-btn fos-btn-ghost" disabled={busy} onClick={onClose}>取消</button><button type="submit" className="fos-btn fos-btn-primary" disabled={busy || projectId === currentId}>{busy ? '移动中…' : '确认变更'}</button></footer></form></section></div></ViewportDialogLayer>
 }
 
 export function FosMaterialLibrary({
@@ -476,6 +494,10 @@ export function FosMaterialLibrary({
   const [editError, setEditError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
   const renamingRef = useRef(false)
+  const [moveTarget, setMoveTarget] = useState<FrameosMaterialItem | null>(null)
+  const [moving, setMoving] = useState(false)
+  const [moveError, setMoveError] = useState<string | null>(null)
+  const movingRef = useRef(false)
   const [batchDeleteTarget, setBatchDeleteTarget] = useState<string[]>([])
   const [batchDeleting, setBatchDeleting] = useState(false)
   const initialMaterialOpenedRef = useRef(false)
@@ -491,6 +513,7 @@ export function FosMaterialLibrary({
     setSelectedIds([])
     setDetail(null)
     setRenameTarget(null)
+    setMoveTarget(null)
     initialSyncRef.current = false
   }, [initialProjectId])
 
@@ -655,6 +678,15 @@ export function FosMaterialLibrary({
     setRenameTarget(item)
   }
 
+  const canMoveMaterial = (item: FrameosMaterialItem) => canEditAssets
+    && item.canEdit !== false
+    && (Boolean(item.personalOwnerId) || isUserManagedMaterial(item))
+
+  const openMaterialMover = (item: FrameosMaterialItem) => {
+    setMoveError(null)
+    setMoveTarget(item)
+  }
+
   const updateCharacterBinding = async (item: FrameosMaterialItem, characterId: string | null) => {
     if (!canEditAssets) return
     const response = await apiFetch(`/api/frameos/materials/${item.id}`, {
@@ -666,8 +698,12 @@ export function FosMaterialLibrary({
       setError(await readApiErrorMessage(response, '更新作品角色绑定失败'))
       return
     }
-    const payload = await response.json() as { material?: FrameosMaterialItem }
+    const payload = await response.json() as { material?: FrameosMaterialItem; canvasSync?: unknown }
     if (!payload.material) return
+    const sync = readCanvasSync(payload.canvasSync)
+    const syncNotice = describeCanvasSync(sync)
+    if (syncNotice) setNotice(syncNotice)
+    notifyCanvasRevisions(session?.user?.id || '', sync?.canvases)
     const next = {
       ...item,
       ...payload.material,
@@ -713,21 +749,51 @@ export function FosMaterialLibrary({
     setEditError(null)
     setNotice(null)
     try {
+      const titleChanged = title.replace(/\s+/g, ' ').trim() !== (renameTarget.title || '')
       const updated = renameTarget.projectId === projectId
         ? await renameFrameosMaterial(renameTarget.id, title)
-        : await updateFrameosMaterial(renameTarget.id, { title, projectId })
+        : await updateFrameosMaterial(renameTarget.id, { title: titleChanged ? title : undefined, projectId })
       cancelMaterialReads()
       setLoading(false)
       setMaterials((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item))
       setDetail((current) => current?.id === updated.id ? { ...current, ...updated } : current)
       setRenameTarget(null)
-      if ('notice' in updated && typeof updated.notice === 'string') setNotice(updated.notice)
+      const notices = [
+        'notice' in updated && typeof updated.notice === 'string' ? updated.notice : null,
+        describeCanvasSync(updated.canvasSync),
+      ].filter(Boolean)
+      if (notices.length > 0) setNotice(notices.join(' '))
+      notifyCanvasRevisions(session?.user?.id || '', updated.canvasSync?.canvases)
       await load()
     } catch (cause) {
       setEditError(cause instanceof Error ? cause.message : '更新素材失败')
     } finally {
       renamingRef.current = false
       setRenaming(false)
+    }
+  }
+
+  const moveMaterial = async (projectId: string) => {
+    if (!canEditAssets || !moveTarget || movingRef.current) return
+    movingRef.current = true
+    setMoving(true)
+    setMoveError(null)
+    setNotice(null)
+    try {
+      const updated = await updateFrameosMaterial(moveTarget.id, { projectId })
+      cancelMaterialReads()
+      setLoading(false)
+      setMaterials((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item))
+      setDetail((current) => current?.id === updated.id ? { ...current, ...updated } : current)
+      setMoveTarget(null)
+      setNotice([`已将「${updated.title || '未命名素材'}」移到「${updated.projectName}」。`, updated.notice, describeCanvasSync(updated.canvasSync)].filter(Boolean).join(' '))
+      notifyCanvasRevisions(session?.user?.id || '', updated.canvasSync?.canvases)
+      await load()
+    } catch (cause) {
+      setMoveError(cause instanceof Error ? cause.message : '变更素材位置失败')
+    } finally {
+      movingRef.current = false
+      setMoving(false)
     }
   }
 
@@ -837,10 +903,11 @@ export function FosMaterialLibrary({
           setMaterials((current) => [material, ...current.filter((item) => item.id !== material.id)])
         }
       }} onClose={() => { setUploadOpen(false); void load() }} /> : null}
-      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets && detail.canEdit !== false} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onVoiceChange={(voice) => updateCharacterVoice(detail, voice)} onRename={() => openMaterialEditor(detail)} onClose={() => { if (!renameTarget) setDetail(null) }} onDownload={async () => {
+      {detail ? <MaterialPreviewDialog item={detail} canEdit={canEditAssets && detail.canEdit !== false} canMove={canMoveMaterial(detail)} onCharacterBind={(characterId) => void updateCharacterBinding(detail, characterId)} onVoiceChange={(voice) => updateCharacterVoice(detail, voice)} onRename={() => openMaterialEditor(detail)} onMove={() => openMaterialMover(detail)} onClose={() => { if (!renameTarget && !moveTarget) setDetail(null) }} onDownload={async () => {
         await downloadFrameosMaterial(session?.user?.id || '', detail.projectId, detail.id)
       }} /> : null}
       {renameTarget && canEditAssets ? <MaterialEditDialog key={renameTarget.id} item={renameTarget} projects={projects} busy={renaming} error={editError} onClose={() => { if (!renamingRef.current) { setRenameTarget(null); setEditError(null) } }} onSave={renameMaterial} /> : null}
+      {moveTarget && canMoveMaterial(moveTarget) ? <MaterialMoveDialog key={moveTarget.id} item={moveTarget} projects={projects} busy={moving} error={moveError} onClose={() => { if (!movingRef.current) { setMoveTarget(null); setMoveError(null) } }} onSave={moveMaterial} /> : null}
       {deleteTarget && canEditAssets ? <ConfirmActionDialog
         title={isInheritedMaterial(deleteTarget) ? '删除继承素材' : '删除上传素材'}
         description={`确定删除「${deleteTarget.title || '未命名素材'}」吗？素材将移入回收站；如果仍被画布引用，系统会拒绝删除。${deleteError ? ` ${deleteError}` : ''}`}

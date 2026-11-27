@@ -58,26 +58,50 @@ export type CanvasEditorContextValue = {
 }
 
 type CanvasEditorPersistence = Pick<CanvasEditorContextValue, 'canUndo' | 'canRedo' | 'saveState'>
-export type CanvasEditorActions = Omit<CanvasEditorContextValue, keyof CanvasEditorPersistence>
+type CanvasEditorVolatileFields = 'playlistDropTargetId' | 'textEditingNodeId'
+export type CanvasEditorActions = Omit<CanvasEditorContextValue, keyof CanvasEditorPersistence | CanvasEditorVolatileFields> & {
+  playlistDropTargetId?: string | null
+  textEditingNodeId?: string | null
+}
 const CanvasEditorContext = createContext<CanvasEditorActions | null>(null)
 const PersistenceContext = createContext<CanvasEditorPersistence | null>(null)
+const PlaylistDropTargetContext = createContext<string | null>(null)
+const TextEditingNodeContext = createContext<string | null>(null)
 
-export function CanvasEditorProvider({ value, persistence, children }: {
+export function CanvasEditorProvider({ value, persistence, playlistDropTargetId, textEditingNodeId, children }: {
   value: CanvasEditorActions | CanvasEditorContextValue
   persistence?: CanvasEditorPersistence
+  playlistDropTargetId?: string | null
+  textEditingNodeId?: string | null
   children: ReactNode
 }) {
   // Keep the combined provider contract for fixtures and older embedders.
-  // The production graph provides stable actions separately from save status.
+  // The production graph provides stable actions separately from save status and volatile interaction ids.
   const legacy = 'saveState' in value ? value : null
+  const resolvedPlaylistDropTargetId = playlistDropTargetId !== undefined ? playlistDropTargetId : (value.playlistDropTargetId ?? null)
+  const resolvedTextEditingNodeId = textEditingNodeId !== undefined ? textEditingNodeId : (value.textEditingNodeId ?? null)
   const actions = useMemo<CanvasEditorActions>(() => {
     if (!('saveState' in value)) return value
     const { saveState: _state, canUndo: _undo, canRedo: _redo, ...actions } = value
     return actions
   }, [value])
   return <CanvasEditorContext.Provider value={actions}>
-    <PersistenceContext.Provider value={persistence ?? legacy}>{children}</PersistenceContext.Provider>
+    <PersistenceContext.Provider value={persistence ?? legacy}>
+      <PlaylistDropTargetContext.Provider value={resolvedPlaylistDropTargetId}>
+        <TextEditingNodeContext.Provider value={resolvedTextEditingNodeId}>
+          {children}
+        </TextEditingNodeContext.Provider>
+      </PlaylistDropTargetContext.Provider>
+    </PersistenceContext.Provider>
   </CanvasEditorContext.Provider>
+}
+
+export function useCanvasPlaylistDropTarget() {
+  return useContext(PlaylistDropTargetContext)
+}
+
+export function useCanvasTextEditingNodeId() {
+  return useContext(TextEditingNodeContext)
 }
 
 export function useCanvasEditorPersistence() {

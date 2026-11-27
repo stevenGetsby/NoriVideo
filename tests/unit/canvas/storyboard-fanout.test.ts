@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { CanvasStoryboardPlanTaskPayload } from '@/lib/canvas/generation-task'
+import { buildCanvasGenerationDedupeKey, parseCanvasGenerationTaskPayload, type CanvasStoryboardPlanTaskPayload } from '@/lib/canvas/generation-task'
 import type { CanvasStoryboardShot } from '@/lib/canvas/storyboard-plan'
 import { TaskTerminatedError } from '@/lib/task/errors'
 
@@ -151,8 +151,9 @@ const prismaMock = vi.hoisted(() => ({
   canvasNode,
   canvasEdge,
   canvasSnapshot,
+  user: { findMany: vi.fn(async () => [{ id: 'user-1' }, { id: 'sibling-member' }]) },
   frameosMaterial: {
-    findMany: vi.fn(async () => []),
+    findMany: vi.fn<() => Promise<Array<{ id: string; title: string; storageKey: string }>>>(async () => []),
     findFirst: vi.fn(async () => null),
   },
   frameosToolboxAsset: {
@@ -295,6 +296,37 @@ describe('server storyboard fan-out', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetSource()
+  })
+
+  it('dedupes the same authorized project set even when works are returned in another order', () => {
+    const key = (referenceProjectIds: string[]) => buildCanvasGenerationDedupeKey('canvas_storyboard_plan', { ...payload, referenceProjectIds })
+    expect(key(['project-1', 'project-sibling'])).toBe(key(['project-sibling', 'project-1']))
+    expect(key(['project-1', 'project-sibling'])).not.toBe(key(['project-1']))
+  })
+
+  it('loads references from the authorized sibling scope and workspace members', async () => {
+    const scopedPayload = parseCanvasGenerationTaskPayload('canvas_storyboard_plan', {
+      ...payload,
+      referenceProjectIds: ['project-1', 'project-sibling'],
+      imageRequest: { ...payload.imageRequest, referenceMaterialIds: ['matched-asset'] },
+    })
+    if (scopedPayload?.kind !== 'storyboard_plan') throw new Error('Expected a storyboard payload')
+    prismaMock.frameosMaterial.findMany.mockImplementationOnce(async () => [{
+      id: 'matched-asset', title: '参考图', storageKey: 'images/matched.png',
+    }])
+    const result = await materializeCanvasStoryboardFanout({
+      planningTaskId: 'task-plan', userId: 'user-1', projectId: 'project-1', locale: 'zh',
+      payload: scopedPayload, shots,
+    })
+    expect(result.submittedCount).toBe(shots.length)
+    expect(prismaMock.frameosMaterial.findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['matched-asset'] },
+        userId: { in: ['user-1', 'sibling-member'] },
+        projectId: { in: ['project-1', 'project-sibling', 'global', 'global-asset-hub'] },
+        type: 'image', status: 'ready', deletedAt: null,
+      },
+    })
   })
 
   it('creates one stable node per shot, a group and cloned incoming edges without an online client', async () => {

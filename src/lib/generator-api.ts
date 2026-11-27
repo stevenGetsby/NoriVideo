@@ -13,19 +13,20 @@ import { getProviderKey, resolveModelSelection, type ModelSelection } from './ap
 import { generateKuaiziAudio, generateKuaiziVideo } from './providers/kuaizi'
 import { generateHuimengiImage, generateHuimengiVideo } from './providers/huimengi'
 import { generateOpenLuxImage } from './providers/openlux'
-import { generateTggVideo } from './providers/tgg'
+import { generateAilinkVideo } from './providers/ailink'
+import { generateTopenrouterVideo } from './providers/topenrouter'
 import { resolveRuntimeModelKey } from './nori-model-catalog'
 import { parseModelKeyStrict } from './model-config-contract'
 import { recordServiceUsageInBackground } from './platform-services/usage'
 import { assertCanvasImageInpaintSupported } from './canvas/image-edit-contract'
 
 const IMAGE_PROVIDER_IDS = ['openlux', 'huimengi'] as const
-const VIDEO_PROVIDER_IDS = ['kuaizi', 'huimengi', 'tgg'] as const
+const VIDEO_PROVIDER_IDS = ['kuaizi', 'huimengi', 'ailink', 'topenrouter'] as const
 const AUDIO_PROVIDER_IDS = ['kuaizi'] as const
 
 /**
  * New media generation must run on the fixed platform providers: OpenLux or
- * HuiMeng for images, Kuaizi, HuiMeng or TGG for video, Kuaizi for audio.
+ * HuiMeng for images, Kuaizi, HuiMeng, AILink or TopenRouter for video, Kuaizi for audio.
  * Historical provider branches are intentionally not reachable from this entry point.
  */
 function assertMediaProviderSelection(selection: ModelSelection, allowedProviders: readonly string[]): void {
@@ -208,8 +209,16 @@ async function generateVideoInternal(
             options: providerOptions,
         })
     }
-    if (getProviderKey(selection.provider).toLowerCase() === 'tgg') {
-        return await generateTggVideo({
+    if (getProviderKey(selection.provider).toLowerCase() === 'ailink') {
+        return await generateAilinkVideo({
+            userId,
+            imageUrl,
+            prompt: options?.prompt,
+            options: providerOptions,
+        })
+    }
+    if (getProviderKey(selection.provider).toLowerCase() === 'topenrouter') {
+        return await generateTopenrouterVideo({
             userId,
             imageUrl,
             prompt: options?.prompt,

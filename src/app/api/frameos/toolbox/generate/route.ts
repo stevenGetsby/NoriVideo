@@ -4,6 +4,8 @@ import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
 import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
 import { prisma } from '@/lib/prisma'
 import { resolveModelSelection } from '@/lib/api-config'
+import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
+import { resolveModelKeyForViewer, viewerContextFromSession } from '@/lib/platform-services/model-selection'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { submitTask } from '@/lib/task/submitter'
@@ -19,7 +21,14 @@ import {
   type CanvasReferenceMediaSummary,
 } from '@/lib/canvas/generation-input-schema'
 import { normalizeCanvasGenerationMaterialReferences } from '@/lib/canvas/generation-reference-contract'
-import { CANVAS_VIDEO_SUPERRESOLVE_TARGETS, isSeedance25VideoModelKey, resolveCanvasSuperresolveGenerationResolution, type CanvasVideoSuperresolveTarget } from '@/lib/canvas/generator-options'
+import {
+  CANVAS_VIDEO_OMNI_REFERENCE_TASK_TYPES,
+  CANVAS_VIDEO_SUPERRESOLVE_TARGETS,
+  isSeedance25VideoModelKey,
+  resolveCanvasSuperresolveGenerationResolution,
+  type CanvasVideoOmniReferenceTaskType,
+  type CanvasVideoSuperresolveTarget,
+} from '@/lib/canvas/generator-options'
 import {
   bindCanvasToolboxTaskToNode,
   projectCanvasToolboxSubmissionFailure,
@@ -45,11 +54,11 @@ import {
   isCanvasPanoramaProcessType,
 } from '@/lib/canvas/panorama-contract'
 import { prepareCanvasToolboxImageOutputs } from '@/lib/canvas/toolbox-output-nodes'
-import { isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
+import { frameosAssetAliasesFromMetadata, isFrameosAssetCategory, normalizeFrameosAssetCategory } from '@/lib/frameos/material-category'
 import { characterVoiceMaterialId } from '@/lib/frameos/character-voice-reference'
 import { materializeStructuredCharacterVoices } from '@/lib/frameos/structured-character-voices'
 import { ensureFrameosReferenceMediaDurations } from '@/lib/frameos/reference-media-duration'
-import { resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
+import { resolveCanvasAssetProjectIds, resolveProjectAssetScope } from '@/lib/frameos/project-asset-scope'
 import { PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
 import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
 import {
@@ -77,6 +86,7 @@ const GENERATION_OPTION_TYPES: Record<GenerateType, Readonly<Record<string, Gene
     generateAudio: 'boolean',
     fps: 'number',
     superresolveTarget: 'string',
+    omniReferenceTaskType: 'string',
   },
   audio: {
     mode: 'string',
@@ -123,6 +133,7 @@ const TRUSTED_GENERATION_FIELDS = new Set([
   'referenceImageNames',
   'referenceVideoNames',
   'referenceAudioNames',
+  'referenceMentionNames',
   'referenceMaterialIds',
   'referenceMaterials',
   'referenceMentionNames',
@@ -407,7 +418,8 @@ async function executeToolboxGeneration(
   const type = cleanText(body.type) as GenerateType
   const title = cleanText(body.title)
   const prompt = cleanText(body.prompt)
-  const modelKey = cleanText(body.modelKey)
+  const requestedModelKey = cleanText(body.modelKey)
+  let modelKey = requestedModelKey
   if (body.assetCategory !== undefined && !isFrameosAssetCategory(body.assetCategory)) {
     throw new ApiError('INVALID_PARAMS', { message: '素材归类无效。' })
   }
@@ -428,9 +440,9 @@ async function executeToolboxGeneration(
   if (!workId && !routeParams?.projectId && !routeParams?.canvasId) {
     throw new ApiError('INVALID_PARAMS', { message: '工具箱生成必须选择有权限的项目和归属作品。' })
   }
-  const assetScope = workId
-    ? await resolveProjectAssetScope(session, { workId, projectId })
-    : { projects: [{ id: projectId, name: '', workId }], projectIds: [projectId] }
+  const assetProjectIds = routeParams?.projectId && routeParams.canvasId
+    ? await resolveCanvasAssetProjectIds(session, authResult.project)
+    : (await resolveProjectAssetScope(session, { workId, projectId })).projectIds
   const workspaceActor = getWorkspaceActor(session)
   const [workspaceUsers, readableProjects] = await Promise.all([
     prisma.user.findMany({
@@ -445,7 +457,7 @@ async function executeToolboxGeneration(
   const workspaceUserIds = workspaceUsers.map((user) => user.id)
   const readableProjectIds = Array.from(new Set([
     ...readableProjects.map((project) => project.id),
-    ...assetScope.projectIds,
+    ...assetProjectIds,
     'global',
     'global-asset-hub',
     PERSONAL_MATERIAL_PROJECT_ID,
@@ -615,9 +627,20 @@ async function executeToolboxGeneration(
     return NextResponse.json({ success: true, tasks: [{ taskId, assetId: asset.id }] })
   }
 
-  const selection = await resolveModelSelection(session.user.id, modelKey, type)
+  const viewer = viewerContextFromSession(session)
+  const viewerAccess = resolveModelKeyForViewer(
+    getPlatformServiceConfigResponse(),
+    requestedModelKey,
+    type,
+    viewer,
+  )
+  if (!viewerAccess.allowed) {
+    throw new ApiError('FORBIDDEN', { message: viewerAccess.reason })
+  }
+  modelKey = viewerAccess.modelKey
+  const selection = await resolveModelSelection(session.user.id, modelKey, type, viewer)
   const actualModelKey = selection.modelKey
-  const capabilities = resolveBuiltinCapabilitiesByModelKey(type, modelKey)
+  const capabilities = resolveBuiltinCapabilitiesByModelKey(type, actualModelKey)
   const imageEdit = type === 'image' && isCanvasImageEditProcessType(processType)
   const panorama = type === 'image' && isCanvasPanoramaProcessType(processType)
   const canvasProcessType = imageEdit
@@ -643,7 +666,7 @@ async function executeToolboxGeneration(
   if (imageEdit && !maskMaterialId) {
     throw new ApiError('INVALID_PARAMS', { message: '蒙版重绘缺少独立的 maskMaterialId。' })
   }
-  if (imageEdit && !supportsCanvasImageInpaint(modelKey)) {
+  if (imageEdit && !supportsCanvasImageInpaint(actualModelKey)) {
     throw new ApiError('INVALID_PARAMS', { message: '当前图片模型不支持蒙版重绘，请选择明确支持 Inpaint 的模型。' })
   }
 
@@ -730,6 +753,23 @@ async function executeToolboxGeneration(
     }
     superresolveTarget = target as CanvasVideoSuperresolveTarget
     rawOptions.resolution = resolveCanvasSuperresolveGenerationResolution(superresolveTarget, capabilityFields.resolution || [])
+  }
+  if (type === 'video' && rawOptions.omniReferenceTaskType === undefined && body.omniReferenceTaskType !== undefined) {
+    rawOptions.omniReferenceTaskType = body.omniReferenceTaskType
+  }
+  let omniReferenceTaskType: CanvasVideoOmniReferenceTaskType | null = null
+  if (
+    type === 'video'
+    && rawOptions.omniReferenceTaskType !== undefined
+    && rawOptions.omniReferenceTaskType !== null
+    && rawOptions.omniReferenceTaskType !== ''
+  ) {
+    const mode = cleanText(rawOptions.omniReferenceTaskType).toLowerCase()
+    if (!CANVAS_VIDEO_OMNI_REFERENCE_TASK_TYPES.includes(mode as CanvasVideoOmniReferenceTaskType)) {
+      throw new ApiError('INVALID_PARAMS', { message: '参考视频任务模式仅支持 auto、reference、edit、extend。' })
+    }
+    omniReferenceTaskType = mode as CanvasVideoOmniReferenceTaskType
+    rawOptions.omniReferenceTaskType = omniReferenceTaskType
   }
   const options = cleanOptions(type, rawOptions, capabilityFields)
   // Resolve saved character-card voices on the server, not from browser URLs.
@@ -851,7 +891,7 @@ async function executeToolboxGeneration(
         message: error instanceof Error ? error.message : '音频生成参数无效。',
       })
     }
-    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey })
+    const availability = await resolveAudioGenerationAvailability({ userId: session.user.id, modelKey, viewer })
     if (!availability.available || !availability.runtimeModelKey || !availability.modes.includes(audioRequest.mode)) {
       throw new ApiError('INVALID_PARAMS', {
         message: availability.unavailableReason || '当前音频模型没有可用的生成后端。',
@@ -1013,6 +1053,17 @@ async function executeToolboxGeneration(
   if (type === 'video' && inputMode === 'image' && referenceImages.length < 1) {
     throw new ApiError('INVALID_PARAMS', { message: '图生视频至少需要 1 张参考图片。' })
   }
+  if (type === 'video' && omniReferenceTaskType && omniReferenceTaskType !== 'auto') {
+    if (!isSeedance25VideoModelKey(modelKey) && !isSeedance25VideoModelKey(actualModelKey)) {
+      throw new ApiError('INVALID_PARAMS', { message: '当前视频模型不支持手动指定参考视频任务模式，请切换到 LanMiaoTV 2.5。' })
+    }
+    if (inputMode !== 'text') {
+      throw new ApiError('INVALID_PARAMS', { message: '编辑或延长参考视频仅支持全能参考模式。' })
+    }
+    if ((omniReferenceTaskType === 'edit' || omniReferenceTaskType === 'extend') && referenceVideos.length === 0) {
+      throw new ApiError('INVALID_PARAMS', { message: '编辑或延长参考视频模式需要至少选择 1 个参考视频。' })
+    }
+  }
   const runtimeSelections: Record<string, string | number | boolean> = {}
   const declaresCapabilityField = (field: string) => capabilities !== undefined && Object.hasOwn(capabilityFields, field)
   if (type === 'image') {
@@ -1125,6 +1176,7 @@ async function executeToolboxGeneration(
   const referenceVideoNames = referenceVideos.map((material) => material.title?.trim() || '未命名素材')
   const referenceAudioNames = referenceAudios.map((material) => material.title?.trim() || '未命名素材')
   const referenceImageMentionNames = referenceImages.map(mentionNamesFor)
+  const referenceImageAliases = referenceImages.map((material) => frameosAssetAliasesFromMetadata(material.metadata))
   const referenceVideoMentionNames = referenceVideos.map(mentionNamesFor)
   const referenceAudioMentionNames = referenceAudios.map(mentionNamesFor)
   const referenceImageRoles = referenceImages.map((material) => referenceRoleByMaterialId.get(material.id) || 'REF')
@@ -1246,6 +1298,7 @@ async function executeToolboxGeneration(
         referenceVideoNames,
         referenceAudioNames,
         referenceImageMentionNames,
+        ...(referenceImageAliases.some((aliases) => aliases.length > 0) ? { referenceImageAliases } : {}),
         referenceVideoMentionNames,
         referenceAudioMentionNames,
         referenceMaterialIds: materialIds,

@@ -105,7 +105,7 @@ export function CanvasProjectedMinimap({
     const group = nodesRef.current
     if (!svg || !mask || !group) return
     let frame = 0
-    let nodesDirty = true
+    let lastMinimapVersion = -1
     let lastTransform: FlowStoreState['transform'] | null = null
     let cachedEngine: CanvasProjectionEngine | null = null
     let cachedBounds: Bounds | null = null
@@ -157,12 +157,12 @@ export function CanvasProjectedMinimap({
         group.replaceChildren()
         mask.setAttribute('d', '')
         cachedEngine = null
-        nodesDirty = true
+        lastMinimapVersion = -1
         return
       }
-      if (engine !== cachedEngine || nodesDirty) {
+      if (engine !== cachedEngine || engine.minimapNodeVersion !== lastMinimapVersion) {
         cachedEngine = engine
-        nodesDirty = false
+        lastMinimapVersion = engine.minimapNodeVersion
         rebuildNodes(engine)
       }
       const state = flowStore.getState()
@@ -179,12 +179,7 @@ export function CanvasProjectedMinimap({
     const schedule = () => {
       if (!frame) frame = window.requestAnimationFrame(paint)
     }
-    const markNodesDirty = () => {
-      nodesDirty = true
-      schedule()
-    }
-
-    const unsubscribeStore = store.subscribe(markNodesDirty)
+    const unsubscribeStore = store.subscribe(schedule)
     const unsubscribeFlow = flowStore.subscribe((state) => {
       if (state.transform !== lastTransform) schedule()
     })

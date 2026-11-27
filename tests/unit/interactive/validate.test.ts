@@ -130,22 +130,4 @@ describe('picture checks', () => {
     expect(issues.find((item) => item.code === 'hotspot_picture_and_frame')).toMatchObject({ level: 'warning', nodeId: 'i', projectId: 'p1' })
     expect(codes(issues)).not.toContain('interaction_no_picture')
   })
-  it('flags an exit wired to two different scenes, since trial play only follows one', () => {
-    const nodes = [
-      { id: 'in', type: 'story_entry', data: {} },
-      { id: 's1', type: 'story_scene', data: { title: '起点' } },
-      { id: 's2', type: 'story_scene', data: { title: '甲' } },
-      { id: 's3', type: 'story_scene', data: { title: '乙' } },
-      { id: 'end', type: 'story_ending', data: {} },
-    ]
-    const flow = (id: string, source: string, target: string) => ({ id, source, target, sourceHandle: 'output', role: 'STORY_FLOW' })
-    const edges = [flow('e0', 'in', 's1'), flow('e1', 's1', 's2'), flow('e2', 's1', 's3'), flow('e3', 's2', 'end'), flow('e4', 's3', 'end')]
-    const issues = validateChapter(compileChapter({ projectId: 'p1', title: '第一章' }, nodes, edges), variables)
-    const fanout = issues.filter((item) => item.code === 'flow_fanout')
-    expect(fanout).toHaveLength(1)
-    expect(fanout[0]).toMatchObject({ level: 'error', nodeId: 's1' })
-
-    const single = validateChapter(compileChapter({ projectId: 'p1', title: '第一章' }, nodes, edges.filter((edge) => edge.id !== 'e2')), variables)
-    expect(codes(single)).not.toContain('flow_fanout')
-  })
 })

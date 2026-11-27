@@ -39,6 +39,15 @@ export function setAccountActorContext(actorId: string, workspaceOwnerId: string
   if (context) { context.actorId = actorId; context.workspaceOwnerId = workspaceOwnerId }
 }
 
+export function getAccountActorContext(): { actorId?: string; workspaceOwnerId?: string } | undefined {
+  const context = accountPermissionStorage.getStore()
+  if (!context || (!context.actorId && !context.workspaceOwnerId)) return undefined
+  return {
+    actorId: context.actorId,
+    workspaceOwnerId: context.workspaceOwnerId,
+  }
+}
+
 /**
  * The wallet that pays for a generation. The ALS context is populated at auth
  * time for every API request; a missing context means a billing path bypassed

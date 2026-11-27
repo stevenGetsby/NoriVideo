@@ -25,9 +25,23 @@ import {
   type ServiceConfigProvider,
 } from './service-config'
 import {
+  environmentKuaiziIntlKzep,
   environmentProviderKey,
   fixedPlatformModels,
+  getPlatformServiceConfigResponse,
+  isPlatformVideoModel,
+  isPlatformVideoModelEnabled,
+  isUsableKuaiziKzep,
 } from './platform-services/config'
+import {
+  isCustomerModelVisibleForViewer,
+  isInternalModelViewer,
+  resolveBusinessModelRouteForViewer,
+  resolveCustomerModelRoutingOverride,
+  type ModelViewerContext,
+} from './platform-services/model-selection'
+import { getAccountActorContext } from './account/request-context'
+import { KUAIZI_SEEDANCE_25_INTL_MODEL_KEY } from './providers/kuaizi/catalog'
 import {
   findNoriBusinessModel,
   normalizeProjectBusinessModelKey,
@@ -62,6 +76,7 @@ interface CustomProvider {
   baseUrl?: string
   apiKey?: string
   assetGroupId?: string
+  seedance25IntlKzep?: string
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -184,6 +199,7 @@ function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): Cu
     name,
     baseUrl: readTrimmedString(raw.baseUrl) || undefined,
     assetGroupId: readTrimmedString(raw.assetGroupId) || undefined,
+    ...(id === 'kuaizi' ? { seedance25IntlKzep: readTrimmedString(raw.seedance25IntlKzep) || environmentKuaiziIntlKzep() || undefined } : {}),
     ...(apiKey ? { apiKey: encryptApiKey(apiKey) } : {}),
   }
 }
@@ -239,10 +255,28 @@ export function getProviderKey(providerId?: string): string {
 /**
  * 统一模型选择解析（严格模式）
  */
+function buildEffectiveViewer(userId: string, viewer?: ModelViewerContext | null): ModelViewerContext {
+  if (viewer) {
+    return {
+      userId: viewer.userId || userId,
+      actorId: viewer.actorId || viewer.userId || userId,
+      workspaceOwnerId: viewer.workspaceOwnerId || userId,
+    }
+  }
+  const als = getAccountActorContext()
+  const alsMatchesUser = Boolean(als && (als.workspaceOwnerId === userId || als.actorId === userId))
+  return {
+    userId: (alsMatchesUser ? als?.actorId : undefined) || userId,
+    actorId: (alsMatchesUser ? als?.actorId : undefined) || userId,
+    workspaceOwnerId: (alsMatchesUser ? als?.workspaceOwnerId : undefined) || userId,
+  }
+}
+
 export async function resolveModelSelection(
   userId: string,
   model: string,
   mediaType: ModelMediaType,
+  viewer?: ModelViewerContext | null,
 ): Promise<ModelSelection> {
   const requested = assertModelKey(model, `${mediaType} model`)
   const businessModel = findNoriBusinessModel(requested.modelKey)
@@ -257,16 +291,66 @@ export async function resolveModelSelection(
       throw new Error(`MODEL_TYPE_MISMATCH: ${requested.modelKey} is not a ${mediaType} model`)
     }
   }
-  const controlledModelKey = normalizeProjectBusinessModelKey(
-    requested.modelKey,
-    mediaType === 'lipsync' ? 'video' : mediaType,
-  )
-  if (controlledModelKey === '__unrouted__' || controlledModelKey === '__ambiguous__') {
-    throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
+  const platformConfig = getPlatformServiceConfigResponse()
+  const effectiveViewer = buildEffectiveViewer(userId, viewer)
+  const internalViewer = isInternalModelViewer(platformConfig, effectiveViewer)
+  let runtimeModelKey: string | null = null
+  if (internalViewer && !businessModel && requested.provider !== 'nori') {
+    // Internal full-view accounts can directly invoke any configured platform model
+    // (including models hidden from customers), both in HTTP routes and workers.
+    const directModel = fixedPlatformModels().find((item) => (
+      item.provider === requested.provider && item.modelId === requested.modelId && item.type === mediaType
+    ))
+    if (!directModel) {
+      throw new Error(`MODEL_NOT_FOUND: ${requested.modelKey} is not enabled for ${mediaType}`)
+    }
+    runtimeModelKey = requested.modelKey
+  } else {
+    const normalizedType = mediaType === 'lipsync' ? 'video' : mediaType
+    let controlledModelKey = normalizeProjectBusinessModelKey(requested.modelKey, normalizedType)
+    let matchedCustomerOverrideBusiness = ''
+    if (controlledModelKey === '__unrouted__' || controlledModelKey === '__ambiguous__') {
+      const matched = platformConfig.businessModels.find((candidate) => (
+        candidate.type === normalizedType
+        && resolveCustomerModelRoutingOverride(platformConfig, candidate.key, effectiveViewer) === requested.modelKey
+      ))
+      if (matched) {
+        controlledModelKey = matched.key
+        matchedCustomerOverrideBusiness = matched.key
+      } else {
+        throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
+      }
+    }
+    const resolvedBusinessKey = businessModel?.key || matchedCustomerOverrideBusiness || (findNoriBusinessModel(controlledModelKey)?.key || '')
+    const explicitCustomerRoute = resolvedBusinessKey
+      ? resolveCustomerModelRoutingOverride(platformConfig, resolvedBusinessKey, effectiveViewer)
+      : ''
+    runtimeModelKey = resolvedBusinessKey
+      ? (resolveBusinessModelRouteForViewer(platformConfig, resolvedBusinessKey, effectiveViewer) || resolveRuntimeModelKey(resolvedBusinessKey, effectiveViewer))
+      : resolveRuntimeModelKey(controlledModelKey, effectiveViewer)
+    if (!runtimeModelKey) {
+      throw new Error(`MODEL_ROUTE_NOT_CONFIGURED: ${requested.modelKey}`)
+    }
+    const customerVisibleBusiness = resolvedBusinessKey
+      ? isCustomerModelVisibleForViewer(platformConfig, resolvedBusinessKey, effectiveViewer)
+        || Object.values(platformConfig.customerModelOverrides || {}).some((overrides) => overrides[resolvedBusinessKey] === true)
+      : false
+    if (
+      !internalViewer
+      && !customerVisibleBusiness
+      && !explicitCustomerRoute
+      && mediaType === 'video'
+      && isPlatformVideoModel(runtimeModelKey)
+      && !isPlatformVideoModelEnabled(runtimeModelKey)
+    ) {
+      throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
+    }
   }
-  const runtimeModelKey = resolveRuntimeModelKey(controlledModelKey)
-  if (!runtimeModelKey) {
-    throw new Error(`MODEL_ROUTE_NOT_CONFIGURED: ${requested.modelKey}`)
+  if (runtimeModelKey === KUAIZI_SEEDANCE_25_INTL_MODEL_KEY) {
+    const kuaiziProvider = platformConfig.providers.find((provider) => provider.id === 'kuaizi')
+    if (!isUsableKuaiziKzep(kuaiziProvider?.seedance25IntlKzep || environmentKuaiziIntlKzep())) {
+      throw new Error('PROVIDER_API_KEY_MISSING: kuaizi seedance25IntlKzep')
+    }
   }
   const parsed = assertModelKey(runtimeModelKey, `${mediaType} routed model`)
   const { models } = await readUserConfig(userId)
@@ -323,12 +407,13 @@ export async function resolveModelSelectionOrSingle(
   userId: string,
   model: string | null | undefined,
   mediaType: ModelMediaType,
+  viewer?: ModelViewerContext | null,
 ): Promise<ModelSelection> {
   const modelKey = readTrimmedString(model)
   if (!modelKey) {
     return await resolveSingleModelSelection(userId, mediaType)
   }
-  return await resolveModelSelection(userId, modelKey, mediaType)
+  return await resolveModelSelection(userId, modelKey, mediaType, viewer)
 }
 
 /**
@@ -346,6 +431,7 @@ export interface ProviderConfig {
   apiKey: string
   baseUrl?: string
   assetGroupId?: string
+  seedance25IntlKzep?: string
 }
 
 export async function getProviderConfig(userId: string, providerId: string): Promise<ProviderConfig> {
@@ -362,6 +448,7 @@ export async function getProviderConfig(userId: string, providerId: string): Pro
     apiKey: decryptApiKey(provider.apiKey),
     baseUrl: normalizeProviderBaseUrl(provider.id),
     assetGroupId: provider.assetGroupId,
+    ...(provider.id === 'kuaizi' && provider.seedance25IntlKzep ? { seedance25IntlKzep: provider.seedance25IntlKzep } : {}),
   }
 }
 
@@ -378,7 +465,7 @@ export async function getUserModels(userId: string): Promise<CustomModel[]> {
  */
 export async function getModelProvider(userId: string, model: string): Promise<string | null> {
   const { models } = await readUserConfig(userId)
-  const runtimeModelKey = resolveRuntimeModelKey(model)
+  const runtimeModelKey = resolveRuntimeModelKey(model, buildEffectiveViewer(userId))
   const matched = runtimeModelKey ? findModelByKey(models, runtimeModelKey) : null
   return matched?.provider || null
 }
@@ -404,7 +491,7 @@ export async function resolveModelId(userId: string, model: string): Promise<str
  */
 export async function getModelPrice(userId: string, model: string): Promise<number> {
   const { models } = await readUserConfig(userId)
-  const runtimeModelKey = resolveRuntimeModelKey(model)
+  const runtimeModelKey = resolveRuntimeModelKey(model, buildEffectiveViewer(userId))
   const matched = runtimeModelKey ? findModelByKey(models, runtimeModelKey) : null
   if (!matched) {
     throw new Error(`MODEL_NOT_FOUND: ${model}`)

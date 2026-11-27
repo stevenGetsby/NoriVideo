@@ -1,8 +1,9 @@
 'use client'
 
-import { createContext, useContext, type CSSProperties } from 'react'
+import { createContext, useContext, useState, type CSSProperties } from 'react'
 import { Handle, Position, type Node, type NodeProps } from '@xyflow/react'
-import { AlertTriangle, ArrowUpRight, Play, Star } from '@/components/ui/icons'
+import { AlertTriangle, ArrowUpRight, PenLine, Play, Star, Trash2, X } from '@/components/ui/icons'
+import { ViewportDialogLayer } from '@/components/frameos/ViewportDialogLayer'
 import { Link } from '@/i18n/navigation'
 import { chapterHref } from '@/lib/interactive/routes'
 import { STORY_CHAPTER_STATUSES, type StoryChapterMeta, type StoryChapterStatus, type StoryStart } from '@/lib/interactive/types'
@@ -15,6 +16,8 @@ export type ChapterMapActions = {
   start: StoryStart | null
   onStatus: (projectId: string, status: StoryChapterStatus) => void
   onSetStart: (projectId: string, entryNodeId: string) => void
+  onEdit: (projectId: string, input: { name: string; description: string | null }) => Promise<void>
+  onDelete: (projectId: string) => void
 }
 
 export const ChapterMapContext = createContext<ChapterMapActions | null>(null)
@@ -32,6 +35,64 @@ export type ChapterFlowNode = Node<ChapterNodeData, 'chapter'>
 
 const ENDING_LABEL = { good: '好结局', normal: '普通结局', bad: '坏结局', hidden: '隐藏结局' } as const
 
+function ChapterInfoDialog({ name: initialName, description: initialDescription, onClose, onSave }: {
+  name: string
+  description: string | null
+  onClose: () => void
+  onSave: (name: string, description: string | null) => Promise<void>
+}) {
+  const [name, setName] = useState(initialName)
+  const [description, setDescription] = useState(initialDescription ?? '')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const save = async () => {
+    const trimmed = name.trim()
+    if (!trimmed) { setError('请输入章节名称。'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      await onSave(trimmed, description.trim() || null)
+      onClose()
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : '保存章节失败')
+      setSaving(false)
+    }
+  }
+  return (
+    <ViewportDialogLayer>
+      <div className="fos-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget && !saving) onClose() }}>
+        <form
+          className="fos-dialog nori-ix nori-ix-dialog"
+          role="dialog"
+          aria-modal="true"
+          aria-label="编辑章节信息"
+          onSubmit={(event) => { event.preventDefault(); void save() }}
+        >
+          <header className="fos-dialog-head">
+            <div className="fos-dialog-title">编辑章节信息</div>
+            <button type="button" className="fos-dialog-x" disabled={saving} onClick={onClose} aria-label="关闭"><X /></button>
+          </header>
+          <div className="fos-dialog-body nori-ix-dialog-body">
+            <label className="nori-ix-field">
+              <span>章节名称</span>
+              <input className="fos-input" value={name} maxLength={191} autoFocus disabled={saving} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <label className="nori-ix-field">
+              <span>章节简介</span>
+              <textarea className="fos-input" value={description} maxLength={5000} rows={5} disabled={saving} placeholder="概括本章剧情、人物或创作说明" onChange={(event) => setDescription(event.target.value)} />
+            </label>
+            {error ? <p className="nori-ix-error" role="alert">{error}</p> : null}
+          </div>
+          <footer className="fos-dialog-foot">
+            <button type="button" className="fos-btn fos-btn-ghost fos-btn-lg" disabled={saving} onClick={onClose}>取消</button>
+            <button type="submit" className="fos-btn fos-btn-primary fos-btn-lg" disabled={saving}>{saving ? '保存中…' : '保存'}</button>
+          </footer>
+        </form>
+      </div>
+    </ViewportDialogLayer>
+  )
+}
+
 export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>) {
   const actions = useContext(ChapterMapContext)
   const { chapter, meta, errors, warnings, focused, segments, branchSegments } = data
@@ -44,6 +105,7 @@ export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>)
   const start = actions?.start
   const readOnly = actions?.readOnly ?? true
   const isStartChapter = start?.projectId === chapter.projectId
+  const [editorOpen, setEditorOpen] = useState(false)
 
   return (
     <div
@@ -57,6 +119,18 @@ export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>)
       </div>
       <header className="nori-ix-chapter-head">
         <strong title={chapter.name}>{chapter.name}</strong>
+        {!readOnly ? (
+          <button
+            type="button"
+            className="nodrag nori-ix-chapter-edit"
+            onPointerDown={(event) => event.stopPropagation()}
+            aria-label="编辑章节信息"
+            title="编辑章节信息"
+            onClick={() => setEditorOpen(true)}
+          >
+            <PenLine />
+          </button>
+        ) : null}
         <select
           className={`nodrag nori-ix-status is-${meta.status}`}
           value={meta.status}
@@ -125,6 +199,26 @@ export function StoryChapterNode({ data, selected }: NodeProps<ChapterFlowNode>)
           </Link>
         ) : null}
       </footer>
+      {actions && !readOnly ? (
+        <button
+          type="button"
+          className="nodrag nori-ix-chapter-delete"
+          onPointerDown={(event) => event.stopPropagation()}
+          aria-label="删除章节"
+          title="删除章节"
+          onClick={() => actions.onDelete(chapter.projectId)}
+        >
+          <Trash2 />删除章节
+        </button>
+      ) : null}
+      {editorOpen && actions ? (
+        <ChapterInfoDialog
+          name={chapter.name}
+          description={chapter.description}
+          onClose={() => setEditorOpen(false)}
+          onSave={(name, description) => actions.onEdit(chapter.projectId, { name, description })}
+        />
+      ) : null}
     </div>
   )
 }

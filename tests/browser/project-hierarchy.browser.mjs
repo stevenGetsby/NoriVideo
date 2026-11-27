@@ -181,7 +181,7 @@ async function open(viewport, query = '') {
         episodeDurationValue: 120, artStylePrompt: '', modelConfig: {},
       }
     } else if (url.pathname === '/api/user/models') payload = { text: [], image: [], video: [] }
-    else if (url.pathname === '/api/user/balance') payload = { balancePoints: 1000, generationAllowed: true }
+    else if (url.pathname === '/api/user/balance') payload = { balancePoints: 997150404.69, generationAllowed: true }
     else if (url.pathname.endsWith('/scripts')) payload = { scripts: [] }
     else if (url.pathname.endsWith('/member-candidates')) payload = { candidates: [], pagination: { totalPages: 1 } }
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(payload) })
@@ -208,7 +208,21 @@ try {
     await page.getByRole('heading', { name: '我的项目', exact: true }).waitFor()
     await bounded(page.getByRole('heading', { name: '我的项目', exact: true }))
     await bounded(page.getByRole('button', { name: '新建项目', exact: true }))
-    if (viewport.width === 390) assert.equal(await page.locator('.fos-sidebar').getAttribute('data-collapsed'), 'true')
+    if (viewport.width === 390) {
+      assert.equal(await page.locator('.fos-sidebar').getAttribute('data-collapsed'), 'true')
+      const shell = await page.locator('.fos-app').boundingBox()
+      const brand = await page.locator('.fos-header .fos-logo').boundingBox()
+      const credits = await page.locator('.fos-header .fos-credits').boundingBox()
+      assert.ok(Math.abs(shell.width - viewport.width) <= 1 && Math.abs(shell.height - viewport.height) <= 1)
+      assert.ok(brand.x + brand.width <= credits.x && credits.x + credits.width <= viewport.width)
+      const sidebar = page.locator('.fos-sidebar')
+      const toggle = sidebar.locator('.fos-collapse-btn')
+      await toggle.click()
+      assert.equal(await sidebar.getAttribute('data-collapsed'), 'false')
+      const scroll = await page.locator('.works-scroll').evaluate((element) => [element.clientWidth, element.scrollWidth])
+      assert.ok(scroll[0] >= viewport.width - 1 && scroll[1] <= scroll[0] + 1, 'An open mobile sidebar must not squeeze or horizontally scroll the projects list')
+      await toggle.click()
+    }
     const parentA = page.locator('[data-work-id="parent-a"]')
     await parentA.getByRole('heading', { name: '项目甲', exact: true }).waitFor()
     assert.equal(await parentA.getByText('2 个作品', { exact: true }).count(), 1)

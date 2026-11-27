@@ -15,5 +15,5 @@ export default async function PlatformAdminServicesPage({
   if (!session?.user) redirect(`/${locale}/admin/signin`)
   if (session.user.role !== 'super_admin') redirect(`/${locale}/admin/signin`)
 
-  return <PlatformAdminServicesClient />
+  return <PlatformAdminServicesClient section="providers" />
 }

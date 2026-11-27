@@ -170,6 +170,42 @@
     }
   },
   {
+    "apiType": "video",
+    "provider": "nori",
+    "modelId": "norivideo2.5-intl",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false,
+            "resolution": "1080p"
+          },
+          "amount": 77
+        },
+        {
+          "when": {
+            "containsVideoInput": true,
+            "resolution": "1080p"
+          },
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 70
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 42
+        }
+      ]
+    }
+  },
+  {
     "apiType": "voice",
     "provider": "nori",
     "modelId": "nori-audio",
@@ -545,6 +581,42 @@
     "apiType": "video",
     "provider": "kuaizi",
     "modelId": "doubao-seedance-2-5-260628",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        {
+          "when": {
+            "containsVideoInput": false,
+            "resolution": "1080p"
+          },
+          "amount": 77
+        },
+        {
+          "when": {
+            "containsVideoInput": true,
+            "resolution": "1080p"
+          },
+          "amount": 46
+        },
+        {
+          "when": {
+            "containsVideoInput": false
+          },
+          "amount": 70
+        },
+        {
+          "when": {
+            "containsVideoInput": true
+          },
+          "amount": 42
+        }
+      ]
+    }
+  },
+  {
+    "apiType": "video",
+    "provider": "kuaizi",
+    "modelId": "doubao-seedance-2-5-260628-intl",
     "pricing": {
       "mode": "capability",
       "tiers": [

@@ -10,7 +10,14 @@ import { parseModelKeyStrict, type CapabilitySelections, type CapabilityValue } 
 import { resolveBuiltinModelContext, validateCapabilitySelectionsPayload } from '@/lib/model-capabilities/lookup'
 import { normalizeWorkflowConcurrencyConfig } from '@/lib/workflow-concurrency'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
-import { listConfiguredSelectableModels } from '@/lib/platform-services/model-selection'
+import {
+  customerModelDisplayName,
+  isInternalModelViewer,
+  listSelectableModelsForViewer,
+  providerModelDisplayName,
+  resolveSelectableModelKeyForViewer,
+  viewerContextFromSession,
+} from '@/lib/platform-services/model-selection'
 import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
 
 interface ApiConfigPutBody {
@@ -88,32 +95,40 @@ export const GET = apiHandler(async () => {
   if (isErrorResponse(auth)) return auth
   const pref = await prisma.userPreference.findUnique({ where: { userId: auth.session.user.id } })
   const config = getPlatformServiceConfigResponse()
+  const viewer = viewerContextFromSession(auth.session)
+  const internalViewer = isInternalModelViewer(config, viewer)
   const defaultModels: Record<string, string> = {}
   const available = new Map((['llm', 'image', 'video', 'audio'] as const).flatMap((type) => (
-    listConfiguredSelectableModels(config, type)
+    listSelectableModelsForViewer(config, type, viewer)
   )).map((model) => [model.modelKey, model]))
   for (const field of DEFAULT_MODEL_FIELDS) {
     const stored = parseModelKeyStrict(typeof pref?.[field] === 'string' ? pref[field] : '')
     const fallback = parseModelKeyStrict(config.defaultModels[field as keyof typeof config.defaultModels])
-    const selected = [stored, fallback].find((candidate) => {
-      const model = candidate ? available.get(candidate.modelKey) : null
-      return model?.type === MODEL_TYPES[field]
-    })
-    defaultModels[field] = selected?.modelKey || ''
+    const resolved = [stored, fallback].map((candidate) => (
+      candidate ? resolveSelectableModelKeyForViewer(config, candidate.modelKey, MODEL_TYPES[field] as 'llm' | 'image' | 'video' | 'audio', viewer) : ''
+    ))
+    const selectedKey = resolved.find((key) => available.get(key)?.type === MODEL_TYPES[field])
+    defaultModels[field] = selectedKey || ''
   }
   return NextResponse.json({
     models: [...available.values()].map((model) => ({
       modelKey: model.modelKey,
       modelId: model.modelId,
-      name: model.modelId,
+      name: internalViewer
+        ? providerModelDisplayName(model.runtimeModelKey, model.modelId)
+        : customerModelDisplayName(model.modelKey, model.modelId),
       type: model.type,
-      provider: findNoriBusinessModel(model.modelKey) ? 'nori' : model.modelKey.split('::')[0],
+      provider: internalViewer
+        ? (findNoriBusinessModel(model.modelKey) ? 'nori' : model.modelKey.split('::')[0])
+        : 'nori',
       enabled: true,
       price: 0,
       priceLabel: '--',
-      capabilities: resolveBuiltinModelContext(model.type, model.modelKey)?.capabilities,
+      capabilities: resolveBuiltinModelContext(model.type, model.runtimeModelKey || model.modelKey)?.capabilities,
     })),
-    providers: config.providers.map((provider) => ({ id: provider.id, name: provider.name, baseUrl: provider.baseUrl, hasApiKey: provider.hasApiKey })),
+    providers: internalViewer
+      ? config.providers.map((provider) => ({ id: provider.id, name: provider.name, baseUrl: provider.baseUrl, hasApiKey: provider.hasApiKey }))
+      : [],
     defaultModels, capabilityDefaults: storedCapabilities(pref?.capabilityDefaults), pricingDisplay: {},
     workflowConcurrency: normalizeWorkflowConcurrencyConfig({ analysis: pref?.analysisConcurrency, image: pref?.imageConcurrency, video: pref?.videoConcurrency }),
   })
@@ -126,8 +141,9 @@ export const PUT = apiHandler(async (request: NextRequest) => {
   try { body = await request.json() as ApiConfigPutBody } catch { throw new ApiError('INVALID_PARAMS', { field: 'body' }) }
   if (body.providers !== undefined || body.models !== undefined) throw new ApiError('FORBIDDEN', { message: '平台 API 与模型由管理员统一配置。' })
   const config = getPlatformServiceConfigResponse()
+  const viewer = viewerContextFromSession(auth.session)
   const available = new Map((['llm', 'image', 'video', 'audio'] as const).flatMap((type) => (
-    listConfiguredSelectableModels(config, type)
+    listSelectableModelsForViewer(config, type, viewer)
   )).map((model) => [model.modelKey, model]))
   const defaults = normalizeDefaults(body.defaultModels)
   const concurrency = normalizeConcurrency(body.workflowConcurrency)

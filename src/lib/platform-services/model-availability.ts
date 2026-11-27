@@ -1,6 +1,9 @@
 import { parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-contract'
 import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
+import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
+import { KUAIZI_SEEDANCE_25_INTL_MODEL_ID } from '@/lib/providers/kuaizi/catalog'
 import type { PlatformServiceConfigResponse } from './config'
+import { resolveBusinessModelRouteForViewer, type ModelViewerContext } from './model-selection'
 
 export type CachedProviderHealth = {
   targetType: string
@@ -44,10 +47,15 @@ export function resolveConfiguredModelAvailability(input: {
   config: PlatformServiceConfigResponse
   health: readonly CachedProviderHealth[]
   now?: Date
+  redactProviderNames?: boolean
+  viewer?: ModelViewerContext | null
 }): ConfiguredModelAvailability {
+  const redact = input.redactProviderNames === true
+  const safeReason = (internal: string, generic: string) => (redact ? generic : internal)
+  const safeMessage = (message: string | null) => (message && redact ? sanitizePublicError(message) : message)
   const businessModel = findNoriBusinessModel(input.modelKey)
   const runtimeModelKey = businessModel
-    ? compact(input.config.modelRouting[businessModel.key])
+    ? compact(resolveBusinessModelRouteForViewer(input.config, businessModel.key, input.viewer))
     : parseModelKeyStrict(input.modelKey)?.modelKey || ''
   if (!runtimeModelKey) {
     return {
@@ -90,7 +98,18 @@ export function resolveConfiguredModelAvailability(input: {
       healthStatus: 'unknown',
       healthMessage: null,
       healthCheckedAt: null,
-      unavailableReason: `服务 ${provider?.name || runtime.provider} 尚未配置有效 API Key。`,
+      unavailableReason: safeReason(`服务 ${provider?.name || runtime.provider} 尚未配置有效 API Key。`, '该模型暂不可用，请联系管理员。'),
+    }
+  }
+  if (runtime.provider === 'kuaizi' && runtime.modelId === KUAIZI_SEEDANCE_25_INTL_MODEL_ID && !compact(provider.seedance25IntlKzep)) {
+    return {
+      configured: false,
+      available: false,
+      runtimeModelKey,
+      healthStatus: 'unknown',
+      healthMessage: null,
+      healthCheckedAt: null,
+      unavailableReason: safeReason('服务 Kuaizi API 尚未配置 Seedance 2.5 国际版 EP (kzep)。', '该模型暂不可用，请联系管理员。'),
     }
   }
 
@@ -115,15 +134,16 @@ export function resolveConfiguredModelAvailability(input: {
   const healthMessage = !healthIsFresh && latestHealth
     ? `上次检测结果已过期${cachedMessage ? `：${cachedMessage}` : ''}`
     : cachedMessage || null
+  const publicHealthMessage = safeMessage(healthMessage)
   if (healthStatus === 'unhealthy') {
     return {
       configured: true,
       available: false,
       runtimeModelKey,
       healthStatus,
-      healthMessage,
+      healthMessage: publicHealthMessage,
       healthCheckedAt,
-      unavailableReason: healthMessage || `服务 ${provider.name} 最近一次健康检测失败。`,
+      unavailableReason: publicHealthMessage || safeReason(`服务 ${provider.name} 最近一次健康检测失败。`, '该模型当前服务异常，请稍后重试。'),
     }
   }
 
@@ -132,7 +152,7 @@ export function resolveConfiguredModelAvailability(input: {
     available: true,
     runtimeModelKey,
     healthStatus,
-    healthMessage,
+    healthMessage: publicHealthMessage,
     healthCheckedAt,
     unavailableReason: null,
   }

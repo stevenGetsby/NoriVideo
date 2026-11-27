@@ -45,13 +45,13 @@ describe('canvas context menu keeps text editing intact', () => {
   const start = graph.indexOf('onContextMenuCapture={(event) => {')
   const handler = graph.slice(start, graph.indexOf('onDoubleClick=', start))
 
-  it('lets right-clicks inside editors fall through to the native menu without blurring them', () => {
+  it('suppresses the native menu and keeps right-clicks inside text editors local', () => {
     expect(start).toBeGreaterThan(0)
     const guard = handler.indexOf('isTextEntryTarget(target)')
     const prevent = handler.indexOf('event.preventDefault()')
-    expect(guard).toBeGreaterThan(-1)
-    expect(prevent).toBeGreaterThan(guard)
-    const guardBlock = handler.slice(guard, prevent)
+    expect(prevent).toBeGreaterThan(-1)
+    expect(guard).toBeGreaterThan(prevent)
+    const guardBlock = handler.slice(guard, handler.indexOf('if (!insideFlow) return', guard))
     expect(guardBlock).toContain('event.stopPropagation()')
     expect(guardBlock).toContain('return')
     expect(guardBlock).not.toContain('preventDefault')

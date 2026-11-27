@@ -1,6 +1,7 @@
 import type { MentionPromptAsset } from '@/components/frameos/materials/MentionPromptEditor'
 import type { FrameosMaterialItem } from '@/components/frameos/materials/contracts'
 import { FRAMEOS_ASSET_CATEGORY_LABELS, frameosAssetCategoryFromMetadata, type FrameosAssetCategory } from '@/lib/frameos/material-category'
+import { toVideoPosterUrl } from '@/lib/media/image-url'
 import { normalizePromptMentionName, scanPromptMentions, type PromptMentionMatch } from '@/lib/prompt-mentions'
 import type { CanvasFlowNode } from '../editor-types'
 
@@ -74,7 +75,7 @@ function mediaLabel(mediaType: CanvasMentionMediaType): string {
 
 function referencePreview(node: CanvasFlowNode, mediaType: CanvasMentionMediaType): string | null {
   if (mediaType === 'audio') return null
-  if (mediaType === 'video') return node.data.posterUrl || node.data.imageUrl || null
+  if (mediaType === 'video') return node.data.posterUrl || node.data.imageUrl || toVideoPosterUrl(node.data.videoUrl || node.data.contentUrl, 480)
   return node.data.contentUrl || node.data.imageUrl || node.data.posterUrl || null
 }
 
@@ -187,7 +188,9 @@ export function buildCanvasLibraryMentionAssets(
         mediaType,
         materialId: material.id,
         material,
-        imageUrl: mediaType === 'audio' ? null : material.url,
+        imageUrl: mediaType === 'video'
+          ? toVideoPosterUrl(material.url, 480) ?? toVideoPosterUrl(material.storageKey, 480)
+          : mediaType === 'image' ? material.url : null,
         section: 'library',
         category,
         description: `${canvasMentionCategoryLabel(category)} · ${mediaLabel(mediaType)} · ${material.projectName}`,
@@ -217,6 +220,7 @@ export function planCanvasPromptMentions(
   texts: readonly string[],
   assets: readonly CanvasMentionAsset[],
   bound: { nodeIds: ReadonlySet<string>; materialIds: ReadonlySet<string> },
+  selections: readonly CanvasMentionNameSelection[] = [],
 ): CanvasPromptMentionPlan {
   const isBound = (asset: CanvasMentionAsset) => (asset.section === 'library'
     ? Boolean(asset.materialId && bound.materialIds.has(asset.materialId))
@@ -228,13 +232,18 @@ export function planCanvasPromptMentions(
     (asset) => asset.section === 'library',
   ]
   const targets = new Map<string, CanvasMentionAsset>()
+  for (const selection of selections) {
+    const asset = assets.find((item) => item.section !== 'library' && item.id === selection.nodeId && isBound(item))
+    const name = normalizePromptMentionName(selection.name)
+    if (asset && name) targets.set(name.toLocaleLowerCase(), { ...asset, name })
+  }
   for (const tier of tiers) {
     for (const asset of assets) {
       const key = normalizePromptMentionName(asset.name).toLocaleLowerCase()
       if (key && !targets.has(key) && tier(asset)) targets.set(key, asset)
     }
   }
-  const names = assets.map((asset) => asset.name)
+  const names = [...targets.values()].map((asset) => asset.name)
   const mentioned = new Map<string, { asset: CanvasMentionAsset; names: string[] }>()
   const unknown: PromptMentionMatch[] = []
   for (const text of texts) {
@@ -257,4 +266,78 @@ export function planCanvasPromptMentions(
 export function mergeCanvasReferenceNodeIds(current: string[], nodeId: string | undefined): string[] {
   if (!nodeId || current.includes(nodeId)) return current
   return [...current, nodeId]
+}
+
+export interface CanvasMentionNameSelection {
+  nodeId: string
+  name: string
+}
+
+/**
+ * Resolves which submitted reference owns each explicit @name in the submit
+ * text. Ownership priority:
+ * 1. the node the editor actually bound when the name was picked (recorded
+ *    selections) — a voice explicitly picked as @沈娇 keeps it even when an
+ *    image material carries 沈娇 as a library alias;
+ * 2. submitted canvas-node editor names, images before voice/motion clips;
+ * 3. library aliases of submitted materials, images first, one entry per
+ *    material (favorites and category rows share the same material).
+ * Material ids are normalized once so admission and the material→node
+ * reverse lookup can never disagree on whitespace.
+ */
+export function resolveCanvasMentionNameOwners(
+  prompt: string,
+  assets: readonly CanvasMentionAsset[],
+  referenceNodeIds: readonly string[],
+  referenceNodes: readonly CanvasFlowNode[],
+  selections: readonly CanvasMentionNameSelection[] = [],
+): Record<string, string[]> {
+  const submittedNodeIds = new Set(referenceNodeIds)
+  const nodeIdByMaterialId = new Map<string, string>()
+  for (const id of referenceNodeIds) {
+    const node = referenceNodes.find((item) => item.id === id)
+    const materialId = typeof node?.data.materialId === 'string' ? node.data.materialId.trim() : ''
+    if (materialId && !nodeIdByMaterialId.has(materialId)) nodeIdByMaterialId.set(materialId, id)
+  }
+  const ownerByName = new Map<string, string>()
+  const rankByName = new Map<string, number>()
+  const claim = (rawName: string, nodeId: string, rank: number) => {
+    const key = normalizePromptMentionName(rawName).toLocaleLowerCase()
+    if (!key) return
+    if (!ownerByName.has(key) || rank < (rankByName.get(key) ?? Infinity)) {
+      ownerByName.set(key, nodeId)
+      rankByName.set(key, rank)
+    }
+  }
+  for (const selection of selections) {
+    if (submittedNodeIds.has(selection.nodeId)) claim(selection.name, selection.nodeId, 0)
+  }
+  const mediaRank = (asset: CanvasMentionAsset) => (asset.mediaType === 'image' ? 0 : 1)
+  const nodeCandidates = assets
+    .filter((asset) => asset.section !== 'library' && submittedNodeIds.has(asset.id))
+    .sort((left, right) => mediaRank(left) - mediaRank(right))
+  for (const asset of nodeCandidates) claim(asset.name, asset.id, 1 + mediaRank(asset))
+  const libraryCandidates = assets
+    .filter((asset) => (asset.section === 'library'
+      && Boolean(asset.materialId && nodeIdByMaterialId.has(asset.materialId.trim()))))
+    .sort((left, right) => mediaRank(left) - mediaRank(right))
+  for (const asset of libraryCandidates) {
+    const nodeId = nodeIdByMaterialId.get((asset.materialId || '').trim())
+    if (nodeId) claim(asset.name, nodeId, 3 + mediaRank(asset))
+  }
+  const namesByNodeId: Record<string, string[]> = {}
+  // A recorded selection keeps its original @text scannable even when the
+  // material was renamed and the menu no longer offers that alias.
+  const scanNames = [
+    ...assets.map((asset) => asset.name),
+    ...selections.filter((selection) => submittedNodeIds.has(selection.nodeId)).map((selection) => selection.name),
+  ]
+  for (const match of scanPromptMentions(prompt, scanNames)) {
+    if (match.name === null) continue
+    const nodeId = ownerByName.get(match.name.toLocaleLowerCase())
+    if (!nodeId || !submittedNodeIds.has(nodeId)) continue
+    const names = namesByNodeId[nodeId] || (namesByNodeId[nodeId] = [])
+    if (!names.includes(match.name)) names.push(match.name)
+  }
+  return namesByNodeId
 }

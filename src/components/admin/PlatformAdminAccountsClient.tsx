@@ -10,7 +10,7 @@ import {
   CreditOperationDialog,
   DailyUsageCell,
 } from '@/components/frameos/FosAccountManagementParts'
-import { AdminAlert, AdminMetric, AdminSearch, PlatformAdminShell } from '@/components/admin/PlatformAdminShell'
+import { AdminAlert, AdminEmpty, AdminLoading, AdminMetric, AdminSearch, PlatformAdminShell } from '@/components/admin/PlatformAdminShell'
 import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import type { AccountCredits } from '@/lib/account/credits'
@@ -74,6 +74,9 @@ interface AccountTotals {
   cost: number
   byType: ModelTypeUsage[]
 }
+
+type StatusFilter = 'all' | 'active' | 'disabled'
+type SortKey = 'default' | 'points_desc' | 'cost_desc' | 'login_desc'
 
 const EMPTY_TOTALS: AccountTotals = {
   managers: 0,
@@ -143,9 +146,12 @@ export function PlatformAdminAccountsClient() {
   const [workspaces, setWorkspaces] = useState<ManagedWorkspace[]>([])
   const [totals, setTotals] = useState<AccountTotals>(EMPTY_TOTALS)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [pageError, setPageError] = useState('')
   const [pageNotice, setPageNotice] = useState('')
   const [query, setQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [sortBy, setSortBy] = useState<SortKey>('default')
   const [mode, setMode] = useState<'create' | 'edit' | null>(null)
   const [target, setTarget] = useState<ManagedAccount | null>(null)
   const [draft, setDraft] = useState<AccountDraft>(NEW_MANAGER_DRAFT)
@@ -163,6 +169,7 @@ export function PlatformAdminAccountsClient() {
     if (session?.user?.role !== 'super_admin') return
     const request = accountsRequests.current.begin()
     if (!silent) setLoading(true)
+    else setRefreshing(true)
     setPageError('')
     try {
       const response = await apiFetch(`/api/admin/accounts?refresh=${Date.now()}`, { cache: 'no-store' })
@@ -178,7 +185,10 @@ export function PlatformAdminAccountsClient() {
       if (!accountsRequests.current.isCurrent(request)) return
       setPageError(error instanceof Error ? error.message : '获取管理账号失败')
     } finally {
-      if (accountsRequests.current.isCurrent(request)) setLoading(false)
+      if (accountsRequests.current.isCurrent(request)) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [session?.user?.role])
 
@@ -191,14 +201,27 @@ export function PlatformAdminAccountsClient() {
     return () => { unsubscribe(); window.removeEventListener('focus', refresh); requestTracker.invalidate() }
   }, [loadAccounts])
 
+  const activeManagers = workspaces.filter(({ manager }) => manager.status === 'active').length
+  const disabledManagers = workspaces.length - activeManagers
+  const totalManagerPoints = workspaces.reduce((sum, workspace) => sum + workspace.manager.credits.points, 0)
+
   const visibleWorkspaces = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    if (!normalized) return workspaces
-    return workspaces.filter(({ manager }) => manager.username.toLowerCase().includes(normalized))
-  }, [query, workspaces])
-
-  const activeManagers = workspaces.filter(({ manager }) => manager.status === 'active').length
-  const totalManagerPoints = workspaces.reduce((sum, workspace) => sum + workspace.manager.credits.points, 0)
+    const filtered = workspaces.filter(({ manager }) => {
+      if (statusFilter === 'active' && manager.status !== 'active') return false
+      if (statusFilter === 'disabled' && manager.status === 'active') return false
+      if (!normalized) return true
+      return manager.username.toLowerCase().includes(normalized) || manager.id.toLowerCase().includes(normalized)
+    })
+    if (sortBy === 'default') return filtered
+    return [...filtered].sort((a, b) => {
+      if (sortBy === 'points_desc') return b.manager.credits.points - a.manager.credits.points
+      if (sortBy === 'cost_desc') return b.usage.cost - a.usage.cost
+      const aTime = a.manager.lastLoginAt ? new Date(a.manager.lastLoginAt).getTime() : 0
+      const bTime = b.manager.lastLoginAt ? new Date(b.manager.lastLoginAt).getTime() : 0
+      return bTime - aTime
+    })
+  }, [query, statusFilter, sortBy, workspaces])
 
   const openCreate = () => {
     setTarget(null)
@@ -325,11 +348,23 @@ export function PlatformAdminAccountsClient() {
       active="accounts"
       eyebrow="平台管理"
       title="账号与用量"
-      description="创建工作区负责人，管理密码、状态与积分，并按文本、图片、视频、语音核对各工作区已计费金额。"
+      description="创建工作区负责人，管理密码、状态、每日额度与积分，并按文本、图片、视频、语音核对各工作区已计费金额。"
       actions={(
-        <button type="button" onClick={openCreate} className="fos-btn fos-btn-primary">
-          <AppIcon name="plus" className="h-4 w-4" />添加管理账号
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={() => void loadAccounts(true)}
+            disabled={loading || refreshing}
+            className="fos-btn fos-btn-ghost"
+            title="刷新管理账号与余额"
+          >
+            <AppIcon name="refresh" className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            刷新
+          </button>
+          <button type="button" onClick={openCreate} className="fos-btn fos-btn-primary">
+            <AppIcon name="plus" className="h-4 w-4" />添加管理账号
+          </button>
+        </>
       )}
     >
       <div className="nori-admin-metrics">
@@ -344,8 +379,12 @@ export function PlatformAdminAccountsClient() {
         ))}
       </div>
 
-      {pageError ? <AdminAlert tone="error" action={<button type="button" onClick={() => void loadAccounts()}>重试</button>}>{pageError}</AdminAlert> : null}
-      {pageNotice ? <AdminAlert tone="success">{pageNotice}</AdminAlert> : null}
+      {pageError ? (
+        <AdminAlert tone="error" action={<button type="button" onClick={() => void loadAccounts()}>重试</button>} onDismiss={() => setPageError('')}>
+          {pageError}
+        </AdminAlert>
+      ) : null}
+      {pageNotice ? <AdminAlert tone="success" onDismiss={() => setPageNotice('')}>{pageNotice}</AdminAlert> : null}
 
       <section className="nori-admin-panel">
         <div className="nori-admin-panel-head">
@@ -355,9 +394,45 @@ export function PlatformAdminAccountsClient() {
           </div>
           <AdminSearch value={query} onChange={setQuery} placeholder="搜索管理账号" />
         </div>
+        <div className="nori-admin-toolbar-bar">
+          <div className="nori-admin-seg" role="group" aria-label="按账号状态筛选">
+            {([
+              ['all', '全部', workspaces.length],
+              ['active', '启用中', activeManagers],
+              ['disabled', '已停用', disabledManagers],
+            ] as const).map(([key, label, count]) => (
+              <button
+                key={key}
+                type="button"
+                className={`nori-admin-seg-btn${statusFilter === key ? ' is-active' : ''}`}
+                onClick={() => setStatusFilter(key)}
+              >
+                {label}<em>{count}</em>
+              </button>
+            ))}
+          </div>
+          <div className="nori-admin-filter-row">
+            <span className="text-[11.5px] nori-admin-muted">
+              显示 {visibleWorkspaces.length} / {workspaces.length} 个工作区
+            </span>
+            <select
+              aria-label="排序方式"
+              className="fos-input nori-admin-input-dense w-auto"
+              value={sortBy}
+              onChange={(event) => setSortBy(event.target.value as SortKey)}
+            >
+              <option value="default">默认排序</option>
+              <option value="points_desc">积分从高到低</option>
+              <option value="cost_desc">总计费从高到低</option>
+              <option value="login_desc">最近登录优先</option>
+            </select>
+          </div>
+        </div>
         <div className="nori-admin-panel-body nori-admin-stack">
-          {loading ? <div className="nori-admin-empty">正在加载管理账号与用量…</div> : visibleWorkspaces.length === 0 ? (
-            <div className="nori-admin-empty">{query ? '没有匹配的管理账号' : '尚未创建管理账号'}</div>
+          {loading ? <AdminLoading label="正在加载管理账号与用量…" /> : visibleWorkspaces.length === 0 ? (
+            <AdminEmpty icon="usersRound" description={query || statusFilter !== 'all' ? '尝试清空搜索关键词或切换筛选状态' : '点击右上角「添加管理账号」创建首个工作区'}>
+              {query || statusFilter !== 'all' ? '没有匹配的管理账号' : '尚未创建管理账号'}
+            </AdminEmpty>
           ) : visibleWorkspaces.map((workspace) => {
             const { manager, subaccountCount, usage } = workspace
             return (
@@ -368,7 +443,7 @@ export function PlatformAdminAccountsClient() {
                     <div>
                       <div className="nori-admin-identity-row">
                         <strong>{manager.username}</strong>
-                        <span className={`nori-admin-pill ${manager.status === 'active' ? 'is-ok' : ''}`}>
+                        <span className={`nori-admin-pill ${manager.status === 'active' ? 'is-ok' : 'is-bad'}`}>
                           <i />{manager.status === 'active' ? '启用' : '停用'}
                         </span>
                       </div>
@@ -376,11 +451,15 @@ export function PlatformAdminAccountsClient() {
                     </div>
                   </div>
                   <div className="nori-admin-actions">
-                    <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(manager)}>积分流水</button>
+                    <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => setLedgerTarget(manager)}>
+                      <AppIcon name="receipt" className="h-3.5 w-3.5" />积分流水
+                    </button>
                     <button type="button" className="fos-btn fos-btn-primary fos-btn-sm" onClick={() => { setCreditError(''); setRechargeRequestKey(createCreditIdempotencyKey('recharge', manager.id)); setRechargeTarget(manager) }}>
                       <AppIcon name="coins" className="h-3.5 w-3.5" />充值积分
                     </button>
-                    <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openEdit(manager)}>编辑账号</button>
+                    <button type="button" className="fos-btn fos-btn-ghost fos-btn-sm" onClick={() => openEdit(manager)}>
+                      <AppIcon name="edit" className="h-3.5 w-3.5" />编辑账号
+                    </button>
                     <button type="button" className="fos-icon-btn nori-admin-danger-action" aria-label="删除管理账号" disabled={deletingId === manager.id} title={deletingId === manager.id ? '正在删除' : '删除管理账号'} onClick={() => void deleteManager(workspace)}>
                       <AppIcon name="trash" className="h-4 w-4" />
                     </button>

@@ -22,6 +22,7 @@ const TABS: Array<{ key: OpsTab; label: string }> = [
 
 const PLACEMENT_LABEL: Record<string, string> = { home_hero: '首页大图', home_pick: '编辑精选' }
 const WORK_STATUS_LABEL: Record<string, string> = { draft: '未上架', scheduled: '待上线', live: '已上线', offline: '已下架', banned: '已封禁' }
+const WORK_STATUS_TONE: Record<string, string> = { draft: '', scheduled: 'is-info', live: 'is-ok', offline: 'is-warn', banned: 'is-bad' }
 const TOPIC_STATUS_LABEL: Record<string, string> = { draft: '草稿', live: '已上线', ended: '已结束' }
 
 function useOpsList<T>(url: string) {
@@ -811,8 +812,8 @@ function WorksTab() {
               <tbody>
                 {items.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.title}</td>
-                    <td>{WORK_STATUS_LABEL[row.status] ?? row.status}</td>
+                    <td className="font-medium">{row.title}</td>
+                    <td><span className={`nori-admin-pill ${WORK_STATUS_TONE[row.status] ?? ''}`}><i />{WORK_STATUS_LABEL[row.status] ?? row.status}</span></td>
                     <td>{row.liveVersion != null ? `v${row.liveVersion}` : '—'}</td>
                     <td>{row.playerCount}</td>
                     <td>{row.ratingCount > 0 ? row.ratingScore.toFixed(1) : '—'}</td>

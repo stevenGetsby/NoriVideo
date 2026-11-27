@@ -40,6 +40,7 @@ export type CanvasGenerationServiceConfig = {
   videoModels: CanvasGenerationModelOption[]
   audioModels: CanvasGenerationModelOption[]
   model3dModels: CanvasGenerationModelOption[]
+  modelAliases?: Record<string, string>
   defaults: {
     textModel: string | null
     imageModel: string | null

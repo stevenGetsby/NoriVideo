@@ -95,11 +95,11 @@ describe('video usage records the executing provider pinned in externalId', () =
     resolveRuntimeModelKeyMock.mockReturnValue(null)
   })
 
-  it('keeps kuaizi attribution when the route switched to tgg mid-flight', async () => {
+  it('keeps kuaizi attribution when the route switched to ailink mid-flight', async () => {
     prismaMock.task.findUnique.mockResolvedValue({
       externalId: `KUAIZI:VIDEO:${b64('kuaizi')}:${b64('doubao-seedance-2-5-260628')}:t1`,
     })
-    resolveRuntimeModelKeyMock.mockReturnValue('tgg::current-route-model')
+    resolveRuntimeModelKeyMock.mockReturnValue('ailink::current-route-model')
 
     await runCompletedTask()
 
@@ -113,17 +113,17 @@ describe('video usage records the executing provider pinned in externalId', () =
     }))
   })
 
-  it('records tgg when the task executed on tgg but the route points back to kuaizi', async () => {
+  it('records ailink when the task executed on ailink but the route points back to kuaizi', async () => {
     prismaMock.task.findUnique.mockResolvedValue({
-      externalId: `TGG:VIDEO:${b64('tgg')}:${b64('tgg-fixture-video')}:task_9`,
+      externalId: `AILINK:VIDEO:${b64('ailink')}:${b64('ailink-fixture-video')}:task_9`,
     })
     resolveRuntimeModelKeyMock.mockReturnValue('kuaizi::doubao-seedance-2-5-260628')
 
     await runCompletedTask()
 
     expect(recordServiceUsageMock).toHaveBeenCalledWith(expect.objectContaining({
-      provider: 'tgg',
-      modelKey: 'tgg::tgg-fixture-video',
+      provider: 'ailink',
+      modelKey: 'ailink::ailink-fixture-video',
       serviceType: 'video',
     }))
   })

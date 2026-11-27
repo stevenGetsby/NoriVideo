@@ -6,7 +6,15 @@ import { parseModelKeyStrict, type CapabilityValue, type ModelCapabilities } fro
 import { findBuiltinCapabilities } from '@/lib/model-capabilities/catalog'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
 import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
-import { listConfiguredSelectableModels, type SelectableModelType } from '@/lib/platform-services/model-selection'
+import {
+  customerModelDisplayName,
+  isInternalModelViewer,
+  listSelectableModelsForViewer,
+  providerModelDisplayName,
+  viewerContextFromSession,
+  type ModelViewerContext,
+  type SelectableModelType,
+} from '@/lib/platform-services/model-selection'
 import type { VideoPricingTier } from '@/lib/model-pricing/video-tier'
 
 interface UserModelOption {
@@ -37,13 +45,18 @@ function toOption(input: {
   return option
 }
 
-function toConfiguredOptions(type: SelectableModelType) {
-  return listConfiguredSelectableModels(getPlatformServiceConfigResponse(), type).map((model) => {
+function toConfiguredOptions(type: SelectableModelType, viewer: ModelViewerContext) {
+  const config = getPlatformServiceConfigResponse()
+  const internalViewer = isInternalModelViewer(config, viewer)
+  return listSelectableModelsForViewer(config, type, viewer).map((model) => {
     const runtime = parseModelKeyStrict(model.runtimeModelKey)
-    if (!runtime) return { value: model.modelKey, label: model.modelId }
+    const label = internalViewer
+      ? providerModelDisplayName(model.runtimeModelKey, model.modelId)
+      : customerModelDisplayName(model.modelKey, model.modelId)
+    if (!runtime) return { value: model.modelKey, label }
     return toOption({
       value: model.modelKey,
-      label: model.modelId,
+      label,
       provider: runtime.provider,
       modelId: runtime.modelId,
       type,
@@ -51,20 +64,16 @@ function toConfiguredOptions(type: SelectableModelType) {
   })
 }
 
-function toAudioOption(model: NoriBusinessModel): UserModelOption | null {
-  const target = parseModelKeyStrict(resolveNoriModelRoute(model.key) || '')
-  return target
-    ? toOption({ value: model.key, label: target.modelId, provider: target.provider, modelId: target.modelId, type: model.type })
-    : null
-}
-
 export const GET = apiHandler(async () => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
+  const viewer = viewerContextFromSession(authResult.session)
 
-  const llm = toConfiguredOptions('llm')
-  const image = toConfiguredOptions('image')
-  const video = toConfiguredOptions('video')
-  const audio = listNoriBusinessModels('audio').map(toAudioOption).filter((model): model is UserModelOption => model !== null)
+  const llm = toConfiguredOptions('llm', viewer)
+  const image = toConfiguredOptions('image', viewer)
+  const video = toConfiguredOptions('video', viewer)
+  const audio = toConfiguredOptions('audio', viewer)
+  void listNoriBusinessModels
+  void resolveNoriModelRoute
   return NextResponse.json({ text: llm, llm, vision: [], image, video, audio, lipsync: [] })
 })

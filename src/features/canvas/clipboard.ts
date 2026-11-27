@@ -3,6 +3,8 @@ import { isStoryNodeType } from '@/lib/interactive/compile'
 /** Custom async-clipboard format ("web " prefix) that carries copied canvas nodes and wires. */
 export const CANVAS_CLIPBOARD_MIME = 'web application/x-nori-canvas+json'
 
+export type CanvasClipboardDocumentLike<N extends ClipboardNodeLike = ClipboardNodeLike, E = unknown> = { nodes: N[]; edges: E[] }
+
 export type CanvasClipboardPasteSource =
   | 'system-canvas'
   | 'system-media'
@@ -34,6 +36,54 @@ export function filterStoryClipboardDocument<N extends { id: string; type?: stri
     nodes: kept,
     edges: edges.filter((edge) => ids.has(edge.source) && ids.has(edge.target)),
     filtered: true,
+  }
+}
+
+const CANVAS_CLIPBOARD_SESSION_KEY = 'nori:canvas-clipboard:v1'
+const CANVAS_CLIPBOARD_SESSION_MAX = 1_000_000
+
+type CanvasClipboardStorage = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+
+/** Session persistence covers chapter navigation and full reloads without making a copy permanent. */
+export function persistCanvasClipboard<N extends ClipboardNodeLike, E>(
+  document: CanvasClipboardDocumentLike<N, E>,
+  internalCopyText: string | null = null,
+  storage: CanvasClipboardStorage | null | undefined = typeof sessionStorage === 'undefined' ? null : sessionStorage,
+): void {
+  if (!storage) return
+  try {
+    const raw = JSON.stringify({ ...document, internalCopyText })
+    if (raw.length <= CANVAS_CLIPBOARD_SESSION_MAX) storage.setItem(CANVAS_CLIPBOARD_SESSION_KEY, raw)
+    else storage.removeItem(CANVAS_CLIPBOARD_SESSION_KEY)
+  } catch {
+    // Quota and privacy failures leave the in-memory clipboard usable.
+  }
+}
+
+export function readPersistedCanvasClipboard<N extends ClipboardNodeLike, E>(
+  storage: Pick<CanvasClipboardStorage, 'getItem'> | null | undefined = typeof sessionStorage === 'undefined' ? null : sessionStorage,
+): CanvasClipboardDocumentLike<N, E> | null {
+  if (!storage) return null
+  try {
+    const raw = storage.getItem(CANVAS_CLIPBOARD_SESSION_KEY)
+    if (!raw || raw.length > CANVAS_CLIPBOARD_SESSION_MAX) return null
+    return parseCanvasClipboardDocument<N, E>(raw)
+  } catch {
+    return null
+  }
+}
+
+export function readPersistedCanvasClipboardText(
+  storage: Pick<CanvasClipboardStorage, 'getItem'> | null | undefined = typeof sessionStorage === 'undefined' ? null : sessionStorage,
+): string | null {
+  if (!storage) return null
+  try {
+    const raw = storage.getItem(CANVAS_CLIPBOARD_SESSION_KEY)
+    if (!raw || raw.length > CANVAS_CLIPBOARD_SESSION_MAX) return null
+    const value = JSON.parse(raw) as { internalCopyText?: unknown }
+    return typeof value.internalCopyText === 'string' ? value.internalCopyText : null
+  } catch {
+    return null
   }
 }
 

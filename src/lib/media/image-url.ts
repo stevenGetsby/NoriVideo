@@ -63,6 +63,10 @@ export function toDisplayImageUrl(input: string | null | undefined): string | nu
 
 const STATIC_THUMBNAIL_KEY = /\.(png|jpe?g|webp)$/i
 
+function isPublicMediaPath(parsed: URL | null): boolean {
+  return Boolean(parsed && parsed.pathname.startsWith('/m/') && parsed.pathname.length > 3)
+}
+
 export function toCanvasDisplayImageUrl(
   input: string | null | undefined,
   width: 480 | 960 | 1440,
@@ -70,6 +74,12 @@ export function toCanvasDisplayImageUrl(
   const displayUrl = toDisplayImageUrl(input)
   if (!displayUrl) return null
   const parsed = tryParseUrl(displayUrl)
+  if (isPublicMediaPath(parsed)) {
+    parsed!.searchParams.set('thumbnail', String(width))
+    parsed!.searchParams.delete('proxy')
+    parsed!.searchParams.delete('poster')
+    return /^https?:\/\//i.test(displayUrl) ? parsed!.toString() : `${parsed!.pathname}${parsed!.search}`
+  }
   const key = parsed?.searchParams.get('key')
   if (!parsed || parsed.pathname !== COS_SIGN_PATH || !key || !STATIC_THUMBNAIL_KEY.test(key)) return displayUrl
   parsed.searchParams.set('thumbnail', String(width))
@@ -83,6 +93,12 @@ export function toVideoPosterUrl(input: string | null | undefined, width: 480 | 
   const displayUrl = toDisplayImageUrl(input)
   if (!displayUrl) return null
   const parsed = tryParseUrl(displayUrl)
+  if (isPublicMediaPath(parsed)) {
+    parsed!.searchParams.set('poster', String(width))
+    parsed!.searchParams.delete('proxy')
+    parsed!.searchParams.delete('thumbnail')
+    return /^https?:\/\//i.test(displayUrl) ? parsed!.toString() : `${parsed!.pathname}${parsed!.search}`
+  }
   if (parsed?.pathname !== COS_SIGN_PATH || !parsed.searchParams.get('key')) return null
   parsed.searchParams.set('poster', String(width))
   for (const name of ['expires', 'inline', 'playback', 'thumbnail']) parsed.searchParams.delete(name)

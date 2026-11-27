@@ -1,99 +1,666 @@
-/* 小程序内容审核: list tabs + detail sections, built on the admin panel system. */
-.nori-mp-review-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
-.nori-mp-review-tab { height: 32px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--fos-border-mid); background: transparent; color: var(--fos-text-3); font-size: 12.5px; cursor: pointer; }
-.nori-mp-review-tab:hover { color: var(--fos-text-1); border-color: var(--fos-border-strong); }
-.nori-mp-review-tab.is-active { border-color: var(--fos-primary); color: var(--fos-text-1); background: var(--fos-fill-soft); font-weight: 600; }
-.nori-mp-review-title-link { color: var(--fos-primary); text-decoration: none; font-weight: 600; }
-.nori-mp-review-title-link:hover { text-decoration: underline; }
+/* 小程序内容审核、内容运营与数据: harmonized with the Platform Admin Studio UI layer. */
+.nori-mp-review-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-hairline, var(--fos-border-soft));
+  background: color-mix(in srgb, var(--fos-bg-2) 86%, transparent);
+}
 
-.nori-mp-review-detail { display: flex; flex-direction: column; gap: 14px; }
-.nori-mp-review-status { margin: 0; color: var(--fos-text-2); font-size: 12.5px; }
-.nori-mp-review-note { margin: 0; color: var(--fos-text-3); font-size: 12.5px; }
-.nori-mp-review-points { margin: 0; color: var(--fos-text-3); font-size: 12px; line-height: 1.6; }
+.nori-mp-review-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--fos-text-3);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+}
 
-.nori-mp-review-listing { display: flex; flex-direction: column; gap: 16px; }
-.nori-mp-review-covers { display: flex; flex-wrap: wrap; gap: 16px; }
-.nori-mp-review-covers figure { display: flex; flex-direction: column; gap: 6px; margin: 0; }
-.nori-mp-review-covers img { width: 120px; height: 160px; object-fit: cover; border-radius: 10px; border: 1px solid var(--fos-border-mid); background: var(--fos-fill-soft); }
-.nori-mp-review-covers figure.is-share img { width: 150px; height: 120px; }
-.nori-mp-review-covers figcaption { color: var(--fos-text-3); font-size: 11.5px; }
-.nori-mp-review-missing { display: inline-flex; align-items: center; justify-content: center; width: 120px; height: 160px; border-radius: 10px; border: 1px dashed var(--fos-border-mid); color: var(--fos-text-3); font-size: 12px; }
-.nori-mp-review-covers figure.is-share .nori-mp-review-missing { width: 150px; height: 120px; }
+.nori-mp-review-tab:hover {
+  color: var(--fos-text-1);
+  background: var(--fos-fill-soft);
+}
 
-.nori-mp-review-meta { display: flex; flex-direction: column; gap: 10px; margin: 0; }
-.nori-mp-review-meta > div { display: flex; gap: 12px; font-size: 12.5px; }
-.nori-mp-review-meta dt { flex: none; width: 84px; color: var(--fos-text-3); }
-.nori-mp-review-meta dd { margin: 0; color: var(--fos-text-1); }
-.nori-mp-review-meta dd.is-synopsis { white-space: pre-wrap; line-height: 1.6; }
-.nori-mp-review-accent { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border-radius: 4px; border: 1px solid var(--fos-border-mid); vertical-align: -2px; }
+.nori-mp-review-tab.is-active {
+  border-color: color-mix(in srgb, var(--fos-primary) 34%, transparent);
+  color: var(--fos-text-1);
+  background: color-mix(in srgb, var(--fos-primary) 15%, var(--fos-bg-3));
+  font-weight: 600;
+  box-shadow: inset 0 1px 0 rgb(var(--nori-ink) / calc(0.08 * var(--nori-a)));
+}
 
-.nori-mp-review-trailer { display: flex; flex-direction: column; gap: 8px; }
-.nori-mp-review-trailer > span { color: var(--fos-text-3); font-size: 12.5px; }
-.nori-mp-review-trailer video { width: 100%; max-width: 360px; border-radius: 10px; border: 1px solid var(--fos-border-mid); background: #000; }
-.nori-mp-review-trailer p { margin: 0; font-size: 12.5px; }
+.nori-mp-review-title-link {
+  color: var(--fos-primary-text, var(--fos-primary));
+  text-decoration: none;
+  font-weight: 600;
+}
 
-.nori-mp-review-texts { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.nori-mp-review-texts li { display: flex; align-items: baseline; gap: 10px; border: 1px solid var(--fos-border-soft); border-radius: 10px; padding: 8px 10px; font-size: 12.5px; }
-.nori-mp-review-texts li > span { flex: none; max-width: 260px; color: var(--fos-text-3); font-size: 11.5px; }
-.nori-mp-review-texts li p { flex: 1; margin: 0; color: var(--fos-text-1); white-space: pre-wrap; line-height: 1.55; }
+.nori-mp-review-title-link:hover {
+  text-decoration: underline;
+}
 
-.nori-mp-review-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
-.nori-mp-review-tile { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-.nori-mp-review-sheet { position: relative; display: block; width: 100%; padding: 0; border: 1px solid var(--fos-border-mid); border-radius: 10px; background: var(--fos-fill-soft); cursor: pointer; overflow: hidden; }
-.nori-mp-review-sheet:disabled { cursor: default; }
-.nori-mp-review-sheet img { display: block; width: 100%; aspect-ratio: 1 / 1; object-fit: cover; }
-.nori-mp-review-sheet .nori-mp-review-missing { width: 100%; height: auto; aspect-ratio: 1 / 1; border: 0; border-radius: 0; }
-.nori-mp-review-play { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #fff; background: rgb(0 0 0 / 0.25); opacity: 0; transition: opacity .15s ease; }
-.nori-mp-review-play svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5)); }
-.nori-mp-review-sheet:not(:disabled):hover .nori-mp-review-play, .nori-mp-review-sheet:focus-visible .nori-mp-review-play { opacity: 1; }
-.nori-mp-review-player { width: 100%; aspect-ratio: 9 / 16; border-radius: 10px; border: 1px solid var(--fos-border-mid); background: #000; }
-.nori-mp-review-image { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: 10px; border: 1px solid var(--fos-border-mid); background: var(--fos-fill-soft); }
-.nori-mp-review-tile-meta { display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
-.nori-mp-review-tile-meta > span { color: var(--fos-text-2); font-family: var(--fos-font-mono); }
-.nori-mp-review-tile-meta p { margin: 0; color: var(--fos-text-3); line-height: 1.5; overflow-wrap: anywhere; }
+.nori-mp-review-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-.nori-mp-review-bar { position: sticky; bottom: 12px; display: flex; justify-content: flex-end; gap: 10px; padding: 12px 16px; border: 1px solid var(--fos-border-mid); border-radius: 13px; background: var(--fos-bg-2); box-shadow: var(--fos-shadow-card); }
+.nori-mp-review-status-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-hairline, var(--fos-border-soft));
+  background: var(--adm-surface-1, var(--fos-bg-2));
+}
 
-.nori-mp-review-dialog { width: min(520px, calc(100vw - 32px)); }
-.nori-mp-review-dialog .fos-textarea { width: 100%; }
-.nori-mp-review-count { display: block; margin-top: 6px; text-align: right; color: var(--fos-text-3); font-size: 11.5px; }
+.nori-mp-review-status {
+  margin: 0;
+  color: var(--fos-text-2);
+  font-size: 12.5px;
+}
 
-.nori-mp-spin { animation: nori-mp-spin 1s linear infinite; }
-@keyframes nori-mp-spin { to { transform: rotate(360deg); } }
+.nori-mp-review-note {
+  margin: 0;
+  color: var(--fos-text-3);
+  font-size: 12.5px;
+}
 
-/* 小程序内容运营: toolbars, forms and pickers on top of the review dialog system. */
-.nori-mp-ops-toolbar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-.nori-mp-ops-toolbar .fos-input { width: auto; min-width: 150px; height: 32px; }
-.nori-mp-ops-toolbar .fos-btn-primary { margin-left: auto; }
-.nori-mp-ops-dialog { width: min(560px, calc(100vw - 32px)); }
-.nori-mp-ops-dialog .fos-dialog-body { display: flex; flex-direction: column; gap: 12px; max-height: min(64vh, 560px); overflow-y: auto; }
-.nori-mp-ops-field { display: flex; flex-direction: column; gap: 6px; color: var(--fos-text-2); font-size: 12.5px; }
-.nori-mp-ops-field .fos-input, .nori-mp-ops-field .fos-textarea { width: 100%; }
-.nori-mp-ops-check { display: flex; align-items: center; gap: 8px; color: var(--fos-text-2); font-size: 12.5px; }
-.nori-mp-ops-error { margin: 0; color: #d4380d; font-size: 12.5px; }
-.nori-mp-ops-hint { margin: 0; color: var(--fos-text-3); font-size: 11.5px; }
-.nori-mp-ops-search { display: flex; flex-direction: column; gap: 6px; }
-.nori-mp-ops-picks { margin: 0; padding: 0; list-style: none; border: 1px solid var(--fos-border-mid); border-radius: 10px; overflow: hidden; }
-.nori-mp-ops-picks button { display: flex; justify-content: space-between; gap: 10px; width: 100%; padding: 8px 10px; border: 0; background: transparent; color: var(--fos-text-1); font-size: 12.5px; text-align: left; cursor: pointer; }
-.nori-mp-ops-picks button:hover { background: var(--fos-fill-soft); }
-.nori-mp-ops-picks button span { flex: none; color: var(--fos-text-3); font-size: 11.5px; }
-.nori-mp-ops-works { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.nori-mp-ops-works li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--fos-border-soft); border-radius: 10px; padding: 6px 10px; font-size: 12.5px; }
-.nori-mp-ops-works li > span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nori-mp-ops-row-actions { display: flex; gap: 6px; }
-.nori-mp-ops-dot { display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: #e5484d; vertical-align: 1px; }
+.nori-mp-review-points {
+  margin: 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-hairline, var(--fos-border-soft));
+  background: color-mix(in srgb, var(--fos-bg-2) 65%, transparent);
+  color: var(--fos-text-3);
+  font-size: 12px;
+  line-height: 1.65;
+}
 
-/* 小程序数据: KPI tiles and self-drawn SVG chart on the admin panel system. */
-.nori-mp-stats-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
-.nori-mp-stats-kpi { display: flex; flex-direction: column; gap: 6px; border: 1px solid var(--fos-border-mid); border-radius: 12px; padding: 12px 14px; background: var(--fos-bg-2); }
-.nori-mp-stats-kpi span { color: var(--fos-text-3); font-size: 12px; }
-.nori-mp-stats-kpi strong { color: var(--fos-text-1); font-size: 22px; font-weight: 700; }
-.nori-mp-stats-chart-body { display: flex; flex-direction: column; gap: 10px; }
-.nori-mp-stats-chart { width: 100%; height: auto; }
-.nori-mp-stats-chart rect.is-users { fill: var(--fos-primary); }
-.nori-mp-stats-chart rect.is-starts { fill: #34d399; }
-.nori-mp-stats-chart text { fill: var(--fos-text-3); font-size: 10px; }
-.nori-mp-stats-legend { display: flex; gap: 14px; color: var(--fos-text-3); font-size: 12px; }
-.nori-mp-stats-legend i { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 3px; }
-.nori-mp-stats-legend i.is-users { background: var(--fos-primary); }
-.nori-mp-stats-legend i.is-starts { background: #34d399; }
+.nori-mp-review-listing {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.nori-mp-review-covers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.nori-mp-review-covers figure {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+}
+
+.nori-mp-review-covers img {
+  width: 120px;
+  height: 160px;
+  object-fit: cover;
+  border-radius: 11px;
+  border: 1px solid var(--fos-border-mid);
+  background: var(--fos-fill-soft);
+  box-shadow: 0 8px 20px -12px rgb(0 0 0 / 0.5);
+}
+
+.nori-mp-review-covers figure.is-share img {
+  width: 150px;
+  height: 120px;
+}
+
+.nori-mp-review-covers figcaption {
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+}
+
+.nori-mp-review-missing {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 160px;
+  border-radius: 11px;
+  border: 1px dashed var(--fos-border-mid);
+  color: var(--fos-text-3);
+  font-size: 12px;
+}
+
+.nori-mp-review-covers figure.is-share .nori-mp-review-missing {
+  width: 150px;
+  height: 120px;
+}
+
+.nori-mp-review-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+}
+
+.nori-mp-review-meta > div {
+  display: flex;
+  gap: 12px;
+  font-size: 12.5px;
+}
+
+.nori-mp-review-meta dt {
+  flex: none;
+  width: 88px;
+  color: var(--fos-text-3);
+}
+
+.nori-mp-review-meta dd {
+  margin: 0;
+  color: var(--fos-text-1);
+}
+
+.nori-mp-review-meta dd.is-synopsis {
+  white-space: pre-wrap;
+  line-height: 1.65;
+}
+
+.nori-mp-review-accent {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  border-radius: 4px;
+  border: 1px solid var(--fos-border-mid);
+  vertical-align: -2px;
+}
+
+.nori-mp-review-trailer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.nori-mp-review-trailer > span {
+  color: var(--fos-text-3);
+  font-size: 12.5px;
+}
+
+.nori-mp-review-trailer video {
+  width: 100%;
+  max-width: 360px;
+  border-radius: 11px;
+  border: 1px solid var(--fos-border-mid);
+  background: #000;
+}
+
+.nori-mp-review-trailer p {
+  margin: 0;
+  font-size: 12.5px;
+}
+
+.nori-mp-review-texts {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nori-mp-review-texts li {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  border: 1px solid var(--adm-hairline, var(--fos-border-soft));
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: color-mix(in srgb, var(--fos-bg-3) 40%, transparent);
+  font-size: 12.5px;
+}
+
+.nori-mp-review-texts li > span {
+  flex: none;
+  max-width: 260px;
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+}
+
+.nori-mp-review-texts li p {
+  flex: 1;
+  margin: 0;
+  color: var(--fos-text-1);
+  white-space: pre-wrap;
+  line-height: 1.55;
+}
+
+.nori-mp-review-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.nori-mp-review-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.nori-mp-review-sheet {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--fos-border-mid);
+  border-radius: 11px;
+  background: var(--fos-fill-soft);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.18s ease, transform 0.18s ease;
+}
+
+.nori-mp-review-sheet:not(:disabled):hover {
+  border-color: var(--fos-primary-border);
+  transform: translateY(-1px);
+}
+
+.nori-mp-review-sheet:disabled {
+  cursor: default;
+}
+
+.nori-mp-review-sheet img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+}
+
+.nori-mp-review-sheet .nori-mp-review-missing {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border: 0;
+  border-radius: 0;
+}
+
+.nori-mp-review-play {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgb(0 0 0 / 0.3);
+  opacity: 0;
+  transition: opacity 0.16s ease;
+}
+
+.nori-mp-review-play svg {
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 2px 6px rgb(0 0 0 / 0.5));
+}
+
+.nori-mp-review-sheet:not(:disabled):hover .nori-mp-review-play,
+.nori-mp-review-sheet:focus-visible .nori-mp-review-play {
+  opacity: 1;
+}
+
+.nori-mp-review-player {
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border-radius: 11px;
+  border: 1px solid var(--fos-border-mid);
+  background: #000;
+}
+
+.nori-mp-review-image {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: 11px;
+  border: 1px solid var(--fos-border-mid);
+  background: var(--fos-fill-soft);
+}
+
+.nori-mp-review-tile-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+}
+
+.nori-mp-review-tile-meta > span {
+  color: var(--fos-text-2);
+  font-family: var(--fos-font-mono);
+}
+
+.nori-mp-review-tile-meta p {
+  margin: 0;
+  color: var(--fos-text-3);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+.nori-mp-review-bar {
+  position: sticky;
+  bottom: 14px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--adm-border, var(--fos-border-mid));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--fos-bg-2) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 18px 36px -14px rgb(0 0 0 / 0.6);
+}
+
+.nori-mp-review-dialog {
+  width: min(520px, calc(100vw - 32px));
+}
+
+.nori-mp-review-dialog .fos-textarea {
+  width: 100%;
+}
+
+.nori-mp-review-count {
+  display: block;
+  margin-top: 6px;
+  text-align: right;
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+}
+
+.nori-mp-spin {
+  animation: nori-mp-spin 1s linear infinite;
+}
+
+@keyframes nori-mp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 小程序内容运营 */
+.nori-mp-ops-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--adm-hairline, var(--fos-border-soft));
+  background: var(--adm-surface-1, var(--fos-bg-2));
+}
+
+.nori-mp-ops-toolbar .fos-input {
+  width: auto;
+  min-width: 160px;
+  height: 32px;
+}
+
+.nori-mp-ops-toolbar .fos-btn-primary {
+  margin-left: auto;
+}
+
+.nori-mp-ops-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.nori-mp-ops-dialog .fos-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: min(64vh, 560px);
+  overflow-y: auto;
+}
+
+.nori-mp-ops-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  color: var(--fos-text-2);
+  font-size: 12.5px;
+}
+
+.nori-mp-ops-field .fos-input,
+.nori-mp-ops-field .fos-textarea {
+  width: 100%;
+}
+
+.nori-mp-ops-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fos-text-2);
+  font-size: 12.5px;
+}
+
+.nori-mp-ops-error {
+  margin: 0;
+  color: var(--fos-danger-text, #ff6767);
+  font-size: 12.5px;
+}
+
+.nori-mp-ops-hint {
+  margin: 0;
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+}
+
+.nori-mp-ops-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nori-mp-ops-picks {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--fos-border-mid);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--fos-bg-2);
+}
+
+.nori-mp-ops-picks button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  background: transparent;
+  color: var(--fos-text-1);
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nori-mp-ops-picks button:hover {
+  background: var(--fos-fill-soft);
+}
+
+.nori-mp-ops-picks button span {
+  flex: none;
+  color: var(--fos-text-3);
+  font-size: 11.5px;
+}
+
+.nori-mp-ops-works {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.nori-mp-ops-works li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--fos-border-soft);
+  border-radius: 10px;
+  padding: 7px 10px;
+  background: color-mix(in srgb, var(--fos-bg-3) 50%, transparent);
+  font-size: 12.5px;
+}
+
+.nori-mp-ops-works li > span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nori-mp-ops-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.nori-mp-ops-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #e5484d;
+  box-shadow: 0 0 8px rgb(229 72 77 / 0.55);
+  vertical-align: 1px;
+}
+
+/* 小程序数据: KPI tiles, chart & distribution bars */
+.nori-mp-stats-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(156px, 1fr));
+  gap: 12px;
+}
+
+.nori-mp-stats-kpi {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--adm-border, var(--fos-border-mid));
+  border-radius: 13px;
+  padding: 14px 16px;
+  background: var(--adm-surface-1, var(--fos-bg-2));
+  box-shadow: var(--adm-card-shadow, var(--fos-shadow-card));
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+
+.nori-mp-stats-kpi:hover {
+  border-color: var(--adm-border-strong, var(--fos-border-strong));
+  transform: translateY(-1px);
+}
+
+.nori-mp-stats-kpi span {
+  color: var(--fos-text-3);
+  font-size: 12px;
+}
+
+.nori-mp-stats-kpi strong {
+  color: var(--fos-text-1);
+  font-family: var(--fos-font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+  font-variant-numeric: tabular-nums;
+}
+
+.nori-mp-stats-chart-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nori-mp-stats-chart {
+  width: 100%;
+  height: auto;
+}
+
+.nori-mp-stats-chart line.is-grid {
+  stroke: var(--adm-hairline, var(--fos-border-soft));
+  stroke-dasharray: 3 3;
+}
+
+.nori-mp-stats-chart rect.is-users {
+  fill: var(--fos-primary);
+  transition: opacity 0.15s ease;
+}
+
+.nori-mp-stats-chart rect.is-starts {
+  fill: #34d399;
+  transition: opacity 0.15s ease;
+}
+
+.nori-mp-stats-chart rect:hover {
+  opacity: 0.82;
+}
+
+.nori-mp-stats-chart text {
+  fill: var(--fos-text-3);
+  font-family: var(--fos-font-mono);
+  font-size: 10px;
+}
+
+.nori-mp-stats-legend {
+  display: flex;
+  gap: 16px;
+  color: var(--fos-text-3);
+  font-size: 12px;
+}
+
+.nori-mp-stats-legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  border-radius: 3px;
+}
+
+.nori-mp-stats-legend i.is-users {
+  background: var(--fos-primary);
+}
+
+.nori-mp-stats-legend i.is-starts {
+  background: #34d399;
+}
+
+.nori-mp-stats-bar-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nori-mp-stats-bar-track {
+  flex: 1;
+  max-width: 140px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--fos-fill-soft);
+  overflow: hidden;
+}
+
+.nori-mp-stats-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--fos-primary);
+}

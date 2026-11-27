@@ -1,8 +1,11 @@
 import { randomUUID } from 'node:crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import { apiHandler, ApiError, getRequestId } from '@/lib/api-errors'
-import { isErrorResponse, requireProjectAuthLight } from '@/lib/api-auth'
+import { isErrorResponse, requireProjectAuthLight, type AuthSession } from '@/lib/api-auth'
 import { requireCanvasInProject } from '@/lib/canvas/access'
+import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import { canActorAccessMaterial, PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
+import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { cropCanvasImage, splitCanvasImage, type CanvasImageTile } from '@/lib/canvas/image-operations'
 import { materializeCanvasSyncImageOperation } from '@/lib/canvas/sync-operation-output-nodes'
 import {
@@ -25,7 +28,7 @@ import { extractStorageKey, generateUniqueKey, getObjectBuffer, uploadObject } f
 import { resolveRequiredTaskLocale } from '@/lib/task/resolve-locale'
 import { submitTask } from '@/lib/task/submitter'
 
-type Operation = 'grid_split' | 'lens_focus' | 'superresolve' | 'video_superresolve' | 'subtitle_erase' | 'audio_extract'
+type Operation = 'grid_split' | 'lens_focus' | 'superresolve' | 'video_superresolve' | 'subtitle_erase' | 'video_edit' | 'audio_extract'
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -55,9 +58,10 @@ export const GET = apiHandler(async (
     throw new ApiError('INVALID_PARAMS', { message: '按操作恢复任务时必须提供 sourceNodeId。' })
   }
 
+  const actor = getWorkspaceActor(authResult.session)
   const latestTask = sourceNodeId
     ? await findLatestCanvasOperationTask({
-      userId: authResult.session.user.id,
+      userId: actor.workspaceOwnerId,
       projectId,
       canvasId,
       sourceNodeId,
@@ -80,35 +84,55 @@ export const GET = apiHandler(async (
 })
 
 async function sourceMediaBuffer({
-  userId,
+  session,
   projectId,
   nodeData,
   type,
 }: {
-  userId: string
+  session: AuthSession
   projectId: string
   nodeData: Record<string, unknown>
   type: 'image' | 'video'
 }) {
+  const actor = getWorkspaceActor(session)
   const materialId = text(nodeData.materialId)
   if (materialId) {
+    const [workspaceUsers, readableProjects] = await Promise.all([
+      prisma.user.findMany({
+        where: workspaceUserWhere(actor.workspaceOwnerId),
+        select: { id: true },
+      }),
+      prisma.project.findMany({
+        where: projectReadScopeWhere(session),
+        select: { id: true },
+      }),
+    ])
+    const workspaceUserIds = Array.from(new Set([actor.workspaceOwnerId, ...workspaceUsers.map((user) => user.id)]))
+    const readableProjectIds = Array.from(new Set([projectId, 'global', 'global-asset-hub', ...readableProjects.map((project) => project.id)]))
     const material = await prisma.frameosMaterial.findFirst({
       where: {
         id: materialId,
-        userId,
+        userId: { in: workspaceUserIds },
         type,
         status: 'ready',
         deletedAt: null,
-        projectId: { in: [projectId, 'global', 'global-asset-hub'] },
+        OR: [
+          { projectId: { in: readableProjectIds }, personalOwnerId: null },
+          { projectId: { in: [PERSONAL_MATERIAL_PROJECT_ID, ...readableProjectIds] }, personalOwnerId: actor.actorId },
+        ],
       },
-      select: { storageKey: true, resultUrl: true },
+      select: { storageKey: true, resultUrl: true, projectId: true, personalOwnerId: true },
     })
-    const key = material?.storageKey || extractStorageKey(material?.resultUrl)
-    if (key) return await getObjectBuffer(key)
+    if (material && canActorAccessMaterial(session, material)) {
+      const key = material.storageKey
+        || (await resolveStorageKeyFromMediaValue(material.resultUrl))
+        || extractStorageKey(material.resultUrl)
+      if (key) return await getObjectBuffer(key)
+    }
   }
 
   const candidate = text(nodeData.contentUrl) || text(type === 'image' ? nodeData.imageUrl : nodeData.videoUrl)
-  const key = extractStorageKey(candidate)
+  const key = (await resolveStorageKeyFromMediaValue(candidate)) || extractStorageKey(candidate)
   if (key) return await getObjectBuffer(key)
   throw new ApiError('INVALID_PARAMS', { message: `源${type === 'image' ? '图片' : '视频'}尚未保存到素材库，无法执行处理。` })
 }
@@ -180,9 +204,11 @@ export const POST = apiHandler(async (
   const input = record(body)
   const operation = text(input?.operation) as Operation
   const sourceNodeId = text(input?.sourceNodeId)
-  if (!sourceNodeId || !['grid_split', 'lens_focus', 'superresolve', 'video_superresolve', 'subtitle_erase', 'audio_extract'].includes(operation)) {
+  if (!sourceNodeId || !['grid_split', 'lens_focus', 'superresolve', 'video_superresolve', 'subtitle_erase', 'video_edit', 'audio_extract'].includes(operation)) {
     throw new ApiError('INVALID_PARAMS', { message: '画布处理参数无效。' })
   }
+
+  const actor = getWorkspaceActor(authResult.session)
 
   if (isCanvasAsyncOperation(operation)) {
     let parsed: ReturnType<typeof parseCanvasAsyncOperationInput>
@@ -190,7 +216,9 @@ export const POST = apiHandler(async (
     try {
       parsed = parseCanvasAsyncOperationInput(input)
       sourceDescriptor = await resolveCanvasOperationSource({
-        userId: authResult.session.user.id,
+        userId: actor.workspaceOwnerId,
+        actorId: actor.actorId,
+        session: authResult.session,
         projectId,
         canvasId,
         sourceNodeId,
@@ -211,10 +239,11 @@ export const POST = apiHandler(async (
       engineKey: parsed.engineKey,
       modelKey: parsed.modelKey,
       parameters: parsed.parameters,
+      actorId: actor.actorId,
       retryOf: null,
     }
     const submitResult = await submitTask({
-      userId: authResult.session.user.id,
+      userId: actor.workspaceOwnerId,
       locale: resolveRequiredTaskLocale(request, input),
       requestId: getRequestId(request),
       projectId,
@@ -227,7 +256,7 @@ export const POST = apiHandler(async (
     })
     const task = await findCanvasOperationTask({
       taskId: submitResult.taskId,
-      userId: authResult.session.user.id,
+      userId: actor.workspaceOwnerId,
       projectId,
       canvasId,
     })
@@ -251,7 +280,7 @@ export const POST = apiHandler(async (
   })
   const nodeData = record(sourceNode?.data)
   if (!sourceNode || !nodeData) throw new ApiError('NOT_FOUND')
-  const source = await sourceMediaBuffer({ userId: authResult.session.user.id, projectId, nodeData, type: sourceType })
+  const source = await sourceMediaBuffer({ session: authResult.session, projectId, nodeData, type: sourceType })
 
   let tiles: CanvasImageTile[]
   if (operation === 'grid_split') {

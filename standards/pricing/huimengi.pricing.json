@@ -121,12 +121,12 @@
     "pricing": {
       "mode": "capability",
       "tiers": [
-        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 66.5 },
-        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 39.9 },
-        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 66.5 },
-        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 39.9 },
-        { "when": { "resolution": "1080p", "containsVideoInput": false }, "amount": 73.15 },
-        { "when": { "resolution": "1080p", "containsVideoInput": true }, "amount": 43.7 }
+        { "when": { "resolution": "480p", "containsVideoInput": false }, "amount": 70 },
+        { "when": { "resolution": "480p", "containsVideoInput": true }, "amount": 42 },
+        { "when": { "resolution": "720p", "containsVideoInput": false }, "amount": 70 },
+        { "when": { "resolution": "720p", "containsVideoInput": true }, "amount": 42 },
+        { "when": { "resolution": "1080p", "containsVideoInput": false }, "amount": 77 },
+        { "when": { "resolution": "1080p", "containsVideoInput": true }, "amount": 46 }
       ]
     }
   },

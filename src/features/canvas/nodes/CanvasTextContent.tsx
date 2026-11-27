@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { useCanvasEditor } from '../CanvasEditorContext'
+import { useCanvasEditor, useCanvasTextEditingNodeId } from '../CanvasEditorContext'
 import TextMarkBar from '../components/TextMarkBar'
 import { marksEqual, normalizeMarks, rebaseMarks, setHighlight, splitByMarks, toggleBold } from '../text-marks'
 import type { CanvasTextMark } from '../types'
@@ -15,7 +15,8 @@ export default function CanvasTextContent({ id, value, marks, readOnly }: { id: 
   const [draft, setDraft] = useState(value)
   const [draftMarks, setDraftMarks] = useState(() => normalizeMarks(marks, value.length))
   const [selection, setSelection] = useState({ start: 0, end: 0 })
-  const editing = editor.textEditingNodeId === id
+  const textEditingNodeId = useCanvasTextEditingNodeId()
+  const editing = textEditingNodeId === id
   const ref = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const previewRef = useRef<HTMLButtonElement>(null)

@@ -20,6 +20,7 @@ import { MediaImage } from '@/components/media/MediaImage'
 import type { FrameosMaterialItem, MaterialType } from '@/components/frameos/materials/contracts'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { apiFetch } from '@/lib/api-fetch'
+import { notifyCanvasRevisions, type CanvasRevisionTarget } from '@/lib/canvas/revision-broadcast'
 import { fetchFrameosMaterialPage, MATERIAL_PAGE_SIZE, useWindowedList } from '@/components/frameos/materials/material-page-client'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
@@ -416,8 +417,12 @@ export function CanvasProjectAssets({
     if (!canEditAssets) return
     const title = renameValue.replace(/\s+/g, ' ').trim()
     if (!title) return
+    const currentTitle = materials.find((item) => item.id === materialId)?.title
+    if (currentTitle !== undefined && currentTitle === title) { setRenamingId(null); return }
     const response = await apiFetch(`/api/frameos/materials/${materialId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title }) })
     if (!response.ok) { setError(await readApiErrorMessage(response, '重命名素材失败')); return }
+    const renamed = await response.json().catch(() => null) as { canvasSync?: { canvases?: CanvasRevisionTarget[] } } | null
+    notifyCanvasRevisions(session?.user?.id || '', renamed?.canvasSync?.canvases)
     setMaterials((current) => current.map((item) => item.id === materialId ? { ...item, title } : item))
     setSelectedById((current) => {
       const selected = current.get(materialId)
@@ -438,7 +443,8 @@ export function CanvasProjectAssets({
       setError(await readApiErrorMessage(response, '更新资产归类失败'))
       return
     }
-    const payload = await response.json() as { material?: FrameosMaterialItem }
+    const payload = await response.json() as { material?: FrameosMaterialItem; canvasSync?: { canvases?: CanvasRevisionTarget[] } }
+    notifyCanvasRevisions(session?.user?.id || '', payload.canvasSync?.canvases)
     if (!payload.material) return
     setMaterials((current) => current.map((item) => item.id === material.id
       ? { ...item, ...payload.material, url: payload.material?.resultUrl || payload.material?.storageKey || item.url }

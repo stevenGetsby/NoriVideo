@@ -45,6 +45,7 @@ export function MediaImage({
       style={fill ? { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', ...style } : style}
       onClick={onClick}
       loading={priority ? 'eager' : 'lazy'}
+      decoding="async"
       {...imgProps}
     />
   )

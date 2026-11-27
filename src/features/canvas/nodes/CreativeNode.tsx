@@ -43,6 +43,7 @@ import { CanvasMediaPreviewDialog } from '../components/CanvasMediaPreviewDialog
 import { CanvasNodeVideo } from './CanvasNodeVideo'
 import { CanvasNodeVideoPoster } from './CanvasNodeVideoPoster'
 import { recallPlayback } from '../media-playback'
+import { CANVAS_RENDER_BUDGET } from '../rendering/canvas-render-budget'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
 import { getCanvasNodeCurrentCostLabel, isCanvasPanoramaNodeData } from '../types'
 import type { CanvasGenerationReferenceSummary } from '../types'
@@ -117,6 +118,23 @@ function ReferencePreview({ reference }: { reference: CanvasGenerationReferenceS
   return <Icon />
 }
 
+const COLLAPSED_REFERENCE_COUNT = 4
+
+type MountedVideoEntry = { id: string; isPlaying: () => boolean; demote: () => void }
+const mountedVideoCards = new Map<string, MountedVideoEntry>()
+
+function registerMountedVideoCard(entry: MountedVideoEntry) {
+  mountedVideoCards.delete(entry.id)
+  mountedVideoCards.set(entry.id, entry)
+  if (mountedVideoCards.size <= CANVAS_RENDER_BUDGET.maxPlayingInstances) return
+  for (const [key, candidate] of mountedVideoCards) {
+    if (mountedVideoCards.size <= CANVAS_RENDER_BUDGET.maxPlayingInstances) break
+    if (key === entry.id || candidate.isPlaying()) continue
+    mountedVideoCards.delete(key)
+    candidate.demote()
+  }
+}
+
 export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFlowNode>) {
   const { id, data, selected } = props
   const editor = useCanvasEditor()
@@ -170,13 +188,30 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
   const [moreActionsOpen, setMoreActionsOpen] = useState(false)
   const moreActionsRef = useRef<HTMLButtonElement>(null)
   const toolbarRef = useRef<HTMLDivElement | null>(null)
-  const [toolbarShift, setToolbarShift] = useState(0)
-  const [toolbarTop, setToolbarTop] = useState(0)
+  const lastImageWidthRef = useRef(480)
+  const scheduleImageWidthRef = useRef<(() => void) | null>(null)
+  const videoPlayingRef = useRef(false)
   const [previewReference, setPreviewReference] = useState<CanvasGenerationReferenceSummary | null>(null)
   const [videoFailed, setVideoFailed] = useState(false)
   const [videoActive, setVideoActive] = useState(() => Boolean(videoUrl && recallPlayback(videoUrl)?.playing))
   const [videoAttempt, setVideoAttempt] = useState(0)
   useEffect(() => { setVideoFailed(false); setVideoAttempt(0) }, [videoUrl])
+  useEffect(() => {
+    if (!videoActive || mediaType !== 'video' || !videoUrl) {
+      mountedVideoCards.delete(id)
+      videoPlayingRef.current = false
+      return
+    }
+    registerMountedVideoCard({
+      id,
+      isPlaying: () => videoPlayingRef.current,
+      demote: () => setVideoActive(false),
+    })
+    return () => {
+      mountedVideoCards.delete(id)
+      videoPlayingRef.current = false
+    }
+  }, [id, mediaType, videoActive, videoUrl])
   const inlineActions = mediaType === 'image'
     ? actions
     : actions.filter(({ action }) => action === 'preview' || action === 'download')
@@ -184,6 +219,8 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     ? []
     : actions.filter(({ action }) => action !== 'preview' && action !== 'download')
   const references = mediaType === 'video' ? data.generation?.referenceSummary || [] : []
+  const hiddenReferenceCount = references.length - COLLAPSED_REFERENCE_COUNT
+  const visibleReferences = references.slice(0, COLLAPSED_REFERENCE_COUNT)
   const currentCost = getCanvasNodeCurrentCostLabel(data, mediaType)
   const previewReferenceNode = previewReference
     ? {
@@ -204,25 +241,36 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     if (!chromeVisible) setMoreActionsOpen(false)
   }, [chromeVisible])
   useEffect(() => {
+    lastImageWidthRef.current = 480
     setImageUrl(toCanvasDisplayImageUrl(imageSource, 480))
-    if (!originalImageUrl || !imageContainerRef.current) return
+    if (!originalImageUrl || !imageContainerRef.current) {
+      scheduleImageWidthRef.current = null
+      return
+    }
     const element = imageContainerRef.current
     let frame = 0
-    let lastWidth = 0
     const update = () => {
       frame = 0
       const displayedWidth = element.getBoundingClientRect().width * (window.devicePixelRatio || 1)
       const width = displayedWidth <= 480 ? 480 : displayedWidth <= 960 ? 960 : 1440
-      if (width === lastWidth) return
-      lastWidth = width
+      if (width === lastImageWidthRef.current) return
+      lastImageWidthRef.current = width
       setImageUrl(toCanvasDisplayImageUrl(originalImageUrl, width))
     }
     const schedule = () => { if (!frame) frame = requestAnimationFrame(update) }
+    scheduleImageWidthRef.current = schedule
     const observer = new ResizeObserver(schedule)
     observer.observe(element)
-    update()
-    return () => { observer.disconnect(); if (frame) cancelAnimationFrame(frame) }
-  }, [originalImageUrl, zoomBucket])
+    schedule()
+    return () => {
+      if (scheduleImageWidthRef.current === schedule) scheduleImageWidthRef.current = null
+      observer.disconnect()
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [originalImageUrl])
+  useEffect(() => {
+    scheduleImageWidthRef.current?.()
+  }, [zoomBucket])
   useLayoutEffect(() => {
     if (!chromeVisible || mediaType !== 'image') return
     const toolbar = toolbarRef.current?.parentElement
@@ -231,8 +279,13 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     if (!(toolbar instanceof HTMLElement) || !(surface instanceof HTMLElement)) return
     const node = surface.querySelector(`.react-flow__node[data-id="${id}"]`)
     const flowViewport = surface.querySelector('.react-flow__viewport')
+    const chrome = surface.querySelector('.nori-canvas-chrome')
     if (!(node instanceof HTMLElement)) return
+    let frame = 0
+    let lastLeft = Number.parseFloat(toolbar.style.left) || 0
+    let lastTop = Number.parseFloat(toolbar.style.top) || 0
     const keepVisible = () => {
+      frame = 0
       const nodeBounds = node.getBoundingClientRect()
       const bounds = surface.getBoundingClientRect()
       const toolbarBounds = toolbar.getBoundingClientRect()
@@ -258,7 +311,6 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         Math.max(nodeBounds.left + nodeBounds.width / 2, bounds.left + margin + toolbarBounds.width / 2),
         bounds.right - margin - toolbarBounds.width / 2,
       )
-      const chrome = surface.querySelector('.nori-canvas-chrome')
       const chromeBounds = chrome?.getBoundingClientRect()
       const topBoundary = chromeBounds && chromeBounds.bottom > bounds.top
         ? chromeBounds.bottom
@@ -271,26 +323,35 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
       desiredTop = Math.max(desiredTop, bounds.top + margin)
       const nextLeft = (desiredCenter - toolbarBounds.width / 2 - naturalLeft) * parentScaleX
       const nextTop = (desiredTop - naturalTop) * parentScaleY
-      if (Math.abs(nextLeft - currentLeft) > 0.01) setToolbarShift(nextLeft)
-      if (Math.abs(nextTop - currentTop) > 0.01) setToolbarTop(nextTop)
+      if (Math.abs(nextLeft - lastLeft) > 1) {
+        lastLeft = nextLeft
+        toolbar.style.left = `${nextLeft}px`
+      }
+      if (Math.abs(nextTop - lastTop) > 1) {
+        lastTop = nextTop
+        toolbar.style.top = `${nextTop}px`
+      }
     }
-    const frame = requestAnimationFrame(keepVisible)
-    const resizeObserver = new ResizeObserver(keepVisible)
+    const schedule = () => { if (!frame) frame = requestAnimationFrame(keepVisible) }
+    schedule()
+    const resizeObserver = new ResizeObserver(schedule)
     resizeObserver.observe(toolbar)
     resizeObserver.observe(node)
     resizeObserver.observe(surface)
-    const transformObserver = new MutationObserver(keepVisible)
+    const transformObserver = new MutationObserver(schedule)
     const renderer = toolbar.parentElement
     transformObserver.observe(toolbar, { attributes: true, attributeFilter: ['style'] })
     transformObserver.observe(node, { attributes: true, attributeFilter: ['style'] })
     if (renderer) transformObserver.observe(renderer, { attributes: true, attributeFilter: ['style'] })
     if (flowViewport) transformObserver.observe(flowViewport, { attributes: true, attributeFilter: ['style'] })
-    window.addEventListener('resize', keepVisible)
+    window.addEventListener('resize', schedule)
     return () => {
-      cancelAnimationFrame(frame)
+      if (frame) cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       transformObserver.disconnect()
-      window.removeEventListener('resize', keepVisible)
+      window.removeEventListener('resize', schedule)
+      toolbar.style.left = ''
+      toolbar.style.top = ''
     }
   }, [actions.length, canReplaceContent, id, mediaType, chromeVisible])
 
@@ -311,7 +372,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         lineClassName="nori-canvas-resize-line"
         handleClassName="nori-canvas-resize-handle"
       />
-      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} style={{ left: `${toolbarShift}px`, top: `${toolbarTop}px` }} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType}${mediaType === 'image' || mediaType === 'video' || mediaType === 'model_3d' ? ' nori-force-dark' : ''} nodrag nowheel`} onPointerDown={(event) => event.stopPropagation()}>
+      <NodeToolbar isVisible={chromeVisible && (actions.length > 0 || canReplaceContent)} position={Position.Top} offset={26} className={`nori-canvas-node-toolbar nori-canvas-node-toolbar--${mediaType}${mediaType === 'image' || mediaType === 'video' || mediaType === 'model_3d' ? ' nori-force-dark' : ''} nodrag nowheel`} onPointerDown={(event) => event.stopPropagation()}>
         <div ref={toolbarRef} className="nori-canvas-node-toolbar-anchor" aria-hidden="true" />
         {canReplaceContent ? (
           <button
@@ -416,29 +477,33 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         ) : null}
         {mediaType === 'video' && videoUrl ? (
           <>
-            {videoActive ? <CanvasNodeVideo key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} autoPlay onExpand={() => editor.runNodeAction(id, 'preview')} onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} /> : <CanvasNodeVideoPoster posterUrl={imageUrl || toVideoPosterUrl(data.videoUrl || data.contentUrl, 480)} onPlay={() => setVideoActive(true)} />}
+            {videoActive ? <CanvasNodeVideo key={`${videoUrl}:${videoAttempt}`} src={videoUrl} poster={imageUrl || undefined} autoPlay onExpand={() => editor.runNodeAction(id, 'preview')} onLoadedData={() => setVideoFailed(false)} onError={() => setVideoFailed(true)} onPlayingChange={(isPlaying) => { videoPlayingRef.current = isPlaying }} onOffscreenPause={() => setVideoActive(false)} /> : <CanvasNodeVideoPoster posterUrl={imageUrl || toVideoPosterUrl(data.videoUrl || data.contentUrl, 480)} onPlay={() => setVideoActive(true)} />}
             {videoFailed ? <div className="nori-canvas-video-load-error nodrag nowheel" role="status"><Film /><span>视频已生成，播放加载失败</span><button type="button" onClick={(event) => { event.stopPropagation(); setVideoFailed(false); setVideoAttempt((value) => value + 1) }}><RefreshCw />重新加载</button><button type="button" onClick={() => editor.runNodeAction(id, 'preview')}>打开预览</button></div> : null}
           </>
         ) : null}
         {mediaType === 'video' && references.length > 0 ? (
-          <div className="nori-canvas-reference-strip" aria-label="视频引用素材">
-            {references.slice(0, 4).map((reference) => (
-              <button
-                type="button"
-                className="nodrag nowheel"
-                key={`${reference.role || 'REF'}:${reference.id}`}
-                title={`放大预览 @${reference.title}`}
-                aria-label={`放大预览 @${reference.title}`}
-                onClick={(event) => {
-                  event.stopPropagation()
-                  setPreviewReference(reference)
-                }}
-              >
-                <i><ReferencePreview reference={reference} /></i>
-                <b>@{reference.title}</b>
-              </button>
-            ))}
-            {references.length > 4 ? <em>+{references.length - 4}</em> : null}
+          <div className="nori-canvas-reference-strip nowheel" aria-label={`视频引用素材，共 ${references.length} 项`}>
+            <div className="nori-canvas-reference-thumbnails">
+              {visibleReferences.map((reference) => (
+                <button
+                  type="button"
+                  className="nodrag nowheel"
+                  key={`${reference.role || 'REF'}:${reference.id}`}
+                  data-canvas-reference-node-id={reference.id}
+                  title={`放大预览 @${reference.title}`}
+                  aria-label={`放大预览 @${reference.title}`}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    setPreviewReference(reference)
+                  }}
+                >
+                  <i><ReferencePreview reference={reference} /></i>
+                </button>
+              ))}
+            </div>
+            {hiddenReferenceCount > 0 ? (
+              <span className="nori-canvas-reference-count" title="在提示词框中查看全部引用">+{hiddenReferenceCount}</span>
+            ) : null}
           </div>
         ) : null}
         {mediaType === 'audio' && audioUrl ? <div className="nori-canvas-audio"><Music2 /><audio src={audioUrl} controls className="nodrag nowheel" /></div> : null}

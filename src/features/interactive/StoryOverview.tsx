@@ -72,6 +72,8 @@ export function StoryOverview({ workId }: { workId: string }) {
       const start = { projectId, entryNodeId }
       quiet(patch({ config: { start } }, (current) => withConfig(current, { start })))
     },
+    onEdit: (projectId, input) => overview.updateChapter(projectId, input),
+    onDelete: (projectId) => { void deleteChapters([projectId]) },
   }
   const connect = (connection: Connection) => {
     const link = readChapterConnection(connection)
@@ -81,6 +83,16 @@ export function StoryOverview({ workId }: { workId: string }) {
   const deleteLinks = (ids: string[]) => {
     const links = config.links.filter((link) => !ids.includes(link.id))
     if (links.length !== config.links.length) quiet(patch({ config: { links } }, (current) => withConfig(current, { links })))
+  }
+  const deleteChapters = async (projectIds: string[]) => {
+    for (const projectId of projectIds) {
+      if (data.chapters.length <= 1) { window.alert('影游至少需要保留一个章节。'); return }
+      const chapter = data.chapters.find((item) => item.projectId === projectId)
+      if (!chapter || !window.confirm(`确定删除章节「${chapter.name}」吗？该章节及其画布将移入回收站，相关章节连线也会移除。`)) continue
+      const deleted = await overview.deleteChapter(projectId)
+      if (!deleted) return
+      if (focusedId === projectId) setFocusedId(null)
+    }
   }
   const focusIssue = (issue: StoryIssue) => { if (issue.projectId) setFocusedId(issue.projectId) }
   const addChapter = async () => {
@@ -140,6 +152,7 @@ export function StoryOverview({ workId }: { workId: string }) {
             actions={actions}
             onConnect={connect}
             onDeleteLinks={deleteLinks}
+            onDeleteChapters={(projectIds) => { void deleteChapters(projectIds) }}
             onMove={(projectId, position) => saveChapters((chapter) => (chapter.projectId === projectId ? { ...chapter, position } : chapter))}
             onFocus={setFocusedId}
           />

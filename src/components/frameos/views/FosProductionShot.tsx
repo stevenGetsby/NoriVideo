@@ -10,6 +10,7 @@ import { apiFetch } from '@/lib/api-fetch'
 import { readApiErrorMessage } from '@/lib/api/read-error-message'
 import { hasAccountPermissions } from '@/lib/account/permissions'
 import { toDisplayImageUrl } from '@/lib/media/image-url'
+import { isSeedance25VideoModelKey } from '@/lib/canvas/generator-options'
 import {
   extractSeedanceVideoPromptBody,
   formatSeedancePromptForEditor,
@@ -270,7 +271,8 @@ export function FosProductionShot({
       })
       .map((character) => character.name)
   }, [data.characters, prompt, refs])
-  const supportsCharacterReferenceAudio = /^(?:nori::(?:seedance2\.0|norivideo2\.5)$|(?:ark|kuaizi)::doubao-seedance-2-(?:0|5)|hfsy::sd-2-vip)/i.test(modelKey)
+  const supportsCharacterReferenceAudio = isSeedance25VideoModelKey(modelKey)
+    || /^(?:nori::seedance2\.0$|(?:ark|kuaizi)::doubao-seedance-2-0|hfsy::sd-2-vip)/i.test(modelKey)
   const locksGeneratedAudio = boundVoiceNames.length > 0 && supportsCharacterReferenceAudio
   useEffect(() => {
     if (!currentModel) return

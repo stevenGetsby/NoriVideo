@@ -7,6 +7,9 @@ import {
   hasCanvasClipboardMime,
   isCanvasClipboardMimeAvailable,
   parseCanvasClipboardDocument,
+  persistCanvasClipboard,
+  readPersistedCanvasClipboard,
+  readPersistedCanvasClipboardText,
   resolveCanvasClipboardPasteSource,
   writeCanvasClipboard,
 } from '../../../src/features/canvas/clipboard'
@@ -127,6 +130,27 @@ describe('canvas clipboard document parsing', () => {
     ['null node', JSON.stringify({ nodes: [null] })],
   ])('rejects %s', (_label, raw) => {
     expect(parseCanvasClipboardDocument(raw)).toBeNull()
+  })
+})
+
+describe('canvas clipboard session fallback', () => {
+  it('restores a copied document and its text identity after navigation', () => {
+    const values = new Map<string, string>()
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
+    const document = { nodes: [{ id: 'scene', position: { x: 1, y: 2 }, data: { text: '正文' } }], edges: [] }
+
+    persistCanvasClipboard(document, '正文', storage)
+
+    expect(readPersistedCanvasClipboard(storage)).toEqual(document)
+    expect(readPersistedCanvasClipboardText(storage)).toBe('正文')
+    expect(resolveCanvasClipboardPasteSource({ ...base, systemText: '正文', hasInternalCanvas: true, internalCopyText: '正文' })).toBe('internal-canvas')
+  })
+
+  it('does not retain oversized clipboard documents', () => {
+    const values = new Map<string, string>()
+    const storage = { getItem: (key: string) => values.get(key) ?? null, setItem: (key: string, value: string) => { values.set(key, value) }, removeItem: (key: string) => { values.delete(key) } }
+    persistCanvasClipboard({ nodes: [{ id: 'big', position: { x: 0, y: 0 }, text: 'x'.repeat(1_000_001) }], edges: [] }, null, storage)
+    expect(readPersistedCanvasClipboard(storage)).toBeNull()
   })
 })
 

@@ -17,6 +17,8 @@ import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { resolveProjectModelCapabilityGenerationOptions } from '@/lib/config-service'
 import { withRecommendedVideoDurationOptions } from '@/lib/video/recommended-duration'
 import { resolveRuntimeModelKey } from '@/lib/nori-model-catalog'
+import { getPlatformServiceConfigResponse } from '@/lib/platform-services/config'
+import { resolveModelKeyForViewer, viewerContextFromSession } from '@/lib/platform-services/model-selection'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value)
@@ -46,6 +48,7 @@ function isSeedance2Model(modelKey: string): boolean {
     && (
       parsed.modelId.startsWith('doubao-seedance-2-0')
       || parsed.modelId === 'doubao-seedance-2-5-260628'
+      || parsed.modelId === 'doubao-seedance-2-5-260628-intl'
     )
 }
 
@@ -222,7 +225,21 @@ export const POST = apiHandler(async (
   const { session } = authResult
 
   const body = await request.json()
-  requireVideoModelKeyFromPayload(body)
+  const requestedVideoModel = requireVideoModelKeyFromPayload(body)
+  const platformConfig = getPlatformServiceConfigResponse()
+  const viewer = viewerContextFromSession(session)
+  const videoAccess = resolveModelKeyForViewer(platformConfig, requestedVideoModel, 'video', viewer)
+  if (!videoAccess.allowed) {
+    throw new ApiError('FORBIDDEN', { message: videoAccess.reason })
+  }
+  body.videoModel = videoAccess.modelKey
+  if (isRecord(body?.firstLastFrame) && typeof body.firstLastFrame.flModel === 'string' && body.firstLastFrame.flModel.trim()) {
+    const flAccess = resolveModelKeyForViewer(platformConfig, body.firstLastFrame.flModel, 'video', viewer)
+    if (!flAccess.allowed) {
+      throw new ApiError('FORBIDDEN', { message: flAccess.reason })
+    }
+    body.firstLastFrame.flModel = flAccess.modelKey
+  }
   const locale = resolveRequiredTaskLocale(request, body)
   const isBatch = body?.all === true
 

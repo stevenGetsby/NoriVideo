@@ -18,9 +18,10 @@ import { CANVAS_AGENT_SELECTION_KEY, type CanvasAgentModelCatalog, type CanvasAg
 import { getCanvasAgentModelCatalog } from '@/lib/canvas-agent/model-runtime'
 import { CANVAS_AGENT_MODEL_CANDIDATES, CANVAS_AGENT_PROVIDER_PRESETS } from '@/lib/canvas-agent/provider-registry'
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
-import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
+import { KUAIZI_SEEDANCE_25_INTL_MODEL_KEY, listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
-import { listTggSelectableModels } from '@/lib/providers/tgg/catalog'
+import { listAilinkSelectableModels } from '@/lib/providers/ailink/catalog'
+import { listTopenrouterSelectableModels } from '@/lib/providers/topenrouter/catalog'
 import {
   listNoriBusinessModels,
   type NoriBusinessModelKey,
@@ -42,18 +43,20 @@ const PROVIDER_BASE_URLS = {
   openlux: 'https://api.openlux.ai/v1',
   kuaizi: 'https://aiopenapi.kuaizi.cn',
   huimengi: 'https://api.huimengi.com',
-  tgg: 'https://tggtoken.org',
+  ailink: 'https://ailink.jinghua.security',
+  topenrouter: 'https://tp-api.chinadatapay.com:8000',
   kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.baseURL,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.baseURL,
 } as const
-const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'tgg'] as const
+const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'ailink', 'topenrouter'] as const
 const PLATFORM_PROVIDER_IDS = [...BASE_PLATFORM_PROVIDER_IDS, 'kimi', 'openai'] as const
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
   deepseek: 'DeepSeek 官方',
   openlux: 'OpenLux API',
   kuaizi: 'Kuaizi API',
   huimengi: '绘梦工坊 API',
-  tgg: 'TGG Token API',
+  ailink: 'AILink API',
+  topenrouter: 'TopenRouter API',
   kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.name,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.name,
 }
@@ -84,11 +87,17 @@ export interface PlatformServiceConfigResponse {
   businessModels: Array<{
     key: NoriBusinessModelKey
     name: string
+    customerName: string
     description: string
     type: 'llm' | 'image' | 'video' | 'audio'
     tier: NoriModelTier
   }>
   modelRouting: Record<NoriBusinessModelKey | typeof CANVAS_AGENT_SELECTION_KEY, string>
+  modelEnabled: Record<string, boolean>
+  internalModelViewUserIds: string[]
+  customerVisibleModels: Record<string, boolean>
+  customerModelOverrides: Record<string, Record<string, boolean>>
+  customerModelRoutingOverrides: Record<string, Record<string, string>>
   agentModels: Record<string, CanvasAgentModelSettings>
   canvasAgentModelCatalog: CanvasAgentModelCatalog
   storage: PlatformStorageConfig
@@ -142,13 +151,24 @@ function resolveWritablePath(): string {
     : path.join(process.cwd(), configured || 'config/services.json')
 }
 
+export function isUsableKuaiziKzep(value: unknown): boolean {
+  const normalized = string(value)
+  return normalized.length > 0 && normalized.length <= 191 && /^kzep_[A-Za-z0-9_-]+$/.test(normalized)
+}
+
+export function environmentKuaiziIntlKzep(): string {
+  const value = string(process.env.KUAIZI_SEEDANCE_25_INTL_KZEP)
+  return isUsableKuaiziKzep(value) ? value : ''
+}
+
 export function environmentProviderKey(providerId: string): string {
   const providerKey = getRawProviderKey(providerId).toLowerCase()
   if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
   if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
-  if (providerKey === 'tgg') return string(process.env.TGG_API_KEY)
+  if (providerKey === 'ailink') return string(process.env.AILINK_API_KEY)
+  if (providerKey === 'topenrouter') return string(process.env.TOPENROUTER_API_KEY)
   if (providerKey === 'kimi' || providerKey === 'openai') {
     return string(process.env[CANVAS_AGENT_PROVIDER_PRESETS[providerKey].envKey])
   }
@@ -186,25 +206,119 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
       provider: 'huimengi',
       modelKey: `huimengi::${model.modelId}`,
     })),
-    // Only fully verified TGG models (capability + profile + pricing JSON) are
-    // selectable; the JSON catalogs stay empty until the vendor data lands.
-    ...listTggSelectableModels().map((model): ServiceConfigModel => ({
+    ...listAilinkSelectableModels().map((model): ServiceConfigModel => ({
       modelId: model.modelId,
       name: model.name,
       type: 'video',
-      provider: 'tgg',
-      modelKey: `tgg::${model.modelId}`,
+      provider: 'ailink',
+      modelKey: `ailink::${model.modelId}`,
+    })),
+    ...listTopenrouterSelectableModels().map((model): ServiceConfigModel => ({
+      modelId: model.modelId,
+      name: model.name,
+      type: 'video',
+      provider: 'topenrouter',
+      modelKey: `topenrouter::${model.modelId}`,
     })),
   ]
 }
 
-function isTggRoute(route: string): boolean {
-  return getRawProviderKey(route).toLowerCase() === 'tgg'
+// 视频模型由管理员逐个开关；未保存过开关时，沿用当前路由指向的模型保持开启。
+function materializeModelEnabled(
+  models: ServiceConfigModel[],
+  stored: Record<string, boolean> | undefined,
+  routing: Record<string, string>,
+): Record<string, boolean> {
+  const routed = new Set(listNoriBusinessModels('video').map((model) => string(routing[model.key])).filter(Boolean))
+  return Object.fromEntries(models.filter((model) => model.type === 'video').map((model) => {
+    const key = composeModelKey(model.provider, model.modelId)
+    return [key, stored && Object.hasOwn(stored, key) ? stored[key] === true : routed.has(key)]
+  }))
 }
 
-function defaultRouteFor(suggestedRoute: string, tggKeyUsable: boolean, modelByKey: Map<string, ServiceConfigModel>): string {
-  if (!isTggRoute(suggestedRoute)) return suggestedRoute
-  return tggKeyUsable && modelByKey.has(suggestedRoute) ? suggestedRoute : ''
+function normalizeInternalModelViewUserIds(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  return Array.from(new Set(
+    raw
+      .map((item) => string(item))
+      .filter((item) => item.length > 0 && item.length <= 191),
+  )).slice(0, 100)
+}
+
+function materializeCustomerVisibleModels(
+  stored: Record<string, boolean> | undefined,
+  routing: Record<string, string>,
+  modelEnabled: Record<string, boolean>,
+  providers: ServiceConfigProvider[],
+): Record<string, boolean> {
+  const kuaiziKzep = providers.find((provider) => provider.id === 'kuaizi')?.seedance25IntlKzep
+  return Object.fromEntries(listNoriBusinessModels().map((business) => {
+    if (stored && Object.hasOwn(stored, business.key)) {
+      return [business.key, stored[business.key] === true]
+    }
+    const target = string(routing[business.key])
+    if (!target) return [business.key, false]
+    if (business.type === 'video') {
+      if (target === KUAIZI_SEEDANCE_25_INTL_MODEL_KEY && !isUsableKuaiziKzep(kuaiziKzep)) {
+        return [business.key, false]
+      }
+      return [business.key, modelEnabled[target] === true]
+    }
+    return [business.key, true]
+  }))
+}
+
+function normalizeCustomerModelOverrides(raw: unknown): Record<string, Record<string, boolean>> {
+  if (!isRecord(raw)) return {}
+  const validBusinessKeys = new Set<string>(listNoriBusinessModels().map((model) => model.key))
+  const output: Record<string, Record<string, boolean>> = {}
+  for (const [rawUserId, rawMap] of Object.entries(raw).slice(0, 500)) {
+    const userId = string(rawUserId)
+    if (!userId || userId.length > 191 || !isRecord(rawMap)) continue
+    const inner: Record<string, boolean> = {}
+    for (const [modelKey, flag] of Object.entries(rawMap)) {
+      if (!validBusinessKeys.has(modelKey) || typeof flag !== 'boolean') continue
+      inner[modelKey] = flag
+    }
+    if (Object.keys(inner).length > 0) output[userId] = inner
+  }
+  return output
+}
+
+function normalizeCustomerModelRoutingOverrides(
+  raw: unknown,
+  models: ServiceConfigModel[],
+): Record<string, Record<string, string>> {
+  if (!isRecord(raw)) return {}
+  const businessByKey = new Map<string, ReturnType<typeof listNoriBusinessModels>[number]>(
+    listNoriBusinessModels().map((model) => [model.key, model]),
+  )
+  const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+  const output: Record<string, Record<string, string>> = {}
+  for (const [rawUserId, rawMap] of Object.entries(raw).slice(0, 500)) {
+    const userId = string(rawUserId)
+    if (!userId || userId.length > 191 || !isRecord(rawMap)) continue
+    const inner: Record<string, string> = {}
+    for (const [modelKey, rawTarget] of Object.entries(rawMap)) {
+      const business = businessByKey.get(modelKey)
+      const target = string(rawTarget)
+      if (!business || !target) continue
+      const runtimeModel = modelByKey.get(target)
+      if (!runtimeModel || runtimeModel.type !== business.type) continue
+      inner[modelKey] = target
+    }
+    if (Object.keys(inner).length > 0) output[userId] = inner
+  }
+  return output
+}
+
+export function isPlatformVideoModelEnabled(modelKey: string): boolean {
+  const enabled = materializeEnvironmentConfig(readServiceConfig()).llm?.modelEnabled
+  return enabled?.[modelKey] === true
+}
+
+export function isPlatformVideoModel(modelKey: string): boolean {
+  return fixedPlatformModels().some((model) => model.type === 'video' && composeModelKey(model.provider, model.modelId) === modelKey)
 }
 
 function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
@@ -218,13 +332,13 @@ function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
       name: PROVIDER_NAMES[id],
       baseUrl: PROVIDER_BASE_URLS[id],
       ...(current?.assetGroupId && id === 'kuaizi' ? { assetGroupId: current.assetGroupId } : {}),
+      ...(id === 'kuaizi' && (string(current?.seedance25IntlKzep) || environmentKuaiziIntlKzep()) ? { seedance25IntlKzep: string(current?.seedance25IntlKzep) || environmentKuaiziIntlKzep() } : {}),
       apiKey: [current?.apiKey, environmentProviderKey(id)].map(string).find(isUsableServiceSecret) || '',
     }
   })
   config.llm.models = fixedPlatformModels()
   const modelByKey = new Map(config.llm.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
   const canvasAgentDefault = string(config.llm.modelRouting?.[CANVAS_AGENT_SELECTION_KEY])
-  const tggKeyUsable = isUsableServiceSecret(config.llm.providers.find((provider) => provider.id === 'tgg')?.apiKey)
   config.llm.modelRouting = Object.fromEntries(listNoriBusinessModels().map((businessModel) => {
     const currentRouting = config.llm!.modelRouting || {}
     const hasConfigured = Object.hasOwn(currentRouting, businessModel.key)
@@ -233,13 +347,21 @@ function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
     // capability. Never replace it with the suggested route.
     if (hasConfigured && !configured) return [businessModel.key, '']
     const suggested = string(businessModel.suggestedRoute)
-    const fallback = defaultRouteFor(suggested, tggKeyUsable, modelByKey)
     const routed = Boolean(suggested)
       && modelByKey.get(configured)?.type === businessModel.type
-      && (!isTggRoute(configured) || tggKeyUsable)
-    return [businessModel.key, routed ? configured : fallback]
+    return [businessModel.key, routed ? configured : suggested]
   }))
   config.llm.modelRouting[CANVAS_AGENT_SELECTION_KEY] = canvasAgentDefault
+  config.llm.modelEnabled = materializeModelEnabled(config.llm.models, config.llm.modelEnabled, config.llm.modelRouting)
+  config.llm.internalModelViewUserIds = normalizeInternalModelViewUserIds(config.llm.internalModelViewUserIds)
+  config.llm.customerVisibleModels = materializeCustomerVisibleModels(
+    config.llm.customerVisibleModels,
+    config.llm.modelRouting,
+    config.llm.modelEnabled,
+    config.llm.providers,
+  )
+  config.llm.customerModelOverrides = normalizeCustomerModelOverrides(config.llm.customerModelOverrides)
+  config.llm.customerModelRoutingOverrides = normalizeCustomerModelRoutingOverrides(config.llm.customerModelRoutingOverrides, config.llm.models)
   const defaultModels = { ...(config.llm.defaultModels || {}) }
   for (const [field, expectedType] of Object.entries(DEFAULT_MODEL_TYPES) as Array<[keyof ServiceConfigDefaultModels, UnifiedModelType]>) {
     const current = parseModelKeyStrict(defaultModels[field])
@@ -267,12 +389,19 @@ function normalizeProvider(raw: unknown, index: number, currentById: Map<string,
   if (suppliedBaseUrl && suppliedBaseUrl !== baseUrl) throw new Error(`SERVICE_CONFIG_INVALID: ${id} must use the official base URL`)
   const assetGroupId = string(raw.assetGroupId) || string(existing?.assetGroupId)
   if (assetGroupId.length > 191) throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].assetGroupId`)
+  const seedance25IntlKzep = id === 'kuaizi'
+    ? (Object.hasOwn(raw, 'seedance25IntlKzep') ? string(raw.seedance25IntlKzep) : string(existing?.seedance25IntlKzep))
+    : ''
+  if (seedance25IntlKzep && !isUsableKuaiziKzep(seedance25IntlKzep)) {
+    throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].seedance25IntlKzep 格式无效（需以 kzep_ 开头）`)
+  }
   return {
     id,
     name: PROVIDER_NAMES[id],
     baseUrl,
     ...(apiKey ? { apiKey } : {}),
     ...(id === 'kuaizi' && assetGroupId ? { assetGroupId } : {}),
+    ...(id === 'kuaizi' && seedance25IntlKzep ? { seedance25IntlKzep } : {}),
   }
 }
 
@@ -319,7 +448,6 @@ function normalizeRoutingInput(
   input: unknown,
   current: Record<string, string>,
   models: ServiceConfigModel[],
-  tggKeyUsableBefore: boolean,
 ): Record<string, string> {
   const next = { ...current }
   if (isRecord(input)) {
@@ -342,11 +470,6 @@ function normalizeRoutingInput(
       else delete next[model.key]
     }
   }
-  // A TGG default that was only shown as empty because no key existed yet is not
-  // an administrator disable; leave it unset so it applies once the key is usable.
-  for (const model of listNoriBusinessModels()) {
-    if (isTggRoute(model.suggestedRoute) && !tggKeyUsableBefore && !next[model.key]) delete next[model.key]
-  }
   return next
 }
 
@@ -367,7 +490,8 @@ function normalizeAgentModels(raw: unknown): Record<string, CanvasAgentModelSett
 export async function savePlatformServiceConfig(input: unknown): Promise<PlatformServiceConfigResponse> {
   if (!isRecord(input)) throw new Error('SERVICE_CONFIG_INVALID: payload')
   const current = readMaterializedPlatformServiceConfig()
-  const rawProviders = Array.isArray(input.providers) ? input.providers : []
+  const rawProviders = (Array.isArray(input.providers) ? input.providers : [])
+    .filter((provider) => !(isRecord(provider) && string(provider.id).toLowerCase() === 'tgg'))
   for (const provider of rawProviders) {
     const id = isRecord(provider) ? string(provider.id).toLowerCase() : ''
     if (id && !PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number])) {
@@ -381,7 +505,7 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     providerIds.size !== providers.length
     || !BASE_PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng and TGG exactly once')
+    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng, AILink and TopenRouter exactly once')
   }
   // Older config clients can continue saving the original five providers.
   for (const provider of ['kimi', 'openai'] as const) {
@@ -389,23 +513,123 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
   }
 
   const models = fixedPlatformModels()
-  const tggKeyUsableBefore = isUsableServiceSecret(current.llm?.providers?.find((provider) => provider.id === 'tgg')?.apiKey)
-  const modelRouting = normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models, tggKeyUsableBefore)
+  const modelRouting = normalizeRoutingInput(input.modelRouting, current.llm?.modelRouting || {}, models)
   const routing = isRecord(input.modelRouting) ? input.modelRouting : {}
   const hasAgentDefault = Object.hasOwn(routing, CANVAS_AGENT_SELECTION_KEY)
   if (hasAgentDefault) {
     if (typeof routing[CANVAS_AGENT_SELECTION_KEY] !== 'string') throw new Error('SERVICE_CONFIG_INVALID: 喵导默认模型格式无效')
     modelRouting[CANVAS_AGENT_SELECTION_KEY] = string(routing[CANVAS_AGENT_SELECTION_KEY])
   }
-  const agentModels = input.agentModels === undefined ? current.llm?.agentModels ?? {} : normalizeAgentModels(input.agentModels)
-  // Routing to TGG without a usable key would silently break every video task
-  // on that route; reject the save instead of writing an unusable config.
-  if (
-    Object.values(modelRouting).some((value) => getRawProviderKey(value).toLowerCase() === 'tgg')
-    && !isUsableServiceSecret(providers.find((provider) => provider.id === 'tgg')?.apiKey)
-  ) {
-    throw new Error('SERVICE_CONFIG_INVALID: TGG 尚未配置 API Key，不能把视频路由到 TGG')
+  const modelEnabled = { ...(current.llm?.modelEnabled || {}) }
+  if (input.modelEnabled !== undefined) {
+    if (!isRecord(input.modelEnabled)) throw new Error('SERVICE_CONFIG_INVALID: modelEnabled')
+    const videoKeys = new Set(models.filter((model) => model.type === 'video').map((model) => composeModelKey(model.provider, model.modelId)))
+    for (const [key, value] of Object.entries(input.modelEnabled)) {
+      if (!videoKeys.has(key) || typeof value !== 'boolean') throw new Error(`SERVICE_CONFIG_INVALID: modelEnabled.${key}`)
+      const targetProvider = providers.find((provider) => provider.id === getRawProviderKey(key).toLowerCase())
+      if (value && !isUsableServiceSecret(targetProvider?.apiKey)) {
+        throw new Error(`SERVICE_CONFIG_INVALID: ${PROVIDER_NAMES[getRawProviderKey(key).toLowerCase()] || key} 尚未配置 API Key，不能开启其模型`)
+      }
+      if (value && key === KUAIZI_SEEDANCE_25_INTL_MODEL_KEY && !isUsableKuaiziKzep(targetProvider?.seedance25IntlKzep || environmentKuaiziIntlKzep())) {
+        throw new Error('SERVICE_CONFIG_INVALID: Kuaizi 尚未配置 Seedance 2.5 国际版 EP (kzep)，不能开启该模型')
+      }
+      modelEnabled[key] = value
+    }
   }
+  const validBusinessKeys = new Set<string>(listNoriBusinessModels().map((model) => model.key))
+  let internalModelViewUserIds = current.llm?.internalModelViewUserIds || []
+  if (input.internalModelViewUserIds !== undefined) {
+    if (!Array.isArray(input.internalModelViewUserIds)) {
+      throw new Error('SERVICE_CONFIG_INVALID: internalModelViewUserIds 必须是数组')
+    }
+    const normalizedIds: string[] = []
+    for (const item of input.internalModelViewUserIds) {
+      if (typeof item !== 'string' || !item.trim() || item.trim().length > 191) {
+        throw new Error('SERVICE_CONFIG_INVALID: internalModelViewUserIds 包含无效账号 ID')
+      }
+      if (!normalizedIds.includes(item.trim())) normalizedIds.push(item.trim())
+    }
+    if (normalizedIds.length > 100) {
+      throw new Error('SERVICE_CONFIG_INVALID: internalModelViewUserIds 最多支持 100 个账号')
+    }
+    internalModelViewUserIds = normalizedIds
+  }
+  const customerVisibleModels = { ...(current.llm?.customerVisibleModels || {}) }
+  if (input.customerVisibleModels !== undefined) {
+    if (!isRecord(input.customerVisibleModels)) {
+      throw new Error('SERVICE_CONFIG_INVALID: customerVisibleModels')
+    }
+    for (const [key, value] of Object.entries(input.customerVisibleModels)) {
+      if (!validBusinessKeys.has(key) || typeof value !== 'boolean') {
+        throw new Error(`SERVICE_CONFIG_INVALID: customerVisibleModels.${key}`)
+      }
+      customerVisibleModels[key] = value
+    }
+  }
+  let customerModelOverrides = current.llm?.customerModelOverrides || {}
+  if (input.customerModelOverrides !== undefined) {
+    if (!isRecord(input.customerModelOverrides)) {
+      throw new Error('SERVICE_CONFIG_INVALID: customerModelOverrides')
+    }
+    const nextOverrides: Record<string, Record<string, boolean>> = {}
+    const entries = Object.entries(input.customerModelOverrides)
+    if (entries.length > 500) {
+      throw new Error('SERVICE_CONFIG_INVALID: customerModelOverrides 最多支持 500 个客户配置')
+    }
+    for (const [rawUserId, rawMap] of entries) {
+      const userId = string(rawUserId)
+      if (!userId || userId.length > 191 || !isRecord(rawMap)) {
+        throw new Error(`SERVICE_CONFIG_INVALID: customerModelOverrides.${rawUserId}`)
+      }
+      const inner: Record<string, boolean> = {}
+      for (const [modelKey, flag] of Object.entries(rawMap)) {
+        if (!validBusinessKeys.has(modelKey) || typeof flag !== 'boolean') {
+          throw new Error(`SERVICE_CONFIG_INVALID: customerModelOverrides.${userId}.${modelKey}`)
+        }
+        inner[modelKey] = flag
+      }
+      if (Object.keys(inner).length > 0) nextOverrides[userId] = inner
+    }
+    customerModelOverrides = nextOverrides
+  }
+  let customerModelRoutingOverrides = current.llm?.customerModelRoutingOverrides || {}
+  if (input.customerModelRoutingOverrides !== undefined) {
+    if (!isRecord(input.customerModelRoutingOverrides)) {
+      throw new Error('SERVICE_CONFIG_INVALID: customerModelRoutingOverrides')
+    }
+    const businessByKey = new Map<string, ReturnType<typeof listNoriBusinessModels>[number]>(
+      listNoriBusinessModels().map((model) => [model.key, model]),
+    )
+    const modelByKey = new Map(models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
+    const nextRoutingOverrides: Record<string, Record<string, string>> = {}
+    const entries = Object.entries(input.customerModelRoutingOverrides)
+    if (entries.length > 500) {
+      throw new Error('SERVICE_CONFIG_INVALID: customerModelRoutingOverrides 最多支持 500 个客户配置')
+    }
+    for (const [rawUserId, rawMap] of entries) {
+      const userId = string(rawUserId)
+      if (!userId || userId.length > 191 || !isRecord(rawMap)) {
+        throw new Error(`SERVICE_CONFIG_INVALID: customerModelRoutingOverrides.${rawUserId}`)
+      }
+      const inner: Record<string, string> = {}
+      for (const [modelKey, rawTarget] of Object.entries(rawMap)) {
+        const business = businessByKey.get(modelKey)
+        if (!business || typeof rawTarget !== 'string') {
+          throw new Error(`SERVICE_CONFIG_INVALID: customerModelRoutingOverrides.${userId}.${modelKey}`)
+        }
+        const target = string(rawTarget)
+        if (!target) continue
+        const runtimeModel = modelByKey.get(target)
+        if (!runtimeModel || runtimeModel.type !== business.type) {
+          throw new Error(`SERVICE_CONFIG_INVALID: customerModelRoutingOverrides.${userId}.${modelKey} 必须指向同类型的已登记模型`)
+        }
+        inner[modelKey] = target
+      }
+      if (Object.keys(inner).length > 0) nextRoutingOverrides[userId] = inner
+    }
+    customerModelRoutingOverrides = nextRoutingOverrides
+  }
+  const agentModels = input.agentModels === undefined ? current.llm?.agentModels ?? {} : normalizeAgentModels(input.agentModels)
 
   const next: ServiceConfig = {
     storage: normalizeStorage(input.storage, current),
@@ -414,6 +638,11 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
       models,
       defaultModels: isRecord(input.defaultModels) ? input.defaultModels : current.llm?.defaultModels || {},
       modelRouting,
+      modelEnabled,
+      internalModelViewUserIds,
+      customerVisibleModels,
+      customerModelOverrides,
+      customerModelRoutingOverrides,
       agentModels,
     },
   }
@@ -473,6 +702,7 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
       name: provider.name,
       ...(provider.baseUrl ? { baseUrl: provider.baseUrl } : {}),
       ...(provider.assetGroupId ? { assetGroupId: provider.assetGroupId } : {}),
+      ...(provider.seedance25IntlKzep ? { seedance25IntlKzep: provider.seedance25IntlKzep } : {}),
       hasApiKey: isUsableServiceSecret(provider.apiKey) || isUsableServiceSecret(environmentProviderKey(provider.id)),
     })),
     models,
@@ -480,11 +710,17 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
     businessModels: listNoriBusinessModels().map((model) => ({
       key: model.key,
       name: model.name,
+      customerName: model.customerName,
       description: model.description,
       type: model.type,
       tier: model.tier,
     })),
     modelRouting: { ...modelRouting, [CANVAS_AGENT_SELECTION_KEY]: canvasAgentModelCatalog.defaultModelKey ?? '' },
+    modelEnabled: config.llm?.modelEnabled || {},
+    internalModelViewUserIds: config.llm?.internalModelViewUserIds || [],
+    customerVisibleModels: config.llm?.customerVisibleModels || {},
+    customerModelOverrides: config.llm?.customerModelOverrides || {},
+    customerModelRoutingOverrides: config.llm?.customerModelRoutingOverrides || {},
     agentModels: config.llm?.agentModels || {},
     canvasAgentModelCatalog,
     storage: {

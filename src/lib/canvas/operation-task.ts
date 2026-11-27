@@ -1,4 +1,8 @@
 import { createHash } from 'node:crypto'
+import type { AuthSession } from '@/lib/api-auth'
+import { getWorkspaceActor, projectReadScopeWhere, workspaceUserWhere } from '@/lib/collaboration/access'
+import { canActorAccessMaterial, PERSONAL_MATERIAL_PROJECT_ID } from '@/lib/frameos/material-ownership'
+import { resolveStorageKeyFromMediaValue } from '@/lib/media/service'
 import { prisma } from '@/lib/prisma'
 import { publicGenerationTaskId, publicTaskError } from '@/lib/task/public-presentation'
 import { extractStorageKey } from '@/lib/storage'
@@ -39,6 +43,7 @@ export type CanvasOperationTaskPayload = {
   engineKey: string
   modelKey: string
   parameters: Record<string, unknown>
+  actorId?: string | null
   retryOf?: string | null
 }
 
@@ -302,6 +307,7 @@ export function parseCanvasOperationTaskPayload(value: unknown): CanvasOperation
       ...parameters,
       region: parameters.region,
     })
+    const actorId = text(payload.actorId, 191) || null
     return {
       canvasId,
       sourceNodeId,
@@ -311,6 +317,7 @@ export function parseCanvasOperationTaskPayload(value: unknown): CanvasOperation
       engineKey: normalized.engineKey,
       modelKey: normalized.modelKey,
       parameters: normalized.parameters,
+      ...(actorId ? { actorId } : {}),
       retryOf: text(payload.retryOf, 191) || null,
     }
   } catch {
@@ -324,8 +331,26 @@ export function taskTypeForCanvasOperation(operation: CanvasAsyncOperation): Tas
     : TASK_TYPE.CANVAS_VIDEO_OPERATION
 }
 
+async function resolveCanvasMediaStorageKey(value: string | null | undefined): Promise<string | null> {
+  const trimmed = typeof value === 'string' ? value.trim() : ''
+  if (!trimmed) return null
+  if (trimmed.startsWith('/api/storage/sign')) {
+    try {
+      const key = new URL(trimmed, 'http://localhost').searchParams.get('key')?.trim()
+      if (key) return key.replace(/^\/+/, '')
+    } catch {
+      // Fall through to generic storage key resolution.
+    }
+  }
+  const fromMedia = await resolveStorageKeyFromMediaValue(trimmed)
+  if (fromMedia) return fromMedia
+  return extractStorageKey(trimmed)
+}
+
 export async function resolveCanvasOperationSource(params: {
   userId: string
+  actorId?: string | null
+  session?: AuthSession
   projectId: string
   canvasId: string
   sourceNodeId: string
@@ -347,38 +372,99 @@ export async function resolveCanvasOperationSource(params: {
   const nodeData = record(sourceNode?.data)
   if (!sourceNode || !nodeData) throw new CanvasOperationInputError('源媒体节点不存在或类型不匹配。')
 
-  const materialId = text(nodeData.materialId, 191)
-  if (materialId) {
-    const material = await prisma.frameosMaterial.findFirst({
-      where: {
-        id: materialId,
-        userId: params.userId,
-        type: expectedType,
-        status: 'ready',
-        deletedAt: null,
-        projectId: { in: [params.projectId, 'global', 'global-asset-hub'] },
-      },
-      select: { storageKey: true, resultUrl: true },
-    })
-    const materialKey = material?.storageKey || extractStorageKey(material?.resultUrl)
-    if (materialKey) {
-      return {
-        sourceStorageKey: materialKey,
-        sourceTitle: text(nodeData.title, 160) || (expectedType === 'image' ? '画布图片' : '画布视频'),
+  const actor = params.session ? getWorkspaceActor(params.session) : null
+  const workspaceOwnerId = actor?.workspaceOwnerId || params.userId
+  const actorId = actor?.actorId || text(params.actorId, 191) || workspaceOwnerId
+  const [workspaceUsers, readableProjects] = await Promise.all([
+    prisma.user.findMany({
+      where: workspaceUserWhere(workspaceOwnerId),
+      select: { id: true },
+    }),
+    params.session
+      ? prisma.project.findMany({
+        where: projectReadScopeWhere(params.session),
+        select: { id: true },
+      })
+      : Promise.resolve([]),
+  ])
+  const workspaceUserIds = Array.from(new Set([workspaceOwnerId, ...workspaceUsers.map((user) => user.id)]))
+  const readableProjectIds = Array.from(new Set([
+    params.projectId,
+    'global',
+    'global-asset-hub',
+    ...readableProjects.map((project) => project.id),
+  ]))
+
+  const resolveFromNodeData = async (
+    data: Record<string, unknown>,
+    fallbackTitle?: string,
+  ): Promise<{ sourceStorageKey: string; sourceTitle: string } | null> => {
+    const editConfig = record(data.videoEdit)
+    const materialId = text(data.materialId, 191) || text(editConfig?.materialId, 191)
+    const resolvedTitle = text(data.title, 160)
+      || fallbackTitle
+      || (expectedType === 'image' ? '画布图片' : '画布视频')
+    if (materialId) {
+      const material = await prisma.frameosMaterial.findFirst({
+        where: {
+          id: materialId,
+          userId: { in: workspaceUserIds },
+          type: expectedType,
+          status: 'ready',
+          deletedAt: null,
+          OR: [
+            { projectId: { in: readableProjectIds }, personalOwnerId: null },
+            { projectId: { in: [PERSONAL_MATERIAL_PROJECT_ID, ...readableProjectIds] }, personalOwnerId: actorId },
+          ],
+        },
+        select: { storageKey: true, resultUrl: true, projectId: true, personalOwnerId: true },
+      })
+      if (material && (!params.session || canActorAccessMaterial(params.session, material))) {
+        const materialKey = material.storageKey || (await resolveCanvasMediaStorageKey(material.resultUrl))
+        if (materialKey) {
+          return {
+            sourceStorageKey: materialKey,
+            sourceTitle: resolvedTitle,
+          }
+        }
+      }
+    }
+
+    const candidate = text(data.contentUrl, 2_000)
+      || text(expectedType === 'image' ? data.imageUrl : data.videoUrl, 2_000)
+    const storageKey = await resolveCanvasMediaStorageKey(candidate)
+    if (!storageKey) return null
+    return {
+      sourceStorageKey: storageKey,
+      sourceTitle: resolvedTitle,
+    }
+  }
+
+  const direct = await resolveFromNodeData(nodeData)
+  if (direct) return direct
+
+  if (params.operation === 'video_edit') {
+    const videoEdit = record(nodeData.videoEdit)
+    const upstreamNodeId = videoEdit?.sourceKind === 'node' ? text(videoEdit.sourceNodeId, 191) : ''
+    if (upstreamNodeId && upstreamNodeId !== params.sourceNodeId) {
+      const upstreamNode = await prisma.canvasNode.findFirst({
+        where: {
+          id: upstreamNodeId,
+          canvasId: params.canvasId,
+          type: { in: ['video', 'video_edit'] },
+          canvas: { projectId: params.projectId },
+        },
+        select: { data: true },
+      })
+      const upstreamData = record(upstreamNode?.data)
+      if (upstreamData) {
+        const fromUpstream = await resolveFromNodeData(upstreamData, text(nodeData.title, 160) || undefined)
+        if (fromUpstream) return fromUpstream
       }
     }
   }
 
-  const candidate = text(nodeData.contentUrl, 2_000)
-    || text(expectedType === 'image' ? nodeData.imageUrl : nodeData.videoUrl, 2_000)
-  const storageKey = extractStorageKey(candidate)
-  if (!storageKey) {
-    throw new CanvasOperationInputError(`源${expectedType === 'image' ? '图片' : '视频'}尚未保存到素材库，无法执行处理。`)
-  }
-  return {
-    sourceStorageKey: storageKey,
-    sourceTitle: text(nodeData.title, 160) || (expectedType === 'image' ? '画布图片' : '画布视频'),
-  }
+  throw new CanvasOperationInputError(`源${expectedType === 'image' ? '图片' : '视频'}尚未保存到素材库，无法执行处理。`)
 }
 
 export function buildCanvasOperationDedupeKey(payload: CanvasOperationTaskPayload): string {

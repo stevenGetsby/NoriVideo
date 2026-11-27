@@ -62,12 +62,14 @@ export async function postKuaiziApiKey(input: {
   baseUrl?: string
   path: string
   body: Record<string, unknown>
+  extraHeaders?: Record<string, string>
   timeoutMs?: number
   signal?: AbortSignal
 }): Promise<unknown> {
   const response = await fetch(buildKuaiziUrl(input.baseUrl, input.path), {
     method: 'POST',
     headers: {
+      ...(input.extraHeaders || {}),
       ApiKey: input.apiKey,
       'Content-Type': 'application/json',
     },

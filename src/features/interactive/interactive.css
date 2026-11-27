@@ -528,6 +528,13 @@ html[data-nori-theme="light"] .nori-ix-checks li.is-warning span { color: #1f293
 .nori-ix-chapter.is-start .nori-ix-chapter-monogram { display: none; }
 .nori-ix-chapter-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px 4px; }
 .nori-ix-chapter-head strong { min-width: 0; flex: 1; overflow: hidden; color: rgb(var(--nori-text-1)); font-size: 15px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.nori-ix-chapter-edit { display: grid; width: 28px; height: 28px; flex: none; place-items: center; border: 0; border-radius: 7px; color: var(--ix-dim); background: transparent; cursor: pointer; }
+.nori-ix-chapter-edit:hover { color: var(--ix-text); background: rgb(var(--nori-ink) / calc(0.06 * var(--nori-a))); }
+.nori-ix-chapter-edit svg { width: 14px; height: 14px; }
+.nori-ix-chapter-delete { display: inline-flex; height: 28px; align-items: center; justify-content: center; gap: 5px; margin: 0 14px 11px; border: 1px solid rgb(var(--nori-s-f43f5e) / 0.22); border-radius: 8px; color: rgb(var(--nori-t-fda4af)); background: transparent; font: inherit; font-size: 11.5px; cursor: pointer; }
+.nori-ix-chapter-delete:hover { background: rgb(var(--nori-s-f43f5e) / 0.1); }
+.nori-ix-chapter-delete svg { width: 13px; height: 13px; }
+.nori-ix-dialog textarea { min-height: 112px; resize: vertical; line-height: 1.6; }
 .nori-ix-status { height: 24px; flex: none; border: 1px solid var(--ix-line); border-radius: 999px; padding: 0 8px; color: var(--ix-muted); background: var(--ix-field); font: inherit; font-size: 11.5px; font-weight: 600; outline: none; color-scheme: var(--nori-color-scheme); cursor: pointer; }
 .nori-ix-status.is-generating { border-color: rgb(var(--nori-t-38bdf8) / 0.4); color: rgb(var(--nori-t-7dd3fc)); }
 .nori-ix-status.is-review { border-color: rgb(var(--nori-t-fbbf24) / 0.4); color: rgb(var(--nori-t-fcd34d)); }
