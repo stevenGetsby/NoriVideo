@@ -354,7 +354,6 @@ export function CanvasGenerator({
   onFocus,
   onAddReferences,
   onRemoveReference,
-  onChangeReferenceWire,
   onToggleReferenceVoice,
   onSelectLibraryMaterial,
   onMatchPromptMaterials,
@@ -384,7 +383,6 @@ export function CanvasGenerator({
   onFocus: () => void
   onAddReferences?: (request: { type: 'all' | 'image' | 'video' | 'audio'; maxSelected: number }) => void
   onRemoveReference?: (sourceNodeId: string) => void
-  onChangeReferenceWire?: (sourceNodeId: string, selectedReferenceIds: string[]) => void
   onToggleReferenceVoice?: (nodeId: string) => void
   onSelectLibraryMaterial: (material: FrameosMaterialItem) => string | null
   injectedReferenceNodeIds?: string[]
@@ -1992,7 +1990,6 @@ export function CanvasGenerator({
             <span className="canvas-editor-order">{active ? index + 1 : '—'}</span>
             <div className="canvas-editor-row-title"><strong>{reference.data.title}</strong><small>{role} · {wired ? '已连线' : '未连线'}</small></div>
             <button type="button" onClick={() => applyEditorReferences([reference.id], !active)}>{active ? '暂停使用' : '恢复使用'}</button>
-            {onChangeReferenceWire && <button type="button" onClick={() => onChangeReferenceWire(reference.id, referenceNodeIds)}>{wired ? '断开连线' : '在画布连线'}</button>}
           </div>
         })}
           </div>
