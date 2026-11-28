@@ -1021,7 +1021,6 @@ select.fos-input option:disabled { color: rgb(var(--nori-t-797a8c)); }
 .nori-admin-connection-head > div { flex: 1; min-width: 0; }
 .nori-admin-connection-head h3 { margin: 0; font-size: 15px; }
 .nori-admin-connection-head p { margin: 3px 0 0; color: var(--fos-text-3); font-size: 12px; }
-.nori-admin-provider.is-deepseek::before { background: var(--fos-brand-solid); }
 .nori-admin-provider.is-kuaizi::before { background: var(--fos-hue-video); }
 .nori-admin-provider.is-kuaizi .nori-admin-provider-icon { color: var(--fos-hue-image); background: color-mix(in srgb, var(--fos-hue-image) 12%, transparent); }
 .nori-admin-capabilities { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }

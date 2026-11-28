@@ -46,7 +46,7 @@ export interface WorkProject {
   /** Signed URL of a user-provided cover image; null keeps the generative cover. */
   coverImageUrl?: string | null
   /** Which editor created the 作品; absent on legacy DTOs means workflow. */
-  creationMode?: ProjectCreationMode
+  creationMode?: ProjectCreationMode | 'batch_workflow'
   novelPromotionData?: WorkProjectConfig | null
 }
 
@@ -205,7 +205,11 @@ export function normalizeWorkProject(value: unknown): WorkProject | null {
     aspectRatio: optionalText(source.aspectRatio || source.aspect_ratio || config.videoRatio || config.video_ratio),
     artStyle: optionalText(source.artStyle || source.art_style || config.projectStyle || config.project_style || config.artStyle || config.art_style),
     coverImageUrl: optionalText(source.coverImageUrl || source.cover_image_url),
-    creationMode: (source.creationMode ?? source.creation_mode) === 'canvas' ? 'canvas' : 'workflow',
+    creationMode: (source.creationMode ?? source.creation_mode) === 'canvas'
+      ? 'canvas'
+      : (source.creationMode ?? source.creation_mode) === 'batch_workflow'
+        ? 'batch_workflow'
+        : 'workflow',
     novelPromotionData: Object.keys(config).length ? {
       projectLevel: optionalText(config.projectLevel || config.project_level),
       projectLevelName: optionalText(config.projectLevelName || config.project_level_name),

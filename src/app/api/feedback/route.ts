@@ -5,6 +5,8 @@ import {
   appendFeedbackRecord,
   isFeedbackStatus,
   isFeedbackType,
+  normalizeFeedbackAttachments,
+  normalizeFeedbackContext,
   readFeedbackRecords,
   updateFeedbackRecordStatus,
 } from '@/lib/workspace/feedback-store'
@@ -32,27 +34,34 @@ export const POST = apiHandler(async (request: NextRequest) => {
   const authResult = await requireUserAuth()
   if (isErrorResponse(authResult)) return authResult
 
+  const userId = authResult.session.user.id
   const body = await request.json().catch(() => ({})) as Record<string, unknown>
   const type = isFeedbackType(body.type) ? body.type : 'bug'
-  const title = trimText(body.title, 80)
-  const description = trimText(body.description, 1200)
+  const attachments = normalizeFeedbackAttachments(body.attachments, userId)
+  const rawDescription = trimText(body.description, 2000)
+  const rawTitle = trimText(body.title, 80)
+  const description = rawDescription || (attachments.length > 0 ? '（附图反馈）' : '')
+  const title = rawTitle || (rawDescription ? rawDescription.split('\n')[0].slice(0, 40) : (attachments.length > 0 ? `截图反馈（${attachments.length} 张）` : ''))
   const route = trimText(body.route, 240)
   const userAgent = trimText(body.userAgent, 320)
+  const context = normalizeFeedbackContext(body.context)
 
   if (!title || !description) {
     throw new ApiError('INVALID_PARAMS', {
-      message: 'Feedback title and description are required',
+      message: '请填写问题描述或粘贴截图后再提交',
     })
   }
 
   const createdAt = new Date().toISOString()
-  const records = await appendFeedbackRecord(authResult.session.user.id, {
+  const records = await appendFeedbackRecord(userId, {
     id: trimText(body.id, 80) || makeId(),
     type,
     title,
     description,
     route,
     userAgent,
+    attachments,
+    context,
     createdAt,
     status: 'open',
   })

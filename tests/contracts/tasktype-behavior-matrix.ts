@@ -19,6 +19,7 @@ function resolveChainTestByTaskType(taskType: TaskType): string {
   if (
     taskType === 'canvas_text_generation'
     || taskType === 'canvas_storyboard_plan'
+    || taskType === 'workflow_stage_run'
     || taskType === 'analyze_novel'
     || taskType === 'asset_extraction_run'
     || taskType === 'story_to_script_run'

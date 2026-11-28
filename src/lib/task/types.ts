@@ -90,6 +90,7 @@ export const TASK_TYPE = {
   SUPER_AGENT_EXECUTE: 'super_agent_execute',
   EXPORT_DELIVERY: 'export_delivery',
   STORY_RELEASE_BUILD: 'story_release_build',
+  WORKFLOW_STAGE_RUN: 'workflow_stage_run',
 } as const
 
 export type TaskType = (typeof TASK_TYPE)[keyof typeof TASK_TYPE]

@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState, type ImgHTMLAttributes } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type ImgHTMLAttributes } from 'react'
 import { MediaImage, type MediaImageProps } from '@/components/media/MediaImage'
 import { previewLoader } from '../preview-loader'
 
@@ -23,21 +23,23 @@ export function usePreviewSlot(src: string | null | undefined) {
   return { src: src && grantedSrc === src ? src : null, settle }
 }
 
-export function CanvasPreviewImage({ src, onLoad, onError, ...props }: MediaImageProps) {
+export const CanvasPreviewImage = memo(function CanvasPreviewImage({ src, onLoad, onError, draggable = false, ...props }: MediaImageProps) {
   const slot = usePreviewSlot(src)
   return (
     <MediaImage
       {...props}
+      draggable={draggable}
       src={slot.src}
       onLoad={(event) => { slot.settle(); onLoad?.(event) }}
       onError={(event) => { slot.settle(); onError?.(event) }}
     />
   )
-}
+})
 
-export function CanvasPosterImage({
+export const CanvasPosterImage = memo(function CanvasPosterImage({
   src,
   onError,
+  draggable = false,
   ...props
 }: { src: string; onError?: () => void } & Omit<ImgHTMLAttributes<HTMLImageElement>, 'src' | 'onError'>) {
   const slot = usePreviewSlot(src)
@@ -46,10 +48,11 @@ export function CanvasPosterImage({
     // eslint-disable-next-line @next/next/no-img-element
     <img
       {...props}
+      draggable={draggable}
       src={slot.src}
       alt={props.alt ?? ''}
       onLoad={slot.settle}
       onError={() => { slot.settle(); onError?.() }}
     />
   )
-}
+})

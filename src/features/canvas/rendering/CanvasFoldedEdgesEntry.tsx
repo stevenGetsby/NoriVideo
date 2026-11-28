@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import type { CanvasOverviewStore } from './canvas-overview-store'
 import type { ProjectedEdgeSummary } from './useCanvasRenderProjection'
 
@@ -19,7 +19,7 @@ export type CanvasFoldedEdgesEntryProps = {
 const label = (title: string, id: string) => title || `节点 ${id.slice(0, 6)}`
 
 // Edges the render budget leaves undrawn stay reachable here; they still count for generation references.
-export function CanvasFoldedEdgesEntry({ store, describe, onLocate, onDisconnect, aboveMinimap }: CanvasFoldedEdgesEntryProps) {
+export const CanvasFoldedEdgesEntry = memo(function CanvasFoldedEdgesEntry({ store, describe, onLocate, onDisconnect, aboveMinimap }: CanvasFoldedEdgesEntryProps) {
   const snapshot = useSyncExternalStore(store.subscribe, store.get, () => null)
   const count = snapshot?.folded.count ?? 0
   const exact = snapshot?.folded.exact ?? true
@@ -160,4 +160,4 @@ export function CanvasFoldedEdgesEntry({ store, describe, onLocate, onDisconnect
       </button>
     </div>
   )
-}
+})

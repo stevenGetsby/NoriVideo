@@ -260,17 +260,26 @@ export function FosProjectsClient() {
   ): Promise<boolean> => {
     if (!createProjectWork) throw new Error('未选择项目')
     setProgress(
-      draft.scriptFile || draft.importedScriptText?.trim()
-        ? '导入剧本并创建作品…'
-        : draft.initializeEpisodeRange
-          ? '创建作品和空白剧集…'
-          : '创建空白作品…',
+      draft.creationMode === 'batch_workflow'
+        ? draft.batchWorkflow?.initialProduct?.productName
+          || draft.batchWorkflow?.items?.length
+          || draft.batchWorkflow?.initialItem
+          ? '创建视频工作流作品并初始化首个任务…'
+          : '创建视频工作流作品…'
+        : draft.scriptFile || draft.importedScriptText?.trim()
+          ? '导入剧本并创建作品…'
+          : draft.initializeEpisodeRange
+            ? '创建作品和空白剧集…'
+            : '创建空白作品…',
     )
     const form = new FormData()
     form.set('name', draft.name.trim())
     form.set('creationMode', draft.creationMode)
     if (draft.creationMode === 'canvas') form.set('createBlankCanvas', 'true')
-    const inheritMaterialIds = draft.creationMode === 'canvas' && draft.inheritSourceProjectId
+    if (draft.creationMode === 'batch_workflow' && draft.batchWorkflow) {
+      form.set('batchWorkflow', JSON.stringify(draft.batchWorkflow))
+    }
+    const inheritMaterialIds = (draft.creationMode === 'canvas' || draft.creationMode === 'batch_workflow') && draft.inheritSourceProjectId
       ? draft.inheritMaterialIds ?? []
       : []
     if (draft.inheritSourceProjectId && inheritMaterialIds.length > 0) {
@@ -355,11 +364,21 @@ export function FosProjectsClient() {
       notify(`已从${from}继承 ${inherited.copied} 项资产。`, 'success')
       if (inherited.voicesDropped) notify(`${inherited.voicesDropped} 个角色音色来自其他作品，需要在新作品里重新绑定。`, 'warning')
     }
-    setProgress(draft.creationMode === 'canvas' ? '进入画布…' : '进入工作台…')
+    setProgress(
+      draft.creationMode === 'canvas'
+        ? '进入画布…'
+        : draft.creationMode === 'batch_workflow'
+          ? '进入视频工作流…'
+          : '进入工作台…',
+    )
     setCreateProjectWork(null)
-    router.push({ pathname: draft.creationMode === 'canvas'
-      ? `/canvas/${projectId}/${payload.canvas!.id}`
-      : `/workflow/${projectId}/workbench-premium2` })
+    router.push({
+      pathname: draft.creationMode === 'canvas'
+        ? `/canvas/${projectId}/${payload.canvas!.id}`
+        : draft.creationMode === 'batch_workflow'
+          ? `/workflow/${projectId}/batch`
+          : `/workflow/${projectId}/workbench-premium2`,
+    })
     return true
   }
 

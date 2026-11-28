@@ -1,10 +1,21 @@
 import OpenAI from 'openai'
-import { getProviderKey } from '../api-config'
+import { runOpenAICompatChatCompletion } from '@/lib/model-gateway'
+import type { OpenAICompatMessageContent } from '@/lib/model-gateway/types'
+import { getProviderConfig, getProviderKey } from '../api-config'
 import { getInternalLLMStreamCallbacks } from '../llm-observe/internal-stream-context'
 import type { ChatCompletionOptions, ChatCompletionStreamCallbacks } from './types'
 import { emitChunkedText } from './stream-helpers'
 import { getCompletionParts } from './completion-parts'
-import { _ulogError, resolveLlmRuntimeModel } from './runtime-shared'
+import {
+  _ulogError,
+  completionUsageSummary,
+  isRetryableError,
+  llmLogger,
+  logLlmRawOutput,
+  recordCompletionUsage,
+  recordFailedCompletionUsage,
+  resolveLlmRuntimeModel,
+} from './runtime-shared'
 
 export async function chatCompletionWithVision(
   userId: string,
@@ -24,11 +35,83 @@ export async function chatCompletionWithVision(
     throw new Error('ANALYSIS_MODEL_NOT_CONFIGURED: 请先在设置页面配置分析模型')
   }
   const selection = await resolveLlmRuntimeModel(userId, model)
-  const providerKey = getProviderKey(selection.provider).toLowerCase()
-  if (providerKey !== 'deepseek') {
-    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 DeepSeek 官方 API (${selection.provider})`)
+  const provider = selection.provider
+  const providerKey = getProviderKey(provider).toLowerCase()
+  if (providerKey !== 'openlux') {
+    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本与多模态理解仅支持 OpenLux API (${provider})`)
   }
-  throw new Error('VISION_NOT_SUPPORTED: DeepSeek 官方文本模型不支持图片理解，请改用文字描述')
+  if (selection.llmProtocol !== 'chat-completions') {
+    throw new Error(`MODEL_LLM_PROTOCOL_REQUIRED: ${selection.modelKey} 必须使用 chat-completions`)
+  }
+  await getProviderConfig(userId, provider, selection.modelId)
+
+  const validImageUrls = imageUrls
+    .map((item) => (typeof item === 'string' ? item.trim() : ''))
+    .filter(Boolean)
+  const content: OpenAICompatMessageContent = validImageUrls.length > 0
+    ? [
+        { type: 'text', text: textPrompt },
+        ...validImageUrls.map((url) => ({
+          type: 'image_url' as const,
+          image_url: { url },
+        })),
+      ]
+    : textPrompt
+
+  const projectId = options.projectId?.trim() || undefined
+  const temperature = options.temperature ?? 0.7
+  const maxRetries = options.maxRetries ?? 2
+  let lastError: Error | null = null
+
+  for (let attempt = 1; attempt <= maxRetries + 1; attempt++) {
+    const startedAt = Date.now()
+    try {
+      const completion = await runOpenAICompatChatCompletion({
+        userId,
+        providerId: provider,
+        modelId: selection.modelId,
+        messages: [{ role: 'user', content }],
+        temperature,
+      })
+      const parts = getCompletionParts(completion)
+      logLlmRawOutput({
+        userId,
+        projectId,
+        provider: providerKey,
+        modelId: selection.modelId,
+        modelKey: selection.modelKey,
+        stream: false,
+        action: options.action || 'chat-completion-vision',
+        text: parts.text,
+        reasoning: parts.reasoning,
+        usage: completionUsageSummary(completion),
+      })
+      recordCompletionUsage(selection.modelKey, completion, {
+        userId,
+        provider,
+        modelKey: selection.modelKey,
+        projectId,
+        operation: options.action || 'chat-completion-vision',
+        latencyMs: Date.now() - startedAt,
+      })
+      return completion
+    } catch (error) {
+      lastError = error instanceof Error ? error : new Error(String(error))
+      llmLogger.warn({ action: 'llm.vision.attempt_failed', message: lastError.message, provider })
+      if (!isRetryableError(error) || attempt > maxRetries) break
+      await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * 2 ** (attempt - 1), 5000)))
+    }
+  }
+
+  recordFailedCompletionUsage({
+    userId,
+    provider,
+    modelKey: selection.modelKey,
+    projectId,
+    operation: options.action || 'chat-completion-vision',
+    errorCode: lastError?.name || 'LLM_VISION_CALL_FAILED',
+  })
+  throw lastError || new Error('LLM 多模态调用失败')
 }
 
 export async function chatCompletionWithVisionStream(

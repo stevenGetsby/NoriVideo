@@ -35,13 +35,13 @@ export async function chatCompletion(
   const selection = await resolveLlmRuntimeModel(userId, model)
   const provider = selection.provider
   const providerKey = getProviderKey(provider).toLowerCase()
-  if (providerKey !== 'deepseek') {
-    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 DeepSeek 官方 API (${provider})`)
+  if (providerKey !== 'openlux') {
+    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 OpenLux API (${provider})`)
   }
   if (selection.llmProtocol !== 'chat-completions') {
     throw new Error(`MODEL_LLM_PROTOCOL_REQUIRED: ${selection.modelKey} 必须使用 chat-completions`)
   }
-  await getProviderConfig(userId, provider)
+  await getProviderConfig(userId, provider, selection.modelId)
   const projectId = options.projectId?.trim() || undefined
   const temperature = options.temperature ?? 0.7
   const reasoning = options.reasoning ?? true
@@ -66,7 +66,7 @@ export async function chatCompletion(
         modelKey: selection.modelKey, stream: false, action: options.action,
         text: parts.text, reasoning: parts.reasoning, usage: completionUsageSummary(completion),
       })
-      recordCompletionUsage(selection.modelId, completion, {
+      recordCompletionUsage(selection.modelKey, completion, {
         userId, provider, modelKey: selection.modelKey, projectId,
         operation: options.action || 'chat-completion', latencyMs: Date.now() - startedAt,
       })

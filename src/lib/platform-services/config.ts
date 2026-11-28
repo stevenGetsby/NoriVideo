@@ -20,6 +20,11 @@ import { CANVAS_AGENT_MODEL_CANDIDATES, CANVAS_AGENT_PROVIDER_PRESETS } from '@/
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { KUAIZI_SEEDANCE_25_INTL_MODEL_KEY, listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
 import { listOpenLuxSelectableModels } from '@/lib/providers/openlux/catalog'
+import {
+  isOpenLuxTextKeyGroup,
+  OPENLUX_TEXT_KEY_GROUPS,
+  type OpenLuxTextKeyGroup,
+} from '@/lib/providers/openlux/groups'
 import { listAilinkSelectableModels } from '@/lib/providers/ailink/catalog'
 import { listTopenrouterSelectableModels } from '@/lib/providers/topenrouter/catalog'
 import {
@@ -39,32 +44,30 @@ const DEFAULT_MODEL_TYPES: Record<keyof ServiceConfigDefaultModels, UnifiedModel
   lipSyncModel: 'lipsync',
 }
 const PROVIDER_BASE_URLS = {
-  deepseek: 'https://api.deepseek.com/v1',
   openlux: 'https://api.openlux.ai/v1',
   kuaizi: 'https://aiopenapi.kuaizi.cn',
   huimengi: 'https://api.huimengi.com',
   ailink: 'https://ailink.jinghua.security',
   topenrouter: 'https://tp-api.chinadatapay.com:8000',
-  kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.baseURL,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.baseURL,
 } as const
-const BASE_PLATFORM_PROVIDER_IDS = ['deepseek', 'openlux', 'kuaizi', 'huimengi', 'ailink', 'topenrouter'] as const
-const PLATFORM_PROVIDER_IDS = [...BASE_PLATFORM_PROVIDER_IDS, 'kimi', 'openai'] as const
+const BASE_PLATFORM_PROVIDER_IDS = ['openlux', 'kuaizi', 'huimengi', 'ailink', 'topenrouter'] as const
+const PLATFORM_PROVIDER_IDS = [...BASE_PLATFORM_PROVIDER_IDS, 'openai'] as const
+const LEGACY_IGNORED_PROVIDER_IDS = new Set(['tgg', 'deepseek', 'kimi'])
 const PROVIDER_NAMES: Readonly<Record<string, string>> = {
-  deepseek: 'DeepSeek 官方',
   openlux: 'OpenLux API',
   kuaizi: 'Kuaizi API',
   huimengi: '绘梦工坊 API',
   ailink: 'AILink API',
   topenrouter: 'TopenRouter API',
-  kimi: CANVAS_AGENT_PROVIDER_PRESETS.kimi.name,
   openai: CANVAS_AGENT_PROVIDER_PRESETS.openai.name,
 }
 
 type JsonRecord = Record<string, unknown>
 
-export interface PlatformServiceProvider extends Omit<ServiceConfigProvider, 'apiKey'> {
+export interface PlatformServiceProvider extends Omit<ServiceConfigProvider, 'apiKey' | 'groupApiKeys'> {
   hasApiKey: boolean
+  groupApiKeyStatus?: Record<string, boolean>
 }
 
 export interface PlatformStorageConfig {
@@ -161,24 +164,54 @@ export function environmentKuaiziIntlKzep(): string {
   return isUsableKuaiziKzep(value) ? value : ''
 }
 
+export function environmentOpenLuxGroupKeys(): Partial<Record<OpenLuxTextKeyGroup, string>> {
+  const result: Partial<Record<OpenLuxTextKeyGroup, string>> = {}
+  for (const group of OPENLUX_TEXT_KEY_GROUPS) {
+    const value = string(process.env[group.envKey])
+    if (isUsableServiceSecret(value)) result[group.id] = value
+  }
+  return result
+}
+
+function mergeOpenLuxGroupApiKeys(
+  rawGroupKeys: unknown,
+  existingGroupKeys?: Record<string, string>,
+): Record<string, string> | undefined {
+  if (rawGroupKeys !== undefined && !isRecord(rawGroupKeys)) {
+    throw new Error('SERVICE_CONFIG_INVALID: openlux.groupApiKeys must be an object')
+  }
+  const incoming = isRecord(rawGroupKeys) ? rawGroupKeys : {}
+  for (const key of Object.keys(incoming)) {
+    if (!isOpenLuxTextKeyGroup(key)) {
+      throw new Error(`SERVICE_CONFIG_INVALID: unsupported OpenLux key group ${key}`)
+    }
+  }
+  const envKeys = environmentOpenLuxGroupKeys()
+  const merged: Record<string, string> = {}
+  for (const group of OPENLUX_TEXT_KEY_GROUPS) {
+    const chosen = [incoming[group.id], existingGroupKeys?.[group.id], envKeys[group.id]]
+      .map(string)
+      .find(isUsableServiceSecret) || ''
+    if (chosen) merged[group.id] = chosen
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined
+}
+
 export function environmentProviderKey(providerId: string): string {
   const providerKey = getRawProviderKey(providerId).toLowerCase()
-  if (providerKey === 'deepseek') return string(process.env.DEEPSEEK_API_KEY)
   if (providerKey === 'openlux') return string(process.env.OPENLUX_API_KEY)
   if (providerKey === 'kuaizi') return string(process.env.KUAIZI_API_KEY)
   if (providerKey === 'huimengi') return string(process.env.HUIMENGI_API_KEY)
   if (providerKey === 'ailink') return string(process.env.AILINK_API_KEY)
   if (providerKey === 'topenrouter') return string(process.env.TOPENROUTER_API_KEY)
-  if (providerKey === 'kimi' || providerKey === 'openai') {
-    return string(process.env[CANVAS_AGENT_PROVIDER_PRESETS[providerKey].envKey])
+  if (providerKey === 'openai') {
+    return string(process.env[CANVAS_AGENT_PROVIDER_PRESETS.openai.envKey])
   }
   return ''
 }
 
 export function fixedPlatformModels(): ServiceConfigModel[] {
   return [
-    { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-chat', llmProtocol: 'chat-completions' },
-    { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: 'deepseek', modelKey: 'deepseek::deepseek-reasoner', llmProtocol: 'chat-completions' },
     // Only models with a verified pricing entry are selectable. Registered
     // models without a deterministic price stay visible in the discovery
     // catalog but cannot be routed to a paying workflow.
@@ -188,6 +221,7 @@ export function fixedPlatformModels(): ServiceConfigModel[] {
       type: model.modality,
       provider: 'openlux',
       modelKey: `openlux::${model.modelId}`,
+      ...(model.modality === 'llm' ? { llmProtocol: 'chat-completions' as const } : {}),
     })),
     // Images now run on OpenLux only; Kuaizi keeps video and speech.
     ...listKuaiziCatalogModels()
@@ -327,12 +361,14 @@ function materializeEnvironmentConfig(raw: ServiceConfig): ServiceConfig {
   config.llm ||= {}
   config.llm.providers = PLATFORM_PROVIDER_IDS.map((id) => {
     const current = currentProviders.get(id)
+    const groupApiKeys = id === 'openlux' ? mergeOpenLuxGroupApiKeys(undefined, current?.groupApiKeys) : undefined
     return {
       id,
       name: PROVIDER_NAMES[id],
       baseUrl: PROVIDER_BASE_URLS[id],
       ...(current?.assetGroupId && id === 'kuaizi' ? { assetGroupId: current.assetGroupId } : {}),
       ...(id === 'kuaizi' && (string(current?.seedance25IntlKzep) || environmentKuaiziIntlKzep()) ? { seedance25IntlKzep: string(current?.seedance25IntlKzep) || environmentKuaiziIntlKzep() } : {}),
+      ...(groupApiKeys ? { groupApiKeys } : {}),
       apiKey: [current?.apiKey, environmentProviderKey(id)].map(string).find(isUsableServiceSecret) || '',
     }
   })
@@ -395,11 +431,15 @@ function normalizeProvider(raw: unknown, index: number, currentById: Map<string,
   if (seedance25IntlKzep && !isUsableKuaiziKzep(seedance25IntlKzep)) {
     throw new Error(`SERVICE_CONFIG_INVALID: providers[${index}].seedance25IntlKzep 格式无效（需以 kzep_ 开头）`)
   }
+  const groupApiKeys = id === 'openlux'
+    ? mergeOpenLuxGroupApiKeys(raw.groupApiKeys, existing?.groupApiKeys)
+    : undefined
   return {
     id,
     name: PROVIDER_NAMES[id],
     baseUrl,
     ...(apiKey ? { apiKey } : {}),
+    ...(groupApiKeys ? { groupApiKeys } : {}),
     ...(id === 'kuaizi' && assetGroupId ? { assetGroupId } : {}),
     ...(id === 'kuaizi' && seedance25IntlKzep ? { seedance25IntlKzep } : {}),
   }
@@ -491,7 +531,7 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
   if (!isRecord(input)) throw new Error('SERVICE_CONFIG_INVALID: payload')
   const current = readMaterializedPlatformServiceConfig()
   const rawProviders = (Array.isArray(input.providers) ? input.providers : [])
-    .filter((provider) => !(isRecord(provider) && string(provider.id).toLowerCase() === 'tgg'))
+    .filter((provider) => !(isRecord(provider) && LEGACY_IGNORED_PROVIDER_IDS.has(string(provider.id).toLowerCase())))
   for (const provider of rawProviders) {
     const id = isRecord(provider) ? string(provider.id).toLowerCase() : ''
     if (id && !PLATFORM_PROVIDER_IDS.includes(id as typeof PLATFORM_PROVIDER_IDS[number])) {
@@ -505,10 +545,10 @@ export async function savePlatformServiceConfig(input: unknown): Promise<Platfor
     providerIds.size !== providers.length
     || !BASE_PLATFORM_PROVIDER_IDS.every((providerId) => providerIds.has(providerId))
   ) {
-    throw new Error('SERVICE_CONFIG_INVALID: providers must include DeepSeek, OpenLux, Kuaizi, HuiMeng, AILink and TopenRouter exactly once')
+    throw new Error('SERVICE_CONFIG_INVALID: providers must include OpenLux, Kuaizi, HuiMeng, AILink and TopenRouter exactly once')
   }
-  // Older config clients can continue saving the original five providers.
-  for (const provider of ['kimi', 'openai'] as const) {
+  // Older config clients can continue saving without the optional Canvas Agent providers.
+  for (const provider of ['openai'] as const) {
     if (!providerIds.has(provider)) providers.push(normalizeProvider({ id: provider }, providers.length, currentById))
   }
 
@@ -704,6 +744,12 @@ export function getPlatformServiceConfigResponse(): PlatformServiceConfigRespons
       ...(provider.assetGroupId ? { assetGroupId: provider.assetGroupId } : {}),
       ...(provider.seedance25IntlKzep ? { seedance25IntlKzep: provider.seedance25IntlKzep } : {}),
       hasApiKey: isUsableServiceSecret(provider.apiKey) || isUsableServiceSecret(environmentProviderKey(provider.id)),
+      ...(provider.id === 'openlux' ? {
+        groupApiKeyStatus: Object.fromEntries(OPENLUX_TEXT_KEY_GROUPS.map((group) => [
+          group.id,
+          isUsableServiceSecret(provider.groupApiKeys?.[group.id]) || isUsableServiceSecret(process.env[group.envKey]),
+        ])),
+      } : {}),
     })),
     models,
     defaultModels: config.llm?.defaultModels || {},

@@ -23,6 +23,10 @@ type ContentItem =
   | { type: 'video_url'; video_url: { url: string }; role: 'reference_video' }
   | { type: 'audio_url'; audio_url: { url: string }; role: 'reference_audio' }
 
+type SeedanceOmniReferenceTaskType = 'auto' | 'reference' | 'edit' | 'extend'
+
+const SEEDANCE_25_TASK_TYPES = new Set<SeedanceOmniReferenceTaskType>(['auto', 'reference', 'edit', 'extend'])
+
 function stringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map(readString).filter(Boolean) : []
 }
@@ -43,16 +47,26 @@ function pickAllowed(value: string, allowed: readonly string[], code: string): s
   return candidate
 }
 
-function normalizeDuration(value: unknown, range: readonly [number, number]): number | undefined {
+function normalizeDuration(
+  value: unknown,
+  range: readonly [number, number],
+  allowAdaptiveDuration = false,
+): number | undefined {
   if (value === undefined || value === null || value === '') return undefined
   const parsed = readFiniteNumber(value)
-  if (parsed === undefined || !Number.isInteger(parsed) || parsed < range[0] || parsed > range[1]) {
+  if (parsed === undefined || !Number.isInteger(parsed)) {
+    throw new Error(`TOPENROUTER_VIDEO_DURATION_UNSUPPORTED: ${String(value)}`)
+  }
+  if (allowAdaptiveDuration && parsed === -1) return -1
+  if (parsed < range[0] || parsed > range[1]) {
     throw new Error(`TOPENROUTER_VIDEO_DURATION_UNSUPPORTED: ${String(value)}`)
   }
   return parsed
 }
 
-export async function generateTopenrouterVideo(params: TopenrouterVideoGenerateParams): Promise<GenerateResult> {
+export async function buildTopenrouterVideoRequest(
+  params: TopenrouterVideoGenerateParams,
+): Promise<{ model: ReturnType<typeof getTopenrouterModelDefinition>; body: Record<string, unknown> }> {
   const model = getTopenrouterModelDefinition(params.options.modelId)
 
   const prompt = readString(params.prompt) || readString(params.options.prompt)
@@ -79,6 +93,22 @@ export async function generateTopenrouterVideo(params: TopenrouterVideoGenerateP
     throw new Error('TOPENROUTER_VIDEO_CONTENT_REQUIRED')
   }
 
+  const hasFirstLastFrame = Boolean(firstFrame || lastFrame)
+  const hasReferenceVideo = referenceVideoUrls.length > 0
+  const rawRequestedTaskType = readString(
+    params.options.omniReferenceTaskType ?? params.options.omni_reference_task_type,
+  ).toLowerCase()
+  if (rawRequestedTaskType && !SEEDANCE_25_TASK_TYPES.has(rawRequestedTaskType as SeedanceOmniReferenceTaskType)) {
+    throw new Error(`TOPENROUTER_SEEDANCE_OMNI_REFERENCE_TASK_TYPE_UNSUPPORTED: ${rawRequestedTaskType}`)
+  }
+  const omniReferenceTaskType: Exclude<SeedanceOmniReferenceTaskType, 'auto'> | '' =
+    rawRequestedTaskType && rawRequestedTaskType !== 'auto'
+      ? rawRequestedTaskType as Exclude<SeedanceOmniReferenceTaskType, 'auto'>
+      : ''
+  if ((omniReferenceTaskType === 'edit' || omniReferenceTaskType === 'extend') && !hasReferenceVideo) {
+    throw new Error(`TOPENROUTER_SEEDANCE_${omniReferenceTaskType.toUpperCase()}_VIDEO_REQUIRED`)
+  }
+
   const generateAudio = typeof params.options.generateAudio === 'boolean'
     ? params.options.generateAudio
     : model.supportsGenerateAudio ? true : undefined
@@ -90,12 +120,17 @@ export async function generateTopenrouterVideo(params: TopenrouterVideoGenerateP
   const resolvedResolution = resolution
     ? pickAllowed(resolution.toLowerCase(), model.resolutions, 'TOPENROUTER_VIDEO_RESOLUTION_UNSUPPORTED')
     : '720p'
-  const ratio = pickAllowed(
+  const requestedRatio = pickAllowed(
     readString(params.options.aspectRatio) || readString(params.options.ratio),
     model.ratios,
     'TOPENROUTER_VIDEO_RATIO_UNSUPPORTED',
   )
-  const duration = normalizeDuration(params.options.duration, model.durationRange)
+  const allowAdaptiveDuration = omniReferenceTaskType === 'edit'
+    || (hasReferenceVideo && omniReferenceTaskType === '')
+  const duration = normalizeDuration(params.options.duration, model.durationRange, allowAdaptiveDuration)
+  const forcedAdaptive = hasFirstLastFrame || omniReferenceTaskType === 'edit' || omniReferenceTaskType === 'extend'
+  const effectiveRatio = forcedAdaptive ? 'adaptive' : requestedRatio
+  const effectiveDuration = omniReferenceTaskType === 'edit' ? -1 : duration
 
   const content: ContentItem[] = []
   if (prompt) content.push({ type: 'text', text: prompt })
@@ -135,21 +170,30 @@ export async function generateTopenrouterVideo(params: TopenrouterVideoGenerateP
     })
   }
 
+  return {
+    model,
+    body: {
+      model: model.modelId,
+      content,
+      ...(resolvedResolution ? { resolution: resolvedResolution } : {}),
+      ...(effectiveRatio ? { ratio: effectiveRatio } : {}),
+      ...(typeof effectiveDuration === 'number' ? { duration: effectiveDuration } : {}),
+      ...(typeof generateAudio === 'boolean' && model.supportsGenerateAudio ? { generate_audio: generateAudio } : {}),
+      ...(typeof params.options.watermark === 'boolean' ? { watermark: params.options.watermark } : {}),
+      ...(omniReferenceTaskType ? { omni_reference_task_type: omniReferenceTaskType } : {}),
+    },
+  }
+}
+
+export async function generateTopenrouterVideo(params: TopenrouterVideoGenerateParams): Promise<GenerateResult> {
+  const { model, body } = await buildTopenrouterVideoRequest(params)
   const config = await getProviderConfig(params.userId, params.options.provider)
   const payload = await requestTopenrouter({
     apiKey: config.apiKey,
     baseUrl: config.baseUrl,
     path: '/api/v3/contents/generations/tasks',
     method: 'POST',
-    body: {
-      model: model.modelId,
-      content,
-      ...(resolvedResolution ? { resolution: resolvedResolution } : {}),
-      ...(ratio ? { ratio } : {}),
-      ...(typeof duration === 'number' ? { duration } : {}),
-      ...(typeof generateAudio === 'boolean' && model.supportsGenerateAudio ? { generate_audio: generateAudio } : {}),
-      ...(typeof params.options.watermark === 'boolean' ? { watermark: params.options.watermark } : {}),
-    },
+    body,
   })
   const taskId = readString(asRecord(payload)?.id)
   if (!taskId) throw new Error('TOPENROUTER_VIDEO_TASK_ID_MISSING')

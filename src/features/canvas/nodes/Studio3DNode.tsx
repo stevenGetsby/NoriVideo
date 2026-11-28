@@ -8,6 +8,7 @@ import Download from '@/components/ui/icons/ph/download-simple'
 import Maximize2 from '@/components/ui/icons/ph/arrows-out-simple'
 import { Handle, NodeResizer, NodeToolbar, Position, type NodeProps } from '@xyflow/react'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
+import { areCanvasNodePropsEqual } from '../drag-perf'
 import type { CanvasFlowNode } from '../editor-types'
 import { normalizeCanvasStudioSummary, STUDIO_NODE_MIN_SIZE } from '../studio-types'
 
@@ -54,4 +55,4 @@ export const Studio3DNode = memo(function Studio3DNode({ id, data, selected }: N
       <Handle type="source" position={Position.Right} id="output" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
     </article>
   )
-})
+}, areCanvasNodePropsEqual)

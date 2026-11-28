@@ -22,6 +22,7 @@ import {
   type UsageOverview,
 } from '@/components/admin/platform-admin-services'
 import { formatUsageMoney, MODEL_USAGE_TYPE_LABELS, normalizeModelUsageType } from '@/lib/platform-services/model-type-usage'
+import { OPENLUX_TEXT_KEY_GROUPS, resolveOpenLuxKeyGroupForModel } from '@/lib/providers/openlux/groups'
 
 function StatusBadge({ health }: { health?: HealthRow }) {
   return <AdminHealthBadge status={health?.status} latencyMs={health?.latencyMs} />
@@ -48,12 +49,14 @@ type PanelsProps = {
   healthMap: Map<string, HealthRow>
   usageByProvider: Map<string, { calls: number; cost: number }>
   providerSecrets: Record<string, string>
+  openluxGroupSecrets: Record<string, string>
   storageAccessKey: string
   storageSecretKey: string
   probing: string
   markConfig: (updater: (current: ServiceConfig) => ServiceConfig) => void
   updateProvider: (index: number, patch: Partial<ProviderDraft>) => void
   setProviderSecrets: Dispatch<SetStateAction<Record<string, string>>>
+  setOpenluxGroupSecrets: Dispatch<SetStateAction<Record<string, string>>>
   setStorageAccessKey: (value: string) => void
   setStorageSecretKey: (value: string) => void
   setDirty: (value: boolean) => void
@@ -62,7 +65,18 @@ type PanelsProps = {
 }
 
 export function PlatformAdminServicesPanels(props: PanelsProps) {
-  const { section = 'all', config, usage, modelViewUsers, rangeDays, healthMap, usageByProvider, providerSecrets, probing } = props
+  const {
+    section = 'all',
+    config,
+    usage,
+    modelViewUsers,
+    rangeDays,
+    healthMap,
+    usageByProvider,
+    providerSecrets,
+    openluxGroupSecrets,
+    probing,
+  } = props
   const showJumpbar = section === 'all'
   const showProviders = section === 'all' || section === 'providers'
   const showModels = section === 'all' || section === 'models'
@@ -175,7 +189,15 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
     selectableCustomerMainAccounts.slice(0, 6)
   ), [selectableCustomerMainAccounts])
 
-  const configuredProviderCount = config.providers.filter((provider) => provider.hasApiKey || Boolean(providerSecrets[provider.id]?.trim())).length
+  const isProviderConfigured = (provider: ProviderDraft) => (
+    provider.hasApiKey
+    || Boolean(providerSecrets[provider.id]?.trim())
+    || (provider.id === 'openlux' && (
+      Object.values(provider.groupApiKeyStatus ?? {}).some(Boolean)
+      || Object.values(openluxGroupSecrets).some((value) => Boolean(value.trim()))
+    ))
+  )
+  const configuredProviderCount = config.providers.filter(isProviderConfigured).length
   const videoModels = config.models.filter((model) => model.type === 'video')
   const enabledVideoCount = videoModels.filter((model) => config.modelEnabled?.[modelKey(model)] === true).length
   const visibleCustomerModelCount = config.businessModels.filter((model) => customerVisibleModels[model.key] === true).length
@@ -185,12 +207,12 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
     return config.providers
       .map((provider, index) => ({ provider, index }))
       .filter(({ provider }) => {
-        const configured = provider.hasApiKey || Boolean(providerSecrets[provider.id]?.trim())
+        const configured = isProviderConfigured(provider)
         if (providerFilter === 'configured') return configured
         if (providerFilter === 'missing') return !configured
         return true
       })
-  }, [config.providers, providerFilter, providerSecrets])
+  }, [config.providers, openluxGroupSecrets, providerFilter, providerSecrets])
 
   const normalizedModelSearch = modelSearch.trim().toLowerCase()
   const normalizedVisibilitySearch = visibilitySearch.trim().toLowerCase()
@@ -282,10 +304,91 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
     const matched = config.models.find((candidate) => modelKey(candidate) === runtimeKey)
     if (!matched) return { providerReady: false, kzepReady: true }
     const provider = config.providers.find((item) => item.id === matched.provider)
-    const providerReady = Boolean(provider?.hasApiKey || providerSecrets[matched.provider]?.trim())
+    const openluxGroup = matched.provider === 'openlux' ? resolveOpenLuxKeyGroupForModel(matched.modelId) : 'default'
+    const providerReady = Boolean(
+      provider?.hasApiKey
+      || providerSecrets[matched.provider]?.trim()
+      || (matched.provider === 'openlux' && openluxGroup !== 'default' && (
+        provider?.groupApiKeyStatus?.[openluxGroup]
+        || openluxGroupSecrets[openluxGroup]?.trim()
+      )),
+    )
     const kzepReady = runtimeKey !== 'kuaizi::doubao-seedance-2-5-260628-intl' || Boolean(provider?.seedance25IntlKzep?.trim())
     return { providerReady, kzepReady }
   }
+  const isVideoModelGloballyDisabled = (runtimeKey: string) => {
+    if (!runtimeKey) return false
+    const matched = config.models.find((candidate) => modelKey(candidate) === runtimeKey)
+    return Boolean(matched && matched.type === 'video' && config.modelEnabled?.[runtimeKey] !== true)
+  }
+  const getExternalRefsForVideoModel = (runtimeKey: string) => {
+    const globalBusinessNames: string[] = []
+    for (const business of config.businessModels) {
+      if (business.type !== 'video') continue
+      if (customerVisibleModels[business.key] === true && config.modelRouting[business.key] === runtimeKey) {
+        globalBusinessNames.push(business.customerName || business.name)
+      }
+    }
+    const customerNames: string[] = []
+    for (const [userId, routes] of Object.entries(customerModelRoutingOverrides)) {
+      if (internalUserIds.includes(userId)) continue
+      if (Object.values(routes ?? {}).includes(runtimeKey)) {
+        customerNames.push(modelViewUserMap.get(userId)?.name || userId)
+      }
+    }
+    return { globalBusinessNames, customerNames }
+  }
+  const getCustomerDisabledVideoWarnings = (userId: string) => {
+    if (internalUserIds.includes(userId)) return []
+    const user = modelViewUserMap.get(userId)
+    const parentOwnerId = user?.workspaceOwnerId || null
+    const visOverrides = customerModelOverrides[userId] ?? {}
+    const routeOverrides = customerModelRoutingOverrides[userId] ?? {}
+    const parentVisOverrides = parentOwnerId ? (customerModelOverrides[parentOwnerId] ?? {}) : {}
+    const parentRouteOverrides = parentOwnerId ? (customerModelRoutingOverrides[parentOwnerId] ?? {}) : {}
+    const warnings: Array<{
+      businessKey: string
+      displayName: string
+      runtimeKey: string
+      runtimeLabel: string
+      isDirectOverride: boolean
+      effectiveVisible: boolean
+    }> = []
+    for (const model of config.businessModels) {
+      if (model.type !== 'video') continue
+      const directVis = visOverrides[model.key]
+      const inheritedVis = parentOwnerId && Object.prototype.hasOwnProperty.call(parentVisOverrides, model.key)
+        ? parentVisOverrides[model.key] === true
+        : customerVisibleModels[model.key] === true
+      const effectiveVisible = directVis === true ? true : directVis === false ? false : inheritedVis
+      const directRoute = routeOverrides[model.key] || ''
+      const parentRoute = parentOwnerId ? (parentRouteOverrides[model.key] || '') : ''
+      const effectiveRoute = directRoute || parentRoute || (config.modelRouting[model.key] || '')
+      if (effectiveRoute && isVideoModelGloballyDisabled(effectiveRoute) && (effectiveVisible || Boolean(directRoute))) {
+        warnings.push({
+          businessKey: model.key,
+          displayName: model.customerName || model.name,
+          runtimeKey: effectiveRoute,
+          runtimeLabel: formatRuntimeModelLabel(effectiveRoute),
+          isDirectOverride: Boolean(directRoute),
+          effectiveVisible,
+        })
+      }
+    }
+    return warnings
+  }
+  const disabledGlobalCustomerVideoModels = config.businessModels
+    .filter((model) => model.type === 'video' && customerVisibleModels[model.key] === true)
+    .map((model) => {
+      const routedKey = config.modelRouting[model.key] || ''
+      return {
+        key: model.key,
+        displayName: model.customerName || model.name,
+        routedKey,
+        routedLabel: formatRuntimeModelLabel(routedKey),
+      }
+    })
+    .filter((item) => isVideoModelGloballyDisabled(item.routedKey))
 
   const customizedCustomerCount = new Set([
     ...Object.keys(customerModelOverrides).filter((id) => Object.keys(customerModelOverrides[id] ?? {}).length > 0),
@@ -326,7 +429,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           <div>
             <span className="nori-admin-step">{showJumpbar ? '01' : '上游服务商'}</span>
             <h2 id="service-connections">服务商与 API 密钥</h2>
-            <p>文本模型按用途开放：Kimi 与 OpenAI 的连接仅用于喵导；其他文本、图片、视频和语音继续沿用各自的服务。</p>
+            <p>文本、多模态与图片由 OpenLux 统一中转（支持按模型分组配置独立 Key）；OpenAI 连接仅用于喵导；视频和语音沿用各自服务。</p>
           </div>
           <div className="nori-admin-seg" role="group" aria-label="按密钥状态筛选服务商">
             {([
@@ -358,12 +461,12 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
             const providerSummary = isKuaizi
               ? { icon: 'video' as const, description: '视频与语音服务', capabilities: ['视频', '语音合成'] }
               : isOpenLux
-                ? { icon: 'image' as const, description: '图像生成服务', capabilities: ['文生图', '参考图编辑', '蒙版重绘'] }
+                ? { icon: 'sparklesAlt' as const, description: '文本、多模态与图像中转服务', capabilities: ['文本 LLM', '多模态识图', '文生图', '参考图编辑'] }
                 : isHuimengi
                   ? { icon: 'sparklesAlt' as const, description: '图像与视频服务', capabilities: ['文生图', '参考图', '文生视频', '多模态参考'] }
                   : isVideoOnly
                     ? { icon: 'video' as const, description: '视频服务（Seedance 2.5，官方协议）', capabilities: ['视频', '首尾帧', '多模态参考'] }
-                    : { icon: 'cpu' as const, description: '官方文本服务', capabilities: ['剧本', '提示词', '文本分析'] }
+                    : { icon: 'cpu' as const, description: '喵导专属文本服务（OpenAI 官方）', capabilities: ['画布喵导', 'Responses 协议'] }
             return (
               <article key={provider.id} className={`nori-admin-card nori-admin-provider p-4 is-${provider.id}`}>
                 <div className="nori-admin-connection-head">
@@ -376,7 +479,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                 </div>
                 <label className="nori-admin-field">
                   <span className="nori-admin-field-label">
-                    <span>API Key</span>
+                    <span>{isOpenLux ? '主 API Key（图像 / 兜底）' : 'API Key'}</span>
                     <span className={`nori-admin-secret-status ${pending ? 'is-pending' : provider.hasApiKey ? 'is-ok' : 'is-missing'}`}>
                       {pending ? '待保存' : provider.hasApiKey ? '已配置' : '待配置'}
                     </span>
@@ -392,6 +495,40 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                     }}
                   />
                 </label>
+                {isOpenLux ? (
+                  <details className="nori-admin-advanced mt-3" open={OPENLUX_TEXT_KEY_GROUPS.some((group) => provider.groupApiKeyStatus?.[group.id] === true || Boolean(openluxGroupSecrets[group.id]?.trim()))}>
+                    <summary>
+                      <span>高级：按分组覆盖 Key（选填，留空沿用主 Key）</span>
+                      <AppIcon name="chevronDown" />
+                    </summary>
+                    <div className="space-y-2.5 pt-2">
+                      {OPENLUX_TEXT_KEY_GROUPS.map((group) => {
+                        const groupPending = Boolean(openluxGroupSecrets[group.id]?.trim())
+                        const groupSaved = provider.groupApiKeyStatus?.[group.id] === true
+                        return (
+                          <label key={group.id} className="nori-admin-field">
+                            <span className="nori-admin-field-label">
+                              <span>{group.label}</span>
+                              <span className={`nori-admin-secret-status ${groupPending ? 'is-pending' : groupSaved ? 'is-ok' : 'is-missing'}`}>
+                                {groupPending ? '待保存' : groupSaved ? '已配置' : provider.hasApiKey ? '沿用主 Key' : '待配置'}
+                              </span>
+                            </span>
+                            <PasswordInput
+                              autoComplete="new-password"
+                              className="fos-input"
+                              value={openluxGroupSecrets[group.id] || ''}
+                              placeholder={groupSaved ? '已安全保存；留空不修改' : group.description}
+                              onChange={(event) => {
+                                props.setOpenluxGroupSecrets((current) => ({ ...current, [group.id]: event.target.value }))
+                                props.setDirty(true)
+                              }}
+                            />
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </details>
+                ) : null}
                 {isKuaizi ? (
                   <>
                     <label className="nori-admin-field mt-3">
@@ -446,7 +583,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           <div>
             <span className="nori-admin-step">{showJumpbar ? '02' : '全局开关与路由'}</span>
             <h2 id="purpose-models">按用途选择模型</h2>
-            <p>文本、图片、语音由稳定能力名称映射到官方模型；视频模型不再映射，开启哪个创作端就能选哪个，用量按服务商分别统计。</p>
+            <p>文本、图片、语音由稳定能力名称映射到官方模型；视频模型由下方开关控制：关闭后内部完整视图账号将不再可见，若外部客户配置仍指向已关闭服务，系统会给出提示。</p>
           </div>
           <div className="nori-admin-filter-row">
             <div className="nori-admin-seg" role="group" aria-label="按模型类型筛选">
@@ -510,7 +647,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                       </span>
                       <div>
                         <h3>{MODEL_TYPE_LABELS[type]}</h3>
-                        <p>{type === 'llm' ? 'DeepSeek 官方' : type === 'image' ? 'OpenLux / 绘梦工坊 API' : type === 'video' ? '全部已开启的视频模型' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p>
+                        <p>{type === 'llm' ? 'OpenLux API（6 款写作与多模态模型）' : type === 'image' ? 'OpenLux / 绘梦工坊 API' : type === 'video' ? '全部已开启的视频模型' : 'Kuaizi API'}{type === 'audio' ? ' · 仅语音合成' : ''}</p>
                       </div>
                     </div>
                     <span className="nori-admin-purpose-count">
@@ -527,6 +664,14 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                         const kzepReady = !needsKzep || Boolean(provider?.seedance25IntlKzep?.trim())
                         const ready = providerReady && kzepReady
                         const enabled = config.modelEnabled?.[key] === true
+                        const externalRefs = !enabled ? getExternalRefsForVideoModel(key) : null
+                        const externalRefParts = externalRefs
+                          ? [
+                              ...(externalRefs.globalBusinessNames.length > 0 ? [`全局默认：${externalRefs.globalBusinessNames.join('、')}`] : []),
+                              ...(externalRefs.customerNames.length > 0 ? [`单客路由：${externalRefs.customerNames.slice(0, 3).join('、')}${externalRefs.customerNames.length > 3 ? ` 等 ${externalRefs.customerNames.length} 户` : ''}`] : []),
+                            ]
+                          : []
+                        const externalRefText = externalRefParts.join('；')
                         return (
                           <label key={key} className="nori-admin-purpose-row">
                             <span>
@@ -534,6 +679,11 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                               <small>
                                 {PROVIDER_DISPLAY_NAMES[model.provider] || model.provider}
                                 {!providerReady ? <span className="nori-admin-inline-warn">未配置密钥</span> : !kzepReady ? <span className="nori-admin-inline-warn">未配置 EP</span> : null}
+                                {!enabled && externalRefText ? (
+                                  <span className="nori-admin-inline-warn" title={externalRefText}>
+                                    已关闭 · 外部客户配置仍引用（{externalRefText}）
+                                  </span>
+                                ) : null}
                               </small>
                             </span>
                             <input
@@ -616,7 +766,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
               <strong>内部完整视图</strong>
               <span className="nori-admin-pill is-internal"><i />白名单 {internalUserIds.length} 人</span>
             </div>
-            <p>面向内部团队账号：在画布、工具箱与分镜生成中完整展示底层供应商名称、路由和全部已开启模型，不受客户白标配置影响。</p>
+            <p>面向内部团队账号：在画布、工具箱与分镜生成中完整展示底层供应商名称、路由和全部已开启模型（在「模型与路由」中关闭的视频服务对内部账号隐藏），不受客户白标配置影响。</p>
           </div>
         </div>
       </div>
@@ -630,6 +780,21 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           </div>
           <AdminSearch value={visibilitySearch} onChange={setVisibilitySearch} placeholder="搜索白标模型" />
         </div>
+
+        {disabledGlobalCustomerVideoModels.length > 0 ? (
+          <div className="px-5 pt-4">
+            <div className="nori-admin-alert is-warn mb-0">
+              <div className="nori-admin-alert-body">
+                <AppIcon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+                <span>
+                  配置逻辑提示：当前有 {disabledGlobalCustomerVideoModels.length} 项默认对外部客户开放的视频模型指向了已在「模型与路由」中关闭的底层服务（
+                  {disabledGlobalCustomerVideoModels.map((item) => `${item.displayName} → ${item.routedLabel}`).join('；')}
+                  ）。关闭后内部账号已不可见，请确认是否需要调整外部客户配置或重新开启该服务。
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <div className="nori-admin-purpose-grid">
           {(['video', 'image', 'llm', 'audio'] as const).map((type) => {
@@ -666,6 +831,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                       : routedKey || '未配置路由'
                     const displayName = model.customerName || model.name
                     const missingRoute = !routedKey
+                    const routedDisabled = type === 'video' && isVideoModelGloballyDisabled(routedKey)
                     return (
                       <label key={model.key} className="nori-admin-purpose-row">
                         <span>
@@ -673,9 +839,12 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                           <em className={MODEL_TIER_TONES[model.tier]}>{MODEL_TIER_LABELS[model.tier]}</em>
                           <small className="flex flex-wrap items-center gap-1.5">
                             <span>{model.key}</span>
-                            <span className={`nori-admin-route-tag${missingRoute && visible ? ' is-missing' : ''}`}>
+                            <span className={`nori-admin-route-tag${(missingRoute || routedDisabled) && visible ? ' is-missing' : ''}`}>
                               路由：{routedLabel}
                             </span>
+                            {routedDisabled && visible ? (
+                              <span className="nori-admin-inline-warn">底层服务已关闭</span>
+                            ) : null}
                           </small>
                         </span>
                         <input
@@ -802,6 +971,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                       const visCount = Object.keys(customerModelOverrides[userId] ?? {}).length
                       const routeCount = Object.keys(customerModelRoutingOverrides[userId] ?? {}).length
                       const isInternal = internalUserIds.includes(userId)
+                      const disabledWarnCount = isInternal ? 0 : getCustomerDisabledVideoWarnings(userId).length
                       const isSelected = userId === activeCustomerId
                       const initial = (user?.name || userId).slice(0, 1).toUpperCase()
                       return (
@@ -829,6 +999,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                             {routeCount > 0 ? <span className="nori-admin-mini-badge is-route">{routeCount} 项独立路由</span> : null}
                             {visCount === 0 && routeCount === 0 ? <span className="nori-admin-mini-badge">跟随全局默认</span> : null}
                             {isInternal ? <span className="nori-admin-mini-badge is-warn">内部全视图</span> : null}
+                            {disabledWarnCount > 0 ? <span className="nori-admin-mini-badge is-warn">{disabledWarnCount} 项指向已关闭服务</span> : null}
                           </div>
                         </button>
                       )
@@ -849,6 +1020,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                   const parentVisOverrides = parentOwnerId ? (customerModelOverrides[parentOwnerId] ?? {}) : {}
                   const parentRouteOverrides = parentOwnerId ? (customerModelRoutingOverrides[parentOwnerId] ?? {}) : {}
                   const isSelectedInternal = internalUserIds.includes(activeCustomerId)
+                  const selectedDisabledWarnings = isSelectedInternal ? [] : getCustomerDisabledVideoWarnings(activeCustomerId)
                   const selectedVisCount = Object.keys(selectedVisOverrides).length
                   const selectedRouteCount = Object.keys(selectedRouteOverrides).length
                   const normalizedRowQuery = customerModelSearch.trim().toLowerCase()
@@ -912,6 +1084,19 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                             <div className="nori-admin-alert-body">
                               <AppIcon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
                               <span>该账号当前位于「内部完整模型视图白名单」，登录创作端将直接看到全部底层供应商模型，下方客户白标配置对其暂不生效。</span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : selectedDisabledWarnings.length > 0 ? (
+                        <div className="px-4 pt-3">
+                          <div className="nori-admin-alert is-warn mb-0">
+                            <div className="nori-admin-alert-body">
+                              <AppIcon name="alert" className="mt-0.5 h-4 w-4 shrink-0" />
+                              <span>
+                                配置逻辑提示：当前外部客户有 {selectedDisabledWarnings.length} 项视频模型指向了已在「模型与路由」中关闭的底层服务（
+                                {selectedDisabledWarnings.map((item) => `${item.displayName} → ${item.runtimeLabel}`).join('；')}
+                                ）。关闭后内部账号已不可见，请确认是否需要为该客户切换至已开启服务，或在「模型与路由」中重新开启。
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -1024,8 +1209,8 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                                     >
                                       <option value="">
                                         {parentRoute
-                                          ? `跟随主账号（${formatRuntimeModelLabel(parentRoute)}）`
-                                          : `跟随全局默认（${formatRuntimeModelLabel(globalRoute)}）`}
+                                          ? `跟随主账号（${formatRuntimeModelLabel(parentRoute)}${isVideoModelGloballyDisabled(parentRoute) ? ' · 服务已关闭' : ''}）`
+                                          : `跟随全局默认（${formatRuntimeModelLabel(globalRoute)}${isVideoModelGloballyDisabled(globalRoute) ? ' · 服务已关闭' : ''}）`}
                                       </option>
                                       {sameTypeOptions.map((option) => {
                                         const optKey = modelKey(option)
@@ -1036,7 +1221,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                                           : !optReady.kzepReady
                                             ? '（未配 EP）'
                                             : globalVideoOff
-                                              ? '（全局关闭·单客生效）'
+                                              ? '（服务已关闭 · 配置请注意）'
                                               : ''
                                         return (
                                           <option key={optKey} value={optKey}>
@@ -1057,6 +1242,11 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
                                         <span className="nori-admin-mini-badge is-warn">目标服务商未配密钥</span>
                                       ) : effectiveRoute && !readiness.kzepReady ? (
                                         <span className="nori-admin-mini-badge is-warn">未配置国际版 EP</span>
+                                      ) : null}
+                                      {effectiveRoute && isVideoModelGloballyDisabled(effectiveRoute) && (effectiveVisible || Boolean(directRoute)) ? (
+                                        <span className="nori-admin-mini-badge is-warn">
+                                          所配服务已全局关闭（请确认外部客户配置）
+                                        </span>
                                       ) : null}
                                     </div>
                                   </td>
@@ -1083,7 +1273,7 @@ export function PlatformAdminServicesPanels(props: PanelsProps) {
           <div>
             <span className="nori-admin-step">{showJumpbar ? '03-C' : '内部白名单'}</span>
             <h2 id="internal-whitelist-title">内部完整模型视图白名单</h2>
-            <p>名单内的内部账号（如 caoshuang、王卓、admin@caoshuang 等）在画布、工具箱与分镜生成中可见全部底层供应商与路由信息（最多 100 个）。</p>
+            <p>名单内的内部主账号（如 caoshuang、王卓、admin@caoshuang 等）及其名下全部子账号，在画布、工具箱与分镜生成中均可看到全部已开启的底层供应商模型与路由信息（最多 100 个）。</p>
           </div>
           <span className="nori-admin-pill is-internal"><i />已添加 {internalUserIds.length} 人</span>
         </div>

@@ -31,6 +31,7 @@ const TASK_TYPE_OWNER_MAP = {
   [TASK_TYPE.CANVAS_IMAGE_OPERATION]: 'tests/unit/worker/canvas-operation-task-handler.test.ts',
   [TASK_TYPE.CANVAS_VIDEO_OPERATION]: 'tests/unit/worker/canvas-operation-task-handler.test.ts',
   [TASK_TYPE.CANVAS_TEXT_GENERATION]: 'tests/unit/worker/canvas-generation-task-handler.test.ts',
+  [TASK_TYPE.WORKFLOW_STAGE_RUN]: 'tests/unit/batch-workflow/workflow-stage-worker.test.ts',
   [TASK_TYPE.CANVAS_STORYBOARD_PLAN]: 'tests/unit/worker/canvas-generation-task-handler.test.ts',
   [TASK_TYPE.ANALYZE_NOVEL]: 'tests/unit/worker/analyze-novel.test.ts',
   [TASK_TYPE.ASSET_EXTRACTION_RUN]: 'tests/unit/worker/asset-extraction.test.ts',

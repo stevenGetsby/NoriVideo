@@ -3,13 +3,20 @@
 import { Fragment, useRef } from 'react'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
-import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
+import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent, MouseEvent as ReactMouseEvent } from 'react'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
+import { rememberProjectCreationMode } from '../FosShell'
 import { WorkCover } from './WorkCover'
 import type { WorkProject, WorkSummary } from './types'
 import { UNASSIGNED_WORK_ID } from './types'
 import { canMoveFromWork } from './FosWorksDialogs'
 import { projectAspectRatio, projectGenreLabel } from './project-metadata'
+import {
+  projectBatchWorkflowHref,
+  projectCanvasHref,
+  projectEntryHref,
+  projectWorkbenchHref,
+} from '@/lib/projects/navigation'
 
 export { projectAspectRatio, projectGenreLabel } from './project-metadata'
 
@@ -192,10 +199,22 @@ function ProjectCard({
   const canMembers = Boolean(project.canManageMembers)
   const running = generationRunning(project)
   const coverImageUrl = project.coverImageUrl?.trim() || null
-  const workbenchHref = `/workflow/${project.id}/workbench-premium2`
-  const canvasHref = `${workbenchHref}/canvas`
-  // F: cover clicks follow how the 作品 was created; the quick entry links to the other place.
-  const entryHref = project.creationMode === 'canvas' ? canvasHref : workbenchHref
+  const isBatchWorkflow = project.creationMode === 'batch_workflow'
+  const isCanvas = project.creationMode === 'canvas'
+  const workbenchHref = projectWorkbenchHref(project.id)
+  const canvasHref = projectCanvasHref(project.id)
+  const batchHref = projectBatchWorkflowHref(project.id)
+  // Cover clicks follow how the 作品 was created; quick entry links to canvas/workbench.
+  const entryHref = projectEntryHref(project.id, project.creationMode)
+  const modeBadgeLabel = isBatchWorkflow ? '视频工作流' : isCanvas ? '无限画布' : '传统工作台'
+  const modeBadgeTone = isBatchWorkflow ? ' is-batch-workflow' : isCanvas ? ' is-efficient' : projectEditionTone(project)
+  const modeBadgeStyle: CSSProperties | undefined = isBatchWorkflow
+    ? {
+        color: '#ddd6fe',
+        background: 'rgba(108, 92, 255, 0.34)',
+        border: '1px solid rgba(167, 139, 250, 0.55)',
+      }
+    : undefined
   const menuId = `project-actions-${project.id}`
   return (
     <article
@@ -226,10 +245,22 @@ function ProjectCard({
         href={{ pathname: entryHref }}
         className="works-project-main"
         tabIndex={selectable ? -1 : 0}
-        onClick={(event) => { if (selectable) event.preventDefault() }}
+        onClick={(event: ReactMouseEvent<HTMLAnchorElement>) => {
+          if (selectable) {
+            event.preventDefault()
+            return
+          }
+          rememberProjectCreationMode(project.id, project.creationMode || 'workflow')
+        }}
       >
         <WorkCover project={project} />
-        <span className={`works-project-edition nori-force-dark${projectEditionTone(project)}${selectable ? ' with-select' : ''}`}>{projectEdition(project)}</span>
+        <span
+          className={`works-project-edition nori-force-dark${modeBadgeTone}${selectable ? ' with-select' : ''}`}
+          style={modeBadgeStyle}
+          title={isBatchWorkflow ? '视频工作流' : isCanvas ? '无限画布创作' : projectEdition(project)}
+        >
+          {modeBadgeLabel}
+        </span>
         <div className="works-project-info">
           <h3><Highlight text={project.name} keyword={keyword} /></h3>
           <div className="works-project-meta">
@@ -250,13 +281,16 @@ function ProjectCard({
       </Link>
       {!selectable ? (
         <Link
-          href={{ pathname: project.creationMode === 'canvas' ? workbenchHref : canvasHref }}
+          href={{ pathname: isCanvas ? workbenchHref : canvasHref }}
           className="works-project-canvas-entry"
-          data-testid={project.creationMode === 'canvas' ? 'project-card-workbench-entry' : 'project-card-canvas-entry'}
-          onClick={(event) => event.stopPropagation()}
+          data-testid={isCanvas ? 'project-card-workbench-entry' : 'project-card-canvas-entry'}
+          onClick={(event: ReactMouseEvent<HTMLAnchorElement>) => {
+            event.stopPropagation()
+            rememberProjectCreationMode(project.id, project.creationMode || 'workflow')
+          }}
         >
-          {project.creationMode === 'canvas' ? <AppIcon name="monitor" /> : <AppIcon name="clapperboard" />}
-          {project.creationMode === 'canvas' ? '工作台' : '进入画布'}
+          {isCanvas ? <AppIcon name="monitor" /> : <AppIcon name="clapperboard" />}
+          {isCanvas ? '工作台' : '进入画布'}
         </Link>
       ) : null}
       {!selectable ? (
@@ -294,7 +328,26 @@ function ProjectCard({
               {canManage ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.rename(project)}><AppIcon name="edit" />重命名</button> : null}
               {canMembers ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.members(project)}><AppIcon name="usersRound" />设置协作者</button> : null}
               {canMove ? <button type="button" role="menuitem" className="fos-menu-item" onClick={() => actions.move(project, work)}><AppIcon name="arrowRight" />移动到项目</button> : null}
-              <Link role="menuitem" href={{ pathname: `/workflow/${project.id}/workbench-premium2/canvas` }} className="fos-menu-item" data-testid="project-card-canvas-menu-entry"><AppIcon name="clapperboard" />进入无限画布</Link>
+              {isBatchWorkflow ? (
+                <Link
+                  role="menuitem"
+                  href={{ pathname: batchHref }}
+                  className="fos-menu-item"
+                  data-testid="project-card-batch-menu-entry"
+                  onClick={() => rememberProjectCreationMode(project.id, 'batch_workflow')}
+                >
+                  <AppIcon name="sparkles" />进入视频工作流
+                </Link>
+              ) : null}
+              <Link
+                role="menuitem"
+                href={{ pathname: canvasHref }}
+                className="fos-menu-item"
+                data-testid="project-card-canvas-menu-entry"
+                onClick={() => rememberProjectCreationMode(project.id, project.creationMode || 'workflow')}
+              >
+                <AppIcon name="clapperboard" />进入无限画布
+              </Link>
               {project.canDelete ? <button type="button" role="menuitem" className="fos-menu-item works-menu-danger" onClick={() => actions.delete(project)}><AppIcon name="trash" />删除作品</button> : null}
             </div>
             </ViewportPopover>

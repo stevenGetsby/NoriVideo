@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  memo,
   useEffect,
   useId,
   useLayoutEffect,
@@ -355,7 +356,7 @@ function ReferenceThumb({ node, selected, wired, order, onToggle, onRemove, onTo
   )
 }
 
-export function CanvasGenerator({
+export const CanvasGenerator = memo(function CanvasGenerator({
   projectId,
   canvasId,
   node,
@@ -610,11 +611,11 @@ export function CanvasGenerator({
     if (fullscreen || compactEditor || !viewportLayerTarget) return
     lastGeometryRef.current = null
     lastInverseZoomRef.current = null
-    const apply = (state: { transform: [number, number, number]; nodeLookup: Map<string, { internals: { positionAbsolute: { x: number; y: number } }; measured?: { width?: number; height?: number }; width?: number; height?: number }> }) => {
+    const apply = (state: { transform: [number, number, number]; nodeLookup: Map<string, { dragging?: boolean; internals: { positionAbsolute: { x: number; y: number } }; measured?: { width?: number; height?: number }; width?: number; height?: number }> }) => {
       const internal = state.nodeLookup.get(node.id)
       const anchor = anchorRef.current
       const panel = panelRef.current
-      if (!internal || !anchor || !panel) return false
+      if (!internal || !anchor || !panel) return { changed: false, dragging: false }
       let changed = false
       const geometry = {
         x: internal.internals.positionAbsolute.x,
@@ -635,7 +636,7 @@ export function CanvasGenerator({
         lastInverseZoomRef.current = inverseZoom
         changed = true
       }
-      return changed
+      return { changed, dragging: internal.dragging === true }
     }
 
     let frame = 0
@@ -667,11 +668,15 @@ export function CanvasGenerator({
       settleTimer = window.setTimeout(fitEditor, 140)
     }
     const update = (state: ReturnType<typeof flowStore.getState>) => {
-      const changed = apply(state)
+      const { changed, dragging } = apply(state)
       const [tx, ty] = state.transform
       const panned = lastTransformX !== tx || lastTransformY !== ty
       lastTransformX = tx
       lastTransformY = ty
+      if (dragging) {
+        if (changed) schedulePostPanFit()
+        return
+      }
       if (changed) fitEditor()
       else if (panned) schedulePostPanFit()
     }
@@ -1464,22 +1469,53 @@ export function CanvasGenerator({
 
   const selectMentionAsset = (asset: MentionPromptAsset, nextPrompt: string) => {
     const mentionAsset = asset as CanvasMentionAsset
+    const bindsReference = shouldBindCanvasMentionReference(type)
+    const createdSummaries: CanvasReferenceMediaSummary[] = []
     let nodeId = asset.id
     if (mentionAsset.section === 'library' && mentionAsset.material) {
-      nodeId = onSelectLibraryMaterial(mentionAsset.material) || undefined
+      const material = mentionAsset.material
+      if (bindsReference) {
+        const existingNode = referenceNodes.find((item) => item.id !== node.id && item.data.materialId === material.id)
+        if (existingNode) {
+          const previewIds = mergeCanvasReferenceNodeIds(referenceNodeIds, existingNode.id)
+          const preErrors = referenceErrors(previewIds, false)
+          if (preErrors.length > 0) {
+            setError(preErrors[0])
+            return false
+          }
+        } else {
+          const previewId = `__pending_material__:${material.id}`
+          const previewSummary = materialReferenceSummary(previewId, material)
+          if (!previewSummary) {
+            setError('当前生成节点不支持引用该类型的素材。')
+            return false
+          }
+          const previewIds = mergeCanvasReferenceNodeIds(referenceNodeIds, previewId)
+          const preErrors = referenceErrors(previewIds, false, [previewSummary])
+          if (preErrors.length > 0) {
+            setError(preErrors[0])
+            return false
+          }
+        }
+      }
+      nodeId = onSelectLibraryMaterial(material) || undefined
       if (!nodeId) {
         setError('素材未能引用到当前生成节点，请检查素材类型和模型引用上限。')
         return false
       }
+      if (bindsReference && !referenceNodes.some((item) => item.id === nodeId)) {
+        const createdSummary = materialReferenceSummary(nodeId, material)
+        if (createdSummary) createdSummaries.push(createdSummary)
+      }
     }
-    if (!shouldBindCanvasMentionReference(type)) {
+    if (!bindsReference) {
       setError(null)
       setPrompt(nextPrompt)
       draftUserEditRef.current = true
       return
     }
     const nextReferenceNodeIds = mergeCanvasReferenceNodeIds(referenceNodeIds, nodeId)
-    const errors = referenceErrors(nextReferenceNodeIds, false)
+    const errors = referenceErrors(nextReferenceNodeIds, false, createdSummaries)
     if (errors.length > 0) { setError(errors[0]); return false }
     rememberMentionSelection(nodeId, asset.name)
     setError(null)
@@ -1529,9 +1565,12 @@ export function CanvasGenerator({
   const visibleReferenceThumbnails = managesReferences && !referencesExpanded
     ? activeReferenceThumbnails.slice(0, 6)
     : activeReferenceThumbnails
-  const editorRows = [...displayedReferenceNodes, ...referenceNodes.filter((reference) =>
+  const editorRows = [...displayedReferenceNodes.filter((reference) => (
+    editorActiveIds.has(reference.id) || pausedReferenceIds.includes(reference.id) || wiredReferenceIds.has(reference.id)
+  )), ...referenceNodes.filter((reference) =>
     (pausedReferenceIds.includes(reference.id) || referenceNodeIds.includes(reference.id)) &&
-    !displayedReferenceNodes.some((current) => current.id === reference.id))]
+    !displayedReferenceNodes.some((current) => current.id === reference.id)
+  )]
     .sort((a, b) => (editorActiveIds.has(a.id) ? referenceNodeIds.indexOf(a.id) : Infinity) -
       (editorActiveIds.has(b.id) ? referenceNodeIds.indexOf(b.id) : Infinity))
   const editorVisible = editorRows.filter((reference) => {
@@ -2245,11 +2284,11 @@ export function CanvasGenerator({
         {type === 'video' ? <label className="nori-canvas-generator-sound" title={currentModel?.raw?.supportGenerateAudio ? '默认生成有声视频，可按需关闭' : '当前模型不支持生成声音'}><input type="checkbox" checked={generateAudio} disabled={!currentModel?.raw?.supportGenerateAudio} onChange={(event) => { setGenerateAudio(changeGenerationSetting(event.target.checked)) }} /><span>生成声音</span></label> : null}
         {quotable ? (
           <span
-            className={`nori-canvas-generator-quote${quoteError ? ' is-error' : ''}`}
+            className={`nori-canvas-generator-quote${quoteError ? ' is-error' : ''}${quoteLoading ? ' is-loading' : ''}`}
             title={quoteError || (quote ? `预计消耗 ${quotePoints} 积分` : '生成积分报价')}
           >
             <Zap />
-            {quoteLoading ? '…' : quoteError ? '暂无法报价' : quote ? <><span className="sr-only">预计消耗</span>{quotePoints}<span className="sr-only">积分</span></> : '—'}
+            {quoteError ? '暂无法报价' : quote ? <><span className="sr-only">预计消耗</span>{quotePoints}<span className="sr-only">积分</span></> : quoteLoading ? '…' : '—'}
           </span>
         ) : null}
         <button type="button" className="nori-canvas-generate-button" aria-busy={submitting} disabled={!generationAllowed || submitting || Boolean(superresolveResolutionError) || availableModels.length === 0 || currentModel?.raw?.available === false || imageEditModelUnavailable || (type === 'audio' && audioMode === 'tts' && !audioVoice)} onClick={() => void submit()} title={superresolveResolutionError || (!generationAllowed ? generationDisabledReason || '当前账号不可生成' : imageEditModelUnavailable ? '当前模型不支持蒙版重绘' : currentModel?.raw?.available === false ? currentModel.raw.unavailableReason || '服务未配置' : type === 'audio' && audioMode === 'tts' && !audioVoice ? '请先在资产库创建并选择音色' : '生成')}>{submitting ? <LoaderCircle className="animate-spin" /> : <ArrowUp />}<span>{submitting ? '提交中…' : '生成'}</span></button>
@@ -2257,19 +2296,8 @@ export function CanvasGenerator({
       </div>
 
       {moreOpen && (type === 'image' || type === 'video') ? (
-        <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={400} maxHeight={420} role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover canvas-editor-generation-popover">
-          <header><div><strong>生成参数</strong><small>修改后自动保存到当前节点</small></div><button type="button" aria-label="关闭生成参数" onClick={() => { persistDraft(); setMoreOpen(false); parameterTriggerRef.current?.focus() }}><X /></button></header>
+        <ViewportPopover anchorRef={parameterTriggerRef} onClose={() => setMoreOpen(false)} preferredSide="above" width={420} maxHeight={420} lockAnchorWhileOpen role="dialog" aria-label="生成参数设置" className="nori-canvas-generator-more nori-canvas-parameter-popover canvas-editor-generation-popover">
           <div className="nori-canvas-generator-parameter-grid">
-            {type === 'video' ? (
-              <div className="nori-canvas-parameter-field is-full">
-                <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-mode-label">生成模式</span>
-                <div className="nori-canvas-parameter-segments" role="group" aria-labelledby="nori-canvas-parameter-mode-label">
-                  {([['text', '全能参考', true], ['image', '图生视频', supportsImageToVideo], ['firstlastframe', '首尾帧', Boolean(currentModel?.raw?.firstLastFrame)]] as const).map(([value, label, enabled]) => (
-                    <button type="button" key={value} className={inputMode === value ? 'is-active' : ''} aria-pressed={inputMode === value} disabled={!enabled} onClick={() => setInputMode(changeGenerationSetting(value))}>{label}</button>
-                  ))}
-                </div>
-              </div>
-            ) : null}
             <div className="nori-canvas-parameter-field is-full">
               <span className="nori-canvas-parameter-label" id="nori-canvas-parameter-aspect-label">画面比例{isOmniVideoEditMode ? <small style={{ marginLeft: 6, opacity: 0.75 }}>（编辑模式跟随参考视频）</small> : null}</span>
               <div className="nori-canvas-parameter-aspects" role="group" aria-labelledby="nori-canvas-parameter-aspect-label" style={isOmniVideoEditMode ? { opacity: 0.55 } : undefined}>
@@ -2375,4 +2403,4 @@ export function CanvasGenerator({
       </div>
     </ViewportPortal>
   )
-}
+})

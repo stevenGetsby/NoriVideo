@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { CanvasOverviewStore } from './canvas-overview-store'
 import type { CanvasProjectionEngine } from './canvas-projection-engine'
 
@@ -77,7 +77,7 @@ export function minimapViewBox(nodeBounds: Bounds | null, view: Bounds): Bounds 
 
 // Mirrors React Flow's MiniMap contract (class names, flow-space viewBox, evenodd mask) but reads the
 // full render index, so nodes that projection has unmounted still appear. Pan frames only touch the mask.
-export function CanvasProjectedMinimap({
+export const CanvasProjectedMinimap = memo(function CanvasProjectedMinimap({
   getEngine,
   store,
   flowStore,
@@ -222,4 +222,4 @@ export function CanvasProjectedMinimap({
       </svg>
     </div>
   )
-}
+})

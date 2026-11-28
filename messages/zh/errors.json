@@ -21,5 +21,10 @@
     "EXTERNAL_ERROR": "外部服务暂时不可用，请稍后重试",
     "TASK_NOT_READY": "任务正在处理中",
     "NO_RESULT": "任务无结果",
-    "CONFLICT": "资源状态冲突"
+    "CONFLICT": "资源状态冲突",
+    "STALE_REVISION": "服务器已有更新，请保留草稿并刷新后重试",
+    "STAGE_ALREADY_RUNNING": "该阶段正在执行，请等待完成后再操作",
+    "QC_FAILED": "质量检查未通过，请根据提示修改后重试",
+    "ASSET_NOT_READY": "所选素材尚未就绪，请等待生成完成后重试",
+    "MODEL_UNAVAILABLE": "所选模型暂时不可用，请稍后重试"
 }

@@ -21,5 +21,10 @@
     "EXTERNAL_ERROR": "External service temporarily unavailable. Please retry later",
     "TASK_NOT_READY": "Task is still processing",
     "NO_RESULT": "Task has no result",
-    "CONFLICT": "Resource state conflict"
+    "CONFLICT": "Resource state conflict",
+    "STALE_REVISION": "The server has a newer version. Keep your draft, refresh, and retry",
+    "STAGE_ALREADY_RUNNING": "This stage is already running. Wait for it to finish",
+    "QC_FAILED": "Quality checks failed. Review the violations and retry",
+    "ASSET_NOT_READY": "The selected asset is not ready yet",
+    "MODEL_UNAVAILABLE": "The selected model is temporarily unavailable. Please retry later"
 }

@@ -17,9 +17,42 @@ export function shouldCreateVideoComparison(node: CanvasFlowNode): boolean {
   return Boolean(node.data.videoUrl || node.data.contentUrl)
 }
 
+const COMPARISON_SUFFIX_RE = /(?:\s*·\s*(?:v\d+|对照(?:\s*\d+)?))+$/i
+
+function parseVersionedVideoTitle(rawTitle: string | null | undefined): { baseTitle: string; version: number } {
+  const trimmed = (rawTitle || '').trim()
+  if (!trimmed) return { baseTitle: '视频节点', version: 1 }
+  const versionMatch = trimmed.match(/\s*·\s*v(\d+)\s*$/i)
+  const stripped = trimmed.replace(COMPARISON_SUFFIX_RE, '').trim()
+  const baseTitle = stripped || '视频节点'
+  if (versionMatch) {
+    const parsed = Number.parseInt(versionMatch[1], 10)
+    if (Number.isFinite(parsed) && parsed >= 1) return { baseTitle, version: parsed }
+  }
+  return { baseTitle, version: 1 }
+}
+
+export function nextVideoComparisonTitle(
+  sourceTitle: string | null | undefined,
+  existingTitles?: readonly (string | null | undefined)[],
+): string {
+  const { baseTitle, version: sourceVersion } = parseVersionedVideoTitle(sourceTitle)
+  let maxVersion = Math.max(1, sourceVersion)
+  if (existingTitles) {
+    for (const candidate of existingTitles) {
+      const parsed = parseVersionedVideoTitle(candidate)
+      if (parsed.baseTitle === baseTitle && parsed.version > maxVersion) {
+        maxVersion = parsed.version
+      }
+    }
+  }
+  return `${baseTitle} · v${maxVersion + 1}`
+}
+
 export function createVideoComparisonDraft(input: {
   source: CanvasFlowNode
   edges: readonly CanvasFlowEdge[]
+  existingNodes?: readonly CanvasFlowNode[]
   prompt: string
   generation: CanvasGenerationConfig
   referenceNodeIds: string[]
@@ -39,7 +72,10 @@ export function createVideoComparisonDraft(input: {
     dragging: false,
     data: {
       ...data,
-      title: `${input.source.data.title || '视频节点'} · 对照`,
+      title: nextVideoComparisonTitle(
+        input.source.data.title,
+        input.existingNodes?.map((candidate) => candidate.data.title),
+      ),
       origin: 'empty',
       materialId: null,
       contentUrl: null,

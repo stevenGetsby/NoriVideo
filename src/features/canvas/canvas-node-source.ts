@@ -6,7 +6,7 @@ import type { CanvasFlowNode } from './editor-types'
 export type CanvasNodeSource = {
   get(): CanvasFlowNode[]
   byId(id: string): CanvasFlowNode | undefined
-  publish(nodes: CanvasFlowNode[]): void
+  publish(nodes: CanvasFlowNode[], options?: { notify?: boolean }): void
   subscribe(listener: () => void): () => void
 }
 
@@ -20,10 +20,11 @@ export function createCanvasNodeSource(initial: CanvasFlowNode[] = []): CanvasNo
       if (!index) index = new Map(nodes.map((node) => [node.id, node]))
       return index.get(id)
     },
-    publish(next) {
+    publish(next, options) {
       if (next === nodes) return
       nodes = next
       index = null
+      if (options?.notify === false) return
       for (const listener of Array.from(listeners)) listener()
     },
     subscribe(listener) {

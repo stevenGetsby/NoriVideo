@@ -143,7 +143,7 @@ export function recordCompletionUsage(
   if (!summary) return
 
   recordBillingTextUsage({
-    model,
+    model: context?.modelKey || model,
     inputTokens: summary.promptTokens,
     outputTokens: summary.completionTokens,
   })

@@ -1,6 +1,6 @@
 export const CANVAS_AGENT_SELECTION_KEY = 'nori::canvas-agent'
 
-const protocols = { deepseek: 'chat-completions', kimi: 'chat-completions', openai: 'responses' } as const
+const protocols = { openlux: 'chat-completions', openai: 'responses' } as const
 export type CanvasAgentProvider = keyof typeof protocols
 export type CanvasAgentModelProtocol = (typeof protocols)[CanvasAgentProvider]
 
@@ -38,14 +38,14 @@ export function buildCanvasAgentModelCatalog({
   candidates: readonly CanvasAgentCandidate[]
   settings: Readonly<Record<string, CanvasAgentModelSettings>>
   defaultModelKey?: string | null
-  hasKey: (provider: CanvasAgentProvider) => boolean
+  hasKey: (provider: CanvasAgentProvider, modelId?: string) => boolean
   hasPricing: (modelKey: string) => boolean
 }): CanvasAgentModelCatalog {
   const models = candidates.map((candidate): CanvasAgentModelCatalogEntry => {
     const modelKey = `${candidate.providerId}::${candidate.modelId}`
     const flags = settings[modelKey]
     const unavailableReason = candidate.protocol !== protocols[candidate.providerId] ? 'MODEL_PROTOCOL_UNSUPPORTED'
-      : !hasKey(candidate.providerId) ? 'MODEL_UNAVAILABLE'
+      : !hasKey(candidate.providerId, candidate.modelId) ? 'MODEL_UNAVAILABLE'
         : !hasPricing(modelKey) ? 'MODEL_PRICING_MISSING'
           : !candidate.toolStreamingVerified ? 'TOOL_STREAMING_UNVERIFIED'
             : null

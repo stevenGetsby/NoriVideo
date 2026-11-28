@@ -2,8 +2,9 @@ import { parseModelKeyStrict, type UnifiedModelType } from '@/lib/model-config-c
 import { findNoriBusinessModel } from '@/lib/nori-model-catalog'
 import { sanitizePublicError } from '@/lib/errors/sanitize-public-error'
 import { KUAIZI_SEEDANCE_25_INTL_MODEL_ID } from '@/lib/providers/kuaizi/catalog'
+import { resolveOpenLuxKeyGroupForModel } from '@/lib/providers/openlux/groups'
 import type { PlatformServiceConfigResponse } from './config'
-import { resolveBusinessModelRouteForViewer, type ModelViewerContext } from './model-selection'
+import { isInternalModelViewer, resolveBusinessModelRouteForViewer, type ModelViewerContext } from './model-selection'
 
 export type CachedProviderHealth = {
   targetType: string
@@ -90,7 +91,12 @@ export function resolveConfiguredModelAvailability(input: {
   }
 
   const provider = input.config.providers.find((item) => item.id === runtime.provider)
-  if (!provider?.hasApiKey) {
+  const openLuxKeyGroup = runtime.provider === 'openlux' ? resolveOpenLuxKeyGroupForModel(runtime.modelId) : 'default'
+  const providerHasKey = Boolean(
+    provider?.hasApiKey
+    || (runtime.provider === 'openlux' && openLuxKeyGroup !== 'default' && provider?.groupApiKeyStatus?.[openLuxKeyGroup]),
+  )
+  if (!provider || !providerHasKey) {
     return {
       configured: false,
       available: false,
@@ -110,6 +116,21 @@ export function resolveConfiguredModelAvailability(input: {
       healthMessage: null,
       healthCheckedAt: null,
       unavailableReason: safeReason('服务 Kuaizi API 尚未配置 Seedance 2.5 国际版 EP (kzep)。', '该模型暂不可用，请联系管理员。'),
+    }
+  }
+  if (
+    input.type === 'video'
+    && isInternalModelViewer(input.config, input.viewer)
+    && input.config.modelEnabled?.[runtimeModelKey] !== true
+  ) {
+    return {
+      configured: true,
+      available: false,
+      runtimeModelKey,
+      healthStatus: 'unknown',
+      healthMessage: null,
+      healthCheckedAt: null,
+      unavailableReason: '该视频模型已在「模型与路由」中关闭。',
     }
   }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, memo, Suspense, useEffect, useState } from 'react'
 import { AppIcon } from '@/components/ui/icons'
 import type { CanvasAgentBridge } from './bridge-types'
 import type { AgentFeedbackStore } from './feedback-store'
@@ -8,7 +8,7 @@ import './canvas-agent.css'
 
 const Panel = lazy(() => import('./CanvasAgentPanel'))
 
-export function CanvasAgentDock({ bridge, title, open, onOpenChange, feedback }: {
+export const CanvasAgentDock = memo(function CanvasAgentDock({ bridge, title, open, onOpenChange, feedback }: {
   bridge: CanvasAgentBridge
   title: string
   open: boolean
@@ -25,4 +25,4 @@ export function CanvasAgentDock({ bridge, title, open, onOpenChange, feedback }:
       <Panel bridge={bridge} title={title} open={open} feedback={feedback} onClose={() => onOpenChange(false)} />
     </Suspense>}
   </>
-}
+})

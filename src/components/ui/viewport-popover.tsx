@@ -51,6 +51,7 @@ export function ViewportPopover({
   onDismissKey,
   closeOnOutsideWheel = false,
   repositionHeartbeat = false,
+  lockAnchorWhileOpen = false,
   ...attributes
 }: HTMLAttributes<HTMLDivElement> & {
   anchorRef: RefObject<HTMLElement | null>
@@ -63,8 +64,11 @@ export function ViewportPopover({
   onDismissKey?: (event: ReactKeyboardEvent<HTMLDivElement>) => boolean
   closeOnOutsideWheel?: boolean
   repositionHeartbeat?: boolean
+  lockAnchorWhileOpen?: boolean
 }) {
   const popoverRef = useRef<HTMLDivElement>(null)
+  const interactingRef = useRef(false)
+  const releaseInteractionRef = useRef<(() => void) | null>(null)
   const onCloseRef = useRef(onClose)
   onCloseRef.current = onClose
   const containsNodeRef = useRef(containsNode)
@@ -75,6 +79,7 @@ export function ViewportPopover({
   onDismissKeyRef.current = onDismissKey
 
   const reposition = useCallback(() => {
+    if (interactingRef.current) return
     const anchor = anchorRef.current
     const popup = popoverRef.current
     if (!anchor || !popup) return
@@ -108,10 +113,16 @@ export function ViewportPopover({
     onRepositionRef.current?.()
   }, [anchorRef, maxHeight, preferredSide, width])
 
-  useLayoutEffect(() => { reposition() })
+  useLayoutEffect(() => {
+    if (!lockAnchorWhileOpen) reposition()
+  })
+  useLayoutEffect(() => {
+    if (lockAnchorWhileOpen) reposition()
+  }, [lockAnchorWhileOpen, reposition])
   useLayoutEffect(() => {
     let frame = 0
     const schedule = () => {
+      if (interactingRef.current) return
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(reposition)
     }
@@ -132,7 +143,7 @@ export function ViewportPopover({
       }
     }
     const observer = new ResizeObserver(schedule)
-    if (anchorRef.current) observer.observe(anchorRef.current)
+    if (!lockAnchorWhileOpen && anchorRef.current) observer.observe(anchorRef.current)
     if (popoverRef.current) observer.observe(popoverRef.current)
     window.addEventListener('resize', schedule)
     window.addEventListener('scroll', schedule, true)
@@ -142,6 +153,9 @@ export function ViewportPopover({
     if (wheel) document.addEventListener('wheel', wheel, true)
     return () => {
       cancelAnimationFrame(frame)
+      releaseInteractionRef.current?.()
+      releaseInteractionRef.current = null
+      interactingRef.current = false
       if (heartbeat !== null) window.clearInterval(heartbeat)
       observer.disconnect()
       window.removeEventListener('resize', schedule)
@@ -151,7 +165,7 @@ export function ViewportPopover({
       window.visualViewport?.removeEventListener('scroll', schedule)
       document.removeEventListener('pointerdown', outside, true)
     }
-  }, [anchorRef, closeOnOutsideWheel, reposition, repositionHeartbeat])
+  }, [anchorRef, closeOnOutsideWheel, lockAnchorWhileOpen, reposition, repositionHeartbeat])
 
   if (typeof document === 'undefined') return null
   return createPortal(
@@ -160,7 +174,22 @@ export function ViewportPopover({
       ref={popoverRef}
       className={`nori-viewport-popover nodrag nowheel ${className}`}
       style={{ position: 'fixed', visibility: 'hidden', zIndex: 2700, boxSizing: 'border-box', overflowY: 'auto', overscrollBehavior: 'contain' }}
-      onPointerDown={(event) => event.stopPropagation()}
+      onPointerDown={(event) => {
+        event.stopPropagation()
+        releaseInteractionRef.current?.()
+        interactingRef.current = true
+        const release = () => {
+          interactingRef.current = false
+          releaseInteractionRef.current = null
+          window.removeEventListener('pointerup', release, true)
+          window.removeEventListener('pointercancel', release, true)
+          window.removeEventListener('blur', release)
+        }
+        releaseInteractionRef.current = release
+        window.addEventListener('pointerup', release, true)
+        window.addEventListener('pointercancel', release, true)
+        window.addEventListener('blur', release)
+      }}
       onContextMenu={(event) => { event.preventDefault(); event.stopPropagation() }}
       onKeyDown={(event) => {
         if (event.defaultPrevented) return

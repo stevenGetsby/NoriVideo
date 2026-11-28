@@ -23,40 +23,60 @@ export const NORI_BUSINESS_MODELS = [
     modelId: 'nori-gpt',
     name: 'nori-gpt',
     customerName: 'Nori GPT',
-    description: '标准文本模型',
+    description: '标准文本与画面描写模型',
     type: 'llm',
     tier: 'standard',
-    suggestedRoute: 'deepseek::deepseek-chat',
+    suggestedRoute: 'openlux::qwen3.8-max',
   },
   {
     key: 'nori::nori-gpt-max',
     modelId: 'nori-gpt-max',
     name: 'nori-gpt-max',
     customerName: 'Nori GPT Max',
-    description: '高质量文本模型',
+    description: '高质量剧本创作与分镜提示词模型',
     type: 'llm',
     tier: 'pro',
-    suggestedRoute: 'deepseek::deepseek-reasoner',
+    suggestedRoute: 'openlux::claude-sonnet-5',
   },
   {
     key: 'nori::nori-gemini',
     modelId: 'nori-gemini',
     name: 'nori-gemini',
     customerName: 'Nori Gemini',
-    description: 'Gemini 文本模型',
+    description: 'Gemini 3.8 多模态文本模型',
     type: 'llm',
     tier: 'pro',
-    suggestedRoute: 'deepseek::deepseek-reasoner',
+    suggestedRoute: 'openlux::gemini-3.8-flash',
   },
   {
     key: 'nori::nori-deepseek',
     modelId: 'nori-deepseek',
     name: 'nori-deepseek',
     customerName: 'Nori DeepSeek',
-    description: 'DeepSeek 文本模型',
+    description: 'DeepSeek V4.1 Flash 高性价比文本模型',
+    type: 'llm',
+    tier: 'fast',
+    suggestedRoute: 'openlux::deepseek-v4.1-flash',
+  },
+  {
+    key: 'nori::nori-deepseek-pro',
+    modelId: 'nori-deepseek-pro',
+    name: 'nori-deepseek-pro',
+    customerName: 'Nori DeepSeek Pro',
+    description: 'DeepSeek V4 Pro 深度推理与长文本创作模型',
+    type: 'llm',
+    tier: 'pro',
+    suggestedRoute: 'openlux::deepseek-v4-pro',
+  },
+  {
+    key: 'nori::nori-kimi',
+    modelId: 'nori-kimi',
+    name: 'nori-kimi',
+    customerName: 'Nori Kimi',
+    description: 'Kimi K2.6 长上下文中文写作与画面描写模型',
     type: 'llm',
     tier: 'standard',
-    suggestedRoute: 'deepseek::deepseek-chat',
+    suggestedRoute: 'openlux::kimi-k2.6',
   },
   {
     key: 'nori::nori-image-mini',
@@ -260,7 +280,7 @@ export function resolveNoriModelRoute(
   if (!businessModel) return null
   const llmConfig = getServiceLlmConfig()
   const routingOverrides = llmConfig?.customerModelRoutingOverrides
-  const activeViewer = viewer === undefined ? getAccountActorContext() : viewer
+  const activeViewer: NoriModelRouteViewer | null | undefined = viewer === undefined ? getAccountActorContext() : viewer
   let overridden = ''
   if (activeViewer && routingOverrides) {
     const actorId = compact(activeViewer.actorId || activeViewer.userId)
@@ -284,7 +304,7 @@ export function resolveNoriModelRoute(
   // Images may run on OpenLux or HuiMeng; video on Kuaizi or HuiMeng. The
   // administrator picks the upstream per business model and can switch freely.
   const allowedProviders = businessModel.type === 'llm'
-    ? ['deepseek']
+    ? ['openlux']
     : businessModel.type === 'image'
       ? ['openlux', 'huimengi']
       : businessModel.type === 'video'
@@ -333,9 +353,12 @@ function inferLegacyBusinessModel(modelKey: string, type: NoriBusinessModelType)
       ? 'nori::nori-image-pro'
       : NORI_DEFAULT_MODEL_KEYS.image
   }
+  if (lower.includes('deepseek') && /(?:pro|reasoner)/.test(lower)) return 'nori::nori-deepseek-pro'
   if (lower.includes('deepseek')) return 'nori::nori-deepseek'
+  if (lower.includes('kimi')) return 'nori::nori-kimi'
   if (lower.includes('gemini')) return 'nori::nori-gemini'
-  if (/(?:5\.6|terra|gpt[-_ ]?max)/.test(lower)) return 'nori::nori-gpt-max'
+  if (/(?:claude|5\.6|terra|gpt[-_ ]?max|reasoner)/.test(lower)) return 'nori::nori-gpt-max'
+  if (lower.includes('qwen')) return 'nori::nori-gpt'
   return NORI_DEFAULT_MODEL_KEYS.llm
 }
 

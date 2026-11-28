@@ -5,6 +5,7 @@ import { Download, Grid2X2, Group, ListTree, Rows3, Save, Ungroup } from '@/comp
 import { NodeResizer, NodeToolbar, Position, useReactFlow, type NodeProps, type ShouldResize } from '@xyflow/react'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
 import { useCanvasNodeSource } from '../canvas-node-source'
+import { areCanvasNodePropsEqual } from '../drag-perf'
 import type { CanvasFlowNode } from '../editor-types'
 import { canResizeCanvasGroupToMembers } from '../actions/layout'
 import { ViewportPopover } from '@/components/ui/viewport-popover'
@@ -95,4 +96,4 @@ export const GroupNode = memo(function GroupNode({ id, data, selected }: NodePro
       </header>
     </section>
   )
-})
+}, areCanvasNodePropsEqual)

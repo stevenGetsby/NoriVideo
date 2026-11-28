@@ -36,6 +36,7 @@ import {
 import { CanvasPosterImage, CanvasPreviewImage } from './CanvasPreviewImage'
 import { toCanvasDisplayImageUrl, toDisplayImageUrl, toPlayableVideoUrl, toVideoPosterUrl } from '@/lib/media/image-url'
 import { useCanvasEditor, useCanvasMultiSelection, type CanvasNodeAction } from '../CanvasEditorContext'
+import { areCanvasNodePropsEqual } from '../drag-perf'
 import { selectZoomBucket } from '../zoom-bucket'
 import type { CanvasFlowNode } from '../editor-types'
 import { CanvasModel3DViewer } from '../components/CanvasModel3D'
@@ -284,10 +285,23 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     let frame = 0
     let lastLeft = Number.parseFloat(toolbar.style.left) || 0
     let lastTop = Number.parseFloat(toolbar.style.top) || 0
+    let cachedSurfaceBounds: DOMRect | null = null
+    let cachedTopBoundary = 0
+    const refreshStaticBounds = () => {
+      const bounds = surface.getBoundingClientRect()
+      cachedSurfaceBounds = bounds
+      const chromeBounds = chrome?.getBoundingClientRect()
+      cachedTopBoundary = chromeBounds && chromeBounds.bottom > bounds.top
+        ? chromeBounds.bottom
+        : bounds.top
+    }
+    refreshStaticBounds()
     const keepVisible = () => {
       frame = 0
+      // Toolbar is hidden while dragging; skip forced layout reads until drag settles.
+      if (surface.classList.contains('is-node-dragging')) return
+      const bounds = cachedSurfaceBounds ?? surface.getBoundingClientRect()
       const nodeBounds = node.getBoundingClientRect()
-      const bounds = surface.getBoundingClientRect()
       const toolbarBounds = toolbar.getBoundingClientRect()
       const offsetParent = toolbar.offsetParent instanceof HTMLElement
         ? toolbar.offsetParent
@@ -311,10 +325,7 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         Math.max(nodeBounds.left + nodeBounds.width / 2, bounds.left + margin + toolbarBounds.width / 2),
         bounds.right - margin - toolbarBounds.width / 2,
       )
-      const chromeBounds = chrome?.getBoundingClientRect()
-      const topBoundary = chromeBounds && chromeBounds.bottom > bounds.top
-        ? chromeBounds.bottom
-        : bounds.top
+      const topBoundary = cachedTopBoundary || bounds.top
       let desiredTop = nodeBounds.top - 26 - toolbarBounds.height
       if (desiredTop < topBoundary + margin) {
         desiredTop = nodeBounds.bottom + margin
@@ -332,9 +343,13 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         toolbar.style.top = `${nextTop}px`
       }
     }
-    const schedule = () => { if (!frame) frame = requestAnimationFrame(keepVisible) }
+    const schedule = () => {
+      if (surface.classList.contains('is-node-dragging')) return
+      if (!frame) frame = requestAnimationFrame(keepVisible)
+    }
+    const onResize = () => { refreshStaticBounds(); schedule() }
     schedule()
-    const resizeObserver = new ResizeObserver(schedule)
+    const resizeObserver = new ResizeObserver(onResize)
     resizeObserver.observe(toolbar)
     resizeObserver.observe(node)
     resizeObserver.observe(surface)
@@ -342,14 +357,15 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
     const renderer = toolbar.parentElement
     transformObserver.observe(toolbar, { attributes: true, attributeFilter: ['style'] })
     transformObserver.observe(node, { attributes: true, attributeFilter: ['style'] })
+    transformObserver.observe(surface, { attributes: true, attributeFilter: ['class'] })
     if (renderer) transformObserver.observe(renderer, { attributes: true, attributeFilter: ['style'] })
     if (flowViewport) transformObserver.observe(flowViewport, { attributes: true, attributeFilter: ['style'] })
-    window.addEventListener('resize', schedule)
+    window.addEventListener('resize', onResize)
     return () => {
       if (frame) cancelAnimationFrame(frame)
       resizeObserver.disconnect()
       transformObserver.disconnect()
-      window.removeEventListener('resize', schedule)
+      window.removeEventListener('resize', onResize)
       toolbar.style.left = ''
       toolbar.style.top = ''
     }
@@ -539,4 +555,4 @@ export const CreativeNode = memo(function CreativeNode(props: NodeProps<CanvasFl
         : null}
     </article>
   )
-})
+}, areCanvasNodePropsEqual)

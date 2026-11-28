@@ -77,12 +77,16 @@ function computeConfigDiffCount(
   baseline: ServiceConfig | null,
   current: ServiceConfig | null,
   providerSecrets: Record<string, string>,
+  openluxGroupSecrets: Record<string, string>,
   storageAccessKey: string,
   storageSecretKey: string,
 ): number {
   if (!baseline || !current) return 0
   let count = 0
   for (const value of Object.values(providerSecrets)) {
+    if (value.trim()) count += 1
+  }
+  for (const value of Object.values(openluxGroupSecrets)) {
     if (value.trim()) count += 1
   }
   if (storageAccessKey.trim()) count += 1
@@ -121,6 +125,7 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
   const [usage, setUsage] = useState<UsageOverview | null>(null)
   const [modelViewUsers, setModelViewUsers] = useState<ModelViewUser[]>([])
   const [providerSecrets, setProviderSecrets] = useState<Record<string, string>>({})
+  const [openluxGroupSecrets, setOpenluxGroupSecrets] = useState<Record<string, string>>({})
   const [storageAccessKey, setStorageAccessKey] = useState('')
   const [storageSecretKey, setStorageSecretKey] = useState('')
   const [rangeDays, setRangeDays] = useState(30)
@@ -146,6 +151,7 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
         setConfig(payload.config)
         setSavedConfig(payload.config)
         setProviderSecrets({})
+        setOpenluxGroupSecrets({})
         setStorageAccessKey('')
         setStorageSecretKey('')
         setDirty(false)
@@ -175,8 +181,8 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
   }, [usage])
 
   const changeCount = useMemo(
-    () => computeConfigDiffCount(savedConfig, config, providerSecrets, storageAccessKey, storageSecretKey),
-    [savedConfig, config, providerSecrets, storageAccessKey, storageSecretKey],
+    () => computeConfigDiffCount(savedConfig, config, providerSecrets, openluxGroupSecrets, storageAccessKey, storageSecretKey),
+    [savedConfig, config, providerSecrets, openluxGroupSecrets, storageAccessKey, storageSecretKey],
   )
 
   const markConfig = (updater: (current: ServiceConfig) => ServiceConfig) => {
@@ -194,6 +200,7 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
     if (!savedConfig) return
     setConfig(savedConfig)
     setProviderSecrets({})
+    setOpenluxGroupSecrets({})
     setStorageAccessKey('')
     setStorageSecretKey('')
     setDirty(false)
@@ -203,8 +210,17 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
 
   const save = async () => {
     if (!config) return
+    const pendingOpenluxGroups = Object.fromEntries(
+      Object.entries(openluxGroupSecrets)
+        .map(([group, value]) => [group, value.trim()] as const)
+        .filter(([, value]) => Boolean(value)),
+    )
+    const hasPendingOpenluxGroups = Object.keys(pendingOpenluxGroups).length > 0
     const changedProviderIds = config.providers
-      .filter((provider) => Boolean(providerSecrets[provider.id]?.trim()))
+      .filter((provider) => (
+        Boolean(providerSecrets[provider.id]?.trim())
+        || (provider.id === 'openlux' && hasPendingOpenluxGroups)
+      ))
       .map((provider) => provider.id)
     setSaving(true)
     setPageError('')
@@ -218,6 +234,7 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
           providers: config.providers.map((provider) => ({
             ...provider,
             apiKey: providerSecrets[provider.id] || undefined,
+            ...(provider.id === 'openlux' && hasPendingOpenluxGroups ? { groupApiKeys: pendingOpenluxGroups } : {}),
           })),
           models: config.models,
           defaultModels: Object.fromEntries(Object.entries(config.defaultModels).filter(([, value]) => value && availableKeys.has(value))),
@@ -263,6 +280,7 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
       setConfig(payload.config)
       setSavedConfig(payload.config)
       setProviderSecrets({})
+      setOpenluxGroupSecrets({})
       setStorageAccessKey('')
       setStorageSecretKey('')
       setDirty(false)
@@ -343,7 +361,14 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
   const meta = SECTION_META[section]
   const isEditableSection = section === 'providers' || section === 'models' || section === 'customers' || section === 'all'
   const healthyProviders = config?.providers.filter((provider) => healthMap.get(`provider:${provider.id}`)?.status === 'healthy').length || 0
-  const configuredProviders = config?.providers.filter((provider) => provider.hasApiKey || Boolean(providerSecrets[provider.id]?.trim())).length || 0
+  const configuredProviders = config?.providers.filter((provider) => (
+    provider.hasApiKey
+    || Boolean(providerSecrets[provider.id]?.trim())
+    || (provider.id === 'openlux' && (
+      Object.values(provider.groupApiKeyStatus ?? {}).some(Boolean)
+      || Object.values(openluxGroupSecrets).some((value) => Boolean(value.trim()))
+    ))
+  )).length || 0
   const videoModels = config?.models.filter((model) => model.type === 'video') || []
   const enabledVideoModels = videoModels.filter((model) => config?.modelEnabled?.[modelKey(model)] === true).length
   const nonVideoBusinessModels = config?.businessModels.filter((model) => model.type !== 'video') || []
@@ -482,12 +507,14 @@ export function PlatformAdminServicesClient({ section = 'providers' }: { section
             healthMap={healthMap}
             usageByProvider={usageByProvider}
             providerSecrets={providerSecrets}
+            openluxGroupSecrets={openluxGroupSecrets}
             storageAccessKey={storageAccessKey}
             storageSecretKey={storageSecretKey}
             probing={probing}
             markConfig={markConfig}
             updateProvider={updateProvider}
             setProviderSecrets={setProviderSecrets}
+            setOpenluxGroupSecrets={setOpenluxGroupSecrets}
             setStorageAccessKey={setStorageAccessKey}
             setStorageSecretKey={setStorageSecretKey}
             setDirty={setDirty}

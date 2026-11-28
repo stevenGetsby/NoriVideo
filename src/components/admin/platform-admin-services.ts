@@ -3,7 +3,6 @@ import type { CanvasAgentModelCatalog, CanvasAgentModelSettings } from '@/lib/ca
 export type ModelType = 'llm' | 'image' | 'video' | 'audio' | 'lipsync'
 
 export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-  deepseek: 'DeepSeek',
   openlux: 'OpenLux',
   kuaizi: 'Kuaizi',
   huimengi: '绘梦工坊',
@@ -38,6 +37,7 @@ export interface ProviderDraft {
   assetGroupId?: string
   seedance25IntlKzep?: string
   hasApiKey: boolean
+  groupApiKeyStatus?: Record<string, boolean>
 }
 
 export interface ModelDraft {

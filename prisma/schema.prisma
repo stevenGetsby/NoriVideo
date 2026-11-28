@@ -1037,12 +1037,15 @@ model WorkspaceFeedbackRecord {
   userId      String
   type        String   @default("bug") @db.VarChar(32)
   title       String   @db.VarChar(191)
-  description String   @db.Text
-  route       String?  @db.Text
-  userAgent   String?  @db.Text
-  status      String   @default("open") @db.VarChar(32)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  description    String   @db.Text
+  route          String?  @db.Text
+  userAgent      String?  @db.Text
+  attachments    Json?
+  context        Json?
+  resolutionNote String?  @db.Text
+  status         String   @default("open") @db.VarChar(32)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -2446,4 +2449,102 @@ model LedgerSetting {
   updatedAt              DateTime  @default(now()) @updatedAt
 
   @@map("ledger_settings")
+}
+
+// ============================================================
+// Batch Style-Video Workflow (Phase 1: Skill-Pluggable Pipeline)
+// Additive models only; workspace-scoped via userId (workspaceOwnerId).
+// ============================================================
+
+model WorkflowSkill {
+  id               String   @id @default(uuid())
+  userId           String?  @db.VarChar(191)
+  slug             String   @db.VarChar(128)
+  name             String   @db.VarChar(191)
+  track            String   @db.VarChar(64)
+  stage            String   @db.VarChar(32)
+  version          Int      @default(1)
+  parentSkillId    String?  @db.VarChar(191)
+  changeNote       String?  @db.Text
+  isDefault        Boolean  @default(false)
+  description      String?  @db.Text
+  systemPrompt     String   @db.LongText
+  fewShotExamples  Json?
+  outputSchema     Json?
+  modelPreferences Json?
+  qcRules          Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  @@unique([userId, slug, version])
+  @@index([userId, track, stage])
+  @@index([slug, version])
+  @@index([track, stage, isDefault])
+  @@map("workflow_skills")
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(uuid())
+  userId      String?  @db.VarChar(191)
+  slug        String   @db.VarChar(128)
+  name        String   @db.VarChar(191)
+  track       String   @db.VarChar(64)
+  description String?  @db.Text
+  stages      Json
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([userId, track])
+  @@index([slug])
+  @@map("workflow_templates")
+}
+
+model BatchRun {
+  id               String      @id @default(uuid())
+  userId           String      @db.VarChar(191)
+  createdById      String      @db.VarChar(191)
+  workId           String?     @db.VarChar(191)
+  projectId        String      @db.VarChar(191)
+  templateId       String      @db.VarChar(191)
+  templateSnapshot Json
+  title            String      @db.VarChar(191)
+  track            String      @db.VarChar(64)
+  runMode          String      @default("gated") @db.VarChar(24)
+  status           String      @default("draft") @db.VarChar(24)
+  totalItems       Int         @default(0)
+  completedItems   Int         @default(0)
+  failedItems      Int         @default(0)
+  createdAt        DateTime    @default(now())
+  updatedAt        DateTime    @default(now()) @updatedAt
+
+  items BatchItem[]
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([userId, status])
+  @@map("batch_runs")
+}
+
+model BatchItem {
+  id           String   @id @default(uuid())
+  batchRunId   String
+  revision     Int      @default(0)
+  executionKey String?  @db.VarChar(191)
+  index        Int
+  title        String   @db.VarChar(191)
+  inputPayload Json
+  currentStage String   @default("script_analysis") @db.VarChar(32)
+  status       String   @default("queued") @db.VarChar(24)
+  stageStates  Json
+  stageOutputs Json
+  errorMessage String?  @db.Text
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  batchRun BatchRun @relation(fields: [batchRunId], references: [id], onDelete: Cascade)
+
+  @@index([batchRunId, index])
+  @@index([batchRunId, status])
+  @@map("batch_items")
 }

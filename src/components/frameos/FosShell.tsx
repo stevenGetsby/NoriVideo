@@ -25,6 +25,7 @@ export type FosNavKey =
   | 'toolbox'
   | 'canvas'
   | 'interactive'
+  | 'batchWorkflow'
   | 'assetHub'
   | 'accounts'
   | 'computeLedger'
@@ -35,7 +36,8 @@ export type FosNavKey =
 export interface FosProjectNavigation {
   projectId: string
   projectName: string
-  activeItem: 'workbench' | 'canvas'
+  activeItem: 'workbench' | 'canvas' | 'batch'
+  creationMode?: 'workflow' | 'canvas' | 'batch_workflow'
 }
 
 interface NavItem {
@@ -53,6 +55,7 @@ const primaryNav: NavItem[] = [
   { key: 'toolbox', label: '工具箱', href: '/toolbox', icon: 'settingsHexMinor' },
   { key: 'canvas', label: '无限画布', href: '/canvas', icon: 'monitor' },
   { key: 'interactive', label: '影游画布', href: '/interactive', icon: 'film' },
+  { key: 'batchWorkflow', label: '视频工作流', href: '/batch-workflow', icon: 'clapperboard', badge: 'NEW' },
   // Link to the canonical page directly. The legacy /asset-hub alias performs
   // a server redirect and briefly exposes the light document background.
   { key: 'assetHub', label: '资产库', href: '/workspace/asset-hub', icon: 'folderHeart' },
@@ -67,6 +70,45 @@ const secondaryNav: Array<{ key: 'records' | 'feedback' | 'updates'; label: stri
 const TEST_MODE = process.env.NEXT_PUBLIC_NORI_TEST_MODE === 'true'
 const FOS_SIDEBAR_STORAGE_KEY = 'nori.fos.sidebarCollapsed'
 const FOS_CANVAS_SIDEBAR_STORAGE_KEY = 'nori.fos.canvasSidebarCollapsed'
+const FOS_WORKFLOW_SIDEBAR_STORAGE_KEY = 'nori.fos.workflowSidebarCollapsed'
+const FOS_PROJECT_CREATION_MODE_PREFIX = 'nori.fos.projectCreationMode:'
+
+type ProjectCreationModeValue = 'workflow' | 'canvas' | 'batch_workflow'
+const projectCreationModeCache = new Map<string, ProjectCreationModeValue>()
+
+export function rememberProjectCreationMode(
+  projectId: string | null | undefined,
+  mode: string | null | undefined,
+): void {
+  if (!projectId) return
+  if (mode !== 'workflow' && mode !== 'canvas' && mode !== 'batch_workflow') return
+  projectCreationModeCache.set(projectId, mode)
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(`${FOS_PROJECT_CREATION_MODE_PREFIX}${projectId}`, mode)
+  } catch {
+    // Session storage can be unavailable in private/restricted browser contexts.
+  }
+}
+
+export function readRememberedProjectCreationMode(
+  projectId: string | null | undefined,
+): ProjectCreationModeValue | undefined {
+  if (!projectId) return undefined
+  const cached = projectCreationModeCache.get(projectId)
+  if (cached) return cached
+  if (typeof window === 'undefined') return undefined
+  try {
+    const stored = window.sessionStorage.getItem(`${FOS_PROJECT_CREATION_MODE_PREFIX}${projectId}`)
+    if (stored === 'workflow' || stored === 'canvas' || stored === 'batch_workflow') {
+      projectCreationModeCache.set(projectId, stored)
+      return stored
+    }
+  } catch {
+    // Session storage can be unavailable in private/restricted browser contexts.
+  }
+  return undefined
+}
 
 export function FosTitlebar({ title }: { title?: string }) {
   return (
@@ -319,7 +361,9 @@ function Sidebar({
         <button
           type="button"
           className="fos-collapse-btn"
-          title={`${collapsed ? '展开' : '收起'}菜单（⌘/Ctrl+B）`}
+          title={collapsed
+            ? (projectNavigation ? '展开导航与当前作品菜单（⌘/Ctrl+B）' : '展开菜单（⌘/Ctrl+B）')
+            : '收起菜单（⌘/Ctrl+B）'}
           aria-label={collapsed ? '展开侧边菜单' : '收起侧边菜单'}
           aria-controls="fos-sidebar-sections"
           aria-expanded={!collapsed}
@@ -339,35 +383,52 @@ function Sidebar({
               count={item.key === 'assignments' ? assignmentAttention : undefined}
             />
           ))}
-          {projectNavigation ? (
-            <section className="fos-project-nav" aria-label="当前作品导航">
-              <div className="fos-project-nav-heading">
-                <span>当前作品</span>
-                <strong title={projectNavigation.projectName}>{projectNavigation.projectName}</strong>
-              </div>
-              <Link
-                href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2` }}
-                className={`fos-nav-item${projectNavigation.activeItem === 'workbench' ? ' active' : ''}`}
-                data-testid="project-workbench-nav"
-                data-nav="workbench"
-              >
-                <span className="fos-nav-icon"><AppIcon name="folderOpen" /></span>
-                <span className="min-w-0 truncate">作品工作台</span>
-              </Link>
-              {canUseCanvas ? (
-                <Link
-                  href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2/canvas` }}
-                  className={`fos-nav-item fos-project-canvas-link${projectNavigation.activeItem === 'canvas' ? ' active' : ''}`}
-                  data-testid="project-canvas-nav"
-                  data-nav="canvas"
-                >
-                  <span className="fos-nav-icon"><AppIcon name="clapperboard" /></span>
-                  <span className="min-w-0 truncate">无限画布</span>
-                  <span className="fos-project-canvas-badge">CANVAS</span>
-                </Link>
-              ) : null}
-            </section>
-          ) : null}
+          {projectNavigation ? (() => {
+            const effectiveCreationMode = projectNavigation.creationMode
+              ?? readRememberedProjectCreationMode(projectNavigation.projectId)
+            const isBatchWorkflowProject = effectiveCreationMode === 'batch_workflow' || projectNavigation.activeItem === 'batch'
+            return (
+              <section className="fos-project-nav" aria-label="当前作品导航">
+                <div className="fos-project-nav-heading">
+                  <span>当前作品</span>
+                  <strong title={projectNavigation.projectName}>{projectNavigation.projectName}</strong>
+                </div>
+                {isBatchWorkflowProject ? (
+                  <Link
+                    href={{ pathname: `/workflow/${projectNavigation.projectId}/batch` }}
+                    className={`fos-nav-item${projectNavigation.activeItem === 'batch' ? ' active' : ''}`}
+                    data-testid="project-batch-nav"
+                    data-nav="batch"
+                  >
+                    <span className="fos-nav-icon"><AppIcon name="sparkles" /></span>
+                    <span className="min-w-0 truncate">视频工作流</span>
+                  </Link>
+                ) : (
+                  <Link
+                    href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2` }}
+                    className={`fos-nav-item${projectNavigation.activeItem === 'workbench' ? ' active' : ''}`}
+                    data-testid="project-workbench-nav"
+                    data-nav="workbench"
+                  >
+                    <span className="fos-nav-icon"><AppIcon name="folderOpen" /></span>
+                    <span className="min-w-0 truncate">作品工作台</span>
+                  </Link>
+                )}
+                {canUseCanvas ? (
+                  <Link
+                    href={{ pathname: `/workflow/${projectNavigation.projectId}/workbench-premium2/canvas` }}
+                    className={`fos-nav-item fos-project-canvas-link${projectNavigation.activeItem === 'canvas' ? ' active' : ''}`}
+                    data-testid="project-canvas-nav"
+                    data-nav="canvas"
+                  >
+                    <span className="fos-nav-icon"><AppIcon name="clapperboard" /></span>
+                    <span className="min-w-0 truncate">无限画布</span>
+                    <span className="fos-project-canvas-badge">CANVAS</span>
+                  </Link>
+                ) : null}
+              </section>
+            )
+          })() : null}
         </nav>
         <div className="fos-sidebar-footer">
           {isAdmin ? (
@@ -438,25 +499,40 @@ export function FosShell({
   const { data: session, status } = useSession()
   const router = useRouter()
   const locale = useLocale()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(canvasShell)
+  const isWorkflowStudio = !canvasShell && activeKey === 'batchWorkflow'
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(canvasShell || isWorkflowStudio)
   const { sidebarWidth, sidebarResizing, beginSidebarResize, resetSidebarWidth } = useFosSidebarResize()
+
+  useEffect(() => {
+    if (!projectNavigation?.projectId) return
+    const inferredMode = projectNavigation.creationMode
+      ?? (projectNavigation.activeItem === 'batch' ? 'batch_workflow' : undefined)
+    if (inferredMode) {
+      rememberProjectCreationMode(projectNavigation.projectId, inferredMode)
+    }
+  }, [projectNavigation?.activeItem, projectNavigation?.creationMode, projectNavigation?.projectId])
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((current) => {
       const next = !current
       try {
-        if (canvasShell) window.localStorage.setItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY, next ? 'true' : 'false')
-        else window.localStorage.setItem(FOS_SIDEBAR_STORAGE_KEY, next ? 'true' : 'false')
+        const storageKey = canvasShell
+          ? FOS_CANVAS_SIDEBAR_STORAGE_KEY
+          : isWorkflowStudio
+            ? FOS_WORKFLOW_SIDEBAR_STORAGE_KEY
+            : FOS_SIDEBAR_STORAGE_KEY
+        window.localStorage.setItem(storageKey, next ? 'true' : 'false')
       } catch {
         // Storage can be unavailable in private/restricted browser contexts.
       }
       return next
     })
-  }, [canvasShell])
+  }, [canvasShell, isWorkflowStudio])
 
   useEffect(() => {
     if (hideSidebar) return
     const narrowViewport = window.matchMedia('(max-width: 760px)')
+    const compactWorkflowViewport = window.matchMedia('(max-width: 1480px)')
     const restoreSidebar = () => {
       // A desktop "expanded" preference must not squeeze the project/work
       // hierarchy into a narrow strip on a small display.
@@ -465,18 +541,28 @@ export function FosShell({
         return
       }
       try {
-        const stored = canvasShell
-          ? window.localStorage.getItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY)
-          : window.localStorage.getItem(FOS_SIDEBAR_STORAGE_KEY)
-        setSidebarCollapsed(stored === null ? canvasShell : stored === 'true')
+        if (canvasShell) {
+          const stored = window.localStorage.getItem(FOS_CANVAS_SIDEBAR_STORAGE_KEY)
+          setSidebarCollapsed(stored === null ? true : stored === 'true')
+        } else if (isWorkflowStudio) {
+          const stored = window.localStorage.getItem(FOS_WORKFLOW_SIDEBAR_STORAGE_KEY)
+          setSidebarCollapsed(stored === null ? compactWorkflowViewport.matches : stored === 'true')
+        } else {
+          const stored = window.localStorage.getItem(FOS_SIDEBAR_STORAGE_KEY)
+          setSidebarCollapsed(stored === 'true')
+        }
       } catch {
-        setSidebarCollapsed(canvasShell)
+        setSidebarCollapsed(canvasShell || (isWorkflowStudio && compactWorkflowViewport.matches))
       }
     }
     restoreSidebar()
     narrowViewport.addEventListener('change', restoreSidebar)
-    return () => narrowViewport.removeEventListener('change', restoreSidebar)
-  }, [canvasShell, hideSidebar])
+    compactWorkflowViewport.addEventListener('change', restoreSidebar)
+    return () => {
+      narrowViewport.removeEventListener('change', restoreSidebar)
+      compactWorkflowViewport.removeEventListener('change', restoreSidebar)
+    }
+  }, [canvasShell, hideSidebar, isWorkflowStudio])
 
   useEffect(() => {
     if (hideSidebar) return

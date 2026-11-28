@@ -28,6 +28,10 @@ const EDGE_HUE_BY_NODE_TYPE: Record<string, string> = {
   ...STORY_NODE_HUES,
 }
 
+const EDGE_STYLE_BY_HUE: Record<string, CSSProperties> = Object.fromEntries(
+  Array.from(new Set(Object.values(EDGE_HUE_BY_NODE_TYPE))).map((hue) => [hue, { '--edge-hue': hue } as CSSProperties]),
+)
+
 function measuredSize(value: number | undefined, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : fallback
 }
@@ -88,7 +92,9 @@ export const CanvasEdge = memo(function CanvasEdge(props: EdgeProps<CanvasFlowEd
   })
 
   const edgeHue = storyMount ? STORY_NODE_HUES.story_interaction : sourceNode?.type ? EDGE_HUE_BY_NODE_TYPE[sourceNode.type] : undefined
-  const edgeStyle = edgeHue ? ({ ...style, '--edge-hue': edgeHue } as CSSProperties) : style
+  const edgeStyle = edgeHue
+    ? (style ? ({ ...style, '--edge-hue': edgeHue } as CSSProperties) : (EDGE_STYLE_BY_HUE[edgeHue] ?? ({ '--edge-hue': edgeHue } as CSSProperties)))
+    : style
   const storyClass = storyFlow ? 'is-story-flow' : storyMount ? 'is-story-mount' : storyEnds ? 'is-story-media' : undefined
   const canDelete = Boolean(storyEnds && selected && story && !story.readOnly)
   const deleteLabel = storyFlow ? '断开剧情连线' : storyMount ? '从片段上取下互动' : targetNode?.type === 'story_scene' ? '移除片段画面' : '移除互动画面'

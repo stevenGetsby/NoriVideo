@@ -34,20 +34,20 @@ export async function chatCompletionStream(
   const projectId = options.projectId?.trim() || undefined
   const startedAt = Date.now()
   try {
-    if (providerKey !== 'deepseek') {
-      throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 DeepSeek 官方 API (${provider})`)
+    if (providerKey !== 'openlux') {
+      throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 OpenLux API (${provider})`)
     }
     if (selection.llmProtocol !== 'chat-completions') {
       throw new Error(`MODEL_LLM_PROTOCOL_REQUIRED: ${selection.modelKey} 必须使用 chat-completions`)
     }
-    await getProviderConfig(userId, provider)
+    await getProviderConfig(userId, provider, selection.modelId)
     logLlmRawInput({
       userId, projectId, provider: providerKey, modelId: selection.modelId,
       modelKey: selection.modelKey, stream: true, reasoning: options.reasoning ?? true,
       reasoningEffort: options.reasoningEffort || 'high', temperature: options.temperature ?? 0.7,
       action: options.action, messages,
     })
-    emitStreamStage(callbacks, streamStep, 'streaming', 'deepseek')
+    emitStreamStage(callbacks, streamStep, 'streaming', 'openlux')
     const completion = await runOpenAICompatChatCompletionStream({
       userId, providerId: provider, modelId: selection.modelId, messages,
       temperature: options.temperature ?? 0.7,
@@ -58,11 +58,11 @@ export async function chatCompletionStream(
       modelKey: selection.modelKey, stream: true, action: options.action,
       text: parts.text, reasoning: parts.reasoning, usage: completionUsageSummary(completion),
     })
-    recordCompletionUsage(selection.modelId, completion, {
+    recordCompletionUsage(selection.modelKey, completion, {
       userId, provider, modelKey: selection.modelKey, projectId,
       operation: options.action || 'chat-completion-stream', latencyMs: Date.now() - startedAt,
     })
-    emitStreamStage(callbacks, streamStep, 'completed', 'deepseek')
+    emitStreamStage(callbacks, streamStep, 'completed', 'openlux')
     callbacks?.onComplete?.(parts.text, streamStep)
     return completion
   } catch (error) {

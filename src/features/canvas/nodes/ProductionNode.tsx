@@ -3,6 +3,7 @@
 import { memo } from 'react'
 import { Handle, Position, type NodeProps } from '@xyflow/react'
 import { MediaImage } from '@/components/media/MediaImage'
+import { areCanvasNodePropsEqual } from '../drag-perf'
 import type { CanvasNodeData } from '../types'
 import { CanvasNodeVideo } from './CanvasNodeVideo'
 
@@ -202,5 +203,5 @@ function ProductionNodeImpl(props: NodeProps) {
   )
 }
 
-export const ProductionNode = memo(ProductionNodeImpl)
+export const ProductionNode = memo(ProductionNodeImpl, areCanvasNodePropsEqual)
 ProductionNode.displayName = 'ProductionNode'

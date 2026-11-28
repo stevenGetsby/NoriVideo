@@ -394,6 +394,7 @@ export function MentionPromptEditor({
   }
 
   const applyHistoryValue = (next: { value: string; cursor: number }) => {
+    dismissedMentionRef.current = null
     onChange(next.value)
     const restored = findActiveMention(next.value, next.cursor)
     if (restored) mentionSessionRef.current = restored
@@ -415,7 +416,11 @@ export function MentionPromptEditor({
     const next = findActiveMention(nextValue, cursor ?? nextValue.length)
     if (next) mentionSessionRef.current = next
     const dismissed = dismissedMentionRef.current
-    applyMention(next && dismissed?.query === next.query && dismissed.start === next.start ? null : next)
+    if (dismissed && (!next || dismissed.query !== next.query || dismissed.start !== next.start)) {
+      dismissedMentionRef.current = null
+    }
+    const activeDismissed = dismissedMentionRef.current
+    applyMention(next && activeDismissed?.query === next.query && activeDismissed.start === next.start ? null : next)
   }
 
   const openDrilldown = (kind: 'media' | 'category', id: string, label: string, rowIndex: number, keyboard: boolean) => {
@@ -574,7 +579,15 @@ export function MentionPromptEditor({
     const caret = editorFocused ? selectionStart : queryEnd!
     const next = replacePromptMention(liveValue, liveMention, caret, editorFocused ? selectionEnd : caret, asset.name, assets)
     if (!next) return
-    if (onSelectAsset?.(asset, next.value) === false) return
+    if (onSelectAsset?.(asset, next.value) === false) {
+      mentionSessionRef.current = null
+      pendingMenuEditRef.current = null
+      searchComposingRef.current = false
+      composingVersionRef.current = null
+      dismissedMentionRef.current = null
+      applyMention(null)
+      return
+    }
     if (next.value !== liveValue) {
       rememberInsertion({
         before: liveValue,
@@ -583,6 +596,7 @@ export function MentionPromptEditor({
         cursorAfter: next.cursor,
       })
     }
+    dismissedMentionRef.current = null
     onChange(next.value)
     applyMention(null)
     mentionSessionRef.current = null
@@ -621,11 +635,13 @@ export function MentionPromptEditor({
           }}
           onCompositionEnd={(event) => {
             composingRef.current = false
+            dismissedMentionRef.current = null
             refreshMention(event.currentTarget.value, event.currentTarget.selectionStart)
           }}
           onChange={(event) => {
             if (readOnly) return
             clearInsertionHistory()
+            dismissedMentionRef.current = null
             onChange(event.target.value)
             if (!mention && /@[^@\s，。；：,\n]*$/u.test(event.target.value.slice(0, event.target.selectionStart))) onMentionOpen?.()
             refreshMention(event.target.value, event.target.selectionStart)

@@ -5,6 +5,13 @@ import { useTranslations } from 'next-intl'
 import { Link } from '@/i18n/navigation'
 import { AppIcon } from '@/components/ui/icons'
 import { statTileStyle } from '@/components/workspace/stat-tile-hue'
+import {
+  FeedbackImageUploader,
+  collectFeedbackBrowserContext,
+  useFeedbackAttachments,
+  type FeedbackUploadedAttachment,
+} from '@/components/workspace/FeedbackImageUploader'
+import { APP_VERSION } from '@/lib/app-meta'
 import { apiFetch } from '@/lib/api-fetch'
 
 type FeedbackType = 'bug' | 'quality' | 'workflow' | 'idea'
@@ -17,6 +24,8 @@ interface FeedbackRecord {
   description: string
   route: string
   userAgent: string
+  attachments?: FeedbackUploadedAttachment[]
+  resolutionNote?: string
   createdAt: string
   updatedAt?: string
   status: FeedbackStatus
@@ -45,6 +54,7 @@ export function FrameFeedbackDashboard() {
   const [saved, setSaved] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const uploader = useFeedbackAttachments()
 
   useEffect(() => {
     setRoute(window.location.pathname + window.location.search)
@@ -120,18 +130,35 @@ export function FrameFeedbackDashboard() {
   }
 
   async function saveFeedback(form: HTMLFormElement) {
+    if (uploader.isUploading) return
+    if (uploader.hasFailedUploads) {
+      setError('有截图尚未上传成功，请点击重试或移除后再提交')
+      return
+    }
     const formData = new FormData(form)
     const trimmedTitle = String(formData.get('title') ?? title).trim()
     const trimmedDescription = String(formData.get('description') ?? description).trim()
     const submittedRoute = String(formData.get('route') ?? route).trim()
-    if (!trimmedTitle || !trimmedDescription) return
+    const hasImages = uploader.uploadedAttachments.length > 0
+    if (!trimmedDescription && !hasImages) return
+    const finalDescription = trimmedDescription || '（附图反馈）'
+    const finalTitle = trimmedTitle || (trimmedDescription ? trimmedDescription.split('\n')[0].slice(0, 40) : `截图反馈（${uploader.uploadedAttachments.length} 张）`)
 
     const nextRecord = {
       type,
-      title: trimmedTitle,
-      description: trimmedDescription,
+      title: finalTitle,
+      description: finalDescription,
       route: submittedRoute || window.location.pathname,
       userAgent: window.navigator.userAgent,
+      attachments: uploader.uploadedAttachments.map(({ key, mimeType, name, size, width, height }) => ({
+        key,
+        mimeType,
+        name,
+        size,
+        width,
+        height,
+      })),
+      context: collectFeedbackBrowserContext(APP_VERSION),
     }
 
     try {
@@ -145,6 +172,7 @@ export function FrameFeedbackDashboard() {
       setRecords(Array.isArray(data.records) ? data.records : records)
       setTitle('')
       setDescription('')
+      uploader.clearAll()
       setSaved(true)
       setError(null)
       window.setTimeout(() => setSaved(false), 1800)
@@ -188,7 +216,7 @@ export function FrameFeedbackDashboard() {
           ))}
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} onPaste={uploader.handleReactPaste} className="space-y-4">
           <div>
             <label className="mb-2 block text-xs font-medium text-white/52">{t('fields.type')}</label>
             <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -243,22 +271,32 @@ export function FrameFeedbackDashboard() {
               onChange={(event) => setDescription(event.target.value)}
               onInput={(event) => setDescription(event.currentTarget.value)}
               rows={5}
-              maxLength={1200}
+              maxLength={2000}
               className="w-full resize-none rounded-md border border-white/10 bg-[rgb(var(--nori-bg-1))] px-3 py-2 text-sm leading-6 text-white outline-none transition-colors placeholder:text-white/24 focus:border-white/35"
               placeholder={t('placeholders.description')}
             />
           </div>
 
+          <FeedbackImageUploader
+            items={uploader.items}
+            limitNotice={uploader.limitNotice}
+            maxImages={uploader.maxImages}
+            onAddFiles={uploader.addFiles}
+            onRetry={uploader.retryItem}
+            onRemove={uploader.removeItem}
+          />
+
           <div className="flex items-center justify-between gap-3">
             <div className="text-xs text-white/34">
-              {t('serverBacked')}
+              {uploader.isUploading ? '正在上传截图…' : t('serverBacked')}
             </div>
             <button
               type="button"
+              disabled={uploader.isUploading}
               onClick={(event) => {
                 if (event.currentTarget.form) saveFeedback(event.currentTarget.form)
               }}
-              data-ready={title.trim() && description.trim() ? 'true' : 'false'}
+              data-ready={(description.trim() || uploader.uploadedAttachments.length > 0) && !uploader.isUploading ? 'true' : 'false'}
               className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[var(--fos-brand-solid)] px-4 text-sm font-semibold text-on-brand transition-colors hover:brightness-110 data-[ready=false]:bg-white/10 data-[ready=false]:text-white/32"
             >
               <AppIcon name={saved ? 'check' : 'plus'} className="h-4 w-4" />
@@ -346,6 +384,28 @@ export function FrameFeedbackDashboard() {
                     </span>
                   </div>
                   <p className="line-clamp-2 text-xs leading-5 text-white/45">{record.description}</p>
+                  {record.attachments && record.attachments.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {record.attachments.map((att) => (
+                        <a
+                          key={att.key}
+                          href={att.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="block h-11 w-16 overflow-hidden rounded border border-white/12 bg-black/30 hover:border-white/35"
+                          title={att.name || '查看截图'}
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={att.url} alt={att.name || '反馈截图'} className="h-full w-full object-cover" loading="lazy" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                  {record.resolutionNote ? (
+                    <div className="mt-2 rounded border border-[rgb(var(--nori-s-45d483))]/25 bg-[rgb(var(--nori-s-45d483))]/8 px-2 py-1.5 text-[11px] leading-4 text-[rgb(var(--nori-t-8ff0b9))]">
+                      处理说明：{record.resolutionNote}
+                    </div>
+                  ) : null}
                   <div className="mt-2 flex items-center justify-between gap-2 text-[11px] text-white/30">
                     <span className="truncate font-mono">{record.route}</span>
                     <span className="shrink-0">{formatDate(record.createdAt)}</span>

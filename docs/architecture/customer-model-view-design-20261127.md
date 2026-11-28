@@ -7,7 +7,7 @@ Status: Implemented (staging `/tmp/prov`, pending release build & production con
 
 When onboarding external customers to LanMiaoTV / FrameOS:
 - **External customers** must only see clean, white-labeled **model names** (e.g. `Seedance 2.5`, `Seedance 2.5 国际版`, `Seedance 2.0`), with **zero exposure** of upstream provider/aggregator names (`Kuaizi`, `Huimengi / 绘梦工坊`, `AILink`, `OpenLux`, `TopenRouter`, `DeepSeek 官方`), internal endpoints (`kzep_...`), or upstream routing keys (`kuaizi::...`).
-- **Internal operator accounts** (`caoshuang` and `王卓 / wangzhuo`) must continue to see the **complete list of all configured usable provider models** across every upstream provider (`供应商 · 模型名`, e.g. `Kuaizi · Seedance 2.5 国际版`, `绘梦工坊 · seedance-2.5`, `AILink · doubao-seedance-2-5`, `TopenRouter · doubao-seedance-2-5-260628`), including models hidden from customers, for side-by-side quality/cost/latency comparison and fallback testing.
+- **Internal operator accounts** (`caoshuang` and `王卓 / wangzhuo`) see the **complete list of configured usable provider models** across every upstream provider (`供应商 · 模型名`, e.g. `Kuaizi · Seedance 2.5 国际版`, `绘梦工坊 · seedance-2.5`, `AILink · doubao-seedance-2-5`, `TopenRouter · doubao-seedance-2-5-260628`), including models hidden from customers, **subject to the global video `modelEnabled` switch**: turning a video model OFF (`modelEnabled[key] === false`) immediately hides it from internal accounts and blocks internal execution (`MODEL_NOT_ADMIN_ENABLED`).
 - **Per-customer extensibility (Visibility + Provider Routing)**: Operators must be able to customize, per customer tenant/workspace or individual account:
   1. Which white-label models (`nori::*`) are visible or hidden (`customerModelOverrides`), AND
   2. Which underlying upstream provider model (`provider::modelId`, e.g. Kuaizi vs 绘梦工坊 vs AILink vs TopenRouter vs OpenLux) executes each white-label model (`customerModelRoutingOverrides`), via configuration alone with zero code changes and zero provider exposure to the customer.
@@ -23,7 +23,7 @@ Queried from production `User` table (read-only, no credentials inspected):
 | `admin@caoshuang` | `super_admin` | `919094eb-5fe3-43f5-ab8e-3f862b1d0763` | `null` | Optional Internal Full View |
 | Sub-accounts (e.g. `曹宇航`) | `storyboard` | `c57834d3-...` | `9de17f61-...` | Customer White-Label View |
 
-> **Critical isolation rule**: Internal view matching checks **`actorId` only** (`session.user.actorId || session.user.id`), **never** `workspaceOwnerId`. Sub-accounts inside an operator's workspace do not inherit the internal full view unless their own `User.id` is explicitly listed.
+> **Workspace inheritance rule**: Internal view matching checks **`actorId` OR `workspaceOwnerId`** (`session.user.actorId || session.user.id`, or `session.user.workspaceOwnerId`). Adding an internal main account (`caoshuang`, `王卓`, `admin@caoshuang`) to `internalModelViewUserIds` automatically grants the internal full view to all sub-accounts under that workspace as well, while external customer workspaces and their sub-accounts remain strictly on the Customer White-Label View.
 
 ## 3. Two-View Architecture
 
@@ -101,7 +101,7 @@ All controls live under `llm` in `/opt/norivideo/data/services.prod.json` (hot-r
    - `customerModelRoutingOverrides[workspaceOwnerId][businessModelKey]` (customer tenant/workspace override)
    - `modelRouting[businessModelKey]` (global default route)
    - **Authoritative override rule**: If an explicit customer provider override points to a misconfigured/unkeyed provider (or `kuaizi::doubao-seedance-2-5-260628-intl` without `seedance25IntlKzep`), that model is reported unavailable rather than silently routing to a different provider.
-   - **Independent from global `modelEnabled`**: A runtime provider model explicitly assigned in `customerModelRoutingOverrides` can be executed by that customer even if its global `modelEnabled[runtimeModelKey]` switch is `false`, as long as the provider has a valid API key (and `seedance25IntlKzep` when intl).
+   - **Independent from global `modelEnabled` (with Admin UI warnings)**: Turning a video model OFF in `modelEnabled` hides it from internal full-view accounts immediately. For external customers, a runtime provider model explicitly assigned via `customerModelRoutingOverrides` or customer-visible `modelRouting` remains executable (non-breaking), while Admin UI (`/admin/models` and `/admin/customer-models`) surfaces prominent configuration warnings whenever an external customer route points to a globally disabled video service.
    - **Request & Worker Propagation**: Both HTTP API routes (via `setAccountActorContext`) and background BullMQ workers (via `withTaskQuotaContext` restoring `payload.meta.quotaUserId`) expose `{ actorId, workspaceOwnerId }` through `getAccountActorContext()`, so `resolveModelSelection`, `resolveRuntimeModelKey`, capability checks, billing (`calcVideo`/`calcImage`/`calcText`/`calcVoice`), and `recordServiceUsage` all honor each customer's routed provider automatically.
    - **Internal Full-View Isolation**: Accounts in `internalModelViewUserIds` (`caoshuang`, `王卓`, `admin@caoshuang`) match `actorId` only and remain unaffected by customer visibility or customer routing overrides.
 

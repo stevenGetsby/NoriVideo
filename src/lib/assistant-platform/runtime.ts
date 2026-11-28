@@ -38,12 +38,13 @@ async function resolveAssistantLanguageModel(input: {
   languageModel: LanguageModel
 }> {
   const selection = await resolveLlmRuntimeModel(input.userId, input.analysisModelKey)
-  const providerConfig = await getProviderConfig(input.userId, selection.provider)
-  const providerKey = getProviderKey(selection.provider)
+  const providerKey = getProviderKey(selection.provider).toLowerCase()
 
-  if (providerKey !== 'deepseek') {
-    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 DeepSeek 官方 API (${selection.provider})`)
+  if (providerKey !== 'openlux') {
+    throw new Error(`TEXT_PROVIDER_UNSUPPORTED: 文本生成仅支持 OpenLux API (${selection.provider})`)
   }
+
+  const providerConfig = await getProviderConfig(input.userId, selection.provider, selection.modelId)
 
   const openai = createOpenAI({
     apiKey: providerConfig.apiKey,

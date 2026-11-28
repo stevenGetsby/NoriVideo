@@ -1,5 +1,77 @@
 [
   {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "gemini-3.8-flash",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 2.4 },
+        { "when": { "tokenType": "output" }, "amount": 12.0 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "deepseek-v4.1-flash",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 1.1 },
+        { "when": { "tokenType": "output" }, "amount": 4.35 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "deepseek-v4-pro",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 4.8 },
+        { "when": { "tokenType": "output" }, "amount": 14.4 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "qwen3.8-max",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 7.25 },
+        { "when": { "tokenType": "output" }, "amount": 21.75 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "kimi-k2.6",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 3.45 },
+        { "when": { "tokenType": "output" }, "amount": 14.5 }
+      ]
+    }
+  },
+  {
+    "apiType": "text",
+    "provider": "openlux",
+    "modelId": "claude-sonnet-5",
+    "pricing": {
+      "mode": "capability",
+      "tiers": [
+        { "when": { "tokenType": "input" }, "amount": 4.3 },
+        { "when": { "tokenType": "output" }, "amount": 21.35 }
+      ]
+    }
+  },
+  {
     "apiType": "image",
     "provider": "openlux",
     "modelId": "gpt-image-2.5-flare",

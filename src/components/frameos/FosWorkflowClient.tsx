@@ -1,8 +1,15 @@
 'use client'
 
-import { FosShell, type FosProjectNavigation } from './FosShell'
+import { useEffect, useState } from 'react'
+import {
+  FosShell,
+  readRememberedProjectCreationMode,
+  rememberProjectCreationMode,
+  type FosProjectNavigation,
+} from './FosShell'
 import { FosProjectHeader } from './FosProjectHeader'
 import { useFosProject } from './useFosProject'
+import { apiFetch } from '@/lib/api-fetch'
 import dynamic from 'next/dynamic'
 import { workflowNavigationSurfaceKey } from '@/lib/frameos/navigation-surface-key'
 import { projectHref } from '@/lib/projects/navigation'
@@ -61,13 +68,49 @@ function projectMetaTags(data: ReturnType<typeof useFosProject>): string[] {
   ].filter((tag): tag is string => Boolean(tag))
 }
 
+type ProjectCreationMode = 'workflow' | 'canvas' | 'batch_workflow'
+
+function parseProjectCreationMode(value: unknown): ProjectCreationMode | undefined {
+  if (value === 'batch_workflow' || value === 'canvas' || value === 'workflow') return value
+  return undefined
+}
+
 export function FosWorkflowClient({ projectId, view, focus, initialEpisodeId, initialCanvasNodeId, assignmentReturnTo }: Props) {
   const data = useFosProject(projectId)
+  const [creationMode, setCreationMode] = useState<ProjectCreationMode | undefined>(() =>
+    readRememberedProjectCreationMode(projectId),
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setCreationMode(readRememberedProjectCreationMode(projectId))
+    void apiFetch(`/api/projects/${encodeURIComponent(projectId)}`, { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) return null
+        return await response.json().catch(() => null) as {
+          project?: { creationMode?: unknown }
+          work?: { creationMode?: unknown }
+        } | null
+      })
+      .then((payload) => {
+        if (cancelled || !payload) return
+        const resolved = parseProjectCreationMode(payload.project?.creationMode ?? payload.work?.creationMode)
+        if (!resolved) return
+        rememberProjectCreationMode(projectId, resolved)
+        setCreationMode(resolved)
+      })
+      .catch(() => {
+        // Keep remembered creationMode fallback if transient project fetch fails.
+      })
+    return () => { cancelled = true }
+  }, [projectId])
+
   const navigationSurfaceKey = workflowNavigationSurfaceKey(projectId, view, focus)
   const projectNavigation: FosProjectNavigation = {
     projectId,
     projectName: data.projectName,
     activeItem: view === 'canvas' ? 'canvas' : 'workbench',
+    ...(creationMode ? { creationMode } : {}),
   }
 
   const parentProjectHref = data.parentProjectId ? projectHref(data.parentProjectId) : undefined

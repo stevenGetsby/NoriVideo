@@ -161,6 +161,7 @@ const READABLE_CONTENT_PREFIXES = [
   '/api/collaboration',
   '/api/creative/projects/collaboration',
   '/api/interactive',
+  '/api/batch-workflow',
 ]
 
 const ADMIN_PREFIXES = [
@@ -265,7 +266,14 @@ export function requiredPermissionsForApiPath(
     if (/^\/api\/interactive\/[^/]+\/?$/.test(path)) return ['canvasWrite']
     return ['projectCreate', 'canvasWrite']
   }
-    if (path.startsWith('/api/workflow') || path.startsWith('/api/runs')) return ['read']
+  if (path.startsWith('/api/workflow') || path.startsWith('/api/runs')) return ['read']
+  if (path.startsWith('/api/batch-workflow')) {
+    if (path.startsWith('/api/batch-workflow/skills')) return ['admin']
+    if (path.startsWith('/api/batch-workflow/templates')) return ['admin']
+    if (/^\/api\/batch-workflow\/runs\/[^/]+\/items\/[^/]+\/trial(?:\/|$)/.test(path)) return ['admin']
+    if (path.startsWith('/api/batch-workflow/runs')) return ['canvasWrite']
+    return ['admin']
+  }
 
   if (path.startsWith('/api/auth/') || path.startsWith('/api/feedback')) return []
   return ['admin']

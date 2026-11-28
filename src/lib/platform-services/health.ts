@@ -5,6 +5,7 @@ import { deleteObject, getObjectBuffer, getSignedObjectUrl, resetStorageProvider
 import { getRawProviderKey } from '@/lib/model-provider-contract'
 import { AILINK_DEFAULT_BASE_URL } from '@/lib/providers/ailink/client'
 import { TOPENROUTER_DEFAULT_BASE_URL } from '@/lib/providers/topenrouter/client'
+import { OPENLUX_TEXT_KEY_GROUPS } from '@/lib/providers/openlux/groups'
 import { isUsableServiceSecret, readMaterializedPlatformServiceConfig } from './config'
 import { recordServiceUsage } from './usage'
 
@@ -97,6 +98,111 @@ export async function probeProviderHealth(providerId: string, checkedBy: string)
   const isOpenLux = providerKey === 'openlux'
   const isHuimengi = providerKey === 'huimengi'
   const isImageProvider = isOpenLux || isHuimengi
+  if (isOpenLux) {
+    const probes: Array<{ id: string; label: string; apiKey: string }> = []
+    if (isUsableServiceSecret(provider.apiKey)) {
+      probes.push({ id: 'default', label: '主 Key', apiKey: provider.apiKey!.trim() })
+    }
+    for (const group of OPENLUX_TEXT_KEY_GROUPS) {
+      const groupKey = provider.groupApiKeys?.[group.id]?.trim() || ''
+      if (isUsableServiceSecret(groupKey)) {
+        probes.push({ id: group.id, label: group.id, apiKey: groupKey })
+      }
+    }
+    if (probes.length === 0) {
+      const message = 'API Key 未配置或仍是占位值，请填写真实密钥后重试'
+      await persistHealth({
+        targetType: 'provider',
+        targetId: provider.id,
+        status: 'unhealthy',
+        latencyMs: 0,
+        message,
+        checkedBy,
+      })
+      await recordServiceUsage({
+        provider: provider.id,
+        serviceType: 'llm',
+        operation: 'health-check',
+        status: 'failed',
+        userId: checkedBy,
+        latencyMs: 0,
+        units: 0,
+        errorCode: 'API_KEY_MISSING',
+      })
+      return { targetType: 'provider' as const, targetId: provider.id, status: 'unhealthy' as const, latencyMs: 0, message, checkedAt: new Date().toISOString() }
+    }
+    const url = providerModelsUrl(provider.id, provider.baseUrl)
+    const results = await Promise.all(probes.map(async (item) => {
+      try {
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${item.apiKey}` },
+          signal: AbortSignal.timeout(15_000),
+        })
+        const text = await res.text().catch(() => '')
+        let count: number | null = null
+        if (text) {
+          try {
+            const payload = JSON.parse(text) as { data?: unknown; models?: unknown }
+            const list = Array.isArray(payload.data) ? payload.data : Array.isArray(payload.models) ? payload.models : null
+            count = list?.length ?? null
+          } catch {
+            count = null
+          }
+        }
+        return {
+          id: item.id,
+          label: item.label,
+          healthy: res.ok,
+          httpStatus: res.status,
+          modelCount: count,
+          summary: res.ok
+            ? `${item.label} 正常${count == null ? '' : `(${count})`}`
+            : `${item.label} HTTP ${res.status}`,
+        }
+      } catch (err) {
+        const errMsg = compact(err instanceof Error ? err.message : String(err), 80) || '连接失败'
+        return {
+          id: item.id,
+          label: item.label,
+          healthy: false,
+          httpStatus: 0,
+          modelCount: null,
+          summary: `${item.label} ${errMsg}`,
+        }
+      }
+    }))
+    const latencyMs = Date.now() - startedAt
+    const healthy = results.every((item) => item.healthy)
+    const status = healthy ? 'healthy' : 'unhealthy'
+    const message = results.length === 1
+      ? (healthy
+        ? (results[0].modelCount == null ? '连接正常' : `连接正常，发现 ${results[0].modelCount} 个模型`)
+        : results[0].summary)
+      : results.map((item) => item.summary).join(' · ')
+    await persistHealth({
+      targetType: 'provider',
+      targetId: provider.id,
+      status,
+      latencyMs,
+      message,
+      checkedBy,
+      details: {
+        probe: 'models',
+        groups: results.map(({ id, healthy: ok, httpStatus, modelCount }) => ({ id, healthy: ok, httpStatus, modelCount })),
+      },
+    })
+    await recordServiceUsage({
+      provider: provider.id,
+      serviceType: 'llm',
+      operation: 'health-check',
+      status: healthy ? 'success' : 'failed',
+      userId: checkedBy,
+      latencyMs,
+      units: 0,
+      errorCode: healthy ? null : 'OPENLUX_GROUP_PROBE_FAILED',
+    })
+    return { targetType: 'provider' as const, targetId: provider.id, status, latencyMs, message, checkedAt: new Date().toISOString() }
+  }
   if (!isUsableServiceSecret(provider.apiKey)) {
     const message = 'API Key 未配置或仍是占位值，请填写真实密钥后重试'
     await persistHealth({

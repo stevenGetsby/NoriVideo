@@ -152,7 +152,7 @@
   position: absolute;
   inset: 0;
   overflow: hidden;
-  contain: layout paint style;
+  contain: layout style;
   border: 1px solid rgb(var(--nori-ink) / calc(0.19 * var(--nori-a)));
   border-radius: 10px;
   background: rgb(var(--nori-bg-3));
@@ -4576,6 +4576,7 @@
   width: 100%;
   height: 100%;
   overflow: hidden;
+  contain: layout style;
   border: 1px solid rgb(var(--nori-ink) / calc(0.16 * var(--nori-a)));
   border-radius: 9px;
   padding: 0;
@@ -6211,9 +6212,34 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-workspace.is-node-dragging .nori-canvas-chrome *,
 .nori-canvas-workspace.is-node-dragging .nori-canvas-tool-rail,
 .nori-canvas-workspace.is-node-dragging .nori-canvas-viewport-controls,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-selection-toolbar,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-group-popover,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-organize-menu,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-minimap,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-agent-launcher,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-agent-panel,
 .nori-canvas-workspace.is-panning .nori-canvas-chrome *,
 .nori-canvas-workspace.is-panning .nori-canvas-tool-rail,
-.nori-canvas-workspace.is-panning .nori-canvas-viewport-controls { backdrop-filter: none; }
+.nori-canvas-workspace.is-panning .nori-canvas-viewport-controls,
+.nori-canvas-workspace.is-panning .nori-canvas-selection-toolbar,
+.nori-canvas-workspace.is-panning .nori-canvas-group-popover,
+.nori-canvas-workspace.is-panning .nori-canvas-organize-menu,
+.nori-canvas-workspace.is-panning .nori-canvas-minimap,
+.nori-canvas-workspace.is-panning .nori-canvas-agent-launcher,
+.nori-canvas-workspace.is-panning .nori-canvas-agent-panel { backdrop-filter: none; }
+
+/* Suspend expensive SVG hit-testing, transitions, and floating toolbars while
+   dragging nodes or panning — without mutating node-body paint/box-shadow or
+   promoting the whole viewport layer (which triggers Chromium GPU tile flicker). */
+.nori-canvas-workspace.is-node-dragging .react-flow__edges,
+.nori-canvas-workspace.is-panning .react-flow__edges { pointer-events: none; }
+.nori-canvas-workspace.is-node-dragging .react-flow__edge-path,
+.nori-canvas-workspace.is-panning .react-flow__edge-path,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-handle,
+.nori-canvas-workspace.is-panning .nori-canvas-handle { transition: none; }
+.nori-canvas-workspace.is-node-dragging .react-flow__node:not(.dragging) { pointer-events: none; }
+.nori-canvas-workspace.is-node-dragging .nori-canvas-node-toolbar,
+.nori-canvas-workspace.is-node-dragging .nori-canvas-group-toolbar { opacity: 0; pointer-events: none; }
 
 @media (max-width: 760px) {
   .nori-canvas-generator.is-fullscreen { inset: 10px; border-radius: 14px; }
@@ -7531,9 +7557,11 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-generator-sound input:focus-visible { outline: 2px solid rgb(var(--nori-primary-text) / 0.8); outline-offset: 2px; }
 .nori-canvas-generator-quote {
   display: inline-flex;
+  min-width: 68px;
   height: 28px;
   flex: none;
   align-items: center;
+  justify-content: flex-end;
   gap: 3px;
   border: 0;
   padding: 0 2px;
@@ -7542,7 +7570,9 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
   font-size: 11px;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  transition: opacity .12s ease;
 }
+.nori-canvas-generator-quote.is-loading { opacity: .55; }
 .nori-canvas-generator-quote svg { width: 12px; height: 12px; flex: none; color: var(--dm-hue-text); }
 .nori-canvas-generator-quote.is-error { color: rgb(var(--nori-t-fca5a5)); }
 .nori-canvas-generator-controls .nori-canvas-generate-button {
@@ -8027,8 +8057,8 @@ body:has(.nori-canvas-studio-dialog) > .ph-no-capture { display: none !important
 .nori-canvas-parameter-segments > button:disabled { opacity: .4; cursor: not-allowed; }
 .nori-canvas-parameter-aspects {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(auto-fill, minmax(48px, 1fr));
+  gap: 6px;
 }
 .nori-canvas-parameter-aspect {
   display: flex;

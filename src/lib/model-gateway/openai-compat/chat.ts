@@ -9,7 +9,7 @@ import type { OpenAICompatChatRequest } from '../types'
 import { createOpenAICompatClient, resolveOpenAICompatClientConfig } from './common'
 
 export async function runOpenAICompatChatCompletion(input: OpenAICompatChatRequest): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId)
+  const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId, input.modelId)
   const client = createOpenAICompatClient(config)
   return await client.chat.completions.create({
     model: input.modelId,
@@ -27,7 +27,7 @@ export async function runOpenAICompatChatCompletionStream(
   callbacks?: ChatCompletionStreamCallbacks,
   stepMeta?: InternalLLMStreamStepMeta,
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId)
+  const config = await resolveOpenAICompatClientConfig(input.userId, input.providerId, input.modelId)
   const client = createOpenAICompatClient(config)
   const stream = await client.chat.completions.create({
     model: input.modelId,

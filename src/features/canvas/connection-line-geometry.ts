@@ -13,6 +13,8 @@ export type CanvasRenderedScale = CanvasConnectionPoint
 
 export type CanvasNodeBoxLike = {
   id: string
+  type?: string
+  hidden?: boolean
   internals: {
     positionAbsolute: CanvasConnectionPoint
     z?: number
@@ -116,14 +118,20 @@ export function resolveCanvasNodeEdgeEndpoint(input: {
  * on one of its handles.
  */
 export function findCanvasTargetNodeIdAtPoint(input: {
-  nodes: readonly CanvasNodeBoxLike[]
+  nodes: Iterable<CanvasNodeBoxLike>
   point: CanvasConnectionPoint
   excludeNodeId?: string
+  excludeIds?: ReadonlySet<string> | ReadonlyMap<string, unknown>
+  skipGroups?: boolean
+  skipHidden?: boolean
 }): string | null {
   let best: { id: string; z: number } | null = null
 
   for (const node of input.nodes) {
     if (node.id === input.excludeNodeId) continue
+    if (input.excludeIds?.has(node.id)) continue
+    if (input.skipGroups && node.type === 'group') continue
+    if (input.skipHidden && node.hidden) continue
     const width = finiteNonNegative(node.measured?.width ?? node.width ?? 0, 0)
     const height = finiteNonNegative(node.measured?.height ?? node.height ?? 0, 0)
     const x = node.internals.positionAbsolute.x

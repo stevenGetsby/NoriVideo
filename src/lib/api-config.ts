@@ -26,6 +26,7 @@ import {
 } from './service-config'
 import {
   environmentKuaiziIntlKzep,
+  environmentOpenLuxGroupKeys,
   environmentProviderKey,
   fixedPlatformModels,
   getPlatformServiceConfigResponse,
@@ -42,6 +43,11 @@ import {
 } from './platform-services/model-selection'
 import { getAccountActorContext } from './account/request-context'
 import { KUAIZI_SEEDANCE_25_INTL_MODEL_KEY } from './providers/kuaizi/catalog'
+import {
+  OPENLUX_TEXT_KEY_GROUPS,
+  resolveOpenLuxKeyFromMap,
+  resolveOpenLuxKeyGroupForModel,
+} from './providers/openlux/groups'
 import {
   findNoriBusinessModel,
   normalizeProjectBusinessModelKey,
@@ -75,6 +81,7 @@ interface CustomProvider {
   name: string
   baseUrl?: string
   apiKey?: string
+  groupApiKeys?: Record<string, string>
   assetGroupId?: string
   seedance25IntlKzep?: string
 }
@@ -194,6 +201,16 @@ function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): Cu
   // 管理台 hasApiKey 与路由校验都承认 env 注入的 key，运行时必须同样承认，
   // 否则仅配置了 env key 的服务商会在生成时 PROVIDER_API_KEY_MISSING。
   const apiKey = readTrimmedString(raw.apiKey) || environmentProviderKey(id)
+  let encryptedGroupKeys: Record<string, string> | undefined
+  if (id === 'openlux') {
+    const envGroups = environmentOpenLuxGroupKeys()
+    const merged: Record<string, string> = {}
+    for (const group of OPENLUX_TEXT_KEY_GROUPS) {
+      const value = readTrimmedString(raw.groupApiKeys?.[group.id]) || readTrimmedString(envGroups[group.id])
+      if (value) merged[group.id] = encryptApiKey(value)
+    }
+    if (Object.keys(merged).length > 0) encryptedGroupKeys = merged
+  }
   return {
     id,
     name,
@@ -201,6 +218,7 @@ function normalizeServiceProvider(raw: ServiceConfigProvider, index: number): Cu
     assetGroupId: readTrimmedString(raw.assetGroupId) || undefined,
     ...(id === 'kuaizi' ? { seedance25IntlKzep: readTrimmedString(raw.seedance25IntlKzep) || environmentKuaiziIntlKzep() || undefined } : {}),
     ...(apiKey ? { apiKey: encryptApiKey(apiKey) } : {}),
+    ...(encryptedGroupKeys ? { groupApiKeys: encryptedGroupKeys } : {}),
   }
 }
 
@@ -296,13 +314,21 @@ export async function resolveModelSelection(
   const internalViewer = isInternalModelViewer(platformConfig, effectiveViewer)
   let runtimeModelKey: string | null = null
   if (internalViewer && !businessModel && requested.provider !== 'nori') {
-    // Internal full-view accounts can directly invoke any configured platform model
-    // (including models hidden from customers), both in HTTP routes and workers.
+    // Internal full-view accounts can directly invoke configured platform models
+    // (including models hidden from customers), except video models explicitly
+    // turned OFF via admin modelEnabled.
     const directModel = fixedPlatformModels().find((item) => (
       item.provider === requested.provider && item.modelId === requested.modelId && item.type === mediaType
     ))
     if (!directModel) {
       throw new Error(`MODEL_NOT_FOUND: ${requested.modelKey} is not enabled for ${mediaType}`)
+    }
+    if (
+      mediaType === 'video'
+      && isPlatformVideoModel(requested.modelKey)
+      && !isPlatformVideoModelEnabled(requested.modelKey)
+    ) {
+      throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
     }
     runtimeModelKey = requested.modelKey
   } else {
@@ -336,12 +362,10 @@ export async function resolveModelSelection(
         || Object.values(platformConfig.customerModelOverrides || {}).some((overrides) => overrides[resolvedBusinessKey] === true)
       : false
     if (
-      !internalViewer
-      && !customerVisibleBusiness
-      && !explicitCustomerRoute
-      && mediaType === 'video'
+      mediaType === 'video'
       && isPlatformVideoModel(runtimeModelKey)
       && !isPlatformVideoModelEnabled(runtimeModelKey)
+      && (internalViewer || (!customerVisibleBusiness && !explicitCustomerRoute))
     ) {
       throw new Error(`MODEL_NOT_ADMIN_ENABLED: ${requested.modelKey}`)
     }
@@ -434,18 +458,43 @@ export interface ProviderConfig {
   seedance25IntlKzep?: string
 }
 
-export async function getProviderConfig(userId: string, providerId: string): Promise<ProviderConfig> {
+export async function getProviderConfig(
+  userId: string,
+  providerId: string,
+  modelId?: string,
+): Promise<ProviderConfig> {
   const { providers } = await readUserConfig(userId)
   const provider = pickProviderStrict(providers, providerId)
 
-  if (!provider.apiKey) {
-    throw new Error(`PROVIDER_API_KEY_MISSING: ${provider.id}`)
+  let apiKey = ''
+  if (provider.id === 'openlux') {
+    const mainKey = provider.apiKey ? decryptApiKey(provider.apiKey) : ''
+    const decryptedGroups: Record<string, string> = {}
+    if (provider.groupApiKeys) {
+      for (const [group, encrypted] of Object.entries(provider.groupApiKeys)) {
+        if (encrypted) decryptedGroups[group] = decryptApiKey(encrypted)
+      }
+    }
+    apiKey = resolveOpenLuxKeyFromMap({
+      apiKey: mainKey,
+      groupApiKeys: decryptedGroups,
+      modelId,
+    })
+    if (!apiKey) {
+      const group = resolveOpenLuxKeyGroupForModel(modelId)
+      throw new Error(`PROVIDER_API_KEY_MISSING: openlux${group !== 'default' ? ` (${group})` : ''}`)
+    }
+  } else {
+    if (!provider.apiKey) {
+      throw new Error(`PROVIDER_API_KEY_MISSING: ${provider.id}`)
+    }
+    apiKey = decryptApiKey(provider.apiKey)
   }
 
   return {
     id: provider.id,
     name: provider.name,
-    apiKey: decryptApiKey(provider.apiKey),
+    apiKey,
     baseUrl: normalizeProviderBaseUrl(provider.id),
     assetGroupId: provider.assetGroupId,
     ...(provider.id === 'kuaizi' && provider.seedance25IntlKzep ? { seedance25IntlKzep: provider.seedance25IntlKzep } : {}),
@@ -520,5 +569,5 @@ export async function getLipSyncApiKey(userId: string, model?: string | null): P
  */
 export async function hasApiConfig(userId: string): Promise<boolean> {
   const { providers } = await readUserConfig(userId)
-  return providers.some((provider) => !!provider.apiKey)
+  return providers.some((provider) => !!provider.apiKey || Boolean(provider.groupApiKeys && Object.keys(provider.groupApiKeys).length > 0))
 }

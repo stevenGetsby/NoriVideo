@@ -131,9 +131,15 @@ export function classifySeedanceReferenceRetry(
     }
   }
 
-  if (/TaskTypeConstraint/i.test(message)) {
+  const isTaskTypeConstraint = /TaskTypeConstraint/i.test(message)
+    || /Seedance identified your task as\s+(?:video\s*edit|video\s*exten)/i.test(message)
+    || (/video\s*edit|视频编辑/i.test(message) && (/`?duration`?\s*must be\s*-1/i.test(message) || /output ratio and duration follow/i.test(message)))
+    || (/video\s*exten|视频延长/i.test(message) && (/`?ratio`?\s*must be\s*`?adaptive`?/i.test(message) || /output ratio/i.test(message)))
+
+  if (isTaskTypeConstraint) {
     const mentionsEdit = /video\s*edit|视频编辑/i.test(message)
       || (/adaptive/i.test(message) && /duration[^.\n]*-1/i.test(message))
+      || /`?duration`?\s*must be\s*-1/i.test(message)
     if (mentionsEdit) {
       if (currentTaskType === 'edit' && current.aspectRatio === 'adaptive') return null
       return {

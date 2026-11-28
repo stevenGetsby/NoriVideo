@@ -1,6 +1,7 @@
 import type { NoriBusinessModelType } from '@/lib/nori-model-catalog'
 import { composeModelKey } from '@/lib/model-config-contract'
 import { getRawProviderKey } from '@/lib/model-provider-contract'
+import { resolveOpenLuxKeyGroupForModel } from '@/lib/providers/openlux/groups'
 import type { PlatformServiceConfigResponse } from './config'
 
 // Kept inline (no server-module runtime imports) because client admin components
@@ -13,6 +14,8 @@ const CUSTOMER_BUSINESS_MODEL_NAMES: Readonly<Record<string, string>> = {
   'nori::nori-gpt-max': 'Nori GPT Max',
   'nori::nori-gemini': 'Nori Gemini',
   'nori::nori-deepseek': 'Nori DeepSeek',
+  'nori::nori-deepseek-pro': 'Nori DeepSeek Pro',
+  'nori::nori-kimi': 'Nori Kimi',
   'nori::nori-image-mini': 'GPT Image 2.5 Mini',
   'nori::nori-image-fast': 'GPT Image 2.5 Fast',
   'nori::nori-image': 'GPT Image 2.5',
@@ -32,7 +35,6 @@ const CUSTOMER_BUSINESS_MODEL_NAMES: Readonly<Record<string, string>> = {
 export type SelectableModelType = NoriBusinessModelType
 
 export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
-  deepseek: 'DeepSeek',
   openlux: 'OpenLux',
   kuaizi: 'Kuaizi',
   huimengi: '绘梦工坊',
@@ -42,6 +44,12 @@ export const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
 
 const PROVIDER_MODEL_DISPLAY_OVERRIDES: Readonly<Record<string, string>> = {
   [KUAIZI_SEEDANCE_25_INTL_MODEL_KEY]: 'Kuaizi · Seedance 2.5 国际版',
+  'openlux::gemini-3.8-flash': 'OpenLux · Gemini 3.8 Flash',
+  'openlux::deepseek-v4.1-flash': 'OpenLux · DeepSeek V4.1 Flash',
+  'openlux::deepseek-v4-pro': 'OpenLux · DeepSeek V4 Pro',
+  'openlux::qwen3.8-max': 'OpenLux · Qwen 3.8 Max',
+  'openlux::kimi-k2.6': 'OpenLux · Kimi K2.6',
+  'openlux::claude-sonnet-5': 'OpenLux · Claude Sonnet 5',
 }
 
 export function providerModelDisplayName(runtimeModelKey: string, modelId: string): string {
@@ -73,17 +81,26 @@ export function viewerContextFromSession(session: {
 }
 
 /**
- * Internal full-catalog view matches ONLY the actor's own user ID (never
- * workspaceOwnerId), so customer/sub-accounts under an operator workspace do
- * not accidentally inherit provider-level visibility.
+ * Internal full-catalog view matches either the actor's own user ID OR their
+ * workspaceOwnerId, so sub-accounts under an internal main account
+ * automatically inherit the internal full view.
  */
 export function isInternalModelViewer(
   config: Pick<PlatformServiceConfigResponse, 'internalModelViewUserIds'>,
   viewer?: ModelViewerContext | string | null,
 ): boolean {
-  const actorId = (typeof viewer === 'string' ? viewer : (viewer?.actorId || viewer?.userId))?.trim() || ''
-  if (!actorId) return false
-  return Array.isArray(config.internalModelViewUserIds) && config.internalModelViewUserIds.includes(actorId)
+  if (!Array.isArray(config.internalModelViewUserIds) || config.internalModelViewUserIds.length === 0) {
+    return false
+  }
+  if (typeof viewer === 'string') {
+    const id = viewer.trim()
+    return Boolean(id && config.internalModelViewUserIds.includes(id))
+  }
+  const actorId = (viewer?.actorId || viewer?.userId)?.trim() || ''
+  if (actorId && config.internalModelViewUserIds.includes(actorId)) return true
+  const workspaceOwnerId = viewer?.workspaceOwnerId?.trim() || ''
+  if (workspaceOwnerId && config.internalModelViewUserIds.includes(workspaceOwnerId)) return true
+  return false
 }
 
 export function isCustomerModelVisibleForViewer(
@@ -154,7 +171,14 @@ function isUsableRuntimeModel(
   modelId: string,
 ): boolean {
   const provider = config.providers.find((item) => item.id === providerId)
-  if (!provider?.hasApiKey) return false
+  if (!provider) return false
+  if (providerId === 'openlux') {
+    const group = resolveOpenLuxKeyGroupForModel(modelId)
+    const hasKey = provider.hasApiKey === true || (group !== 'default' && provider.groupApiKeyStatus?.[group] === true)
+    if (!hasKey) return false
+  } else if (!provider.hasApiKey) {
+    return false
+  }
   if (providerId === 'kuaizi' && modelId === KUAIZI_SEEDANCE_25_INTL_MODEL_ID && !provider.seedance25IntlKzep?.trim()) {
     return false
   }
@@ -217,7 +241,7 @@ export function listConfiguredSelectableModels(
     if (business.type !== type) return false
     const runtimeModelKey = config.modelRouting[business.key as keyof typeof config.modelRouting]
     const runtime = runtimeModelKey ? models.get(runtimeModelKey) : null
-    return runtime?.type === type && providers.get(runtime.provider) === true
+    return runtime?.type === type && isUsableRuntimeModel(config, runtime.provider, runtime.modelId)
   }).map((business) => {
     const runtimeModelKey = config.modelRouting[business.key as keyof typeof config.modelRouting]
     return {
@@ -239,11 +263,20 @@ export function listSelectableModelsForViewer(
   const modelsByKey = new Map(config.models.map((model) => [composeModelKey(model.provider, model.modelId), model]))
 
   if (internalViewer) {
-    // Internal operators see ALL configured usable provider models for video &
-    // image (even models hidden from customers) so they can compare providers.
-    if (type === 'video' || type === 'image') {
+    // Internal operators see configured usable provider models for video,
+    // image & llm (even models hidden from customers) so they can compare providers.
+    // For video models, respect the administrator's global modelEnabled switch:
+    // turning a video model OFF hides it from internal accounts as well.
+    if (type === 'video' || type === 'image' || type === 'llm') {
       return config.models
-        .filter((model) => model.type === type && isUsableRuntimeModel(config, model.provider, model.modelId))
+        .filter((model) => {
+          if (model.type !== type || !isUsableRuntimeModel(config, model.provider, model.modelId)) return false
+          if (type === 'video') {
+            const key = composeModelKey(model.provider, model.modelId)
+            if (config.modelEnabled?.[key] !== true) return false
+          }
+          return true
+        })
         .map((model) => {
           const modelKey = composeModelKey(model.provider, model.modelId)
           return {
@@ -330,9 +363,10 @@ export function listSelectableModelAliasesForViewer(
   if (!isInternalModelViewer(config, viewer)) return {}
   const selectableVideo = listSelectableModelsForViewer(config, 'video', viewer)
   const selectableImage = listSelectableModelsForViewer(config, 'image', viewer)
-  const selectableKeys = new Set([...selectableVideo, ...selectableImage].map((model) => model.modelKey))
+  const selectableLlm = listSelectableModelsForViewer(config, 'llm', viewer)
+  const selectableKeys = new Set([...selectableVideo, ...selectableImage, ...selectableLlm].map((model) => model.modelKey))
   return Object.fromEntries(config.businessModels
-    .filter((model) => model.type === 'video' || model.type === 'image')
+    .filter((model) => model.type === 'video' || model.type === 'image' || model.type === 'llm')
     .map((model) => {
       const target = config.modelRouting[model.key as keyof typeof config.modelRouting] || ''
       return [model.key, selectableKeys.has(target) ? target : '']
@@ -360,7 +394,7 @@ export function resolveModelKeyForViewer(
       const matched = selectable.find((model) => model.modelKey === target)
       if (matched) return { allowed: true, modelKey: matched.modelKey, runtimeModelKey: matched.runtimeModelKey }
     }
-    return { allowed: false, reason: '所选模型当前不可用或未配置密钥。' }
+    return { allowed: false, reason: '所选模型当前已关闭、不可用或未配置密钥。' }
   }
   // Customer compatibility: allow a legacy saved canvas node pointing at a
   // direct provider::modelId ONLY when it is the active routed target of a

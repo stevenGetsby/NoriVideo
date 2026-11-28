@@ -2,6 +2,7 @@ import { createOpenAI } from '@ai-sdk/openai'
 import { findBuiltinPricingCatalogEntry } from '@/lib/model-pricing/catalog'
 import { resolveBuiltinPricing } from '@/lib/model-pricing/lookup'
 import { readServiceConfig, type ServiceConfig } from '@/lib/service-config'
+import { OPENLUX_TEXT_KEY_GROUPS, resolveOpenLuxKeyGroupForModel } from '@/lib/providers/openlux/groups'
 import {
   buildCanvasAgentModelCatalog,
   CANVAS_AGENT_SELECTION_KEY,
@@ -16,9 +17,22 @@ export function usableCanvasAgentKey(value: unknown): value is string {
     && !/^(?:your[-_ ]|placeholder$|replace[-_ ]?me$)/i.test(value.trim())
 }
 
-function credential(config: ServiceConfig, provider: CanvasAgentProvider) {
+function credential(config: ServiceConfig, provider: CanvasAgentProvider, modelId?: string) {
+  const providerConfig = config.llm?.providers?.find((item) => item.id === provider)
+  if (provider === 'openlux') {
+    const group = resolveOpenLuxKeyGroupForModel(modelId)
+    const groupSpec = group !== 'default'
+      ? OPENLUX_TEXT_KEY_GROUPS.find((item) => item.id === group)
+      : undefined
+    return [
+      group !== 'default' ? providerConfig?.groupApiKeys?.[group] : undefined,
+      groupSpec ? process.env[groupSpec.envKey] : undefined,
+      providerConfig?.apiKey,
+      process.env[CANVAS_AGENT_PROVIDER_PRESETS.openlux.envKey],
+    ].find(usableCanvasAgentKey)?.trim()
+  }
   return [
-    config.llm?.providers?.find((item) => item.id === provider)?.apiKey,
+    providerConfig?.apiKey,
     process.env[CANVAS_AGENT_PROVIDER_PRESETS[provider].envKey],
   ].find(usableCanvasAgentKey)?.trim()
 }
@@ -38,7 +52,7 @@ export function getCanvasAgentModelCatalog(config = readServiceConfig()) {
     candidates: CANVAS_AGENT_MODEL_CANDIDATES,
     settings: config.llm?.agentModels ?? {},
     defaultModelKey: config.llm?.modelRouting?.[CANVAS_AGENT_SELECTION_KEY],
-    hasKey: (provider) => Boolean(credential(config, provider)),
+    hasKey: (provider, modelId) => Boolean(credential(config, provider, modelId)),
     hasPricing: hasTextPricing,
   })
 }
@@ -48,20 +62,12 @@ export async function resolveCanvasAgentLanguageModel(input: { userId: string; r
   // snapshot for the entire request.
   const config = readServiceConfig()
   const selected = selectCanvasAgentModel(getCanvasAgentModelCatalog(config), input.requestedModelKey)
-  const apiKey = credential(config, selected.providerId)
+  const apiKey = credential(config, selected.providerId, selected.modelId)
   if (!apiKey) throw new CanvasAgentModelSelectionError('MODEL_UNAVAILABLE')
   const adapter = createOpenAI({
     apiKey,
     baseURL: CANVAS_AGENT_PROVIDER_PRESETS[selected.providerId].baseURL,
     name: selected.providerId,
-    ...(selected.providerId === 'deepseek' ? {
-      // This product does not store or resend private reasoning. Use the
-      // vendor's non-thinking mode rather than breaking tool continuations
-      // that would otherwise require the previous reasoning payload.
-      fetch: (url: RequestInfo | URL, init?: RequestInit) => fetch(url, typeof init?.body === 'string'
-        ? { ...init, body: JSON.stringify({ ...JSON.parse(init.body), thinking: { type: 'disabled' } }) }
-        : init),
-    } : {}),
   })
   return {
     ...selected,

@@ -1,7 +1,6 @@
 import type { UnifiedModelType } from '@/lib/model-config-contract'
 
 export const MODEL_PROVIDER = {
-  DEEPSEEK: 'deepseek',
   OPENLUX: 'openlux',
   KUAIZI: 'kuaizi',
   HUIMENGI: 'huimengi',
@@ -27,7 +26,6 @@ export type ModelPreset = {
 }
 
 export const MODEL_PROVIDER_PRESETS: readonly ModelProviderPreset[] = [
-  { id: MODEL_PROVIDER.DEEPSEEK, name: 'DeepSeek 官方', baseUrl: 'https://api.deepseek.com/v1' },
   { id: MODEL_PROVIDER.OPENLUX, name: 'OpenLux API', baseUrl: 'https://api.openlux.ai/v1' },
   { id: MODEL_PROVIDER.KUAIZI, name: 'Kuaizi API', baseUrl: 'https://aiopenapi.kuaizi.cn' },
   { id: MODEL_PROVIDER.HUIMENGI, name: '绘梦工坊 API', baseUrl: 'https://api.huimengi.com' },
@@ -40,8 +38,12 @@ export const MODEL_PROVIDER_NAME_ZH: Readonly<Record<string, string>> = Object.f
 )
 
 export const MODEL_PRESETS: readonly ModelPreset[] = [
-  { modelId: 'deepseek-chat', name: 'DeepSeek Chat', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
-  { modelId: 'deepseek-reasoner', name: 'DeepSeek Reasoner', type: 'llm', provider: MODEL_PROVIDER.DEEPSEEK, capabilityGroup: 'text' },
+  { modelId: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
+  { modelId: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
+  { modelId: 'deepseek-v4-pro', name: 'DeepSeek V4 Pro', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
+  { modelId: 'qwen3.8-max', name: 'Qwen 3.8 Max', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
+  { modelId: 'kimi-k2.6', name: 'Kimi K2.6', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
+  { modelId: 'claude-sonnet-5', name: 'Claude Sonnet 5', type: 'llm', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'text' },
   { modelId: 'gpt-image-2.5-flare', name: 'GPT Image 2.5 Flare', type: 'image', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'image' },
   { modelId: 'gpt-image-2.5-sunburst', name: 'GPT Image 2.5 Sunburst', type: 'image', provider: MODEL_PROVIDER.OPENLUX, capabilityGroup: 'image' },
 ]
@@ -54,8 +56,7 @@ export function getRawProviderKey(providerId?: string): string {
 
 export function normalizeModelProviderKey(providerId?: string): ModelProviderKey | null {
   const rawKey = getRawProviderKey(providerId).toLowerCase()
-  return rawKey === MODEL_PROVIDER.DEEPSEEK
-    || rawKey === MODEL_PROVIDER.OPENLUX
+  return rawKey === MODEL_PROVIDER.OPENLUX
     || rawKey === MODEL_PROVIDER.KUAIZI
     || rawKey === MODEL_PROVIDER.HUIMENGI
     || rawKey === MODEL_PROVIDER.AILINK
@@ -69,7 +70,7 @@ export function isSupportedModelProvider(providerId?: string): boolean {
 }
 
 export function isOpenAICompatLlmProviderId(providerId?: string): boolean {
-  return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.DEEPSEEK
+  return normalizeModelProviderKey(providerId) === MODEL_PROVIDER.OPENLUX
 }
 
 export function normalizeProviderModelId(_providerId: string | undefined, modelId: string): string {

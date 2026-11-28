@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
 import type { CanvasOverviewSnapshot, CanvasOverviewStore } from './canvas-overview-store'
 import type { OverviewKind } from './canvas-viewport-index'
 
@@ -115,7 +115,7 @@ export function drawCanvasOverview(
   ctx.globalAlpha = 1
 }
 
-export function CanvasOverviewLayer({ store, flowStore, getTitle, edgeColor, selectedColor, labelColor }: CanvasOverviewLayerProps) {
+export const CanvasOverviewLayer = memo(function CanvasOverviewLayer({ store, flowStore, getTitle, edgeColor, selectedColor, labelColor }: CanvasOverviewLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const colorsRef = useRef({ edgeColor, selectedColor, labelColor })
   const titleRef = useRef(getTitle)
@@ -196,4 +196,4 @@ export function CanvasOverviewLayer({ store, flowStore, getTitle, edgeColor, sel
   }, [flowStore, store])
 
   return <canvas ref={canvasRef} className="nori-canvas-overview" aria-hidden="true" data-canvas-overview />
-}
+})

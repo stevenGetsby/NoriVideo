@@ -3,6 +3,8 @@ import type { ServiceConfigModel, ServiceConfigProvider } from '@/lib/service-co
 import { isUsableServiceSecret, readMaterializedPlatformServiceConfig } from './config'
 import { listHuimengiCatalogModels } from '@/lib/providers/huimengi/catalog'
 import { listKuaiziCatalogModels } from '@/lib/providers/kuaizi/catalog'
+import { listOpenLuxCatalogModels } from '@/lib/providers/openlux/catalog'
+import { OPENLUX_TEXT_KEY_GROUPS } from '@/lib/providers/openlux/groups'
 import { listAilinkCatalogModels } from '@/lib/providers/ailink/catalog'
 import { listTopenrouterCatalogModels } from '@/lib/providers/topenrouter/catalog'
 
@@ -48,7 +50,6 @@ export function isDiscoverableTextModel(providerId: string, modelId: string): bo
   const normalized = compact(modelId)
   if (!normalized || NON_TEXT_MODEL_PATTERN.test(normalized)) return false
   if (provider === 'ghc') return /^(?:gpt|gemini)(?:[-_.]|$)/i.test(normalized)
-  if (provider === 'deepseek') return /^deepseek(?:[-_.]|$)/i.test(normalized)
   return true
 }
 
@@ -69,19 +70,24 @@ export async function discoverProviderTextModels(providerId: string): Promise<Di
   const config = readMaterializedPlatformServiceConfig()
   const provider = (config.llm?.providers || []).find((item) => item.id === normalizedProviderId)
   if (!provider) throw new Error('服务不存在')
-  if (!isUsableServiceSecret(provider.apiKey)) {
+  const providerKey = getRawProviderKey(provider.id).toLowerCase()
+  const hasAnyKey = isUsableServiceSecret(provider.apiKey)
+    || (providerKey === 'openlux' && OPENLUX_TEXT_KEY_GROUPS.some((group) => isUsableServiceSecret(provider.groupApiKeys?.[group.id])))
+  if (!hasAnyKey) {
     throw new Error('API Key 未配置，请先保存真实密钥')
   }
 
-  const catalog = getRawProviderKey(provider.id).toLowerCase() === 'kuaizi'
-    ? listKuaiziCatalogModels()
-    : getRawProviderKey(provider.id).toLowerCase() === 'huimengi'
-      ? listHuimengiCatalogModels()
-      : getRawProviderKey(provider.id).toLowerCase() === 'ailink'
-        ? listAilinkCatalogModels()
-        : getRawProviderKey(provider.id).toLowerCase() === 'topenrouter'
-          ? listTopenrouterCatalogModels()
-          : null
+  const catalog = providerKey === 'openlux'
+    ? listOpenLuxCatalogModels()
+    : providerKey === 'kuaizi'
+      ? listKuaiziCatalogModels()
+      : providerKey === 'huimengi'
+        ? listHuimengiCatalogModels()
+        : providerKey === 'ailink'
+          ? listAilinkCatalogModels()
+          : providerKey === 'topenrouter'
+            ? listTopenrouterCatalogModels()
+            : null
   if (catalog) {
     const models = catalog.map((model): ServiceConfigModel => ({
       provider: provider.id,
@@ -89,6 +95,7 @@ export async function discoverProviderTextModels(providerId: string): Promise<Di
       modelKey: `${provider.id}::${model.modelId}`,
       name: model.name,
       type: model.modality,
+      ...(model.modality === 'llm' ? { llmProtocol: 'chat-completions' as const } : {}),
     }))
     return {
       providerId: provider.id,

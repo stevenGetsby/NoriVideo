@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { MouseEvent as ReactMouseEvent } from 'react'
 import { useSession } from 'next-auth/react'
 import Box from '@/components/ui/icons/ph/cube'
@@ -134,7 +134,7 @@ export function CanvasProjectAssetContextMenu({
   )
 }
 
-export function CanvasProjectAssets({
+export const CanvasProjectAssets = memo(function CanvasProjectAssets({
   projectId,
   onInsert,
   onInsertWorkflow,
@@ -582,4 +582,4 @@ export function CanvasProjectAssets({
       /> : null}
     </aside>
   )
-}
+})

@@ -53,6 +53,165 @@ import {
   uniqueProjectRoleAssigneeIds,
   type ProjectRoleAssignees,
 } from '@/lib/projects/project-role-assignments'
+import { setAccountActorContext } from '@/lib/account/request-context'
+import { createInitialBatchRunForProject } from '@/lib/batch-workflow/service'
+import {
+  BATCH_RUN_MODE_VALUES,
+  normalizeBatchItemInputPayload,
+  type BatchRunItemSeedInput,
+  type BatchRunMode,
+  type CreateInitialBatchRunForProjectInput,
+  type WorkflowModelConfig,
+  type WorkflowStageParamsMap,
+} from '@/lib/batch-workflow/types'
+
+function normalizeProjectBatchSeedItem(raw: unknown, label: string): BatchRunItemSeedInput {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new ApiError('INVALID_PARAMS', { message: `${label} 必须为对象。` })
+  }
+  const obj = raw as Record<string, unknown>
+  if (obj.input !== undefined && (!obj.input || typeof obj.input !== 'object' || Array.isArray(obj.input))) {
+    throw new ApiError('INVALID_PARAMS', { message: `${label}.input 必须为对象。` })
+  }
+  const rawInput = (obj.input && typeof obj.input === 'object' && !Array.isArray(obj.input)
+    ? obj.input
+    : obj) as Record<string, unknown>
+  const title = typeof obj.title === 'string' && obj.title.trim() ? obj.title.trim() : undefined
+  return {
+    ...(title ? { title } : {}),
+    input: normalizeBatchItemInputPayload(rawInput),
+  }
+}
+
+function hasSeedItemContent(seed: BatchRunItemSeedInput): boolean {
+  const input = seed.input
+  return Boolean(
+    input.sourceVideoMaterialId
+    || input.sourceVideoStorageKey
+    || input.sourceVideoUrl
+    || input.pastedScript
+    || input.productName,
+  )
+}
+
+function parseBatchWorkflowProjectConfig(rawValue: unknown): CreateInitialBatchRunForProjectInput | null {
+  if (rawValue === undefined || rawValue === null || rawValue === '') return null
+  let parsed: unknown = rawValue
+  if (typeof rawValue === 'string') {
+    const trimmed = rawValue.trim()
+    if (!trimmed) return null
+    try {
+      parsed = JSON.parse(trimmed)
+    } catch {
+      throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow 配置 JSON 格式无效。' })
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow 配置必须为对象。' })
+  }
+  const obj = parsed as Record<string, unknown>
+  if (obj.runMode !== undefined && !BATCH_RUN_MODE_VALUES.includes(obj.runMode as BatchRunMode)) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.runMode 必须为 gated 或 auto。' })
+  }
+  if (obj.templateId !== undefined && obj.templateId !== null && typeof obj.templateId !== 'string') {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.templateId 必须为字符串。' })
+  }
+  if (obj.track !== undefined && obj.track !== null && typeof obj.track !== 'string') {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.track 必须为字符串。' })
+  }
+  const rawTitle = obj.title ?? obj.name
+  if (rawTitle !== undefined && rawTitle !== null && typeof rawTitle !== 'string') {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.title 必须为字符串。' })
+  }
+  if (
+    obj.modelConfig !== undefined
+    && obj.modelConfig !== null
+    && (typeof obj.modelConfig !== 'object' || Array.isArray(obj.modelConfig))
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.modelConfig 必须为对象。' })
+  }
+  if (
+    obj.stageSkillOverrides !== undefined
+    && obj.stageSkillOverrides !== null
+    && (typeof obj.stageSkillOverrides !== 'object' || Array.isArray(obj.stageSkillOverrides))
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.stageSkillOverrides 必须为对象。' })
+  }
+  if (
+    obj.stageParams !== undefined
+    && obj.stageParams !== null
+    && (typeof obj.stageParams !== 'object' || Array.isArray(obj.stageParams))
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.stageParams 必须为对象。' })
+  }
+  if (
+    obj.initialProduct !== undefined
+    && obj.initialProduct !== null
+    && (typeof obj.initialProduct !== 'object' || Array.isArray(obj.initialProduct))
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.initialProduct 必须为对象。' })
+  }
+  if (obj.hookAngles !== undefined && obj.hookAngles !== null && !Array.isArray(obj.hookAngles)) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.hookAngles 必须为字符串数组。' })
+  }
+  if (obj.items !== undefined && obj.items !== null && !Array.isArray(obj.items)) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.items 必须为数组。' })
+  }
+  if (
+    obj.initialItem !== undefined
+    && obj.initialItem !== null
+    && (typeof obj.initialItem !== 'object' || Array.isArray(obj.initialItem))
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: 'batchWorkflow.initialItem 必须为对象。' })
+  }
+  for (const field of [
+    'pastedScript',
+    'sourceVideoMaterialId',
+    'sourceVideoStorageKey',
+    'sourceVideoUrl',
+    'sourceVideoFileName',
+  ] as const) {
+    if (obj[field] !== undefined && obj[field] !== null && typeof obj[field] !== 'string') {
+      throw new ApiError('INVALID_PARAMS', { message: `batchWorkflow.${field} 必须为字符串。` })
+    }
+  }
+
+  let normalizedItems: BatchRunItemSeedInput[] | null = null
+  if (Array.isArray(obj.items) && obj.items.length > 0) {
+    normalizedItems = obj.items.map((entry, idx) =>
+      normalizeProjectBatchSeedItem(entry, `batchWorkflow.items[${idx}]`),
+    )
+  } else if (obj.initialItem && typeof obj.initialItem === 'object' && !Array.isArray(obj.initialItem)) {
+    const seed = normalizeProjectBatchSeedItem(obj.initialItem, 'batchWorkflow.initialItem')
+    if (hasSeedItemContent(seed)) {
+      normalizedItems = [seed]
+    }
+  }
+
+  return {
+    templateId: typeof obj.templateId === 'string' ? obj.templateId.trim() || null : null,
+    track: typeof obj.track === 'string' ? obj.track.trim() || null : null,
+    ...(obj.runMode !== undefined ? { runMode: obj.runMode as BatchRunMode } : {}),
+    ...(typeof rawTitle === 'string' && rawTitle.trim() ? { title: rawTitle.trim() } : {}),
+    ...(obj.modelConfig !== undefined
+      ? { modelConfig: obj.modelConfig as Partial<WorkflowModelConfig> | null }
+      : {}),
+    ...(obj.stageSkillOverrides !== undefined
+      ? { stageSkillOverrides: obj.stageSkillOverrides as Record<string, string> | null }
+      : {}),
+    ...(obj.stageParams !== undefined
+      ? { stageParams: obj.stageParams as WorkflowStageParamsMap | null }
+      : {}),
+    ...(normalizedItems ? { items: normalizedItems } : {}),
+    ...(obj.pastedScript !== undefined ? { pastedScript: obj.pastedScript as string | null } : {}),
+    ...(obj.sourceVideoMaterialId !== undefined ? { sourceVideoMaterialId: obj.sourceVideoMaterialId as string | null } : {}),
+    ...(obj.sourceVideoStorageKey !== undefined ? { sourceVideoStorageKey: obj.sourceVideoStorageKey as string | null } : {}),
+    ...(obj.sourceVideoUrl !== undefined ? { sourceVideoUrl: obj.sourceVideoUrl as string | null } : {}),
+    ...(obj.sourceVideoFileName !== undefined ? { sourceVideoFileName: obj.sourceVideoFileName as string | null } : {}),
+    ...(obj.initialProduct !== undefined ? { initialProduct: obj.initialProduct as Record<string, unknown> | null } : {}),
+    ...(obj.hookAngles !== undefined ? { hookAngles: obj.hookAngles as string[] | null } : {}),
+  }
+}
 
 function readProjectDraftBody(body: unknown): ProjectDraftInput {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
@@ -626,19 +785,27 @@ export const POST = apiHandler(async (request: NextRequest) => {
 
   const rawWorkId = rawBody.parentProjectId ?? rawBody.workId ?? rawBody.work_id
   const requestedWorkId = typeof rawWorkId === 'string' ? rawWorkId.trim() : ''
-  if (rawBody.creationMode !== undefined && rawBody.creationMode !== 'canvas' && rawBody.creationMode !== 'workflow') {
-    throw new ApiError('INVALID_PARAMS', { message: '创作方式必须为 canvas 或 workflow。' })
+  if (
+    rawBody.creationMode !== undefined
+    && rawBody.creationMode !== 'canvas'
+    && rawBody.creationMode !== 'workflow'
+    && rawBody.creationMode !== 'batch_workflow'
+  ) {
+    throw new ApiError('INVALID_PARAMS', { message: '创作方式必须为 canvas、workflow 或 batch_workflow。' })
   }
   if (rawBody.createBlankCanvas !== undefined && typeof rawBody.createBlankCanvas !== 'boolean' && rawBody.createBlankCanvas !== 'true' && rawBody.createBlankCanvas !== 'false') {
     throw new ApiError('INVALID_PARAMS', { message: 'createBlankCanvas 必须为布尔值。' })
   }
   const creationMode = rawBody.creationMode || (rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true' ? 'canvas' : 'workflow')
   const createBlankCanvas = creationMode === 'canvas' || rawBody.createBlankCanvas === true || rawBody.createBlankCanvas === 'true'
+  const batchWorkflowConfig = creationMode === 'batch_workflow'
+    ? parseBatchWorkflowProjectConfig(rawBody.batchWorkflow)
+    : null
   const inheritRequest = readInheritAssetsRequest(rawBody)
-  if (inheritRequest && !createBlankCanvas) {
+  if (inheritRequest && !createBlankCanvas && creationMode !== 'batch_workflow') {
     throw new ApiError('INVALID_PARAMS', {
       code: 'INHERIT_REQUIRES_CANVAS',
-      message: '只有以画布方式创建作品时才能继承资产。',
+      message: '只有以画布或风格工作流方式创建作品时才能继承资产。',
     })
   }
   const parentIds = [rawBody.parentProjectId, rawBody.workId, rawBody.work_id]
@@ -843,6 +1010,34 @@ export const POST = apiHandler(async (request: NextRequest) => {
   }
   const { inheritedAssets, ...project } = created
 
+  let batchRun = null
+  if (creationMode === 'batch_workflow') {
+    setAccountActorContext(actor.actorId, actor.workspaceOwnerId)
+    try {
+      batchRun = await createInitialBatchRunForProject({
+        workspaceOwnerId: actor.workspaceOwnerId,
+        actorId: actor.actorId,
+        workId,
+        projectId: project.id,
+        projectName: project.name,
+        config: batchWorkflowConfig,
+      })
+    } catch (error) {
+      await Promise.allSettled([
+        prisma.batchRun.deleteMany({ where: { projectId: project.id } }),
+        prisma.frameosMaterial.deleteMany({ where: { projectId: project.id } }),
+      ])
+      await prisma.project.delete({ where: { id: project.id } }).catch((rollbackErr) => {
+        logError('[Projects API] 初始工作流批次创建失败后回滚作品异常', {
+          projectId: project.id,
+          error: rollbackErr,
+        })
+      })
+      await cleanupUploadedProjectStyleReferences(uploadedStyleReferences)
+      throw error
+    }
+  }
+
   if (initialImportDraft.pendingImportText) {
     startInitialProjectImport({
       projectId: project.id,
@@ -856,5 +1051,7 @@ export const POST = apiHandler(async (request: NextRequest) => {
     canvas: project.canvas,
     initialEpisodesCreated: initialEpisodeRange?.count ?? 0,
     inheritedAssets,
+    batchRun,
+    batchRunId: batchRun?.id ?? null,
   }, { status: 201 })
 })

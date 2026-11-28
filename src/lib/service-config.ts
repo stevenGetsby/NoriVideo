@@ -25,6 +25,7 @@ export interface ServiceConfigProvider {
   name: string
   baseUrl?: string
   apiKey?: string
+  groupApiKeys?: Record<string, string>
   assetGroupId?: string
   seedance25IntlKzep?: string
 }

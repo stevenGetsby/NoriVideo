@@ -358,7 +358,11 @@ describe('canvas editor interaction contracts', () => {
     expect(removeDisconnectedCanvasReferences(references, 'unaffected-target', removed, remaining)).toBe(references)
 
     const graph = readSource('src/features/canvas/CanvasGraph.tsx')
+    const generator = readSource('src/features/canvas/components/CanvasGenerator.tsx')
     expect(graph).toContain('cleanupDisconnectedReferences(removedEdges, remainingEdges)')
+    expect(graph).toContain('const pausedReferenceNodeIds = generation?.pausedReferenceNodeIds')
+    expect(graph).toContain('const nextPausedReferenceNodeIds = removeDisconnectedCanvasReferences(pausedReferenceNodeIds, node.id, removedEdges, remainingEdges)')
+    expect(generator).toContain('editorActiveIds.has(reference.id) || pausedReferenceIds.includes(reference.id) || wiredReferenceIds.has(reference.id)')
     expect(graph).toContain('if (selectedEdgeIds.length > 0) removeEdgesById(selectedEdgeIds)')
     expect(graph).toContain("if (menu.scope === 'edge' && action === 'delete-edge') { removeEdgesById([menu.edgeId]); return }")
   })

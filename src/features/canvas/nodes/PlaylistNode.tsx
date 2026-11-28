@@ -27,6 +27,7 @@ import {
 import { toDisplayImageUrl } from '@/lib/media/image-url'
 import { CANVAS_MATERIAL_DRAG_TYPE } from '../components/CanvasProjectAssets'
 import { useCanvasEditor, useCanvasEditorPersistence, useCanvasMultiSelection, useCanvasPlaylistDropTarget, type CanvasPlaylistVideoSource } from '../CanvasEditorContext'
+import { areCanvasNodePropsEqual } from '../drag-perf'
 import type { CanvasFlowNode } from '../editor-types'
 import type { CanvasPlaylistItem, CanvasPlaylistRenderSummary, CanvasPlaylistReviewSummary } from '../types'
 import { useVisiblePolling } from '@/hooks/common/useVisiblePolling'
@@ -665,5 +666,5 @@ function PlaylistNodeImpl({ id, data, selected }: NodeProps<CanvasFlowNode>) {
   )
 }
 
-export const PlaylistNode = memo(PlaylistNodeImpl)
+export const PlaylistNode = memo(PlaylistNodeImpl, areCanvasNodePropsEqual)
 PlaylistNode.displayName = 'PlaylistNode'

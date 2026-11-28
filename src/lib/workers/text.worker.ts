@@ -47,6 +47,7 @@ import { handleExportDeliveryTask } from './handlers/export-delivery'
 import { handleStoryReleaseBuildTask } from '@/lib/mp/release/build'
 import { handleAssetExtractionTask } from './handlers/asset-extraction'
 import { handleCanvasGenerationTask } from './handlers/canvas-generation-task-handler'
+import { handleBatchWorkflowStageTask } from './handlers/batch-workflow'
 
 function readAssetKind(value: Record<string, unknown>): string {
   return typeof value.assetKind === 'string' ? value.assetKind : 'location'
@@ -678,6 +679,8 @@ async function processTextTask(job: Job<TaskJobData>) {
   await reportTaskProgress(job, 5, { stage: 'received' })
 
   switch (job.data.type) {
+    case TASK_TYPE.WORKFLOW_STAGE_RUN:
+      return await handleBatchWorkflowStageTask(job)
     case TASK_TYPE.CANVAS_TEXT_GENERATION:
     case TASK_TYPE.CANVAS_STORYBOARD_PLAN:
       return await handleCanvasGenerationTask(job)

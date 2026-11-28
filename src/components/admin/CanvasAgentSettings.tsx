@@ -89,11 +89,11 @@ export function CanvasAgentSettings({ config, markConfig, query = '' }: {
             />
           </label>
         ))}
-        {(['kimi', 'openai'] as const)
+        {(['openai'] as const)
           .filter((provider) => !candidates.some((candidate) => candidate.providerId === provider))
           .map((provider) => (
             <div key={provider} className="nori-admin-purpose-row">
-              <span className="nori-admin-subtle">{provider === 'kimi' ? 'Kimi' : 'OpenAI'}：待完成模型登记</span>
+              <span className="nori-admin-subtle">OpenAI：待完成模型登记</span>
               <span className="nori-admin-purpose-count justify-self-end">待登记</span>
             </div>
           ))}

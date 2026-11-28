@@ -9,6 +9,7 @@ import { MentionPromptEditor, type MentionPromptAsset } from '@/components/frame
 import { useAccountBalance } from '@/hooks/common/useAccountBalance'
 import { useCanvasEditor, useCanvasMultiSelection } from '../CanvasEditorContext'
 import { useCanvasNodeSource, useCanvasNodeSourceSelector } from '../canvas-node-source'
+import { areCanvasNodePropsEqual, createCachedMentionNodesSelector, type CanvasMentionNodeDescriptor } from '../drag-perf'
 import type { CanvasFlowNode, CanvasFlowNodeData } from '../editor-types'
 import { CANVAS_REPLACE_CONTENT_EVENT } from './CreativeNode'
 
@@ -32,38 +33,23 @@ function sourceUrlFor(data: CanvasFlowNodeData, incoming: CanvasFlowNode | null)
   return toPlayableVideoUrl(raw || null)
 }
 
-type MentionNode = {
-  id: string
-  type: 'image' | 'audio'
-  title: string
-  imageUrl: string | null
-  contentUrl: string | null
-  audioUrl: string | null
-  materialId: string | null
-}
-
-// Plain descriptors compared by value: dragging any node swaps the node array but must not re-render this card.
-function mentionNodesOf(nodes: readonly CanvasFlowNode[]): MentionNode[] {
-  const result: MentionNode[] = []
-  for (const node of nodes) {
-    if (node.type !== 'image' && node.type !== 'audio') continue
-    result.push({
-      id: node.id,
-      type: node.type,
-      title: node.data.title || '',
-      imageUrl: node.data.imageUrl || null,
-      contentUrl: node.data.contentUrl || null,
-      audioUrl: node.data.audioUrl || null,
-      materialId: node.data.materialId || null,
-    })
-  }
-  return result
-}
+type MentionNode = CanvasMentionNodeDescriptor
 
 const EMPTY_MENTION_NODES: MentionNode[] = []
-const selectMentionNodes = (state: ReactFlowState) => mentionNodesOf(state.nodes as CanvasFlowNode[])
+const cachedRfMentionNodes = createCachedMentionNodesSelector()
+const cachedSourceMentionNodes = createCachedMentionNodesSelector()
+const selectMentionNodes = (state: ReactFlowState) => cachedRfMentionNodes(state.nodes as CanvasFlowNode[])
 const selectNoMentionNodes = () => EMPTY_MENTION_NODES
-const selectSourceMentionNodes = (nodes: CanvasFlowNode[]) => mentionNodesOf(nodes)
+const selectSourceMentionNodes = (nodes: CanvasFlowNode[]) => cachedSourceMentionNodes(nodes)
+
+function sameIncomingVideoNode(left: CanvasFlowNode | null, right: CanvasFlowNode | null) {
+  if (left === right) return true
+  if (!left || !right) return false
+  return left.id === right.id
+    && left.data.title === right.data.title
+    && left.data.videoUrl === right.data.videoUrl
+    && left.data.contentUrl === right.data.contentUrl
+}
 
 function sameMentionNodes(left: MentionNode[], right: MentionNode[]) {
   if (left === right) return true
@@ -100,14 +86,17 @@ export const VideoEditNode = memo(function VideoEditNode({ id, data, selected }:
   // Subscribing to the whole node array re-rendered this card on every drag tick of any node.
   // With render projection RF only holds mounted nodes, so prefer the authoritative node source when present.
   const nodeSource = useCanvasNodeSource()
-  const rfIncoming = useStore((state) => (
-    !nodeSource && incomingNodeId ? (state.nodeLookup.get(incomingNodeId)?.internals.userNode as CanvasFlowNode | undefined) ?? null : null
-  ))
+  const rfIncoming = useStore(
+    (state) => (
+      !nodeSource && incomingNodeId ? (state.nodeLookup.get(incomingNodeId)?.internals.userNode as CanvasFlowNode | undefined) ?? null : null
+    ),
+    sameIncomingVideoNode,
+  )
   const selectIncoming = useCallback(
     (_nodes: CanvasFlowNode[], byId: (id: string) => CanvasFlowNode | undefined) => (incomingNodeId ? byId(incomingNodeId) ?? null : null),
     [incomingNodeId],
   )
-  const sourceIncoming = useCanvasNodeSourceSelector(nodeSource, selectIncoming, Object.is, null)
+  const sourceIncoming = useCanvasNodeSourceSelector(nodeSource, selectIncoming, sameIncomingVideoNode, null)
   const incoming = nodeSource ? sourceIncoming : rfIncoming
   const rfMentionNodes = useStore(nodeSource ? selectNoMentionNodes : selectMentionNodes, sameMentionNodes)
   const sourceMentionNodes = useCanvasNodeSourceSelector(nodeSource, selectSourceMentionNodes, sameMentionNodes, EMPTY_MENTION_NODES)
@@ -432,4 +421,4 @@ export const VideoEditNode = memo(function VideoEditNode({ id, data, selected }:
       <Handle type="source" position={Position.Right} id="output" className="nori-canvas-handle" isConnectable={!editor.readOnly} />
     </article>
   )
-})
+}, areCanvasNodePropsEqual)
